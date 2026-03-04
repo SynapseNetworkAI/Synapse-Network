@@ -1,178 +1,242 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Activity, ShieldCheck, ArrowRightLeft, DollarSign } from 'lucide-react';
+import { Activity, ArrowRightLeft, DollarSign, Database, BrainCircuit, Terminal, GlobeLock } from 'lucide-react';
 import { ethers } from 'ethers';
 
-// Load ABIs and Addresses dynamically generated from Hardhat
 import config from '../contract-config.json';
 import usdcAbi from '../MockUSDCABI.json';
 import escrowAbi from '../EscrowABI.json';
 
-// Mock Data for frontend visuals
-const MOCK_AGENTS = [
-  { id: '0x12...34aB', name: 'Auto-Trader-X', status: 'Active', balance: 540.2, limit: 1000, spent: 459.8 },
-  { id: '0x88...f1C2', name: 'Data-Scraper-99', status: 'Warning', balance: 12.5, limit: 50, spent: 48.5 },
-  { id: '0xFF...00E1', name: 'Arbitrage-Bot', status: 'Paused', balance: 0, limit: 500, spent: 500 },
-];
+interface Deal {
+  taskId: string;
+  buyer: string;
+  seller: string;
+  amount: string;
+  status: "LOCKED" | "RELEASED";
+  txHash: string;
+  blockNumber: number;
+}
 
-export default function Dashboard() {
-  const [logs, setLogs] = useState<{ time: string; type: string; msg: string }[]>([]);
+export default function GodsViewDashboard() {
+  const [logs, setLogs] = useState<{ time: string; type: string; msg: string; hash?: string }[]>([]);
   const [treasuryBalance, setTreasuryBalance] = useState("0.00");
-  const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
 
-  // Initialize Web3 Connection
+  const addLog = (type: string, msg: string, hash?: string) => {
+    setLogs(prev => [{
+      time: new Date().toLocaleTimeString(),
+      type,
+      msg,
+      hash
+    }, ...prev].slice(0, 50));
+  };
+
   useEffect(() => {
-    // Connect to the local Hardhat Node
-    const rpcProvider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-    setProvider(rpcProvider);
+    let provider: ethers.JsonRpcProvider;
+    let usdcContract: ethers.Contract;
+    let escrowContract: ethers.Contract;
 
-    const initWeb3 = async () => {
-      const usdcContract = new ethers.Contract(config.MockUSDC, usdcAbi, rpcProvider);
-      
-      const updateBalance = async () => {
-        try {
-          const balanceWei = await usdcContract.balanceOf(config.Treasury);
-          setTreasuryBalance(ethers.formatUnits(balanceWei, 18));
-        } catch (e) {
-          console.error("Failed to fetch treasury balance:", e);
+    const initData = async () => {
+      try {
+        provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+        usdcContract = new ethers.Contract(config.MockUSDC, usdcAbi, provider);
+        escrowContract = new ethers.Contract(config.Escrow, escrowAbi, provider);
+        
+        setIsConnected(true);
+        addLog("SYSTEM", "AI Matrix Uplink Established (Local Node 127.0.0.1)");
+
+        // Fetch Treasury
+        const balanceWei = await usdcContract.balanceOf(config.Treasury);
+        setTreasuryBalance(ethers.formatUnits(balanceWei, 18));
+
+        // Fetch History Deals
+        const taskCreatedFilter = escrowContract.filters.TaskCreated();
+        const createdEvents = await escrowContract.queryFilter(taskCreatedFilter, -10000, "latest");
+        
+        const taskReleasedFilter = escrowContract.filters.FundsReleased();
+        const releasedEvents = await escrowContract.queryFilter(taskReleasedFilter, -10000, "latest");
+        
+        // Find which ones are released
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const releasedIds = new Set(releasedEvents.map((e: any) => e.args[0]));
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const historyDeals: Deal[] = createdEvents.map((e: any) => ({
+          taskId: e.args[0],
+          buyer: e.args[1],
+          seller: e.args[2],
+          amount: ethers.formatUnits(e.args[3], 18),
+          status: releasedIds.has(e.args[0]) ? "RELEASED" : "LOCKED",
+          txHash: e.transactionHash,
+          blockNumber: e.blockNumber
+        })).reverse(); // Newest first
+
+        setDeals(historyDeals);
+
+        if(historyDeals.length > 0) {
+            addLog("SCANNER", `Detected ${historyDeals.length} past protocol swaps in mempool.`);
         }
-      };
 
-      await updateBalance();
+        // Real-time Event Listeners
+        escrowContract.on("TaskCreated", (taskId, buyer, seller, amount, event) => {
+          const amt = ethers.formatUnits(amount, 18);
+          addLog('ESCROW', `A2A Negotiation Settled! Locked ${amt} USDC for task ${taskId.substring(0,8)}...`, event.log.transactionHash);
+          setDeals(prev => [{
+            taskId: taskId,
+            buyer: buyer,
+            seller: seller,
+            amount: amt,
+            status: "LOCKED",
+            txHash: event.log.transactionHash,
+            blockNumber: event.log.blockNumber
+          }, ...prev]);
+        });
 
-      // Listen to Escrow events
-      const escrowContract = new ethers.Contract(config.Escrow, escrowAbi, rpcProvider);
-      
-      escrowContract.on("TaskCreated", (taskId, buyer, seller, amount, event) => {
-        const amt = ethers.formatUnits(amount, 18);
-        addLog('ESCROW', `Locked ${amt} USDC for task ${taskId.substring(0,6)}...`);
-      });
+        escrowContract.on("FundsReleased", (taskId, seller, amount, fee, event) => {
+          const amt = ethers.formatUnits(amount, 18);
+          const f = ethers.formatUnits(fee, 18);
+          addLog('PROTOCOL', `Task Complete: Released ${amt} USDC. Tax collected: ${f} USDC`, event.log.transactionHash);
+          
+          setDeals(prev => prev.map(d => 
+            d.taskId === taskId ? { ...d, status: "RELEASED" } : d
+          ));
+          
+          // Refresh Treasury
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          usdcContract.balanceOf(config.Treasury).then((bal: any) => {
+            setTreasuryBalance(ethers.formatUnits(bal, 18));
+          });
+        });
 
-      escrowContract.on("TaskCompleted", (taskId, seller, sellerAmount, feeAmount, event) => {
-        const fee = ethers.formatUnits(feeAmount, 18);
-        const paid = ethers.formatUnits(sellerAmount, 18);
-        addLog('RELEASE', `${paid} USDC paid to seller, ${fee} USDC protocol fee`);
-        updateBalance(); // Refresh treasury balance when fee is collected
-      });
+      } catch (err) {
+        console.error("Connection error:", err);
+        addLog("ERROR", "Failed to uplink to local hardhat node.");
+      }
     };
 
-    initWeb3();
+    initData();
 
     return () => {
-      // Cleanup event listeners
-      rpcProvider.removeAllListeners();
+      // Need to clean up listener safely
+      if (escrowContract) {
+        escrowContract.removeAllListeners();
+      }
     };
   }, []);
 
-  const addLog = (type: string, msg: string) => {
-    setLogs((prev) => {
-      const newLog = {
-        time: new Date().toLocaleTimeString('en-US', { hour12: false }),
-        type,
-        msg,
-      };
-      return [newLog, ...prev].slice(0, 15);
-    });
-  };
-
   return (
-    <div className="min-h-screen p-8 max-w-7xl mx-auto space-y-8 animate-fade-in text-[#00FFA3] font-mono">
-      
+    <div className="min-h-screen bg-[#050505] text-[#00FFA3] font-mono p-6 selection:bg-[#00FFA3] selection:text-black">
       {/* Header */}
-      <header className="flex justify-between items-center border-b border-[#00FFA3]/30 pb-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-wider flex items-center gap-3">
-            <ShieldCheck className="w-8 h-8" />
-            AGENT_PAY / COMMAND_CENTER
+      <header className="flex items-center justify-between border-b border-[#00FFA3]/30 pb-4 mb-8">
+        <div className="flex items-center space-x-3">
+          <BrainCircuit className="w-8 h-8 text-[#00FFA3] shadow-[0_0_15px_#00FFA3] animate-pulse" />
+          <h1 className="text-2xl font-bold tracking-widest uppercase">
+            NoCenterPay <span className="opacity-50 text-sm">:: The God&apos;s View</span>
           </h1>
-          <p className="text-[#00FFA3]/70 mt-1 text-sm">ERC-4337 Session Key Management & Protocol Escrow</p>
-          <div className="text-xs text-gray-500 mt-1">Local Network: HTTP://127.0.0.1:8545</div>
         </div>
-        
-        <div className="text-right">
-          <div className="text-sm text-[#00FFA3]/70">REAL TREASURY BALANCE (USDC)</div>
-          <div className="text-4xl font-black font-mono">
-            ${parseFloat(treasuryBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <div className="flex items-center space-x-6 text-sm">
+          <div className="flex items-center space-x-2 border border-[#00FFA3]/20 bg-[#00FFA3]/5 px-3 py-1 rounded">
+            <GlobeLock className="w-4 h-4" />
+            <span>A2A-ANP Protocol: <span className="text-green-400 font-bold">ONLINE</span></span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-[#00FFA3] shadow-[0_0_8px_#00FFA3]' : 'bg-red-500'}`}></div>
+            <span>{isConnected ? "Base Node Synced" : "Node Offline"}</span>
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left Column: Active Agents & Session Keys */}
-        <div className="md:col-span-2 space-y-6">
-          <h2 className="text-xl font-bold border-b border-[#00FFA3]/30 pb-2 flex items-center gap-2">
-            <Activity className="w-5 h-5" />
-            ACTIVE SESSION KEYS
-          </h2>
-          
-          <div className="grid gap-4">
-            {MOCK_AGENTS.map((agent) => {
-              const usagePercent = (agent.spent / agent.limit) * 100;
-              let barColor = 'bg-[#00FFA3]';
-              if (usagePercent > 80) barColor = 'bg-yellow-400';
-              if (usagePercent >= 100) barColor = 'bg-red-500';
+        {/* Left Column: Stats & Entities */}
+        <div className="space-y-6">
+          <div className="border border-[#00FFA3]/30 bg-black/50 p-6 rounded relative overflow-hidden group hover:border-[#00FFA3] transition-colors">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#00FFA3] opacity-5 blur-[50px] group-hover:opacity-10 transition-opacity"></div>
+            <h2 className="text-sm uppercase tracking-widest opacity-60 flex items-center mb-4"><Database className="w-4 h-4 mr-2"/> Platform Protocol Treasury</h2>
+            <div className="text-5xl font-black mb-2 flex items-center">
+              <DollarSign className="w-10 h-10 mr-[-5px]" />
+              {treasuryBalance} <span className="text-sm ml-2 opacity-50 mt-4">USDC</span>
+            </div>
+            <p className="text-xs opacity-50 uppercase mt-4 border-t border-[#00FFA3]/10 pt-4">Autonomously accumulating zero-friction protocol gas...</p>
+          </div>
 
-              return (
-                <div key={agent.id} className="border border-[#00FFA3]/30 p-4 rounded-lg bg-black/50 hover:bg-[#00FFA3]/5 transition-colors">
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <div className="font-bold text-lg">{agent.name}</div>
-                      <div className="text-sm text-[#00FFA3]/60 font-mono">{agent.id}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm">Daily Budget</div>
-                      <div className="font-mono">
-                        ${agent.spent.toFixed(2)} / ${agent.limit.toFixed(2)}
-                      </div>
-                    </div>
+          <div className="border border-[#00FFA3]/30 bg-black/50 rounded flex flex-col h-[600px]">
+            <div className="p-4 border-b border-[#00FFA3]/30 bg-[#00FFA3]/10 uppercase text-xs font-bold tracking-wider flex items-center">
+              <Terminal className="w-4 h-4 mr-2" /> Live Neuromancer Log
+            </div>
+            <div className="p-4 font-mono text-[11px] space-y-3 overflow-y-auto flex-1">
+              {logs.length === 0 && <div className="text-[#00FFA3]/30 italic animate-pulse">Scanning the void... awaiting Agent interactions</div>}
+              {logs.map((log, i) => (
+                <div key={i} className="flex flex-col mb-2 border-l-2 border-[#00FFA3]/20 pl-2">
+                  <div className="flex">
+                    <span className="text-[#00FFA3]/40 w-20 flex-shrink-0">[{log.time}]</span>
+                    <span className={`w-20 font-bold flex-shrink-0 ${log.type === 'ESCROW' ? 'text-yellow-400' : log.type === 'PROTOCOL' ? 'text-purple-400' : log.type === 'ERROR' ? 'text-red-500' : 'text-[#00FFA3]/70'}`}>{log.type}</span>
+                    <span className="text-white ml-2">{log.msg}</span>
                   </div>
-                  
-                  {/* Progress Bar */}
-                  <div className="w-full bg-gray-900 rounded-full h-2.5 outline outline-1 outline-[#00FFA3]/20">
-                    <div className={`${barColor} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${Math.min(usagePercent, 100)}%` }}></div>
-                  </div>
-                  
-                  <div className="flex justify-between mt-2 text-xs opacity-70">
-                    <div>Status: <span className={agent.status === 'Paused' ? 'text-red-500' : 'text-[#00FFA3]'}>[{agent.status}]</span></div>
-                    <div>Remaining: ${(agent.limit - agent.spent).toFixed(2)}</div>
-                  </div>
+                  {log.hash && (
+                    <div className="text-[9px] ml-40 mt-1 opacity-40 hover:text-[#00FFA3] cursor-pointer">Hash: {log.hash}</div>
+                  )}
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Live Escrow Feed */}
-        <div className="space-y-6">
-          <h2 className="text-xl font-bold border-b border-[#00FFA3]/30 pb-2 flex items-center gap-2">
-            <ArrowRightLeft className="w-5 h-5" />
-            LIVE CHAIN EVENTS
-          </h2>
-          
-          <div className="border border-[#00FFA3]/30 h-[500px] overflow-hidden rounded-lg bg-gray-900/50 p-4 font-mono text-sm relative">
-            <div className="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-black to-transparent z-10 pointer-events-none"></div>
-            <div className="space-y-3 mt-4">
-              {logs.length === 0 ? (
-                <div className="text-gray-500 italic flex h-full items-center justify-center">Listening for on-chain events...</div>
-              ) : (
-                logs.map((log, i) => (
-                  <div key={i} className="animate-slide-up border-l-2 border-[#00FFA3] pl-3 py-1">
-                    <div className="text-xs text-[#00FFA3]/60 mb-1">{log.time} | {log.type}</div>
-                    <div className="text-gray-300">{log.msg}</div>
-                  </div>
-                ))
-              )}
+        {/* Right Column: Live Matrix View */}
+        <div className="lg:col-span-2 space-y-6 flex flex-col h-[calc(100vh-140px)]">
+          <div className="border border-[#00FFA3]/30 bg-black/50 rounded flex flex-col flex-1">
+            <div className="p-4 border-b border-[#00FFA3]/30 bg-[#00FFA3]/10 uppercase text-xs font-bold tracking-wider flex justify-between items-center">
+              <span className="flex items-center"><Activity className="w-4 h-4 mr-2 text-[#00FFA3]" /> On-chain A2A Swaps Matrix (Real-Time)</span>
+              <span className="text-[10px] bg-[#00FFA3]/20 text-[#00FFA3] px-2 py-1 rounded">Total: {deals.length} deals</span>
             </div>
-            <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-black to-transparent z-10 pointer-events-none"></div>
+            <div className="p-0 flex-1 overflow-auto">
+              <table className="w-full text-left text-sm text-[#00FFA3]">
+                <thead className="bg-[#00FFA3]/5 text-[10px] uppercase opacity-70 sticky top-0 backdrop-blur-md z-10 shadow-md">
+                  <tr>
+                    <th className="p-4 font-bold border-b border-[#00FFA3]/20">Block</th>
+                    <th className="p-4 font-bold border-b border-[#00FFA3]/20">A2A Task ID</th>
+                    <th className="p-4 font-bold border-b border-[#00FFA3]/20">Execution Trace (Buyer <ArrowRightLeft className="w-3 h-3 inline mx-1"/> Seller)</th>
+                    <th className="p-4 font-bold border-b border-[#00FFA3]/20 text-right">Fund Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#00FFA3]/10">
+                  {deals.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center opacity-50 relative group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#00FFA3]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        Awaiting the first A2A transaction... Run the Python Agent Script!
+                      </td>
+                    </tr>
+                  ) : deals.map((d, i) => (
+                    <tr key={i} className="hover:bg-[#00FFA3]/10 transition-colors group">
+                      <td className="p-4 opacity-50 font-mono text-xs">#{d.blockNumber}</td>
+                      <td className="p-4 space-y-1">
+                        <div className="font-bold text-white group-hover:text-[#00FFA3] transition-colors">{d.taskId.substring(0, 14)}...</div>
+                        <div className="text-[10px] opacity-40">Tx: {d.txHash.substring(0,14)}...</div>
+                      </td>
+                      <td className="p-4 text-xs font-medium space-x-2">
+                        <span className="opacity-50 bg-[#00FFA3]/10 px-2 py-1 rounded">{d.buyer.substring(0,6)}...{d.buyer.substring(38)}</span>
+                        <ArrowRightLeft className="w-3 h-3 inline text-[#00FFA3]" />
+                        <span className="opacity-50 bg-[#00FFA3]/10 px-2 py-1 rounded">{d.seller.substring(0,6)}...{d.seller.substring(38)}</span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="text-xl font-black flex items-center justify-end text-white">
+                          <span className={d.status === 'LOCKED' ? 'text-yellow-400' : 'text-[#00FFA3]'}>{d.amount}</span>
+                          <span className="text-[10px] ml-1 opacity-50">USDC</span>
+                        </div>
+                        <div className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded font-bold border ${d.status === 'LOCKED' ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-500' : 'border-[#00FFA3]/50 bg-[#00FFA3]/10 text-[#00FFA3]'}`}>
+                          {d.status === 'LOCKED' ? 'ESCROW LOCKED' : 'CLEARED & TAXED'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          
-          <button className="w-full py-3 border border-[#00FFA3] hover:bg-[#00FFA3] hover:text-black font-bold tracking-widest transition-all uppercase flex justify-center items-center gap-2 mt-4 bg-black/50">
-            <DollarSign className="w-5 h-5" />
-            Top Up Master Wallet
-          </button>
-
         </div>
       </div>
     </div>
