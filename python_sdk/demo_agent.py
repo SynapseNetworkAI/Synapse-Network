@@ -28,10 +28,15 @@ def run_agent():
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
-    github_token = os.getenv("GITHUB_TOKEN")
+    base_url = os.getenv("OPENAI_BASE_URL")
+    model_name = os.getenv("ALL_MODEL_NAME", "gpt-4o")
 
-    if not api_key and not github_token:
-        print("❌ Please set either OPENAI_API_KEY or GITHUB_TOKEN environment variable.")
+    # 针对国内白嫖和廉价方案的兼容
+    if not api_key:
+        print("❌ Please set an OPENAI_API_KEY (or compatible equivalent) environment variable.")
+        print("💡 推荐的免费/便宜替代替代方案（完全兼容，无需改代码）：")
+        print("1. DeepSeek: export OPENAI_BASE_URL='https://api.deepseek.com/v1', ALL_MODEL_NAME='deepseek-chat', 申请Key: platform.deepseek.com")
+        print("2. 硅基流动: export OPENAI_BASE_URL='https://api.siliconflow.cn/v1', ALL_MODEL_NAME='Qwen/Qwen2.5-7B-Instruct', 申请Key: cloud.siliconflow.cn")
         return
 
     # 1. 读取环境和合约配置
@@ -54,18 +59,15 @@ def run_agent():
     )
     init_langchain_tools(client)
 
-    # 3. 配置 LLM 引擎
-    # 优先使用 OpenAI官方 Key；否则使用 GitHub Models 的免费企业级 API (由 Azure AI 驱动)
-    if api_key:
-        llm = ChatOpenAI(model="gpt-4o", temperature=0, api_key=api_key)
-    else:
-        print("💡 Using GitHub Models API for LLM inference...")
-        llm = ChatOpenAI(
-            model="gpt-4o", 
-            temperature=0, 
-            api_key=github_token, 
-            base_url="https://models.inference.ai.azure.com"
-        )
+    # 3. 配置 LLM 引擎 (全能兼容版)
+    print(f"💡 Interacting with LLM Model: {model_name}" + (f" at {base_url}" if base_url else ""))
+    
+    llm = ChatOpenAI(
+        model=model_name, 
+        temperature=0, 
+        api_key=api_key,
+        base_url=base_url if base_url else None
+    )
 
     # 4. 构建 Agent Prompt 系统提示词
     sys_prompt = """
