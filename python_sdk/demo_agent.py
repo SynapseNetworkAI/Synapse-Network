@@ -29,7 +29,7 @@ def run_agent():
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     base_url = os.getenv("OPENAI_BASE_URL")
-    model_name = os.getenv("ALL_MODEL_NAME", "gpt-4o")
+    model_name = os.getenv("ALL_MODEL_NAME", "eepseek-chat")
 
     # 针对国内白嫖和廉价方案的兼容
     if not api_key:
