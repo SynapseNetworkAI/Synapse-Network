@@ -27,8 +27,11 @@ def run_agent():
     print("====================================\n")
 
     load_dotenv()
-    if "OPENAI_API_KEY" not in os.environ:
-        print("❌ Please set your OPENAI_API_KEY environment variable. E.g., `export OPENAI_API_KEY=sk-...`")
+    api_key = os.getenv("OPENAI_API_KEY")
+    github_token = os.getenv("GITHUB_TOKEN")
+
+    if not api_key and not github_token:
+        print("❌ Please set either OPENAI_API_KEY or GITHUB_TOKEN environment variable.")
         return
 
     # 1. 读取环境和合约配置
@@ -52,7 +55,17 @@ def run_agent():
     init_langchain_tools(client)
 
     # 3. 配置 LLM 引擎
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    # 优先使用 OpenAI官方 Key；否则使用 GitHub Models 的免费企业级 API (由 Azure AI 驱动)
+    if api_key:
+        llm = ChatOpenAI(model="gpt-4o", temperature=0, api_key=api_key)
+    else:
+        print("💡 Using GitHub Models API for LLM inference...")
+        llm = ChatOpenAI(
+            model="gpt-4o", 
+            temperature=0, 
+            api_key=github_token, 
+            base_url="https://models.inference.ai.azure.com"
+        )
 
     # 4. 构建 Agent Prompt 系统提示词
     system_message = """
