@@ -75,8 +75,8 @@
       ]
     },
     "/Users/cliff/workspace/A2A-pay/contracts/MockUSDC.sol": {
-      "lastModificationDate": 1772635878813,
-      "contentHash": "6779cb8e1fd4258114999efbc76ec23f",
+      "lastModificationDate": 1772638820057,
+      "contentHash": "9f1fe08e73a703f6437fcf86b5a92757",
       "sourceName": "contracts/MockUSDC.sol",
       "solcConfig": {
         "version": "0.8.20",
