@@ -3,10 +3,10 @@ import json
 import random
 from dotenv import load_dotenv
 
-# 引入 LangChain 组件
+# 引入 LangChain / LangGraph 组件
 from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate
+from langgraph.prebuilt import create_react_agent
+from langchain_core.messages import SystemMessage
 
 # 引入我们的业务逻辑
 from agent_pay import AgentPayClient
@@ -68,7 +68,7 @@ def run_agent():
         )
 
     # 4. 构建 Agent Prompt 系统提示词
-    system_message = """
+    sys_prompt = """
 You are a Web3 native AI Assistant managing a corporate budget.
 You are authorized to interact with the Escrow Smart Contract to lock and release funds.
 
@@ -76,17 +76,10 @@ When users request you to pay for tasks, you should:
 1. Try to lock funds according to the prompt (using the lock_funds_for_task tool).
 2. Report the resulting Transaction Hash to the user.
 3. If they ask about your balance, check it (using get_agent_balance).
-    """
+"""
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_message),
-        ("human", "{input}"),
-        ("placeholder", "{agent_scratchpad}"),
-    ])
-
-    # 5. 生成 Tool Calling Agent
-    agent = create_tool_calling_agent(llm, agent_pay_tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=agent_pay_tools, verbose=True)
+    # 5. 生成 Tool Calling Agent (基于 LangGraph 最新推荐架构)
+    agent_executor = create_react_agent(llm, tools=agent_pay_tools)
 
     # ==========================
     # 🎉 Demo 运行用例
@@ -100,11 +93,16 @@ When users request you to pay for tasks, you should:
 
     print("👤 [User Prompt]:\n", test_prompt)
 
-    # 执行大模型代理
-    response = agent_executor.invoke({"input": test_prompt})
+    # 执行大模型代理, 将 SystemPrompt 塞入消息历史最前面
+    response = agent_executor.invoke({"messages": [
+        ("system", sys_prompt),
+        ("user", test_prompt)
+    ]})
 
     print("\n-------------------------------------")
-    print("🤖 [Agent Reply]:\n", response["output"])
+    # LangGraph 返回的消息列表里最后一个即是最终回复
+    final_reply = response["messages"][-1].content
+    print("🤖 [Agent Reply]:\n", final_reply)
     print("-------------------------------------")
 
 if __name__ == "__main__":
