@@ -8,6 +8,8 @@ import config from '../../contract-config.json';
 import usdcAbi from '../../MockUSDCABI.json';
 import escrowAbi from '../../EscrowABI.json';
 
+import AdminGuard from '../../components/AdminGuard';
+
 interface Deal {
   taskId: string;
   buyer: string;
@@ -18,7 +20,7 @@ interface Deal {
   blockNumber: number;
 }
 
-export default function GodsViewDashboard() {
+function GodsViewDashboardContent() {
   const [logs, setLogs] = useState<{ time: string; type: string; msg: string; hash?: string }[]>([]);
   const [treasuryBalance, setTreasuryBalance] = useState("0.00");
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -276,5 +278,13 @@ export default function GodsViewDashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GodsViewDashboard() {
+  return (
+    <AdminGuard>
+      <GodsViewDashboardContent />
+    </AdminGuard>
   );
 }
