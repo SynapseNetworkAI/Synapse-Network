@@ -46,14 +46,14 @@
   3. 提供 Agent 维度的充值（展示二维码）以及手工测试沙盒（Mock Transaction）。
   4. 产出文档：[`frontend/doc/Phase9-Multi-Role-UI.md`](../frontend/doc/Phase9-Multi-Role-UI.md)。
 
-### 🚀 Phase 10: Layer2/侧链部署 (Testnet Deployment)
+### 🚀 Phase 11: Layer2/侧链部署 (Testnet Deployment)
 * **目标**: 将项目部署至真实的 L2/测试链，如 Base Sepolia 或 Arbitrum Sepolia。
 * **任务**:
-  1. 更新 Hardhat Config，集成对应的 RPC URL 和 Private Key。
+  - [ ] **TODO**: 将部署环境（Hardhat 配置）切换到真实的 L2 测试网 (Base Sepolia / Arbitrum Sepolia)。
   2. 使用 Testnet 水龙头获取测试币，并重新部署智能合约。
-  3. 修改前端和 SDK 的合约地址。
+  3. 修改前端和 SDK 的合约网络 RPC 地址，使其连接真实的去中心化网络。
 
-### 🤖 Phase 11: AI多轮博弈与更复杂的激励协议 (Advanced Mechanism)
+### 🤖 Phase 12: AI多轮博弈与更复杂的激励协议 (Advanced Mechanism)
 * **目标**: 针对退款 (Refund) 以及去中心化法庭 (Dispute) 丰富博弈流程。
 * **任务**:
   1. 实现 AI 发起 Dispute 后，通过随机仲裁者 (裁决 AI 或人工) 解决的分支。
