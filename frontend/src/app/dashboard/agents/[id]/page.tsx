@@ -25,6 +25,8 @@ export default function AgentDetail() {
   
   // Real Balance state
   const [agentBalance, setAgentBalance] = useState("0.00");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [txHistory, setTxHistory] = useState<any[]>([]);
 
   useEffect(() => {
     const data = agentStore.getAgent(id);
@@ -33,8 +35,19 @@ export default function AgentDetail() {
     } else {
       setAgent(data);
       fetchRealBalance(data.address);
+      fetchTransactions(data.address);
     }
   }, [id, router]);
+
+  const fetchTransactions = async (address: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/client/tasks?agent=${address}`);
+      const data = await res.json();
+      setTxHistory(data);
+    } catch (e) {
+      console.error("Failed to fetch transactions", e);
+    }
+  };
 
   const fetchRealBalance = async (address: string) => {
     try {
@@ -71,12 +84,6 @@ export default function AgentDetail() {
   // Mock financials
   const mockAgentRevenue = "+$12.00";
   const mockAgentExpense = "-$0.05";
-  
-  const mockTxHistory = [
-    { id: 1, type: 'Receive', amount: '+10.00 USDC', from: '0xMaster...', time: '2h ago', txHash: '0x1ab...23c' },
-    { id: 2, type: 'Pay', amount: '-2.50 USDC', from: 'Self', to: '0xDataNode...', time: '5h ago', txHash: '0x4f4...89a' },
-    { id: 3, type: 'Receive', amount: '+4.50 USDC', from: '0xClient...', time: '1d ago', txHash: '0x9b2...11d' }
-  ];
 
   return (
     <div className="max-w-6xl p-8 mx-auto">
@@ -193,27 +200,37 @@ export default function AgentDetail() {
                Recent Transaction History
             </h3>
             <div className="space-y-3">
-              {mockTxHistory.map(tx => (
-                <div key={tx.id} className="flex flex-col justify-between gap-3 p-3 transition-colors border rounded-lg sm:flex-row sm:items-center bg-gray-900/40 border-gray-800/50 hover:bg-gray-800/60">
+              {txHistory.length > 0 ? txHistory.map(tx => {
+                const isReceive = tx.seller.toLowerCase() === agent?.address.toLowerCase();
+                const prefix = isReceive ? '+' : '-';
+                const colorClass = isReceive ? 'text-emerald-400' : 'text-red-400';
+                const bgClass = isReceive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400';
+                
+                return (
+                <div key={tx.taskId} className="flex flex-col justify-between gap-3 p-3 transition-colors border rounded-lg sm:flex-row sm:items-center bg-gray-900/40 border-gray-800/50 hover:bg-gray-800/60">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${tx.type === 'Receive' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                      {tx.type === 'Receive' ? <ArrowDownRight className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                    <div className={`p-2 rounded-full ${bgClass}`}>
+                      {isReceive ? <ArrowDownRight className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-200">{tx.type === 'Receive' ? `From: ${tx.from}` : `To: ${tx.to}`}</div>
-                      <div className="text-xs text-gray-500">{tx.time} &bull; <span className="font-mono">Tx: {tx.txHash}</span></div>
+                      <div className="text-sm font-medium text-gray-200">
+                        {isReceive ? `From: ${tx.buyer.substring(0,6)}...${tx.buyer.substring(38)}` : `To: ${tx.seller.substring(0,6)}...${tx.seller.substring(38)}`}
+                      </div>
+                      <div className="text-xs text-gray-500">Block {tx.blockNumber} &bull; <span className="font-mono">Tx: {tx.txHash.substring(0,10)}...</span></div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between w-full gap-4 sm:justify-end sm:w-auto">
-                    <span className={`font-mono text-sm ${tx.type === 'Receive' ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {tx.amount}
+                    <span className={`font-mono text-sm ${colorClass}`}>
+                      {prefix}{tx.amount} USDC ({tx.status})
                     </span>
                     <button className="text-gray-600 transition-colors hover:text-blue-400">
                       <ExternalLink className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-              ))}
+              )}) : (
+                <div className="py-4 text-center text-gray-500">No transactions yet</div>
+              )}
               <button className="w-full py-2 mt-2 text-sm text-gray-500 transition-colors hover:text-white">
                  View All on Block Explorer
               </button>

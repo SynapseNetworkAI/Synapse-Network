@@ -75,7 +75,7 @@ function GodsViewDashboardContent() {
 
         // Fetch History Deals from Phase 8 Indexer API
         try {
-          const res = await fetch("http://127.0.0.1:8000/api/tasks");
+          const res = await fetch("http://127.0.0.1:8000/api/admin/tasks");
           if (res.ok) {
             const data = await res.json();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

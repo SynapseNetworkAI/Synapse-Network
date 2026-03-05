@@ -108,10 +108,38 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
     threading.Thread(target=listen_to_events, daemon=True).start()
 
-@app.get("/api/tasks")
-def get_tasks():
+@app.get("/api/admin/tasks")
+def get_admin_tasks():
+    # Admin gets all tasks globally
     db = SessionLocal()
     tasks = db.query(TaskModel).all()
+    out = []
+    for t in reversed(tasks):
+        out.append({"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "txHash": t.tx_hash, "blockNumber": t.block_number})
+    db.close()
+    return out
+
+@app.get("/api/admin/stats")
+def get_admin_stats():
+    # Admin gets global stats (TVL, Protocol Fee, etc)
+    db = SessionLocal()
+    tasks = db.query(TaskModel).all()
+    # sum amount of actually transacted funds (only sum if there's amount)
+    total_volume = sum([float(t.amount) for t in tasks if t.amount])
+    # Assume protocol fee is 2.5% of total traded volume
+    revenue = total_volume * 0.025
+    db.close()
+    return {"totalTxs": len(tasks), "totalVolume": str(total_volume), "treasuryRevenue": str(revenue)}
+
+@app.get("/api/client/tasks")
+def get_client_tasks(agent: str = None):
+    # Client facing API, strictly filtered by agent
+    if not agent:
+        return []
+    db = SessionLocal()
+    agent_lower = agent.lower()
+    # Filter tasks where the agent is either buyer or seller
+    tasks = db.query(TaskModel).filter((TaskModel.buyer == agent_lower) | (TaskModel.seller == agent_lower)).all()
     out = []
     for t in reversed(tasks):
         out.append({"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "txHash": t.tx_hash, "blockNumber": t.block_number})
