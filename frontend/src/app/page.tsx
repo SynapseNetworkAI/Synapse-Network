@@ -13,7 +13,7 @@ interface Deal {
   buyer: string;
   seller: string;
   amount: string;
-  status: "LOCKED" | "RELEASED";
+  status: "LOCKED" | "RELEASED" | "DISPUTED" | "RESOLVED";
   txHash: string;
   blockNumber: number;
 }
@@ -23,6 +23,26 @@ export default function GodsViewDashboard() {
   const [treasuryBalance, setTreasuryBalance] = useState("0.00");
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+
+  const getStatusColor = (status: string) => {
+    switch(status) {
+      case 'LOCKED': return 'border-yellow-500/50 bg-yellow-500/10 text-yellow-500';
+      case 'RELEASED': return 'border-[#00FFA3]/50 bg-[#00FFA3]/10 text-[#00FFA3]';
+      case 'DISPUTED': return 'border-red-500/50 bg-red-500/10 text-red-500 animate-pulse';
+      case 'RESOLVED': return 'border-blue-500/50 bg-blue-500/10 text-blue-500';
+      default: return 'border-gray-500/50 bg-gray-500/10 text-gray-500';
+    }
+  };
+  
+  const getStatusText = (status: string) => {
+    switch(status) {
+      case 'LOCKED': return 'ESCROW LOCKED';
+      case 'RELEASED': return 'CLEARED & TAXED';
+      case 'DISPUTED': return 'COURT JURY (FROZEN)';
+      case 'RESOLVED': return 'ARBITRATION CLOSED';
+      default: return 'UNKNOWN';
+    }
+  };
 
   const addLog = (type: string, msg: string, hash?: string) => {
     setLogs(prev => [{
@@ -68,7 +88,7 @@ export default function GodsViewDashboard() {
           buyer: e.args[1],
           seller: e.args[2],
           amount: ethers.formatUnits(e.args[3], 18),
-          status: releasedIds.has(e.args[0]) ? "RELEASED" : "LOCKED",
+          status: (releasedIds.has(e.args[0]) ? "RELEASED" : "LOCKED") as Deal["status"],
           txHash: e.transactionHash,
           blockNumber: e.blockNumber
         })).reverse(); // Newest first
@@ -108,6 +128,20 @@ export default function GodsViewDashboard() {
           usdcContract.balanceOf(config.Treasury).then((bal: any) => {
             setTreasuryBalance(ethers.formatUnits(bal, 18));
           });
+        });
+
+        escrowContract.on("DisputeRaised", (taskId, raiser, event) => {
+          addLog('DISPUTE', `[!] ALERT: Game Theory Conflict! Dispute raised by ${raiser.substring(0,8)}... on task ${taskId.substring(0,8)}. Funds frozen.`, event.log.transactionHash);
+          setDeals(prev => prev.map(d => 
+            d.taskId === taskId ? { ...d, status: "DISPUTED" } : d
+          ));
+        });
+
+        escrowContract.on("DisputeResolved", (taskId, winner, event) => {
+          addLog('ARBITRATION', `Multi-Agent Jury ruled in favor of ${winner.substring(0,8)}. Assets re-routed.`, event.log.transactionHash);
+          setDeals(prev => prev.map(d => 
+            d.taskId === taskId ? { ...d, status: "RESOLVED" } : d
+          ));
         });
 
       } catch (err) {
@@ -224,11 +258,11 @@ export default function GodsViewDashboard() {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end text-xl font-black text-white">
-                          <span className={d.status === 'LOCKED' ? 'text-yellow-400' : 'text-[#00FFA3]'}>{d.amount}</span>
+                          <span className={d.status === 'DISPUTED' ? 'text-red-400 animate-pulse' : (d.status === 'LOCKED' ? 'text-yellow-400' : (d.status === 'RESOLVED' ? 'text-blue-400' : 'text-[#00FFA3]'))}>{d.amount}</span>
                           <span className="text-[10px] ml-1 opacity-50">USDC</span>
                         </div>
-                        <div className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded font-bold border ${d.status === 'LOCKED' ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-500' : 'border-[#00FFA3]/50 bg-[#00FFA3]/10 text-[#00FFA3]'}`}>
-                          {d.status === 'LOCKED' ? 'ESCROW LOCKED' : 'CLEARED & TAXED'}
+                        <div className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded font-bold border ${getStatusColor(d.status)}`}>
+                          {getStatusText(d.status)}
                         </div>
                       </td>
                     </tr>
