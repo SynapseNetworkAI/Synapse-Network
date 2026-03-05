@@ -15,40 +15,41 @@
    - 与 Stripe 等传统 Web2 支付、第三方加密网关的费率对比分析。
    - 产出文档：`Fee-Benchmark.md`。
 
-4. **人类指挥中心面板 (Dashboard MVP)**
+4. **人类指挥中心面板 (Dashboard MVP & Frontend Integration)**
    - 极客赛博风格 (Cyberpunk) 的实时监控前端。
-   - 产出产物：基于 Next.js 14 + Tailwind CSS 的监控大屏，可视化 Agent 支出进度与实时 Escrow 流水 (当前基于 Mock 数据)。
+   - 产出产物：基于 Next.js 14 + Tailwind CSS 的监控大屏，面板动态读取历史与实时数据。
    - 产出文档：`Dashboard-Design.md`。
+
+5. **Agent 侧 Python 武器库 (Python SDK)**
+   - 为基于 Python 的 AI Agents 提供代码级的上链交互能力。
+   - 产出产物：具有 Session Key 的高可用轻量级 SDK。
+   - 产出文档：`Python-SDK-Design.md`。
+
+6. **双 AI 互战全链路演示 (E2E Demo)**
+   - 成功串联买家和卖家 AI，实现自动议价、锁定资金并释放的服务链条。
+   - 产出文档：`Phase3-Agent-Integration.md`, `Phase4-Cyberpunk-Negotiation.md`。
+
+7. **Indexer API 与前端重构 (Phase 8)**
+   - 用 FastAPI + SQLite 持久化游标 `SyncState` 取代直接调用 RPC 获取全量日志。
+   - 保证了即使被 Node 进程 `kill -9` 后，依然能够 100% 同步区块链最新高度（Resumable State）。
+   - 产出文档：`Phase8-Indexer-Integration.md`。
 
 ---
 
 ## ⏳ 待处理计划 (To-Do / Next Steps)
 
-### 🚀 Phase 1: 面板 Web3 化 (Frontend Integration)
-* **目标**: 告别 Mock 数据，将前端 Dashboard 接入真实的本地测试链。
+### 🚀 Phase 9: Layer2/侧链部署 (Testnet Deployment)
+* **目标**: 将项目部署至真实的 L2/测试链，如 Base Sepolia 或 Arbitrum Sepolia。
 * **任务**:
-  1. 在本地启动 Hardhat 节点，并将已有合约部署上去。
-  2. 在 Next.js 面板中引入 `ethers.js` 或 `wagmi/viem`。
-  3. 面板真实监听智能合约上的 `FundsLocked` 和 `FundsReleased` 事件。
-  4. 面板动态读取人类主钱包的真实 ETH/USDC 余额和各个 Agent 会话密钥的剩余开销额度。
+  1. 更新 Hardhat Config，集成对应的 RPC URL 和 Private Key。
+  2. 使用 Testnet 水龙头获取测试币，并重新部署智能合约。
+  3. 修改前端和 SDK 的合约地址。
 
-### 🤖 Phase 2: Agent 侧的 Python 武器库 (Python SDK)
-* **目标**: 为基于 Python 的 AI Agents (如 LangChain/AutoGen 节点) 提供代码级的上链交互能力。
+### 🤖 Phase 10: AI多轮博弈与更复杂的激励协议 (Advanced Mechanism)
+* **目标**: 针对退款 (Refund) 以及去中心化法庭 (Dispute) 丰富博弈流程。
 * **任务**:
-  1. 编写一个轻量级的 Python SDK。
-  2. 给 Agent 分配 Session Key（本地临时私钥），让 Agent 用代码直接调用 `SmartWallet` 授权/支付，且不跳出 MetaMask 弹窗。
-  3. 提供如 `agent_sdk.pay(target_address, amount=0.5, reason="购买API")` 精简封装。
-
-### ⚔️ Phase 3: 双 AI 互战全链路演示 (E2E Demo)
-* **目标**: 串联智能合约、SDK与指挥台，做一个纯 AI 间的自动化交易对垒。
-* **任务**:
-  1. 编写两个简单的 Python 脚本：**买家 AI** 与 **卖家 AI**。
-  2. **事件流预演**：
-     * 买家 AI 需解决问题，卖家 AI 报价 1 USDC。
-     * 买家 AI 评估后同意，调用 Python SDK 往 Escrow 担保合约打入 1 USDC。
-     * 卖家 AI 轮询链上状态，发现资金已 locked，输出答案并调用合约释放资金(releaseFunds)。
-     * 合约按逻辑将 0.975 USDC 划给卖家，0.025 USDC 转入协议金库。
-  3. **核弹级演示效果**：两台 AI 疯狂用机器语言议价、打钱的瞬间，一旁静静运行的 **Next.js 赛博面板实时闪烁出刚刚发生的链上交易流水**！
+  1. 实现 AI 发起 Dispute 后，通过随机仲裁者 (裁决 AI 或人工) 解决的分支。
+  2. 支持多种 ERC20 (USDC/USDT)。
 
 --- 
 *Make Crypto Cool Again for AIs.*

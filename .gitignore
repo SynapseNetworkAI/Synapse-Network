@@ -7,3 +7,13 @@ typechain-types/
 artifacts/
 cache/
 
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.db
+*.log
+agent_wallet.json
+.env

@@ -71,40 +71,39 @@ export default function GodsViewDashboard() {
         const balanceWei = await usdcContract.balanceOf(config.Treasury);
         setTreasuryBalance(ethers.formatUnits(balanceWei, 18));
 
-        // Fetch History Deals
-        const taskCreatedFilter = escrowContract.filters.TaskCreated();
-        const createdEvents = await escrowContract.queryFilter(taskCreatedFilter, 0, "latest");
-        
-        const taskReleasedFilter = escrowContract.filters.TaskCompleted();
-        const releasedEvents = await escrowContract.queryFilter(taskReleasedFilter, 0, "latest");
-        
-        // Find which ones are released
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const releasedIds = new Set(releasedEvents.map((e: any) => e.args[0]));
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const historyDeals: Deal[] = createdEvents.map((e: any) => ({
-          taskId: e.args[0],
-          buyer: e.args[1],
-          seller: e.args[2],
-          amount: ethers.formatUnits(e.args[3], 18),
-          status: (releasedIds.has(e.args[0]) ? "RELEASED" : "LOCKED") as Deal["status"],
-          txHash: e.transactionHash,
-          blockNumber: e.blockNumber
-        })).reverse(); // Newest first
-
-        setDeals(historyDeals);
-
-        if(historyDeals.length > 0) {
-            addLog("SCANNER", `Detected ${historyDeals.length} past protocol swaps in mempool.`);
+        // Fetch History Deals from Phase 8 Indexer API
+        try {
+          const res = await fetch("http://127.0.0.1:8000/api/tasks");
+          if (res.ok) {
+            const data = await res.json();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const historyDeals: Deal[] = data.map((d: any) => ({
+              taskId: d.taskId,
+              buyer: d.buyer,
+              seller: d.seller,
+              amount: d.amount,
+              status: d.status,
+              txHash: d.txHash,
+              blockNumber: d.blockNumber
+            }));
+            
+            setDeals(historyDeals);
+            if(historyDeals.length > 0) {
+              addLog("INDEXER", `Synced ${historyDeals.length} tasks from Off-chain Indexer API.`);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch from indexer API:", err);
+          addLog("ERROR", "Indexer API offline. Failed to sync history.");
         }
 
         // Real-time Event Listeners
         escrowContract.on("TaskCreated", (taskId, buyer, seller, amount, event) => {
+          const tIdStr = taskId.toString();
           const amt = ethers.formatUnits(amount, 18);
-          addLog('ESCROW', `A2A Negotiation Settled! Locked ${amt} USDC for task ${taskId.substring(0,8)}...`, event.log.transactionHash);
+          addLog('ESCROW', `A2A Negotiation Settled! Locked ${amt} USDC for task ${tIdStr.substring(0,8)}...`, event.log.transactionHash);
           setDeals(prev => [{
-            taskId: taskId,
+            taskId: tIdStr,
             buyer: buyer,
             seller: seller,
             amount: amt,
@@ -115,12 +114,13 @@ export default function GodsViewDashboard() {
         });
 
         escrowContract.on("TaskCompleted", (taskId, seller, amount, fee, event) => {
+          const tIdStr = taskId.toString();
           const amt = ethers.formatUnits(amount, 18);
           const f = ethers.formatUnits(fee, 18);
           addLog('PROTOCOL', `Task Complete: Released ${amt} USDC. Tax collected: ${f} USDC`, event.log.transactionHash);
           
           setDeals(prev => prev.map(d => 
-            d.taskId === taskId ? { ...d, status: "RELEASED" } : d
+            d.taskId === tIdStr ? { ...d, status: "RELEASED" } : d
           ));
           
           // Refresh Treasury
@@ -131,16 +131,18 @@ export default function GodsViewDashboard() {
         });
 
         escrowContract.on("DisputeRaised", (taskId, raiser, event) => {
-          addLog('DISPUTE', `[!] ALERT: Game Theory Conflict! Dispute raised by ${raiser.substring(0,8)}... on task ${taskId.substring(0,8)}. Funds frozen.`, event.log.transactionHash);
+          const tIdStr = taskId.toString();
+          addLog('DISPUTE', `[!] ALERT: Game Theory Conflict! Dispute raised by ${raiser.substring(0,8)}... on task ${tIdStr.substring(0,8)}. Funds frozen.`, event.log.transactionHash);
           setDeals(prev => prev.map(d => 
-            d.taskId === taskId ? { ...d, status: "DISPUTED" } : d
+            d.taskId === tIdStr ? { ...d, status: "DISPUTED" } : d
           ));
         });
 
         escrowContract.on("DisputeResolved", (taskId, winner, event) => {
+          const tIdStr = taskId.toString();
           addLog('ARBITRATION', `Multi-Agent Jury ruled in favor of ${winner.substring(0,8)}. Assets re-routed.`, event.log.transactionHash);
           setDeals(prev => prev.map(d => 
-            d.taskId === taskId ? { ...d, status: "RESOLVED" } : d
+            d.taskId === tIdStr ? { ...d, status: "RESOLVED" } : d
           ));
         });
 
