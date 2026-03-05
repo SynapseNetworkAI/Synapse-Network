@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Activity, ArrowRightLeft, DollarSign, Database, BrainCircuit, Terminal, GlobeLock } from 'lucide-react';
+import { Activity, ArrowRightLeft, DollarSign, Database, BrainCircuit, Terminal, GlobeLock, LogOut } from 'lucide-react';
 import { ethers } from 'ethers';
 
 import config from '../../contract-config.json';
@@ -75,7 +75,11 @@ function GodsViewDashboardContent() {
 
         // Fetch History Deals from Phase 8 Indexer API
         try {
-          const res = await fetch("http://127.0.0.1:8000/api/admin/tasks");
+          const res = await fetch("http://127.0.0.1:8001/api/admin/tasks", {
+            headers: {
+              "Authorization": "Bearer god_mode_active"
+            }
+          });
           if (res.ok) {
             const data = await res.json();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,6 +168,21 @@ function GodsViewDashboardContent() {
     };
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      await fetch("http://127.0.0.1:8001/api/admin/logout", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer god_mode_dummy"
+        }
+      });
+    } catch (e) {
+      console.warn("Backend logout warning:", e);
+    }
+    localStorage.removeItem("admin_authenticated");
+    window.location.href = "/";
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-[#00FFA3] font-mono p-6 selection:bg-[#00FFA3] selection:text-black">
       {/* Header */}
@@ -183,6 +202,13 @@ function GodsViewDashboardContent() {
             <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-[#00FFA3] shadow-[0_0_8px_#00FFA3]' : 'bg-red-500'}`}></div>
             <span>{isConnected ? "Base Node Synced" : "Node Offline"}</span>
           </div>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center space-x-2 border border-red-500/50 hover:bg-red-500/20 text-red-400 px-3 py-1 rounded transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
         </div>
       </header>
 

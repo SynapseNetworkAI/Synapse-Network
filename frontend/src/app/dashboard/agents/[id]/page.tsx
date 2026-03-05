@@ -41,7 +41,11 @@ export default function AgentDetail() {
 
   const fetchTransactions = async (address: string) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/client/tasks?agent=${address}`);
+      const res = await fetch(`http://127.0.0.1:8000/api/client/tasks?agent=${address}`, {
+        headers: {
+          "Authorization": "Bearer active"
+        }
+      });
       const data = await res.json();
       setTxHistory(data);
     } catch (e) {

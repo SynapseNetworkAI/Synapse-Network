@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Bot, Activity, Wallet, ArrowUpRight, ArrowDownRight, ActivitySquare, RefreshCw, HandCoins } from "lucide-react";
+import { Plus, Bot, Activity, Wallet, ArrowUpRight, ArrowDownRight, ActivitySquare, RefreshCw, HandCoins, LogOut } from "lucide-react";
 import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
@@ -53,6 +53,21 @@ let total = BigInt(0);
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch("http://127.0.0.1:8000/api/client/logout", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer dev_session_dummy"
+        }
+      });
+    } catch (e) {
+      console.warn("Backend logout warning:", e);
+    }
+    localStorage.removeItem("developer_session");
+    window.location.href = "/";
+  };
+
   // Mock global stats for Dashboard Phase 10
   const mock24hRevenue = "+$342.10";
   const mock24hExpense = "-$12.40";
@@ -83,6 +98,14 @@ let total = BigInt(0);
               Deploy Agent
             </button>
           </Link>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center px-4 py-2 font-bold text-red-400 transition-colors border border-red-500/50 rounded-lg hover:bg-red-500/10"
+            title="Disconnect Terminal"
+          >
+            <LogOut className="w-5 h-5 mr-2" />
+            Logout
+          </button>
         </div>
       </div>
 

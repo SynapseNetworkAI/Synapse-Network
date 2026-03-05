@@ -82,5 +82,14 @@
   - [ ] 开放并设计外部开发者 API Key 签发、请求限流机制层。
   - [ ] 初步草构属于 A2A-Pay 协议自身的治理 / 优先通证 ($A2A) 模型。
 
+### 🏗️ Phase 16: 后端代码架构拆分与多会话环境隔离 (Backend API & Database Isolation)
+* **目标**: 实现客户端 (Client API) 与运营管理端 (Admin API) 在安全状态下的会话和数据库切分，当前阶段采用模块化单体结构以平衡安全与开发效率。
+* **状态**: ✅ 已完成。 (见 `Phase16-Backend-Isolation.md`)
+* **任务**:
+  - [x] 落实“方案二：逻辑拆分（同一代码库，不同入口启动）”，在后端项目分离 `c_api/` (面向客户) 与 `admin_api/` (面向运营) 两套核心路由并支持分配至不同端口。
+  - [x] 针对性实现多环境会话隔离，前台 Dashboard 与系统 Admin 颁发和校验各自独立的 Token/Session 鉴权。
+  - [x] 实例化两套独立隔离的数据库连接池 (`client_db` 及 `admin_db`)，达到类似微服务的数据隔离级别，物理防止前端越权。
+  - [x] 在 Dashboard 和 Admin 面板中分别实装登出 (Logout) 功能，并与后端的销毁接口实现对齐。
+
 --- 
 *Make Crypto Cool Again for AIs.*
