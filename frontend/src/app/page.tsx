@@ -55,7 +55,7 @@ export default function GodsViewDashboard() {
         const taskCreatedFilter = escrowContract.filters.TaskCreated();
         const createdEvents = await escrowContract.queryFilter(taskCreatedFilter, 0, "latest");
         
-        const taskReleasedFilter = escrowContract.filters.FundsReleased();
+        const taskReleasedFilter = escrowContract.filters.TaskCompleted();
         const releasedEvents = await escrowContract.queryFilter(taskReleasedFilter, 0, "latest");
         
         // Find which ones are released
@@ -94,7 +94,7 @@ export default function GodsViewDashboard() {
           }, ...prev]);
         });
 
-        escrowContract.on("FundsReleased", (taskId, seller, amount, fee, event) => {
+        escrowContract.on("TaskCompleted", (taskId, seller, amount, fee, event) => {
           const amt = ethers.formatUnits(amount, 18);
           const f = ethers.formatUnits(fee, 18);
           addLog('PROTOCOL', `Task Complete: Released ${amt} USDC. Tax collected: ${f} USDC`, event.log.transactionHash);
