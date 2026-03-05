@@ -57,7 +57,7 @@ def run_negotiation():
     )
 
     # 3. 编写双边 Prompt 剧本
-    task_id = "cyber-scrape-001"
+    task_id = f"cyber-scrape-{int(time.time())}"
 
     buyer_system = f"""You are [BuyerAgent], a ruthless corporate AI holding the company Web3 wallet.
 You need to hire someone to execute a scraping task: '{task_id}'.
@@ -126,29 +126,55 @@ Tell them to lock the money in the Escrow contract first before you write a sing
             print("\n🚀 [SYSTEM]: Consensus Reached! Smart Contract automatically triggered by the AI!")
             
             print("\n====================================")
-            print("👁️ Phase 5: Task Execution & Escrow Release")
+            print("👁️ Phase 5 & 7: Task Execution & Escrow Release/Dispute")
             print("====================================\n")
             
-            print("🕶️ [SellerAgent is scraping the dark web...] (simulated 3s delay)")
-            time.sleep(3)
+            print("🕶️ [SellerAgent is scraping the dark web...] (simulated delay)")
+            time.sleep(2)
             
-            # 卖家完成任务
             completion_msg = f"Task '{task_id}' is complete. Here is the securely encrypted Zip file: hash: 0x99abc123... Please release the funds now."
             print(f"\n🕶️ [SellerAgent]:\n{completion_msg}")
             
-            # 买家核验后释放资金
             buyer_history.append(HumanMessage(content=completion_msg))
             
-            print("\n⏳ [BuyerAgent verifies the data and calls release_funds_for_task tool...]")
-            
-            # 给 Buyer 加一个临时剧本
-            buyer_history.append(SystemMessage(content="The Seller has provided the data. YOU MUST use the `release_funds_for_task` tool right now to release the funds."))
-            
-            release_response = buyer_agent_executor.invoke({"messages": buyer_history})
-            release_reply = release_response["messages"][-1].content
-            
-            print(f"\n👔 [BuyerAgent]:\n{release_reply}")
-            print("\n🎉 [SYSTEM]: Task Fully Cleared! Funds have been released to the Hacker and the Protocol has taken its 2.5% cut!")
+            # Interactive Choice for the user
+            print("\n[SYSTEM] Enter Test Mode:")
+            print("1) Happy Path (Buyer verifies and releases funds)")
+            print("2) Game Theory Path (Buyer rejects data, raises DISPUTE)")
+            test_mode = input("Select (1 or 2): ").strip()
+
+            if test_mode == "1":
+                print("\n⏳ [BuyerAgent verifies the data and calls release_funds_for_task tool...]")
+                buyer_history.append(SystemMessage(content="The Seller has provided the data. It looks perfect. YOU MUST use the `release_funds_for_task` tool right now to release the funds."))
+                
+                release_response = buyer_agent_executor.invoke({"messages": buyer_history})
+                release_reply = release_response["messages"][-1].content
+                print(f"\n👔 [BuyerAgent]:\n{release_reply}")
+                print("\n🎉 [SYSTEM]: Task Fully Cleared! Funds have been released to the Hacker and the Protocol has taken its 2.5% cut!")
+                
+            elif test_mode == "2":
+                print("\n⏳ [BuyerAgent detects malicious data and calls raise_dispute_for_task tool...]")
+                buyer_history.append(SystemMessage(content="The Seller has provided the data, but it is FAKE and MALICIOUS! They are trying to scam you! YOU MUST use the `raise_dispute_for_task` tool right now to freeze the funds!"))
+                
+                dispute_response = buyer_agent_executor.invoke({"messages": buyer_history})
+                dispute_reply = dispute_response["messages"][-1].content
+                print(f"\n👔 [BuyerAgent]:\n{dispute_reply}")
+                print("\n🚨 [SYSTEM]: DISPUTE RAISED! Funds are frozen. Entering Decentralised Arbitration...")
+                
+                time.sleep(2)
+                print("\n====================================")
+                print("⚖️ Phase 7: Multi-Agent Jury Resolution")
+                print("====================================\n")
+                print("👨‍⚖️ [Jury AI]: Analyzing cryptographic proof of work...")
+                print("👨‍⚖️ [Jury AI]: Seller provided invalid hashes. Buyer is correct.")
+                print(f"\n🛠️  [SYSTEM]: Calling resolve_dispute on chain in favor of Buyer ({client.account.address})")
+                
+                try:
+                    # In a real scenario, jury handles this. We simulate with client:
+                    rx_hash = client.resolve_dispute(task_id, client.account.address)
+                    print(f"✅ [SYSTEM]: Arbitration Complete. Funds refunded to Buyer! Tx: {rx_hash}")
+                except Exception as e:
+                    print(f"❌ [SYSTEM]: Contract call failed: {e}")
             
             break
         elif turn == 6:

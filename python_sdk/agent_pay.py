@@ -24,13 +24,13 @@ class AgentPayClient:
             {"constant": True, "inputs": [{"name": "account", "type": "address"}], "name": "balanceOf", "outputs": [{"name": "", "type": "uint256"}], "type": "function"}
         ]
         
-        self.escrow_abi = [
-            {"inputs": [{"internalType": "bytes32", "name": "taskId", "type": "bytes32"}, {"internalType": "address", "name": "seller", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}], "name": "lockFunds", "outputs": [], "stateMutability": "nonpayable", "type": "function"},
-            {"inputs": [{"internalType": "bytes32", "name": "taskId", "type": "bytes32"}], "name": "releaseFunds", "outputs": [], "stateMutability": "nonpayable", "type": "function"},
-            {"inputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}], "name": "tasks", "outputs": [{"internalType": "address", "name": "buyer", "type": "address"}, {"internalType": "address", "name": "seller", "type": "address"}, {"internalType": "uint256", "name": "totalAmount", "type": "uint256"}, {"internalType": "bool", "name": "isCompleted", "type": "bool"}], "stateMutability": "view", "type": "function"}
-        ]
-
-        self.usdc = self.w3.eth.contract(address=self.usdc_address, abi=self.usdc_abi)
+        
+        import json
+        import os
+        abi_path = os.path.join(os.path.dirname(__file__), 'EscrowABI.json')
+        with open(abi_path, 'r') as f:
+            self.escrow_abi = json.load(f)
+        
         self.escrow = self.w3.eth.contract(address=self.escrow_address, abi=self.escrow_abi)
 
     def _build_and_send_tx(self, func):
@@ -91,13 +91,44 @@ class AgentPayClient:
         """
         encoded_task_id = task_id.encode('utf-8').ljust(32, b'\0')
         task = self.escrow.functions.tasks(encoded_task_id).call()
-        buyer, seller, amount_wei, is_completed = task
+        buyer, seller, amount_wei, status_code, created_at = task
         if buyer == '0x0000000000000000000000000000000000000000':
             return None
+        
+        status_map = {
+            0: "LOCKED",
+            1: "COMPLETED",
+            2: "DISPUTED",
+            3: "RESOLVED"
+        }
+        
         return {
             "buyer": buyer,
             "seller": seller,
             "amount": self.w3.from_wei(amount_wei, 'ether'),
-            "isCompleted": is_completed
+            "status": status_map.get(status_code, "UNKNOWN"),
+            "createdAt": created_at
         }
+
+    def raise_dispute(self, task_id: str):
+        """
+        发起争议：将任务状态置为 DISPUTED 冻结资金，进入仲裁模式。
+        """
+        print(f"[*] 🚨 Raising DISPUTE for task {task_id} ...")
+        encoded_task_id = task_id.encode('utf-8').ljust(32, b'\0')
+        receipt = self._build_and_send_tx(self.escrow.functions.raiseDispute(encoded_task_id))
+        print(f"[+] 🚨 Dispute raised! tx: {receipt.transactionHash.hex()}")
+        return receipt.transactionHash.hex()
+
+    def resolve_dispute(self, task_id: str, winner_address: str):
+        """
+        解决争议：将仲裁胜诉方的地址传入，分配资金（或平分/没收等，此处简化为全抛给胜方）。
+        需要有多签仲裁者或特权账号调用。
+        """
+        print(f"[*] ⚖️ Resolving DISPUTE for task {task_id}, winner is {winner_address} ...")
+        encoded_task_id = task_id.encode('utf-8').ljust(32, b'\0')
+        winner_checksum = self.w3.to_checksum_address(winner_address)
+        receipt = self._build_and_send_tx(self.escrow.functions.resolveDispute(encoded_task_id, winner_checksum))
+        print(f"[+] ⚖️ Dispute resolved! tx: {receipt.transactionHash.hex()}")
+        return receipt.transactionHash.hex()
 

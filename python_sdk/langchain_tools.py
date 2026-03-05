@@ -69,9 +69,29 @@ def release_funds_for_task(task_id: str) -> str:
     except Exception as e:
         return f"Failed to release funds: {str(e)}"
 
+# 4. 发起争议仲裁 (Raise Dispute)
+class RaiseDisputeInput(BaseModel):
+    task_id: str = Field(description="The unique identifier of the task to dispute.")
+
+@tool("raise_dispute_for_task", args_schema=RaiseDisputeInput)
+def raise_dispute_for_task(task_id: str) -> str:
+    """
+    Raise a dispute for a task to freeze funds and call the decentralised jury.
+    Call this tool ONLY if the other party is cheating, trying to run away with funds, or delivering fake/bad data.
+    """
+    if not _client:
+        return "Error: AgentPayClient is not initialized."
+        
+    try:
+        tx_hash = _client.raise_dispute(task_id)
+        return f"Successfully raised dispute for task '{task_id}'. Funds are FROZEN. Transaction Hash: {tx_hash}"
+    except Exception as e:
+        return f"Failed to raise dispute: {str(e)}"
+
 # 导出工具列表供 Agent 使用
 agent_pay_tools = [
     get_agent_balance,
     lock_funds_for_task,
-    release_funds_for_task
+    release_funds_for_task,
+    raise_dispute_for_task
 ]
