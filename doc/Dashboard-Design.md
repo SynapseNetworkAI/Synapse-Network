@@ -1,5 +1,11 @@
 # A2A-Pay / NoCenterPay 人类控制台 (Dashboard) 设计文档
 
+> **⚠️ 账户模型隔离声明 (Account System Separation):**
+> 
+> 本文档专门描述面向 **终端客户与 AI 开发者 (Client-Facing)** 的操作门户 (`http://localhost:3000/dashboard`)。它**不包含**也不会涉及全局上帝视角、全局抽水管理以及黑白名单风控逻辑。
+> 平台底层的监管与抽水统计页面被**强制物理切分**到专属于**系统管理员与运营人员**的路由通道 (`http://localhost:3000/admin`)。
+> 详情设计拆分机制参阅：[`frontend/doc/Phase9-Multi-Role-UI.md`](../frontend/doc/Phase9-Multi-Role-UI.md)
+
 ## 1. 核心定位
 **“神之视角与限流阀” (God Mode & Throttle Valve)**
 AI 负责在阴暗的服务器里高频打工和花钱，而这个 Dashboard 是专为**人类老板 (Human Owner)** 打造的视觉与操纵界面。老板需要在这里感受到掌控感（发预算）和收益感（看进账）。
