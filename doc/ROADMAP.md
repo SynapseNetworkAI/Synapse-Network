@@ -49,18 +49,38 @@
 
 ## ⏳ 待处理计划 (To-Do / Next Steps)
 
-### 🚀 Phase 11: Layer2/侧链部署 (Testnet Deployment)
-* **目标**: 将项目部署至真实的 L2/测试链，如 Base Sepolia 或 Arbitrum Sepolia。
+### 🚀 Phase 11: Layer2 / 侧链部署 (Testnet Deployment)
+* **目标**: 将项目部署至真实的 L2 网络 (如 Base Sepolia 或 Arbitrum Sepolia)。
 * **任务**:
-  - [ ] **TODO**: 将部署环境（Hardhat 配置）切换到真实的 L2 测试网 (Base Sepolia / Arbitrum Sepolia)。
-  2. 使用 Testnet 水龙头获取测试币，并重新部署智能合约。
-  3. 修改前端和 SDK 的合约网络 RPC 地址，使其连接真实的去中心化网络。
+  - [ ] 修改 Hardhat 配置以支持 Base/Arbitrum 测试网。
+  - [ ] 申请测试网 Faucet 测试币，完成底层 `Escrow` 与 `AgentSmartWallet` 等智能合约的发版部署。
+  - [ ] 将前端 Dashboard 与 Python SDK 的 RPC 节点无缝切换至真实的公链节点 (Alchemy/Infura 等)。
 
-### 🤖 Phase 12: AI多轮博弈与更复杂的激励协议 (Advanced Mechanism)
-* **目标**: 针对退款 (Refund) 以及去中心化法庭 (Dispute) 丰富博弈流程。
+### 📊 Phase 12: 历史交易流水面板与图表分析 (Analytics & Data Visualization)
+* **目标**: 补全前端数据大屏的历史数据维度，通过对接之前完成的 Indexer 进行数据溯源和展示。
 * **任务**:
-  1. 实现 AI 发起 Dispute 后，通过随机仲裁者 (裁决 AI 或人工) 解决的分支。
-  2. 支持多种 ERC20 (USDC/USDT)。
+  - [ ] 对接 Indexer FastAPI 获取跨区块的所有核心交易事件 (Deposit, Release, Swap)。
+  - [ ] 引入前端图表库 (Recharts/Echarts) 渲染每个 Agent 及全局的 Daily PnL (日交易流水/盈亏) 趋势图。
+  - [ ] 在 `Fleet Dashboard` 面板中增设全局交易实时动态流水瀑布流展示 (Event Stream)。
+
+### 🛡️ Phase 13: 高级智能合约机制与仲裁网络 (Refund & Dispute)
+* **目标**: 针对退款 (Refund) 以及交易争端 (Dispute)，在合约层丰富博弈与制衡逻辑。
+* **任务**:
+  - [ ] 实现当服务未达标时，由买方 AI 发起 Dispute 以触发的资金冻结 (Lock) 机制。
+  - [ ] 引入第三方中心化仲裁者节点 (高权限 AI 或人类神裁) 进行纠纷判定并发起资金强制 Release 逻辑。
+  - [ ] 横向扩展支持多种常见 ERC20 黑灰白名单代币机制 (USDC, USDT, DAI)。
+
+### 🔐 Phase 14: 管理员面板身份安全与权限体系 (Security & MFA)
+* **目标**: 为高危上帝视角管理面板 (`/admin`) 套上强力防护隔离。
+* **任务**:
+  - [ ] 结合已安装的 `otplib`，在前端路由拦截中实装真正的 Google Authenticator / 硬件密钥双因素鉴权 (2FA)。
+  - [ ] 建立基于角色的鉴权机制 (RBAC)，阻止未授权 Developer 读取甚至操纵不属于他的 Agent 沙盒私钥。
+
+### 📦 Phase 15: Web3 SaaS化网关与代币生态雏形 (API Gateway & Tokenomics)
+* **目标**: 打造面向外部开发者的 B 端商业入口。
+* **任务**:
+  - [ ] 开放并设计外部开发者 API Key 签发、请求限流机制层。
+  - [ ] 初步草构属于 A2A-Pay 协议自身的治理 / 优先通证 ($A2A) 模型。
 
 --- 
 *Make Crypto Cool Again for AIs.*
