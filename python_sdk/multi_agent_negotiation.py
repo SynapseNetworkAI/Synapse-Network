@@ -124,6 +124,32 @@ Tell them to lock the money in the Escrow contract first before you write a sing
         # 7. 终局条件判定：判断聊天文本中是否出现了合约锁定的标识或者是交易Hash
         if "lock_funds_for_task" in str(buyer_response) or "hash" in final_buyer_reply.lower() or "Transaction Hash" in final_buyer_reply:
             print("\n🚀 [SYSTEM]: Consensus Reached! Smart Contract automatically triggered by the AI!")
+            
+            print("\n====================================")
+            print("👁️ Phase 5: Task Execution & Escrow Release")
+            print("====================================\n")
+            
+            print("🕶️ [SellerAgent is scraping the dark web...] (simulated 3s delay)")
+            time.sleep(3)
+            
+            # 卖家完成任务
+            completion_msg = f"Task '{task_id}' is complete. Here is the securely encrypted Zip file: hash: 0x99abc123... Please release the funds now."
+            print(f"\n🕶️ [SellerAgent]:\n{completion_msg}")
+            
+            # 买家核验后释放资金
+            buyer_history.append(HumanMessage(content=completion_msg))
+            
+            print("\n⏳ [BuyerAgent verifies the data and calls release_funds_for_task tool...]")
+            
+            # 给 Buyer 加一个临时剧本
+            buyer_history.append(SystemMessage(content="The Seller has provided the data. YOU MUST use the `release_funds_for_task` tool right now to release the funds."))
+            
+            release_response = buyer_agent_executor.invoke({"messages": buyer_history})
+            release_reply = release_response["messages"][-1].content
+            
+            print(f"\n👔 [BuyerAgent]:\n{release_reply}")
+            print("\n🎉 [SYSTEM]: Task Fully Cleared! Funds have been released to the Hacker and the Protocol has taken its 2.5% cut!")
+            
             break
         elif turn == 6:
             print("\n❌ [SYSTEM]: Negotiation failed. The agents could not agree on a price in time.")
