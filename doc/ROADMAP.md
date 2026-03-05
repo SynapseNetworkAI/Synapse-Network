@@ -38,14 +38,22 @@
 
 ## ⏳ 待处理计划 (To-Do / Next Steps)
 
-### 🚀 Phase 9: Layer2/侧链部署 (Testnet Deployment)
+### 🎨 Phase 9: 全角色前端界面拆分与智能体钱包生成 (Multi-Role UI)
+* **目标**: 将当前的上帝视角前端拆分为协议管理员、开发者/上帝视角、以及 Agent 实体专属沙盒，实现完整的 SaaS 化产品闭环体验。
+* **任务**:
+  1. 重构 Next.js 路由体系 (`/admin`, `/dashboard`, `/dashboard/agents/[id]`)。
+  2. 实现纯前端以太坊钱包生成 (`ethers.Wallet.createRandom()`)，为新创建的 Agent 自动生成唯一的赛博身份证和私钥。
+  3. 提供 Agent 维度的充值（展示二维码）以及手工测试沙盒（Mock Transaction）。
+  4. 产出文档：[`frontend/doc/Phase9-Multi-Role-UI.md`](../frontend/doc/Phase9-Multi-Role-UI.md)。
+
+### 🚀 Phase 10: Layer2/侧链部署 (Testnet Deployment)
 * **目标**: 将项目部署至真实的 L2/测试链，如 Base Sepolia 或 Arbitrum Sepolia。
 * **任务**:
   1. 更新 Hardhat Config，集成对应的 RPC URL 和 Private Key。
   2. 使用 Testnet 水龙头获取测试币，并重新部署智能合约。
   3. 修改前端和 SDK 的合约地址。
 
-### 🤖 Phase 10: AI多轮博弈与更复杂的激励协议 (Advanced Mechanism)
+### 🤖 Phase 11: AI多轮博弈与更复杂的激励协议 (Advanced Mechanism)
 * **目标**: 针对退款 (Refund) 以及去中心化法庭 (Dispute) 丰富博弈流程。
 * **任务**:
   1. 实现 AI 发起 Dispute 后，通过随机仲裁者 (裁决 AI 或人工) 解决的分支。
