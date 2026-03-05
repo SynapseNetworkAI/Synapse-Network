@@ -34,17 +34,20 @@
    - 保证了即使被 Node 进程 `kill -9` 后，依然能够 100% 同步区块链最新高度（Resumable State）。
    - 产出文档：`Phase8-Indexer-Integration.md`。
 
+8. **全角色前端界面拆分与智能体钱包生成 (Phase 9)**
+   - 将上帝视角前端拆分为协议管理员、开发者视角，并为 Agent 实体提供专属沙盒。
+   - 重构 Next.js 路由体系 (`/admin`, `/dashboard`, `/dashboard/agents/[id]`)。
+   - 实现纯前端以太坊钱包生成 (`ethers.Wallet.createRandom()`)，为新创建的 Agent 自动生成唯一的赛博身份证和私钥。
+   - 产出文档：`frontend/doc/Phase9-Multi-Role-UI.md`。
+
+9. **Agent 舰队控制中心面板建设与 Ethers.js 真实余额对接 (Phase 10)**
+   - 开发 Master Fleet Control 的前端 UI 与单个 Agent 的专属控制详情页。
+   - 配置 Next.js 连接本地 Hardhat (127.0.0.1:8545)，利用 Ethers.js (v6) 直接读取 `MockUSDC` 本地合约上的动态真实余额并取代假数据。
+   - 产出文档：`frontend/doc/Phase10-Fleet-Dashboard-Design.md`。
+
 ---
 
 ## ⏳ 待处理计划 (To-Do / Next Steps)
-
-### 🎨 Phase 9: 全角色前端界面拆分与智能体钱包生成 (Multi-Role UI)
-* **目标**: 将当前的上帝视角前端拆分为协议管理员、开发者/上帝视角、以及 Agent 实体专属沙盒，实现完整的 SaaS 化产品闭环体验。
-* **任务**:
-  1. 重构 Next.js 路由体系 (`/admin`, `/dashboard`, `/dashboard/agents/[id]`)。
-  2. 实现纯前端以太坊钱包生成 (`ethers.Wallet.createRandom()`)，为新创建的 Agent 自动生成唯一的赛博身份证和私钥。
-  3. 提供 Agent 维度的充值（展示二维码）以及手工测试沙盒（Mock Transaction）。
-  4. 产出文档：[`frontend/doc/Phase9-Multi-Role-UI.md`](../frontend/doc/Phase9-Multi-Role-UI.md)。
 
 ### 🚀 Phase 11: Layer2/侧链部署 (Testnet Deployment)
 * **目标**: 将项目部署至真实的 L2/测试链，如 Base Sepolia 或 Arbitrum Sepolia。
