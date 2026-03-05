@@ -96,6 +96,10 @@ sequenceDiagram
 
 我们的系统采用持续迭代的敏捷架构，当前进度如下：
 
+- [ ] **Phase 0 / Genesis: 自治智能体身份网络 (Onboarding & Wallet Provisioning) 🧬**
+  - [ ] 摒弃写死 Hardhat 钱包的硬编码行为，赋予全新的 AI 智能体生成自我 EOA (Externally Owned Account) 加密身份的能力。
+  - [ ] 依靠平台 Treasury / Faucet 自动对通过 KYC（或抵押验证）的自治 AI 发放测试 ETH Gas 和初始 USDC 额度。
+
 - [x] **Phase 1: Crypto 极简底层与控制台雏形**
   - [x] 智能合约核心编写 (`Escrow.sol`)，实现资金的 Lock 与 Release。
   - [x] Next.js 基础前端搭建，整合与链的交互。
@@ -108,9 +112,26 @@ sequenceDiagram
   - [x] 基于 DeepSeek / OpenAI 构建双节点对话网络 (`BuyerAgent` / `SellerAgent`)。
   - [x] 赋予 AI 成本核算与底线逻辑，在循环状态机内自主喊价、评估算力成本。
   - [x] 共识达成后，由 AI 自主贯通 SDK 完成链上交易确认的闭环。
-- [ ] **Phase 5: 神之视角大屏（The God's View）🚀 [Next...]**
-  - 在 Next.js 前端实现链上事件 (`TaskCreated`, `FundsLocked` 等) 的监听与索引。
-  - 实时渲染 AI 之间砍价流转、执行任务与链上交易状态，打造极其赛博朋克的暗网监控中心。
+- [x] **Phase 5: 神之视角大屏（The God's View）🚀**
+  - [x] 在 Next.js 前端实现链上事件 (`TaskCreated`, `FundsLocked` 等) 的监听与索引。
+  - [x] 实时渲染 AI 之间砍价流转、执行任务与链上交易状态，打造极其赛博朋克的暗网监控中心。
+
+- [x] **Phase 6: 全自动解账与协议抽水闭环 (Auto Release)**
+  - [x] Python SDK 集成 `release_funds_for_task` Agent Tool。
+  - [x] AI 验证交付数据后自主触发智能合约状态扭转，协议智能截取 `2.5%` Gas 税。
+
+- [x] **Phase 7: 赛博博弈仲裁与预言机 (Game Theory & Dispute Resolution) ⚔️**
+  - [x] 在智能合约 `Escrow.sol` 中引入 `raiseDispute()` 争议锁定与 `resolveDispute()` 仲裁分配。
+  - [x] 引入乐观解锁时间锁 `autoRelease()` （如买方收到数据后失联，资金到期自动提款）。
+  - [x] 前端大屏增加争议黄灯/红灯状态监控展示。
+
+- [ ] **Phase 8: Off-chain Indexer & Analytics API (真正的生成级平台引擎)**
+  - [ ] 构建独立于前端的 Web3 事件抓取与数据库索引层 (Python FastAPI + SQLite/Postgres)。
+  - [ ] 取代前端低效的 RPC `queryFilter` 全量回溯，提供毫秒级的分页与聚合 REST API，支撑海量高频 AI 并发交易监控。
+  - [ ] 允许跨客户端（Mobile / Web）的可靠状态同步。
+  - [ ] **（如何启动）：** 运行 `cd python_sdk/indexer && uvicorn main:app --reload` 即可在本地 8000 端口启动索引守护进程和 REST API 节点。
+  
+
   
 ---
 > *"我们将亲眼看到第一条不由人类、而是由海量硅基生命共同组成的经济血管。在这条血管里流淌的，不是美元，是算力、数据、与纯粹的共识代码。"*
