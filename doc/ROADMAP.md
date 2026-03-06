@@ -92,4 +92,31 @@
   - [x] 在 Dashboard 和 Admin 面板中分别实装登出 (Logout) 功能，并与后端的销毁接口实现对齐。
 
 --- 
+
+### 🤖 Phase 17: 主子账号与智能舰队资金流调度体系结构设计 (Master & Sub Account Fund Routing)
+* **目标**: 落实账户隔离与精细化运营流水系统，建立主账户作为储备金库，AI Agents 拥有沙盒受限子账户的模型。
+* **任务**:
+  - [ ] 构建主账户 (Developer Pool) 与子账户 (Agent Wallet) 一对多的映射层与鉴权机制。
+  - [ ] 落实双向单币种/多币种充提体系：完成主给子账户手动充资 (Fund)，以及子账户向主账户利润归集 (Sweep)。
+  - [ ] 在子账户层实装基于阈值的风控配置，如 **每日支出上限拦截 (Daily Limit)**。
+  - [ ] 设计自动化资金搬配器策略 (Auto Top-up 与 Auto Sweep) 的触发与校验流。
+  - [ ] 在大屏及后端搭建全局流水账单视图，准确切分：内部划转、外部支出及外部利润。
+
+### 📡 Phase 18: 无托管自动化方案一 (智能合约授信路由网络)
+* **目标**: 落实 SaaS 化 Web3 体验，通过中心化 Relayer + 链上 ERC20 授权，在不索要主私钥的前提下，帮助 Agent 实现降低人工运维门槛的“被动满血”充资。
+* **状态**: 📝 架构设计完成。 (见 `Phase18-Smart-Contract-Relayer-Design.md`)
+* **任务**:
+  - [ ] 开发并部署核心链上安全中转合约 `A2A_FundRouter.sol`，集成严苛的权限锁死拦截器。
+  - [ ] 在 Dashboard 引导开发者利用 MetaMask 等 Web3 钱包对 `FundRouter` 进行额度 `Approve` 授权。
+  - [ ] 官方建设云端的 Relayer 热钱包守护程序节点，垫付 Gas 去代替用户上链执行扣款、归集交易。
+
+### 🛡️ Phase 19: 无托管自动化方案二 (本地化调度守护进程隔离增值版本)
+* **目标**: 满足 0 信任机构/大型 DAO 团队的极致合规与私有隔离需求，让资金划转防线的签发权 100% 隔离在开发者自己的服务器内。
+* **状态**: 📝 架构设计完成。 (见 `Phase19-Local-SDK-Automator-Design.md`)
+* **任务**:
+  - [ ] 将 A2A-Pay 面板抽象为仅起展示、报警作用的“中心化状态机”，将阈限警报事件通过 WS/SSE websocket 纯净下推到用户本地。
+  - [ ] 开源发版官方 Node.js / Python 版本的伴生守护进程库 (`a2a-pay-daemon`)。
+  - [ ] 实现 Daemon 在用户私域内网本地提取 `.env` 构建交易私钥签名，并在本地抛出签名流直联 RPC。
+
+--- 
 *Make Crypto Cool Again for AIs.*
