@@ -106,7 +106,8 @@
 * **目标**: 落实 SaaS 化 Web3 体验，通过中心化 Relayer + 链上 ERC20 授权，在不索要主私钥的前提下，帮助 Agent 实现降低人工运维门槛的“被动满血”充资。
 * **状态**: 📝 架构设计完成。 (见 `Phase18-Smart-Contract-Relayer-Design.md`)
 * **任务**:
-  - [ ] 开发并部署核心链上安全中转合约 `A2A_FundRouter.sol`，集成严苛的权限锁死拦截器。
+  - [x] 开发并部署核心链上安全中转合约 `A2A_FundRouter.sol`，集成严苛的权限锁死拦截器。
+  - [x] Web3 多钱包接入设计产出：`Wallet-Integration-Design.md` 确定了兼容 MetaMask/Rabby 及移动端钱包的 `wagmi` + `RainbowKit` 方案。
   - [ ] 在 Dashboard 引导开发者利用 MetaMask 等 Web3 钱包对 `FundRouter` 进行额度 `Approve` 授权。
   - [ ] 官方建设云端的 Relayer 热钱包守护程序节点，垫付 Gas 去代替用户上链执行扣款、归集交易。
 
