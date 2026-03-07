@@ -29,6 +29,7 @@ export default function AgentDetail() {
   const [agentBalance, setAgentBalance] = useState("0.00");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [txHistory, setTxHistory] = useState<any[]>([]);
+  const [agentStats, setAgentStats] = useState({ revenue: 0, expense: 0 });
 
   useEffect(() => {
     const data = agentStore.getAgent(id);
@@ -54,6 +55,19 @@ export default function AgentDetail() {
       if (res.ok) {
         const data = await res.json();
         setTxHistory(data);
+        
+        // Compute stats for 24h mock replacement
+        let rev = 0;
+        let exp = 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data.forEach((t: any) => {
+          const amt = parseFloat(t.amount || "0");
+          if (t.status === "RELEASED" || t.status === "COMPLETED" || t.status === "LOCKED") {
+            if (t.seller && t.seller.toLowerCase() === address.toLowerCase()) rev += amt;
+            if (t.buyer && t.buyer.toLowerCase() === address.toLowerCase()) exp += amt;
+          }
+        });
+        setAgentStats({ revenue: rev, expense: exp });
       } else {
         console.error("Backend validation failed", await res.text());
         setTxHistory([]);
@@ -95,10 +109,6 @@ export default function AgentDetail() {
 
   if (!agent) return <div className="p-8 text-center text-gray-500">Loading Agent Matrix...</div>;
 
-  // Mock financials
-  const mockAgentRevenue = "+$12.00";
-  const mockAgentExpense = "-$0.05";
-
   return (
     <div className="max-w-6xl p-8 mx-auto">
       <Link href="/dashboard" className="flex inline-flex items-center mb-8 text-gray-400 transition-colors hover:text-white">
@@ -134,17 +144,17 @@ export default function AgentDetail() {
           <div className="grid grid-cols-2 gap-4">
             <div className="p-5 bg-black border border-gray-800 rounded-xl">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-400">24h Revenue</span>
+                <span className="text-sm font-medium text-gray-400">Total Revenue</span>
                 <ArrowUpRight className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="text-2xl font-bold text-emerald-400">{mockAgentRevenue}</div>
+              <div className="text-2xl font-bold text-emerald-400">{`+$${agentStats.revenue.toFixed(2)}`}</div>
             </div>
             <div className="p-5 bg-black border border-gray-800 rounded-xl">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-400">24h Expense & Gas</span>
+                <span className="text-sm font-medium text-gray-400">Total Expense & Gas</span>
                 <ArrowDownRight className="w-4 h-4 text-red-400" />
               </div>
-              <div className="text-2xl font-bold text-red-400">{mockAgentExpense}</div>
+              <div className="text-2xl font-bold text-red-400">{`-$${agentStats.expense.toFixed(2)}`}</div>
             </div>
           </div>
 

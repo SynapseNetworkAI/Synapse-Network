@@ -15,6 +15,9 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [agentBalances, setAgentBalances] = useState<Record<string, string>>({});
   const [totalBalance, setTotalBalance] = useState("0.00");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [fleetStats, setFleetStats] = useState({ revenue: 0, expense: 0, profit: 0 });
 
   const fetchBalances = async (currentAgents: AgentIdentity[]) => {
     try {
@@ -48,11 +51,45 @@ let total = BigInt(0);
     const loadedAgents = agentStore.getAgentsByOwner(userAddress);
     setAgents(loadedAgents);
     fetchBalances(loadedAgents);
+    fetchTasks();
   }, [userAddress]);
+
+  const fetchTasks = async () => {
+    if (!userAddress) return;
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/client/fleet/tasks", {
+        headers: {
+          "Authorization": "Bearer active",
+          "X-User-Address": userAddress
+        }
+      });
+      if(res.ok) {
+        const data = await res.json();
+        setTasks(data);
+        
+        let rev = 0;
+        let exp = 0;
+        const fleetAddresses = agentStore.getAgentsByOwner(userAddress).map(a => a.address?.toLowerCase());
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data.forEach((t: any) => {
+          const amt = parseFloat(t.amount || "0");
+          if (t.status === "RELEASED" || t.status === "COMPLETED" || t.status === "LOCKED") {
+             if (t.seller && fleetAddresses.includes(t.seller.toLowerCase())) rev += amt;
+             if (t.buyer && fleetAddresses.includes(t.buyer.toLowerCase())) exp += amt;
+          }
+        });
+        setFleetStats({ revenue: rev, expense: exp, profit: rev - exp });
+      }
+    } catch(e) {
+      console.warn("Could not fetch fleet tasks", e);
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await fetchBalances(agents);
+    await fetchTasks();
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
@@ -61,7 +98,7 @@ let total = BigInt(0);
       await fetch("http://127.0.0.1:8000/api/client/logout", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer dev_session_dummy",
+          "Authorization": "Bearer active",
           "X-User-Address": userAddress || ""
         }
       });
@@ -72,11 +109,7 @@ let total = BigInt(0);
     window.location.href = "/";
   };
 
-  // Mock global stats for Dashboard Phase 10
-  const mock24hRevenue = "+$342.10";
-  const mock24hExpense = "-$12.40";
-  const mockNetProfit = "+$329.70";
-
+  // Real dynamic stats derived from Indexer FastAPI (Phase 12)
   return (
     <div className="p-8 mx-auto space-y-8 max-w-7xl">
       {/* Header */}
@@ -129,7 +162,7 @@ let total = BigInt(0);
             <h3 className="text-sm font-medium text-gray-400">24h Revenue</h3>
             <ArrowUpRight className="w-5 h-5 text-emerald-400" />
           </div>
-          <div className="mb-1 text-2xl font-bold text-emerald-400">{agents.length > 0 ? mock24hRevenue : "$0.00"}</div>
+          <div className="mb-1 text-2xl font-bold text-emerald-400">{agents.length > 0 ? `+$${fleetStats.revenue.toFixed(2)}` : "$0.00"}</div>
           <p className="text-xs text-gray-500">From AI services</p>
         </div>
 
@@ -138,7 +171,7 @@ let total = BigInt(0);
             <h3 className="text-sm font-medium text-gray-400">24h Expense / Gas</h3>
             <ArrowDownRight className="w-5 h-5 text-red-400" />
           </div>
-          <div className="mb-1 text-2xl font-bold text-red-400">{agents.length > 0 ? mock24hExpense : "$0.00"}</div>
+          <div className="mb-1 text-2xl font-bold text-red-400">{agents.length > 0 ? `-$${fleetStats.expense.toFixed(2)}` : "$0.00"}</div>
           <p className="text-xs text-gray-500">On-chain transaction costs</p>
         </div>
 
@@ -147,7 +180,7 @@ let total = BigInt(0);
             <h3 className="text-sm font-medium text-gray-400">Net Profit (24h)</h3>
             <ActivitySquare className="w-5 h-5 text-blue-400" />
           </div>
-          <div className="mb-1 text-2xl font-bold text-blue-400">{agents.length > 0 ? mockNetProfit : "$0.00"}</div>
+          <div className="mb-1 text-2xl font-bold text-blue-400">{agents.length > 0 ? `${fleetStats.profit >= 0 ? '+' : '-'}$${Math.abs(fleetStats.profit).toFixed(2)}` : "$0.00"}</div>
           <p className="text-xs text-gray-500">Auto-calculated</p>
         </div>
       </div>
@@ -228,6 +261,75 @@ let total = BigInt(0);
           ))}
         </div>
       )}
+
+      {/* Global Event Stream (Phase 12) */}
+      <div className="mt-12 mb-6">
+        <h2 className="flex items-center gap-2 pl-3 text-xl font-bold border-l-4 border-blue-500 text-white">
+          <Activity className="w-5 h-5 text-blue-500" /> System Event Stream (Real-time PnL)
+        </h2>
+      </div>
+      <div className="overflow-hidden border border-gray-800 rounded-xl bg-black">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="text-xs uppercase bg-gray-900 border-b border-gray-800 text-gray-400">
+              <tr>
+                <th className="px-6 py-4 font-medium tracking-wider">Action / Status</th>
+                <th className="px-6 py-4 font-medium tracking-wider">My Agent</th>
+                <th className="px-6 py-4 font-medium tracking-wider">Tx Opponent</th>
+                <th className="px-6 py-4 text-right font-medium tracking-wider">Volume (USDC)</th>
+                <th className="px-6 py-4 font-medium tracking-wider">Tx Node</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800/80">
+              {tasks.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500 bg-gray-900/10">No recent transactions tracked.</td>
+                </tr>
+              ) : (
+                tasks.slice(0, 15).map((t, idx) => {
+                  const isAgentBuyer = agents.some(a => a.address?.toLowerCase() === t.buyer.toLowerCase());
+                  const me = isAgentBuyer ? t.buyer : t.seller;
+                  const op = isAgentBuyer ? t.seller : t.buyer;
+                  const myAgent = agents.find(a => a.address?.toLowerCase() === me.toLowerCase());
+                  
+                  return (
+                    <tr key={idx} className="transition-colors hover:bg-gray-900/50">
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2 py-1 text-xs rounded border ${
+                          t.status === 'LOCKED' ? 'border-yellow-500/30 text-yellow-500 bg-yellow-500/10' :
+                          (t.status === 'COMPLETED' || t.status === 'RELEASED') ? 'border-green-500/30 text-green-500 bg-green-500/10' :
+                          'border-red-500/30 text-red-500 bg-red-500/10'
+                        }`}>
+                          {t.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-300">{myAgent?.name || "Unknown Agent"}</span>
+                          <span className="text-xs text-gray-600 font-mono truncate w-32">{me}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                         <span className="text-xs text-gray-600 font-mono truncate w-32 inline-block">{op}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right font-mono font-bold">
+                        <span className={isAgentBuyer ? "text-red-400" : "text-green-400"}>
+                          {isAgentBuyer ? "-" : "+"}{t.amount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                         <span className="text-xs text-blue-500 font-mono">
+                           {t.txHash.substring(0, 8)}...{t.txHash.substring(t.txHash.length - 6)}
+                         </span>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
