@@ -11,9 +11,14 @@ contract A2A_FundRouter is Ownable {
     mapping(address => bool) public isAuthorizedRelayer;
     mapping(address => mapping(address => bool)) public isSubAccountRegistered;
 
+    // Daily Limit mappings
+    mapping(address => uint256) public dailyLimit;
+    mapping(address => mapping(uint256 => uint256)) public dailySpent;
+
     event RelayerAuthorized(address indexed relayer, bool status);
     event SubAccountRegistered(address indexed master, address indexed subAccount, bool status);
     event TopUpTriggered(address indexed master, address indexed subAccount, uint256 amount, uint256 feeAndGas);
+    event DailyLimitSet(address indexed master, uint256 limit);
 
     modifier onlyRelayer() {
         require(isAuthorizedRelayer[msg.sender], "A2A_FundRouter: caller is not an authorized relayer");
@@ -39,10 +44,25 @@ contract A2A_FundRouter is Ownable {
         platformTreasury = _treasury;
     }
 
+    // Allows a Master Wallet to set its own Daily Auto-TopUp Limit
+    function setDailyLimit(uint256 _limit) external {
+        dailyLimit[msg.sender] = _limit;
+        emit DailyLimitSet(msg.sender, _limit);
+    }
+
     function triggerTopUp(address master, address subAccount, uint256 amount, uint256 gasCost) external onlyRelayer {
         require(isSubAccountRegistered[master][subAccount], "A2A_FundRouter: unregistered sub-account");
         
         uint256 platformFee = (amount * 1) / 1000;
+        uint256 totalCost = amount + gasCost + platformFee;
+
+        // Daily Limit Enforcement
+        uint256 limit = dailyLimit[master];
+        if (limit > 0) {
+            uint256 today = block.timestamp / 1 days;
+            require(dailySpent[master][today] + totalCost <= limit, "A2A_FundRouter: Daily limit exceeded");
+            dailySpent[master][today] += totalCost;
+        }
         
         require(paymentToken.transferFrom(master, subAccount, amount), "A2A_FundRouter: TopUp transfer failed");
         require(paymentToken.transferFrom(master, platformTreasury, gasCost + platformFee), "A2A_FundRouter: Fee/Gas transfer failed");

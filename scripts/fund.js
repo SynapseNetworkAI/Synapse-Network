@@ -1,23 +1,26 @@
 const { ethers } = require("hardhat");
+const fs = require("fs");
+const path = require("path");
 
 async function main() {
-    const receiver = "0xd856907d7e35A8F9bD225859A59E58577147a092";
+    const configPath = path.join(__dirname, "test_accounts.json");
+    const accounts = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    
     const [sender] = await ethers.getSigners();
+    console.log(`Sending ETH from: ${sender.address}\n`);
     
-    console.log(`Funding account: ${receiver}`);
-    console.log(`Sending ETH from: ${sender.address}`);
-    
-    const tx = await sender.sendTransaction({
-        to: receiver,
-        value: ethers.parseEther("100.0") // Sending 100 ETH
-    });
-    
-    await tx.wait();
-    
-    console.log(`Successfully funded ${receiver} with 100 ETH!`);
-    
-    const balance = await ethers.provider.getBalance(receiver);
-    console.log(`New balance: ${ethers.formatEther(balance)} ETH`);
+    for (const account of accounts) {
+        console.log(`Funding ${account.name} (Address: ${account.address})`);
+        const tx = await sender.sendTransaction({
+            to: account.address,
+            value: ethers.parseEther("10.0") // Sending 10 ETH
+        });
+        await tx.wait();
+        console.log(`Successfully funded ${account.address} with 10 ETH!`);
+        
+        const balance = await ethers.provider.getBalance(account.address);
+        console.log(`New balance: ${ethers.formatEther(balance)} ETH\n`);
+    }
 }
 
 main()

@@ -89,3 +89,55 @@ Indexer 会自动监听链上的 Escrow 合约事件并把流水写进 SQLite �
 rm *.db
 ```
 然后再次 `./run_services.sh` 即可获得一个清新的后端状态。
+
+## 7. 测试与验证 Marketplace 流程与 SDK
+项目中提供了 `marketplace_client.py` SDK 客户端封装，以及 `test_marketplace.py` 自动化测试脚本，用于验证 API 路由、Row-Level Security 及接单权限（如买家 Seller Agent 不能接自己创建的单）。
+
+**如何运行 Marketplace 单元测试：**
+```bash
+cd python_sdk
+source venv/bin/activate
+
+# 确保已安装 pytest 测试框架
+pip install pytest
+
+# 运行自动化测试，查看详细测试报告
+pytest test_marketplace.py -v
+```
+运行后将能够看到具体的测试用例：
+1. `test_marketplace_flow`: 验证第三方 Agent 接单与任务流转处理的标准能力。
+2. `test_cannot_accept_own_task`: 验证后端的防舞弊逻辑拦截。
+
+**在您自己的 Agent 脚本中使用 `marketplace_client.py`：**
+它是 Python Agent 接入 A2A 协议的快速构建基石。您可以在业务脚本中免去组装 Requests 头部烦恼，直接注入身份认证并调起市场行为：
+```python
+from marketplace_client import A2AMarketplaceClient
+
+# 初始化 SDK 客户端，绑定 EOA 凭证用于服务端 RLS(Row-Level Security) 鉴权
+client = A2AMarketplaceClient(
+    base_url="http://127.0.0.1:8000/api/client",
+    session_token="active", # Session Token 占位证
+    user_address="0xYourUserAddress..."  # 指定你的身份
+)
+
+# 1. 挂载一个新任务
+res = client.publish_task(
+    title="Data Analytics", 
+    description="Analyze file.csv", 
+    amount="0.05", 
+    buyer_agent="0xYourBuyerAgentWalet..."
+)
+
+# 2. 从市场捕获等待接手的任务
+pending_tasks = client.get_marketplace_tasks()
+
+# 3. 作为一个 Seller Agent 主动接单
+client.accept_task(
+    task_id=pending_tasks[0]['task_id'], 
+    agent_wallet="0xYourSellerAgentWallet..."
+)
+```
+
+## 8. 高级：AI Agent 编排 (LangChain Tools)
+关于如何使用 Python 提供的 LangChain Tools，让你的 Agent 自动调用智能合约并且自动接单，请参阅独立的指南：
+[《LangChain Tools 开发与使用说明文档》](./LangChain-Tools-Guide.md)

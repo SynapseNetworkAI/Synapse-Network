@@ -326,45 +326,55 @@ let total = BigInt(0);
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-500 bg-gray-900/10">No recent transactions tracked.</td>
                 </tr>
               ) : (
-                tasks.slice(0, 15).map((t, idx) => {
-                  const isAgentBuyer = agents.some(a => a.address?.toLowerCase() === t.buyer.toLowerCase());
-                  const me = isAgentBuyer ? t.buyer : t.seller;
-                  const op = isAgentBuyer ? t.seller : t.buyer;
-                  const myAgent = agents.find(a => a.address?.toLowerCase() === me.toLowerCase());
-                  
-                  return (
-                    <tr key={idx} className="transition-colors hover:bg-gray-900/50">
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2 py-1 text-xs rounded border ${
-                          t.status === 'LOCKED' ? 'border-yellow-500/30 text-yellow-500 bg-yellow-500/10' :
-                          (t.status === 'COMPLETED' || t.status === 'RELEASED') ? 'border-green-500/30 text-green-500 bg-green-500/10' :
-                          'border-red-500/30 text-red-500 bg-red-500/10'
-                        }`}>
-                          {t.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-gray-300">{myAgent?.name || "Unknown Agent"}</span>
-                          <span className="w-32 font-mono text-xs text-gray-600 truncate">{me}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                         <span className="inline-block w-32 font-mono text-xs text-gray-600 truncate">{op}</span>
-                      </td>
-                      <td className="px-6 py-4 font-mono font-bold text-right">
-                        <span className={isAgentBuyer ? "text-red-400" : "text-green-400"}>
-                          {isAgentBuyer ? "-" : "+"}{t.amount}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                         <span className="font-mono text-xs text-blue-500">
-                           {t.txHash ? `${t.txHash.substring(0, 8)}...${t.txHash.substring(t.txHash.length - 6)}` : 'N/A'}
-                         </span>
-                      </td>
-                    </tr>
-                  )
-                })
+                (() => {
+                  const fleetEvents: any[] = [];
+                  tasks.forEach(t => {
+                    const isBuyer = agents.some(a => a.address?.toLowerCase() === t.buyer.toLowerCase());
+                    const isSeller = t.seller && agents.some(a => a.address?.toLowerCase() === t.seller.toLowerCase());
+                    if (isBuyer) {
+                      fleetEvents.push({ ...t, viewRole: 'buyer', me: t.buyer, op: t.seller || 'Pending Match' });
+                    }
+                    if (isSeller) {
+                      fleetEvents.push({ ...t, viewRole: 'seller', me: t.seller, op: t.buyer });
+                    }
+                  });
+                  return fleetEvents.slice(0, 15).map((ev, idx) => {
+                    const myAgent = agents.find(a => a.address?.toLowerCase() === ev.me.toLowerCase());
+                    return (
+                      <tr key={`${ev.taskId}-${ev.viewRole}-${idx}`} className="transition-colors hover:bg-gray-900/50">
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2 py-1 text-xs rounded border ${
+                            ev.status === 'LOCKED' ? 'border-yellow-500/30 text-yellow-500 bg-yellow-500/10' :
+                            (ev.status === 'COMPLETED' || ev.status === 'RELEASED') ? 'border-green-500/30 text-green-500 bg-green-500/10' :
+                            (ev.status === 'DELIVERED') ? 'border-blue-500/30 text-blue-400 bg-blue-500/10' :
+                            'border-gray-500/30 text-gray-400 bg-gray-500/10'
+                          }`}>
+                            {ev.viewRole === 'seller' && ev.status === 'DELIVERED' ? 'DELIVERED (AWAITING PAY)' : ev.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-300">{myAgent?.name || "Unknown Agent"}</span>
+                            <span className="w-32 font-mono text-xs text-gray-600 truncate">{ev.me}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                           <span className="inline-block w-32 font-mono text-xs text-gray-600 truncate">{ev.op}</span>
+                        </td>
+                        <td className="px-6 py-4 font-mono font-bold text-right">
+                          <span className={ev.viewRole === 'buyer' ? "text-red-400" : "text-green-400"}>
+                            {ev.viewRole === 'buyer' ? "-" : "+"}{ev.amount}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                           <span className="font-mono text-xs text-blue-500">
+                             {ev.txHash ? `${ev.txHash.substring(0, 8)}...${ev.txHash.substring(ev.txHash.length - 6)}` : 'N/A'}
+                           </span>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()
               )}
             </tbody>
           </table>

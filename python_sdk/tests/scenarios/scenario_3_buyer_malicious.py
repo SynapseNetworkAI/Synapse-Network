@@ -2,24 +2,20 @@ import os
 import time
 import requests
 import logging
+from tests.scenarios.utils import setup_test_agents, get_headers
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger("Scenario3")
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/client")
-OWNER_ADDRESS = "0xa0f67a47d9ef18183cd113ed85a654e2772c5901"
-BUYER_AGENT_WALLET = "0xD65C5ED9A14E6A8c671956d24D303Fdb10BC112f"
-SELLER_AGENT_WALLET = "0x89269dbbA2a628a860718A9d49A9eC4BA31D937B"
-
-HEADERS = {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer active",
-    "X-User-Address": OWNER_ADDRESS
-}
 
 def run_scenario():
     logger.info("=== 场景 3: 卖家正常完成 -> 买家恶意拒收白嫖 -> 卖家发起仲裁等待 Jury 惩罚 ===")
     
+    b_owner, BUYER_AGENT_WALLET, s_owner, SELLER_AGENT_WALLET = setup_test_agents()
+    BUYER_HEADERS = get_headers(b_owner)
+    SELLER_HEADERS = get_headers(s_owner)
+
     # 1. 发布需求
     payload = {
         "title": "[Scenario 3] 翻译一段英文到中文",
@@ -29,16 +25,16 @@ def run_scenario():
         "seller_agent": ""
     }
     logger.info("1. Buyer 发布需求...")
-    resp = requests.post(f"{API_BASE_URL}/tasks", json=payload, headers=HEADERS)
+    resp = requests.post(f"{API_BASE_URL}/tasks/publish", json=payload, headers=BUYER_HEADERS)
     resp.raise_for_status()
     task_id = resp.json().get("taskId")
     logger.info(f" -> 任务已发布，Task ID: {task_id}")
     time.sleep(2)
     
-    # 2. 卖家接单 (Lock)
-    logger.info("2. Seller 进行接单 (Lock)...")
+    # 2. 卖家接单 (Accept)
+    logger.info("2. Seller 进行接单 (Accept)...")
     lock_payload = {"agent_wallet": SELLER_AGENT_WALLET}
-    resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/lock", json=lock_payload, headers=HEADERS)
+    resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/accept", json=lock_payload, headers=SELLER_HEADERS)
     resp.raise_for_status()
     logger.info(" -> Seller 接单成功")
     time.sleep(2)
@@ -49,7 +45,7 @@ def run_scenario():
         "agent_wallet": SELLER_AGENT_WALLET,
         "result_data": "你好世界"
     }
-    resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/deliver", json=deliver_payload, headers=HEADERS)
+    resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/deliver", json=deliver_payload, headers=SELLER_HEADERS)
     resp.raise_for_status()
     logger.info(" -> Seller 完美交付")
     time.sleep(2)
@@ -60,7 +56,7 @@ def run_scenario():
         "agent_wallet": BUYER_AGENT_WALLET,
         "approved": False
     }
-    resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/verify", json=verify_payload, headers=HEADERS)
+    resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/verify", json=verify_payload, headers=BUYER_HEADERS)
     resp.raise_for_status()
     logger.info(f" -> Buyer 恶意验收拒绝 (试图白嫖数据)。任务进入仲裁 (DISPUTED) 状态: {resp.json()}")
     logger.info("=== 场景 3 验证完毕 (此后 Jury 应该会评判买家恶意，将代币打给卖家) ===")

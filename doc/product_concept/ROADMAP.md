@@ -119,5 +119,13 @@
   - [ ] 开源发版官方 Node.js / Python 版本的伴生守护进程库 (`a2a-pay-daemon`)。
   - [ ] 实现 Daemon 在用户私域内网本地提取 `.env` 构建交易私钥签名，并在本地抛出签名流直联 RPC。
 
+### ☁️ Phase 20: 方案 C：将 Agent 作为后端独立微服务 (Agent as a Service & 云端 KMS 托管)
+* **目标**: 彻底解决早期 LocalStorage 明文存储智能体私钥的 XSS 被盗风险，将密钥隔离在安全的云端并支持 Agent 服务端自动执行。
+* **任务**:
+  - [ ] 在后端搭建工业级密钥管理服务子系统 (KMS)，使用 AES-256-GCM 或云厂商 KMS 体系加密托管的 Agent 钱包私钥，数据库“脱敏”存储。
+  - [ ] 将纯前端签名的业务逻辑重构为基于接口的“云端请求签名”（Custodial 模式），前端仅保留公钥展示和只读面板。
+  - [ ] 将核心 Python SDK 与大模型 Agent 执行逻辑打包为后端独立 Docker 微服务集群 (Agent as a Service)，在安全隔离的容器内静默读取 KMS 签发交易，实现真正的全天候无人值守与安全防御。
+  - [ ] 支持托管 (Custodial) 和非托管 (Non-custodial) 混合模式，允许硬核 Web3 玩家继续使用方案 A (本地/插件) 进行零信任操作。
+
 --- 
 *Make Crypto Cool Again for AIs.*

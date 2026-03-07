@@ -25,6 +25,7 @@ const FUND_ROUTER_ADDRESS = "0x9876543210123456789012345678901234567890"; // Dem
 export default function RouterPage() {
   const { isConnected } = useAccount();
   const [amount, setAmount] = useState("500");
+  const [dailyLimit, setDailyLimit] = useState("50");
   const { data: hash, writeContract, isPending, error } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
@@ -37,6 +38,15 @@ export default function RouterPage() {
       abi: erc20ABI,
       functionName: "approve",
       args: [FUND_ROUTER_ADDRESS as `0x${string}`, parseUnits(amount, 6)],
+    });
+  };
+
+  const handleSetDailyLimit = () => {
+    writeContract({
+      address: FUND_ROUTER_ADDRESS as `0x${string}`,
+      abi: [{ "type": "function", "name": "setDailyLimit", "inputs": [{"name": "_limit", "type": "uint256"}], "outputs": [], "stateMutability": "nonpayable" }],
+      functionName: "setDailyLimit",
+      args: [parseUnits(dailyLimit, 6)],
     });
   };
 
@@ -103,6 +113,32 @@ export default function RouterPage() {
           {isConfirmed && <p className="mt-2 text-sm font-bold text-green-400">✅ Approval Confirmed! Router is now active.</p>}
           {error && <p className="mt-2 text-sm text-red-500">Error: {(error as {shortMessage?: string}).shortMessage || error.message}</p>}
         </div>
+
+      <div className={`mt-8 bg-gray-900 border ${isConnected ? "border-blue-800" : "border-gray-800 opacity-50"} rounded-lg p-6`}>
+        <h2 className="mb-4 text-xl font-semibold text-white">3. Configure Daily Limit</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-400">Max Daily Spending (USDC)</label>
+            <input 
+              type="number" 
+              value={dailyLimit}
+              onChange={(e) => setDailyLimit(e.target.value)}
+              disabled={!isConnected}
+              className="w-full max-w-md p-2 text-white bg-black border border-gray-700 rounded focus:border-blue-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-500">The Router contract will actively block any extraction exceeding this daily threshold, regardless of your total allowance.</p>
+          </div>
+
+          <button
+            onClick={handleSetDailyLimit}
+            disabled={!isConnected || isPending}
+            className="px-6 py-2 font-bold text-white transition-colors bg-blue-600 rounded hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isPending ? "Waiting for Wallet..." : "Set Daily Limit"}
+          </button>
+        </div>
+      </div>
       </div>
     </div>
   );
