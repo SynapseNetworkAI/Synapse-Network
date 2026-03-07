@@ -153,16 +153,18 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
                         rel="noreferrer"
                         className="font-mono text-xs text-blue-400 break-all hover:underline"
                       >
-                        {task.txHash}
+                        {task.txHash as string}
                       </a>
                     ) : (
-                      <span className="font-mono text-xs text-gray-600">Pending</span>
+                      <span className="font-mono text-xs text-gray-600">
+                        {['PENDING', 'PROCESSING'].includes(task.status as string) ? 'Pending' : 'N/A (Off-chain)'}
+                      </span>
                     )}
                   </div>
                   <div>
                     <span className="block mb-1 text-xs text-gray-500">Block Number:</span>
                     <span className="font-mono text-xs text-gray-300">
-                      {task.blockNumber ? `#${task.blockNumber}` : 'Pending'}
+                      {task.blockNumber ? `#${task.blockNumber}` : (['PENDING', 'PROCESSING'].includes(task.status as string) ? 'Pending' : 'N/A')}
                     </span>
                   </div>
                 </div>
