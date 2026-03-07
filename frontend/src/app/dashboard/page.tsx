@@ -13,17 +13,25 @@ export default function Dashboard() {
   const { address: userAddress } = useAccount();
   const [agents, setAgents] = useState<AgentIdentity[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [masterBalance, setMasterBalance] = useState("0.00");
   const [agentBalances, setAgentBalances] = useState<Record<string, string>>({});
   const [totalBalance, setTotalBalance] = useState("0.00");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [tasks, setTasks] = useState<any[]>([]);
   const [fleetStats, setFleetStats] = useState({ revenue: 0, expense: 0, profit: 0 });
 
-  const fetchBalances = async (currentAgents: AgentIdentity[]) => {
+  const fetchBalances = async (currentAgents: AgentIdentity[], masterAddr: string | undefined) => {
     try {
       const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-      const usdcContract = new ethers.Contract(contractConfig.MockUSDC, MockUSDCABI, provider);
+      const usdcContract = new ethers.Contract(contractConfig.MockUSDC, MockUSDCABI, provider);                                                                       
       
+      if (masterAddr) {
+        try {
+          const mBal = await usdcContract.balanceOf(masterAddr);
+          setMasterBalance(parseFloat(ethers.formatUnits(mBal, 18)).toFixed(2));
+        } catch (e) { console.warn("Could not fetch master balance", e); }
+      }
+
       const newBalances: Record<string, string> = {};
 let total = BigInt(0);
 
@@ -50,7 +58,7 @@ let total = BigInt(0);
     if (!userAddress) return;
     const loadedAgents = agentStore.getAgentsByOwner(userAddress);
     setAgents(loadedAgents);
-    fetchBalances(loadedAgents);
+    fetchBalances(loadedAgents, userAddress);
     fetchTasks();
   }, [userAddress]);
 
@@ -88,7 +96,7 @@ let total = BigInt(0);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchBalances(agents);
+    await fetchBalances(agents, userAddress);
     await fetchTasks();
     setTimeout(() => setIsRefreshing(false), 800);
   };
@@ -146,7 +154,46 @@ let total = BigInt(0);
         </div>
       </div>
 
+      
+      {/* Tier 1: User / Global Treasury (Macro Ledger) */}
+      <div className="mb-4">
+        <h2 className="pl-3 text-xl font-bold text-white border-l-4 border-yellow-500">
+          Tier 1: Global Treasury (Master Wallet)
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 mb-8 md:grid-cols-2">
+        <div className="relative p-6 overflow-hidden bg-black border border-gray-800 rounded-xl">
+          <div className="flex items-center justify-between mb-2">
+             <h3 className="text-sm font-medium text-gray-400">Master USDC Balance</h3>
+             <Wallet className="w-5 h-5 text-yellow-500" />
+          </div>
+          <div className="mb-2 text-4xl font-bold text-white">
+             <span className="text-yellow-500">$</span>{masterBalance}
+          </div>
+          <p className="text-xs font-mono text-gray-500 truncate">{userAddress || "Not Connected"}</p>
+        </div>
+        
+        <div className="relative p-6 overflow-hidden bg-black border border-gray-800 rounded-xl flex flex-col justify-center">
+            <h3 className="text-sm font-medium text-gray-400 mb-2">Fund Router & Auto-Top-Up</h3>
+            <p className="text-xs text-gray-500 mb-4">Manage smart contract daily limits and relayer settings for your agent sub-wallets.</p>
+            <Link href="/dashboard/router">
+               <button className="w-full flex items-center justify-center px-4 py-3 text-sm font-bold text-black transition-colors bg-yellow-500 rounded-lg hover:bg-yellow-600">
+                 <ActivitySquare className="w-5 h-5 mr-2" />
+                 Configure Smart Contract Limits
+               </button>
+            </Link>
+        </div>
+      </div>
+
+      <div className="mb-4 mt-12">
+        <h2 className="pl-3 text-xl font-bold text-white border-l-4 border-green-500">
+          Tier 2: Agent Fleet & Micro Ledgers
+        </h2>
+      </div>
+
       {/* Global Overview Module */}
+
       <div className="grid grid-cols-1 gap-4 mb-8 md:grid-cols-4">
         <div className="relative p-6 overflow-hidden bg-black border border-gray-800 rounded-xl">
           <div className="flex items-center justify-between mb-4">
@@ -185,9 +232,7 @@ let total = BigInt(0);
         </div>
       </div>
 
-      <div className="mb-4">
-        <h2 className="pl-3 text-xl font-bold text-white border-l-4 border-green-500">Active Agent Fleet</h2>
-      </div>
+
 
       {/* Fleet Table / Cards Module */}
       {agents.length === 0 ? (
