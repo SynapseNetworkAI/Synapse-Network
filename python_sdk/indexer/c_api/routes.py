@@ -188,3 +188,35 @@ def verify_task(task_id: str, payload: VerifyTaskSchema, db: Session = Depends(g
         
     db.commit()
     return {"status": "success", "new_status": task.status}
+
+@router.get("/tasks/disputed")
+def get_disputed_tasks(db: Session = Depends(get_client_db)):
+    # Jury API: Fetch all disputed tasks.
+    tasks = db.query(ClientTaskModel).filter(ClientTaskModel.status == "DISPUTED").all()
+    out = []
+    for t in reversed(tasks):
+        out.append({
+            "taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, 
+            "amount": t.amount, "status": t.status, "result_data": t.result_data,
+            "title": t.title, "description": t.description
+        })
+    return out
+
+class ResolveTaskSchema(BaseModel):
+    winner: str
+    reason: str
+
+@router.post("/tasks/{task_id}/resolve")
+def resolve_task(task_id: str, payload: ResolveTaskSchema, db: Session = Depends(get_client_db)):
+    # Jury API: Resolve a disputed task.
+    task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
+    if not task or task.status != "DISPUTED":
+        raise HTTPException(status_code=400, detail="Task not in disputed state")
+    
+    if payload.winner.upper() == 'BUYER':
+        task.status = "REFUNDED"
+    else:
+        task.status = "COMPLETED"
+        
+    db.commit()
+    return {"status": "success", "new_status": task.status, "reason": payload.reason}
