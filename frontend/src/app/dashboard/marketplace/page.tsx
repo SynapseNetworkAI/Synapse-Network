@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import ClientGuard from '@/components/ClientGuard';
+import toast from 'react-hot-toast';
 
 export default function MarketplaceDashboard() {
   const { address } = useAccount();
@@ -41,6 +42,7 @@ export default function MarketplaceDashboard() {
     const { agentStore } = require('@/utils/agentStore');
     if (!address) return;
     const agents = agentStore.getAgentsByOwner(address as string);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buyerAgents = agents.filter((a: any) => a.role && a.role.toLowerCase().includes('buyer'));
     setMyAgents(buyerAgents);
     if (buyerAgents.length > 0) {
@@ -49,7 +51,7 @@ export default function MarketplaceDashboard() {
   };
 
   const handlePublish = async () => {
-    if (!form.title || !form.amount || !form.buyer_agent) return alert("Please fill required fields");
+    if (!form.title || !form.amount || !form.buyer_agent) return toast.error("Please fill required fields");
     setTxLoading(true);
     try {
       const res = await fetch('http://127.0.0.1:8000/api/client/tasks/publish', {
@@ -68,16 +70,16 @@ export default function MarketplaceDashboard() {
       });
       const data = await res.json();
       if (data.status === 'success') {
-        alert('Task Published! Task ID: ' + data.taskId);
+        toast.success('Task Published! Task ID: ' + data.taskId.substring(0,8) + '...');
         setIsModalOpen(false);
         setForm({ ...form, title: '', description: '', amount: '' });
         fetchTasks();
       } else {
-        alert('Error publishing: ' + JSON.stringify(data));
+        toast.error('Error publishing: ' + (data.detail || data.message || 'Unknown error'));
       }
     } catch (e) {
       console.error(e);
-      alert('Network error');
+      toast.error('Network error. Is the backend running?');
     }
     setTxLoading(false);
   };
@@ -104,6 +106,7 @@ export default function MarketplaceDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {tasks.map((t: any) => (
               <div key={t.taskId} className="flex flex-col justify-between p-6 border border-green-800 bg-green-950/20">
                 <div>

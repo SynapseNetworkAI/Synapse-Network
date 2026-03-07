@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { 
   ArrowLeft, Copy, Check, ShieldAlert, Cpu, Wallet, Trash2, 
-  ArrowUpRight, ArrowDownRight, Activity, ExternalLink 
+  ArrowUpRight, ArrowDownRight, Activity
 } from "lucide-react";
 import { agentStore, AgentIdentity } from "@/utils/agentStore";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import { useAccount } from "wagmi";
+import toast from "react-hot-toast";
 
 export default function AgentDetail() {
   const params = useParams();
@@ -27,6 +28,7 @@ export default function AgentDetail() {
   
   // Real Balance state
   const [agentBalance, setAgentBalance] = useState("0.00");
+  const [currentPage, setCurrentPage] = useState(1);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [txHistory, setTxHistory] = useState<any[]>([]);
   const [agentStats, setAgentStats] = useState({ revenue: 0, expense: 0 });
@@ -100,12 +102,7 @@ export default function AgentDetail() {
     }
   };
 
-  const deleteAgent = () => {
-    if (confirm("Are you sure you want to delete this agent? The private key will be lost forever if not backed up.")) {
-      agentStore.removeAgent(id);
-      router.push("/dashboard");
-    }
-  };
+  const deleteAgent = () => { toast((t) => ( <div className="bg-gray-900 border-2 border-red-500/50 p-6 rounded-lg w-80 max-w-full font-mono text-left"> <h3 className="text-xl text-red-400 mb-2 mt-0 font-bold uppercase tracking-wider">WARNING</h3> <p className="text-sm text-gray-300 mb-6 leading-relaxed"> Are you sure you want to delete this agent? The private key will be lost forever if not backed up. </p> <div className="flex gap-3"> <button onClick={() => {toast.dismiss(t.id); agentStore.removeAgent(id); router.push("/dashboard");}} className="flex-1 bg-red-900/40 hover:bg-red-900/80 text-red-300 border border-red-500/30 py-2 rounded transition-colors text-sm uppercase tracking-wide cursor-pointer">DELETE</button> <button onClick={() => toast.dismiss(t.id)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-600 py-2 rounded transition-colors text-sm uppercase tracking-wide cursor-pointer">CANCEL</button> </div> </div> ), { duration: Infinity, style: { background: "transparent", boxShadow: "none", padding: 0 } }); };
 
   if (!agent) return <div className="p-8 text-center text-gray-500">Loading Agent Matrix...</div>;
 
@@ -217,50 +214,87 @@ export default function AgentDetail() {
             </div>
           </div>
           
-          {/* Transaction History */}
-          <div className="p-6 border border-gray-800 bg-black/60 rounded-2xl">
-            <h3 className="flex items-center mb-4 text-lg font-bold text-white">
-               <Activity className="w-5 h-5 mr-2 text-blue-400" />
-               Recent Transaction History
-            </h3>
-            <div className="space-y-3">
-              {txHistory.length > 0 ? txHistory.map(tx => {
-                const isReceive = tx.seller.toLowerCase() === agent?.address.toLowerCase();
-                const prefix = isReceive ? '+' : '-';
-                const colorClass = isReceive ? 'text-emerald-400' : 'text-red-400';
-                const bgClass = isReceive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400';
-                
-                return (
-                <div key={tx.taskId} className="flex flex-col justify-between gap-3 p-3 transition-colors border rounded-lg sm:flex-row sm:items-center bg-gray-900/40 border-gray-800/50 hover:bg-gray-800/60">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${bgClass}`}>
-                      {isReceive ? <ArrowDownRight className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-200">
-                        {isReceive ? `From: ${tx.buyer.substring(0,6)}...${tx.buyer.substring(38)}` : `To: ${tx.seller.substring(0,6)}...${tx.seller.substring(38)}`}
-                      </div>
-                      <div className="text-xs text-gray-500">Block {tx.blockNumber} &bull; <span className="font-mono">Tx: {tx.txHash.substring(0,10)}...</span></div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between w-full gap-4 sm:justify-end sm:w-auto">
-                    <span className={`font-mono text-sm ${colorClass}`}>
-                      {prefix}{tx.amount} USDC ({tx.status})
-                    </span>
-                    <button className="text-gray-600 transition-colors hover:text-blue-400">
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}) : (
-                <div className="py-4 text-center text-gray-500">No transactions yet</div>
-              )}
-              <button className="w-full py-2 mt-2 text-sm text-gray-500 transition-colors hover:text-white">
-                 View All on Block Explorer
-              </button>
+          {/* Task Ledger (Micro Ledger) - Terminal Style */}
+          <div className="flex flex-col border border-[#00FFA3]/30 bg-[#060606] shadow-[0_0_20px_rgba(0,255,163,0.05)] rounded-xl overflow-hidden mt-6">
+            <div className="flex items-center justify-between px-4 py-3 bg-[#0a2010] border-b border-[#00FFA3]/30">
+              <h3 className="flex items-center text-sm font-bold tracking-wider text-[#00FFA3] uppercase font-mono">
+                <Activity className="w-4 h-4 mr-2" />
+                Agent Task Ledger
+              </h3>
+              <div className="flex space-x-2">
+                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+              </div>
             </div>
-          </div>
+            
+            <div className="p-4 font-mono text-xs md:text-sm overflow-x-auto whitespace-nowrap min-h-[400px]">
+              <div className="grid grid-cols-[100px_minmax(140px,1fr)_120px_180px_100px] gap-4 pb-2 mb-2 text-[#00FFA3]/60 border-b border-[#00FFA3]/30 font-semibold tracking-wider">
+                <div>TYPE</div>
+                <div>COUNTERPARTY</div>
+                <div>AMOUNT</div>
+                <div>TASK DETAILS</div>
+                <div>STATUS</div>
+              </div>
+              
+              <div className="space-y-1">
+                {txHistory.length > 0 ? txHistory.slice((currentPage - 1) * 8, currentPage * 8).map(tx => {
+                  const isReceive = tx.seller.toLowerCase() === agent?.address.toLowerCase();
+                  const typeLabel = isReceive ? "INCOME " : "EXPENSE";
+                  const typeColor = isReceive ? "text-[#00FFA3]" : "text-red-400";
+                  const counterparty = isReceive ? tx.buyer : tx.seller;
+                  const shortCp = `${counterparty.substring(0,6)}...${counterparty.substring(38)}`;
+                  const prefix = isReceive ? "+" : "-";
+                  const mockTaskType = isReceive ? "Data Service Provided" : "Compute API Call";
+                  
+                  return (
+                    <div key={tx.taskId} className="grid grid-cols-[100px_minmax(140px,1fr)_120px_180px_100px] gap-4 py-2 hover:bg-[#00FFA3]/10 transition-colors rounded items-center">
+                      <div className={`${typeColor} font-bold`}>[{typeLabel}]</div>
+                      <div className="text-gray-400"><span className="text-gray-600 mr-1">{isReceive ? "FR:" : "TO:"}</span>{shortCp}</div>
+                      <div className={`${typeColor}`}>{prefix}{tx.amount} USDC</div>
+                      <div className="text-blue-400/80 truncate text-xs" title={mockTaskType}>{mockTaskType}</div>
+                      <div className="text-gray-500 flex items-center text-xs">
+                        {tx.status === "COMPLETED" ? <span className="text-[#00FFA3] mr-1">■</span> : <span className="text-yellow-500 mr-1">■</span>}
+                        {tx.status}
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="py-20 text-center text-[#00FFA3]/30">
+                    <span className="animate-pulse">&gt;_ DATABASE_EMPTY</span>
+                  </div>
+                )}
+              </div>
+            </div>
 
+            {/* Pagination */}
+            {txHistory.length > 0 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-[#00FFA3]/30 bg-black">
+                <span className="font-mono text-xs text-[#00FFA3]/50">
+                  {txHistory.length} query match(es)
+                </span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 font-mono text-xs text-[#00FFA3] border border-[#00FFA3]/50 rounded hover:bg-[#00FFA3]/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    &lt; PREV
+                  </button>
+                  <span className="px-3 py-1 font-mono text-xs text-[#00FFA3]">
+                    PG {currentPage} / {Math.max(1, Math.ceil(txHistory.length / 8))}
+                  </span>
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(txHistory.length / 8), p + 1))}
+                    disabled={currentPage === Math.ceil(txHistory.length / 8)}
+                    className="px-3 py-1 font-mono text-xs text-[#00FFA3] border border-[#00FFA3]/50 rounded hover:bg-[#00FFA3]/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    NEXT &gt;
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Column: Funding */}

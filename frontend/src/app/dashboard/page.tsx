@@ -8,6 +8,7 @@ import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import { agentStore, AgentIdentity } from "@/utils/agentStore";
 import { useAccount } from "wagmi";
+import toast from "react-hot-toast";
 
 export default function Dashboard() {
   const { address: userAddress } = useAccount();
@@ -137,15 +138,13 @@ let total = BigInt(0);
           >
             <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin text-green-400' : ''}`} />
           </button>
-          <Link href="/dashboard/agents/create">
-            <button className="flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600">
+          <Link href="/dashboard/agents/create" className="flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600">
               <Plus className="w-5 h-5 mr-2" />
               Deploy Agent
-            </button>
           </Link>
           <button 
             onClick={handleLogout}
-            className="flex items-center px-4 py-2 font-bold text-red-400 transition-colors border border-red-500/50 rounded-lg hover:bg-red-500/10"
+            className="flex items-center px-4 py-2 font-bold text-red-400 transition-colors border rounded-lg border-red-500/50 hover:bg-red-500/10"
             title="Disconnect Terminal"
           >
             <LogOut className="w-5 h-5 mr-2" />
@@ -171,22 +170,20 @@ let total = BigInt(0);
           <div className="mb-2 text-4xl font-bold text-white">
              <span className="text-yellow-500">$</span>{masterBalance}
           </div>
-          <p className="text-xs font-mono text-gray-500 truncate">{userAddress || "Not Connected"}</p>
+          <p className="font-mono text-xs text-gray-500 truncate">{userAddress || "Not Connected"}</p>
         </div>
         
-        <div className="relative p-6 overflow-hidden bg-black border border-gray-800 rounded-xl flex flex-col justify-center">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">Fund Router & Auto-Top-Up</h3>
-            <p className="text-xs text-gray-500 mb-4">Manage smart contract daily limits and relayer settings for your agent sub-wallets.</p>
-            <Link href="/dashboard/router">
-               <button className="w-full flex items-center justify-center px-4 py-3 text-sm font-bold text-black transition-colors bg-yellow-500 rounded-lg hover:bg-yellow-600">
+        <div className="relative flex flex-col justify-center p-6 overflow-hidden bg-black border border-gray-800 rounded-xl">
+            <h3 className="mb-2 text-sm font-medium text-gray-400">Fund Router & Auto-Top-Up</h3>
+            <p className="mb-4 text-xs text-gray-500">Manage smart contract daily limits and relayer settings for your agent sub-wallets.</p>
+            <Link href="/dashboard/router" className="flex items-center justify-center w-full px-4 py-3 text-sm font-bold text-black transition-colors bg-yellow-500 rounded-lg hover:bg-yellow-600">
                  <ActivitySquare className="w-5 h-5 mr-2" />
                  Configure Smart Contract Limits
-               </button>
             </Link>
         </div>
       </div>
 
-      <div className="mb-4 mt-12">
+      <div className="mt-12 mb-4">
         <h2 className="pl-3 text-xl font-bold text-white border-l-4 border-green-500">
           Tier 2: Agent Fleet & Micro Ledgers
         </h2>
@@ -283,23 +280,21 @@ let total = BigInt(0);
               
               <div className="flex gap-2">
                 <button 
-                  onClick={() => alert(`Mock: Funding agent with 10 USDC from Master Wallet...`)}
+                  onClick={() => toast.success(`Mock: Funding agent with 10 USDC from Master Wallet...`)}
                   className="flex items-center justify-center flex-1 py-2 text-sm font-medium text-green-400 transition-colors bg-gray-900 border rounded-lg hover:bg-gray-800 border-green-900/30 hover:border-green-500/50">
                   <HandCoins className="w-4 h-4 mr-1.5" />
                   Fund
                 </button>
                 
                 <button 
-                  onClick={() => alert(`Mock: Sweeping all USDC from ${agent.name} back to Master.`)}
+                  onClick={() => toast.success(`Mock: Sweeping all USDC from ${agent.name} back to Master.`)}
                   className="flex items-center justify-center flex-1 py-2 text-sm font-medium text-blue-400 transition-colors bg-gray-900 border rounded-lg hover:bg-gray-800 border-blue-900/30 hover:border-blue-500/50">
                   <ArrowUpRight className="w-4 h-4 mr-1.5" />
                   Sweep
                 </button>
 
-                <Link href={`/dashboard/agents/${agent.id}`} className="flex flex-1" title="Agent Analytics & Details">
-                  <button className="flex items-center justify-center w-full h-full p-2 text-sm font-medium text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700">
-                    <Activity className="w-4 h-4" />
-                  </button>
+                <Link href={`/dashboard/agents/${agent.id}`} className="flex items-center justify-center flex-1 w-full h-full p-2 text-sm font-medium text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700" title="Agent Analytics & Details">
+                  <Activity className="w-4 h-4" />
                 </Link>
               </div>
             </div>
@@ -309,19 +304,19 @@ let total = BigInt(0);
 
       {/* Global Event Stream (Phase 12) */}
       <div className="mt-12 mb-6">
-        <h2 className="flex items-center gap-2 pl-3 text-xl font-bold border-l-4 border-blue-500 text-white">
+        <h2 className="flex items-center gap-2 pl-3 text-xl font-bold text-white border-l-4 border-blue-500">
           <Activity className="w-5 h-5 text-blue-500" /> System Event Stream (Real-time PnL)
         </h2>
       </div>
-      <div className="overflow-hidden border border-gray-800 rounded-xl bg-black">
+      <div className="overflow-hidden bg-black border border-gray-800 rounded-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left whitespace-nowrap">
-            <thead className="text-xs uppercase bg-gray-900 border-b border-gray-800 text-gray-400">
+            <thead className="text-xs text-gray-400 uppercase bg-gray-900 border-b border-gray-800">
               <tr>
                 <th className="px-6 py-4 font-medium tracking-wider">Action / Status</th>
                 <th className="px-6 py-4 font-medium tracking-wider">My Agent</th>
                 <th className="px-6 py-4 font-medium tracking-wider">Tx Opponent</th>
-                <th className="px-6 py-4 text-right font-medium tracking-wider">Volume (USDC)</th>
+                <th className="px-6 py-4 font-medium tracking-wider text-right">Volume (USDC)</th>
                 <th className="px-6 py-4 font-medium tracking-wider">Tx Node</th>
               </tr>
             </thead>
@@ -351,20 +346,20 @@ let total = BigInt(0);
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="font-bold text-gray-300">{myAgent?.name || "Unknown Agent"}</span>
-                          <span className="text-xs text-gray-600 font-mono truncate w-32">{me}</span>
+                          <span className="w-32 font-mono text-xs text-gray-600 truncate">{me}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                         <span className="text-xs text-gray-600 font-mono truncate w-32 inline-block">{op}</span>
+                         <span className="inline-block w-32 font-mono text-xs text-gray-600 truncate">{op}</span>
                       </td>
-                      <td className="px-6 py-4 text-right font-mono font-bold">
+                      <td className="px-6 py-4 font-mono font-bold text-right">
                         <span className={isAgentBuyer ? "text-red-400" : "text-green-400"}>
                           {isAgentBuyer ? "-" : "+"}{t.amount}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                         <span className="text-xs text-blue-500 font-mono">
-                           {t.txHash.substring(0, 8)}...{t.txHash.substring(t.txHash.length - 6)}
+                         <span className="font-mono text-xs text-blue-500">
+                           {t.txHash ? `${t.txHash.substring(0, 8)}...${t.txHash.substring(t.txHash.length - 6)}` : 'N/A'}
                          </span>
                       </td>
                     </tr>
