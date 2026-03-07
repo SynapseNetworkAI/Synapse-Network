@@ -58,3 +58,46 @@ def get_headers(owner_address: str):
         "Authorization": "Bearer active",
         "X-User-Address": owner_address
     }
+
+def setup_real_agents(buyer_priv: str, seller_priv: str):
+    """
+    Creates a Buyer Agent and Seller Agent using real funded private keys
+    """
+    logging.getLogger("Utils").info("Registering real funded agents...")
+    
+    buyer_acct = Account.from_key(buyer_priv)
+    seller_acct = Account.from_key(seller_priv)
+    
+    b_addr = buyer_acct.address
+    s_addr = seller_acct.address
+    
+    # 1. Register Buyer (owner and agent same address for simplicity)
+    res = requests.post(f"{API_BASE_URL}/agents", json={
+        "id": str(uuid.uuid4()),
+        "name": "Real Test Buyer",
+        "role": "Buyer",
+        "agent_session_wallet": b_addr
+    }, headers={
+        "Content-Type": "application/json",
+        "Authorization": "Bearer active",
+        "X-User-Address": b_addr
+    })
+    # Ignore 400s if already registered
+    if res.status_code not in (200, 400):
+        res.raise_for_status()
+        
+    # 2. Register Seller  
+    res = requests.post(f"{API_BASE_URL}/agents", json={
+        "id": str(uuid.uuid4()),
+        "name": "Real Test Seller",
+        "role": "Seller",
+        "agent_session_wallet": s_addr
+    }, headers={
+        "Content-Type": "application/json",
+        "Authorization": "Bearer active",
+        "X-User-Address": s_addr
+    })
+    if res.status_code not in (200, 400):
+        res.raise_for_status()
+
+    return b_addr, b_addr, s_addr, s_addr
