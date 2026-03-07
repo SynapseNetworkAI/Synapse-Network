@@ -220,3 +220,13 @@ def resolve_task(task_id: str, payload: ResolveTaskSchema, db: Session = Depends
         
     db.commit()
     return {"status": "success", "new_status": task.status, "reason": payload.reason}
+
+
+
+
+@router.get("/tasks/{task_id}")
+def get_client_task_by_id(task_id: str, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
+    t = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
+    if t:
+        return {"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "result_data": t.result_data, "title": t.title, "description": t.description, "txHash": t.tx_hash, "blockNumber": t.block_number}
+    raise HTTPException(status_code=404, detail="Task not found")

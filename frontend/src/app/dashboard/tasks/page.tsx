@@ -3,10 +3,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import ClientGuard from '@/components/ClientGuard';
 import { RefreshCw, Search, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { agentStore } from '@/utils/agentStore';
 
 export default function MyTasksDashboard() {
   const { address } = useAccount();
+  const router = useRouter(); // add router using new code
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -148,8 +150,16 @@ export default function MyTasksDashboard() {
   
         {t.result_data && (
           <div className="p-3 mt-3 border rounded bg-gray-950 border-emerald-900/30">
-            <p className="mb-2 text-xs font-bold uppercase text-emerald-500">Delivery Payload:</p>
-            <p className="font-mono text-xs break-all whitespace-pre-wrap text-emerald-400/80">{t.result_data}</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold uppercase text-emerald-500">Delivery Payload:</p>
+              <button
+                onClick={() => router.push(`/dashboard/tasks/${t.taskId}`)}
+                className="text-xs font-medium underline text-emerald-400 hover:text-emerald-300"
+              >
+                View Details
+              </button>
+            </div>
+            <p className="font-mono text-xs truncate text-emerald-400/80">{t.result_data}</p>
           </div>
         )}
       </div>
