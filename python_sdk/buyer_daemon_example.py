@@ -10,7 +10,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/client")
 
 # 这应该是你在 Dashboard 里创建的 Buyer Agent 和对应的主账户
 OWNER_ADDRESS = "0xa0f67a47d9ef18183cd113ed85a654e2772c5901" 
-BUYER_AGENT_WALLET = "0xtestbuyeraddr" # 修改为你的 Buyer Agent Address
+BUYER_AGENT_WALLET = "0xD65C5ED9A14E6A8c671956d24D303Fdb10BC112f" # 修改为你的 Buyer Agent Address
 
 HEADERS = {
     "Content-Type": "application/json",
