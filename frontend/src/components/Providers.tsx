@@ -9,9 +9,9 @@ import "@rainbow-me/rainbowkit/styles.css";
 
 const config = getDefaultConfig({
   appName: "A2A-Pay Dashboard",
-  projectId: "c5f6f2ddb4b7fa45cbbb1df4c4dbb9b3", // Standard public projectId for Web3Modal examples to prevent 403 loops
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "8a80cea8b6033bbbd67f6bbdbbe70054", // Use env variable, fallback to a public testing ID
   chains: [hardhat, sepolia, baseSepolia, arbitrumSepolia],
-  ssr: true, // 核心修复：Next.js 环境必须开启 ssr 为 true，否则 Wagmi 会在 Node 端直接尝试访问 indexedDB
+  ssr: false, // 设置为 false 才可以让 wagmi 持久化钱包连接状态到 localStorage
 });
 
 const queryClient = new QueryClient();
