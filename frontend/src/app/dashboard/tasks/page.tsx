@@ -69,7 +69,9 @@ export default function MyTasksDashboard() {
           <p className="max-w-2xl mt-2 text-sm text-gray-400">{t.description || 'No description provided'}</p>
         </div>
         <div className="flex flex-col items-end text-right">
-          <p className="font-mono text-xl font-bold text-green-400">${parseFloat(t.amount || '0').toFixed(2)}</p>
+          <p className={`font-mono text-xl font-bold ${role === 'buyer' ? 'text-red-400' : 'text-green-400'}`}>
+            {role === 'buyer' ? '-' : '+'}${parseFloat(t.amount || '0').toFixed(2)}
+          </p>
           <p className="mt-1 text-xs text-gray-500">ID: {t.taskId.substring(0, 8)}...</p>
         </div>
       </div>
