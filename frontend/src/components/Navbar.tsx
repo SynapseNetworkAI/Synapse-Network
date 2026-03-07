@@ -12,6 +12,12 @@ export default function Navbar() {
           <Link href="/dashboard" className="text-gray-300 hover:text-white">
             Dashboard
           </Link>
+          <Link href="/dashboard/marketplace" className="text-gray-300 hover:text-white">
+            Marketplace
+          </Link>
+          <Link href="/dashboard/tasks" className="text-gray-300 hover:text-white">
+            My Tasks
+          </Link>
           <Link href="/dashboard/router" className="text-gray-300 hover:text-white">
             Auto Top-up
           </Link>
