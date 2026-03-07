@@ -10,7 +10,8 @@ from langchain_core.messages import SystemMessage
 
 # 引入我们的业务逻辑
 from agent_pay import AgentPayClient
-from langchain_tools import agent_pay_tools, init_langchain_tools
+from marketplace_client import A2AMarketplaceClient
+from langchain_tools import agent_pay_tools, init_langchain_tools, init_marketplace_tools
 
 def load_contract_config():
     """读取本地硬编码的智能合约地址配置"""
@@ -29,7 +30,7 @@ def run_agent():
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     base_url = os.getenv("OPENAI_BASE_URL")
-    model_name = os.getenv("ALL_MODEL_NAME", "eepseek-chat")
+    model_name = os.getenv("ALL_MODEL_NAME", "deepseek-chat")
 
     # 针对国内白嫖和廉价方案的兼容
     if not api_key:
@@ -59,6 +60,15 @@ def run_agent():
     )
     init_langchain_tools(client)
 
+    # 初始化 Marketplace 客户端 (模拟登录)
+    # 此处模拟以 Hardhat #0 的 owner 地址作为凭证进行发单
+    market_client = A2AMarketplaceClient(
+        base_url="http://127.0.0.1:8000/api/client",
+        session_token="active",
+        user_address="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # Owner of the standard test agent
+    )
+    init_marketplace_tools(market_client)
+
     # 3. 配置 LLM 引擎 (全能兼容版)
     print(f"💡 Interacting with LLM Model: {model_name}" + (f" at {base_url}" if base_url else ""))
     
@@ -71,13 +81,13 @@ def run_agent():
 
     # 4. 构建 Agent Prompt 系统提示词
     sys_prompt = """
-You are a Web3 native AI Assistant managing a corporate budget.
-You are authorized to interact with the Escrow Smart Contract to lock and release funds.
+You are a Web3 native AI Assistant managing a corporate budget and task delegation.
+You are authorized to interact with the Escrow Smart Contract to lock and release funds, and you can also publish tasks to the A2A Task Marketplace.
 
-When users request you to pay for tasks, you should:
-1. Try to lock funds according to the prompt (using the lock_funds_for_task tool).
-2. Report the resulting Transaction Hash to the user.
-3. If they ask about your balance, check it (using get_agent_balance).
+When users request you to publish a task, you should:
+1. Try to publish the task to the marketplace using `publish_task_to_marketplace`. Use your own agent wallet address `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` as the `buyer_agent`.
+2. Report the resulting Task ID to the user.
+3. Lock the funds for that new Task ID by using `lock_funds_for_task`.
 """
 
     # 5. 生成 Tool Calling Agent (基于 LangGraph 最新推荐架构)

@@ -32,6 +32,8 @@ class AgentPayClient:
             self.escrow_abi = json.load(f)
         
         self.escrow = self.w3.eth.contract(address=self.escrow_address, abi=self.escrow_abi)
+        self.usdc = self.w3.eth.contract(address=self.usdc_address, abi=self.usdc_abi)
+        self.usdc = self.w3.eth.contract(address=self.usdc_address, abi=self.usdc_abi)
 
     def _build_and_send_tx(self, func):
         """Helper to build, sign, and send transaction"""

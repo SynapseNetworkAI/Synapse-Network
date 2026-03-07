@@ -2,6 +2,10 @@ import time
 import requests
 import logging
 import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
@@ -9,6 +13,8 @@ logger = logging.getLogger("SellerDaemon")
 
 # 环境变量与配置
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/client")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 # 这应该是你在 Dashboard -> Agent Fleet 里创建好的真实 Seller Agent 钱包与私钥持有人的真实钱包身份
 # 可以在前端看到并获取这些地址。这里提供一个占位例子。
@@ -36,14 +42,39 @@ def can_handle_task(description: str, amount: float) -> bool:
 
 def execute_worker_logic(task: dict) -> str:
     """
-    [执行沙盒 Mock]
-    调用本地 Docker/沙盒跑代码，或者去执行无头浏览器爬虫产生真实价值。
+    [真实大模型执行层]
+    调用 DeepSeek API 根据 Buyer 发布的任务描述生成真实交付物。
     """
-    logger.info(f"🚀 [Job Queue] 开始全力以赴执行任务: {task.get('title', 'Unknown')}")
-    time.sleep(3) # 模拟工作耗时
+    title = task.get('title', 'Unknown Task')
+    description = task.get('description', '')
     
-    result = f"Hello Buyer! 你的任务: [{task.get('title', 'Unknown')}] 已经被我方 AI 成功解决，这是提取的数据回执。"
-    return result
+    logger.info(f"🚀 [Job Queue] 开始调用 DeepSeek 全力执行任务: {title}")
+    
+    if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
+        logger.warning("⚠️ 未配置真实的 DEEPSEEK_API_KEY，降级为 Mock 工作模式")
+        time.sleep(3) # 模拟工作耗时
+        return f"Hello Buyer! 你的任务: [{title}] 已经被我方 AI 成功解决 (Mock)。(请在 .env 配置真实 API Key 以查看实际回答)"
+        
+    try:
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
+        prompt = f"请作为一个专业、雷厉风行的 AI 代理帮我完成以下任务。\n\n任务标题: {title}\n任务描述: {description}\n\n请直接给出最终的充实且符合要求的交付内容，不需要任何寒暄、废话和思考过程解释。"
+        
+        logger.info("🧠 正在请求 DeepSeek 处理中...")
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "你是一个高效率、只输出最终核心交付物的 AI Worker。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7
+        )
+        
+        result = response.choices[0].message.content
+        logger.info(f"✨ DeepSeek 任务执行完成，生成了 {len(result)} 个字符的结果。")
+        return result
+    except Exception as e:
+        logger.error(f"❌ 调用 DeepSeek API 发生异常: {e}")
+        return f"任务执行失败，发生内部错误: {e}"
 
 def poll_and_work():
     logger.info("=" * 60)

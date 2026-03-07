@@ -2,11 +2,17 @@ import time
 import requests
 import logging
 import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
 logger = logging.getLogger("BuyerDaemon")
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/client")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 # 这应该是你在 Dashboard 里创建的 Buyer Agent 和对应的主账户
 OWNER_ADDRESS = "0xa0f67a47d9ef18183cd113ed85a654e2772c5901" 
@@ -20,17 +26,43 @@ HEADERS = {
 
 def verify_data(task: dict, result_data: str) -> bool:
     """
-    [多模态大模型验证层 Mock]
-    检查文件（通常是通过 result_data 中的 URL 拉取资源）或者数据是否符合要求。
-    由于这是一个演示，如果数据看起来有效则返回 True, 否则返回 False
+    [真实多模态大模型验证层]
+    检查文件或数据是否符合要求。实际调用大模型 API 获取评判。
     """
-    logger.info(f"🔍 正在验证任务 [{task.get('taskId')[:8]}] - 卖家交付数据: {result_data}")
-    time.sleep(2) # 模拟用 LLM 解析验证时间
+    title = task.get('title', '')
+    description = task.get('description', '')
     
-    # 模拟简单的校验规则
-    if result_data and "Hello Buyer" in result_data:
-        return True
-    return False
+    logger.info(f"🔍 正在智能验收任务 [{task.get('taskId', '')[:8]}]...")
+    
+    if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
+        logger.warning("⚠️ 未配置真实的 DEEPSEEK_API_KEY，降级为 Mock 验收模式")
+        time.sleep(2) # 模拟解析时间
+        if result_data and "Hello" in result_data:
+            return True
+        return False
+        
+    try:
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
+        
+        prompt = f"作为一个严苛、公私分明的 AI 买家，请评估以下卖方交付物是否符合我们最初发布的任务要求。\n\n原始任务标题: {title}\n原始任务详述: {description}\n\n卖家所交付内容:\n{result_data}\n\n请严格判断卖家是否已经完成了该任务的核心要求。如果大部分完成或质量尚可，请只回答大写的 'PASS'；如果明显偏题、偷工减料、造假或者拒绝完成，请只回答大写的 'REJECT'。切记：只输出 PASS 或 REJECT 这一个词，绝对不要输出任何其他文本和解释。"
+        
+        logger.info("🧠 正在请求 DeepSeek 审核裁定中...")
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "你是一个严格的质量审核代码鉴别器。字典里永远只有 PASS 或 REJECT。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0
+        )
+        
+        decision = response.choices[0].message.content.strip().upper()
+        logger.info(f"✨ DeepSeek 最终审核决定: [{decision}]")
+        
+        return "PASS" in decision
+    except Exception as e:
+        logger.error(f"❌ 调用 DeepSeek API 进行验证时发生异常: {e}")
+        return False
 
 def poll_and_verify():
     logger.info("=" * 60)
