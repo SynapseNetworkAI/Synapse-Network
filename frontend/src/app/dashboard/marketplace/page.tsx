@@ -23,6 +23,7 @@ export default function MarketplaceDashboard() {
       fetchTasks();
       fetchMyAgents();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
   const fetchTasks = async () => {

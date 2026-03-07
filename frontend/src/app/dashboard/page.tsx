@@ -61,6 +61,7 @@ let total = BigInt(0);
     setAgents(loadedAgents);
     fetchBalances(loadedAgents, userAddress);
     fetchTasks();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userAddress]);
 
   const fetchTasks = async () => {
@@ -74,14 +75,15 @@ let total = BigInt(0);
       });
       if(res.ok) {
         const data = await res.json();
-        setTasks(data);
+        const tasksData = data.data || data;
+        setTasks(tasksData);
         
         let rev = 0;
         let exp = 0;
         const fleetAddresses = agentStore.getAgentsByOwner(userAddress).map(a => a.address?.toLowerCase());
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data.forEach((t: any) => {
+        tasksData.forEach((t: any) => {
           const amt = parseFloat(t.amount || "0");
           if (t.status === "RELEASED" || t.status === "COMPLETED" || t.status === "LOCKED") {
              if (t.seller && fleetAddresses.includes(t.seller.toLowerCase())) rev += amt;
@@ -327,6 +329,7 @@ let total = BigInt(0);
                 </tr>
               ) : (
                 (() => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const fleetEvents: any[] = [];
                   tasks.forEach(t => {
                     const isBuyer = agents.some(a => a.address?.toLowerCase() === t.buyer.toLowerCase());
