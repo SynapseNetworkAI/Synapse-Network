@@ -88,6 +88,10 @@ def publish_task(payload: PublishTaskSchema, db: Session = Depends(get_client_db
     agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == buyer_lower, AgentModel.owner_address == owner_address).first()
     if not agent:
         raise HTTPException(status_code=403, detail="Forbidden")
+        
+    # Backend Role Enforcement: Only Buyer roles can publish
+    if not agent.role or "buyer" not in agent.role.lower():
+        raise HTTPException(status_code=403, detail="Only Buyer agents can publish tasks")
     
     task_id = str(uuid.uuid4())
     new_task = ClientTaskModel(
