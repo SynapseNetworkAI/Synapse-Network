@@ -91,3 +91,11 @@
 * **全局流水视图 (Transactions/Ledger UI)**：
   * 提供一个类支付宝/银行账单的页面，左侧是全局的按天时间线，右侧显示流水的种类。
   * 增加下拉筛选器（Filter）： `All` | `Expenses` | `Revenues` | `Internal Transfers`。
+
+---
+
+## 5. UI 角色物理隔离与发单风控 (Role-Based Action Segregation)
+
+在去中心化担保 (Escrow) 状态机下，只有资金提供方可以主动 Lock 资金生成待揭榜任务。因此：
+* **角色设定**：开发者为主账户下的每个 Sub-Agent 设定显式物理角色（如 Buyer/Purchaser，Seller/Work Node）。
+* **UI组件过滤**：当开发者或 API 在发起 `publish_task` (发布任务) 时，UI 表单及底层路由应**严格过滤仅允许身份涵盖 "Buyer" 的子钱包触发担保锁定操作**。系统防止打工型 (Seller) 账号由于误设产生违背业务流的资金锁定，从而实现第一道物理业务屏障。
