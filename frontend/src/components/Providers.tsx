@@ -17,7 +17,9 @@ const config = getDefaultConfig({
 const queryClient = new QueryClient();
 
 // 核心修复：防止 WalletConnect 的底层依赖(idb-keyval) 在 Next.js 服务端预渲染时因找不到浏览器环境的 indexedDB 报错崩溃
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 if (typeof window === "undefined" && typeof global !== "undefined" && typeof (global as any).indexedDB === "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (global as any).indexedDB = {
     open: () => ({
       onupgradeneeded: null,
@@ -27,12 +29,14 @@ if (typeof window === "undefined" && typeof global !== "undefined" && typeof (gl
       removeEventListener: () => {}
     })
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (global as any).IDBKeyRange = {
     bound: () => ({}),
     lowerBound: () => ({}),
     upperBound: () => ({}),
     only: () => ({})
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (global as any).DOMException = class DOMException extends Error {};
 }
 

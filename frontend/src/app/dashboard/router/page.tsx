@@ -43,10 +43,22 @@ export default function RouterPage() {
   return (
     <div className="max-w-4xl p-8 mx-auto">
       <h1 className="mb-6 text-3xl font-bold text-green-400">Phase 18: Smart Contract Relayer Setup</h1>
-      <p className="py-2 pl-4 mb-8 text-gray-400 border-l-4 border-green-500">
+      <p className="py-2 pl-4 mb-4 text-gray-400 border-l-4 border-green-500">
         Enable Auto Top-up for your agent fleet by binding your Master Wallet. 
         You will sign an <code>Approve</code> transaction allowing the A2A_FundRouter to deduct up to your specified allowance.
       </p>
+      
+      <div className="p-4 mb-8 border rounded-lg border-blue-900/50 bg-blue-900/10">
+        <h3 className="flex items-center mb-2 font-bold text-blue-400">
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          Why Daily Limits Matter (Security Upgrade)
+        </h3>
+        <p className="text-sm leading-relaxed text-blue-200/80">
+          Standard ERC20 Allowances are vulnerable: if a relayer is compromised, an attacker could drain your entire approved balance in seconds. 
+          To provide enterprise-grade security, our <strong>A2A Fund Router</strong> enforces a strict on-chain <strong>Daily Spending Limit</strong>. 
+          Even if you approve a large total allowance (e.g., 100,000 USDC) to avoid frequent gas fees, the smart contract mathematically guarantees that no more than your specified <strong>Daily Limit</strong> (e.g., 500 USDC) can be withdrawn within any 24-hour epoch.
+        </p>
+      </div>
 
       <div className="p-6 mb-8 bg-gray-900 border border-gray-800 rounded-lg">
         <h2 className="mb-4 text-xl font-semibold text-white">1. Connect Master Wallet</h2>

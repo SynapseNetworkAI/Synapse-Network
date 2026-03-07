@@ -5,6 +5,7 @@ export interface AgentIdentity {
   address: string;
   privateKey: string;
   createdAt: number;
+  ownerAddress?: string; // Tying Agent to the Master Web3 EOA Wallet
 }
 
 const STORAGE_KEY = "a2a_agent_identities";
@@ -14,6 +15,13 @@ export const agentStore = {
     if (typeof window === "undefined") return [];
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
+  },
+
+  getAgentsByOwner: (ownerAddress: string | undefined): AgentIdentity[] => {
+    const agents = agentStore.getAgents();
+    if (!ownerAddress) return [];
+    // Only return agents that belong to this owner, or agents created before owner logic
+    return agents.filter(a => !a.ownerAddress || a.ownerAddress.toLowerCase() === ownerAddress.toLowerCase());
   },
 
   addAgent: (agent: AgentIdentity) => {
