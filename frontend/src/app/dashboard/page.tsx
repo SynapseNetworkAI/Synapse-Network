@@ -7,8 +7,10 @@ import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import { agentStore, AgentIdentity } from "@/utils/agentStore";
+import { useAccount } from "wagmi";
 
 export default function Dashboard() {
+  const { address: userAddress } = useAccount();
   const [agents, setAgents] = useState<AgentIdentity[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [agentBalances, setAgentBalances] = useState<Record<string, string>>({});
@@ -42,10 +44,11 @@ let total = BigInt(0);
   };
 
   useEffect(() => {
-    const loadedAgents = agentStore.getAgents();
+    if (!userAddress) return;
+    const loadedAgents = agentStore.getAgentsByOwner(userAddress);
     setAgents(loadedAgents);
     fetchBalances(loadedAgents);
-  }, []);
+  }, [userAddress]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -58,7 +61,8 @@ let total = BigInt(0);
       await fetch("http://127.0.0.1:8000/api/client/logout", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer dev_session_dummy"
+          "Authorization": "Bearer dev_session_dummy",
+          "X-User-Address": userAddress || ""
         }
       });
     } catch (e) {

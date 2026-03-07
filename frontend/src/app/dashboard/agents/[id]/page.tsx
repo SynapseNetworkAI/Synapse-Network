@@ -12,11 +12,13 @@ import Link from "next/link";
 import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
+import { useAccount } from "wagmi";
 
 export default function AgentDetail() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { address: userAddress } = useAccount();
   
   const [agent, setAgent] = useState<AgentIdentity | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
@@ -35,19 +37,27 @@ export default function AgentDetail() {
     } else {
       setAgent(data);
       fetchRealBalance(data.address);
-      fetchTransactions(data.address);
+      if (userAddress) {
+        fetchTransactions(data.address, userAddress);
+      }
     }
-  }, [id, router]);
+  }, [id, router, userAddress]);
 
-  const fetchTransactions = async (address: string) => {
+  const fetchTransactions = async (address: string, owner: string) => {
     try {
       const res = await fetch(`http://127.0.0.1:8000/api/client/tasks?agent=${address}`, {
         headers: {
-          "Authorization": "Bearer active"
+          "Authorization": "Bearer active",
+          "X-User-Address": owner
         }
       });
-      const data = await res.json();
-      setTxHistory(data);
+      if (res.ok) {
+        const data = await res.json();
+        setTxHistory(data);
+      } else {
+        console.error("Backend validation failed", await res.text());
+        setTxHistory([]);
+      }
     } catch (e) {
       console.error("Failed to fetch transactions", e);
     }

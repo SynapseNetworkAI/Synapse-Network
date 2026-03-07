@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { Shield, Bot, Key, ArrowRight, Loader2 } from "lucide-react";
 import { agentStore } from "@/utils/agentStore";
+import { useAccount } from "wagmi";
 
 export default function CreateAgent() {
   const router = useRouter();
+  const { address: userAddress } = useAccount();
   const [name, setName] = useState("");
   const [role, setRole] = useState("Buyer/General");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -33,8 +35,29 @@ export default function CreateAgent() {
       role,
       address: wallet.address,
       privateKey: wallet.privateKey,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      ownerAddress: userAddress // Tie to the connected Web3 Cold Wallet EOA
     };
+
+    // Register agent info in backend for Indexer and API RLS
+    try {
+      await fetch("http://127.0.0.1:8000/api/client/agents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer active",
+          "X-User-Address": userAddress || ""
+        },
+        body: JSON.stringify({
+          id: newAgent.id,
+          name: newAgent.name,
+          role: newAgent.role,
+          agent_session_wallet: newAgent.address
+        })
+      });
+    } catch (e) {
+      console.error("Failed to register agent on backend", e);
+    }
 
     agentStore.addAgent(newAgent);
     router.push(`/dashboard/agents/${newAgent.id}`);
