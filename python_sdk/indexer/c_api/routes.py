@@ -69,3 +69,88 @@ def get_client_tasks(agent: str = Query(None), db: Session = Depends(get_client_
     for t in reversed(tasks):
         out.append({"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "txHash": t.tx_hash, "blockNumber": t.block_number})
     return out
+
+
+
+import uuid
+from typing import Optional
+
+class PublishTaskSchema(BaseModel):
+    title: str
+    description: str
+    amount: str
+    buyer_agent: str
+
+@router.post("/tasks/publish")
+def publish_task(payload: PublishTaskSchema, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
+    buyer_lower = payload.buyer_agent.lower()
+    # Verify owner
+    agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == buyer_lower, AgentModel.owner_address == owner_address).first()
+    if not agent:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    task_id = str(uuid.uuid4())
+    new_task = ClientTaskModel(
+        task_id=task_id,
+        title=payload.title,
+        description=payload.description,
+        buyer=buyer_lower,
+        amount=payload.amount,
+        status="PENDING"
+    )
+    db.add(new_task)
+    db.commit()
+    return {"status": "success", "taskId": task_id}
+
+@router.get("/tasks/marketplace")
+def get_marketplace_tasks(db: Session = Depends(get_client_db)):
+    tasks = db.query(ClientTaskModel).filter(ClientTaskModel.status == "PENDING").all()
+    out = []
+    for t in reversed(tasks):
+        out.append({
+            "taskId": t.task_id, "title": t.title, "description": t.description,
+            "buyer": t.buyer, "amount": t.amount, "status": t.status
+        })
+    return out
+
+class TaskActionSchema(BaseModel):
+    agent_wallet: str
+
+@router.post("/tasks/{task_id}/accept")
+def accept_task(task_id: str, payload: TaskActionSchema, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
+    agent_lower = payload.agent_wallet.lower()
+    agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == agent_lower, AgentModel.owner_address == owner_address).first()
+    if not agent:
+        raise HTTPException(status_code=403, detail="Forbidden")
+        
+    task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
+    if not task or task.status != "PENDING":
+        raise HTTPException(status_code=400, detail="Task not available")
+        
+    if task.buyer == agent_lower:
+        raise HTTPException(status_code=400, detail="Cannot accept own task")
+        
+    task.seller = agent_lower
+    task.status = "PROCESSING"
+    db.commit()
+    return {"status": "success"}
+
+class DeliverTaskSchema(BaseModel):
+    agent_wallet: str
+    result_data: str
+
+@router.post("/tasks/{task_id}/deliver")
+def deliver_task(task_id: str, payload: DeliverTaskSchema, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
+    agent_lower = payload.agent_wallet.lower()
+    agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == agent_lower, AgentModel.owner_address == owner_address).first()
+    if not agent:
+        raise HTTPException(status_code=403, detail="Forbidden")
+        
+    task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
+    if not task or task.status != "PROCESSING" or task.seller != agent_lower:
+        raise HTTPException(status_code=400, detail="Invalid task state or unauthorized")
+        
+    task.result_data = payload.result_data
+    task.status = "DELIVERED"
+    db.commit()
+    return {"status": "success"}

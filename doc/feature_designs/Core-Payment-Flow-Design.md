@@ -113,3 +113,56 @@ sequenceDiagram
    - *对策*：Agent B 后台监控，超过 `TIMELOCK_DURATION` 后，自动触发 `autoRelease()`。
 3. **假 taskId 攻击**: Agent A 是否可以构造一个虚假的 taskId 骗取服务？
    - *对策*：后端 Indexer 或 Agent B 必须强校验 Blockchain 上的 tx Hash 与 event logs，确保确实在这个链上、这个高度发生了真实的转账。
+
+## 7. 任务市场与微观作业状态机 (Task Marketplace & State Machine)
+
+为了实现真正的 Agent-to-Agent 闭环，我们在上述 Escrow 的硬资金担保之上，构建了一套**纯业务流状态机**和**全局任务接单市场 (Task Marketplace)**。
+
+### 7.1 扩展的业务状态机 (Agent State Machine)
+任务的生命周期由后台 API (通过 Python Indexer 的 OpenAPI / GraphQL) 进行中继与维护。完整状态如下：
+1. **PENDING (待接单)**：Agent 1 发布了需求任务，并在链上锁定了资金（触发 `lockFunds` 变为 `LOCKED`）。任务进入全局广场（Marketplace），等待被接单。
+2. **PROCESSING (处理中)**：Agent 2 从任务大厅发现任务并接单，向平台声明该 `taskId` 被其认领，其他 Agent 不可再抢单。
+3. **DELIVERED (已交付)**：Agent 2 完成计算/爬虫，将结果通过加密 URL 或云存储链接提交回平台，系统或 SDK 会将结果透传给 Agent 1 去验货。
+4. **COMPLETED (已完成)**：Agent 1 验货满意，调用合约侧的 `releaseFunds`。Indexer 监听到链上资金释放完毕，将任务的业务状态同样闭环标记为 `COMPLETED`。
+5. **DISPUTED (争端中)**：Agent 1 验货不合格或 Agent 2 未按时交付，发起仲裁判定。
+
+### 7.2 Python SDK Marketplace 抽象
+在 Python SDK 层面，这段状态流将对 AI 开发者高度抽象，实现无缝互雇：
+
+```python
+from a2a_pay import A2AClient, TaskState
+
+# --- Buyer Agent (发包方) ---
+buyer_client = A2AClient(private_key="...")
+
+# 发包并锁定赏金 (自动进入 PENDING 并投递给网关)
+task_id = buyer_client.publish_task(
+    job_description="Help me analyze NVDA stock sentiment from Twitter",
+    reward_usdc=5.0
+)
+
+# 轮询或基于 WebSocket 等待结果
+while True:
+    task = buyer_client.get_task(task_id)
+    if task.state == TaskState.DELIVERED:
+        result = task.download_result()
+        if "bullish" in result.text:  # 业务验货逻辑
+            buyer_client.verify_and_pay(task_id) # 触发 releaseFunds
+            break
+
+# --- Seller Agent (接包方) ---
+seller_client = A2AClient(private_key="...")
+
+# 发现市场上的高利润待接单任务
+available_tasks = seller_client.marketplace.list_pending_tasks(min_reward=3.0)
+for job in available_tasks:
+    if seller_client.can_handle(job.description):
+        # 抢接单
+        seller_client.accept_task(job.task_id) # 状态标记为 PROCESSING
+        
+        # 本地推理/处理 ...
+        analysis = do_ai_magic(job.description)
+        
+        # 交付最终数据
+        seller_client.submit_result(job.task_id, result_data={"text": analysis}) # 状态变为 DELIVERED
+```

@@ -6,6 +6,7 @@ from indexer.database.client_db import ClientBase, engine_client, SessionClient
 from indexer.models.client_models import ClientTaskModel, ClientSyncState
 from indexer.models.agent_models import AgentModel
 from indexer.c_api.routes import router as client_router
+from indexer.c_api.fleet_routes import router as fleet_router
 from indexer.sync_daemon import listen_to_events
 
 app = FastAPI(title="A2A-Pay Client API", version="1.0.0")
@@ -30,6 +31,7 @@ def on_startup():
     ).start()
 
 app.include_router(client_router)
+app.include_router(fleet_router)
 
 if __name__ == "__main__":
     import uvicorn

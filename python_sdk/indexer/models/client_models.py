@@ -1,16 +1,19 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Text
 from indexer.database.client_db import ClientBase
 
 class ClientTaskModel(ClientBase):
     __tablename__ = "client_tasks"
     id = Column(Integer, primary_key=True, index=True)
-    task_id = Column(String, index=True)
+    task_id = Column(String, unique=True, index=True)
+    title = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
     buyer = Column(String, index=True)
-    seller = Column(String, index=True)
+    seller = Column(String, index=True, nullable=True)
     amount = Column(String)
-    status = Column(String)
-    tx_hash = Column(String)
-    block_number = Column(Integer)
+    status = Column(String) # 'PENDING', 'PROCESSING', 'DELIVERED', 'COMPLETED', 'DISPUTED'
+    result_data = Column(Text, nullable=True)
+    tx_hash = Column(String, nullable=True) # made nullable
+    block_number = Column(Integer, nullable=True) # made nullable
 
 class ClientSyncState(ClientBase):
     __tablename__ = "client_sync_state"
