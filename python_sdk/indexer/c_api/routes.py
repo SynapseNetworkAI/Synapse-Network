@@ -67,7 +67,7 @@ def get_client_tasks(agent: str = Query(None), db: Session = Depends(get_client_
     tasks = db.query(ClientTaskModel).filter((ClientTaskModel.buyer == agent_lower) | (ClientTaskModel.seller == agent_lower)).all()
     out = []
     for t in reversed(tasks):
-        out.append({"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "txHash": t.tx_hash, "blockNumber": t.block_number})
+        out.append({"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "result_data": t.result_data, "title": t.title, "description": t.description, "txHash": t.tx_hash, "blockNumber": t.block_number})
     return out
 
 
@@ -158,3 +158,27 @@ def deliver_task(task_id: str, payload: DeliverTaskSchema, db: Session = Depends
     task.status = "DELIVERED"
     db.commit()
     return {"status": "success"}
+
+class VerifyTaskSchema(BaseModel):
+    agent_wallet: str
+    approved: bool
+
+@router.post("/tasks/{task_id}/verify")
+def verify_task(task_id: str, payload: VerifyTaskSchema, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
+    agent_lower = payload.agent_wallet.lower()
+    
+    agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == agent_lower, AgentModel.owner_address == owner_address).first()
+    if not agent:
+        raise HTTPException(status_code=403, detail="Forbidden")
+        
+    task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
+    if not task or task.status != "DELIVERED" or task.buyer != agent_lower:
+        raise HTTPException(status_code=400, detail="Invalid task state or unauthorized.")
+        
+    if payload.approved:
+        task.status = "RELEASED"
+    else:
+        task.status = "DISPUTED"
+        
+    db.commit()
+    return {"status": "success", "new_status": task.status}
