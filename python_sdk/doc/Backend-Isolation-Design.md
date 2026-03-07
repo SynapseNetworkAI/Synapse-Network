@@ -93,3 +93,21 @@ agent = db.query(Agent).filter(
 2. **影响面降级 (Blast Radius Reduction)**：
    - 如果此 FastAPI 后端的数据库遭遇“拖库”，由于数据库中只存储用户公开的冷钱包公钥以及链上能查到的 Agent 热钱包，**没有任何私钥存储在中心化库中**，黑客无法窃取用户的主力本金。
    - 如果前端的 Admin 后台被暴力破解获取了常规验证字串，由于后端的 `AdminGuard` 强校验 OTP 算法二次签发码，黑客同样无法进入特权模式进行系统级参数修改。
+---
+
+## 5. 项目实际落地实现纪要 (FastAPI & SQLAlchemy)
+
+在目前的项目代码中，后端隔离机制已通过以下代码模块正式落地：
+
+### 5.1 HTTP 请求鉴权拦截中间件 (`auth.py`)
+利用 FastAPI 的 `Header` 与 `Depends` 特性，截获前端请求带入的 Web3 身份签名信息（当前阶段通过 `X-User-Address` 透传）：
+* **路径**: `python_sdk/indexer/c_api/auth.py`
+* **处理逻辑**: `verify_client_session` 函数会校验当前请求是否合法，提取出 `X-User-Address` 并强制转换为 lowercase（消除大小写敏感问题），向后级路由暴露当前真实的冷钱包 `owner_address` 以供 RLS 过滤。如果未提供即视为无身份，触发 `401 Unauthorized` 阻断。
+
+### 5.2 路由层与数据库 Row-Level Security (`routes.py`)
+在所有的用户数据查询和变更接口中应用强制的数据归属权校验，实现了行级安全（Row-Level Security）。
+* **路径**: `python_sdk/indexer/c_api/routes.py`
+* **实现亮点**:
+  1. **防止 BOLA (越权查询)**：如获取 Agent 列表 (`/api/client/agents`) 强制要求 `.filter(AgentModel.owner_address == owner_address)`。
+  2. **双边查询准入约束**：如查询交易流水 (`/api/client/tasks`)，先验证请求查询的那个 Agent 是否属于来访者 (`owner_address`)，确保了哪怕知晓其他人的 Agent ID，也由于所属主钱包不匹配引发 `403 Forbidden`。
+  3. **强制属主写入**：新建 Agent POST 请求中，不受信任的前端无法伪造归属人，新建对象直接绑定由 `verify_client_session` 返回的只读态 `owner_address`。

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from indexer.database.client_db import ClientBase, engine_client, SessionClient
 from indexer.models.client_models import ClientTaskModel, ClientSyncState
+from indexer.models.agent_models import AgentModel
 from indexer.c_api.routes import router as client_router
 from indexer.sync_daemon import listen_to_events
 
