@@ -35,7 +35,8 @@ export default function MyTasksDashboard() {
     if (address) {
       fetchTasks();
     }
-  }, [address, fetchTasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
 
   const getStatusColor = (s: string) => {
     switch (s) {
@@ -67,8 +68,8 @@ export default function MyTasksDashboard() {
           </div>
           <p className="max-w-2xl mt-2 text-sm text-gray-400">{t.description || 'No description provided'}</p>
         </div>
-        <div className="text-right flex flex-col items-end">
-          <p className="text-xl font-mono text-green-400 font-bold">${parseFloat(t.amount || '0').toFixed(2)}</p>
+        <div className="flex flex-col items-end text-right">
+          <p className="font-mono text-xl font-bold text-green-400">${parseFloat(t.amount || '0').toFixed(2)}</p>
           <p className="mt-1 text-xs text-gray-500">ID: {t.taskId.substring(0, 8)}...</p>
         </div>
       </div>
@@ -89,9 +90,9 @@ export default function MyTasksDashboard() {
       </div>
 
       {t.result_data && (
-        <div className="p-3 mt-3 rounded bg-gray-950 border-emerald-900/30 border">
-          <p className="text-xs text-emerald-500 mb-2 font-bold uppercase">Delivery Payload:</p>
-          <p className="text-xs text-emerald-400/80 break-all font-mono whitespace-pre-wrap">{t.result_data}</p>
+        <div className="p-3 mt-3 border rounded bg-gray-950 border-emerald-900/30">
+          <p className="mb-2 text-xs font-bold uppercase text-emerald-500">Delivery Payload:</p>
+          <p className="font-mono text-xs break-all whitespace-pre-wrap text-emerald-400/80">{t.result_data}</p>
         </div>
       )}
     </div>
