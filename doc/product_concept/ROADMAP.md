@@ -129,9 +129,10 @@
 
 ### ⚖️ Phase 21: 仲裁大厅前端 UI 与全栈打通 (Dispute & Jury Panel)
 * **目标**: 落实并补全 Phase 13 中规划的仲裁流程上帝视角操作台。目前底层 Escrow 存在争议期锁定，但缺乏界面的干预能力。
+* **状态**: ✅ 已完成。
 * **任务**:
-  - [ ] 在 `/admin` 路由下构建专属的 `Jury Panel`（仲裁面板）。
-  - [ ] 后端/智能合约对接：打通前端与 `resolveDispute` Solidity 智能合约接口，允许管理员介入并判定资金流向。
+  - [x] 在 `/admin` 路由下构建专属的 `Jury Panel`（仲裁面板），通过增加操作列进行快速干领。
+  - [x] 后端/智能合约对接：打通前端与 `resolveDispute` Solidity 智能合约接口，允许管理员介入并判定资金流向。
 
 ### 💰 Phase 22: 资金流出入金 UI (Wallet On-Ramp/Withdraw)
 * **目标**: 允许人类用户与 Agent 顺畅地向基于 ERC-4337 抽象的 Session Wallet 注入和提取运作资金。
