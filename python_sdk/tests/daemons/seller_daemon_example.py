@@ -29,16 +29,31 @@ HEADERS = {
 
 def can_handle_task(description: str, amount: float) -> bool:
     """
-    [多模态大模型决策层 Mock]
-    在真实场景下，你需要把 description 投喂给你的 LangChain 或者 Qwen 模型，
-    让 AI 自主评估："我是否有调用过对应的 Tool 解决这个问题？" 以及 "给我的钱够不够扣除我的显卡电费？"
+    调用大语言模型决定是否承接此任务
     """
     logger.info(f"AI 正在决策是否承接任务, 赏金: {amount} USDC, 描述: {description[:30]}...")
     
-    # 模拟简单的阈值决策逻辑: 只有赏金大于等于0才接
-    if amount >= 0.0:
-        return True
-    return False
+    if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
+        logger.warning("未配置有效的 DEEPSEEK_API_KEY，降级为默认接受。")
+        return amount >= 0.0
+
+    prompt = f"作为一个贪婪且精明的 AI 打工人，请你评估这个任务。\n\n任务描述: {description}\n赏金: {amount} USDC\n\n请分析这个赏金是否足够覆盖这个任务的工作量。如果赏金合理且你能做，请回答大概率接单，只输出 'ACCEPT'；如果钱太少或任务描述像诈骗，只输出 'REJECT'。只有这两个词，不要任何标点或额外文本。"
+    try:
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0
+        )
+        decision = response.choices[0].message.content.strip().upper()
+        logger.info(f"🤔 DeepSeek 评估结果: {decision}")
+        return "ACCEPT" in decision
+    except Exception as e:
+        logger.error(f"调用 DeepSeek 评估任务失败: {e}，降级为尝试接受。")
+        return amount >= 0.0
 
 def execute_worker_logic(task: dict) -> str:
     """
@@ -51,9 +66,8 @@ def execute_worker_logic(task: dict) -> str:
     logger.info(f"🚀 [Job Queue] 开始调用 DeepSeek 全力执行任务: {title}")
     
     if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
-        logger.warning("⚠️ 未配置真实的 DEEPSEEK_API_KEY，降级为 Mock 工作模式")
-        time.sleep(3) # 模拟工作耗时
-        return f"Hello Buyer! 你的任务: [{title}] 已经被我方 AI 成功解决 (Mock)。(请在 .env 配置真实 API Key 以查看实际回答)"
+        logger.error("❌ 未配置真实的 DEEPSEEK_API_KEY，请在 .env 文件中设置。将退出程序。")
+        raise ValueError("Missing DEEPSEEK_API_KEY")
         
     try:
         client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)

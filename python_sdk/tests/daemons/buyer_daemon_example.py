@@ -35,11 +35,8 @@ def verify_data(task: dict, result_data: str) -> bool:
     logger.info(f"🔍 正在智能验收任务 [{task.get('taskId', '')[:8]}]...")
     
     if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
-        logger.warning("⚠️ 未配置真实的 DEEPSEEK_API_KEY，降级为 Mock 验收模式")
-        time.sleep(2) # 模拟解析时间
-        if result_data and "Hello" in result_data:
-            return True
-        return False
+        logger.error("❌ 未配置真实的 DEEPSEEK_API_KEY，请在 .env 文件中设置。将退出程序。")
+        raise ValueError("Missing DEEPSEEK_API_KEY")
         
     try:
         client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
