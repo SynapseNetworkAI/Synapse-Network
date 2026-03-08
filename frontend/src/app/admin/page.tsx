@@ -25,6 +25,7 @@ function GodsViewDashboardContent() {
   const [treasuryBalance, setTreasuryBalance] = useState("0.00");
   const [deals, setDeals] = useState<Deal[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [resolvingTaskId, setResolvingTaskId] = useState<string | null>(null);
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -53,6 +54,31 @@ function GodsViewDashboardContent() {
       msg,
       hash
     }, ...prev].slice(0, 50));
+  };
+
+  const handleResolveDispute = async (taskId: string, winnerAddress: string) => {
+    try {
+      setResolvingTaskId(taskId);
+      const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+      // Local dev hardhat Account #0 (Treasury) private key
+      const treasuryWallet = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", provider);
+      const escrowContractWithSigner = new ethers.Contract(config.Escrow, escrowAbi, treasuryWallet);
+      
+      addLog("JURY", `Submitting resolveDispute for taskId ${taskId.substring(0,8)}... in favor of ${winnerAddress.substring(0,6)}...`);
+      
+      const tx = await escrowContractWithSigner.resolveDispute(taskId, winnerAddress);
+      addLog("JURY", `Awaiting blockchain confirmation...`, tx.hash);
+      await tx.wait();
+
+      addLog("JURY", `Dispute resolved successfully!`);
+      // UI and DB will be updated automatically via the event listener and python indexer.
+      
+    } catch (err: any) {
+      console.error("Resolve dispute failed:", err);
+      addLog("ERROR", `Resolve failed: ${err.message}`);
+    } finally {
+      setResolvingTaskId(null);
+    }
   };
 
   useEffect(() => {
@@ -204,7 +230,7 @@ function GodsViewDashboardContent() {
           </div>
           <button 
             onClick={handleLogout}
-            className="flex items-center space-x-2 border border-red-500/50 hover:bg-red-500/20 text-red-400 px-3 py-1 rounded transition-colors"
+            className="flex items-center px-3 py-1 space-x-2 text-red-400 transition-colors border rounded border-red-500/50 hover:bg-red-500/20"
           >
             <LogOut className="w-4 h-4" />
             <span>Logout</span>
@@ -264,12 +290,13 @@ function GodsViewDashboardContent() {
                     <th className="p-4 font-bold border-b border-[#00FFA3]/20">A2A Task ID</th>
                     <th className="p-4 font-bold border-b border-[#00FFA3]/20">Execution Trace (Buyer <ArrowRightLeft className="inline w-3 h-3 mx-1"/> Seller)</th>
                     <th className="p-4 font-bold border-b border-[#00FFA3]/20 text-right">Fund Status</th>
+                    <th className="p-4 font-bold border-b border-[#00FFA3]/20 text-center">Jury Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#00FFA3]/10">
                   {deals.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="relative p-8 text-center opacity-50 group">
+                      <td colSpan={5} className="relative p-8 text-center opacity-50 group">
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#00FFA3]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         Awaiting the first A2A transaction... Run the Python Agent Script!
                       </td>
@@ -294,6 +321,26 @@ function GodsViewDashboardContent() {
                         <div className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded font-bold border ${getStatusColor(d.status)}`}>
                           {getStatusText(d.status)}
                         </div>
+                      </td>
+                      <td className="p-4 flex flex-col justify-center items-center align-middle h-full min-h-[70px]">
+                        {d.status === 'DISPUTED' ? (
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <button 
+                               onClick={() => handleResolveDispute(d.taskId, d.buyer)}
+                               disabled={resolvingTaskId === d.taskId}
+                               className="text-[10px] bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 px-3 py-1 rounded w-[110px] transition-colors border border-blue-500/30 font-bold disabled:opacity-50">
+                               {resolvingTaskId === d.taskId ? '...' : 'Refund Buyer'}
+                            </button>
+                            <button 
+                               onClick={() => handleResolveDispute(d.taskId, d.seller)}
+                               disabled={resolvingTaskId === d.taskId}
+                               className="text-[10px] bg-[#00FFA3]/20 hover:bg-[#00FFA3]/40 text-[#00FFA3] px-3 py-1 rounded w-[110px] transition-colors border border-[#00FFA3]/30 font-bold disabled:opacity-50">
+                               {resolvingTaskId === d.taskId ? '...' : 'Pay Seller'}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] opacity-20">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}
