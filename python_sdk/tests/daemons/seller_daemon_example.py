@@ -101,26 +101,84 @@ def execute_worker_logic(task: dict) -> str:
 
 import os
 import hashlib
+import time
 
 def mock_upload_to_ipfs(data: str):
     """
-    模拟将大量交付数据上传到 IPFS/S3 并获取 URL 与 Hash
-    修改为本地 Data URI (Base64) 返回，防止调用 ipfs 公共网关时报 422 错误
+    实际现在支持多渠道存储（根据 .env 中的 STORAGE_MODE 切换）
+    当前支持的渠道:
+    - DATA_URI: 转为 Base64 内联短链接 (适合小文本/本地快捷调试)
+    - MINIO: 本地/云端 S3 兼容的对象存储 (适合大文件，需要配置 MINIO 连接)
     """
     import base64
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    storage_mode = os.getenv("STORAGE_MODE", "DATA_URI").upper()
     data_bytes = data.encode('utf-8') if isinstance(data, str) else str(data).encode('utf-8')
     data_hash = "0x" + hashlib.sha256(data_bytes).hexdigest()
     
-    # 模拟本地下载的 Data URI scheme
+    # 也保留一份在本地真实目录为了无服务端辅助调试方便
+    mock_cid = "Qm" + hashlib.md5(data_bytes).hexdigest() 
+    os.makedirs("/tmp/mock_ipfs", exist_ok=True)
+    file_path = f"/tmp/mock_ipfs/{mock_cid}.txt"
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(data)
+        
+    if storage_mode == "MINIO":
+        try:
+            import boto3
+            from botocore.client import Config
+            
+            # 读取 MinIO 配置，带有安全默认值
+            endpoint = os.getenv("MINIO_ENDPOINT", "http://127.0.0.1:9000")
+            access_key = os.getenv("MINIO_ACCESS_KEY", "admin")
+            secret_key = os.getenv("MINIO_SECRET_KEY", "12345678")
+            bucket_name = os.getenv("MINIO_BUCKET_NAME", "a2a-payloads")
+            
+            s3 = boto3.client('s3',
+                              endpoint_url=endpoint,
+                              aws_access_key_id=access_key,
+                              aws_secret_access_key=secret_key,
+                              config=Config(signature_version='s3v4'),
+                              region_name='us-east-1')
+                              
+            # 自动创建 Bucket (如果不存在) 并将其设置为公开读取
+            try:
+                s3.head_bucket(Bucket=bucket_name)
+            except:
+                s3.create_bucket(Bucket=bucket_name)
+                # 配置 Policy 让所有人都能通过 URL 访问它 (充当 Public OSS)
+                import json
+                policy = {
+                    "Version": "2012-10-17",
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Principal": "*",
+                        "Action": ["s3:GetObject"],
+                        "Resource": [f"arn:aws:s3:::{bucket_name}/*"]
+                    }]
+                }
+                s3.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+                
+            object_name = f"{mock_cid}.txt"
+            
+            # 上传文件
+            s3.upload_file(file_path, bucket_name, object_name)
+            
+            # 返回可以直接被前端无验证下载的 URL (因已配置 Public Bucket)
+            mock_url = f"{endpoint}/{bucket_name}/{object_name}"
+            logger.info(f"💾 数据已成功上传至本地 MinIO OSS: {mock_url}")
+            return mock_url, data_hash
+        except ImportError:
+            logger.warning("未安装 boto3，退级到 DATA_URI 模式。请执行 pip install boto3")
+        except Exception as e:
+            logger.error(f"⚠️ MinIO 上传失败: {str(e)}，退级到 DATA_URI 模式。请检查 MinIO 容器是否启动或密码是否 >= 8位")
+            
+    # 默认/失败回退: DATA_URI 方案
     b64_content = base64.b64encode(data_bytes).decode('utf-8')
     mock_url = f"data:text/plain;charset=utf-8;base64,{b64_content}"
     
-    # 也保留一份在本地目录为了调试方便
-    mock_cid = "Qm" + hashlib.md5(data_bytes).hexdigest() 
-    os.makedirs("/tmp/mock_ipfs", exist_ok=True)
-    with open(f"/tmp/mock_ipfs/{mock_cid}.txt", "w", encoding="utf-8") as f:
-        f.write(data)
-        
     return mock_url, data_hash
 
 def poll_and_work():

@@ -9,7 +9,7 @@ services:
       - "9001:9001"         # Web Console port
     environment:
       - MINIO_ROOT_USER=admin     # Username
-      - MINIO_ROOT_PASSWORD=123456 # Password (must be at least 8 characters)
+      - MINIO_ROOT_PASSWORD=12345678 # Password (must be at least 8 characters)
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
