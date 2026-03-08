@@ -1,9 +1,10 @@
 # A2A-Pay Python 后端与 SDK 运维启动指南 (Operation Guide)
 
-本文档说明如何从零开始配置环境、安装依赖，并启动 A2A-Pay 的 Python 网关服务（Indexer & APIs）与相关 SDK 组件。
+本文档说明如何从零开始配置环境、安装依赖，并启动 A2A-Pay 的 Python 网关服务（Indexer & APIs）、OSS 存储底座与相关 SDK 组件。
 
-## 0. 前置依赖：启动本地区块链节点 (极其重要)
+## 0. 前置依赖：启动辅助基础设施 (极其重要)
 
+### 0.1 启动本地区块链节点
 因为所有的后台监听服务（Indexer）与前端界面均高度依赖以太坊 RPC 节点，进行本地开发前，**必须优先启动本地的 Hardhat 运行环境**。如果没有启动，您将会在启动后端服务或前端发起请求时遇到如下网络拒接报错：
 `POST http://127.0.0.1:8545/ net::ERR_CONNECTION_REFUSED`
 
@@ -21,7 +22,26 @@ npx hardhat node
 npx hardhat run scripts/deploy.js --network localhost
 ```
 
-确保本地的 8545 端口节点持续运行后，再继续以下步骤启动 Python 后端及 SDK：
+### 0.2 启动本地 OSS 对象存储服务 (MinIO)
+在 AI Agent 处理任务的过程中（如 Seller 进行图片渲染、数据分析结果的投递），经常会产生极大的 Payload，此时完全依赖链上或数据库会导致拥堵。
+因此我们使用 **MinIO** 作为本地的离线大文件存储服务器（完全兼容 AWS S3 协议）。
+
+请使用项目根目录下的 `docker-compose.yml` 启动 OSS 服务：
+
+```bash
+# 在 A2A-pay 根目录下执行
+docker-compose up -d
+```
+
+**服务启动说明：**
+* 启动成功后，MinIO 的 API 服务将运行在：`http://127.0.0.1:9000` (用于 Python boto3 SDK 交互)
+* **Web UI 控制台** 将运行在：`http://127.0.0.1:9001`
+* **默认账号**: `admin`
+* **默认密码**: `password`
+
+*(注意：在您的 Seller Agent 代码向网关回传大型数据链接前，请先在这个后台面板创建一个 Public 可视的 bucket，如 `a2a-payloads`)*。
+
+确保节点与 OSS 控制台正常运行后，再继续以下步骤启动 Python 服务：
 
 ## 1. 环境准备
 
