@@ -105,13 +105,18 @@ import hashlib
 def mock_upload_to_ipfs(data: str):
     """
     模拟将大量交付数据上传到 IPFS/S3 并获取 URL 与 Hash
+    修改为本地 Data URI (Base64) 返回，防止调用 ipfs 公共网关时报 422 错误
     """
+    import base64
     data_bytes = data.encode('utf-8') if isinstance(data, str) else str(data).encode('utf-8')
     data_hash = "0x" + hashlib.sha256(data_bytes).hexdigest()
-    mock_cid = "Qm" + hashlib.md5(data_bytes).hexdigest() 
-    mock_url = f"https://ipfs.io/ipfs/{mock_cid}"
     
-    # 将文件写入本地模拟网络共享存储
+    # 模拟本地下载的 Data URI scheme
+    b64_content = base64.b64encode(data_bytes).decode('utf-8')
+    mock_url = f"data:text/plain;charset=utf-8;base64,{b64_content}"
+    
+    # 也保留一份在本地目录为了调试方便
+    mock_cid = "Qm" + hashlib.md5(data_bytes).hexdigest() 
     os.makedirs("/tmp/mock_ipfs", exist_ok=True)
     with open(f"/tmp/mock_ipfs/{mock_cid}.txt", "w", encoding="utf-8") as f:
         f.write(data)

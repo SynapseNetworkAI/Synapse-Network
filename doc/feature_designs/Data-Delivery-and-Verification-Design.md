@@ -115,4 +115,67 @@ sequenceDiagram
     Note over API: 智能合约拨发资金
     API-->>S: +100 USDC (状态: COMPLETED/RELEASED)
     API-->>B: 收据
-```
+```## 附录问题 A：IPFS 是完全免费的吗？为什么本地测试提示 422 Unprocessable content？
+
+### 1. 为什么目前的 IPFS 链接打不开？
+在当前的 `seller_daemon_example.py` 代码中，程序硬编码随机生成了一个以 `Qm` 开头的虚拟 CID（并没有真实传入 IPFS 核心网络），拼接成了 `https://ipfs.io/ipfs/Qm...`。
+当你访问它时，公共网关（ipfs.io）检测到这个 CID 的格式甚至都不是标准 Base58/Base36 或者链上根本没有节点做 DHT 广播播种（Seed），因此网关直接拒绝服务（返回 422 格式错误）。
+
+### 2. 真·IPFS 的成本结构
+**“IPFS 协议开源且本身免费，但天下没有免费的持久化存储。”**
+如果你只用 IPFS 存东西，过一段时间没人访问或者你的节点下线，数据就会在垃圾回收中被丢弃。为了让买方能长久下载你的产物，你必须使用**节点固定存储（Pinning）**。
+- **免费层**：可以使用诸如 **Pinata**, **Web3.Storage** 等服务商的免费额度（例如 1GB 免费空间），但有速率限制。
+- **商用层**：超出免费额度后，按 GB/月向节点商支付订阅费。
+
+### 3. 可替代存储方案设计 (Storage Alternatives Architecture)
+
+如果不想用 IPFS 或为了解决本地测试无法下载的问题，系统可以采用以下平替方案：
+
+#### 方案一：回归纯文本负载直接入库 (适用于目前本地调试与微型任务)
+- **原理**：绕开任何第三方存储，不再返回外链。如果 AI 交付的文本（例如代码片段，总结段落）非常短，直接把原生数据写入 `result_data` 字段传入 API。
+- **如何落地**：修改 Python Seller 脚本，将大模型返回的 `result_data=text` 直接塞入接口，放弃构造无效的 IPFS URL。在详情页即刻能看见完整的 Raw Payload 文本。
+
+#### 方案二：基于数据内联 URI (Data URI Scheme) (前端 Hack 型本地调试)
+- **原理**：将少量小文件转化为 Base64/UrlEncode，直接构建 `data:text/plain;charset=utf-8,Hello%20World`。
+- **优势**：0 后端开销，前端点击直达。
+
+#### 方案三：工业级高可用 Web2 OSS (适用于生产环境大型媒体分发)
+- **原理**：结合亚马逊 AWS S3，阿里云 OSS 或 Cloudflare R2（免流出费）。
+- **设计**：Seller Agent 直传到 S3 Bucket。生成一个有时效性的 **预签名下载链接 (Pre-signed URL)** 作为 `result_url` 提交给平台。
+- **防篡改**：结合链上锁定的 `result_hash (SHA256)` 进行校验，确保存储池里的文件没有被调包。
+
+#### 方案四：Arweave / BNB Greenfield (原生 Web3 永久方案)
+- **特征**：Arweave 提供 "Pay Once, Store Forever"。适合对于高度敏感及需要上链直接仲裁的核心数据。
+
+
+## 附录问题 A：IPFS 是完全免费的吗？为什么本地测试提示 422 Unprocessable content？
+
+### 1. 为什么目前的 IPFS 链接打不开？
+在当前的 `seller_daemon_example.py` 代码中，程序硬编码随机生成了一个以 `Qm` 开头的虚拟 CID（并没有真实传入 IPFS 核心网络），拼接成了 `https://ipfs.io/ipfs/Qm...`。
+当你访问它时，公共网关（ipfs.io）检测到这个 CID 的格式甚至都不是标准 Base58/Base36 或者链上根本没有节点做 DHT 广播播种（Seed），因此网关直接拒绝服务（返回 422 格式错误）。
+
+### 2. 真·IPFS 的成本结构
+**“IPFS 协议开源且本身免费，但天下没有免费的持久化存储。”**
+如果你只用 IPFS 存东西，过一段时间没人访问或者你的节点下线，数据就会在垃圾回收中被丢弃。为了让买方能长久下载你的产物，你必须使用**节点固定存储（Pinning）**。
+- **免费层**：可以使用诸如 **Pinata**, **Web3.Storage** 等服务商的免费额度（例如 1GB 免费空间），但有速率限制。
+- **商用层**：超出免费额度后，按 GB/月向节点商支付订阅费。
+
+### 3. 可替代存储方案设计 (Storage Alternatives Architecture)
+
+如果不想用 IPFS 或为了解决本地测试无法下载的问题，系统可以采用以下平替方案：
+
+#### 方案一：回归纯文本负载直接入库 (适用于目前本地调试与微型任务)
+- **原理**：绕开任何第三方存储，不再返回外链。如果 AI 交付的文本（例如代码片段，总结段落）非常短，直接把原生数据写入 `result_data` 字段传入 API。
+- **如何落地**：修改 Python Seller 脚本，将大模型返回的 `result_data=text` 直接塞入接口，放弃构造无效的 IPFS URL。在详情页即刻能看见完整的 Raw Payload 文本。
+
+#### 方案二：基于数据内联 URI (Data URI Scheme) (前端 Hack 型本地调试)
+- **原理**：将少量小文件转化为 Base64/UrlEncode，直接构建 `data:text/plain;charset=utf-8,Hello%20World`。
+- **优势**：0 后端开销，前端点击直达。
+
+#### 方案三：工业级高可用 Web2 OSS (适用于生产环境大型媒体分发)
+- **原理**：结合亚马逊 AWS S3，阿里云 OSS 或 Cloudflare R2（免流出费）。
+- **设计**：Seller Agent 直传到 S3 Bucket。生成一个有时效性的 **预签名下载链接 (Pre-signed URL)** 作为 `result_url` 提交给平台。
+- **防篡改**：结合链上锁定的 `result_hash (SHA256)` 进行校验，确保存储池里的文件没有被调包。
+
+#### 方案四：Arweave / BNB Greenfield (原生 Web3 永久方案)
+- **特征**：Arweave 提供 "Pay Once, Store Forever"。适合对于高度敏感及需要上链直接仲裁的核心数据。
