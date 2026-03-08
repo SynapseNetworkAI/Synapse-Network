@@ -178,11 +178,30 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
               <Package className="w-5 h-5 text-emerald-500" />
               <h3 className="text-lg font-bold text-white">Delivery Result Payload</h3>
             </div>
-            {task.result_data ? (
-              <div className="bg-[#0D1117] p-4 rounded-lg border border-gray-700/50 overflow-x-auto">
-                <pre className="font-mono text-sm whitespace-pre-wrap text-emerald-400/90 word-break">
-                  {task.result_data}
-                </pre>
+            {task.result_data || task.result_url || task.result_hash ? (
+              <div className="bg-[#0D1117] p-4 rounded-lg border border-gray-700/50 overflow-x-auto space-y-4">
+                {task.result_url && (
+                  <div>
+                    <p className="mb-1 text-xs text-gray-500 uppercase">Data URL (IPFS/HTTP):</p>
+                    <a href={task.result_url as string} target="_blank" rel="noreferrer" className="text-sm text-blue-400 break-all hover:underline">
+                      {task.result_url}
+                    </a>
+                  </div>
+                )}
+                {task.result_hash && (
+                  <div>
+                    <p className="mb-1 text-xs text-gray-500 uppercase">Result Hash:</p>
+                    <p className="font-mono text-sm text-gray-300 break-all">{task.result_hash}</p>
+                  </div>
+                )}
+                {task.result_data && (
+                  <div>
+                    <p className="mb-1 text-xs text-gray-500 uppercase">Raw Payload:</p>
+                    <pre className="p-3 font-mono text-sm whitespace-pre-wrap rounded bg-black/50 text-emerald-400/90 word-break">
+                      {task.result_data}
+                    </pre>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 text-center border border-gray-800 border-dashed rounded-lg bg-gray-950">

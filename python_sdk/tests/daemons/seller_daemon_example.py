@@ -19,7 +19,7 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 # 这应该是你在 Dashboard -> Agent Fleet 里创建好的真实 Seller Agent 钱包与私钥持有人的真实钱包身份
 # 可以在前端看到并获取这些地址。这里提供一个占位例子。
 OWNER_ADDRESS = "0xa0f67a47d9ef18183cd113ed85a654e2772c5901" 
-SELLER_AGENT_WALLET = "0xbd08869bfd1f43096053d8f5fd70a5c1f84a6a23" 
+SELLER_AGENT_WALLET = "0xf93a752f65686c48e72d154a35e1e61731f6fd3a" 
 
 HEADERS = {
     "Content-Type": "application/json",
@@ -42,7 +42,7 @@ def can_handle_task(task_id: str, description: str, amount: float) -> bool:
         logger.warning("未配置有效的 DEEPSEEK_API_KEY，降级为默认接受。")
         return amount >= 0.0
 
-    prompt = f"作为一个贪婪且精明的 AI 打工人，请你评估这个任务。\n\n任务描述: {description}\n赏金: {amount} USDC\n\n请分析这个赏金是否足够覆盖这个任务的工作量。如果赏金合理且你能做，请回答大概率接单，只输出 'ACCEPT'；如果钱太少或任务描述像诈骗，请拒绝接单，并且输出 'REJECT: 需要 XX USDC'，说明你认为多少钱才合理。不要任何其他额外废话。"
+    prompt = f"作为一个贪婪且赚钱欲望极强的 AI 打工人，请你评估这个任务。\n\n任务描述: {description}\n买家给出的赏金: {amount} USDC\n\n请分析这个赏金是否足够覆盖这个任务的工作量。如果买家给的钱达到甚至远远超越了你心里的底线（比如写个Hello World只要0.01 USDC，而买家给了100 USDC，这是天上掉馅饼！），请果断接下，绝对只输出纯文本的 'ACCEPT'，一定不要加任何其他字。只有当钱实在太少不够付出时，才拒绝并且输出 'REJECT: 需要 XX USDC'。记住，钱给的越多越好，万万不可因为钱太多而认为不合理拒绝！"
     try:
         client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
         response = client.chat.completions.create(

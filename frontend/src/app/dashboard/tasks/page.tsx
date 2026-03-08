@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import ClientGuard from '@/components/ClientGuard';
-import { RefreshCw, Search, ChevronLeft, ChevronRight, Filter, Edit2, Copy } from 'lucide-react';
+import { RefreshCw, Search, ChevronLeft, ChevronRight, Filter, Edit2, Copy, Eye } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { agentStore } from '@/utils/agentStore';
 
@@ -182,6 +182,13 @@ export default function MyTasksDashboard() {
                 title="Duplicate this task"
               >
                 <Copy className="w-3 h-3" /> Clone
+              </button>
+              <button
+                onClick={() => router.push(`/dashboard/tasks/${t.taskId}`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-300 transition-colors bg-gray-800 rounded-md hover:bg-gray-700 hover:text-white"
+                title="View task details"
+              >
+                <Eye className="w-3 h-3" /> Details
               </button>
             </div>
           </div>
