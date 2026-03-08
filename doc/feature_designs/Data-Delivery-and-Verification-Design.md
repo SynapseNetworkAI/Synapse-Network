@@ -229,3 +229,36 @@ sequenceDiagram
 **总结结论**：
 - 开箱即用、代码改动最少：采用**方案二（FastAPI 挂载）**。
 - 可视化强、架构解耦最标准：采用**方案一（MinIO）**。
+---
+
+### 4. 2026最新落地方案：目前测试网守护进程（Daemon）多级存储策略实现
+
+在 `python_sdk` 下的 Agent 守护程序（如 `seller_daemon_example.py`）中，系统彻底剥离了写死的离线模拟，引入了多渠道环境解耦架构：
+
+配置启动选项：只要在 `python_sdk/.env` 文件中申明 `STORAGE_MODE`，Agent 会基于此自动路由文件投递：
+
+**策略 A: `STORAGE_MODE=DATA_URI` (备用与极小文本默认选型)**
+- 将生成的内容做高强度的原生 Base64 编码，生成形如 `data:text/plain;charset=utf-8;base64,...` 的轻量短接。
+- 前端点击即可解析，在不依赖任何云主机的离线网络也能做到 100% 验证成功。
+
+**策略 B: `STORAGE_MODE=MINIO` (重型媒体流与图片文件企业标配)**
+- 当启用时并赋予有效授权信息（`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY` 等），底层直接动用标准 Amazon S3 boto3 协程对接。
+- **自动公开化补齐 (Public Auto-Policy)**: 系统会在连接的一瞬间，尝试自检目标 Bucket（如我们规范的 `a2a-payloads`）是否存在。若无，不仅会创建，同时还会为该 Bucket 压入资源级的容许策略： `{"Action": ["s3:GetObject"], "Principal": "*" }`。
+- 上面策略的结果在于：智能体在处理大型成果推送到存储中后，返给订单的 `result_url` **不需要附带任何签名参数 (Pre-signed params)**，直接就是一个极度干净持久的 URL （例如：`http://127.0.0.1:9000/a2a-payloads/QmXXXXX.txt`）。买方在全站任意位置点开立刻可以获取全部完整的高清文件并进行 SHA256 防篡改验算。
+
+---
+
+### 4. 2026最新落地方案：目前测试网守护进程（Daemon）多级存储策略实现
+
+在 `python_sdk` 下的 Agent 守护程序（如 `seller_daemon_example.py`）中，系统彻底剥离了写死的离线模拟，引入了多渠道环境解耦架构：
+
+配置启动选项：只要在 `python_sdk/.env` 文件中申明 `STORAGE_MODE`，Agent 会基于此自动路由文件投递：
+
+**策略 A: `STORAGE_MODE=DATA_URI` (备用与极小文本默认选型)**
+- 将生成的内容做高强度的原生 Base64 编码，生成形如 `data:text/plain;charset=utf-8;base64,...` 的轻量短接。
+- 前端点击即可解析，在不依赖任何云主机的离线网络也能做到 100% 验证成功。
+
+**策略 B: `STORAGE_MODE=MINIO` (重型媒体流与图片文件企业标配)**
+- 当启用时并赋予有效授权信息（`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY` 等），底层直接动用标准 Amazon S3 boto3 协程对接。
+- **自动公开化补齐 (Public Auto-Policy)**: 系统会在连接的一瞬间，尝试自检目标 Bucket（如我们规范的 `a2a-payloads`）是否存在。若无，不仅会创建，同时还会为该 Bucket 压入资源级的容许策略： `{"Action": ["s3:GetObject"], "Principal": "*" }`。
+- 上面策略的结果在于：智能体在处理大型成果推送到存储中后，返给订单的 `result_url` **不需要附带任何签名参数 (Pre-signed params)**，直接就是一个极度干净持久的 URL （例如：`http://127.0.0.1:9000/a2a-payloads/QmXXXXX.txt`）。买方在全站任意位置点开立刻可以获取全部完整的高清文件并进行 SHA256 防篡改验算。
