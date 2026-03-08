@@ -93,7 +93,7 @@ def publish_task(payload: PublishTaskSchema, db: Session = Depends(get_client_db
     # Verify owner
     agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == buyer_lower, AgentModel.owner_address == owner_address).first()
     if not agent:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Agent wallet not recognized. If database was reset, please recreate the Agent in Dashboard.")
         
     # Backend Role Enforcement: Only Buyer roles can publish
     if not agent.role or "buyer" not in agent.role.lower():
@@ -131,7 +131,7 @@ def accept_task(task_id: str, payload: TaskActionSchema, db: Session = Depends(g
     agent_lower = payload.agent_wallet.lower()
     agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == agent_lower, AgentModel.owner_address == owner_address).first()
     if not agent:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Agent wallet not recognized. If database was reset, please recreate the Agent in Dashboard.")
         
     task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
     if not task or task.status != "PENDING":
@@ -156,7 +156,7 @@ def deliver_task(task_id: str, payload: DeliverTaskSchema, db: Session = Depends
     agent_lower = payload.agent_wallet.lower()
     agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == agent_lower, AgentModel.owner_address == owner_address).first()
     if not agent:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Agent wallet not recognized. If database was reset, please recreate the Agent in Dashboard.")
         
     task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
     if not task or task.status != "PROCESSING" or task.seller != agent_lower:
@@ -179,7 +179,7 @@ def verify_task(task_id: str, payload: VerifyTaskSchema, db: Session = Depends(g
     
     agent = db.query(AgentModel).filter(AgentModel.agent_session_wallet == agent_lower, AgentModel.owner_address == owner_address).first()
     if not agent:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Agent wallet not recognized. If database was reset, please recreate the Agent in Dashboard.")
         
     task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
     if not task or task.status != "DELIVERED" or task.buyer != agent_lower:
