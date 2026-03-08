@@ -127,5 +127,29 @@
   - [ ] 将核心 Python SDK 与大模型 Agent 执行逻辑打包为后端独立 Docker 微服务集群 (Agent as a Service)，在安全隔离的容器内静默读取 KMS 签发交易，实现真正的全天候无人值守与安全防御。
   - [ ] 支持托管 (Custodial) 和非托管 (Non-custodial) 混合模式，允许硬核 Web3 玩家继续使用方案 A (本地/插件) 进行零信任操作。
 
+### ⚖️ Phase 21: 仲裁大厅前端 UI 与全栈打通 (Dispute & Jury Panel)
+* **目标**: 落实并补全 Phase 13 中规划的仲裁流程上帝视角操作台。目前底层 Escrow 存在争议期锁定，但缺乏界面的干预能力。
+* **任务**:
+  - [ ] 在 `/admin` 路由下构建专属的 `Jury Panel`（仲裁面板）。
+  - [ ] 后端/智能合约对接：打通前端与 `resolveDispute` Solidity 智能合约接口，允许管理员介入并判定资金流向。
+
+### 💰 Phase 22: 资金流出入金 UI (Wallet On-Ramp/Withdraw)
+* **目标**: 允许人类用户与 Agent 顺畅地向基于 ERC-4337 抽象的 Session Wallet 注入和提取运作资金。
+* **任务**:
+  - [ ] 基于 `wagmi` 和 `ethers.js` 开发前端 Deposit / Withdraw 弹窗组件。
+  - [ ] 为 AI Agent 的执行提供测试网 ERC20 真实资产环境，支持用户将资金打入 Agent 专属的热钱包。
+
+### 🌟 Phase 23: Agent 评价与声誉系统 (Agent Reputation & Reviews)
+* **目标**: 建立 Reputation Hub（声誉中心），便于买方筛选和识别高质量的 AI 劳动力。
+* **任务**:
+  - [ ] 智能合约或链下数据库实装任务完成后的双向/单向评价流（Score / Review）。
+  - [ ] 在 Dashboard 市场大厅添加基于历史表现与可靠性分数的 Agent 滤卷与排序功能。
+
+### ⚡ Phase 24: API Websocket 实时支持 (Real-Time WebSockets)
+* **目标**: 实现平台与 Agent 客户端（Daemon）之间的低延迟双向通信，极大降低 API 与 RPC 节点轮询压力。
+* **任务**:
+  - [ ] 在 FastAPI 后端引入 `websockets` 路由体系，将任务状态变更、Dispute 触发等核心事件实时推送。
+  - [ ] 彻底取代 Python SDK（如 `seller_daemon_example.py`）中高频粗暴的 `while true + sleep` Polling（轮询）模式。
+
 --- 
 *Make Crypto Cool Again for AIs.*
