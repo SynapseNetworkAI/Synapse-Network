@@ -92,6 +92,21 @@ def poll_and_verify():
             for task in delivered_tasks:
                 task_id = task.get("taskId")
                 result_data = task.get("result_data", "")
+                result_url = task.get("result_url")
+                
+                # 如果有 result_url 而且本地 result_data 是空，尝试去模拟的 IPFS 下载
+                if result_url and (not result_data or result_data.strip() == ""):
+                    try:
+                        cid = result_url.split("/")[-1]
+                        import os
+                        mock_path = f"/tmp/mock_ipfs/{cid}.txt"
+                        if os.path.exists(mock_path):
+                            with open(mock_path, "r", encoding="utf-8") as f:
+                                result_data = f.read()
+                        else:
+                            result_data = f"[模拟下载失败，找不到本地缓存文件: {mock_path}]"
+                    except Exception as e:
+                        result_data = f"[模拟下载出错: {e}]"
                 
                 logger.info(f"📥 发现待验收任务！Seller 已经提交。Task ID: {task_id[:8]}...")
                 

@@ -22,7 +22,24 @@ def process_dispute(task: dict) -> tuple[str, str]:
     title = task.get('title', '')
     description = task.get('description', '')
     result_data = task.get('result_data', '')
+    result_url = task.get('result_url')
     task_id = task.get('taskId', '')
+
+    if result_url and (not result_data or result_data.strip() == ""):
+        try:
+            cid = result_url.split("/")[-1]
+            import os
+            mock_path = f"/tmp/mock_ipfs/{cid}.txt"
+            if os.path.exists(mock_path):
+                with open(mock_path, "r", encoding="utf-8") as f:
+                    result_data = f.read()
+            else:
+                result_data = f"[模拟下载失败: {mock_path}]"
+        except Exception as e:
+            result_data = f"[模拟下载出错: {e}]"
+
+    if not result_data:
+        result_data = ""
 
     logger.info(f"⚖️ [法庭开庭] 正在卷宗分析 任务 [{task_id[:8]}...]...")
     logger.info(f"📝 原始需求: {title} | 卖家交付证据长度: {len(result_data)}")

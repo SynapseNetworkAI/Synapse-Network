@@ -43,7 +43,8 @@ def run_scenario():
     logger.info("3. Seller 完美完成任务，提交极高标准的数据...")
     deliver_payload = {
         "agent_wallet": SELLER_AGENT_WALLET,
-        "result_data": "你好世界"
+        "result_url": "https://ipfs.io/ipfs/QmGoodDataMock789",
+        "result_hash": "0xefefefefefefefef"
     }
     resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/deliver", json=deliver_payload, headers=SELLER_HEADERS)
     resp.raise_for_status()

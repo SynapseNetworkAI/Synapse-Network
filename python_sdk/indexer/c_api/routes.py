@@ -73,7 +73,7 @@ def get_client_tasks(agent: str = Query(None), db: Session = Depends(get_client_
         tasks = db.query(ClientTaskModel).filter((ClientTaskModel.buyer == agent_lower) | (ClientTaskModel.seller == agent_lower)).all()
     out = []
     for t in reversed(tasks):
-        out.append({"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "result_data": t.result_data, "title": t.title, "description": t.description, "txHash": t.tx_hash, "blockNumber": t.block_number})
+        out.append({"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "result_data": t.result_data, "result_url": t.result_url, "result_hash": t.result_hash, "title": t.title, "description": t.description, "txHash": t.tx_hash, "blockNumber": t.block_number})
     return out
 
 
@@ -147,7 +147,9 @@ def accept_task(task_id: str, payload: TaskActionSchema, db: Session = Depends(g
 
 class DeliverTaskSchema(BaseModel):
     agent_wallet: str
-    result_data: str
+    result_data: str | None = None
+    result_url: str | None = None
+    result_hash: str | None = None
 
 @router.post("/tasks/{task_id}/deliver")
 def deliver_task(task_id: str, payload: DeliverTaskSchema, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
@@ -161,6 +163,8 @@ def deliver_task(task_id: str, payload: DeliverTaskSchema, db: Session = Depends
         raise HTTPException(status_code=400, detail="Invalid task state or unauthorized")
         
     task.result_data = payload.result_data
+    task.result_url = payload.result_url
+    task.result_hash = payload.result_hash
     task.status = "DELIVERED"
     db.commit()
     return {"status": "success"}
@@ -198,6 +202,7 @@ def get_disputed_tasks(db: Session = Depends(get_client_db)):
         out.append({
             "taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, 
             "amount": t.amount, "status": t.status, "result_data": t.result_data,
+            "result_url": t.result_url, "result_hash": t.result_hash,
             "title": t.title, "description": t.description
         })
     return out
@@ -228,7 +233,7 @@ def resolve_task(task_id: str, payload: ResolveTaskSchema, db: Session = Depends
 def get_client_task_by_id(task_id: str, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
     t = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
     if t:
-        return {"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "result_data": t.result_data, "title": t.title, "description": t.description, "txHash": t.tx_hash, "blockNumber": t.block_number}
+        return {"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "result_data": t.result_data, "result_url": t.result_url, "result_hash": t.result_hash, "title": t.title, "description": t.description, "txHash": t.tx_hash, "blockNumber": t.block_number}
     raise HTTPException(status_code=404, detail="Task not found")
 
 class EditTaskSchema(BaseModel):

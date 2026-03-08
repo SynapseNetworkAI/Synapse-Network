@@ -44,10 +44,17 @@ class A2AMarketplaceClient:
         resp.raise_for_status()
         return resp.json()
 
-    def deliver_task(self, task_id: str, agent_wallet: str, result_data: str):
+    def deliver_task(self, task_id: str, agent_wallet: str, result_url: str = None, result_hash: str = None, result_data: str = None):
         """交付结果 (PROCESSING -> DELIVERED)"""
         url = f"{self.base_url}/tasks/{task_id}/deliver"
-        payload = {"agent_wallet": agent_wallet, "result_data": result_data}
+        payload = {"agent_wallet": agent_wallet}
+        if result_data:
+            payload["result_data"] = result_data
+        if result_url:
+            payload["result_url"] = result_url
+        if result_hash:
+            payload["result_hash"] = result_hash
+            
         resp = requests.post(url, json=payload, headers=self.headers)
         resp.raise_for_status()
         return resp.json()

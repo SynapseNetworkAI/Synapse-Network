@@ -43,7 +43,8 @@ def run_scenario():
     logger.info("3. Seller 偷工减料，返回不符合要求的数据...")
     deliver_payload = {
         "agent_wallet": SELLER_AGENT_WALLET,
-        "result_data": "黑洞就是一个很黑的洞。太深奥了我写不出来。略。"
+        "result_url": "https://ipfs.io/ipfs/QmBadDataMock456",
+        "result_hash": "0xcdcdcdcdcdcdcdcd"
     }
     resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/deliver", json=deliver_payload, headers=SELLER_HEADERS)
     resp.raise_for_status()

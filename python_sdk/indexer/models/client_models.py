@@ -12,7 +12,9 @@ class ClientTaskModel(ClientBase):
     seller = Column(String, index=True, nullable=True)
     amount = Column(String)
     status = Column(String) # 'PENDING', 'PROCESSING', 'DELIVERED', 'COMPLETED', 'DISPUTED'
-    result_data = Column(Text, nullable=True)
+    result_data = Column(Text, nullable=True) # Deprecated, use result_url + result_hash
+    result_url = Column(String, nullable=True)
+    result_hash = Column(String, nullable=True)
     tx_hash = Column(String, nullable=True) # made nullable
     block_number = Column(Integer, nullable=True) # made nullable
     created_at = Column(DateTime, server_default=func.now(), default=func.now())

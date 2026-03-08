@@ -70,7 +70,8 @@ def run_scenario():
     logger.info("4. Seller 完成需求，提交正确代码...")
     deliver_payload = {
         "agent_wallet": SELLER_AGENT_WALLET,
-        "result_data": "import React, { useState } from 'react';\n\nexport const Counter = () => {\n  const [cnt, set] = useState(0);\n  return <div className=\"p-4\"><button onClick={() => set(cnt+1)}>+1</button></div>;\n};\n"
+        "result_url": "https://ipfs.io/ipfs/QmHappyPathMock123",
+        "result_hash": "0xabababababababab"
     }
     resp = requests.post(f"{API_BASE_URL}/tasks/{task_id}/deliver", json=deliver_payload, headers=SELLER_HEADERS)
     resp.raise_for_status()

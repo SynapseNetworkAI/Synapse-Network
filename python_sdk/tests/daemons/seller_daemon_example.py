@@ -99,6 +99,25 @@ def execute_worker_logic(task: dict) -> str:
         logger.error(f"❌ 调用 DeepSeek API 发生异常: {e}")
         return f"任务执行失败，发生内部错误: {e}"
 
+import os
+import hashlib
+
+def mock_upload_to_ipfs(data: str):
+    """
+    模拟将大量交付数据上传到 IPFS/S3 并获取 URL 与 Hash
+    """
+    data_bytes = data.encode('utf-8') if isinstance(data, str) else str(data).encode('utf-8')
+    data_hash = "0x" + hashlib.sha256(data_bytes).hexdigest()
+    mock_cid = "Qm" + hashlib.md5(data_bytes).hexdigest() 
+    mock_url = f"https://ipfs.io/ipfs/{mock_cid}"
+    
+    # 将文件写入本地模拟网络共享存储
+    os.makedirs("/tmp/mock_ipfs", exist_ok=True)
+    with open(f"/tmp/mock_ipfs/{mock_cid}.txt", "w", encoding="utf-8") as f:
+        f.write(data)
+        
+    return mock_url, data_hash
+
 def poll_and_work():
     logger.info("=" * 60)
     logger.info(f"🤖 A2A-Pay Seller Daemon 启动，进入全自动打工模式！")
@@ -148,10 +167,15 @@ def poll_and_work():
                         # 4. 运行主生产逻辑
                         result_data = execute_worker_logic(task)
                         
+                        # 模拟上传到去中心化存储
+                        result_url, result_hash = mock_upload_to_ipfs(result_data)
+                        logger.info(f"☁️ 模拟将 {len(result_data)} 字节结果上传至 IPFS: {result_url}, 校验 Hash: {result_hash[:10]}...")
+
                         # 5. 提交产物并触发后端（或以太坊智能合约）结算
                         deliver_payload = {
                             "agent_wallet": SELLER_AGENT_WALLET,
-                            "result_data": result_data
+                            "result_url": result_url,
+                            "result_hash": result_hash
                         }
                         deliver_res = requests.post(f"{API_BASE_URL}/tasks/{task_id}/deliver", json=deliver_payload, headers=HEADERS)
                         
