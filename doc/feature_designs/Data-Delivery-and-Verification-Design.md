@@ -179,3 +179,53 @@ sequenceDiagram
 
 #### 方案四：Arweave / BNB Greenfield (原生 Web3 永久方案)
 - **特征**：Arweave 提供 "Pay Once, Store Forever"。适合对于高度敏感及需要上链直接仲裁的核心数据。
+
+
+## 附录问题 B：本地开发调试：大文件 OSS 平替方案
+
+如果在本地开发调试时，交付结果数据非常大（如图片、视频或超大日志），直接使用 Base64 (Data URI) 会导致浏览器无响应或超出长度限制。以下是四种本地平替真实云端 OSS (如 AWS S3, 阿里云 OSS) 或 IPFS 网关的解决方案：
+
+### 方案一：使用 MinIO（最推荐，纯正的企业级本地 OSS）
+**MinIO** 是一个完全兼容 AWS S3 协议的开源对象存储服务器，适合在本地完美模拟真实 OSS，并提供配套的 Web 后台。
+- **启动方法（Docker）**：
+  ```bash
+  docker run -p 9000:9000 -p 9001:9001 \
+    -e "MINIO_ROOT_USER=admin" \
+    -e "MINIO_ROOT_PASSWORD=password" \
+    minio/minio server /data --console-address ":9001"
+  ```
+- **使用流程**：
+  1. 浏览器打开 `http://127.0.0.1:9001` (账号 admin / 密码 password)，创建一个名叫 `a2a-payloads` 的 Bucket，并设置为 Public（公共读）。
+  2. Python Daemon 执行完成后，通过 `boto3` 将数据上传到 `127.0.0.1:9000`。
+  3. `result_url` 组装为：`http://127.0.0.1:9000/a2a-payloads/cid...txt` 供前端直接下载。
+
+### 方案二：利用 FastAPI 静态文件挂载（最轻量，0 成本）
+既然当前的 Python 服务端已经在使用 `uvicorn` 运行 FastAPI，可以直接开一个静态文件目录充当 "本地伪 OSS"。
+- **实现方法**：
+  在 `indexer/c_api/main.py` 中引入 `StaticFiles` 挂载目录：
+  ```python
+  from fastapi.staticfiles import StaticFiles
+  import os
+  
+  os.makedirs("/tmp/mock_ipfs", exist_ok=True)
+  app.mount("/ipfs_mock", StaticFiles(directory="/tmp/mock_ipfs"), name="ipfs_mock")
+  ```
+- **数据回传**：在 `seller_daemon_example.py` 生成文件至 `/tmp/mock_ipfs/CID.txt` 后，将 `result_url` 构造成 `http://localhost:8000/ipfs_mock/<CID>.txt`。
+
+### 方案三：使用 LocalStack（适合深度绑定 AWS 生态）
+适用于未来生产环境必定要使用 AWS 完整服务链（S3, Lambda, DynamoDB 等）的团队。
+- **启动方法**：`pip install localstack` 后运行 `localstack start`。
+- **缺点**：比 MinIO 略微笨重一点，但还原度极高，适合联调系统环境。
+
+### 方案四：Python 内置的极简 HTTP 服务器
+无须修改 FastAPI，也无需运行 Docker，纯终端本地文件服务器。
+- **启动方法**：
+  ```bash
+  mkdir -p /tmp/mock_ipfs && cd /tmp/mock_ipfs
+  python3 -m http.server 8080 --bind 127.0.0.1
+  ```
+- **数据回传**：Agent 中的 `result_url` 填写 `http://127.0.0.1:8080/Qm...txt`，同样供前端详情页直接读取静态返回资源。
+
+**总结结论**：
+- 开箱即用、代码改动最少：采用**方案二（FastAPI 挂载）**。
+- 可视化强、架构解耦最标准：采用**方案一（MinIO）**。
