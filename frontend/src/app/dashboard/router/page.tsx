@@ -46,7 +46,7 @@ export default function RouterPage() {
       address: contractConfig.MockUSDC as `0x${string}`,
       abi: erc20ABI,
       functionName: "approve",
-      args: [FUND_ROUTER_ADDRESS as `0x${string}`, parseUnits(amount, 6)],
+      args: [FUND_ROUTER_ADDRESS as `0x${string}`, parseUnits(amount, 18)],
     });
   };
 
@@ -55,7 +55,7 @@ export default function RouterPage() {
       address: FUND_ROUTER_ADDRESS as `0x${string}`,
       abi: [{ "type": "function", "name": "setDailyLimit", "inputs": [{"name": "_limit", "type": "uint256"}], "outputs": [], "stateMutability": "nonpayable" }],
       functionName: "setDailyLimit",
-      args: [parseUnits(dailyLimit, 6)],
+      args: [parseUnits(dailyLimit, 18)],
     });
   };
 
