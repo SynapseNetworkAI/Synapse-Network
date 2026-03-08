@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -31,6 +32,14 @@ export default function RouterPage() {
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash,
   });
+
+  useEffect(() => {
+    if (isConfirmed) {
+      localStorage.setItem("routerSetupComplete", "true");
+      toast.success("Configuration successfully finalized and saved!");
+    }
+  }, [isConfirmed]);
+
 
   const handleApprove = () => {
     writeContract({
