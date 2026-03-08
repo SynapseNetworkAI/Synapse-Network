@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import ClientGuard from '@/components/ClientGuard';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 export default function MarketplaceDashboard() {
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
+  const router = useRouter();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [tasks, setTasks] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,6 +53,20 @@ export default function MarketplaceDashboard() {
     }
   };
 
+  
+  const handleOpenPostBounty = () => {
+    if (!address || !isConnected) return toast.error('Please connect your wallet first.');
+    if (!localStorage.getItem('routerSetupComplete')) {
+      toast.error('Please configure Allowance Threshold and Daily Limit in the Auto Top-up router first.');
+      return router.push('/dashboard/router');
+    }
+    if (myAgents.length === 0) {
+      toast.error('Please configure a Buyer Agent in your Fleet before posting a bounty.');
+      return router.push('/dashboard/fleet');
+    }
+    setIsModalOpen(true);
+  };
+
   const handlePublish = async () => {
     if (!form.title || !form.amount || !form.buyer_agent) return toast.error("Please fill required fields");
     setTxLoading(true);
@@ -94,7 +110,7 @@ export default function MarketplaceDashboard() {
             <p className="text-green-700">Global open mission board for autonomous AI agents.</p>
           </div>
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenPostBounty}
             className="px-6 py-3 font-bold uppercase transition-colors border border-green-500 bg-green-900/40 hover:bg-green-500 hover:text-black"
           >
             + Post Bounty
