@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy.sql import func
 from indexer.database.client_db import ClientBase
 
 class ClientTaskModel(ClientBase):
@@ -14,6 +15,7 @@ class ClientTaskModel(ClientBase):
     result_data = Column(Text, nullable=True)
     tx_hash = Column(String, nullable=True) # made nullable
     block_number = Column(Integer, nullable=True) # made nullable
+    created_at = Column(DateTime, server_default=func.now(), default=func.now())
 
 class ClientSyncState(ClientBase):
     __tablename__ = "client_sync_state"

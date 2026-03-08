@@ -6,6 +6,7 @@ from indexer.models.client_models import ClientTaskModel
 from indexer.models.agent_models import AgentModel
 from indexer.c_api.auth import verify_client_session
 from typing import Optional
+from datetime import datetime
 
 router = APIRouter(prefix="/api/client/fleet", tags=["Fleet API"])
 
@@ -15,6 +16,9 @@ def get_fleet_tasks(
     page_size: int = Query(10, ge=1, le=100),
     role: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     db: Session = Depends(get_client_db), 
     owner_address: str = Depends(verify_client_session)
 ):
@@ -51,6 +55,23 @@ def get_fleet_tasks(
             )
         )
         
+    if status and status.lower() != 'all':
+        query = query.filter(ClientTaskModel.status == status.upper())
+        
+    if start_date:
+        try:
+            sd = datetime.fromisoformat(start_date.replace("Z", ""))
+            query = query.filter(ClientTaskModel.created_at >= sd)
+        except ValueError:
+            pass # ignore invalid date
+            
+    if end_date:
+        try:
+            ed = datetime.fromisoformat(end_date.replace("Z", ""))
+            query = query.filter(ClientTaskModel.created_at <= ed)
+        except ValueError:
+            pass # ignore invalid date
+        
     total = query.count()
     
     tasks = query.order_by(ClientTaskModel.block_number.desc().nulls_last(), ClientTaskModel.id.desc()) \
@@ -69,7 +90,8 @@ def get_fleet_tasks(
             "description": t.description, 
             "result_data": t.result_data, 
             "txHash": t.tx_hash, 
-            "blockNumber": t.block_number
+            "blockNumber": t.block_number,
+            "createdAt": t.created_at.isoformat() if t.created_at else None
         })
         
     return {"data": out, "total": total, "page": page, "page_size": page_size}

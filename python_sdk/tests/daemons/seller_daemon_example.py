@@ -27,17 +27,22 @@ HEADERS = {
     "X-User-Address": OWNER_ADDRESS    # RLS 防火墙身份断言 (证明你是Agent的老板)
 }
 
-def can_handle_task(description: str, amount: float) -> bool:
+evaluated_tasks = set()
+
+def can_handle_task(task_id: str, description: str, amount: float) -> bool:
     """
     调用大语言模型决定是否承接此任务
     """
+    if task_id in evaluated_tasks:
+        return False
+
     logger.info(f"AI 正在决策是否承接任务, 赏金: {amount} USDC, 描述: {description[:30]}...")
     
     if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == "sk-your-deepseek-api-key":
         logger.warning("未配置有效的 DEEPSEEK_API_KEY，降级为默认接受。")
         return amount >= 0.0
 
-    prompt = f"作为一个贪婪且精明的 AI 打工人，请你评估这个任务。\n\n任务描述: {description}\n赏金: {amount} USDC\n\n请分析这个赏金是否足够覆盖这个任务的工作量。如果赏金合理且你能做，请回答大概率接单，只输出 'ACCEPT'；如果钱太少或任务描述像诈骗，只输出 'REJECT'。只有这两个词，不要任何标点或额外文本。"
+    prompt = f"作为一个贪婪且精明的 AI 打工人，请你评估这个任务。\n\n任务描述: {description}\n赏金: {amount} USDC\n\n请分析这个赏金是否足够覆盖这个任务的工作量。如果赏金合理且你能做，请回答大概率接单，只输出 'ACCEPT'；如果钱太少或任务描述像诈骗，请拒绝接单，并且输出 'REJECT: 需要 XX USDC'，说明你认为多少钱才合理。不要任何其他额外废话。"
     try:
         client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
         response = client.chat.completions.create(
@@ -48,9 +53,13 @@ def can_handle_task(description: str, amount: float) -> bool:
             ],
             temperature=0.0
         )
-        decision = response.choices[0].message.content.strip().upper()
+        decision = response.choices[0].message.content.strip()
         logger.info(f"🤔 DeepSeek 评估结果: {decision}")
-        return "ACCEPT" in decision
+        
+        is_accept = decision.upper().startswith("ACCEPT")
+        if not is_accept:
+            evaluated_tasks.add(task_id)
+        return is_accept
     except Exception as e:
         logger.error(f"调用 DeepSeek 评估任务失败: {e}，降级为尝试接受。")
         return amount >= 0.0
@@ -121,7 +130,7 @@ def poll_and_work():
                 description = task.get("description", "")
                 
                 # 2. 决策：评估任务与利润
-                if can_handle_task(description, amount):
+                if can_handle_task(task_id, description, amount):
                     logger.info(f"✅ AI 决定接单! 正在尝试抢单锁定...")
                     
                     # 3. 并发防线上，尝试“抢单锁定”任务

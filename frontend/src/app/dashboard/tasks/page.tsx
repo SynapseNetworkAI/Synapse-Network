@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import ClientGuard from '@/components/ClientGuard';
-import { RefreshCw, Search, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { RefreshCw, Search, ChevronLeft, ChevronRight, Filter, Edit2, Copy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { agentStore } from '@/utils/agentStore';
 
@@ -17,18 +17,38 @@ export default function MyTasksDashboard() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [total, setTotal] = useState(0);
-  const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  
+  const [searchInput, setSearchInput] = useState('');
+  const [roleInput, setRoleInput] = useState<string>('all');
+  const [statusInput, setStatusInput] = useState<string>('all');
+  const [startDateInput, setStartDateInput] = useState('');
+  const [endDateInput, setEndDateInput] = useState('');
 
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setPage(1); // Reset to page 1 on search
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  const today = new Date();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const maxDate = today.toISOString().split('T')[0];
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(today.getMonth() - 3);
+  const minDate = threeMonthsAgo.toISOString().split('T')[0];
+
+  const [appliedFilters, setAppliedFilters] = useState({
+    search: '',
+    role: 'all',
+    status: 'all',
+    startDate: '',
+    endDate: ''
+  });
+
+  const handleSearch = () => {
+    setAppliedFilters({
+      search: searchInput,
+      role: roleInput,
+      status: statusInput,
+      startDate: startDateInput,
+      endDate: endDateInput
+    });
+    setPage(1);
+  };
 
   const fetchTasks = useCallback(async () => {
     if (!address) return;
@@ -38,11 +58,20 @@ export default function MyTasksDashboard() {
         page: page.toString(),
         page_size: pageSize.toString()
       });
-      if (roleFilter !== 'all') {
-        params.append('role', roleFilter);
+      if (appliedFilters.role !== 'all') {
+        params.append('role', appliedFilters.role);
       }
-      if (debouncedSearch) {
-        params.append('search', debouncedSearch);
+      if (appliedFilters.status !== 'all') {
+        params.append('status', appliedFilters.status);
+      }
+      if (appliedFilters.search) {
+        params.append('search', appliedFilters.search);
+      }
+      if (appliedFilters.startDate) {
+        params.append('start_date', `${appliedFilters.startDate}T00:00:00`);
+      }
+      if (appliedFilters.endDate) {
+        params.append('end_date', `${appliedFilters.endDate}T23:59:59`);
       }
       
       const res = await fetch(`http://127.0.0.1:8000/api/client/fleet/tasks?${params.toString()}`, {
@@ -64,7 +93,7 @@ export default function MyTasksDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [address, page, pageSize, roleFilter, debouncedSearch]);
+  }, [address, page, pageSize, appliedFilters]);
 
   useEffect(() => {
     if (address) {
@@ -130,6 +159,31 @@ export default function MyTasksDashboard() {
               {isBuyer ? '-' : '+'}${parseFloat(t.amount || '0').toFixed(2)}
             </p>
             <p className="mt-1 text-xs text-gray-500">ID: {t.taskId?.substring(0, 8)}...</p>
+            <div className="flex items-center gap-2 mt-3">
+              {t.status === 'PENDING' ? (
+                <button
+                  onClick={() => router.push(`/dashboard/tasks/${t.taskId}/edit`)} // Or open modal
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-500"
+                >
+                  <Edit2 className="w-3 h-3" /> Edit
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 transition-colors bg-gray-800 rounded-md cursor-not-allowed"
+                  title="Task cannot be edited because it is not in PENDING state"
+                >
+                  <Edit2 className="w-3 h-3 opacity-50" /> Edit
+                </button>
+              )}
+              <button
+                onClick={() => router.push(`/dashboard/tasks/new?clone=${t.taskId}`)} // Example clone route
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-300 transition-colors bg-gray-800 rounded-md hover:bg-gray-700 hover:text-white"
+                title="Duplicate this task"
+              >
+                <Copy className="w-3 h-3" /> Clone
+              </button>
+            </div>
           </div>
         </div>
         
@@ -183,33 +237,111 @@ export default function MyTasksDashboard() {
           </button>
         </div>
 
-        {/* Filters and Search */}
-        <div className="flex flex-col gap-4 p-4 mb-8 bg-gray-900 border border-gray-800 rounded-lg sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute w-5 h-5 text-gray-500 transform -translate-y-1/2 left-3 top-1/2" />
-            <input
-              type="text"
-              placeholder="Search by task title, description, or agent address..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-gray-200 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-            />
+        {/* Filters and Search - Enhanced */}
+        <div className="flex flex-col gap-4 p-5 mb-8 bg-gray-900 border border-gray-800 rounded-lg">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="relative md:col-span-2 lg:col-span-2 xl:col-span-2">
+              <Search className="absolute w-5 h-5 text-gray-500 transform -translate-y-1/2 left-3 top-1/2" />
+              <input
+                type="text"
+                placeholder="Search title, description, or agents..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearch();
+                }}
+                className="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-gray-200 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+              />
+            </div>
+            
+            <div className="relative flex flex-col w-full group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 pb-[1px]">
+                  <Filter className="w-4 h-4" />
+              </div>
+              <select
+                value={roleInput}
+                onChange={(e) => setRoleInput(e.target.value)}
+                className="w-full bg-gray-950 border border-gray-700 rounded-lg pl-9 pr-3 py-2.5 text-gray-200 focus:outline-none focus:border-green-500 appearance-none hover:border-gray-600 transition-colors"
+                style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+              >
+                <option value="all">All Roles</option>
+                <option value="buyer">Published (Buyer)</option>
+                <option value="seller">Accepted (Seller)</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 pointer-events-none">
+                <svg className="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
+
+            <div className="relative flex flex-col w-full group">
+              <select
+                value={statusInput}
+                onChange={(e) => setStatusInput(e.target.value)}
+                className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-gray-200 focus:outline-none focus:border-green-500 appearance-none hover:border-gray-600 transition-colors"
+                style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+              >
+                <option value="all">Status: All</option>
+                <option value="PENDING">PENDING</option>
+                <option value="PROCESSING">PROCESSING</option>
+                <option value="DELIVERED">DELIVERED</option>
+                <option value="RELEASED">RELEASED</option>
+                <option value="DISPUTED">DISPUTED</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 pointer-events-none">
+                <svg className="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
+
+            <div className="flex items-end lg:col-span-4 xl:col-span-1">
+              <button
+                onClick={handleSearch}
+                className="w-full flex items-center justify-center px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                <Search className="w-4 h-4 mr-2" /> Search
+              </button>
+            </div>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <Filter className="flex-shrink-0 w-5 h-5 text-gray-500" />
-            <select
-              value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value);
-                setPage(1); // reset to page 1 on filter change
-              }}
-              className="bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 focus:outline-none focus:border-green-500"
-            >
-              <option value="all">All Roles</option>
-              <option value="buyer">Published (As Buyer)</option>
-              <option value="seller">Accepted (As Seller)</option>
-            </select>
+          <div className="flex flex-col gap-3 pt-4 mt-2 border-t border-gray-800 sm:flex-row sm:items-center">
+            <span className="text-sm font-medium text-gray-400">Date Range (up to 3 mos):</span>
+            <div className="flex items-center gap-2">
+              <input 
+                type="date"
+                value={startDateInput}
+                min={minDate}
+                max={endDateInput || maxDate}
+                onChange={(e) => setStartDateInput(e.target.value)}
+                className="bg-gray-950 border border-gray-700 rounded-lg px-3 py-1.5 text-gray-200 focus:outline-none focus:border-green-500 text-sm"
+                style={{ colorScheme: 'dark' }}
+              />
+              <span className="text-sm text-gray-600">to</span>
+              <input 
+                type="date"
+                value={endDateInput}
+                min={startDateInput || minDate}
+                max={maxDate}
+                onChange={(e) => setEndDateInput(e.target.value)}
+                className="bg-gray-950 border border-gray-700 rounded-lg px-3 py-1.5 text-gray-200 focus:outline-none focus:border-green-500 text-sm"
+                style={{ colorScheme: 'dark' }}
+              />
+            </div>
+            
+            {(startDateInput || endDateInput || searchInput || statusInput !== 'all' || roleInput !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearchInput('');
+                  setRoleInput('all');
+                  setStatusInput('all');
+                  setStartDateInput('');
+                  setEndDateInput('');
+                  setAppliedFilters({ search: '', role: 'all', status: 'all', startDate: '', endDate: '' });
+                  setPage(1);
+                }}
+                className="ml-auto text-xs underline transition-colors text-red-500/80 hover:text-red-400"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
 

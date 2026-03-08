@@ -230,3 +230,35 @@ def get_client_task_by_id(task_id: str, db: Session = Depends(get_client_db), ow
     if t:
         return {"taskId": t.task_id, "buyer": t.buyer, "seller": t.seller, "amount": t.amount, "status": t.status, "result_data": t.result_data, "title": t.title, "description": t.description, "txHash": t.tx_hash, "blockNumber": t.block_number}
     raise HTTPException(status_code=404, detail="Task not found")
+
+class EditTaskSchema(BaseModel):
+    title: str = None
+    description: str = None
+    amount: str = None
+
+@router.put("/tasks/{task_id}")
+def edit_client_task(task_id: str, payload: EditTaskSchema, db: Session = Depends(get_client_db), owner_address: str = Depends(verify_client_session)):
+    task = db.query(ClientTaskModel).filter(ClientTaskModel.task_id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Verify owner: Check if the task's buyer agent belongs to the connected owner
+    agent = db.query(AgentModel).filter(
+        AgentModel.agent_session_wallet == task.buyer, 
+        AgentModel.owner_address == owner_address
+    ).first()
+    if not agent:
+        raise HTTPException(status_code=403, detail="Forbidden: You do not own the buyer agent of this task")
+
+    if task.status != "PENDING":
+        raise HTTPException(status_code=400, detail="Only PENDING tasks can be edited")
+
+    if payload.title is not None:
+        task.title = payload.title
+    if payload.description is not None:
+        task.description = payload.description
+    if payload.amount is not None:
+        task.amount = payload.amount
+
+    db.commit()
+    return {"status": "success"}
