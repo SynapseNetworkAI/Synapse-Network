@@ -1,19 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { ethers } from "ethers";
+import type { Abi } from "viem";
 import { listAgents } from "@/utils/agentApi";
 import { agentStore } from "@/utils/agentStore";
+import type { AgentIdentity } from "@/utils/agentStore";
 import { Bot, Plus, ArrowRight, ShieldCheck, CreditCard, Activity } from "lucide-react";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
+import { useBillingData } from "@/hooks/useBillingData";
+
+type BuyerAgent = AgentIdentity;
+
+type BalanceContractCall = {
+  address: `0x${string}`;
+  abi: Abi;
+  functionName: "balanceOf";
+  args: readonly [`0x${string}`];
+};
+
+function asText(value: unknown, fallback: string = ""): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  return fallback;
+}
+
+function normalizeServerAgent(row: Record<string, unknown>): BuyerAgent {
+  return {
+    id: asText(row.id),
+    name: asText(row.name, "Unnamed Agent"),
+    role: asText(row.role),
+    address: asText(row.address),
+    privateKey: "",
+    createdAt: Number(row.createdAt || 0),
+    ownerAddress: row.ownerAddress ? asText(row.ownerAddress) : undefined,
+  };
+}
 
 export default function BuyPage() {
   const { address: userAddress } = useAccount();
-  const [buyerAgents, setBuyerAgents] = useState<any[]>([]);
+  const [buyerAgents, setBuyerAgents] = useState<BuyerAgent[]>([]);
   const [loading, setLoading] = useState(true);
+  const { rows: billingRows } = useBillingData();
 
   // Read USDC balance
   const { data: balanceData } = useReadContract({
@@ -37,32 +70,33 @@ export default function BuyPage() {
     const localAgents = agentStore.getAgentsByOwner(userAddress);
     
     try {
-      const serverAgents = await listAgents(userAddress);
+      const serverAgentsRaw = await listAgents(userAddress);
+      const serverAgents = serverAgentsRaw.map((item) => normalizeServerAgent(item));
       
-      const merged = serverAgents.map((sa: any) => {
+      const merged = serverAgents.map((sa) => {
         const local = localAgents.find(la => la.address.toLowerCase() === String(sa.address).toLowerCase());
         return { ...sa, privateKey: local ? local.privateKey : "" };
       });
       
       const missingLocalAgents = localAgents.filter(la => 
-        !merged.find(ma => String(ma.address).toLowerCase() === la.address.toLowerCase())
+        !merged.some(ma => String(ma.address).toLowerCase() === la.address.toLowerCase())
       );
       
       const allAgents = [...merged, ...missingLocalAgents];
 
-      const buyers = allAgents.filter((a: any) => {
+      const buyers = allAgents.filter((a) => {
         const r = String(a.role || "").toLowerCase();
         return r.includes("buyer") || r.includes("hybrid");
-      }).sort((a: any, b: any) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+      }).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
       
       setBuyerAgents(buyers);
     } catch (err) {
       console.error("Failed to sync buyer agents", err);
       // Fallback to purely local
-      const buyers = localAgents.filter((a: any) => {
+      const buyers = localAgents.filter((a) => {
         const r = String(a.role || "").toLowerCase();
         return r.includes("buyer") || r.includes("hybrid");
-      }).sort((a: any, b: any) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+      }).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
       
       setBuyerAgents(buyers);
     } finally {
@@ -77,6 +111,121 @@ export default function BuyPage() {
   const displayBalance = balanceData 
     ? Number.parseFloat(ethers.formatUnits(balanceData as bigint, 18)).toFixed(2)
     : "0.00";
+
+  const agentBalanceContracts = useMemo(() => {
+    return buyerAgents
+      .filter((agent) => !!agent.address)
+      .map((agent) => ({
+        address: contractConfig.MockUSDC as `0x${string}`,
+        abi: MockUSDCABI as Abi,
+        functionName: "balanceOf",
+        args: [agent.address as `0x${string}`] as const,
+      } satisfies BalanceContractCall));
+  }, [buyerAgents]);
+
+  const { data: agentBalancesData } = useReadContracts({
+    contracts: agentBalanceContracts as readonly BalanceContractCall[],
+    query: {
+      enabled: agentBalanceContracts.length > 0,
+    },
+  });
+
+  const agentBalanceByAddress = useMemo(() => {
+    const map = new Map<string, string>();
+    buyerAgents.forEach((agent, index) => {
+      const key = String(agent?.address || "").toLowerCase();
+      if (!key) return;
+      const entry = agentBalancesData?.[index] as { result?: unknown } | undefined;
+      const result = entry?.result;
+      if (result === undefined || result === null) {
+        map.set(key, "--");
+        return;
+      }
+      try {
+        map.set(key, Number.parseFloat(ethers.formatUnits(result as bigint, 18)).toFixed(2));
+      } catch {
+        map.set(key, "--");
+      }
+    });
+    return map;
+  }, [agentBalancesData, buyerAgents]);
+
+  const todayCallCountByAgent = useMemo(() => {
+    const map = new Map<string, number>();
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const startSec = Math.floor(start.getTime() / 1000);
+
+    for (const row of billingRows) {
+      const ts = Number(row.timestamp || 0);
+      const buyer = String(row.buyer || "").toLowerCase();
+      if (!buyer || ts < startSec) continue;
+      map.set(buyer, (map.get(buyer) || 0) + 1);
+    }
+
+    return map;
+  }, [billingRows]);
+
+  let agentSectionContent: React.ReactNode;
+  if (loading) {
+    agentSectionContent = (
+      <div className="p-12 text-center border border-gray-800 rounded-xl bg-[#0f1115] text-gray-500 animate-pulse flex flex-col items-center">
+        <Bot className="w-8 h-8 mb-3 opacity-20" />
+        <p>加载智能体中...</p>
+      </div>
+    );
+  } else if (buyerAgents.length === 0) {
+    agentSectionContent = (
+      <div className="p-12 text-center border border-dashed border-gray-700/50 rounded-xl bg-[#0f1115] hover:bg-gray-900/50 transition">
+        <Bot className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+        <p className="mb-2 text-base font-medium text-gray-300">您当前钱包下暂未创建买方智能体 (Buyer Agent)</p>
+        <p className="mb-6 text-sm text-gray-500">创建独立 Agent 获取专有调用凭证，以请求卖家 API。</p>
+        <Link href="/dashboard/agents" className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium text-green-500 border border-green-500/30 bg-green-500/5 rounded-lg hover:bg-green-500/20 transition">
+          前往创建专属 Agent <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+    );
+  } else {
+    agentSectionContent = (
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        {buyerAgents.map((agent) => (
+          <div key={agent.id} className="group flex flex-col p-5 border border-gray-800 rounded-xl bg-[#0f1115] hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/5 transition-all">
+            <div className="flex items-start justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-green-500/10 rounded-xl group-hover:bg-green-500/20 transition">
+                    <Bot className="w-6 h-6 text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white text-lg truncate max-w-[140px] leading-tight">{agent.name}</h3>
+                  </div>
+                </div>
+            </div>
+
+            <div className="pb-4 mb-4 space-y-2 border-b border-gray-800/60">
+              <div className="flex items-center justify-between text-xs">
+                <span className="tracking-wide text-gray-500 uppercase">地址</span>
+                <span className="font-mono text-gray-300">{agent.address.slice(0, 8)}...{agent.address.slice(-6)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="tracking-wide text-gray-500 uppercase">余额 (USDC)</span>
+                <span className="font-mono text-yellow-300">{agentBalanceByAddress.get(String(agent.address).toLowerCase()) || "--"}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="tracking-wide text-gray-500 uppercase">今日调用次数</span>
+                <span className="font-mono text-cyan-300">{todayCallCountByAgent.get(String(agent.address).toLowerCase()) || 0}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5 mt-auto pt-5 border-t border-gray-800/60">
+              <Link href={`/dashboard/discover?agentId=${agent.id}`} className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 hover:text-white transition-colors border border-transparent hover:border-gray-600">
+                发现并调用 API
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl p-8 mx-auto space-y-8">
@@ -127,60 +276,21 @@ export default function BuyPage() {
             </div>
             <h2 className="text-xl font-bold tracking-wide text-white">Step 2 · 智能体与凭据 (执行单元)</h2>
           </div>
-          <Link href="/dashboard/agents" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 transition border border-gray-700 rounded-lg hover:bg-gray-800">
-            <Plus className="w-4 h-4" /> 创建新的 Buyer Agent
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/credentials" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-green-400 transition border rounded-lg border-green-400/30 bg-green-500/10 hover:bg-green-500/20">
+              配置通用凭据 (Credential)
+            </Link>
+            <Link href="/dashboard/agents" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 transition border border-gray-700 rounded-lg hover:bg-gray-800">
+              <Plus className="w-4 h-4" /> 创建新的 Buyer Agent
+            </Link>
+          </div>
         </div>
         
         <div className="inline-block p-3 mb-6 text-sm text-gray-400 border rounded-lg bg-gray-900/30 border-gray-800/50">
-          当前共挂载了 <strong className="mx-1 text-base text-white">{buyerAgents.length}</strong> 个 Buyer Agent。每个 Agent 享有独立的鉴权凭据，但共享总钱包资金池。
+          当前共挂载了 <strong className="mx-1 text-base text-white">{buyerAgents.length}</strong> 个 Buyer Agent。所有 Agent 复用同一张通用凭据，并共享总钱包资金池。
         </div>
 
-        {loading ? (
-          <div className="p-12 text-center border border-gray-800 rounded-xl bg-[#0f1115] text-gray-500 animate-pulse flex flex-col items-center">
-            <Bot className="w-8 h-8 mb-3 opacity-20" />
-            <p>加载智能体中...</p>
-          </div>
-        ) : buyerAgents.length === 0 ? (
-          <div className="p-12 text-center border border-dashed border-gray-700/50 rounded-xl bg-[#0f1115] hover:bg-gray-900/50 transition">
-            <Bot className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-            <p className="mb-2 text-base font-medium text-gray-300">您当前钱包下暂未创建买方智能体 (Buyer Agent)</p>
-            <p className="mb-6 text-sm text-gray-500">创建独立 Agent 获取专有调用凭证，以请求卖家 API。</p>
-            <Link href="/dashboard/agents" className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium text-green-500 border border-green-500/30 bg-green-500/5 rounded-lg hover:bg-green-500/20 transition">
-              前往创建专属 Agent <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {buyerAgents.map((agent: any) => (
-              <div key={agent.id} className="group flex flex-col p-5 border border-gray-800 rounded-xl bg-[#0f1115] hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/5 transition-all">
-                <div className="flex items-start justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-green-500/10 rounded-xl group-hover:bg-green-500/20 transition">
-                        <Bot className="w-6 h-6 text-green-400" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-white text-lg truncate max-w-[140px] leading-tight">{agent.name}</h3>
-                        <p className="font-mono text-xs text-gray-500 mt-1 flex items-center gap-1.5 opacity-80">
-                          <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                          {agent.address.slice(0, 8)}...{agent.address.slice(-6)}
-                        </p>
-                      </div>
-                    </div>
-                </div>
-                
-                <div className="flex flex-col gap-2.5 mt-auto pt-5 border-t border-gray-800/60">
-                  <Link href={`/dashboard/credentials?agentId=${agent.id}`} className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg hover:bg-green-400/20 hover:text-green-300 transition-colors">
-                    配置调用凭据 (Credential)
-                  </Link>
-                  <Link href={`/dashboard/discover?agentId=${agent.id}`} className="w-full inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 hover:text-white transition-colors border border-transparent hover:border-gray-600">
-                    发现并调用 API
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {agentSectionContent}
       </section>
 
       {/* Billing Section */}

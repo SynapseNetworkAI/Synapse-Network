@@ -1,0 +1,7 @@
+{
+  "api_base": "http://127.0.0.1:8000",
+  "agent_credential_token": "agt_ghGi2ztj5SHq3CyXBbzVb9Y5TLsgtMEKvAxEeWvDU-I",
+  "tx_hash": "0xc8d66264df9393afb4041de538eb9cadad7bca5759acd9d8ce72653d2d71c0a8",
+  "intent": "名人名言",
+  "prompt": "请给我一句关于坚持的名人名言"
+}

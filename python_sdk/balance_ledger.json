@@ -1,0 +1,17 @@
+{
+  "buyers": {
+    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 2999999999999.9
+  },
+  "sellers": {
+    "0x70997970c51812dc3a010c7d01b50e0d17dc79c8": 0.09
+  },
+  "platform": {
+    "feeAccrued": 0.01
+  },
+  "dailySpend": {
+    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": {
+      "20521": 0.1
+    }
+  },
+  "updatedAt": 1773071002
+}

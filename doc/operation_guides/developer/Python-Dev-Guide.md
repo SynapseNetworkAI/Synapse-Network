@@ -49,7 +49,7 @@ chmod +x test/setup_local_env.sh
 **运行成功后，系统将自动就绪：**
 * **Hardhat Node** 正在本地 `127.0.0.1:8545` 运行并产出区块。
 * **部署逻辑** 已自动将新的合约 ABI 生成到 `python_sdk/A2APaySyncRouterABI.json` 以供后端中间件调用。
-* **Seller API Gateway** (带有支付验证的中间件服务) 运行在 `http://127.0.0.1:8000/api/v1/generate`。
+* **Seller API Gateway** (V2 网关) 运行在 `http://127.0.0.1:8000/api/v2/generate`。
 * **Frontend Next.js** 运行在 `http://127.0.0.1:3000`。
 * 脚本会输出 `TX_HASH` 测试前置脚本命令，以及本次启动的 PID。
 
@@ -67,9 +67,16 @@ chmod +x test/restart_local_env.sh
 ./test/restart_local_env.sh
 ```
 
+说明：`restart_local_env.sh` 现在会在重启完成后自动执行 V2 日限额回归烟测（`python_sdk/examples/v2_daily_limit_regression.py`），并在失败时返回非 0。
+
+若仅需快速重启、不跑烟测：
+```bash
+SKIP_V2_SMOKE=1 ./test/restart_local_env.sh
+```
+
 ## 3. 进行端到端 (E2E) 调用测试
 
-在集群成功运行后，按下面两步完成真实链上支付 + FastAPI 验证。
+在集群成功运行后，按下面步骤完成“充值确认入账 + V2 调用验证”。
 
 ### 3.0 账户预充值（可选但推荐）
 在执行 E2E 支付前，可先用脚本给测试账户补充 `ETH`（Gas）和 `USDC`（支付代币）。
@@ -100,22 +107,42 @@ npx hardhat run scripts/fund_usdc.js --network localhost
 
 > 提示：若您重启了 Hardhat 节点并重新部署合约，建议先执行一次 `fund.js` 和 `fund_usdc.js` 再跑 E2E。
 
-### 3.1 生成一笔链上支付，拿到 `TX_HASH`
+### 3.1 生成一笔链上交易，拿到 `TX_HASH`
 在项目根目录另开终端：
 ```bash
 npx hardhat run scripts/e2e_sync_payment.js --network localhost
 ```
 
 运行后会输出：
-- `SERVICE_ID=V1_DEMO`
+- `SERVICE_ID=SVC_DEMO`
 - `TX_HASH=0x...`
 
-### 3.2 用该 `TX_HASH` 调用 Seller API
+### 3.2 提交充值 intent（等待 Indexer 入账）
+
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/generate \
+curl -X POST http://127.0.0.1:8000/api/v2/balance/deposit/intent \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-User-Address: <owner_wallet>" \
+  -d '{"txHash":"<TX_HASH>","amountUsdc":1}'
+```
+
+可通过以下接口查询入账状态：
+
+```bash
+curl -X GET "http://127.0.0.1:8000/api/v2/balance/deposit/intents?limit=20" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-User-Address: <owner_wallet>"
+```
+
+### 3.3 调用 V2 Generate
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v2/generate \
 	-H "Content-Type: application/json" \
-	-H "X-Tx-Hash: <替换为上一步输出的TX_HASH>" \
-	-d '{"prompt":"hello provider","service_id":"V1_DEMO"}'
+	-H "X-Agent-Credential: <X-Agent-Credential>" \
+  -H "X-Service-Id: SVC_DEMO" \
+  -d '{"prompt":"hello provider","service_id":"SVC_DEMO"}'
 ```
 
 成功时返回 `{"status":"success", ...}`。
@@ -123,9 +150,10 @@ curl -X POST http://127.0.0.1:8000/api/v1/generate \
 ### 测试中，您将观察到的完美流转日志链：
 1. **-> Approving tokens...** (买家先将需要支付的 `USDC` 授权给以太坊路由合约)
 2. **-> Paying via router...** (调用 `payForService` 进行平台抽水和对 Seller 资金的拆分)
-3. **-> Waiting for tx: 0x...** (捕获付款哈希 TxHash 存证)
-4. **-> Sending API request with TxHash...** (向接口发起 HTTP POST，通过 `X-Tx-Hash` 注入前置支付凭证)
-5. **[Success] Received AI Data** (Seller 服务端查验哈希通过，验证金额、接收方、service_id 且无重放后返回结果)
+3. **-> Waiting for tx: 0x...** (捕获充值交易哈希)
+4. **-> Submitting deposit intent...** (通知网关等待链上确认并入账)
+5. **-> Sending API request with Credential...** (凭据 + serviceId 发起 V2 调用)
+6. **[Success] Received AI Data** (网关完成凭据校验、余额扣减和审计后返回结果)
 
 *容错闭环:* 若对方 API Timeout 宕机或者拿钱不发货反馈 HTTP 500，脚本将展示信任降级策略：`ACTION: Blacklisting Seller locally`。
 

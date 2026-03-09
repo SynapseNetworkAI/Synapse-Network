@@ -20,26 +20,10 @@ async function main() {
   const syncRouterAddress = await syncRouter.getAddress();
   console.log("A2APaySyncRouter deployed to:", syncRouterAddress);
 
-  /* (Deprecated Escrow Mode)
-  const Escrow = await hre.ethers.getContractFactory("AgentPayEscrow");
-  const escrow = await Escrow.deploy(usdcAddress, deployer.address);
-  await escrow.waitForDeployment();
-  const escrowAddress = await escrow.getAddress();
-  console.log("Escrow deployed to:", escrowAddress);
-  */
-
-  // 3. Deploy Smart Wallet (human owner)
-  const SmartWallet = await hre.ethers.getContractFactory("AgentSmartWallet");
-  const wallet = await SmartWallet.deploy(deployer.address);
-  await wallet.waitForDeployment();
-  const walletAddress = await wallet.getAddress();
-  console.log("Smart Wallet deployed to:", walletAddress);
-
-  // 4. Save to Frontend
+  // 3. Save to Frontend
   const config = {
     MockUSDC: usdcAddress,
     A2APaySyncRouter: syncRouterAddress,
-    SmartWallet: walletAddress,
     Treasury: deployer.address
   };
   
@@ -59,9 +43,6 @@ async function main() {
   // Also copying to python_sdk so backend can parse events
   const pythonSdk = path.join(__dirname, "../python_sdk");
   fs.writeFileSync(path.join(pythonSdk, "A2APaySyncRouterABI.json"), JSON.stringify(routerArt.abi, null, 2));
-
-  const walletArt = await hre.artifacts.readArtifact("AgentSmartWallet");
-  fs.writeFileSync(path.join(frontendSrc, "WalletABI.json"), JSON.stringify(walletArt.abi, null, 2));
   
   const usdcArt = await hre.artifacts.readArtifact("MockUSDC");
   fs.writeFileSync(path.join(frontendSrc, "MockUSDCABI.json"), JSON.stringify(usdcArt.abi, null, 2));

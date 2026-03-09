@@ -5,6 +5,7 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagm
 import { parseUnits } from "viem";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import contractConfig from "@/contract-config.json";
+import { getRouterConfig, saveRouterConfig } from "@/utils/routerConfigApi";
 
 const erc20ABI = [
   {
@@ -21,12 +22,14 @@ const erc20ABI = [
   }
 ];
 
-const FUND_ROUTER_ADDRESS = "0x9876543210123456789012345678901234567890"; // Demo router address
+const ROUTER_ADDRESS = contractConfig.A2APaySyncRouter as `0x${string}`;
 
 export default function RouterPage() {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [amount, setAmount] = useState("500");
   const [dailyLimit, setDailyLimit] = useState("50");
+  const [isSavingDailyLimit, setIsSavingDailyLimit] = useState(false);
+  const [dailyLimitUpdatedAt, setDailyLimitUpdatedAt] = useState<number | null>(null);
   const { data: hash, writeContract, isPending, error } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
@@ -36,9 +39,30 @@ export default function RouterPage() {
   useEffect(() => {
     if (isConfirmed) {
       localStorage.setItem("routerSetupComplete", "true");
-      toast.success("Configuration successfully finalized and saved!");
+      toast.success("Allowance confirmed on-chain");
     }
   }, [isConfirmed]);
+
+  useEffect(() => {
+    if (!isConnected || !address) return;
+
+    let cancelled = false;
+    const loadConfig = async () => {
+      try {
+        const config = await getRouterConfig(address);
+        if (!cancelled) {
+          setDailyLimit(String(config.dailyLimitUsdc || 0));
+          setDailyLimitUpdatedAt(typeof config.updatedAt === "number" ? config.updatedAt : null);
+        }
+      } catch {
+      }
+    };
+
+    void loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, isConnected]);
 
 
   const handleApprove = () => {
@@ -46,25 +70,38 @@ export default function RouterPage() {
       address: contractConfig.MockUSDC as `0x${string}`,
       abi: erc20ABI,
       functionName: "approve",
-      args: [FUND_ROUTER_ADDRESS as `0x${string}`, parseUnits(amount, 18)],
+      args: [ROUTER_ADDRESS, parseUnits(amount, 18)],
     });
   };
 
-  const handleSetDailyLimit = () => {
-    writeContract({
-      address: FUND_ROUTER_ADDRESS as `0x${string}`,
-      abi: [{ "type": "function", "name": "setDailyLimit", "inputs": [{"name": "_limit", "type": "uint256"}], "outputs": [], "stateMutability": "nonpayable" }],
-      functionName: "setDailyLimit",
-      args: [parseUnits(dailyLimit, 18)],
-    });
+  const handleSaveDailyLimit = async () => {
+    if (!isConnected || !address) return;
+
+    const nextDailyLimit = Number(dailyLimit);
+    if (!Number.isFinite(nextDailyLimit) || nextDailyLimit < 0) {
+      toast.error("Daily limit must be a number >= 0");
+      return;
+    }
+
+    setIsSavingDailyLimit(true);
+    try {
+      const config = await saveRouterConfig(address, nextDailyLimit);
+      setDailyLimit(String(config.dailyLimitUsdc));
+      setDailyLimitUpdatedAt(typeof config.updatedAt === "number" ? config.updatedAt : null);
+      localStorage.setItem("routerSetupComplete", "true");
+      toast.success("Daily limit saved to platform policy");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save daily limit");
+    } finally {
+      setIsSavingDailyLimit(false);
+    }
   };
 
   return (
     <div className="max-w-4xl p-8 mx-auto">
       <h1 className="mb-6 text-3xl font-bold text-green-400">Phase 18: Smart Contract Relayer Setup</h1>
       <p className="py-2 pl-4 mb-4 text-gray-400 border-l-4 border-green-500">
-        Enable Auto Top-up for your provider services by binding your Master Wallet. 
-        You will sign an <code>Approve</code> transaction allowing the A2A_FundRouter to deduct up to your specified allowance.
+        Set two controls separately: total allowance is approved on-chain to the Router contract, while daily limit is saved as platform policy.
       </p>
       
       <div className="p-4 mb-8 border rounded-lg border-blue-900/50 bg-blue-900/10">
@@ -73,9 +110,7 @@ export default function RouterPage() {
           Why Daily Limits Matter (Security Upgrade)
         </h3>
         <p className="text-sm leading-relaxed text-blue-200/80">
-          Standard ERC20 Allowances are vulnerable: if a relayer is compromised, an attacker could drain your entire approved balance in seconds. 
-          To provide enterprise-grade security, our <strong>A2A Fund Router</strong> enforces a strict on-chain <strong>Daily Spending Limit</strong>. 
-          Even if you approve a large total allowance (e.g., 100,000 USDC) to avoid frequent gas fees, the smart contract mathematically guarantees that no more than your specified <strong>Daily Limit</strong> (e.g., 500 USDC) can be withdrawn within any 24-hour epoch.
+          According to V2 policy, allowance and daily policy are decoupled: allowance controls the upper bound approved to the Router smart contract, while daily limit is enforced by platform configuration before off-chain charging.
         </p>
       </div>
 
@@ -92,8 +127,9 @@ export default function RouterPage() {
         
         <div className="space-y-4">
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-400">Max Allowance (USDC)</label>
+            <label htmlFor="router-allowance" className="block mb-1 text-sm font-medium text-gray-400">Max Allowance (USDC)</label>
             <input 
+              id="router-allowance"
               type="number" 
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -111,6 +147,8 @@ export default function RouterPage() {
             {isPending ? "Waiting for Wallet..." : "Approve Router"}
           </button>
 
+          <p className="text-xs text-gray-500">Allowance is an on-chain ERC20 approve transaction and takes effect after chain confirmation.</p>
+
           {hash && (
             <div className="p-4 mt-4 break-all bg-black border border-gray-800 rounded">
                <p className="text-sm text-gray-400">Transaction Hash:</p>
@@ -119,33 +157,39 @@ export default function RouterPage() {
           )}
           
           {isConfirming && <p className="mt-2 text-sm text-yellow-400">Waiting for confirmation...</p>}
-          {isConfirmed && <p className="mt-2 text-sm font-bold text-green-400">✅ Approval Confirmed! Router is now active.</p>}
+          {isConfirmed && <p className="mt-2 text-sm font-bold text-green-400">✅ On-chain allowance confirmed.</p>}
           {error && <p className="mt-2 text-sm text-red-500">Error: {(error as {shortMessage?: string}).shortMessage || error.message}</p>}
         </div>
 
       <div className={`mt-8 bg-gray-900 border ${isConnected ? "border-blue-800" : "border-gray-800 opacity-50"} rounded-lg p-6`}>
-        <h2 className="mb-4 text-xl font-semibold text-white">3. Configure Daily Limit</h2>
+        <h2 className="mb-4 text-xl font-semibold text-white">3. Configure Daily Limit (Platform Policy)</h2>
         
         <div className="space-y-4">
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-400">Max Daily Spending (USDC)</label>
+            <label htmlFor="router-daily-limit" className="block mb-1 text-sm font-medium text-gray-400">Max Daily Spending (USDC)</label>
             <input 
+              id="router-daily-limit"
               type="number" 
               value={dailyLimit}
               onChange={(e) => setDailyLimit(e.target.value)}
               disabled={!isConnected}
               className="w-full max-w-md p-2 text-white bg-black border border-gray-700 rounded focus:border-blue-500 focus:outline-none"
             />
-            <p className="mt-1 text-xs text-gray-500">The Router contract will actively block any extraction exceeding this daily threshold, regardless of your total allowance.</p>
+            <p className="mt-1 text-xs text-gray-500">This value is saved on platform and used by gateway policy checks for daily spending control.</p>
           </div>
 
           <button
-            onClick={handleSetDailyLimit}
-            disabled={!isConnected || isPending}
+            onClick={handleSaveDailyLimit}
+            disabled={!isConnected || isSavingDailyLimit}
             className="px-6 py-2 font-bold text-white transition-colors bg-blue-600 rounded hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isPending ? "Waiting for Wallet..." : "Set Daily Limit"}
+            {isSavingDailyLimit ? "Saving..." : "Save Daily Limit"}
           </button>
+          {dailyLimitUpdatedAt ? (
+            <p className="text-xs text-gray-500">
+              Last updated: {new Date(dailyLimitUpdatedAt * 1000).toLocaleString()}
+            </p>
+          ) : null}
         </div>
       </div>
       </div>

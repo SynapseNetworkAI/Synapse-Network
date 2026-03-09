@@ -44,7 +44,50 @@
       },
       "updatedAt": 1773037845,
       "createdAt": 1773037845
+    },
+    {
+      "id": "6439c9e7-ec28-4941-9b2b-d60664ec0885",
+      "agentId": "12dc1909-ff59-4b87-b8d7-608c2f5b8f93",
+      "name": "通过关键字获取名人名言",
+      "serviceName": "通过关键字获取名人名言",
+      "role": "Seller / Work Node",
+      "ownerAddress": "0xa0f67a47d9ef18183cd113ed85a654e2772c5901",
+      "address": "0xf93a752f65686c48e72d154a35e1e61731f6fd3a",
+      "serviceId": "SVC_86E08FF51958",
+      "pricing": "0.05",
+      "endpoint": "http://127.0.0.1:8100/api/v1/quotes/famous/top3",
+      "isActive": true,
+      "summary": null,
+      "tags": [],
+      "auth": null,
+      "invoke": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8100/api/v1/quotes/famous/top3",
+        "timeoutMs": 30000,
+        "request": {
+          "contentType": "application/json",
+          "schema": {
+            "text": "string"
+          }
+        },
+        "response": {
+          "schema": {
+            "input_text": "关于坚持",
+            "quotes": [
+              "\"坚持就是胜利。\"——毛泽东",
+              "\"锲而不舍，金石可镂。\"——荀子",
+              "\"伟大的作品不是靠力量，而是靠坚持来完成的。\"——塞缪尔·约翰逊"
+            ],
+            "model": "deepseek-chat",
+            "source": "deepseek"
+          }
+        },
+        "headersTemplate": null,
+        "examples": null
+      },
+      "updatedAt": 1773059888,
+      "createdAt": 1773059888
     }
   ],
-  "updatedAt": 1773037845
+  "updatedAt": 1773059888
 }

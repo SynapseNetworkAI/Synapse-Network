@@ -7,7 +7,7 @@
 在这里，Seller 将其自研的 AI Agent（或者数据集/工具）包装成一个服务，接入 A2APay 协议收费。
 
 ## 2. 需废弃/清理的旧版遗留前端功能 (Deprecation)
-在 `frontend/src/app` 中，以下重度强关联旧 Escrow 模式的界面与逻辑应该被清理或隐藏：
+在 `frontend/src/app` 中，以下重度强关联旧担保模式的界面与逻辑应该被清理或隐藏：
 - **`/dashboard/marketplace`**：所有的“查看/接受/发布任务”逻辑，它们耦合了已被删除的 Python Indexer。
 - **Nav/Sidebar 里的 Tasks，Bounties 等字眼。**
 
@@ -47,7 +47,7 @@
 3. **获取 API Key / 启动**：这只是一个概念隐喻。实际上，区块链 `ServicePaid` 就是该服务的 API Key。系统指导用户开启他的 Python FastAPI 即可躺赚。
 
 ## 5. 与新合约的绑定点
-在旧版中我们有 `AgentPayEscrow`。现在前端唯一的智能合约交互应该是与 `A2APaySyncRouter.sol` 的只读交互：
+当前版本前端唯一的智能合约交互应该是与 `A2APaySyncRouter.sol` 的只读交互：
 - **监听器**: 监听 `event ServicePaid(address indexed buyer, address indexed seller, address token, uint256 amount, uint256 fee, string serviceId);` 
 - 使用 `ethers.js` 或 `viem` 通过当前钱包地址进行 event topics 过滤，抓取 `seller == current_user` 的事件来绘制看板图表。
 
@@ -175,9 +175,9 @@ type ServiceProfile = {
 	- Buyer Fetch 调用模板
 
 ### Step 6: 支付与调用
-1. Buyer 先调用 `payForService(...)` 产生链上 `txHash`。
-2. Buyer 发起 HTTP 请求到 `endpoint`，Header 附带 `X-Tx-Hash`。
-3. Seller FastAPI 校验 `txHash` 事件中的 `seller/amount/serviceId`。
+1. Buyer 完成链上支付并提交 `deposit intent`，等待余额入账。
+2. Buyer 调用平台网关 `/api/v2/generate`，Header 携带 `X-Agent-Credential` 与 `X-Service-Id`。
+3. Gateway 完成凭据、限流、余额校验后再执行业务。
 
 ### Step 7: 收益回流
 - Dashboard 监听/查询 `ServicePaid` 日志。
@@ -210,7 +210,7 @@ type ServiceProfile = {
 2. Dashboard 可展示服务列表与链上 `ServicePaid` 收益聚合。
 3. 详情页可生成可复制的 FastAPI 与 Fetch Snippet。
 4. 状态切换 `Active/Inactive` 生效并可持久化。
-5. 流程完整：`连接钱包 → 注册服务 → 生成代码 → 链上支付 → 收益回流`。
+5. 流程完整：`连接钱包 → 注册服务 → 充值确认入账 → 网关调用 → 收益回流`。
 
 ---
 
@@ -290,10 +290,10 @@ type ServiceProfile = {
 	- endpoint 可达且健康检查通过
 
 2. **支付可验证条件**
-	- Buyer 已产生有效的 `ServicePaid` 对应交易
-	- 交易中的 `seller / serviceId / amount` 与请求匹配
+	- Buyer 余额已确认入账且 `buyerBalance >= pricing`
+	- 调用凭据有效（未过期、未撤销、未超配额）
 
-只有同时满足，Seller API 才返回 200 并执行业务逻辑。
+只有同时满足，Gateway 才返回 200 并执行业务逻辑。
 
 ### 12.6 服务上线/下线是否需要与智能合约交互
 
@@ -308,29 +308,24 @@ type ServiceProfile = {
   - `setServiceStatus(serviceId, active)`
 - 适用于需要公开可验证服务目录的场景。
 
-### 12.7 用户付钱后如何调用接口，服务端如何验证
+### 12.7 用户付费后如何调用接口，服务端如何验证
 
 标准链路：
 
-1. Buyer 调用 Router 支付，得到 `txHash`。
-2. Buyer 调用 Seller endpoint（POST/GET），请求头附带：
-	- `X-Tx-Hash`
+1. Buyer 完成链上支付并提交 `deposit intent`，由 Indexer 异步确认入账。
+2. Buyer 调用 Gateway endpoint（POST），请求头附带：
+	- `X-Agent-Credential`
 	- `X-Service-Id`
-	- （可选）`X-Buyer-Address`
-3. Seller API 执行校验：
-	- 查询 `txHash` receipt 与 logs
-	- 解码 `ServicePaid`
-	- 校验字段：
-	  - `seller == provider_wallet`
-	  - `serviceId == X-Service-Id`
-	  - `amount >= service.pricing`
-	  - `token` 为允许币种（如 MockUSDC/USDC）
-	- 防重放：`txHash + logIndex` 只能消费一次
-4. 校验通过后执行业务逻辑并返回结果；否则返回 402/403。
+3. Gateway 执行校验：
+	- 凭据有效（owner/agent/service scope）
+	- 三维限流通过
+	- `buyerBalance >= service.pricing`
+	- 原子扣费并写 usage 审计
+4. 校验通过后执行业务逻辑并返回结果；否则返回 401/402/403。
 
 建议补充：
 - 最少确认数（例如本地 1，生产可提升）
-- 过期时间窗口（例如支付后 10 分钟内有效）
+- 每日限额策略（平台配置）
 
 ### 12.8 服务如何做注册
 
@@ -348,12 +343,13 @@ MVP 注册流程（前端已可落地）：
 
 ### 12.8 平台是否做接口转发
 
-**当前模式不做业务接口转发，平台只做“支付与证明层”。**
+**当前模式由平台网关统一做鉴权、扣费与转发。**
 
 职责边界：
 - 链上 Router：收款、分账、事件留痕。
-- Buyer 客户端：发起支付并直连 Seller endpoint。
-- Seller API：验证支付并执行业务。
+- Buyer 客户端：发起支付并调用平台网关。
+- Gateway：凭据校验、余额扣费、审计与转发。
+- Seller API：专注执行业务逻辑。
 - Provider Console：配置管理、文档生成、收益看板。
 
 可选扩展（非 MVP）：
@@ -495,16 +491,16 @@ P2（可选）：
 
 #### 12.12.1 正常时序
 1. Buyer 获取 `sellerAddress/serviceId/pricing/invoke.url`。
-2. Buyer 链上支付，得到 `txHash`。
-3. Buyer 直连 Seller API，携带 `X-Tx-Hash` 与 `X-Service-Id`。
-4. Seller 查 `txHash` receipt，解码 `ServicePaid` 并校验字段。
-5. 校验通过后执行业务，返回结果。
+2. Buyer 链上支付并提交 `deposit intent`。
+3. Indexer 完成链上确认后，余额进入 `buyerBalance`。
+4. Buyer 调用 `/api/v2/generate`，携带 `X-Agent-Credential` 与 `X-Service-Id`。
+5. Gateway 校验并扣费后执行业务，返回结果。
 
-#### 12.12.2 未立即查到支付事件（链上确认延迟）
-当 Seller 查询时 `receipt == null` 或确认数不足：
+#### 12.12.2 未立即确认充值（链上确认延迟）
+当 Indexer 尚未确认充值交易时：
 - 返回 `202 Pending`（不是失败）。
 - 响应建议包含：
-	- `code: PAYMENT_PENDING`
+	- `code: DEPOSIT_PENDING_CONFIRMATION`
 	- `retryAfterSec: 2~5`
 	- `txHash`
 - Buyer 按指数退避重试（例如总等待 30~60 秒）。

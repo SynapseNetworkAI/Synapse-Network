@@ -11,7 +11,7 @@
 
 新增 API 主要覆盖：
 - owner 控制面（签发/撤销/调整配额/查看审计）
-- 数据面调用（`/api/v1/generate`）
+- 数据面调用（`/api/v2/generate`）
 
 ## 3. 数据模型
 
@@ -67,7 +67,7 @@
 - 仅返回当前 owner 的日志
 
 ### 4.6 数据面调用
-`POST /api/v1/generate`
+`POST /api/v2/generate`
 - 新增可选头：`X-Agent-Credential`
 - 若携带凭证：
   1) 校验有效性（未过期/未撤销/未超调用上限）
@@ -105,9 +105,9 @@
 - `RATE_LIMIT_WINDOW_SEC`
 - `REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE`
 
-## 8. 向后兼容
+## 8. 实现说明
 - 管理面接口（services CRUD）不变。
-- `/generate` 新增能力默认兼容（可不开强制凭证）。
+- `/api/v2/generate` 为当前主路径（可按配置开启强制凭证）。
 - 前端可逐步接入 `X-Agent-Credential`，不阻断现有支付链路。
 
 ## 9. 可复制测试脚本（Python）
@@ -120,8 +120,8 @@
 
 1) owner 钱包签名登录（challenge/verify）  
 2) 签发 Agent Credential  
-3) 本地链执行 `payForService` 生成 `txHash`  
-4) 携带 `X-Agent-Credential` 调用 `/api/v1/generate`（含 202 pending 轮询）  
+3) 完成充值并等待余额可用  
+4) 携带 `X-Agent-Credential` 调用 `/api/v2/generate`  
 5) 撤销凭据
 
 ### 运行前准备

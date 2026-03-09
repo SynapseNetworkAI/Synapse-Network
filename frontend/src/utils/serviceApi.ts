@@ -1,4 +1,4 @@
-import { buildAuthedHeaders } from "@/utils/authSession";
+import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 
 export type ServiceRegistryPayload = {
   id?: string;
@@ -74,12 +74,14 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
     if (!text) return fallback;
     try {
       const parsed = JSON.parse(text) as { detail?: { message?: string } | string; message?: string };
-      if (typeof parsed.detail === "string") return parsed.detail;
-      if (parsed.detail && typeof parsed.detail === "object" && parsed.detail.message) return parsed.detail.message;
-      if (parsed.message) return parsed.message;
-      return text;
+      if (typeof parsed.detail === "string") return normalizeAuthApiError(parsed.detail, response.status);
+      if (parsed.detail && typeof parsed.detail === "object" && parsed.detail.message) {
+        return normalizeAuthApiError(parsed.detail.message, response.status);
+      }
+      if (parsed.message) return normalizeAuthApiError(parsed.message, response.status);
+      return normalizeAuthApiError(text, response.status);
     } catch {
-      return text;
+      return normalizeAuthApiError(text, response.status);
     }
   } catch {
     return fallback;

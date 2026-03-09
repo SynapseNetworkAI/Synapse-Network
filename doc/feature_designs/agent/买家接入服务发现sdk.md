@@ -120,11 +120,11 @@ python_sdk/
 - `discover_services(intent)`
     - 对应：`GET /api/v2/services/discover`
 - `invoke_service(service_id, payload, tx_hash)`
-    - 当前对接：`POST /api/v1/generate`
-    - Header：`X-Tx-Hash` + `X-Service-Id` + `X-Agent-Credential`
+    - 当前对接：`POST /api/v2/generate`
+    - Header：`X-Service-Id` + `X-Agent-Credential`
     - 内置 202 Pending 轮询处理
 
-> 说明：文中提到的 `/api/v2/gateway/forward/{service_id}` 可作为后续网关标准化目标；当前可用实现已先对接线上存在的 `/api/v1/generate`。
+> 说明：当前实现以 `/api/v2/generate` 为主路径；`tx_hash` 参数在 SDK 中为可选兼容字段，不是必需输入。
 
 ### 快速示例
 

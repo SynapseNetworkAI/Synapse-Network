@@ -21,6 +21,8 @@ type AuthVerifyResponse = {
 const AUTH_SESSION_STORAGE_KEY = "a2a_auth_session";
 const AUTH_API_BASE = "http://127.0.0.1:8000/api/v1/auth";
 const AUTH_SESSION_TTL_SEC = 24 * 60 * 60;
+export const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
+export const AUTH_SESSION_EXPIRED_EVENT = "a2a:auth-session-expired";
 
 function normalizeAddress(address: string): string {
   return address.trim().toLowerCase();
@@ -34,6 +36,12 @@ export function clearAuthSession(): void {
   if (!isBrowser()) return;
   localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
   localStorage.removeItem("developer_session");
+}
+
+export function notifyAuthSessionExpired(reason?: string): void {
+  if (!isBrowser()) return;
+  clearAuthSession();
+  globalThis.window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT, { detail: { reason } }));
 }
 
 export function getStoredAuthSession(): AuthSession | null {
@@ -65,7 +73,7 @@ export function getStoredAuthSession(): AuthSession | null {
   }
 }
 
-export function storeAuthSession(token: string, wallet: string, expiresInSec: number): void {
+export function storeAuthSession(token: string, wallet: string): void {
   if (!isBrowser()) return;
 
   const expiresAt = Date.now() + AUTH_SESSION_TTL_SEC * 1000;
@@ -81,15 +89,34 @@ export function storeAuthSession(token: string, wallet: string, expiresInSec: nu
 export function getAccessToken(expectedWallet?: string): string {
   const session = getStoredAuthSession();
   if (!session) {
-    throw new Error("Wallet auth session missing. Please sign in with wallet.");
+    notifyAuthSessionExpired("missing");
+    throw new Error(WALLET_SESSION_MISSING_MESSAGE);
   }
 
   if (expectedWallet && session.wallet !== normalizeAddress(expectedWallet)) {
-    clearAuthSession();
+    notifyAuthSessionExpired("wallet_mismatch");
     throw new Error("Wallet auth session wallet mismatch. Please sign in again.");
   }
 
   return session.token;
+}
+
+export function normalizeAuthApiError(message: string, status?: number): string {
+  const normalized = String(message || "").trim().toLowerCase();
+  const isExpiredOrInvalid =
+    normalized.includes("token expired") ||
+    normalized.includes("expired token") ||
+    normalized.includes("token invalid") ||
+    normalized.includes("invalid token") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("signature expired");
+
+  if ((status === 401 && isExpiredOrInvalid) || normalized === "token expired") {
+    notifyAuthSessionExpired("token_expired_or_invalid");
+    return WALLET_SESSION_MISSING_MESSAGE;
+  }
+
+  return message;
 }
 
 export function buildAuthedHeaders(userAddress: string, withJson: boolean = true): HeadersInit {

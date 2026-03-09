@@ -1,6 +1,7 @@
 import asyncio
 import time
-from typing import Annotated, Any, Dict, Optional
+from contextlib import asynccontextmanager
+from typing import Annotated, Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -36,10 +37,18 @@ from .persistence import (
     list_audit_logs as list_audit_logs_from_store,
     load_agent_credentials,
     load_agent_registry,
+    load_balance_ledger,
+    load_deposit_intents,
+    load_router_config,
     load_service_registry,
+    load_usage_logs,
     save_agent_credentials,
     save_agent_registry,
+    save_balance_ledger,
+    save_deposit_intents,
+    save_router_config,
     save_service_registry,
+    save_usage_logs,
 )
 from .settings import (
     AGENT_RATE_LIMIT_PER_MIN,
@@ -51,8 +60,25 @@ from .settings import (
     SERVICE_REGISTRY_RESPONSES,
 )
 from .state import lock
+from .v2_indexer import run_v2_deposit_indexer
 
-app = FastAPI(title="A2A Agent Provider API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    stop_event = asyncio.Event()
+    indexer_task = asyncio.create_task(run_v2_deposit_indexer(stop_event))
+    try:
+        yield
+    finally:
+        stop_event.set()
+        try:
+            await asyncio.wait_for(indexer_task, timeout=5)
+        except Exception:
+            if not indexer_task.done():
+                indexer_task.cancel()
+
+
+app = FastAPI(title="A2A Agent Provider API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -84,6 +110,68 @@ def normalize_invoke(method: str, url: str, timeout_ms: int) -> tuple[str, str, 
         raise HTTPException(status_code=400, detail={"code": "INVALID_TIMEOUT", "message": "invoke.timeoutMs must be positive"})
 
     return normalized_method, normalized_url, timeout_ms
+
+
+def parse_service_price_usdc(service_row: Dict[str, Any]) -> float:
+    try:
+        price = float(service_row.get("pricing", "0"))
+    except Exception:
+        raise HTTPException(status_code=500, detail={"code": "INVALID_SERVICE_PRICE", "message": "service pricing is invalid"})
+    if price <= 0:
+        raise HTTPException(status_code=500, detail={"code": "INVALID_SERVICE_PRICE", "message": "service pricing must be positive"})
+    return price
+
+
+def find_active_service(service_id: str) -> Dict[str, Any]:
+    normalized = normalize_service_id(service_id)
+    rows = load_service_registry()
+    target = next((row for row in rows if str(row.get("serviceId", "")) == normalized), None)
+    if not target:
+        raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"})
+    if target.get("isActive") is False:
+        raise HTTPException(status_code=403, detail={"code": "SERVICE_INACTIVE", "message": "Service is inactive"})
+    return target
+
+
+def list_usage_logs_for_wallet(wallet: str, limit: int) -> List[Dict[str, Any]]:
+    owner = normalize_wallet(wallet)
+    rows = load_usage_logs()
+    visible = [
+        row
+        for row in rows
+        if normalize_wallet(str(row.get("buyer", ""))) == owner or normalize_wallet(str(row.get("seller", ""))) == owner
+    ]
+    visible.sort(key=lambda row: int(row.get("created_at", 0)), reverse=True)
+    return visible[:limit]
+
+
+def resolve_active_credential_for_generate(
+    x_agent_credential: Optional[str],
+    service_id: str,
+) -> Optional[Dict[str, Any]]:
+    if x_agent_credential:
+        active_credential = find_active_credential_or_unauthorized(x_agent_credential)
+        raw_service_id = active_credential.get("serviceId")
+        cred_service_id = normalize_service_id(str(raw_service_id)) if raw_service_id else ""
+        if cred_service_id and cred_service_id != service_id:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "AGENT_CREDENTIAL_SERVICE_MISMATCH", "message": "Credential serviceId mismatch"},
+            )
+
+        owner_wallet = normalize_wallet(str(active_credential.get("ownerAddress", "")))
+        agent_id = str(active_credential.get("agentId") or "OWNER_SHARED")
+        rpm_limit = int(active_credential.get("rpm") or AGENT_RATE_LIMIT_PER_MIN)
+        enforce_generate_rate_limits(owner_wallet, agent_id, service_id, rpm_limit)
+        return active_credential
+
+    if REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "AGENT_CREDENTIAL_REQUIRED", "message": "X-Agent-Credential is required"},
+        )
+
+    return None
 
 
 @app.get("/api/v1/auth/challenge", responses=AUTH_RESPONSES)
@@ -679,6 +767,330 @@ async def list_audit_logs(
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
     logs = list_audit_logs_from_store(subject_wallet, limit)
     return {"status": "success", "logs": logs, "count": len(logs)}
+
+
+@app.get("/api/v2/balance", responses=SERVICE_REGISTRY_RESPONSES)
+async def get_v2_balance(subject_wallet: Annotated[str, Depends(require_auth)]):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    wallet = normalize_wallet(subject_wallet)
+    ledger = load_balance_ledger()
+    buyers = ledger.get("buyers", {})
+    sellers = ledger.get("sellers", {})
+    platform = ledger.get("platform", {})
+    daily_spend = ledger.get("dailySpend", {}) if isinstance(ledger, dict) else {}
+    wallet_daily_spend = daily_spend.get(wallet, {}) if isinstance(daily_spend, dict) else {}
+    today_key = str(int(time.time()) // 86400)
+    spent_today = float(wallet_daily_spend.get(today_key, 0.0)) if isinstance(wallet_daily_spend, dict) else 0.0
+
+    router_config = load_router_config()
+    owners = router_config.get("owners", {}) if isinstance(router_config, dict) else {}
+    owner_row = owners.get(wallet, {}) if isinstance(owners, dict) else {}
+    daily_limit_usdc = float(owner_row.get("dailyLimitUsdc", 0.0)) if isinstance(owner_row, dict) else 0.0
+
+    return {
+        "status": "success",
+        "balance": {
+            "buyerBalance": float(buyers.get(wallet, 0.0)),
+            "sellerReceivable": float(sellers.get(wallet, 0.0)),
+            "platformFeeAccrued": float(platform.get("feeAccrued", 0.0)),
+            "dailySpendUsed": spent_today,
+            "dailyLimitUsdc": daily_limit_usdc,
+        },
+    }
+
+
+@app.get("/api/v2/router/config", responses=SERVICE_REGISTRY_RESPONSES)
+async def get_router_config_v2(subject_wallet: Annotated[str, Depends(require_auth)]):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    wallet = normalize_wallet(subject_wallet)
+    payload = load_router_config()
+    owners = payload.get("owners", {}) if isinstance(payload, dict) else {}
+    owner_row = owners.get(wallet, {}) if isinstance(owners, dict) else {}
+
+    return {
+        "status": "success",
+        "config": {
+            "dailyLimitUsdc": float(owner_row.get("dailyLimitUsdc", 0.0)),
+            "updatedAt": int(owner_row.get("updatedAt", 0)) if owner_row else None,
+        },
+    }
+
+
+@app.post("/api/v2/router/config", responses=SERVICE_REGISTRY_RESPONSES)
+async def set_router_config_v2(
+    payload: Dict[str, Any],
+    subject_wallet: Annotated[str, Depends(require_auth)],
+):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    wallet = normalize_wallet(subject_wallet)
+
+    try:
+        daily_limit_usdc = float(payload.get("dailyLimitUsdc", 0))
+    except Exception:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_DAILY_LIMIT", "message": "dailyLimitUsdc must be a number"})
+
+    if daily_limit_usdc < 0:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_DAILY_LIMIT", "message": "dailyLimitUsdc must be >= 0"})
+
+    now = int(time.time())
+    with lock:
+        config = load_router_config()
+        owners = config.setdefault("owners", {})
+        owners[wallet] = {
+            "dailyLimitUsdc": round(daily_limit_usdc, 6),
+            "updatedAt": now,
+        }
+        save_router_config(config)
+
+    append_audit_log(
+        "V2_ROUTER_DAILY_LIMIT_SET",
+        wallet,
+        {"dailyLimitUsdc": round(daily_limit_usdc, 6)},
+    )
+
+    return {
+        "status": "success",
+        "config": {
+            "dailyLimitUsdc": round(daily_limit_usdc, 6),
+            "updatedAt": now,
+        },
+    }
+
+
+@app.post("/api/v2/balance/deposit/intent", responses=SERVICE_REGISTRY_RESPONSES)
+async def deposit_intent_v2(
+    payload: Dict[str, Any],
+    subject_wallet: Annotated[str, Depends(require_auth)],
+):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+
+    tx_hash = str(payload.get("txHash") or "").strip().lower()
+    if not tx_hash.startswith("0x") or len(tx_hash) != 66:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_TX_HASH", "message": "txHash is required and must be a valid hash"})
+
+    try:
+        amount_usdc = float(payload.get("amountUsdc", 0))
+    except Exception:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a number"})
+
+    if amount_usdc <= 0:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be positive"})
+
+    wallet = normalize_wallet(subject_wallet)
+    with lock:
+        intents = load_deposit_intents()
+        existing = next(
+            (
+                row
+                for row in intents
+                if normalize_wallet(str(row.get("ownerAddress", ""))) == wallet and str(row.get("txHash", "")).lower() == tx_hash
+            ),
+            None,
+        )
+
+        if existing:
+            status = str(existing.get("status") or "pending")
+            return {
+                "status": "success",
+                "code": "DEPOSIT_INTENT_EXISTS",
+                "deposit": {
+                    "txHash": tx_hash,
+                    "state": status,
+                    "requestedAmountUsdc": float(existing.get("amountUsdc") or amount_usdc),
+                    "creditedAmountUsdc": float(existing.get("creditedAmountUsdc") or 0.0),
+                },
+            }
+
+        now = int(time.time())
+        intents.append(
+            {
+                "id": str(uuid4()),
+                "ownerAddress": wallet,
+                "txHash": tx_hash,
+                "amountUsdc": round(amount_usdc, 6),
+                "status": "pending",
+                "createdAt": now,
+                "updatedAt": now,
+            }
+        )
+        save_deposit_intents(intents)
+
+    append_audit_log(
+        "V2_DEPOSIT_INTENT",
+        subject_wallet,
+        {"txHash": tx_hash, "amountUsdc": amount_usdc, "state": "pending"},
+    )
+
+    return {
+        "status": "success",
+        "code": "DEPOSIT_PENDING_CONFIRMATION",
+        "deposit": {
+            "txHash": tx_hash,
+            "state": "pending",
+            "requestedAmountUsdc": round(amount_usdc, 6),
+            "creditedAmountUsdc": 0.0,
+        },
+    }
+
+
+@app.get("/api/v2/balance/deposit/intents", responses=SERVICE_REGISTRY_RESPONSES)
+async def list_deposit_intents_v2(
+    subject_wallet: Annotated[str, Depends(require_auth)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    wallet = normalize_wallet(subject_wallet)
+    rows = load_deposit_intents()
+    visible = [row for row in rows if normalize_wallet(str(row.get("ownerAddress", ""))) == wallet]
+    visible.sort(key=lambda row: int(row.get("createdAt", 0)), reverse=True)
+    visible = visible[:limit]
+    return {"status": "success", "count": len(visible), "intents": visible}
+
+
+@app.get("/api/v2/usage/logs", responses=SERVICE_REGISTRY_RESPONSES)
+async def list_v2_usage_logs(
+    subject_wallet: Annotated[str, Depends(require_auth)],
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    logs = list_usage_logs_for_wallet(subject_wallet, limit)
+    return {"status": "success", "logs": logs, "count": len(logs)}
+
+
+@app.post("/api/v2/generate", responses=ERROR_RESPONSES)
+async def generate_response_v2(
+    request: InferenceRequest,
+    x_service_id: Annotated[Optional[str], Header(alias="X-Service-Id")] = None,
+    x_agent_credential: Annotated[Optional[str], Header(alias="X-Agent-Credential")] = None,
+):
+    service_id = x_service_id or request.service_id
+    if not service_id:
+        raise HTTPException(status_code=422, detail={"code": "SERVICE_ID_REQUIRED", "message": "serviceId is required"})
+
+    if x_service_id and request.service_id and x_service_id != request.service_id:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "SERVICE_ID_MISMATCH", "message": "Header and body serviceId mismatch"},
+        )
+
+    active_credential = resolve_active_credential_for_generate(x_agent_credential, service_id)
+    if not active_credential:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "AGENT_CREDENTIAL_REQUIRED", "message": "X-Agent-Credential is required for /api/v2/generate"},
+        )
+
+    service = find_active_service(service_id)
+    unit_price = parse_service_price_usdc(service)
+    fee_rate = 0.1
+    platform_fee = round(unit_price * fee_rate, 6)
+    seller_net = round(unit_price - platform_fee, 6)
+
+    buyer_wallet = normalize_wallet(str(active_credential.get("ownerAddress", "")))
+    seller_wallet = normalize_wallet(str(service.get("address") or service.get("ownerAddress") or ""))
+    request_id = str(uuid4())
+    now = int(time.time())
+    today_key = str(now // 86400)
+
+    with lock:
+        router_config = load_router_config()
+        owners = router_config.get("owners", {}) if isinstance(router_config, dict) else {}
+        owner_row = owners.get(buyer_wallet, {}) if isinstance(owners, dict) else {}
+        daily_limit_usdc = float(owner_row.get("dailyLimitUsdc", 0.0)) if isinstance(owner_row, dict) else 0.0
+
+        ledger = load_balance_ledger()
+        buyers = ledger.setdefault("buyers", {})
+        sellers = ledger.setdefault("sellers", {})
+        platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
+        daily_spend = ledger.setdefault("dailySpend", {})
+        wallet_daily_spend = daily_spend.setdefault(buyer_wallet, {})
+        if not isinstance(wallet_daily_spend, dict):
+            wallet_daily_spend = {}
+            daily_spend[buyer_wallet] = wallet_daily_spend
+
+        spent_today = float(wallet_daily_spend.get(today_key, 0.0))
+        if daily_limit_usdc > 0 and (spent_today + unit_price) > daily_limit_usdc + 1e-9:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "code": "DAILY_LIMIT_EXCEEDED",
+                    "message": "daily spending limit exceeded, please adjust platform daily limit or retry tomorrow",
+                    "dailyLimitUsdc": round(daily_limit_usdc, 6),
+                    "dailySpendUsed": round(spent_today, 6),
+                    "attemptedCharge": round(unit_price, 6),
+                },
+            )
+
+        buyer_balance = float(buyers.get(buyer_wallet, 0.0))
+        if buyer_balance < unit_price:
+            raise HTTPException(
+                status_code=402,
+                detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"},
+            )
+
+        buyer_after = round(buyer_balance - unit_price, 6)
+        buyers[buyer_wallet] = buyer_after
+        wallet_daily_spend[today_key] = round(spent_today + unit_price, 6)
+        sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) + seller_net, 6)
+        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) + platform_fee, 6)
+
+        save_balance_ledger(ledger)
+
+        usage_rows = load_usage_logs()
+        usage_rows.append(
+            {
+                "request_id": request_id,
+                "buyer": buyer_wallet,
+                "seller": seller_wallet,
+                "service_id": service_id,
+                "status": "succeeded",
+                "unit_price": unit_price,
+                "platform_fee": platform_fee,
+                "seller_net": seller_net,
+                "tx_hash": None,
+                "block_number": None,
+                "created_at": now,
+            }
+        )
+        save_usage_logs(usage_rows)
+
+    if active_credential:
+        consume_credential_call(str(active_credential.get("id")))
+
+    append_audit_log(
+        "V2_USAGE_CHARGED",
+        buyer_wallet,
+        {
+            "requestId": request_id,
+            "serviceId": service_id,
+            "unitPrice": unit_price,
+            "platformFee": platform_fee,
+            "sellerNet": seller_net,
+            "buyerBalanceAfter": buyer_after,
+            "dailyLimitUsdc": round(daily_limit_usdc, 6),
+            "dailySpendUsed": round(float(wallet_daily_spend.get(today_key, 0.0)), 6),
+        },
+    )
+
+    await asyncio.sleep(0.1)
+    return {
+        "status": "success",
+        "code": "DELIVERED",
+        "billing": {
+            "requestId": request_id,
+            "serviceId": service_id,
+            "unitPrice": unit_price,
+            "platformFee": platform_fee,
+            "sellerNet": seller_net,
+            "buyerBalanceAfter": buyer_after,
+            "dailyLimitUsdc": round(daily_limit_usdc, 6),
+            "dailySpendUsed": round(float(wallet_daily_spend.get(today_key, 0.0)), 6),
+        },
+        "data": {
+            "result": f"Agent Response to '{request.prompt}'.",
+            "provider_signature": "0x123",
+        },
+    }
 
 
 @app.post("/api/v1/generate", responses=ERROR_RESPONSES)

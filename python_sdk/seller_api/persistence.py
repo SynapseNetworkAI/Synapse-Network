@@ -5,7 +5,18 @@ from typing import Any, Dict, List
 from uuid import uuid4
 
 from .common import normalize_wallet
-from .settings import AGENT_CREDENTIALS_PATH, AUDIT_LOG_PATH, SERVICE_REGISTRY_PATH, AGENT_REGISTRY_PATH
+from .settings import (
+    AGENT_CREDENTIALS_PATH,
+    AGENT_REGISTRY_PATH,
+    AUDIT_LOG_PATH,
+    BALANCE_LEDGER_PATH,
+    DEPOSIT_EVENT_CURSOR_PATH,
+    DEPOSIT_EVENT_PROCESSED_PATH,
+    DEPOSIT_INTENTS_PATH,
+    ROUTER_CONFIG_PATH,
+    SERVICE_REGISTRY_PATH,
+    USAGE_LOG_PATH,
+)
 
 def load_agent_registry() -> List[Dict[str, Any]]:
     if not os.path.exists(AGENT_REGISTRY_PATH):
@@ -66,6 +77,157 @@ def save_agent_credentials(rows: List[Dict[str, Any]]) -> None:
     payload = {"credentials": rows, "updatedAt": int(time.time())}
     with open(AGENT_CREDENTIALS_PATH, "w", encoding="utf-8") as file:
         json.dump(payload, file, ensure_ascii=False, indent=2)
+
+
+def load_balance_ledger() -> Dict[str, Any]:
+    default_payload: Dict[str, Any] = {
+        "buyers": {},
+        "sellers": {},
+        "platform": {"feeAccrued": 0.0},
+        "dailySpend": {},
+        "updatedAt": int(time.time()),
+    }
+    if not os.path.exists(BALANCE_LEDGER_PATH):
+        return default_payload
+    try:
+        with open(BALANCE_LEDGER_PATH, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            if isinstance(data, dict):
+                data.setdefault("buyers", {})
+                data.setdefault("sellers", {})
+                data.setdefault("platform", {"feeAccrued": 0.0})
+                data.setdefault("dailySpend", {})
+                if not isinstance(data.get("platform"), dict):
+                    data["platform"] = {"feeAccrued": 0.0}
+                data["platform"].setdefault("feeAccrued", 0.0)
+                if not isinstance(data.get("dailySpend"), dict):
+                    data["dailySpend"] = {}
+                data.setdefault("updatedAt", int(time.time()))
+                return data
+    except Exception:
+        return default_payload
+    return default_payload
+
+
+def save_balance_ledger(payload: Dict[str, Any]) -> None:
+    next_payload = dict(payload)
+    next_payload["updatedAt"] = int(time.time())
+    with open(BALANCE_LEDGER_PATH, "w", encoding="utf-8") as file:
+        json.dump(next_payload, file, ensure_ascii=False, indent=2)
+
+
+def load_usage_logs() -> List[Dict[str, Any]]:
+    if not os.path.exists(USAGE_LOG_PATH):
+        return []
+    try:
+        with open(USAGE_LOG_PATH, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            if isinstance(data, dict) and isinstance(data.get("logs"), list):
+                return data["logs"]
+            if isinstance(data, list):
+                return data
+    except Exception:
+        return []
+    return []
+
+
+def save_usage_logs(rows: List[Dict[str, Any]]) -> None:
+    payload = {"logs": rows, "updatedAt": int(time.time())}
+    with open(USAGE_LOG_PATH, "w", encoding="utf-8") as file:
+        json.dump(payload, file, ensure_ascii=False, indent=2)
+
+
+def load_deposit_intents() -> List[Dict[str, Any]]:
+    if not os.path.exists(DEPOSIT_INTENTS_PATH):
+        return []
+    try:
+        with open(DEPOSIT_INTENTS_PATH, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            if isinstance(data, dict) and isinstance(data.get("intents"), list):
+                return data["intents"]
+            if isinstance(data, list):
+                return data
+    except Exception:
+        return []
+    return []
+
+
+def save_deposit_intents(rows: List[Dict[str, Any]]) -> None:
+    payload = {"intents": rows, "updatedAt": int(time.time())}
+    with open(DEPOSIT_INTENTS_PATH, "w", encoding="utf-8") as file:
+        json.dump(payload, file, ensure_ascii=False, indent=2)
+
+
+def load_deposit_event_cursor() -> Dict[str, Any]:
+    default_payload: Dict[str, Any] = {"lastSyncedBlock": None, "updatedAt": int(time.time())}
+    if not os.path.exists(DEPOSIT_EVENT_CURSOR_PATH):
+        return default_payload
+    try:
+        with open(DEPOSIT_EVENT_CURSOR_PATH, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            if isinstance(data, dict):
+                data.setdefault("lastSyncedBlock", None)
+                data.setdefault("updatedAt", int(time.time()))
+                return data
+    except Exception:
+        return default_payload
+    return default_payload
+
+
+def save_deposit_event_cursor(payload: Dict[str, Any]) -> None:
+    next_payload = dict(payload)
+    next_payload["updatedAt"] = int(time.time())
+    with open(DEPOSIT_EVENT_CURSOR_PATH, "w", encoding="utf-8") as file:
+        json.dump(next_payload, file, ensure_ascii=False, indent=2)
+
+
+def load_processed_deposit_event_keys() -> List[str]:
+    if not os.path.exists(DEPOSIT_EVENT_PROCESSED_PATH):
+        return []
+    try:
+        with open(DEPOSIT_EVENT_PROCESSED_PATH, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            if isinstance(data, dict) and isinstance(data.get("keys"), list):
+                return [str(item) for item in data["keys"]]
+            if isinstance(data, list):
+                return [str(item) for item in data]
+    except Exception:
+        return []
+    return []
+
+
+def save_processed_deposit_event_keys(keys: List[str]) -> None:
+    payload = {"keys": keys, "updatedAt": int(time.time())}
+    with open(DEPOSIT_EVENT_PROCESSED_PATH, "w", encoding="utf-8") as file:
+        json.dump(payload, file, ensure_ascii=False, indent=2)
+
+
+def load_router_config() -> Dict[str, Any]:
+    default_payload: Dict[str, Any] = {"owners": {}, "updatedAt": int(time.time())}
+    if not os.path.exists(ROUTER_CONFIG_PATH):
+        return default_payload
+    try:
+        with open(ROUTER_CONFIG_PATH, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            if isinstance(data, dict):
+                data.setdefault("owners", {})
+                if not isinstance(data.get("owners"), dict):
+                    data["owners"] = {}
+                data.setdefault("updatedAt", int(time.time()))
+                return data
+    except Exception:
+        return default_payload
+    return default_payload
+
+
+def save_router_config(payload: Dict[str, Any]) -> None:
+    next_payload = dict(payload)
+    next_payload.setdefault("owners", {})
+    if not isinstance(next_payload.get("owners"), dict):
+        next_payload["owners"] = {}
+    next_payload["updatedAt"] = int(time.time())
+    with open(ROUTER_CONFIG_PATH, "w", encoding="utf-8") as file:
+        json.dump(next_payload, file, ensure_ascii=False, indent=2)
 
 
 def append_audit_log(action: str, owner_wallet: str, details: Dict[str, Any]) -> None:

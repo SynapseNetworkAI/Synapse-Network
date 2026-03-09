@@ -1,0 +1,18 @@
+{
+  "logs": [
+    {
+      "request_id": "d70bc107-2b83-4f87-a5b5-45b4f7ecb293",
+      "buyer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "seller": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "service_id": "SVC_D8DF8549494A",
+      "status": "succeeded",
+      "unit_price": 0.1,
+      "platform_fee": 0.01,
+      "seller_net": 0.09,
+      "tx_hash": null,
+      "block_number": null,
+      "created_at": 1773071002
+    }
+  ],
+  "updatedAt": 1773071002
+}

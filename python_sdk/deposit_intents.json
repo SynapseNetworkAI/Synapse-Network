@@ -1,0 +1,19 @@
+{
+  "intents": [
+    {
+      "id": "45b0a3e2-8c8b-43e5-b6ff-cc6268caeb52",
+      "ownerAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "txHash": "0xbc9ca0e176380d709d81f299a4904d6f0bab2601389bf3d927ba37b4b53e6d7c",
+      "amountUsdc": 3.0,
+      "status": "confirmed",
+      "createdAt": 1773071000,
+      "updatedAt": 1773071000,
+      "creditedAmountUsdc": 3000000000000.0,
+      "confirmedAt": 1773071000,
+      "confirmations": 1,
+      "eventKey": "bc9ca0e176380d709d81f299a4904d6f0bab2601389bf3d927ba37b4b53e6d7c:0",
+      "eventToken": "0x5fbdb2315678afecb367f032d93f642f64180aa3"
+    }
+  ],
+  "updatedAt": 1773071000
+}

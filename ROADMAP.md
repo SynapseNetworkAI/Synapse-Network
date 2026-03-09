@@ -14,12 +14,9 @@
 
 ### 1) 合约与链路基础
 - 已完成核心合约与本地测试链路：
-  - `A2A_FundRouter`
   - `A2APaySyncRouter`
-  - `AgentPayEscrow`
-  - `AgentSmartWallet`
   - `MockUSDC`
-- Hardhat 测试通过（当前 8/8）。
+- Hardhat 测试通过（当前 1/1，保留主链路用例）。
 
 ### 2) Service 数据源统一（关键里程碑）
 - 已将 Service 配置从前端本地存储迁移为后端 API 主导。

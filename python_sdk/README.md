@@ -3,7 +3,7 @@
 本文档说明 `python_sdk` 下 Seller FastAPI 的模块化结构、请求链路与扩展建议。
 
 ## 目录结构
-
+`/api/v2/generate`
 - `buyer_sdk/`
   - 买家侧 SDK（服务发现 + 付费调用封装）。
   - `client.py` 暴露 `AgentPayBuyer`。
@@ -16,18 +16,11 @@
 - `seller_api/settings.py`
   - 所有环境变量与常量配置。
 - `seller_api/state.py`
-  - 进程内共享状态（`w3`、锁、限流窗口、挑战 nonce 缓存等）。
-- `seller_api/models.py`
-  - Pydantic 请求模型。
-- `seller_api/common.py`
-  - 通用纯函数（如 serviceId/wallet 规范化、pending 响应封装）。
 - `seller_api/auth.py`
   - 钱包签名挑战、token 签发/验证、`require_auth` 依赖与 owner 权限校验。
 - `seller_api/payment.py`
   - 链上支付校验（收据查询、确认数检查、事件匹配、重放防护）。
 - `seller_api/credentials.py`
-  - Agent 凭证、配额消费、限流治理（owner/agent/service）。
-- `seller_api/persistence.py`
   - 文件持久化读写（service registry / credential / audit logs）。
 
 ## 模块依赖关系图
@@ -60,10 +53,6 @@ flowchart TD
 
     F --> H
     F --> I
-
-    J --> I
-```
-
 说明：
 - `app` 只做请求编排，不承载核心业务算法。
 - `settings` 与 `state` 是底层共享层，被多个能力模块复用。
@@ -183,13 +172,13 @@ curl -X DELETE http://127.0.0.1:8000/api/v2/services/<service_record_id> \
 
 ### 2) 数据面（Paid Generate）
 
-`/api/v1/generate`
+`/api/v2/generate`
 
 1. 校验 `serviceId`（header/body 一致性）。
 2. 如传入 `X-Agent-Credential`：
    - `credentials.find_active_credential_or_unauthorized` 校验凭证。
    - `credentials.enforce_generate_rate_limits` 执行三维限流。
-3. `payment.verify_payment` 校验链上支付事实。
+3. 校验买家余额是否充足（余额由充值确认入账获得）。
 4. 成功后 `credentials.consume_credential_call` 消费调用额度。
 5. 返回业务结果。
 
@@ -206,7 +195,9 @@ curl -X DELETE http://127.0.0.1:8000/api/v2/services/<service_record_id> \
 在 `python_sdk` 目录下：
 
 - 启动开发服务：`python seller_fastapi.py`
-- 或使用项目脚本：`./test/setup_local_env.sh`
+- 或回到项目根目录使用脚本：`cd .. && ./test/setup_local_env.sh`
+- 一键重启并执行 V2 日限额烟测：`cd .. && ./test/restart_local_env.sh`
+- 仅重启不跑烟测：`cd .. && SKIP_V2_SMOKE=1 ./test/restart_local_env.sh`
 
 ## 买家 SDK 使用（新增）
 
@@ -232,17 +223,16 @@ service_id = discovery["services"][0]["serviceId"]
 result = client.invoke_service(
   service_id=service_id,
   payload={"prompt": "hello provider"},
-  tx_hash="<支付成功后拿到的 TX_HASH>",
 )
 ```
 
-说明：当前 SDK 调用链路对接 `/api/v1/generate`（携带 `X-Agent-Credential` + `X-Tx-Hash`）。
+说明：当前 SDK 调用链路对接 `/api/v2/generate`（携带 `X-Agent-Credential` + `X-Service-Id`）。
 
 ## 关键兼容点
 
 - 保持原入口导入方式不变：`from seller_fastapi import app`
 - 控制面服务管理路径：`/api/v2/services*`
-- 数据面推理调用路径：`/api/v1/generate`
+- 数据面推理调用路径：`/api/v2/generate`
 - 前端依赖的鉴权/凭证头不变：
   - `Authorization: Bearer <token>`
   - `X-User-Address`

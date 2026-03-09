@@ -39,6 +39,33 @@ AUDIT_LOG_PATH = os.getenv(
     "AUDIT_LOG_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "audit_log.jsonl"),
 )
+BALANCE_LEDGER_PATH = os.getenv(
+    "BALANCE_LEDGER_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "balance_ledger.json"),
+)
+USAGE_LOG_PATH = os.getenv(
+    "USAGE_LOG_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "usage_log.json"),
+)
+DEPOSIT_INTENTS_PATH = os.getenv(
+    "DEPOSIT_INTENTS_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_intents.json"),
+)
+DEPOSIT_EVENT_CURSOR_PATH = os.getenv(
+    "DEPOSIT_EVENT_CURSOR_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_event_cursor.json"),
+)
+DEPOSIT_EVENT_PROCESSED_PATH = os.getenv(
+    "DEPOSIT_EVENT_PROCESSED_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_event_processed.json"),
+)
+ROUTER_CONFIG_PATH = os.getenv(
+    "ROUTER_CONFIG_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "router_config.json"),
+)
+V2_DEPOSIT_CONFIRMATIONS = int(os.getenv("V2_DEPOSIT_CONFIRMATIONS", "1"))
+V2_INDEXER_POLL_INTERVAL_SEC = float(os.getenv("V2_INDEXER_POLL_INTERVAL_SEC", "2"))
+V2_INDEXER_BLOCK_BATCH = int(os.getenv("V2_INDEXER_BLOCK_BATCH", "100"))
 
 AGENT_CREDENTIAL_DEFAULT_TTL_SEC = int(os.getenv("AGENT_CREDENTIAL_DEFAULT_TTL_SEC", "3600"))
 AGENT_CREDENTIAL_MAX_TTL_SEC = int(os.getenv("AGENT_CREDENTIAL_MAX_TTL_SEC", "259200"))

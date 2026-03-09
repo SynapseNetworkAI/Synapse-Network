@@ -5,6 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useSignMessage } from "wagmi";
 import { Loader2, ShieldCheck, Wallet } from "lucide-react";
 import {
+  AUTH_SESSION_EXPIRED_EVENT,
   clearAuthSession,
   getStoredAuthSession,
   requestAuthChallenge,
@@ -53,7 +54,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
         });
 
         const verified = await verifyAuthSignature(address, challenge.nonce, signature);
-        storeAuthSession(verified.token, verified.wallet, verified.expiresInSec);
+        storeAuthSession(verified.token, verified.wallet);
 
         if (!cancelled) {
           setVerifiedWallet(verified.wallet.toLowerCase());
@@ -93,6 +94,20 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       globalThis.clearTimeout(timer);
     };
   }, [address, isConnected, verifiedWallet]);
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      clearAuthSession();
+      setAuthError(null);
+      setVerifiedWallet(null);
+      setRetryCount((prev) => prev + 1);
+    };
+
+    globalThis.window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired as EventListener);
+    return () => {
+      globalThis.window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired as EventListener);
+    };
+  }, []);
 
   if (!isConnected) {
     return (

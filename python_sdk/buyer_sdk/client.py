@@ -40,22 +40,21 @@ class AgentPayBuyer:
         self,
         service_id: str,
         payload: Dict[str, Any],
-        tx_hash: str,
+        tx_hash: str = "",
         poll_pending: bool = True,
         max_wait_sec: int = 90,
     ) -> Dict[str, Any]:
         if not service_id.strip():
             raise ValueError("service_id is required")
-        if not tx_hash.strip():
-            raise ValueError("tx_hash is required")
 
-        url = f"{self.gateway_url}/api/v1/generate"
+        url = f"{self.gateway_url}/api/v2/generate"
         headers = {
             "Content-Type": "application/json",
-            "X-Tx-Hash": tx_hash,
             "X-Service-Id": service_id,
             "X-Agent-Credential": self.credential_token,
         }
+        if tx_hash.strip():
+            headers["X-Tx-Hash"] = tx_hash
 
         body = dict(payload)
         body.setdefault("service_id", service_id)

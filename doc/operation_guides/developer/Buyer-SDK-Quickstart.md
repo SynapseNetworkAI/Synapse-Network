@@ -18,7 +18,7 @@ pip install -e .
 调用前需要准备：
 
 - `X-Agent-Credential`：在控制台或 API 中签发的买家凭证 token
-- `TX_HASH`：链上支付成功后的交易哈希（用于 `/api/v1/generate` 支付校验）
+- 买家余额已充值并完成链上确认入账（`deposit intent + indexer`）
 - 可访问网关地址（默认 `http://127.0.0.1:8000`）
 
 ## 3. 最小可用示例
@@ -35,11 +35,10 @@ client = AgentPayBuyer(
 res = client.discover_services(intent="名人名言")
 service_id = res["services"][0]["serviceId"]
 
-# 2) 付费调用（需带 TX_HASH）
+# 2) 付费调用（V2）
 result = client.invoke_service(
     service_id=service_id,
     payload={"prompt": "请给我一句关于坚持的名人名言"},
-    tx_hash="<TX_HASH>",
 )
 
 print(result)
@@ -62,12 +61,11 @@ SDK 提供：
 
 当前 Buyer SDK 的 invoke 默认对接：
 
-- `POST /api/v1/generate`
+- `POST /api/v2/generate`
 
 并自动附带：
 
 - `X-Agent-Credential`
-- `X-Tx-Hash`
 - `X-Service-Id`
 
 若后续新增标准网关转发接口（如 `/api/v2/gateway/forward/{service_id}`），可在 `buyer_sdk/client.py` 内平滑切换。 
