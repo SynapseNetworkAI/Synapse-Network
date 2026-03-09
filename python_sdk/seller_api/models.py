@@ -71,7 +71,7 @@ class AuthVerifyRequest(BaseModel):
 
 
 class AgentCredentialIssueRequest(BaseModel):
-    agentId: str
+    agentId: Optional[str] = None
     serviceId: Optional[str] = None
     expiresInSec: Optional[int] = None
     maxCalls: Optional[int] = None

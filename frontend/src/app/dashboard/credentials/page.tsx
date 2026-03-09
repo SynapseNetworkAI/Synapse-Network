@@ -32,7 +32,6 @@ function CredentialsContent() {
   const initAgentId = searchParams.get("agentId");
   const [currentAgentInfo, setCurrentAgentInfo] = useState<{name: string, address: string} | null>(null);
   const [agentId, setAgentId] = useState(initAgentId || "");
-  const [serviceId, setServiceId] = useState("");
   const [expiresInSec, setExpiresInSec] = useState("3600");
   const [expiresAtLocal, setExpiresAtLocal] = useState("");
   const [maxCalls, setMaxCalls] = useState("1000");
@@ -112,14 +111,8 @@ function CredentialsContent() {
       setCredentials(credentialRows);
       setLogs(auditRows);
 
-      if (!serviceId && serviceRows.length > 0) {
-        const preferred = initAgentId
-          ? serviceRows.find((row) => String(row.agentId || "") === String(initAgentId))
-          : undefined;
-        const selected = preferred || serviceRows[0];
-        setServiceId(selected.serviceId);
-        setServiceFilter(selected.serviceId);
-        setAgentId(initAgentId || selected.agentId || "");
+      if (initAgentId) {
+        setAgentId(initAgentId);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load credential data";
@@ -132,7 +125,7 @@ function CredentialsContent() {
       }
       throw error;
     }
-  }, [initAgentId, serviceId, userAddress]);
+  }, [initAgentId, userAddress]);
 
   useEffect(() => {
     void loadAll();
@@ -140,12 +133,16 @@ function CredentialsContent() {
 
   const filteredCredentials = useMemo(() => {
     if (!serviceFilter) return credentials;
-    return credentials.filter((item) => item.serviceId === serviceFilter);
+    return credentials.filter((item) => !item.serviceId || item.serviceId === serviceFilter);
   }, [credentials, serviceFilter]);
 
   const serviceNameById = useMemo(() => {
     return new Map(services.map((item) => [item.serviceId, item.name || item.serviceId]));
   }, [services]);
+
+  const sharedCredential = useMemo(() => {
+    return credentials.find((item) => item.status === "active" && !item.serviceId) ?? null;
+  }, [credentials]);
 
   const shortId = useCallback((value: string) => {
     if (!value) return "--";
@@ -210,8 +207,8 @@ function CredentialsContent() {
   }, [quotaExpiresAt, quotaExpiresAtLocal]);
 
   const handleIssue = async () => {
-    if (!userAddress || !agentId || !serviceId) {
-      toast.error("Please select agent and service first.");
+    if (!userAddress) {
+      toast.error("Wallet not connected.");
       return;
     }
 
@@ -222,15 +219,15 @@ function CredentialsContent() {
 
     try {
       const created = await issueAgentCredential(userAddress, {
-        agentId,
-        serviceId,
         expiresInSec: effectiveExpiresInSec,
         maxCalls: Number.parseInt(maxCalls, 10),
         rpm: Number.parseInt(rpm, 10),
       });
       setLatestIssued(created);
-      setCredentialForService(created.serviceId, created.token);
-      toast.success("Credential issued and set as active for this service.");
+      services.forEach((item) => {
+        setCredentialForService(item.serviceId, created.token);
+      });
+      toast.success("Owner shared credential issued for all buyer agents.");
       await loadAll();
       setIsCreateModalOpen(false);
     } catch (error) {
@@ -346,6 +343,14 @@ function CredentialsContent() {
         </button>
       </div>
 
+      <div className="p-4 border border-cyan-500/30 rounded-xl bg-cyan-500/10">
+        <p className="text-xs tracking-widest text-cyan-200 uppercase">Credential Mode</p>
+        <p className="mt-1 text-sm text-cyan-100">
+          同一 Owner 账户下的 Buyer Agents 共享一张凭据。
+          {sharedCredential ? ` 当前共享凭据: ${shortId(sharedCredential.id)}` : " 当前尚未签发共享凭据。"}
+        </p>
+      </div>
+
       {latestIssued && (
         <div className="p-4 border border-green-500/40 rounded-xl bg-green-500/10">
           <p className="text-xs text-green-300 uppercase">Latest issued token (shown once)</p>
@@ -371,8 +376,8 @@ function CredentialsContent() {
                 </span>
               </div>
               <p className="mt-1 text-xs text-gray-400">
-                {serviceNameById.get(item.serviceId) || item.serviceId} · 
-                <span className="font-mono" title={item.agentId}>{shortId(item.agentId)}</span>
+                {(item.serviceId ? serviceNameById.get(item.serviceId) || item.serviceId : "ALL_SERVICES (Owner Shared)")} · 
+                <span className="font-mono" title={item.agentId || "OWNER_SHARED"}>{shortId(item.agentId || "OWNER_SHARED")}</span>
               </p>
               <p className="mt-1 text-xs text-gray-500">{item.callsUsed}/{item.maxCalls} calls · {item.rpm} rpm</p>
               <div className="flex gap-2 mt-2">
@@ -418,41 +423,17 @@ function CredentialsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-white">新建凭据</h3>
-                <p className="text-xs text-gray-400">为当前 Agent 签发新的访问凭据</p>
+                <p className="text-xs text-gray-400">为当前 Owner 签发共享凭据（所有 Buyer Agent 共用）</p>
               </div>
               <button type="button" onClick={() => setIsCreateModalOpen(false)} className="text-sm text-gray-400 hover:text-white">关闭</button>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">Agent ID</p>
-                <input
-                  value={agentId}
-                  onChange={(e) => setAgentId(e.target.value)}
-                  placeholder="目标 Agent ID"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">该凭证签发给哪个 Agent 使用</p>
-              </label>
-
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">Service</p>
-                <select
-                  value={serviceId}
-                  onChange={(e) => {
-                    setServiceId(e.target.value);
-                    const found = services.find((item) => item.serviceId === e.target.value);
-                    setAgentId(found?.agentId || "");
-                  }}
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
-                >
-                  <option value="">Select service</option>
-                  {services.map((item) => (
-                    <option key={item.serviceId} value={item.serviceId}>{item.name || item.serviceId}</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[11px] text-gray-500">允许访问的目标服务</p>
-              </label>
+              <div className="p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
+                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">Credential Scope</p>
+                <p className="px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg">OWNER_SHARED · ALL_SERVICES</p>
+                <p className="mt-1 text-[11px] text-gray-500">该凭据会被同一账户下所有 Buyer Agents 复用</p>
+              </div>
 
               <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">截止时间</p>

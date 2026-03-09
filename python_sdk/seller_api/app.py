@@ -404,10 +404,9 @@ async def create_agent(
         save_agent_registry(rows)
         
     append_audit_log(
-        action="agent_registered",
-        actor=subject_wallet,
-        target=payload.address,
-        details={"recordId": record_id, "role": payload.role}
+        "agent_registered",
+        subject_wallet,
+        {"recordId": record_id, "role": payload.role, "target": payload.address}
     )
     
     return {
@@ -444,19 +443,6 @@ async def list_agents(
 async def issue_agent_credential(payload: AgentCredentialIssueRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
 
-    # Validate that the agent belongs to the caller
-    agents = load_agent_registry()
-    agent = next((a for a in agents if str(a.get("id")) == payload.agentId and str(a.get("ownerAddress")).lower() == subject_wallet.lower()), None)
-    if not agent:
-        raise HTTPException(status_code=404, detail={"code": "AGENT_NOT_FOUND", "message": "Agent not found or does not belong to owner"})
-
-    target_service = None
-    if payload.serviceId:
-        owner_services = list_owned_services(subject_wallet)
-        if not owner_services:
-            raise HTTPException(status_code=400, detail={"code": "NO_SERVICES", "message": "No services found under current owner"})
-        target_service = validate_service_for_credential(owner_services, payload.agentId, payload.serviceId)
-
     ttl = resolve_credential_ttl(payload.expiresInSec)
     now = int(time.time())
     expires_at = now + ttl
@@ -466,29 +452,62 @@ async def issue_agent_credential(payload: AgentCredentialIssueRequest, subject_w
 
     plain_token = issue_agent_credential_token()
     token_hash = hash_credential_token(plain_token)
-    credential_id = str(uuid4())
+    owner_wallet = normalize_wallet(subject_wallet)
+    shared_agent_id = "OWNER_SHARED"
 
-    record: Dict[str, Any] = {
-        "id": credential_id,
-        "ownerAddress": normalize_wallet(subject_wallet),
-        "agentId": payload.agentId,
-        "serviceId": target_service.get("serviceId") if target_service else None,
-        "serviceRecordId": target_service.get("id") if target_service else None,
-        "tokenHash": token_hash,
-        "tokenPrefix": plain_token[:10],
-        "status": "active",
-        "maxCalls": max_calls,
-        "callsUsed": 0,
-        "rpm": rpm,
-        "createdAt": now,
-        "updatedAt": now,
-        "expiresAt": expires_at,
-        "revokedAt": None,
-    }
+    credential_id = ""
+    record: Dict[str, Any] = {}
 
     with lock:
         rows = load_agent_credentials()
-        rows.append(record)
+        existing_index = next(
+            (
+                idx
+                for idx, row in enumerate(rows)
+                if normalize_wallet(str(row.get("ownerAddress", ""))) == owner_wallet
+                and str(row.get("status", "")) == "active"
+            ),
+            -1,
+        )
+
+        if existing_index >= 0:
+            existing = rows[existing_index]
+            existing["tokenHash"] = token_hash
+            existing["tokenPrefix"] = plain_token[:10]
+            existing["agentId"] = shared_agent_id
+            existing["serviceId"] = None
+            existing["serviceRecordId"] = None
+            existing["maxCalls"] = max_calls
+            existing["callsUsed"] = 0
+            existing["rpm"] = rpm
+            existing["expiresAt"] = expires_at
+            existing["updatedAt"] = now
+            existing["revokedAt"] = None
+            existing["status"] = "active"
+            rows[existing_index] = existing
+            record = existing
+            credential_id = str(existing.get("id"))
+        else:
+            credential_id = str(uuid4())
+            record = {
+                "id": credential_id,
+                "ownerAddress": owner_wallet,
+                "agentId": shared_agent_id,
+                "serviceId": None,
+                "serviceRecordId": None,
+                "tokenHash": token_hash,
+                "tokenPrefix": plain_token[:10],
+                "status": "active",
+                "maxCalls": max_calls,
+                "callsUsed": 0,
+                "rpm": rpm,
+                "createdAt": now,
+                "updatedAt": now,
+                "expiresAt": expires_at,
+                "revokedAt": None,
+            }
+            rows.append(record)
+
         save_agent_credentials(rows)
 
     append_audit_log(
@@ -496,7 +515,7 @@ async def issue_agent_credential(payload: AgentCredentialIssueRequest, subject_w
         subject_wallet,
         {
             "credentialId": credential_id,
-            "agentId": payload.agentId,
+            "agentId": record.get("agentId"),
             "serviceId": record.get("serviceId"),
             "maxCalls": max_calls,
             "rpm": rpm,
@@ -681,7 +700,8 @@ async def generate_response(
     active_credential = None
     if x_agent_credential:
         active_credential = find_active_credential_or_unauthorized(x_agent_credential)
-        cred_service_id = normalize_service_id(str(active_credential.get("serviceId", "")))
+        raw_service_id = active_credential.get("serviceId")
+        cred_service_id = normalize_service_id(str(raw_service_id)) if raw_service_id else ""
         if cred_service_id and cred_service_id != service_id:
             raise HTTPException(
                 status_code=403,
@@ -689,7 +709,7 @@ async def generate_response(
             )
 
         owner_wallet = normalize_wallet(str(active_credential.get("ownerAddress", "")))
-        agent_id = str(active_credential.get("agentId", ""))
+        agent_id = str(active_credential.get("agentId") or "OWNER_SHARED")
         rpm_limit = int(active_credential.get("rpm") or AGENT_RATE_LIMIT_PER_MIN)
         enforce_generate_rate_limits(owner_wallet, agent_id, service_id, rpm_limit)
     elif REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE:

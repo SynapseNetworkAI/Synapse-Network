@@ -5,8 +5,8 @@ const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
 export type AgentCredentialRecord = {
   id: string;
   ownerAddress: string;
-  agentId: string;
-  serviceId: string;
+  agentId?: string | null;
+  serviceId?: string | null;
   tokenPrefix?: string;
   status: "active" | "revoked";
   maxCalls: number;
@@ -22,8 +22,8 @@ export type AgentCredentialIssueResponse = {
   id: string;
   token: string;
   ownerAddress: string;
-  agentId: string;
-  serviceId: string;
+  agentId?: string | null;
+  serviceId?: string | null;
   maxCalls: number;
   callsUsed: number;
   rpm: number;
@@ -55,7 +55,7 @@ async function parseError(response: Response, fallback: string): Promise<string>
 
 export async function issueAgentCredential(
   userAddress: string,
-  payload: { agentId: string; serviceId?: string; expiresInSec?: number; maxCalls?: number; rpm?: number }
+  payload: { agentId?: string; serviceId?: string; expiresInSec?: number; maxCalls?: number; rpm?: number }
 ): Promise<AgentCredentialIssueResponse> {
   const response = await fetch(`${API_BASE_URL}/agent-credentials/issue`, {
     method: "POST",
