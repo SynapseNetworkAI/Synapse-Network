@@ -8,6 +8,7 @@ import MockUSDCABI from "@/MockUSDCABI.json";
 import A2APaySyncRouterABI from "@/A2APaySyncRouterABI.json";
 import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
 import { agentStore } from "@/utils/agentStore";
+import { listUsageLogs } from "@/utils/usageApi";
 
 export type SettlementEvent = {
   serviceId: string;
@@ -49,6 +50,38 @@ export function useSettlementData() {
 
         const walletBal = await usdc.balanceOf(userAddress);
         const usdcNum = Number.parseFloat(ethers.formatUnits(walletBal, 18));
+
+        try {
+          const usageRows = await listUsageLogs(userAddress, 300);
+          const usageEvents = usageRows
+            .map((item, index) => {
+              const seller = (item.seller || "").toLowerCase();
+              if (!sellerAddresses.has(seller)) return null;
+
+              const gross = item.unit_price ?? 0;
+              const platformFee = item.platform_fee ?? 0;
+              const sellerNet = item.seller_net ?? Math.max(0, gross - platformFee);
+
+              return {
+                serviceId: item.service_id || "unknown",
+                status: item.status,
+                gross,
+                platform_fee: platformFee,
+                seller_net: sellerNet,
+                txHash: item.tx_hash || item.request_id,
+                blockNumber: item.block_number ?? item.created_at ?? index,
+              } satisfies SettlementEvent;
+            })
+            .filter((item): item is SettlementEvent => item !== null)
+            .sort((a, b) => b.blockNumber - a.blockNumber);
+
+          if (!cancelled) {
+            setWalletUsdc(usdcNum);
+            setSellerRows(usageEvents);
+          }
+          return;
+        } catch {
+        }
 
         const logs = await router.queryFilter(router.filters.ServicePaid(null, null, null), 0, "latest");
         const events = logs
