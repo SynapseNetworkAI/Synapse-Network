@@ -1,18 +1,42 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import SettlementSummaryCards from "@/components/dashboard/settlement/SettlementSummaryCards";
 import SettlementTable from "@/components/dashboard/settlement/SettlementTable";
-import { useSettlementData } from "@/hooks/useSettlementData";
+import { useSettlementData, type SettlementEvent } from "@/hooks/useSettlementData";
+
+const STATUS_OPTIONS: Array<SettlementEvent["status"] | "all"> = ["all", "accepted", "succeeded", "refunded", "failed"];
 
 export default function SettlementPage() {
   const { loading, walletUsdc, sellerRows, totals } = useSettlementData();
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]>("all");
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === "all") return sellerRows;
+    return sellerRows.filter((row) => row.status === statusFilter);
+  }, [sellerRows, statusFilter]);
 
   return (
     <div className="p-8 mx-auto space-y-6 max-w-6xl">
       <div>
         <h1 className="text-3xl font-bold text-white">Settlement</h1>
         <p className="mt-2 text-gray-400">V1 实时视图：基于链上事件估算卖家可结算收益，并展示买家钱包可退余额参考。</p>
+        <p className="mt-1 text-xs text-gray-500">当前链上视图仅覆盖 `succeeded`；`accepted/refunded/failed` 筛选已预留，待接 usage 日志接入。</p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <label htmlFor="settlement-status" className="text-xs text-gray-400">status</label>
+        <select
+          id="settlement-status"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as (typeof STATUS_OPTIONS)[number])}
+          className="px-3 py-2 text-xs text-white bg-gray-900 border border-gray-700 rounded-lg"
+        >
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
       </div>
 
       <SettlementSummaryCards
@@ -40,7 +64,7 @@ export default function SettlementPage() {
         </div>
       </div>
 
-      <SettlementTable loading={loading} rows={sellerRows} />
+      <SettlementTable loading={loading} rows={filteredRows} />
 
       <div className="flex gap-2 mt-4">
         <Link href="/dashboard" className="inline-flex px-4 py-2 text-sm font-semibold text-white border border-gray-700 rounded-lg hover:bg-gray-900">去 Overview</Link>

@@ -10,6 +10,7 @@ import { agentStore } from "@/utils/agentStore";
 
 export type SettlementEvent = {
   serviceId: string;
+  status: "accepted" | "succeeded" | "refunded" | "failed";
   gross: number;
   platform_fee: number;
   seller_net: number;
@@ -59,6 +60,7 @@ export function useSettlementData() {
             const platformFee = Number.parseFloat(ethers.formatUnits(ethers.toBigInt(log.args[4]), 18));
             return {
               serviceId: String(log.args[5]),
+              status: "succeeded",
               gross,
               platform_fee: platformFee,
               seller_net: Math.max(0, gross - platformFee),
