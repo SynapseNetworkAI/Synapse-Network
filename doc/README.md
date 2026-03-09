@@ -17,6 +17,8 @@
 ## 3. 🧩 功能与安全详细设计 (`feature_designs/`)
 - [钱包接入与 Web3 鉴权设计](feature_designs/Wallet-Integration-Design.md)
 - [平台网关中转 + Deposit + Credential 核心架构设计（V2）](feature_designs/Platform-Gateway-Deposit-Credential-Architecture-Design.md)
+- [Dashboard 产品引导与信息架构设计（Buyer/Seller 双模式）](feature_designs/Dashboard-Product-Onboarding-Design.md)
+- [官网定位统一下的功能页面拆分设计（V1）](feature_designs/Unified-Website-Page-Architecture-Design.md)
 - [结算设计详细文档（Signature Claim）](feature_designs/Settlement-Detailed-Design.md)
 - [扣款详细设计文档（Gateway Deduction）](feature_designs/Deduction-Detailed-Design.md)
 - [平台网关 V2 最小实现任务拆解（8 接口）](feature_designs/Platform-Gateway-V2-Implementation-Plan.md)
@@ -28,6 +30,7 @@
 
 ## 4. 🛠️ 部署与运维指南 (`operation_guides/`)
 - [Python 开发者本地起服/调试全指引](operation_guides/Python-Dev-Guide.md)
+- [AgentPay 使用说明（官网定位版）](operation_guides/Website-Usage-Guide-Buyer-Seller.md)
 
 ## 5. 🗄️ 历史开发阶段档案 (`phases_archive/`)
 这里封存了项目前几个重要 Phase 的局部设计草案作为项目的里程碑印记。

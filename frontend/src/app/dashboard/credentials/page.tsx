@@ -15,6 +15,9 @@ import {
   type AuditLogRecord,
 } from "@/utils/agentCredentialApi";
 import { setCredentialForService } from "@/utils/agentCredentialStore";
+import { clearAuthSession } from "@/utils/authSession";
+
+const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
 
 export default function CredentialsPage() {
   const { address: userAddress } = useAccount();
@@ -44,26 +47,38 @@ export default function CredentialsPage() {
       return;
     }
 
-    const [serviceRows, credentialRows, auditRows] = await Promise.all([
-      listServiceRegistry(userAddress, userAddress),
-      listAgentCredentials(userAddress),
-      listAuditLogs(userAddress, 200),
-    ]);
+    try {
+      const [serviceRows, credentialRows, auditRows] = await Promise.all([
+        listServiceRegistry(userAddress, userAddress),
+        listAgentCredentials(userAddress),
+        listAuditLogs(userAddress, 200),
+      ]);
 
-    setServices(
-      serviceRows.map((row) => ({
-        serviceId: row.serviceId,
-        agentId: row.agentId,
-        name: row.name,
-      }))
-    );
-    setCredentials(credentialRows);
-    setLogs(auditRows);
+      setServices(
+        serviceRows.map((row) => ({
+          serviceId: row.serviceId,
+          agentId: row.agentId,
+          name: row.name,
+        }))
+      );
+      setCredentials(credentialRows);
+      setLogs(auditRows);
 
-    if (!serviceId && serviceRows.length > 0) {
-      setServiceId(serviceRows[0].serviceId);
-      setAgentId(serviceRows[0].agentId || "");
-      setServiceFilter(serviceRows[0].serviceId);
+      if (!serviceId && serviceRows.length > 0) {
+        setServiceId(serviceRows[0].serviceId);
+        setAgentId(serviceRows[0].agentId || "");
+        setServiceFilter(serviceRows[0].serviceId);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load credential data";
+      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+        clearAuthSession();
+        setServices([]);
+        setCredentials([]);
+        setLogs([]);
+        return;
+      }
+      throw error;
     }
   }, [serviceId, userAddress]);
 

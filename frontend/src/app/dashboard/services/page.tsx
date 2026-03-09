@@ -13,11 +13,13 @@ import {
   ServiceRegistryPayload,
   ServiceRegistryRecord,
 } from "@/utils/serviceApi";
+import { clearAuthSession } from "@/utils/authSession";
 
 type StatusFilter = "all" | "active" | "inactive";
 type SortOrder = "newest" | "oldest";
 
 const PAGE_SIZE = 8;
+const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
 
 export default function ServicesManagementPage() {
   const { address: userAddress } = useAccount();
@@ -81,12 +83,22 @@ export default function ServicesManagementPage() {
     const ownerAgents = agentStore.getAgentsByOwner(userAddress).sort((a, b) => b.createdAt - a.createdAt);
     setAgents(ownerAgents);
 
-    const rows = await listServiceRegistry(userAddress, userAddress);
-    rows.sort((a, b) => (b.createdAt || b.updatedAt || 0) - (a.createdAt || a.updatedAt || 0));
-    setServices(rows);
+    try {
+      const rows = await listServiceRegistry(userAddress, userAddress);
+      rows.sort((a, b) => (b.createdAt || b.updatedAt || 0) - (a.createdAt || a.updatedAt || 0));
+      setServices(rows);
 
-    if (!formAgentId && ownerAgents.length > 0) {
-      setFormAgentId(ownerAgents[0].id);
+      if (!formAgentId && ownerAgents.length > 0) {
+        setFormAgentId(ownerAgents[0].id);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load services";
+      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+        clearAuthSession();
+        setServices([]);
+        return;
+      }
+      throw error;
     }
   }, [formAgentId, userAddress]);
 

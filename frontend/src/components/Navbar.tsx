@@ -10,19 +10,22 @@ export default function Navbar() {
         </Link>
         <div className="space-x-4">
           <Link href="/dashboard" className="text-gray-300 hover:text-white">
-            Dashboard
+            Overview
           </Link>
-          <Link href="/dashboard/agents" className="text-gray-300 hover:text-white">
-            Agents
+          <Link href="/dashboard/buy" className="text-gray-300 hover:text-white">
+            Buy
+          </Link>
+          <Link href="/dashboard/sell" className="text-gray-300 hover:text-white">
+            Sell
+          </Link>
+          <Link href="/dashboard/billing" className="text-gray-300 hover:text-white">
+            Billing
+          </Link>
+          <Link href="/dashboard/settlement" className="text-gray-300 hover:text-white">
+            Settlement
           </Link>
           <Link href="/dashboard/credentials" className="text-gray-300 hover:text-white">
             Credentials
-          </Link>
-          <Link href="/dashboard/services" className="text-gray-300 hover:text-white">
-            Server Management
-          </Link>
-          <Link href="/dashboard/router" className="text-gray-300 hover:text-white">
-            Auto Top-up
           </Link>
         </div>
       </div>
