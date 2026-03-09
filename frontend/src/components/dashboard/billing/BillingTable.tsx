@@ -1,4 +1,5 @@
 import type { BillingRow } from "@/hooks/useBillingData";
+import StatusBadge from "@/components/dashboard/shared/StatusBadge";
 
 type BillingTableProps = {
   loading: boolean;
@@ -6,13 +7,6 @@ type BillingTableProps = {
 };
 
 export default function BillingTable({ loading, rows }: BillingTableProps) {
-  const statusClass = (status: BillingRow["status"]) => {
-    if (status === "succeeded") return "text-green-300 border-green-500/40 bg-green-500/10";
-    if (status === "accepted") return "text-blue-300 border-blue-500/40 bg-blue-500/10";
-    if (status === "refunded") return "text-yellow-300 border-yellow-500/40 bg-yellow-500/10";
-    return "text-red-300 border-red-500/40 bg-red-500/10";
-  };
-
   return (
     <div className="overflow-hidden border border-gray-800 rounded-xl bg-black/40">
       <div className="overflow-x-auto">
@@ -46,9 +40,7 @@ export default function BillingTable({ loading, rows }: BillingTableProps) {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 text-xs rounded border ${statusClass(row.status)}`}>
-                      {row.status}
-                    </span>
+                    <StatusBadge status={row.status} />
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">{`${row.request_id.slice(0, 8)}...${row.request_id.slice(-6)}`}</td>
                   <td className="px-4 py-3 text-blue-300">{row.serviceId}</td>
