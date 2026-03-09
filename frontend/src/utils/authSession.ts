@@ -20,13 +20,14 @@ type AuthVerifyResponse = {
 
 const AUTH_SESSION_STORAGE_KEY = "a2a_auth_session";
 const AUTH_API_BASE = "http://127.0.0.1:8000/api/v1/auth";
+const AUTH_SESSION_TTL_SEC = 24 * 60 * 60;
 
 function normalizeAddress(address: string): string {
   return address.trim().toLowerCase();
 }
 
 function isBrowser(): boolean {
-  return typeof window !== "undefined";
+  return globalThis.window !== undefined;
 }
 
 export function clearAuthSession(): void {
@@ -67,7 +68,7 @@ export function getStoredAuthSession(): AuthSession | null {
 export function storeAuthSession(token: string, wallet: string, expiresInSec: number): void {
   if (!isBrowser()) return;
 
-  const expiresAt = Date.now() + Math.max(1, expiresInSec) * 1000;
+  const expiresAt = Date.now() + AUTH_SESSION_TTL_SEC * 1000;
   const nextSession: AuthSession = {
     token,
     wallet: normalizeAddress(wallet),

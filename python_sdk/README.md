@@ -4,6 +4,10 @@
 
 ## 目录结构
 
+- `buyer_sdk/`
+  - 买家侧 SDK（服务发现 + 付费调用封装）。
+  - `client.py` 暴露 `AgentPayBuyer`。
+  - `models.py`/`exceptions.py` 提供类型与错误边界。
 - `seller_fastapi.py`
   - 薄入口文件，仅负责暴露 `app` 与本地 `uvicorn` 启动。
 - `seller_api/app.py`
@@ -203,6 +207,36 @@ curl -X DELETE http://127.0.0.1:8000/api/v2/services/<service_record_id> \
 
 - 启动开发服务：`python seller_fastapi.py`
 - 或使用项目脚本：`./test/setup_local_env.sh`
+
+## 买家 SDK 使用（新增）
+
+先在 `python_sdk` 目录安装（开发模式）：
+
+```bash
+pip install -e .
+```
+
+示例脚本：`examples/buyer_sdk_discover_invoke.py`
+
+```python
+from buyer_sdk import AgentPayBuyer
+
+client = AgentPayBuyer(
+  credential_token="<X-Agent-Credential>",
+  gateway_url="http://127.0.0.1:8000",
+)
+
+discovery = client.discover_services(intent="名人名言")
+service_id = discovery["services"][0]["serviceId"]
+
+result = client.invoke_service(
+  service_id=service_id,
+  payload={"prompt": "hello provider"},
+  tx_hash="<支付成功后拿到的 TX_HASH>",
+)
+```
+
+说明：当前 SDK 调用链路对接 `/api/v1/generate`（携带 `X-Agent-Credential` + `X-Tx-Hash`）。
 
 ## 关键兼容点
 

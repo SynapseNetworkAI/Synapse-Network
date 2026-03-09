@@ -130,7 +130,7 @@ export default function ServicesManagementPage() {
       const ownerAgents = allAgents
         .filter((a) => {
           const r = (a.role || "").toLowerCase();
-          return r === "seller" || r === "provider / seller" || r === "hybrid";
+          return r.includes("seller") || r.includes("hybrid");
         })
         .sort((a, b) => b.createdAt - a.createdAt);
         

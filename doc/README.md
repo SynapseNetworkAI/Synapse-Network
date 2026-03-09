@@ -1,44 +1,45 @@
-# A2A-Pay 知识库与设计文档
+# A2A-Pay 文档总览
 
-这是 A2A-Pay 的全栈产品、设计、架构与历史阶段文档的汇总目录。
+当前 `doc/` 已按“功能域”重新整理，便于按模块查阅与维护。
 
-## 1. 💡 产品理念与路线图 (`product_concept/`)
-- [A2A-Pay V1 脑暴与概念](product_concept/Brainstorm-A2A-Pay-V1.md)
-- [NoCenterPay V2 纯 Crypto 升级与赛博朋克脑暴](product_concept/Brainstorm-NoCenterPay-V2.md)
-- [产品路线图 ROADMAP](product_concept/ROADMAP.md)
-- [L2 协议费率竞争分析基准](product_concept/Fee-Benchmark.md)
+## 1. 功能设计 (`feature_designs/`)
 
-## 2. 🏛️ 系统架构图 (`architecture/`)
-- [全局顶层架构设计](architecture/A2A-Pay-Architecture-Design.md)
-- [Python SDK 双层微服务架构设计](architecture/Python-SDK-Design.md)
-- [智能合约整体骨架导则](architecture/SmartContract-Guide.md)
-- *(归档)* [V1 版系统架构](architecture/System-Architecture-V1-Archive.md)
+### 1.1 架构与鉴权 (`feature_designs/architecture/`)
+- [核心架构](feature_designs/architecture/%E6%A0%B8%E5%BF%83%E6%9E%B6%E6%9E%84.md)
+- [Synchronous Payment And FastAPI Design](feature_designs/architecture/Synchronous-Payment-And-FastAPI-Design.md)
+- [AI Service Discovery Architecture](feature_designs/architecture/AI_Service_Discovery_Architecture.md)
+- [Wallet Integration Design](feature_designs/architecture/Wallet-Integration-Design.md)
 
-## 3. 🧩 功能与安全详细设计 (`feature_designs/`)
-- [钱包接入与 Web3 鉴权设计](feature_designs/Wallet-Integration-Design.md)
-- [平台网关中转 + Deposit + Credential 核心架构设计（V2）](feature_designs/Platform-Gateway-Deposit-Credential-Architecture-Design.md)
-- [Dashboard 产品引导与信息架构设计（Buyer/Seller 双模式）](feature_designs/Dashboard-Product-Onboarding-Design.md)
-- [Agent 友好的服务注册设计（Service ID 系统生成）](feature_designs/Agent-Friendly-Service-Registration-Design.md)
-- [官网定位统一下的功能页面拆分设计（V1）](feature_designs/Unified-Website-Page-Architecture-Design.md)
-- [结算设计详细文档（Signature Claim）](feature_designs/Settlement-Detailed-Design.md)
-- [扣款详细设计文档（Gateway Deduction）](feature_designs/Deduction-Detailed-Design.md)
-- [平台网关 V2 最小实现任务拆解（8 接口）](feature_designs/Platform-Gateway-V2-Implementation-Plan.md)
-- [平台网关 V2 数据模型草案（4 张核心表）](feature_designs/Platform-Gateway-V2-Data-Model.md)
-- [后端 RLS (行级安全) 与多角色隔离](feature_designs/Backend-RLS-Isolation.md)
-- [账户隔离设计规约](feature_designs/Account-Isolation-Design.md)
-- [主子账户 (God/Client) 架构设计](feature_designs/Master-Sub-Account-Design.md)
-- [多角色信息控制台设计](feature_designs/Dashboard-Design.md)
+### 1.2 Agent 能力与拓扑 (`feature_designs/agent/`)
+- [Agent Credential / RateLimit / Audit Design](feature_designs/agent/Agent-Credential-RateLimit-Audit-Design.md)
+- [Agent Friendly Service Registration Design](feature_designs/agent/Agent-Friendly-Service-Registration-Design.md)
+- [Buyer Wallet Agent Topology Design](feature_designs/agent/Buyer-Wallet-Agent-Topology-Design.md)
 
-## 4. 🛠️ 部署与运维指南 (`operation_guides/`)
-- [Python 开发者本地起服/调试全指引](operation_guides/Python-Dev-Guide.md)
-- [AgentPay 使用说明（官网定位版）](operation_guides/Website-Usage-Guide-Buyer-Seller.md)
+### 1.3 网关与支付 (`feature_designs/gateway_payment/`)
+- [Platform Gateway Deposit Credential Architecture Design](feature_designs/gateway_payment/Platform-Gateway-Deposit-Credential-Architecture-Design.md)
+- [Platform Gateway V2 Data Model](feature_designs/gateway_payment/Platform-Gateway-V2-Data-Model.md)
+- [Platform Gateway V2 Implementation Plan](feature_designs/gateway_payment/Platform-Gateway-V2-Implementation-Plan.md)
+- [High Frequency MicroPayment V2 Design](feature_designs/gateway_payment/High-Frequency-MicroPayment-V2-Design.md)
 
-## 5. 🗄️ 历史开发阶段档案 (`phases_archive/`)
-这里封存了项目前几个重要 Phase 的局部设计草案作为项目的里程碑印记。
-- [Phase 3 - Agent Integration](phases_archive/Phase3-Agent-Integration.md)
-- [Phase 4 - Cyberpunk Negotiation](phases_archive/Phase4-Cyberpunk-Negotiation.md)
-- [Phase 8 - Indexer Integration](phases_archive/Phase8-Indexer-Integration.md)
-- [Phase 9 - Multi-Role UI](phases_archive/Phase9-Multi-Role-UI.md)
-- [Phase 10 - Fleet Dashboard Design](phases_archive/Phase10-Fleet-Dashboard-Design.md)
-- [Phase 18 - Smart Contract Relayer Design](phases_archive/Phase18-Smart-Contract-Relayer-Design.md)
-- [Phase 19 - Local SDK Automator Design](phases_archive/Phase19-Local-SDK-Automator-Design.md)
+### 1.4 结算与扣款 (`feature_designs/settlement_deduction/`)
+- [Settlement Detailed Design](feature_designs/settlement_deduction/Settlement-Detailed-Design.md)
+- [Deduction Detailed Design](feature_designs/settlement_deduction/Deduction-Detailed-Design.md)
+- [结算核心](feature_designs/settlement_deduction/%E7%BB%93%E7%AE%97%E6%A0%B8%E5%BF%83.md)
+- [扣款核心](feature_designs/settlement_deduction/%E6%89%A3%E6%AC%BE%E6%A0%B8%E5%BF%83.md)
+
+### 1.5 前端与产品体验 (`feature_designs/frontend_product/`)
+- [Frontend A2A Provider Mode](feature_designs/frontend_product/Frontend-A2A-Provider-Mode.md)
+- [Dashboard Product Onboarding Design](feature_designs/frontend_product/Dashboard-Product-Onboarding-Design.md)
+- [Unified Website Page Architecture Design](feature_designs/frontend_product/Unified-Website-Page-Architecture-Design.md)
+
+### 1.6 规划与阶段目标 (`feature_designs/planning/`)
+- [MVP](feature_designs/planning/MVP.md)
+
+## 2. 运维与使用指南 (`operation_guides/`)
+
+### 2.1 开发者指南 (`operation_guides/developer/`)
+- [Python Dev Guide](operation_guides/developer/Python-Dev-Guide.md)
+- [Buyer SDK Quickstart](operation_guides/developer/Buyer-SDK-Quickstart.md)
+
+### 2.2 用户使用指南 (`operation_guides/user/`)
+- [Website Usage Guide Buyer Seller](operation_guides/user/Website-Usage-Guide-Buyer-Seller.md)

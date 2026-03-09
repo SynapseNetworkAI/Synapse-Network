@@ -53,7 +53,7 @@ export function useSettlementData() {
 
         try {
           const usageRows = await listUsageLogs(userAddress, 300);
-          const usageEvents = usageRows
+          const usageEvents = (usageRows
             .map((item, index) => {
               const seller = (item.seller || "").toLowerCase();
               if (!sellerAddresses.has(seller)) return null;
@@ -72,7 +72,7 @@ export function useSettlementData() {
                 blockNumber: item.block_number ?? item.created_at ?? index,
               } satisfies SettlementEvent;
             })
-            .filter((item): item is SettlementEvent => item !== null)
+            .filter(Boolean) as SettlementEvent[])
             .sort((a, b) => b.blockNumber - a.blockNumber);
 
           if (!cancelled) {
@@ -84,7 +84,7 @@ export function useSettlementData() {
         }
 
         const logs = await router.queryFilter(router.filters.ServicePaid(null, null, null), 0, "latest");
-        const events = logs
+        const events = (logs
           .map((log) => {
             if (!("args" in log) || !log.args || log.args.length < 6) return null;
             const seller = String(log.args[1]).toLowerCase();
@@ -102,7 +102,7 @@ export function useSettlementData() {
               blockNumber: log.blockNumber,
             } satisfies SettlementEvent;
           })
-          .filter((item): item is SettlementEvent => item !== null)
+          .filter(Boolean) as SettlementEvent[])
           .sort((a, b) => b.blockNumber - a.blockNumber);
 
         if (!cancelled) {

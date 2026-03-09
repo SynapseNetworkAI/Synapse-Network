@@ -63,7 +63,7 @@ export function useBillingData() {
               const platformFee = item.platform_fee ?? 0;
               const sellerNet = item.seller_net ?? Math.max(0, unitPrice - platformFee);
               const timestamp = item.created_at ?? 0;
-              const blockNumber = item.block_number ?? timestamp || index;
+              const blockNumber = (item.block_number ?? timestamp) || index;
 
               return {
                 request_id: item.request_id,
@@ -125,7 +125,7 @@ export function useBillingData() {
         );
 
         if (!cancelled) {
-          const normalized = mapped.filter((item): item is BillingRow => item !== null).sort((a, b) => b.blockNumber - a.blockNumber);
+          const normalized = (mapped.filter(Boolean) as BillingRow[]).sort((a, b) => b.blockNumber - a.blockNumber);
           setRows(normalized);
         }
       } catch {

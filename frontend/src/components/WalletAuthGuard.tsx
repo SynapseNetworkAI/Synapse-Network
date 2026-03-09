@@ -12,7 +12,7 @@ import {
   verifyAuthSignature,
 } from "@/utils/authSession";
 
-export default function WalletAuthGuard({ children }: { children: React.ReactNode }) {
+export default function WalletAuthGuard({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isConnected, address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [isAuthorizing, setIsAuthorizing] = useState(false);
@@ -39,7 +39,7 @@ export default function WalletAuthGuard({ children }: { children: React.ReactNod
 
       try {
         const existing = getStoredAuthSession();
-        if (existing && existing.wallet === address.toLowerCase()) {
+        if (existing?.wallet === address.toLowerCase()) {
           if (!cancelled) {
             setVerifiedWallet(existing.wallet);
             setIsAuthorizing(false);
@@ -75,6 +75,24 @@ export default function WalletAuthGuard({ children }: { children: React.ReactNod
       cancelled = true;
     };
   }, [address, isConnected, retryCount, signMessageAsync]);
+
+  useEffect(() => {
+    if (!isConnected || !address || !verifiedWallet) return;
+
+    const session = getStoredAuthSession();
+    if (session?.wallet !== address.toLowerCase()) return;
+
+    const timeoutMs = Math.max(0, session.expiresAt - Date.now());
+    const timer = globalThis.setTimeout(() => {
+      clearAuthSession();
+      setVerifiedWallet(null);
+      setRetryCount((prev) => prev + 1);
+    }, timeoutMs + 50);
+
+    return () => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [address, isConnected, verifiedWallet]);
 
   if (!isConnected) {
     return (

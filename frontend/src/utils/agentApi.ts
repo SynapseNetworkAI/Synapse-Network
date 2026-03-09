@@ -10,12 +10,11 @@ export type AgentRegistryPayload = {
 };
 
 export async function createAgentRegistry(payload: AgentRegistryPayload): Promise<Record<string, unknown>> {
-  const headers = await buildAuthedHeaders();
+  const headers = buildAuthedHeaders(payload.ownerAddress);
   
-  const res = await fetch("http://127.0.0.1:8100/api/v2/agents", {
+  const res = await fetch("http://127.0.0.1:8000/api/v2/agents", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       ...headers,
     },
     body: JSON.stringify(payload),
@@ -29,9 +28,9 @@ export async function createAgentRegistry(payload: AgentRegistryPayload): Promis
   return res.json();
 }
 
-export async function listAgents(ownerAddress?: string): Promise<Record<string, unknown>[]> {
-  const headers = await buildAuthedHeaders();
-  let url = "http://127.0.0.1:8100/api/v2/agents";
+export async function listAgents(ownerAddress: string): Promise<Record<string, unknown>[]> {
+  const headers = buildAuthedHeaders(ownerAddress);
+  let url = "http://127.0.0.1:8000/api/v2/agents";
   if (ownerAddress) {
     url += `?ownerAddress=${encodeURIComponent(ownerAddress)}`;
   }

@@ -444,11 +444,18 @@ async def list_agents(
 async def issue_agent_credential(payload: AgentCredentialIssueRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
 
-    owner_services = list_owned_services(subject_wallet)
-    if not owner_services:
-        raise HTTPException(status_code=400, detail={"code": "NO_SERVICES", "message": "No services found under current owner"})
+    # Validate that the agent belongs to the caller
+    agents = load_agent_registry()
+    agent = next((a for a in agents if str(a.get("id")) == payload.agentId and str(a.get("ownerAddress")).lower() == subject_wallet.lower()), None)
+    if not agent:
+        raise HTTPException(status_code=404, detail={"code": "AGENT_NOT_FOUND", "message": "Agent not found or does not belong to owner"})
 
-    target_service = validate_service_for_credential(owner_services, payload.agentId, payload.serviceId)
+    target_service = None
+    if payload.serviceId:
+        owner_services = list_owned_services(subject_wallet)
+        if not owner_services:
+            raise HTTPException(status_code=400, detail={"code": "NO_SERVICES", "message": "No services found under current owner"})
+        target_service = validate_service_for_credential(owner_services, payload.agentId, payload.serviceId)
 
     ttl = resolve_credential_ttl(payload.expiresInSec)
     now = int(time.time())
@@ -465,8 +472,8 @@ async def issue_agent_credential(payload: AgentCredentialIssueRequest, subject_w
         "id": credential_id,
         "ownerAddress": normalize_wallet(subject_wallet),
         "agentId": payload.agentId,
-        "serviceId": target_service.get("serviceId"),
-        "serviceRecordId": target_service.get("id"),
+        "serviceId": target_service.get("serviceId") if target_service else None,
+        "serviceRecordId": target_service.get("id") if target_service else None,
         "tokenHash": token_hash,
         "tokenPrefix": plain_token[:10],
         "status": "active",

@@ -143,6 +143,16 @@ function CredentialsContent() {
     return credentials.filter((item) => item.serviceId === serviceFilter);
   }, [credentials, serviceFilter]);
 
+  const serviceNameById = useMemo(() => {
+    return new Map(services.map((item) => [item.serviceId, item.name || item.serviceId]));
+  }, [services]);
+
+  const shortId = useCallback((value: string) => {
+    if (!value) return "--";
+    if (value.length <= 16) return value;
+    return `${value.slice(0, 8)}...${value.slice(-6)}`;
+  }, []);
+
   const todaySpend = useMemo(() => {
     if (!currentAgentInfo?.address) return 0;
 
@@ -348,9 +358,23 @@ function CredentialsContent() {
         <div className="space-y-2 max-h-[480px] overflow-auto">
           {filteredCredentials.map((item) => (
             <div key={item.id} className="p-3 border border-gray-800 rounded-lg bg-gray-950/60">
-              <p className="font-mono text-xs text-gray-300">{item.id}</p>
-              <p className="mt-1 text-xs text-gray-400">{item.serviceId} · {item.agentId}</p>
-              <p className="mt-1 text-xs text-gray-500">{item.status} · {item.callsUsed}/{item.maxCalls} calls · {item.rpm} rpm</p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-mono text-xs text-gray-300">{item.id}</p>
+                <span
+                  className={`px-2 py-0.5 text-[10px] font-semibold uppercase rounded border ${
+                    item.status === "active"
+                      ? "text-green-300 border-green-500/30 bg-green-500/10"
+                      : "text-red-300 border-red-500/30 bg-red-500/10"
+                  }`}
+                >
+                  {item.status}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                {serviceNameById.get(item.serviceId) || item.serviceId} · 
+                <span className="font-mono" title={item.agentId}>{shortId(item.agentId)}</span>
+              </p>
+              <p className="mt-1 text-xs text-gray-500">{item.callsUsed}/{item.maxCalls} calls · {item.rpm} rpm</p>
               <div className="flex gap-2 mt-2">
                 <button
                   type="button"

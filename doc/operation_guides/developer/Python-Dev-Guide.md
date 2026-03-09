@@ -71,6 +71,35 @@ chmod +x test/restart_local_env.sh
 
 在集群成功运行后，按下面两步完成真实链上支付 + FastAPI 验证。
 
+### 3.0 账户预充值（可选但推荐）
+在执行 E2E 支付前，可先用脚本给测试账户补充 `ETH`（Gas）和 `USDC`（支付代币）。
+
+两份脚本都会读取：
+- `scripts/test_accounts.json`（目标测试账户列表）
+
+#### 3.0.1 给测试账户充值 ETH（Gas）
+```bash
+npx hardhat run scripts/fund.js --network localhost
+```
+
+脚本行为：
+- 使用 Hardhat 本地第一个 signer 作为转出账户
+- 向 `test_accounts.json` 中每个地址发送 `10 ETH`
+- 打印每个账户充值后的 ETH 余额
+
+#### 3.0.2 给测试账户充值 USDC（支付代币）
+```bash
+npx hardhat run scripts/fund_usdc.js --network localhost
+```
+
+脚本行为：
+- 自动读取 `frontend/src/contract-config.json` 中的 `MockUSDC` 地址
+- 向 `test_accounts.json` 中每个地址发放 `1000 USDC`
+- 优先尝试 `transfer`，失败时自动回退到 `mint`
+- 打印每个账户充值后的 USDC 余额
+
+> 提示：若您重启了 Hardhat 节点并重新部署合约，建议先执行一次 `fund.js` 和 `fund_usdc.js` 再跑 E2E。
+
 ### 3.1 生成一笔链上支付，拿到 `TX_HASH`
 在项目根目录另开终端：
 ```bash
