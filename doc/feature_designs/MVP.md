@@ -23,6 +23,12 @@
 - 只有当链上 `Deposit` 事件被 Indexer 确认并完成数据库入账后，余额才进入可消费状态。
 - 只有当 AI 持有有效 `X-Agent-Credential` 且未超授信额度时，才允许进入阶段二扣款路径。
 
+实现字段映射（与技术文档统一）：
+- 幂等键使用 `request_id`（请求头 `X-Request-Id`）。
+- 可消费余额使用 `available_balance`。
+- 单价/手续费/净收入使用 `unit_price` / `platform_fee` / `seller_net`。
+- 凭据状态使用 `credential_status`（`active | revoked | expired`）。
+
 🟡 阶段二：高频业务调用（纯 Off-chain 链下，毫秒级流转）
 【目标】：AI 开始干活，平台网关作为“收费站”极速放行。
 

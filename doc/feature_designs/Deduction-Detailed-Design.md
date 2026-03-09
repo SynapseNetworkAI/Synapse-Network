@@ -12,6 +12,16 @@
 - **可回滚**：卖家执行失败时可自动退款/回滚。
 - **可审计**：每笔扣款均可追溯到请求、凭据、服务、结算批次。
 
+### 1.1 术语与字段约定（统一口径）
+
+- 请求幂等键：`request_id`（HTTP 头使用 `X-Request-Id`）
+- 可消费余额：`available_balance`
+- 锁定余额：`locked_balance`
+- 凭据状态：`credential_status`（`active | revoked | expired`）
+- 单次价格：`unit_price`
+- 平台手续费：`platform_fee`
+- 卖家净收入：`seller_net`
+
 ---
 
 ## 2. 阶段一：充值与授信（扣款前置流程）
@@ -66,7 +76,7 @@ sequenceDiagram
     G->>D: 创建 agent + credential
     G-->>BO: 返回 X-Agent-Credential
 
-    BO->>G: POST /api/v2/generate + credential + requestId
+    BO->>G: POST /api/v2/generate + credential + request_id
     G->>D: 校验凭据/余额/限流
     G->>D: 原子预扣 + usage(accepted)
     G->>S: 转发请求
@@ -111,7 +121,7 @@ sequenceDiagram
     participant L as Ledger DB
     participant S as Seller Service
 
-    B->>G: POST /api/v2/generate + credential + requestId
+    B->>G: POST /api/v2/generate + credential + request_id
     G->>G: 校验会话/凭据/限流/服务状态
     G->>L: 原子预扣 + 写 usage(accepted)
     G->>S: 转发业务请求
@@ -146,14 +156,14 @@ sequenceDiagram
 
 ## 7. 幂等与防重放
 
-### 7.1 requestId 幂等键
+### 7.1 `request_id` 幂等键
 
-每次调用必须带 `X-Request-Id`（或 body `requestId`），规则：
+每次调用必须带 `X-Request-Id`（或 body `request_id`），规则：
 - 全局唯一（建议 UUID/ULID）。
-- 同一 `requestId` 重试时：
+- 同一 `request_id` 重试时：
   - 若已有 `succeeded`：直接返回同结果摘要或 409 幂等命中。
   - 若 `accepted` 且未超时：返回处理中。
-  - 若 `refunded/failed`：按策略允许重试并生成新 `requestId`。
+  - 若 `refunded/failed`：按策略允许重试并生成新 `request_id`。
 
 ### 7.2 数据库约束
 
@@ -166,8 +176,8 @@ sequenceDiagram
 
 同一事务完成以下操作：
 
-1. 校验余额 `available_balance >= unitPrice`
-2. `available_balance -= unitPrice`（或转入 `locked_balance`）
+1. 校验余额 `available_balance >= unit_price`
+2. `available_balance -= unit_price`（或转入 `locked_balance`）
 3. 写入 `usage_records(status=accepted)`
 4. 写入审计日志 `DEDUCTION_ACCEPTED`
 
@@ -246,7 +256,7 @@ sequenceDiagram
 
 ## 15. 验收标准
 
-1. 同 `requestId` 不重复扣款。  
+1. 同 `request_id` 不重复扣款。  
 2. 卖家失败时余额可自动回滚。  
 3. 扣费流水可按 buyer/seller/service 查询。  
 4. 扣费结果能被结算模块无缝聚合。  
