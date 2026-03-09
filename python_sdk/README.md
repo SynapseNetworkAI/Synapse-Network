@@ -26,6 +26,46 @@
 - `seller_api/persistence.py`
   - 文件持久化读写（service registry / credential / audit logs）。
 
+## 模块依赖关系图
+
+```mermaid
+flowchart TD
+    A[seller_fastapi.py 入口] --> B[seller_api.app 路由编排]
+
+    B --> C[auth]
+    B --> D[payment]
+    B --> E[credentials]
+    B --> F[persistence]
+    B --> G[models]
+    B --> H[common]
+    B --> I[settings]
+    B --> J[state]
+
+    C --> H
+    C --> I
+    C --> J
+
+    D --> H
+    D --> I
+    D --> J
+
+    E --> H
+    E --> F
+    E --> I
+    E --> J
+
+    F --> H
+    F --> I
+
+    J --> I
+```
+
+说明：
+- `app` 只做请求编排，不承载核心业务算法。
+- `settings` 与 `state` 是底层共享层，被多个能力模块复用。
+- `auth`、`payment`、`credentials` 是核心业务能力层。
+- `persistence` 是存储边界层，便于后续替换为 DB/Redis。
+
 ## 请求链路（核心）
 
 ### 1) 控制面（服务管理）
