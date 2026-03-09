@@ -5,13 +5,15 @@ import Link from "next/link";
 import SettlementSummaryCards from "@/components/dashboard/settlement/SettlementSummaryCards";
 import SettlementTable from "@/components/dashboard/settlement/SettlementTable";
 import StatusFilter from "@/components/dashboard/shared/StatusFilter";
-import { useSettlementData, type SettlementEvent } from "@/hooks/useSettlementData";
-
-const STATUS_OPTIONS: Array<SettlementEvent["status"] | "all"> = ["all", "accepted", "succeeded", "refunded", "failed"];
+import {
+  DEDUCTION_STATUS_OPTIONS,
+  type DeductionStatusFilter,
+} from "@/components/dashboard/shared/deductionStatus";
+import { useSettlementData } from "@/hooks/useSettlementData";
 
 export default function SettlementPage() {
   const { loading, walletUsdc, sellerRows, totals } = useSettlementData();
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]>("all");
+  const [statusFilter, setStatusFilter] = useState<DeductionStatusFilter>("all");
 
   const filteredRows = useMemo(() => {
     if (statusFilter === "all") return sellerRows;
@@ -28,7 +30,7 @@ export default function SettlementPage() {
 
       <StatusFilter
         id="settlement-status"
-        options={STATUS_OPTIONS}
+        options={DEDUCTION_STATUS_OPTIONS}
         value={statusFilter}
         onChange={setStatusFilter}
       />

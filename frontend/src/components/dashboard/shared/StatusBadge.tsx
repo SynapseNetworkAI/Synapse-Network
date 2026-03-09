@@ -1,4 +1,4 @@
-type DeductionStatus = "accepted" | "succeeded" | "refunded" | "failed";
+import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
 
 type StatusBadgeProps = {
   status: DeductionStatus;

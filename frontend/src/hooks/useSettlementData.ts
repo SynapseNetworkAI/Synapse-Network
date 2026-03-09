@@ -6,11 +6,12 @@ import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import A2APaySyncRouterABI from "@/A2APaySyncRouterABI.json";
+import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
 import { agentStore } from "@/utils/agentStore";
 
 export type SettlementEvent = {
   serviceId: string;
-  status: "accepted" | "succeeded" | "refunded" | "failed";
+  status: DeductionStatus;
   gross: number;
   platform_fee: number;
   seller_net: number;

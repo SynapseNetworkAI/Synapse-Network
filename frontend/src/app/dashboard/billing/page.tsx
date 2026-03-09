@@ -5,13 +5,15 @@ import Link from "next/link";
 import BillingSummaryCards from "@/components/dashboard/billing/BillingSummaryCards";
 import BillingTable from "@/components/dashboard/billing/BillingTable";
 import StatusFilter from "@/components/dashboard/shared/StatusFilter";
-import { useBillingData, type BillingRow } from "@/hooks/useBillingData";
-
-const STATUS_OPTIONS: Array<BillingRow["status"] | "all"> = ["all", "accepted", "succeeded", "refunded", "failed"];
+import {
+  DEDUCTION_STATUS_OPTIONS,
+  type DeductionStatusFilter,
+} from "@/components/dashboard/shared/deductionStatus";
+import { useBillingData } from "@/hooks/useBillingData";
 
 export default function BillingPage() {
   const { rows, loading, summary } = useBillingData();
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]>("all");
+  const [statusFilter, setStatusFilter] = useState<DeductionStatusFilter>("all");
 
   const filteredRows = useMemo(() => {
     if (statusFilter === "all") return rows;
@@ -28,7 +30,7 @@ export default function BillingPage() {
 
       <StatusFilter
         id="billing-status"
-        options={STATUS_OPTIONS}
+        options={DEDUCTION_STATUS_OPTIONS}
         value={statusFilter}
         onChange={setStatusFilter}
       />

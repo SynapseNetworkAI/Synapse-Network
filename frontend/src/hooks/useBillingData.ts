@@ -5,11 +5,12 @@ import { useAccount } from "wagmi";
 import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import A2APaySyncRouterABI from "@/A2APaySyncRouterABI.json";
+import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
 import { agentStore } from "@/utils/agentStore";
 
 export type BillingRow = {
   request_id: string;
-  status: "accepted" | "succeeded" | "refunded" | "failed";
+  status: DeductionStatus;
   buyer: string;
   seller: string;
   serviceId: string;
