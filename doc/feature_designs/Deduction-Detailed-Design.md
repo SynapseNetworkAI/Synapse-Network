@@ -14,18 +14,87 @@
 
 ---
 
-## 2. 扣款边界与原则
+## 2. 阶段一：充值与授信（扣款前置流程）
 
-### 2.1 扣款发生位置
+> 目标：把买家链上真实资金转化为可高速消费的链下可用余额与 AI 凭据。
+
+### 2.1 连接主钱包（Master Wallet）
+
+- 买家在 Dashboard 连接 MetaMask（或兼容钱包）。
+- 平台绑定 `buyer_id ↔ master_wallet_address`。
+
+### 2.2 链上充值（Deposit）
+
+- 买家发起 `deposit(amount)`，示例：`deposit(500 USDC)`。
+- 买家承担 Gas，资金从买家钱包进入合约 Vault。
+- 合约发出 `Deposit` 事件（含 buyer/address/amount/nonce）。
+
+### 2.3 平台记账（Indexer 监听）
+
+- Indexer 监听并确认 `Deposit` 事件（建议 N 确认后入账）。
+- 中心化账本更新：`available_balance += amount`，并写入 `deposit_records`。
+- 入账完成后，该余额才允许进入后续扣款路径。
+
+### 2.4 生成 AI 凭据（授信/配额）
+
+- 买家创建 `agent_id`，设置额度（例如最多消费 100 USDC）。
+- 平台签发 `X-Agent-Credential`（JWT/等效 token），内含：
+  - `owner_wallet`
+  - `agent_id`
+  - `spend_limit`
+  - `exp`
+- 凭据下发给买家 AI 代理，至此进入高频调用阶段。
+
+---
+
+## 3. 全链路流程（阶段一 → 阶段二扣款）
+
+```mermaid
+sequenceDiagram
+    participant BW as Buyer Wallet
+    participant C as AgentPay Contract
+    participant I as Indexer
+    participant D as Ledger DB
+    participant BO as Buyer Agent
+    participant G as Platform Gateway
+    participant S as Seller Service
+
+    BW->>C: deposit(500 USDC)
+    C-->>I: Deposit event
+    I->>D: 入账 buyer.available_balance += 500
+    BO->>G: 申请 agent credential(额度=100)
+    G->>D: 创建 agent + credential
+    G-->>BO: 返回 X-Agent-Credential
+
+    BO->>G: POST /api/v2/generate + credential + requestId
+    G->>D: 校验凭据/余额/限流
+    G->>D: 原子预扣 + usage(accepted)
+    G->>S: 转发请求
+    alt 卖家执行成功
+      S-->>G: 200 result
+      G->>D: usage=succeeded, 固化扣费
+      G-->>BO: 200 + cost + balance
+    else 卖家执行失败
+      S-->>G: error/timeout
+      G->>D: 回滚余额, usage=refunded
+      G-->>BO: error + retry hint
+    end
+```
+
+---
+
+## 4. 扣款边界与原则
+
+### 4.1 扣款发生位置
 
 只允许在 **平台网关** 扣款，不允许买家直连卖家后再补账。
 
-### 2.2 扣款触发时机
+### 4.2 扣款触发时机
 
 - 触发点：请求到达网关并通过鉴权后。
 - 建议策略：**预扣（accepted）→ 成功固化（succeeded）→ 失败回滚（refunded）**。
 
-### 2.3 扣款金额来源
+### 4.3 扣款金额来源
 
 - 来源：`Service Registry.unitPrice`（服务注册价格）。
 - 手续费：`platformFee = unitPrice * feeRate`。
@@ -33,7 +102,7 @@
 
 ---
 
-## 3. 端到端扣款流程
+## 5. 阶段二：端到端扣款流程
 
 ```mermaid
 sequenceDiagram
@@ -59,25 +128,25 @@ sequenceDiagram
 
 ---
 
-## 4. 状态机
+## 6. 状态机
 
-### 4.1 Usage 状态
+### 6.1 Usage 状态
 
 - `accepted`：已预扣，等待卖家处理。
 - `succeeded`：卖家成功返回，扣费固化。
 - `failed`：失败但不退款（可选策略）。
 - `refunded`：失败并全额回滚（默认建议）。
 
-### 4.2 余额状态
+### 6.2 余额状态
 
 - `available_balance`：可消费余额。
 - `locked_balance`：预扣期间锁定金额（可选实现）。
 
 ---
 
-## 5. 幂等与防重放
+## 7. 幂等与防重放
 
-## 5.1 requestId 幂等键
+### 7.1 requestId 幂等键
 
 每次调用必须带 `X-Request-Id`（或 body `requestId`），规则：
 - 全局唯一（建议 UUID/ULID）。
@@ -86,14 +155,14 @@ sequenceDiagram
   - 若 `accepted` 且未超时：返回处理中。
   - 若 `refunded/failed`：按策略允许重试并生成新 `requestId`。
 
-## 5.2 数据库约束
+### 7.2 数据库约束
 
 - `usage_records.request_id` 唯一索引。
 - 扣款事务内必须检查唯一约束，防重复扣款。
 
 ---
 
-## 6. 原子扣款事务设计
+## 8. 原子扣款事务设计
 
 同一事务完成以下操作：
 
@@ -106,7 +175,7 @@ sequenceDiagram
 
 ---
 
-## 7. 失败回滚策略
+## 9. 失败回滚策略
 
 默认策略（推荐）：
 - 卖家返回 5xx / 超时 / 网络错误：`refunded`（全额回滚）
@@ -118,7 +187,7 @@ sequenceDiagram
 
 ---
 
-## 8. 响应头与对账
+## 10. 响应头与对账
 
 网关返回给买家的 header：
 - `X-AgentPay-Cost`: 本次计费金额
@@ -129,21 +198,21 @@ sequenceDiagram
 
 ---
 
-## 9. 风险控制
+## 11. 风险控制
 
-### 9.1 扣款前风控
+### 11.1 扣款前风控
 - 凭据有效性（未过期/未撤销/未超配额）
 - owner/agent/service 三维限流
 - 服务状态 `isActive`
 
-### 9.2 扣款后风控
+### 11.2 扣款后风控
 - accepted 超时扫描（防“卡单”）
 - 自动退款补偿任务
 - 异常卖家 endpoint 熔断
 
 ---
 
-## 10. 与结算模块对接
+## 12. 与结算模块对接
 
 扣费固化时写入以下结算字段：
 - `platform_fee`
@@ -155,7 +224,7 @@ sequenceDiagram
 
 ---
 
-## 11. 最小接口建议（扣款相关）
+## 13. 最小接口建议（扣款相关）
 
 - `POST /api/v2/generate`：网关扣款与转发入口
 - `GET /api/v2/balance`：余额查询
@@ -164,7 +233,7 @@ sequenceDiagram
 
 ---
 
-## 12. 监控指标（必须）
+## 14. 监控指标（必须）
 
 - `deduction_attempt_total`
 - `deduction_success_total`
@@ -175,16 +244,18 @@ sequenceDiagram
 
 ---
 
-## 13. 验收标准
+## 15. 验收标准
 
 1. 同 `requestId` 不重复扣款。  
 2. 卖家失败时余额可自动回滚。  
 3. 扣费流水可按 buyer/seller/service 查询。  
 4. 扣费结果能被结算模块无缝聚合。  
 5. 压测下扣款路径满足目标延迟（例如 P95 < 80ms，不含卖家业务耗时）。
+6. 链上 `Deposit` 未确认前不得生成可消费余额。  
+7. 凭据额度超限时必须拒绝并返回明确错误码。
 
 ---
 
-## 14. 一句话结论
+## 16. 一句话结论
 
 扣款系统的正确姿势是：**平台网关统一入站、先鉴权风控、原子预扣、结果驱动固化/回滚、全程可审计并可结算**。这套机制能在高频小额场景同时保证体验、收益和安全。
