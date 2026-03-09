@@ -1,7 +1,9 @@
 # Provider Service (Standalone Python API)
 
 用于测试“平台接入第三方服务”场景的独立 Python 微服务。
-当前提供 1 个接口：输入字符串，调用 DeepSeek，返回一条名人名言。
+当前提供 2 个接口：
+- 输入字符串，返回 1 条名人名言
+- 输入字符串，返回 3 条名人名言
 
 ## 为什么单独新建一个文件夹
 
@@ -60,6 +62,32 @@ provider_service/
 }
 ```
 
+### 3) 名人名言 Top3
+
+- `POST /api/v1/quotes/famous/top3`
+- 请求体：
+
+```json
+{
+  "text": "关于坚持"
+}
+```
+
+- 响应示例：
+
+```json
+{
+  "input_text": "关于坚持",
+  "quotes": [
+    "天才是百分之一的灵感加百分之九十九的汗水。—— 爱迪生",
+    "滴水穿石，不是力量大，而是功夫深。—— 佚名",
+    "千里之行，始于足下。—— 老子"
+  ],
+  "model": "deepseek-chat",
+  "source": "deepseek"
+}
+```
+
 ## 快速启动
 
 1. 进入目录
@@ -93,6 +121,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
 
 ```bash
 curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"关于坚持"}'
+
+curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
   -H "Content-Type: application/json" \
   -d '{"text":"关于坚持"}'
 ```

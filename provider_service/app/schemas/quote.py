@@ -10,3 +10,10 @@ class QuoteResponse(BaseModel):
     quote: str
     model: str
     source: str = "deepseek"
+
+
+class QuoteTop3Response(BaseModel):
+    input_text: str
+    quotes: list[str]
+    model: str
+    source: str = "deepseek"
