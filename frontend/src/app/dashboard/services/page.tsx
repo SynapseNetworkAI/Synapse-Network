@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { Plus, Search, Filter, Edit3, ToggleLeft, ToggleRight, ArrowUpDown, Trash2, X } from "lucide-react";
 import { agentStore, AgentIdentity } from "@/utils/agentStore";
+import { listAgents } from "@/utils/agentApi";
 import {
   createServiceRegistry,
   updateServiceRegistry,
@@ -103,12 +104,40 @@ export default function ServicesManagementPage() {
       return;
     }
 
-    const ownerAgents = agentStore.getAgentsByOwner(userAddress).sort((a, b) => b.createdAt - a.createdAt);
-    setAgents(ownerAgents);
-
     try {
+      const serverAgents = await listAgents(userAddress);
+      const localAgents = agentStore.getAgentsByOwner(userAddress);
+      
+      const merged: AgentIdentity[] = serverAgents.map(sa => {
+        const local = localAgents.find(la => la.address.toLowerCase() === (sa.address as string).toLowerCase());
+        return {
+          id: String(sa.id),
+          name: String(sa.name),
+          role: String(sa.role),
+          address: String(sa.address),
+          ownerAddress: String(sa.ownerAddress),
+          createdAt: Number(sa.createdAt),
+          privateKey: local ? local.privateKey : "",
+        };
+      });
+
+      const missingLocalAgents = localAgents.filter(la => 
+        !merged.find(ma => ma.address.toLowerCase() === la.address.toLowerCase())
+      );
+      
+      const allAgents = [...merged, ...missingLocalAgents];
+
+      const ownerAgents = allAgents
+        .filter((a) => {
+          const r = (a.role || "").toLowerCase();
+          return r === "seller" || r === "provider / seller" || r === "hybrid";
+        })
+        .sort((a, b) => b.createdAt - a.createdAt);
+        
+      setAgents(ownerAgents);
+
       const rows = await listServiceRegistry(userAddress, userAddress);
-      rows.sort((a, b) => (b.createdAt || b.updatedAt || 0) - (a.createdAt || a.updatedAt || 0));
+      rows.sort((a, b) => (b.createdAt || b.updatedAt || 0) - (a.createdAt || a.updatedAt || 0));      
       setServices(rows);
 
       if (!formAgentId && ownerAgents.length > 0) {
@@ -619,7 +648,8 @@ export default function ServicesManagementPage() {
                   <select
                     value={formAgentId}
                     onChange={(e) => setFormAgentId(e.target.value)}
-                    className="w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
+                    disabled={!!editingId} // 创建之后不可修改
+                    className={`w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500 ${!!editingId ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     <option value="">Select Agent</option>
                     {agents.map((agent) => (

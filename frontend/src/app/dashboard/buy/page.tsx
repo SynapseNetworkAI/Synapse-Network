@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function BuyPage() {
   return (
-    <div className="p-8 mx-auto space-y-6 max-w-6xl">
+    <div className="max-w-6xl p-8 mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-white">Buy Workspace</h1>
         <p className="mt-2 text-gray-400">面向调用方：充值、签发凭据、调用卖家服务、查看消费流水。</p>
@@ -24,8 +24,8 @@ export default function BuyPage() {
             <Link href="/dashboard/credentials" className="inline-flex px-4 py-2 text-sm font-semibold text-black bg-green-500 rounded-lg hover:bg-green-400">
               凭据管理
             </Link>
-            <Link href="/dashboard" className="inline-flex px-4 py-2 text-sm font-semibold text-white border border-gray-700 rounded-lg hover:bg-gray-900">
-              去调用服务
+            <Link href="/dashboard/discover" className="inline-flex px-4 py-2 text-sm font-semibold text-white border border-gray-700 rounded-lg hover:bg-gray-900">
+              发现并调用API
             </Link>
           </div>
         </div>

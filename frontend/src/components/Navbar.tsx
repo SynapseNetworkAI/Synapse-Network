@@ -12,6 +12,9 @@ export default function Navbar() {
           <Link href="/dashboard" className="text-gray-300 hover:text-white">
             Overview
           </Link>
+          <Link href="/dashboard/discover" className="text-gray-300 hover:text-white">
+            Discover
+          </Link>
           <Link href="/dashboard/buy" className="text-gray-300 hover:text-white">
             Buy
           </Link>

@@ -146,3 +146,21 @@ export async function listServiceRegistry(userAddress: string, ownerAddress?: st
   const payload = (await response.json()) as { services?: ServiceRegistryRecord[] };
   return Array.isArray(payload.services) ? payload.services : [];
 }
+
+export async function discoverServices(intent?: string): Promise<ServiceRegistryRecord[]> {
+  const query = intent ? `?intent=${encodeURIComponent(intent)}` : "";
+  const response = await fetch(`${API_BASE_URL}/discover${query}`, {
+    method: "GET",
+    // Public endpoint, no auth headers needed
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Backend service discovery failed"));
+  }
+
+  const payload = (await response.json()) as { services?: ServiceRegistryRecord[] };
+  return Array.isArray(payload.services) ? payload.services : [];
+}

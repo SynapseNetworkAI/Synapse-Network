@@ -18,7 +18,12 @@ INVALID_ADDRESS_MESSAGE = "address is invalid"
 
 SERVICE_REGISTRY_PATH = os.getenv(
     "SERVICE_REGISTRY_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "service_registry.json"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "service_registry.json"),
+)
+
+AGENT_REGISTRY_PATH = os.getenv(
+    "AGENT_REGISTRY_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent_registry.json"),
 )
 
 AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-secret-change-me")

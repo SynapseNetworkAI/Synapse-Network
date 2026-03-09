@@ -3,6 +3,15 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 
+class AgentCreateRequest(BaseModel):
+    id: str
+    name: str
+    role: str
+    address: str
+    ownerAddress: str
+    createdAt: int
+
+
 class InferenceRequest(BaseModel):
     prompt: str
     service_id: Optional[str] = None

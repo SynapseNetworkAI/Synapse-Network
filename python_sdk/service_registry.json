@@ -12,7 +12,39 @@
       "isActive": false,
       "updatedAt": 1773013579,
       "createdAt": 1773013579
+    },
+    {
+      "id": "171e1b03-3fdb-46ba-8051-e6fe9d915e9a",
+      "agentId": "agent-123",
+      "name": "Test Service",
+      "serviceName": "Test Service",
+      "role": "Provider / Seller",
+      "ownerAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "serviceId": "SVC_D8DF8549494A",
+      "pricing": "0.1",
+      "endpoint": "http://example.com/api",
+      "isActive": true,
+      "summary": null,
+      "tags": [],
+      "auth": null,
+      "invoke": {
+        "method": "POST",
+        "url": "http://example.com/api",
+        "timeoutMs": 30000,
+        "request": {
+          "contentType": "application/json",
+          "schema": {}
+        },
+        "response": {
+          "schema": {}
+        },
+        "headersTemplate": null,
+        "examples": null
+      },
+      "updatedAt": 1773037845,
+      "createdAt": 1773037845
     }
   ],
-  "updatedAt": 1773013877
+  "updatedAt": 1773037845
 }

@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { QRCodeSVG } from "qrcode.react";
 import { Bot, Plus, Search, Edit3, Copy, Check, Wallet, ShieldAlert, X, Eye } from "lucide-react";
 import { agentStore, AgentIdentity } from "@/utils/agentStore";
+import { createAgentRegistry, listAgents } from "@/utils/agentApi";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 
@@ -32,9 +33,40 @@ export default function AgentsManagementPage() {
   const [ethBalance, setEthBalance] = useState("0.0000");
   const [balanceLoading, setBalanceLoading] = useState(false);
 
-  const loadAgents = useCallback(() => {
-    const rows = agentStore.getAgentsByOwner(userAddress).sort((a, b) => b.createdAt - a.createdAt);
-    setAgents(rows);
+  const loadAgents = useCallback(async () => {
+    if (!userAddress) return;
+    try {
+      const serverAgents = await listAgents(userAddress);
+      
+      const localAgents = agentStore.getAgentsByOwner(userAddress);
+      
+      // Merge remote agents with local agents to preserve private keys
+      const merged: AgentIdentity[] = serverAgents.map(sa => {
+        const local = localAgents.find(la => la.address.toLowerCase() === (sa.address as string).toLowerCase());
+        return {
+          id: String(sa.id),
+          name: String(sa.name),
+          role: String(sa.role),
+          address: String(sa.address),
+          ownerAddress: String(sa.ownerAddress),
+          createdAt: Number(sa.createdAt),
+          privateKey: local ? local.privateKey : "", // Empty if only exists on remote
+        };
+      });
+
+      // Find local agents that haven't been synced to server yet
+      const missingLocalAgents = localAgents.filter(la => 
+        !merged.find(ma => ma.address.toLowerCase() === la.address.toLowerCase())
+      );
+      
+      const allAgents = [...merged, ...missingLocalAgents].sort((a, b) => b.createdAt - a.createdAt);
+      setAgents(allAgents);
+    } catch (err) {
+      console.error("Failed to sync agents", err);
+      // Fallback to local
+      const rows = agentStore.getAgentsByOwner(userAddress).sort((a, b) => b.createdAt - a.createdAt);
+      setAgents(rows);
+    }
   }, [userAddress]);
 
   useEffect(() => {
@@ -136,7 +168,7 @@ export default function AgentsManagementPage() {
     }
   };
 
-  const saveAgent = () => {
+  const saveAgent = async () => {
     if (!formName) {
       toast.error("Agent name is required.");
       return;
@@ -144,25 +176,42 @@ export default function AgentsManagementPage() {
 
     if (editingId) {
       agentStore.updateAgent(editingId, { name: formName, role: formRole });
-      toast.success("Agent updated.");
+      toast.success("Agent updated locally (Wait for backend update support).");
       loadAgents();
       closeModal();
       return;
     }
 
     const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
-
+    const createdAt = Date.now();
+    
+    // Save locally first to ensure private key is kept
     agentStore.addAgent({
       id: newId,
       name: formName,
       role: formRole,
       address: formAddress,
       privateKey: formPrivateKey,
-      createdAt: Date.now(),
+      createdAt,
       ownerAddress: userAddress,
     });
 
-    toast.success("Agent created.");
+    // Try to sync with server
+    try {
+      await createAgentRegistry({
+        id: newId,
+        name: formName,
+        role: formRole,
+        address: formAddress,
+        ownerAddress: userAddress || "",
+        createdAt
+      });
+      toast.success("Agent created & synced to registry.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Agent saved locally but failed to sync: " + msg);
+    }
+
     loadAgents();
     closeModal();
   };

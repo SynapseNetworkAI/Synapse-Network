@@ -22,6 +22,7 @@ from .credentials import (
     validate_service_for_credential,
 )
 from .models import (
+    AgentCreateRequest,
     AgentCredentialIssueRequest,
     AgentCredentialQuotaUpdateRequest,
     AuthVerifyRequest,
@@ -34,8 +35,10 @@ from .persistence import (
     append_audit_log,
     list_audit_logs as list_audit_logs_from_store,
     load_agent_credentials,
+    load_agent_registry,
     load_service_registry,
     save_agent_credentials,
+    save_agent_registry,
     save_service_registry,
 )
 from .settings import (
@@ -174,6 +177,58 @@ async def create_service(payload: ServiceCreateRequest, subject_wallet: Annotate
         "code": "SERVICE_CREATED",
         "service": record,
         "count": len(rows),
+    }
+
+
+@app.get("/api/v2/services/discover", responses=SERVICE_REGISTRY_RESPONSES)
+async def discover_services(
+    intent: Annotated[Optional[str], Query(description="Search keyword for service discovery")] = None,
+):
+    """
+    Public endpoint for Buyer AI Agents to discover available services.
+    Returns only active services. Strips out sensitive backend info like auth if needed (for now, returns public fields).
+    """
+    rows = load_service_registry()
+    
+    # Filter only active services
+    available_services = [row for row in rows if row.get("isActive") is True]
+    
+    if intent:
+        intent_lower = intent.lower()
+        # Basic intent matching: check if intent is in serviceName, summary, description, or tags
+        matched_services = []
+        for svc in available_services:
+            searchable_text = " ".join([
+                str(svc.get("serviceName", "")).lower(),
+                str(svc.get("summary", "")).lower(),
+                " ".join(str(t).lower() for t in svc.get("tags", [])),
+            ])
+            if intent_lower in searchable_text:
+                matched_services.append(svc)
+        available_services = matched_services
+
+    # Clean up sensitive data before returning to buyer (e.g., internal auth headers)
+    public_services = []
+    for svc in available_services:
+        public_svc = {
+            "serviceId": svc.get("serviceId"),
+            "serviceName": svc.get("serviceName"),
+            "pricing": svc.get("pricing"),
+            "summary": svc.get("summary"),
+            "tags": svc.get("tags"),
+            "invoke": {
+                # Only expose what the buyer needs to send the request to the gateway
+                "method": svc.get("invoke", {}).get("method"),
+                "request": svc.get("invoke", {}).get("request", {}),
+                "response": svc.get("invoke", {}).get("response", {}),
+            }
+        }
+        public_services.append(public_svc)
+
+    return {
+        "status": "success", 
+        "services": public_services, 
+        "count": len(public_services)
     }
 
 
@@ -316,6 +371,74 @@ async def delete_service(service_record_id: str, subject_wallet: Annotated[str, 
         "count": len(rows),
     }
 
+@app.post("/api/v2/agents", responses=SERVICE_REGISTRY_RESPONSES)
+async def create_agent(
+    payload: AgentCreateRequest,
+    subject_wallet: Annotated[str, Depends(require_auth)]
+):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    
+    with lock:
+        rows = load_agent_registry()
+        
+        # Ensure owner is consistent
+        enforce_owner(payload.ownerAddress, subject_wallet)
+        
+        # Check if agent already exists for this owner
+        for row in rows:
+            if row.get("address", "").lower() == payload.address.lower() and \
+               row.get("ownerAddress", "").lower() == payload.ownerAddress.lower():
+                raise HTTPException(status_code=400, detail={"code": "AGENT_ALREADY_EXISTS", "message": "This agent address is already registered to this owner."})
+
+        record_id = payload.id or str(uuid4())
+        record = {
+            "id": record_id,
+            "name": payload.name,
+            "ownerAddress": payload.ownerAddress,
+            "address": payload.address,
+            "role": payload.role,
+            "createdAt": payload.createdAt
+        }
+        
+        rows.append(record)
+        save_agent_registry(rows)
+        
+    append_audit_log(
+        action="agent_registered",
+        actor=subject_wallet,
+        target=payload.address,
+        details={"recordId": record_id, "role": payload.role}
+    )
+    
+    return {
+        "status": "success",
+        "code": "AGENT_CREATED",
+        "agent": record,
+        "count": len(rows),
+    }
+
+@app.get("/api/v2/agents", responses=SERVICE_REGISTRY_RESPONSES)
+async def list_agents(
+    subject_wallet: Annotated[str, Depends(require_auth)],
+    owner_address: Annotated[Optional[str], Query(alias="ownerAddress")] = None,
+):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    rows = load_agent_registry()
+    
+    target = subject_wallet
+    if owner_address:
+        requested = validate_wallet(owner_address, "INVALID_OWNER_ADDRESS", "ownerAddress is invalid")
+        enforce_owner(requested, subject_wallet)
+        target = requested
+        
+    filtered_rows = [row for row in rows if str(row.get("ownerAddress")).lower() == target.lower()]
+    
+    return {
+        "status": "success",
+        "code": "AGENTS_FETCHED",
+        "data": filtered_rows,
+        "count": len(filtered_rows)
+    }
 
 @app.post("/api/v1/agent-credentials/issue", responses=SERVICE_REGISTRY_RESPONSES)
 async def issue_agent_credential(payload: AgentCredentialIssueRequest, subject_wallet: Annotated[str, Depends(require_auth)]):

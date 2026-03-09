@@ -1,0 +1,1 @@
+{"id": "677bb23e-0711-4ccf-b147-c5bc7df4ad08", "timestamp": 1773037845, "action": "SERVICE_CREATE", "ownerAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "details": {"serviceRecordId": "171e1b03-3fdb-46ba-8051-e6fe9d915e9a", "serviceId": "SVC_D8DF8549494A", "agentId": "agent-123", "endpoint": "http://example.com/api", "pricing": "0.1", "isActive": true}}
