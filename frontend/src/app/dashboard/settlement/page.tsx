@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import SettlementSummaryCards from "@/components/dashboard/settlement/SettlementSummaryCards";
 import SettlementTable from "@/components/dashboard/settlement/SettlementTable";
+import StatusFilter from "@/components/dashboard/shared/StatusFilter";
 import { useSettlementData, type SettlementEvent } from "@/hooks/useSettlementData";
 
 const STATUS_OPTIONS: Array<SettlementEvent["status"] | "all"> = ["all", "accepted", "succeeded", "refunded", "failed"];
@@ -25,19 +26,12 @@ export default function SettlementPage() {
         <p className="mt-1 text-xs text-gray-500">当前链上视图仅覆盖 `succeeded`；`accepted/refunded/failed` 筛选已预留，待接 usage 日志接入。</p>
       </div>
 
-      <div className="flex items-center gap-2">
-        <label htmlFor="settlement-status" className="text-xs text-gray-400">status</label>
-        <select
-          id="settlement-status"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as (typeof STATUS_OPTIONS)[number])}
-          className="px-3 py-2 text-xs text-white bg-gray-900 border border-gray-700 rounded-lg"
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
-      </div>
+      <StatusFilter
+        id="settlement-status"
+        options={STATUS_OPTIONS}
+        value={statusFilter}
+        onChange={setStatusFilter}
+      />
 
       <SettlementSummaryCards
         sellerReceivable={totals.seller_receivable}
