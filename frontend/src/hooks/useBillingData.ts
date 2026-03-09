@@ -9,7 +9,7 @@ import { agentStore } from "@/utils/agentStore";
 
 export type BillingRow = {
   request_id: string;
-  status: "succeeded";
+  status: "accepted" | "succeeded" | "refunded" | "failed";
   buyer: string;
   seller: string;
   serviceId: string;
