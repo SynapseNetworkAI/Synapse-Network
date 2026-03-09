@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldBan, TerminalSquare } from "lucide-react";
+import { TerminalSquare } from "lucide-react";
 
 export default function Home() {
   return (
@@ -19,15 +19,7 @@ export default function Home() {
               <TerminalSquare className="w-12 h-12 text-green-500 mb-4 group-hover:scale-110 transition-transform" />
               <h2 className="text-2xl font-bold text-white mb-2">Developer Console</h2>
               <p className="text-gray-500 text-sm">
-                Manage your Agent Fleet, allocate allowances, and generate on-chain wallet identities for your AIs in seconds.
-              </p>
-          </Link>
-          
-          <Link href="/admin" className="block group p-8 border border-gray-800 rounded-2xl bg-black/40 hover:bg-gray-800/60 transition-all cursor-pointer text-left">
-              <ShieldBan className="w-12 h-12 text-gray-400 mb-4 group-hover:scale-110 transition-transform" />
-              <h2 className="text-2xl font-bold text-white mb-2">Protocol Admin</h2>
-              <p className="text-gray-500 text-sm">
-                View platform TVL, live escrow transactions waterfalls, and monitor protocol revenue.
+                Manage your provider services, configure pricing/endpoints, and monitor on-chain ServicePaid earnings.
               </p>
           </Link>
         </div>

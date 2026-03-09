@@ -63,7 +63,7 @@ export default function RouterPage() {
     <div className="max-w-4xl p-8 mx-auto">
       <h1 className="mb-6 text-3xl font-bold text-green-400">Phase 18: Smart Contract Relayer Setup</h1>
       <p className="py-2 pl-4 mb-4 text-gray-400 border-l-4 border-green-500">
-        Enable Auto Top-up for your agent fleet by binding your Master Wallet. 
+        Enable Auto Top-up for your provider services by binding your Master Wallet. 
         You will sign an <code>Approve</code> transaction allowing the A2A_FundRouter to deduct up to your specified allowance.
       </p>
       

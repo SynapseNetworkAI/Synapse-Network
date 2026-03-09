@@ -12,19 +12,17 @@ export default function Navbar() {
           <Link href="/dashboard" className="text-gray-300 hover:text-white">
             Dashboard
           </Link>
-          <Link href="/dashboard/marketplace" className="text-gray-300 hover:text-white">
-            Marketplace
+          <Link href="/dashboard/agents" className="text-gray-300 hover:text-white">
+            Agents
           </Link>
-          {/* 暂时隐藏旧的 Bounty 任务列表
-          <Link href="/dashboard/tasks" className="text-gray-300 hover:text-white">
-            My Tasks
+          <Link href="/dashboard/credentials" className="text-gray-300 hover:text-white">
+            Credentials
           </Link>
-          */}
+          <Link href="/dashboard/services" className="text-gray-300 hover:text-white">
+            Server Management
+          </Link>
           <Link href="/dashboard/router" className="text-gray-300 hover:text-white">
             Auto Top-up
-          </Link>
-          <Link href="/admin" className="text-gray-300 hover:text-white">
-            Admin/God View
           </Link>
         </div>
       </div>

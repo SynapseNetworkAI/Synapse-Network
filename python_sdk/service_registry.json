@@ -1,0 +1,18 @@
+{
+  "services": [
+    {
+      "id": "verify-service-update-1",
+      "name": "Verify Update Service Patched",
+      "role": "Provider / Seller",
+      "ownerAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "serviceId": "V1_EDIT",
+      "pricing": "0.09",
+      "endpoint": "http://127.0.0.1:8000/api/v1/generate",
+      "isActive": false,
+      "updatedAt": 1773013579,
+      "createdAt": 1773013579
+    }
+  ],
+  "updatedAt": 1773013877
+}

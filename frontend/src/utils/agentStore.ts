@@ -6,6 +6,10 @@ export interface AgentIdentity {
   privateKey: string;
   createdAt: number;
   ownerAddress?: string; // Tying Agent to the Master Web3 EOA Wallet
+  serviceId?: string;
+  pricing?: string;
+  endpoint?: string;
+  isActive?: boolean;
 }
 
 const STORAGE_KEY = "a2a_agent_identities";
@@ -33,6 +37,14 @@ export const agentStore = {
   getAgent: (id: string): AgentIdentity | undefined => {
     const agents = agentStore.getAgents();
     return agents.find(a => a.id === id);
+  },
+
+  updateAgent: (id: string, patch: Partial<AgentIdentity>) => {
+    const agents = agentStore.getAgents();
+    const index = agents.findIndex(a => a.id === id);
+    if (index === -1) return;
+    agents[index] = { ...agents[index], ...patch };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
   },
 
   removeAgent: (id: string) => {

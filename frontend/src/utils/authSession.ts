@@ -1,0 +1,134 @@
+export type AuthSession = {
+  token: string;
+  wallet: string;
+  expiresAt: number;
+};
+
+type AuthChallengeResponse = {
+  status: string;
+  nonce: string;
+  message: string;
+  expiresInSec: number;
+};
+
+type AuthVerifyResponse = {
+  status: string;
+  token: string;
+  wallet: string;
+  expiresInSec: number;
+};
+
+const AUTH_SESSION_STORAGE_KEY = "a2a_auth_session";
+const AUTH_API_BASE = "http://127.0.0.1:8000/api/v1/auth";
+
+function normalizeAddress(address: string): string {
+  return address.trim().toLowerCase();
+}
+
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
+}
+
+export function clearAuthSession(): void {
+  if (!isBrowser()) return;
+  localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+  localStorage.removeItem("developer_session");
+}
+
+export function getStoredAuthSession(): AuthSession | null {
+  if (!isBrowser()) return null;
+
+  const raw = localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<AuthSession>;
+    if (!parsed.token || !parsed.wallet || !parsed.expiresAt) {
+      clearAuthSession();
+      return null;
+    }
+
+    if (Date.now() >= Number(parsed.expiresAt)) {
+      clearAuthSession();
+      return null;
+    }
+
+    return {
+      token: parsed.token,
+      wallet: normalizeAddress(parsed.wallet),
+      expiresAt: Number(parsed.expiresAt),
+    };
+  } catch {
+    clearAuthSession();
+    return null;
+  }
+}
+
+export function storeAuthSession(token: string, wallet: string, expiresInSec: number): void {
+  if (!isBrowser()) return;
+
+  const expiresAt = Date.now() + Math.max(1, expiresInSec) * 1000;
+  const nextSession: AuthSession = {
+    token,
+    wallet: normalizeAddress(wallet),
+    expiresAt,
+  };
+
+  localStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+}
+
+export function getAccessToken(expectedWallet?: string): string {
+  const session = getStoredAuthSession();
+  if (!session) {
+    throw new Error("Wallet auth session missing. Please sign in with wallet.");
+  }
+
+  if (expectedWallet && session.wallet !== normalizeAddress(expectedWallet)) {
+    clearAuthSession();
+    throw new Error("Wallet auth session wallet mismatch. Please sign in again.");
+  }
+
+  return session.token;
+}
+
+export function buildAuthedHeaders(userAddress: string, withJson: boolean = true): HeadersInit {
+  return {
+    ...(withJson ? { "Content-Type": "application/json" } : {}),
+    Authorization: `Bearer ${getAccessToken(userAddress)}`,
+    "X-User-Address": userAddress,
+  };
+}
+
+export async function requestAuthChallenge(address: string): Promise<AuthChallengeResponse> {
+  const response = await fetch(`${AUTH_API_BASE}/challenge?address=${encodeURIComponent(address)}`, {
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Failed to get auth challenge");
+  }
+
+  return (await response.json()) as AuthChallengeResponse;
+}
+
+export async function verifyAuthSignature(address: string, nonce: string, signature: string): Promise<AuthVerifyResponse> {
+  const response = await fetch(`${AUTH_API_BASE}/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      address,
+      nonce,
+      signature,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Failed to verify wallet signature");
+  }
+
+  return (await response.json()) as AuthVerifyResponse;
+}
