@@ -18,6 +18,7 @@
 - [钱包接入与 Web3 鉴权设计](feature_designs/Wallet-Integration-Design.md)
 - [平台网关中转 + Deposit + Credential 核心架构设计（V2）](feature_designs/Platform-Gateway-Deposit-Credential-Architecture-Design.md)
 - [Dashboard 产品引导与信息架构设计（Buyer/Seller 双模式）](feature_designs/Dashboard-Product-Onboarding-Design.md)
+- [Agent 友好的服务注册设计（Service ID 系统生成）](feature_designs/Agent-Friendly-Service-Registration-Design.md)
 - [官网定位统一下的功能页面拆分设计（V1）](feature_designs/Unified-Website-Page-Architecture-Design.md)
 - [结算设计详细文档（Signature Claim）](feature_designs/Settlement-Detailed-Design.md)
 - [扣款详细设计文档（Gateway Deduction）](feature_designs/Deduction-Detailed-Design.md)

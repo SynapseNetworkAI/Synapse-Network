@@ -78,13 +78,19 @@ SERVICE_PORT=8100
 ### 4.1 开发模式（推荐本地）
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
+./.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
 ```
+
+> 若不在 `provider_service` 目录启动，可显式加 `--app-dir`：
+>
+> ```bash
+> /Users/cliff/workspace/A2A-pay/provider_service/.venv/bin/python -m uvicorn --app-dir /Users/cliff/workspace/A2A-pay/provider_service app.main:app --host 0.0.0.0 --port 8100 --reload
+> ```
 
 ### 4.2 生产模式（无 reload）
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8100
+./.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8100
 ```
 
 ---
@@ -141,7 +147,7 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 - 处理方式 1：改端口
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8110 --reload
+./.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8110 --reload
 ```
 
 - 处理方式 2：释放占用端口（示例 8100）
@@ -150,6 +156,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8110 --reload
 lsof -i :8100
 kill -9 <PID>
 ```
+
+### 问题 4：`ModuleNotFoundError: No module named 'pydantic_settings'` 或 `No module named 'app'`
+
+- 原因：启动时使用了全局 `uvicorn/python`，或当前目录不对
+- 处理：
+  - 始终使用项目虚拟环境解释器启动（`./.venv/bin/python -m uvicorn ...`）
+  - 若提示 `No module named 'app'`，请在 `provider_service` 目录执行，或追加 `--app-dir /Users/cliff/workspace/A2A-pay/provider_service`
 
 ---
 

@@ -162,7 +162,7 @@ type ServiceProfile = {
 - Provider 创建 Agent（身份层）。
 
 ### Step 3: 在 Agent 下注册 Service
-- Provider 选择 Agent，并填写 `serviceId/pricing/endpoint/isActive`。
+- Provider 选择 Agent，并填写 `serviceName/pricing/isActive/invoke(method+url+schema)`。
 - 一个 Agent 可拥有多个 Service，每个 Service 对应一个 endpoint。
 
 ### Step 4: 配置确认
@@ -494,7 +494,7 @@ P2（可选）：
 ### 12.12 支付-验证-交付时序与异常处理（MVP 必须实现）
 
 #### 12.12.1 正常时序
-1. Buyer 获取 `sellerAddress/serviceId/pricing/endpoint`。
+1. Buyer 获取 `sellerAddress/serviceId/pricing/invoke.url`。
 2. Buyer 链上支付，得到 `txHash`。
 3. Buyer 直连 Seller API，携带 `X-Tx-Hash` 与 `X-Service-Id`。
 4. Seller 查 `txHash` receipt，解码 `ServicePaid` 并校验字段。
@@ -964,7 +964,7 @@ P2（可选）：
 | 页面模块 | 字段 | 来源层 | 获取方式 | 刷新时机 | 降级策略 |
 |---|---|---|---|---|---|
 | Agent Identity | 名称/地址/私钥 | L1 配置 | `agentStore.getAgent(id)` | 首次加载 | 跳回 Dashboard |
-| Service 主配置 | serviceId/pricing/endpoint/isActive | 后端配置 | `listServiceRegistry` 后按 `agentId/address` 匹配主服务 | 首次加载 | 显示未配置 |
+| Service 主配置 | serviceId/serviceName/pricing/invoke/isActive | 后端配置 | `listServiceRegistry` 后按 `agentId/address` 匹配主服务 | 首次加载 | 显示未配置 |
 | On-chain USDC | Service 余额 | L2 链上 | `MockUSDC.balanceOf(service.address)` | 首次加载/手动刷新 | `0.00` |
 | Payment Ledger | 交易流水（MVP） | L3 后端 | `/api/client/tasks?agent=...` | 首次加载/刷新 | 空列表 |
 | Integration Docs | FastAPI / Buyer Snippet | L1 配置派生 | 模板字符串生成 | 配置变更后重算 | 占位模板 |
@@ -1127,26 +1127,28 @@ Service {
 
 #### 18.6.1 读接口
 
-1. `GET /api/v1/services`
+1. `GET /api/v2/services`
 	- 不接受自由 owner 参数作为授权依据。
 	- 只返回 `owner_address == subject_wallet` 的记录。
 
-2. `GET /api/v1/services/{id}`（若提供）
-	- 先按 id 查询，再做 owner 校验。
-	- 不通过返回 `404`（可选）或 `403`（推荐内部系统）。
+2. （可选）`GET /api/v2/services?ownerAddress=...`
+	- 后端只接受 `ownerAddress == subject_wallet`。
+	- 不匹配直接拒绝。
 
 #### 18.6.2 写接口
 
-1. `POST /api/v1/services/create`
-	- 忽略 body 的 `ownerAddress`，改为 `subject_wallet` 写入。
-	- 校验 `agent_id` 必须属于 `subject_wallet`。
+1. `POST /api/v2/services`
+	- 创建时不接受 `serviceId`，由系统生成。
+	- 校验 `agentId` 必须属于 `subject_wallet`。
+	- 校验 `invoke.method/url/timeoutMs/request.schema/response.schema`。
 
-2. `PUT /api/v1/services/update`
+2. `PUT /api/v2/services/{id}`
 	- 查询目标 service。
 	- 校验其 owner 为 `subject_wallet`。
 	- 禁止跨租户迁移 owner。
+	- 禁止修改 `serviceId`。
 
-3. `DELETE /api/v1/services/{id}`（建议新增）
+3. `DELETE /api/v2/services/{id}`
 	- 同上先查 owner，再删除。
 
 ### 18.7 服务端校验清单（代码层）
@@ -1163,7 +1165,7 @@ Service {
 	- 不匹配立即 `403`。
 
 4. `validate_input_schema()`：
-	- endpoint、pricing、serviceId、isActive。
+	- serviceName、pricing、isActive、invoke。
 
 5. `audit_log()`：
 	- 记录 `subject_wallet`, `action`, `resource_id`, `status_code`, `request_id`。

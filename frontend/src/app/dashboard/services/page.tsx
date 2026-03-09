@@ -41,35 +41,58 @@ export default function ServicesManagementPage() {
   const [formPricing, setFormPricing] = useState("0.05");
   const [formEndpoint, setFormEndpoint] = useState("");
   const [formActive, setFormActive] = useState(true);
+  const [formSummary, setFormSummary] = useState("");
+  const [formTags, setFormTags] = useState("");
+  const [formMethod, setFormMethod] = useState("POST");
+  const [formTimeoutMs, setFormTimeoutMs] = useState("30000");
+  const [formRequestSchema, setFormRequestSchema] = useState('{"type":"object","required":["text"],"properties":{"text":{"type":"string"}}}');
+  const [formResponseSchema, setFormResponseSchema] = useState('{"type":"object","properties":{"quote":{"type":"string"}}}');
 
   const getAgentRole = useCallback((agentId: string): string => {
     return agents.find((agent) => agent.id === agentId)?.role || "seller";
   }, [agents]);
 
   const buildRegistryPayload = useCallback((payload: {
-    id: string;
+    id?: string;
     agentId: string;
-    name: string;
-    serviceId: string;
+    serviceName: string;
     pricing: string;
-    endpoint: string;
     isActive: boolean;
+    summary?: string;
+    tags?: string[];
+    endpoint: string;
+    method: string;
+    timeoutMs: number;
+    requestSchema: Record<string, unknown>;
+    responseSchema: Record<string, unknown>;
   }): ServiceRegistryPayload => {
     const agent = agents.find((item) => item.id === payload.agentId);
     if (!agent || !userAddress) {
       throw new Error("Missing agent or owner address");
     }
+
     return {
-      id: payload.id,
+      ...(payload.id ? { id: payload.id } : {}),
       agentId: payload.agentId,
-      name: payload.name,
+      serviceName: payload.serviceName,
       role: getAgentRole(payload.agentId),
-      ownerAddress: userAddress,
       address: agent.address,
-      serviceId: payload.serviceId,
       pricing: payload.pricing,
-      endpoint: payload.endpoint,
       isActive: payload.isActive,
+      summary: payload.summary,
+      tags: payload.tags,
+      invoke: {
+        method: payload.method,
+        url: payload.endpoint,
+        timeoutMs: payload.timeoutMs,
+        request: {
+          contentType: "application/json",
+          schema: payload.requestSchema,
+        },
+        response: {
+          schema: payload.responseSchema,
+        },
+      },
     };
   }, [agents, getAgentRole, userAddress]);
 
@@ -154,6 +177,12 @@ export default function ServicesManagementPage() {
     setFormPricing("0.05");
     setFormEndpoint("");
     setFormActive(true);
+    setFormSummary("");
+    setFormTags("");
+    setFormMethod("POST");
+    setFormTimeoutMs("30000");
+    setFormRequestSchema('{"type":"object","required":["text"],"properties":{"text":{"type":"string"}}}');
+    setFormResponseSchema('{"type":"object","properties":{"quote":{"type":"string"}}}');
     if (agents.length > 0) {
       setFormAgentId(agents[0].id);
     }
@@ -199,41 +228,67 @@ export default function ServicesManagementPage() {
   const startEdit = (service: ServiceRegistryRecord) => {
     setEditingId(service.id);
     setFormAgentId(service.agentId || "");
-    setFormName(service.name);
+    setFormName(service.serviceName || service.name);
     setFormServiceId(service.serviceId);
     setFormPricing(service.pricing);
-    setFormEndpoint(service.endpoint);
+    setFormEndpoint(service.invoke?.url || service.endpoint);
     setFormActive(service.isActive);
+    setFormSummary(service.summary || "");
+    setFormTags(Array.isArray(service.tags) ? service.tags.join(", ") : "");
+    setFormMethod(service.invoke?.method || "POST");
+    setFormTimeoutMs(String(service.invoke?.timeoutMs || 30000));
+    setFormRequestSchema(JSON.stringify(service.invoke?.request?.schema || { type: "object", required: ["text"], properties: { text: { type: "string" } } }, null, 2));
+    setFormResponseSchema(JSON.stringify(service.invoke?.response?.schema || { type: "object", properties: { quote: { type: "string" } } }, null, 2));
     setIsModalOpen(true);
   };
 
   const saveConfig = async () => {
-    if (!formAgentId || !formName || !formServiceId || !formPricing || !formEndpoint) {
-      toast.error("Please complete agent, name, service id, pricing and endpoint.");
+    if (!formAgentId || !formName || !formPricing || !formEndpoint) {
+      toast.error("Please complete agent, name, pricing and endpoint.");
       return;
     }
 
-    const conflict = services.find(
-      (item) =>
-        item.agentId === formAgentId &&
-        item.serviceId === formServiceId &&
-        item.id !== editingId
-    );
-    if (conflict) {
-      toast.error("Service ID already exists under selected agent.");
+    let requestSchema: Record<string, unknown>;
+    let responseSchema: Record<string, unknown>;
+    try {
+      requestSchema = JSON.parse(formRequestSchema) as Record<string, unknown>;
+      responseSchema = JSON.parse(formResponseSchema) as Record<string, unknown>;
+    } catch {
+      toast.error("Request/Response schema must be valid JSON.");
       return;
     }
+
+    const timeoutMs = Number.parseInt(formTimeoutMs, 10);
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      toast.error("Timeout must be a positive integer.");
+      return;
+    }
+
+    const tags = formTags
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
 
     if (editingId) {
+      if (!formServiceId) {
+        toast.error("Missing serviceId for existing service.");
+        return;
+      }
+
       try {
         const backendPayload = buildRegistryPayload({
           id: editingId,
           agentId: formAgentId,
-          name: formName,
-          serviceId: formServiceId,
+          serviceName: formName,
           pricing: formPricing,
-          endpoint: formEndpoint,
           isActive: formActive,
+          summary: formSummary,
+          tags,
+          endpoint: formEndpoint,
+          method: formMethod,
+          timeoutMs,
+          requestSchema,
+          responseSchema,
         });
         await updateServiceRegistry(backendPayload, userAddress || "");
         toast.success("Service configuration updated.");
@@ -252,14 +307,19 @@ export default function ServicesManagementPage() {
       const backendPayload = buildRegistryPayload({
         id: newId,
         agentId: formAgentId,
-        name: formName,
-        serviceId: formServiceId,
+        serviceName: formName,
         pricing: formPricing,
-        endpoint: formEndpoint,
         isActive: formActive,
+        summary: formSummary,
+        tags,
+        endpoint: formEndpoint,
+        method: formMethod,
+        timeoutMs,
+        requestSchema,
+        responseSchema,
       });
-      await createServiceRegistry(backendPayload, userAddress || "");
-      toast.success("Service registered.");
+      const created = await createServiceRegistry(backendPayload, userAddress || "");
+      toast.success(`Service registered: ${created.serviceId}`);
       await loadAll();
       closeModal();
     } catch (error) {
@@ -276,14 +336,21 @@ export default function ServicesManagementPage() {
     const nextActive = !service.isActive;
 
     try {
+      const requestSchema = service.invoke?.request?.schema || { type: "object", required: ["text"], properties: { text: { type: "string" } } };
+      const responseSchema = service.invoke?.response?.schema || { type: "object", properties: { quote: { type: "string" } } };
       const backendPayload = buildRegistryPayload({
         id: service.id,
         agentId: service.agentId,
-        name: service.name,
-        serviceId: service.serviceId,
+        serviceName: service.serviceName || service.name,
         pricing: service.pricing,
-        endpoint: service.endpoint,
         isActive: nextActive,
+        summary: service.summary || undefined,
+        tags: service.tags || [],
+        endpoint: service.invoke?.url || service.endpoint,
+        method: service.invoke?.method || "POST",
+        timeoutMs: service.invoke?.timeoutMs || 30000,
+        requestSchema,
+        responseSchema,
       });
       await updateServiceRegistry(backendPayload, userAddress || "");
       toast.success(nextActive ? "Service set to ACTIVE" : "Service set to INACTIVE");
@@ -527,7 +594,7 @@ export default function ServicesManagementPage() {
             className="absolute inset-0"
           />
 
-          <div className="relative z-10 w-full max-w-5xl border border-gray-700 shadow-2xl rounded-2xl bg-gradient-to-b from-gray-950 to-black">
+          <div className="relative z-10 flex w-full max-w-5xl max-h-[90vh] flex-col border border-gray-700 shadow-2xl rounded-2xl bg-gradient-to-b from-gray-950 to-black">
             <div className="flex items-start justify-between px-8 py-6 border-b border-gray-800 bg-black/30">
               <div>
                 <h2 className="text-base font-bold tracking-widest text-white uppercase">
@@ -545,10 +612,10 @@ export default function ServicesManagementPage() {
               </button>
             </div>
 
-            <div className="p-8">
+            <div className="flex-1 p-8 overflow-y-auto">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Agent</label>
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Agent</p>
                   <select
                     value={formAgentId}
                     onChange={(e) => setFormAgentId(e.target.value)}
@@ -564,7 +631,7 @@ export default function ServicesManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Service Name</label>
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Service Name</p>
                   <input
                     type="text"
                     value={formName}
@@ -575,18 +642,23 @@ export default function ServicesManagementPage() {
                 </div>
 
                 <div>
-                  <label className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Service ID</label>
-                  <input
-                    type="text"
-                    value={formServiceId}
-                    onChange={(e) => setFormServiceId(e.target.value.toUpperCase().replaceAll(/[^A-Z0-9_]/g, ""))}
-                    placeholder="Service ID"
-                    className="w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
-                  />
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Service ID</p>
+                  {editingId ? (
+                    <input
+                      type="text"
+                      value={formServiceId}
+                      readOnly
+                      className="w-full px-4 py-3 font-mono text-sm text-blue-300 bg-gray-900 border border-gray-700 rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-full px-4 py-3 text-sm text-gray-400 bg-gray-900 border border-gray-700 rounded-lg">
+                      Auto generated by system after register
+                    </div>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Pricing (USDC)</label>
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Pricing (USDC)</p>
                   <input
                     type="number"
                     min="0"
@@ -599,7 +671,7 @@ export default function ServicesManagementPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Endpoint API</label>
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Endpoint API</p>
                   <input
                     type="url"
                     value={formEndpoint}
@@ -608,9 +680,79 @@ export default function ServicesManagementPage() {
                     className="w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
                   />
                 </div>
+
+                <div>
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">HTTP Method</p>
+                  <select
+                    value={formMethod}
+                    onChange={(e) => setFormMethod(e.target.value)}
+                    className="w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
+                  >
+                    <option value="POST">POST</option>
+                    <option value="GET">GET</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </div>
+
+                <div>
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Timeout (ms)</p>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formTimeoutMs}
+                    onChange={(e) => setFormTimeoutMs(e.target.value)}
+                    className="w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Summary</p>
+                  <input
+                    type="text"
+                    value={formSummary}
+                    onChange={(e) => setFormSummary(e.target.value)}
+                    placeholder="One-line summary for agents"
+                    className="w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Tags (comma separated)</p>
+                  <input
+                    type="text"
+                    value={formTags}
+                    onChange={(e) => setFormTags(e.target.value)}
+                    placeholder="quote, cn, inspiration"
+                    className="w-full px-4 py-3 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Request Schema (JSON)</p>
+                  <textarea
+                    value={formRequestSchema}
+                    onChange={(e) => setFormRequestSchema(e.target.value)}
+                    rows={6}
+                    className="w-full px-4 py-3 font-mono text-xs text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <p className="block mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase">Response Schema (JSON)</p>
+                  <textarea
+                    value={formResponseSchema}
+                    onChange={(e) => setFormResponseSchema(e.target.value)}
+                    rows={6}
+                    className="w-full px-4 py-3 font-mono text-xs text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
+                  />
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 pt-5 mt-6 border-t border-gray-800">
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 px-8 py-5 border-t border-gray-800 bg-black/40">
                 <button
                   type="button"
                   onClick={() => setFormActive((prev) => !prev)}
@@ -629,7 +771,7 @@ export default function ServicesManagementPage() {
                   className="inline-flex items-center px-5 py-2.5 text-xs font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400"
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />
-                  {editingId ? "Save Config" : "Register Service"}
+                  {editingId ? "Save Config" : "Create Service"}
                 </button>
 
                 {editingService && (
@@ -650,7 +792,6 @@ export default function ServicesManagementPage() {
                 >
                   Cancel
                 </button>
-              </div>
             </div>
           </div>
         </div>

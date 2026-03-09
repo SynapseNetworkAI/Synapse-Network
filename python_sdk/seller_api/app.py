@@ -60,6 +60,29 @@ app.add_middleware(
 )
 
 
+def generate_service_id(existing_ids: set[str]) -> str:
+    for _ in range(8):
+        candidate = f"SVC_{uuid4().hex[:12].upper()}"
+        if candidate not in existing_ids:
+            return candidate
+    return f"SVC_{uuid4().hex.upper()}"
+
+
+def normalize_invoke(method: str, url: str, timeout_ms: int) -> tuple[str, str, int]:
+    normalized_method = method.strip().upper()
+    if normalized_method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_METHOD", "message": "invoke.method is invalid"})
+
+    normalized_url = url.strip()
+    if not normalized_url.startswith("http://") and not normalized_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail={"code": "INVALID_ENDPOINT", "message": "invoke.url must start with http:// or https://"})
+
+    if timeout_ms <= 0:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_TIMEOUT", "message": "invoke.timeoutMs must be positive"})
+
+    return normalized_method, normalized_url, timeout_ms
+
+
 @app.get("/api/v1/auth/challenge", responses=AUTH_RESPONSES)
 async def auth_challenge(address: str):
     return create_auth_challenge(address)
@@ -70,15 +93,16 @@ async def auth_verify(payload: AuthVerifyRequest):
     return verify_auth_signature(payload.address, payload.nonce, payload.signature)
 
 
-@app.post("/api/v1/services/create", responses=SERVICE_REGISTRY_RESPONSES)
+@app.post("/api/v2/services", responses=SERVICE_REGISTRY_RESPONSES)
 async def create_service(payload: ServiceCreateRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
-    service_id = normalize_service_id(payload.serviceId)
-    if not service_id:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_SERVICE_ID", "message": "serviceId is invalid"})
 
     owner_address = subject_wallet
     service_address = validate_wallet(payload.address, "INVALID_SERVICE_ADDRESS", INVALID_ADDRESS_MESSAGE)
+
+    service_name = payload.serviceName.strip()
+    if not service_name:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_SERVICE_NAME", "message": "serviceName is required"})
 
     try:
         pricing_value = float(payload.pricing)
@@ -87,60 +111,73 @@ async def create_service(payload: ServiceCreateRequest, subject_wallet: Annotate
     except Exception:
         raise HTTPException(status_code=400, detail={"code": "INVALID_PRICING", "message": "pricing must be a positive number"})
 
-    if not payload.endpoint.startswith("http://") and not payload.endpoint.startswith("https://"):
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ENDPOINT", "message": "endpoint must start with http:// or https://"})
+    invoke_method, invoke_url, timeout_ms = normalize_invoke(
+        payload.invoke.method,
+        payload.invoke.url,
+        int(payload.invoke.timeoutMs),
+    )
 
-    record = {
-        "id": payload.id,
-        "agentId": payload.agentId,
-        "name": payload.name.strip(),
-        "role": payload.role.strip(),
-        "ownerAddress": owner_address,
-        "address": service_address,
-        "serviceId": service_id,
-        "pricing": str(payload.pricing),
-        "endpoint": payload.endpoint.strip(),
-        "isActive": bool(payload.isActive),
-        "updatedAt": int(time.time()),
-    }
+    tags = [str(tag).strip() for tag in (payload.tags or []) if str(tag).strip()]
+    auth_payload = payload.auth.model_dump(exclude_none=True) if payload.auth else None
+    invoke_payload = payload.invoke.model_dump()
+    invoke_payload["method"] = invoke_method
+    invoke_payload["url"] = invoke_url
+    invoke_payload["timeoutMs"] = timeout_ms
+
+    now = int(time.time())
 
     with lock:
         rows = load_service_registry()
-        existing_index = next((idx for idx, row in enumerate(rows) if row.get("id") == payload.id), -1)
+        existing_ids = {normalize_service_id(str(row.get("serviceId", ""))) for row in rows if row.get("serviceId")}
+        service_id = generate_service_id(existing_ids)
+        record_id = str(uuid4())
 
-        if existing_index >= 0:
-            rows[existing_index] = {**rows[existing_index], **record}
-            action = "updated"
-        else:
-            rows.append({**record, "createdAt": int(time.time())})
-            action = "created"
+        record = {
+            "id": record_id,
+            "agentId": payload.agentId,
+            "name": service_name,
+            "serviceName": service_name,
+            "role": payload.role.strip(),
+            "ownerAddress": owner_address,
+            "address": service_address,
+            "serviceId": service_id,
+            "pricing": str(payload.pricing),
+            "endpoint": invoke_url,
+            "isActive": bool(payload.isActive),
+            "summary": payload.summary.strip() if payload.summary else None,
+            "tags": tags,
+            "auth": auth_payload,
+            "invoke": invoke_payload,
+            "updatedAt": now,
+            "createdAt": now,
+        }
+
+        rows.append(record)
 
         save_service_registry(rows)
 
     append_audit_log(
-        "SERVICE_CREATE_OR_UPSERT",
+        "SERVICE_CREATE",
         subject_wallet,
         {
-            "serviceRecordId": payload.id,
+            "serviceRecordId": record_id,
             "serviceId": service_id,
             "agentId": payload.agentId,
-            "endpoint": payload.endpoint.strip(),
+            "endpoint": invoke_url,
             "pricing": str(payload.pricing),
             "isActive": bool(payload.isActive),
-            "action": action,
         },
     )
 
     return {
         "status": "success",
-        "code": "SERVICE_REGISTERED",
-        "action": action,
+        "code": "SERVICE_CREATED",
         "service": record,
         "count": len(rows),
     }
 
 
-@app.get("/api/v1/services", responses=SERVICE_REGISTRY_RESPONSES)
+@app.get("/api/v2/services", responses=SERVICE_REGISTRY_RESPONSES)
 async def list_services(
     subject_wallet: Annotated[str, Depends(require_auth)],
     owner_address: Annotated[Optional[str], Query(alias="ownerAddress")] = None,
@@ -156,15 +193,13 @@ async def list_services(
     return {"status": "success", "services": rows, "count": len(rows)}
 
 
-@app.put("/api/v1/services/update", responses=SERVICE_REGISTRY_RESPONSES)
-async def update_service(payload: ServiceUpdateRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
+@app.put("/api/v2/services/{service_record_id}", responses=SERVICE_REGISTRY_RESPONSES)
+async def update_service(service_record_id: str, payload: ServiceUpdateRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
-    service_id = normalize_service_id(payload.serviceId)
-    if not service_id:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_SERVICE_ID", "message": "serviceId is invalid"})
 
-    owner_address = subject_wallet
-    service_address = validate_wallet(payload.address, "INVALID_SERVICE_ADDRESS", INVALID_ADDRESS_MESSAGE)
+    service_name = payload.serviceName.strip()
+    if not service_name:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_SERVICE_NAME", "message": "serviceName is required"})
 
     try:
         pricing_value = float(payload.pricing)
@@ -173,50 +208,60 @@ async def update_service(payload: ServiceUpdateRequest, subject_wallet: Annotate
     except Exception:
         raise HTTPException(status_code=400, detail={"code": "INVALID_PRICING", "message": "pricing must be a positive number"})
 
-    if not payload.endpoint.startswith("http://") and not payload.endpoint.startswith("https://"):
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ENDPOINT", "message": "endpoint must start with http:// or https://"})
-
-    record = {
-        "id": payload.id,
-        "agentId": payload.agentId,
-        "name": payload.name.strip(),
-        "role": payload.role.strip(),
-        "ownerAddress": owner_address,
-        "address": service_address,
-        "serviceId": service_id,
-        "pricing": str(payload.pricing),
-        "endpoint": payload.endpoint.strip(),
-        "isActive": bool(payload.isActive),
-        "updatedAt": int(time.time()),
-    }
+    invoke_method, invoke_url, timeout_ms = normalize_invoke(
+        payload.invoke.method,
+        payload.invoke.url,
+        int(payload.invoke.timeoutMs),
+    )
+    tags = [str(tag).strip() for tag in (payload.tags or []) if str(tag).strip()]
+    auth_payload = payload.auth.model_dump(exclude_none=True) if payload.auth else None
+    invoke_payload = payload.invoke.model_dump()
+    invoke_payload["method"] = invoke_method
+    invoke_payload["url"] = invoke_url
+    invoke_payload["timeoutMs"] = timeout_ms
 
     with lock:
         rows = load_service_registry()
-        existing_index = next((idx for idx, row in enumerate(rows) if row.get("id") == payload.id), -1)
+        existing_index = next((idx for idx, row in enumerate(rows) if row.get("id") == service_record_id), -1)
         if existing_index < 0:
             raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service does not exist"})
         enforce_owner(str(rows[existing_index].get("ownerAddress", "")), subject_wallet)
 
         before = dict(rows[existing_index])
-        created_at = rows[existing_index].get("createdAt", int(time.time()))
-        rows[existing_index] = {**rows[existing_index], **record, "createdAt": created_at}
+        rows[existing_index] = {
+            **rows[existing_index],
+            "name": service_name,
+            "serviceName": service_name,
+            "pricing": str(payload.pricing),
+            "endpoint": invoke_url,
+            "isActive": bool(payload.isActive),
+            "summary": payload.summary.strip() if payload.summary else None,
+            "tags": tags,
+            "auth": auth_payload,
+            "invoke": invoke_payload,
+            "updatedAt": int(time.time()),
+        }
         save_service_registry(rows)
 
     changed_fields = []
-    if before.get("endpoint") != record.get("endpoint"):
+    if before.get("endpoint") != invoke_url:
         changed_fields.append("endpoint")
-    if before.get("pricing") != record.get("pricing"):
+    if before.get("pricing") != str(payload.pricing):
         changed_fields.append("pricing")
-    if before.get("isActive") != record.get("isActive"):
+    if before.get("isActive") != bool(payload.isActive):
         changed_fields.append("isActive")
+    if before.get("name") != service_name:
+        changed_fields.append("serviceName")
+    if before.get("invoke") != invoke_payload:
+        changed_fields.append("invoke")
 
     append_audit_log(
         "SERVICE_UPDATE",
         subject_wallet,
         {
-            "serviceRecordId": payload.id,
-            "serviceId": service_id,
-            "agentId": payload.agentId,
+            "serviceRecordId": service_record_id,
+            "serviceId": rows[existing_index].get("serviceId"),
+            "agentId": rows[existing_index].get("agentId"),
             "changedFields": changed_fields,
             "before": {
                 "endpoint": before.get("endpoint"),
@@ -224,9 +269,9 @@ async def update_service(payload: ServiceUpdateRequest, subject_wallet: Annotate
                 "isActive": before.get("isActive"),
             },
             "after": {
-                "endpoint": record.get("endpoint"),
-                "pricing": record.get("pricing"),
-                "isActive": record.get("isActive"),
+                "endpoint": invoke_url,
+                "pricing": str(payload.pricing),
+                "isActive": bool(payload.isActive),
             },
         },
     )
@@ -239,12 +284,12 @@ async def update_service(payload: ServiceUpdateRequest, subject_wallet: Annotate
     }
 
 
-@app.delete("/api/v1/services/{service_id}", responses=SERVICE_REGISTRY_RESPONSES)
-async def delete_service(service_id: str, subject_wallet: Annotated[str, Depends(require_auth)]):
+@app.delete("/api/v2/services/{service_record_id}", responses=SERVICE_REGISTRY_RESPONSES)
+async def delete_service(service_record_id: str, subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
     with lock:
         rows = load_service_registry()
-        existing_index = next((idx for idx, row in enumerate(rows) if row.get("id") == service_id), -1)
+        existing_index = next((idx for idx, row in enumerate(rows) if row.get("id") == service_record_id), -1)
         if existing_index < 0:
             raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service does not exist"})
 

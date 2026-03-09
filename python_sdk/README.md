@@ -70,13 +70,112 @@ flowchart TD
 
 ### 1) 控制面（服务管理）
 
-`/api/v1/services/*`
+`/api/v2/services*`
 
 1. `app.py` 接收请求。
 2. `auth.require_auth` 完成 token + `X-User-Address` 一致性校验。
 3. `credentials.enforce_rate_limit("owner", ...)` 做 owner 维度限流。
 4. `persistence` 执行持久化。
 5. `persistence.append_audit_log` 写审计。
+
+#### V2 服务管理请求示例
+
+1) 创建服务（系统生成 `serviceId`）
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v2/services \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-User-Address: <owner_wallet>" \
+  -d '{
+    "agentId": "seller-agent",
+    "serviceName": "获取名人名言",
+    "role": "Provider / Seller",
+    "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "pricing": "0.05",
+    "isActive": true,
+    "summary": "输入主题返回名人名言",
+    "tags": ["quote", "cn"],
+    "invoke": {
+      "method": "POST",
+      "url": "http://127.0.0.1:8100/api/v1/quotes/famous",
+      "timeoutMs": 30000,
+      "request": {
+        "contentType": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["text"],
+          "properties": {
+            "text": { "type": "string" }
+          }
+        }
+      },
+      "response": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "quote": { "type": "string" }
+          }
+        }
+      }
+    }
+  }'
+```
+
+2) 查询服务列表
+
+```bash
+curl -X GET "http://127.0.0.1:8000/api/v2/services?ownerAddress=<owner_wallet>" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-User-Address: <owner_wallet>"
+```
+
+3) 更新服务（按记录 id）
+
+```bash
+curl -X PUT http://127.0.0.1:8000/api/v2/services/<service_record_id> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-User-Address: <owner_wallet>" \
+  -d '{
+    "serviceName": "获取名人名言",
+    "pricing": "0.06",
+    "isActive": true,
+    "summary": "输入主题返回名人名言",
+    "tags": ["quote", "cn", "inspiration"],
+    "invoke": {
+      "method": "POST",
+      "url": "http://127.0.0.1:8100/api/v1/quotes/famous",
+      "timeoutMs": 30000,
+      "request": {
+        "contentType": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["text"],
+          "properties": {
+            "text": { "type": "string" }
+          }
+        }
+      },
+      "response": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "quote": { "type": "string" }
+          }
+        }
+      }
+    }
+  }'
+```
+
+4) 删除服务（按记录 id）
+
+```bash
+curl -X DELETE http://127.0.0.1:8000/api/v2/services/<service_record_id> \
+  -H "Authorization: Bearer <token>" \
+  -H "X-User-Address: <owner_wallet>"
+```
 
 ### 2) 数据面（Paid Generate）
 
@@ -108,7 +207,8 @@ flowchart TD
 ## 关键兼容点
 
 - 保持原入口导入方式不变：`from seller_fastapi import app`
-- 保持 API 路径不变：`/api/v1/*`
+- 控制面服务管理路径：`/api/v2/services*`
+- 数据面推理调用路径：`/api/v1/generate`
 - 前端依赖的鉴权/凭证头不变：
   - `Authorization: Bearer <token>`
   - `X-User-Address`

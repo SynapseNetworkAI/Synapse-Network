@@ -122,7 +122,7 @@ flowchart LR
 
 1. 卖家连接钱包并签名登录平台。
 2. 卖家创建 Agent（`agentId`）。
-3. 卖家注册 Service（`service_id + endpoint + unit_price + fee_rate`）。
+3. 卖家注册 Service（`serviceName + pricing + isActive + invoke.method/url/requestSchema/responseSchema`，`serviceId` 系统生成）。
 
 ### Phase B：买家资金准备
 

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -8,30 +8,51 @@ class InferenceRequest(BaseModel):
     service_id: Optional[str] = None
 
 
+class ServiceAuthConfig(BaseModel):
+    type: Optional[str] = None
+    headerName: Optional[str] = None
+
+
+class ServiceInvokeRequest(BaseModel):
+    contentType: str = "application/json"
+    schema: Dict[str, Any]
+
+
+class ServiceInvokeResponse(BaseModel):
+    schema: Dict[str, Any]
+
+
+class ServiceInvokeConfig(BaseModel):
+    method: str
+    url: str
+    timeoutMs: int = 30000
+    request: ServiceInvokeRequest
+    response: ServiceInvokeResponse
+    headersTemplate: Optional[Dict[str, str]] = None
+    examples: Optional[List[Dict[str, Any]]] = None
+
+
 class ServiceCreateRequest(BaseModel):
-    id: str
-    agentId: Optional[str] = None
-    name: str
+    agentId: str
+    serviceName: str
     role: str
-    ownerAddress: str
     address: str
-    serviceId: str
     pricing: str
-    endpoint: str
     isActive: bool = True
+    summary: Optional[str] = None
+    tags: Optional[List[str]] = None
+    auth: Optional[ServiceAuthConfig] = None
+    invoke: ServiceInvokeConfig
 
 
 class ServiceUpdateRequest(BaseModel):
-    id: str
-    agentId: Optional[str] = None
-    name: str
-    role: str
-    ownerAddress: str
-    address: str
-    serviceId: str
+    serviceName: str
     pricing: str
-    endpoint: str
     isActive: bool = True
+    summary: Optional[str] = None
+    tags: Optional[List[str]] = None
+    auth: Optional[ServiceAuthConfig] = None
+    invoke: ServiceInvokeConfig
 
 
 class AuthVerifyRequest(BaseModel):

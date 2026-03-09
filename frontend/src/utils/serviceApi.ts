@@ -1,22 +1,40 @@
 import { buildAuthedHeaders } from "@/utils/authSession";
 
 export type ServiceRegistryPayload = {
-  id: string;
+  id?: string;
   agentId: string;
-  name: string;
+  serviceName: string;
   role: string;
-  ownerAddress: string;
   address: string;
-  serviceId: string;
   pricing: string;
-  endpoint: string;
   isActive: boolean;
+  summary?: string;
+  tags?: string[];
+  auth?: {
+    type?: string;
+    headerName?: string;
+  };
+  invoke: {
+    method: string;
+    url: string;
+    timeoutMs: number;
+    request: {
+      contentType: string;
+      schema: Record<string, unknown>;
+    };
+    response: {
+      schema: Record<string, unknown>;
+    };
+    headersTemplate?: Record<string, string>;
+    examples?: Array<Record<string, unknown>>;
+  };
 };
 
 export type ServiceRegistryRecord = {
   id: string;
   agentId?: string;
   name: string;
+  serviceName?: string;
   role: string;
   ownerAddress: string;
   address: string;
@@ -24,11 +42,31 @@ export type ServiceRegistryRecord = {
   pricing: string;
   endpoint: string;
   isActive: boolean;
+  summary?: string | null;
+  tags?: string[];
+  auth?: {
+    type?: string;
+    headerName?: string;
+  } | null;
+  invoke?: {
+    method: string;
+    url: string;
+    timeoutMs: number;
+    request: {
+      contentType: string;
+      schema: Record<string, unknown>;
+    };
+    response: {
+      schema: Record<string, unknown>;
+    };
+    headersTemplate?: Record<string, string>;
+    examples?: Array<Record<string, unknown>>;
+  };
   createdAt?: number;
   updatedAt?: number;
 };
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1/services";
+const API_BASE_URL = "http://127.0.0.1:8000/api/v2/services";
 
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
@@ -48,8 +86,8 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
   }
 }
 
-export async function createServiceRegistry(payload: ServiceRegistryPayload, userAddress: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/create`, {
+export async function createServiceRegistry(payload: ServiceRegistryPayload, userAddress: string): Promise<ServiceRegistryRecord> {
+  const response = await fetch(API_BASE_URL, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify(payload),
@@ -58,10 +96,21 @@ export async function createServiceRegistry(payload: ServiceRegistryPayload, use
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend service registration failed"));
   }
+
+  const data = (await response.json()) as { service?: ServiceRegistryRecord };
+  if (data.service) {
+    return data.service;
+  }
+
+  throw new Error("Backend service response missing service payload");
 }
 
 export async function updateServiceRegistry(payload: ServiceRegistryPayload, userAddress: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/update`, {
+  if (!payload.id) {
+    throw new Error("Missing service record id");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/${payload.id}`, {
     method: "PUT",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify(payload),
