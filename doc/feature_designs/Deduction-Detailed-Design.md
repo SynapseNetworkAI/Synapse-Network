@@ -206,6 +206,20 @@ sequenceDiagram
 
 买家 Agent 可用这些字段进行自动预算与余额预警。
 
+### 10.1 前端可见性与阶段性映射（2026-03）
+
+当前 Dashboard 已在 `Billing` / `Settlement` 页面提供统一状态筛选：
+- `all | accepted | succeeded | refunded | failed`
+
+当前数据源能力（阶段性实现）：
+- `succeeded`：来自链上 `ServicePaid` 事件（已接入）
+- `accepted / refunded / failed`：已在前端状态模型与筛选中预留，待接入 `usage_records`（网关日志）后生效
+
+阶段建议：
+1. 先用链上事件保障“成功扣费”可审计（已完成）
+2. 再接 `GET /api/v2/usage/logs` 打通全状态机（`accepted→succeeded/refunded/failed`）
+3. 最终以 `request_id` 作为前后端与账单对账主键，链上 tx 作为旁证
+
 ---
 
 ## 11. 风险控制
