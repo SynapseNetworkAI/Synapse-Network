@@ -120,6 +120,7 @@ export default function RouterPage() { // NOSONAR
   const [txType, setTxType] = useState<TxType>(null);
   const [handledHash, setHandledHash] = useState("");
   const [isProcessingPostPayment, setIsProcessingPostPayment] = useState(false);
+  const [isIssuingCredentialOnly, setIsIssuingCredentialOnly] = useState(false);
 
   const [latestDepositStatus, setLatestDepositStatus] = useState("");
   const [latestBuyerBalance, setLatestBuyerBalance] = useState<number | null>(null);
@@ -165,6 +166,15 @@ export default function RouterPage() { // NOSONAR
   const hasEnoughAllowance = allowanceUsdc >= requiredAllowanceUsdc && requiredAllowanceUsdc > 0;
   const hasPositiveBuyerBalance = (latestBuyerBalance ?? 0) > 0;
   const setupReady = hasEnoughAllowance && hasPositiveBuyerBalance && hasActiveSharedCredential;
+  const needsAllowanceFix = !hasEnoughAllowance;
+  const needsBalanceFix = !hasPositiveBuyerBalance;
+  const needsCredentialFix = !hasActiveSharedCredential;
+
+  const payFixButtonLabel = useMemo(() => {
+    if (isPending && txType === "pay") return "Paying...";
+    if (isProcessingPostPayment) return "Processing...";
+    return "Fix: Pay";
+  }, [isPending, isProcessingPostPayment, txType]);
 
   const runPostPaymentFlow = useCallback(async (txHash: string) => {
     if (!address) return;
@@ -372,6 +382,33 @@ export default function RouterPage() { // NOSONAR
     }
   };
 
+  const handleIssueSharedCredentialOnly = async () => {
+    if (!isConnected || !address) {
+      toast.error("Please connect wallet first");
+      return;
+    }
+
+    setIsIssuingCredentialOnly(true);
+    try {
+      const credential = await issueAgentCredential(address, {
+        expiresInSec: 3600,
+        maxCalls: 1000,
+        rpm: 600,
+      });
+      setLatestCredential(credential);
+      setHasActiveSharedCredential(true);
+      setSharedCredentialExpiresAt(credential.expiresAt);
+      services.forEach((item) => {
+        setCredentialForService(item.serviceId, credential.token);
+      });
+      toast.success("Shared credential issued");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to issue shared credential");
+    } finally {
+      setIsIssuingCredentialOnly(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl p-8 mx-auto">
       <h1 className="mb-6 text-3xl font-bold text-green-400">Router Payment & Credential Issuance</h1>
@@ -387,17 +424,52 @@ export default function RouterPage() { // NOSONAR
 
       <div className="p-6 mb-8 bg-gray-900 border border-gray-800 rounded-lg">
         <h2 className="mb-4 text-xl font-semibold text-white">Setup Status (persists after refresh)</h2>
-        <div className="space-y-2 text-sm">
-          <p className={hasEnoughAllowance ? "text-green-400" : "text-yellow-400"}>
-            {hasEnoughAllowance ? "✅" : "⏳"} Allowance: {allowanceUsdc.toFixed(4)} / required {requiredAllowanceUsdc.toFixed(4)} USDC
-          </p>
-          <p className={hasPositiveBuyerBalance ? "text-green-400" : "text-yellow-400"}>
-            {hasPositiveBuyerBalance ? "✅" : "⏳"} V2 Buyer Balance: {(latestBuyerBalance ?? 0).toFixed(6)} USDC
-          </p>
-          <p className={hasActiveSharedCredential ? "text-green-400" : "text-yellow-400"}>
-            {hasActiveSharedCredential ? "✅" : "⏳"} Shared Credential: {hasActiveSharedCredential ? "active" : "not issued"}
-            {hasActiveSharedCredential && sharedCredentialExpiresAt ? ` (expires ${new Date(sharedCredentialExpiresAt * 1000).toLocaleString()})` : ""}
-          </p>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className={hasEnoughAllowance ? "text-green-400" : "text-yellow-400"}>
+              {hasEnoughAllowance ? "✅" : "⏳"} Allowance: {allowanceUsdc.toFixed(4)} / required {requiredAllowanceUsdc.toFixed(4)} USDC
+            </p>
+            {needsAllowanceFix ? (
+              <button
+                onClick={handleApprove}
+                disabled={!isConnected || isPending}
+                className="px-3 py-1 text-xs font-bold text-white bg-green-600 rounded hover:bg-green-500 disabled:opacity-50"
+              >
+                {isPending && txType === "approve" ? "Approving..." : "Fix: Approve"}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <p className={hasPositiveBuyerBalance ? "text-green-400" : "text-yellow-400"}>
+              {hasPositiveBuyerBalance ? "✅" : "⏳"} V2 Buyer Balance: {(latestBuyerBalance ?? 0).toFixed(6)} USDC
+            </p>
+            {needsBalanceFix ? (
+              <button
+                onClick={handlePayAndIssue}
+                disabled={!isConnected || isPending || isProcessingPostPayment}
+                className="px-3 py-1 text-xs font-bold text-white bg-purple-600 rounded hover:bg-purple-500 disabled:opacity-50"
+              >
+                {payFixButtonLabel}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <p className={hasActiveSharedCredential ? "text-green-400" : "text-yellow-400"}>
+              {hasActiveSharedCredential ? "✅" : "⏳"} Shared Credential: {hasActiveSharedCredential ? "active" : "not issued"}
+              {hasActiveSharedCredential && sharedCredentialExpiresAt ? ` (expires ${new Date(sharedCredentialExpiresAt * 1000).toLocaleString()})` : ""}
+            </p>
+            {needsCredentialFix ? (
+              <button
+                onClick={handleIssueSharedCredentialOnly}
+                disabled={!isConnected || isIssuingCredentialOnly}
+                className="px-3 py-1 text-xs font-bold text-white bg-cyan-600 rounded hover:bg-cyan-500 disabled:opacity-50"
+              >
+                {isIssuingCredentialOnly ? "Issuing..." : "Fix: Issue Credential"}
+              </button>
+            ) : null}
+          </div>
         </div>
         <p className={`mt-3 text-sm font-semibold ${setupReady ? "text-green-300" : "text-gray-400"}`}>
           {setupReady ? "Ready: agent can invoke APIs now." : "Not ready yet: complete remaining ⏳ steps above."}
