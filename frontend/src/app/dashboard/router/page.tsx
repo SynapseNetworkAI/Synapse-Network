@@ -347,7 +347,7 @@ export default function RouterPage() {
           .filter(
             (item) =>
               item.status === "active" &&
-              !item.agentId &&
+              (!item.agentId || item.agentId === "OWNER_SHARED") &&
               !item.serviceId &&
               Number(item.expiresAt || 0) > nowSec
           )
