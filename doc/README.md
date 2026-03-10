@@ -39,6 +39,7 @@
 
 ### 2.1 开发者指南 (`operation_guides/developer/`)
 - [Python Dev Guide](operation_guides/developer/Python-Dev-Guide.md)
+- [Local Otterscan Setup with Anvil](operation_guides/developer/Anvil-Otterscan-Setup.md)
 - [Buyer SDK Quickstart](operation_guides/developer/Buyer-SDK-Quickstart.md)
 
 ### 2.2 用户使用指南 (`operation_guides/user/`)
