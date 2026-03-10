@@ -54,7 +54,7 @@
       "ownerAddress": "0xa0f67a47d9ef18183cd113ed85a654e2772c5901",
       "address": "0xf93a752f65686c48e72d154a35e1e61731f6fd3a",
       "serviceId": "SVC_86E08FF51958",
-      "pricing": "0.05",
+      "pricing": "1",
       "endpoint": "http://127.0.0.1:8100/api/v1/quotes/famous/top3",
       "isActive": true,
       "summary": null,
@@ -85,9 +85,9 @@
         "headersTemplate": null,
         "examples": null
       },
-      "updatedAt": 1773059888,
+      "updatedAt": 1773147588,
       "createdAt": 1773059888
     }
   ],
-  "updatedAt": 1773059888
+  "updatedAt": 1773147588
 }

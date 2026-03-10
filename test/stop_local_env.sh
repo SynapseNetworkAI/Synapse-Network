@@ -11,17 +11,17 @@ find_pid_by_port() {
   lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
-HARDHAT_PID=""
+ANVIL_PID=""
 SELLER_PID=""
 FRONTEND_PID=""
-HARDHAT_OWNED_BY_SCRIPT=0
+ANVIL_OWNED_BY_SCRIPT=0
 
 if [[ -f "$PID_FILE" ]]; then
   source "$PID_FILE"
 else
   echo "No PID file found at: $PID_FILE"
   echo "Trying fallback by port scan (8545 / 8000)..."
-  HARDHAT_PID="$(find_pid_by_port 8545)"
+  ANVIL_PID="$(find_pid_by_port 8545)"
   SELLER_PID="$(find_pid_by_port 8000)"
   FRONTEND_PID="$(find_pid_by_port 3000)"
 fi
@@ -50,7 +50,7 @@ stop_pid() {
 }
 
 echo "=== Stopping A2A Local Environment ==="
-stop_pid "Hardhat" "${HARDHAT_PID:-}"
+stop_pid "Anvil" "${ANVIL_PID:-}"
 stop_pid "SellerAPI" "${SELLER_PID:-}"
 stop_pid "Frontend" "${FRONTEND_PID:-}"
 

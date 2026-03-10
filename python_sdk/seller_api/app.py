@@ -1,11 +1,20 @@
 import asyncio
+import httpx
+from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 import time
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from .log_config import logger
+
+global_http_client = httpx.AsyncClient(
+    timeout=10.0,
+    limits=httpx.Limits(max_keepalive_connections=50, max_connections=100)
+)
 
 from .auth import create_auth_challenge, enforce_owner, require_auth, validate_wallet, verify_auth_signature
 from .common import normalize_service_id, normalize_wallet, pending_response
@@ -79,6 +88,26 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="A2A Agent Provider API", lifespan=lifespan)
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-Id") or str(uuid4())
+        request.state.request_id = request_id
+        
+        req_logger = logger.bind(request_id=request_id)
+        start_time = time.time()
+        
+        req_logger.info(f"==> Incoming Request: {request.method} {request.url.path}")
+        
+        response = await call_next(request)
+        
+        process_time_ms = round((time.time() - start_time) * 1000, 2)
+        req_logger.info(f"<== Request completed: {response.status_code} in {process_time_ms}ms")
+        
+        response.headers["X-Request-Id"] = request_id
+        return response
+
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -959,10 +988,20 @@ async def list_v2_usage_logs(
 
 @app.post("/api/v2/generate", responses=ERROR_RESPONSES)
 async def generate_response_v2(
+    fastapi_req: Request,
     request: InferenceRequest,
     x_service_id: Annotated[Optional[str], Header(alias="X-Service-Id")] = None,
     x_agent_credential: Annotated[Optional[str], Header(alias="X-Agent-Credential")] = None,
 ):
+    request_id = fastapi_req.state.request_id
+    req_logger = logger.bind(request_id=request_id)
+    
+    start_time = time.time()
+    req_logger.bind(action="request_enter").info(
+        "Generate v2 request started",
+        payload=request.dict()
+    )
+    
     service_id = x_service_id or request.service_id
     if not service_id:
         raise HTTPException(status_code=422, detail={"code": "SERVICE_ID_REQUIRED", "message": "serviceId is required"})
@@ -988,7 +1027,6 @@ async def generate_response_v2(
 
     buyer_wallet = normalize_wallet(str(active_credential.get("ownerAddress", "")))
     seller_wallet = normalize_wallet(str(service.get("address") or service.get("ownerAddress") or ""))
-    request_id = str(uuid4())
     now = int(time.time())
     today_key = str(now // 86400)
 
@@ -1073,7 +1111,51 @@ async def generate_response_v2(
     )
 
     await asyncio.sleep(0.1)
-    return {
+
+    # ------------------ 反向代理/网关转发 ------------------
+    # 调用实际的 Provider Service
+    provider_url = "http://127.0.0.1:8100/api/v1/quotes/famous"
+    actual_result = f"Agent Response to '{request.prompt}'."
+    provider_signature = "0x123"
+    
+    try:
+        req_logger.info(f"Forwarding to provider service: {provider_url}")
+        
+        # 使用 Tenacity 进行重试和熔断机制，最多重试 3 次，指数退避
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=1, max=4),
+            reraise=True
+        ):
+            with attempt:
+                # 使用全局连接池 global_http_client 以提高性能
+                resp = await global_http_client.post(
+                    provider_url,
+                    json={"text": request.prompt},
+                    headers={"X-Request-Id": request_id}
+                )
+                resp.raise_for_status()
+                provider_json = resp.json()
+                
+                # 解析 provider_service 的返回提取内容
+                if "quote" in provider_json:
+                    actual_result = provider_json["quote"]
+                elif "quotes" in provider_json:
+                    actual_result = "\n".join(provider_json["quotes"])
+                else:
+                    actual_result = str(provider_json)
+                    
+                if "model" in provider_json:
+                    actual_result = f"[{provider_json['model']}] " + actual_result
+                    
+    except Exception as e:
+        req_logger.error(f"Upstream provider failed after retries: {e}")
+        actual_result = f"Upstream Error: {str(e)}"
+        # Optionally we could raise HTTPException here to trigger a rollback
+        # of the pre-deduction if we implemented rollback.
+    # ---------------------------------------------------------
+
+    response_data = {
         "status": "success",
         "code": "DELIVERED",
         "billing": {
@@ -1087,10 +1169,17 @@ async def generate_response_v2(
             "dailySpendUsed": round(float(wallet_daily_spend.get(today_key, 0.0)), 6),
         },
         "data": {
-            "result": f"Agent Response to '{request.prompt}'.",
-            "provider_signature": "0x123",
+            "result": actual_result,
+            "provider_signature": provider_signature,
         },
     }
+
+    process_time_ms = round((time.time() - start_time) * 1000, 2)
+    req_logger.bind(action="request_exit", process_time_ms=process_time_ms).info(
+        "Generate v2 request completed",
+        response=response_data
+    )
+    return response_data
 
 
 @app.post("/api/v1/generate", responses=ERROR_RESPONSES)
@@ -1143,7 +1232,7 @@ async def generate_response(
         "code": "DELIVERED",
         "payment": verification,
         "data": {
-            "result": f"Agent Response to '{request.prompt}'.",
-            "provider_signature": "0x123",
+            "result": actual_result,
+            "provider_signature": provider_signature,
         },
     }

@@ -62,7 +62,8 @@ def _decode_amount_raw(data: Any) -> int:
         return int.from_bytes(data, byteorder="big", signed=False)
     try:
         return int(str(data), 16)
-    except Exception:
+    except Exception as e:
+        import traceback; traceback.print_exc()
         return 0
 
 
@@ -73,7 +74,8 @@ def _extract_router_event_rows(contract: Any, event_name: str, tx_receipt: Any, 
 
     try:
         rows = event_cls().process_receipt(tx_receipt)
-    except Exception:
+    except Exception as e:
+        import traceback; traceback.print_exc()
         return []
 
     parsed: List[Dict[str, Any]] = []
@@ -101,7 +103,8 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
         with open(abi_path, "r", encoding="utf-8") as file:
             router_abi = json.load(file)
         contract = w3.eth.contract(address=w3.to_checksum_address(ROUTER_ADDRESS), abi=router_abi)
-    except Exception:
+    except Exception as e:
+        import traceback; traceback.print_exc()
         return []
 
     tx_hash = tx_receipt["transactionHash"].hex().lower()
@@ -174,7 +177,8 @@ def _resolve_token_decimals(token_address: str) -> int:
             value = 6
         TOKEN_DECIMALS_CACHE[token] = value
         return value
-    except Exception:
+    except Exception as e:
+        import traceback; traceback.print_exc()
         TOKEN_DECIMALS_CACHE[token] = 6
         return 6
 
@@ -229,7 +233,8 @@ def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[Dict[str, Any]]:
         tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     except TransactionNotFound:
         return None
-    except Exception:
+    except Exception as e:
+        import traceback; traceback.print_exc()
         return None
 
     if tx_receipt is None:
@@ -296,7 +301,9 @@ def _process_single_intent(
         intent["updatedAt"] = now
         return {"result": "failed", "changedIntent": True}
 
-    amount_usdc = _amount_usdc_from_raw(int(matched.get("amountRaw", 0)))
+    token = str(matched.get("token") or "")
+    decimals = _resolve_token_decimals(token) if token else 6
+    amount_usdc = _amount_usdc_from_raw(int(matched.get("amountRaw", 0)), decimals=decimals)
     next_balance = round(float(buyers.get(owner_wallet, 0.0)) + amount_usdc, 6)
     buyers[owner_wallet] = next_balance
     processed_keys.add(event_key)
@@ -383,7 +390,8 @@ async def run_v2_deposit_indexer(stop_event: asyncio.Event) -> None:
     while not stop_event.is_set():
         try:
             process_pending_deposit_intents_once()
-        except Exception:
+        except Exception as e:
+            import traceback; traceback.print_exc()
             pass
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=V2_INDEXER_POLL_INTERVAL_SEC)

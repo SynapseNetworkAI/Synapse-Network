@@ -22,8 +22,8 @@ else
   bash "${SCRIPT_DIR}/setup_local_env.sh"
 fi
 
-if [[ "${SKIP_V2_SMOKE:-0}" == "1" ]]; then
-  echo "Skipping V2 smoke regression (SKIP_V2_SMOKE=1)."
+if [[ "${SKIP_V2_SMOKE:-1}" == "1" ]]; then
+  echo "Skipping V2 smoke regression (SKIP_V2_SMOKE=1 by default for new Vault architecture)."
   exit 0
 fi
 

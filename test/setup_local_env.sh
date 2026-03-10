@@ -25,26 +25,30 @@ cd "${ROOT_DIR}"
 
 echo "=== A2A Local Environment Setup (Provider Mode) ==="
 
-echo "1) Starting Hardhat Node in background..."
-EXISTING_HARDHAT_PID="$(find_pid_by_port 8545)"
-if [[ -n "$EXISTING_HARDHAT_PID" ]]; then
-	echo "Port 8545 already in use by PID ${EXISTING_HARDHAT_PID}. Reusing existing local RPC node."
-	HARDHAT_PID="$EXISTING_HARDHAT_PID"
-	HARDHAT_OWNED_BY_SCRIPT=0
+echo "1) Starting Anvil Node in background..."
+EXISTING_ANVIL_PID="$(find_pid_by_port 8545)"
+if [[ -n "$EXISTING_ANVIL_PID" ]]; then
+	echo "Port 8545 already in use by PID ${EXISTING_ANVIL_PID}. Reusing existing local RPC node."
+	ANVIL_PID="$EXISTING_ANVIL_PID"
+	ANVIL_OWNED_BY_SCRIPT=0
 else
-	npx hardhat node > "${ROOT_DIR}/hardhat_node.log" 2>&1 &
-	HARDHAT_PID=$!
-	HARDHAT_OWNED_BY_SCRIPT=1
+	anvil > "${ROOT_DIR}/anvil_node.log" 2>&1 &
+	ANVIL_PID=$!
+	ANVIL_OWNED_BY_SCRIPT=1
 	sleep 4
 
-	if ! kill -0 "$HARDHAT_PID" >/dev/null 2>&1; then
-		echo "Error: Hardhat node failed to start. Check hardhat_node.log"
+	if ! kill -0 "$ANVIL_PID" >/dev/null 2>&1; then
+		echo "Error: Anvil node failed to start. Check anvil_node.log"
 		exit 1
 	fi
 fi
 
 echo "2) Deploying contracts to localhost..."
-npx hardhat run scripts/deploy.js --network localhost
+npx hardhat run scripts/deploy_anvil.js --network localhost
+echo "2.1) Funding testnet accounts..."
+npx hardhat run scripts/fund_eth.js --network localhost
+npx hardhat run scripts/fund_usdc.js --network localhost
+
 
 CONFIG_FILE="${ROOT_DIR}/frontend/src/contract-config.json"
 if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -90,8 +94,8 @@ sleep 3
 
 if ! kill -0 "$SELLER_PID" >/dev/null 2>&1; then
 	echo "Error: Seller API failed to start. Check python_sdk/seller_api.log"
-	if [[ "$HARDHAT_OWNED_BY_SCRIPT" -eq 1 ]]; then
-		kill "$HARDHAT_PID" >/dev/null 2>&1 || true
+	if [[ "$ANVIL_OWNED_BY_SCRIPT" -eq 1 ]]; then
+		kill "$ANVIL_PID" >/dev/null 2>&1 || true
 	fi
 	exit 1
 fi
@@ -118,16 +122,16 @@ else
 	if ! kill -0 "$FRONTEND_PID" >/dev/null 2>&1; then
 		echo "Error: Frontend failed to start. Check frontend/frontend_dev.log"
 		kill "$SELLER_PID" >/dev/null 2>&1 || true
-		if [[ "$HARDHAT_OWNED_BY_SCRIPT" -eq 1 ]]; then
-			kill "$HARDHAT_PID" >/dev/null 2>&1 || true
+		if [[ "$ANVIL_OWNED_BY_SCRIPT" -eq 1 ]]; then
+			kill "$ANVIL_PID" >/dev/null 2>&1 || true
 		fi
 		exit 1
 	fi
 fi
 
 cat > "$PID_FILE" <<EOF
-HARDHAT_PID=$HARDHAT_PID
-HARDHAT_OWNED_BY_SCRIPT=$HARDHAT_OWNED_BY_SCRIPT
+ANVIL_PID=$ANVIL_PID
+ANVIL_OWNED_BY_SCRIPT=$ANVIL_OWNED_BY_SCRIPT
 SELLER_PID=$SELLER_PID
 FRONTEND_PID=$FRONTEND_PID
 FRONTEND_OWNED_BY_SCRIPT=$FRONTEND_OWNED_BY_SCRIPT
@@ -135,7 +139,7 @@ EOF
 
 echo ""
 echo "=== System Running ==="
-echo "Hardhat PID : $HARDHAT_PID"
+echo "Anvil PID : $ANVIL_PID"
 echo "Seller PID  : $SELLER_PID"
 echo "Frontend PID: $FRONTEND_PID"
 echo "Router      : $ROUTER_ADDRESS"
@@ -149,4 +153,4 @@ echo "  npx hardhat run scripts/e2e_sync_payment.js --network localhost"
 echo "  # Then use printed TX_HASH to call FastAPI (see Python-Dev-Guide.md)"
 echo ""
 echo "Shutdown command:"
-echo "  kill $HARDHAT_PID $SELLER_PID $FRONTEND_PID"
+echo "  kill $ANVIL_PID $SELLER_PID $FRONTEND_PID"

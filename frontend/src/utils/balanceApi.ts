@@ -45,6 +45,8 @@ export async function getV2Balance(userAddress: string): Promise<BalanceSummary>
   const response = await fetch(`${API_BASE}/balance`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
+    cache: "no-store",
+    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -91,6 +93,8 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
   const response = await fetch(`${API_BASE}/balance/deposit/intents?limit=${encodeURIComponent(String(limit))}`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
+    cache: "no-store",
+    cache: "no-store",
   });
 
   if (!response.ok) {

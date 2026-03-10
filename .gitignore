@@ -31,3 +31,6 @@ python_sdk/agent_credentials.json
 python_sdk/audit_log.jsonl
 python_sdk/service_registry.json
 python_sdk/*.egg-info/
+
+logs/
+*.log

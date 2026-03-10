@@ -1,13 +1,13 @@
 {
   "owners": {
     "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": {
-      "dailyLimitUsdc": 0.1,
-      "updatedAt": 1773118481
+      "dailyLimitUsdc": 100.0,
+      "updatedAt": 1773143323
     },
     "0xa0f67a47d9ef18183cd113ed85a654e2772c5901": {
-      "dailyLimitUsdc": 1.0,
-      "updatedAt": 1773113776
+      "dailyLimitUsdc": 100.0,
+      "updatedAt": 1773145743
     }
   },
-  "updatedAt": 1773118481
+  "updatedAt": 1773145743
 }

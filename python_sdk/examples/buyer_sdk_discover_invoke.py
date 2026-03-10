@@ -1,5 +1,6 @@
 import json
 import sys
+import uuid
 from pathlib import Path
 
 try:
@@ -47,15 +48,20 @@ def main() -> None:
     target = services[0]
     service_id = target["serviceId"]
 
+    # Generate a unique request ID for transaction tracking
+    my_request_id = str(uuid.uuid4())
+    print(f"[*] Generated Request ID: {my_request_id}\n")
+
     result = client.invoke_service(
         service_id=service_id,
         payload={
             "prompt": prompt,
         },
         tx_hash=tx_hash,
+        request_id=my_request_id,
     )
 
-    print("[invoke]")
+    print(f"[invoke success for requestId: {my_request_id}]")
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 

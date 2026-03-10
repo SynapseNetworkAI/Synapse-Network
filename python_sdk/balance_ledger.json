@@ -1,17 +1,17 @@
 {
   "buyers": {
-    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 2999999999999.9
+    "0xa0f67a47d9ef18183cd113ed85a654e2772c5901": 16.0
   },
   "sellers": {
-    "0x70997970c51812dc3a010c7d01b50e0d17dc79c8": 0.09
+    "0xf93a752f65686c48e72d154a35e1e61731f6fd3a": 9.0
   },
   "platform": {
-    "feeAccrued": 0.01
+    "feeAccrued": 1.0
   },
   "dailySpend": {
-    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": {
-      "20522": 0.1
+    "0xa0f67a47d9ef18183cd113ed85a654e2772c5901": {
+      "20522": 10.0
     }
   },
-  "updatedAt": 1773118483
+  "updatedAt": 1773152495
 }

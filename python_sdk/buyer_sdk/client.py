@@ -41,6 +41,7 @@ class AgentPayBuyer:
         service_id: str,
         payload: Dict[str, Any],
         tx_hash: str = "",
+        request_id: str = "",
         poll_pending: bool = True,
         max_wait_sec: int = 90,
     ) -> Dict[str, Any]:
@@ -55,6 +56,8 @@ class AgentPayBuyer:
         }
         if tx_hash.strip():
             headers["X-Tx-Hash"] = tx_hash
+        if request_id.strip():
+            headers["X-Request-Id"] = request_id.strip()
 
         body = dict(payload)
         body.setdefault("service_id", service_id)

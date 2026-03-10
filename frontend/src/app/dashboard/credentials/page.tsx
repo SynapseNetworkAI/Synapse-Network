@@ -26,7 +26,7 @@ const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign
 function CredentialsContent() {
   const { address: userAddress } = useAccount();
   const [serviceFilter, setServiceFilter] = useState("");
-  const [services, setServices] = useState<Array<{ serviceId: string; agentId?: string; name: string }>>([]);
+  const [services, setServices] = useState<Array<{ serviceId: string; agentId?: string; name: string; pricing?: string }>>([]);
 
   const searchParams = useSearchParams();
   const initAgentId = searchParams.get("agentId");
@@ -139,6 +139,11 @@ function CredentialsContent() {
   const serviceNameById = useMemo(() => {
     return new Map(services.map((item) => [item.serviceId, item.name || item.serviceId]));
   }, [services]);
+
+  const servicePricingById = useMemo(() => {
+    return new Map(services.map((item) => [item.serviceId, item.pricing || "0"]));
+  }, [services]);
+
 
   const sharedCredential = useMemo(() => {
     return credentials.find((item) => item.status === "active" && !item.serviceId) ?? null;
@@ -292,19 +297,7 @@ function CredentialsContent() {
           <h1 className="text-3xl font-bold text-white">Agent Credentials & Audit</h1>
           <p className="mt-1 text-gray-400">Issue short-lived credentials, tune quotas, and inspect owner-level audit logs.</p>
         </div>
-        <div className="grid grid-cols-1 gap-3 mt-4 md:grid-cols-4">
-          <div className="p-4 border border-green-500/30 rounded-xl bg-green-500/5">
-            <p className="text-xs tracking-wider text-green-300 uppercase">Agent Name</p>
-            <p className="mt-2 text-lg font-semibold text-white">
-              {currentAgentInfo?.name || "--"}
-            </p>
-          </div>
-          <div className="p-4 border border-gray-700 rounded-xl bg-black/40">
-            <p className="text-xs tracking-wider text-gray-400 uppercase">Agent Address</p>
-            <p className="mt-2 font-mono text-sm text-gray-200 break-all">
-              {currentAgentInfo?.address || "--"}
-            </p>
-          </div>
+        <div className="grid grid-cols-1 gap-3 mt-4 md:grid-cols-2">
           <div className="p-4 border border-yellow-500/30 rounded-xl bg-yellow-500/5">
             <p className="text-xs tracking-wider text-yellow-300 uppercase">Today Spend (USDC)</p>
             <p className="mt-2 font-mono text-2xl font-bold text-yellow-300">
@@ -320,13 +313,13 @@ function CredentialsContent() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 p-4 border border-gray-800 rounded-xl bg-black/40 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 p-4 border border-gray-600 rounded-xl bg-gray-800/80 md:flex-row md:items-center md:justify-between">
         <div className="w-full md:w-80">
           <p className="mb-1 text-xs tracking-wide text-gray-400 uppercase">Service Filter</p>
           <select
             value={serviceFilter}
             onChange={(e) => setServiceFilter(e.target.value)}
-            className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+            className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
           >
             <option value="">All services</option>
             {services.map((item) => (
@@ -358,11 +351,11 @@ function CredentialsContent() {
         </div>
       )}
 
-      <div className="p-4 border border-gray-800 rounded-xl bg-black/40">
+      <div className="p-4 border border-gray-600 rounded-xl bg-gray-800/80">
         <h2 className="mb-3 text-sm font-bold tracking-widest text-white uppercase">Credentials</h2>
         <div className="space-y-2 max-h-[480px] overflow-auto">
           {filteredCredentials.map((item) => (
-            <div key={item.id} className="p-3 border border-gray-800 rounded-lg bg-gray-950/60">
+            <div key={item.id} className="p-3 border border-gray-600 rounded-lg bg-gray-800/60">
               <div className="flex items-start justify-between gap-3">
                 <p className="font-mono text-xs text-gray-300">{item.id}</p>
                 <span
@@ -379,7 +372,17 @@ function CredentialsContent() {
                 {(item.serviceId ? serviceNameById.get(item.serviceId) || item.serviceId : "ALL_SERVICES (Owner Shared)")} · 
                 <span className="font-mono" title={item.agentId || "OWNER_SHARED"}>{shortId(item.agentId || "OWNER_SHARED")}</span>
               </p>
-              <p className="mt-1 text-xs text-gray-500">{item.callsUsed}/{item.maxCalls} calls · {item.rpm} rpm</p>
+              <div className="flex flex-col gap-1 mt-2 text-sm text-gray-400">
+                <p>
+                  <span className="text-gray-500">调用次数:</span> <span className="font-medium text-white">{item.callsUsed}</span> / {item.maxCalls} (限制) · {item.rpm} rpm
+                </p>
+                <p>
+                  <span className="text-gray-500">到期时间:</span> <span className="text-white">{item.expiresAt ? new Date(item.expiresAt * 1000).toLocaleString() : "Never"}</span>
+                </p>
+                <p>
+                  <span className="text-gray-500">花费金额:</span> <span className="font-medium text-yellow-400">{item.serviceId ? (Number(servicePricingById.get(item.serviceId) || 0) * item.callsUsed).toFixed(4) + " USDC" : "N/A (共享)"}</span>
+                </p>
+              </div>
               <div className="flex gap-2 mt-2">
                 <button
                   type="button"
@@ -404,11 +407,11 @@ function CredentialsContent() {
         </div>
       </div>
 
-      <div className="p-4 border border-gray-800 rounded-xl bg-black/40">
+      <div className="p-4 border border-gray-600 rounded-xl bg-gray-800/80">
         <h2 className="mb-3 text-sm font-bold tracking-widest text-white uppercase">Audit Logs</h2>
         <div className="max-h-[320px] overflow-auto space-y-2">
           {logs.map((log) => (
-            <div key={log.id} className="p-2 border border-gray-800 rounded bg-gray-950/60">
+            <div key={log.id} className="p-2 border border-gray-600 rounded bg-gray-800/60">
               <p className="text-xs text-gray-300">{new Date(log.timestamp * 1000).toLocaleString()} · {log.action}</p>
               <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">{JSON.stringify(log.details)}</p>
             </div>
@@ -419,7 +422,7 @@ function CredentialsContent() {
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-          <div className="w-full max-w-2xl p-5 space-y-4 border border-gray-700 rounded-2xl bg-[#0f1115] shadow-2xl shadow-green-500/10">
+          <div className="w-full max-w-2xl p-5 space-y-4 border border-gray-500 rounded-2xl bg-[#0f1115] shadow-2xl shadow-green-500/10">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-white">新建凭据</h3>
@@ -429,52 +432,52 @@ function CredentialsContent() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
+              <div className="p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">Credential Scope</p>
-                <p className="px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg">OWNER_SHARED · ALL_SERVICES</p>
+                <p className="px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg">OWNER_SHARED · ALL_SERVICES</p>
                 <p className="mt-1 text-[11px] text-gray-500">该凭据会被同一账户下所有 Buyer Agents 复用</p>
               </div>
 
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">截止时间</p>
                 <input
                   type="datetime-local"
                   value={expiresAtLocal}
                   onChange={(e) => setExpiresAtLocal(e.target.value)}
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">推荐使用时间选择器，避免手动换算</p>
               </label>
 
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">有效期秒数（高级）</p>
                 <input
                   value={expiresInSec}
                   onChange={(e) => setExpiresInSec(e.target.value)}
                   placeholder="例如 3600"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">不选截止时间时，使用该秒数作为 TTL</p>
               </label>
 
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">总调用上限 (maxCalls)</p>
                 <input
                   value={maxCalls}
                   onChange={(e) => setMaxCalls(e.target.value)}
                   placeholder="1000"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">生命周期累计调用上限</p>
               </label>
 
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">每分钟上限 (RPM)</p>
                 <input
                   value={rpm}
                   onChange={(e) => setRpm(e.target.value)}
                   placeholder="600"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">每分钟允许请求次数</p>
               </label>
@@ -486,7 +489,7 @@ function CredentialsContent() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700">取消</button>
+              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-500 rounded-lg hover:bg-gray-700">取消</button>
               <button type="button" onClick={handleIssue} className="px-4 py-2 text-sm font-bold text-black bg-green-500 rounded-lg hover:bg-green-400">Issue Credential</button>
             </div>
           </div>
@@ -495,7 +498,7 @@ function CredentialsContent() {
 
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-          <div className="w-full max-w-2xl p-5 space-y-4 border border-gray-700 rounded-2xl bg-[#0f1115] shadow-2xl shadow-yellow-500/10">
+          <div className="w-full max-w-2xl p-5 space-y-4 border border-gray-500 rounded-2xl bg-[#0f1115] shadow-2xl shadow-yellow-500/10">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-white">编辑凭据配置</h3>
@@ -504,56 +507,56 @@ function CredentialsContent() {
               <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-sm text-gray-400 hover:text-white">关闭</button>
             </div>
 
-            <div className="p-3 border border-gray-800 rounded-xl bg-gray-900/40">
+            <div className="p-3 border border-gray-600 rounded-xl bg-gray-900/40">
               <p className="mb-1 text-xs tracking-wide text-gray-400 uppercase">Credential ID</p>
               <input
                 value={selectedCredentialId}
                 readOnly
-                className="w-full px-3 py-2 font-mono text-xs text-gray-400 bg-gray-900 border border-gray-700 rounded-lg"
+                className="w-full px-3 py-2 font-mono text-xs text-gray-400 bg-gray-900 border border-gray-500 rounded-lg"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">总调用上限 (maxCalls)</p>
                 <input
                   value={quotaMaxCalls}
                   onChange={(e) => setQuotaMaxCalls(e.target.value)}
                   placeholder="1000"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">凭据生命周期内允许的最大调用次数</p>
               </label>
 
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">每分钟上限 (RPM)</p>
                 <input
                   value={quotaRpm}
                   onChange={(e) => setQuotaRpm(e.target.value)}
                   placeholder="600"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">每分钟请求次数上限，用于限流保护</p>
               </label>
 
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">过期时间</p>
                 <input
                   type="datetime-local"
                   value={quotaExpiresAtLocal}
                   onChange={(e) => setQuotaExpiresAtLocal(e.target.value)}
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
                 <p className="mt-1 text-[11px] text-gray-500">推荐使用时间选择器；也可在高级模式填写 Unix 秒时间戳</p>
               </label>
 
-              <label className="block p-3 border border-gray-800 rounded-xl bg-gray-900/40 md:col-span-2">
+              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
                 <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">过期时间（Unix 秒，高级）</p>
                 <input
                   value={quotaExpiresAt}
                   onChange={(e) => setQuotaExpiresAt(e.target.value)}
                   placeholder="expiresAt (unix sec)"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
                 />
               </label>
             </div>
@@ -564,7 +567,7 @@ function CredentialsContent() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700">取消</button>
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-500 rounded-lg hover:bg-gray-700">取消</button>
               <button type="button" onClick={handleQuotaUpdate} className="px-4 py-2 text-sm font-bold text-black bg-yellow-500 rounded-lg hover:bg-yellow-400">Update quota</button>
             </div>
           </div>
