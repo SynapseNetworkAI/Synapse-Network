@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   minio:
     image: minio/minio
@@ -13,6 +11,16 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  otterscan:
+    image: otterscan/otterscan:latest
+    container_name: a2a-otterscan
+    ports:
+      - "5100:80"
+    environment:
+      # 指向本地运行的 Hardhat 节点：因为 Otterscan 是在本地浏览器运行的，所以这里使用 localhost:8545 即可访问宿主机的 Hardhat
+      - ERIGON_URL=http://localhost:8545
     restart: unless-stopped
 
 volumes:

@@ -161,14 +161,31 @@ curl -X POST http://127.0.0.1:8000/api/v2/generate \
 
 如果您在研发过程中需要单独对某单一组件进行调试或重启：
 
-### 4.1 重启链与智能合约
-```bash
-# 根目录打开终端运行区块链
-npx hardhat node
+### 4.1 安装启动 Anvil 模拟链与部署智能合约 (V2)
 
-# 另开终端运行部署层逻辑（请切记每次 Hardhat Node 重启都要重新 deploy）
-npx hardhat run scripts/deploy.js --network localhost
+随着 V2 架构引入 ERC-2612 Permit 和更高级的智能合约，我们建议使用 Anvil（Foundry）作为本地模拟链以获得无缝的高速体验。
+
+**第一步：安装 Anvil (Foundry)**
+如果您还未安装 Foundry 工具链，可以执行以下命令一键安装：
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+# 安装完毕后，根据提示在终端更新工具链
+foundryup
 ```
+
+**第二步：启动 Anvil 本地链**
+在项目根目录新开一个终端窗口，启动 Anvil：
+```bash
+anvil
+```
+*(Anvil 会在 `127.0.0.1:8545` 启动一个极速版的本地以太坊节点，并提供 10 个测试账号)*
+
+**第三步：部署 V2 A2APayVault 智能合约**
+请切记，每次重启 Anvil 节点后，都需要重新部署合约。在项目根目录另开一个终端：
+```bash
+npx hardhat run scripts/deploy_anvil.js --network localhost
+```
+*(脚本会自动部署支持 `ERC20Permit` 的 `MockUSDC` 与 `A2APayVault`，并将新地址自动写入 `frontend/src/contract-config.json` 中)*
 
 ### 4.2 开发模式下启动 Seller FastAPI
 此命令会基于 `uvicorn` 热重载模式启动 API，当您修改相关的 Python 校验代码时自动生效：
@@ -186,10 +203,18 @@ EXPECTED_PRICE=1000000000000000000 \
 python3 seller_fastapi.py
 ```
 
-## 5. 本地对象存储 OSS 流转 (可选)
-如果将来的实际 AI Agent 计算结果极大（如高清图像渲染图，几十兆的语意视频等），请勿将其塞入纯文本响应。您可以搭配本地 MinIO（S3）服务进行地址链接的流转：
+## 5. 本地基础设施组件启动 (Docker Compose)
+如果将来的实际 AI Agent 计算结果极大（如高清图像渲染图，几十兆的语意视频等），请勿将其塞入纯文本响应。您可以搭配本地 MinIO（S3）服务进行地址链接的流转；同时我们也在逐步引入其他依赖基础设施。
+
+**第一步：安装 Docker **
+请确保您的机器已经安装了 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，且 `docker-compose` CLI环境可用。
+
+**第二步：配置与启动 `docker-compose`**
+在 A2A-pay 根目录下执行：
 ```bash
-# 在 A2A-pay 根目录下执行
+cd docker-compose
 docker-compose up -d
 ```
-界面控制台位于 `http://127.0.0.1:9001` (账号密码: admin/password)。此时您可以由 Seller 端先把文件传入 MinIO，再将生成的 `Download URL` 作为 FastAPI 的最后返回值下发给买方客户端，达成全链路离链分发。
+
+> 💡 **状态检查**：运行 `docker-compose ps` 确认所有容器均处于 `Up` 状态。
+> **MinIO界面控制台** 位于 `http://127.0.0.1:9001` (默认账号密码: admin/password)。

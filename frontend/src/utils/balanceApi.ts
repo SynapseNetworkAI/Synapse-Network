@@ -82,7 +82,7 @@ export async function createDepositIntent(
     txHash: String(deposit.txHash || payload.txHash),
     amountUsdc: Number(deposit.amountUsdc ?? payload.amountUsdc),
     creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
-    status: String(deposit.state || deposit.status || "pending"),
+    status: String((deposit as any).state || deposit.status || "pending"),
   };
 }
 

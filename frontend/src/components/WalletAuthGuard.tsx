@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useSignMessage } from "wagmi";
 import { Loader2, ShieldCheck, Wallet } from "lucide-react";
@@ -18,10 +18,40 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   const { signMessageAsync } = useSignMessage();
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
   const [verifiedWallet, setVerifiedWallet] = useState<string | null>(null);
 
   const normalizedAddress = useMemo(() => address?.toLowerCase() || null, [address]);
+
+  const authorize = useCallback(async () => {
+    if (!address) return;
+    setIsAuthorizing(true);
+    setAuthError(null);
+
+    try {
+      const existing = getStoredAuthSession();
+      if (existing?.wallet === address.toLowerCase()) {
+        setVerifiedWallet(existing.wallet);
+        setIsAuthorizing(false);
+        return;
+      }
+
+      const challenge = await requestAuthChallenge(address);
+      const signature = await signMessageAsync({
+        message: challenge.message,
+      });
+
+      const verified = await verifyAuthSignature(address, challenge.nonce, signature);
+      storeAuthSession(verified.token, verified.wallet);
+
+      setVerifiedWallet(verified.wallet.toLowerCase());
+      setIsAuthorizing(false);
+    } catch (error) {
+      clearAuthSession();
+      setVerifiedWallet(null);
+      setIsAuthorizing(false);
+      setAuthError(error instanceof Error ? error.message : "Wallet signature authentication failed or was cancelled");
+    }
+  }, [address, signMessageAsync]);
 
   useEffect(() => {
     if (!isConnected || !address) {
@@ -32,50 +62,10 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       return;
     }
 
-    let cancelled = false;
-
-    const authorize = async () => {
-      setIsAuthorizing(true);
-      setAuthError(null);
-
-      try {
-        const existing = getStoredAuthSession();
-        if (existing?.wallet === address.toLowerCase()) {
-          if (!cancelled) {
-            setVerifiedWallet(existing.wallet);
-            setIsAuthorizing(false);
-          }
-          return;
-        }
-
-        const challenge = await requestAuthChallenge(address);
-        const signature = await signMessageAsync({
-          message: challenge.message,
-        });
-
-        const verified = await verifyAuthSignature(address, challenge.nonce, signature);
-        storeAuthSession(verified.token, verified.wallet);
-
-        if (!cancelled) {
-          setVerifiedWallet(verified.wallet.toLowerCase());
-          setIsAuthorizing(false);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          clearAuthSession();
-          setVerifiedWallet(null);
-          setIsAuthorizing(false);
-          setAuthError(error instanceof Error ? error.message : "Wallet signature authentication failed");
-        }
-      }
-    };
-
-    void authorize();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [address, isConnected, retryCount, signMessageAsync]);
+    if (!verifiedWallet && !authError && !isAuthorizing) {
+      void authorize();
+    }
+  }, [isConnected, address, verifiedWallet, authError, isAuthorizing, authorize]);
 
   useEffect(() => {
     if (!isConnected || !address || !verifiedWallet) return;
@@ -87,7 +77,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
     const timer = globalThis.setTimeout(() => {
       clearAuthSession();
       setVerifiedWallet(null);
-      setRetryCount((prev) => prev + 1);
+      setAuthError("Session expired automatically. Please sign in again.");
     }, timeoutMs + 50);
 
     return () => {
@@ -98,9 +88,9 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   useEffect(() => {
     const onSessionExpired = () => {
       clearAuthSession();
-      setAuthError(null);
+      setAuthError("Your authentication session has expired or is invalid. Please sign in again.");
       setVerifiedWallet(null);
-      setRetryCount((prev) => prev + 1);
+      setIsAuthorizing(false);
     };
 
     globalThis.window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired as EventListener);
@@ -122,29 +112,29 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
     );
   }
 
+  if (authError && !isAuthorizing) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <ShieldCheck className="w-12 h-12 mb-4 text-yellow-400" />
+        <h2 className="mb-2 text-xl font-semibold text-white">Authentication Required</h2>
+        <p className="max-w-lg mb-6 text-sm text-gray-400">{authError}</p>
+        <button
+          type="button"
+          onClick={() => authorize()}
+          className="px-6 py-2 text-sm font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400"
+        >
+          Sign Message to Login
+        </button>
+      </div>
+    );
+  }
+
   if (isAuthorizing || (normalizedAddress && verifiedWallet !== normalizedAddress)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <Loader2 className="w-12 h-12 mb-6 text-cyan-400 animate-spin" />
         <h2 className="mb-2 text-xl font-semibold text-white">Authenticating Wallet Signature</h2>
         <p className="text-sm text-gray-400">Please sign the login message in your wallet to continue.</p>
-      </div>
-    );
-  }
-
-  if (authError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <ShieldCheck className="w-12 h-12 mb-4 text-yellow-400" />
-        <h2 className="mb-2 text-xl font-semibold text-white">Wallet Authentication Failed</h2>
-        <p className="max-w-lg mb-6 text-sm text-gray-400">{authError}</p>
-        <button
-          type="button"
-          onClick={() => setRetryCount((prev) => prev + 1)}
-          className="px-6 py-2 text-sm font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400"
-        >
-          Retry Signature Login
-        </button>
       </div>
     );
   }
