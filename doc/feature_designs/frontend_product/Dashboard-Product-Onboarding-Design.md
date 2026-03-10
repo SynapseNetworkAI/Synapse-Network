@@ -207,3 +207,79 @@
 ## 11. 一句话结论
 
 Dashboard 不只是数据面板，而是 **AgentPay 的业务导航系统**：把“怎么用、怎么花、怎么赚、平台怎么收”一次讲清楚，才能提高转化与留存。
+
+---
+
+## 12. Router 页面：刷新后状态恢复设计（V2 Shared Credential）
+
+### 12.1 问题背景
+
+在 Router 页面中，用户完成 `Approve` 或 `Pay & Issue Credential` 后，如果刷新页面，UI 不能退化为“未完成”的纯内存态。页面应自动恢复并展示真实完成度，避免重复操作和错误判断。
+
+### 12.2 设计目标
+
+- 刷新后自动恢复 setup 状态。
+- 明确告知用户“还差哪一步”。
+- 当且仅当所有关键步骤完成时，展示可调用状态。
+
+### 12.3 刷新恢复来源（Source of Truth）
+
+1. **链上授权状态（实时读取，不落库）**
+	- 读取 `USDC.allowance(owner, router)`。
+	- 用于判定是否满足当前阈值（`allowance >= requiredAllowance`）。
+
+2. **平台余额状态（后端账本）**
+	- 读取 `GET /api/v2/balance` 的 `buyerBalance`。
+	- 用于判定是否具备可消费余额。
+
+3. **共享凭据状态（后端凭据表）**
+	- 读取 `GET /api/v1/agent-credentials`。
+	- 选取 owner 级、active、未过期的共享凭据（`agentId/serviceId 为空`）。
+
+### 12.4 Checklist 交互规范
+
+Router 页面固定展示 3 条 setup 状态：
+
+- `Allowance`：✅/⏳ + 当前值与目标值。
+- `V2 Buyer Balance`：✅/⏳ + 当前可用余额。
+- `Shared Credential`：✅/⏳ + 是否 active 与过期时间。
+
+综合判定：
+
+- 全部 ✅：`Ready: agent can invoke APIs now.`
+- 否则：`Not ready yet: complete remaining ⏳ steps above.`
+
+### 12.5 对用户的动作引导
+
+- Allowance 未满足 → 执行 `Approve Router`。
+- Balance 不足 → 执行 `Pay & Issue Credential`。
+- Shared Credential 缺失/过期 → 重新执行 `Pay & Issue Credential`（或后续提供单独签发按钮）。
+
+---
+
+## 13. 数据库边界：哪些需要存，哪些不需要存
+
+### 13.1 不需要存数据库（链上真相）
+
+- ERC20 `allowance`
+- ERC20 `balanceOf`（可选只做展示）
+
+理由：链上数据天然可验证，前端应实时读取，不应维护二份状态避免偏差。
+
+### 13.2 需要存数据库（平台业务真相）
+
+- `agent_credentials`：凭据状态、过期时间、配额。
+- `deposit_intents`：充值确认流水（pending/confirmed/failed）。
+- `balance_ledger / buyerBalance`：可消费余额账本。
+
+理由：这些是平台业务状态，必须支持审计、恢复和跨端一致。
+
+---
+
+## 14. Router 页面最终验收标准（Shared Credential 模式）
+
+1. 刷新页面后，3 条 setup 状态自动恢复，不依赖本地内存。
+2. 用户无需手动选择 serviceId。
+3. 支付成功后可生成 owner 级共享凭据，并可用于所有 buyer agents。
+4. 页面明确给出“是否可调用”的最终结论。
+5. 当用户未完成任一步骤时，页面能指示下一动作。

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ServiceRegistryRecord, discoverServices } from "@/utils/serviceApi";
 
@@ -32,8 +33,17 @@ export default function DiscoverPage() {
       <div>
         <h1 className="text-3xl font-bold text-white">AI Service Discovery</h1>
         <p className="mt-2 text-gray-400">
-          AgentPay 赛博黄页 - 供买家 AI Agent 检索和发现所需 API
+          AgentPay 赛博黄页 - 本页仅用于展示平台注册服务；支付与共享凭据签发在 Router 页面完成
         </p>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 p-4 border border-gray-800 rounded-lg bg-gray-900/50">
+        <Link
+          href="/dashboard/router"
+          className="px-4 py-2 text-sm font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400 disabled:opacity-50"
+        >
+          去 Router 支付并签发共享凭据
+        </Link>
       </div>
 
       <div className="flex space-x-4">
@@ -86,9 +96,9 @@ export default function DiscoverPage() {
 
               {svc.tags && svc.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-4">
-                  {svc.tags.map((tag, idx) => (
+                  {svc.tags.map((tag) => (
                     <span
-                      key={idx}
+                      key={`${svc.serviceId}-${tag}`}
                       className="px-2 py-1 text-xs text-gray-300 bg-gray-800 rounded"
                     >
                       #{tag}
@@ -96,19 +106,6 @@ export default function DiscoverPage() {
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="mt-6">
-              <button
-                className="w-full px-4 py-2 text-sm font-semibold text-center text-gray-400 transition-colors border border-gray-700 rounded-lg hover:text-white hover:bg-gray-700 hover:border-gray-600"
-                onClick={() => {
-                  alert(
-                    `【模拟 AI 决策与调用】\n\n1. AI 确认此服务意图匹配.\n2. 价格 [${svc.pricing} USDC] 在预算内.\n3. 获取 Schema 格式完毕.\n4. 系统即将拿着 Credential 向网关发起请求...`
-                  );
-                }}
-              >
-                授权 Agent 代调用
-              </button>
             </div>
           </div>
         ))}
