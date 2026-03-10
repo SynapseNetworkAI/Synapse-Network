@@ -275,7 +275,7 @@ export default function RouterPage() {
         });
         setLatestDepositStatus(deposit.status || "pending");
 
-        const balance = await getV2Balance(address);
+        const balance = await getV2Balance(address as string);
         setLatestBuyerBalance(balance.buyerBalance);
 
         toast.success(
@@ -412,7 +412,7 @@ export default function RouterPage() {
         const latest = intents[0];
         if (latest && latest.status !== "pending") {
           setLatestDepositStatus(latest.status);
-          const balance = await getV2Balance(address);
+          const balance = await getV2Balance(address as string);
           if (!cancelled) setLatestBuyerBalance(balance.buyerBalance);
         }
       } catch (err) {
@@ -557,7 +557,7 @@ export default function RouterPage() {
               <button
                 onClick={async () => {
                   try {
-                    const balance = await getV2Balance(address);
+                    const balance = await getV2Balance(address as string);
                     setLatestBuyerBalance(balance.buyerBalance);
                   } catch (err) {
                     console.error("Refresh failed", err);

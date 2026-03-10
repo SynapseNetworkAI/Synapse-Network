@@ -61,9 +61,9 @@ export default function Home() {
             <li>查看每笔消费、余额与扣费明细</li>
           </ol>
           <div className="flex flex-wrap gap-2 mt-4">
-            <Link href="/dashboard/router" className="px-3 py-2 text-xs font-semibold text-black bg-yellow-500 rounded-lg hover:bg-yellow-400">去充值</Link>
-            <Link href="/dashboard/credentials" className="px-3 py-2 text-xs font-semibold text-black bg-green-500 rounded-lg hover:bg-green-400">去签发凭据</Link>
-            <Link href="/dashboard" className="px-3 py-2 text-xs font-semibold text-white border border-gray-700 rounded-lg hover:bg-gray-900">去调用服务</Link>
+              <Link href="/dashboard/console" className="px-3 py-2 text-xs font-semibold text-black bg-yellow-500 rounded-lg hover:bg-yellow-400">快速充值</Link>
+              <Link href="/dashboard/console" className="px-3 py-2 text-xs font-semibold text-black bg-green-500 rounded-lg hover:bg-green-400">获取 API Key</Link>
+              <Link href="/dashboard/console" className="px-3 py-2 text-xs font-semibold text-white border border-gray-700 rounded-lg hover:bg-gray-900">查看 Quick Start</Link>
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export default function Home() {
           <p className="mt-1 font-mono text-xs text-gray-300">seller_net = unit_price - platform_fee</p>
           <p className="mt-2 text-sm leading-6 text-gray-400">调用失败按策略回滚，调用成功固化账务，保证扣费可追踪。</p>
         </div>
-        <Link href="/dashboard" className="block p-5 transition-colors border border-green-900/50 rounded-xl bg-black/40 hover:bg-green-900/20">
+          <Link href="/dashboard/console" className="block p-5 transition-colors border border-green-900/50 rounded-xl bg-black/40 hover:bg-green-900/20">
           <TerminalSquare className="w-8 h-8 mb-3 text-green-500" />
           <h4 className="text-lg font-bold text-white">Developer Console</h4>
           <p className="mt-2 text-sm leading-6 text-gray-400">统一管理服务、凭据、调用、收益与结算，作为买卖双方的操作中枢。</p>

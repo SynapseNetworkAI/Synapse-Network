@@ -12,23 +12,14 @@ export default function Navbar() {
           <Link href="/dashboard" className="text-gray-300 hover:text-white">
             Overview
           </Link>
-          <Link href="/dashboard/discover" className="text-gray-300 hover:text-white">
-            Discover
+          <Link href="/dashboard/console" className="px-3 py-1 font-semibold text-green-400 bg-green-500/10 border border-green-500/30 rounded-lg hover:text-green-300 hover:bg-green-500/20">
+            Developer Console
           </Link>
-          <Link href="/dashboard/buy" className="text-gray-300 hover:text-white">
-            Buy
-          </Link>
-          <Link href="/dashboard/sell" className="text-gray-300 hover:text-white">
-            Sell
-          </Link>
-          <Link href="/dashboard/billing" className="text-gray-300 hover:text-white">
-            Billing
+          <Link href="/dashboard/services" className="text-gray-300 hover:text-white">
+            Seller Registry
           </Link>
           <Link href="/dashboard/settlement" className="text-gray-300 hover:text-white">
             Settlement
-          </Link>
-          <Link href="/dashboard/credentials" className="text-gray-300 hover:text-white">
-            Credentials
           </Link>
         </div>
       </div>
