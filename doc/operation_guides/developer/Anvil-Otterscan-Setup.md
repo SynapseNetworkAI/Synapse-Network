@@ -42,4 +42,45 @@ This starts Otterscan on port `5100`.
 3. In the **Erigon rpcdaemon endpoint** field, enter: `http://127.0.0.1:8545`
 4. Press Enter, then return to the main dashboard.
 
-Otterscan will now connect perfectly to your Anvil node, providing deep transaction tracing and fast block browsing.
+## 5. Adding Anvil Accounts to MetaMask
+
+Anvil uses the exact same default testing mnemonic as Hardhat:
+`test test test test test test test test test test test junk`
+
+This means the test accounts and private keys are identical.
+
+### 5.1 Configure the Network (If first time)
+If you haven't connected MetaMask to your local node yet, add a new network:
+- **Network Name**: Localhost 8545 (or Anvil)
+- **RPC URL**: `http://127.0.0.1:8545`
+- **Chain ID**: `31337` (Anvil defaults to 31337, same as Hardhat)
+- **Currency Symbol**: ETH
+
+### 5.2 Import Test Accounts
+To use the pre-funded accounts (each with 10,000 ETH), you can import their private keys directly into MetaMask:
+
+**Account 0 (Default Deployer)**
+- Address: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
+- **Private Key**: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+
+**Account 1**
+- Address: `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`
+- **Private Key**: `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`
+
+**Account 2**
+- Address: `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`
+- **Private Key**: `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a`
+
+*Please Note: Never use these test accounts on Mainnet!*
+
+### 5.3 Post-Restart Actions
+Because switching from Hardhat to Anvil means starting a fresh chain (Block 0):
+1. **Redeploy Contracts**: You must re-deploy our project contracts to the Anvil node by running:
+   ```bash
+   npx hardhat run scripts/deploy.js --network localhost
+   ```
+2. **Re-fund USDC**: 
+   ```bash
+   npx hardhat run scripts/fund_usdc.js --network localhost
+   ```
+3. **Reset MetaMask Nonce**: If your transactions stall or you see a Nonce error, go to MetaMask **Settings -> Advanced -> Clear activity tab data** (or Reset Account). This clears the cached transaction history so MetaMask syncs with the fresh chain.
