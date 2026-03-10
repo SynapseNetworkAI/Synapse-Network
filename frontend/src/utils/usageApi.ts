@@ -68,5 +68,5 @@ export async function listUsageLogs(userAddress: string, limit: number = 200): P
         created_at: toNumber(row.created_at ?? row.createdAt),
       } satisfies UsageLogRecord;
     })
-    .filter(Boolean) as any as UsageLogRecord[];
+    .filter(Boolean) as unknown as UsageLogRecord[];
 }

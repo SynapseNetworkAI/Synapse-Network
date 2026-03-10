@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Platform",
+    "address": "0xA0f67a47D9eF18183Cd113eD85A654E2772c5901"
+  },
+  {
+    "name": "buyerAgent",
+    "address": "0xd856907d7e35A8F9bD225859A59E58577147a092"
+  },
+  {
+    "name": "sellerAgent",
+    "address": "0x82f1C188327bFC265357A85e8A6B4a34d562D6f8"
+  }
+]

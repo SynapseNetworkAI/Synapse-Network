@@ -82,6 +82,7 @@ export async function createDepositIntent(
     txHash: String(deposit.txHash || payload.txHash),
     amountUsdc: Number(deposit.amountUsdc ?? payload.amountUsdc),
     creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: String((deposit as any).state || deposit.status || "pending"),
   };
 }

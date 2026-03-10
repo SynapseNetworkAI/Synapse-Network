@@ -11,7 +11,7 @@ import {
   useSignTypedData,
   useChainId,
 } from "wagmi";
-import { formatUnits, parseUnits, parseSignature, parseAbi } from "viem";
+import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
 import {
   discoverServices,
@@ -26,22 +26,9 @@ import {
 import { setCredentialForService } from "@/utils/agentCredentialStore";
 import { getRouterConfig, saveRouterConfig } from "@/utils/routerConfigApi";
 
-const routerPayABI = [
-  {
-    inputs: [
-      { internalType: "address", name: "token", type: "address" },
-      { internalType: "address", name: "seller", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
-      { internalType: "string", name: "serviceId", type: "string" },
-    ],
-    name: "payForService",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 const ROUTER_ADDRESS = contractConfig.A2APaySyncRouter as `0x${string}`;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const VAULT_ADDRESS = (contractConfig as any).A2APayVault ? ((contractConfig as any).A2APayVault as `0x${string}`) : ROUTER_ADDRESS;
 
 const vaultABI = parseAbi([
@@ -203,7 +190,6 @@ function LimitPoliciesSection(props: Readonly<LimitSectionProps>) {
 export default function RouterPage() {
   // NOSONAR
   const { address, isConnected } = useAccount();
-  const [amount, setAmount] = useState("500");
 
   const [dailyLimit, setDailyLimit] = useState("50");
   const [isDailyLimitEnabled, setIsDailyLimitEnabled] = useState(true);
@@ -232,7 +218,7 @@ export default function RouterPage() {
     number | null
   >(null);
 
-  const { data: hash, writeContract, isPending, error } = useWriteContract();
+  const { data: hash, writeContractAsync, isPending } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
   const chainId = useChainId();
 
@@ -253,9 +239,10 @@ export default function RouterPage() {
 
   const payButtonLabel = useMemo(() => {
     if (isPending && txType === "pay") return "Waiting for Wallet...";
+    if (isConfirming && txType === "pay") return "Waiting for Block...";
     if (isProcessingPostPayment) return "Processing deposit + credential...";
     return "Pay & Issue Credential";
-  }, [isPending, isProcessingPostPayment, txType]);
+  }, [isPending, isConfirming, isProcessingPostPayment, txType]);
 
   
   const hasPositiveBuyerBalance = (latestBuyerBalance ?? 0) > 0;
@@ -265,9 +252,10 @@ export default function RouterPage() {
 
   const payFixButtonLabel = useMemo(() => {
     if (isPending && txType === "pay") return "Paying...";
+    if (isConfirming && txType === "pay") return "Confirming...";
     if (isProcessingPostPayment) return "Processing...";
     return "Fix: Pay";
-  }, [isPending, isProcessingPostPayment, txType]);
+  }, [isPending, isConfirming, isProcessingPostPayment, txType]);
 
   const runPostPaymentFlow = useCallback(
     async (txHash: string) => {
@@ -482,15 +470,15 @@ export default function RouterPage() {
       const { v, r, s } = parseSignature(signature);
 
       // 3. Send transaction to Vault
-      writeContract({
+      await writeContractAsync({
         address: VAULT_ADDRESS,
         abi: vaultABI,
         functionName: "depositWithPermit",
         args: [amountBigInt, deadline, Number(v), r, s],
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.message || "Failed to sign or send transaction");
+      toast.error(err instanceof Error ? err.message : "Failed to sign or send transaction");
     }
   };
 
@@ -500,7 +488,7 @@ export default function RouterPage() {
     setIsSavingLimit(true);
     try {
       const nextDaily = isDailyLimitEnabled ? Number(dailyLimit) : -1;
-      const nextMonthly = isMonthlyLimitEnabled ? Number(monthlyLimit) : -1;
+      // const nextMonthly = isMonthlyLimitEnabled ? Number(monthlyLimit) : -1;
       const config = await saveRouterConfig(
         address,
         nextDaily > 0 ? nextDaily : 0
@@ -586,7 +574,7 @@ export default function RouterPage() {
             {needsBalanceFix ? (
               <button
                 onClick={handlePayAndIssue}
-                disabled={!isConnected || isPending || isProcessingPostPayment}
+                disabled={!isConnected || isPending || isConfirming || isProcessingPostPayment}
                 className="px-3 py-1 text-xs font-bold text-white bg-purple-600 rounded hover:bg-purple-500 disabled:opacity-50"
               >
                 {payFixButtonLabel}
@@ -660,7 +648,7 @@ export default function RouterPage() {
 
           <button
             onClick={handlePayAndIssue}
-            disabled={!isConnected || isPending || isProcessingPostPayment}
+            disabled={!isConnected || isPending || isConfirming || isProcessingPostPayment}
             className="px-6 py-2 font-bold text-white transition-colors bg-purple-600 rounded hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {payButtonLabel}
