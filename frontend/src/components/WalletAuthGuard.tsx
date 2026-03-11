@@ -62,6 +62,15 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       return;
     }
 
+    // Detect wallet address change (串号保护)
+    if (verifiedWallet && address.toLowerCase() !== verifiedWallet.toLowerCase()) {
+      clearAuthSession();
+      setVerifiedWallet(null);
+      setAuthError("The wallet address has changed, please re-sign to synchronize sessions");
+      setIsAuthorizing(false);
+      return;
+    }
+
     if (!verifiedWallet && !authError && !isAuthorizing) {
       void authorize();
     }

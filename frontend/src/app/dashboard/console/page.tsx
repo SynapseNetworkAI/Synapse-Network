@@ -42,6 +42,7 @@ export default function DeveloperConsole() {
 
   const { signTypedDataAsync } = useSignTypedData();
   const { data: hash, writeContractAsync, isPending } = useWriteContract();
+  const { writeContractAsync: writeMintAsync, isPending: isMinting } = useWriteContract();
   
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
@@ -92,6 +93,28 @@ export default function DeveloperConsole() {
   }, [isConfirmed, loadBalance]);
 
   // --- Handlers ---
+  
+  const handleMint = async () => {
+    if (!address) return;
+    try {
+      await writeMintAsync({
+        address: contractConfig.MockUSDC as `0x${string}`,
+        abi: parseAbi(["function mint(address,uint256)"]),
+        functionName: "mint",
+        args: [address, parseUnits("100", 18)],
+      });
+      toast.success("Transaction sent. Requesting 100 Mock USDC...");
+    } catch (err: unknown) {
+      if ((err as Error)?.message?.includes("User rejected") || (err as Error)?.message?.toLowerCase().includes("rejected")) {
+        toast("Transaction cancelled by user", { icon: "ℹ️" });
+      } else {
+        toast.error("Failed to mint USDC: " + String(err));
+      }
+    }
+  };
+
+  
+
   const handleTopUp = async () => {
     if (!address) return;
     const amountUsdc = Number(topUpAmount);
@@ -125,7 +148,14 @@ export default function DeveloperConsole() {
         args: [amountBigInt, deadline, Number(v), r, s],
       });
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err instanceof Error ? err instanceof Error ? err.message : String(err) : String(err) : String(err) || "Failed to top up");
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("User rejected") || msg.toLowerCase().includes("rejected")) {
+        toast("Sign/Transaction cancelled by user", { icon: "ℹ️" });
+      } else if (msg.includes("Insufficient Balance") || msg.includes("insufficient funds") || msg.includes("gas required exceeds allowance")) {
+        toast.error("USDC 余额不足，请点击获取测试币", { duration: 5000 });
+      } else {
+        toast.error("Failed to top up: " + msg);
+      }
     }
   };
 
@@ -211,6 +241,22 @@ export default function DeveloperConsole() {
                   ≈ {balanceUsdc !== null ? Math.floor(balanceUsdc * 1000).toLocaleString() : 0} API Calls available
                 </p>
               </div>
+              <button
+                onClick={handleMint}
+                disabled={isMinting}
+                className="flex items-center px-4 py-2 mr-3 text-sm font-bold text-blue-900 transition-colors bg-blue-400 hover:bg-blue-300 rounded-xl"
+              >
+                {isMinting ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : "💧 "}
+                Faucet: Get 100 USDC 
+              </button>
+              <button
+                onClick={handleMint}
+                disabled={isMinting}
+                className="flex items-center px-4 py-2 mr-3 text-sm font-bold text-blue-900 transition-colors bg-blue-400 hover:bg-blue-300 rounded-xl"
+              >
+                {isMinting ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : "💧 "}
+                Faucet: Get 100 USDC 
+              </button>
               <button
                 onClick={() => setIsTopUpOpen(true)}
                 className="flex items-center px-4 py-2 text-sm font-bold text-black transition-colors bg-green-500 hover:bg-green-400 rounded-xl"
