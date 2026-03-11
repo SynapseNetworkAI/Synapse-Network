@@ -6,7 +6,7 @@
 `/api/v2/generate`
 - `buyer_sdk/`
   - 买家侧 SDK（服务发现 + 付费调用封装）。
-  - `client.py` 暴露 `AgentPayBuyer`。
+  - `client.py` 暴露 `SynapseBuyer`。
   - `models.py`/`exceptions.py` 提供类型与错误边界。
 - `seller_fastapi.py`
   - 薄入口文件，仅负责暴露 `app` 与本地 `uvicorn` 启动。
@@ -210,9 +210,9 @@ pip install -e .
 示例脚本：`examples/buyer_sdk_discover_invoke.py`
 
 ```python
-from buyer_sdk import AgentPayBuyer
+from buyer_sdk import SynapseBuyer
 
-client = AgentPayBuyer(
+client = SynapseBuyer(
   credential_token="<X-Agent-Credential>",
   gateway_url="http://127.0.0.1:8000",
 )

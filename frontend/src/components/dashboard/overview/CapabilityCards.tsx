@@ -7,7 +7,7 @@ export default function CapabilityCards() {
       </div>
       <div className="p-4 border border-gray-800 rounded-lg bg-gray-950/60">
         <h3 className="text-sm font-semibold text-white">Credential 授信</h3>
-        <p className="mt-2 text-xs leading-5 text-gray-400">签发 X-Agent-Credential 管理调用身份、额度与限流。</p>
+        <p className="mt-2 text-xs leading-5 text-gray-400">签发 API Key 和 Credential 管理调用身份、额度与限流。</p>
       </div>
       <div className="p-4 border border-gray-800 rounded-lg bg-gray-950/60">
         <h3 className="text-sm font-semibold text-white">Gateway 扣费转发</h3>

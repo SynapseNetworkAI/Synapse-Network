@@ -2,7 +2,6 @@ import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 
 export type ServiceRegistryPayload = {
   id?: string;
-  agentId: string;
   serviceName: string;
   role: string;
   address: string;
@@ -32,7 +31,6 @@ export type ServiceRegistryPayload = {
 
 export type ServiceRegistryRecord = {
   id: string;
-  agentId?: string;
   name: string;
   serviceName?: string;
   role: string;

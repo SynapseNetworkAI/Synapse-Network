@@ -42,16 +42,6 @@ export default function DashboardSidebar() {
 
   return (
     <aside className="w-64 bg-[#050505] border-r border-green-900/50 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)]">
-      {(role === 'CONSUMER' || role === 'PROVIDER') && (
-        <div className="mb-6">
-          <nav className="flex flex-col">
-            <Link href="/dashboard" className={getLinkClasses("/dashboard", true)}>
-              <Home className="w-4 h-4 mr-3" />
-              Platform Overview
-            </Link>
-          </nav>
-        </div>
-      )}
 
       {role === 'CONSUMER' && (
         <div className="mb-8">
@@ -59,6 +49,10 @@ export default function DashboardSidebar() {
             🔽 Consumer Space (买家)
           </h3>
           <nav className="flex flex-col">
+            <Link href="/dashboard/buyer" className={getLinkClasses("/dashboard/buyer", true)}>
+              <Home className="w-4 h-4 mr-3" />
+              Buyer Overview
+            </Link>
             <Link href="/dashboard/console" className={getLinkClasses("/dashboard/console", false)}>
               <Terminal className="w-4 h-4 mr-3" />
               Developer Console

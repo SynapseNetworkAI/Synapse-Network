@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
+import { Plus, X, Search, Filter, KeyRound, Copy, Check, Clock, Zap, Activity } from "lucide-react";
 import { listServiceRegistry } from "@/utils/serviceApi";
 import {
   issueAgentCredential,
@@ -12,33 +13,27 @@ import {
   updateAgentCredentialQuota,
   type AgentCredentialIssueResponse,
   type AgentCredentialRecord,
-  type AuditLogRecord,
 } from "@/utils/agentCredentialApi";
 import { setCredentialForService } from "@/utils/agentCredentialStore";
 import { clearAuthSession } from "@/utils/authSession";
-import { useSearchParams } from "next/navigation";
-import { agentStore } from "@/utils/agentStore";
-import { listAgents } from "@/utils/agentApi";
 import { useBillingData } from "@/hooks/useBillingData";
+import { useAuth } from "@/components/WalletAuthGuard";
+import AuthMask from "@/components/AuthMask";
 
 const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
 
 function CredentialsContent() {
   const { address: userAddress } = useAccount();
+  const { isSessionAuthenticated } = useAuth();
   const [serviceFilter, setServiceFilter] = useState("");
-  const [services, setServices] = useState<Array<{ serviceId: string; agentId?: string; name: string; pricing?: string }>>([]);
+  const [services, setServices] = useState<Array<{ serviceId: string; name: string; pricing?: string }>>([]);
 
-  const searchParams = useSearchParams();
-  const initAgentId = searchParams.get("agentId");
-  const [currentAgentInfo, setCurrentAgentInfo] = useState<{name: string, address: string} | null>(null);
-  const [agentId, setAgentId] = useState(initAgentId || "");
   const [expiresInSec, setExpiresInSec] = useState("3600");
   const [expiresAtLocal, setExpiresAtLocal] = useState("");
   const [maxCalls, setMaxCalls] = useState("1000");
   const [rpm, setRpm] = useState("600");
 
   const [credentials, setCredentials] = useState<AgentCredentialRecord[]>([]);
-  const [logs, setLogs] = useState<AuditLogRecord[]>([]);
   const [latestIssued, setLatestIssued] = useState<AgentCredentialIssueResponse | null>(null);
 
   const [quotaMaxCalls, setQuotaMaxCalls] = useState("1000");
@@ -49,53 +44,17 @@ function CredentialsContent() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { rows: billingRows } = useBillingData();
-
-  useEffect(() => {
-    if (initAgentId) {
-      setAgentId(initAgentId);
-    }
-  }, [initAgentId]);
-
-
-  useEffect(() => {
-    if (!userAddress || !agentId) {
-      setCurrentAgentInfo(null);
-      return;
-    }
-    const fetchInfo = async () => {
-      const localAgents = agentStore.getAgentsByOwner(userAddress);
-      const local = localAgents.find((a) => String(a.id) === String(agentId));
-      if (local) {
-        setCurrentAgentInfo({ name: local.name, address: local.address });
-        return;
-      }
-      
-      // 2. check remote
-      try {
-        const remoteAgents = await listAgents(userAddress);
-        const remote = remoteAgents.find((a) => String(a.id) === String(agentId));
-        if (remote) {
-          setCurrentAgentInfo({ name: String(remote.name), address: String(remote.address) });
-        } else {
-          setCurrentAgentInfo(null);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchInfo();
-  }, [userAddress, agentId]);
+  const [copiedToken, setCopiedToken] = useState(false);
 
   const loadAll = useCallback(async () => {
-    if (!userAddress) {
+    if (!isSessionAuthenticated || !userAddress) {
       setServices([]);
       setCredentials([]);
-      setLogs([]);
       return;
     }
 
     try {
-      const [serviceRows, credentialRows, auditRows] = await Promise.all([
+      const [serviceRows, credentialRows] = await Promise.all([
         listServiceRegistry(userAddress, userAddress),
         listAgentCredentials(userAddress),
         listAuditLogs(userAddress, 200),
@@ -103,29 +62,24 @@ function CredentialsContent() {
 
       setServices(
         serviceRows.map((row) => ({
-          serviceId: row.serviceId,
-          agentId: row.agentId,
-          name: row.name,
+          serviceId: row.id || row.serviceId,
+          name: row.serviceName || row.name,
+          pricing: row.pricing
         }))
       );
       setCredentials(credentialRows);
-      setLogs(auditRows);
 
-      if (initAgentId) {
-        setAgentId(initAgentId);
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load credential data";
       if (message === WALLET_SESSION_MISSING_MESSAGE) {
         clearAuthSession();
         setServices([]);
         setCredentials([]);
-        setLogs([]);
         return;
       }
       throw error;
     }
-  }, [initAgentId, userAddress]);
+  }, [userAddress, isSessionAuthenticated]);
 
   useEffect(() => {
     void loadAll();
@@ -136,18 +90,6 @@ function CredentialsContent() {
     return credentials.filter((item) => !item.serviceId || item.serviceId === serviceFilter);
   }, [credentials, serviceFilter]);
 
-  const serviceNameById = useMemo(() => {
-    return new Map(services.map((item) => [item.serviceId, item.name || item.serviceId]));
-  }, [services]);
-
-  const servicePricingById = useMemo(() => {
-    return new Map(services.map((item) => [item.serviceId, item.pricing || "0"]));
-  }, [services]);
-
-
-  const sharedCredential = useMemo(() => {
-    return credentials.find((item) => item.status === "active" && !item.serviceId) ?? null;
-  }, [credentials]);
 
   const shortId = useCallback((value: string) => {
     if (!value) return "--";
@@ -156,12 +98,11 @@ function CredentialsContent() {
   }, []);
 
   const todaySpend = useMemo(() => {
-    if (!currentAgentInfo?.address) return 0;
-
+    if (!userAddress) return 0;
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const startSec = Math.floor(start.getTime() / 1000);
-    const currentAddress = currentAgentInfo.address.toLowerCase();
+    const currentAddress = userAddress.toLowerCase();
 
     return billingRows.reduce((sum, row) => {
       const rowTs = Number(row.timestamp || 0);
@@ -170,15 +111,15 @@ function CredentialsContent() {
       if (buyer !== currentAddress) return sum;
       return sum + Number(row.unit_price || 0);
     }, 0);
-  }, [billingRows, currentAgentInfo?.address]);
+  }, [billingRows, userAddress]);
 
   const todayCallCount = useMemo(() => {
-    if (!currentAgentInfo?.address) return 0;
+    if (!userAddress) return 0;
 
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const startSec = Math.floor(start.getTime() / 1000);
-    const currentAddress = currentAgentInfo.address.toLowerCase();
+    const currentAddress = userAddress.toLowerCase();
 
     return billingRows.reduce((count, row) => {
       const rowTs = Number(row.timestamp || 0);
@@ -187,7 +128,7 @@ function CredentialsContent() {
       if (buyer !== currentAddress) return count;
       return count + 1;
     }, 0);
-  }, [billingRows, currentAgentInfo?.address]);
+  }, [billingRows, userAddress]);
 
   const effectiveExpiresInSec = useMemo(() => {
     if (expiresAtLocal) {
@@ -200,376 +141,392 @@ function CredentialsContent() {
     return Number.parseInt(expiresInSec, 10) || 0;
   }, [expiresAtLocal, expiresInSec]);
 
-  const effectiveQuotaExpiresAt = useMemo(() => {
-    if (quotaExpiresAtLocal) {
-      const endMs = new Date(quotaExpiresAtLocal).getTime();
-      if (Number.isFinite(endMs)) {
-        return Math.floor(endMs / 1000);
-      }
-    }
-    const parsed = Number.parseInt(quotaExpiresAt, 10);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }, [quotaExpiresAt, quotaExpiresAtLocal]);
-
   const handleIssue = async () => {
     if (!userAddress) {
-      toast.error("Wallet not connected.");
+      toast.error("Not connected");
       return;
     }
-
-    if (effectiveExpiresInSec <= 0) {
-      toast.error("请选择未来时间，或输入有效的有效期秒数。");
-      return;
-    }
-
     try {
-      const created = await issueAgentCredential(userAddress, {
+      if (effectiveExpiresInSec <= 0) {
+        toast.error("Duration must be > 0 or a valid future date");
+        return;
+      }
+      const cMax = Number.parseInt(maxCalls, 10) || 0;
+      const cRpm = Number.parseInt(rpm, 10) || 0;
+
+      const payload = {
         expiresInSec: effectiveExpiresInSec,
-        maxCalls: Number.parseInt(maxCalls, 10),
-        rpm: Number.parseInt(rpm, 10),
-      });
-      setLatestIssued(created);
-      services.forEach((item) => {
-        setCredentialForService(item.serviceId, created.token);
-      });
-      toast.success("Owner shared credential issued for all buyer agents.");
+        maxCalls: cMax,
+        rpm: cRpm,
+      };
+
+      const res = await issueAgentCredential(userAddress, payload);
+      setLatestIssued(res);
+
+      if (!res.serviceId) {
+        setCredentialForService("OWNER_SHARED", res.token);
+      }
+
+      toast.success("API Key successfully generated");
       await loadAll();
-      setIsCreateModalOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Issue failed");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Failed to generate API Key");
     }
   };
 
-  const handleRevoke = async (credentialId: string) => {
+  const handleRevoke = async (id: string, currentStatus: string) => {
     if (!userAddress) return;
-    try {
-      await revokeAgentCredential(userAddress, credentialId);
-      toast.success("Credential revoked.");
-      await loadAll();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Revoke failed");
-    }
-  };
-
-  const handleQuotaUpdate = async () => {
-    if (!userAddress || !selectedCredentialId) {
-      toast.error("Pick a credential first.");
+    if (currentStatus === "revoked") {
+      toast.error("Already revoked");
       return;
     }
+    if (!confirm("Are you sure you want to revoke this API Key? Execution will be blocked instantly.")) return;
 
     try {
-      await updateAgentCredentialQuota(userAddress, selectedCredentialId, {
-        maxCalls: Number.parseInt(quotaMaxCalls, 10),
-        rpm: Number.parseInt(quotaRpm, 10),
-        expiresAt: effectiveQuotaExpiresAt,
-      });
-      toast.success("Credential quota updated.");
+      await revokeAgentCredential(userAddress, id);
+      toast.success("API Key revoked");
       await loadAll();
-      setIsEditModalOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Quota update failed");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to revoke");
     }
   };
 
-  const openEditQuotaModal = (item: AgentCredentialRecord) => {
-    setSelectedCredentialId(item.id);
-    setQuotaMaxCalls(String(item.maxCalls));
-    setQuotaRpm(String(item.rpm));
-    setQuotaExpiresAt(String(item.expiresAt));
-    if (item.expiresAt) {
-      const date = new Date(Number(item.expiresAt) * 1000);
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      const hh = String(date.getHours()).padStart(2, "0");
-      const mm = String(date.getMinutes()).padStart(2, "0");
-      setQuotaExpiresAtLocal(`${y}-${m}-${d}T${hh}:${mm}`);
+  const openEditQuotaModal = (cred: AgentCredentialRecord) => {
+    setSelectedCredentialId(cred.id);
+    setQuotaMaxCalls(String(cred.maxCalls || 1000));
+    setQuotaRpm(String(cred.rpm || 600));
+
+    if (cred.expiresAt) {
+      setQuotaExpiresAt(String(cred.expiresAt));
+      const localStr = new Date(cred.expiresAt * 1000).toISOString().slice(0, 16);
+      setQuotaExpiresAtLocal(localStr);
     } else {
+      setQuotaExpiresAt("0");
       setQuotaExpiresAtLocal("");
     }
     setIsEditModalOpen(true);
   };
 
+  const handleUpdateQuota = async () => {
+    if (!userAddress || !selectedCredentialId) return;
+    try {
+      const pMax = Number.parseInt(quotaMaxCalls, 10) || 0;
+      const pRpm = Number.parseInt(quotaRpm, 10) || 0;
+
+      let pExp = Number.parseInt(quotaExpiresAt, 10) || 0;
+      if (quotaExpiresAtLocal) {
+        const ms = new Date(quotaExpiresAtLocal).getTime();
+        if (Number.isFinite(ms)) {
+          pExp = Math.floor(ms / 1000);
+        }
+      }
+
+      await updateAgentCredentialQuota(userAddress, selectedCredentialId, {
+        maxCalls: pMax,
+        rpm: pRpm,
+        expiresAt: pExp,
+      });
+
+      toast.success("API Key quota updated");
+      setIsEditModalOpen(false);
+      await loadAll();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update API Key");
+    }
+  };
+
+  const activeCredentialsCount = credentials.filter(c => c.status === "active").length;
+
   return (
-    <div className="p-8 mx-auto space-y-6 max-w-7xl">
-      <div>
-        <div>
-          <h1 className="text-3xl font-bold text-white">Agent Credentials & Audit</h1>
-          <p className="mt-1 text-gray-400">Issue short-lived credentials, tune quotas, and inspect owner-level audit logs.</p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 mt-4 md:grid-cols-2">
-          <div className="p-4 border border-yellow-500/30 rounded-xl bg-yellow-500/5">
-            <p className="text-xs tracking-wider text-yellow-300 uppercase">Today Spend (USDC)</p>
-            <p className="mt-2 font-mono text-2xl font-bold text-yellow-300">
-              {todaySpend.toFixed(4)}
+    <div className="flex flex-col flex-1 h-full min-h-screen text-gray-200">
+      <header className="flex-none px-6 py-8 border-b border-gray-800 lg:px-8">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-white mb-1.5 flex items-center gap-2">
+              <KeyRound className="w-6 h-6 text-green-400" />
+              API Keys (Credentials)
+            </h1>
+            <p className="text-sm text-gray-400 max-w-2xl">
+              API Keys represent your executing entities. Issue restricted Keys linked to your main Wallet address to securely authenticate requests.
             </p>
           </div>
-          <div className="p-4 border border-blue-500/30 rounded-xl bg-blue-500/5">
-            <p className="text-xs tracking-wider text-blue-300 uppercase">Today Calls</p>
-            <p className="mt-2 font-mono text-2xl font-bold text-blue-300">
-              {todayCallCount}
-            </p>
+          <div className="flex items-center gap-3">
+             <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex items-center px-4 py-2.5 text-sm font-bold text-black transition-all bg-green-500 rounded-lg hover:bg-green-400 hover:scale-105 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Generate API Key
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex flex-col gap-3 p-4 border border-gray-600 rounded-xl bg-gray-800/80 md:flex-row md:items-center md:justify-between">
-        <div className="w-full md:w-80">
-          <p className="mb-1 text-xs tracking-wide text-gray-400 uppercase">Service Filter</p>
-          <select
-            value={serviceFilter}
-            onChange={(e) => setServiceFilter(e.target.value)}
-            className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-          >
-            <option value="">All services</option>
-            {services.map((item) => (
-              <option key={`f-${item.serviceId}`} value={item.serviceId}>{item.name || item.serviceId}</option>
-            ))}
-          </select>
+      <main className="flex-1 px-6 py-6 lg:px-8 space-y-6">
+        <AuthMask>
+        <div className="space-y-6">
+        {/* Wallet Overview Panel */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-5 border border-gray-800 rounded-xl bg-[#0a0a0a] flex items-center gap-4 hover:border-gray-700 transition">
+             <div className="p-3 bg-gray-900 rounded-lg">
+                <KeyRound className="w-6 h-6 text-gray-400" />
+             </div>
+             <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Active Keys</p>
+                <p className="text-2xl font-mono text-white">{activeCredentialsCount}</p>
+             </div>
+          </div>
+          
+          <div className="p-5 border border-gray-800 rounded-xl bg-[#0a0a0a] flex items-center gap-4 hover:border-gray-700 transition">
+             <div className="p-3 bg-indigo-900/30 rounded-lg">
+                <Activity className="w-6 h-6 text-indigo-400" />
+             </div>
+             <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Today Calls</p>
+                <p className="text-2xl font-mono text-indigo-400">{todayCallCount}</p>
+             </div>
+          </div>
+
+          <div className="p-5 border border-gray-800 rounded-xl bg-[#0a0a0a] flex items-center gap-4 hover:border-gray-700 transition">
+             <div className="p-3 bg-yellow-900/30 rounded-lg">
+                <Zap className="w-6 h-6 text-yellow-400" />
+             </div>
+             <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Today Spend (USDC)</p>
+                <p className="text-2xl font-mono text-yellow-400">{todaySpend.toFixed(3)}</p>
+             </div>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsCreateModalOpen(true)}
-          className="px-4 py-2 text-sm font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400"
-        >
-          新建凭据
-        </button>
-      </div>
 
-      <div className="p-4 border border-cyan-500/30 rounded-xl bg-cyan-500/10">
-        <p className="text-xs tracking-widest text-cyan-200 uppercase">Credential Mode</p>
-        <p className="mt-1 text-sm text-cyan-100">
-          同一 Owner 账户下的 Buyer Agents 共享一张凭据。
-          {sharedCredential ? ` 当前共享凭据: ${shortId(sharedCredential.id)}` : " 当前尚未签发共享凭据。"}
-        </p>
-      </div>
-
-      {latestIssued && (
-        <div className="p-4 border border-green-500/40 rounded-xl bg-green-500/10">
-          <p className="text-xs text-green-300 uppercase">Latest issued token (shown once)</p>
-          <p className="mt-2 font-mono text-xs text-green-200 break-all">{latestIssued.token}</p>
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+             <Search className="absolute w-4 h-4 text-gray-500 -translate-y-1/2 left-3 top-1/2" />
+             <input
+              type="text"
+              placeholder="Search Key ID..."
+              className="w-full py-2 pl-9 pr-4 text-sm text-white bg-[#0a0a0a] border border-gray-800 rounded-lg focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 outline-none transition-all"
+             />
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border border-gray-800 rounded-lg">
+             <Filter className="w-3.5 h-3.5 text-gray-500" />
+             <select
+               value={serviceFilter}
+               onChange={(e) => setServiceFilter(e.target.value)}
+               className="bg-transparent text-sm text-gray-300 outline-none cursor-pointer appearance-none pr-4"
+             >
+               <option value="">All Services (Universal)</option>
+               {services.map((srv) => (
+                 <option key={srv.serviceId} value={srv.serviceId}>
+                   {srv.name} (Dedicated)
+                 </option>
+               ))}
+             </select>
+          </div>
         </div>
-      )}
 
-      <div className="p-4 border border-gray-600 rounded-xl bg-gray-800/80">
-        <h2 className="mb-3 text-sm font-bold tracking-widest text-white uppercase">Credentials</h2>
-        <div className="space-y-2 max-h-[480px] overflow-auto">
-          {filteredCredentials.map((item) => (
-            <div key={item.id} className="p-3 border border-gray-600 rounded-lg bg-gray-800/60">
-              <div className="flex items-start justify-between gap-3">
-                <p className="font-mono text-xs text-gray-300">{item.id}</p>
-                <span
-                  className={`px-2 py-0.5 text-[10px] font-semibold uppercase rounded border ${
-                    item.status === "active"
-                      ? "text-green-300 border-green-500/30 bg-green-500/10"
-                      : "text-red-300 border-red-500/30 bg-red-500/10"
-                  }`}
-                >
-                  {item.status}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-gray-400">
-                {(item.serviceId ? serviceNameById.get(item.serviceId) || item.serviceId : "ALL_SERVICES (Owner Shared)")} · 
-                <span className="font-mono" title={item.agentId || "OWNER_SHARED"}>{shortId(item.agentId || "OWNER_SHARED")}</span>
-              </p>
-              <div className="flex flex-col gap-1 mt-2 text-sm text-gray-400">
-                <p>
-                  <span className="text-gray-500">调用次数:</span> <span className="font-medium text-white">{item.callsUsed}</span> / {item.maxCalls} (限制) · {item.rpm} rpm
-                </p>
-                <p>
-                  <span className="text-gray-500">到期时间:</span> <span className="text-white">{item.expiresAt ? new Date(item.expiresAt * 1000).toLocaleString() : "Never"}</span>
-                </p>
-                <p>
-                  <span className="text-gray-500">花费金额:</span> <span className="font-medium text-yellow-400">{item.serviceId ? (Number(servicePricingById.get(item.serviceId) || 0) * item.callsUsed).toFixed(4) + " USDC" : "N/A (共享)"}</span>
-                </p>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <button
-                  type="button"
-                  onClick={() => openEditQuotaModal(item)}
-                  className="px-2 py-1 text-xs text-blue-300 border rounded border-blue-500/30 hover:bg-blue-500/20"
-                >
-                  Edit quota
-                </button>
-                {item.status === "active" && (
-                  <button
-                    type="button"
-                    onClick={() => void handleRevoke(item.id)}
-                    className="px-2 py-1 text-xs text-red-300 border rounded border-red-500/30 hover:bg-red-500/20"
-                  >
-                    Revoke
-                  </button>
+        {/* Credentials Table */}
+        <div className="overflow-hidden border border-gray-800 rounded-xl bg-[#080808]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-400 uppercase border-b border-gray-800 bg-[#0a0a0a]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Key Prefix</th>
+                  <th className="px-4 py-3 font-semibold">Scope</th>
+                  <th className="px-4 py-3 font-semibold">Calls (Used / Max)</th>
+                  <th className="px-4 py-3 font-semibold">Rate Limit</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Expires</th>
+                  <th className="px-4 py-3 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {filteredCredentials.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      No API Keys found. Click &quot;Generate API Key&quot; to create one.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCredentials.map((cred) => (
+                    <tr key={cred.id} className="transition-colors hover:bg-gray-800/30">
+                      <td className="px-4 py-3 font-mono text-gray-300">
+                        {cred.tokenPrefix || shortId(cred.id)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-400">Universal Key</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-indigo-400">{cred.callsUsed}</span>{" "}
+                        <span className="text-gray-600">/</span>{" "}
+                        <span className="font-mono text-gray-300">{cred.maxCalls || "∞"}</span>
+                        {cred.maxCalls > 0 && cred.callsUsed >= cred.maxCalls && (
+                          <span className="ml-2 text-xs text-red-400">(Depleted)</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 font-mono">
+                        {cred.rpm > 0 ? `${cred.rpm}/min` : "No Limit"}
+                      </td>
+                      <td className="px-4 py-3">
+                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                           cred.status === "active" 
+                             ? "bg-green-500/10 text-green-400 border border-green-500/20" 
+                             : "bg-red-500/10 text-red-400 border border-red-500/20"
+                         }`}>
+                           {cred.status.toUpperCase()}
+                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-400">
+                        {cred.expiresAt ? (
+                          <span className={cred.expiresAt * 1000 < Date.now() ? "text-red-400" : ""}>
+                            {new Date(cred.expiresAt * 1000).toLocaleString()}
+                          </span>
+                        ) : (
+                          "Never"
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                           <button
+                             onClick={() => openEditQuotaModal(cred)}
+                             className="text-xs font-medium text-blue-400 hover:text-blue-300 transition hover:underline"
+                             disabled={cred.status === "revoked"}
+                           >
+                             Adjust Quota
+                           </button>
+                           {cred.status === "active" && (
+                             <button
+                               onClick={() => handleRevoke(cred.id, cred.status)}
+                               className="text-xs font-medium text-red-500/80 hover:text-red-400 transition hover:underline"
+                             >
+                               Revoke
+                             </button>
+                           )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
-              </div>
-            </div>
-          ))}
-          {filteredCredentials.length === 0 && <p className="text-xs text-gray-500">No credentials.</p>}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-
-      <div className="p-4 border border-gray-600 rounded-xl bg-gray-800/80">
-        <h2 className="mb-3 text-sm font-bold tracking-widest text-white uppercase">Audit Logs</h2>
-        <div className="max-h-[320px] overflow-auto space-y-2">
-          {logs.map((log) => (
-            <div key={log.id} className="p-2 border border-gray-600 rounded bg-gray-800/60">
-              <p className="text-xs text-gray-300">{new Date(log.timestamp * 1000).toLocaleString()} · {log.action}</p>
-              <p className="mt-1 font-mono text-[10px] text-gray-500 break-all">{JSON.stringify(log.details)}</p>
-            </div>
-          ))}
-          {logs.length === 0 && <p className="text-xs text-gray-500">No audit logs.</p>}
         </div>
-      </div>
+        </AuthMask>
+      </main>
 
+      {/* Creation Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-          <div className="w-full max-w-2xl p-5 space-y-4 border border-gray-500 rounded-2xl bg-[#0f1115] shadow-2xl shadow-green-500/10">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-white">新建凭据</h3>
-                <p className="text-xs text-gray-400">为当前 Owner 签发共享凭据（所有 Buyer Agent 共用）</p>
-              </div>
-              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="text-sm text-gray-400 hover:text-white">关闭</button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg p-6 border border-gray-800 bg-[#0a0a0a] rounded-xl shadow-2xl">
+             <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl flex items-center gap-2 font-bold text-white">
+                  <KeyRound className="w-5 h-5 text-green-400" /> Generate API Key
+                </h3>
+                <button onClick={() => { setIsCreateModalOpen(false); setLatestIssued(null); }} className="text-gray-500 hover:text-white transition">
+                  <X className="w-5 h-5" />
+                </button>
+             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">Credential Scope</p>
-                <p className="px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg">OWNER_SHARED · ALL_SERVICES</p>
-                <p className="mt-1 text-[11px] text-gray-500">该凭据会被同一账户下所有 Buyer Agents 复用</p>
-              </div>
+             {!latestIssued ? (
+               <div className="space-y-5">
+                  <div className="space-y-4 border p-4 rounded-lg border-gray-800/60 bg-gray-900/30">
+                    <div className="grid grid-cols-2 gap-4">
+                       <div>
+                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Max Calls</label>
+                         <input type="number" value={maxCalls} onChange={e => setMaxCalls(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:border-green-500/50 focus:outline-none" placeholder="1000"/>
+                       </div>
+                       <div>
+                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Rate Limit (RPM)</label>
+                         <input type="number" value={rpm} onChange={e => setRpm(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:border-green-500/50 focus:outline-none" placeholder="600"/>
+                       </div>
+                    </div>
+                    <div>
+                       <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Duration (Seconds)</label>
+                       <div className="flex gap-2">
+                         {["3600", "86400", "2592000", "0"].map(sec => (
+                           <button
+                             key={sec}
+                             onClick={() => { setExpiresInSec(sec); setExpiresAtLocal(""); }}
+                             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition ${expiresInSec === sec && !expiresAtLocal ? "border-green-500/50 text-green-400 bg-green-500/10" : "border-gray-800 text-gray-400 hover:border-gray-600"}`}
+                           >
+                             {sec === "0" ? "Never" : sec === "3600" ? "1 Hr" : sec === "86400" ? "1 Day" : "30 Days"}
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+                  </div>
 
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">截止时间</p>
-                <input
-                  type="datetime-local"
-                  value={expiresAtLocal}
-                  onChange={(e) => setExpiresAtLocal(e.target.value)}
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">推荐使用时间选择器，避免手动换算</p>
-              </label>
+                  <div className="flex justify-end gap-3 mt-8">
+                     <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800">Cancel</button>
+                     <button onClick={handleIssue} className="px-5 py-2 text-sm font-bold text-black bg-green-500 rounded-lg hover:bg-green-400">Generate Key</button>
+                  </div>
+               </div>
+             ) : (
+               <div className="space-y-6">
+                 <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
+                   <Check className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                   <h4 className="text-green-400 font-bold mb-1">API Key Generated</h4>
+                   <p className="text-xs text-gray-300">Copy your API Key now. It will not be shown again.</p>
+                 </div>
+                 
+                 <div>
+                   <label className="block mb-2 text-xs font-bold text-gray-500 uppercase">Secret Token</label>
+                   <div className="flex items-center gap-2">
+                      <input readOnly value={latestIssued.token} className="w-full px-3 py-2.5 text-sm font-mono text-gray-300 bg-black border border-gray-800 rounded-lg outline-none selection:bg-gray-800" />
+                      <button 
+                        onClick={() => { 
+                          navigator.clipboard.writeText(latestIssued.token);
+                          setCopiedToken(true);
+                          setTimeout(() => setCopiedToken(false), 2000);
+                        }} 
+                        className="p-2.5 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition"
+                      >
+                         {copiedToken ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                   </div>
+                 </div>
 
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">有效期秒数（高级）</p>
-                <input
-                  value={expiresInSec}
-                  onChange={(e) => setExpiresInSec(e.target.value)}
-                  placeholder="例如 3600"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">不选截止时间时，使用该秒数作为 TTL</p>
-              </label>
-
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">总调用上限 (maxCalls)</p>
-                <input
-                  value={maxCalls}
-                  onChange={(e) => setMaxCalls(e.target.value)}
-                  placeholder="1000"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">生命周期累计调用上限</p>
-              </label>
-
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">每分钟上限 (RPM)</p>
-                <input
-                  value={rpm}
-                  onChange={(e) => setRpm(e.target.value)}
-                  placeholder="600"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">每分钟允许请求次数</p>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between px-3 py-2 border rounded-lg border-green-500/30 bg-green-500/10">
-              <p className="text-xs text-green-200">本次签发最终有效期（TTL）</p>
-              <p className="font-mono text-sm text-green-300">{effectiveExpiresInSec}s</p>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-500 rounded-lg hover:bg-gray-700">取消</button>
-              <button type="button" onClick={handleIssue} className="px-4 py-2 text-sm font-bold text-black bg-green-500 rounded-lg hover:bg-green-400">Issue Credential</button>
-            </div>
+                 <button onClick={() => { setIsCreateModalOpen(false); setLatestIssued(null); }} className="w-full py-2.5 text-sm font-medium text-white border border-gray-700 rounded-lg hover:bg-gray-800">
+                    Done
+                 </button>
+               </div>
+             )}
           </div>
         </div>
       )}
 
+      {/* Edit Quota Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-          <div className="w-full max-w-2xl p-5 space-y-4 border border-gray-500 rounded-2xl bg-[#0f1115] shadow-2xl shadow-yellow-500/10">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-white">编辑凭据配置</h3>
-                <p className="text-xs text-gray-400">调整调用上限、速率限制与过期时间</p>
-              </div>
-              <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-sm text-gray-400 hover:text-white">关闭</button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 border border-gray-800 bg-[#0a0a0a] rounded-xl shadow-2xl">
+             <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-400" /> Override Quota
+             </h3>
+             
+             <div className="space-y-4">
+                <div>
+                  <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Max Calls (-1 for infinite)</label>
+                  <input type="number" value={quotaMaxCalls} onChange={e => setQuotaMaxCalls(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                </div>
+                <div>
+                  <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Rate Limit (RPM)</label>
+                  <input type="number" value={quotaRpm} onChange={e => setQuotaRpm(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                </div>
+                <div>
+                  <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Expiration (Local Time)</label>
+                  <input type="datetime-local" value={quotaExpiresAtLocal} onChange={e => setQuotaExpiresAtLocal(e.target.value)} className="w-full px-3 py-2 text-sm text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                  <span className="text-[10px] text-gray-600 mt-1 block">Leave empty or clear to use raw timestamp.</span>
+                </div>
+             </div>
 
-            <div className="p-3 border border-gray-600 rounded-xl bg-gray-900/40">
-              <p className="mb-1 text-xs tracking-wide text-gray-400 uppercase">Credential ID</p>
-              <input
-                value={selectedCredentialId}
-                readOnly
-                className="w-full px-3 py-2 font-mono text-xs text-gray-400 bg-gray-900 border border-gray-500 rounded-lg"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">总调用上限 (maxCalls)</p>
-                <input
-                  value={quotaMaxCalls}
-                  onChange={(e) => setQuotaMaxCalls(e.target.value)}
-                  placeholder="1000"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">凭据生命周期内允许的最大调用次数</p>
-              </label>
-
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">每分钟上限 (RPM)</p>
-                <input
-                  value={quotaRpm}
-                  onChange={(e) => setQuotaRpm(e.target.value)}
-                  placeholder="600"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">每分钟请求次数上限，用于限流保护</p>
-              </label>
-
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">过期时间</p>
-                <input
-                  type="datetime-local"
-                  value={quotaExpiresAtLocal}
-                  onChange={(e) => setQuotaExpiresAtLocal(e.target.value)}
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">推荐使用时间选择器；也可在高级模式填写 Unix 秒时间戳</p>
-              </label>
-
-              <label className="block p-3 border border-gray-600 rounded-xl bg-gray-900/40 md:col-span-2">
-                <p className="mb-1 text-xs tracking-wide text-gray-300 uppercase">过期时间（Unix 秒，高级）</p>
-                <input
-                  value={quotaExpiresAt}
-                  onChange={(e) => setQuotaExpiresAt(e.target.value)}
-                  placeholder="expiresAt (unix sec)"
-                  className="w-full px-3 py-2 text-sm text-white bg-gray-900 border border-gray-500 rounded-lg"
-                />
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between px-3 py-2 border rounded-lg border-yellow-500/30 bg-yellow-500/10">
-              <p className="text-xs text-yellow-200">本次更新的最终过期时间（Unix sec）</p>
-              <p className="font-mono text-sm text-yellow-300">{effectiveQuotaExpiresAt ?? "--"}</p>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-500 rounded-lg hover:bg-gray-700">取消</button>
-              <button type="button" onClick={handleQuotaUpdate} className="px-4 py-2 text-sm font-bold text-black bg-yellow-500 rounded-lg hover:bg-yellow-400">Update quota</button>
-            </div>
+             <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800">Cancel</button>
+                <button onClick={handleUpdateQuota} className="px-5 py-2 text-sm font-bold text-black bg-blue-500 rounded-lg hover:bg-blue-400">Save</button>
+             </div>
           </div>
         </div>
       )}
@@ -579,7 +536,7 @@ function CredentialsContent() {
 
 export default function CredentialsPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-gray-400 animate-pulse">Loading Credentials Workspace...</div>}>
+    <Suspense fallback={<div className="p-8 text-gray-500">Loading UI...</div>}>
       <CredentialsContent />
     </Suspense>
   );

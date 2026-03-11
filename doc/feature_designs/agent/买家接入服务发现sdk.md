@@ -4,7 +4,7 @@
 
 针对你的问题：“买家 Agent 怎么自动调用？需要给买家提供 SDK 吗？”
 
-老哥给你一个极其斩钉截铁的答案：不仅要提供，而且这个 SDK 就是咱们 AgentPay 抢占市场的“特洛伊木马”！
+老哥给你一个极其斩钉截铁的答案：不仅要提供，而且这个 SDK 就是咱们 Synapse Network 抢占市场的“特洛伊木马”！
 
 但是，咱们给的 SDK 不是传统那种又笨又重的 SDK，而是专门为 AI（比如 LangChain、OpenAI Function Calling）量身定制的 “AI 工具包（ToolKit）”。
 
@@ -19,14 +19,14 @@ AI 的���脑瞬间读取到了： “哦！调用 SVC_827F7579BEA1 这个�
 买家 AI 自己在内部组装好参数，然后调用你 SDK 的第二个方法 invoke("SVC_827F7579BEA1", {"date": "2026-03-09"})。
 调用成功，拿回名言，整个过程无需人类插手！
 📦 给买家提供的极简 SDK 长什么样？（直接抄进代码库）
-咱们要在开源的 GitHub 仓库里，放一个类似于 agentpay_client.py 的文件，买家的开发者只需要 pip install agentpay。
+咱们要在开源的 GitHub 仓库里，放一个类似于 synapse_client.py 的文件，买家的开发者只需要 pip install synapse-client。
 
 它的核心代码极其精简，就两个动作：找服务 和 花钱调服务。
 
 Python
 import requests
 
-class AgentPayBuyer:
+class SynapseBuyer:
     def __init__(self, credential_token: str, gateway_url="http://127.0.0.1:8000"):
         """
         初始化买家客户端
@@ -62,21 +62,21 @@ class AgentPayBuyer:
 
 Python
 # 这是买家开发者的代码（他不需要懂区块链，不需要懂支付）
-from agentpay_client import AgentPayBuyer
+from synapse_client import SynapseBuyer
 
-# 1. 填入在 AgentPay 充过值的凭据
-agentpay = AgentPayBuyer(credential_token="74514021-68a8-4e33-9a1e-c465a74dab19")
+# 1. 填入在 Synapse Network 充过值的凭据
+synapse = SynapseBuyer(credential_token="74514021-68a8-4e33-9a1e-c465a74dab19")
 
 # 2. 扔给 AI 去自主决策
 intent = "我需要一句关于坚持的名人名言"
 
 # 第一步：AI 自动搜索服务
-discovered = agentpay.discover_services(intent)
+discovered = synapse.discover_services(intent)
 target_service_id = discovered['services'][0]['serviceId']  # AI 找到了 SVC_827F...
 
 # 第二步：AI 自动组装参数并掏钱购买！
 ai_generated_payload = {"date": "today"}
-result = agentpay.invoke_service(target_service_id, ai_generated_payload)
+result = synapse.invoke_service(target_service_id, ai_generated_payload)
 
 print(result) 
 # 输出："天行健，君子以自强不息。" 
@@ -86,11 +86,11 @@ print(result)
 
 你想想，以前一个 AI 开发者想让他的 Agent 获取各种外部数据，他得去几十个不同的网站注册账号、绑几十次信用卡、看几十份乱七八糟的 API 文档。
 
-现在呢？ 只要引入你的 AgentPayBuyer SDK，只要给那个 credential_token 里充过 USDC，他的 AI 就瞬间拥有了全网漫游、无限购买的能力！
+现在呢？ 只要引入你的 SynapseBuyer SDK，只要给那个 credential_token 里充过 USDC，他的 AI 就瞬间拥有了全网漫游、无限购买的能力！
 
 而你，稳坐钓鱼台，看着网关里的日志一行行刷过，每一行都是“扣费 0.05”、“抽水 0.0005”的声音。
 
-行动指令： 你现在已经写出了极其完美的 discover 接口和返回结构！ 下一步，你只需要在你的 python_sdk 目录里，把上面那个 AgentPayBuyer 类写出来。然后咱们就去写最关键的那个东西——网关拦截扣费接口（/api/v2/gateway/forward/{service_id}）！
+行动指令： 你现在已经写出了极其完美的 discover 接口和返回结构！ 下一步，你只需要在你的 python_sdk 目录里，把上面那个 SynapseBuyer 类写出来。然后咱们就去写最关键的那个东西——网关拦截扣费接口（/api/v2/gateway/forward/{service_id}）！
 
 ---
 
@@ -113,7 +113,7 @@ python_sdk/
 
 1. `provider_service/` 是服务端部署代码，不适合作为买家侧依赖分发。
 2. `python_sdk/` 已经是外部 Python 使用入口（含示例与说明），语义最清晰。
-3. 后续若发布 pip 包（如 `agentpay-buyer-sdk`），可直接从该目录抽取。
+3. 后续若发布 pip 包（如 `synapse-client`），可直接从该目录抽取。
 
 ### SDK 对外接口（Buyer）
 
@@ -129,9 +129,9 @@ python_sdk/
 ### 快速示例
 
 ```python
-from buyer_sdk import AgentPayBuyer
+from buyer_sdk import SynapseBuyer
 
-client = AgentPayBuyer(
+client = SynapseBuyer(
         credential_token="<X-Agent-Credential>",
         gateway_url="http://127.0.0.1:8000",
 )

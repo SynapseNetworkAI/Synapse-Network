@@ -17,7 +17,7 @@ export default function RoleGuard({ children }: { children: React.ReactNode }) {
 
     // If no role is selected, prevent access to dashboard sections directly
     // Platform overview could be public maybe, but generally need a role
-    if (!currentRole && pathname !== '/dashboard' && pathname.startsWith('/dashboard')) {
+    if (!currentRole && pathname !== '/dashboard' && pathname !== '/dashboard/buyer' && pathname !== '/dashboard/discover' && pathname.startsWith('/dashboard')) {
       router.replace('/');
       return;
     }

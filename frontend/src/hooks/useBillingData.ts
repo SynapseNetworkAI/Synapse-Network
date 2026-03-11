@@ -6,7 +6,6 @@ import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import A2APaySyncRouterABI from "@/A2APaySyncRouterABI.json";
 import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
-import { agentStore } from "@/utils/agentStore";
 import { listUsageLogs } from "@/utils/usageApi";
 
 export type BillingRow = {
@@ -43,11 +42,10 @@ export function useBillingData() {
         const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
         const router = new ethers.Contract(contractConfig.A2APaySyncRouter, A2APaySyncRouterABI, provider);
 
-        const ownerAgents = agentStore.getAgentsByOwner(userAddress);
         const trackedAddresses = new Set<string>([
           userAddress.toLowerCase(),
-          ...ownerAgents.map((agent) => agent.address.toLowerCase()),
         ]);
+
 
         try {
           const usageRows = await listUsageLogs(userAddress, 300);

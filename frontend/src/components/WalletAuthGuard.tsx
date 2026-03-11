@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useEffect, useState, useCallback, createContext, useContext } from "react";
 import { useAccount, useSignMessage } from "wagmi";
-import { Loader2, ShieldCheck, Wallet } from "lucide-react";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
   clearAuthSession,
@@ -13,6 +11,26 @@ import {
   verifyAuthSignature,
 } from "@/utils/authSession";
 
+interface AuthContextType {
+  isConnected: boolean;
+  isSessionAuthenticated: boolean;
+  address: string | undefined;
+  authError: string | null;
+  isAuthorizing: boolean;
+  authorize: () => Promise<void>;
+}
+
+export const AuthContext = createContext<AuthContextType>({
+  isConnected: false,
+  isSessionAuthenticated: false,
+  address: undefined,
+  authError: null,
+  isAuthorizing: false,
+  authorize: async () => {},
+});
+
+export const useAuth = () => useContext(AuthContext);
+
 export default function WalletAuthGuard({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isConnected, address } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -20,7 +38,8 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   const [authError, setAuthError] = useState<string | null>(null);
   const [verifiedWallet, setVerifiedWallet] = useState<string | null>(null);
 
-  const normalizedAddress = useMemo(() => address?.toLowerCase() || null, [address]);
+  // We no longer block access globally based on isPublicRoute.
+  // The context provides auth state to downstream components that use <AuthMask />.
 
   const authorize = useCallback(async () => {
     if (!address) return;
@@ -108,45 +127,18 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
     };
   }, []);
 
-  if (!isConnected) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <Wallet className="w-16 h-16 mb-6 text-green-400 animate-pulse" />
-        <h2 className="mb-4 text-2xl font-bold">Web3 Identity Required</h2>
-        <p className="max-w-md mb-8 text-gray-400">
-          Please connect your wallet to access provider controls. Wallet signature login will be completed after connection.
-        </p>
-        <ConnectButton />
-      </div>
-    );
-  }
+  const isSessionAuthenticated = Boolean(verifiedWallet && !authError && !isAuthorizing && isConnected && address);
 
-  if (authError && !isAuthorizing) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <ShieldCheck className="w-12 h-12 mb-4 text-yellow-400" />
-        <h2 className="mb-2 text-xl font-semibold text-white">Authentication Required</h2>
-        <p className="max-w-lg mb-6 text-sm text-gray-400">{authError}</p>
-        <button
-          type="button"
-          onClick={() => authorize()}
-          className="px-6 py-2 text-sm font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400"
-        >
-          Sign Message to Login
-        </button>
-      </div>
-    );
-  }
-
-  if (isAuthorizing || (normalizedAddress && verifiedWallet !== normalizedAddress)) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <Loader2 className="w-12 h-12 mb-6 text-cyan-400 animate-spin" />
-        <h2 className="mb-2 text-xl font-semibold text-white">Authenticating Wallet Signature</h2>
-        <p className="text-sm text-gray-400">Please sign the login message in your wallet to continue.</p>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <AuthContext.Provider value={{
+      isConnected,
+      isSessionAuthenticated,
+      address,
+      authError,
+      isAuthorizing,
+      authorize
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

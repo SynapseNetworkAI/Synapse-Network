@@ -180,12 +180,12 @@ anvil
 ```
 *(Anvil 会在 `127.0.0.1:8545` 启动一个极速版的本地以太坊节点，并提供 10 个测试账号)*
 
-**第三步：部署 V2 A2APayVault 智能合约**
+**第三步：部署 V2 SynapseCore 智能合约**
 请切记，每次重启 Anvil 节点后，都需要重新部署合约。在项目根目录另开一个终端：
 ```bash
 npx hardhat run scripts/deploy_anvil.js --network localhost
 ```
-*(脚本会自动部署支持 `ERC20Permit` 的 `MockUSDC` 与 `A2APayVault`，并将新地址自动写入 `frontend/src/contract-config.json` 中)*
+*(脚本会自动部署支持 `ERC20Permit` 的 `MockUSDC` 与 `SynapseCore`，并将新地址自动写入 `frontend/src/contract-config.json` 中)*
 
 ### 4.2 开发模式下启动 Seller FastAPI
 此命令会基于 `uvicorn` 热重载模式启动 API，当您修改相关的 Python 校验代码时自动生效：

@@ -1150,9 +1150,51 @@ async def generate_response_v2(
                     
     except Exception as e:
         req_logger.error(f"Upstream provider failed after retries: {e}")
-        actual_result = f"Upstream Error: {str(e)}"
-        # Optionally we could raise HTTPException here to trigger a rollback
-        # of the pre-deduction if we implemented rollback.
+        
+        # --- ROLLBACK LOGIC (TCC Cancel) ---
+        with lock:
+            ledger = load_balance_ledger()
+            buyers = ledger.setdefault("buyers", {})
+            sellers = ledger.setdefault("sellers", {})
+            platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
+            daily_spend = ledger.setdefault("dailySpend", {})
+            wallet_daily_spend = daily_spend.setdefault(buyer_wallet, {})
+            
+            # Revert balances
+            buyers[buyer_wallet] = round(float(buyers.get(buyer_wallet, 0.0)) + unit_price, 6)
+            sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) - seller_net, 6)
+            platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) - platform_fee, 6)
+            wallet_daily_spend[today_key] = round(float(wallet_daily_spend.get(today_key, 0.0)) - unit_price, 6)
+            
+            save_balance_ledger(ledger)
+            
+            # Update usage log to 'failed'
+            usage_rows = load_usage_logs()
+            for row in reversed(usage_rows):
+                if row.get("request_id") == request_id:
+                    row["status"] = "failed_upstream"
+                    row["error_msg"] = str(e)
+                    break
+            save_usage_logs(usage_rows)
+            
+        if active_credential:
+            refund_credential_call(str(active_credential.get("id")))
+            
+        append_audit_log(
+            "V2_USAGE_REFUNDED",
+            buyer_wallet,
+            {
+                "requestId": request_id, 
+                "serviceId": service_id, 
+                "refundedAmount": unit_price, 
+                "reason": "upstream_error"
+            }
+        )
+            
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "UPSTREAM_ERROR", "message": f"Upstream provider failed: {str(e)}"}
+        )
     # ---------------------------------------------------------
 
     response_data = {

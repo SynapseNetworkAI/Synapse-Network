@@ -1,18 +1,13 @@
-import Link from "next/link";
-import { Activity, ArrowUpRight, Bot, HandCoins } from "lucide-react";
+import { ArrowUpRight, Bot, HandCoins } from "lucide-react";
 import PaidInvokePanel from "@/components/PaidInvokePanel";
 
 type DashboardService = {
   id: string;
-  agentId: string;
   name: string;
   serviceId: string;
   pricing: string;
   endpoint: string;
   isActive: boolean;
-  agentName: string;
-  agentRole: string;
-  sellerAddress: string;
 };
 
 type ServiceGridProps = {
@@ -20,9 +15,10 @@ type ServiceGridProps = {
   serviceBalances: Record<string, string>;
   onFundService: (serviceName: string) => void;
   onSweepService: (serviceName: string) => void;
+  masterAddress?: string;
 };
 
-export default function ServiceGrid({ services, serviceBalances, onFundService, onSweepService }: ServiceGridProps) {
+export default function ServiceGrid({ services, serviceBalances, onFundService, onSweepService, masterAddress }: ServiceGridProps) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {services.map((service) => (
@@ -36,7 +32,7 @@ export default function ServiceGrid({ services, serviceBalances, onFundService, 
               </div>
               <div>
                 <h3 className="text-xl font-bold leading-tight text-green-400">{service.name}</h3>
-                <span className="font-mono text-xs tracking-wide text-gray-500">{service.agentName} / {service.agentRole}</span>
+                <span className="font-mono text-xs tracking-wide text-gray-500">User Address</span>
               </div>
             </div>
             <div className={`flex items-center px-2 py-1 text-xs border rounded-full ${service.isActive ? "text-green-400 bg-green-500/10 border-green-500/20" : "text-gray-400 bg-gray-700/20 border-gray-600/50"}`}>
@@ -61,7 +57,7 @@ export default function ServiceGrid({ services, serviceBalances, onFundService, 
             <div>
               <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Seller Wallet Address</span>
               <div className="px-3 py-2 mt-1 font-mono text-sm text-gray-300 truncate border rounded select-all bg-gray-900/50 border-gray-800/50">
-                {service.sellerAddress}
+                {masterAddress}
               </div>
             </div>
 
@@ -92,14 +88,11 @@ export default function ServiceGrid({ services, serviceBalances, onFundService, 
               Sweep
             </button>
 
-            <Link href={`/dashboard/services/${service.agentId}`} className="flex items-center justify-center flex-1 w-full h-full p-2 text-sm font-medium text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700" title="Agent Details">
-              <Activity className="w-4 h-4" />
-            </Link>
           </div>
 
           <div className="mt-4">
             <PaidInvokePanel
-              sellerAddress={service.sellerAddress}
+              sellerAddress={masterAddress || ""}
               endpoint={service.endpoint}
               serviceId={service.serviceId}
               pricing={service.pricing}

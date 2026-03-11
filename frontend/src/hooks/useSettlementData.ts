@@ -7,7 +7,6 @@ import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import A2APaySyncRouterABI from "@/A2APaySyncRouterABI.json";
 import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
-import { agentStore } from "@/utils/agentStore";
 import { listUsageLogs } from "@/utils/usageApi";
 
 export type SettlementEvent = {
@@ -42,11 +41,10 @@ export function useSettlementData() {
         const usdc = new ethers.Contract(contractConfig.MockUSDC, MockUSDCABI, provider);
         const router = new ethers.Contract(contractConfig.A2APaySyncRouter, A2APaySyncRouterABI, provider);
 
-        const ownerAgents = agentStore.getAgentsByOwner(userAddress);
         const sellerAddresses = new Set<string>([
           userAddress.toLowerCase(),
-          ...ownerAgents.map((agent) => agent.address.toLowerCase()),
         ]);
+
 
         const walletBal = await usdc.balanceOf(userAddress);
         const usdcNum = Number.parseFloat(ethers.formatUnits(walletBal, 18));

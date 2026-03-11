@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract A2APayVault is Ownable, EIP712, ReentrancyGuard {
+contract SynapseCore is Ownable, EIP712, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable usdc;
@@ -30,7 +30,7 @@ contract A2APayVault is Ownable, EIP712, ReentrancyGuard {
 
     constructor(address _usdc, address _signer, address _initialOwner) 
         Ownable(_initialOwner)
-        EIP712("A2APayVault", "2")
+        EIP712("SynapseCore", "1")
     {
         require(_usdc != address(0), "Invalid USDC");
         require(_signer != address(0), "Invalid Signer");

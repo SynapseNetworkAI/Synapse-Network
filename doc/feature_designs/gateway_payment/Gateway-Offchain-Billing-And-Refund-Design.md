@@ -1,6 +1,6 @@
 # 网关离链计费与凭票退款结算设计 (Gateway Off-chain Billing & Refund Design)
 
-本文档详细说明了 A2A-Pay 在引入 `A2APayVault.sol` (V2 架构) 后，Python 后端网关如何完成**“离链高频切账”**以及**“凭票清算（赛博银票 EIP-712）”**的完整实现方案。
+本文档详细说明了 A2A-Pay 在引入 `SynapseCore.sol` (V2 架构) 后，Python 后端网关如何完成**“离链高频切账”**以及**“凭票清算（赛博银票 EIP-712）”**的完整实现方案。
 
 这套方案完全摒弃了老旧的 Web3 逐笔上链模式，真正做到了：**只有存钱和取钱时用户需要在链上按确认（付极少的 Gas），中间成千上万次的极快 API 调用体验极度丝滑（和 Web2 一样快，和 Web2 一样免费）**。
 
@@ -57,7 +57,7 @@
 
 ## 3. 买家退款与赛博银票签发机制 (出金流)
 
-当买家不想再使用，且其离线账本表中还剩余一定 USDC（比如 15 U 此前已经全部充进了 `A2APayVault.sol`）时，出金（Refund）流程遵循“由平台发票，用户自己提现”策略：
+当买家不想再使用，且其离线账本表中还剩余一定 USDC（比如 15 U 此前已经全部充进了 `SynapseCore.sol`）时，出金（Refund）流程遵循“由平台发票，用户自己提现”策略：
 
 ### Step 1: 用户在前端发起退款请求
 前端调用网关专用接口: `POST /api/v2/refund`
@@ -68,13 +68,13 @@
 
 ### Step 3: 后端开出“赛博银票” (EIP-712 Signature)
 后端调用密码学库（如 `eth-account`），利用最高管理者的热钱包私钥 (`platformSigner`的私钥)：
-* 构造智能合约兼容的 Domain 结构 (匹配名称 `"A2APayVault"`, 版本 `"2"`, 还有对应的 `chainId` 及合约地址)。
+* 构造智能合约兼容的 Domain 结构 (匹配名称 `"SynapseCore"`, 版本 `"2"`, 还有对应的 `chainId` 及合约地址)。
 * 拼装提款消息: 确认提款人 (`owner` = `buyer_address`)，金额 (`amount` = `refundable_amount`)，手续费 (`fee` = 0，退款豁免)，防重放 Nonce（通过 RPC 向智能合约查此人的 nonce），以及过期时间 `deadline`。
 * 组合以上要素并本地签署后产生 `v, r, s` (转化为十六进制 signature，附加其余数据打包 HTTP 返回给前端)。
 
 ### Step 4: 前端拿着签名“金库取现” (智能合约闭环)
 收到 HTTP 回包后，前端使用 wagmi 直接调用 MetaMask。
-* 直接将 `amount`, `fee`, `nonce`, `deadline`, `signature` 参数一把传给链上金库 `A2APayVault.withdraw`。
+* 直接将 `amount`, `fee`, `nonce`, `deadline`, `signature` 参数一把传给链上金库 `SynapseCore.withdraw`。
 * 智能合约 ecrecover 验证确认是平台签发后，顺手提取 fee 到平台池（若 fee>0），剩余金额直接原路打给用户。**所需 Gas 由提款用户自行支付。**
 
 *(卖家提取营收 `Seller Claim` 的流程与理发大同小异，只是出账对象变为 `sellerReceivables` 且大概率会附带大于 0 的提币手续费做平台抽水的变现转移)。*
@@ -92,10 +92,10 @@ import time
 
 def sign_withdraw_ticket(user_address: str, amount_wei: int, fee_wei: int, nonce: int, vault_contract_address: str, chain_id: int, signer_private_key: str):
     """
-    为前端生成可以向智能合约 A2APayVault 请求取款的授权签名
+    为前端生成可以向智能合约 SynapseCore 请求取款的授权签名
     """
     domain = {
-        "name": "A2APayVault",
+        "name": "SynapseCore",
         "version": "2",
         "chainId": chain_id, 
         "verifyingContract": vault_contract_address

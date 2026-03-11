@@ -1,6 +1,6 @@
 # Buyer SDK 快速接入指南
 
-本文档面向买家侧 Agent/应用开发者，说明如何快速接入 `agentpay-buyer-sdk`，完成服务发现与付费调用。
+本文档面向买家侧 Agent/应用开发者，说明如何快速接入 `synapse-client`，完成服务发现与付费调用。
 
 ## 1. 安装
 
@@ -24,9 +24,9 @@ pip install -e .
 ## 3. 最小可用示例
 
 ```python
-from buyer_sdk import AgentPayBuyer
+from buyer_sdk import SynapseBuyer
 
-client = AgentPayBuyer(
+client = SynapseBuyer(
     credential_token="<X-Agent-Credential>",
     gateway_url="http://127.0.0.1:8000",
 )

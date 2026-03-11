@@ -5,7 +5,7 @@ export default function OverviewHero() {
     <div className="max-w-3xl">
       <p className="text-xs tracking-widest text-green-300 uppercase">Overview</p>
       <h2 className="mt-2 text-3xl font-black leading-tight text-white md:text-4xl">
-        AgentPay：让 Agent 安全调用 API，并自动完成扣费与结算
+        Synapse Network：让 Agent 安全调用 API，并自动完成扣费与结算
       </h2>
       <p className="mt-4 text-sm leading-7 text-gray-400">
         买家充值后可用凭据发起高频调用；卖家接入 API 后按调用量获得收益；平台按费率自动抽取服务费。

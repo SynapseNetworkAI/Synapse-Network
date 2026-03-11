@@ -1,8 +1,8 @@
-from .client import AgentPayBuyer
+from .client import SynapseBuyer
 from .exceptions import BuyerSDKError, DiscoveryError, InvokeError
 
 __all__ = [
-    "AgentPayBuyer",
+    "SynapseBuyer",
     "BuyerSDKError",
     "DiscoveryError",
     "InvokeError",

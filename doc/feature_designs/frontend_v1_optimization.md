@@ -57,10 +57,10 @@
   * 根据用户当前选中的 Key，**自动替换** 进代码中。
   * 提供 Python / Node.js 两个 Tab。
   ```python
-  from a2a_pay import AgentPayClient
+  from synapse_client import SynapseClient
 
   # 你的专属 API Key 已经自动填入
-  client = AgentPayClient(api_key="agt_iTIcDZ...")
+  client = SynapseClient(api_key="agt_iTIcDZ...")
 
   response = client.call_service("DeepSeek-Chat", prompt="Hello World!")
   print(response.content)
@@ -99,9 +99,9 @@
 | ----------------------------------------------------------------   |
 | [ Python ] [ Node.js ] [ cURL ]                                    |
 |                                                                    |
-|  $ pip install a2a-pay                                             |
+|  $ pip install synapse-client                                             |
 |                                                                    |
-|  from a2a_pay import AgentClient                                   |
+|  from synapse_client import AgentClient                                   |
 |  client = AgentClient(api_key="agt_iTIcDZ...")                     |
 |  client.call(...)                                                  |
 |                                                     [ Copy Code ]  |

@@ -137,7 +137,7 @@ function claim(
 ## 6. EIP-712 签名结构
 
 Domain：
-- `name = "AgentPayVault"`
+- `name = "Synapse NetworkVault"`
 - `version = "1"`
 - `chainId`
 - `verifyingContract = vaultAddress`

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ServiceRegistryRecord, discoverServices } from "@/utils/serviceApi";
+import WalletProfileBadge from "@/components/WalletProfileBadge";
 
 export default function DiscoverPage() {
   const [intent, setIntent] = useState("");
@@ -30,11 +31,14 @@ export default function DiscoverPage() {
 
   return (
     <div className="max-w-6xl p-8 mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-white">AI Service Discovery</h1>
-        <p className="mt-2 text-gray-400">
-          AgentPay 赛博黄页 - 本页仅用于展示平台注册服务；支付与共享凭据签发在 Router 页面完成
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">AI Service Discovery</h1>
+          <p className="mt-2 text-gray-400">
+            Synapse Network 赛博黄页 - 本页仅用于展示平台注册服务；支付与共享凭据签发在 Router 页面完成
+          </p>
+        </div>
+        <WalletProfileBadge />
       </div>
 
       <div className="flex items-center justify-between gap-3 p-4 border border-gray-800 rounded-lg bg-gray-900/50">

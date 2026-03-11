@@ -31,7 +31,7 @@
 ## 2.2 首屏 Hero（必须）
 
 标题建议：
-- **AgentPay：让 Agent 安全调用 API，并自动完成扣费与结算**
+- **Synapse Network：让 Agent 安全调用 API，并自动完成扣费与结算**
 
 副标题建议：
 - 买家：充值后即可用凭据发起高频调用。  
@@ -109,7 +109,7 @@
 - `unit_price`
 - `platform_fee`
 - `seller_net`
-- `X-AgentPay-Balance`（扣后余额）
+- `X-Synapse-Balance`（扣后余额）
 
 ---
 
@@ -206,7 +206,7 @@
 
 ## 11. 一句话结论
 
-Dashboard 不只是数据面板，而是 **AgentPay 的业务导航系统**：把“怎么用、怎么花、怎么赚、平台怎么收”一次讲清楚，才能提高转化与留存。
+Dashboard 不只是数据面板，而是 **Synapse Network 的业务导航系统**：把“怎么用、怎么花、怎么赚、平台怎么收”一次讲清楚，才能提高转化与留存。
 
 ---
 
@@ -283,3 +283,32 @@ Router 页面固定展示 3 条 setup 状态：
 3. 支付成功后可生成 owner 级共享凭据，并可用于所有 buyer agents。
 4. 页面明确给出“是否可调用”的最终结论。
 5. 当用户未完成任一步骤时，页面能指示下一动作。
+
+---
+
+## 15. Auth Token 与登录状态展示设计 ("Shell First" 渐进式展开)
+
+### 15.1 设计理念：信任感拉满，优雅降级
+不要一开始就用“全屏铁墙（WalletAuthGuard）”把用户挡在门外。我们希望用户在**未连接钱包**或**登录态（Token）过期**时，依然能看到 Dashboard 的“壳子”（导航、页面结构、说明文案），只在真正需要敏感数据的地方进行“局部遮罩（Glassmorphism Blur）”引导授权。
+
+### 15.2 状态矩阵与 UI 响应
+
+我们把状态分为两层：
+1. **Wallet Connected** (Wagmi 状态) - 是否连接了钱包。
+2. **Session Authenticated** (Backend Token) - 是否有有效的 EIP-4361 签名登录态。
+
+| 钱包状态 | 登录态 (Token) | UI 展示表现 | 行为引导 |
+| :--- | :--- | :--- | :--- |
+| ❌ 未连接 | ❌ 无/过期 | **展示页面框架**。敏感数据（如 API Key 列表、余额、调用流水）使用高斯模糊（Blur）遮罩。右上角显示 `Connect Wallet`。 | 点击遮罩层上的按钮，弹出 `Connect Wallet`，然后连带触发 `Sign to Verify`。 |
+| ✅ 已连接 | ❌ 无/过期 | **展示页面框架**。右上角显示钱包地址，但数据区依然被 Blur 遮罩。因为只能读链上数据，无法调后端 API。 | 遮罩层提示 `Session Expired`，提供 `Sign in to view data` 按钮触发签名更新 Token。 |
+| ✅ 已连接 | ✅ 有效 | **完全展示**。所有私密数据正常加载，右上角正常显示连接状态。 | 正常使用。 |
+
+### 15.3 局部组件级遮罩 (Glassmorphism Blur) 规范
+- **视觉层面**: 对于 `Buyer Console`, `Developer Console`, `Billing` 等页面的核心数据区域（如 Table, Card 列表），在无 Token 时渲染真实组件结构但叠加一层 `backdrop-blur-sm` 的磨砂玻璃效果层。
+- **文案提示**: 在磨砂层中央放置醒目提示框：
+  - 未连钱包时：`Connect your wallet to manage API keys and view credentials.`
+  - 已连钱包未签名时：`Please sign the message to verify your identity and view your data.`
+- **操作闭环**: 遮罩层上的按钮直接触发对应的 Wallet Modal 或 Signature Modal，完成后自动刷新当前组件数据。
+
+### 15.4 技术实现重构方向
+废除原有的全局阻断式 `WalletAuthGuard`（单纯的 `if (!isAuthenticated) return <ConnectWall />`），改为提供 `AuthContext` 状态给各个内部组件。由具体的业务组件（如 `ApiKeyList`, `BalanceCard`）根据当前认证状态决定是渲染真实数据还是渲染“遮罩层”。

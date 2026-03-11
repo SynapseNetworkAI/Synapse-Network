@@ -7,7 +7,7 @@ from .exceptions import DiscoveryError, InvokeError
 from .models import DiscoveryResponse, ToolSpec
 
 
-class AgentPayBuyer:
+class SynapseBuyer:
     """Buyer-side sdk for discovery + paid invoke."""
 
     def __init__(

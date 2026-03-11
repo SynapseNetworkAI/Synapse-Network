@@ -17,7 +17,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "A2A-Pay Protocol",
+  title: "Synapse Network",
   description: "AI-to-AI Payment Infrastructure",
 };
 

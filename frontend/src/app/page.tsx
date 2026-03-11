@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+
 import { useRouter } from "next/navigation";
 import { setAppRole } from "@/utils/roleStore";
 import { ArrowRight, ShieldCheck, Zap, Wallet, Bot, Store, ReceiptText, TerminalSquare } from "lucide-react";
@@ -16,9 +16,9 @@ export default function Home() {
   return (
     <div className="mx-auto max-w-7xl px-6 md:px-8 py-10 space-y-16">
       <section className="max-w-4xl space-y-6">
-        <p className="uppercase tracking-[0.2em] text-xs text-green-300">AgentPay</p>
+        <p className="uppercase tracking-[0.2em] text-xs text-green-300">Synapse Network</p>
         <h1 className="text-4xl md:text-6xl font-black leading-tight bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-700">
-          Agentic Economy Infrastructure
+          Synapse：链接硅基生命的 API 结算中枢。
         </h1>
         <p className="text-lg text-gray-300 leading-8 max-w-3xl">
           我们是面向 AI Agent 的支付与结算基础设施：让买家 Agent 可以安全调用他人 API，让卖家 API 可以按调用自动收款。
@@ -26,7 +26,7 @@ export default function Home() {
         </p>
         <div className="flex flex-wrap gap-4 mt-8">
           <button 
-            onClick={() => handleEnterRole('CONSUMER', '/dashboard/console')}
+            onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')}
             className="min-w-[160px] inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-black px-6 py-4 rounded-xl font-bold text-sm transition-all hover:scale-105 shadow-[0_0_15px_rgba(34,197,94,0.4)]"
           >
             买家接入 (Consumer)
@@ -75,8 +75,8 @@ export default function Home() {
             <li>查看每笔消费、余额与扣费明细</li>
           </ol>
           <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/console')} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">快速充值</button>
-              <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/console')} className="bg-green-500 hover:bg-green-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">获取 API Key</button>
+              <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">快速充值</button>
+              <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')} className="bg-green-500 hover:bg-green-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">获取 API Key</button>
           </div>
         </div>
 
@@ -111,7 +111,7 @@ export default function Home() {
           <p className="text-gray-300 font-mono text-xs mt-1">seller_net = unit_price - platform_fee</p>
           <p className="text-gray-400 text-sm mt-2 leading-6">调用失败按策略回滚，调用成功固化账务，保证扣费可追踪。</p>
         </div>
-          <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/console')} className="bg-black/40 border border-green-900/50 hover:bg-green-900/20 transition-colors p-5 rounded-xl block text-left">
+          <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')} className="bg-black/40 border border-green-900/50 hover:bg-green-900/20 transition-colors p-5 rounded-xl block text-left">
           <TerminalSquare className="w-8 h-8 text-green-500 mb-3" />
           <h4 className="text-lg font-bold text-white">Developer Console</h4>
           <p className="text-gray-400 text-sm mt-2 leading-6">统一管理服务、凭据、调用、收益与结算，作为买卖双方的操作中枢。</p>

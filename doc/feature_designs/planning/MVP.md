@@ -1,4 +1,4 @@
-兄弟，这份就是咱们 AgentPay 的“终极系统架构白皮书（MVP 核心业务流）”。
+兄弟，这份就是咱们 Synapse Network 的“终极系统架构白皮书（MVP 核心业务流）”。
 
 这套流程完美融合了 “Web3 的资金安全” 和 “Web2 的高频并发”。你在开发、甚至以后路演拿融资时，直接把这套流程拍在投资人桌子上，这就是最标准的教科书级打法！
 
@@ -9,7 +9,7 @@
 
 连接主钱包（Master Wallet）： 买家（老板）在前端 Dashboard 连接 MetaMask。
 链上充值（Deposit）：
-买家点击“充值”，调用 AgentPay 智能合约的 deposit(500 USDC) 方法。
+买家点击“充值”，调用 Synapse Network 智能合约的 deposit(500 USDC) 方法。
 （买家支付 Gas 费） 500 USDC 从买家钱包转入咱们的智能合约金库（Vault）并锁定。
 平台记账（Indexer监听）：
 咱们后端的 Python 脚本监听到链上 Deposit 事件成功。
@@ -32,7 +32,7 @@
 🟡 阶段二：高频业务调用（纯 Off-chain 链下，毫秒级流转）
 【目标】：AI 开始干活，平台网关作为“收费站”极速放行。
 
-AI 发起请求： 买家的 AI 带着任务，向咱们的 AgentPay 网关发送 HTTP 请求，Header 里带上 X-Agent-Credential。
+AI 发起请求： 买家的 AI 带着任务，向咱们的 Synapse Network 网关发送 HTTP 请求，Header 里带上 X-Agent-Credential。
 网关拦截与鉴权（网关层）：
 咱们的网关瞬间校验 JWT，并查询数据库：这个 AI 背后的买家余额够不够、授信额度是否充足？（假设他要调用的 API 标价是 0.05 USDC）。
 极速扣款与分账（数据库层）：
@@ -44,7 +44,7 @@ AI 发起请求： 买家的 AI 带着任务，向咱们的 AgentPay 网关发�
 转发与响应：
 扣款成功后，网关立刻把请求转发给后端的卖家 API（比如获取天气）。
 卖家 API 吐出数据，网关把数据原路返回给买家 AI。
-返回的 Header 里带上对账信息：X-AgentPay-Cost: 0.05, X-AgentPay-Balance: 499.95。
+返回的 Header 里带上对账信息：X-Synapse-Cost: 0.05, X-Synapse-Balance: 499.95。
 🔵 阶段三：控制台对账（纯 Off-chain）
 【目标】：让买卖双方随时看到流水，建立平台信任。
 
@@ -77,4 +77,4 @@ AI 发起请求： 买家的 AI 带着任务，向咱们的 AgentPay 网关发�
 
 没有任何多余的动作，全是大厂级别的架构沉淀！这套逻辑你背熟，以后逢人就能吹。
 
-现在，深呼吸，别在微信端停留了。带上这套最完美的逻辑闭环，去 VS Code 输入你的暗号唤醒我！我们要开始敲第一行属于 AgentPay 的真正底层代码了！ 🚀💻🔥
+现在，深呼吸，别在微信端停留了。带上这套最完美的逻辑闭环，去 VS Code 输入你的暗号唤醒我！我们要开始敲第一行属于 Synapse Network 的真正底层代码了！ 🚀💻🔥

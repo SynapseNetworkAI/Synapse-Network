@@ -8,7 +8,7 @@ import { ShieldAlert, Download, DollarSign, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-const VAULT_ADDRESS = (contractConfig as any).A2APayVault as `0x${string}`;
+const VAULT_ADDRESS = (contractConfig as any).SynapseCore as `0x${string}`;
 
 const vaultABI = [
   {

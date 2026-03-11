@@ -23,18 +23,18 @@ async function main() {
   const usdcAddress = await mockUSDC.getAddress();
   console.log("✅ MockUSDC deployed to:", usdcAddress);
 
-  // 2. 部署 A2APayVault 核心金库合约
-  console.log("\nDeploying A2APayVault...");
-  const A2APayVault = await hre.ethers.getContractFactory("A2APayVault");
+  // 2. 部署 SynapseCore 核心金库合约
+  console.log("\nDeploying SynapseCore...");
+  const SynapseCore = await hre.ethers.getContractFactory("SynapseCore");
   // constructor(address _usdc, address _signer, address _initialOwner)
-  const vault = await A2APayVault.deploy(
+  const vault = await SynapseCore.deploy(
     usdcAddress,
     backendSigner.address, // 设置网关签名验证地址
     owner.address          // 最高管理员
   );
   await vault.waitForDeployment();
   const vaultAddress = await vault.getAddress();
-  console.log("✅ A2APayVault deployed to:", vaultAddress);
+  console.log("✅ SynapseCore deployed to:", vaultAddress);
 
   // 3. (可选) 给测试账号 Mint 一点 USDC 方便前端联调
   console.log("\nMinting initial USDC to Owner...");
@@ -51,7 +51,7 @@ async function main() {
 
   // 覆盖这两个关键地址，保留可能存在的其他的配置如 A2APaySyncRouter
   config.MockUSDC = usdcAddress;
-  config.A2APayVault = vaultAddress;
+  config.SynapseCore = vaultAddress;
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
   console.log("✅ Successfully updated frontend/src/contract-config.json!");

@@ -13,11 +13,15 @@ import {
   type AgentCredentialIssueResponse,
 } from "@/utils/agentCredentialApi";
 import toast from "react-hot-toast";
+import WalletProfileBadge from "@/components/WalletProfileBadge";
 import { Copy, Plus, Key, TerminalSquare, AlertCircle, RefreshCw, Wallet, Trash2, CheckCircle2 } from "lucide-react";
+
+import { useAuth } from "@/components/WalletAuthGuard";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 
 const ROUTER_ADDRESS = contractConfig.A2APaySyncRouter as `0x${string}`;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const VAULT_ADDRESS = (contractConfig as any).A2APayVault ? ((contractConfig as any).A2APayVault as `0x${string}`) : ROUTER_ADDRESS;
+const VAULT_ADDRESS = (contractConfig as any).SynapseCore ? ((contractConfig as any).SynapseCore as `0x${string}`) : ROUTER_ADDRESS;
 
 const vaultABI = parseAbi([
   "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external"
@@ -25,6 +29,8 @@ const vaultABI = parseAbi([
 
 export default function DeveloperConsole() {
   const { address, isConnected } = useAccount();
+  const { isSessionAuthenticated, authorize } = useAuth();
+  const { openConnectModal } = useConnectModal();
   const chainId = useChainId();
   
   // --- 1. Top-up Balance State ---
@@ -40,11 +46,22 @@ export default function DeveloperConsole() {
     query: { enabled: !!address }
   });
 
+  const { data: walletUsdcBalanceRaw, refetch: refetchWalletBalance } = useReadContract({
+    address: contractConfig.MockUSDC as `0x${string}`,
+    abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address }
+  });
+  const walletUsdcBalance = walletUsdcBalanceRaw !== undefined ? Number(walletUsdcBalanceRaw) / 1e18 : 0;
+
   const { signTypedDataAsync } = useSignTypedData();
   const { data: hash, writeContractAsync, isPending } = useWriteContract();
-  const { writeContractAsync: writeMintAsync, isPending: isMinting } = useWriteContract();
+  const { data: mintHash, writeContractAsync: writeMintAsync, isPending: isMinting } = useWriteContract();
   
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { isLoading: isMintingTx, isSuccess: isMintConfirmed } = useWaitForTransactionReceipt({ hash: mintHash });
 
   // --- 2. API Keys State ---
   const [keys, setKeys] = useState<AgentCredentialRecord[]>([]);
@@ -52,6 +69,18 @@ export default function DeveloperConsole() {
   const [newKeyName, setNewKeyName] = useState("My App Key");
   const [latestIssued, setLatestIssued] = useState<AgentCredentialIssueResponse | null>(null);
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
+
+  const handleAddFundsClick = useCallback(() => {
+    if (!isConnected && openConnectModal) {
+      openConnectModal();
+      return;
+    }
+    if (isConnected && !isSessionAuthenticated) {
+      authorize();
+      return;
+    }
+    setIsTopUpOpen(true);
+  }, [isConnected, openConnectModal, isSessionAuthenticated, authorize]);
 
   const loadBalance = useCallback(async () => {
     if (!address) return;
@@ -67,6 +96,7 @@ export default function DeveloperConsole() {
     if (!address) return;
     try {
       const rows = await listAgentCredentials(address);
+      console.log("LOADED KEYS API RESP:", rows);
       const activeRows = rows.filter((k) => k.status === "active").sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
       setKeys(activeRows);
       if (activeRows.length > 0 && !selectedTokenPrefix) {
@@ -78,24 +108,43 @@ export default function DeveloperConsole() {
   }, [address, selectedTokenPrefix]);
 
   useEffect(() => {
-    if (isConnected) {
+    if (isSessionAuthenticated) {
       loadBalance();
       loadKeys();
     }
-  }, [isConnected, loadBalance, loadKeys]);
+  }, [isSessionAuthenticated, loadBalance, loadKeys]);
 
   useEffect(() => {
     if (isConfirmed) {
       toast.success("Deposit successful!");
       setIsTopUpOpen(false);
       setTimeout(loadBalance, 2000);
+      refetchWalletBalance();
     }
-  }, [isConfirmed, loadBalance]);
+  }, [isConfirmed, loadBalance, refetchWalletBalance]);
+
+  useEffect(() => {
+    if (isMintConfirmed) {
+      toast.success("100 USDC Minted to your Wallet! Now click 'Add Funds' to deposit.");
+      refetchWalletBalance();
+    }
+  }, [isMintConfirmed, refetchWalletBalance]);
 
   // --- Handlers ---
   
   const handleMint = async () => {
-    if (!address) return;
+    if (!isConnected && openConnectModal) {
+      openConnectModal();
+      return;
+    }
+    if (isConnected && !isSessionAuthenticated) {
+      authorize();
+      return;
+    }
+    if (!address) {
+      toast.error("Please connect your wallet first.");
+      return;
+    }
     try {
       await writeMintAsync({
         address: contractConfig.MockUSDC as `0x${string}`,
@@ -113,10 +162,11 @@ export default function DeveloperConsole() {
     }
   };
 
-  
-
   const handleTopUp = async () => {
-    if (!address) return;
+    if (!address) {
+      toast.error("Please connect your wallet first.");
+      return;
+    }
     const amountUsdc = Number(topUpAmount);
     if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) return toast.error("Invalid amount");
 
@@ -159,8 +209,23 @@ export default function DeveloperConsole() {
     }
   };
 
+  const handleOpenKeyModal = () => {
+    if (!isConnected && openConnectModal) {
+      openConnectModal();
+      return;
+    }
+    if (isConnected && !isSessionAuthenticated) {
+      authorize();
+      return;
+    }
+    setIsKeyModalOpen(true);
+  };
+
   const handleCreateKey = async () => {
-    if (!address) return;
+    if (!address) {
+      toast.error("Please connect your wallet first.");
+      return;
+    }
     try {
       const created = await issueAgentCredential(address, {
         expiresInSec: 3600 * 24 * 365 * 10, // 10 years / basically never
@@ -173,12 +238,15 @@ export default function DeveloperConsole() {
       setSelectedTokenPrefix(created.id); // temporary visual fallback until refresh
       await loadKeys();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err instanceof Error ? err instanceof Error ? err.message : String(err) : String(err) : String(err) || "Failed to create key");
+      toast.error(err instanceof Error ? err.message : String(err) || "Failed to create key");
     }
   };
 
   const handleRevoke = async (id: string) => {
-    if (!address) return;
+    if (!address) {
+      toast.error("Please connect your wallet first.");
+      return;
+    }
     try {
       await revokeAgentCredential(address, id);
       toast.success("Key revoked");
@@ -192,14 +260,6 @@ export default function DeveloperConsole() {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard!");
   };
-
-  if (!isConnected) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-gray-400">Please connect your wallet to view the developer console.</p>
-      </div>
-    );
-  }
 
   const selectedKeyToDisplay = latestIssued ? latestIssued.token : (selectedTokenPrefix ? `${selectedTokenPrefix}...` : "agt_xxxxxxxxxx");
 
@@ -217,6 +277,7 @@ export default function DeveloperConsole() {
             One-stop workspace to manage balance, API keys, and integration settings.
           </p>
         </div>
+        <WalletProfileBadge />
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -240,6 +301,11 @@ export default function DeveloperConsole() {
                 <p className="mt-1 text-xs text-gray-500">
                   ≈ {balanceUsdc !== null ? Math.floor(balanceUsdc * 1000).toLocaleString() : 0} API Calls available
                 </p>
+                {isConnected && (
+                  <p className="mt-3 text-xs font-medium text-blue-400 bg-blue-900/20 px-2 py-1 rounded inline-flex items-center gap-1 border border-blue-900/30">
+                    <Wallet className="w-3 h-3" /> Wallet: {walletUsdcBalance.toFixed(2)} USDC
+                  </p>
+                )}
               </div>
               <button
                 onClick={handleMint}
@@ -250,15 +316,7 @@ export default function DeveloperConsole() {
                 Faucet: Get 100 USDC 
               </button>
               <button
-                onClick={handleMint}
-                disabled={isMinting}
-                className="flex items-center px-4 py-2 mr-3 text-sm font-bold text-blue-900 transition-colors bg-blue-400 hover:bg-blue-300 rounded-xl"
-              >
-                {isMinting ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : "💧 "}
-                Faucet: Get 100 USDC 
-              </button>
-              <button
-                onClick={() => setIsTopUpOpen(true)}
+                onClick={handleAddFundsClick}
                 className="flex items-center px-4 py-2 text-sm font-bold text-black transition-colors bg-green-500 hover:bg-green-400 rounded-xl"
               >
                 <Plus className="w-4 h-4 mr-1" />
@@ -275,7 +333,7 @@ export default function DeveloperConsole() {
                 API Keys
               </h2>
               <button
-                onClick={() => setIsKeyModalOpen(true)}
+                onClick={handleOpenKeyModal}
                 className="flex items-center px-3 py-1.5 text-xs font-semibold text-white transition-colors bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700"
               >
                 Create new secret key
@@ -297,7 +355,12 @@ export default function DeveloperConsole() {
             )}
 
             <div className="space-y-3">
-              {keys.length === 0 ? (
+              {!isSessionAuthenticated ? (
+                <div className="flex flex-col items-center justify-center p-6 border border-gray-800 border-dashed rounded-lg bg-black/20">
+                  <Wallet className="w-8 h-8 mb-3 text-gray-600" />
+                  <p className="text-sm text-center text-gray-500">Connect your wallet to generate and view API keys.</p>
+                </div>
+              ) : keys.length === 0 ? (
                 <p className="text-sm text-center text-gray-500 py-4">No active API keys found.</p>
               ) : (
                 keys.map((key) => (
@@ -334,18 +397,18 @@ export default function DeveloperConsole() {
             <p className="text-sm text-gray-400">1. Install the Python SDK</p>
             <div className="relative group">
               <pre className="p-3 overflow-x-auto font-mono text-sm leading-relaxed text-gray-300 bg-black border border-gray-800 rounded-lg">
-                pip install a2a-pay
+                pip install synapse-client
               </pre>
-              <button onClick={() => copyToClipboard("pip install a2a-pay")} className="absolute p-2 text-gray-500 transition-opacity opacity-0 top-1 right-2 hover:text-white group-hover:opacity-100"><Copy className="w-4 h-4" /></button>
+              <button onClick={() => copyToClipboard("pip install synapse-client")} className="absolute p-2 text-gray-500 transition-opacity opacity-0 top-1 right-2 hover:text-white group-hover:opacity-100"><Copy className="w-4 h-4" /></button>
             </div>
 
             <p className="mt-6 text-sm text-gray-400">2. Call AI services magically</p>
             <div className="relative flex-1 group">
               <pre className="min-h-full p-4 overflow-x-auto font-mono text-sm leading-relaxed text-blue-300 bg-black border border-gray-800 rounded-lg">
 <span className="text-gray-500"># main.py</span>{"\n"}
-<span className="text-purple-400">from</span> a2a_pay <span className="text-purple-400">import</span> AgentPayClient{"\n\n"}
+<span className="text-purple-400">from</span> synapse_client <span className="text-purple-400">import</span> SynapseClient{"\n\n"}
 <span className="text-gray-500"># Instantiates client using your active API key</span>{"\n"}
-client = AgentPayClient(api_key=<span className="text-green-300">&quot;{selectedKeyToDisplay}&quot;</span>){"\n\n"}
+client = SynapseClient(api_key=<span className="text-green-300">&quot;{selectedKeyToDisplay}&quot;</span>){"\n\n"}
 <span className="text-gray-500"># Send a request to an available service seamlessly</span>{"\n"}
 response = client.call_service({"\n"}
     service_name=<span className="text-green-300">&quot;DeepSeek-Chat&quot;</span>,{"\n"}
@@ -354,7 +417,7 @@ response = client.call_service({"\n"}
 print(response.content){"\n"}
               </pre>
               <button 
-                onClick={() => copyToClipboard(`from a2a_pay import AgentPayClient\n\nclient = AgentPayClient(api_key="${selectedKeyToDisplay}")\n\nresponse = client.call_service(\n    service_name=&quot;DeepSeek-Chat&quot;,\n    prompt=&quot;Hello from external app!&quot;\n)\n\nprint(response.content)`)} 
+                onClick={() => copyToClipboard(`from synapse_client import SynapseClient\n\nclient = SynapseClient(api_key="${selectedKeyToDisplay}")\n\nresponse = client.call_service(\n    service_name=&quot;DeepSeek-Chat&quot;,\n    prompt=&quot;Hello from external app!&quot;\n)\n\nprint(response.content)`)} 
                 className="absolute p-2 text-gray-500 transition-opacity opacity-0 top-2 right-2 hover:text-white group-hover:opacity-100"
               >
                 <Copy className="w-4 h-4" />

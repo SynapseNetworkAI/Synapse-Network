@@ -28,7 +28,7 @@ import { getRouterConfig, saveRouterConfig } from "@/utils/routerConfigApi";
 
 const ROUTER_ADDRESS = contractConfig.A2APaySyncRouter as `0x${string}`;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const VAULT_ADDRESS = (contractConfig as any).A2APayVault ? ((contractConfig as any).A2APayVault as `0x${string}`) : ROUTER_ADDRESS;
+const VAULT_ADDRESS = (contractConfig as any).SynapseCore ? ((contractConfig as any).SynapseCore as `0x${string}`) : ROUTER_ADDRESS;
 
 const vaultABI = parseAbi([
   "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external"
@@ -347,7 +347,7 @@ export default function RouterPage() {
           .filter(
             (item) =>
               item.status === "active" &&
-              (!item.agentId || item.agentId === "OWNER_SHARED") &&
+              
               !item.serviceId &&
               Number(item.expiresAt || 0) > nowSec
           )
@@ -532,7 +532,7 @@ export default function RouterPage() {
       </h1>
       <p className="py-2 pl-4 mb-4 text-gray-400 border-l-4 border-green-500">
         Discover 页面只做服务展示；本页承接支付入口并签发一张共享凭据给所有
-        Agent 调用所有接口。
+        任何应用调用所有接口。
       </p>
 
       <div className="p-6 mb-8 bg-gray-900 border border-gray-800 rounded-lg">

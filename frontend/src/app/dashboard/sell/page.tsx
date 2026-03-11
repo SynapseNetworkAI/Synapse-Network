@@ -5,15 +5,15 @@ export default function SellPage() {
     <div className="p-8 mx-auto space-y-6 max-w-6xl">
       <div>
         <h1 className="text-3xl font-bold text-white">Sell Workspace</h1>
-        <p className="mt-2 text-gray-400">面向服务方：注册 Agent 与 Service，接收调用并沉淀收益。</p>
+        <p className="mt-2 text-gray-400">面向服务方：注册 Service，接收调用并沉淀收益。</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="p-5 border border-gray-800 rounded-xl bg-black/40">
-          <h2 className="text-lg font-semibold text-white">Step 1 · 注册 Agent</h2>
+          <h2 className="text-lg font-semibold text-white">Step 1 · 注册 Provider</h2>
           <p className="mt-2 text-sm text-gray-400">创建服务主体身份，用于服务归属与收益统计。</p>
           <Link href="/dashboard/agents" className="inline-flex px-4 py-2 mt-4 text-sm font-semibold text-black bg-green-500 rounded-lg hover:bg-green-400">
-            去 Agent 管理
+            去 Provider 管理
           </Link>
         </div>
 

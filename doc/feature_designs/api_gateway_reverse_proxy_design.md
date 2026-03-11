@@ -1,7 +1,7 @@
 # 生产级 API 网关鉴权与反向代理设计文档
 
 ## 1. 架构定位与目标
-在 AgentPay 平台中，Seller API（网关节点）扮演了流量入口与账单结算的核心角色。网关不仅要承担客户端 Agent 购买服务的鉴权和扣费，还要负责将请求安全、透明、高效地路由到真正的底层微服务（如 `provider_service`）。
+在 Synapse Network 平台中，Seller API（网关节点）扮演了流量入口与账单结算的核心角色。网关不仅要承担客户端 Agent 购买服务的鉴权和扣费，还要负责将请求安全、透明、高效地路由到真正的底层微服务（如 `provider_service`）。
 
 ### 核心目标
 *   **高可用 (High Availability)**：网关作为流量咽喉，必须具备容灾、重试、熔断能力。
@@ -83,4 +83,4 @@
 2.  **服务发现与治理能力 (Service Discovery)**：
     *   随着 Provider 变多（如大模型提供商 API、数据服务方 API），硬编码 URL 将无法维护。在网关层集成 Consul 或 Nacos 服务发现中心，由配置中心动态下发路由规则和黑白名单。
 3.  **灰度发布**：
-    *   在反向代理分发时增加 Hash 指纹的权值判断，让 10% 的 AgentPay Request 转发到新的 Provider Service 测试节点，平滑升级大模型。
+    *   在反向代理分发时增加 Hash 指纹的权值判断，让 10% 的 Synapse Network Request 转发到新的 Provider Service 测试节点，平滑升级大模型。

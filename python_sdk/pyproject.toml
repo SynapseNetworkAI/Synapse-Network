@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentpay-buyer-sdk"
+name = "synapse-client"
 version = "0.1.0"
-description = "Buyer SDK for AgentPay service discovery and paid invoke"
+description = "Buyer SDK for Synapse Network service discovery and paid invoke"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Proprietary" }

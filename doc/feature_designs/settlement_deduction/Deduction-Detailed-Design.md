@@ -62,7 +62,7 @@
 ```mermaid
 sequenceDiagram
     participant BW as Buyer Wallet
-    participant C as AgentPay Contract
+    participant C as Synapse Network Contract
     participant I as Indexer
     participant D as Ledger DB
     participant BO as Buyer Agent
@@ -200,9 +200,9 @@ sequenceDiagram
 ## 10. 响应头与对账
 
 网关返回给买家的 header：
-- `X-AgentPay-Cost`: 本次计费金额
-- `X-AgentPay-Balance`: 扣费后余额
-- `X-AgentPay-Request-Id`: 对账 ID
+- `X-Synapse-Cost`: 本次计费金额
+- `X-Synapse-Balance`: 扣费后余额
+- `X-Synapse Network-Request-Id`: 对账 ID
 
 买家 Agent 可用这些字段进行自动预算与余额预警。
 

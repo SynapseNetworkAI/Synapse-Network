@@ -117,6 +117,22 @@ def consume_credential_call(credential_id: str) -> Dict[str, Any]:
         save_agent_credentials(rows)
         return row
 
+def refund_credential_call(credential_id: str) -> Optional[Dict[str, Any]]:
+    with lock:
+        rows = load_agent_credentials()
+        index = next((i for i, row in enumerate(rows) if row.get("id") == credential_id), -1)
+        if index < 0:
+            return None
+
+        row = rows[index]
+        calls_used = int(row.get("callsUsed", 0))
+        if calls_used > 0:
+            row["callsUsed"] = calls_used - 1
+            row["updatedAt"] = int(time.time())
+            rows[index] = row
+            save_agent_credentials(rows)
+        return row
+
 
 def enforce_generate_rate_limits(owner_wallet: str, agent_id: str, service_id: str, rpm_limit: int) -> None:
     enforce_rate_limit("owner", owner_wallet, OWNER_RATE_LIMIT_PER_MIN)
@@ -155,3 +171,18 @@ def validate_service_for_credential(owner_services: List[Dict[str, Any]], agent_
     if not target:
         raise HTTPException(status_code=404, detail={"code": "AGENT_NOT_FOUND", "message": "No service found for provided agentId"})
     return target
+
+def refund_credential_call(credential_id: str) -> Optional[Dict[str, Any]]:
+    with lock:
+        rows = load_agent_credentials()
+        index = next((i for i, row in enumerate(rows) if row.get("id") == credential_id), -1)
+        if index < 0:
+            return None
+        row = rows[index]
+        calls_used = int(row.get("callsUsed", 0))
+        if calls_used > 0:
+            row["callsUsed"] = calls_used - 1
+            row["updatedAt"] = int(time.time())
+            rows[index] = row
+            save_agent_credentials(rows)
+        return row

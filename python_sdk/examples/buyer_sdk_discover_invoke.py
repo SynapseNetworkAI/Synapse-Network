@@ -4,12 +4,12 @@ import uuid
 from pathlib import Path
 
 try:
-    from buyer_sdk import AgentPayBuyer
+    from buyer_sdk import SynapseBuyer
 except ModuleNotFoundError:
     root = Path(__file__).resolve().parents[2]
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from python_sdk.buyer_sdk import AgentPayBuyer
+    from python_sdk.buyer_sdk import SynapseBuyer
 
 
 CONFIG_PATH = Path(__file__).with_name("buyer_sdk_discover_invoke.config.json")
@@ -35,7 +35,7 @@ def main() -> None:
     if not token:
         raise RuntimeError("Missing 'agent_credential_token' in config file")
 
-    client = AgentPayBuyer(credential_token=token, gateway_url=gateway)
+    client = SynapseBuyer(credential_token=token, gateway_url=gateway)
 
     discovery = client.discover_services(intent=intent or None)
     print("[discover]")
