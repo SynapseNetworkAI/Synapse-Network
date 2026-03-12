@@ -1,18 +1,40 @@
 "use client";
 
-import { useAccount, useDisconnect } from "wagmi";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useAccount, useDisconnect, useReadContract, useWatchContractEvent } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Coins, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCallback } from "react";
 import { clearAuthSession, buildAuthedHeaders } from "@/utils/authSession";
+import contractConfig from "@/contract-config.json";
+import { parseAbi } from "viem";
 
 export default function WalletProfileBadge() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  // We use useDashboardData just to get the masterBalance
-  const { masterBalance } = useDashboardData();
+
+  const { data: walletUsdcBalanceRaw, refetch } = useReadContract({
+    address: contractConfig.MockUSDC as `0x${string}`,
+    abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address }
+  });
+
+  const masterBalance = walletUsdcBalanceRaw !== undefined 
+    ? (Number(walletUsdcBalanceRaw) / 1e18).toFixed(2) 
+    : "0.00";
+
+  useWatchContractEvent({
+    address: contractConfig.MockUSDC as `0x${string}`,
+    abi: parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]),
+    eventName: "Transfer",
+    onLogs(logs) {
+      if (logs.some(log => log.args.from === address || log.args.to === address)) {
+        refetch();
+      }
+    },
+  });
 
   const handleLogout = useCallback(async () => {
     if (address) {
