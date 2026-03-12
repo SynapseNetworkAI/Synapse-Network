@@ -2,13 +2,13 @@
 
 ## 1. 架构流转总览 (Top-level Architecture Flow)
 
-在当前实现架构下，A2A-Pay 是**“充值确认 + 网关扣费 + 服务调用”**的 V2 路径。
+在当前实现架构下，Synapse Network 是**“充值确认 + 网关扣费 + 服务调用”**的 V2 路径。
 数据与资金流转如下：
 
 ```mermaid
 sequenceDiagram
     participant Buyer as Buyer Agent (Client)
-    participant Contract as A2APaySyncRouter (EVM)
+    participant Contract as Synapse NetworkSyncRouter (EVM)
     participant Gateway as Seller API Gateway (FastAPI)
 
     Buyer->>Contract: 1. on-chain payment tx (approve + payForService)
@@ -21,7 +21,7 @@ sequenceDiagram
 
 ---
 
-## 2. 核心组件 1：极简同步路由合约 (`A2APaySyncRouter.sol`)
+## 2. 核心组件 1：极简同步路由合约 (`Synapse NetworkSyncRouter.sol`)
 
 ### 2.1 职责说明
 该合约不保存任何“任务状态（Status）”。它仅仅是一个**分账器**。接收买方资金，扣除平台手续费，将尾款直接打给卖方，并抛除一个不可篡改的事件（Event）作为支付凭证。
@@ -34,7 +34,7 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract A2APaySyncRouter {
+contract Synapse NetworkSyncRouter {
     using SafeERC20 for IERC20;
 
     address public feeTreasury;

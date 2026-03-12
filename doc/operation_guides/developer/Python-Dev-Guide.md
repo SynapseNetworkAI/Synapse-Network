@@ -1,4 +1,4 @@
-# A2A-Pay Python 后端与 SDK 运维启动指南 (Operation Guide)
+# Synapse Network Python 后端与 SDK 运维启动指南 (Operation Guide)
 
 本文档说明如何从零开始配置环境、安装依赖，并基于最新的 **同步支付微服务架构 (Sync Payment & FastAPI)** 启动本地完整测试节点和客户端。
 
@@ -34,13 +34,13 @@ pip install -r requirements.txt
 
 为简化启动流程，我们在根目录提供了 `setup_local_env.sh` 脚本。它将一键完成：
 - 启动 **Hardhat 本地链** (`127.0.0.1:8545`)
-- 部署 **A2APaySyncRouter + MockUSDC**
+- 部署 **Synapse NetworkSyncRouter + MockUSDC**
 - 自动读取 `frontend/src/contract-config.json` 并注入 Seller API 所需环境变量
 - 自动优先使用 `python_sdk/venv/bin/python`（若存在），并在缺依赖时自动安装 `python_sdk/requirements.txt`
 - 后台启动 `python_sdk/seller_fastapi.py`
 - 后台启动 `frontend`（`npm run dev`）
 
-请在**项目根目录**（A2A-pay）打开一个新的终端窗口并执行：
+请在**项目根目录**（Synapse Network）打开一个新的终端窗口并执行：
 ```bash
 chmod +x test/setup_local_env.sh
 ./test/setup_local_env.sh
@@ -48,7 +48,7 @@ chmod +x test/setup_local_env.sh
 
 **运行成功后，系统将自动就绪：**
 * **Hardhat Node** 正在本地 `127.0.0.1:8545` 运行并产出区块。
-* **部署逻辑** 已自动将新的合约 ABI 生成到 `python_sdk/A2APaySyncRouterABI.json` 以供后端中间件调用。
+* **部署逻辑** 已自动将新的合约 ABI 生成到 `python_sdk/Synapse NetworkSyncRouterABI.json` 以供后端中间件调用。
 * **Seller API Gateway** (V2 网关) 运行在 `http://127.0.0.1:8000/api/v2/generate`。
 * **Frontend Next.js** 运行在 `http://127.0.0.1:3000`。
 * 脚本会输出 `TX_HASH` 测试前置脚本命令，以及本次启动的 PID。
@@ -210,7 +210,7 @@ python3 seller_fastapi.py
 请确保您的机器已经安装了 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，且 `docker-compose` CLI环境可用。
 
 **第二步：配置与启动 `docker-compose`**
-在 A2A-pay 根目录下执行：
+在 Synapse Network 根目录下执行：
 ```bash
 cd docker-compose
 docker-compose up -d

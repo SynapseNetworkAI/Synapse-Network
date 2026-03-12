@@ -1,4 +1,4 @@
-# A2A-Pay ROADMAP
+# Synapse Network ROADMAP
 
 > Last updated: 2026-03-09
 
@@ -14,7 +14,7 @@
 
 ### 1) 合约与链路基础
 - 已完成核心合约与本地测试链路：
-  - `A2APaySyncRouter`
+  - `Synapse NetworkSyncRouter`
   - `MockUSDC`
 - Hardhat 测试通过（当前 1/1，保留主链路用例）。
 

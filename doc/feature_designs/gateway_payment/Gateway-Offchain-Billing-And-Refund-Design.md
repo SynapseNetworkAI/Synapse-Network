@@ -1,6 +1,6 @@
 # 网关离链计费与凭票退款结算设计 (Gateway Off-chain Billing & Refund Design)
 
-本文档详细说明了 A2A-Pay 在引入 `SynapseCore.sol` (V2 架构) 后，Python 后端网关如何完成**“离链高频切账”**以及**“凭票清算（赛博银票 EIP-712）”**的完整实现方案。
+本文档详细说明了 Synapse Network 在引入 `SynapseCore.sol` (V2 架构) 后，Python 后端网关如何完成**“离链高频切账”**以及**“凭票清算（赛博银票 EIP-712）”**的完整实现方案。
 
 这套方案完全摒弃了老旧的 Web3 逐笔上链模式，真正做到了：**只有存钱和取钱时用户需要在链上按确认（付极少的 Gas），中间成千上万次的极快 API 调用体验极度丝滑（和 Web2 一样快，和 Web2 一样免费）**。
 

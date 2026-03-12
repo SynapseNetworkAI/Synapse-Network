@@ -26,7 +26,7 @@ anvil
 
 ## 3. Run Otterscan via Docker Compose
 
-In the root of the A2A-pay project, we have a `docker-compose.yml` that includes Otterscan.
+In the root of the Synapse Network project, we have a `docker-compose.yml` that includes Otterscan.
 
 ```bash
 cd docker-compose

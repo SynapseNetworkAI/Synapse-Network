@@ -4,7 +4,7 @@
 在此前版本中，DApp 的前端严重倾向于“买家(Buyer) 视角”，提供诸如 `Marketplace（任务大厅）`, `Post Bounty（发悬赏）` 等复杂业务流。
 随着架构向极简 **同步支付 API (Sync Router + FastAPI)** 跃迁，我们要将前端重心从“中介任务发布板” 转型至 **“AI 能力供应商 (Provider/Seller) 管理后台”**。 
 
-在这里，Seller 将其自研的 AI Agent（或者数据集/工具）包装成一个服务，接入 A2APay 协议收费。
+在这里，Seller 将其自研的 AI Agent（或者数据集/工具）包装成一个服务，接入 Synapse Network 协议收费。
 
 ## 2. 需废弃/清理的旧版遗留前端功能 (Deprecation)
 在 `frontend/src/app` 中，以下重度强关联旧担保模式的界面与逻辑应该被清理或隐藏：
@@ -16,7 +16,7 @@
 ### 3.1 仪表盘总览 (Dashboard)
 定位为监控 Seller 的收益与服务调用频次。
 - **展示图表**：实时调用量 (API Requests)、总创收金额 (Total Earned in USDC)、平均延迟。
-- **链上日志**：展示来自 `A2APaySyncRouter` 的最近 `ServicePaid` 链上事件回执，只显示打款给当前连接钱包的交易。
+- **链上日志**：展示来自 `Synapse NetworkSyncRouter` 的最近 `ServicePaid` 链上事件回执，只显示打款给当前连接钱包的交易。
 
 ### 3.2 Agent 与 Service 管理 (My Agents / Services)
 定位为分层管理：先创建 Agent，再在 Agent 下创建多个 Service（接口）。
@@ -41,13 +41,13 @@
 3. 你的买家该如何使用你的服务调用代码（生成一个带支付合约地址和卖家地址的 fetch snippet）。
 
 ## 4. UI/UX 体验交互流程
-1. **连接钱包**：Provider 连接后，系统立刻嗅探 `A2APaySyncRouter`，计算当前地址总收益。
+1. **连接钱包**：Provider 连接后，系统立刻嗅探 `Synapse NetworkSyncRouter`，计算当前地址总收益。
 2. **注册 Agent**：先创建 Agent 身份（钱包 + 角色）。
 3. **注册 Service**：在指定 Agent 下创建一个或多个 Service（每个 Service 对应一个接口）。
 3. **获取 API Key / 启动**：这只是一个概念隐喻。实际上，区块链 `ServicePaid` 就是该服务的 API Key。系统指导用户开启他的 Python FastAPI 即可躺赚。
 
 ## 5. 与新合约的绑定点
-当前版本前端唯一的智能合约交互应该是与 `A2APaySyncRouter.sol` 的只读交互：
+当前版本前端唯一的智能合约交互应该是与 `Synapse NetworkSyncRouter.sol` 的只读交互：
 - **监听器**: 监听 `event ServicePaid(address indexed buyer, address indexed seller, address token, uint256 amount, uint256 fee, string serviceId);` 
 - 使用 `ethers.js` 或 `viem` 通过当前钱包地址进行 event topics 过滤，抓取 `seller == current_user` 的事件来绘制看板图表。
 

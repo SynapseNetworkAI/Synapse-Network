@@ -1,4 +1,4 @@
-# A2A-Pay Web3 钱包接入与多环境支持设计 (Wallet Integration Design)
+# Synapse Network Web3 钱包接入与多环境支持设计 (Wallet Integration Design)
 
 ## 1. 核心问题：我们需要支持多个钱包吗？
 **答案是：必须支持。**
@@ -10,7 +10,7 @@
 ## 2. 哪些钱包支持我们的系统设计？
 **答案是：任何支持 EVM (以太坊虚拟机) 标准与 EIP-1193 通讯协议的钱包，全部天然支持！**
 
-A2A-Pay 在 Phase 18 "智能合约授信路由 (Relayer)" 的核心逻辑，本质只要求主账户 (Master Account) 去调用一句全网通用的、最标准的 ERC-20 合约函数：
+Synapse Network 在 Phase 18 "智能合约授信路由 (Relayer)" 的核心逻辑，本质只要求主账户 (Master Account) 去调用一句全网通用的、最标准的 ERC-20 合约函数：
 `IERC20(usdc).approve(routerAddress, amount)`
 
 由于我们没有任何非标加密逻辑，这使得生态内所有主流 EVM 钱包均开箱即用：
@@ -29,7 +29,7 @@ A2A-Pay 在 Phase 18 "智能合约授信路由 (Relayer)" 的核心逻辑，本�
 * **UI 连接件套件：`RainbowKit` (推荐) 或 `Web3Modal` (由 WalletConnect 官方出品)**。
 
 ### 带来的优势：
-1. **几行代码继承全生态**：接入 RainbowKit/Web3Modal 后，A2A-Pay 的用户一点击 "Connect Wallet"，就会弹出一个极其精美、自适应多种语言、支持上百种钱包（涵盖插件、手机扫码）的官方级别 Modal 面板。
+1. **几行代码继承全生态**：接入 RainbowKit/Web3Modal 后，Synapse Network 的用户一点击 "Connect Wallet"，就会弹出一个极其精美、自适应多种语言、支持上百种钱包（涵盖插件、手机扫码）的官方级别 Modal 面板。
 2. **自动状态追踪与报错**：包括但不限于用户拒签、余额不足、网络切错（如忘了切到 Base 网）、Gas费评估，全部框架内置。
 
 ## 4. 授权交互流与安全建议 (The Auth Flow & Security)
@@ -41,7 +41,7 @@ A2A-Pay 在 Phase 18 "智能合约授信路由 (Relayer)" 的核心逻辑，本�
    * 自动分配规则：当余额低于 100 USDC 时
    * 补充额度：充值 500 USDC
    * 生命周期总额度设定（即 Approve 上限，防止无限超发）：如 50000 USDC
-3. **发起 `Approve` 授权**：点击 Enable Auto Top-up，前端发起一笔调用路由中心 `A2APaySyncRouter` 的授权交易。由于这是高危授权操作，现代钱包 (如 Rabby/MetaMask) 会极其刺眼地提示用户“您正在授权智能合约挪用您的资产”。这需要我们在 UI 侧进行**高亮且通俗的安抚警示**，明确说明合约代码是开源的且受严格条件约束。
+3. **发起 `Approve` 授权**：点击 Enable Auto Top-up，前端发起一笔调用路由中心 `Synapse NetworkSyncRouter` 的授权交易。由于这是高危授权操作，现代钱包 (如 Rabby/MetaMask) 会极其刺眼地提示用户“您正在授权智能合约挪用您的资产”。这需要我们在 UI 侧进行**高亮且通俗的安抚警示**，明确说明合约代码是开源的且受严格条件约束。
 
 ## 5. 后续演进阶段
 * 对于一般极客和开发者，接入普通 EOA 单签钱包 Approve 足矣。
