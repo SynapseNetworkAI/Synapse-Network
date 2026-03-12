@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAccount, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
-import { getV2Balance } from "@/utils/balanceApi";
+import { getV2Balance, createDepositIntent } from "@/utils/balanceApi";
 import {
   issueAgentCredential,
   listAgentCredentials,
@@ -121,14 +121,26 @@ export default function DeveloperConsole() {
   }, [isSessionAuthenticated, loadBalance, loadKeys]);
 
   useEffect(() => {
-    if (isConfirmed) {
-      toast.success("Deposit successful!");
+    if (isConfirmed && hash && address) {
+      toast.success(
+        <div className="flex flex-col">
+          <span>Deposit successful!</span>
+          <a href={`https://testnet.gochain.io/tx/${hash}`} target="_blank" rel="noreferrer" className="text-xs text-blue-400 underline mt-1">View on Explorer</a>
+        </div>
+      );
       setIsTopUpOpen(false);
       setTopUpStep("input");
-      setTimeout(loadBalance, 2000);
+      
+      createDepositIntent(address, {
+        txHash: hash,
+        amountUsdc: Number(topUpAmount)
+      }).then(() => {
+        loadBalance(); // Sync "My Balance" exactly after intent hits DB
+      }).catch((err) => console.error("Intent failed", err));
+
       refetchWalletBalance();
     }
-  }, [isConfirmed, loadBalance, refetchWalletBalance]);
+  }, [isConfirmed, hash, address, topUpAmount, loadBalance, refetchWalletBalance]);
 
   useEffect(() => {
     if (isMintConfirmed) {
@@ -499,16 +511,16 @@ print(response.content){"\n"}
                 <div className={`p-3 border rounded-xl flex items-center gap-3 ${topUpStep === "signing_permit" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-green-500/50 bg-green-500/10 text-green-400"}`}>
                   {topUpStep === "signing_permit" ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
                   <div className="text-sm">
-                    <p className="font-bold">Step 1: Permit USDC Spend</p>
-                    <p className="text-xs opacity-80">{topUpStep === "signing_permit" ? "Please sign the message in your wallet..." : "Signature granted"}</p>
+                    <p className="font-bold">Step 1: 授权额度 (Permit)</p>
+                    <p className="text-xs opacity-80">{topUpStep === "signing_permit" ? "MetaMask 弹窗：请签名授予智能合约扣款许可 (免 Gas)" : "✅ 授权签名已完成"}</p>
                   </div>
                 </div>
 
                 <div className={`p-3 border rounded-xl flex items-center gap-3 ${topUpStep === "executing_tx" || isConfirming ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : topUpStep === "input" ? "border-gray-800 bg-gray-800/30 text-gray-500" : "border-gray-800 bg-gray-800/30 text-gray-500"}`}>
                    {(topUpStep === "executing_tx" || isConfirming) ? <RefreshCw className="w-5 h-5 animate-spin" /> : <AlertCircle className="w-5 h-5" />}
                   <div className="text-sm">
-                    <p className="font-bold">Step 2: Execute Deposit</p>
-                    <p className="text-xs opacity-80">{(topUpStep === "executing_tx" || isConfirming) ? "Waiting for blockchain confirmation..." : "Pending Step 1 completion"}</p>
+                    <p className="font-bold">Step 2: 充值上链 (Execute)</p>
+                    <p className="text-xs opacity-80">{(topUpStep === "executing_tx" || isConfirming) ? "MetaMask 弹窗：支付矿工费，将资金充入合约金库安全保管..." : "等待第一步完成"}</p>
                   </div>
                 </div>
               </div>
