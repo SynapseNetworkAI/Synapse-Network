@@ -135,7 +135,14 @@ export default function DeveloperConsole() {
         txHash: hash,
         amountUsdc: Number(topUpAmount)
       }).then(() => {
-        loadBalance(); // Sync "My Balance" exactly after intent hits DB
+        // Since backend indexer checks intents every 2 seconds, poll to update UI balance
+        let attempts = 0;
+        const pollId = setInterval(() => {
+          loadBalance();
+          attempts++;
+          if (attempts >= 5) clearInterval(pollId);
+        }, 2000);
+        loadBalance(); // Immediate first try
       }).catch((err) => console.error("Intent failed", err));
 
       refetchWalletBalance();
