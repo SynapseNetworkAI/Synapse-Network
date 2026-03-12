@@ -59,6 +59,10 @@ DEPOSIT_EVENT_PROCESSED_PATH = os.getenv(
     "DEPOSIT_EVENT_PROCESSED_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_event_processed.json"),
 )
+REFUND_INTENTS_PATH = os.getenv(
+    "REFUND_INTENTS_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "refund_intents.json"),
+)
 ROUTER_CONFIG_PATH = os.getenv(
     "ROUTER_CONFIG_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "router_config.json"),

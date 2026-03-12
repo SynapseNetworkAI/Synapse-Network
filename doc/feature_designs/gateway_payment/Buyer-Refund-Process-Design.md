@@ -88,3 +88,33 @@ sequenceDiagram
    * 点击后变为 `Generating Ticket...` (此时请求后端拿发票)。
    * 拿到发票拉起钱包阶段变为 `Confirming in Wallet...`。
    * 完成后弹出 `Toast.success("退款成功！提现金额已回到你的钱包。")`
+
+---
+
+## 4. 退款状态机与核心规则详述 (State Machine & Rules)
+
+为了确保退款资金安全和数据一致性，网关层必须遵循以下状态流转与校验规则：
+
+### 4.1 前置条件严格校验 (Pre-condition Checks)
+1. **身份认证**：发起 `POST /api/v2/refund` 必须携带对应钱包的 EIP-4361 / SIWE 签名 Session，网关验证通过后方可执行。不允许匿名或仅凭 API Key 发起退款。
+2. **余额充足**：离线内存账本中买家的可用余额必须严格 `> 0`。若为 `0` 或发生超扣，则直接驳回为 `400 Bad Request`。
+
+### 4.2 凭据强制失效机制 (Credential Invalidation)
+在产生退款发票（EIP-712）的瞬间，**系统将立即吊销当前买家钱包绑定的所有活动 API Key**。
+* **做法**：从 `agent_credentials` (即凭据列表/据库) 中，将该 `buyer_address` 名下当前活跃的凭证标记为 `revoked` 或者清空删除。
+* **目的**：彻底杜绝买家一边申请退款把钱拿出，同时一边利用还活着的 API Key 继续发起高并发网关请求的“双花白嫖”漏洞。
+
+### 4.3 退款意图状态机与落账 (Refund Intent & Ledger Flow)
+为了对总账和实现可视化，任何退款动作必须落库留痕，记录在 `refund_intents.json` (或 DB 数据库) 中。
+
+* **状态一：PENDING（已处理 / 待上链）**
+  * **触发时机**：网关完成链下余额清零，向买家返回了 Signature（赛博银票）的同一事务内。
+  * **操作**：创建一条记录包含 `buyer_address, amount, nonce, signature, status=PENDING, created_at`。这代表网关已经承认该买家提走了属于他的账。
+  * **此时平台总账本**：虽然买家余额清零，但此时 USDC 还锁在智能合约 (Vault) 内。此时无需修改平台的“链上总额记录”。
+
+* **状态二：COMPLETED（完全已确认）**
+  * **触发时机**：买家在钱包里完成交易，以太坊智能合约发出 `Withdrawn(buyer, amount, nonce)` 事件，被后端的事件监听/区块同步服务（Sync Worker）扫块捕获。
+  * **操作**：
+    1. 根据日志提取的 `buyer` 和 `nonce` 匹配到 `refund_intents` 表/文件中的那个 `PENDING` 记录。
+    2. 将记录状态更新为 `COMPLETED`，打上链上 `tx_hash` 与上链时间戳。
+    3. **更新平台总余额 (Platform Remaining Balance)**：将全局平台的统计总存款 / 以及对应金库的大盘总额扣减掉这笔成功退款的 `amount`，形成财务闭环！

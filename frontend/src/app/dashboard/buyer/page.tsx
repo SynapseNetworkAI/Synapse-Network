@@ -1,17 +1,47 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Bot, RefreshCw, Zap, Shield, ArrowRight, ArrowUpRight, Coins } from "lucide-react";
+import { Bot, RefreshCw, Zap, Shield, ArrowRight, ArrowUpRight, Coins, AlertTriangle, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import WalletProfileBadge from "@/components/WalletProfileBadge";
 import { useBuyerData } from "@/hooks/useBuyerData";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { requestV2Refund } from "@/utils/balanceApi";
 
 export default function BuyerOverview() {
-  const { isRefreshing, stats, logs, handleRefresh } = useBuyerData();
+  const { userAddress, isRefreshing, stats, logs, handleRefresh } = useBuyerData();
   const { isSessionAuthenticated } = useAuth();
+  
+  const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
 
-
+  const handleSettlement = async () => {
+    if (!userAddress) {
+      toast.error("钱包未连接或会话失效");
+      return;
+    }
+    
+    setIsSettling(true);
+    const toastId = toast.loading("获取赛博银票/EIP-712签名中...");
+    try {
+      // 真实调用后端结算扣减接口
+      const refundResult = await requestV2Refund(userAddress);
+      
+      toast.success(`获取凭证 ${refundResult.signature.slice(0, 8)}...，拉起钱包！`, { id: toastId });
+      
+      // 模拟链上确认等待时间
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      toast.success(`本次提取 ${refundResult.amountRefunded} USDC 完成！`, { id: toastId });
+      setIsSettlementModalOpen(false);
+      handleRefresh();
+    } catch {
+      toast.error("结算失败，请重试", { id: toastId });
+    } finally {
+      setIsSettling(false);
+    }
+  };
 
   return (
     <div className="p-8 mx-auto space-y-8 max-w-7xl">
@@ -130,7 +160,7 @@ export default function BuyerOverview() {
             <div className="text-2xl font-bold font-mono text-green-400">{stats.buyerBalance} <span className="text-sm text-gray-500">USDC</span></div>
           </div>
           <button 
-            onClick={() => toast.success("Mock: 即将清零记账，生成撤资银票 (EIP-712 Signed)...")}
+            onClick={() => setIsSettlementModalOpen(true)}
             disabled={Number(stats.buyerBalance) <= 0}
             className="w-full whitespace-nowrap px-6 py-3 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
           >
@@ -183,6 +213,75 @@ export default function BuyerOverview() {
         </div>
       </section>
       </div>
+
+      {/* Settlement Warning Modal */}
+      {isSettlementModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg p-6 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white flex items-center">
+                <AlertTriangle className="w-6 h-6 mr-2 text-yellow-500" />
+                结算确认
+              </h3>
+              <button 
+                onClick={() => !isSettling && setIsSettlementModalOpen(false)}
+                className="text-gray-400 hover:text-white"
+                disabled={isSettling}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-800 rounded-lg space-y-3 border border-gray-700">
+                <div className="flex justify-between items-center pb-3 border-b border-gray-700">
+                  <span className="text-gray-400">历史消耗总计 (Paid to APIs)</span>
+                  <span className="font-mono text-gray-300">
+                    {logs.reduce((acc, log) => acc + (log.unit_price || 0), 0).toFixed(2)} USDC
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-lg font-medium text-white">本次可提款 (Refundable)</span>
+                  <span className="text-2xl font-bold text-green-400 font-mono">{stats.buyerBalance} USDC</span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <h4 className="text-sm font-semibold text-yellow-500 mb-1">⚠️ 危险操作警告</h4>
+                <p className="text-sm text-yellow-200/80 leading-relaxed">
+                  确认提取后，平台将立即清零您的离链余额保护账本。您的所有 API Key 将因余额不足而立即失效（返回 HTTP 402）。
+                  <br className="my-1"/>
+                  注意：本次提取为**链上提款操作**，获取凭证后将拉起钱包，您需要支付少量的网络 Gas 费。
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setIsSettlementModalOpen(false)}
+                disabled={isSettling}
+                className="flex-1 px-4 py-2 font-medium text-gray-300 transition-colors bg-gray-800 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSettlement}
+                disabled={isSettling}
+                className="flex-1 px-4 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 flex justify-center items-center"
+              >
+                {isSettling ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    生成凭证中...
+                  </>
+                ) : (
+                  "确认并获取赛博银票"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

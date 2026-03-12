@@ -19,7 +19,7 @@
 
 ## 🎨 4. 产品与 UI/UX 美学 (Design Philosophy)
 - **产品名称**：Synapse Network（突触网络）
-- **中文 Slogan**： “Synapse：链接硅基生命的 API 结算中枢。”
+- **中文 Slogan*11*： “Synapse：链接硅基生命的 API 结算中枢。”
 - **视觉质感**：Matrix & Cyberpunk（黑/深灰底色 + 极客荧光绿/电光蓝点缀）、有设计感、有美感、有质感。
 - **设计语言**：极度克制、充满未来感。UI 要像高级服务器控制台（Developer Console），而非古典的臃肿 SaaS。
 - **操作无感化**：把复杂的 Web3 概念（Approve, TxHash, Gas）隐藏在极简的交互背后。必须做到：一键 Faucet、一键 Permit 授权充值、SDK 复制即用、页面跳转流畅、体验丝滑。

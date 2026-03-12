@@ -285,7 +285,20 @@
       "tx_hash": null,
       "block_number": null,
       "created_at": 1773226389
+    },
+    {
+      "request_id": "ebe20bcd-67bc-4449-a9a5-499a96661451",
+      "buyer": "0xd856907d7e35a8f9bd225859a59e58577147a092",
+      "seller": "0xf93a752f65686c48e72d154a35e1e61731f6fd3a",
+      "service_id": "SVC_86E08FF51958",
+      "status": "succeeded",
+      "unit_price": 1.0,
+      "platform_fee": 0.1,
+      "seller_net": 0.9,
+      "tx_hash": null,
+      "block_number": null,
+      "created_at": 1773276727
     }
   ],
-  "updatedAt": 1773226389
+  "updatedAt": 1773276727
 }

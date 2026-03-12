@@ -13,6 +13,7 @@ from .settings import (
     DEPOSIT_EVENT_CURSOR_PATH,
     DEPOSIT_EVENT_PROCESSED_PATH,
     DEPOSIT_INTENTS_PATH,
+    REFUND_INTENTS_PATH,
     ROUTER_CONFIG_PATH,
     SERVICE_REGISTRY_PATH,
     USAGE_LOG_PATH,
@@ -262,3 +263,19 @@ def list_audit_logs(owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
 
     logs.sort(key=lambda row: int(row.get("timestamp", 0)), reverse=True)
     return logs[:limit]
+
+def load_refund_intents() -> List[Dict[str, Any]]:
+    if not os.path.exists(REFUND_INTENTS_PATH):
+        return []
+    try:
+        with open(REFUND_INTENTS_PATH, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+def save_refund_intents(rows: List[Dict[str, Any]]) -> None:
+    temp_path = f"{REFUND_INTENTS_PATH}.tmp.{uuid4().hex}"
+    with open(temp_path, "w", encoding="utf-8") as file:
+        json.dump(rows, file, indent=2)
+    os.replace(temp_path, REFUND_INTENTS_PATH)
+

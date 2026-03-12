@@ -48,6 +48,7 @@ from .persistence import (
     load_agent_registry,
     load_balance_ledger,
     load_deposit_intents,
+    load_refund_intents,
     load_router_config,
     load_service_registry,
     load_usage_logs,
@@ -55,6 +56,7 @@ from .persistence import (
     save_agent_registry,
     save_balance_ledger,
     save_deposit_intents,
+    save_refund_intents,
     save_router_config,
     save_service_registry,
     save_usage_logs,
@@ -828,6 +830,54 @@ async def get_v2_balance(subject_wallet: Annotated[str, Depends(require_auth)]):
     }
 
 
+@app.post("/api/v2/refund", responses=SERVICE_REGISTRY_RESPONSES)
+async def request_refund_v2(subject_wallet: Annotated[str, Depends(require_auth)]):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    wallet = normalize_wallet(subject_wallet)
+    now = int(time.time())
+    
+    with lock:
+        ledger = load_balance_ledger()
+        buyers = ledger.get("buyers", {})
+        
+        current_balance = float(buyers.get(wallet, 0.0))
+        if current_balance <= 0:
+            raise HTTPException(status_code=400, detail={"code": "INSUFFICIENT_BALANCE", "message": "No balance to refund"})
+        
+        # 4.2 Credential Invalidation
+        credentials = load_agent_credentials()
+        for idx, cred in enumerate(credentials):
+            if normalize_wallet(cred.get("ownerAddress", "")) == wallet and cred.get("status") == "active":
+                credentials[idx]["status"] = "revoked"
+        save_agent_credentials(credentials)
+
+        # Update balance
+        buyers[wallet] = 0.0
+        
+        # 4.3 Refund Intent State Machine - Phase 1 (PENDING)
+        intents = load_refund_intents()
+        mock_nonce = len(intents) 
+        signature = "0xmock_eip712_signature"
+        intents.append({
+            "buyer_address": wallet,
+            "amount": current_balance,
+            "nonce": mock_nonce,
+            "signature": signature,
+            "status": "PENDING",
+            "created_at": now
+        })
+        
+        save_refund_intents(intents)
+        save_balance_ledger(ledger)
+    
+    return {
+        "status": "success",
+        "message": f"Successfully settled {current_balance} USDC",
+        "signature": signature,
+        "amountRefunded": current_balance
+    }
+
+
 @app.get("/api/v2/router/config", responses=SERVICE_REGISTRY_RESPONSES)
 async def get_router_config_v2(subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
@@ -1278,3 +1328,30 @@ async def generate_response(
             "provider_signature": provider_signature,
         },
     }
+
+
+@app.get("/api/v2/refunds")
+async def get_refunds_history(wallet_address: str = Depends(require_auth)):
+    try:
+        intents = load_refund_intents()
+        user_intents = [
+            i for i in intents 
+            if i.get("buyer_address", "").lower() == wallet_address.lower()
+        ]
+        user_intents.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        mapped_data = []
+        for i in user_intents:
+            tx_hash_val = i.get("tx_hash")
+            if tx_hash_val and not str(tx_hash_val).strip(): tx_hash_val = None
+            mapped_data.append({
+                "id": i.get("intent_id"),
+                "timestamp": i.get("timestamp"),
+                "amount": i.get("amount", 0.0),
+                "type": i.get("type", "refund"),
+                "status": i.get("status", "PENDING"),
+                "txHash": tx_hash_val
+            })
+        return {"status": "success", "data": mapped_data}
+    except Exception as e:
+        logger.error(f"Error fetching refunds: {e}")
+        raise HTTPException(status_code=500, detail="Internal error")

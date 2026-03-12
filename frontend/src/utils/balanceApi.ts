@@ -115,3 +115,24 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
     confirmedAt: Number(row.confirmedAt ?? 0) || undefined,
   }));
 }
+
+export async function requestV2Refund(userAddress: string): Promise<{ signature: string; amountRefunded: number }> {
+  const response = await fetch(`${API_BASE}/refund`, {
+    method: "POST",
+    headers: buildAuthedHeaders(userAddress, true),
+    body: JSON.stringify({})
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Failed to process refund"));
+  }
+
+  const payload = await response.json();
+  if (payload.status === "error") {
+      throw new Error(payload.message || "Refund failed");
+  }
+  return {
+    signature: payload.signature || "",
+    amountRefunded: Number(payload.amountRefunded || 0)
+  };
+}

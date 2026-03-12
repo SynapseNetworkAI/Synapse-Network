@@ -16,7 +16,8 @@ import {
 } from "@/utils/agentCredentialApi";
 import { setCredentialForService } from "@/utils/agentCredentialStore";
 import { clearAuthSession } from "@/utils/authSession";
-import { useBillingData } from "@/hooks/useBillingData";
+ 
+ 
 import { useAuth } from "@/components/WalletAuthGuard";
 import AuthMask from "@/components/AuthMask";
 
@@ -43,7 +44,7 @@ function CredentialsContent() {
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const { rows: billingRows } = useBillingData();
+  const billingRows = useMemo<{timestamp?: number; buyer?: string; unit_price?: number}[]>(() => [], []);
   const [copiedToken, setCopiedToken] = useState(false);
 
   const loadAll = useCallback(async () => {

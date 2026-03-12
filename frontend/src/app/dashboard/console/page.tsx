@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAccount, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
 import { getV2Balance } from "@/utils/balanceApi";
@@ -55,6 +55,11 @@ export default function DeveloperConsole() {
   });
   const walletUsdcBalance = walletUsdcBalanceRaw !== undefined ? Number(walletUsdcBalanceRaw) / 1e18 : 0;
 
+  const { data: ethBalanceData } = useBalance({ address });
+  const ethBalance = ethBalanceData ? Number(ethBalanceData.value) / 1e18 : 0;
+
+  const [topUpStep, setTopUpStep] = useState<"input" | "signing_permit" | "executing_tx">("input");
+
   const { signTypedDataAsync } = useSignTypedData();
   const { data: hash, writeContractAsync, isPending } = useWriteContract();
   const { data: mintHash, writeContractAsync: writeMintAsync, isPending: isMinting } = useWriteContract();
@@ -79,6 +84,7 @@ export default function DeveloperConsole() {
       authorize();
       return;
     }
+    setTopUpStep("input");
     setIsTopUpOpen(true);
   }, [isConnected, openConnectModal, isSessionAuthenticated, authorize]);
 
@@ -118,6 +124,7 @@ export default function DeveloperConsole() {
     if (isConfirmed) {
       toast.success("Deposit successful!");
       setIsTopUpOpen(false);
+      setTopUpStep("input");
       setTimeout(loadBalance, 2000);
       refetchWalletBalance();
     }
@@ -170,6 +177,11 @@ export default function DeveloperConsole() {
     const amountUsdc = Number(topUpAmount);
     if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) return toast.error("Invalid amount");
 
+    if (ethBalance < 0.001) {
+      toast.error("Insufficient ETH for transaction gas (needs ~0.001 ETH). Please fund your wallet.");
+    }
+
+    setTopUpStep("signing_permit");
     try {
       const amountBigInt = parseUnits(String(amountUsdc), 18);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hr
@@ -191,6 +203,7 @@ export default function DeveloperConsole() {
 
       const { v, r, s } = parseSignature(signature);
 
+      setTopUpStep("executing_tx");
       await writeContractAsync({
         address: VAULT_ADDRESS,
         abi: vaultABI,
@@ -198,13 +211,37 @@ export default function DeveloperConsole() {
         args: [amountBigInt, deadline, Number(v), r, s],
       });
     } catch (err: unknown) {
+      setTopUpStep("input");
       const msg = err instanceof Error ? err.message : String(err);
+      
+      let failureReason = "Unknown Error";
       if (msg.includes("User rejected") || msg.toLowerCase().includes("rejected")) {
+        failureReason = "User rejected";
         toast("Sign/Transaction cancelled by user", { icon: "ℹ️" });
       } else if (msg.includes("Insufficient Balance") || msg.includes("insufficient funds") || msg.includes("gas required exceeds allowance")) {
-        toast.error("USDC 余额不足，请点击获取测试币", { duration: 5000 });
+        failureReason = "Insufficient Gas/Funds";
+        toast.error("USDC or ETH 余额不足，请检查钱包", { duration: 5000 });
       } else {
+        failureReason = msg.substring(0, 100);
         toast.error("Failed to top up: " + msg);
+      }
+
+      // Record to Shadow Ledger
+      try {
+        const storedStr = localStorage.getItem("synapse_failed_deposits");
+        const stored = storedStr ? JSON.parse(storedStr) : [];
+        stored.push({
+          id: `tx-fail-${Date.now()}`,
+          timestamp: Date.now(),
+          amountUsdc: amountUsdc,
+          failureReason: failureReason,
+          address: address
+        });
+        localStorage.setItem("synapse_failed_deposits", JSON.stringify(stored));
+        // Force mutate an event so useFundsData can catch it if it's open (optional)
+        window.dispatchEvent(new Event("synapse_failed_deposits_updated"));
+      } catch (e) {
+        console.error("Failed to log shadow ledger:", e);
       }
     }
   };
@@ -446,7 +483,8 @@ print(response.content){"\n"}
                   type="number" 
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
-                  className="w-full px-4 py-3 text-lg font-bold text-white bg-black border border-gray-700 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500/50 outline-none"
+                  disabled={topUpStep !== "input"}
+                  className="w-full px-4 py-3 text-lg font-bold text-white bg-black border border-gray-700 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500/50 outline-none disabled:opacity-50"
                   min="1"
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-4">
@@ -455,21 +493,42 @@ print(response.content){"\n"}
               </div>
             </label>
 
+            {/* Stepper Logic */}
+            {(topUpStep !== "input" || isPending || isConfirming) && (
+              <div className="mb-6 space-y-3">
+                <div className={`p-3 border rounded-xl flex items-center gap-3 ${topUpStep === "signing_permit" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-green-500/50 bg-green-500/10 text-green-400"}`}>
+                  {topUpStep === "signing_permit" ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                  <div className="text-sm">
+                    <p className="font-bold">Step 1: Permit USDC Spend</p>
+                    <p className="text-xs opacity-80">{topUpStep === "signing_permit" ? "Please sign the message in your wallet..." : "Signature granted"}</p>
+                  </div>
+                </div>
+
+                <div className={`p-3 border rounded-xl flex items-center gap-3 ${topUpStep === "executing_tx" || isConfirming ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : topUpStep === "input" ? "border-gray-800 bg-gray-800/30 text-gray-500" : "border-gray-800 bg-gray-800/30 text-gray-500"}`}>
+                   {(topUpStep === "executing_tx" || isConfirming) ? <RefreshCw className="w-5 h-5 animate-spin" /> : <AlertCircle className="w-5 h-5" />}
+                  <div className="text-sm">
+                    <p className="font-bold">Step 2: Execute Deposit</p>
+                    <p className="text-xs opacity-80">{(topUpStep === "executing_tx" || isConfirming) ? "Waiting for blockchain confirmation..." : "Pending Step 1 completion"}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 justify-end mt-8">
               <button 
                 onClick={() => setIsTopUpOpen(false)} 
                 disabled={isPending || isConfirming}
-                className="px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:text-white"
+                className="px-4 py-2 text-sm font-semibold text-gray-300 transition-colors hover:text-white disabled:opacity-50"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleTopUp}
-                disabled={isPending || isConfirming}
+                disabled={topUpStep !== "input" || isPending || isConfirming}
                 className="px-6 py-2 text-sm font-bold text-black transition-colors bg-green-500 hover:bg-green-400 rounded-xl disabled:opacity-50 flex items-center gap-2"
               >
                 {(isPending || isConfirming) ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-                {isConfirming ? "Confirming..." : isPending ? "Signing..." : "Complete Top-up"}
+                {topUpStep !== "input" || isConfirming ? "Processing..." : "Complete Top-up"}
               </button>
             </div>
           </div>

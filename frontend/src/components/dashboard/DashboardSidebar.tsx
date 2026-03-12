@@ -28,7 +28,7 @@ export default function DashboardSidebar() {
   const isAdminAddress = address?.toLowerCase() === "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".toLowerCase();
 
   const getLinkClasses = (path: string, exact = false) => {
-    const active = exact ? pathname === path : pathname.startsWith(path) || (path === "/dashboard/billing" && pathname === "/dashboard");
+    const active = exact ? pathname === path : pathname.startsWith(path);
     if (active) {
       return "flex items-center px-4 py-2 mt-1 text-sm font-bold text-green-400 bg-green-900/20 border-l-4 border-green-500 rounded-r shadow-[0_0_12px_rgba(34,197,94,0.1)] transition-all";
     }
@@ -61,9 +61,13 @@ export default function DashboardSidebar() {
               <Search className="w-4 h-4 mr-3" />
               Discover Services
             </Link>
-            <Link href="/dashboard/billing" className={getLinkClasses("/dashboard/billing", false)}>
+            <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
               <BarChart2 className="w-4 h-4 mr-3" />
-              Usage & Billing
+              Usage Analytics
+            </Link>
+            <Link href="/dashboard/billing" className={getLinkClasses("/dashboard/billing", false)}>
+              <DollarSign className="w-4 h-4 mr-3" />
+              Treasury Ledger
             </Link>
           </nav>
         </div>
@@ -79,9 +83,13 @@ export default function DashboardSidebar() {
               <Server className="w-4 h-4 mr-3" />
               My Services
             </Link>
-            <Link href="/dashboard/settlement" className={getLinkClasses("/dashboard/settlement", false)}>
+            <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
+              <BarChart2 className="w-4 h-4 mr-3" />
+              Usage Analytics
+            </Link>
+            <Link href="/dashboard/billing" className={getLinkClasses("/dashboard/billing", false)}>
               <DollarSign className="w-4 h-4 mr-3" />
-              Settlement
+              Treasury Ledger
             </Link>
           </nav>
         </div>
