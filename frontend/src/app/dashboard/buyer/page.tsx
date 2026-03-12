@@ -1,32 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Bot, RefreshCw, Zap, Shield, ArrowRight, ArrowUpRight, ArrowDownToLine, Coins } from "lucide-react";
+import { Bot, RefreshCw, Zap, Shield, ArrowRight, ArrowUpRight, Coins } from "lucide-react";
 import toast from "react-hot-toast";
 import WalletProfileBadge from "@/components/WalletProfileBadge";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useBuyerData } from "@/hooks/useBuyerData";
 import { useAuth } from "@/components/WalletAuthGuard";
 
 export default function BuyerOverview() {
-  const { handleRefresh: hookRefresh, isRefreshing } = useDashboardData();
+  const { isRefreshing, stats, logs, handleRefresh } = useBuyerData();
   const { isSessionAuthenticated } = useAuth();
 
-  // Mock data for buyer specific metrics
-  const stats = isSessionAuthenticated ? {
-    todaySpend: "12.45",
-    todayCalls: 1245,
-    blockedCalls: 2
-  } : {
-    todaySpend: "0.00",
-    todayCalls: 0,
-    blockedCalls: 0
-  };
 
-  const logs = isSessionAuthenticated ? [
-    { id: "REQ-001", time: "2026-03-11 10:23:45", service: "OpenAI GPT-4 Wrapper", endpoint: "POST /api/v1/query", cost: "0.01", status: "Success" },
-    { id: "REQ-002", time: "2026-03-11 10:24:12", service: "Data Scraper Agent", endpoint: "GET /api/v1/scrape", cost: "0.05", status: "Success" },
-    { id: "REQ-003", time: "2026-03-11 10:25:01", service: "Stable Diffusion Gen", endpoint: "POST /api/v1/image", cost: "0.00", status: "Failed" },
-  ] : [];
 
   return (
     <div className="p-8 mx-auto space-y-8 max-w-7xl">
@@ -42,7 +27,7 @@ export default function BuyerOverview() {
         <div className="flex gap-4">
           <WalletProfileBadge />
           <button
-            onClick={hookRefresh}
+            onClick={handleRefresh}
             className="p-2 text-gray-300 transition-colors bg-gray-900 border border-gray-700 rounded-lg hover:bg-gray-800"
           >
             <RefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin text-blue-400" : ""}`} />
@@ -90,7 +75,7 @@ export default function BuyerOverview() {
           <div className="absolute inset-0 bg-blue-900/20 opacity-0 group-hover:opacity-100 transition-opacity" />
           <h3 className="text-gray-400 text-sm font-medium mb-2">Account Balance</h3>
           <div className="flex flex-col gap-2">
-            <div className="text-3xl font-bold text-white"><span className="text-lg text-gray-500">USDC</span></div>
+            <div className="text-3xl font-bold text-white">{stats.buyerBalance} <span className="text-lg text-gray-500">USDC</span></div>
             <Link href="/dashboard/console" className="text-blue-400 hover:text-blue-300 flex items-center text-sm font-medium w-fit">
               Deposit <ArrowUpRight className="w-4 h-4 ml-1" />
             </Link>
@@ -114,22 +99,45 @@ export default function BuyerOverview() {
       </div>
 
       {/* Refunds & Settlement */}
-      <section className="p-6 border border-gray-800 rounded-xl bg-gray-900/50 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex-1">
-          <h2 className="text-xl font-bold text-white mb-2 flex items-center">
-            <ArrowDownToLine className="w-5 h-5 mr-2 text-green-400" />
-            资金与退款说明 (Refunds & Settlement)
-          </h2>
-          <p className="text-gray-400 text-sm leading-relaxed max-w-4xl">
-            如果您不需要继续调用接口，可随时向平台发起退款请求。平台将清算离链账本，并为您开出一张“赛博银票 (EIP-712 签名)”。您可以凭借这张银票，在链上金库一键提取剩余资金至原生钱包。
-          </p>
+      <section className="p-6 border border-gray-800 rounded-xl bg-gray-900/50 flex flex-col xl:flex-row items-center justify-between gap-6">
+        <div className="flex-1 space-y-3 w-full">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <Shield className="w-5 h-5 mr-3 text-green-400" />
+              随时提取，防跑路 (No-Rug Refund)
+            </h2>
+          </div>
+          
+          <div className="bg-black/30 p-4 rounded-lg border border-gray-800/50 space-y-3">
+            <div className="flex items-start text-sm text-gray-400">
+              <span className="text-green-500 font-bold mr-2 mt-0.5 shrink-0">1.</span>
+              <p><strong className="text-gray-300">零审核瞬间退：</strong>资金绝对安全地托管在智能合约中。点击退款瞬间，网关立马清算并向你开出 “赛博银票” (EIP-712签名)，无需任何人审批审核。</p>
+            </div>
+            <div className="flex items-start text-sm text-gray-400">
+              <span className="text-yellow-500 font-bold mr-2 mt-0.5 shrink-0">2.</span>
+              <p><strong className="text-gray-300">极速链上到账：</strong>你拿到银票凭证后，将自动拉起钱包并从链上金库直接提取原资金，确认后几秒内即落入当前的原生钱包。</p>
+            </div>
+            <div className="flex items-start text-sm text-gray-400">
+              <span className="text-blue-400 font-bold mr-2 mt-0.5 shrink-0">3.</span>
+              <p><strong className="text-gray-300">谁来支付 Gas：</strong>你在调用 API 的时候享受绝对的 0 Gas 体验；而你的提取退款是一次真实的链上转移，需由你支付极低的网络 Gas 费。</p>
+            </div>
+          </div>
         </div>
-        <button 
-          onClick={() => toast.success("Mock: Generating EIP-712 Refund Signature...")}
-          className="whitespace-nowrap px-6 py-3 font-bold text-green-400 transition-colors border border-green-500/50 rounded-lg hover:bg-green-500/10"
-        >
-          申请退款提取 (Claim Refund)
-        </button>
+        
+        <div className="flex flex-col items-end gap-3 min-w-[240px] p-4 bg-black/40 rounded-lg border border-gray-800 w-full xl:w-auto">
+          <div className="text-right w-full flex justify-between items-end mb-2 xl:flex-col xl:items-end xl:mb-0">
+            <span className="text-sm text-gray-500 mb-1">可提取可用余额</span>
+            <div className="text-2xl font-bold font-mono text-green-400">{stats.buyerBalance} <span className="text-sm text-gray-500">USDC</span></div>
+          </div>
+          <button 
+            onClick={() => toast.success("Mock: 即将清零记账，生成撤资银票 (EIP-712 Signed)...")}
+            disabled={Number(stats.buyerBalance) <= 0}
+            className="w-full whitespace-nowrap px-6 py-3 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+          >
+            结算取现
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </button>
+        </div>
       </section>
 
       {/* Logs Table */}
@@ -156,17 +164,17 @@ export default function BuyerOverview() {
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <tr key={log.id} className="border-b border-gray-800/50 hover:bg-gray-900/50 transition-colors">
-                    <td className="py-3 px-4 text-sm text-gray-300">{log.time}</td>
-                    <td className="py-3 px-4 text-sm font-medium text-gray-200">{log.service}</td>
-                    <td className="py-3 px-4 text-sm text-gray-400 font-mono">{log.endpoint}</td>
-                    <td className="py-3 px-4 text-sm text-yellow-400">{log.cost} USDC</td>
+                  <tr key={log.request_id} className="border-b border-gray-800/50 hover:bg-gray-900/50 transition-colors">
+                    <td className="py-3 px-4 text-sm text-gray-300">{new Date((log.created_at || 0) * 1000).toLocaleString()}</td>
+                    <td className="py-3 px-4 text-sm font-medium text-gray-200">{log.service_id}</td>
+                    <td className="py-3 px-4 text-sm text-gray-400 font-mono">{log.seller?.slice(0, 6)}...</td>
+                    <td className="py-3 px-4 text-sm text-yellow-400">{log.unit_price?.toFixed(4) || "0.0000"} USDC</td>
                     <td className="py-3 px-4 text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs ${log.status === "Success" ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
-                        {log.status}
+                      <span className={`px-2 py-1 rounded-full text-xs ${log.status === "succeeded" || log.status === "accepted" ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                        {log.status === "succeeded" || log.status === "accepted" ? "Success" : "Failed"}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-500 font-mono">{log.id}</td>
+                    <td className="py-3 px-4 text-sm text-gray-500 font-mono">{log.request_id.slice(0, 8)}...</td>
                   </tr>
                 ))
               )}

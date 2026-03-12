@@ -127,7 +127,14 @@ def cleanup_expired_challenges() -> None:
 
 
 def build_auth_message(address: str, nonce: str) -> str:
-    return f"A2A-Pay Login\nAddress: {normalize_wallet(address)}\nNonce: {nonce}"
+    return (
+        f"Synapse Network Login\n\n"
+        f"Welcome to Synapse Network!\n"
+        f"Sign this message to prove you own this wallet and securely log in. "
+        f"This is a free off-chain signature and will not cost any gas or trigger a blockchain transaction.\n\n"
+        f"Address: {normalize_wallet(address)}\n"
+        f"Nonce: {nonce}"
+    )
 
 
 def create_auth_challenge(address: str) -> Dict[str, Any]:
