@@ -34,7 +34,7 @@ export const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export default function WalletAuthGuard({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { isConnected, address, connector } = useAccount();
+  const { isConnected, address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -67,7 +67,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
         const msg = signErr instanceof Error ? signErr.message : String(signErr);
         // Fallback for non-standard injected wallets (e.g. Gate.io) lacking .getChainId interface in wagmi
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (msg.includes("getChainId") || msg.includes("reading 'raw'") || msg.includes("Cannot read properties of undefined")) {
+        if (msg.includes("getChainId") || msg.includes("reading 'raw'") || msg.includes("reading 'length'") || msg.includes("Cannot read properties of undefined")) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (typeof window !== "undefined" && (window as any).ethereum) {
             console.warn("Wagmi connector failed, falling back to window.ethereum.request personal_sign...");
