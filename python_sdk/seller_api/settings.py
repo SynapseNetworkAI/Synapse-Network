@@ -1,10 +1,27 @@
 import json
 import os
 
+
+def _load_router_address_from_contract_config() -> str:
+    """Fallback: read deployed router/core address from frontend contract-config."""
+    try:
+        seller_api_dir = os.path.dirname(os.path.abspath(__file__))
+        contract_config_path = os.path.join(seller_api_dir, "..", "..", "frontend", "src", "contract-config.json")
+        contract_config_path = os.path.abspath(contract_config_path)
+        if not os.path.exists(contract_config_path):
+            return ""
+        with open(contract_config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        # Prefer SynapseCore; fallback to legacy router key.
+        value = data.get("SynapseCore") or data.get("A2APaySyncRouter") or ""
+        return str(value).strip()
+    except Exception:
+        return ""
+
 RPC_URL = os.getenv("RPC_URL", "http://127.0.0.1:8545")
 SELLER_ADDRESS = os.getenv("SELLER_ADDRESS", "0x0000000000000000000000000000000000000000")
 EXPECTED_PRICE = int(os.getenv("EXPECTED_PRICE", "1000000000000000000"))
-ROUTER_ADDRESS = os.getenv("ROUTER_ADDRESS", "0x0000000000000000000000000000000000000000")
+ROUTER_ADDRESS = os.getenv("ROUTER_ADDRESS", "").strip() or _load_router_address_from_contract_config() or "0x0000000000000000000000000000000000000000"
 MIN_CONFIRMATIONS = int(os.getenv("MIN_CONFIRMATIONS", "1"))
 PAYMENT_TTL_SEC = int(os.getenv("PAYMENT_TTL_SEC", "600"))
 ALLOWED_TOKEN_ADDRESSES = {

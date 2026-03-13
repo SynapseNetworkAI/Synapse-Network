@@ -268,7 +268,7 @@ def _process_single_intent(
     buyers: Dict[str, float],
     now: int,
 ) -> Dict[str, Any]:
-    if str(intent.get("status") or "pending") != "pending":
+    if str(intent.get("status") or "pending").lower() != "pending":
         return {"result": "skip"}
 
     intent_fields = _extract_intent_fields(intent)
