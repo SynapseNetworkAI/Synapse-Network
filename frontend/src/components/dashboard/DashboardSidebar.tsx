@@ -79,7 +79,7 @@ export default function DashboardSidebar() {
             🔽 Provider Space (卖家)
           </h3>
           <nav className="flex flex-col">
-            <Link href="/dashboard/services" className={getLinkClasses("/dashboard/services", false)}>
+            <Link href="/dashboard/sell" className={getLinkClasses("/dashboard/sell", false)}>
               <Server className="w-4 h-4 mr-3" />
               My Services
             </Link>

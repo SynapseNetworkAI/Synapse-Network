@@ -1,20 +1,85 @@
 "use client";
 
-
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setAppRole } from "@/utils/roleStore";
+import { setAppRole, getAppRole, clearAppRole } from "@/utils/roleStore";
 import { ArrowRight, ShieldCheck, Zap, Wallet, Bot, Store, ReceiptText, TerminalSquare } from "lucide-react";
+import { useAccount, useDisconnect } from "wagmi";
+import { getWalletRole, bindWalletRole } from "@/utils/serviceApi";
+import RoleWarningModal from "@/components/RoleWarningModal";
 
 export default function Home() {
   const router = useRouter();
+  const { address } = useAccount();
+  const { disconnect } = useDisconnect();
 
-  const handleEnterRole = (role: 'CONSUMER' | 'PROVIDER' | 'ADMIN', path: string) => {
-    setAppRole(role);
+  const [isWarningOpen, setIsWarningOpen] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<{ role: 'CONSUMER' | 'PROVIDER' | 'ADMIN', path: string, targetRoleStr: "Buyer" | "Seller" } | null>(null);
+
+  const handleEnterRole = async (role: 'CONSUMER' | 'PROVIDER' | 'ADMIN', path: string) => {
+    if (role === 'ADMIN') {
+      executeRoute(role, path);
+      return;
+    }
+    
+    if (!address) {
+      executeRoute(role, path);
+      return;
+    }
+
+    try {
+      // 1. Check strict DB-level WalletRole registry
+      const backendRole = await getWalletRole(address);
+      if (backendRole && backendRole !== role) {
+          setPendingRoute({ role, path, targetRoleStr: role === 'CONSUMER' ? "Buyer" : "Seller" });
+          setIsWarningOpen(true);
+          return;
+      }
+
+      // 2. Check local frontend session (if they logged in but haven't taken action yet)
+      const cachedRole = getAppRole(address);
+      if (cachedRole && cachedRole !== role && cachedRole !== 'ADMIN') {
+        setPendingRoute({ role, path, targetRoleStr: role === 'CONSUMER' ? "Buyer" : "Seller" });
+        setIsWarningOpen(true);
+        return;
+      }
+
+      // 3. Bind explicitly in DB if they don't have a role yet
+      if (!backendRole) {
+          const bound = await bindWalletRole(address, role);
+          if (!bound) {
+            setPendingRoute({ role, path, targetRoleStr: role === 'CONSUMER' ? "Buyer" : "Seller" });
+            setIsWarningOpen(true);
+            return;
+          }
+      }
+    } catch (e) {
+      console.warn("Failed to check exact role status on entry:", e);
+    }
+
+    executeRoute(role, path);
+  };
+
+  const executeRoute = (role: 'CONSUMER' | 'PROVIDER' | 'ADMIN', path: string) => {
+    setAppRole(role, address);
     router.push(path);
+  };
+
+  const handleDisconnectWarning = () => {
+    if (address) {
+      clearAppRole(address);
+    }
+    disconnect();
+    setIsWarningOpen(false);
   };
 
   return (
     <div className="mx-auto max-w-7xl px-6 md:px-8 py-10 space-y-16">
+      <RoleWarningModal
+        isOpen={isWarningOpen}
+        onDisconnect={handleDisconnectWarning}
+        targetRole={pendingRoute?.targetRoleStr || "Seller"}
+      />
       <section className="max-w-4xl space-y-6">
         <p className="uppercase tracking-[0.2em] text-xs text-green-300">Synapse Network</p>
         <h1 className="text-4xl md:text-6xl font-black leading-tight bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-700">
@@ -34,7 +99,7 @@ export default function Home() {
           </button>
           
           <button 
-            onClick={() => handleEnterRole('PROVIDER', '/dashboard/services')}
+            onClick={() => handleEnterRole('PROVIDER', '/dashboard/sell')}
             className="min-w-[160px] inline-flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-black px-6 py-4 rounded-xl font-bold text-sm transition-all hover:scale-105 shadow-[0_0_15px_rgba(59,130,246,0.4)]"
           >
             卖家接入 (Provider)
@@ -93,7 +158,7 @@ export default function Home() {
             <li>在结算页面发起提现（链上 claim）</li>
           </ol>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => handleEnterRole('PROVIDER', '/dashboard/services')} className="bg-blue-500 hover:bg-blue-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">去注册服务</button>
+            <button onClick={() => handleEnterRole('PROVIDER', '/dashboard/sell')} className="bg-blue-500 hover:bg-blue-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">去注册服务</button>
             <button onClick={() => handleEnterRole('PROVIDER', '/dashboard/settlement')} className="border border-gray-700 hover:bg-gray-900 text-white px-4 py-2 rounded-lg font-semibold text-xs transition-colors">查看收益看板</button>
           </div>
         </div>

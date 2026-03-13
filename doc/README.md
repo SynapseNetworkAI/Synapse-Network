@@ -9,6 +9,7 @@
 - [Synchronous Payment And FastAPI Design](feature_designs/architecture/Synchronous-Payment-And-FastAPI-Design.md)
 - [AI Service Discovery Architecture](feature_designs/architecture/AI_Service_Discovery_Architecture.md)
 - [Wallet Integration Design](feature_designs/architecture/Wallet-Integration-Design.md)
+- [Wallet Role Hard Isolation Protocol](feature_designs/architecture/Wallet-Role-Hard-Isolation.md)
 
 ### 1.2 Agent 能力与拓扑 (`feature_designs/agent/`)
 - [Agent Credential / RateLimit / Audit Design](feature_designs/agent/Agent-Credential-RateLimit-Audit-Design.md)

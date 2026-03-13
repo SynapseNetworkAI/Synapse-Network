@@ -279,3 +279,34 @@ def save_refund_intents(rows: List[Dict[str, Any]]) -> None:
         json.dump(rows, file, indent=2)
     os.replace(temp_path, REFUND_INTENTS_PATH)
 
+
+
+def load_wallet_roles() -> Dict[str, str]:
+    from .settings import WALLET_ROLES_PATH
+    import os, json
+    if not os.path.exists(WALLET_ROLES_PATH):
+        return {}
+    try:
+        with open(WALLET_ROLES_PATH, 'r', encoding='utf-8') as file:
+            return json.load(file)
+    except Exception:
+        return {}
+
+def save_wallet_roles(roles: Dict[str, str]) -> None:
+    from .settings import WALLET_ROLES_PATH
+    import json
+    with open(WALLET_ROLES_PATH, 'w', encoding='utf-8') as file:
+        json.dump(roles, file, ensure_ascii=False, indent=2)
+
+def enforce_wallet_role(wallet: str, required_role: str) -> None:
+    from .common import normalize_wallet
+    norm_wallet = normalize_wallet(wallet)
+    roles = load_wallet_roles()
+    current_role = roles.get(norm_wallet)
+    
+    if current_role and current_role != required_role:
+        raise ValueError(f"Hard Isolation Error: Wallet {norm_wallet} is already registered as {current_role}. Cannot act as {required_role}.")
+        
+    if not current_role:
+        roles[norm_wallet] = required_role
+        save_wallet_roles(roles)

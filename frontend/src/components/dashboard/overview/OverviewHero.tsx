@@ -15,7 +15,7 @@ export default function OverviewHero() {
         <Link href="/dashboard/credentials" className="px-4 py-2 text-sm font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400">
           我是买家：充值并开始调用
         </Link>
-        <Link href="/dashboard/services" className="px-4 py-2 text-sm font-semibold text-white transition-colors border border-gray-700 rounded-lg hover:bg-gray-900">
+        <Link href="/dashboard/sell" className="px-4 py-2 text-sm font-semibold text-white transition-colors border border-gray-700 rounded-lg hover:bg-gray-900">
           我是卖家：接入服务并开始赚钱
         </Link>
       </div>

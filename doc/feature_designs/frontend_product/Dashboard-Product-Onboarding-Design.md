@@ -312,3 +312,22 @@ Router 页面固定展示 3 条 setup 状态：
 
 ### 15.4 技术实现重构方向
 废除原有的全局阻断式 `WalletAuthGuard`（单纯的 `if (!isAuthenticated) return <ConnectWall />`），改为提供 `AuthContext` 状态给各个内部组件。由具体的业务组件（如 `ApiKeyList`, `BalanceCard`）根据当前认证状态决定是渲染真实数据还是渲染“遮罩层”。
+
+## 5. UI/UX 优化：AI Service Discovery (模型算力看板)
+
+**理念：皮囊保持极客，骨架偷师大厂（OpenRouter）**
+我们将原来的卡片式（Card）展示，升级为更具“正规军”专业感的数据表格（Data Table）展示。这能让买家和 AI 代理在多节点、海量 API 选择时，拥有更直观的对比体验。
+
+### 5.1 数据矩阵列设计 (Data Table Columns)
+- **Node Name (节点名称)**：主标题显示服务名（如 \`DeepSeek-Chat\`），副标题用 monospace 字体显示 \`ServiceId\`。
+- **Tags (功能标签)**：展示标签栈（如 \`LLM\`, \`Vision\`, \`Data\`），黑/灰底色，极简。
+- **Price (单次调用价格)**：醒目的荧光绿价格凸显 \`0.001 USDC / call\`，强化 M2M 微支付的直觉。
+- **Health / Latency (健康度与延迟)**：提供仿真的服务器连通状态，绿色闪烁呼吸点 + 比如 \`99.9% | < 50ms\` 的专业指标感。
+- **Actions (调用操作)**：
+    - \`[Copy ID]\`：极速复制 Service ID 用于 Agent 代码集成。
+    - \`[Test Route]\`：通过链接或者按钮去体验。
+
+### 5.2 视觉与技术细节
+1. **背景与边框**：依然沿用 \`bg-black/40\` 和 \`border-gray-800\` 的深邃暗黑边框材质。
+2. **Hover 动效**：行 (Row) 悬停时，应用微弱的 \`bg-gray-900/50\` 提亮与 \`border-green-500/30\` 边界显现。
+3. **响应式 (Responsive)**：在移动端自动变成横向滚动，桌面端严格按照比例分配列宽。

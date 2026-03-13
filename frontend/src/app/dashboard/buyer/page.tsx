@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Bot, RefreshCw, Zap, Shield, ArrowRight, ArrowUpRight, Coins, AlertTriangle, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
-import WalletProfileBadge from "@/components/WalletProfileBadge";
 import { useBuyerData } from "@/hooks/useBuyerData";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { requestV2Refund } from "@/utils/balanceApi";
@@ -55,8 +54,7 @@ export default function BuyerOverview() {
           <p className="mt-2 text-gray-400">Manage your API Keys, track spending, and review your API call logs.</p>
         </div>
         <div className="flex gap-4">
-          <WalletProfileBadge />
-          <button
+                    <button
             onClick={handleRefresh}
             className="p-2 text-gray-300 transition-colors bg-gray-900 border border-gray-700 rounded-lg hover:bg-gray-800"
           >

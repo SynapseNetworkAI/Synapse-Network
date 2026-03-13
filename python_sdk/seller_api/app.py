@@ -42,6 +42,8 @@ from .models import (
 )
 from .payment import verify_payment
 from .persistence import (
+    enforce_wallet_role,
+    load_wallet_roles,
     append_audit_log,
     list_audit_logs as list_audit_logs_from_store,
     load_agent_credentials,
@@ -217,6 +219,7 @@ async def auth_verify(payload: AuthVerifyRequest):
 
 @app.post("/api/v2/services", responses=SERVICE_REGISTRY_RESPONSES)
 async def create_service(payload: ServiceCreateRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
+    enforce_wallet_role(subject_wallet, "PROVIDER")
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
 
     owner_address = subject_wallet
@@ -298,6 +301,27 @@ async def create_service(payload: ServiceCreateRequest, subject_wallet: Annotate
         "count": len(rows),
     }
 
+
+
+from pydantic import BaseModel
+class BindRoleRequest(BaseModel):
+    role: str
+
+@app.post("/api/v1/wallet/role/{address}/bind")
+async def bind_wallet_role(address: str, payload: BindRoleRequest):
+    try:
+        from .common import normalize_wallet
+        enforce_wallet_role(normalize_wallet(address), payload.role)
+        return {"success": True, "role": payload.role}
+    except Exception as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+@app.get("/api/v1/wallet/role/{address}")
+async def get_wallet_role(address: str):
+    from .common import normalize_wallet
+    roles = load_wallet_roles()
+    role = roles.get(normalize_wallet(address))
+    return {"role": role}
 
 @app.get("/api/v2/services/discover", responses=SERVICE_REGISTRY_RESPONSES)
 async def discover_services(
@@ -495,6 +519,7 @@ async def create_agent(
     payload: AgentCreateRequest,
     subject_wallet: Annotated[str, Depends(require_auth)]
 ):
+    enforce_wallet_role(subject_wallet, "CONSUMER")
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
     
     with lock:
@@ -560,6 +585,7 @@ async def list_agents(
 
 @app.post("/api/v1/agent-credentials/issue", responses=SERVICE_REGISTRY_RESPONSES)
 async def issue_agent_credential(payload: AgentCredentialIssueRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
+    enforce_wallet_role(subject_wallet, "CONSUMER")
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
 
     ttl = resolve_credential_ttl(payload.expiresInSec)

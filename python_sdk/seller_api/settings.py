@@ -106,3 +106,10 @@ AUTH_RESPONSES = {
     401: {"description": "Unauthorized"},
     400: {"description": "Invalid auth payload"},
 }
+
+WALLET_ROLES_PATH = os.getenv(
+    "WALLET_ROLES_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "wallet_roles.json"),
+)
+
+WALLET_ROLES_PATH = os.getenv("WALLET_ROLES_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "wallet_roles.json"))

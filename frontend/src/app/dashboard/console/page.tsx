@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAccount, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
+import { useAccount, useDisconnect, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
 import { getV2Balance, createDepositIntent } from "@/utils/balanceApi";
@@ -13,11 +13,12 @@ import {
   type AgentCredentialIssueResponse,
 } from "@/utils/agentCredentialApi";
 import toast from "react-hot-toast";
-import WalletProfileBadge from "@/components/WalletProfileBadge";
 import { Copy, Plus, Key, TerminalSquare, AlertCircle, RefreshCw, Wallet, Trash2, CheckCircle2 } from "lucide-react";
 
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { listServiceRegistry } from "@/utils/serviceApi";
+import RoleWarningModal from "@/components/RoleWarningModal";
 
 const ROUTER_ADDRESS = contractConfig.A2APaySyncRouter as `0x${string}`;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,6 +30,7 @@ const vaultABI = parseAbi([
 
 export default function DeveloperConsole() {
   const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { openConnectModal } = useConnectModal();
   const chainId = useChainId();
@@ -74,6 +76,7 @@ export default function DeveloperConsole() {
   const [newKeyName, setNewKeyName] = useState("My App Key");
   const [latestIssued, setLatestIssued] = useState<AgentCredentialIssueResponse | null>(null);
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
+  const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
 
   const handleAddFundsClick = useCallback(() => {
     if (!isConnected && openConnectModal) {
@@ -277,12 +280,29 @@ export default function DeveloperConsole() {
     setIsKeyModalOpen(true);
   };
 
-  const handleCreateKey = async () => {
+  const handleCreateKeyAttempt = async () => {
     if (!address) {
       toast.error("Please connect your wallet first.");
       return;
     }
     try {
+      const providerServices = await listServiceRegistry(address, address);
+      if (providerServices && providerServices.length > 0) {
+        setIsRoleWarningOpen(true);
+        return;
+      }
+      await executeCreateKey();
+    } catch (e) {
+      console.warn("Could not check provider status:", e);
+      // Fallback
+      await executeCreateKey();
+    }
+  };
+
+  const executeCreateKey = async () => {
+    if (!address) return;
+    try {
+      setIsRoleWarningOpen(false);
       const created = await issueAgentCredential(address, {
         expiresInSec: 3600 * 24 * 365 * 10, // 10 years / basically never
         maxCalls: 1000000, 
@@ -333,8 +353,7 @@ export default function DeveloperConsole() {
             One-stop workspace to manage balance, API keys, and integration settings.
           </p>
         </div>
-        <WalletProfileBadge />
-      </div>
+              </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* LEFT COLUMN: Balance + API Keys */}
@@ -580,7 +599,7 @@ print(response.content){"\n"}
                 Cancel
               </button>
               <button 
-                onClick={handleCreateKey}
+                onClick={handleCreateKeyAttempt}
                 className="px-6 py-2 text-sm font-bold text-black transition-colors bg-green-500 hover:bg-green-400 rounded-xl disabled:opacity-50"
               >
                 Generate Key
@@ -589,6 +608,16 @@ print(response.content){"\n"}
           </div>
         </div>
       )}
+
+      <RoleWarningModal
+        isOpen={isRoleWarningOpen}
+        onDisconnect={() => {
+          disconnect();
+          setIsRoleWarningOpen(false);
+          setIsKeyModalOpen(false);
+        }}
+        targetRole="Seller"
+      />
       
     </div>
   );
