@@ -113,7 +113,29 @@ export default function DeployManifestPage() {
     );
   };
 
-    const autofillAIMagic = async () => {
+  const confirmAndInject = () => {
+    try {
+      const parsed = JSON.parse(aiResponse);
+      const isMissingRequired = !parsed.service_name || !parsed.agent_tool_name || !parsed.endpoint;
+      if (isMissingRequired) {
+         toast.error("Please fill in missing required fields.");
+      }
+      setManifest((prev) => ({
+        ...prev,
+        ...parsed,
+        input_schema: parsed.input_schema || prev.input_schema,
+        output_schema: parsed.output_schema || prev.output_schema,
+        pricing: parsed.pricing || prev.pricing,
+        constraints: parsed.constraints || prev.constraints,
+      }));
+      setShowAIModal(false);
+      toast.success("Manifest injected from AI!");
+    } catch {
+      toast.error("Valid JSON is required in the right panel!");
+    }
+  };
+
+  const autofillAIMagic = async () => {
     setIsAiGenerating(true);
     
     // Simulate AI model latency
