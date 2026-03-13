@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, createContext, useContext } from "react";
 import { useAccount, useSignMessage } from "wagmi";
+import toast from "react-hot-toast";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
   clearAuthSession,
@@ -17,7 +18,7 @@ interface AuthContextType {
   address: string | undefined;
   authError: string | null;
   isAuthorizing: boolean;
-  authorize: () => Promise<void>;
+  authorize: () => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -26,7 +27,7 @@ export const AuthContext = createContext<AuthContextType>({
   address: undefined,
   authError: null,
   isAuthorizing: false,
-  authorize: async () => {},
+  authorize: async () => false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -41,8 +42,8 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   // We no longer block access globally based on isPublicRoute.
   // The context provides auth state to downstream components that use <AuthMask />.
 
-  const authorize = useCallback(async () => {
-    if (!address) return;
+  const authorize = useCallback(async (): Promise<boolean> => {
+    if (!address) return false;
     setIsAuthorizing(true);
     setAuthError(null);
 
@@ -51,7 +52,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       if (existing?.wallet === address.toLowerCase()) {
         setVerifiedWallet(existing.wallet);
         setIsAuthorizing(false);
-        return;
+        return true;
       }
 
       const challenge = await requestAuthChallenge(address);
@@ -64,11 +65,20 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
 
       setVerifiedWallet(verified.wallet.toLowerCase());
       setIsAuthorizing(false);
+      return true;
     } catch (error) {
       clearAuthSession();
       setVerifiedWallet(null);
       setIsAuthorizing(false);
-      setAuthError(error instanceof Error ? error.message : "Wallet signature authentication failed or was cancelled");
+      const errorMsg = error instanceof Error ? error.message : "Wallet signature authentication failed or was cancelled";
+      setAuthError(errorMsg);
+      // Suppress EIP-1193 rejection messages to be less annoying, unless they are actual errors
+      if (errorMsg.includes("User rejected") || String(error).includes("4001") || String(error).includes("4100")) {
+        toast("Signature request cancelled by user.", { icon: "ℹ️" });
+      } else {
+        toast.error("Auth failed: " + errorMsg);
+      }
+      return false;
     }
   }, [address, signMessageAsync]);
 

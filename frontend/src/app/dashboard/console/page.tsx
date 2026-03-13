@@ -78,14 +78,14 @@ export default function DeveloperConsole() {
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
 
-  const handleAddFundsClick = useCallback(() => {
+  const handleAddFundsClick = useCallback(async () => {
     if (!isConnected && openConnectModal) {
       openConnectModal();
       return;
     }
     if (isConnected && !isSessionAuthenticated) {
-      authorize();
-      return;
+      const success = await authorize();
+      if (!success) return; // Stop if authorization was cancelled or failed
     }
     setTopUpStep("input");
     setIsTopUpOpen(true);
@@ -167,8 +167,8 @@ export default function DeveloperConsole() {
       return;
     }
     if (isConnected && !isSessionAuthenticated) {
-      authorize();
-      return;
+      const success = await authorize();
+      if (!success) return;
     }
     if (!address) {
       toast.error("Please connect your wallet first.");
@@ -268,14 +268,14 @@ export default function DeveloperConsole() {
     }
   };
 
-  const handleOpenKeyModal = () => {
+  const handleOpenKeyModal = async () => {
     if (!isConnected && openConnectModal) {
       openConnectModal();
       return;
     }
     if (isConnected && !isSessionAuthenticated) {
-      authorize();
-      return;
+      const success = await authorize();
+      if (!success) return;
     }
     setIsKeyModalOpen(true);
   };
