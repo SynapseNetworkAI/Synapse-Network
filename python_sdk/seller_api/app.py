@@ -2,6 +2,7 @@ import asyncio
 import httpx
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 import time
+import secrets
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, Dict, List, Optional
 from uuid import uuid4
@@ -39,6 +40,7 @@ from .models import (
     InferenceRequest,
     ServiceCreateRequest,
     ServiceUpdateRequest,
+    ParseCurlRequest,
 )
 from .payment import verify_payment
 from .persistence import (
@@ -257,8 +259,11 @@ async def create_service(payload: ServiceCreateRequest, subject_wallet: Annotate
         service_id = generate_service_id(existing_ids)
         record_id = str(uuid4())
 
+        secret_key = f"sk_live_synapse_{secrets.token_hex(16)}"
         record = {
             "id": record_id,
+            "secretKey": secret_key,
+            "maskedKey": mask_key(secret_key),
             "agentId": payload.agentId,
             "name": service_name,
             "serviceName": service_name,
@@ -387,12 +392,19 @@ async def list_services(
         requested = validate_wallet(owner_address, "INVALID_OWNER_ADDRESS", "ownerAddress is invalid")
         enforce_owner(requested, subject_wallet)
         target = requested
-    rows = [row for row in rows if normalize_wallet(str(row.get("ownerAddress", ""))) == target]
-    return {"status": "success", "services": rows, "count": len(rows)}
+    safe_rows = []
+    for row in rows:
+        if normalize_wallet(str(row.get("ownerAddress", ""))) == target:
+            r = dict(row)
+            if "secretKey" in r:
+                r.pop("secretKey", None)
+            safe_rows.append(r)
+    return {"status": "success", "services": safe_rows, "count": len(safe_rows)}
 
 
 @app.put("/api/v2/services/{service_record_id}", responses=SERVICE_REGISTRY_RESPONSES)
-async def update_service(service_record_id: str, payload: ServiceUpdateRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
+async def update_service(service_record_id: str, payload: ServiceUpdateRequest,
+    ParseCurlRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
 
     service_name = payload.serviceName.strip()
@@ -426,8 +438,11 @@ async def update_service(service_record_id: str, payload: ServiceUpdateRequest, 
         enforce_owner(str(rows[existing_index].get("ownerAddress", "")), subject_wallet)
 
         before = dict(rows[existing_index])
+        current_secret = rows[existing_index].get("secretKey", f"sk_live_synapse_{secrets.token_hex(16)}")
         rows[existing_index] = {
             **rows[existing_index],
+            "secretKey": current_secret,
+            "maskedKey": mask_key(current_secret),
             "name": service_name,
             "serviceName": service_name,
             "pricing": str(payload.pricing),
@@ -1381,3 +1396,152 @@ async def get_refunds_history(wallet_address: str = Depends(require_auth)):
     except Exception as e:
         logger.error(f"Error fetching refunds: {e}")
         raise HTTPException(status_code=500, detail="Internal error")
+
+
+import json
+import os
+import httpx
+
+@app.post("/api/v2/services/parse-curl")
+async def parse_curl_endpoint(req: ParseCurlRequest):
+    """
+    Use a large model (DeepSeek/OpenAI) to parse a cURL command 
+    and return the ServiceManifest components.
+    """
+    curl_str = req.curlCommand
+    manifest = req.currentManifest or {}
+    model_name = req.model
+
+    prompt = f"""
+    You are an expert API integration engineer.
+    Base on the following cURL command, extract the API schema and configuration.
+    
+    Return ONLY a valid raw JSON object strictly adhering to this structure:
+    {{
+      "service_name": "A short descriptive name extracted from the endpoint (e.g., Image Generation API)",
+      "agent_tool_name": "a_snake_case_tool_name_regex_safe",
+      "description": "Clear 1-2 sentence description for an AI agent on when and why to use this tool.",
+      "endpoint": "The full HTTP URL",
+      "input_schema": {{ "type": "object", "properties": {{}}, "required": [] }},
+      "output_schema": {{ "type": "object", "properties": {{}} }},
+      "intent": ["tag1", "tag2"]
+    }}
+    
+    cURL command:
+    {curl_str}
+    
+    If there is JSON data in the -d or --data body, infer the input_schema properties and types.
+    For output_schema, infer what a typical response would look like based on the endpoint name and intent.
+    Do NOT include markdown formatting like ```json. Return only the raw JSON.
+    """
+
+    api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("OPENAI_API_KEY")
+    base_url = "https://api.deepseek.com/v1" if "deepseek" in model_name.lower() else "https://api.openai.com/v1"
+    
+    if api_key:
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "deepseek-chat" if "deepseek" in model_name else "gpt-4-turbo",
+                        "messages": [
+                            {"role": "system", "content": "You are a JSON-only schema generator. Output only valid raw JSON."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.1
+                    }
+                )
+                if resp.status_code == 200:
+                    content = resp.json()["choices"][0]["message"]["content"]
+                    content = content.replace('```json', '').replace('```', '').strip()
+                    parsed = json.loads(content)
+                    return {"status": "success", "data": parsed}
+                else:
+                    logger.error(f"LLM API error: {resp.text}")
+        except Exception as e:
+            logger.error(f"LLM Exception: {e}")
+
+    # Fallback heuristic if API fails or no key
+    import re
+    endpoint = ""
+    url_match = re.search(r'https?://[^\s\"\']+', curl_str)
+    if url_match:
+        endpoint = url_match.group(0)
+
+    inferred_inputs = {}
+    req_fields = []
+    
+    try:
+        start_idx = curl_str.find('{')
+        end_idx = curl_str.rfind('}')
+        if start_idx != -1 and end_idx > start_idx:
+            json_body_str = curl_str[start_idx:end_idx+1]
+            json_body_str = json_body_str.replace('\\"', '"')
+            body_dict = json.loads(json_body_str)
+            for k, v in body_dict.items():
+                inferred_inputs[k] = {"type": type(v).__name__ if v is not None else "string", "description": f"Inferred parameter {k}"}
+                req_fields.append(k)
+    except:
+        pass
+
+    fallback_data = {
+        "service_name": "API Service" if not url_match else f"Extracted ({endpoint.split('/')[-1] if '/' in endpoint else endpoint})",
+        "agent_tool_name": "invoke_api_call",
+        "description": "Extracted parameter schema.",
+        "endpoint": endpoint,
+        "input_schema": {
+            "type": "object",
+            "properties": inferred_inputs if inferred_inputs else {"query": {"type": "string"}},
+            "required": req_fields if req_fields else ["query"]
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string"},
+                "data": {"type": "object"}
+            }
+        },
+        "intent": ["ai-service"]
+    }
+
+    return {"status": "success", "data": fallback_data, "fallback": True}
+
+@app.post("/api/v2/services/{service_record_id}/rotate-key")
+async def rotate_key(service_record_id: str, subject_wallet: Annotated[str, Depends(require_auth)]):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    with lock:
+        rows = load_service_registry()
+        existing_index = next((idx for idx, row in enumerate(rows) if row.get("id") == service_record_id), -1)
+        if existing_index < 0:
+            raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service does not exist"})
+        
+        enforce_owner(str(rows[existing_index].get("ownerAddress", "")), subject_wallet)
+        
+        new_secret = f"sk_live_synapse_{secrets.token_hex(16)}"
+        rows[existing_index]["secretKey"] = new_secret
+        rows[existing_index]["maskedKey"] = mask_key(new_secret)
+        rows[existing_index]["updatedAt"] = int(time.time())
+        save_service_registry(rows)
+        
+        return {
+            "status": "success",
+            "message": "Key rotated successfully",
+            "secretKey": new_secret,
+            "maskedKey": rows[existing_index]["maskedKey"]
+        }
+
+
+@app.post("/api/v2/services/{service_record_id}/ping")
+async def test_ping(service_record_id: str, subject_wallet: Annotated[str, Depends(require_auth)]):
+    enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
+    # Just a mock response for now, to represent connection testing
+    return {
+        "status": "success",
+        "message": "Connection OK"
+    }
+

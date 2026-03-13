@@ -137,67 +137,45 @@ export default function DeployManifestPage() {
 
   const autofillAIMagic = async () => {
     setIsAiGenerating(true);
-    
-    // Simulate AI model latency
-    await new Promise((res) => setTimeout(res, 2000));
-    
-    setIsAiGenerating(false);
-    
-    // Simple naive parser to make it look "real" for the presentation
-    let endpoint = manifest.endpoint || "";
-    
-    const urlMatch = aiCurl.match(/https?:\/\/[^\s"']+/);
-    if (urlMatch) endpoint = urlMatch[0];
-    
-    const generatedInputSchema: { type: string; properties: Record<string, unknown>; required: string[] } = {
-      type: "object",
-      properties: {},
-      required: []
-    };
-    
-    // Naively extract from curl -d
-    const bodyMatch = aiCurl.match(/-d\s+['"](.*?)['"]/);
-    if (bodyMatch) {
-      try {
-        const parsed = JSON.parse(bodyMatch[1]);
-        for(const key in parsed) {
-          generatedInputSchema.properties[key] = { type: typeof parsed[key], description: `Inferred ${key}` };
-          generatedInputSchema.required.push(key);
-        }
-      } catch(e) { console.warn(e); }
-    }
+    try {
+      // Create request payload
+      const requestData = {
+        curlCommand: aiCurl,
+        model: aiModel,
+        currentManifest: manifest
+      };
 
-    const generatedOutputSchema: { type: string; properties: Record<string, unknown> } = {
-       type: "object",
-       properties: {}
-    };
-    
-    if (aiResponse) {
-      try {
-        const respParsed = JSON.parse(aiResponse);
-        for(const key in respParsed) {
-          if (Array.isArray(respParsed[key])) {
-             const itemType = respParsed[key].length > 0 ? typeof respParsed[key][0] : "string";
-             generatedOutputSchema.properties[key] = { type: "array", items: { type: itemType } };
-          } else {
-             generatedOutputSchema.properties[key] = { type: typeof respParsed[key] };
-          }
+      // Call Gateway/Provider Backend API
+      const res = await fetch("http://127.0.0.1:8000/api/v2/services/parse-curl", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      
+      const payload = await res.json();
+      
+      if (payload.status === "success") {
+        setAIResponse(JSON.stringify(payload.data, null, 2));
+        if (payload.fallback) {
+           toast("Parsed via fallback parser (no AI key).", { icon: "⚙️" });
+        } else {
+           toast.success("AI schema generated! Review the right panel before confirming.", { icon: "🪄" });
         }
-      } catch(e) { console.warn(e); }
+      } else {
+        throw new Error(payload.detail || "Unknown parsing error");
+      }
+    } catch (e) {
+      console.error("AI Parse Error:", e);
+      toast.error("Failed to parse cURL via AI. See console for details.");
+    } finally {
+      setIsAiGenerating(false);
     }
-    
-    const newManifestSubset = {
-      service_name: manifest.service_name || (urlMatch ? "DeepSeek Famous Quotes API" : "Extracted Web Service"),
-      agent_tool_name: manifest.agent_tool_name || "get_famous_quotes",
-      description: manifest.description || `Auto-generated from ${aiModel} based on provided curl.`,
-      endpoint: endpoint,
-      input_schema: Object.keys(generatedInputSchema.properties).length > 0 ? generatedInputSchema : manifest.input_schema,
-      output_schema: Object.keys(generatedOutputSchema.properties).length > 0 ? generatedOutputSchema : manifest.output_schema,
-      intent: manifest.intent.length > 0 ? manifest.intent : ["quotes", "deepseek", "famous"],
-    };
-    
-    setAIResponse(JSON.stringify(newManifestSubset, null, 2));
-    toast.success("AI schema generated! Review the right panel before confirming.", { icon: "🪄" });
   };
 
   const submitDeploy = async () => {

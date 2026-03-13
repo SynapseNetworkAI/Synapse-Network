@@ -204,3 +204,31 @@ export async function bindWalletRole(userAddress: string, role: string): Promise
     return false;
   }
 }
+
+export async function rotateServiceKey(serviceId: string, userAddress: string): Promise<{secretKey: string, maskedKey: string}> {
+  const response = await fetch(`${API_BASE_URL}/${serviceId}/rotate-key`, {
+    method: "POST",
+    headers: buildAuthedHeaders(userAddress),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Backend key rotation failed"));
+  }
+
+  const payload = await response.json();
+  return {
+    secretKey: payload.secretKey,
+    maskedKey: payload.maskedKey
+  };
+}
+
+export async function testServicePing(serviceId: string, userAddress: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/${serviceId}/ping`, {
+    method: "POST",
+    headers: buildAuthedHeaders(userAddress),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Service ping failed"));
+  }
+}

@@ -82,3 +82,9 @@ class AgentCredentialQuotaUpdateRequest(BaseModel):
     maxCalls: Optional[int] = None
     rpm: Optional[int] = None
     expiresAt: Optional[int] = None
+
+class ParseCurlRequest(BaseModel):
+    curlCommand: str
+    model: str = "deepseek-chat"
+    currentManifest: Optional[Dict[str, Any]] = None
+
