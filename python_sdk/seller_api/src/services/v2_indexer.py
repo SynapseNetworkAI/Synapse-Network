@@ -2,13 +2,14 @@ import asyncio
 import json
 import os
 import time
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from web3 import Web3
 from web3.exceptions import TransactionNotFound
 
-from .common import normalize_wallet
-from .persistence import (
+from src.core.common import normalize_wallet
+from persistence import (
     append_audit_log,
     load_balance_ledger,
     load_deposit_intents,
@@ -17,12 +18,15 @@ from .persistence import (
     save_deposit_intents,
     save_processed_deposit_event_keys,
 )
-from .settings import (
+from settings import (
+    RPC_URL,
     ROUTER_ADDRESS,
     V2_DEPOSIT_CONFIRMATIONS,
     V2_INDEXER_POLL_INTERVAL_SEC,
 )
-from .state import lock, w3
+
+lock = Lock()
+w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 TRANSFER_TOPIC = Web3.to_hex(Web3.keccak(text="Transfer(address,address,uint256)")).lower()
 TOKEN_DECIMALS_CACHE: Dict[str, int] = {}
