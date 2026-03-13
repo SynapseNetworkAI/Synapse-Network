@@ -9,7 +9,7 @@ from web3 import Web3
 from web3.exceptions import TransactionNotFound
 
 from src.core.common import normalize_wallet
-from persistence import (
+from seller_api.persistence import (
     append_audit_log,
     load_balance_ledger,
     load_deposit_intents,
@@ -18,7 +18,7 @@ from persistence import (
     save_deposit_intents,
     save_processed_deposit_event_keys,
 )
-from settings import (
+from seller_api.settings import (
     RPC_URL,
     ROUTER_ADDRESS,
     V2_DEPOSIT_CONFIRMATIONS,

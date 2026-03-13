@@ -4,7 +4,7 @@ import time
 from typing import Any, Dict, List
 from uuid import uuid4
 
-from .common import normalize_wallet
+from src.core.common import normalize_wallet
 from .settings import (
     AGENT_CREDENTIALS_PATH,
     AGENT_REGISTRY_PATH,
