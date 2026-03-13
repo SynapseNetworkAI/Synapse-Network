@@ -18,11 +18,11 @@ from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
 
-@router.post("/v1/auth/challenge", response_model=ChallengeResponse)
-async def get_challenge(request: ChallengeRequest):
+@router.get("/v1/auth/challenge", response_model=ChallengeResponse)
+async def get_challenge(address: str):
     """Get an authentication challenge for a wallet"""
     try:
-        challenge = create_auth_challenge(request.wallet_address)
+        challenge = create_auth_challenge(address)
         if not challenge:
             raise HTTPException(status_code=400, detail="Failed to create challenge")
             
