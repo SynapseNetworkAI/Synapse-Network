@@ -89,6 +89,14 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       setVerifiedWallet(null);
       setIsAuthorizing(false);
       const errorMsg = error instanceof Error ? error.message : "Wallet signature authentication failed or was cancelled";
+      
+      // Handle the strict Wagmi "unavailable while reconnecting" warning smoothly
+      if (errorMsg.includes("unavailable while reconnecting")) {
+        setAuthError("Wallet is still reconnecting. Please try again shortly or manually reconnect.");
+        toast("Wallet reconnecting, please wait a moment.", { icon: "⏳" });
+        return false;
+      }
+      
       setAuthError(errorMsg);
       // Suppress EIP-1193 rejection messages to be less annoying, unless they are actual errors
       if (errorMsg.includes("User rejected") || String(error).includes("4001") || String(error).includes("4100")) {
