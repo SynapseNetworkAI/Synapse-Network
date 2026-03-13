@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application starting up... Storage Connected.")
 
     # 启动 V2 链上索引守护任务（主索引器）
-    # 说明：这里不再并行挂载 legacy deposit_watcher，避免重复记账风险。
+    # 该任务负责充值事件的异步确认与最终一致性入账。
     app.state.v2_indexer_stop_event = asyncio.Event()
     app.state.v2_indexer_task = asyncio.create_task(
         run_v2_deposit_indexer(app.state.v2_indexer_stop_event)
