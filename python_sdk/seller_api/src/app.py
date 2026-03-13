@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.log_config import setup_logger
-from src.api.routers import auth, services, balance, agents
+from src.api.routers import auth, services, balance, agents, wallet
 from src.storage import get_storage, JsonStorage
 from src.services.balance_service import BalanceService
 from src.daemon.deposit_watcher import deposit_watcher_loop
@@ -55,6 +55,7 @@ def create_app() -> FastAPI:
 
     # 包含所有分离的路由
     app.include_router(auth.router, prefix="/api", tags=["auth"])
+    app.include_router(wallet.router, prefix="/api", tags=["wallet"])
     app.include_router(services.router, prefix="/api", tags=["services"])
     app.include_router(balance.router, prefix="/api", tags=["balance"])
     app.include_router(agents.router, prefix="/api", tags=["agents"])
