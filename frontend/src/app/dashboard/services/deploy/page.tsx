@@ -142,8 +142,6 @@ export default function DeployManifestPage() {
     await new Promise((res) => setTimeout(res, 2000));
     
     setIsAiGenerating(false);
-    setShowAIModal(false);
-    toast.success("AI schema extraction successful!", { icon: "🪄" });
     
     // Simple naive parser to make it look "real" for the presentation
     let endpoint = manifest.endpoint || "";
@@ -188,16 +186,18 @@ export default function DeployManifestPage() {
       } catch(e) { console.warn(e); }
     }
     
-    setManifest((prev) => ({
-      ...prev,
-      service_name: prev.service_name || (urlMatch ? "DeepSeek Famous Quotes API" : "Extracted Web Service"),
-      agent_tool_name: prev.agent_tool_name || "get_famous_quotes",
-      description: prev.description || `Auto-generated from ${aiModel} based on provided curl.`,
+    const newManifestSubset = {
+      service_name: manifest.service_name || (urlMatch ? "DeepSeek Famous Quotes API" : "Extracted Web Service"),
+      agent_tool_name: manifest.agent_tool_name || "get_famous_quotes",
+      description: manifest.description || `Auto-generated from ${aiModel} based on provided curl.`,
       endpoint: endpoint,
-      input_schema: Object.keys(generatedInputSchema.properties).length > 0 ? generatedInputSchema : prev.input_schema,
-      output_schema: Object.keys(generatedOutputSchema.properties).length > 0 ? generatedOutputSchema : prev.output_schema,
-      intent: prev.intent.length > 0 ? prev.intent : ["quotes", "deepseek", "famous"],
-    }));
+      input_schema: Object.keys(generatedInputSchema.properties).length > 0 ? generatedInputSchema : manifest.input_schema,
+      output_schema: Object.keys(generatedOutputSchema.properties).length > 0 ? generatedOutputSchema : manifest.output_schema,
+      intent: manifest.intent.length > 0 ? manifest.intent : ["quotes", "deepseek", "famous"],
+    };
+    
+    setAIResponse(JSON.stringify(newManifestSubset, null, 2));
+    toast.success("AI schema generated! Review the right panel before confirming.", { icon: "🪄" });
   };
 
   const submitDeploy = async () => {
