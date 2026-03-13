@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Key, ShieldCheck, Activity, Copy, CheckCircle2, FileCode2, Plus, Trash2 } from "lucide-react";
+import { Key, ShieldCheck, Activity, Copy, CheckCircle2, FileCode2, Plus, Trash2, Info, X } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
+import AuthMask from "@/components/AuthMask";
 
 import { listApiSecrets, createApiSecret, deleteApiSecret, ProviderSecret } from "@/utils/serviceApi";
 
@@ -15,6 +16,10 @@ export default function SecretsPage() {
   const [loading, setLoading] = useState(false);
   const [newSecretName, setNewSecretName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [creditLimit, setCreditLimit] = useState<string>("");
+  const [resetInterval, setResetInterval] = useState("Months");
+  const [expiration, setExpiration] = useState("Never");
   
   useEffect(() => {
     async function init() {
@@ -23,8 +28,11 @@ export default function SecretsPage() {
         setLoading(true);
         const data = await listApiSecrets(address as string);
         setSecrets(data || []);
-      } catch {
-        toast.error("Failed to load secrets");
+      } catch (error: unknown) { console.error('ERROR Loading secrets:', error);
+        const msg = error instanceof Error ? error.message : String(error);
+        if (!msg.includes("Wallet auth") && !msg.toLowerCase().includes("token expired")) {
+          toast.error(`Failed to load secrets: ${msg}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -34,18 +42,25 @@ export default function SecretsPage() {
 
   const handleCreateSecret = async () => {
     if (!address) return;
-    if (!newSecretName.trim()) {
-      toast.error("Please enter a key name");
-      return;
-    }
+    const finalName = newSecretName.trim() || `Secret Key ${secrets.length + 1}`;
     try {
       setIsCreating(true);
-      const newSecret = await createApiSecret(newSecretName, address as string);
+      const cLimit = creditLimit.trim() ? parseFloat(creditLimit) : null;
+      const rInterval = resetInterval !== "none" ? resetInterval : null;
+      const exp = expiration !== "Never" ? expiration : null;
+      
+      const newSecret = await createApiSecret(finalName, address as string, cLimit, rInterval, exp, null);
+      
       setSecrets([newSecret, ...secrets]);
       toast.success("Secret created successfully");
       setNewSecretName("");
-    } catch {
-      toast.error("Failed to create secret");
+      setCreditLimit("");
+      setIsModalOpen(false);
+    } catch (error: unknown) { console.error('ERROR Loading secrets:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!msg.includes("Wallet auth") && !msg.toLowerCase().includes("token expired")) {
+        toast.error(`Failed to create secret: ${msg}`);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -58,7 +73,7 @@ export default function SecretsPage() {
       await deleteApiSecret(id, address as string);
       setSecrets(secrets.filter(s => s.id !== id));
       toast.success("Secret deleted");
-    } catch {
+    } catch (error: unknown) { console.error('ERROR Loading secrets:', error);
       toast.error("Failed to delete secret");
     }
   };
@@ -71,6 +86,125 @@ export default function SecretsPage() {
   };
 
   return (
+    <AuthMask>
+      {/* Modal Overlay */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#1C1C1C] border border-gray-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-gray-800">
+              <h2 className="text-lg font-semibold text-white">Generate keys</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-5">
+              {/* Name Field */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-200">Name</label>
+                  <div className="group relative flex items-center">
+                    <Info className="w-4 h-4 text-gray-500 cursor-help" />
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
+                      Choose a clear and descriptive name for this API key.
+                    </div>
+                  </div>
+                </div>
+                <input 
+                  type="text" 
+                  value={newSecretName}
+                  onChange={(e) => setNewSecretName(e.target.value)}
+                  placeholder="e.g. My Next.js App"
+                  className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all placeholder:text-gray-600"
+                />
+              </div>
+
+              {/* Credit Limit Field */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-200">Credit limit</label>
+                  <div className="group relative flex items-center">
+                    <Info className="w-4 h-4 text-gray-500 cursor-help" />
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
+                      Set a maximum usage limit. Leave empty for unlimited.
+                    </div>
+                  </div>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
+                  <input 
+                    type="number" 
+                    value={creditLimit}
+                    onChange={(e) => setCreditLimit(e.target.value)}
+                    className="w-full bg-[#0A0A0A] border border-gray-800 pl-7 pr-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Reset Limit Every Field */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-200">Reset limit every</label>
+                  <div className="group relative flex items-center">
+                    <Info className="w-4 h-4 text-gray-500 cursor-help" />
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
+                      Frequency at which the credit limit resets. Usually monthly.
+                    </div>
+                  </div>
+                </div>
+                <select 
+                  value={resetInterval}
+                  onChange={(e) => setResetInterval(e.target.value)}
+                  className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all appearance-none"
+                >
+                  <option value="Months">Months</option>
+                  <option value="none">Never reset</option>
+                </select>
+              </div>
+
+              {/* Expiration Field */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-200">Expiration</label>
+                  <div className="group relative flex items-center">
+                    <Info className="w-4 h-4 text-gray-500 cursor-help" />
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
+                      Select when you want this API key to expire for security.
+                    </div>
+                  </div>
+                </div>
+                <select 
+                  value={expiration}
+                  onChange={(e) => setExpiration(e.target.value)}
+                  className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all appearance-none"
+                >
+                  <option value="Never">Never</option>
+                  <option value="30 days">30 days</option>
+                  <option value="60 days">60 days</option>
+                  <option value="90 days">90 days</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/50">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
+                disabled={isCreating}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleCreateSecret}
+                disabled={isCreating || !newSecretName.trim()}
+                className="px-6 py-2 bg-white hover:bg-gray-200 text-black font-semibold rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreating ? "Generating..." : "Generate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     <div className="max-w-7xl mx-auto space-y-8 p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* Header */}
@@ -94,20 +228,12 @@ export default function SecretsPage() {
             Active Service Keys
           </h2>
           <div className="flex items-center gap-2">
-            <input 
-              type="text" 
-              placeholder="e.g. Production Node" 
-              value={newSecretName}
-              onChange={(e) => setNewSecretName(e.target.value)}
-              className="bg-black border border-gray-700 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:outline-none"
-            />
             <button 
-              onClick={handleCreateSecret}
-              disabled={isCreating}
+              onClick={() => setIsModalOpen(true)}
               className="px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-md text-sm transition-colors flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              {isCreating ? "Generating..." : "Generate Key"}
+              Create new secret key
             </button>
           </div>
         </div>
@@ -215,7 +341,7 @@ export default function SecretsPage() {
               <div className="text-emerald-400 mb-1">GET /health</div>
               <div className="text-gray-500">{/* Expected Response: */}</div>
               <div className="text-gray-300">{"{"}</div>
-              <div className="text-gray-300">  "status": "healthy"</div>
+                <div className="text-gray-300">  &quot;status&quot;: &quot;healthy&quot;</div>
               <div className="text-gray-300">{"}"}</div>
             </div>
           </div>
@@ -349,5 +475,6 @@ public class AgentController {
 
       </div>
     </div>
+    </AuthMask>
   );
 }
