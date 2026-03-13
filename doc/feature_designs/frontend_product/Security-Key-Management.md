@@ -9,7 +9,7 @@
 
 ## 2. 核心功能 (Key Features)
 
-在卖家的 Service Management 面板，针对每个 Service 提供一个硬核的「Security & Auth」安全面板 (Modal/Drawer)，提供以下三大功能：
+在卖家的 Service Management 面板，针对 Provider 提供一个硬核的独立「Security & Auth」安全面板 (Modal/Drawer)，提供以下三大功能：
 
 ### a) 脱敏指纹 (Masked Fingerprint)
 - **展示规则**：系统不再返回完整的 `secretKey`，而是返回 `maskedKey`（例如 `sk_live_********1d0c`）。
@@ -18,7 +18,7 @@
 ### b) 一键密钥轮换🚨 (Rotate Secret Key)
 - **场景**：当卖家怀疑密钥泄露、或者常规的大厂安全合规要求定时轮换。
 - **机制**：
-  1. 点击“高危按钮”，请求网关 `/api/v2/services/{id}/rotate-key`。
+  1. 点击“高危按钮”，请求网关生成新的 API Secret 或作废旧的 Secret。
   2. 网关废弃旧密钥，立即生成新密钥。
   3. **Show Once** 再次触发，将新密钥显示在屏幕中央，提示用户立即复制并配置到服务器环境变量。关闭弹窗后不再可见。
 

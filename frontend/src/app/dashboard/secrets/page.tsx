@@ -1,31 +1,67 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Key, ShieldCheck, Activity, Copy, CheckCircle2, ChevronRight, RotateCw, FileCode2 } from "lucide-react";
+import { Key, ShieldCheck, Activity, Copy, CheckCircle2, FileCode2, Plus, Trash2 } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 
-// Replace with your real service api or keep mock
-import { listServiceRegistry } from "@/utils/serviceApi";
+import { listApiSecrets, createApiSecret, deleteApiSecret, ProviderSecret } from "@/utils/serviceApi";
 
 export default function SecretsPage() {
   const { address } = useAccount();
-  const [services, setServices] = useState<any[]>([]);
+  const [secrets, setSecrets] = useState<ProviderSecret[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"python" | "node" | "java">("node");
+  const [loading, setLoading] = useState(false);
+  const [newSecretName, setNewSecretName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
   
   useEffect(() => {
     async function init() {
       if (!address) return;
       try {
-        const data = await listServiceRegistry(address as string, address as string);
-        setServices(data || []);
-      } catch (e) {
-        toast.error("Failed to load services");
+        setLoading(true);
+        const data = await listApiSecrets(address as string);
+        setSecrets(data || []);
+      } catch {
+        toast.error("Failed to load secrets");
+      } finally {
+        setLoading(false);
       }
     }
     init();
   }, [address]);
+
+  const handleCreateSecret = async () => {
+    if (!address) return;
+    if (!newSecretName.trim()) {
+      toast.error("Please enter a key name");
+      return;
+    }
+    try {
+      setIsCreating(true);
+      const newSecret = await createApiSecret(newSecretName, address as string);
+      setSecrets([newSecret, ...secrets]);
+      toast.success("Secret created successfully");
+      setNewSecretName("");
+    } catch {
+      toast.error("Failed to create secret");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleDeleteSecret = async (id: string) => {
+    if (!address) return;
+    if (!confirm("Are you sure you want to delete this secret key? Any services using it will be blocked.")) return;
+    try {
+      await deleteApiSecret(id, address as string);
+      setSecrets(secrets.filter(s => s.id !== id));
+      toast.success("Secret deleted");
+    } catch {
+      toast.error("Failed to delete secret");
+    }
+  };
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -42,58 +78,90 @@ export default function SecretsPage() {
         <div>
           <h1 className="text-3xl font-bold font-mono tracking-tight text-white mb-2 flex items-center gap-3">
             <Key className="w-8 h-8 text-green-400" />
-            API Secrets & Security
+            Provider API Secrets
           </h1>
           <p className="text-gray-400 max-w-2xl">
-            Manage your service authentication keys and learn how to secure your agent endpoints 
-            against unauthorized access. The Synapse Gateway uses HMAC-SHA256 to sign all outgoing requests.
+            API Secrets serve as master keys for your provider node. A single secret can authorize calls to all of your registered services.
           </p>
         </div>
       </div>
 
       {/* Secrets List Table */}
       <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden backdrop-blur-sm">
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+        <div className="p-6 border-b border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h2 className="text-xl font-mono text-white flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
             Active Service Keys
           </h2>
+          <div className="flex items-center gap-2">
+            <input 
+              type="text" 
+              placeholder="e.g. Production Node" 
+              value={newSecretName}
+              onChange={(e) => setNewSecretName(e.target.value)}
+              className="bg-black border border-gray-700 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:outline-none"
+            />
+            <button 
+              onClick={handleCreateSecret}
+              disabled={isCreating}
+              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-md text-sm transition-colors flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              {isCreating ? "Generating..." : "Generate Key"}
+            </button>
+          </div>
         </div>
         <div className="p-6">
           {!address ? (
             <div className="text-center py-8 text-gray-500 font-mono">
-              Please connect your wallet to view API Secrets.
+              Please connect your wallet to manage API Secrets.
             </div>
-          ) : services.length === 0 ? (
+          ) : loading ? (
+            <div className="text-center py-8 text-gray-500 font-mono animate-pulse">
+              Loading secrets...
+            </div>
+          ) : secrets.length === 0 ? (
             <div className="text-center py-8 text-gray-500 font-mono">
-              No services registered yet. Go to Server Management to deploy one.
+              No secrets generated yet. Create one to secure your endpoints.
             </div>
           ) : (
             <div className="space-y-4">
-              {services.map(svc => (
-                <div key={svc.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-gray-950/50 border border-gray-800/80 rounded-lg group hover:border-green-500/30 transition-colors">
+              {secrets.map(sec => (
+                <div key={sec.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-gray-950/50 border border-gray-800/80 rounded-lg group hover:border-green-500/30 transition-colors">
                   <div className="flex md:items-center gap-4 mb-4 md:mb-0">
                     <div className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center flex-shrink-0">
                       <Key className="w-5 h-5 text-green-400" />
                     </div>
                     <div>
-                      <h3 className="text-white font-medium">{svc.name}</h3>
+                      <h3 className="text-white font-medium">{sec.name}</h3>
                       <div className="text-xs text-gray-400 font-mono mt-1 flex items-center gap-2">
-                        ID: {svc.serviceId}
+                        Created: {new Date(sec.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-4 bg-gray-900 px-4 py-2 rounded-md border border-gray-800">
-                    <span className="font-mono text-sm text-gray-400 tracking-wider">
-                      {svc.apiKey ? `sk-...${svc.apiKey.slice(-6)}` : "sk-..."}
-                    </span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 bg-gray-900 px-4 py-2 rounded-md border border-gray-800">
+                      <span className="font-mono text-sm text-emerald-400 tracking-wider">
+                        {sec.secretKey || sec.maskedKey}
+                      </span>
+                      {sec.secretKey && (
+                        <button 
+                          onClick={() => copyToClipboard(sec.secretKey!, sec.id)}
+                          className="text-gray-500 hover:text-white transition-colors"
+                          title="Copy Original Key"
+                        >
+                          {copied === sec.id ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                    
                     <button 
-                      onClick={() => svc.apiKey && copyToClipboard(svc.apiKey, svc.id)}
-                      className="text-gray-500 hover:text-white transition-colors"
-                      title="Copy Key"
+                      onClick={() => handleDeleteSecret(sec.id)}
+                      className="p-2 text-gray-500 hover:text-red-400 transition-colors border border-transparent hover:border-red-900/50 rounded hover:bg-red-900/20"
+                      title="Revoke Key"
                     >
-                      {copied === svc.id ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -116,7 +184,7 @@ export default function SecretsPage() {
             <div className="space-y-4 text-sm text-gray-400">
               <p>
                 To ensure only authorized requests reach your agent, the Synapse Gateway 
-                generates an <strong>HMAC-SHA256</strong> signature for every payload.
+                generates an <strong>HMAC-SHA256</strong> signature for every payload using your Node&apos;s Secret Key.
               </p>
               <ul className="space-y-3">
                 <li className="flex gap-3">
@@ -145,7 +213,7 @@ export default function SecretsPage() {
             </p>
             <div className="bg-black/60 p-3 rounded-lg border border-gray-800 font-mono text-xs">
               <div className="text-emerald-400 mb-1">GET /health</div>
-              <div className="text-gray-500">// Expected Response:</div>
+              <div className="text-gray-500">{/* Expected Response: */}</div>
               <div className="text-gray-300">{"{"}</div>
               <div className="text-gray-300">  "status": "healthy"</div>
               <div className="text-gray-300">{"}"}</div>

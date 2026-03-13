@@ -310,3 +310,17 @@ def enforce_wallet_role(wallet: str, required_role: str) -> None:
     if not current_role:
         roles[norm_wallet] = required_role
         save_wallet_roles(roles)
+
+
+
+def load_provider_secrets() -> List[Dict[str, Any]]:
+    path = DB_DIR / "provider_secrets.json"
+    if not path.exists():
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_provider_secrets(rows: List[Dict[str, Any]]) -> None:
+    path = DB_DIR / "provider_secrets.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(rows, f, indent=2)
