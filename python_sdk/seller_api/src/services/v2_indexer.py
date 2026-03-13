@@ -348,6 +348,8 @@ def _accumulate_outcome_counts(outcome: Dict[str, Any], counters: Dict[str, int]
 
 
 def process_pending_deposit_intents_once() -> Dict[str, int]:
+    # 单轮处理：扫描所有 pending intent，链上核验后进行幂等入账。
+    # 这个函数是“最终一致性”的核心，重启后也可继续恢复处理。
     now = int(time.time())
     counters = {"credited": 0, "failed": 0, "pending": 0}
 
@@ -365,6 +367,8 @@ def process_pending_deposit_intents_once() -> Dict[str, int]:
         changed_processed = False
 
         for intent in intents:
+            # 核心幂等点：同一笔 intent 多次执行不会重复记账，
+            # 因为 outcome 与 processed_keys 会拦截重放。
             outcome = _process_single_intent(intent, processed_keys, buyers, now)
 
             if outcome.get("changedIntent"):
@@ -387,6 +391,8 @@ def process_pending_deposit_intents_once() -> Dict[str, int]:
 
 
 async def run_v2_deposit_indexer(stop_event: asyncio.Event) -> None:
+    # 常驻索引循环：按固定周期轮询 pending intents。
+    # 设计目标：让“链上成功但服务端暂未入账”在后续周期自动修复。
     while not stop_event.is_set():
         try:
             process_pending_deposit_intents_once()

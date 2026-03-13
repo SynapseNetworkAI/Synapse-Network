@@ -8,8 +8,7 @@ from src.core.config import settings
 from src.core.log_config import setup_logger
 from src.api.routers import auth, services, balance, agents, wallet
 from src.storage import get_storage, JsonStorage
-from src.services.balance_service import BalanceService
-from src.daemon.deposit_watcher import deposit_watcher_loop
+from src.services.v2_indexer import run_v2_deposit_indexer
 
 setup_logger()
 logger = logging.getLogger(__name__)
@@ -21,19 +20,23 @@ async def lifespan(app: FastAPI):
     storage = JsonStorage(directory=data_dir)
     app.state.storage = storage
     logger.info("Application starting up... Storage Connected.")
-    
-    # 启动链上守护进程 Web3 Daemon
-    balance_service = BalanceService(storage)
-    daemon_task = asyncio.create_task(deposit_watcher_loop(balance_service))
-    app.state.daemon_task = daemon_task
+
+    # 启动 V2 链上索引守护任务（主索引器）
+    # 说明：这里不再并行挂载 legacy deposit_watcher，避免重复记账风险。
+    app.state.v2_indexer_stop_event = asyncio.Event()
+    app.state.v2_indexer_task = asyncio.create_task(
+        run_v2_deposit_indexer(app.state.v2_indexer_stop_event)
+    )
 
     yield
     # Cleanup on shutdown
     logger.info("Application shutting down...")
-    if hasattr(app.state, "daemon_task"):
-        app.state.daemon_task.cancel()
+    if hasattr(app.state, "v2_indexer_stop_event"):
+        app.state.v2_indexer_stop_event.set()
+    if hasattr(app.state, "v2_indexer_task"):
+        app.state.v2_indexer_task.cancel()
         try:
-            await app.state.daemon_task
+            await app.state.v2_indexer_task
         except asyncio.CancelledError:
             pass
 
