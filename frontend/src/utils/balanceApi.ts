@@ -52,11 +52,22 @@ export async function getV2Balance(userAddress: string): Promise<BalanceSummary>
     throw new Error(await readErrorMessage(response, "Failed to fetch v2 balance"));
   }
 
-  const payload = (await response.json()) as { balance?: Partial<BalanceSummary> };
+  const payload = (await response.json()) as {
+    balance?: Partial<BalanceSummary> & {
+      buyers?: Record<string, number>;
+      sellers?: Record<string, number>;
+      platform?: { feeAccrued?: number };
+    };
+  };
+  const normalized = userAddress.trim().toLowerCase();
+  const buyerFromMap = Number(payload.balance?.buyers?.[normalized] ?? 0);
+  const sellerFromMap = Number(payload.balance?.sellers?.[normalized] ?? 0);
+  const feeFromMap = Number(payload.balance?.platform?.feeAccrued ?? 0);
   return {
-    buyerBalance: Number(payload.balance?.buyerBalance ?? 0),
-    sellerReceivable: Number(payload.balance?.sellerReceivable ?? 0),
-    platformFeeAccrued: Number(payload.balance?.platformFeeAccrued ?? 0),
+    // Compatible with both legacy summary shape and current ledger shape.
+    buyerBalance: Number(payload.balance?.buyerBalance ?? buyerFromMap),
+    sellerReceivable: Number(payload.balance?.sellerReceivable ?? sellerFromMap),
+    platformFeeAccrued: Number(payload.balance?.platformFeeAccrued ?? feeFromMap),
   };
 }
 
@@ -67,7 +78,11 @@ export async function createDepositIntent(
   const response = await fetch(`${API_BASE}/balance/deposit/intent`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      ownerAddress: userAddress,
+      buyerAddress: userAddress,
+    }),
   });
 
   if (!response.ok) {

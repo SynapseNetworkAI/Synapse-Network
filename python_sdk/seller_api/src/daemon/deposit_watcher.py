@@ -1,5 +1,7 @@
 import asyncio
 import logging
+
+from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.web3_client import Web3Client
 from src.services.balance_service import BalanceService
@@ -38,6 +40,14 @@ async def deposit_watcher_loop(balance_service: BalanceService):
                     tx_hash = intent.get("txHash")
                     if intent.get("status") != "COMPLETED":
                         logger.info(f"💰 [Daemon] Validated Deposit Intent: {tx_hash} -> 增加余额并加锁写入！")
+                        owner = normalize_wallet(str(intent.get("ownerAddress") or intent.get("buyerAddress") or ""))
+                        amount_usdc = float(intent.get("amountUsdc") or 0)
+                        if owner and amount_usdc > 0:
+                            ledger = balance_service.storage.get_collection("balance_ledger") or {}
+                            buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+                            buyers[owner] = round(float(buyers.get(owner, 0.0)) + amount_usdc, 6)
+                            ledger["buyers"] = buyers
+                            balance_service.storage.save_collection("balance_ledger", ledger)
                         # 生产这里要强一致加锁
                         intent["status"] = "COMPLETED"
                 
