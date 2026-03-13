@@ -28,6 +28,10 @@ class JsonStorage(BaseStorage):
                         return data['services']
                     if collection_name == 'agent_registry' and 'agents' in data:
                         return data['agents']
+                    if collection_name == 'deposit_intents' and 'intents' in data:
+                        return data['intents']
+                    if collection_name == 'usage_log' and 'logs' in data:
+                        return data['logs']
                 return data
         except json.JSONDecodeError:
             if collection_name == 'agent_credentials': return {}

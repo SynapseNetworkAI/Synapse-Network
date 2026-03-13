@@ -37,8 +37,11 @@ async def deposit_watcher_loop(balance_service: BalanceService):
                 # 核心防弹账本交互
                 intents = await balance_service.list_deposit_intents()
                 for intent in intents:
+                    if not isinstance(intent, dict):
+                        continue
                     tx_hash = intent.get("txHash")
-                    if intent.get("status") != "COMPLETED":
+                    status = str(intent.get("status") or "PENDING").upper()
+                    if status != "COMPLETED":
                         logger.info(f"💰 [Daemon] Validated Deposit Intent: {tx_hash} -> 增加余额并加锁写入！")
                         owner = normalize_wallet(str(intent.get("ownerAddress") or intent.get("buyerAddress") or ""))
                         amount_usdc = float(intent.get("amountUsdc") or 0)
