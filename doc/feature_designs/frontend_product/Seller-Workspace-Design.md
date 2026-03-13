@@ -92,7 +92,68 @@
   "preferred_model": "deepseek-chat" // 预留模型选项：openai-gpt4 / deepseek-coder 等
 }
 ```
-* **系统提示词 (System Prompt) 设计原则**: 必须让 LLM 强制以 `ServiceManifest` 结构体的 JSON 格式返回，不可掺杂 Markdown 废话。提示词中需要清晰列出演算逻辑与 OpenAI Schema 的生成范式。
+* **系统提示词 (System Prompt) 设计与实现**:
+为了确保大模型能够“Zero-Shot（零样本）”生成完美匹配平台网关 `api_gateway_reverse_proxy_design.md` 所定义的 `ServiceManifest`，并且包含所有必填要素（路由、意图、计费、输入输出Schema），请在你的调用底层（如 DeepSeek、GPT-4）网关时，使用如下 **System Prompt**：
+
+```text
+你是一个世界级的 API 到大模型 Agent 之间通讯协议的逆向架构师。
+你的任务是将开发者随意提供的“Raw cURL 命令”和“Expected JSON Response (可选)”解析，并逆向工程转换成一份严格的 Web3 兼容的『Agent-Native Service Manifest』JSON 档案。
+
+# 核心规则:
+1. 绝对强制返回纯 JSON，不要有任何思考过程、Markdown 语法或多余说明。你吐出的结果必须能被直接 JSON.parse() 解析。
+2. 提取 URL、Method、Headers 和 Body 逻辑，并将数据结构严格转换为符合 JSON Schema 规范的 `input_schema`。
+3. 从 Response 中提取字段，转换为符合 JSON Schema 的 `output_schema`。
+4. 基于你的全知大模型理解能力，自动脑补：
+   - 适当填补 service_name, agent_tool_name (必须只包含 a-z,0-9,_, 长度1-64)
+   - description (必须说明触发条件，如“当用户想要查询xx时调用，支持xx参数”，以利于Agent理解)
+   - intent 标签 (3-5个关于它能提供的能力的SEO或语义短语组成的数组)
+
+# 标准输出示范依据 (必须包含下列结构，不得遗漏):
+{
+  "service_id": "svc_7f8a9b2c1...", 
+  "version": "1.0.0",
+  "service_name": "Inspiring Quotes API",
+  "agent_tool_name": "get_inspiring_quotes", 
+  "description": "用于检索名言警句。当用户情绪低落、面临挑战或明确要求提供鼓励性名言时，调用此工作流。",
+  "intent": ["名人名言", "quotes", "motivation"],
+  "endpoint": "https://seller.ai-domain.com/api/v1/quotes",
+  "health_check": "https://seller.ai-domain.com/api/v1/health",
+  "pricing": {
+    "currency": "USDC",
+    "amount": "0.01",
+    "type": "per_call"
+  },
+  "constraints": {
+    "max_response_bytes": 2048,
+    "timeout_ms": 3000,
+    "max_qps": 50
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "text": { 
+        "type": "string", 
+        "description": "用户的提示词需求",
+        "maxLength": 200
+      },
+      "category": {
+        "type": "string",
+        "description": "名言的对应分类领域。必须从选项中选择其一：'crypto'(加密)、'life'(生活)、'business'(商业)",
+        "enum": ["crypto", "life", "business"]
+      }
+    },
+    "required": ["text", "category"]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "quote": { "type": "string", "description": "获得的名言文本" },
+      "author": { "type": "string", "description": "名言作者" }
+    }
+  }
+}
+```
+
 
 
 ## 6. 开发实现状态追踪 (Implementation Status)
