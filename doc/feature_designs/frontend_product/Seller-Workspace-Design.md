@@ -63,3 +63,46 @@
 2. **连接动作**: 点击随意区域的灰化按钮 `Connect Wallet` -> 触发右上角钱包唤醒。
 3. **已连接 & 第一次来**: 卡片上方提示：`Welcome! You are 1 step away from earning.`，强引导用户进入 **Step 1** (Publish Service)。
 4. **成熟卖家（有服务正在跑）**: 第一眼就能看到 **KPI 收益图表** 和 **服务列表的状态**，重点操作是点击提现。
+## 5. “降维打击”：基于 cURL 与响应结果的零代码 AI 一键发版 (Zero-Shot Manifest Auto-Generation)
+
+### 5.1 业务痛点
+传统 API 平台中，上架服务需要填写极其繁琐的 OpenAPI 规范，手动定义每个字段的类型、长度、描述。很多“野生” AI 开发者或拥有现成接口的数据服务商不具备编写标准 Schema 的耐心，这极大地拉高了“卖家接入势能”。
+
+### 5.2 解决方案理念 (The AI-Native Approach)
+**"用 AI 的方式打败 API 墙"**。
+卖家只需要将平时用来测试业务的 `cURL` 请求命令，以及控制台打印出来的 JSON 响应结果，直接原样粘贴到网关控制台。我们将接入多模型路由后端库管理（支持 DeepSeek / OpenAI / Anthropic 等多通道切换），通过智能体自动逆向解析这些脏数据，实现 10 秒内填充满血版的 Service Manifest。
+
+### 5.3 用户操作流转 (User Flow)
+1. **呼出功能**: 卖家在注册 Manifest 表单页面，点击 **"🪄 AI Auto-Gen"**。弹出配置模态框。
+2. **填写语料**: 弹出一个框（左侧输入 cURL Command，右侧输入 Expected JSON Response），底部为配置通道（如选择使用的底层模型，目前为 DeepSeek）。
+3. **黑盒推理**:
+    * 提取到目标 Endpoint URL 与 Method。
+    * 解析出 URL Query Params 与 JSON Body，倒推逆向生成 `input_schema`。
+    * 解析 JSON Response，逆向推导 `output_schema`。
+    * LLM 基于上下文的意图内容，自动脑补中英文双语的 `agent_tool_name` (符合 OpenAI Function calling 正则) 和 `description`，甚至自动总结归纳出 `intent` 匹配词 (如 weather, quotes)。
+4. **一秒落盘**: 提取完成的对象自动刷入前端 React Form State，右侧终端预览瞬间完成 JSON 的高亮编译，接着卖家一键确认即可上链发版。
+
+### 5.4 后端多模型架构 (Multi-Model Parser Gateway)
+为了防止某个底座大模型（如 DeepSeek）宕机，网关侧（FastAPI）需预留路由模块 (`POST /api/v2/services/manifest/auto-gen`)：
+请求参数包含：
+```json
+{
+  "curl_command": "curl -X POST ...",
+  "response_body": "{\"input_text\":\"关于坚持\"...}",
+  "preferred_model": "deepseek-chat" // 预留模型选项：openai-gpt4 / deepseek-coder 等
+}
+```
+* **系统提示词 (System Prompt) 设计原则**: 必须让 LLM 强制以 `ServiceManifest` 结构体的 JSON 格式返回，不可掺杂 Markdown 废话。提示词中需要清晰列出演算逻辑与 OpenAI Schema 的生成范式。
+
+
+## 6. 开发实现状态追踪 (Implementation Status)
+
+- [x] **方案设计文档落地**: 完成了 AI Auto-Gen 零代码一键发版特性的规划、业务流转及后端多模型架构设计文档梳理并且落地。
+- [x] **前端 UI 和交互全量实现**:  完全重构，支持 Draft 本地缓存功能、补全 Output Schema 定义、搭建原生拟真 AI 智能体弹窗交互闭环以及基于 cURL 预检的 React Form 回填功能。
+- [ ] **后端 AI 解析路由落地**: 实现 FastAPI Gateway ()，对齐大模型底层 Prompt，返回精准结构体。
+
+## 6. 开发实现状态追踪 (Implementation Status)
+
+- [x] **方案设计文档落地**: 完成了 AI Auto-Gen 零代码一键发版特性的规划、业务流转及后端多模型架构设计文档梳理并且落地。
+- [x] **前端 UI 和交互全量实现**: 前端 `deploy/page.tsx` 完全重构，支持 Draft 本地缓存功能、补全 Output Schema 定义、搭建原生拟真 AI 智能体弹窗交互闭环以及基于 cURL 预检的 React Form 回填功能。
+- [ ] **后端 AI 解析路由落地**: 实现 FastAPI Gateway，对齐大模型底层 Prompt，返回精准结构体。
