@@ -43,6 +43,36 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   // We no longer block access globally based on isPublicRoute.
   // The context provides auth state to downstream components that use <AuthMask />.
 
+  const signWithInjectedProvider = useCallback(async (message: string, walletAddress: string): Promise<string> => {
+    const ethereum = (globalThis as { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<string> } }).ethereum;
+    if (!ethereum) {
+      throw new Error("Wallet provider unavailable. Please reconnect wallet and retry.");
+    }
+
+    const hexMessage = toHex(message);
+    const attempts: Array<unknown[]> = [
+      [hexMessage, walletAddress],
+      [walletAddress, hexMessage],
+      [message, walletAddress],
+      [walletAddress, message],
+    ];
+
+    let lastErr: unknown = null;
+    for (const params of attempts) {
+      try {
+        const sig = await ethereum.request({
+          method: "personal_sign",
+          params,
+        });
+        if (typeof sig === "string" && sig.length > 0) return sig;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+
+    throw lastErr ?? new Error("Wallet signature failed. Please reconnect wallet and retry.");
+  }, []);
+
   const authorize = useCallback(async (): Promise<boolean> => {
     if (!address) return false;
     setIsAuthorizing(true);
@@ -65,20 +95,15 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
         });
       } catch (signErr: unknown) {
         const msg = signErr instanceof Error ? signErr.message : String(signErr);
-        // Fallback for non-standard injected wallets (e.g. Gate.io) lacking .getChainId interface in wagmi
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (msg.includes("getChainId") || msg.includes("reading 'raw'") || msg.includes("reading 'length'") || msg.includes("Cannot read properties of undefined")) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (typeof window !== "undefined" && (window as any).ethereum) {
-            console.warn("Wagmi connector failed, falling back to window.ethereum.request personal_sign...");
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            signature = await (window as any).ethereum.request({
-              method: "personal_sign",
-              params: [toHex(challenge.message), address],
-            });
-          } else {
-            throw signErr;
-          }
+        const shouldFallback =
+          msg.includes("getChainId") ||
+          msg.includes("reading 'raw'") ||
+          msg.includes("reading 'length'") ||
+          msg.includes("Cannot read properties of undefined") ||
+          msg.includes("unavailable while reconnecting");
+        if (shouldFallback) {
+          console.warn("Wagmi signing failed, falling back to injected provider personal_sign...");
+          signature = await signWithInjectedProvider(challenge.message, address);
         } else {
           throw signErr;
         }
@@ -102,6 +127,16 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
         toast("Wallet reconnecting, please wait a moment.", { icon: "⏳" });
         return false;
       }
+
+      if (
+        errorMsg.includes("Cannot read properties of undefined") ||
+        errorMsg.includes("reading 'length'") ||
+        errorMsg.includes("reading 'raw'")
+      ) {
+        setAuthError("Wallet connection is unstable. Please disconnect and reconnect your wallet, then try again.");
+        toast("Wallet connection unstable. Please reconnect wallet and retry.", { icon: "⚠️" });
+        return false;
+      }
       
       setAuthError(errorMsg);
       // Suppress EIP-1193 rejection messages to be less annoying, unless they are actual errors
@@ -112,7 +147,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       }
       return false;
     }
-  }, [address, signMessageAsync]);
+  }, [address, signMessageAsync, signWithInjectedProvider]);
 
   useEffect(() => {
     if (!isConnected || !address) {
