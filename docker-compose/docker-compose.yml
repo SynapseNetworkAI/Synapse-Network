@@ -1,7 +1,7 @@
 services:
   minio:
     image: minio/minio
-    container_name: a2a-minio-oss
+    container_name: synapse-minio-oss
     ports:
       - "9000:9000"         # API port
       - "9001:9001"         # Web Console port
@@ -15,7 +15,7 @@ services:
 
   otterscan:
     image: otterscan/otterscan:latest
-    container_name: a2a-otterscan
+    container_name: synapse-otterscan
     ports:
       - "5100:80"
     environment:
