@@ -87,11 +87,15 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       }
 
       const challenge = await requestAuthChallenge(address);
+      const challengeMessage = challenge.challenge;
+      if (!challengeMessage) {
+        throw new Error("Auth challenge missing from server response");
+      }
       
       let signature;
       try {
         signature = await signMessageAsync({
-          message: challenge.message,
+          message: challengeMessage,
         });
       } catch (signErr: unknown) {
         const msg = signErr instanceof Error ? signErr.message : String(signErr);
@@ -103,13 +107,13 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
           msg.includes("unavailable while reconnecting");
         if (shouldFallback) {
           console.warn("Wagmi signing failed, falling back to injected provider personal_sign...");
-          signature = await signWithInjectedProvider(challenge.message, address);
+          signature = await signWithInjectedProvider(challengeMessage, address);
         } else {
           throw signErr;
         }
       }
 
-      const verified = await verifyAuthSignature(address, challenge.nonce, signature);
+      const verified = await verifyAuthSignature(address, challengeMessage, signature);
       storeAuthSession(verified.token, verified.wallet);
 
       setVerifiedWallet(verified.wallet.toLowerCase());

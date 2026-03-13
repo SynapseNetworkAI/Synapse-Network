@@ -5,17 +5,21 @@ export type AuthSession = {
 };
 
 type AuthChallengeResponse = {
-  status: string;
-  nonce: string;
-  message: string;
-  expiresInSec: number;
+  success: boolean;
+  challenge: string;
+  domain: string;
 };
 
 type AuthVerifyResponse = {
-  status: string;
+  success: boolean;
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+};
+
+type AuthVerifyNormalizedResponse = {
   token: string;
   wallet: string;
-  expiresInSec: number;
 };
 
 const AUTH_SESSION_STORAGE_KEY = "a2a_auth_session";
@@ -140,15 +144,15 @@ export async function requestAuthChallenge(address: string): Promise<AuthChallen
   return (await response.json()) as AuthChallengeResponse;
 }
 
-export async function verifyAuthSignature(address: string, nonce: string, signature: string): Promise<AuthVerifyResponse> {
+export async function verifyAuthSignature(address: string, message: string, signature: string): Promise<AuthVerifyNormalizedResponse> {
   const response = await fetch(`${AUTH_API_BASE}/verify`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      address,
-      nonce,
+      wallet_address: address,
+      message,
       signature,
     }),
   });
@@ -158,5 +162,9 @@ export async function verifyAuthSignature(address: string, nonce: string, signat
     throw new Error(text || "Failed to verify wallet signature");
   }
 
-  return (await response.json()) as AuthVerifyResponse;
+  const payload = (await response.json()) as AuthVerifyResponse;
+  return {
+    token: payload.access_token,
+    wallet: address,
+  };
 }
