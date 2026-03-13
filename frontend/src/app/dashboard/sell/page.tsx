@@ -39,7 +39,7 @@ export default function SellDashboard() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-4xl font-bold mb-4 text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]">
-              Monetize Your AI APIs & Agents
+              Monetize Your AI APIs
             </h1>
             <p className="text-xl text-green-500/80 max-w-2xl">
               只需 3 行命令，将你的本地 FastAPI / Agent 变现。零 Gas 扣费，极速结算到链上 Vault。
@@ -82,47 +82,69 @@ export default function SellDashboard() {
         </div>
       </section>
 
-      {/* 3-Step How-To Earn */}
+      {/* 4-Step How-To Earn */}
       <section className="mb-12">
-        <h2 className="text-2xl font-bold mb-6 border-l-4 border-green-500 pl-4">3-Step How-To Earn</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors">
+        <h2 className="text-2xl font-bold mb-6 border-l-4 border-green-500 pl-4">4-Step How-To Earn</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col">
             <div className="text-3xl font-bold text-green-500/30 mb-4">01</div>
-            <h3 className="font-bold text-lg mb-2">Register AI-Native Manifest</h3>
-            <p className="text-sm text-green-500/70 mb-4 h-24">
-              你的 Web3 钱包即全局唯一法人。直接向平台注册 Manifest，声明端点、调用价格、工具标识及意图标签，买方大模型可自动发掘你的服务。
+            <h3 className="font-bold text-lg mb-2">Generate API Secret</h3>
+            <p className="text-sm text-green-500/70 mb-4 flex-1">
+              基于钱包签发全局唯一的认证凭证 (Secret Key)，用于标识你的节点身份并实现防伪造的 HMAC 签名校验。
+            </p>
+            <button 
+              onClick={() => {
+                if(!isConnected) { toast.error("Please connect your wallet first."); return; }
+                router.push("/dashboard/secrets");
+              }}
+              className={`w-full py-2 border transition-all mt-4 ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black shadow-[0_0_10px_rgba(74,222,128,0.2)]" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}
+            >
+              {isConnected ? "Manage Secrets" : "Connect Wallet"}
+            </button>
+          </div>
+          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col">
+            <div className="text-3xl font-bold text-green-500/30 mb-4">02</div>
+            <h3 className="font-bold text-lg mb-2">Secure Your API</h3>
+            <p className="text-sm text-green-500/70 mb-4">
+              使用 SDK 包装原始接口，验证 Gateway 带来的加密流量，彻底拦截绕过网关的“白嫖”流量。
+            </p>
+            <div className="bg-black/80 border border-green-500/30 p-3 text-xs overflow-x-auto rounded mt-auto">
+              <code className="font-mono">
+                <span className="text-gray-500"># Start secure server</span><br/>
+                <span className="text-blue-300">gw</span> = SynapseGateway(<br/>
+                &nbsp;&nbsp;secret=<span className="text-green-300">&quot;sk_...&quot;</span><br/>
+                )<br/>
+                <span className="text-blue-300">gw</span>.start()
+              </code>
+            </div>
+          </div>
+          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col">
+            <div className="text-3xl font-bold text-green-500/30 mb-4">03</div>
+            <h3 className="font-bold text-lg mb-2">Publish Manifest</h3>
+            <p className="text-sm text-green-500/70 mb-4 flex-1">
+              向网络宣布你的 Endpoint、Schema 与价格。大模型买家可 Zero-Code 自动发现并按需并发调取。
             </p>
             <button 
               onClick={isConnected ? handlePublishClick : undefined}
-              className={`w-full py-2 border transition-all ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black shadow-[0_0_10px_rgba(74,222,128,0.2)]" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}
+              className={`w-full py-2 border transition-all mt-4 ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black shadow-[0_0_10px_rgba(74,222,128,0.2)]" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}
             >
               {isConnected ? "Publish Service" : "Connect Wallet"}
             </button>
           </div>
-          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors">
-            <div className="text-3xl font-bold text-green-500/30 mb-4">02</div>
-            <h3 className="font-bold text-lg mb-2">Setup Gateway Security</h3>
-            <p className="text-sm text-green-500/70 mb-4 h-24">
-              平台签发你的 Secret_Key。使用 Python SDK 包装原有接口，基于 HMAC-SHA256 算法，无情拦截所有绕过网关的“白嫖”流量。
+          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col bg-[url('/grid-pattern.svg')]">
+            <div className="text-3xl font-bold text-green-500/30 mb-4">04</div>
+            <h3 className="font-bold text-lg mb-2">Earn & Settle</h3>
+            <p className="text-sm text-green-500/70 mb-4 flex-1">
+              调用即收费，记账于本地积累。随时一键提交凭证到链上 Vault，极速全额提取 USDC 到你的 Web3 钱包。
             </p>
-            <div className="bg-black/80 border border-green-500/30 p-3 text-xs overflow-x-auto rounded mt-2">
-              <code className="font-mono">
-                <span className="text-gray-500"># HMAC Signature Validation</span><br/>
-                <span className="text-pink-500">from</span> synapse_client <span className="text-pink-500">import</span> SynapseGateway<br/>
-                <br/>
-                <span className="text-blue-300">gw</span> = SynapseGateway(secret_key=<span className="text-green-300">&quot;sk_...&quot;</span>)<br/>
-                <span className="text-blue-300">gw</span>.start(port=<span className="text-yellow-400">8000</span>)<br/>
-              </code>
-            </div>
-          </div>
-          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors bg-[url('/grid-pattern.svg')]">
-            <div className="text-3xl font-bold text-green-500/30 mb-4">03</div>
-            <h3 className="font-bold text-lg mb-2">Earn & Request Settlement</h3>
-            <p className="text-sm text-green-500/70 mb-4 h-24">
-              买家高频调用你的服务，收益在本地全数累积。随时一键将加密凭证提交到链上 Vault，零手续费极速全额提取 USDC 到你的钱包。
-            </p>
-            <button className={`w-full py-2 border transition-all mt-[4.5rem] ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}>
-              {isConnected ? "Go to Settle ->" : "Connect Wallet"}
+            <button 
+              onClick={() => {
+                if(!isConnected) { toast.error("Please connect your wallet first."); return; }
+                router.push("/dashboard/admin");
+              }}
+              className={`w-full py-2 border transition-all mt-4 ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}
+            >
+              {isConnected ? "Go to Ledger ->" : "Connect Wallet"}
             </button>
           </div>
         </div>

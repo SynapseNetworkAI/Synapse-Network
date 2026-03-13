@@ -12,7 +12,8 @@ import {
   Server, 
   DollarSign, 
   ShieldAlert, 
-  Home
+  Home,
+  Key
 } from "lucide-react";
 
 export default function DashboardSidebar() {
@@ -82,6 +83,10 @@ export default function DashboardSidebar() {
             <Link href="/dashboard/sell" className={getLinkClasses("/dashboard/sell", false)}>
               <Server className="w-4 h-4 mr-3" />
               My Services
+            </Link>
+            <Link href="/dashboard/secrets" className={getLinkClasses("/dashboard/secrets", false)}>
+              <Key className="w-4 h-4 mr-3" />
+              API Secrets
             </Link>
             <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
               <BarChart2 className="w-4 h-4 mr-3" />

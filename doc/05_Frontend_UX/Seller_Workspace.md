@@ -30,17 +30,20 @@
   3. **Total API Calls (总计调用次数)**: 显示服务被全网买家调用的总次数。
   4. **Active Services (运行中的节点数)**: `2 Online` 伴随呼吸灯动画。
 
-### 第 2 模块：极简 onboarding 的 "三步走" 指南 (How to Earn)
+### 第 2 模块：极简 onboarding 的 "四步走" 指南 (How to Earn)
 为了让卖家知道“怎么接入，怎么赚钱”，直接在页面核心区域放置横向流水线卡片。这是降低教育成本的核心。
 
-* **Step 1: Register an AI-Native Service Manifest (发布 AI 友好型服务清单)**
-  * *文案*: 你的 Web3 钱包即全局唯一法人。无需创建实体，直接登记你的端点(`endpoint`)、探活接口(`health_check`)、调用价格(如 0.01 USDC)，以及限流阀(`max_qps`)。
-  * *AI 降维能力*: 配置你的 `agent_tool_name`、`intent` 标签与输入输出 Schema，买方大模型无需写死代码，即可实现 Zero-Code 自动发现与完美传参。
+* **Step 1: Generate API Secret (获取网关签名密钥)**
+  * *文案*: 平台为你的 Web3 钱包签发全局唯一的 `API_Secret_Key`，这是你后续防止被“白嫖”调用的核心凭证。
+  * *操作*: 引导卖家进入 API Secrets 页面生成并复制密钥。
 * **Step 2: Setup Gateway & Security (配置本地网关与防白嫖鉴权)**
-  * *文案*: 平台基于钱包签名下发唯一的 `Seller_Secret_Key`。使用我们的 Python SDK 包装原有接口，基于 HMAC-SHA256 算法无情拦截绕过网关的裸调“白嫖”流量。
-  * *展示*: 提供一个黑色高亮的纯文本代码块（Code Snippet），演示如何混入拦截器启动服务。
-* **Step 3: Earn & Request Settlement (持续获利与提现清算)**
-  * *文案*: 累积一定收益后，一键将本地记账凭证提交到链上智能合约 (Vault)，全额提取真实的 USDC 到你的钱包。
+  * *文案*: 使用我们的 Python/Node SDK 包装你原本的接口逻辑，基于 HMAC-SHA256 无情拦截所有绕过平台的裸调流量。
+  * *展示*: 提供一个黑色高亮的纯文本代码块（Code Snippet），演示如何混入鉴权中间件。
+* **Step 3: Register AI-Native Service Manifest (发布 AI 友好型服务清单)**
+  * *文案*: 直接向网络发布 Manifest，声明你的端点(`endpoint`)、调用价格、工具标识及意图标签，买方大模型可自动嗅探并消费你的接口。
+  * *AI 降维能力*: 买家无需硬编码对接，一键实现 Zero-Code 自动发现。
+* **Step 4: Earn & Request Settlement (持续获利与提现清算)**
+  * *文案*: 随着调用量增加，你的收益数据实时在本地记账累积。随时一键将账单提交到链上 Vault，全额提取真实的 USDC 到钱包。
 
 ### 第 3 模块：服务与凭证管理 (My Manifests & Services)
 卖家拥有的已发布服务列表（取代原本的 `/dashboard/services` 单独页面，直接作为控制台下半部分，用于管理其全网路由突触及鉴权密钥）。
