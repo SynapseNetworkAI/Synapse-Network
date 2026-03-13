@@ -28,6 +28,31 @@ from seller_api.settings import (
 lock = Lock()
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 
+INDEXER_STATUS: Dict[str, Any] = {
+    "running": False,
+    "listenerAddress": normalize_wallet(ROUTER_ADDRESS),
+    "lastCounters": {"credited": 0, "failed": 0, "pending": 0},
+    "lastProcessedAt": None,
+    "lastError": None,
+}
+
+
+def _set_status(**kwargs: Any) -> None:
+    with lock:
+        INDEXER_STATUS.update(kwargs)
+
+
+def get_indexer_status() -> Dict[str, Any]:
+    with lock:
+        return {
+            "running": bool(INDEXER_STATUS.get("running")),
+            "listenerAddress": str(INDEXER_STATUS.get("listenerAddress") or ""),
+            "lastCounters": dict(INDEXER_STATUS.get("lastCounters") or {"credited": 0, "failed": 0, "pending": 0}),
+            "lastProcessedAt": INDEXER_STATUS.get("lastProcessedAt"),
+            "lastError": INDEXER_STATUS.get("lastError"),
+            "pollIntervalSec": V2_INDEXER_POLL_INTERVAL_SEC,
+        }
+
 TRANSFER_TOPIC = Web3.to_hex(Web3.keccak(text="Transfer(address,address,uint256)")).lower()
 TOKEN_DECIMALS_CACHE: Dict[str, int] = {}
 
@@ -391,19 +416,23 @@ def process_pending_deposit_intents_once() -> Dict[str, int]:
         if changed_intents:
             save_deposit_intents(intents)
 
+    _set_status(lastCounters=counters, lastProcessedAt=now, lastError=None)
     return counters
 
 
 async def run_v2_deposit_indexer(stop_event: asyncio.Event) -> None:
     # 常驻索引循环：按固定周期轮询 pending intents。
     # 设计目标：让“链上成功但服务端暂未入账”在后续周期自动修复。
+    _set_status(running=True, listenerAddress=normalize_wallet(ROUTER_ADDRESS))
     while not stop_event.is_set():
         try:
             process_pending_deposit_intents_once()
         except Exception as e:
+            _set_status(lastError=str(e), lastProcessedAt=int(time.time()))
             import traceback; traceback.print_exc()
             pass
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=V2_INDEXER_POLL_INTERVAL_SEC)
         except asyncio.TimeoutError:
             continue
+    _set_status(running=False)

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAccount, useDisconnect, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
-import { getV2Balance, createDepositIntent } from "@/utils/balanceApi";
+import { getV2Balance, createDepositIntent, getV2IndexerStatus, type IndexerStatus } from "@/utils/balanceApi";
 import {
   issueAgentCredential,
   listAgentCredentials,
@@ -77,6 +77,7 @@ export default function DeveloperConsole() {
   const [latestIssued, setLatestIssued] = useState<AgentCredentialIssueResponse | null>(null);
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
+  const [indexerStatus, setIndexerStatus] = useState<IndexerStatus | null>(null);
 
   const handleAddFundsClick = useCallback(async () => {
     if (!isConnected && openConnectModal) {
@@ -122,6 +123,30 @@ export default function DeveloperConsole() {
       loadKeys();
     }
   }, [isSessionAuthenticated, loadBalance, loadKeys]);
+
+  useEffect(() => {
+    if (!address || !isSessionAuthenticated) {
+      setIndexerStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadIndexer = async () => {
+      try {
+        const s = await getV2IndexerStatus(address);
+        if (!cancelled) setIndexerStatus(s);
+      } catch {
+        if (!cancelled) setIndexerStatus(null);
+      }
+    };
+
+    void loadIndexer();
+    const id = setInterval(loadIndexer, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [address, isSessionAuthenticated]);
 
   useEffect(() => {
     if (isConfirmed && hash && address) {
@@ -352,6 +377,13 @@ export default function DeveloperConsole() {
           <p className="mt-2 text-sm text-gray-400">
             One-stop workspace to manage balance, API keys, and integration settings.
           </p>
+        </div>
+        <div
+          className={`px-3 py-2 rounded-lg border text-xs ${indexerStatus?.running ? "border-green-700 bg-green-900/20 text-green-300" : "border-yellow-700 bg-yellow-900/20 text-yellow-300"}`}
+          title={indexerStatus ? `listener: ${indexerStatus.listenerAddress}\ncredited:${indexerStatus.lastCounters.credited} failed:${indexerStatus.lastCounters.failed} pending:${indexerStatus.lastCounters.pending}\nlast: ${indexerStatus.lastProcessedAt ? new Date(indexerStatus.lastProcessedAt * 1000).toLocaleTimeString() : "n/a"}${indexerStatus.lastError ? `\nerror: ${indexerStatus.lastError}` : ""}` : "Indexer status unavailable"}
+        >
+          <p className="font-semibold">Indexer {indexerStatus?.running ? "Online" : "Offline"}</p>
+          <p className="opacity-80">C:{indexerStatus?.lastCounters.credited ?? 0} F:{indexerStatus?.lastCounters.failed ?? 0} P:{indexerStatus?.lastCounters.pending ?? 0}</p>
         </div>
               </div>
 

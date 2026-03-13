@@ -91,6 +91,28 @@
 - **Path**: `GET /api/v2/balance`
 - **Desc**: 读取此时存储在 Gateway 热钱包高速内存映射层中的剩余抵扣 USDCs 余额。(依赖 Gateway Token)
 
+### 3.3 索引器状态探针 (Indexer Health & Counters)
+- **Path**: `GET /api/v2/indexer/status`
+- **Desc**: 返回充值索引器实时健康度，包含当前监听合约地址、最近一轮处理计数、最后处理时间与最近错误，便于快速定位“链上已成功但余额未更新”问题。
+- **Returns (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "indexer": {
+      "running": true,
+      "listenerAddress": "0xe7f1...",
+      "lastCounters": {
+        "credited": 1,
+        "failed": 0,
+        "pending": 2
+      },
+      "lastProcessedAt": 1773417000,
+      "lastError": null,
+      "pollIntervalSec": 2
+    }
+  }
+  ```
+
 ---
 
 ## 4. 卖家机器经济与 AI 服务 (Seller Network Services)

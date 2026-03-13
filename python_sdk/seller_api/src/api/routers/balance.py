@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict, Any
 from src.api.deps import get_balance_service
 from src.services.balance_service import BalanceService
+from src.services.v2_indexer import get_indexer_status
 from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
@@ -58,3 +59,11 @@ async def set_router_config(config: Dict[str, Any], storage: BaseStorage = Depen
 @router.get("/v2/usage/logs")
 async def get_usage_logs(storage: BaseStorage = Depends(get_storage)):
     return {"status": "success", "logs": storage.get_collection("usage_log") or []}
+
+
+@router.get("/v2/indexer/status")
+async def get_v2_indexer_status():
+    return {
+        "status": "success",
+        "indexer": get_indexer_status(),
+    }

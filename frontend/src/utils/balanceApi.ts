@@ -21,6 +21,19 @@ export type DepositIntentRecord = {
   confirmedAt?: number;
 };
 
+export type IndexerStatus = {
+  running: boolean;
+  listenerAddress: string;
+  lastCounters: {
+    credited: number;
+    failed: number;
+    pending: number;
+  };
+  lastProcessedAt: number | null;
+  lastError: string | null;
+  pollIntervalSec: number;
+};
+
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const text = await response.text();
@@ -149,5 +162,32 @@ export async function requestV2Refund(userAddress: string): Promise<{ signature:
   return {
     signature: payload.signature || "",
     amountRefunded: Number(payload.amountRefunded || 0)
+  };
+}
+
+export async function getV2IndexerStatus(userAddress: string): Promise<IndexerStatus> {
+  const response = await fetch(`${API_BASE}/indexer/status`, {
+    method: "GET",
+    headers: buildAuthedHeaders(userAddress, false),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Failed to fetch indexer status"));
+  }
+
+  const payload = (await response.json()) as { indexer?: Partial<IndexerStatus> };
+  const indexer = payload.indexer ?? {};
+  return {
+    running: Boolean(indexer.running),
+    listenerAddress: String(indexer.listenerAddress || ""),
+    lastCounters: {
+      credited: Number(indexer.lastCounters?.credited ?? 0),
+      failed: Number(indexer.lastCounters?.failed ?? 0),
+      pending: Number(indexer.lastCounters?.pending ?? 0),
+    },
+    lastProcessedAt: typeof indexer.lastProcessedAt === "number" ? indexer.lastProcessedAt : null,
+    lastError: typeof indexer.lastError === "string" ? indexer.lastError : null,
+    pollIntervalSec: Number(indexer.pollIntervalSec ?? 2),
   };
 }
