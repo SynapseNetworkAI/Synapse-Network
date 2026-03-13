@@ -34,10 +34,13 @@ async def bind_wallet_role(
     wallet = normalize_wallet(address)
     roles = storage.get_collection('wallet_roles') or {}
     
-    if req.role not in ["buyer", "seller"]:
+    if req.role not in ["buyer", "seller", "CONSUMER", "PROVIDER"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
         
-    roles[wallet] = req.role
+    # 统一转换成前端所需的常量宏
+    bound_role = "CONSUMER" if req.role in ["buyer", "CONSUMER"] else "PROVIDER"
+    
+    roles[wallet] = bound_role
     storage.save_collection('wallet_roles', roles)
     
-    return {"status": "success", "role": req.role}
+    return {"status": "success", "role": bound_role}
