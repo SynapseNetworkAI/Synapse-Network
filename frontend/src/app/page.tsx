@@ -60,8 +60,8 @@ export default function Home() {
           <h1 className="text-5xl lg:text-[7.5rem] font-[800] tracking-tighter text-white whitespace-nowrap leading-none mb-4">
             Synapse Network
           </h1>
-          <p className="mt-4 text-xl md:text-3xl text-[#86868b] font-medium tracking-tight whitespace-nowrap">
-            链接硅基生命的 API 结算中枢。
+          <p className="mt-6 text-xl md:text-3xl text-[#86868b] font-medium tracking-tight whitespace-nowrap">
+            链接硅基生命的 API 结算中枢
           </p>
         </div>
 
