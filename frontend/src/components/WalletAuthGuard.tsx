@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, createContext, useContext } from "react";
 import { useAccount, useSignMessage } from "wagmi";
+import { toHex } from "viem";
 import toast from "react-hot-toast";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
@@ -33,7 +34,7 @@ export const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export default function WalletAuthGuard({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { isConnected, address } = useAccount();
+  const { isConnected, address, connector } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -56,9 +57,26 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       }
 
       const challenge = await requestAuthChallenge(address);
-      const signature = await signMessageAsync({
-        message: challenge.message,
-      });
+      
+      let signature;
+      try {
+        signature = await signMessageAsync({
+          account: address as `0x${string}`,
+          connector,
+          message: challenge.message,
+        });
+      } catch (signErr: any) {
+        // Fallback for non-standard injected wallets (e.g. Gate.io) lacking .getChainId interface in wagmi
+        if (signErr?.message?.includes("getChainId") && typeof window !== "undefined" && (window as any).ethereum) {
+          console.warn("Wagmi connector failed, falling back to window.ethereum.request personal_sign...");
+          signature = await (window as any).ethereum.request({
+            method: "personal_sign",
+            params: [toHex(challenge.message), address],
+          });
+        } else {
+          throw signErr;
+        }
+      }
 
       const verified = await verifyAuthSignature(address, challenge.nonce, signature);
       storeAuthSession(verified.token, verified.wallet);
@@ -80,7 +98,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       }
       return false;
     }
-  }, [address, signMessageAsync]);
+  }, [address, connector, signMessageAsync]);
 
   useEffect(() => {
     if (!isConnected || !address) {
