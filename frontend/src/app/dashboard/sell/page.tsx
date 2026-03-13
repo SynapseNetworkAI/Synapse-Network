@@ -3,10 +3,12 @@
 import React, { useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 import { listAgentCredentials } from "@/utils/agentCredentialApi";
 import RoleWarningModal from "@/components/RoleWarningModal";
 
 export default function SellDashboard() {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
@@ -23,10 +25,10 @@ export default function SellDashboard() {
         setIsRoleWarningOpen(true);
         return;
       }
-      toast("Publish workflow coming soon!", { icon: "🚀" });
+      router.push("/dashboard/services/deploy");
     } catch(e) {
       console.warn("Check failed", e);
-      toast("Publish workflow coming soon!", { icon: "🚀" });
+      router.push("/dashboard/services/deploy");
     }
   };
 
