@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { setAppRole, getAppRole, clearAppRole } from "@/utils/roleStore";
-import { ArrowRight, ShieldCheck, Zap, Wallet, Bot, Store, ReceiptText, TerminalSquare } from "lucide-react";
+import { ArrowRight, ShieldCheck, Zap, ReceiptText } from "lucide-react";
 import { useAccount, useDisconnect } from "wagmi";
 import { getWalletRole, bindWalletRole } from "@/utils/serviceApi";
 import RoleWarningModal from "@/components/RoleWarningModal";
+import Link from "next/link";
 
 export default function Home() {
   const router = useRouter();
@@ -28,7 +29,6 @@ export default function Home() {
     }
 
     try {
-      // 1. Check strict DB-level WalletRole registry
       const backendRole = await getWalletRole(address);
       if (backendRole && backendRole !== role) {
           setPendingRoute({ role, path, targetRoleStr: role === 'CONSUMER' ? "Buyer" : "Seller" });
@@ -36,7 +36,6 @@ export default function Home() {
           return;
       }
 
-      // 2. Check local frontend session (if they logged in but haven't taken action yet)
       const cachedRole = getAppRole(address);
       if (cachedRole && cachedRole !== role && cachedRole !== 'ADMIN') {
         setPendingRoute({ role, path, targetRoleStr: role === 'CONSUMER' ? "Buyer" : "Seller" });
@@ -44,7 +43,6 @@ export default function Home() {
         return;
       }
 
-      // 3. Bind explicitly in DB if they don't have a role yet
       if (!backendRole) {
           const bound = await bindWalletRole(address, role);
           if (!bound) {
@@ -74,114 +72,106 @@ export default function Home() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 md:px-8 py-10 space-y-16">
+    <div className="min-h-[calc(100vh-73px)] flex flex-col justify-between items-center w-full">
       <RoleWarningModal
         isOpen={isWarningOpen}
         onDisconnect={handleDisconnectWarning}
         targetRole={pendingRoute?.targetRoleStr || "Seller"}
       />
-      <section className="max-w-4xl space-y-6">
-        <p className="uppercase tracking-[0.2em] text-xs text-green-300">Synapse Network</p>
-        <h1 className="text-4xl md:text-6xl font-black leading-tight bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-700">
-          Synapse：链接硅基生命的 API 结算中枢。
-        </h1>
-        <p className="text-lg text-gray-300 leading-8 max-w-3xl">
-          我们是面向 AI Agent 的支付与结算基础设施：让买家 Agent 可以安全调用他人 API，让卖家 API 可以按调用自动收款。
-          通过链上充值担保 + 链下网关扣费 + 链上结算提现，兼顾资金安全与高频低延迟。
-        </p>
-        <div className="flex flex-wrap gap-4 mt-8">
-          <button 
-            onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')}
-            className="min-w-[160px] inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-black px-6 py-4 rounded-xl font-bold text-sm transition-all hover:scale-105 shadow-[0_0_15px_rgba(34,197,94,0.4)]"
-          >
-            买家接入 (Consumer)
-            <ArrowRight className="w-4 h-4 ml-1" />
-          </button>
+      
+      <main className="flex-grow flex flex-col items-center justify-center px-6 md:px-8 py-20 w-full max-w-7xl mx-auto">
+        <div className="max-w-4xl text-center space-y-8 mb-20 flex flex-col items-center">
+          <p className="uppercase tracking-[0.3em] font-medium text-xs text-green-400">Synapse Network</p>
+          <h1 className="text-4xl md:text-6xl font-black leading-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400">
+            Synapse：链接硅基生命的<br/> API 结算中枢。
+          </h1>
+          <p className="text-lg md:text-xl text-gray-400 leading-relaxed max-w-2xl mx-auto">
+            我们是面向 AI Agent 的支付与结算基础设施：让买家 Agent 可以安全调用他人 API，让卖家 API 可以按调用自动收款。
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-6 mt-10 w-full">
+            <button 
+              onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')}
+              className="min-w-[180px] h-14 inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-black px-8 rounded-full font-bold text-base transition-all hover:scale-105 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+            >
+              买家接入 (Consumer)
+              <ArrowRight className="w-5 h-5 ml-1" />
+            </button>
+            
+            <button 
+              onClick={() => handleEnterRole('PROVIDER', '/dashboard/sell')}
+              className="min-w-[180px] h-14 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-8 rounded-full font-bold text-base transition-all hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.2)]"
+            >
+              卖家接入 (Provider)
+              <ArrowRight className="w-5 h-5 ml-1" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full mx-auto">
+          <div className="bg-black/60 border border-gray-800/80 p-8 rounded-2xl hover:border-gray-700 transition-colors">
+            <ShieldCheck className="w-8 h-8 text-green-400 mb-5" />
+            <h2 className="text-xl font-bold text-gray-200 mb-3">资金安全</h2>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              买家先充值到智能合约 Vault，资金有链上担保，不依赖单点托管账户。
+            </p>
+          </div>
+          <div className="bg-black/60 border border-gray-800/80 p-8 rounded-2xl hover:border-gray-700 transition-colors">
+            <Zap className="w-8 h-8 text-yellow-400 mb-5" />
+            <h2 className="text-xl font-bold text-gray-200 mb-3">高频低延迟</h2>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              调用走平台 Gateway 离链原子扣费，不必逐笔上链，适配 Agent 高频调用场景。
+            </p>
+          </div>
+          <div className="bg-black/60 border border-gray-800/80 p-8 rounded-2xl hover:border-gray-700 transition-colors">
+            <ReceiptText className="w-8 h-8 text-blue-400 mb-5" />
+            <h2 className="text-xl font-bold text-gray-200 mb-3">费用透明</h2>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              每笔调用都展示扣费拆分：平台费、卖家净收入、剩余余额，账单可审计可对账。
+            </p>
+          </div>
+        </div>
+      </main>
+
+      <footer className="w-full border-t border-gray-800/60 bg-[#050505] py-12 mt-10">
+        <div className="max-w-6xl mx-auto px-6 md:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="md:col-span-1 space-y-4">
+            <Link href="/" className="text-xl font-bold font-mono tracking-widest text-white flex items-center">
+              Synapse<span className="text-green-500">_</span>
+            </Link>
+            <p className="text-xs text-gray-600">
+              © 2026 Synapse Network, Inc. <br/>
+              Building the Agent Economy.
+            </p>
+          </div>
           
-          <button 
-            onClick={() => handleEnterRole('PROVIDER', '/dashboard/sell')}
-            className="min-w-[160px] inline-flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-black px-6 py-4 rounded-xl font-bold text-sm transition-all hover:scale-105 shadow-[0_0_15px_rgba(59,130,246,0.4)]"
-          >
-            卖家接入 (Provider)
-            <ArrowRight className="w-4 h-4 ml-1" />
-          </button>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-black/40 border border-gray-800 p-5 rounded-xl">
-          <ShieldCheck className="w-6 h-6 text-green-400 mb-3" />
-          <h2 className="text-lg font-bold text-white">资金安全</h2>
-          <p className="text-gray-400 text-sm mt-2 leading-6">买家先充值到智能合约 Vault，资金有链上担保，不依赖单点托管账户。</p>
-        </div>
-        <div className="bg-black/40 border border-gray-800 p-5 rounded-xl">
-          <Zap className="w-6 h-6 text-yellow-400 mb-3" />
-          <h2 className="text-lg font-bold text-white">高频低延迟</h2>
-          <p className="text-gray-400 text-sm mt-2 leading-6">调用走平台 Gateway 离链原子扣费，不必逐笔上链，适配 Agent 高频调用场景。</p>
-        </div>
-        <div className="bg-black/40 border border-gray-800 p-5 rounded-xl">
-          <ReceiptText className="w-6 h-6 text-blue-400 mb-3" />
-          <h2 className="text-lg font-bold text-white">费用透明</h2>
-          <p className="text-gray-400 text-sm mt-2 leading-6">每笔调用都展示扣费拆分：平台费、卖家净收入、剩余余额，账单可审计可对账。</p>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-black/40 border border-gray-800 p-6 rounded-xl">
-          <div className="flex items-center gap-2 mb-3">
-            <Bot className="w-5 h-5 text-green-400" />
-            <h3 className="text-xl font-bold text-white">买家 / 调用方：如何接入与调用</h3>
+          <div>
+            <h4 className="text-white font-semibold mb-4">Product</h4>
+            <ul className="space-y-3 text-sm text-gray-500">
+              <li><Link href="/dashboard/discover" className="hover:text-green-400 transition-colors">Discover APIs</Link></li>
+              <li><button onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')} className="hover:text-green-400 transition-colors">For Buyers</button></li>
+              <li><button onClick={() => handleEnterRole('PROVIDER', '/dashboard/sell')} className="hover:text-green-400 transition-colors">For Providers</button></li>
+            </ul>
           </div>
-          <ol className="list-decimal list-inside text-sm text-gray-300 space-y-2 leading-6">
-            <li>选择买家身份，连接钱包并完成签名登录</li>
-            <li>充值 USDC 到智能合约（Deposit 担保）</li>
-            <li>签发 \`X-Agent-Credential\` 给你的 Agent</li>
-            <li>调用卖家 API（通过平台网关转发）</li>
-            <li>查看每笔消费、余额与扣费明细</li>
-          </ol>
-          <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">快速充值</button>
-              <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')} className="bg-green-500 hover:bg-green-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">获取 API Key</button>
+
+          <div>
+            <h4 className="text-white font-semibold mb-4">Developers</h4>
+            <ul className="space-y-3 text-sm text-gray-500">
+              <li><a href="#" className="hover:text-green-400 transition-colors">Documentation</a></li>
+              <li><a href="#" className="hover:text-green-400 transition-colors">API Reference</a></li>
+              <li><a href="#" className="hover:text-green-400 transition-colors">Python SDK</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-white font-semibold mb-4">Connect</h4>
+            <ul className="space-y-3 text-sm text-gray-500">
+              <li><a href="#" className="hover:text-green-400 transition-colors">Discord</a></li>
+              <li><a href="#" className="hover:text-green-400 transition-colors">X (Twitter)</a></li>
+              <li><a href="#" className="hover:text-green-400 transition-colors">GitHub</a></li>
+            </ul>
           </div>
         </div>
-
-        <div className="bg-black/40 border border-gray-800 p-6 rounded-xl">
-          <div className="flex items-center gap-2 mb-3">
-            <Store className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-xl font-bold text-white">卖家 / 服务方：如何提供接口并赚收益</h3>
-          </div>
-          <ol className="list-decimal list-inside text-sm text-gray-300 space-y-2 leading-6">
-            <li>选择卖家身份，连接钱包并完成签名登录</li>
-            <li>注册 Agent 与 Service（配置 \`endpoint + unit_price\`）</li>
-            <li>平台 Gateway 接入并转发买家调用</li>
-            <li>调用成功后自动分账，累计 \`seller_net\`</li>
-            <li>在结算页面发起提现（链上 claim）</li>
-          </ol>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => handleEnterRole('PROVIDER', '/dashboard/sell')} className="bg-blue-500 hover:bg-blue-400 text-black px-4 py-2 rounded-lg font-bold text-xs transition-colors">去注册服务</button>
-            <button onClick={() => handleEnterRole('PROVIDER', '/dashboard/settlement')} className="border border-gray-700 hover:bg-gray-900 text-white px-4 py-2 rounded-lg font-semibold text-xs transition-colors">查看收益看板</button>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-black/40 border border-gray-800 p-5 rounded-xl">
-          <Wallet className="w-5 h-5 text-yellow-400 mb-3" />
-          <h4 className="text-white font-semibold">充值与担保</h4>
-          <p className="text-gray-400 text-sm mt-2 leading-6">买家充值先进入智能合约金库，形成可消费额度；未确认的充值不进入可消费余额。</p>
-        </div>
-        <div className="bg-black/40 border border-gray-800 p-5 rounded-xl">
-          <h4 className="text-white font-semibold">扣费机制</h4>
-          <p className="text-gray-300 font-mono text-xs mt-2">platform_fee = unit_price × fee_rate</p>
-          <p className="text-gray-300 font-mono text-xs mt-1">seller_net = unit_price - platform_fee</p>
-          <p className="text-gray-400 text-sm mt-2 leading-6">调用失败按策略回滚，调用成功固化账务，保证扣费可追踪。</p>
-        </div>
-          <button onClick={() => handleEnterRole('CONSUMER', '/dashboard/buyer')} className="bg-black/40 border border-green-900/50 hover:bg-green-900/20 transition-colors p-5 rounded-xl block text-left">
-          <TerminalSquare className="w-8 h-8 text-green-500 mb-3" />
-          <h4 className="text-lg font-bold text-white">Developer Console</h4>
-          <p className="text-gray-400 text-sm mt-2 leading-6">统一管理服务、凭据、调用、收益与结算，作为买卖双方的操作中枢。</p>
-        </button>
-      </section>
+      </footer>
     </div>
   );
 }
