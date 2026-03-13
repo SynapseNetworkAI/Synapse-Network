@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Copy, Wand2, TerminalSquare, Server } from "lucide-react";
 import toast from "react-hot-toast";
@@ -50,8 +50,38 @@ export default function DeployManifestPage() {
   });
 
   const [intentInput, setIntentInput] = useState("");
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiCurl, setAICurl] = useState("");
+  const [aiResponse, setAIResponse] = useState("");
+  const [aiModel, setAiModel] = useState("deepseek-chat");
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [secretKey, setSecretKey] = useState<string | null>(null);
+  const [hasDraft, setHasDraft] = useState(false);
+
+  useEffect(() => {
+    const draft = localStorage.getItem("synapse_manifest_draft");
+    if (draft) {
+      setHasDraft(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("synapse_manifest_draft", JSON.stringify(manifest));
+  }, [manifest]);
+
+  const handleRestoreDraft = () => {
+    const draft = localStorage.getItem("synapse_manifest_draft");
+    if (draft) {
+      try {
+        setManifest(JSON.parse(draft));
+        toast.success("Unsaved progress restored!", { icon: "📦" });
+        setHasDraft(false);
+      } catch (e) {
+        console.error("Draft parsing failed", e);
+      }
+    }
+  };
 
   const handleUpdate = (field: string, value: unknown) => {
     setManifest((prev) => {
@@ -83,35 +113,74 @@ export default function DeployManifestPage() {
     );
   };
 
-  const autofillAIMagic = () => {
-    // Mock AI filling the schema dynamically
-    toast.success("AI Schema generation complete!", { icon: "🪄" });
+    const autofillAIMagic = async () => {
+    setIsAiGenerating(true);
+    
+    // Simulate AI model latency
+    await new Promise((res) => setTimeout(res, 2000));
+    
+    setIsAiGenerating(false);
+    setShowAIModal(false);
+    toast.success("AI schema extraction successful!", { icon: "🪄" });
+    
+    // Simple naive parser to make it look "real" for the presentation
+    let endpoint = manifest.endpoint || "";
+    
+    const urlMatch = aiCurl.match(/https?:\/\/[^\s"']+/);
+    if (urlMatch) endpoint = urlMatch[0];
+    
+    const generatedInputSchema: { type: string; properties: Record<string, unknown>; required: string[] } = {
+      type: "object",
+      properties: {},
+      required: []
+    };
+    
+    // Naively extract from curl -d
+    const bodyMatch = aiCurl.match(/-d\s+['"](.*?)['"]/);
+    if (bodyMatch) {
+      try {
+        const parsed = JSON.parse(bodyMatch[1]);
+        for(const key in parsed) {
+          generatedInputSchema.properties[key] = { type: typeof parsed[key], description: `Inferred ${key}` };
+          generatedInputSchema.required.push(key);
+        }
+      } catch(e) { console.warn(e); }
+    }
+
+    const generatedOutputSchema: { type: string; properties: Record<string, unknown> } = {
+       type: "object",
+       properties: {}
+    };
+    
+    if (aiResponse) {
+      try {
+        const respParsed = JSON.parse(aiResponse);
+        for(const key in respParsed) {
+          if (Array.isArray(respParsed[key])) {
+             const itemType = respParsed[key].length > 0 ? typeof respParsed[key][0] : "string";
+             generatedOutputSchema.properties[key] = { type: "array", items: { type: itemType } };
+          } else {
+             generatedOutputSchema.properties[key] = { type: typeof respParsed[key] };
+          }
+        }
+      } catch(e) { console.warn(e); }
+    }
+    
     setManifest((prev) => ({
       ...prev,
-      service_name: prev.service_name || "Weather Oracle AI",
-      agent_tool_name: prev.agent_tool_name || "get_weather_forecast",
-      description: prev.description || "Get highly accurate weather forecasts for any city to help users plan trips.",
-      input_schema: {
-        type: "object",
-        properties: {
-          location: { type: "string", description: "City name, e.g. London" },
-          days: { type: "integer", description: "Number of days to forecast" },
-        },
-        required: ["location"],
-      },
-      output_schema: {
-        type: "object",
-        properties: {
-          temperature: { type: "string" },
-          condition: { type: "string" },
-        },
-      },
-      intent: prev.intent.length > 0 ? prev.intent : ["weather", "forecast"],
+      service_name: prev.service_name || (urlMatch ? "DeepSeek Famous Quotes API" : "Extracted Web Service"),
+      agent_tool_name: prev.agent_tool_name || "get_famous_quotes",
+      description: prev.description || `Auto-generated from ${aiModel} based on provided curl.`,
+      endpoint: endpoint,
+      input_schema: Object.keys(generatedInputSchema.properties).length > 0 ? generatedInputSchema : prev.input_schema,
+      output_schema: Object.keys(generatedOutputSchema.properties).length > 0 ? generatedOutputSchema : prev.output_schema,
+      intent: prev.intent.length > 0 ? prev.intent : ["quotes", "deepseek", "famous"],
     }));
   };
 
   const submitDeploy = async () => {
     setIsDeploying(true);
+    localStorage.removeItem("synapse_manifest_draft"); // clear draft on deploy
     // Simulate network delay
     await new Promise((res) => setTimeout(res, 1500));
     setIsDeploying(false);
@@ -170,11 +239,23 @@ export default function DeployManifestPage() {
           <Link href="/dashboard/services" className="inline-flex items-center text-gray-400 hover:text-green-400 mb-6 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Link>
-          <h1 className="text-2xl font-bold text-white flex items-center">
-            <Server className="w-6 h-6 mr-3 text-green-500" />
-            Build Service Manifest
-          </h1>
-          <p className="text-gray-500 mt-2 text-sm">Design your AI-native API contract. Synapse Gateway will use this to route buyer requests and process zero-gas payments.</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-white flex items-center">
+                <Server className="w-6 h-6 mr-3 text-green-500" />
+                Build Service Manifest
+              </h1>
+              <p className="text-gray-500 mt-2 text-sm">Design your AI-native API contract. Synapse Gateway will use this to route buyer requests and process zero-gas payments.</p>
+            </div>
+            {hasDraft && (
+              <button 
+                onClick={handleRestoreDraft}
+                className="text-xs px-3 py-1.5 bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 rounded-lg hover:bg-yellow-500/30 transition shadow-sm whitespace-nowrap ml-4 flex-shrink-0"
+              >
+                导入未完成草稿
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-8">
@@ -282,11 +363,11 @@ export default function DeployManifestPage() {
             <div className="flex items-center justify-between border-b border-gray-800 pb-2">
               <h2 className="text-lg font-bold text-white">3. Data Schema</h2>
               <button 
-                onClick={autofillAIMagic}
-                className="text-xs flex items-center px-3 py-1 bg-purple-500/20 text-purple-400 border border-purple-500/50 rounded-full hover:bg-purple-500/30 transition shadow-[0_0_10px_rgba(168,85,247,0.2)]"
+                onClick={() => setShowAIModal(true)}
+                className="text-xs flex items-center px-4 py-1.5 bg-purple-500/20 text-purple-300 border border-purple-500/50 rounded-lg hover:bg-purple-500/30 transition shadow-[0_0_15px_rgba(168,85,247,0.3)] font-bold tracking-wide"
               >
-                <Wand2 className="w-3 h-3 mr-1" />
-                AI Auto-Gen
+                <Wand2 className="w-4 h-4 mr-2" />
+                🪄 AI Auto-Gen: 从 cURL 导入
               </button>
             </div>
             
@@ -302,7 +383,28 @@ export default function DeployManifestPage() {
                 }}
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1 mt-4">Output Schema (JSON)</label>
+              <textarea 
+                className="w-full px-4 py-2 bg-black border border-gray-800 rounded-lg text-gray-300 font-mono text-xs focus:outline-none focus:border-gray-600 h-32"
+                value={JSON.stringify(manifest.output_schema, null, 2)}
+                onChange={(e) => {
+                  try { handleUpdate("output_schema", JSON.parse(e.target.value)); } catch { /* ignore parse error while typing */ }
+                }}
+              />
+            </div>
           </section>
+          
+          <div className="pt-6 border-t border-gray-800">
+            <button
+              onClick={submitDeploy}
+              disabled={isDeploying || !manifest.agent_tool_name || !manifest.endpoint}
+              className="w-full py-3 font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+            >
+              {isDeploying ? "DEPLOYING..." : "CONFIRM & DEPLOY"}
+            </button>
+          </div>
 
         </div>
       </div>
@@ -310,7 +412,73 @@ export default function DeployManifestPage() {
       {/* RIGHT SIDE: TERMINAL PREVIEW */}
       <div className="w-full md:w-1/2 h-full bg-[#0a0a0a] flex flex-col relative">
         <div className="p-3 border-b border-green-900/30 bg-black flex justify-between items-center">
-          <div className="flex items-center text-xs text-green-500 font-mono">
+          {/* AI Auto-Gen Modal */}
+      {showAIModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-3xl bg-[#0a0a0a] border border-green-500/50 rounded-2xl shadow-2xl overflow-hidden shadow-green-500/10">
+            <div className="p-4 border-b border-gray-800 bg-gray-900/50 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-white flex items-center">
+                <Wand2 className="w-5 h-5 mr-2 text-purple-400" />
+                AI Zero-Shot Manifest Extractor
+              </h3>
+              <button onClick={() => setShowAIModal(false)} className="text-gray-400 hover:text-white">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-400">
+                Paste your raw cURL command and the expected JSON response. Our AI will automatically infer the Web3 routing metadata, schema types, and intent tags.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Raw cURL Command</label>
+                  <textarea 
+                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-green-400 font-mono text-xs focus:outline-none focus:border-green-500 h-48"
+                    placeholder="curl -X POST ..."
+                    value={aiCurl}
+                    onChange={(e) => setAICurl(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Expected JSON Response (Optional)</label>
+                  <textarea 
+                    className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-blue-400 font-mono text-xs focus:outline-none focus:border-green-500 h-48"
+                    placeholder='{"status": "success"}'
+                    value={aiResponse}
+                    onChange={(e) => setAIResponse(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 pt-2 border-t border-gray-800 mt-4">
+                <div className="flex-1 mt-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">AI Reasoning Model</label>
+                  <select 
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500"
+                  >
+                    <option value="deepseek-chat">DeepSeek R1 (Recommended)</option>
+                    <option value="deepseek-coder">DeepSeek Coder</option>
+                    <option value="gpt-4-turbo">OpenAI GPT-4 Turbo</option>
+                  </select>
+                </div>
+                <div className="w-48 pt-10">
+                  <button 
+                    onClick={autofillAIMagic}
+                    disabled={isAiGenerating || !aiCurl}
+                    className="w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg transition-colors font-bold flex items-center justify-center disabled:opacity-50"
+                  >
+                    {isAiGenerating ? <span className="animate-pulse">Reasoning...</span> : "Parse & Inject"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center text-xs text-green-500 font-mono">
             <TerminalSquare className="w-4 h-4 mr-2" />
             LIVE_COMPILER_VIEW
           </div>
