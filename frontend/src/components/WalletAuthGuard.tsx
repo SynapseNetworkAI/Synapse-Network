@@ -61,18 +61,24 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       let signature;
       try {
         signature = await signMessageAsync({
-          account: address as `0x${string}`,
-          connector,
           message: challenge.message,
         });
-      } catch (signErr: any) {
+      } catch (signErr: unknown) {
+        const msg = signErr instanceof Error ? signErr.message : String(signErr);
         // Fallback for non-standard injected wallets (e.g. Gate.io) lacking .getChainId interface in wagmi
-        if (signErr?.message?.includes("getChainId") && typeof window !== "undefined" && (window as any).ethereum) {
-          console.warn("Wagmi connector failed, falling back to window.ethereum.request personal_sign...");
-          signature = await (window as any).ethereum.request({
-            method: "personal_sign",
-            params: [toHex(challenge.message), address],
-          });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (msg.includes("getChainId") || msg.includes("reading 'raw'") || msg.includes("Cannot read properties of undefined")) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (typeof window !== "undefined" && (window as any).ethereum) {
+            console.warn("Wagmi connector failed, falling back to window.ethereum.request personal_sign...");
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            signature = await (window as any).ethereum.request({
+              method: "personal_sign",
+              params: [toHex(challenge.message), address],
+            });
+          } else {
+            throw signErr;
+          }
         } else {
           throw signErr;
         }
@@ -106,7 +112,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       }
       return false;
     }
-  }, [address, connector, signMessageAsync]);
+  }, [address, signMessageAsync]);
 
   useEffect(() => {
     if (!isConnected || !address) {
