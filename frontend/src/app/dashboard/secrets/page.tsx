@@ -18,8 +18,7 @@ export default function SecretsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [creditLimit, setCreditLimit] = useState<string>("");
-  const [resetInterval, setResetInterval] = useState("Months");
-  const [expiration, setExpiration] = useState("Never");
+    const [expiration, setExpiration] = useState("Never");
   
   useEffect(() => {
     async function init() {
@@ -46,10 +45,9 @@ export default function SecretsPage() {
     try {
       setIsCreating(true);
       const cLimit = creditLimit.trim() ? parseFloat(creditLimit) : null;
-      const rInterval = resetInterval !== "none" ? resetInterval : null;
       const exp = expiration !== "Never" ? expiration : null;
       
-      const newSecret = await createApiSecret(finalName, address as string, cLimit, rInterval, exp, null);
+      const newSecret = await createApiSecret(finalName, address as string, cLimit, null, exp, null);
       
       setSecrets([newSecret, ...secrets]);
       toast.success("Secret created successfully");
@@ -119,47 +117,26 @@ export default function SecretsPage() {
                 />
               </div>
 
-              {/* Credit Limit Field */}
+              {/* QPS Limit Field */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-200">Credit limit</label>
+                  <label className="text-sm font-medium text-gray-200">qps</label>
                   <div className="group relative flex items-center">
                     <Info className="w-4 h-4 text-gray-500 cursor-help" />
                     <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
-                      Set a maximum usage limit. Leave empty for unlimited.
+                      Set a maximum Queries Per Second limit. Leave empty for unlimited.
                     </div>
                   </div>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
                   <input 
                     type="number" 
                     value={creditLimit}
                     onChange={(e) => setCreditLimit(e.target.value)}
-                    className="w-full bg-[#0A0A0A] border border-gray-800 pl-7 pr-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all"
+                    placeholder="e.g. 50"
+                    className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all"
                   />
                 </div>
-              </div>
-
-              {/* Reset Limit Every Field */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-200">Reset limit every</label>
-                  <div className="group relative flex items-center">
-                    <Info className="w-4 h-4 text-gray-500 cursor-help" />
-                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
-                      Frequency at which the credit limit resets. Usually monthly.
-                    </div>
-                  </div>
-                </div>
-                <select 
-                  value={resetInterval}
-                  onChange={(e) => setResetInterval(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all appearance-none"
-                >
-                  <option value="Months">Months</option>
-                  <option value="none">Never reset</option>
-                </select>
               </div>
 
               {/* Expiration Field */}

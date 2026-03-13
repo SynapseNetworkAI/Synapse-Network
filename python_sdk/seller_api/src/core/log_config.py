@@ -17,13 +17,13 @@ def setup_logger():
     )
     
     # 2. File output for production (JSON)
-    logger.add(
-        "logs/gateway_{time:YYYY-MM-DD}.log",
-        rotation="100 MB",
-        retention="30 days",
-        serialize=True,
-        enqueue=True,
-    )
+    # logger.add(
+    #     "logs/gateway_{time:YYYY-MM-DD}.log",
+    #     rotation="100 MB",
+    #     retention="30 days",
+    #     serialize=True,
+    #     enqueue=True,
+    # )
     
     return logger
 

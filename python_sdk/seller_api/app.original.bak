@@ -41,9 +41,12 @@ from .models import (
     ServiceCreateRequest,
     ServiceUpdateRequest,
     ParseCurlRequest,
+    ProviderSecretCreateRequest,
 )
 from .payment import verify_payment
 from .persistence import (
+    load_provider_secrets,
+    save_provider_secrets,
     enforce_wallet_role,
     load_wallet_roles,
     append_audit_log,
@@ -404,7 +407,8 @@ async def list_services(
 
 @app.put("/api/v2/services/{service_record_id}", responses=SERVICE_REGISTRY_RESPONSES)
 async def update_service(service_record_id: str, payload: ServiceUpdateRequest,
-    ParseCurlRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
+    ParseCurlRequest,
+    ProviderSecretCreateRequest, subject_wallet: Annotated[str, Depends(require_auth)]):
     enforce_rate_limit("owner", subject_wallet, OWNER_RATE_LIMIT_PER_MIN)
 
     service_name = payload.serviceName.strip()
@@ -574,6 +578,70 @@ async def create_agent(
         "agent": record,
         "count": len(rows),
     }
+
+# =====================================================================
+# PROVIDER API SECRETS
+# =====================================================================
+
+@app.get("/api/v2/secrets", responses=SERVICE_REGISTRY_RESPONSES)
+def list_provider_secrets(wallet: str = Depends(require_auth)):
+    wallet = normalize_wallet(wallet)
+    secret_store = load_provider_secrets()
+    filtered_keys = [s for s in secret_store if s.get("ownerAddress") == wallet]
+    
+    response_payload = []
+    for s in filtered_keys:
+        safe_copy = s.copy()
+        if "secretKey" in safe_copy:
+            del safe_copy["secretKey"]
+        response_payload.append(safe_copy)
+        
+    response_payload.sort(key=lambda x: x.get("createdAt", 0), reverse=True)
+    return {"secrets": response_payload}
+
+@app.post("/api/v2/secrets", responses=SERVICE_REGISTRY_RESPONSES)
+def create_provider_secret(req: ProviderSecretCreateRequest, wallet: str = Depends(require_auth)):
+    wallet = normalize_wallet(wallet)
+    
+    nuevo_id = f"prov_sec_{uuid4().hex[:12]}"
+    import secrets as py_secrets
+    raw_key = f"sk_live_synapse_{py_secrets.token_hex(16)}"
+    masked = raw_key[:18] + "..." + raw_key[-4:]
+    
+    secret_record = {
+        "id": nuevo_id,
+        "name": req.name,
+        "ownerAddress": wallet,
+        "secretKey": raw_key,
+        "maskedKey": masked,
+        "creditLimit": req.creditLimit,
+        "resetInterval": req.resetInterval,
+        "expiration": req.expiration,
+        "rpm": req.rpm,
+        "rpm": req.rpm,
+        "createdAt": int(time.time()),
+        "status": "active"
+    }
+    
+    secret_store = load_provider_secrets()
+    secret_store.append(secret_record)
+    save_provider_secrets(secret_store)
+    
+    return {"secret": secret_record}
+
+@app.delete("/api/v2/secrets/{secret_id}", responses=SERVICE_REGISTRY_RESPONSES)
+def delete_provider_secret(secret_id: str, wallet: str = Depends(require_auth)):
+    wallet = normalize_wallet(wallet)
+    secret_store = load_provider_secrets()
+    existing_index = next((i for i, s in enumerate(secret_store) if s.get("id") == secret_id and s.get("ownerAddress") == wallet), -1)
+    
+    if existing_index == -1:
+        raise HTTPException(status_code=404, detail={"code": "SECRET_NOT_FOUND", "message": "Secret key not found"})
+        
+    del secret_store[existing_index]
+    save_provider_secrets(secret_store)
+    
+    return {"status": "success", "message": "Secret deleted"}
 
 @app.get("/api/v2/agents", responses=SERVICE_REGISTRY_RESPONSES)
 async def list_agents(

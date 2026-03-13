@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Copy, Wand2, TerminalSquare, Server, X, Check } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Wand2, TerminalSquare, Server, X, Check } from "lucide-react";
 import toast from "react-hot-toast";
 
 // Extracted from api_gateway_reverse_proxy_design.md
@@ -53,10 +53,9 @@ export default function DeployManifestPage() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCurl, setAICurl] = useState("");
   const [aiResponse, setAIResponse] = useState("");
-  const [aiModel, setAiModel] = useState("deepseek-chat");
-      const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
 
   useEffect(() => {
@@ -141,7 +140,7 @@ export default function DeployManifestPage() {
       // Create request payload
       const requestData = {
         curlCommand: aiCurl,
-        model: aiModel,
+        model: "deepseek-chat", // Let backend configure or override it
         currentManifest: manifest
       };
 
@@ -186,16 +185,11 @@ export default function DeployManifestPage() {
     setIsDeploying(false);
 
     // Mock successful deployment & return of the HMAC key
-    setSecretKey("sk_live_synapse_9f8e7d6c5b4a3f2e1d0c");
+    setIsSuccess(true);
     toast.success("Manifest successfully injected into Synapse Network!");
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
-  };
-
-  if (secretKey) {
+  if (isSuccess) {
     return (
       <div className="max-w-3xl p-8 mx-auto mt-10 border border-green-500 shadow-2xl rounded-2xl bg-gray-900/80 shadow-green-500/20 backdrop-blur-md animate-in fade-in zoom-in">
         <div className="flex flex-col items-center text-center">
@@ -206,22 +200,6 @@ export default function DeployManifestPage() {
           <p className="text-gray-400 mb-8 max-w-lg">
             Your API is now live on Synapse Network. Buyers can automatically discover and call your service using the <span className="font-mono text-green-400">&quot;{manifest.agent_tool_name}&quot;</span> tool.
           </p>
-
-          <div className="w-full p-6 text-left border border-gray-700 bg-black/60 rounded-xl mb-8">
-            <h3 className="text-lg font-bold text-white flex items-center mb-4">
-              <SecurityIcon className="w-5 h-5 mr-2 text-yellow-500" />
-              Gateway HMAC Secret Key
-            </h3>
-            <p className="text-sm text-gray-400 mb-4">
-              IMPORTANT: This key guards your server against unauthorized &quot;freeloader&quot; traffic. Set this in your Python SDK environment variables. We will NOT show it again.
-            </p>
-            <div className="flex items-center justify-between p-3 font-mono text-sm text-yellow-400 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-              <span>{secretKey}</span>
-              <button onClick={() => copyToClipboard(secretKey)} className="p-2 hover:bg-yellow-500/20 rounded-md transition-colors">
-                <Copy className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
 
           <Link href="/dashboard/services" className="px-8 py-3 font-bold text-black border border-green-500 bg-green-500 rounded-lg hover:bg-green-400 transition-colors w-full sm:w-auto">
             Return to Service Management
@@ -235,7 +213,7 @@ export default function DeployManifestPage() {
     <div className="h-[calc(100vh-80px)] flex flex-col md:flex-row bg-[#050505] overflow-hidden">
       {/* LEFT SIDE: BUILDER FORM */}
       <div className="w-full md:w-1/2 h-full overflow-y-auto border-r border-gray-800 p-8 hide-scrollbar">
-        <div className="mb-8">
+        <div className="mb-6">
           <Link href="/dashboard/services" className="inline-flex items-center text-gray-400 hover:text-green-400 mb-6 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Link>
@@ -255,6 +233,26 @@ export default function DeployManifestPage() {
                 导入未完成草稿
               </button>
             )}
+          </div>
+          
+          <div className="mt-8">
+             <div 
+               className="bg-[#0a0a0a] rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between group hover:border-[#444444] transition-all cursor-pointer border border-[#222222] relative overflow-hidden" 
+               onClick={() => setShowAIModal(true)}
+             >
+               <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffffff] opacity-[0.02] blur-3xl rounded-full pointer-events-none group-hover:bg-[#22c55e] transition-colors duration-500" />
+               <div className="mb-4 sm:mb-0 relative z-10">
+                  <h3 className="text-white font-[800] tracking-tight flex items-center text-xl">
+                    <TerminalSquare className="w-6 h-6 mr-3 text-[#86868b] group-hover:text-white transition-colors" />
+                    AI Auto-Gen: 从 cURL 极速导入
+                  </h3>
+                  <p className="text-[#86868b] text-sm mt-2 ml-9 font-medium">自动解析接口、字段结构和推理路由，一键生成标准 Manifest</p>
+               </div>
+               <div className="relative z-10 flex items-center bg-white text-black text-sm font-bold px-6 py-3 rounded-xl hover:bg-[#22c55e] hover:shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all">
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Paste cURL
+               </div>
+             </div>
           </div>
         </div>
 
@@ -361,18 +359,8 @@ export default function DeployManifestPage() {
           {/* Section 3: AI Schema Magic */}
           <section className="space-y-4">
             <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-              <h2 className="text-lg font-bold text-white">3. Data Schema</h2>
-              <button 
-                onClick={() => setShowAIModal(true)}
-                className="text-xs flex items-center px-4 py-1.5 bg-purple-500/20 text-purple-300 border border-purple-500/50 rounded-lg hover:bg-purple-500/30 transition shadow-[0_0_15px_rgba(168,85,247,0.3)] font-bold tracking-wide"
-              >
-                <Wand2 className="w-4 h-4 mr-2" />
-                🪄 AI Auto-Gen: 从 cURL 导入
-              </button>
-            </div>
-            
-            <p className="text-xs text-gray-500">Define the JSON Schema that agents will use to parse arguments and responses. Generating via AI is recommended.</p>
-
+              <h2 className="text-lg font-bold text-white">3. Data Schema</h2>              </div>
+              <p className="text-xs text-gray-500">Define the JSON Schema that agents will use to parse arguments and responses. Generating via AI is recommended.</p>
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1">Input Schema (JSON)</label>
               <textarea 
@@ -419,7 +407,7 @@ export default function DeployManifestPage() {
             <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/40">
               <h3 className="text-xl font-bold text-white flex items-center">
                 <Wand2 className="w-5 h-5 mr-2 text-purple-400" />
-                AI Ze                AI Zractor
+                AI API Parser
               </h3>
               <button onClick={() => setShowAIModal(false)} className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded-lg transition-colors flex items-center justify-center">
                  <X className="w-8 h-8" />
@@ -454,23 +442,10 @@ export default function DeployManifestPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 pt-2 border-t border-gray-800 mt-4">
-                <div className="flex-1 mt-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-1">AI Reasoning Model</label>
-                  <select 
-                    value={aiModel}
-                    onChange={(e) => setAiModel(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500"
-                  >
-                    <option value="deepseek-chat">DeepSeek R1 (Recommended)</option>
-                    <option value="deepseek-coder">DeepSeek Coder</option>
-                    <option value="gpt-4-turbo">OpenAI GPT-4 Turbo</option>
-                  </select>
-                </div>
-                <div className="flex justify-end gap-3 pt-10">
-                  <button 
-                    onClick={autofillAIMagic}
-                    disabled={isAiGenerating || !aiCurl}
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-800 mt-4">
+                <button 
+                  onClick={autofillAIMagic}
+                  disabled={isAiGenerating || !aiCurl}
                     className="px-8 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-bold flex items-center justify-center disabled:opacity-50 min-w-[120px]"
                   >
                     {isAiGenerating ? <span className="animate-pulse">Parsing...</span> : "Parse"}
@@ -483,7 +458,6 @@ export default function DeployManifestPage() {
                     <Check className="w-5 h-5 mr-1" />
                     Confirm
                   </button>
-                </div>
               </div>
             </div>
           </div>
@@ -535,12 +509,3 @@ export default function DeployManifestPage() {
   );
 }
 
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-function SecurityIcon(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  );
-}

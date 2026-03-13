@@ -1,163 +1,87 @@
-# Agent 短期凭证、限流与审计设计（P1）
+# Provider Service Keys, 限流与统计设计（P1）
 
 ## 1. 目标
-面向 Agent 高频调用场景，补齐三项能力：
-- 短期凭证：可撤销、可过期、可限额（调用次数与 RPM）。
-- 多维限流：按 owner / agent / service 维度治理流量。
-- 审计日志：记录关键配置变更与配额变更。
+打破原有绑定具体“Agent”的维度，采用 **“Seller 钱包地址 -> 多个 Service Keys (Provider API Secrets) -> 授权调用所有注册服务”** 的顶层架构。
+面向高频调用场景，补齐以下三项核心能力：
+- 短期/长期凭证：支持多 Key 签发、可撤销、可过期设定。
+- 多维限流：按 Owner (Seller) 全局维度与 Service Key 单凭证维度精准控制 RPM。
+- 收益统计与审计：透明记录哪个 Key 产生了多少次真实调用与收益，防刷防盗。
 
-## 2. 适用范围
-后端 `python_sdk/seller_fastapi.py`。
+## 2. 架构与适用范围
+适用层：后端 `python_sdk/seller_fastapi.py` 以及所有关联的前端管控 Dashboard (`Secrets Page`)。
 
-新增 API 主要覆盖：
-- owner 控制面（签发/撤销/调整配额/查看审计）
-- 数据面调用（`/api/v2/generate`）
+新的实体关系：
+- **Seller Owner Address**：平台服务的最终受益人与管控者。
+- **Service Keys**：由 Seller 签发的请求密钥（API Secret），相当于服务商的内部 Master Key 子集（甚至可以直接分配给特定的应用端和合作平台）。
+- **Services**：Seller 钱包下挂载的所有具体端点（`/chat`, `/image` 等），任一有效的 Service Key 均可发起路由调用。
 
 ## 3. 数据模型
 
-### 3.1 Agent Credential（持久化到 `agent_credentials.json`）
-字段：
-- `id`: 凭证 ID
-- `ownerAddress`: 所属 owner 钱包
-- `agentId`: 绑定 agent
-- `serviceId`: 绑定 service
-- `tokenHash`: 仅保存哈希，不落明文
-- `tokenPrefix`: 便于排查
+### 3.1 Service Key (Provider API Secret)
+持久化至：`provider_secrets.json`
+字段设计：
+- `id`: 凭证全局唯一 ID (e.g., `prov_sec_xxx`)
+- `ownerAddress`: 所属 Seller 钱包地址
+- `name`: 备注名称（便于前端管理，如 "Chatbot Key", "Platform Node"）
+- `secretKey` / `tokenHash`: 签发时提供一次明文给用户，服务端仅存 hash 或用于比对加盐验签（目前可先存密文以供网关急速鉴权）。
+- `rpm`: 凭证级速率上限 (每分钟请求数)
+- `expiration`: 过期时间 (never / 30days / etc.) 
 - `status`: `active | revoked`
-- `maxCalls`: 总调用上限
-- `callsUsed`: 已用调用数
-- `rpm`: 凭证级速率上限
-- `createdAt / updatedAt / expiresAt / revokedAt`
+- `createdAt / updatedAt / revokedAt`
 
-### 3.2 Audit Log（JSONL 到 `audit_log.jsonl`）
-每行一个事件：
-- `id`, `timestamp`, `action`, `ownerAddress`, `details`
+### 3.2 审计与流水表 (Usage Log & Settlement)
+持久化或对接合约 `Event Log`:
+- 粒度：精确到每次调用 (或定期聚合)。
+- `timestamp`, `serviceKeyId`, `serviceId`, `buyerAddress`, `costUSDC`
+- 当平台调用 seller 时，扣除逻辑以网关放行为准，统计此流水可以在 Dashboard 直观展示此 `Service Key` 产生的所有收入（Total Earned）。
 
-关键动作：
-- `SERVICE_CREATE_OR_UPSERT`
-- `SERVICE_UPDATE`
-- `SERVICE_DELETE`
-- `AGENT_CREDENTIAL_ISSUED`
-- `AGENT_CREDENTIAL_REVOKED`
-- `AGENT_CREDENTIAL_QUOTA_UPDATED`
+## 4. API 设计 (后端)
 
-## 4. API 设计
+### 4.1 签发 Service Key
+`POST /api/v2/secrets`
+- 鉴权：Seller 钱包签名 Session。
+- 入参：`name` (名称), `expiration` (过期时间), `rpm` (可选，独立凭证速率上限)。
+- 输出：明文 `secretKey` 及元数据。
 
-### 4.1 凭证签发
-`POST /api/v1/agent-credentials/issue`
-- 鉴权：owner token（`Authorization + X-User-Address`）
-- 入参：`agentId`, `serviceId?`, `expiresInSec?`, `maxCalls?`, `rpm?`
-- 输出：一次性明文 token + 凭证元数据
+### 4.2 列出所有 Keys
+`GET /api/v2/secrets`
+- 仅返回属于自身的凭证列表（脱敏掩码 `maskedKey`）。
 
-### 4.2 凭证列表
-`GET /api/v1/agent-credentials`
-- 返回 owner 下全部凭证（无明文 token）
+### 4.3 撤销/删除 Key
+`DELETE /api/v2/secrets/{secret_id}`
+- 阻断通过该凭证发起的所有请求。
 
-### 4.3 凭证撤销
-`POST /api/v1/agent-credentials/{credential_id}/revoke`
-- 标记 `revoked`
+### 4.4 数据面调用 (调用方 -> Seller Gateway)
+网关接口 `POST /api/v2/services/invoke` 或 `POST /{service_id}/generate`
+- 必带 HTTP Header：`Authorization: Bearer sk_live_synapse_xxx` (也就是 Service Key)。
+- 校验流：
+  1. Header 提取 `Service Key` -> 查询匹配 `ownerAddress`。
+  2. 校验此 Key 的状态（未撤销、未过期）。
+  3. 通过 `ownerAddress` 核对目标 `serviceId` 是否属于该 Seller。
+  4. 过两道限流锁（Key RPM 锁 + Seller Owner 全局 RPM 锁）。
 
-### 4.4 配额调整
-`PATCH /api/v1/agent-credentials/{credential_id}/quota`
-- 可更新：`maxCalls`, `rpm`, `expiresAt`
-- 触发审计事件（记录 before/after）
+## 5. 平台调用与限流策略 (Rate Limiting)
+引入 Redis或内存滑动窗口（每 60 秒刷新）。
 
-### 4.5 审计查询
-`GET /api/v1/audit-logs?limit=100`
-- 仅返回当前 owner 的日志
+- **维度1：Key 级限流 (RPM Limit per Service Key)**
+  由 Seller 给平台或具体客户签发 Key 时设定。例如：设 `rpm=100`，一旦 `Service Key A` 请求超过该值，立刻被拒 `429 Too Many Requests`。
 
-### 4.6 数据面调用
-`POST /api/v2/generate`
-- 新增可选头：`X-Agent-Credential`
-- 若携带凭证：
-  1) 校验有效性（未过期/未撤销/未超调用上限）
-  2) 校验 `serviceId` 绑定一致
-  3) 执行 owner / agent / service 三维限流
-  4) 调用成功后递增 `callsUsed`
-- 兼容策略：`REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE=0` 时允许无凭证；为 `1` 时强制要求凭证。
+- **维度2：Seller 层面全局限流 (Global RPM)**
+  Seller 可承受的总体算力上限。例如 1000 RPM，防止恶意的大量并发把下游供应商实例打垮。
 
-## 5. 限流策略
-滑动窗口（默认 60 秒）
-- owner：`OWNER_RATE_LIMIT_PER_MIN`（默认 240）
-- agent：`AGENT_RATE_LIMIT_PER_MIN`（默认 600，凭证可覆盖）
-- service：`SERVICE_RATE_LIMIT_PER_MIN`（默认 1200）
-
-命中限流返回：
-- HTTP 429
-- `detail.code=RATE_LIMITED`
-- `detail.dimension` 与 `retryAfterSec`
-
-## 6. 安全与一致性
-- 凭证明文仅签发时返回，服务端只存 `tokenHash`。
-- owner 控制面继续使用钱包签名登录 token。
-- 凭证与 service 绑定校验，防止跨服务滥用。
-- 审计与配额变更写入同一来源，便于追踪。
-
-## 7. 环境变量
-- `AGENT_CREDENTIALS_PATH`
-- `AUDIT_LOG_PATH`
-- `AGENT_CREDENTIAL_DEFAULT_TTL_SEC`
-- `AGENT_CREDENTIAL_MAX_TTL_SEC`
-- `AGENT_CREDENTIAL_MAX_CALLS_DEFAULT`
-- `OWNER_RATE_LIMIT_PER_MIN`
-- `AGENT_RATE_LIMIT_PER_MIN`
-- `SERVICE_RATE_LIMIT_PER_MIN`
-- `RATE_LIMIT_WINDOW_SEC`
-- `REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE`
-
-## 8. 实现说明
-- 管理面接口（services CRUD）不变。
-- `/api/v2/generate` 为当前主路径（可按配置开启强制凭证）。
-- 前端可逐步接入 `X-Agent-Credential`，不阻断现有支付链路。
-
-## 9. 可复制测试脚本（Python）
-
-已提供一键脚本：
-
-- `python_sdk/examples/credential_issue_invoke_revoke.py`
-
-能力覆盖：
-
-1) owner 钱包签名登录（challenge/verify）  
-2) 签发 Agent Credential  
-3) 完成充值并等待余额可用  
-4) 携带 `X-Agent-Credential` 调用 `/api/v2/generate`  
-5) 撤销凭据
-
-### 运行前准备
-
-- 确保本地环境已启动（Hardhat + Seller FastAPI）：
-  - `./test/restart_local_env.sh`
-- 确保你用于签发的 owner 下已有对应 `agentId + serviceId` 的服务配置。
-
-### 运行示例
-
-```bash
-cd python_sdk
-
-export OWNER_PRIVATE_KEY="<OWNER私钥>"
-export SERVICE_ID="V1_DEMO"
-export AGENT_ID="<你的agentId>"
-export SELLER_ADDRESS="<服务收款地址，与后端SELLER_ADDRESS一致>"
-
-# 可选参数
-export API_BASE="http://127.0.0.1:8000"
-export RPC_URL="http://127.0.0.1:8545"
-export PRICE_USDC="1"
-export PROMPT="hello from credential script"
-
-python examples/credential_issue_invoke_revoke.py
+**命中限流的 Response：**
+```json
+{
+  "error": "Rate limit exceeded",
+  "detail": {
+    "code": "RATE_LIMITED",
+    "dimension": "service_key" // or "wallet_global"
+  },
+  "retryAfterSec": 15
+}
 ```
 
-### 关键环境变量说明
-
-- 必填：
-  - `OWNER_PRIVATE_KEY`：用于 owner 登录与管理凭据
-  - `SERVICE_ID`：目标服务 ID
-  - `AGENT_ID`：目标 agent ID
-  - `SELLER_ADDRESS`：服务收款地址
-- 可选：
-  - `DEPLOYER_PRIVATE_KEY`：用于给买家 mint USDC（默认 Hardhat #0）
-  - `BUYER_PRIVATE_KEY`：用于执行 `approve + payForService`（默认 Hardhat #1）
-  - `EXPIRES_IN_SEC` / `MAX_CALLS` / `RPM`：凭据参数
+## 6. UX 设计推荐 (Dashboard)
+- **创建凭证**: 弹出专属 Modal，要求输入易于记忆的名称（如“Chatbot Key”），可选的并发上限（RPM）和明确的过期策略（如 30 days）。每个字段配有完整的 Info Tooltip 用于辅导。
+- **关联视图**: 页面弱化原先繁重的“Agent”逻辑，统一转换为极简的 "Wallet 关联 Keys -> Keys 调动 Services" 的层级。
 

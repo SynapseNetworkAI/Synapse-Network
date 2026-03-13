@@ -88,3 +88,11 @@ class ParseCurlRequest(BaseModel):
     model: str = "deepseek-chat"
     currentManifest: Optional[Dict[str, Any]] = None
 
+
+class ProviderSecretCreateRequest(BaseModel):
+    name: str
+    creditLimit: Optional[float] = None
+    resetInterval: Optional[str] = None
+    expiration: Optional[str] = None
+    rpm: Optional[int] = None
+    rpm: Optional[int] = None

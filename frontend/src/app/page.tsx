@@ -43,14 +43,6 @@ export default function Home() {
     <div className="bg-black text-white font-sans selection:bg-white selection:text-black">
       <RoleWarningModal
         isOpen={isWarningOpen}
-        onClose={() => setIsWarningOpen(false)}
-        onProceed={() => {
-          if (pendingRoute) {
-            setAppRole(pendingRoute.role);
-            router.push(pendingRoute.path);
-          }
-          setIsWarningOpen(false);
-        }}
         onDisconnect={() => {
           disconnect();
           setIsWarningOpen(false);

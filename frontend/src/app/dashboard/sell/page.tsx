@@ -6,12 +6,25 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { listAgentCredentials } from "@/utils/agentCredentialApi";
 import RoleWarningModal from "@/components/RoleWarningModal";
+import Link from "next/link";
+import { Activity, Shield, Key, Database, Zap, Server, ArrowRight, TerminalSquare, RefreshCw, Plus } from "lucide-react";
+import { useAuth } from "@/components/WalletAuthGuard";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function SellDashboard() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
+  const { isSessionAuthenticated } = useAuth();
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const {
+    services,
+    paidEvents,
+    providerStats,
+    handleRefresh: loadDashboardData
+  } = useDashboardData();
 
   const handlePublishClick = async () => {
     if (!address) {
@@ -32,223 +45,335 @@ export default function SellDashboard() {
     }
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadDashboardData();
+    setIsRefreshing(false);
+  };
+
   return (
-    <div className="min-h-screen bg-black text-green-500 font-mono p-8 animate-in fade-in duration-700">
-      {/* Hero Section */}
-      <section className="mb-12 border-b border-green-500/30 pb-8">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-4xl font-bold mb-4 text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]">
-              Monetize Your AI APIs
-            </h1>
-            <p className="text-xl text-green-500/80 max-w-2xl">
-              只需 3 行命令，将你的本地 FastAPI / Agent 变现。零 Gas 扣费，极速结算到链上 Vault。
-            </p>
+    <div className="p-6 md:p-10 mx-auto space-y-12 max-w-7xl font-sans text-white bg-[#000000] min-h-screen">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-[#222222]">
+        <div>
+          <h1 className="text-3xl md:text-5xl font-[800] tracking-tighter text-white flex items-center">
+            Provider Console
+          </h1>
+          <p className="mt-4 text-[#86868b] font-medium tracking-wide text-sm md:text-base">
+            Deploy API Manifests. Wrap with SDK. Accumulate zero-gas billing and settle to Synapse Vault.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/services/deploy" className="hidden md:flex items-center px-6 py-3 text-sm font-bold text-black transition-colors bg-white rounded-xl hover:bg-gray-200">
+            <Plus className="w-4 h-4 mr-2" />
+            Deploy Manifest
+          </Link>
+          <button
+            onClick={handleRefresh}
+            className="p-3 text-[#86868b] transition-colors bg-[#0a0a0a] border border-[#222222] rounded-xl hover:bg-[#111111] hover:text-[#ffffff]"
+          >
+            <RefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin text-[#22c55e]" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* KPI METRICS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Metric 1 */}
+        <div className="p-6 bg-[#0a0a0a] border border-[#222222] rounded-3xl relative overflow-hidden group hover:border-[#444444] transition-colors">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffffff] opacity-[0.02] blur-3xl rounded-full pointer-events-none group-hover:bg-[#22c55e] transition-colors duration-500" />
+          <h3 className="text-[10px] text-[#86868b] font-semibold uppercase tracking-[0.2em] mb-4 flex items-center justify-between">
+            Life-Time Earnings
+            <Activity className="w-4 h-4" />
+          </h3>
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-[800] text-[#ffffff] font-mono tracking-tighter">
+              {isConnected ? providerStats.totalEarned.toFixed(2) : "0.00"}
+            </span>
+            <span className="text-sm text-[#86868b] font-bold">USDC</span>
           </div>
-          {!isConnected && (
-            <div className="animate-pulse px-4 py-2 border border-green-500 rounded text-green-400 bg-green-900/20">
-              [ Connect Wallet to Action ]
-            </div>
-          )}
         </div>
 
-        {/* KPI Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-          <div className="border border-green-500/30 p-4 bg-green-900/10">
-            <div className="text-green-500/60 text-sm mb-1">Life-Time Earnings</div>
-            <div className="text-2xl font-bold">{isConnected ? "1,245.50 USDC" : "0.00 USDC"}</div>
-          </div>
-          <div className="border border-green-500/30 p-4 bg-green-900/10 relative overflow-hidden group">
-            <div className="text-green-500/60 text-sm mb-1">Unclaimed Balance</div>
-            <div className="text-2xl font-bold text-green-300">{isConnected ? "305.00 USDC" : "0.00 USDC"}</div>
+        {/* Metric 2 */}
+        <div className="p-6 bg-[#0a0a0a] border border-[#222222] rounded-3xl group hover:border-[#444444] transition-colors relative overflow-hidden flex flex-col justify-between">
+          <h3 className="text-[10px] text-[#86868b] font-semibold uppercase tracking-[0.2em] mb-4 flex items-center justify-between">
+            Unclaimed Balance
+            <Database className="w-4 h-4" />
+          </h3>
+          <div className="flex items-end justify-between">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-[800] text-[#ffffff] font-mono tracking-tighter group-hover:text-[#22c55e] transition-colors">
+                {isConnected ? providerStats.netEarned.toFixed(2) : "0.00"}
+              </span>
+              <span className="text-xs text-[#86868b] font-bold">USDC</span>
+            </div>
             {isConnected && (
-              <button className="absolute right-4 top-4 text-xs px-2 py-1 border border-green-500 hover:bg-green-500 hover:text-black transition-colors focus:ring-2 focus:ring-green-300">
+              <button 
+                 onClick={() => router.push("/dashboard/admin")}
+                 className="text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 border border-[#222222] text-[#ffffff] hover:bg-[#ffffff] hover:text-[#000000] transition-all rounded-lg"
+              >
                 Claim
               </button>
             )}
-            <div className="absolute inset-0 bg-green-500/5 -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-          </div>
-          <div className="border border-green-500/30 p-4 bg-green-900/10">
-            <div className="text-green-500/60 text-sm mb-1">Total API Calls</div>
-            <div className="text-2xl font-bold">{isConnected ? "42,109" : "0"}</div>
-          </div>
-          <div className="border border-green-500/30 p-4 bg-green-900/10">
-            <div className="text-green-500/60 text-sm mb-1">Active Services</div>
-            <div className="text-2xl font-bold flex items-center gap-2">
-              {isConnected ? "2 Online" : "0"}
-              {isConnected && <div className="w-2 h-2 rounded-full bg-green-500 animate-ping" />}
-            </div>
           </div>
         </div>
-      </section>
 
-      {/* 4-Step How-To Earn */}
-      <section className="mb-12">
-        <h2 className="text-2xl font-bold mb-6 border-l-4 border-green-500 pl-4">4-Step How-To Earn</h2>
+        {/* Metric 3 */}
+        <div className="p-6 bg-[#0a0a0a] border border-[#222222] rounded-3xl group hover:border-[#444444] transition-colors flex flex-col justify-between">
+          <h3 className="text-[10px] text-[#86868b] font-semibold uppercase tracking-[0.2em] mb-4 flex items-center justify-between">
+            Total API Calls
+            <Zap className="w-4 h-4" />
+          </h3>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-[800] text-[#ffffff] font-mono tracking-tighter">
+              {isConnected ? paidEvents.length.toLocaleString() : "0"}
+            </span>
+          </div>
+        </div>
+
+        {/* Metric 4 */}
+        <div className="p-6 bg-[#0a0a0a] border border-[#222222] rounded-3xl group hover:border-[#444444] transition-colors flex flex-col justify-between">
+          <h3 className="text-[10px] text-[#86868b] font-semibold uppercase tracking-[0.2em] mb-4 flex items-center justify-between">
+            Active Nodes
+            <Server className="w-4 h-4" />
+          </h3>
+          <div className="flex items-center gap-3">
+            <span className="text-3xl font-[800] text-[#ffffff] font-mono tracking-tighter">
+              {isConnected ? services.filter(s => s.isActive).length : "0"}
+            </span>
+            {isConnected ? (
+              <span className="flex items-center text-[10px] uppercase font-bold tracking-widest text-[#22c55e] bg-[#22c55e]/10 px-2 py-1 rounded-md border border-[#22c55e]/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse mr-2"></span>
+                Online
+              </span>
+            ) : (
+              <span className="text-[10px] uppercase font-bold tracking-widest text-[#86868b] bg-[#222222]/50 px-2 py-1 rounded-md">Offline</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* QUICK ACTIONS ROW */}
+      <section className="space-y-6 pt-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl md:text-2xl font-bold text-[#ffffff] tracking-tight flex items-center">
+            <TerminalSquare className="w-6 h-6 mr-3 text-[#86868b]" />
+            Deployment Pipeline
+          </h2>
+        </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col">
-            <div className="text-3xl font-bold text-green-500/30 mb-4">01</div>
-            <h3 className="font-bold text-lg mb-2">Generate API Secret</h3>
-            <p className="text-sm text-green-500/70 mb-4 flex-1">
-              基于钱包签发全局唯一的认证凭证 (Secret Key)，用于标识你的节点身份并实现防伪造的 HMAC 签名校验。
+          {/* Step 1 */}
+          <div className="bg-[#050505] border border-[#222222] p-8 rounded-[2rem] group flex flex-col hover:border-[#444444] transition-colors">
+            <div className="flex items-center justify-between mb-8">
+              <span className="text-xl font-mono font-[800] text-[#333333] group-hover:text-[#ffffff] transition-colors">01</span>
+              <Key className="w-6 h-6 text-[#86868b]" />
+            </div>
+            <h3 className="text-xl font-bold text-[#ffffff] mb-3">Issue Keys</h3>
+            <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm">
+              Create cryptographically secure HMAC credentials bound to your node identity.
             </p>
             <button 
               onClick={() => {
-                if(!isConnected) { toast.error("Please connect your wallet first."); return; }
+                if(!isConnected) { toast.error("Connect terminal to manage keys"); return; }
                 router.push("/dashboard/secrets");
               }}
-              className={`w-full py-2 border transition-all mt-4 ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black shadow-[0_0_10px_rgba(74,222,128,0.2)]" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}
+              className="w-full py-4 text-sm font-bold border border-[#222222] text-[#ffffff] hover:bg-[#ffffff] hover:text-[#000000] transition-all bg-[#0a0a0a] flex items-center justify-center gap-2 rounded-2xl"
             >
-              {isConnected ? "Manage Secrets" : "Connect Wallet"}
+              Manage Secrets <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col">
-            <div className="text-3xl font-bold text-green-500/30 mb-4">02</div>
-            <h3 className="font-bold text-lg mb-2">Secure Your API</h3>
-            <p className="text-sm text-green-500/70 mb-4">
-              使用 SDK 包装原始接口，验证 Gateway 带来的加密流量，彻底拦截绕过网关的“白嫖”流量。
+
+          {/* Step 2 */}
+          <div className="bg-[#050505] border border-[#222222] p-8 rounded-[2rem] group flex flex-col hover:border-[#444444] transition-colors">
+            <div className="flex items-center justify-between mb-8">
+              <span className="text-xl font-mono font-[800] text-[#333333] group-hover:text-[#ffffff] transition-colors">02</span>
+              <Shield className="w-6 h-6 text-[#86868b]" />
+            </div>
+            <h3 className="text-xl font-bold text-[#ffffff] mb-3">Secure Scope</h3>
+            <p className="text-[#86868b] mb-8 font-medium leading-relaxed text-sm">
+              Wrap local endpoints with Synapse SDK to reject unsigned network traffic.
             </p>
-            <div className="bg-black/80 border border-green-500/30 p-3 text-xs overflow-x-auto rounded mt-auto">
-              <code className="font-mono">
-                <span className="text-gray-500"># Start secure server</span><br/>
-                <span className="text-blue-300">gw</span> = SynapseGateway(<br/>
-                &nbsp;&nbsp;secret=<span className="text-green-300">&quot;sk_...&quot;</span><br/>
+            <div className="bg-[#000000] border border-[#222222] p-4 text-[11px] rounded-2xl font-mono overflow-hidden flex-1 flex flex-col justify-center">
+              <div><span className="text-[#86868b]">from</span> synapse <span className="text-[#86868b]">import</span> Gateway</div>
+              <div className="mt-2 text-[#ffffff]">
+                gw = Gateway(<br/>
+                &nbsp;&nbsp;sec=<span className="text-[#22c55e]">&apos;sk_live_...&apos;</span><br/>
                 )<br/>
-                <span className="text-blue-300">gw</span>.start()
-              </code>
+                gw.listen()
+              </div>
             </div>
           </div>
-          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col">
-            <div className="text-3xl font-bold text-green-500/30 mb-4">03</div>
-            <h3 className="font-bold text-lg mb-2">Publish Manifest</h3>
-            <p className="text-sm text-green-500/70 mb-4 flex-1">
-              向网络宣布你的 Endpoint、Schema 与价格。大模型买家可 Zero-Code 自动发现并按需并发调取。
+
+          {/* Step 3 */}
+          <div className="bg-[#050505] border border-[#222222] p-8 rounded-[2rem] group flex flex-col hover:border-[#444444] transition-colors">
+            <div className="flex items-center justify-between mb-8">
+              <span className="text-xl font-mono font-[800] text-[#333333] group-hover:text-[#ffffff] transition-colors">03</span>
+              <Server className="w-6 h-6 text-[#86868b]" />
+            </div>
+            <h3 className="text-xl font-bold text-[#ffffff] mb-3">Publish API</h3>
+            <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm">
+              Broadcast manifest parameters and models to the decentralized directory.
             </p>
             <button 
-              onClick={isConnected ? handlePublishClick : undefined}
-              className={`w-full py-2 border transition-all mt-4 ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black shadow-[0_0_10px_rgba(74,222,128,0.2)]" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}
+              onClick={handlePublishClick}
+              className="w-full py-4 text-sm font-bold border border-[#222222] text-[#ffffff] hover:bg-[#ffffff] hover:text-[#000000] transition-all bg-[#0a0a0a] flex items-center justify-center gap-2 rounded-2xl"
             >
-              {isConnected ? "Publish Service" : "Connect Wallet"}
+              Deploy <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="border border-green-500/50 p-6 hover:bg-green-900/20 transition-colors flex flex-col bg-[url('/grid-pattern.svg')]">
-            <div className="text-3xl font-bold text-green-500/30 mb-4">04</div>
-            <h3 className="font-bold text-lg mb-2">Earn & Settle</h3>
-            <p className="text-sm text-green-500/70 mb-4 flex-1">
-              调用即收费，记账于本地积累。随时一键提交凭证到链上 Vault，极速全额提取 USDC 到你的 Web3 钱包。
-            </p>
-            <button 
-              onClick={() => {
-                if(!isConnected) { toast.error("Please connect your wallet first."); return; }
-                router.push("/dashboard/admin");
-              }}
-              className={`w-full py-2 border transition-all mt-4 ${isConnected ? "border-green-500 hover:bg-green-500 hover:text-black" : "border-gray-600 text-gray-500 cursor-not-allowed bg-black/50"}`}
-            >
-              {isConnected ? "Go to Ledger ->" : "Connect Wallet"}
-            </button>
+
+          {/* Step 4 */}
+          <div className="bg-[#0a0a0a] border border-[#222222] p-8 rounded-[2rem] group flex flex-col relative overflow-hidden transition-all hover:border-[#22c55e]/50">
+            <div className="absolute inset-0 bg-[#22c55e]/[0.02] group-hover:bg-[#22c55e]/10 transition-colors duration-500"></div>
+            <div className="relative flex flex-col h-full">
+              <div className="flex items-center justify-between mb-8">
+                <span className="text-xl font-mono font-[800] text-[#22c55e]">04</span>
+                <Activity className="w-6 h-6 text-[#22c55e]" />
+              </div>
+              <h3 className="text-xl font-bold text-[#ffffff] mb-3">Vault Output</h3>
+              <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm group-hover:text-[#e5e5ea] transition-colors">
+                Accumulate micro-charges per API call. Instantly pull USDC from the Vault.
+              </p>
+              <button 
+                onClick={() => {
+                  if(!isConnected) { toast.error("Connect wallet first"); return; }
+                  router.push("/dashboard/admin");
+                }}
+                className="w-full py-4 text-sm font-bold border border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e] hover:text-[#000000] transition-all bg-[#000000] rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.1)]"
+              >
+                Go to Ledger
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Services Grid Rendered Only if Connected */}
       {isConnected && (
-        <section className="mb-12 animate-in slide-in-from-bottom-4 duration-500 fade-in">
-           <h2 className="text-2xl font-bold mb-6 border-l-4 border-green-500 pl-4">My Manifests & Services</h2>
-           <div className="w-full border border-green-500/30 bg-black/50 backdrop-blur">
-              <table className="w-full text-left">
-                <thead className="bg-green-900/30 border-b border-green-500/30 text-green-400/80">
-                  <tr>
-                    <th className="p-3 font-normal">Service & Tool Name</th>
-                    <th className="p-3 font-normal">Endpoint & Health</th>
-                    <th className="p-3 font-normal">QoS & Pricing</th>
-                    <th className="p-3 font-normal">Status</th>
-                    <th className="p-3 font-normal">Actions</th>
+        <>
+          {/* ACTIVE SERVICES TABLE */}
+          <section className="space-y-6 pt-10">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-xl md:text-2xl font-bold text-[#ffffff] tracking-tight flex items-center">
+                <Server className="w-6 h-6 mr-3 text-[#86868b]" />
+                Registered Network Nodes
+              </h2>
+            </div>
+            
+            <div className="overflow-x-auto rounded-[2rem] border border-[#222222] bg-[#0a0a0a]">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
+                    <th className="py-6 px-8">Service Endpoint</th>
+                    <th className="py-6 px-8">Model Matrix</th>
+                    <th className="py-6 px-8">Pricing Bound</th>
+                    <th className="py-6 px-8 text-center">Instance State</th>
+                    <th className="py-6 px-8 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr className="border-b border-green-500/10 hover:bg-green-900/20 transition-colors">
-                    <td className="p-3">
-                        <div className="font-bold">DeepSeek-Chat</div>
-                        <div className="text-xs text-gray-500 font-mono mt-1">Tool: get_deepseek_chat</div>
-                        <div className="flex gap-1 mt-1">
-                            <span className="text-[10px] px-1 bg-blue-900/30 text-blue-400 border border-blue-500/30 rounded">llm</span>
-                        </div>
+                <tbody className="divide-y divide-[#151515]">
+                  <tr className="hover:bg-[#111111] transition-colors group">
+                    <td className="py-5 px-8">
+                      <div className="font-bold text-[#ffffff] text-sm tracking-wide">DeepSeek-Chat</div>
+                      <div className="text-xs text-[#86868b] font-mono mt-1 flex items-center gap-1">
+                        http://localhost:8000/v1/chat
+                      </div>
                     </td>
-                    <td className="p-3">
-                        <div className="text-sm opacity-80 font-mono">http://localhost:8000/v1/chat</div>
-                        <div className="text-xs text-gray-500 font-mono mt-1 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Health: OK
-                        </div>
+                    <td className="py-5 px-8">
+                      <span className="font-mono text-xs text-[#86868b] bg-[#222222] px-2 py-1 rounded">get_deepseek_chat</span>
                     </td>
-                    <td className="p-3">
-                        <div className="text-green-300">0.05 USDC / Call</div>
-                        <div className="text-xs text-gray-500 mt-1">Max 50 QPS</div>
+                    <td className="py-5 px-8">
+                      <div className="text-[#ffffff] font-mono text-sm tracking-tight">0.05 <span className="text-[#86868b] text-[10px] font-sans ml-1">USDC / CALL</span></div>
+                      <div className="text-[#86868b] text-[10px] mt-1 font-mono tracking-wider">MAX: 50 QPS</div>
                     </td>
-                    <td className="p-3">
-                      <div className="inline-flex items-center gap-2 px-2 py-1 bg-green-900/40 border border-green-500/50 rounded-full text-xs">
-                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full shadow-[0_0_5px_#4ade80]"></div>
+                    <td className="py-5 px-8 text-center">
+                      <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-widest bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] mr-2"></span>
                         Online
-                      </div>
+                      </span>
                     </td>
-                    <td className="p-3">
-                      <div className="flex flex-col gap-2 w-max">
-                        <button className="text-xs border border-green-500 px-3 py-1 hover:bg-green-500 hover:text-black transition-colors rounded-sm text-center">View Secret Key</button>
-                        <div className="flex gap-2">
-                           <button className="text-xs border border-green-500 px-3 py-1 hover:bg-green-500 hover:text-black transition-colors rounded-sm flex-1">Metrics</button>
-                           <button className="text-xs border border-green-500 px-3 py-1 hover:bg-green-500 hover:text-black transition-colors rounded-sm flex-1">Edit</button>
-                        </div>
-                      </div>
+                    <td className="py-5 px-8 text-right">
+                      <Link href="/dashboard/services" className="text-xs font-bold text-[#ffffff] transition-colors py-2 px-4 rounded-xl border border-[#444444] bg-[#222222] hover:bg-[#ffffff] hover:text-[#000000]">
+                        Manage
+                      </Link>
                     </td>
                   </tr>
                 </tbody>
               </table>
-           </div>
-        </section>
-      )}
+            </div>
+          </section>
 
-      {/* Income Ledger */}
-      {isConnected && (
-        <section className="animate-in slide-in-from-bottom-8 duration-700 fade-in delay-150">
-          <h2 className="text-2xl font-bold mb-6 border-l-4 border-green-500 pl-4">Income Ledger Pipeline</h2>
-           <div className="w-full border border-green-500/30 bg-black/50 backdrop-blur">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-green-900/30 border-b border-green-500/30 text-green-400/80">
-                  <tr>
-                    <th className="p-3 font-normal">Tx Hash / Job ID</th>
-                    <th className="p-3 font-normal">Service</th>
-                    <th className="p-3 font-normal">Amount</th>
-                    <th className="p-3 font-normal">Net Earned</th>
-                    <th className="p-3 font-normal">Status</th>
+          {/* INCOME PIPELINE */}
+          <section className="space-y-6 pt-8">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-xl md:text-2xl font-bold text-[#ffffff] tracking-tight flex items-center">
+                <Database className="w-6 h-6 mr-3 text-[#86868b]" />
+                Settlement Pipeline
+              </h2>
+            </div>
+            
+            <div className="overflow-x-auto rounded-[2rem] border border-[#222222] bg-[#0a0a0a]">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
+                    <th className="py-6 px-8">Operation Trace</th>
+                    <th className="py-6 px-8">Routing Mux</th>
+                    <th className="py-6 px-8 text-right">Gross Output</th>
+                    <th className="py-6 px-8 text-right">Vault Net</th>
+                    <th className="py-6 px-8 text-center">Transaction Phase</th>
                   </tr>
                 </thead>
-                <tbody className="font-mono">
-                  <tr className="border-b border-green-500/10 hover:bg-green-900/20 transition-colors">
-                    <td className="p-3 text-blue-400">job_9f8x...3j2a</td>
-                    <td className="p-3">DeepSeek-Chat</td>
-                    <td className="p-3">0.05 USDC</td>
-                    <td className="p-3 text-green-400">+0.049 USDC</td>
-                    <td className="p-3">
-                      <span className="px-2 py-1 bg-yellow-900/30 text-yellow-400 border border-yellow-500/30 rounded text-xs flex w-max">
-                        Local Recorded
+                <tbody className="divide-y divide-[#151515]">
+                  <tr className="hover:bg-[#111111] transition-colors group">
+                    <td className="py-5 px-8 text-sm text-[#444444] font-mono group-hover:text-[#86868b] transition-colors">
+                      job_9f8x...3j2a
+                    </td>
+                    <td className="py-5 px-8 text-sm font-bold text-[#ffffff] tracking-wide">
+                      DeepSeek-Chat
+                    </td>
+                    <td className="py-5 px-8 text-sm text-[#86868b] font-mono tracking-tight text-right">
+                      0.0500 <span className="text-[10px] font-sans opacity-50">USDC</span>
+                    </td>
+                    <td className="py-5 px-8 text-sm text-[#22c55e] font-mono tracking-tight font-bold text-right">
+                      +0.0490 <span className="text-[10px] border border-[#22c55e]/30 px-1 rounded ml-1 bg-[#22c55e]/10">-2%</span>
+                    </td>
+                    <td className="py-5 px-8 text-center">
+                      <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-widest text-yellow-500 bg-yellow-500/10 border border-yellow-500/20">
+                        Local Pending
                       </span>
                     </td>
                   </tr>
-                  <tr className="border-b border-green-500/10 hover:bg-green-900/20 transition-colors">
-                    <td className="p-3 text-blue-400">tx_0xa1...b89c</td>
-                    <td className="p-3">Stable-Diffusion-XL</td>
-                    <td className="p-3">0.25 USDC</td>
-                    <td className="p-3 text-green-400">+0.245 USDC</td>
-                    <td className="p-3">
-                      <span className="px-2 py-1 bg-green-900/30 text-green-400 border border-green-500/30 rounded text-xs flex items-center gap-1 w-max">
-                        On-chain Confirmed
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                  <tr className="hover:bg-[#111111] transition-colors group">
+                    <td className="py-5 px-8 text-sm text-[#444444] font-mono group-hover:text-[#86868b] transition-colors">
+                      tx_0xa1...b89c
+                    </td>
+                    <td className="py-5 px-8 text-sm font-bold text-[#ffffff] tracking-wide">
+                      Stable-Dif-XL
+                    </td>
+                    <td className="py-5 px-8 text-sm text-[#86868b] font-mono tracking-tight text-right">
+                      0.2500 <span className="text-[10px] font-sans opacity-50">USDC</span>
+                    </td>
+                    <td className="py-5 px-8 text-sm text-[#22c55e] font-mono tracking-tight font-bold text-right">
+                      +0.2450 <span className="text-[10px] border border-[#22c55e]/30 px-1 rounded ml-1 bg-[#22c55e]/10">-2%</span>
+                    </td>
+                    <td className="py-5 px-8 text-center">
+                      <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-widest bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20">
+                        Vault Settled
                       </span>
                     </td>
                   </tr>
+                  {(!isSessionAuthenticated) && (
+                    <tr>
+                       <td colSpan={5} className="py-12 text-center">
+                          <span className="text-sm text-[#86868b]">Authenticate wallet session to view full stream</span>
+                       </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
-           </div>
-        </section>
+            </div>
+          </section>
+        </>
       )}
 
       <RoleWarningModal
@@ -259,7 +384,6 @@ export default function SellDashboard() {
         }}
         targetRole="Buyer"
       />
-
     </div>
   );
 }

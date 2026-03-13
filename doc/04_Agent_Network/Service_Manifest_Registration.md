@@ -1,18 +1,19 @@
-# Agent 友好的服务注册设计（Service ID 系统生成）
+# API 友好的服务注册设计（Service ID 系统生成）
 
 ## 1. 背景与目标
 
 当前 Seller 在注册服务时手填 `serviceId`，容易出现：
 
-- 重复/冲突（同钱包、同 Agent 下命名不一致）
+- 重复/冲突（同钱包下命名不一致）
 - 命名语义不稳定（后续重命名成本高）
-- Agent 难以仅凭 `endpoint` 推断“该怎么调用”
+- 调用方（平台或外部节点）难以仅凭 `endpoint` 推断“该怎么调用”
 
 目标：
 
 1. `serviceId` 改为系统生成，Seller 不再手填。
-2. 注册信息里补齐 **Agent 可直接执行** 的调用描述（Invoke Spec）。
+2. 注册信息里补齐 **程序可直接执行** 的调用描述（Invoke Spec）。
 3. 保持与现有支付/扣款链路兼容（仍可在链上与账务中使用 `serviceId`）。
+4. **明确系统映射关系**：废除繁杂的 Agent 层绑定，采用简洁的 `Seller 钱包地址 -> 多个 Service Keys (凭证) -> 所有注册的服务` 架构。
 
 ---
 
@@ -27,24 +28,23 @@
 
 推荐格式（兼容当前大写/下划线校验）：
 
-- `SVC_<AGENT_SHORT>_<TIME36>_<RAND4>`
+- `SVC_<SELLER_SHORT>_<TIME36>_<RAND4>`
 - 示例：`SVC_SA_0Z8K2F_7Q3N`
 
 约束：
 
 - 全局唯一
 - 创建后不可修改
-- 在 `ownerAddress + agentId` 维度建立唯一索引
+- 在 `ownerAddress` 维度建立唯一索引
 
 ---
 
-## 3. Agent 友好的服务注册模型
+## 3. 调用方友好的服务注册模型
 
-> 面向 Agent 的核心不是“一个 endpoint 字符串”，而是“完整调用契约”。
+> 核心不是“一个 endpoint 字符串”，而是“完整调用契约”。Seller 的所有服务默认被统管在 `Seller 钱包地址` 麾下，通过签发多个不同限额或策略的 `Service Keys` 进行调用的鉴权与分发。
 
 ### 3.1 Seller 创建时保留字段（必填）
 
-- `agentId`: 归属 Agent
 - `serviceName`: 服务显示名（如“获取名人名言”）
 - `pricing`: 单价（USDC）
 - `isActive`: 是否可调用
@@ -59,10 +59,10 @@
 
 - `summary`: 服务一句话说明
 - `tags`: 能力标签（如 `quote`, `chinese`, `inspiration`）
-- `auth.type`: `none | bearer | api_key | agent_credential`
+- `auth.type`: `none | bearer | api_key | service_key`
 - `auth.headerName`: 例如 `Authorization` / `X-API-Key`
 - `invoke.headersTemplate`: 固定或模板化请求头
-- `invoke.examples`: 示例请求（便于 Agent few-shot）
+- `invoke.examples`: 示例请求（便于 few-shot）
 - `version`: `v1`、`v1.1`
 
 ### 3.3 系统生成/回填字段
@@ -75,7 +75,7 @@
 
 ---
 
-## 4. 基于你给的接口，如何让 Agent 知道怎么调用
+## 4. 基于调用契约的发起方式
 
 你的实际接口：
 
@@ -124,18 +124,18 @@
 }
 ```
 
-这样 Agent 在运行时无需猜测字段名，只需：
+这样调用网关和接入端在运行时只需：
 
 1. 拉取服务注册信息。
 2. 按 `invoke.request.schema` 组装参数。
-3. 按 `invoke.method + invoke.url` 发请求。
+3. 附加对应的 `Service Key` 凭证发起请求。
 4. 按 `invoke.response.schema` 解析结果。
 
 ---
 
 ## 5. 建议的注册 API（V2）
 
-### 5.1 Create（Seller 不再提交 `serviceId`）
+### 5.1 Create（Seller 不再提交 `serviceId`，去除 AgentId）
 
 `POST /api/v2/services`
 
@@ -143,7 +143,6 @@
 
 ```json
 {
-  "agentId": "seller-agent",
   "serviceName": "获取名人名言",
   "role": "Provider / Seller",
   "address": "0x...",
@@ -185,7 +184,6 @@
   "service": {
     "id": "2f3f...",
     "serviceId": "SVC_SA_0Z8K2F_7Q3N",
-    "agentId": "seller-agent",
     "serviceName": "获取名人名言",
     "pricing": "0.05",
     "isActive": true,
@@ -207,7 +205,6 @@
 
 `Register Service` 表单字段建议：
 
-- `Agent`
 - `Service Name`
 - `Pricing`
 - `Endpoint URL`
@@ -218,35 +215,44 @@
 
 页面行为：
 
-- 不展示可编辑 `serviceId` 输入框
-- 创建成功后在结果卡片展示只读 `serviceId`
-- 支持“复制 serviceId”按钮（供对账/排障）
+- 彻底去除 `Agent` 相关的选择框或绑定关系。
+- 不展示可编辑 `serviceId` 输入框。
+- 创建成功后在结果卡片展示只读 `serviceId`。
+- 支持“复制 serviceId”按钮（供对账/排障）。
 
 ---
 
 ## 7. 与现有系统兼容策略
 
 1. 直接停用旧接口：`/api/v1/services*` 不再使用。
-2. 前端与后端统一使用：`POST /api/v2/services`、`PUT /api/v2/services/{id}`、`DELETE /api/v2/services/{id}`、`GET /api/v2/services`。
-3. 服务注册请求体统一为新契约：`serviceName + pricing + isActive + invoke(...)`。
+2. 前端与后端统一使用新版模型：`POST /api/v2/services`、`PUT /api/v2/services/{id}`。
+3. 服务注册请求体统一为新契约。
 4. 扣款/结算/账单继续使用系统生成的 `serviceId` 作为稳定关联键。
 
 ---
 
-## 8. Agent 执行侧最小协议（建议）
+## 8. 平台全生命周期调用与对账协议 (The `requestId` 追溯机制)
 
-Agent 拿到服务后，按以下顺序执行：
+为了对标 Google Cloud、Stripe 等一线 API 大厂的安全极简设计，我们在“服务调用与计费链条”上做彻底剥离，防范重放/漏重调用风险：
 
-1. 校验 `isActive == true`
-2. 校验 `auth` 需求并注入凭证
-3. 按 `invoke.request.schema` 校验输入
-4. 发起 HTTP 调用（超时使用 `invoke.timeoutMs`）
-5. 按 `invoke.response.schema` 解析
-6. 记录 `request_id + serviceId + status + latency_ms`
+**核心原则：** 
+买家发起 `buy` 请求平台，指定 `serviceId`。一切操作建立在全局唯一 `requestId` 作为审计追踪的生命线，贯穿请求从发起到交割的全部周期。
+
+1. **请求建立与唯一凭证分发**：
+   买家调用发起，网关随即生成（或接收客户端发来的）统一 `requestId` (UUIDv4)。
+2. **中心化双重校验与限流日志**：
+   平台记录该请求日志信息，包含 `requestId`、`serviceId`。网关检查请求关联的 `Service Key` 执行限流配置（RPM等）并校验底层账户余额。
+3. **透传标识 (Gateway -> Seller)**：
+   验证通过放标后，平台往 Seller 服务 endpoint 发送真实服务内容，并**在请求 Header 携带该单的 `X-Synapse-Request-Id`**（以及用于防伪验签的防篡改签名）。
+4. **卖家节点履约验证 (Seller)**：
+   **卖家必须接收网关转发的 `requestId`，并将其记录在本地流水中**，以此唯一标识业务处理的发生（防御高并发重试引发的多扣费与多执行）。一旦给出成功执行结果（如 `200 OK`），平台内部扣费逻辑闭环。
+5. **对账与审计 (Auditing)**：
+   后期任何费用对账、申诉核查，业务层不再直接卷入资金讨论，双方只凭全局唯一的 `requestId` 比对是否确有这一笔网关路由。一单必定只有且只有一个 RequestId 对应。
 
 ---
 
-## 9. 一句话落地建议
+## 9. 落地总结
 
-- 现在就可执行：**先在产品与接口层废除手填 `serviceId`，改为后端生成；同时在注册模型加入 `invoke` 契约字段。**
-- 这样你的 Agent 能“看文档即调用”，而不是“猜字段名调用”。
+**从产品层面、API网关到 Seller 落地模型，全面剪除中间 Agent 的层级复杂度，只保留：** 
+`Seller Wallet (资产账本)` -> `配签的 Service Keys (调用鉴权控制)` -> `Services (实际模型处理)`。
+在调用路径中贯入 `requestId` 进行幂等追查，构筑兼具简单与防超扣安全的企业级 API 结算网关。
