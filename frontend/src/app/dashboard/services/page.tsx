@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Server, Plus, Activity, ShieldAlert, RefreshCw, X, CheckCircle2, ShieldCheck, Copy } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { discoverServices, listServiceRegistry, rotateServiceKey, testServicePing, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { useAuth } from "@/components/WalletAuthGuard";
 
@@ -25,7 +27,9 @@ function formatPricing(value: unknown): string {
 }
 
 export default function ServicesPage() {
+  const router = useRouter();
   const { address } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated } = useAuth();
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   const [services, setServices] = useState<any[]>([]);
@@ -133,6 +137,14 @@ export default function ServicesPage() {
     setPingSuccess(null);
   };
 
+  const handleOpenDeployManifest = () => {
+    if (!address) {
+      openConnectModal?.();
+      return;
+    }
+    router.push("/dashboard/services/deploy");
+  };
+
   return (
     <div className="p-8 mx-auto space-y-8 max-w-7xl">
       <div className="flex items-center justify-between pb-4 border-b border-gray-800">
@@ -148,13 +160,13 @@ export default function ServicesPage() {
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Dashboard
           </Link>
-          <Link 
-            href="/dashboard/services/deploy"
+          <button
+            onClick={handleOpenDeployManifest}
             className="flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600"
           >
             <Plus className="w-5 h-5 mr-2" />
             Deploy Manifest
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -175,13 +187,13 @@ export default function ServicesPage() {
           <Server className="w-12 h-12 mx-auto mb-4 text-gray-600" />
           <h3 className="mb-2 text-xl font-bold text-white">No Services Found</h3>
           <p className="mb-6 text-gray-400">You haven&apos;t deployed any Service Manifests yet.</p>
-          <Link 
-            href="/dashboard/services/deploy"
+          <button
+            onClick={handleOpenDeployManifest}
             className="inline-flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600"
           >
             <Plus className="w-5 h-5 mr-2" />
             Deploy Your First API
-          </Link>
+          </button>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">

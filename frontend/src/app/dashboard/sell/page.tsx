@@ -4,14 +4,15 @@ import React, { useState } from "react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { listApiSecrets } from "@/utils/serviceApi";
-import Link from "next/link";
 import { Activity, Key, Database, Zap, Server, ArrowRight, TerminalSquare, RefreshCw, Plus } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function SellDashboard() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
@@ -22,7 +23,7 @@ export default function SellDashboard() {
 
   const handlePublishClick = async () => {
     if (!address) {
-      toast.error("Please connect your wallet first.");
+      openConnectModal?.();
       return;
     }
     try {
@@ -59,10 +60,13 @@ export default function SellDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Link href="/provider/services/deploy" className="hidden md:flex items-center px-6 py-3 text-sm font-bold text-black transition-colors bg-white rounded-xl hover:bg-gray-200">
+          <button
+            onClick={() => void handlePublishClick()}
+            className="hidden md:flex items-center px-6 py-3 text-sm font-bold text-black transition-colors bg-white rounded-xl hover:bg-gray-200"
+          >
             <Plus className="w-4 h-4 mr-2" />
             Deploy Manifest
-          </Link>
+          </button>
           <button
             onClick={handleRefresh}
             className="p-3 text-[#86868b] transition-colors bg-[#0a0a0a] border border-[#222222] rounded-xl hover:bg-[#111111] hover:text-[#ffffff]"
