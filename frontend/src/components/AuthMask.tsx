@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Loader2, ShieldCheck, Wallet } from "lucide-react";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 
 interface AuthMaskProps {
   children: ReactNode;
   allowChallengeAuthorize?: boolean;
   allowSessionAuthorize?: boolean;
+  autoAuthorizeOnConnect?: boolean;
   sessionHelpText?: string;
   sessionRecoveryHref?: string;
   sessionRecoveryLabel?: string;
@@ -19,11 +20,42 @@ export default function AuthMask({
   children,
   allowChallengeAuthorize = true,
   allowSessionAuthorize = true,
+  autoAuthorizeOnConnect = true,
   sessionHelpText,
   sessionRecoveryHref,
   sessionRecoveryLabel = "Go to Sign-In",
 }: Readonly<AuthMaskProps>) {
-  const { isConnected, isSessionAuthenticated, authError, isAuthorizing, authorize } = useAuth();
+  const { isConnected, isSessionAuthenticated, address, authError, isAuthorizing, authorize } = useAuth();
+
+  const autoTriedWalletRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!autoAuthorizeOnConnect) return;
+
+    if (!isConnected || !address) {
+      autoTriedWalletRef.current = null;
+      return;
+    }
+
+    if (isSessionAuthenticated || isAuthorizing) return;
+
+    if (!allowChallengeAuthorize && !allowSessionAuthorize) return;
+
+    const normalized = address.toLowerCase();
+    if (autoTriedWalletRef.current === normalized) return;
+
+    autoTriedWalletRef.current = normalized;
+    void authorize();
+  }, [
+    autoAuthorizeOnConnect,
+    isConnected,
+    address,
+    isSessionAuthenticated,
+    isAuthorizing,
+    allowChallengeAuthorize,
+    allowSessionAuthorize,
+    authorize,
+  ]);
 
   const isMasked = !isConnected || !isSessionAuthenticated;
 
