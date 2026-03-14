@@ -5,12 +5,8 @@ import { useEffect, useState } from "react";
 import { ServiceRegistryRecord, discoverServices } from "@/utils/serviceApi";
 import { Copy, TerminalSquare, Activity, Globe } from "lucide-react";
 import toast from "react-hot-toast";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
 
 export default function DiscoverPage() {
-  const { isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
   const [intent, setIntent] = useState("");
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,10 +26,6 @@ export default function DiscoverPage() {
   };
 
   const handleDiscoverClick = async () => {
-    if (!isConnected) {
-      openConnectModal?.();
-      return;
-    }
     await handleSearch();
   };
 
@@ -168,8 +160,8 @@ export default function DiscoverPage() {
                         <Copy className="w-4 h-4" />
                       </button>
                       <Link
-                        href={`/dashboard/router`}
-                        title="Open in Router"
+                        href="/dashboard/console"
+                        title="Open in Console"
                         className="p-2 text-green-400 transition-colors border border-green-900 rounded bg-green-900/20 hover:bg-green-500 hover:text-black"
                       >
                         <TerminalSquare className="w-4 h-4" />
