@@ -1,7 +1,7 @@
 # Provider Service (Standalone Python API)
 
 用于测试“平台接入第三方服务”场景的独立 Python 微服务。
-当前提供 2 个接口：
+当前提供 2 个接口（本地测试模式）：
 - 输入字符串，返回 1 条名人名言
 - 输入字符串，返回 3 条名人名言
 
@@ -28,7 +28,9 @@ provider_service/
     schemas/
       quote.py                    # 请求/响应模型
     services/
-      deepseek_client.py          # DeepSeek 调用封装
+      deepseek_client.py          # 本地名言数据源封装（JSON 轮询）
+    data/
+      famous_quotes_100.json      # 100 条名言测试数据
   .env.example
   requirements.txt
   README.md
@@ -57,8 +59,8 @@ provider_service/
 {
   "input_text": "关于勇气",
   "quote": "勇气是压力下的优雅。—— 海明威",
-  "model": "deepseek-chat",
-  "source": "deepseek"
+  "model": "local-json-100",
+  "source": "local_json"
 }
 ```
 
@@ -83,8 +85,8 @@ provider_service/
     "滴水穿石，不是力量大，而是功夫深。—— 佚名",
     "千里之行，始于足下。—— 老子"
   ],
-  "model": "deepseek-chat",
-  "source": "deepseek"
+  "model": "local-json-100",
+  "source": "local_json"
 }
 ```
 
@@ -108,7 +110,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY
+# 本地 JSON 模式下无需配置 DEEPSEEK_API_KEY
 ```
 
 4. 启动服务
@@ -141,3 +143,12 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 - 独立 schema
 - 独立 service 封装
 - 路由层只做参数校验与错误映射
+
+## 本地测试数据说明
+
+- 数据文件：`app/data/famous_quotes_100.json`
+- 数据量：100 条
+- 行为：
+  - `/famous` 每次返回 1 条（轮询）
+  - `/famous/top3` 每次连续返回 3 条（轮询）
+- 目的：联调与压测阶段稳定复现，不依赖外部模型服务可用性

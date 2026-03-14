@@ -9,11 +9,11 @@ class QuoteResponse(BaseModel):
     input_text: str
     quote: str
     model: str
-    source: str = "deepseek"
+    source: str = "local_json"
 
 
 class QuoteTop3Response(BaseModel):
     input_text: str
     quotes: list[str]
     model: str
-    source: str = "deepseek"
+    source: str = "local_json"
