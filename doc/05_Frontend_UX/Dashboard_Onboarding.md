@@ -299,9 +299,15 @@ Router 页面固定展示 3 条 setup 状态：
 
 | 钱包状态 | 登录态 (Token) | UI 展示表现 | 行为引导 |
 | :--- | :--- | :--- | :--- |
-| ❌ 未连接 | ❌ 无/过期 | **展示页面框架**。敏感数据（如 API Key 列表、余额、调用流水）使用高斯模糊（Blur）遮罩。右上角显示 `Connect Wallet`。 | 点击遮罩层上的按钮，弹出 `Connect Wallet`，然后连带触发 `Sign to Verify`。 |
-| ✅ 已连接 | ❌ 无/过期 | **展示页面框架**。右上角显示钱包地址，但数据区依然被 Blur 遮罩。因为只能读链上数据，无法调后端 API。 | 遮罩层提示 `Session Expired`，提供 `Sign in to view data` 按钮触发签名更新 Token。 |
+| ❌ 未连接 | ❌ 无/过期 | **展示页面框架**。敏感数据（如 API Key 列表、余额、调用流水）使用高斯模糊（Blur）遮罩。右上角显示 `Connect Wallet`。 | 点击遮罩层上的按钮，弹出 `Connect Wallet`；连接完成后自动触发 `Sign to Verify`（Connect + Session Login 合并为一条流）。 |
+| ✅ 已连接 | ❌ 无/过期 | **展示页面框架**。右上角显示钱包地址，但数据区依然被 Blur 遮罩。因为只能读链上数据，无法调后端 API。 | 默认自动尝试补齐 session；若用户拒签，则保留手动 `Sign in to view data` 按钮。 |
 | ✅ 已连接 | ✅ 有效 | **完全展示**。所有私密数据正常加载，右上角正常显示连接状态。 | 正常使用。 |
+
+### 15.2.1 Buyer Workspace 强制重连策略
+
+- 对 `CONSUMER`（买家）角色，若 session 过期或校验失效，前端会主动断开钱包连接（disconnect）。
+- 用户必须重新连接钱包并重新签名，以重建完整会话链路（Wallet Connected + Session Authenticated）。
+- 目的：避免“地址仍连接但 token 已失效”的假在线状态，降低买家控制台误操作风险。
 
 ### 15.3 局部组件级遮罩 (Glassmorphism Blur) 规范
 - **视觉层面**: 对于 `Buyer Console`, `Developer Console`, `Billing` 等页面的核心数据区域（如 Table, Card 列表），在无 Token 时渲染真实组件结构但叠加一层 `backdrop-blur-sm` 的磨砂玻璃效果层。
