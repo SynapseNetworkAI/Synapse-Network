@@ -21,7 +21,6 @@ export default function SellDashboard() {
 
   const {
     services,
-    paidEvents,
     providerStats,
     handleRefresh: loadDashboardData
   } = useDashboardData();
@@ -103,7 +102,7 @@ export default function SellDashboard() {
           <div className="flex items-end justify-between">
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-[800] text-[#ffffff] font-mono tracking-tighter group-hover:text-[#22c55e] transition-colors">
-                {isConnected ? providerStats.netEarned.toFixed(2) : "0.00"}
+                {isConnected ? providerStats.receivable.toFixed(2) : "0.00"}
               </span>
               <span className="text-xs text-[#86868b] font-bold">USDC</span>
             </div>
@@ -126,7 +125,7 @@ export default function SellDashboard() {
           </h3>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-[800] text-[#ffffff] font-mono tracking-tighter">
-              {isConnected ? paidEvents.length.toLocaleString() : "0"}
+              {isConnected ? providerStats.totalApiCalls.toLocaleString() : "0"}
             </span>
           </div>
         </div>
@@ -144,6 +143,7 @@ export default function SellDashboard() {
             {isConnected ? (
               <span className="flex items-center text-[10px] uppercase font-bold tracking-widest text-[#22c55e] bg-[#22c55e]/10 px-2 py-1 rounded-md border border-[#22c55e]/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse mr-2"></span>
+                {" "}
                 Online
               </span>
             ) : (
@@ -289,6 +289,7 @@ export default function SellDashboard() {
                     <td className="py-5 px-8 text-center">
                       <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-widest bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/20">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] mr-2"></span>
+                        {" "}
                         Online
                       </span>
                     </td>

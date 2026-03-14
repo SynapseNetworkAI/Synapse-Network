@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from typing import Dict, Any, Annotated, Optional
 
-from src.api.deps import get_balance_service
+from src.api.deps import get_balance_service, get_provider_analytics_service
 from src.models.pydantic_models import DepositIntentRequest, RefundIntentRequest, RouterConfigRequest
 from src.services.balance_service import BalanceService
+from src.services.provider_analytics_service import ProviderAnalyticsService
 from src.services import credential_service
 from src.services.v2_indexer import get_indexer_status
 from src.core.common import normalize_wallet
@@ -206,6 +207,19 @@ async def get_usage_logs(
         "status": "success",
         "logs": filtered[:limit],
         "count": len(filtered[:limit]),
+    }
+
+
+@router.get("/v1/providers/earnings/summary")
+async def get_provider_earnings_summary(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    analytics_service: Annotated[ProviderAnalyticsService, Depends(get_provider_analytics_service)],
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+):
+    summary = analytics_service.get_provider_earnings_summary(owner_wallet, limit)
+    return {
+        "status": "success",
+        "summary": summary,
     }
 
 

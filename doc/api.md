@@ -195,6 +195,53 @@
 - **Payload** (`PUT`): `{ defaultRate?: number, ownerRates?: Record<wallet, rate> }` with rate in `[0,1]`.
 - **Effect**: controls internal settlement `feeRate` resolution priority on generate path.
 
+### 3.9 Provider 收益汇总 (Provider Earnings Summary)
+
+- **Path**: `GET /api/v1/providers/earnings/summary`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Desc**: 从网关数据库聚合卖家收益，作为 Provider Console 的 KPI 数据源（不依赖链上 `ServicePaid` 事件）。
+- **Query**:
+  - `limit` (`1..500`, optional, default `200`): 返回最近调用明细条数。
+- **Idempotency / 去重规则**:
+  - 聚合时以 `request_id` 为唯一键去重，仅统计 `status=succeeded` 的卖家调用。
+  - 若同一 `request_id` 出现多条记录，按 `created_at` 最新一条生效，其他计入 `duplicateRowsDropped`。
+- **Returns (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "summary": {
+      "ownerAddress": "0x...",
+      "totalApiCalls": 128,
+      "totalEarned": 64.0,
+      "totalProtocolFee": 6.4,
+      "totalRoutingTax": 0.0128,
+      "sellerNetEarned": 57.6,
+      "sellerReceivable": 57.6,
+      "duplicateRowsDropped": 2,
+      "idempotencyKey": "request_id",
+      "recentCalls": [
+        {
+          "requestId": "buyer-trace-001",
+          "serviceId": "SVC_xxx",
+          "status": "succeeded",
+          "unitPrice": 1.0,
+          "protocolFee": 0.1,
+          "routingTax": 0.0001,
+          "sellerNet": 0.9,
+          "createdAt": 1773417000
+        }
+      ]
+    }
+  }
+  ```
+
+- **Settlement 口径（与网关记账保持一致）**:
+  - `totalEarned = Σ unitPrice`
+  - `totalProtocolFee = Σ protocolFee`
+  - `totalRoutingTax = Σ routingTax`
+  - `sellerNetEarned = Σ sellerNet`
+  - `sellerReceivable` 直接读取 `balance_ledger.sellers[owner]`，用于提现余额显示。
+
 ---
 
 ## 4. 卖家机器经济与 AI 服务 (Seller Network Services)

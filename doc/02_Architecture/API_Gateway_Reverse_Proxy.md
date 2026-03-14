@@ -85,6 +85,21 @@
 
 该拆分遵循高内聚低耦合原则：策略规则与副作用（账本写入/网络 IO）分离，便于单元测试精准覆盖与后续横向扩展（例如替换存储实现、替换路由策略）。
 
+### 3.6 Provider 收益可观测设计（DB-first）
+
+Provider Console 的收益面板采用网关数据库作为主数据源，而不是链上事件回放：
+
+1. 结算真相源
+  - `usage_log`：单次调用结算明细（`unit_price/protocol_fee/routing_tax/seller_net/request_id/status`）。
+  - `balance_ledger.sellers[owner]`：卖家可提现余额（`sellerReceivable`）。
+2. 聚合原则
+  - 只聚合 `status=succeeded`。
+  - 以 `request_id` 去重，避免重试或重复写日志导致重复统计。
+  - 同 request_id 多条时保留最新 `created_at`。
+3. 可验证性
+  - 汇总接口返回 `duplicateRowsDropped` 与 `idempotencyKey=request_id`，便于审计“是否发生重复日志”。
+  - 汇总结果应满足：`sellerReceivable` 与账本余额一致；`sellerNetEarned` 与去重后的明细求和一致。
+
 ---
 
 ## 4. 生产级进阶扩展 (Phase 2 & Phase 3)

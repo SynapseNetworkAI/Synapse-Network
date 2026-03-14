@@ -171,6 +171,38 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
                 assert "sellerNet" not in receipt
 
                 _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 1.9999, 0.9, 0.1001)
+
+                summary_resp = client.get(
+                    "/api/v1/providers/earnings/summary?limit=20",
+                    headers=_auth_headers(buyer_token, seller_wallet),
+                )
+                assert summary_resp.status_code == 200
+                summary = summary_resp.json().get("summary", {})
+                assert summary.get("ownerAddress") == seller_wallet.lower()
+                assert int(summary.get("totalApiCalls", 0)) == 1
+                assert abs(float(summary.get("totalEarned", 0.0)) - 1.0) < 1e-9
+                assert abs(float(summary.get("totalProtocolFee", 0.0)) - 0.1) < 1e-9
+                assert abs(float(summary.get("totalRoutingTax", 0.0)) - 0.0001) < 1e-9
+                assert abs(float(summary.get("sellerNetEarned", 0.0)) - 0.9) < 1e-9
+                assert abs(float(summary.get("sellerReceivable", 0.0)) - 0.9) < 1e-9
+                assert int(summary.get("duplicateRowsDropped", 0)) == 0
+                assert summary.get("idempotencyKey") == "request_id"
+
+                usage_rows = app.state.storage.get_collection("usage_log") or []
+                assert isinstance(usage_rows, list)
+                assert usage_rows, "usage_log should have at least one settled row"
+                duplicated = dict(usage_rows[0])
+                usage_rows.append(duplicated)
+                app.state.storage.save_collection("usage_log", usage_rows)
+
+                dedup_resp = client.get(
+                    "/api/v1/providers/earnings/summary?limit=20",
+                    headers=_auth_headers(buyer_token, seller_wallet),
+                )
+                assert dedup_resp.status_code == 200
+                dedup_summary = dedup_resp.json().get("summary", {})
+                assert int(dedup_summary.get("totalApiCalls", 0)) == 1
+                assert int(dedup_summary.get("duplicateRowsDropped", 0)) >= 1
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
