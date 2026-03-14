@@ -60,6 +60,8 @@ python3 seller_fastapi.py
 
 All docs are under [doc/](doc/README.md).
 
+Contribution workflow and quality gates are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ### 1) Product Vision
 - [doc/01_Product_Vision](doc/01_Product_Vision)
 
