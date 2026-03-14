@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { getV2Balance } from "@/utils/balanceApi";
 import { listUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 import { clearAuthSession } from "@/utils/authSession";
+import { useAuth } from "@/components/WalletAuthGuard";
 
 const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
 
@@ -16,7 +17,8 @@ export type BuyerStats = {
 };
 
 export function useBuyerData() {
-  const { address: userAddress } = useAccount();
+  const { address: userAddress, isConnected } = useAccount();
+  const { isSessionAuthenticated } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const [stats, setStats] = useState<BuyerStats>({
@@ -77,7 +79,7 @@ export function useBuyerData() {
   }, []);
 
   useEffect(() => {
-    if (userAddress) {
+    if (isConnected && userAddress && isSessionAuthenticated) {
       void fetchBuyerData(userAddress);
     } else {
       setStats({
@@ -88,15 +90,15 @@ export function useBuyerData() {
       });
       setLogs([]);
     }
-  }, [userAddress, fetchBuyerData]);
+  }, [isConnected, isSessionAuthenticated, userAddress, fetchBuyerData]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    if (userAddress) {
+    if (isConnected && userAddress && isSessionAuthenticated) {
       await fetchBuyerData(userAddress);
     }
     setTimeout(() => setIsRefreshing(false), 500);
-  }, [userAddress, fetchBuyerData]);
+  }, [isConnected, isSessionAuthenticated, userAddress, fetchBuyerData]);
 
   return {
     userAddress,
