@@ -153,6 +153,12 @@ Connect + Login merged policy:
 1. For wallet connect and reconnect events, connect and session login are treated as one continuous flow when session is missing.
 2. System attempts authorization once automatically immediately after connect/reconnect.
 3. Manual `Authorize Login` remains available as deterministic recovery path.
+4. Auth signing only supports single-account wallet selection at connect time. If multiple accounts are selected, frontend prompts user to keep one account and reconnect.
+
+Wallet modal UX baseline:
+
+1. Use compact RainbowKit modal (`modalSize=compact`) as default web login surface to avoid heavy full-screen feeling.
+2. If a wallet app itself enters full-screen account selection, treat it as wallet-native behavior; frontend should still keep pre/post prompts concise and deterministic.
 
 ## 8.2 Page Auth Matrix (Frontend)
 

@@ -54,6 +54,24 @@ function isWalletUnstableError(msg: string): boolean {
 
 const SESSION_EXPIRED_TOAST_ID = "session-expired-reconnect";
 const SESSION_EXPIRED_TOAST_COOLDOWN_MS = 2500;
+const WALLET_SELECTION_TOAST_ID = "wallet-selection-single-account";
+
+async function readInjectedAccounts(): Promise<string[]> {
+  const ethereum = (globalThis as { ethereum?: { request: (args: { method: string }) => Promise<unknown> } }).ethereum;
+  if (!ethereum) {
+    return [];
+  }
+
+  try {
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+    if (!Array.isArray(accounts)) {
+      return [];
+    }
+    return accounts.filter((item): item is string => typeof item === "string" && item.length > 0);
+  } catch {
+    return [];
+  }
+}
 
 export default function WalletAuthGuard({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isConnected, address } = useAccount();
@@ -155,6 +173,22 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       return;
     }
 
+    if (errorMsg.includes("Connector not connected")) {
+      setAuthError("Wallet connector is not ready. Please reconnect wallet and try authorize again.");
+      toast("Wallet not fully connected yet. Please reconnect and retry.", { icon: "🔌" });
+      return;
+    }
+
+    if (errorMsg.includes("Multiple wallet accounts selected")) {
+      setAuthError("Please select only one wallet account, then reconnect.");
+      toast("Please select only one account in wallet, then reconnect.", {
+        icon: "1️⃣",
+        id: WALLET_SELECTION_TOAST_ID,
+      });
+      forceReconnectIfNeeded();
+      return;
+    }
+
     if (isWalletUnstableError(errorMsg)) {
       setAuthError("Wallet connection is unstable. Please disconnect and reconnect your wallet, then try again.");
       toast("Wallet connection unstable. Please reconnect wallet and retry.", { icon: "⚠️" });
@@ -168,14 +202,19 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
     }
 
     toast.error("Auth failed: " + errorMsg);
-  }, []);
+  }, [forceReconnectIfNeeded]);
 
   const authorize = useCallback(async (): Promise<boolean> => {
-    if (!address) return false;
+    if (!address || !isConnected) return false;
     setIsAuthorizing(true);
     setAuthError(null);
 
     try {
+      const connectedAccounts = await readInjectedAccounts();
+      if (connectedAccounts.length > 1) {
+        throw new Error("Multiple wallet accounts selected. Please keep only one account selected, then reconnect.");
+      }
+
       const existing = getStoredAuthSession();
       if (existing?.wallet === address.toLowerCase()) {
         setVerifiedWallet(existing.wallet);
@@ -201,7 +240,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       handleAuthorizeFailure(error);
       return false;
     }
-  }, [address, signChallengeMessage, handleAuthorizeFailure]);
+  }, [address, isConnected, signChallengeMessage, handleAuthorizeFailure]);
 
   const isSessionAuthenticated = Boolean(verifiedWallet && !authError && !isAuthorizing && isConnected && address);
 

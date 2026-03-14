@@ -18,9 +18,9 @@ const queryClient = new QueryClient();
 
 // 核心修复：防止 WalletConnect 的底层依赖(idb-keyval) 在 Next.js 服务端预渲染时因找不到浏览器环境的 indexedDB 报错崩溃
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (typeof window === "undefined" && typeof global !== "undefined" && typeof (global as any).indexedDB === "undefined") {
+if (globalThis.window === undefined && (globalThis as any).indexedDB === undefined) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (global as any).indexedDB = {
+  (globalThis as any).indexedDB = {
     open: () => ({
       onupgradeneeded: null,
       onsuccess: null,
@@ -30,17 +30,17 @@ if (typeof window === "undefined" && typeof global !== "undefined" && typeof (gl
     })
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (global as any).IDBKeyRange = {
+  (globalThis as any).IDBKeyRange = {
     bound: () => ({}),
     lowerBound: () => ({}),
     upperBound: () => ({}),
     only: () => ({})
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (global as any).DOMException = class DOMException extends Error {};
+  (globalThis as any).DOMException = class DOMException extends Error {};
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -56,8 +56,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
     };
 
-    window.addEventListener("unhandledrejection", handleUnhandledRejection);
-    return () => window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    globalThis.window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    return () => globalThis.window.removeEventListener("unhandledrejection", handleUnhandledRejection);
   }, []);
 
   return (
@@ -67,7 +67,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           accentColor: "#7b3fe4",
           accentColorForeground: "white",
           borderRadius: "medium",
-        })}>
+        })} modalSize="compact">
           {mounted && children}
         </RainbowKitProvider>
       </QueryClientProvider>
