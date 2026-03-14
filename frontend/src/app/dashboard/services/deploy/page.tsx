@@ -69,6 +69,10 @@ const collectOverrideChanges = (parsed: Partial<ServiceManifest>, current: Servi
   return changed;
 };
 
+const isObjectRecord = (value: unknown): value is Record<string, unknown> => {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+};
+
 // Extracted from api_gateway_reverse_proxy_design.md
 interface ServiceManifest {
   service_name: string;
@@ -178,15 +182,21 @@ export default function DeployManifestPage() {
     );
   };
 
-  const applyParsedManifest = (parsed: Partial<ServiceManifest>) => {
+  const applyParsedManifest = (parsed: unknown) => {
+    if (!isObjectRecord(parsed)) {
+      return false;
+    }
+
+    const normalized = parsed as Partial<ServiceManifest>;
     setManifest((prev) => ({
       ...prev,
-      ...parsed,
-      input_schema: parsed.input_schema || prev.input_schema,
-      output_schema: parsed.output_schema || prev.output_schema,
-      pricing: parsed.pricing || prev.pricing,
-      constraints: parsed.constraints || prev.constraints,
+      ...normalized,
+      input_schema: normalized.input_schema || prev.input_schema,
+      output_schema: normalized.output_schema || prev.output_schema,
+      pricing: normalized.pricing || prev.pricing,
+      constraints: normalized.constraints || prev.constraints,
     }));
+    return true;
   };
 
   const confirmAndInject = () => {
@@ -201,7 +211,11 @@ export default function DeployManifestPage() {
         toast("No manifest changes detected.", { icon: "ℹ️" });
         return;
       }
-      applyParsedManifest(parsed);
+      const applied = applyParsedManifest(parsed);
+      if (!applied) {
+        toast.error("Parsed payload is empty or invalid JSON object.");
+        return;
+      }
       setShowAIModal(false);
       toast.success(`Applied ${changes.length} field updates to form.`);
     } catch {
@@ -256,7 +270,10 @@ export default function DeployManifestPage() {
       const payload = await res.json();
       
       if (payload.status === "success") {
-        const parsed = payload.data as Partial<ServiceManifest>;
+        const parsed = payload.data;
+        if (!isObjectRecord(parsed)) {
+          throw new Error("Parser returned empty manifest payload.");
+        }
         setAIResponse(JSON.stringify(parsed, null, 2));
         applyParsedManifest(parsed);
         if (payload.fallback) {
