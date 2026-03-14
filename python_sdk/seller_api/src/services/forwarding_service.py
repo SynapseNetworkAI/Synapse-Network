@@ -1,95 +1,21 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
-from uuid import uuid4
-import re
-import json
 import random
 
-import httpx
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.models.pydantic_models import InferenceRequest
 from src.services import credential_service
+from src.services import forwarding_billing
+from src.services import forwarding_upstream
+from src.services import forwarding_validation
 from src.storage import BaseStorage
 
+# Shared best-effort runtime caches. Redis is preferred in production; memory fallback keeps dev mode usable.
 _redis_client = None
 _memory_window_counters: Dict[str, Tuple[float, int]] = {}
-
-_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
-_SERVICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
-_CREDENTIAL_PATTERN = re.compile(r"^agt_[A-Za-z0-9]+$")
-_MAX_PROMPT_LENGTH = 8000
-_MAX_SERVICE_ID_LENGTH = 128
-_MAX_REQUEST_ID_LENGTH = 128
-_MAX_CREDENTIAL_LENGTH = 128
-_MAX_TARGET_WEIGHT = 10000
-
-
-def _as_int(raw: Any, fallback: int) -> int:
-    try:
-        return int(raw)
-    except Exception:
-        return int(fallback)
-
-
-def _effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
-    raw = service.get("constraints") if isinstance(service.get("constraints"), dict) else {}
-    timeout_ms = _as_int(raw.get("timeoutMs"), 3000)
-    max_request_bytes = _as_int(raw.get("maxRequestBytes"), 4096)
-    max_response_bytes = _as_int(raw.get("maxResponseBytes"), 2048)
-    max_qps = _as_int(raw.get("maxQps"), 50)
-
-    timeout_ms = min(max(timeout_ms, settings.gateway_min_timeout_ms), settings.gateway_max_timeout_ms)
-    max_request_bytes = min(max(max_request_bytes, settings.gateway_min_request_bytes), settings.gateway_max_request_bytes)
-    max_response_bytes = min(max(max_response_bytes, settings.gateway_min_response_bytes), settings.gateway_max_response_bytes)
-    max_qps = min(max(max_qps, settings.gateway_min_service_qps), settings.gateway_max_service_qps)
-
-    return {
-        "timeoutMs": timeout_ms,
-        "maxRequestBytes": max_request_bytes,
-        "maxResponseBytes": max_response_bytes,
-        "maxQps": max_qps,
-    }
-
-
-def _sanitize_fee_rate(raw: Any, fallback: float) -> float:
-    try:
-        value = float(raw)
-    except Exception:
-        return float(fallback)
-    if value < 0:
-        return 0.0
-    if value > 1:
-        return 1.0
-    return value
-
-
-def _resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float:
-    # Priority: owner override -> runtime default override -> global setting.
-    # Reserved for future admin UI controls without changing billing call path.
-    fallback = _sanitize_fee_rate(settings.platform_fee_rate, 0.10)
-    policy = storage.get_collection("platform_fee_policy") or {}
-    if not isinstance(policy, dict):
-        return fallback
-
-    policy_default = _sanitize_fee_rate(policy.get("defaultRate"), fallback)
-    owner_rates = policy.get("ownerRates") if isinstance(policy.get("ownerRates"), dict) else {}
-    owner_key = normalize_wallet(str(seller_wallet or ""))
-    if owner_key and owner_key in owner_rates:
-        return _sanitize_fee_rate(owner_rates.get(owner_key), policy_default)
-    return policy_default
-
-
-def _resolve_gateway_routing_tax() -> float:
-    try:
-        value = float(settings.gateway_routing_tax)
-    except Exception:
-        return 0.0
-    if value < 0:
-        return 0.0
-    return round(value, 6)
 
 
 def _build_buyer_receipt(
@@ -99,29 +25,77 @@ def _build_buyer_receipt(
     total_charge: float,
     buyer_balance_after: float,
 ) -> Dict[str, Any]:
-    return {
-        "requestId": request_id,
-        "serviceId": service_id,
-        "totalCharge": total_charge,
-        "buyerBalanceAfter": buyer_balance_after,
-        "serviceUnitPrice": unit_price,
-    }
+    """Build buyer-facing receipt fields only, hiding internal settlement split details."""
+    return forwarding_billing.build_buyer_receipt(request_id, service_id, unit_price, total_charge, buyer_balance_after)
 
 
 def _build_buyer_success_response(receipt: Dict[str, Any], upstream_result: Any) -> Dict[str, Any]:
-    return {
-        "statusCode": 200,
-        "ok": True,
-        "payload": {
-            "status": "success",
-            "code": "DELIVERED",
-            "receipt": receipt,
-            "data": {"result": upstream_result},
-        },
-    }
+    """Return the canonical generate success envelope consumed by buyer SDKs."""
+    return forwarding_billing.build_buyer_success_response(receipt, upstream_result)
+
+
+def _effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
+    """Resolve service constraints after applying platform min/max guardrails."""
+    return forwarding_validation.effective_service_constraints(service)
+
+
+def _pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: float) -> Tuple[float, float, float, float, float, float]:
+    """Compute fee-rate decomposition for charging, reconciliation, and audits."""
+    return forwarding_billing.pricing_breakdown(storage, seller_wallet, unit_price)
+
+
+def _append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
+    """Persist one usage row into usage_log for operational visibility and billing traceability."""
+    forwarding_billing.append_usage_log(storage, row)
+
+
+def _validate_service_id(x_service_id: Optional[str], request_service_id: Optional[str]) -> str:
+    """Validate and normalize serviceId from headers/body before service lookup."""
+    return forwarding_validation.validate_service_id(x_service_id, request_service_id)
+
+
+def _validate_prompt(prompt: str) -> str:
+    """Validate generate prompt content and max length contract."""
+    return forwarding_validation.validate_prompt(prompt)
+
+
+def _validate_credential_token(credential_token: Optional[str]) -> str:
+    """Validate credential token format before credential resolution."""
+    return forwarding_validation.validate_credential_token(credential_token)
+
+
+def _resolve_request_id(client_request_id: Optional[str]) -> str:
+    """Use client request id when valid, otherwise generate a platform UUID."""
+    return forwarding_validation.resolve_request_id(client_request_id)
+
+
+def _find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]:
+    """Fetch an active service row by serviceId or raise gateway-safe error codes."""
+    return forwarding_validation.find_active_service(storage, service_id)
+
+
+def _parse_service_price_usdc(service_row: Dict[str, Any]) -> float:
+    """Parse service USDC unit price with strict positivity constraints."""
+    return forwarding_validation.parse_service_price_usdc(service_row)
+
+
+def _validate_invoke_request_contract(service: Dict[str, Any], payload: Dict[str, Any]) -> None:
+    """Enforce invoke contract requirements for method/content-type/required fields."""
+    forwarding_validation.validate_invoke_request_contract(service, payload)
+
+
+def _select_weighted_target_url(invoke: Dict[str, Any]) -> str:
+    """Select one upstream target by weighted-random routing configuration."""
+    return forwarding_upstream.select_weighted_target_url(invoke)
+
+
+async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) -> Any:
+    """Forward prompt to seller upstream and enforce payload size + timeout limits."""
+    return await forwarding_upstream.call_upstream(service, prompt, request_id)
 
 
 def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
+    """Compute spend-window key and TTL for monthly/daily/hourly/weekly/never credit windows."""
     now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc)
     if reset_interval == "never":
         return "never", 86400 * 365 * 50
@@ -146,6 +120,7 @@ def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
 
 
 async def _get_redis_client():
+    """Return lazy-initialized async Redis client, or None when Redis is unavailable."""
     global _redis_client
     if _redis_client is not None:
         return _redis_client
@@ -166,6 +141,7 @@ async def _get_redis_client():
 
 
 async def _get_window_spend(credential_id: str, window_key: str) -> float:
+    """Read current spend in one credit window from Redis, with in-memory fallback."""
     key = f"cred_spend:{credential_id}:{window_key}"
     redis_client = await _get_redis_client()
     if redis_client is not None:
@@ -180,6 +156,7 @@ async def _get_window_spend(credential_id: str, window_key: str) -> float:
 
 
 async def _add_window_spend(credential_id: str, window_key: str, ttl_sec: int, amount: float) -> None:
+    """Accumulate spend for one credit window in Redis or in-memory fallback counters."""
     key = f"cred_spend:{credential_id}:{window_key}"
     redis_client = await _get_redis_client()
     if redis_client is not None:
@@ -192,6 +169,7 @@ async def _add_window_spend(credential_id: str, window_key: str, ttl_sec: int, a
 
 
 async def _check_rpm_limit(credential_id: str, rpm: int) -> None:
+    """Enforce per-credential RPM guard before charging or upstream invocation."""
     if rpm <= 0:
         return
 
@@ -215,6 +193,7 @@ async def _check_rpm_limit(credential_id: str, rpm: int) -> None:
 
 
 async def _check_service_qps_limit(service_id: str, max_qps: int) -> None:
+    """Enforce service-level QPS with Redis atomic counters or local fallback counters."""
     if max_qps <= 0:
         return
 
@@ -237,103 +216,8 @@ async def _check_service_qps_limit(service_id: str, max_qps: int) -> None:
         raise HTTPException(status_code=429, detail={"code": "SERVICE_QPS_EXCEEDED", "message": "Service QPS limit exceeded"})
 
 
-def _find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]:
-    rows = storage.get_collection("service_registry") or []
-    if not isinstance(rows, list):
-        rows = []
-
-    target = next((r for r in rows if isinstance(r, dict) and str(r.get("serviceId", "")).strip() == service_id), None)
-    if not target:
-        raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"})
-    if target.get("isActive") is False:
-        raise HTTPException(status_code=403, detail={"code": "SERVICE_INACTIVE", "message": "Service is inactive"})
-    return target
-
-
-def _parse_service_price_usdc(service_row: Dict[str, Any]) -> float:
-    pricing = service_row.get("pricing")
-    raw_amount = pricing.get("amount") if isinstance(pricing, dict) else pricing
-    try:
-        amount = float(raw_amount)
-    except Exception:
-        raise HTTPException(status_code=500, detail={"code": "INVALID_SERVICE_PRICE", "message": "service pricing is invalid"})
-    if amount <= 0:
-        raise HTTPException(status_code=500, detail={"code": "INVALID_SERVICE_PRICE", "message": "service pricing must be positive"})
-    return round(amount, 6)
-
-
-def _append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
-    rows = storage.get_collection("usage_log") or []
-    if not isinstance(rows, list):
-        rows = []
-    rows.append(row)
-    storage.save_collection("usage_log", rows)
-
-
-def _validate_service_id(x_service_id: Optional[str], request_service_id: Optional[str]) -> str:
-    service_id = (x_service_id or request_service_id or "").strip()
-    if not service_id:
-        raise HTTPException(status_code=422, detail={"code": "SERVICE_ID_REQUIRED", "message": "serviceId is required"})
-    if x_service_id and request_service_id and x_service_id != request_service_id:
-        raise HTTPException(status_code=403, detail={"code": "SERVICE_ID_MISMATCH", "message": "Header and body serviceId mismatch"})
-    if len(service_id) > _MAX_SERVICE_ID_LENGTH or not _SERVICE_ID_PATTERN.fullmatch(service_id):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "SERVICE_ID_INVALID_FORMAT",
-                "message": "serviceId format is invalid; only letters, digits, dot, underscore, colon, hyphen are allowed (max 128)",
-            },
-        )
-    return service_id
-
-
-def _validate_prompt(prompt: str) -> str:
-    raw = str(prompt or "")
-    if not raw.strip():
-        raise HTTPException(status_code=422, detail={"code": "PROMPT_REQUIRED", "message": "prompt is required and cannot be empty"})
-    if len(raw) > _MAX_PROMPT_LENGTH:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "PROMPT_TOO_LONG",
-                "message": f"prompt exceeds max length {_MAX_PROMPT_LENGTH}",
-                "maxLength": _MAX_PROMPT_LENGTH,
-            },
-        )
-    return raw
-
-
-def _validate_credential_token(credential_token: Optional[str]) -> str:
-    token = str(credential_token or "").strip()
-    if not token:
-        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_REQUIRED", "message": "X-Credential is required for /api/v1/gateway/generate"})
-    if len(token) > _MAX_CREDENTIAL_LENGTH or not _CREDENTIAL_PATTERN.fullmatch(token):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "CREDENTIAL_FORMAT_INVALID",
-                "message": "X-Credential format is invalid",
-            },
-        )
-    return token
-
-
-def _resolve_request_id(client_request_id: Optional[str]) -> str:
-    candidate = str(client_request_id or "").strip()
-    if not candidate:
-        return str(uuid4())
-    if len(candidate) > _MAX_REQUEST_ID_LENGTH or not _REQUEST_ID_PATTERN.fullmatch(candidate):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "INVALID_REQUEST_ID",
-                "message": "X-Request-Id must match [A-Za-z0-9._:-] and be <= 128 chars",
-            },
-        )
-    return candidate
-
-
 async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) -> None:
+    """Validate current credential spend window against configured credit limit."""
     credit_limit = credential.get("creditLimit")
     if credit_limit is None:
         return
@@ -357,230 +241,8 @@ async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) 
     )
 
 
-def _pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: float) -> Tuple[float, float, float, float, float, float]:
-    fee_rate = _resolve_platform_fee_rate(storage, seller_wallet)
-    protocol_fee = round(unit_price * fee_rate, 6)
-    routing_tax = _resolve_gateway_routing_tax()
-    platform_fee_total = round(protocol_fee + routing_tax, 6)
-    seller_net = round(unit_price - protocol_fee, 6)
-    total_charge = round(unit_price + routing_tax, 6)
-    return fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge
-
-
-async def _charge_and_mark_usage(
-    storage: BaseStorage,
-    owner_wallet: str,
-    seller_wallet: str,
-    total_charge: float,
-    platform_fee_total: float,
-    seller_net: float,
-    credential_id: str,
-) -> Tuple[float, Optional[Dict[str, Any]]]:
-    now = credential_service.now_ts()
-    buyer_after = 0.0
-    updated_credential = None
-
-    async with credential_service.write_lock:
-        ledger = storage.get_collection("balance_ledger") or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
-        buyers = ledger.setdefault("buyers", {})
-        sellers = ledger.setdefault("sellers", {})
-        platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
-
-        buyer_balance = float(buyers.get(owner_wallet, 0.0))
-        if buyer_balance < total_charge:
-            raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"})
-
-        buyer_after = round(buyer_balance - total_charge, 6)
-        buyers[owner_wallet] = buyer_after
-        sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) + seller_net, 6)
-        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) + platform_fee_total, 6)
-        ledger["updatedAt"] = now
-        storage.save_collection("balance_ledger", ledger)
-
-        rows, extras = credential_service.load_credential_rows(storage)
-        idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
-        if idx >= 0:
-            rows[idx]["callsUsed"] = int(rows[idx].get("callsUsed") or 0) + 1
-            rows[idx]["updatedAt"] = now
-            updated_credential = rows[idx]
-            credential_service.save_credential_rows(storage, rows, extras)
-
-    return buyer_after, updated_credential
-
-
-async def _rollback_charge(
-    storage: BaseStorage,
-    owner_wallet: str,
-    seller_wallet: str,
-    total_charge: float,
-    platform_fee_total: float,
-    seller_net: float,
-    updated_credential: Optional[Dict[str, Any]],
-) -> None:
-    async with credential_service.write_lock:
-        ledger = storage.get_collection("balance_ledger") or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
-        buyers = ledger.setdefault("buyers", {})
-        sellers = ledger.setdefault("sellers", {})
-        platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
-
-        buyers[owner_wallet] = round(float(buyers.get(owner_wallet, 0.0)) + total_charge, 6)
-        sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) - seller_net, 6)
-        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) - platform_fee_total, 6)
-        ledger["updatedAt"] = credential_service.now_ts()
-        storage.save_collection("balance_ledger", ledger)
-
-        if not updated_credential:
-            return
-
-        rows, extras = credential_service.load_credential_rows(storage)
-        idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == str(updated_credential.get("id"))), -1)
-        if idx >= 0:
-            rows[idx]["callsUsed"] = max(0, int(rows[idx].get("callsUsed") or 0) - 1)
-            rows[idx]["updatedAt"] = credential_service.now_ts()
-            credential_service.save_credential_rows(storage, rows, extras)
-
-
-def _validate_invoke_request_contract(service: Dict[str, Any], payload: Dict[str, Any]) -> None:
-    invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
-    service_id = str(service.get("serviceId") or "unknown")
-
-    method = str(invoke.get("method") or "POST").upper()
-    if method != "POST":
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "code": "INVALID_INVOKE_CONFIG",
-                "message": "invoke.method must be POST",
-            },
-        )
-
-    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
-    content_type = str(request_spec.get("contentType") or "application/json").strip().lower()
-    if content_type != "application/json":
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "code": "INVALID_INVOKE_CONFIG",
-                "message": "invoke.request.contentType must be application/json",
-            },
-        )
-
-    schema = request_spec.get("schema") if isinstance(request_spec.get("schema"), dict) else {}
-    required = schema.get("required") if isinstance(schema.get("required"), list) else []
-    missing_fields = [
-        str(field)
-        for field in required
-        if isinstance(field, str) and (field not in payload or payload.get(field) is None)
-    ]
-    if missing_fields:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "REQUEST_REQUIRED_FIELDS_MISSING",
-                "message": f"service {service_id} requires fields: {', '.join(missing_fields)}",
-                "serviceId": service_id,
-                "missingFields": missing_fields,
-            },
-        )
-
-
-async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) -> Any:
-    constraints = _effective_service_constraints(service)
-    request_payload = {"text": prompt}
-    _validate_invoke_request_contract(service, request_payload)
-    request_bytes = len(json.dumps(request_payload, ensure_ascii=False).encode("utf-8"))
-    if request_bytes > constraints["maxRequestBytes"]:
-        raise HTTPException(
-            status_code=413,
-            detail={
-                "code": "REQUEST_PAYLOAD_TOO_LARGE",
-                "message": "Request payload exceeds service maxRequestBytes",
-                "maxRequestBytes": constraints["maxRequestBytes"],
-                "actualRequestBytes": request_bytes,
-            },
-        )
-
-    invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
-    upstream_url = _select_weighted_target_url(invoke)
-
-    timeout_sec = float(constraints["timeoutMs"]) / 1000.0
-    async with httpx.AsyncClient(timeout=timeout_sec) as client:
-        headers = {"X-Request-Id": request_id}
-        response = await client.post(upstream_url, json=request_payload, headers=headers)
-
-        response_size = len(response.content or b"")
-        if response_size > constraints["maxResponseBytes"]:
-            raise HTTPException(
-                status_code=413,
-                detail={
-                    "code": "RESPONSE_PAYLOAD_TOO_LARGE",
-                    "message": "Response payload exceeds service maxResponseBytes",
-                    "maxResponseBytes": constraints["maxResponseBytes"],
-                    "actualResponseBytes": response_size,
-                },
-            )
-
-        response.raise_for_status()
-        data = response.json()
-        if isinstance(data, dict) and "quote" in data:
-            return data.get("quote")
-        return data
-
-
-def _normalized_weighted_targets(invoke: Dict[str, Any]) -> Tuple[list[Dict[str, Any]], list[int]]:
-    targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
-    normalized_targets: list[Dict[str, Any]] = []
-    normalized_weights: list[int] = []
-
-    for item in targets:
-        if not isinstance(item, dict):
-            continue
-        url = str(item.get("url") or "").strip()
-        if not url:
-            continue
-        try:
-            weight = int(item.get("weight") if item.get("weight") is not None else 100)
-        except Exception:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "code": "INVALID_INVOKE_CONFIG",
-                    "message": "invoke.targets[].weight must be an integer",
-                },
-            )
-        if weight <= 0 or weight > _MAX_TARGET_WEIGHT:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "code": "INVALID_INVOKE_CONFIG",
-                    "message": f"invoke.targets[].weight must be in [1, {_MAX_TARGET_WEIGHT}]",
-                },
-            )
-        normalized_targets.append(item)
-        normalized_weights.append(weight)
-
-    if not normalized_targets:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "code": "INVALID_INVOKE_CONFIG",
-                "message": "invoke.targets must contain at least one valid target URL",
-            },
-        )
-    return normalized_targets, normalized_weights
-
-
-def _select_weighted_target_url(invoke: Dict[str, Any]) -> str:
-    targets, weights = _normalized_weighted_targets(invoke)
-    selected = random.choices(targets, weights=weights, k=1)[0]
-    return str(selected.get("url") or "").strip()
-
-
 async def _record_credit_window_spend(credential: Dict[str, Any], charge_amount: float) -> None:
+    """Record successful charge into credential credit window counters."""
     credit_limit = credential.get("creditLimit")
     if credit_limit is None:
         return
@@ -590,6 +252,39 @@ async def _record_credit_window_spend(credential: Dict[str, Any], charge_amount:
     await _add_window_spend(str(credential.get("id")), win_key, ttl_sec, charge_amount)
 
 
+def _log_upstream_failure(
+    storage: BaseStorage,
+    request_id: str,
+    owner_wallet: str,
+    seller_wallet: str,
+    service_id: str,
+    settlement: Dict[str, float],
+    error_code: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    """Write one failed_upstream usage event with either error code or raw message."""
+    row: Dict[str, Any] = {
+        "request_id": request_id,
+        "buyer": owner_wallet,
+        "seller": seller_wallet,
+        "service_id": service_id,
+        "status": "failed_upstream",
+        "unit_price": settlement["unit_price"],
+        "fee_rate": settlement["fee_rate"],
+        "protocol_fee": settlement["protocol_fee"],
+        "routing_tax": settlement["routing_tax"],
+        "platform_fee_total": settlement["platform_fee_total"],
+        "seller_net": settlement["seller_net"],
+        "total_charge": settlement["total_charge"],
+        "created_at": credential_service.now_ts(),
+    }
+    if error_code:
+        row["error_code"] = error_code
+    if error_message:
+        row["error_msg"] = error_message
+    _append_usage_log(storage, row)
+
+
 async def generate_response_v2(
     storage: BaseStorage,
     request: InferenceRequest,
@@ -597,6 +292,7 @@ async def generate_response_v2(
     credential_token: Optional[str],
     x_request_id: Optional[str],
 ) -> Dict[str, Any]:
+    """Orchestrate full generate pipeline: validate, rate-limit, charge, proxy, audit, and respond."""
     prompt = _validate_prompt(request.prompt)
     service_id = _validate_service_id(x_service_id, request.serviceId)
     token = _validate_credential_token(credential_token)
@@ -614,8 +310,17 @@ async def generate_response_v2(
     seller_wallet = normalize_wallet(str(service.get("address") or service.get("ownerAddress") or ""))
     fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = _pricing_breakdown(storage, seller_wallet, unit_price)
     await _check_credit_limit(credential, total_charge)
+    settlement = {
+        "unit_price": unit_price,
+        "fee_rate": fee_rate,
+        "protocol_fee": protocol_fee,
+        "routing_tax": routing_tax,
+        "platform_fee_total": platform_fee_total,
+        "seller_net": seller_net,
+        "total_charge": total_charge,
+    }
 
-    buyer_after, updated_credential = await _charge_and_mark_usage(
+    buyer_after, updated_credential = await forwarding_billing.charge_and_mark_usage(
         storage,
         owner_wallet,
         seller_wallet,
@@ -628,47 +333,27 @@ async def generate_response_v2(
     try:
         upstream_result = await _call_upstream(service, prompt, request_id)
     except HTTPException as exc:
-        await _rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
-        _append_usage_log(
+        await forwarding_billing.rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
+        _log_upstream_failure(
             storage,
-            {
-                "request_id": request_id,
-                "buyer": owner_wallet,
-                "seller": seller_wallet,
-                "service_id": service_id,
-                "status": "failed_upstream",
-                "unit_price": unit_price,
-                "fee_rate": fee_rate,
-                "protocol_fee": protocol_fee,
-                "routing_tax": routing_tax,
-                "platform_fee_total": platform_fee_total,
-                "seller_net": seller_net,
-                "total_charge": total_charge,
-                "created_at": credential_service.now_ts(),
-                "error_code": exc.detail.get("code") if isinstance(exc.detail, dict) else None,
-            },
+            request_id,
+            owner_wallet,
+            seller_wallet,
+            service_id,
+            settlement,
+            error_code=exc.detail.get("code") if isinstance(exc.detail, dict) else None,
         )
         raise
     except Exception as exc:
-        await _rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
-        _append_usage_log(
+        await forwarding_billing.rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
+        _log_upstream_failure(
             storage,
-            {
-                "request_id": request_id,
-                "buyer": owner_wallet,
-                "seller": seller_wallet,
-                "service_id": service_id,
-                "status": "failed_upstream",
-                "unit_price": unit_price,
-                "fee_rate": fee_rate,
-                "protocol_fee": protocol_fee,
-                "routing_tax": routing_tax,
-                "platform_fee_total": platform_fee_total,
-                "seller_net": seller_net,
-                "total_charge": total_charge,
-                "created_at": credential_service.now_ts(),
-                "error_msg": str(exc),
-            },
+            request_id,
+            owner_wallet,
+            seller_wallet,
+            service_id,
+            settlement,
+            error_message=str(exc),
         )
         raise HTTPException(status_code=502, detail={"code": "UPSTREAM_ERROR", "message": f"Upstream provider failed: {str(exc)}"})
 

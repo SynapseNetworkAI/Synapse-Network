@@ -71,6 +71,20 @@
 *   请求通过 Provider 处理成功并返回内容后。网关将结果包装成统一规范如 `{ status: "success", "billing": {...}, "data": {...} }` 返回给调用方。
 *   利用 FastAPI 的 `BackgroundTasks` 或 MQ，把此次成功交易记录写入异步 Kafka 或 Audit log 中（参考第一阶段的 File Tracing 方案）。
 
+### 3.5 Forwarding Service 分层重构（2026-03）
+为降低 `generate` 主路径复杂度并提升可维护性，转发链路在服务层拆分为“编排层 + 能力模块”，外部行为保持不变：
+
+1. `src/services/forwarding_service.py`
+  - 仅负责主流程编排：鉴权校验、限流、扣费、上游调用、回滚、审计。
+2. `src/services/forwarding_validation.py`
+  - 负责输入校验与 invoke 契约校验（`POST + application/json + schema.required`）。
+3. `src/services/forwarding_upstream.py`
+  - 负责加权选路、请求转发、请求/响应字节限制。
+4. `src/services/forwarding_billing.py`
+  - 负责费率解析、账本扣费/回滚、usage log 与 buyer receipt 组装。
+
+该拆分遵循高内聚低耦合原则：策略规则与副作用（账本写入/网络 IO）分离，便于单元测试精准覆盖与后续横向扩展（例如替换存储实现、替换路由策略）。
+
 ---
 
 ## 4. 生产级进阶扩展 (Phase 2 & Phase 3)
