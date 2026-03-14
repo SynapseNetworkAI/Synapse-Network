@@ -7,6 +7,16 @@ except Exception:  # pragma: no cover - optional dependency
     load_dotenv = None
 
 
+ENV_FILE_LOCAL = ".env.local"
+ENV_FILE_PROD = ".env.prod"
+ENV_FILE_PRODUCTION = ".env.production"
+ENV_FILE_DEV = ".env.dev"
+ENV_FILE_DEVELOPMENT = ".env.development"
+ENV_FILE_STAGE = ".env.stage"
+ENV_FILE_STAGING = ".env.staging"
+ENV_FILE_TEST = ".env.test"
+
+
 def _load_router_address_from_contract_config() -> str:
     """Fallback: read deployed router/core address from frontend contract config."""
     try:
@@ -47,6 +57,49 @@ def _runtime_path(filename: str) -> str:
     return os.path.join(_default_runtime_storage_dir(), filename)
 
 
+def _resolve_env_file_path(env_file: str) -> str:
+    if os.path.isabs(env_file):
+        return env_file
+    return os.path.join(_sdk_root_dir(), env_file)
+
+
+def _load_environment_files() -> None:
+    if load_dotenv is None:
+        return
+
+    # Explicit env file has the highest priority for file-based configuration.
+    explicit_env_file = os.getenv("ENV_FILE", "").strip()
+    if explicit_env_file:
+        explicit_path = _resolve_env_file_path(explicit_env_file)
+        if os.path.exists(explicit_path):
+            load_dotenv(explicit_path, override=False)
+        return
+
+    sdk_root = _sdk_root_dir()
+    base_env_path = os.path.join(sdk_root, ".env")
+    load_dotenv(base_env_path, override=False)
+
+    runtime_env = str(os.getenv("ENVIRONMENT", "local") or "local").strip().lower()
+    env_aliases = {
+        "local": [ENV_FILE_LOCAL],
+        "development": [ENV_FILE_DEVELOPMENT, ENV_FILE_LOCAL],
+        "dev": [ENV_FILE_DEV, ENV_FILE_LOCAL],
+        "prod": [ENV_FILE_PROD, ENV_FILE_PRODUCTION],
+        "production": [ENV_FILE_PRODUCTION, ENV_FILE_PROD],
+        "stage": [ENV_FILE_STAGE, ENV_FILE_STAGING],
+        "staging": [ENV_FILE_STAGING, ENV_FILE_STAGE],
+        "test": [ENV_FILE_TEST],
+    }
+    candidates = env_aliases.get(runtime_env, [f".env.{runtime_env}"])
+
+    for env_file in candidates:
+        env_path = os.path.join(sdk_root, env_file)
+        if os.path.exists(env_path):
+            # Override values from base .env so per-environment file wins.
+            load_dotenv(env_path, override=True)
+            break
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None:
@@ -83,14 +136,13 @@ def _env_bool(name: str, default: bool) -> bool:
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
-# Load SDK-local .env so all runtime entry points share a single env contract.
-if load_dotenv is not None:
-    load_dotenv(os.path.join(_sdk_root_dir(), ".env"), override=False)
+# Load environment files once so all runtime entry points share the same config contract.
+_load_environment_files()
 
 
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
-    environment: str = os.getenv("ENVIRONMENT", "development")
+    environment: str = os.getenv("ENVIRONMENT", "local")
     # RPC endpoint used by chain-facing flows (deposit indexer, receipt checks).
     rpc_url: str = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     # Listener contract for deposit events; falls back to frontend contract config.

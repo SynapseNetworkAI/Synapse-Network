@@ -199,6 +199,68 @@ curl -X DELETE http://127.0.0.1:8000/api/v1/services/<service_record_id> \
 - 一键重启并执行 V2 日限额烟测：`cd .. && ./test/restart_local_env.sh`
 - 仅重启不跑烟测：`cd .. && SKIP_V2_SMOKE=1 ./test/restart_local_env.sh`
 
+## 多环境部署（local / prod）
+
+Seller API 现在支持基于配置的多环境切换：
+
+- `local` 环境：读取本地配置，使用 `JsonStorage`
+- `prod` 环境：读取生产配置，使用 `PostgresStorage`
+
+配置加载优先级：
+
+1. 如果设置了 `ENV_FILE`，只读取该文件（例如 `.env.local` 或 `.env.prod`）
+2. 否则先读取基础 `.env`
+3. 再按 `ENVIRONMENT` 自动尝试读取环境文件：
+  - `local` -> `.env.local`
+  - `prod` -> `.env.prod` / `.env.production`
+
+### 推荐配置文件
+
+- 本地模板：`.env.local.example`
+- 生产模板：`.env.prod.example`
+
+### local 启动（JSON）
+
+```bash
+cd python_sdk
+cp .env.local.example .env.local
+ENVIRONMENT=local ENV_FILE=.env.local python seller_fastapi.py
+```
+
+关键字段：
+
+- `STORAGE_BACKEND=json`
+- `DATA_DIR=./runtime_storage`
+
+### prod 启动（PostgreSQL）
+
+```bash
+cd python_sdk
+cp .env.prod.example .env.prod
+ENVIRONMENT=prod ENV_FILE=.env.prod python seller_fastapi.py
+```
+
+关键字段：
+
+- `STORAGE_BACKEND=postgres`
+- `POSTGRES_DSN=postgresql://<user>:<password>@<host>:5432/synapse_gateway`
+
+如果使用本仓库的 Docker PostgreSQL：
+
+```bash
+cd docker-compose
+docker-compose up -d postgres
+```
+
+容器首次启动会自动执行：
+
+- `docker-compose/postgres/init/001_synapse_schema.sql`
+
+用于初始化：
+
+- `synapse_collections`
+- `synapse_audit_log`
+
 ## 买家 SDK 使用（新增）
 
 先在 `python_sdk` 目录安装（开发模式）：
