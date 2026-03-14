@@ -30,9 +30,14 @@ This document defines production-grade security controls for Synapse financial p
 1. Strict Pydantic request models for deposit, refund, and router config.
 2. Numeric boundaries:
    - deposit amount must be `> 0`
-   - refund amount must be `>= 0`
-   - router daily limit must be within `[0, 1_000_000_000]`
+   - refund amount must be `>= 10`
+   - router daily limit must be within `[0, 10_000]`
 3. List endpoints enforce bounded query limits.
+
+Router daily limit definition:
+
+1. `dailyLimitUsdc` is the maximum USDC spend an owner can route in one day.
+2. `0` means spend is blocked for the day.
 
 ### 2.4 Auditability
 
@@ -52,7 +57,16 @@ This document defines production-grade security controls for Synapse financial p
    - `router_config`
 3. Rate-limit hits are audited as `FINANCE_RATE_LIMIT_HIT`.
 
-### 2.6 Third-Round API Behavior (Contract)
+### 2.6 Fourth-Round Distributed Controls
+
+1. Finance idempotency store now uses Redis as primary backend when `REDIS_URL` is configured.
+2. Finance write rate-limit now uses Redis distributed counters when `REDIS_URL` is configured.
+3. JSON storage remains as fallback when Redis is unavailable.
+4. Added anomaly audit actions:
+   - `DEPOSIT_REPLAY_DETECTED`
+   - `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`
+
+### 2.7 API Behavior (Contract)
 
 1. `POST /api/v2/balance/deposit/intent`
    - requires `X-Idempotency-Key`
@@ -60,8 +74,10 @@ This document defines production-grade security controls for Synapse financial p
 2. `POST /api/v2/refund`
    - requires `X-Idempotency-Key`
    - enforces owner write rate limit for `refund_intent`
+   - `amountUsdc >= 10`
 3. `POST /api/v2/router/config`
    - enforces owner write rate limit for `router_config`
+   - `dailyLimitUsdc` in `[0, 10000]`
 4. `GET /api/v2/finance/audit-logs`
    - returns owner-scoped finance actions only
    - supports `limit` in `1..500`
@@ -81,26 +97,24 @@ Default examples live in `python_sdk/.env.example`.
 
 ### 4.1 Stronger Distributed Guarantees
 
-1. Replace JSON-based local write-rate counters with Redis-backed distributed counters.
-2. Move idempotency key store to Redis/Postgres with unique constraints and atomic upserts.
+1. Add Redis Lua scripts for stricter atomic rate-limit + idempotency state transitions.
+2. Add Postgres-backed durable idempotency records for long-term reconciliation.
 3. Add crash-safe transaction boundaries for multi-step financial mutations.
 
 ### 4.2 Security Verification and Tests
 
-1. Add automated tests for:
-   - idempotency replay consistency
-   - key reuse with payload mismatch
-   - owner isolation bypass attempts
-   - rate-limit saturation under concurrent writes
-2. Add CI gate for financial security regression tests.
+1. Financial security tests are added for replay, owner isolation, concurrency, and idempotency consistency.
+2. CI blocking workflow is added on push/PR for the financial security test suite.
+3. Next: expand to full API integration tests (auth + router layer + storage permutations).
 
 ### 4.3 Operational Controls
 
-1. Add alerting on:
+1. Alert rule baseline is defined for:
    - repeated `FINANCE_RATE_LIMIT_HIT`
-   - replay rejections spike
-   - refund-intent anomaly patterns
-2. Add runbook for incident response on financial API abuse.
+   - replay rejection spikes (`DEPOSIT_REPLAY_DETECTED`)
+   - idempotency mismatch spikes (`IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`)
+2. Incident runbook is published at `doc/06_Developer_Guides/Financial_Security_Incident_Runbook.md`.
+3. Next: connect alerts to production monitoring stack (Prometheus/Grafana or cloud APM).
 
 ### 4.4 Token and Session Hardening
 

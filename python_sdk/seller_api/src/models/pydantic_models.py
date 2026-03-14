@@ -64,12 +64,12 @@ class DepositIntentRequest(BaseModel):
 
 
 class RefundIntentRequest(BaseModel):
-    amountUsdc: float = Field(default=0, ge=0)
+    amountUsdc: float = Field(default=10, ge=10)
     reason: Optional[str] = Field(default=None, max_length=256)
 
 
 class RouterConfigRequest(BaseModel):
-    dailyLimitUsdc: float = Field(..., ge=0, le=1_000_000_000)
+    dailyLimitUsdc: float = Field(..., ge=0, le=10_000)
 
 
 # Backward-compatible aliases.

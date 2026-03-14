@@ -48,6 +48,7 @@
 - **买家 Python SDK 示例**: [Buyer_SDK_Quickstart.md](./06_Developer_Guides/Buyer_SDK_Quickstart.md)
 - **前端 Web 综合使用手册**: [Website_User_Guide.md](./06_Developer_Guides/Website_User_Guide.md)
 - **本地节点与区块链浏览器的搭建**: [Local_Blockchain_Setup.md](./06_Developer_Guides/Local_Blockchain_Setup.md)
+- **资金安全应急处置手册**: [Financial_Security_Incident_Runbook.md](./06_Developer_Guides/Financial_Security_Incident_Runbook.md)
 
 ---
 > “打造人类历史上第一个零摩擦的纯硅基服务结算网络。” —— **Synapse Network** 

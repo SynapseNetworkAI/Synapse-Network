@@ -140,6 +140,7 @@
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: 仅返回当前 owner 作用域内账务数据。
 - **Security Headers**: `POST /api/v2/refund` requires `X-Idempotency-Key`.
+- **Validation**: `POST /api/v2/refund` requires `amountUsdc >= 10`.
 - **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
 
 ### 3.5 Router Config (Owner Scoped)
@@ -148,6 +149,8 @@
   - `POST /api/v2/router/config`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: Router config is owner-scoped; each owner can only read/write their own config.
+- **Validation**: `dailyLimitUsdc` must be in `[0, 10000]`.
+- **Meaning**: `dailyLimitUsdc` is the owner-level daily spend ceiling for routed financial operations; `0` means no spending allowed for that day.
 
 ### 3.6 资金审计日志 (Finance Audit Logs)
 - **Path**: `GET /api/v2/finance/audit-logs`
