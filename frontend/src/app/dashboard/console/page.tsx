@@ -398,6 +398,9 @@ export default function DeveloperConsole() {
   };
 
   const selectedKeyToDisplay = latestIssued ? latestIssued.token : (selectedTokenPrefix ? `${selectedTokenPrefix}...` : "agt_xxxxxxxxxx");
+  const indexerTooltip = indexerStatus
+    ? `listener: ${indexerStatus.listenerAddress}\nlast sync: ${indexerStatus.lastProcessedAt ? new Date(indexerStatus.lastProcessedAt * 1000).toLocaleTimeString() : "n/a"}${indexerStatus.lastError ? `\nerror: ${indexerStatus.lastError}` : ""}`
+    : "Indexer status unavailable";
 
   return (
     <div className="max-w-5xl p-6 mx-auto space-y-6">
@@ -415,10 +418,9 @@ export default function DeveloperConsole() {
         </div>
         <div
           className={`px-3 py-2 rounded-lg border text-xs ${indexerStatus?.running ? "border-green-700 bg-green-900/20 text-green-300" : "border-yellow-700 bg-yellow-900/20 text-yellow-300"}`}
-          title={indexerStatus ? `listener: ${indexerStatus.listenerAddress}\ncredited:${indexerStatus.lastCounters.credited} failed:${indexerStatus.lastCounters.failed} pending:${indexerStatus.lastCounters.pending}\nlast: ${indexerStatus.lastProcessedAt ? new Date(indexerStatus.lastProcessedAt * 1000).toLocaleTimeString() : "n/a"}${indexerStatus.lastError ? `\nerror: ${indexerStatus.lastError}` : ""}` : "Indexer status unavailable"}
+          title={indexerTooltip}
         >
           <p className="font-semibold">Indexer {indexerStatus?.running ? "Online" : "Offline"}</p>
-          <p className="opacity-80">C:{indexerStatus?.lastCounters.credited ?? 0} F:{indexerStatus?.lastCounters.failed ?? 0} P:{indexerStatus?.lastCounters.pending ?? 0}</p>
         </div>
               </div>
 
