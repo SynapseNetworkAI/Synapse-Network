@@ -39,7 +39,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [verifiedWallet, setVerifiedWallet] = useState<string | null>(null);
-  const disconnectClearTimer = useRef<number | null>(null);
+  const disconnectClearTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
   // We no longer block access globally based on isPublicRoute.
   // The context provides auth state to downstream components that use <AuthMask />.

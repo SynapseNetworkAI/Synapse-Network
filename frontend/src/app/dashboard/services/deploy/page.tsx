@@ -369,7 +369,12 @@ export default function DeployManifestPage() {
   }
 
   return (
-    <AuthMask>
+    <AuthMask
+      allowChallengeAuthorize={false}
+      sessionHelpText="This page is session-only. Please complete wallet sign-in from Service Management, then return to deploy."
+      sessionRecoveryHref="/dashboard/services"
+      sessionRecoveryLabel="Go to Service Management"
+    >
     <div className="h-[calc(100vh-80px)] flex flex-col md:flex-row bg-[#050505] overflow-hidden">
       {/* LEFT SIDE: BUILDER FORM */}
       <div className="w-full md:w-1/2 h-full overflow-y-auto border-r border-gray-800 p-8 hide-scrollbar">
