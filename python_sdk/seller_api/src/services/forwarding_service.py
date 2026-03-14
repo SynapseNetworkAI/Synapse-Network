@@ -44,6 +44,16 @@ def _resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> floa
     return policy_default
 
 
+def _resolve_gateway_routing_tax() -> float:
+    try:
+        value = float(settings.gateway_routing_tax)
+    except Exception:
+        return 0.0
+    if value < 0:
+        return 0.0
+    return round(value, 6)
+
+
 def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
     now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc)
     if reset_interval == "never":
@@ -179,7 +189,7 @@ def _validate_service_id(x_service_id: Optional[str], request_service_id: Option
     return service_id
 
 
-async def _check_credit_limit(credential: Dict[str, Any], unit_price: float) -> None:
+async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) -> None:
     credit_limit = credential.get("creditLimit")
     if credit_limit is None:
         return
@@ -187,7 +197,7 @@ async def _check_credit_limit(credential: Dict[str, Any], unit_price: float) -> 
     reset_interval = credential_service.resolve_reset_interval(str(credential.get("resetInterval") or "daily"))
     win_key, _ = _window_key_and_ttl(reset_interval, credential_service.now_ts())
     spent = await _get_window_spend(str(credential.get("id")), win_key)
-    if float(spent) + float(unit_price) <= float(credit_limit) + 1e-9:
+    if float(spent) + float(charge_amount) <= float(credit_limit) + 1e-9:
         return
 
     raise HTTPException(
@@ -197,25 +207,28 @@ async def _check_credit_limit(credential: Dict[str, Any], unit_price: float) -> 
             "message": "Secret key credit limit exceeded",
             "creditLimit": round(float(credit_limit), 6),
             "windowSpend": round(float(spent), 6),
-            "attemptedCharge": round(float(unit_price), 6),
+            "attemptedCharge": round(float(charge_amount), 6),
             "resetInterval": reset_interval,
         },
     )
 
 
-def _pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: float) -> Tuple[float, float, float]:
+def _pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: float) -> Tuple[float, float, float, float, float, float]:
     fee_rate = _resolve_platform_fee_rate(storage, seller_wallet)
-    platform_fee = round(unit_price * fee_rate, 6)
-    seller_net = round(unit_price - platform_fee, 6)
-    return fee_rate, platform_fee, seller_net
+    protocol_fee = round(unit_price * fee_rate, 6)
+    routing_tax = _resolve_gateway_routing_tax()
+    platform_fee_total = round(protocol_fee + routing_tax, 6)
+    seller_net = round(unit_price - protocol_fee, 6)
+    total_charge = round(unit_price + routing_tax, 6)
+    return fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge
 
 
 async def _charge_and_mark_usage(
     storage: BaseStorage,
     owner_wallet: str,
     seller_wallet: str,
-    unit_price: float,
-    platform_fee: float,
+    total_charge: float,
+    platform_fee_total: float,
     seller_net: float,
     credential_id: str,
 ) -> Tuple[float, Optional[Dict[str, Any]]]:
@@ -232,13 +245,13 @@ async def _charge_and_mark_usage(
         platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
 
         buyer_balance = float(buyers.get(owner_wallet, 0.0))
-        if buyer_balance < unit_price:
+        if buyer_balance < total_charge:
             raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"})
 
-        buyer_after = round(buyer_balance - unit_price, 6)
+        buyer_after = round(buyer_balance - total_charge, 6)
         buyers[owner_wallet] = buyer_after
         sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) + seller_net, 6)
-        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) + platform_fee, 6)
+        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) + platform_fee_total, 6)
         ledger["updatedAt"] = now
         storage.save_collection("balance_ledger", ledger)
 
@@ -257,8 +270,8 @@ async def _rollback_charge(
     storage: BaseStorage,
     owner_wallet: str,
     seller_wallet: str,
-    unit_price: float,
-    platform_fee: float,
+    total_charge: float,
+    platform_fee_total: float,
     seller_net: float,
     updated_credential: Optional[Dict[str, Any]],
 ) -> None:
@@ -270,9 +283,9 @@ async def _rollback_charge(
         sellers = ledger.setdefault("sellers", {})
         platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
 
-        buyers[owner_wallet] = round(float(buyers.get(owner_wallet, 0.0)) + unit_price, 6)
+        buyers[owner_wallet] = round(float(buyers.get(owner_wallet, 0.0)) + total_charge, 6)
         sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) - seller_net, 6)
-        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) - platform_fee, 6)
+        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) - platform_fee_total, 6)
         ledger["updatedAt"] = credential_service.now_ts()
         storage.save_collection("balance_ledger", ledger)
 
@@ -326,14 +339,14 @@ async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) 
         return data
 
 
-async def _record_credit_window_spend(credential: Dict[str, Any], unit_price: float) -> None:
+async def _record_credit_window_spend(credential: Dict[str, Any], charge_amount: float) -> None:
     credit_limit = credential.get("creditLimit")
     if credit_limit is None:
         return
 
     reset_interval = credential_service.resolve_reset_interval(str(credential.get("resetInterval") or "daily"))
     win_key, ttl_sec = _window_key_and_ttl(reset_interval, credential_service.now_ts())
-    await _add_window_spend(str(credential.get("id")), win_key, ttl_sec, unit_price)
+    await _add_window_spend(str(credential.get("id")), win_key, ttl_sec, charge_amount)
 
 
 async def generate_response_v2(
@@ -351,19 +364,19 @@ async def generate_response_v2(
 
     service = _find_active_service(storage, service_id)
     unit_price = _parse_service_price_usdc(service)
-    await _check_credit_limit(credential, unit_price)
 
     owner_wallet = normalize_wallet(str(credential.get("ownerAddress") or ""))
     seller_wallet = normalize_wallet(str(service.get("address") or service.get("ownerAddress") or ""))
-    fee_rate, platform_fee, seller_net = _pricing_breakdown(storage, seller_wallet, unit_price)
+    fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = _pricing_breakdown(storage, seller_wallet, unit_price)
+    await _check_credit_limit(credential, total_charge)
 
     request_id = str(uuid4())
     buyer_after, updated_credential = await _charge_and_mark_usage(
         storage,
         owner_wallet,
         seller_wallet,
-        unit_price,
-        platform_fee,
+        total_charge,
+        platform_fee_total,
         seller_net,
         str(credential.get("id")),
     )
@@ -371,7 +384,7 @@ async def generate_response_v2(
     try:
         upstream_result = await _call_upstream(service, request.prompt, request_id)
     except Exception as exc:
-        await _rollback_charge(storage, owner_wallet, seller_wallet, unit_price, platform_fee, seller_net, updated_credential)
+        await _rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
         _append_usage_log(
             storage,
             {
@@ -382,15 +395,18 @@ async def generate_response_v2(
                 "status": "failed_upstream",
                 "unit_price": unit_price,
                 "fee_rate": fee_rate,
-                "platform_fee": platform_fee,
+                "protocol_fee": protocol_fee,
+                "routing_tax": routing_tax,
+                "platform_fee_total": platform_fee_total,
                 "seller_net": seller_net,
+                "total_charge": total_charge,
                 "created_at": credential_service.now_ts(),
                 "error_msg": str(exc),
             },
         )
         raise HTTPException(status_code=502, detail={"code": "UPSTREAM_ERROR", "message": f"Upstream provider failed: {str(exc)}"})
 
-    await _record_credit_window_spend(credential, unit_price)
+    await _record_credit_window_spend(credential, total_charge)
 
     _append_usage_log(
         storage,
@@ -402,8 +418,11 @@ async def generate_response_v2(
             "status": "succeeded",
             "unit_price": unit_price,
             "fee_rate": fee_rate,
-            "platform_fee": platform_fee,
+            "protocol_fee": protocol_fee,
+            "routing_tax": routing_tax,
+            "platform_fee_total": platform_fee_total,
             "seller_net": seller_net,
+            "total_charge": total_charge,
             "created_at": credential_service.now_ts(),
         },
     )
@@ -417,8 +436,11 @@ async def generate_response_v2(
             "serviceId": service_id,
             "unitPrice": unit_price,
             "feeRate": fee_rate,
-            "platformFee": platform_fee,
+            "platformFee": protocol_fee,
+            "routingTax": routing_tax,
+            "platformFeeTotal": platform_fee_total,
             "sellerNet": seller_net,
+            "totalCharge": total_charge,
             "buyerBalanceAfter": buyer_after,
             "credentialId": credential.get("id"),
         },
@@ -432,8 +454,11 @@ async def generate_response_v2(
             "serviceId": service_id,
             "unitPrice": unit_price,
             "feeRate": fee_rate,
-            "platformFee": platform_fee,
+            "platformFee": protocol_fee,
+            "routingTax": routing_tax,
+            "platformFeeTotal": platform_fee_total,
             "sellerNet": seller_net,
+            "totalCharge": total_charge,
             "buyerBalanceAfter": buyer_after,
         },
         "data": {"result": upstream_result},

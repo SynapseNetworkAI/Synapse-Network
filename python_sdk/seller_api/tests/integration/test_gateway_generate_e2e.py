@@ -125,10 +125,12 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
+        old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
+        cfg.settings.gateway_routing_tax = 0.0001
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -145,12 +147,17 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
                     json={"prompt": "hello", "serviceId": service_id},
                 )
                 assert resp.status_code == 200
+                billing = resp.json().get("billing", {})
+                assert abs(float(billing.get("routingTax", 0.0)) - 0.0001) < 1e-9
+                assert abs(float(billing.get("platformFeeTotal", 0.0)) - 0.1001) < 1e-9
+                assert abs(float(billing.get("totalCharge", 0.0)) - 1.0001) < 1e-9
 
-                _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 2.0, 0.9, 0.1)
+                _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 1.9999, 0.9, 0.1001)
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
+            cfg.settings.gateway_routing_tax = old_routing_tax
             app_module.run_v2_deposit_indexer = old_indexer
 
 
@@ -162,10 +169,12 @@ def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
+        old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
+        cfg.settings.gateway_routing_tax = 0.0001
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -197,11 +206,12 @@ def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
                     json={"prompt": "hello", "serviceId": service_id},
                 )
                 assert resp.status_code == 200
-                _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 2.0, 0.9, 0.1)
+                _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 1.9999, 0.9, 0.1001)
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
+            cfg.settings.gateway_routing_tax = old_routing_tax
             app_module.run_v2_deposit_indexer = old_indexer
 
 
@@ -213,10 +223,12 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
+        old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
+        cfg.settings.gateway_routing_tax = 0.0001
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -225,8 +237,8 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
                 seller_wallet = "0x" + "3" * 40
                 service_id, credential_token = _register_service_and_credential(client, buyer_wallet, buyer_token, seller_wallet)
 
-                # Balance supports exactly 20 successful calls at 1.0 each.
-                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 20.0)
+                # Balance supports exactly 20 successful calls at 1.0001 each.
+                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 20.002)
 
                 def _call_once(i: int):
                     return client.post(
@@ -249,11 +261,12 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
                 assert success == 20
                 assert insufficient == total_calls - success
 
-                _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 0.0, 18.0, 2.0)
+                _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 0.0, 18.0, 2.002)
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
+            cfg.settings.gateway_routing_tax = old_routing_tax
             app_module.run_v2_deposit_indexer = old_indexer
 
 
@@ -265,10 +278,12 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
+        old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
+        cfg.settings.gateway_routing_tax = 0.0001
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -277,7 +292,7 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
                 seller_wallet = "0x" + "4" * 40
                 service_id, credential_token = _register_service_and_credential(client, buyer_wallet, buyer_token, seller_wallet)
 
-                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 1.0)
+                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 1.0001)
 
                 first = client.post(
                     "/api/v1/gateway/generate",
@@ -303,7 +318,7 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
                 assert target.get("status") == "active"
 
                 # Top up and verify the same credential works again.
-                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 1.0)
+                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 1.0001)
                 third = client.post(
                     "/api/v1/gateway/generate",
                     headers={"X-Credential": credential_token},
@@ -314,4 +329,5 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
+            cfg.settings.gateway_routing_tax = old_routing_tax
             app_module.run_v2_deposit_indexer = old_indexer

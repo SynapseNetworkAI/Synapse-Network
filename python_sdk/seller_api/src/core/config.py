@@ -118,6 +118,9 @@ class Settings:
     # Global platform fee rate for gateway billing split, range [0.0, 1.0].
     # Example: 0.10 means 10% platform fee and 90% seller net.
     platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.10)
+    # Fixed per-request routing fee charged to buyer, in USDC.
+    # Example: 0.0001 adds $0.0001 to every gateway generate call.
+    gateway_routing_tax: float = max(0.0, _env_float("GATEWAY_ROUTING_TAX", 0.0001))
     # Optional admin wallet allow-list for fee-policy management endpoints.
     # Comma-separated lowercase/uppercase wallet addresses are accepted.
     platform_fee_admin_wallets: set[str] = {

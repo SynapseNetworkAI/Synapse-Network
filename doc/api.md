@@ -232,7 +232,11 @@
 - **Desc**: 大脑发起真实 M2M 调用的核心漏斗。在此经历：“扣减高速内存锁余额” -> “分布式速率限制” -> “反向代理给真实提供商服务” -> “结果聚合审计” 的连贯动作。这也是整个系统价值捕获的中心。
 - **Billing Split**:
   - `unitPrice` 来自服务注册价格。
+  - `routingTax` 来自 `GATEWAY_ROUTING_TAX`（固定每次调用路由费）。
+  - 买家实扣：`totalCharge = unitPrice + routingTax`。
   - `billing.feeRate` 为本次调用实际生效费率。
+  - 协议抽成：`platformFee = unitPrice * feeRate`。
+  - 平台总收入：`platformFeeTotal = platformFee + routingTax`。
   - 生效优先级：owner 覆盖费率 > 运行时默认费率 > `PLATFORM_FEE_RATE`。
 - **Headers**:
   - `X-Credential`: "agt_123..." (调用凭据)
