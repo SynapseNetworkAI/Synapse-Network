@@ -1,5 +1,4 @@
 import logging
-import os
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -7,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.log_config import setup_logger
 from src.api.routers import auth, services, balance, wallet, buyer_credentials, seller_secrets, forwarding
-from src.storage import get_storage, JsonStorage
+from src.storage import create_storage
 from src.services.v2_indexer import run_v2_deposit_indexer
 
 setup_logger()
@@ -16,11 +15,9 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize storage on startup
-    data_dir = os.path.abspath(settings.data_dir)
-    os.makedirs(data_dir, exist_ok=True)
-    storage = JsonStorage(directory=data_dir)
+    storage = create_storage(settings)
     app.state.storage = storage
-    logger.info("Application starting up... Storage Connected.")
+    logger.info("Application starting up... Storage Connected (%s).", settings.storage_backend)
 
     # 启动 V2 链上索引守护任务（主索引器）
     # 该任务负责充值事件的异步确认与最终一致性入账。

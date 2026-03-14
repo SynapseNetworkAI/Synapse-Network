@@ -108,6 +108,12 @@ class Settings:
 
     # Unified runtime directory for JSON persistence (ledgers, intents, logs, configs).
     runtime_storage_dir: str = os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir())
+    # Storage backend switch: "json" for local files, "postgres" for managed PostgreSQL.
+    storage_backend: str = os.getenv("STORAGE_BACKEND", "json").strip().lower() or "json"
+    # PostgreSQL DSN used when STORAGE_BACKEND=postgres.
+    postgres_dsn: str = os.getenv("POSTGRES_DSN", "").strip()
+    # Auto-create PostgreSQL tables/indexes on startup when using postgres backend.
+    postgres_auto_init: bool = _env_bool("POSTGRES_AUTO_INIT", True)
     # Storage directory used by JsonStorage; defaults to unified runtime directory.
     data_dir: str = os.getenv("DATA_DIR", os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir()))
     # JWT secret for auth token signing and verification.

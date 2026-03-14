@@ -838,8 +838,18 @@ class BalanceService:
     async def list_finance_audit_logs(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
         return await asyncio.to_thread(self._list_finance_audit_logs_sync, owner_wallet, limit)
 
-    def _list_finance_audit_logs_sync(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
-        owner = normalize_wallet(owner_wallet)
+    def _read_audit_rows_from_storage(self, owner: str, limit: int) -> Optional[List[Dict[str, Any]]]:
+        if not hasattr(self.storage, "read_audit_rows"):
+            return None
+        try:
+            rows = self.storage.read_audit_rows(owner_wallet=owner, limit=max(1, min(limit, 500)))
+            if isinstance(rows, list):
+                return [row for row in rows if isinstance(row, dict)]
+        except Exception:
+            return None
+        return None
+
+    def _read_audit_rows_from_jsonl(self, owner: str) -> List[Dict[str, Any]]:
         if not hasattr(self.storage, "directory"):
             return []
 
@@ -849,7 +859,6 @@ class BalanceService:
         if not os.path.exists(path):
             return []
 
-        allowed_actions = self._finance_audit_actions()
         rows: List[Dict[str, Any]] = []
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
@@ -862,10 +871,22 @@ class BalanceService:
                     continue
                 if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
                     continue
-                action = str(row.get("action") or "")
-                if action not in allowed_actions:
-                    continue
                 rows.append(row)
+        return rows
+
+    def _list_finance_audit_logs_sync(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
+        owner = normalize_wallet(owner_wallet)
+        allowed_actions = self._finance_audit_actions()
+
+        rows = self._read_audit_rows_from_storage(owner, limit)
+        if rows is None:
+            rows = self._read_audit_rows_from_jsonl(owner)
+
+        rows = [
+            row
+            for row in rows
+            if str(row.get("action") or "") in allowed_actions
+        ]
 
         rows.sort(key=lambda item: int(item.get("timestamp") or 0), reverse=True)
         return rows[: max(1, min(limit, 500))]

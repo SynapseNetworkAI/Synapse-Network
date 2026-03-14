@@ -152,6 +152,18 @@ def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, detai
 
 
 def read_audit_log(storage: BaseStorage, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
+    result: List[Dict[str, Any]] = []
+
+    if hasattr(storage, "read_audit_rows"):
+        try:
+            rows = getattr(storage, "read_audit_rows")(owner_wallet=owner_wallet, limit=limit)
+            if isinstance(rows, list):
+                result = [row for row in rows if isinstance(row, dict)]
+                result.sort(key=lambda r: int(r.get("timestamp", 0)), reverse=True)
+                return result[:limit]
+        except Exception:
+            pass
+
     if not hasattr(storage, "directory"):
         return []
 
@@ -159,7 +171,6 @@ def read_audit_log(storage: BaseStorage, owner_wallet: str, limit: int) -> List[
     if not os.path.exists(path):
         return []
 
-    result: List[Dict[str, Any]] = []
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             raw = line.strip()
