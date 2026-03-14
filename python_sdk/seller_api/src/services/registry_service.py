@@ -7,6 +7,8 @@ import asyncio
 import random
 import string
 
+JSON_CONTENT_TYPE = "application/json"
+
 
 def _seller_short(owner_wallet: str) -> str:
     compact = "".join(ch for ch in owner_wallet.lower() if ch in string.hexdigits)
@@ -24,8 +26,8 @@ def _build_public_invoke(svc: Dict[str, Any], public_gateway_url: Optional[str])
     invoke = svc.get("invoke") if isinstance(svc.get("invoke"), dict) else {}
     timeout_ms = int(invoke.get("timeoutMs") or 3000)
     method = str(invoke.get("method") or "POST").upper()
-    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {"contentType": "application/json", "schema": {}}
-    response_spec = invoke.get("response") if isinstance(invoke.get("response"), dict) else {"contentType": "application/json", "schema": {}}
+    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
+    response_spec = invoke.get("response") if isinstance(invoke.get("response"), dict) else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
 
     gateway_url = str(public_gateway_url or "").strip()
     if not gateway_url:
@@ -61,6 +63,13 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     invoke = req_data.get("invoke") if isinstance(req_data.get("invoke"), dict) else {}
     if not invoke:
         raise ValueError("invoke is required")
+    invoke_method = str(invoke.get("method") or "POST").upper()
+    if invoke_method != "POST":
+        raise ValueError("invoke.method must be POST")
+    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
+    request_content_type = str(request_spec.get("contentType") or JSON_CONTENT_TYPE).strip().lower()
+    if request_content_type != JSON_CONTENT_TYPE:
+        raise ValueError("invoke.request.contentType must be application/json")
     targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
     if not targets:
         raise ValueError("invoke.targets must contain at least one target")

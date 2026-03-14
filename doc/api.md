@@ -276,6 +276,8 @@
   - `serviceId` 格式：仅允许 `[A-Za-z0-9._:-]`，最大长度 `128`。
   - `X-Credential`：必填，格式必须匹配 `agt_[A-Za-z0-9]+`，最大长度 `128`。
   - `X-Request-Id`：可选；若传入，格式必须匹配 `[A-Za-z0-9._:-]`，最大长度 `128`。
+  - 平台仅支持 `invoke.method=POST` 且 `invoke.request.contentType=application/json`。
+  - 按 `invoke.request.schema.required` 校验请求体必填字段，缺失时返回 `REQUEST_REQUIRED_FIELDS_MISSING`。
   - `constraints` 在转发阶段强制执行：`maxQps/maxRequestBytes/maxResponseBytes/timeoutMs`。
   - `invoke.targets[].weight` 在转发阶段强制校验，必须是整数且在 `[1,10000]`。
 
@@ -301,6 +303,7 @@
   - `SERVICE_QPS_EXCEEDED` (`429`)：服务级 QPS 超限。
   - `REQUEST_PAYLOAD_TOO_LARGE` (`413`)：请求体超过服务最大请求字节数。
   - `RESPONSE_PAYLOAD_TOO_LARGE` (`413`)：上游响应超过服务最大响应字节数。
+  - `REQUEST_REQUIRED_FIELDS_MISSING` (`422`)：请求体缺少该服务 `invoke.request.schema.required` 声明的必填字段。
   - `INVALID_REQUEST_ID` (`422`)：`X-Request-Id` 格式非法。
   - `SERVICE_NOT_FOUND` (`404`)：服务不存在。
   - `SERVICE_INACTIVE` (`403`)：服务未激活。

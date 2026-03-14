@@ -293,7 +293,36 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 3. `timeoutMs`：转发客户端超时严格按服务配置执行（并受平台硬上限保护）。
 4. `maxResponseBytes`：上游响应超限时终止并返回 `413 RESPONSE_PAYLOAD_TOO_LARGE`。
 
-### 5.1.5 Gateway 加权转发策略（基于 Seller targets）
+### 5.1.5 Buyer 请求体契约校验（基于 invoke.request.schema）
+
+平台转发层当前仅支持以下请求协议：
+
+1. `invoke.method = POST`
+2. `invoke.request.contentType = application/json`
+
+运行时会基于 Seller 注册的 `invoke.request.schema.required` 校验必填字段是否存在。
+
+示例：
+
+```json
+"request": {
+  "contentType": "application/json",
+  "schema": {
+    "type": "object",
+    "required": ["text"],
+    "properties": {
+      "text": { "type": "string" }
+    }
+  }
+}
+```
+
+若 Buyer 请求缺少必填字段，网关返回：
+
+1. `422 REQUEST_REQUIRED_FIELDS_MISSING`
+2. 错误详情包含 `serviceId` 和 `missingFields`，用于提示“哪个服务缺哪个字段”。
+
+### 5.1.6 Gateway 加权转发策略（基于 Seller targets）
 
 对于 Seller 注册的：
 
@@ -355,7 +384,7 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
   - `metering` 明确哪些状态码计费、错误是否计费。
   - `forwarding.retryPolicy` 保证重试行为可预测，避免重复扣费。
 
-### 5.1.6 注册字段说明（字段含义 + 平台使用方式）
+### 5.1.7 注册字段说明（字段含义 + 平台使用方式）
 
 1. `serviceName`
   - 含义：人类可读服务名。

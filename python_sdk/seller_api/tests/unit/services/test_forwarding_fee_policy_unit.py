@@ -1,5 +1,6 @@
 # pyright: reportMissingImports=false
 
+import asyncio
 import pytest
 from fastapi import HTTPException
 
@@ -240,6 +241,7 @@ async def test_service_qps_limit_enforced_in_memory(monkeypatch):
     forwarding_service._memory_window_counters.clear()
 
     async def _redis_none():
+        await asyncio.sleep(0)
         return None
 
     monkeypatch.setattr(forwarding_service, "_get_redis_client", _redis_none)
@@ -286,6 +288,49 @@ def test_select_weighted_target_url_rejects_non_positive_weight():
 
     with pytest.raises(HTTPException) as exc:
         forwarding_service._select_weighted_target_url(invoke)
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail["code"] == "INVALID_INVOKE_CONFIG"
+
+
+def test_validate_invoke_request_contract_missing_required_fields():
+    service = {
+        "serviceId": "SVC_TEST_REQUIRED",
+        "invoke": {
+            "method": "POST",
+            "request": {
+                "contentType": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["text", "topic"],
+                },
+            },
+        },
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._validate_invoke_request_contract(service, {"text": "hello"})
+
+    assert exc.value.status_code == 422
+    assert exc.value.detail["code"] == "REQUEST_REQUIRED_FIELDS_MISSING"
+    assert exc.value.detail["serviceId"] == "SVC_TEST_REQUIRED"
+    assert exc.value.detail["missingFields"] == ["topic"]
+
+
+def test_validate_invoke_request_contract_rejects_non_json_content_type():
+    service = {
+        "serviceId": "SVC_TEST_CONTENT_TYPE",
+        "invoke": {
+            "method": "POST",
+            "request": {
+                "contentType": "application/x-www-form-urlencoded",
+                "schema": {"type": "object", "required": ["text"]},
+            },
+        },
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._validate_invoke_request_contract(service, {"text": "hello"})
 
     assert exc.value.status_code == 500
     assert exc.value.detail["code"] == "INVALID_INVOKE_CONFIG"

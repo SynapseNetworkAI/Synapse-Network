@@ -444,9 +444,54 @@ async def _rollback_charge(
             credential_service.save_credential_rows(storage, rows, extras)
 
 
+def _validate_invoke_request_contract(service: Dict[str, Any], payload: Dict[str, Any]) -> None:
+    invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
+    service_id = str(service.get("serviceId") or "unknown")
+
+    method = str(invoke.get("method") or "POST").upper()
+    if method != "POST":
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_INVOKE_CONFIG",
+                "message": "invoke.method must be POST",
+            },
+        )
+
+    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
+    content_type = str(request_spec.get("contentType") or "application/json").strip().lower()
+    if content_type != "application/json":
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_INVOKE_CONFIG",
+                "message": "invoke.request.contentType must be application/json",
+            },
+        )
+
+    schema = request_spec.get("schema") if isinstance(request_spec.get("schema"), dict) else {}
+    required = schema.get("required") if isinstance(schema.get("required"), list) else []
+    missing_fields = [
+        str(field)
+        for field in required
+        if isinstance(field, str) and (field not in payload or payload.get(field) is None)
+    ]
+    if missing_fields:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "REQUEST_REQUIRED_FIELDS_MISSING",
+                "message": f"service {service_id} requires fields: {', '.join(missing_fields)}",
+                "serviceId": service_id,
+                "missingFields": missing_fields,
+            },
+        )
+
+
 async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) -> Any:
     constraints = _effective_service_constraints(service)
     request_payload = {"text": prompt}
+    _validate_invoke_request_contract(service, request_payload)
     request_bytes = len(json.dumps(request_payload, ensure_ascii=False).encode("utf-8"))
     if request_bytes > constraints["maxRequestBytes"]:
         raise HTTPException(
@@ -460,16 +505,12 @@ async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) 
         )
 
     invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
-    upstream_method = str(invoke.get("method") or "POST").upper()
     upstream_url = _select_weighted_target_url(invoke)
 
     timeout_sec = float(constraints["timeoutMs"]) / 1000.0
     async with httpx.AsyncClient(timeout=timeout_sec) as client:
         headers = {"X-Request-Id": request_id}
-        if upstream_method == "GET":
-            response = await client.get(upstream_url, params={"text": prompt}, headers=headers)
-        else:
-            response = await client.request(upstream_method, upstream_url, json=request_payload, headers=headers)
+        response = await client.post(upstream_url, json=request_payload, headers=headers)
 
         response_size = len(response.content or b"")
         if response_size > constraints["maxResponseBytes"]:

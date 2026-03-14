@@ -46,6 +46,7 @@
 6. CREDENTIAL_REQUIRED (401)：缺少 X-Credential。
 7. CREDENTIAL_FORMAT_INVALID (422)：X-Credential 格式非法。
 8. INVALID_REQUEST_ID (422)：X-Request-Id 格式非法。
+9. REQUEST_REQUIRED_FIELDS_MISSING (422)：请求体缺少该服务 invoke.request.schema.required 声明的必填字段。
 
 ### 4.2 凭据状态与调用额度
 

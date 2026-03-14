@@ -140,3 +140,41 @@ def test_normalize_service_payload_rejects_over_limit_constraints(monkeypatch):
         _normalize_service_payload(payload, "0xabc")
 
     assert "constraints.timeoutMs" in str(exc.value)
+
+
+def test_normalize_service_payload_rejects_non_post_method():
+    payload = {
+        "serviceName": "Invalid Method",
+        "pricing": {"currency": "USDC", "amount": "0.01"},
+        "healthCheck": {"path": "/health", "method": "GET"},
+        "invoke": {
+            "method": "GET",
+            "targets": [{"url": "http://10.0.0.1:8100/infer", "weight": 100}],
+            "request": {"contentType": "application/json", "schema": {}},
+            "response": {"contentType": "application/json", "schema": {}},
+        },
+    }
+
+    with pytest.raises(ValueError) as exc:
+        _normalize_service_payload(payload, "0xabc")
+
+    assert "invoke.method" in str(exc.value)
+
+
+def test_normalize_service_payload_rejects_non_json_content_type():
+    payload = {
+        "serviceName": "Invalid ContentType",
+        "pricing": {"currency": "USDC", "amount": "0.01"},
+        "healthCheck": {"path": "/health", "method": "GET"},
+        "invoke": {
+            "method": "POST",
+            "targets": [{"url": "http://10.0.0.1:8100/infer", "weight": 100}],
+            "request": {"contentType": "application/x-www-form-urlencoded", "schema": {}},
+            "response": {"contentType": "application/json", "schema": {}},
+        },
+    }
+
+    with pytest.raises(ValueError) as exc:
+        _normalize_service_payload(payload, "0xabc")
+
+    assert "invoke.request.contentType" in str(exc.value)
