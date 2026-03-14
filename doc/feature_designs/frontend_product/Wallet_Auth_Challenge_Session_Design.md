@@ -113,13 +113,19 @@ Current implementation behavior:
 
 ## 8. Auth Flow (Current)
 
-1. Wallet connects.
-2. Frontend requests challenge.
-3. Wallet signs challenge.
-4. Frontend submits signature for verification.
-5. Backend verifies signature + challenge validity.
-6. Backend issues session token with `expires_in`.
-7. Frontend stores token and calls protected APIs.
+1. User connects wallet from RainbowKit connect flow.
+2. Frontend automatically triggers one-time session authorization after successful user-initiated connect.
+3. Frontend requests challenge.
+4. Wallet signs challenge.
+5. Frontend submits signature for verification.
+6. Backend verifies signature + challenge validity.
+7. Backend issues session token with `expires_in`.
+8. Frontend stores token and calls protected APIs.
+
+UX fallback:
+
+1. If automatic authorization is cancelled or fails, top-right wallet badge exposes explicit `Authorize Login` action for manual retry.
+2. Wallet remains connected while session stays unauthenticated until retry succeeds.
 
 ## 8.1 Operation Decision Matrix (When challenge/session is required)
 
@@ -140,6 +146,12 @@ Rule of thumb:
 1. Challenge is only for obtaining or renewing session.
 2. Session is for most off-chain platform API operations.
 3. On-chain value movement always requires wallet/typed-data signature regardless of session.
+
+Connect + Login merged policy:
+
+1. For user-initiated wallet connections, connect and session login are treated as one continuous flow.
+2. System attempts authorization once automatically immediately after connect.
+3. Manual `Authorize Login` remains available as deterministic recovery path.
 
 ## 8.2 Page Auth Matrix (Frontend)
 

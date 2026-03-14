@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, createContext, useContext, useRef, useMemo } from "react";
-import { useAccount, useDisconnect, useSignMessage } from "wagmi";
+import { useAccount, useAccountEffect, useDisconnect, useSignMessage } from "wagmi";
 import { toHex } from "viem";
 import toast from "react-hot-toast";
 import { getAppRole } from "@/utils/roleStore";
@@ -60,6 +60,8 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   const [authError, setAuthError] = useState<string | null>(null);
   const [verifiedWallet, setVerifiedWallet] = useState<string | null>(null);
   const disconnectClearTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const pendingAutoAuthorizeWalletRef = useRef<string | null>(null);
+  const autoAuthorizeTriedWalletRef = useRef<string | null>(null);
 
   const shouldForceReconnectForCurrentRole = useCallback((): boolean => {
     if (!address) return false;
@@ -185,6 +187,37 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
     }
   }, [address, signChallengeMessage, handleAuthorizeFailure]);
 
+  const isSessionAuthenticated = Boolean(verifiedWallet && !authError && !isAuthorizing && isConnected && address);
+
+  useAccountEffect({
+    onConnect(data) {
+      if (!data.address) return;
+      if (data.isReconnected) return;
+      pendingAutoAuthorizeWalletRef.current = data.address.toLowerCase();
+      autoAuthorizeTriedWalletRef.current = null;
+    },
+    onDisconnect() {
+      pendingAutoAuthorizeWalletRef.current = null;
+      autoAuthorizeTriedWalletRef.current = null;
+    },
+  });
+
+  useEffect(() => {
+    if (!isConnected || !address) {
+      autoAuthorizeTriedWalletRef.current = null;
+      return;
+    }
+
+    if (isSessionAuthenticated || isAuthorizing) return;
+
+    const normalized = address.toLowerCase();
+    if (pendingAutoAuthorizeWalletRef.current !== normalized) return;
+    if (autoAuthorizeTriedWalletRef.current === normalized) return;
+
+    autoAuthorizeTriedWalletRef.current = normalized;
+    void authorize();
+  }, [isConnected, address, isSessionAuthenticated, isAuthorizing, authorize]);
+
   useEffect(() => {
     if (disconnectClearTimer.current) {
       globalThis.clearTimeout(disconnectClearTimer.current);
@@ -272,8 +305,6 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       globalThis.window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired as EventListener);
     };
   }, [forceReconnectIfNeeded]);
-
-  const isSessionAuthenticated = Boolean(verifiedWallet && !authError && !isAuthorizing && isConnected && address);
 
   const authContextValue = useMemo(() => ({
     isConnected,
