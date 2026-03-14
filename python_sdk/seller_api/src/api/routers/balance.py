@@ -6,6 +6,8 @@ from src.models.pydantic_models import DepositIntentRequest, RefundIntentRequest
 from src.services.balance_service import BalanceService
 from src.services import credential_service
 from src.services.v2_indexer import get_indexer_status
+from src.core.common import normalize_wallet
+from src.core.config import settings
 from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
@@ -27,6 +29,65 @@ def _extract_request_meta(request: Request) -> Dict[str, Any]:
         "requestId": request.headers.get("X-Request-Id") or "",
         "clientIp": client_host,
         "userAgent": request.headers.get("User-Agent") or "",
+    }
+
+
+def _ensure_fee_policy_admin(owner_wallet: str) -> str:
+    owner = normalize_wallet(owner_wallet)
+    admins = settings.platform_fee_admin_wallets
+    if admins:
+        if owner not in admins:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "FORBIDDEN", "message": "Only fee policy admins can access this endpoint"},
+            )
+        return owner
+
+    # Developer fallback for local environments: if allow-list is empty,
+    # permit authenticated owner in development only.
+    if str(settings.environment).lower() != "development":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FEE_ADMIN_NOT_CONFIGURED",
+                "message": "PLATFORM_FEE_ADMIN_WALLETS must be configured in non-development environments",
+            },
+        )
+    return owner
+
+
+def _clamp_rate(value: Any, fallback: Optional[float] = None) -> float:
+    if value is None:
+        if fallback is None:
+            raise ValueError("rate is required")
+        return float(fallback)
+    try:
+        rate = float(value)
+    except Exception:
+        raise ValueError("rate must be a number")
+    if rate < 0 or rate > 1:
+        raise ValueError("rate must be within [0,1]")
+    return float(rate)
+
+
+def _normalize_fee_policy_payload(payload: Dict[str, Any], default_fallback: float) -> Dict[str, Any]:
+    default_rate = _clamp_rate(payload.get("defaultRate"), default_fallback)
+    owner_rates_raw = payload.get("ownerRates")
+    if owner_rates_raw is None:
+        owner_rates_raw = {}
+    if not isinstance(owner_rates_raw, dict):
+        raise ValueError("ownerRates must be an object")
+
+    owner_rates: Dict[str, float] = {}
+    for key, value in owner_rates_raw.items():
+        owner = normalize_wallet(str(key or ""))
+        if not owner:
+            raise ValueError("ownerRates contains invalid wallet key")
+        owner_rates[owner] = _clamp_rate(value)
+
+    return {
+        "defaultRate": default_rate,
+        "ownerRates": owner_rates,
     }
 
 
@@ -153,4 +214,52 @@ async def get_v2_indexer_status():
     return {
         "status": "success",
         "indexer": get_indexer_status(),
+    }
+
+
+@router.get("/v1/admin/fee-policy")
+async def get_fee_policy(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+):
+    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    raw = storage.get_collection("platform_fee_policy") or {}
+    if not isinstance(raw, dict):
+        raw = {}
+
+    normalized = _normalize_fee_policy_payload(raw, settings.platform_fee_rate)
+    response = {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "policy": {
+            **normalized,
+            "updatedAt": raw.get("updatedAt"),
+            "updatedBy": raw.get("updatedBy"),
+        },
+    }
+    return response
+
+
+@router.put("/v1/admin/fee-policy")
+async def set_fee_policy(
+    payload: Dict[str, Any],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+):
+    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    try:
+        normalized = _normalize_fee_policy_payload(payload if isinstance(payload, dict) else {}, settings.platform_fee_rate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_FEE_POLICY", "message": str(exc)})
+
+    saved = {
+        **normalized,
+        "updatedAt": credential_service.now_ts(),
+        "updatedBy": admin_wallet,
+    }
+    storage.save_collection("platform_fee_policy", saved)
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "policy": saved,
     }

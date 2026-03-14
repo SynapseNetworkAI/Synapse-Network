@@ -261,9 +261,19 @@ docker-compose up -d
 - `AuthSettings`：`jwt_secret/auth_ttl/challenge_ttl`
 - `StorageSettings`：`runtime_storage_dir/data_dir`
 - `RateLimitSettings`：`owner_rpm/agent_rpm/service_rpm/window_sec`
+- `BillingSettings`：`platform_fee_rate`（全局默认手续费率）
 - `FeatureFlags`：兼容开关、灰度开关
 
 最终对外暴露一个聚合对象：`settings`。
+
+计费配置补充（当前实现）：
+
+- 全局费率：`PLATFORM_FEE_RATE`（范围 `0.0 ~ 1.0`，默认 `0.10`）。
+- 运行时覆盖（预留给管理后台）：`platform_fee_policy` 存储集合。
+  - `defaultRate`: 运行时默认费率（可覆盖全局配置）。
+  - `ownerRates`: 按卖家钱包地址覆盖费率，键为 `ownerAddress`。
+
+生效优先级：`ownerRates[ownerAddress] > platform_fee_policy.defaultRate > PLATFORM_FEE_RATE`。
 
 补充说明（Auth 生命周期设计）：
 

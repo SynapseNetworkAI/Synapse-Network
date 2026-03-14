@@ -67,6 +67,15 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_rate(name: str, default: float) -> float:
+    value = _env_float(name, default)
+    if value < 0:
+        return 0.0
+    if value > 1:
+        return 1.0
+    return float(value)
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -105,6 +114,17 @@ class Settings:
     jwt_secret: str = os.getenv("JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret")
     # Optional Redis URL for distributed counters and rate limits.
     redis_url: str = os.getenv("REDIS_URL", "").strip()
+
+    # Global platform fee rate for gateway billing split, range [0.0, 1.0].
+    # Example: 0.10 means 10% platform fee and 90% seller net.
+    platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.10)
+    # Optional admin wallet allow-list for fee-policy management endpoints.
+    # Comma-separated lowercase/uppercase wallet addresses are accepted.
+    platform_fee_admin_wallets: set[str] = {
+        addr.strip().lower()
+        for addr in os.getenv("PLATFORM_FEE_ADMIN_WALLETS", "").split(",")
+        if addr.strip()
+    }
 
     # DeepSeek API key used by service manifest parse-curl endpoint.
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "").strip()

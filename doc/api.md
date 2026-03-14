@@ -25,6 +25,8 @@
   - `GET /api/v1/router/config`
   - `POST /api/v1/router/config`
   - `GET /api/v1/finance/audit-logs`
+  - `GET /api/v1/admin/fee-policy`
+  - `PUT /api/v1/admin/fee-policy`
   - `/api/v1/secrets/seller/*`
   - `/api/v1/credentials/buyer/*`
 
@@ -181,6 +183,18 @@
   }
   ```
 
+### 3.8 平台手续费策略管理 (Admin Fee Policy)
+
+- **Paths**:
+  - `GET /api/v1/admin/fee-policy`
+  - `PUT /api/v1/admin/fee-policy`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Authorization**:
+  - Owner must be included in `PLATFORM_FEE_ADMIN_WALLETS`.
+  - Development fallback: when allow-list is empty and `ENVIRONMENT=development`, authenticated owner can manage policy for local debug.
+- **Payload** (`PUT`): `{ defaultRate?: number, ownerRates?: Record<wallet, rate> }` with rate in `[0,1]`.
+- **Effect**: controls `billing.feeRate` resolution priority on generate path.
+
 ---
 
 ## 4. 卖家机器经济与 AI 服务 (Seller Network Services)
@@ -216,6 +230,10 @@
 ### 4.2 高频服务分发流水线 (Generate/Invoke API)
 - **Path**: `POST /api/v1/gateway/generate`
 - **Desc**: 大脑发起真实 M2M 调用的核心漏斗。在此经历：“扣减高速内存锁余额” -> “分布式速率限制” -> “反向代理给真实提供商服务” -> “结果聚合审计” 的连贯动作。这也是整个系统价值捕获的中心。
+- **Billing Split**:
+  - `unitPrice` 来自服务注册价格。
+  - `billing.feeRate` 为本次调用实际生效费率。
+  - 生效优先级：owner 覆盖费率 > 运行时默认费率 > `PLATFORM_FEE_RATE`。
 - **Headers**:
   - `X-Credential`: "agt_123..." (调用凭据)
   - `X-Service-Id`: "svc_demo" (卖家在网络上的通用注册编号)

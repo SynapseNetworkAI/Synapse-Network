@@ -124,9 +124,11 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
     with TemporaryDirectory() as tmp:
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_fee_rate = cfg.settings.platform_fee_rate
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
+        cfg.settings.platform_fee_rate = 0.10
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -148,6 +150,7 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
+            cfg.settings.platform_fee_rate = old_fee_rate
             app_module.run_v2_deposit_indexer = old_indexer
 
 
@@ -158,9 +161,11 @@ def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
     with TemporaryDirectory() as tmp:
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_fee_rate = cfg.settings.platform_fee_rate
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
+        cfg.settings.platform_fee_rate = 0.10
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -196,6 +201,7 @@ def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
+            cfg.settings.platform_fee_rate = old_fee_rate
             app_module.run_v2_deposit_indexer = old_indexer
 
 
@@ -206,9 +212,11 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
     with TemporaryDirectory() as tmp:
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_fee_rate = cfg.settings.platform_fee_rate
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
+        cfg.settings.platform_fee_rate = 0.10
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -245,6 +253,7 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
+            cfg.settings.platform_fee_rate = old_fee_rate
             app_module.run_v2_deposit_indexer = old_indexer
 
 
@@ -255,9 +264,11 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
     with TemporaryDirectory() as tmp:
         old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_fee_rate = cfg.settings.platform_fee_rate
         old_indexer = app_module.run_v2_deposit_indexer
         cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
+        cfg.settings.platform_fee_rate = 0.10
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
             app = app_module.create_app()
@@ -302,4 +313,5 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
+            cfg.settings.platform_fee_rate = old_fee_rate
             app_module.run_v2_deposit_indexer = old_indexer

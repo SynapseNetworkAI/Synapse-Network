@@ -16,6 +16,34 @@ _redis_client = None
 _memory_window_counters: Dict[str, Tuple[float, int]] = {}
 
 
+def _sanitize_fee_rate(raw: Any, fallback: float) -> float:
+    try:
+        value = float(raw)
+    except Exception:
+        return float(fallback)
+    if value < 0:
+        return 0.0
+    if value > 1:
+        return 1.0
+    return value
+
+
+def _resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float:
+    # Priority: owner override -> runtime default override -> global setting.
+    # Reserved for future admin UI controls without changing billing call path.
+    fallback = _sanitize_fee_rate(settings.platform_fee_rate, 0.10)
+    policy = storage.get_collection("platform_fee_policy") or {}
+    if not isinstance(policy, dict):
+        return fallback
+
+    policy_default = _sanitize_fee_rate(policy.get("defaultRate"), fallback)
+    owner_rates = policy.get("ownerRates") if isinstance(policy.get("ownerRates"), dict) else {}
+    owner_key = normalize_wallet(str(seller_wallet or ""))
+    if owner_key and owner_key in owner_rates:
+        return _sanitize_fee_rate(owner_rates.get(owner_key), policy_default)
+    return policy_default
+
+
 def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
     now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc)
     if reset_interval == "never":
@@ -175,11 +203,11 @@ async def _check_credit_limit(credential: Dict[str, Any], unit_price: float) -> 
     )
 
 
-def _pricing_breakdown(unit_price: float) -> Tuple[float, float]:
-    fee_rate = 0.1
+def _pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: float) -> Tuple[float, float, float]:
+    fee_rate = _resolve_platform_fee_rate(storage, seller_wallet)
     platform_fee = round(unit_price * fee_rate, 6)
     seller_net = round(unit_price - platform_fee, 6)
-    return platform_fee, seller_net
+    return fee_rate, platform_fee, seller_net
 
 
 async def _charge_and_mark_usage(
@@ -327,7 +355,7 @@ async def generate_response_v2(
 
     owner_wallet = normalize_wallet(str(credential.get("ownerAddress") or ""))
     seller_wallet = normalize_wallet(str(service.get("address") or service.get("ownerAddress") or ""))
-    platform_fee, seller_net = _pricing_breakdown(unit_price)
+    fee_rate, platform_fee, seller_net = _pricing_breakdown(storage, seller_wallet, unit_price)
 
     request_id = str(uuid4())
     buyer_after, updated_credential = await _charge_and_mark_usage(
@@ -353,6 +381,7 @@ async def generate_response_v2(
                 "service_id": service_id,
                 "status": "failed_upstream",
                 "unit_price": unit_price,
+                "fee_rate": fee_rate,
                 "platform_fee": platform_fee,
                 "seller_net": seller_net,
                 "created_at": credential_service.now_ts(),
@@ -372,6 +401,7 @@ async def generate_response_v2(
             "service_id": service_id,
             "status": "succeeded",
             "unit_price": unit_price,
+            "fee_rate": fee_rate,
             "platform_fee": platform_fee,
             "seller_net": seller_net,
             "created_at": credential_service.now_ts(),
@@ -386,6 +416,7 @@ async def generate_response_v2(
             "requestId": request_id,
             "serviceId": service_id,
             "unitPrice": unit_price,
+            "feeRate": fee_rate,
             "platformFee": platform_fee,
             "sellerNet": seller_net,
             "buyerBalanceAfter": buyer_after,
@@ -400,6 +431,7 @@ async def generate_response_v2(
             "requestId": request_id,
             "serviceId": service_id,
             "unitPrice": unit_price,
+            "feeRate": fee_rate,
             "platformFee": platform_fee,
             "sellerNet": seller_net,
             "buyerBalanceAfter": buyer_after,

@@ -28,6 +28,12 @@ const vaultABI = parseAbi([
   "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external"
 ]);
 
+function shortAddress(addr?: string): string {
+  if (!addr) return "-";
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
 export default function DeveloperConsole() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
@@ -226,6 +232,11 @@ export default function DeveloperConsole() {
     }
     const amountUsdc = Number(topUpAmount);
     if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) return toast.error("Invalid amount");
+
+    if (walletUsdcBalance < amountUsdc) {
+      toast.error(`Insufficient wallet USDC. Need ${amountUsdc.toFixed(2)} USDC, wallet has ${walletUsdcBalance.toFixed(2)} USDC.`);
+      return;
+    }
 
     if (ethBalance < 0.001) {
       toast.error("Insufficient ETH for transaction gas (needs ~0.001 ETH). Please fund your wallet.");
@@ -583,6 +594,31 @@ print(response.content){"\n"}
               </div>
             </label>
 
+            <div className="mb-5 p-4 border border-cyan-900/50 bg-cyan-950/30 rounded-xl">
+              <p className="text-xs font-semibold tracking-wider text-cyan-300 uppercase">Transaction Summary</p>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-400">From Wallet</span>
+                  <span className="font-mono text-gray-200">{shortAddress(address)}</span>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-400">To (Vault Contract)</span>
+                  <span className="font-mono text-cyan-300" title={VAULT_ADDRESS}>{shortAddress(VAULT_ADDRESS)}</span>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-400">Deposit Amount</span>
+                  <span className="font-bold text-white">{Number.isFinite(Number(topUpAmount)) ? Number(topUpAmount).toFixed(2) : "0.00"} USDC</span>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-400">Max Permit Allowance (this tx)</span>
+                  <span className="font-semibold text-cyan-200">{Number.isFinite(Number(topUpAmount)) ? Number(topUpAmount).toFixed(2) : "0.00"} USDC</span>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-cyan-200/80">
+                You are authorizing and depositing USDC to the on-chain Vault contract, not directly to a personal wallet.
+              </p>
+            </div>
+
             {/* Stepper Logic */}
             {(topUpStep !== "input" || isPending || isConfirming) && (
               <div className="mb-6 space-y-3">
@@ -618,7 +654,7 @@ print(response.content){"\n"}
                 className="px-6 py-2 text-sm font-bold text-black transition-colors bg-green-500 hover:bg-green-400 rounded-xl disabled:opacity-50 flex items-center gap-2"
               >
                 {(isPending || isConfirming) ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-                {topUpStep !== "input" || isConfirming ? "Processing..." : "Complete Top-up"}
+                {topUpStep !== "input" || isConfirming ? "Processing..." : `Confirm Deposit ${Number.isFinite(Number(topUpAmount)) ? Number(topUpAmount).toFixed(2) : "0.00"} USDC`}
               </button>
             </div>
           </div>

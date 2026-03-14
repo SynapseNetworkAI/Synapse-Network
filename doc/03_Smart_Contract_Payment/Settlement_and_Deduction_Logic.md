@@ -474,6 +474,12 @@ sequenceDiagram
 - 手续费：`platformFee = unitPrice * feeRate`。
 - 卖家净收入：`sellerNet = unitPrice - platformFee`。
 
+`feeRate` 生效规则（当前网关实现）：
+
+1. 先查卖家 owner 级覆盖费率（`platform_fee_policy.ownerRates[ownerAddress]`）。
+2. 若未配置则使用运行时默认费率（`platform_fee_policy.defaultRate`）。
+3. 仍未配置则回落到全局环境变量 `PLATFORM_FEE_RATE`（默认 `0.10`）。
+
 ---
 
 ## 5. 阶段二：端到端扣款流程
