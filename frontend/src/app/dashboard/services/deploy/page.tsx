@@ -18,6 +18,14 @@ const AI_DESCRIPTION_MIN = 12;
 const AI_DESCRIPTION_MAX = 240;
 const AI_INTENT_MAX = 8;
 const MAX_CLUSTER_TARGETS = 10;
+const CONSTRAINT_TIMEOUT_MIN = 300;
+const CONSTRAINT_TIMEOUT_MAX = 15000;
+const CONSTRAINT_REQ_BYTES_MIN = 256;
+const CONSTRAINT_REQ_BYTES_MAX = 262144;
+const CONSTRAINT_RES_BYTES_MIN = 256;
+const CONSTRAINT_RES_BYTES_MAX = 1048576;
+const CONSTRAINT_QPS_MIN = 1;
+const CONSTRAINT_QPS_MAX = 200;
 
 type FieldGuideItem = {
   title: string;
@@ -633,6 +641,24 @@ export default function DeployManifestPage() {
       errors.health_check = "Health check path must start with / (for example /health).";
     }
 
+    const timeoutMs = Number(manifest.constraints.timeout_ms || 0);
+    const maxReqBytes = Number(manifest.constraints.max_request_bytes || 0);
+    const maxResBytes = Number(manifest.constraints.max_response_bytes || 0);
+    const maxQps = Number(manifest.constraints.max_qps || 0);
+
+    if (timeoutMs < CONSTRAINT_TIMEOUT_MIN || timeoutMs > CONSTRAINT_TIMEOUT_MAX) {
+      errors.timeout_ms = `Timeout must be ${CONSTRAINT_TIMEOUT_MIN}-${CONSTRAINT_TIMEOUT_MAX} ms.`;
+    }
+    if (maxReqBytes < CONSTRAINT_REQ_BYTES_MIN || maxReqBytes > CONSTRAINT_REQ_BYTES_MAX) {
+      errors.max_request_bytes = `Max Request Bytes must be ${CONSTRAINT_REQ_BYTES_MIN}-${CONSTRAINT_REQ_BYTES_MAX}.`;
+    }
+    if (maxResBytes < CONSTRAINT_RES_BYTES_MIN || maxResBytes > CONSTRAINT_RES_BYTES_MAX) {
+      errors.max_response_bytes = `Max Response Bytes must be ${CONSTRAINT_RES_BYTES_MIN}-${CONSTRAINT_RES_BYTES_MAX}.`;
+    }
+    if (maxQps < CONSTRAINT_QPS_MIN || maxQps > CONSTRAINT_QPS_MAX) {
+      errors.max_qps = `Max QPS must be ${CONSTRAINT_QPS_MIN}-${CONSTRAINT_QPS_MAX}.`;
+    }
+
     return errors;
   }, [manifest, parsedClusterTargets]);
 
@@ -891,6 +917,11 @@ export default function DeployManifestPage() {
                   value={manifest.constraints.timeout_ms}
                   onChange={(e) => handleUpdate("constraints.timeout_ms", Number.parseInt(e.target.value, 10) || 0)}
                 />
+                {fieldErrors.timeout_ms ? (
+                  <p className="text-xs text-yellow-300 mt-1">{fieldErrors.timeout_ms}</p>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-1">Platform cap: 300-15000 ms.</p>
+                )}
               </div>
             </div>
 
@@ -906,6 +937,11 @@ export default function DeployManifestPage() {
                   value={manifest.constraints.max_response_bytes}
                   onChange={(e) => handleUpdate("constraints.max_response_bytes", Number.parseInt(e.target.value, 10) || 0)}
                 />
+                {fieldErrors.max_response_bytes ? (
+                  <p className="text-xs text-yellow-300 mt-1">{fieldErrors.max_response_bytes}</p>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-1">Platform cap: 256-1048576 bytes.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">
@@ -918,6 +954,11 @@ export default function DeployManifestPage() {
                   value={manifest.constraints.max_request_bytes}
                   onChange={(e) => handleUpdate("constraints.max_request_bytes", Number.parseInt(e.target.value, 10) || 0)}
                 />
+                {fieldErrors.max_request_bytes ? (
+                  <p className="text-xs text-yellow-300 mt-1">{fieldErrors.max_request_bytes}</p>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-1">Platform cap: 256-262144 bytes.</p>
+                )}
               </div>
             </div>
 
@@ -933,6 +974,11 @@ export default function DeployManifestPage() {
                   value={manifest.constraints.max_qps}
                   onChange={(e) => handleUpdate("constraints.max_qps", Number.parseInt(e.target.value, 10) || 0)}
                 />
+                {fieldErrors.max_qps ? (
+                  <p className="text-xs text-yellow-300 mt-1">{fieldErrors.max_qps}</p>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-1">Platform cap: 1-200 QPS.</p>
+                )}
               </div>
             </div>
           </section>

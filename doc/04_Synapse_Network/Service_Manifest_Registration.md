@@ -264,6 +264,37 @@
   - `forwarding.retryPolicy`
   - 作用：控制资源上限、防止大包与慢请求拖垮网关。
 
+### 5.1.3 约束参数合理区间与平台硬上限（强制）
+
+Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关执行层硬约束；平台会在注册时校验并拒绝越界值。
+
+推荐区间（业务侧）：
+
+1. `timeoutMs`: `1000-5000`
+2. `maxRequestBytes`: `1024-16384`
+3. `maxResponseBytes`: `2048-65536`
+4. `maxQps`: `5-100`
+
+平台硬上限（防止拖垮基础设施）：
+
+1. `timeoutMs`: `300-15000`
+2. `maxRequestBytes`: `256-262144`
+3. `maxResponseBytes`: `256-1048576`
+4. `maxQps`: `1-200`
+
+不满足硬上限时，注册接口返回 `422 SERVICE_REGISTRATION_INVALID`。
+
+### 5.1.4 Buyer 调用阶段约束执行（运行时）
+
+网关在 `POST /api/v1/gateway/generate` 执行时，会基于注册时 `constraints` 对买家请求做准入控制：
+
+1. `maxQps`：对单 `serviceId` 执行每秒窗口限流，超限返回 `429 SERVICE_QPS_EXCEEDED`。
+2. `maxRequestBytes`：转发前计算请求体字节数（UTF-8），超限返回 `413 REQUEST_PAYLOAD_TOO_LARGE`。
+3. `timeoutMs`：转发客户端超时严格按服务配置执行（并受平台硬上限保护）。
+4. `maxResponseBytes`：上游响应超限时终止并返回 `413 RESPONSE_PAYLOAD_TOO_LARGE`。
+
+这套机制保证了：Seller 的 SLA 声明能被网关执行，Buyer 请求不会绕过安全阈值，平台资源不会被单服务失控拖垮。
+
 3. **可观测与追踪字段（Observability）**
   - `forwarding.requestIdHeader`（标准化 `X-Synapse-Request-Id`）
   - `forwarding.passThroughHeaders`（trace 透传）
@@ -297,7 +328,7 @@
   - `metering` 明确哪些状态码计费、错误是否计费。
   - `forwarding.retryPolicy` 保证重试行为可预测，避免重复扣费。
 
-### 5.1.3 注册字段说明（字段含义 + 平台使用方式）
+### 5.1.5 注册字段说明（字段含义 + 平台使用方式）
 
 1. `serviceName`
   - 含义：人类可读服务名。

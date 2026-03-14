@@ -38,7 +38,7 @@ def _issue_session(client: TestClient):
     return "0x" + "1" * 40, "stub-owner-token"
 
 
-def _register_service_and_credential(client: TestClient, owner: str, token: str, seller_wallet: str):
+def _register_service_and_credential(client: TestClient, owner: str, token: str, seller_wallet: str, constraints: dict | None = None):
     reg_res = client.post(
         "/api/v1/services",
         headers=_auth_headers(token, owner),
@@ -51,6 +51,12 @@ def _register_service_and_credential(client: TestClient, owner: str, token: str,
             "status": "active",
             "address": seller_wallet,
             "healthCheck": {"path": "/health", "method": "GET"},
+            "constraints": constraints or {
+                "timeoutMs": 3000,
+                "maxResponseBytes": 2048,
+                "maxRequestBytes": 4096,
+                "maxQps": 50,
+            },
             "invoke": {
                 "method": "POST",
                 "targets": [
@@ -269,9 +275,14 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
                     for r in responses
                     if r.status_code == 402 and isinstance(r.json().get("detail"), dict) and r.json()["detail"].get("code") == "INSUFFICIENT_BALANCE"
                 )
+                throttled = sum(
+                    1
+                    for r in responses
+                    if r.status_code == 429 and isinstance(r.json().get("detail"), dict) and r.json()["detail"].get("code") == "SERVICE_QPS_EXCEEDED"
+                )
 
                 assert success == 20
-                assert insufficient == total_calls - success
+                assert insufficient + throttled == total_calls - success
 
                 _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 0.0, 18.0, 2.002)
         finally:
@@ -337,6 +348,64 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
                     json={"prompt": "third", "serviceId": service_id},
                 )
                 assert third.status_code == 200
+        finally:
+            cfg.settings.data_dir = old_data_dir
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            cfg.settings.platform_fee_rate = old_fee_rate
+            cfg.settings.gateway_routing_tax = old_routing_tax
+            app_module.run_v2_deposit_indexer = old_indexer
+
+
+def test_e2e_gateway_rejects_service_qps_limit(monkeypatch):
+    _mock_upstream(monkeypatch)
+    _mock_owner_auth(monkeypatch)
+    monkeypatch.setattr(credential_service, "now_ts", lambda: 200)
+
+    with TemporaryDirectory() as tmp:
+        old_data_dir = cfg.settings.data_dir
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_fee_rate = cfg.settings.platform_fee_rate
+        old_routing_tax = cfg.settings.gateway_routing_tax
+        old_indexer = app_module.run_v2_deposit_indexer
+        cfg.settings.data_dir = tmp
+        cfg.settings.runtime_storage_dir = tmp
+        cfg.settings.platform_fee_rate = 0.10
+        cfg.settings.gateway_routing_tax = 0.0001
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                buyer_wallet, buyer_token = _issue_session(client)
+                seller_wallet = "0x" + "7" * 40
+                service_id, credential_token = _register_service_and_credential(
+                    client,
+                    buyer_wallet,
+                    buyer_token,
+                    seller_wallet,
+                    constraints={
+                        "timeoutMs": 3000,
+                        "maxResponseBytes": 2048,
+                        "maxRequestBytes": 4096,
+                        "maxQps": 1,
+                    },
+                )
+
+                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 10.0)
+
+                first = client.post(
+                    "/api/v1/gateway/generate",
+                    headers={"X-Credential": credential_token},
+                    json={"prompt": "first", "serviceId": service_id},
+                )
+                assert first.status_code == 200
+
+                second = client.post(
+                    "/api/v1/gateway/generate",
+                    headers={"X-Credential": credential_token},
+                    json={"prompt": "second", "serviceId": service_id},
+                )
+                assert second.status_code == 429
+                assert second.json().get("detail", {}).get("code") == "SERVICE_QPS_EXCEEDED"
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir

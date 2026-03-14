@@ -196,6 +196,17 @@ class Settings:
     # Feature flag: require X-Credential on /generate paths.
     require_agent_credential_for_generate: bool = _env_bool("REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE", False)
 
+    # Platform hard caps for seller-registered forwarding constraints.
+    # These guardrails prevent a single service manifest from exhausting gateway resources.
+    gateway_min_timeout_ms: int = _env_int("GATEWAY_MIN_TIMEOUT_MS", 300)
+    gateway_max_timeout_ms: int = _env_int("GATEWAY_MAX_TIMEOUT_MS", 15000)
+    gateway_min_request_bytes: int = _env_int("GATEWAY_MIN_REQUEST_BYTES", 256)
+    gateway_max_request_bytes: int = _env_int("GATEWAY_MAX_REQUEST_BYTES", 262144)
+    gateway_min_response_bytes: int = _env_int("GATEWAY_MIN_RESPONSE_BYTES", 256)
+    gateway_max_response_bytes: int = _env_int("GATEWAY_MAX_RESPONSE_BYTES", 1048576)
+    gateway_min_service_qps: int = _env_int("GATEWAY_MIN_SERVICE_QPS", 1)
+    gateway_max_service_qps: int = _env_int("GATEWAY_MAX_SERVICE_QPS", 200)
+
     # Server bind host for the main app process.
     host: str = os.getenv("HOST", "0.0.0.1")
     # Server bind port for the main app process.

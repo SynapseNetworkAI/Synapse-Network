@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
 import re
+import json
 import random
 
 import httpx
@@ -23,6 +24,33 @@ _MAX_PROMPT_LENGTH = 8000
 _MAX_SERVICE_ID_LENGTH = 128
 _MAX_REQUEST_ID_LENGTH = 128
 _MAX_CREDENTIAL_LENGTH = 128
+
+
+def _as_int(raw: Any, fallback: int) -> int:
+    try:
+        return int(raw)
+    except Exception:
+        return int(fallback)
+
+
+def _effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
+    raw = service.get("constraints") if isinstance(service.get("constraints"), dict) else {}
+    timeout_ms = _as_int(raw.get("timeoutMs"), 3000)
+    max_request_bytes = _as_int(raw.get("maxRequestBytes"), 4096)
+    max_response_bytes = _as_int(raw.get("maxResponseBytes"), 2048)
+    max_qps = _as_int(raw.get("maxQps"), 50)
+
+    timeout_ms = min(max(timeout_ms, settings.gateway_min_timeout_ms), settings.gateway_max_timeout_ms)
+    max_request_bytes = min(max(max_request_bytes, settings.gateway_min_request_bytes), settings.gateway_max_request_bytes)
+    max_response_bytes = min(max(max_response_bytes, settings.gateway_min_response_bytes), settings.gateway_max_response_bytes)
+    max_qps = min(max(max_qps, settings.gateway_min_service_qps), settings.gateway_max_service_qps)
+
+    return {
+        "timeoutMs": timeout_ms,
+        "maxRequestBytes": max_request_bytes,
+        "maxResponseBytes": max_response_bytes,
+        "maxQps": max_qps,
+    }
 
 
 def _sanitize_fee_rate(raw: Any, fallback: float) -> float:
@@ -183,6 +211,29 @@ async def _check_rpm_limit(credential_id: str, rpm: int) -> None:
     _memory_window_counters[key] = (count, credential_service.now_ts() + 65)
     if int(count) > rpm:
         raise HTTPException(status_code=429, detail={"code": "CREDENTIAL_RPM_EXCEEDED", "message": "Credential rate limit exceeded"})
+
+
+async def _check_service_qps_limit(service_id: str, max_qps: int) -> None:
+    if max_qps <= 0:
+        return
+
+    key = f"svc_qps:{service_id}:{credential_service.now_ts()}"
+    redis_client = await _get_redis_client()
+    if redis_client is not None:
+        current = await redis_client.incr(key)
+        if current == 1:
+            await redis_client.expire(key, 2)
+        if int(current) > max_qps:
+            raise HTTPException(status_code=429, detail={"code": "SERVICE_QPS_EXCEEDED", "message": "Service QPS limit exceeded"})
+        return
+
+    count, expires_at = _memory_window_counters.get(key, (0.0, 0))
+    if expires_at and expires_at < credential_service.now_ts():
+        count = 0.0
+    count += 1.0
+    _memory_window_counters[key] = (count, credential_service.now_ts() + 2)
+    if int(count) > max_qps:
+        raise HTTPException(status_code=429, detail={"code": "SERVICE_QPS_EXCEEDED", "message": "Service QPS limit exceeded"})
 
 
 def _find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]:
@@ -393,6 +444,20 @@ async def _rollback_charge(
 
 
 async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) -> Any:
+    constraints = _effective_service_constraints(service)
+    request_payload = {"text": prompt}
+    request_bytes = len(json.dumps(request_payload, ensure_ascii=False).encode("utf-8"))
+    if request_bytes > constraints["maxRequestBytes"]:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "REQUEST_PAYLOAD_TOO_LARGE",
+                "message": "Request payload exceeds service maxRequestBytes",
+                "maxRequestBytes": constraints["maxRequestBytes"],
+                "actualRequestBytes": request_bytes,
+            },
+        )
+
     invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
     upstream_method = str(invoke.get("method") or "POST").upper()
     targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
@@ -417,12 +482,25 @@ async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) 
         )
     upstream_url = random.choices(target_urls, weights=target_weights, k=1)[0]
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    timeout_sec = float(constraints["timeoutMs"]) / 1000.0
+    async with httpx.AsyncClient(timeout=timeout_sec) as client:
         headers = {"X-Request-Id": request_id}
         if upstream_method == "GET":
             response = await client.get(upstream_url, params={"text": prompt}, headers=headers)
         else:
-            response = await client.request(upstream_method, upstream_url, json={"text": prompt}, headers=headers)
+            response = await client.request(upstream_method, upstream_url, json=request_payload, headers=headers)
+
+        response_size = len(response.content or b"")
+        if response_size > constraints["maxResponseBytes"]:
+            raise HTTPException(
+                status_code=413,
+                detail={
+                    "code": "RESPONSE_PAYLOAD_TOO_LARGE",
+                    "message": "Response payload exceeds service maxResponseBytes",
+                    "maxResponseBytes": constraints["maxResponseBytes"],
+                    "actualResponseBytes": response_size,
+                },
+            )
 
         response.raise_for_status()
         data = response.json()
@@ -457,6 +535,8 @@ async def generate_response_v2(
     await _check_rpm_limit(str(credential.get("id")), int(credential.get("rpm") or 0))
 
     service = _find_active_service(storage, service_id)
+    constraints = _effective_service_constraints(service)
+    await _check_service_qps_limit(service_id, int(constraints["maxQps"]))
     unit_price = _parse_service_price_usdc(service)
 
     owner_wallet = normalize_wallet(str(credential.get("ownerAddress") or ""))
@@ -476,6 +556,28 @@ async def generate_response_v2(
 
     try:
         upstream_result = await _call_upstream(service, prompt, request_id)
+    except HTTPException as exc:
+        await _rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
+        _append_usage_log(
+            storage,
+            {
+                "request_id": request_id,
+                "buyer": owner_wallet,
+                "seller": seller_wallet,
+                "service_id": service_id,
+                "status": "failed_upstream",
+                "unit_price": unit_price,
+                "fee_rate": fee_rate,
+                "protocol_fee": protocol_fee,
+                "routing_tax": routing_tax,
+                "platform_fee_total": platform_fee_total,
+                "seller_net": seller_net,
+                "total_charge": total_charge,
+                "created_at": credential_service.now_ts(),
+                "error_code": exc.detail.get("code") if isinstance(exc.detail, dict) else None,
+            },
+        )
+        raise
     except Exception as exc:
         await _rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
         _append_usage_log(

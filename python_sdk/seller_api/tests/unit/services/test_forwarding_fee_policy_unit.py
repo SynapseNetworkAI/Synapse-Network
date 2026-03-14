@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from src.services import forwarding_service
+from src.services import credential_service
 
 
 def test_pricing_breakdown_uses_global_setting(monkeypatch, temp_json_storage):
@@ -183,3 +184,70 @@ def test_resolve_request_id_rejects_invalid_format():
         forwarding_service._resolve_request_id("invalid request id")
     assert exc.value.status_code == 422
     assert exc.value.detail["code"] == "INVALID_REQUEST_ID"
+
+
+def test_effective_service_constraints_clamps_to_platform_caps(monkeypatch):
+    monkeypatch.setattr(forwarding_service.settings, "gateway_min_timeout_ms", 300)
+    monkeypatch.setattr(forwarding_service.settings, "gateway_max_timeout_ms", 15000)
+    monkeypatch.setattr(forwarding_service.settings, "gateway_min_request_bytes", 256)
+    monkeypatch.setattr(forwarding_service.settings, "gateway_max_request_bytes", 262144)
+    monkeypatch.setattr(forwarding_service.settings, "gateway_min_response_bytes", 256)
+    monkeypatch.setattr(forwarding_service.settings, "gateway_max_response_bytes", 1048576)
+    monkeypatch.setattr(forwarding_service.settings, "gateway_min_service_qps", 1)
+    monkeypatch.setattr(forwarding_service.settings, "gateway_max_service_qps", 200)
+
+    result = forwarding_service._effective_service_constraints(
+        {
+            "constraints": {
+                "timeoutMs": 999999,
+                "maxRequestBytes": 1,
+                "maxResponseBytes": 99999999,
+                "maxQps": 0,
+            }
+        }
+    )
+
+    assert result["timeoutMs"] == 15000
+    assert result["maxRequestBytes"] == 256
+    assert result["maxResponseBytes"] == 1048576
+    assert result["maxQps"] == 1
+
+
+@pytest.mark.asyncio
+async def test_call_upstream_rejects_oversized_request_before_network(monkeypatch):
+    service = {
+        "constraints": {
+            "timeoutMs": 3000,
+            "maxRequestBytes": 32,
+            "maxResponseBytes": 2048,
+            "maxQps": 5,
+        },
+        "invoke": {
+            "method": "POST",
+            "targets": [{"url": "http://127.0.0.1:8100/mock", "weight": 100}],
+        },
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        await forwarding_service._call_upstream(service, "x" * 4000, "req-oversized")
+
+    assert exc.value.status_code == 413
+    assert exc.value.detail["code"] == "REQUEST_PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.asyncio
+async def test_service_qps_limit_enforced_in_memory(monkeypatch):
+    forwarding_service._memory_window_counters.clear()
+
+    async def _redis_none():
+        return None
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _redis_none)
+    monkeypatch.setattr(credential_service, "now_ts", lambda: 100)
+
+    await forwarding_service._check_service_qps_limit("svc-demo", 1)
+    with pytest.raises(HTTPException) as exc:
+        await forwarding_service._check_service_qps_limit("svc-demo", 1)
+
+    assert exc.value.status_code == 429
+    assert exc.value.detail["code"] == "SERVICE_QPS_EXCEEDED"

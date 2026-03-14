@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
+from src.core.config import settings
 import uuid
 import time
 import asyncio
@@ -46,6 +47,17 @@ def _build_public_invoke(svc: Dict[str, Any], public_gateway_url: Optional[str])
 
 
 def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:
+    def _as_int(raw: Any, fallback: int) -> int:
+        try:
+            return int(raw)
+        except Exception:
+            return int(fallback)
+
+    def _require_range(name: str, value: int, lower: int, upper: int) -> int:
+        if value < lower or value > upper:
+            raise ValueError(f"{name} must be in [{lower}, {upper}]")
+        return value
+
     invoke = req_data.get("invoke") if isinstance(req_data.get("invoke"), dict) else {}
     if not invoke:
         raise ValueError("invoke is required")
@@ -75,6 +87,30 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     if not health_path.startswith("/"):
         health_path = f"/{health_path}"
     constraints = req_data.get("constraints") if isinstance(req_data.get("constraints"), dict) else {}
+    timeout_ms = _require_range(
+        "constraints.timeoutMs",
+        _as_int(constraints.get("timeoutMs") or constraints.get("timeout_ms") or 3000, 3000),
+        settings.gateway_min_timeout_ms,
+        settings.gateway_max_timeout_ms,
+    )
+    max_request_bytes = _require_range(
+        "constraints.maxRequestBytes",
+        _as_int(constraints.get("maxRequestBytes") or constraints.get("max_request_bytes") or 4096, 4096),
+        settings.gateway_min_request_bytes,
+        settings.gateway_max_request_bytes,
+    )
+    max_response_bytes = _require_range(
+        "constraints.maxResponseBytes",
+        _as_int(constraints.get("maxResponseBytes") or constraints.get("max_response_bytes") or 2048, 2048),
+        settings.gateway_min_response_bytes,
+        settings.gateway_max_response_bytes,
+    )
+    max_qps = _require_range(
+        "constraints.maxQps",
+        _as_int(constraints.get("maxQps") or constraints.get("max_qps") or 50, 50),
+        settings.gateway_min_service_qps,
+        settings.gateway_max_service_qps,
+    )
     pricing_value = req_data.get("pricing")
     pricing_amount = "0"
     pricing_currency = "USDC"
@@ -106,11 +142,11 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
             **health_check,
             "path": health_path,
         },
-        "constraints": req_data.get("constraints") if isinstance(req_data.get("constraints"), dict) else {
-            "timeoutMs": int(constraints.get("timeoutMs") or constraints.get("timeout_ms") or 3000),
-            "maxResponseBytes": int(constraints.get("maxResponseBytes") or constraints.get("max_response_bytes") or 2048),
-            "maxRequestBytes": int(constraints.get("maxRequestBytes") or constraints.get("max_request_bytes") or 4096),
-            "maxQps": int(constraints.get("maxQps") or constraints.get("max_qps") or 50),
+        "constraints": {
+            "timeoutMs": timeout_ms,
+            "maxResponseBytes": max_response_bytes,
+            "maxRequestBytes": max_request_bytes,
+            "maxQps": max_qps,
         },
         "forwarding": req_data.get("forwarding") if isinstance(req_data.get("forwarding"), dict) else {
             "requestIdHeader": "X-Synapse-Request-Id",

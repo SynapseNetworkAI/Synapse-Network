@@ -106,3 +106,37 @@ def test_normalize_service_payload_requires_health_path():
         _normalize_service_payload(payload, "0xabc")
 
     assert "healthCheck.path" in str(exc.value)
+
+
+def test_normalize_service_payload_rejects_over_limit_constraints(monkeypatch):
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_timeout_ms", 15000)
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_timeout_ms", 300)
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_request_bytes", 256)
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_request_bytes", 262144)
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_response_bytes", 256)
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_response_bytes", 1048576)
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_service_qps", 1)
+    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_service_qps", 200)
+
+    payload = {
+        "serviceName": "Invalid Limits",
+        "pricing": {"currency": "USDC", "amount": "0.01"},
+        "healthCheck": {"path": "/health", "method": "GET"},
+        "constraints": {
+            "timeoutMs": 60000,
+            "maxRequestBytes": 4096,
+            "maxResponseBytes": 4096,
+            "maxQps": 50,
+        },
+        "invoke": {
+            "method": "POST",
+            "targets": [{"url": "http://10.0.0.1:8100/infer", "weight": 100}],
+            "request": {"contentType": "application/json", "schema": {}},
+            "response": {"contentType": "application/json", "schema": {}},
+        },
+    }
+
+    with pytest.raises(ValueError) as exc:
+        _normalize_service_payload(payload, "0xabc")
+
+    assert "constraints.timeoutMs" in str(exc.value)

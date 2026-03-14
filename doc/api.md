@@ -276,6 +276,7 @@
   - `serviceId` 格式：仅允许 `[A-Za-z0-9._:-]`，最大长度 `128`。
   - `X-Credential`：必填，格式必须匹配 `agt_[A-Za-z0-9]+`，最大长度 `128`。
   - `X-Request-Id`：可选；若传入，格式必须匹配 `[A-Za-z0-9._:-]`，最大长度 `128`。
+  - `constraints` 在转发阶段强制执行：`maxQps/maxRequestBytes/maxResponseBytes/timeoutMs`。
 
 - **Buyer 常见错误码（Generate）**:
   - `PROMPT_REQUIRED` (`422`)：`prompt` 为空或全空白。
@@ -292,6 +293,9 @@
   - `CREDENTIAL_MAX_CALLS_EXCEEDED` (`429`)：凭据调用次数超限。
   - `CREDENTIAL_CREDIT_LIMIT_EXCEEDED` (`402`)：凭据额度超限。
   - `INSUFFICIENT_BALANCE` (`402`)：余额不足。
+  - `SERVICE_QPS_EXCEEDED` (`429`)：服务级 QPS 超限。
+  - `REQUEST_PAYLOAD_TOO_LARGE` (`413`)：请求体超过服务最大请求字节数。
+  - `RESPONSE_PAYLOAD_TOO_LARGE` (`413`)：上游响应超过服务最大响应字节数。
   - `INVALID_REQUEST_ID` (`422`)：`X-Request-Id` 格式非法。
   - `SERVICE_NOT_FOUND` (`404`)：服务不存在。
   - `SERVICE_INACTIVE` (`403`)：服务未激活。

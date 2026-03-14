@@ -71,10 +71,10 @@ class HealthCheckSpec(BaseModel):
     unhealthyThreshold: int = 3
 
 class ConstraintsSpec(BaseModel):
-    timeoutMs: int = 3000
-    maxResponseBytes: int = 2048
-    maxRequestBytes: int = 4096
-    maxQps: int = 50
+    timeoutMs: int = Field(default=3000, ge=300, le=15000)
+    maxResponseBytes: int = Field(default=2048, ge=256, le=1048576)
+    maxRequestBytes: int = Field(default=4096, ge=256, le=262144)
+    maxQps: int = Field(default=50, ge=1, le=200)
 
 class RetryPolicySpec(BaseModel):
     maxAttempts: int = 2
@@ -185,7 +185,16 @@ async def register_service(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    new_svc = await service.register_service(req.model_dump(), owner)
+    try:
+        new_svc = await service.register_service(req.model_dump(), owner)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "SERVICE_REGISTRATION_INVALID",
+                "message": str(exc),
+            },
+        )
     return {"status": "success", "serviceId": new_svc["serviceId"], "service": new_svc}
 
 @router.put("/v1/services/{service_record_id}")
@@ -197,7 +206,16 @@ async def update_service(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    updated = await service.update_service(service_record_id, req, owner)
+    try:
+        updated = await service.update_service(service_record_id, req, owner)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "SERVICE_REGISTRATION_INVALID",
+                "message": str(exc),
+            },
+        )
     if not updated:
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "service": updated}
