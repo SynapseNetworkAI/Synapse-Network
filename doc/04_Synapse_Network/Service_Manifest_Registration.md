@@ -159,7 +159,7 @@
     "headerName": "X-Credential"
   },
   "healthCheck": {
-    "url": "http://127.0.0.1:8100/health",
+    "path": "/health",
     "method": "GET",
     "intervalSec": 30,
     "timeoutMs": 3000,
@@ -195,6 +195,10 @@
   "invoke": {
     "method": "POST",
     "url": "http://127.0.0.1:8100/api/v1/quotes/famous",
+    "targets": [
+      { "url": "http://127.0.0.1:8100/api/v1/quotes/famous", "weight": 100, "region": "ap-sg-1" },
+      { "url": "http://127.0.0.1:8101/api/v1/quotes/famous", "weight": 80, "region": "ap-sg-2" }
+    ],
     "timeoutMs": 30000,
     "request": {
       "contentType": "application/json",
@@ -246,9 +250,10 @@
 ### 5.1.1 参考 Google/AWS 的注册增强字段（建议必备）
 
 1. **可用性字段（Availability）**
-  - `healthCheck.url/method/intervalSec/timeoutMs/successCodes`
+  - `invoke.targets[]`（多节点目标地址 + 权重 + 区域）
+  - `healthCheck.path/method/intervalSec/timeoutMs/successCodes`
   - `healthyThreshold` / `unhealthyThreshold`
-  - 作用：避免把流量打给已退化节点，提升 Buyer 成功率。
+  - 作用：避免把流量打给已退化节点，提升 Buyer 成功率；支持集群多副本弹性。
 
 2. **转发与熔断字段（Forwarding & Protection）**
   - `constraints.timeoutMs`
@@ -272,7 +277,8 @@
 ### 5.1.2 如何保证“注册后服务可用、安全、易接入、易统计”
 
 1. **可用性（Service Availability）**
-  - 注册时强制 `invoke.url` + `healthCheck`，并在上线前做一次主动探测。
+  - 注册时强制 `invoke.targets[]`（至少一个 URL）+ `healthCheck.path`，并在上线前做一次主动探测。
+  - 平台探活地址规则：`target.url` 的 `scheme://host[:port]` + `healthCheck.path`。
   - 健康检查失败服务不进入 `discover` 可路由池。
 
 2. **安全性（Security）**
@@ -288,6 +294,72 @@
   - 统一 `requestId` 作为路由、账单、审计主键。
   - `metering` 明确哪些状态码计费、错误是否计费。
   - `forwarding.retryPolicy` 保证重试行为可预测，避免重复扣费。
+
+### 5.1.3 注册字段说明（字段含义 + 平台使用方式）
+
+1. `serviceName`
+  - 含义：人类可读服务名。
+  - 平台使用：控制台展示、发现页标题、路由候选可读标签。
+
+2. `pricing.currency` / `pricing.amount`
+  - 含义：计费币种与单价。
+  - 平台使用：扣费引擎计算单次调用应扣金额，账单聚合展示。
+
+3. `isActive` / `status`
+  - 含义：服务可用开关与生命周期状态。
+  - 平台使用：`discover` 仅暴露 active；inactive/archived 不参与转发。
+
+4. `auth`
+  - 含义：卖家节点期望的认证方式（如 `service_key`）。
+  - 平台使用：网关在转发时注入相应头部，阻止未授权调用。
+
+5. `invoke.method`
+  - 含义：上游调用 HTTP 方法。
+  - 平台使用：转发引擎按该方法发起请求。
+
+6. `invoke.url`
+  - 含义：兼容字段，默认主目标地址（首选目标）。
+  - 平台使用：当 `invoke.targets` 缺失时回退使用。
+
+7. `invoke.targets[]`
+  - 含义：集群目标地址列表，可带 `weight`、`region`。
+  - 平台使用：按权重路由流量，支持同服务多节点高可用。
+
+8. `invoke.timeoutMs`
+  - 含义：单次转发超时。
+  - 平台使用：超时熔断与失败计数，防止慢请求拖垮资源池。
+
+9. `invoke.request.schema` / `invoke.response.schema`
+  - 含义：输入/输出 JSON 契约。
+  - 平台使用：调用前参数校验与调用后结构校验，提升 Buyer 接入成功率。
+
+10. `healthCheck.path`
+  - 含义：统一探活路径（不是完整 URL）。
+  - 平台使用：针对每个 target 组装 `origin + path` 执行健康检查。
+
+11. `constraints.maxRequestBytes` / `maxResponseBytes` / `maxQps`
+  - 含义：请求大小、响应大小、QPS 上限。
+  - 平台使用：网关限流/限包策略和安全防护阈值。
+
+12. `forwarding.requestIdHeader`
+  - 含义：请求追踪头名（默认 `X-Synapse-Request-Id`）。
+  - 平台使用：对账主键贯穿路由、计费、审计全链路。
+
+13. `forwarding.passThroughHeaders` / `injectHeaders`
+  - 含义：透传或网关注入的转发头。
+  - 平台使用：保留 trace、环境信息，并注入服务上下文。
+
+14. `forwarding.retryPolicy`
+  - 含义：失败重试策略。
+  - 平台使用：仅对可重试状态码进行有限重试，避免无限重放。
+
+15. `metering.billingUnit` / `billOnError` / `billableStatusClasses`
+  - 含义：计费单位、错误是否计费、哪些状态码计费。
+  - 平台使用：扣费决策引擎，保证账单可解释可审计。
+
+16. `metering.requestIdRequired` / `responseSizeMetering`
+  - 含义：是否强制请求号、是否按响应大小参与计量。
+  - 平台使用：防重复扣费与容量/成本精细化核算。
 
 ### 5.2 Update（不允许改 `serviceId`）
 

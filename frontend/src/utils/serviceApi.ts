@@ -15,6 +15,7 @@ export type ServiceRegistryPayload = {
     headerName?: string;
   };
   healthCheck?: {
+    path?: string;
     url?: string;
     method?: "GET" | "HEAD" | "POST";
     intervalSec?: number;
@@ -49,6 +50,11 @@ export type ServiceRegistryPayload = {
   invoke: {
     method: string;
     url: string;
+    targets?: Array<{
+      url: string;
+      weight?: number;
+      region?: string;
+    }>;
     timeoutMs: number;
     request: {
       contentType: string;
@@ -82,6 +88,7 @@ export type ServiceRegistryRecord = {
     headerName?: string;
   } | null;
   healthCheck?: {
+    path?: string;
     url?: string;
     method?: "GET" | "HEAD" | "POST";
     intervalSec?: number;
@@ -116,6 +123,11 @@ export type ServiceRegistryRecord = {
   invoke?: {
     method: string;
     url: string;
+    targets?: Array<{
+      url: string;
+      weight?: number;
+      region?: string;
+    }>;
     timeoutMs: number;
     request: {
       contentType: string;

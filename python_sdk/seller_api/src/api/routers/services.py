@@ -16,6 +16,7 @@ class ServicePricing(BaseModel):
     amount: str
 
 class HealthCheckSpec(BaseModel):
+    path: str = "/health"
     url: Optional[str] = None
     method: str = "GET"
     intervalSec: int = 30
@@ -49,8 +50,14 @@ class MeteringSpec(BaseModel):
     responseSizeMetering: bool = True
 
 class InvokeMethod(BaseModel):
+    class InvokeTarget(BaseModel):
+        url: str
+        weight: int = 100
+        region: Optional[str] = None
+
     method: str
     url: str
+    targets: List[InvokeTarget] = Field(default_factory=list)
     timeoutMs: int = 3000
     request: dict
     response: dict

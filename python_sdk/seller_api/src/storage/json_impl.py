@@ -11,6 +11,21 @@ def _normalize_service_row(row: Any) -> Any:
     service_name = str(row.get('serviceName') or row.get('name') or '').strip()
     invoke = row.get('invoke') if isinstance(row.get('invoke'), dict) else {}
     endpoint = str(row.get('endpoint') or invoke.get('url') or '').strip()
+    targets = invoke.get('targets') if isinstance(invoke.get('targets'), list) else []
+    normalized_targets = []
+    for item in targets:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get('url') or '').strip()
+        if not url:
+            continue
+        normalized_targets.append({
+            'url': url,
+            'weight': int(item.get('weight') or 100),
+            'region': item.get('region'),
+        })
+    if not normalized_targets and endpoint:
+        normalized_targets = [{'url': endpoint, 'weight': 100, 'region': None}]
     normalized = {
         **row,
         'schemaVersion': int(row.get('schemaVersion') or 2),
@@ -25,6 +40,7 @@ def _normalize_service_row(row: Any) -> Any:
             'maxQps': 50,
         },
         'healthCheck': row.get('healthCheck') if isinstance(row.get('healthCheck'), dict) else {
+            'path': str(row.get('health_check') or '/health'),
             'url': str(row.get('health_check') or ''),
             'method': 'GET',
             'intervalSec': 30,
@@ -33,7 +49,19 @@ def _normalize_service_row(row: Any) -> Any:
             'healthyThreshold': 2,
             'unhealthyThreshold': 3,
         },
+        'invoke': {
+            **invoke,
+            'url': endpoint,
+            'targets': normalized_targets,
+        },
     }
+    if isinstance(normalized.get('healthCheck'), dict):
+        hc = dict(normalized['healthCheck'])
+        path = str(hc.get('path') or '').strip() or '/health'
+        if not path.startswith('/'):
+            path = f'/{path}'
+        hc['path'] = path
+        normalized['healthCheck'] = hc
     return normalized
 
 class JsonStorage(BaseStorage):

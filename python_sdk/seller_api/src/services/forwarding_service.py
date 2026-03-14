@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
+import random
 
 import httpx
 from fastapi import HTTPException
@@ -261,7 +262,22 @@ async def _rollback_charge(
 async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) -> Any:
     invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
     upstream_method = str(invoke.get("method") or "POST").upper()
-    upstream_url = str(invoke.get("url") or "http://127.0.0.1:8100/api/v1/quotes/famous")
+    targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
+    target_urls = []
+    target_weights = []
+    for item in targets:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        if not url:
+            continue
+        target_urls.append(url)
+        target_weights.append(max(1, int(item.get("weight") or 100)))
+
+    if target_urls:
+        upstream_url = random.choices(target_urls, weights=target_weights, k=1)[0]
+    else:
+        upstream_url = str(invoke.get("url") or "http://127.0.0.1:8100/api/v1/quotes/famous")
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         headers = {"X-Request-Id": request_id}

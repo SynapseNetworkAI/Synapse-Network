@@ -225,10 +225,12 @@
   - `data` is always a manifest object for frontend `Expected / Generated JSON Response` rendering.
   - When DeepSeek is unavailable/invalid, backend returns `fallback=true` with heuristic manifest to avoid empty payload crashes.
 - **`POST /api/v2/services` registration fields (v2 enhanced)**:
-  - `healthCheck`: active probe policy (`url/method/intervalSec/timeoutMs/successCodes/...`)
+  - `invoke.targets[]`: cluster endpoints (`url/weight/region`) for weighted routing
+  - `healthCheck`: active probe policy (`path/method/intervalSec/timeoutMs/successCodes/...`)
   - `constraints`: forwarding limits (`timeoutMs/maxRequestBytes/maxResponseBytes/maxQps`)
   - `forwarding`: routing behavior (`requestIdHeader/passThroughHeaders/injectHeaders/retryPolicy`)
   - `metering`: billing strategy (`billingUnit/billOnError/billableStatusClasses/requestIdRequired/responseSizeMetering`)
+  - Probe URL composition: platform computes health-check URL as each target origin + `healthCheck.path`.
 
 ---
 

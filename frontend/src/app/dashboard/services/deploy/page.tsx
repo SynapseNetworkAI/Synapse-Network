@@ -17,6 +17,7 @@ const AI_SERVICE_NAME_MAX = 80;
 const AI_DESCRIPTION_MIN = 12;
 const AI_DESCRIPTION_MAX = 240;
 const AI_INTENT_MAX = 8;
+const MAX_CLUSTER_TARGETS = 10;
 
 const OVERRIDABLE_PATHS = [
   "service_name",
@@ -134,6 +135,7 @@ export default function DeployManifestPage() {
   });
 
   const [intentInput, setIntentInput] = useState("");
+  const [endpointTargetsInput, setEndpointTargetsInput] = useState("");
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCurl, setAICurl] = useState("");
   const [aiResponse, setAIResponse] = useState("");
@@ -153,6 +155,15 @@ export default function DeployManifestPage() {
   useEffect(() => {
     localStorage.setItem("synapse_manifest_draft", JSON.stringify(manifest));
   }, [manifest]);
+
+  useEffect(() => {
+    setEndpointTargetsInput((prev) => {
+      if (prev.trim()) {
+        return prev;
+      }
+      return manifest.endpoint ? `${manifest.endpoint}\n` : "";
+    });
+  }, [manifest.endpoint]);
 
   const handleRestoreDraft = () => {
     const draft = localStorage.getItem("synapse_manifest_draft");
@@ -345,14 +356,22 @@ export default function DeployManifestPage() {
     setIsDeploying(true);
     try {
       const endpoint = manifest.endpoint.trim();
-      const healthCheckUrl = manifest.health_check.trim() || (() => {
-        try {
-          const parsed = new URL(endpoint);
-          return `${parsed.protocol}//${parsed.host}/health`;
-        } catch {
-          return "";
-        }
-      })();
+      const clusterTargets = endpointTargetsInput
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((value, index, arr) => arr.indexOf(value) === index);
+      const normalizedTargets = (clusterTargets.length > 0 ? clusterTargets : [endpoint])
+        .slice(0, MAX_CLUSTER_TARGETS)
+        .filter((value) => /^https?:\/\//i.test(value));
+
+      if (normalizedTargets.length === 0) {
+        toast.error("At least one valid cluster endpoint URL is required.");
+        return;
+      }
+
+      const healthCheckPathRaw = manifest.health_check.trim() || "/health";
+      const healthCheckPath = healthCheckPathRaw.startsWith("/") ? healthCheckPathRaw : `/${healthCheckPathRaw}`;
 
       const payload = {
         serviceName: manifest.service_name.trim(),
@@ -368,7 +387,7 @@ export default function DeployManifestPage() {
           headerName: "X-Credential",
         },
         healthCheck: {
-          url: healthCheckUrl,
+          path: healthCheckPath,
           method: "GET" as const,
           intervalSec: 30,
           timeoutMs: Math.min(5000, manifest.constraints.timeout_ms),
@@ -403,7 +422,11 @@ export default function DeployManifestPage() {
         },
         invoke: {
           method: "POST",
-          url: endpoint,
+          url: normalizedTargets[0],
+          targets: normalizedTargets.map((url, index) => ({
+            url,
+            weight: index === 0 ? 100 : 80,
+          })),
           timeoutMs: manifest.constraints.timeout_ms,
           request: {
             contentType: "application/json",
@@ -478,8 +501,25 @@ export default function DeployManifestPage() {
       }
     }
 
+    const clusterTargets = endpointTargetsInput
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .filter((value, index, arr) => arr.indexOf(value) === index);
+    if (clusterTargets.length > MAX_CLUSTER_TARGETS) {
+      errors.push(`Cluster targets cannot exceed ${MAX_CLUSTER_TARGETS}.`);
+    }
+    if (clusterTargets.length > 0 && clusterTargets.some((value) => !/^https?:\/\//i.test(value))) {
+      errors.push("Every cluster endpoint must start with http:// or https://.");
+    }
+
+    const healthCheckPathRaw = manifest.health_check.trim();
+    if (healthCheckPathRaw && !healthCheckPathRaw.startsWith("/")) {
+      errors.push("Health check path must start with / (for example /health). ");
+    }
+
     return errors;
-  }, [manifest]);
+  }, [manifest, endpointTargetsInput]);
 
   const aiInterfaceRules = [
     {
@@ -724,15 +764,26 @@ export default function DeployManifestPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Health Check Endpoint</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Cluster Endpoint URLs (one per line)</label>
+              <textarea
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500 h-24"
+                placeholder="http://127.0.0.1:8100/api/v1/quotes/famous/top3\nhttp://127.0.0.1:8101/api/v1/quotes/famous/top3"
+                value={endpointTargetsInput}
+                onChange={(e) => setEndpointTargetsInput(e.target.value)}
+              />
+              <p className="text-xs text-gray-600 mt-1">Supports active-active cluster mode. Platform routes traffic across targets using weights.</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Health Check Path</label>
               <input
                 type="text"
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
-                placeholder="https://your-server.com/health"
+                placeholder="/health"
                 value={manifest.health_check}
                 onChange={(e) => handleUpdate("health_check", e.target.value)}
               />
-              <p className="text-xs text-gray-600 mt-1">Recommended for routing safety. If empty, deploy uses endpoint host + /health.</p>
+              <p className="text-xs text-gray-600 mt-1">Platform composes probe URL as each target origin + path. Example: target http://10.0.0.1:8100 + /health.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
