@@ -10,6 +10,14 @@
 
 ## 2. 核心功能 (Key Features)
 
+### 访问与鉴权策略（Provider Secrets）
+- `/provider/secrets` 页面允许未连接钱包、未建立 Session 的用户直接访问。
+- 在未认证状态下，页面返回空数据，不暴露任何历史密钥信息。
+- 点击 `Create new secret key` 时才触发鉴权链路：
+  1. 未连接钱包：先弹 `Connect Wallet`。
+  2. 已连接但无 Session：发起 Sign-In 建立 Session。
+  3. 钱包与 Session 均就绪：再打开创建密钥弹窗并执行写操作。
+
 在卖家的 Service Management 面板，针对 Provider 提供一个硬核的独立「Security & Auth」安全面板 (Modal/Drawer)，提供以下三大功能：
 
 并在 Provider Console 的 Deploy Pipeline 中执行前置校验：

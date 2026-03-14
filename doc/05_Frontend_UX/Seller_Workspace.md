@@ -64,8 +64,11 @@
 ## 4. 前端交互状态流转 (UX Flow)
 1. **游客访问**: 空降 `/dashboard/sell` -> 看到大屏字，酷炫的 SDK 代码片段，和 "三步走" 引导流程。
 2. **连接动作**: 点击随意区域的灰化按钮 `Connect Wallet` -> 触发右上角钱包唤醒。
-3. **已连接 & 第一次来**: 卡片上方提示：`Welcome! You are 1 step away from earning.`，强引导用户进入 **Step 1** (Publish Service)。
-4. **成熟卖家（有服务正在跑）**: 第一眼就能看到 **KPI 收益图表** 和 **服务列表的状态**，重点操作是点击提现。
+3. **连接与登录会话合并**: 钱包连接成功后，前端会自动尝试完成一次 Session 授权（Sign-In）。若自动授权失败，用户可手动重试，避免“已连接但不可操作”的割裂体验。
+4. **已连接 & 第一次来**: 卡片上方提示：`Welcome! You are 1 step away from earning.`，强引导用户进入 **Step 1** (Publish Service)。
+5. **会话过期策略（卖家）**: Provider 与 Buyer 保持一致。若检测到 Session 过期，系统会主动断开当前钱包连接，用户必须重新连接钱包并重新建立 Session 才能继续执行写操作。
+6. **Secrets 页面访问策略**: `/provider/secrets` 允许未登录访问；未连接钱包或无 Session 时仅展示空列表。点击 `Create new secret key` 时，系统先触发钱包连接与 Session 授权，成功后再打开创建弹窗。
+7. **成熟卖家（有服务正在跑）**: 第一眼就能看到 **KPI 收益图表** 和 **服务列表的状态**，重点操作是点击提现。
 ## 5. “降维打击”：基于 cURL 与响应结果的零代码 AI 一键发版 (Zero-Shot Manifest Auto-Generation)
 
 ### 5.1 业务痛点

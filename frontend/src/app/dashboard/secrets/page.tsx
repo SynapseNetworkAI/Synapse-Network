@@ -4,14 +4,15 @@ import { useState, useEffect } from "react";
 import { Key, ShieldCheck, Activity, Copy, CheckCircle2, FileCode2, Plus, Trash2, Info, X } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
-import AuthMask from "@/components/AuthMask";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAuth } from "@/components/WalletAuthGuard";
 
 import { listApiSecrets, createApiSecret, deleteApiSecret, ProviderSecret } from "@/utils/serviceApi";
 
 export default function SecretsPage() {
-  const { address } = useAccount();
-  const { isSessionAuthenticated } = useAuth();
+  const { address, isConnected } = useAccount();
+  const { isSessionAuthenticated, authorize } = useAuth();
+  const { openConnectModal } = useConnectModal();
   const [secrets, setSecrets] = useState<ProviderSecret[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"python" | "node" | "java">("node");
@@ -98,13 +99,86 @@ export default function SecretsPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const handleOpenCreateSecretModal = async () => {
+    if (!isConnected) {
+      openConnectModal?.();
+      return;
+    }
+
+    if (!isSessionAuthenticated) {
+      const ok = await authorize();
+      if (!ok) {
+        return;
+      }
+    }
+
+    setIsModalOpen(true);
+  };
+
+  let secretListContent: React.ReactNode;
+  if (loading) {
+    secretListContent = (
+      <div className="text-center py-8 text-gray-500 font-mono animate-pulse">
+        Loading secrets...
+      </div>
+    );
+  } else if (secrets.length === 0) {
+    secretListContent = (
+      <div className="text-center py-8 text-gray-500 font-mono">
+        {address
+          ? "No secrets generated yet. Create one to secure your endpoints."
+          : "No secrets available. Connect your wallet and sign in to create one."}
+      </div>
+    );
+  } else {
+    secretListContent = (
+      <div className="space-y-4">
+        {secrets.map(sec => (
+          <div key={sec.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-gray-950/50 border border-gray-800/80 rounded-lg group hover:border-green-500/30 transition-colors">
+            <div className="flex md:items-center gap-4 mb-4 md:mb-0">
+              <div className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center flex-shrink-0">
+                <Key className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-medium">{sec.name}</h3>
+                <div className="text-xs text-gray-400 font-mono mt-1 flex items-center gap-2">
+                  Created: {new Date(sec.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 bg-gray-900 px-4 py-2 rounded-md border border-gray-800">
+                <span className="font-mono text-sm text-emerald-400 tracking-wider">
+                  {sec.secretKey || sec.maskedKey}
+                </span>
+                {sec.secretKey && (
+                  <button
+                    onClick={() => copyToClipboard(sec.secretKey!, sec.id)}
+                    className="text-gray-500 hover:text-white transition-colors"
+                    title="Copy Original Key"
+                  >
+                    {copied === sec.id ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => handleDeleteSecret(sec.id)}
+                className="p-2 text-gray-500 hover:text-red-400 transition-colors border border-transparent hover:border-red-900/50 rounded hover:bg-red-900/20"
+                title="Revoke Key"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <AuthMask
-      allowChallengeAuthorize={false}
-      sessionHelpText="This page requires an active wallet session. Complete sign-in once from Provider Service Management, then return."
-      sessionRecoveryHref="/provider/sell"
-      sessionRecoveryLabel="Go to Provider Console"
-    >
+    <>
       {/* Modal Overlay */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -120,7 +194,7 @@ export default function SecretsPage() {
               {/* Name Field */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-200">Name</label>
+                  <label htmlFor="secret-name" className="text-sm font-medium text-gray-200">Name</label>
                   <div className="group relative flex items-center">
                     <Info className="w-4 h-4 text-gray-500 cursor-help" />
                     <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
@@ -129,6 +203,7 @@ export default function SecretsPage() {
                   </div>
                 </div>
                 <input 
+                  id="secret-name"
                   type="text" 
                   value={newSecretName}
                   onChange={(e) => setNewSecretName(e.target.value)}
@@ -140,7 +215,7 @@ export default function SecretsPage() {
               {/* QPS Limit Field */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-200">qps</label>
+                  <label htmlFor="secret-qps" className="text-sm font-medium text-gray-200">qps</label>
                   <div className="group relative flex items-center">
                     <Info className="w-4 h-4 text-gray-500 cursor-help" />
                     <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
@@ -150,6 +225,7 @@ export default function SecretsPage() {
                 </div>
                 <div className="relative">
                   <input 
+                    id="secret-qps"
                     type="number" 
                     value={qpsLimit}
                     onChange={(e) => setQpsLimit(e.target.value)}
@@ -162,7 +238,7 @@ export default function SecretsPage() {
               {/* Expiration Field */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-200">Expiration</label>
+                  <label htmlFor="secret-expiration" className="text-sm font-medium text-gray-200">Expiration</label>
                   <div className="group relative flex items-center">
                     <Info className="w-4 h-4 text-gray-500 cursor-help" />
                     <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
@@ -171,6 +247,7 @@ export default function SecretsPage() {
                   </div>
                 </div>
                 <select 
+                  id="secret-expiration"
                   value={expiration}
                   onChange={(e) => setExpiration(e.target.value)}
                   className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all appearance-none"
@@ -226,7 +303,7 @@ export default function SecretsPage() {
           </h2>
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenCreateSecretModal}
               className="px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-md text-sm transition-colors flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -235,62 +312,7 @@ export default function SecretsPage() {
           </div>
         </div>
         <div className="p-6">
-          {!address ? (
-            <div className="text-center py-8 text-gray-500 font-mono">
-              Please connect your wallet to manage API Secrets.
-            </div>
-          ) : loading ? (
-            <div className="text-center py-8 text-gray-500 font-mono animate-pulse">
-              Loading secrets...
-            </div>
-          ) : secrets.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 font-mono">
-              No secrets generated yet. Create one to secure your endpoints.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {secrets.map(sec => (
-                <div key={sec.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-gray-950/50 border border-gray-800/80 rounded-lg group hover:border-green-500/30 transition-colors">
-                  <div className="flex md:items-center gap-4 mb-4 md:mb-0">
-                    <div className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center flex-shrink-0">
-                      <Key className="w-5 h-5 text-green-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-medium">{sec.name}</h3>
-                      <div className="text-xs text-gray-400 font-mono mt-1 flex items-center gap-2">
-                        Created: {new Date(sec.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-4 bg-gray-900 px-4 py-2 rounded-md border border-gray-800">
-                      <span className="font-mono text-sm text-emerald-400 tracking-wider">
-                        {sec.secretKey || sec.maskedKey}
-                      </span>
-                      {sec.secretKey && (
-                        <button 
-                          onClick={() => copyToClipboard(sec.secretKey!, sec.id)}
-                          className="text-gray-500 hover:text-white transition-colors"
-                          title="Copy Original Key"
-                        >
-                          {copied === sec.id ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                        </button>
-                      )}
-                    </div>
-                    
-                    <button 
-                      onClick={() => handleDeleteSecret(sec.id)}
-                      className="p-2 text-gray-500 hover:text-red-400 transition-colors border border-transparent hover:border-red-900/50 rounded hover:bg-red-900/20"
-                      title="Revoke Key"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {secretListContent}
         </div>
       </div>
 
@@ -425,7 +447,7 @@ def health_check():
     return {"status": "healthy"}
 `}
 
-{activeTab === 'java' && `import javax.crypto.Mac;
+{activeTab === 'java' && String.raw`import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.*;
@@ -472,6 +494,6 @@ public class AgentController {
 
       </div>
     </div>
-    </AuthMask>
+    </>
   );
 }

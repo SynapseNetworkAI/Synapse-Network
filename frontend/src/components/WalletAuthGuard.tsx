@@ -63,7 +63,8 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
 
   const shouldForceReconnectForCurrentRole = useCallback((): boolean => {
     if (!address) return false;
-    return getAppRole(address) === "CONSUMER";
+    const role = getAppRole(address);
+    return role === "CONSUMER" || role === "PROVIDER";
   }, [address]);
 
   const forceReconnectIfNeeded = useCallback(() => {
