@@ -52,6 +52,9 @@ function isWalletUnstableError(msg: string): boolean {
   );
 }
 
+const SESSION_EXPIRED_TOAST_ID = "session-expired-reconnect";
+const SESSION_EXPIRED_TOAST_COOLDOWN_MS = 2500;
+
 export default function WalletAuthGuard({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isConnected, address } = useAccount();
   const { disconnect } = useDisconnect();
@@ -62,6 +65,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   const disconnectClearTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const pendingAutoAuthorizeWalletRef = useRef<string | null>(null);
   const autoAuthorizeTriedWalletRef = useRef<string | null>(null);
+  const lastSessionExpiredToastAtRef = useRef(0);
 
   const shouldForceReconnectForCurrentRole = useCallback((): boolean => {
     if (!address) return false;
@@ -71,13 +75,25 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
 
   const forceReconnectIfNeeded = useCallback(() => {
     if (!shouldForceReconnectForCurrentRole()) return;
+
+    const now = Date.now();
+    const withinCooldown = now - lastSessionExpiredToastAtRef.current < SESSION_EXPIRED_TOAST_COOLDOWN_MS;
+    if (!withinCooldown) {
+      lastSessionExpiredToastAtRef.current = now;
+      toast("Session expired. Please reconnect wallet to continue.", {
+        icon: "🔁",
+        id: SESSION_EXPIRED_TOAST_ID,
+      });
+    }
+
     try {
-      disconnect();
-      toast("Session expired. Please reconnect wallet to continue.", { icon: "🔁" });
+      if (isConnected) {
+        disconnect();
+      }
     } catch {
       // no-op: best-effort disconnect for consumer workspace
     }
-  }, [disconnect, shouldForceReconnectForCurrentRole]);
+  }, [disconnect, shouldForceReconnectForCurrentRole, isConnected]);
 
   // We no longer block access globally based on isPublicRoute.
   // The context provides auth state to downstream components that use <AuthMask />.

@@ -126,6 +126,7 @@ UX fallback:
 
 1. If automatic authorization is cancelled or fails, top-right wallet badge exposes explicit `Authorize Login` action for manual retry.
 2. Wallet remains connected while session stays unauthenticated until retry succeeds.
+3. Session-expired reconnect reminder is deduplicated to a single toast prompt (no repeated stack spam during the same expiry burst).
 
 ## 8.1 Operation Decision Matrix (When challenge/session is required)
 
