@@ -139,6 +139,8 @@ class Settings:
     finance_idempotency_max_rows: int = _env_int("FINANCE_IDEMPOTENCY_MAX_ROWS", 10000)
     # Replay-protection window for duplicate tx/retry collisions in seconds.
     finance_replay_window_sec: int = _env_int("FINANCE_REPLAY_WINDOW_SEC", 900)
+    # Owner-scoped write rate-limit for finance mutation endpoints (per minute).
+    finance_write_rate_limit_per_min: int = _env_int("FINANCE_WRITE_RATE_LIMIT_PER_MIN", 60)
     # Keep backward-compatible auth behavior enabled by default.
     allow_legacy_auth: bool = _env_bool("ALLOW_LEGACY_AUTH", True)
 

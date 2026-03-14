@@ -192,6 +192,7 @@ Note: challenge is not required for each business request after session issuance
 15. `GET /api/v2/usage/logs`
 16. `GET /api/v2/router/config`
 17. `POST /api/v2/router/config`
+18. `GET /api/v2/finance/audit-logs`
 
 ### Public interfaces (no session required)
 

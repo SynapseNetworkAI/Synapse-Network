@@ -24,6 +24,7 @@
   - `GET /api/v2/usage/logs`
   - `GET /api/v2/router/config`
   - `POST /api/v2/router/config`
+  - `GET /api/v2/finance/audit-logs`
   - `/api/v1/secrets/seller/*`
   - `/api/v1/credentials/buyer/*`
 
@@ -148,7 +149,13 @@
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: Router config is owner-scoped; each owner can only read/write their own config.
 
-### 3.6 索引器状态探针 (Indexer Health & Counters)
+### 3.6 资金审计日志 (Finance Audit Logs)
+- **Path**: `GET /api/v2/finance/audit-logs`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Desc**: Returns owner-scoped financial audit events (deposit/refund/router/rate-limit).
+- **Pagination**: `limit` in `1..500`.
+
+### 3.7 索引器状态探针 (Indexer Health & Counters)
 - **Path**: `GET /api/v2/indexer/status`
 - **Desc**: 返回充值索引器实时健康度，包含当前监听合约地址、最近一轮处理计数、最后处理时间与最近错误，便于快速定位“链上已成功但余额未更新”问题。
 - **Auth**: Public endpoint. No wallet challenge and no platform session required.

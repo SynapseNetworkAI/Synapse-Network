@@ -17,6 +17,7 @@
 - **FastAPI 网关同步支付设计**: [FastAPI_Synchronous_Payment.md](./02_Architecture/FastAPI_Synchronous_Payment.md)
 - **AI 反向代理与路由**: [API_Gateway_Reverse_Proxy.md](./02_Architecture/API_Gateway_Reverse_Proxy.md)
 - **网关日志追踪系统**: [Gateway_Application_Logging.md](./02_Architecture/Gateway_Application_Logging.md)
+- **资金生产安全基线**: [Financial_Production_Security.md](./02_Architecture/Financial_Production_Security.md)
 
 ## 3. 智能合约与支付结算 (`03_Smart_Contract_Payment/`)
 所有围绕以太坊与 USDC 构建的金库、账本与对账体系：

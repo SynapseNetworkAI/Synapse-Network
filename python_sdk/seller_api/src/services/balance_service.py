@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.common import normalize_wallet
 from src.core.config import settings
@@ -103,6 +103,70 @@ class BalanceService:
             },
         )
 
+    def _finance_audit_actions(self) -> set[str]:
+        return {
+            "DEPOSIT_INTENT_REGISTERED",
+            "REFUND_INTENT_CREATED",
+            "ROUTER_CONFIG_UPDATED",
+            "FINANCE_RATE_LIMIT_HIT",
+        }
+
+    def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
+        owner = normalize_wallet(owner_wallet)
+        now = int(time.time())
+        window_sec = 60
+        max_per_min = max(1, int(settings.finance_write_rate_limit_per_min))
+        raw = self.storage.get_collection("finance_write_rate_limit")
+        rows = self._normalize_rows(raw)
+
+        matched = next(
+            (
+                row
+                for row in rows
+                if normalize_wallet(str(row.get("ownerAddress") or "")) == owner and str(row.get("action") or "") == action
+            ),
+            None,
+        )
+
+        if matched is None:
+            matched = {
+                "id": str(uuid4()),
+                "ownerAddress": owner,
+                "action": action,
+                "windowStart": now,
+                "count": 0,
+                "updatedAt": now,
+            }
+            rows.append(matched)
+
+        window_start = int(matched.get("windowStart") or now)
+        if now - window_start >= window_sec:
+            matched["windowStart"] = now
+            matched["count"] = 0
+
+        count = int(matched.get("count") or 0)
+        if count >= max_per_min:
+            self._append_financial_audit(
+                "FINANCE_RATE_LIMIT_HIT",
+                owner,
+                {
+                    "action": action,
+                    "limitPerMin": max_per_min,
+                    "windowStart": int(matched.get("windowStart") or now),
+                },
+            )
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "FINANCE_RATE_LIMIT_EXCEEDED",
+                    "message": f"Finance write rate limit exceeded for action={action}.",
+                },
+            )
+
+        matched["count"] = count + 1
+        matched["updatedAt"] = now
+        self.storage.save_collection("finance_write_rate_limit", {"rows": rows, "updatedAt": now})
+
     def _try_get_idempotent_response(
         self,
         *,
@@ -184,6 +248,7 @@ class BalanceService:
         intent: Dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
+        request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         [网关防弹层] 处理买家发起的 Deposit Intent。
@@ -191,6 +256,7 @@ class BalanceService:
         """
         async with self._lock:
             idempotency_key = self._validate_idempotency_key(idempotency_key)
+            self._enforce_owner_write_rate_limit(owner_wallet, "deposit_intent")
 
             tx_hash = str(intent.get("txHash") or "").strip()
             if not tx_hash.startswith("0x") or len(tx_hash) != 66:
@@ -260,6 +326,7 @@ class BalanceService:
                     "txHash": next_intent.get("txHash"),
                     "amountUsdc": next_intent.get("amountUsdc"),
                     "idempotencyKey": idempotency_key,
+                    "requestMeta": request_meta or {},
                 },
             )
             return next_intent
@@ -278,9 +345,11 @@ class BalanceService:
         payload: Dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
+        request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         async with self._lock:
             idempotency_key = self._validate_idempotency_key(idempotency_key)
+            self._enforce_owner_write_rate_limit(owner_wallet, "refund_intent")
 
             amount_usdc = float(payload.get("amountUsdc") or 0)
             if amount_usdc < 0:
@@ -353,6 +422,7 @@ class BalanceService:
                     "refundId": refund_id,
                     "amountUsdc": round(amount_usdc, 6),
                     "idempotencyKey": idempotency_key,
+                    "requestMeta": request_meta or {},
                 },
             )
             return response
@@ -389,8 +459,14 @@ class BalanceService:
             "updatedAt": int(found.get("updatedAt") or 0) or None,
         }
 
-    async def set_router_config(self, owner_wallet: str, daily_limit_usdc: float) -> Dict[str, Any]:
+    async def set_router_config(
+        self,
+        owner_wallet: str,
+        daily_limit_usdc: float,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         async with self._lock:
+            self._enforce_owner_write_rate_limit(owner_wallet, "router_config")
             if daily_limit_usdc < 0 or daily_limit_usdc > 1_000_000_000:
                 raise HTTPException(
                     status_code=400,
@@ -431,6 +507,7 @@ class BalanceService:
                 owner,
                 {
                     "dailyLimitUsdc": existing.get("dailyLimitUsdc"),
+                    "requestMeta": request_meta or {},
                 },
             )
             return {
@@ -438,3 +515,38 @@ class BalanceService:
                 "dailyLimitUsdc": existing.get("dailyLimitUsdc"),
                 "updatedAt": existing.get("updatedAt"),
             }
+
+    async def list_finance_audit_logs(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
+        return await asyncio.to_thread(self._list_finance_audit_logs_sync, owner_wallet, limit)
+
+    def _list_finance_audit_logs_sync(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
+        owner = normalize_wallet(owner_wallet)
+        if not hasattr(self.storage, "directory"):
+            return []
+
+        import os
+
+        path = os.path.join(getattr(self.storage, "directory"), "audit_log.jsonl")
+        if not os.path.exists(path):
+            return []
+
+        allowed_actions = self._finance_audit_actions()
+        rows: List[Dict[str, Any]] = []
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                raw = line.strip()
+                if not raw:
+                    continue
+                try:
+                    row = json.loads(raw)
+                except Exception:
+                    continue
+                if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
+                    continue
+                action = str(row.get("action") or "")
+                if action not in allowed_actions:
+                    continue
+                rows.append(row)
+
+        rows.sort(key=lambda item: int(item.get("timestamp") or 0), reverse=True)
+        return rows[: max(1, min(limit, 500))]
