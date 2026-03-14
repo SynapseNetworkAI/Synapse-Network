@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, List, Annotated
 from src.api.deps import get_registry_service
 from src.services.registry_service import RegistryService
 from src.services import credential_service
+from src.services.manifest_parser_service import parse_manifest_from_curl
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -26,6 +27,12 @@ class RegisterServiceRequest(BaseModel):
     tags: List[str] = []
     invoke: Optional[InvokeMethod] = None
     isActive: bool = True
+
+
+class ParseCurlRequest(BaseModel):
+    curlCommand: str
+    model: Optional[str] = None
+    currentManifest: Optional[Dict[str, Any]] = None
 
 @router.get("/v2/services/discover")
 async def discover_services(
@@ -117,9 +124,20 @@ async def ping_service(
 
 @router.post("/v2/services/parse-curl")
 async def parse_curl_endpoint(
-    req: dict,
+    req: ParseCurlRequest,
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
 ):
     credential_service.require_owner_wallet(authorization, x_user_address)
-    return {"status": "success", "parsed": "mock"}
+    parsed = await parse_manifest_from_curl(
+        curl_command=req.curlCommand,
+        current_manifest=req.currentManifest,
+        model_override=req.model,
+    )
+    return {
+        "status": "success",
+        "data": parsed.get("manifest", {}),
+        "fallback": bool(parsed.get("fallback", False)),
+        "reason": parsed.get("reason"),
+        "raw": parsed.get("raw"),
+    }

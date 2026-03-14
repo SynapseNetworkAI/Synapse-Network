@@ -106,6 +106,15 @@ class Settings:
     # Optional Redis URL for distributed counters and rate limits.
     redis_url: str = os.getenv("REDIS_URL", "").strip()
 
+    # DeepSeek API key used by service manifest parse-curl endpoint.
+    deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    # DeepSeek API base URL for chat completion calls.
+    deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip()
+    # Default model used to parse cURL into service manifest fields.
+    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat").strip() or "deepseek-chat"
+    # Timeout (seconds) for DeepSeek parse-curl requests.
+    deepseek_timeout_s: float = _env_float("DEEPSEEK_TIMEOUT_S", 30.0)
+
     # Legacy payment fallback seller wallet (for compatibility-only flows).
     seller_address: str = os.getenv("SELLER_ADDRESS", "0x0000000000000000000000000000000000000000")
     # Legacy payment fallback expected price in wei.

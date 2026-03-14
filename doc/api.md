@@ -219,6 +219,11 @@
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`).
 - **Challenge**: Not required for each operation if session is still valid. Re-challenge only when signing in or when session expired.
 - **Tenant Isolation**: Owner is derived from token subject, client-provided owner must not bypass server-side ownership checks.
+- **`POST /api/v2/services/parse-curl` contract**:
+  - Request: `{ curlCommand, model?, currentManifest? }`
+  - Response: `{ status, data, fallback, reason?, raw? }`
+  - `data` is always a manifest object for frontend `Expected / Generated JSON Response` rendering.
+  - When DeepSeek is unavailable/invalid, backend returns `fallback=true` with heuristic manifest to avoid empty payload crashes.
 
 ---
 
