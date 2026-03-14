@@ -61,7 +61,9 @@ export default function DeveloperConsole() {
     args: address ? [address] : undefined,
     query: { enabled: !!address }
   });
-  const walletUsdcBalance = walletUsdcBalanceRaw !== undefined ? Number(walletUsdcBalanceRaw) / 1e18 : 0;
+  const walletUsdcBalance = isConnected && address && walletUsdcBalanceRaw !== undefined
+    ? Number(walletUsdcBalanceRaw) / 1e18
+    : 0;
 
   const { data: ethBalanceData } = useBalance({ address });
   const ethBalance = ethBalanceData ? Number(ethBalanceData.value) / 1e18 : 0;
@@ -132,6 +134,14 @@ export default function DeveloperConsole() {
       loadKeys();
     }
   }, [isSessionAuthenticated, loadBalance, loadKeys]);
+
+  useEffect(() => {
+    if (isConnected && address && isSessionAuthenticated) return;
+    setBalanceUsdc(null);
+    setKeys([]);
+    setLatestIssued(null);
+    setSelectedTokenPrefix("");
+  }, [isConnected, address, isSessionAuthenticated]);
 
   useEffect(() => {
     if (!address || !isSessionAuthenticated) {
