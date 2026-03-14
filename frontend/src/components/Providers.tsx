@@ -67,7 +67,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
           accentColor: "#7b3fe4",
           accentColorForeground: "white",
           borderRadius: "medium",
-        })} modalSize="compact">
+        })}>
           {mounted && children}
         </RainbowKitProvider>
       </QueryClientProvider>

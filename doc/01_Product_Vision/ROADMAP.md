@@ -55,3 +55,28 @@ Docker 化： 把你的 Python Backend、Indexer、前端 React/Vue 全部打成
 今天的第一步，咱们直接切入【优先级 1：角色隔离】。 准备好两个不同的浏览器和三个测试账号，去咱们的 UI 里实打实地扮演一回买家和卖家。 如果有任何权限越界、或者串号的 Bug，立刻在 VS Code 里输入暗号召唤我，咱们当场击毙它！
 
 调整呼吸，戴上头盔，真正的实战演习开始了！🚀💻🛡️
+
+## 本周落地项执行看板（Storage / Production）
+
+目标：在不引入过度工程化的前提下，把资金路径打磨到可上线基线。
+
+执行入口：
+- 存储升级方案文档：[../02_Architecture/Storage_Strategy_Upgrade.md](../02_Architecture/Storage_Strategy_Upgrade.md)
+- 生产升级 TODO 清单：[../02_Architecture/Production_Upgrade_TODO.md](../02_Architecture/Production_Upgrade_TODO.md)
+- GitHub 看板模板：[../../.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](../../.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
+- GitHub 子任务模板：[../../.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](../../.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)
+
+本周必须完成（P0）：
+- [ ] 资金路径事务原子化（扣款、分账、流水同事务）
+- [ ] 余额读写加行级锁（SELECT ... FOR UPDATE）
+- [ ] request_id 幂等唯一约束与重放保护
+- [ ] 备份策略（全量 + WAL）与一次恢复演练
+
+建议同步推进（P1）：
+- [ ] gateway_logs 分区（按月）
+- [ ] 锁等待 / 死锁 / 慢查询监控告警
+
+上线门禁（Go / No-Go）：
+- [ ] P0 全部完成
+- [ ] 并发压测验证无超扣、无重复记账、无负余额
+- [ ] 文档、代码、测试一致

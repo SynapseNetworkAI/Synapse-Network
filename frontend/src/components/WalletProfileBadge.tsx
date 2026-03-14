@@ -8,12 +8,10 @@ import { useCallback } from "react";
 import { clearAuthSession, buildAuthedHeaders } from "@/utils/authSession";
 import contractConfig from "@/contract-config.json";
 import { parseAbi } from "viem";
-import { useAuth } from "@/components/WalletAuthGuard";
 
 export default function WalletProfileBadge() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  const { isSessionAuthenticated, isAuthorizing, authorize } = useAuth();
 
   const { data: walletUsdcBalanceRaw, refetch } = useReadContract({
     address: contractConfig.MockUSDC as `0x${string}`,
@@ -58,29 +56,6 @@ export default function WalletProfileBadge() {
 
   if (!isConnected) {
     return <ConnectButton />;
-  }
-
-  if (!isSessionAuthenticated) {
-    return (
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={() => void authorize()}
-          disabled={isAuthorizing}
-          className="flex items-center px-4 py-2 text-sm font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isAuthorizing ? "Authorizing..." : "Authorize Login"}
-        </button>
-        <button
-          onClick={handleLogout}
-          className="flex items-center px-4 py-2 text-sm font-bold text-red-400 transition-colors bg-gray-900 border border-red-900/50 rounded-lg hover:bg-red-950/30"
-          title="Disconnect Wallet"
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Disconnect
-        </button>
-      </div>
-    );
   }
 
   return (

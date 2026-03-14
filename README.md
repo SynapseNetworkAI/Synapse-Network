@@ -62,6 +62,25 @@ All docs are under [doc/](doc/README.md).
 
 Contribution workflow and quality gates are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Weekly Execution Board
+
+Storage and production-hardening work items are tracked here:
+
+- Strategy doc: [doc/02_Architecture/Storage_Strategy_Upgrade.md](doc/02_Architecture/Storage_Strategy_Upgrade.md)
+- Execution TODO: [doc/02_Architecture/Production_Upgrade_TODO.md](doc/02_Architecture/Production_Upgrade_TODO.md)
+- Product roadmap board: [doc/01_Product_Vision/ROADMAP.md](doc/01_Product_Vision/ROADMAP.md)
+
+This week focus:
+- P0 financial safety baseline: transaction atomicity, row-level locks, idempotency unique constraints
+- P0 backup and restore readiness: full + incremental backup and one restore drill
+- P1 logging partitioning baseline: monthly partitions and retention policy
+- Delivery gate: P0 complete before any public production exposure
+
+GitHub issue templates for direct assignment:
+- Board checklist: [.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
+- Single work item: [.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)
+- Issue seed list (copy-and-create): [doc/02_Architecture/Production_Upgrade_Issue_Seeds.md](doc/02_Architecture/Production_Upgrade_Issue_Seeds.md)
+
 ### 1) Product Vision
 - [doc/01_Product_Vision](doc/01_Product_Vision)
 
