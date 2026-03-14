@@ -45,6 +45,7 @@
 ## 6. 使用与开发者指南 (`06_Developer_Guides/`)
 方便二次开发甚至快速 Demo 跑通的操作手册：
 - **后端 Python 网关启动指南 (Dev)**: [Backend_Python_Dev_Guide.md](./06_Developer_Guides/Backend_Python_Dev_Guide.md)
+- **后端单元测试与压测指南**: [Backend_Unit_Testing_Guide.md](./06_Developer_Guides/Backend_Unit_Testing_Guide.md)
 - **买家 Python SDK 示例**: [Buyer_SDK_Quickstart.md](./06_Developer_Guides/Buyer_SDK_Quickstart.md)
 - **前端 Web 综合使用手册**: [Website_User_Guide.md](./06_Developer_Guides/Website_User_Guide.md)
 - **本地节点与区块链浏览器的搭建**: [Local_Blockchain_Setup.md](./06_Developer_Guides/Local_Blockchain_Setup.md)
