@@ -9,6 +9,13 @@ import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import AuthMask from "@/components/AuthMask";
 
 const PARSE_CURL_ENDPOINT = `${process.env.NEXT_PUBLIC_GATEWAY_BASE_URL || "http://127.0.0.1:8000"}/api/v2/services/parse-curl`;
+const TOOL_NAME_REGEX = /^[a-z0-9_-]+$/;
+const INTENT_TAG_REGEX = /^[a-z0-9_-]{2,24}$/;
+const AI_SERVICE_NAME_MIN = 4;
+const AI_SERVICE_NAME_MAX = 80;
+const AI_DESCRIPTION_MIN = 12;
+const AI_DESCRIPTION_MAX = 240;
+const AI_INTENT_MAX = 8;
 
 const OVERRIDABLE_PATHS = [
   "service_name",
@@ -71,6 +78,10 @@ const collectOverrideChanges = (parsed: Partial<ServiceManifest>, current: Servi
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> => {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+};
+
+const normalizeIntentTag = (raw: string): string => {
+  return raw.trim().toLowerCase().replace(/\s+/g, "_");
 };
 
 // Extracted from api_gateway_reverse_proxy_design.md
@@ -169,10 +180,24 @@ export default function DeployManifestPage() {
   };
 
   const handleAddIntent = () => {
-    if (intentInput.trim() && !manifest.intent.includes(intentInput.trim())) {
-      handleUpdate("intent", [...manifest.intent, intentInput.trim()]);
-      setIntentInput("");
+    const normalizedTag = normalizeIntentTag(intentInput);
+    if (!normalizedTag) {
+      return;
     }
+    if (!INTENT_TAG_REGEX.test(normalizedTag)) {
+      toast.error("Intent tag must match [a-z0-9_-] and be 2-24 chars.");
+      return;
+    }
+    if (manifest.intent.includes(normalizedTag)) {
+      toast("Intent already exists.", { icon: "ℹ️" });
+      return;
+    }
+    if (manifest.intent.length >= AI_INTENT_MAX) {
+      toast.error(`Maximum ${AI_INTENT_MAX} intent tags allowed.`);
+      return;
+    }
+    handleUpdate("intent", [...manifest.intent, normalizedTag]);
+    setIntentInput("");
   };
 
   const handleRemoveIntent = (tag: string) => {
@@ -305,6 +330,10 @@ export default function DeployManifestPage() {
   };
 
   const submitDeploy = async () => {
+    if (aiInterfaceValidationErrors.length > 0) {
+      toast.error(`AI interface validation failed: ${aiInterfaceValidationErrors[0]}`);
+      return;
+    }
     setIsDeploying(true);
     localStorage.removeItem("synapse_manifest_draft"); // clear draft on deploy
     // Simulate network delay
@@ -320,7 +349,69 @@ export default function DeployManifestPage() {
     { label: "Service name", ok: Boolean(manifest.service_name.trim()) },
     { label: "Tool name", ok: Boolean(manifest.agent_tool_name.trim()) },
     { label: "Description", ok: Boolean(manifest.description.trim()) },
+    { label: "Semantic intents", ok: manifest.intent.length > 0 },
     { label: "Endpoint", ok: Boolean(manifest.endpoint.trim()) },
+  ];
+
+  const aiInterfaceValidationErrors = useMemo(() => {
+    const errors: string[] = [];
+    const serviceName = manifest.service_name.trim();
+    const toolName = manifest.agent_tool_name.trim();
+    const description = manifest.description.trim();
+
+    if (!serviceName) {
+      errors.push("Service Name is required.");
+    } else if (serviceName.length < AI_SERVICE_NAME_MIN || serviceName.length > AI_SERVICE_NAME_MAX) {
+      errors.push(`Service Name must be ${AI_SERVICE_NAME_MIN}-${AI_SERVICE_NAME_MAX} characters.`);
+    }
+
+    if (!toolName) {
+      errors.push("Agent Tool Name is required.");
+    } else if (toolName.length < 3 || toolName.length > 64) {
+      errors.push("Agent Tool Name must be 3-64 characters.");
+    } else if (!TOOL_NAME_REGEX.test(toolName)) {
+      errors.push("Agent Tool Name must match ^[a-z0-9_-]+$.");
+    }
+
+    if (!description) {
+      errors.push("Description is required.");
+    } else if (description.length < AI_DESCRIPTION_MIN || description.length > AI_DESCRIPTION_MAX) {
+      errors.push(`Description must be ${AI_DESCRIPTION_MIN}-${AI_DESCRIPTION_MAX} characters.`);
+    }
+
+    if (manifest.intent.length < 1) {
+      errors.push("At least one intent tag is required.");
+    }
+    if (manifest.intent.length > AI_INTENT_MAX) {
+      errors.push(`Intent tags cannot exceed ${AI_INTENT_MAX}.`);
+    }
+    for (const tag of manifest.intent) {
+      if (!INTENT_TAG_REGEX.test(tag)) {
+        errors.push(`Invalid intent tag \"${tag}\". Use [a-z0-9_-], 2-24 chars.`);
+        break;
+      }
+    }
+
+    return errors;
+  }, [manifest]);
+
+  const aiInterfaceRules = [
+    {
+      label: `Service Name: required, ${AI_SERVICE_NAME_MIN}-${AI_SERVICE_NAME_MAX} chars`,
+      ok: manifest.service_name.trim().length >= AI_SERVICE_NAME_MIN && manifest.service_name.trim().length <= AI_SERVICE_NAME_MAX,
+    },
+    {
+      label: "Agent Tool Name: required, 3-64 chars, regex ^[a-z0-9_-]+$",
+      ok: manifest.agent_tool_name.trim().length >= 3 && manifest.agent_tool_name.trim().length <= 64 && TOOL_NAME_REGEX.test(manifest.agent_tool_name.trim()),
+    },
+    {
+      label: `Description: required, ${AI_DESCRIPTION_MIN}-${AI_DESCRIPTION_MAX} chars`,
+      ok: manifest.description.trim().length >= AI_DESCRIPTION_MIN && manifest.description.trim().length <= AI_DESCRIPTION_MAX,
+    },
+    {
+      label: `Intent Tags: 1-${AI_INTENT_MAX}, each regex [a-z0-9_-]{2,24}`,
+      ok: manifest.intent.length >= 1 && manifest.intent.length <= AI_INTENT_MAX && manifest.intent.every((tag) => INTENT_TAG_REGEX.test(tag)),
+    },
   ];
 
   const completedChecks = readinessChecks.filter((item) => item.ok).length;
@@ -449,6 +540,23 @@ export default function DeployManifestPage() {
           {/* Section 1: AI Interface */}
           <section className="space-y-4">
             <h2 className="text-lg font-bold text-white border-b border-gray-800 pb-2">1. Artificial Intelligence Interface</h2>
+            <div className="rounded-lg border border-gray-800 bg-black/60 p-3">
+              <p className="text-[11px] text-gray-400 mb-2">Business Validation Rules</p>
+              <div className="space-y-1.5">
+                {aiInterfaceRules.map((rule) => (
+                  <div
+                    key={rule.label}
+                    className={`text-[11px] px-2 py-1 rounded border ${
+                      rule.ok
+                        ? "text-green-300 border-green-500/30 bg-green-500/10"
+                        : "text-yellow-200 border-yellow-500/30 bg-yellow-500/10"
+                    }`}
+                  >
+                    {rule.ok ? "OK" : "Pending"} · {rule.label}
+                  </div>
+                ))}
+              </div>
+            </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Service Name (Human Readable)</label>
@@ -470,7 +578,7 @@ export default function DeployManifestPage() {
                 value={manifest.agent_tool_name}
                 onChange={(e) => handleUpdate("agent_tool_name", e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
               />
-              <p className="text-xs text-gray-600 mt-1">Must match regex ^[a-zA-Z0-9_-]+$ for OpenAI Tool capability.</p>
+              <p className="text-xs text-gray-600 mt-1">Required. 3-64 chars, must match regex ^[a-z0-9_-]+$.</p>
             </div>
 
             <div>
@@ -481,6 +589,7 @@ export default function DeployManifestPage() {
                 value={manifest.description}
                 onChange={(e) => handleUpdate("description", e.target.value)}
               />
+              <p className="text-xs text-gray-600 mt-1">Required. {AI_DESCRIPTION_MIN}-{AI_DESCRIPTION_MAX} chars.</p>
             </div>
 
             <div>
@@ -492,10 +601,16 @@ export default function DeployManifestPage() {
                   placeholder="e.g. crypto, weather, indexing"
                   value={intentInput}
                   onChange={(e) => setIntentInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddIntent()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddIntent();
+                    }
+                  }}
                 />
                 <button onClick={handleAddIntent} className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700">Add</button>
               </div>
+              <p className="text-xs text-gray-600 mb-2">Required. Add 1-{AI_INTENT_MAX} tags. Allowed pattern: [a-z0-9_-], 2-24 chars each.</p>
               <div className="flex flex-wrap gap-2">
                 {manifest.intent.map((tag) => (
                   <span key={tag} className="px-3 py-1 bg-green-900/30 border border-green-500/30 text-green-400 text-xs rounded-full flex items-center">
@@ -576,7 +691,7 @@ export default function DeployManifestPage() {
           <div className="pt-6 border-t border-gray-800">
             <button
               onClick={submitDeploy}
-              disabled={isDeploying || !manifest.agent_tool_name || !manifest.endpoint}
+              disabled={isDeploying || !manifest.agent_tool_name || !manifest.endpoint || aiInterfaceValidationErrors.length > 0}
               className="w-full py-3 font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
             >
               {isDeploying ? "DEPLOYING..." : "CONFIRM & DEPLOY"}
@@ -850,18 +965,24 @@ export default function DeployManifestPage() {
         <div className="p-6 bg-black border-t border-green-900/30 mt-auto shadow-[0_-20px_40px_rgba(0,0,0,0.5)] z-10">
           <button
             onClick={submitDeploy}
-            disabled={isDeploying || missingRequiredFields.length > 0}
+            disabled={isDeploying || missingRequiredFields.length > 0 || aiInterfaceValidationErrors.length > 0}
             className="w-full py-4 font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
           >
             {isDeploying ? (
               <span className="animate-pulse">INJECTING TO MAINNET...</span>
+            ) : aiInterfaceValidationErrors.length > 0 ? (
+              <span>FIX AI INTERFACE VALIDATION RULES</span>
             ) : missingRequiredFields.length > 0 ? (
               <span>COMPLETE REQUIRED FIELDS TO DEPLOY</span>
             ) : (
               <span>DEPLOY MANIFEST</span>
             )}
           </button>
-          {missingRequiredFields.length > 0 ? (
+          {aiInterfaceValidationErrors.length > 0 ? (
+            <p className="text-center text-[11px] text-yellow-300 mt-3">
+              Validation: {aiInterfaceValidationErrors[0]}
+            </p>
+          ) : missingRequiredFields.length > 0 ? (
             <p className="text-center text-[11px] text-yellow-300 mt-3">
               Missing: {missingRequiredFields.join(" / ")}
             </p>

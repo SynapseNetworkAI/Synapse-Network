@@ -220,6 +220,34 @@
 - 创建成功后在结果卡片展示只读 `serviceId`。
 - 支持“复制 serviceId”按钮（供对账/排障）。
 
+### 6.1 Artificial Intelligence Interface 必填与业务校验规则
+
+为了保证服务注册在被 AI Buyer 调用时具备稳定路由语义，`Artificial Intelligence Interface` 必须执行以下校验：
+
+1. `Service Name`
+  - 必填
+  - 长度：`4-80` 字符
+
+2. `Agent Tool Name`
+  - 必填
+  - 长度：`3-64` 字符
+  - 正则：`^[a-z0-9_-]+$`
+  - 说明：仅允许小写字母、数字、下划线、短横线，避免跨模型工具调用兼容问题。
+
+3. `Description (Trigger Condition)`
+  - 必填
+  - 长度：`12-240` 字符
+  - 说明：过短描述会导致路由匹配弱、误调用率上升。
+
+4. `Semantic Intents (Tags)`
+  - 必填，至少 `1` 个标签
+  - 最多 `8` 个标签
+  - 单标签正则：`^[a-z0-9_-]{2,24}$`
+  - 去重规则：不允许重复标签
+
+5. 部署门禁
+  - 只要上述任一规则未通过，`Deploy Manifest` 按钮必须保持禁用，并在页面提示第一条校验失败原因。
+
 ---
 
 ## 7. 与现有系统兼容策略
