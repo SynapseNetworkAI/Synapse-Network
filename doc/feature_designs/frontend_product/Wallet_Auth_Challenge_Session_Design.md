@@ -94,6 +94,8 @@ Why:
    - session expired
    - wallet changed
 4. Warn before destructive sign-out actions.
+5. Do not auto-popup wallet signature on page load. Dashboard pages should check session first and stay in session-only mode.
+6. Trigger challenge explicitly on sign-in/renew-session actions, and on fund-critical flows that require wallet signatures.
 
 ## 7. Current Runtime Mapping
 
@@ -138,6 +140,54 @@ Rule of thumb:
 1. Challenge is only for obtaining or renewing session.
 2. Session is for most off-chain platform API operations.
 3. On-chain value movement always requires wallet/typed-data signature regardless of session.
+
+## 8.2 Page Auth Matrix (Frontend)
+
+### Session-required pages (page-level)
+
+1. `/dashboard/services/deploy` (provider publish workflow)
+2. `/dashboard/secrets` (secret key management)
+3. `/dashboard/credentials` (credential issuance/revoke/audit)
+4. `/dashboard/console` for authenticated data actions
+
+### Public-readable pages (no session required)
+
+1. `/` (product intro)
+2. `/blog`, `/about`
+3. `/dashboard/services` public marketplace section (discover list)
+4. `/dashboard/billing` with guest empty/zero state
+5. `/dashboard/sell` and summary cards with guest-safe zeros
+
+Behavior requirement:
+
+1. Guest users can see what Synapse does and what public APIs/services exist.
+2. Private wallet data (balances, usage, credentials, private services) must stay session-protected.
+3. When session is missing, show empty/zero placeholders instead of crashing.
+
+## 8.3 Interface Auth Matrix (Backend API)
+
+### Challenge-trigger interfaces
+
+1. `GET /api/v1/auth/challenge`
+2. `POST /api/v1/auth/verify`
+
+Note: challenge is not required for each business request after session issuance.
+
+### Session-required interfaces
+
+1. `GET /api/v2/services` (owner list)
+2. `POST /api/v2/services`
+3. `PUT /api/v2/services/{service_record_id}`
+4. `DELETE /api/v2/services/{service_record_id}`
+5. `POST /api/v2/services/{service_record_id}/rotate-key`
+6. `POST /api/v2/services/{service_record_id}/ping`
+7. `POST /api/v2/services/parse-curl`
+8. `/api/v1/secrets/seller/*`
+9. `/api/v1/credentials/buyer/*`
+
+### Public interfaces (no session required)
+
+1. `GET /api/v2/services/discover`
 
 ## 9. API/Doc Contract Requirements
 

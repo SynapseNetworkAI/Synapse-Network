@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Wand2, TerminalSquare, Server, X, Check } from "lucide-react";
 import toast from "react-hot-toast";
+import { useAccount } from "wagmi";
+import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import AuthMask from "@/components/AuthMask";
 
 const PARSE_CURL_ENDPOINT = `${process.env.NEXT_PUBLIC_GATEWAY_BASE_URL || "http://127.0.0.1:8000"}/api/v2/services/parse-curl`;
 
@@ -89,6 +92,7 @@ interface ServiceManifest {
 }
 
 export default function DeployManifestPage() {
+  const { address } = useAccount();
   const [manifest, setManifest] = useState<ServiceManifest>({
     service_name: "",
     agent_tool_name: "",
@@ -226,6 +230,10 @@ export default function DeployManifestPage() {
   const autofillAIMagic = async () => {
     setIsAiGenerating(true);
     try {
+      if (!address) {
+        throw new Error("Wallet not connected. Please connect wallet and sign in first.");
+      }
+
       // Create request payload
       const requestData = {
         curlCommand: aiCurl,
@@ -236,14 +244,13 @@ export default function DeployManifestPage() {
       // Call real gateway parser endpoint
       const res = await fetch(PARSE_CURL_ENDPOINT, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: buildAuthedHeaders(address),
         body: JSON.stringify(requestData)
       });
       
       if (!res.ok) {
-        throw new Error(await res.text());
+        const raw = await res.text();
+        throw new Error(normalizeAuthApiError(raw || "Failed to parse cURL", res.status));
       }
       
       const payload = await res.json();
@@ -262,7 +269,12 @@ export default function DeployManifestPage() {
       }
     } catch (e) {
       console.error("AI Parse Error:", e);
-      toast.error("Failed to parse cURL via AI. See console for details.");
+      const errMsg = e instanceof Error ? e.message : "Failed to parse cURL via AI.";
+      if (errMsg.includes("Wallet auth session missing")) {
+        toast.error("Session missing or expired. Please sign in with wallet again.");
+      } else {
+        toast.error(errMsg);
+      }
     } finally {
       setIsAiGenerating(false);
     }
@@ -357,6 +369,7 @@ export default function DeployManifestPage() {
   }
 
   return (
+    <AuthMask>
     <div className="h-[calc(100vh-80px)] flex flex-col md:flex-row bg-[#050505] overflow-hidden">
       {/* LEFT SIDE: BUILDER FORM */}
       <div className="w-full md:w-1/2 h-full overflow-y-auto border-r border-gray-800 p-8 hide-scrollbar">
@@ -834,6 +847,7 @@ export default function DeployManifestPage() {
         </div>
       </div>
     </div>
+    </AuthMask>
   );
 }
 

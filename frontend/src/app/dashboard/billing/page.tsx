@@ -3,7 +3,6 @@
 import TreasuryPanel from "@/components/dashboard/billing/TreasuryPanel";
 import FundsLedgerTable from "@/components/dashboard/billing/FundsLedgerTable";
 import { useFundsData } from "@/hooks/useFundsData";
-import AuthMask from "@/components/AuthMask";
 
 export default function BillingPage() {
   const { records, loading, vaultBalance, walletBalance, refetch } = useFundsData();
@@ -18,16 +17,14 @@ export default function BillingPage() {
         </div>
               </div>
 
-      <AuthMask>
-        <div className="space-y-8">
-          <TreasuryPanel 
-            vaultBalance={vaultBalance} 
-            walletBalance={walletBalance} 
-            onRefresh={refetch} 
-          />
-          <FundsLedgerTable loading={loading} records={records} />
-        </div>
-      </AuthMask>
+      <div className="space-y-8">
+        <TreasuryPanel 
+          vaultBalance={vaultBalance} 
+          walletBalance={walletBalance} 
+          onRefresh={refetch} 
+        />
+        <FundsLedgerTable loading={loading} records={records} />
+      </div>
     </div>
   );
 }

@@ -5,12 +5,15 @@ import Link from "next/link";
 import { ArrowLeft, Server, Plus, Activity, ShieldAlert, RefreshCw, X, CheckCircle2, ShieldCheck, Copy } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
-import { listServiceRegistry, rotateServiceKey, testServicePing } from "@/utils/serviceApi";
+import { discoverServices, listServiceRegistry, rotateServiceKey, testServicePing, type ServiceRegistryRecord } from "@/utils/serviceApi";
+import { useAuth } from "@/components/WalletAuthGuard";
 
 export default function ServicesPage() {
   const { address } = useAccount();
+  const { isSessionAuthenticated } = useAuth();
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   const [services, setServices] = useState<any[]>([]);
+  const [publicServices, setPublicServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Security Modal State
@@ -27,16 +30,33 @@ export default function ServicesPage() {
       setServices(data);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to load services");
+      const message = err instanceof Error ? err.message : "Failed to load services";
+      if (!message.toLowerCase().includes("wallet auth session missing")) {
+        toast.error("Failed to load services");
+      }
+      setServices([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadPublicServices = async () => {
+    try {
+      const rows = await discoverServices();
+      setPublicServices(rows);
+    } catch (err) {
+      console.warn("Failed to load public services", err);
+      setPublicServices([]);
+    }
+  };
+
   useEffect(() => {
+    void loadPublicServices();
+
     if (address) {
       void loadServices();
     } else {
+      setServices([]);
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,7 +144,13 @@ export default function ServicesPage() {
 
       {!address ? (
         <div className="p-8 text-center border border-gray-800 rounded-xl bg-black/40">
-          <p className="text-gray-400">Please connect your wallet to manage services.</p>
+          <p className="text-gray-300">Wallet not connected. You can still browse public services registered on Synapse.</p>
+          <p className="text-gray-500 text-sm mt-2">Connect and sign in to manage your own provider services.</p>
+        </div>
+      ) : !isSessionAuthenticated ? (
+        <div className="p-8 text-center border border-yellow-700/30 rounded-xl bg-yellow-900/10">
+          <p className="text-yellow-200">Session not authenticated yet.</p>
+          <p className="text-yellow-300/80 text-sm mt-2">Sign in with wallet to view and manage your private service registry.</p>
         </div>
       ) : loading ? (
         <div className="p-8 text-center text-green-400 animate-pulse">Loading Synapses...</div>
@@ -188,6 +214,40 @@ export default function ServicesPage() {
           ))}
         </div>
       )}
+
+      <div className="pt-8 border-t border-gray-800">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Public API Marketplace</h2>
+          <span className="text-xs uppercase tracking-wider text-gray-500">No login required</span>
+        </div>
+
+        {publicServices.length === 0 ? (
+          <div className="p-6 border border-dashed border-gray-800 rounded-xl bg-black/20 text-gray-500 text-sm">
+            No public services discovered yet.
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {publicServices.map((svc) => (
+              <div key={svc.serviceId} className="p-5 border border-gray-800 rounded-xl bg-gray-900/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-white">{svc.serviceName || svc.name || "Unnamed Service"}</h3>
+                    <p className="text-xs font-mono text-gray-400 mt-1">{svc.serviceId}</p>
+                  </div>
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-300">
+                    Public
+                  </span>
+                </div>
+                <p className="text-sm text-gray-400 mt-3 line-clamp-2">{svc.summary || "No summary provided."}</p>
+                <div className="mt-3 flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Pricing</span>
+                  <span className="text-green-300 font-mono">{svc.pricing || "N/A"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Security Modal */}
       {selectedService && (

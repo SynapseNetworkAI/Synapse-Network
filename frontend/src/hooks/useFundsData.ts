@@ -26,7 +26,11 @@ export function useFundsData() {
   const [walletBalance, setWalletBalance] = useState("0.00");
 
   const fetchBalances = useCallback(async () => {
-    if (!userAddress) return;
+    if (!userAddress) {
+      setVaultBalance("0.00");
+      setWalletBalance("0.00");
+      return;
+    }
     try {
       const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
       const vault = new ethers.Contract(contractConfig.SynapseCore, SynapseCoreABI, provider);

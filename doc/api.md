@@ -5,6 +5,23 @@
 
 ## 1. 认证与服务鉴权 (Authentication API)
 
+### 1.0 鉴权速查 (Auth Quick Matrix)
+
+- **Challenge-only login flow**:
+  - `GET /api/v1/auth/challenge`
+  - `POST /api/v1/auth/verify`
+
+- **Session-required business APIs**:
+  - `GET/POST/PUT/DELETE /api/v2/services*`（除 `/discover` 外）
+  - `POST /api/v2/services/{id}/rotate-key`
+  - `POST /api/v2/services/{id}/ping`
+  - `POST /api/v2/services/parse-curl`
+  - `/api/v1/secrets/seller/*`
+  - `/api/v1/credentials/buyer/*`
+
+- **Public APIs**:
+  - `GET /api/v2/services/discover`
+
 ### 1.1 获取登录挑战 (Get Challenge)
 - **Path**: `GET /api/v1/auth/challenge`
 - **Desc**: 针对以太坊钱包的登录认证挑战接口。返回供前端钱包签名（EIP-191 `personal_sign`）的一次性 challenge（含随机 Nonce）。

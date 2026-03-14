@@ -181,8 +181,21 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       return;
     }
 
-    if (!verifiedWallet && !authError && !isAuthorizing) {
-      void authorize();
+    // Page-level behavior: recover existing session only, do not auto-trigger wallet challenge.
+    const existing = getStoredAuthSession();
+    if (existing?.wallet === address.toLowerCase()) {
+      setVerifiedWallet(existing.wallet);
+      setAuthError(null);
+      setIsAuthorizing(false);
+      return;
+    }
+
+    if (existing && existing.wallet !== address.toLowerCase()) {
+      clearAuthSession();
+    }
+
+    if (!isAuthorizing) {
+      setVerifiedWallet(null);
     }
 
     return () => {
