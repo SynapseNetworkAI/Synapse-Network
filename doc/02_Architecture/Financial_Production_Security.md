@@ -4,11 +4,11 @@
 
 This document defines production-grade security controls for Synapse financial paths:
 
-1. `/api/v2/balance*`
-2. `/api/v2/refund` and `/api/v2/refunds`
-3. `/api/v2/usage/logs`
-4. `/api/v2/router/config`
-5. `/api/v2/finance/audit-logs`
+1. `/api/v1/balance*`
+2. `/api/v1/refund` and `/api/v1/refunds`
+3. `/api/v1/usage/logs`
+4. `/api/v1/router/config`
+5. `/api/v1/finance/audit-logs`
 
 ## 2. Completed Controls
 
@@ -20,7 +20,7 @@ This document defines production-grade security controls for Synapse financial p
 
 ### 2.2 Idempotency and Replay Protection
 
-1. `POST /api/v2/balance/deposit/intent` and `POST /api/v2/refund` require `X-Idempotency-Key`.
+1. `POST /api/v1/balance/deposit/intent` and `POST /api/v1/refund` require `X-Idempotency-Key`.
 2. Idempotency key reuse with different payload returns `409`.
 3. Duplicate deposit `txHash` within replay window returns `409`.
 4. Idempotency key cache has both TTL and max-row pruning to prevent unbounded growth.
@@ -46,7 +46,7 @@ Router daily limit definition:
    - `requestId` (from `X-Request-Id`)
    - `clientIp`
    - `userAgent`
-3. Added owner-scoped financial audit API: `GET /api/v2/finance/audit-logs`.
+3. Added owner-scoped financial audit API: `GET /api/v1/finance/audit-logs`.
 
 ### 2.5 Third-Round Runtime Hardening
 
@@ -74,17 +74,17 @@ Router daily limit definition:
 
 ### 2.8 API Behavior (Contract)
 
-1. `POST /api/v2/balance/deposit/intent`
+1. `POST /api/v1/balance/deposit/intent`
    - requires `X-Idempotency-Key`
    - enforces owner write rate limit for `deposit_intent`
-2. `POST /api/v2/refund`
+2. `POST /api/v1/refund`
    - requires `X-Idempotency-Key`
    - enforces owner write rate limit for `refund_intent`
    - `amountUsdc >= 10`
-3. `POST /api/v2/router/config`
+3. `POST /api/v1/router/config`
    - enforces owner write rate limit for `router_config`
    - `dailyLimitUsdc` in `[0, 10000]`
-4. `GET /api/v2/finance/audit-logs`
+4. `GET /api/v1/finance/audit-logs`
    - returns owner-scoped finance actions only
    - supports `limit` in `1..500`
 

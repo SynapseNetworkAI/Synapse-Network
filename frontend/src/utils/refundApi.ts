@@ -9,11 +9,11 @@ export type RefundRecord = {
   txHash: string | null;
 };
 
-// 与后端 /api/v2/refunds 真实接口对接
+// 与后端 /api/v1/refunds 真实接口对接
 export async function fetchRefunds(userAddress: string): Promise<RefundRecord[]> {
   if (!userAddress) return [];
   try {
-    const res = await fetch(`http://127.0.0.1:8000/api/v2/refunds`, {
+    const res = await fetch(`http://127.0.0.1:8000/api/v1/refunds`, {
       method: "GET",
       headers: buildAuthedHeaders(userAddress, false),
     });

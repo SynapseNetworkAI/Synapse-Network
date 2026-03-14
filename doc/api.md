@@ -12,25 +12,25 @@
   - `POST /api/v1/auth/verify`
 
 - **Session-required business APIs**:
-  - `GET/POST/PUT/DELETE /api/v2/services*`（除 `/discover` 外）
-  - `POST /api/v2/services/{id}/rotate-key`
-  - `POST /api/v2/services/{id}/ping`
-  - `POST /api/v2/services/parse-curl`
-  - `GET /api/v2/balance`
-  - `POST /api/v2/balance/deposit/intent`
-  - `GET /api/v2/balance/deposit/intents`
-  - `POST /api/v2/refund`
-  - `GET /api/v2/refunds`
-  - `GET /api/v2/usage/logs`
-  - `GET /api/v2/router/config`
-  - `POST /api/v2/router/config`
-  - `GET /api/v2/finance/audit-logs`
+  - `GET/POST/PUT/DELETE /api/v1/services*`（除 `/discover` 外）
+  - `POST /api/v1/services/{id}/rotate-key`
+  - `POST /api/v1/services/{id}/ping`
+  - `POST /api/v1/services/parse-curl`
+  - `GET /api/v1/balance`
+  - `POST /api/v1/balance/deposit/intent`
+  - `GET /api/v1/balance/deposit/intents`
+  - `POST /api/v1/refund`
+  - `GET /api/v1/refunds`
+  - `GET /api/v1/usage/logs`
+  - `GET /api/v1/router/config`
+  - `POST /api/v1/router/config`
+  - `GET /api/v1/finance/audit-logs`
   - `/api/v1/secrets/seller/*`
   - `/api/v1/credentials/buyer/*`
 
 - **Public APIs**:
-  - `GET /api/v2/services/discover`
-  - `GET /api/v2/indexer/status`
+  - `GET /api/v1/services/discover`
+  - `GET /api/v1/indexer/status`
 
 ### 1.1 获取登录挑战 (Get Challenge)
 - **Path**: `GET /api/v1/auth/challenge`
@@ -108,7 +108,7 @@
 ## 3. 金库与余额系统 (Bulletproof Vault & Balance)
 
 ### 3.1 跨库意向申报 (Deposit Intent Registration)
-- **Path**: `POST /api/v2/balance/deposit/intent`
+- **Path**: `POST /api/v1/balance/deposit/intent`
 - **Desc**: 买家前端调用 Web3 智能合约 `Deposit` 函数后，将哈希告知 Gateway。网关会在后台挂起一只 `Web3 Daemon` 异步独立扫链核实后，加锁执行内部余额充值挂账。**此接口绝不接受伪造到账**。
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Security Headers**: Requires `X-Idempotency-Key` (16-128 chars, allowed chars: `A-Z a-z 0-9 . _ : -`). Same key + same payload returns the same logical result; same key + different payload returns `409`.
@@ -123,43 +123,43 @@
   ```
 
 ### 3.2 余额查询对账 (Query Heat-Wallet Balance)
-- **Path**: `GET /api/v2/balance`
+- **Path**: `GET /api/v1/balance`
 - **Desc**: 读取当前会话 owner 的余额摘要（buyerBalance / sellerReceivable / platformFeeAccrued）。
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 
 ### 3.3 充值意图列表 (Deposit Intent List)
-- **Path**: `GET /api/v2/balance/deposit/intents`
+- **Path**: `GET /api/v1/balance/deposit/intents`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: 返回当前 owner 的充值意图列表，不返回其他 owner 数据。
 
 ### 3.4 退款与账务流水 (Refund / Usage)
 - **Paths**:
-  - `POST /api/v2/refund`
-  - `GET /api/v2/refunds`
-  - `GET /api/v2/usage/logs`
+  - `POST /api/v1/refund`
+  - `GET /api/v1/refunds`
+  - `GET /api/v1/usage/logs`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: 仅返回当前 owner 作用域内账务数据。
-- **Security Headers**: `POST /api/v2/refund` requires `X-Idempotency-Key`.
-- **Validation**: `POST /api/v2/refund` requires `amountUsdc >= 10` (USDC).
+- **Security Headers**: `POST /api/v1/refund` requires `X-Idempotency-Key`.
+- **Validation**: `POST /api/v1/refund` requires `amountUsdc >= 10` (USDC).
 - **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
 
 ### 3.5 Router Config (Owner Scoped)
 - **Paths**:
-  - `GET /api/v2/router/config`
-  - `POST /api/v2/router/config`
+  - `GET /api/v1/router/config`
+  - `POST /api/v1/router/config`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: Router config is owner-scoped; each owner can only read/write their own config.
 - **Validation**: `dailyLimitUsdc` must be in `[0, 10000]`.
 - **Meaning**: `dailyLimitUsdc` is the owner-level daily spend ceiling for routed financial operations; `0` means no spending allowed for that day.
 
 ### 3.6 资金审计日志 (Finance Audit Logs)
-- **Path**: `GET /api/v2/finance/audit-logs`
+- **Path**: `GET /api/v1/finance/audit-logs`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: Returns owner-scoped financial audit events (deposit/refund/router/rate-limit).
 - **Pagination**: `limit` in `1..500`.
 
 ### 3.7 索引器状态探针 (Indexer Health & Counters)
-- **Path**: `GET /api/v2/indexer/status`
+- **Path**: `GET /api/v1/indexer/status`
 - **Desc**: 返回充值索引器实时健康度，包含当前监听合约地址、最近一轮处理计数、最后处理时间与最近错误，便于快速定位“链上已成功但余额未更新”问题。
 - **Auth**: Public endpoint. No wallet challenge and no platform session required.
 - **Returns (200 OK)**:
@@ -186,20 +186,35 @@
 ## 4. 卖家机器经济与 AI 服务 (Seller Network Services)
 
 ### 4.1 自动发掘市场大盘 (Service Discovery)
-- **Path**: `GET /api/v2/services/discover`
+- **Path**: `GET /api/v1/services/discover`
 - **Desc**: 允许任何 Buyer 终端查询整个平台挂卷的“卖家功能单意图”和配置列表，可带入大语言模型自动作为 Function Calling 工具箱使用。支持按 `?intent=` 意图匹配词反向搜索。
 - **Auth**: Public endpoint. No wallet challenge and no platform session required.
+- **Routing Contract**: 对外返回的 `invoke.targets[].url` 为平台网关地址（`/api/v1/gateway/generate`），不暴露卖家真实上游地址。
 - **Returns (200 OK)**:
   ```json
   {
     "status": "success",
-    "services": [ ... ],
+    "services": [
+      {
+        "serviceId": "SVC_F8_5800A9_0648",
+        "invoke": {
+          "method": "POST",
+          "targets": [
+            {
+              "url": "http://127.0.0.1:8000/api/v1/gateway/generate",
+              "weight": 100,
+              "region": null
+            }
+          ]
+        }
+      }
+    ],
     "count": 1
   }
   ```
 
 ### 4.2 高频服务分发流水线 (Generate/Invoke API)
-- **Path**: `POST /api/v2/generate`
+- **Path**: `POST /api/v1/gateway/generate`
 - **Desc**: 大脑发起真实 M2M 调用的核心漏斗。在此经历：“扣减高速内存锁余额” -> “分布式速率限制” -> “反向代理给真实提供商服务” -> “结果聚合审计” 的连贯动作。这也是整个系统价值捕获的中心。
 - **Headers**:
   - `X-Credential`: "agt_123..." (调用凭据)
@@ -209,29 +224,29 @@
 ### 4.3 卖家服务管理 (Provider Service Management)
 
 - **Paths**:
-  - `GET /api/v2/services`
-  - `POST /api/v2/services`
-  - `PUT /api/v2/services/{service_record_id}`
-  - `DELETE /api/v2/services/{service_record_id}`
-  - `POST /api/v2/services/{service_record_id}/rotate-key`
-  - `POST /api/v2/services/{service_record_id}/ping`
-  - `POST /api/v2/services/parse-curl`
+  - `GET /api/v1/services`
+  - `POST /api/v1/services`
+  - `PUT /api/v1/services/{service_record_id}`
+  - `DELETE /api/v1/services/{service_record_id}`
+  - `POST /api/v1/services/{service_record_id}/rotate-key`
+  - `POST /api/v1/services/{service_record_id}/ping`
+  - `POST /api/v1/services/parse-curl`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`).
 - **Challenge**: Not required for each operation if session is still valid. Re-challenge only when signing in or when session expired.
 - **Tenant Isolation**: Owner is derived from token subject, client-provided owner must not bypass server-side ownership checks.
-- **`POST /api/v2/services/parse-curl` contract**:
+- **`POST /api/v1/services/parse-curl` contract**:
   - Request: `{ curlCommand, model?, currentManifest? }`
   - Response: `{ status, data, fallback, reason?, raw? }`
   - `data` is always a manifest object for frontend `Expected / Generated JSON Response` rendering.
   - When DeepSeek is unavailable/invalid, backend returns `fallback=true` with heuristic manifest to avoid empty payload crashes.
-- **`POST /api/v2/services` registration fields (v2 enhanced)**:
+- **`POST /api/v1/services` registration fields (v2 enhanced)**:
   - `invoke.targets[]` (required): cluster endpoints (`url/weight/region`) for weighted routing
   - `healthCheck`: active probe policy (`path/method/intervalSec/timeoutMs/successCodes/...`)
   - `constraints`: forwarding limits (`timeoutMs/maxRequestBytes/maxResponseBytes/maxQps`)
   - `forwarding`: routing behavior (`requestIdHeader/passThroughHeaders/injectHeaders/retryPolicy`)
   - `metering`: billing strategy (`billingUnit/billOnError/billableStatusClasses/requestIdRequired/responseSizeMetering`)
   - Probe URL composition: platform computes health-check URL as each target origin + `healthCheck.path`.
-- **`GET /api/v2/services/registration-guide`**:
+- **`GET /api/v1/services/registration-guide`**:
   - Returns field-by-field guidance metadata for UI tooltips and onboarding.
   - Response includes `principles` and `fields[]` (`key/title/description/howToConfigure/platformUse/example`).
   - Requires owner session headers (same auth model as other seller control-plane APIs).

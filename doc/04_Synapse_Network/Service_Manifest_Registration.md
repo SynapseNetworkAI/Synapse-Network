@@ -131,13 +131,15 @@
 3. 附加对应的 `Service Key` 凭证发起请求。
 4. 按 `invoke.response.schema` 解析结果。
 
+`discover` 对外返回时，`invoke.targets[].url` 必须是平台网关地址（例如 `http://127.0.0.1:8000/api/v1/gateway/generate`），而不是卖家注册的上游地址（例如 `http://127.0.0.1:8100/...`）。卖家上游地址仅在平台内部用于转发与探活。
+
 ---
 
 ## 5. 建议的注册 API（V2）
 
 ### 5.1 Create（Seller 不再提交 `serviceId`，去除 AgentId）
 
-`POST /api/v2/services`
+`POST /api/v1/services`
 
 请求体（示意）：
 
@@ -359,10 +361,55 @@
 
 ### 5.2 Update（不允许改 `serviceId`）
 
-`PUT /api/v2/services/{id}`
+`PUT /api/v1/services/{id}`
 
 - 允许改：`serviceName/pricing/isActive/summary/tags/invoke`
 - 禁止改：`serviceId/ownerAddress/createdAt`
+
+### 5.3 Discover（对外只暴露平台调用地址）
+
+`GET /api/v1/services/discover?intent=名人名言`
+
+响应示意：
+
+```json
+{
+  "status": "success",
+  "services": [
+    {
+      "serviceId": "SVC_F8_5800A9_0648",
+      "serviceName": "获取名人名言 Top3",
+      "pricing": "1",
+      "summary": "输入主题或关键词，返回相关的前三名名人名言。",
+      "tags": ["quote", "inspiration", "chinese", "famous"],
+      "invoke": {
+        "method": "POST",
+        "targets": [
+          {
+            "url": "http://127.0.0.1:8000/api/v1/gateway/generate",
+            "weight": 100,
+            "region": null
+          }
+        ],
+        "timeoutMs": 3000,
+        "request": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": ["text"]
+          }
+        }
+      }
+    }
+  ],
+  "count": 1
+}
+```
+
+说明：
+1. Buyer 只看到平台入口地址，调用统一进入平台网关。
+2. 网关根据 `serviceId` 进行内部转发、扣费与审计。
+3. 卖家注册的 `invoke.targets[]` 原始地址不会在 discover 对外泄露。
 
 ---
 
@@ -431,15 +478,15 @@
   - 右侧预览区精简为“部署就绪度 + Manifest JSON”，去掉冗长的发布注释卡片。
 
 4. 后端契约支持
-  - 新增 `GET /api/v2/services/registration-guide`。
+  - 新增 `GET /api/v1/services/registration-guide`。
   - 返回字段说明元数据（`key/title/description/howToConfigure/platformUse/example`），用于前端引导与后续 i18n 扩展。
 
 ---
 
 ## 7. 与现有系统兼容策略
 
-1. 直接停用旧接口：`/api/v1/services*` 不再使用。
-2. 前端与后端统一使用新版模型：`POST /api/v2/services`、`PUT /api/v2/services/{id}`。
+1. 直接停用未带版本号的旧接口：`/api/services*` 不再使用。
+2. 前端与后端统一使用新版模型：`POST /api/v1/services`、`PUT /api/v1/services/{id}`。
 3. 服务注册请求体统一为新契约。
 4. 扣款/结算/账单继续使用系统生成的 `serviceId` 作为稳定关联键。
 

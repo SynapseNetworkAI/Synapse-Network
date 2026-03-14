@@ -3,7 +3,7 @@
 本文档说明 `python_sdk` 下 Seller FastAPI 的模块化结构、请求链路与扩展建议。
 
 ## 目录结构
-`/api/v2/generate`
+`/api/v1/gateway/generate`
 - `buyer_sdk/`
   - 买家侧 SDK（服务发现 + 付费调用封装）。
   - `client.py` 暴露 `SynapseBuyer`。
@@ -63,7 +63,7 @@ flowchart TD
 
 ### 1) 控制面（服务管理）
 
-`/api/v2/services*`
+`/api/v1/services*`
 
 1. `app.py` 接收请求。
 2. `auth.require_auth` 完成 token + `X-User-Address` 一致性校验。
@@ -76,7 +76,7 @@ flowchart TD
 1) 创建服务（系统生成 `serviceId`）
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v2/services \
+curl -X POST http://127.0.0.1:8000/api/v1/services \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -H "X-User-Address: <owner_wallet>" \
@@ -118,7 +118,7 @@ curl -X POST http://127.0.0.1:8000/api/v2/services \
 2) 查询服务列表
 
 ```bash
-curl -X GET "http://127.0.0.1:8000/api/v2/services?ownerAddress=<owner_wallet>" \
+curl -X GET "http://127.0.0.1:8000/api/v1/services?ownerAddress=<owner_wallet>" \
   -H "Authorization: Bearer <token>" \
   -H "X-User-Address: <owner_wallet>"
 ```
@@ -126,7 +126,7 @@ curl -X GET "http://127.0.0.1:8000/api/v2/services?ownerAddress=<owner_wallet>" 
 3) 更新服务（按记录 id）
 
 ```bash
-curl -X PUT http://127.0.0.1:8000/api/v2/services/<service_record_id> \
+curl -X PUT http://127.0.0.1:8000/api/v1/services/<service_record_id> \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -H "X-User-Address: <owner_wallet>" \
@@ -165,14 +165,14 @@ curl -X PUT http://127.0.0.1:8000/api/v2/services/<service_record_id> \
 4) 删除服务（按记录 id）
 
 ```bash
-curl -X DELETE http://127.0.0.1:8000/api/v2/services/<service_record_id> \
+curl -X DELETE http://127.0.0.1:8000/api/v1/services/<service_record_id> \
   -H "Authorization: Bearer <token>" \
   -H "X-User-Address: <owner_wallet>"
 ```
 
 ### 2) 数据面（Paid Generate）
 
-`/api/v2/generate`
+`/api/v1/gateway/generate`
 
 1. 校验 `serviceId`（header/body 一致性）。
 2. 如传入 `X-Credential`：
@@ -226,13 +226,13 @@ result = client.invoke_service(
 )
 ```
 
-说明：当前 SDK 调用链路对接 `/api/v2/generate`（携带 `X-Credential` + `X-Service-Id`）。
+说明：当前 SDK 调用链路对接 `/api/v1/gateway/generate`（携带 `X-Credential` + `X-Service-Id`）。
 
 ## 关键兼容点
 
 - 保持原入口导入方式不变：`from seller_fastapi import app`
-- 控制面服务管理路径：`/api/v2/services*`
-- 数据面推理调用路径：`/api/v2/generate`
+- 控制面服务管理路径：`/api/v1/services*`
+- 数据面推理调用路径：`/api/v1/gateway/generate`
 - 前端依赖的鉴权/凭证头不变：
   - `Authorization: Bearer <token>`
   - `X-User-Address`

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from typing import Optional, Dict, Any, List, Annotated
 from src.api.deps import get_registry_service
 from src.services.registry_service import RegistryService
@@ -130,23 +130,27 @@ class ParseCurlRequest(BaseModel):
     model: Optional[str] = None
     currentManifest: Optional[Dict[str, Any]] = None
 
-@router.get("/v2/services/discover")
+@router.get("/v1/services/discover")
 async def discover_services(
     intent: Optional[str] = Query(None, description="Search keyword for service discovery"),
+    request: Request = None,
     service: RegistryService = Depends(get_registry_service)
 ):
     """
     Public endpoint for Buyer AI Agents to discover available services.
     Returns only active services.
     """
-    public_services = await service.discover_services(intent)
+    gateway_url = None
+    if request is not None:
+        gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
+    public_services = await service.discover_services(intent, public_gateway_url=gateway_url)
     return {
         "status": "success", 
         "services": public_services, 
         "count": len(public_services)
     }
 
-@router.get("/v2/services")
+@router.get("/v1/services")
 async def list_services(
     service: RegistryService = Depends(get_registry_service),
     authorization: AuthorizationHeader = None,
@@ -156,7 +160,7 @@ async def list_services(
     rows = await service.list_owner_services(owner)
     return {"status": "success", "services": rows}
 
-@router.get("/v2/services/registration-guide")
+@router.get("/v1/services/registration-guide")
 async def registration_guide(
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
@@ -173,7 +177,7 @@ async def registration_guide(
         "fields": REGISTRATION_GUIDE_FIELDS,
     }
 
-@router.post("/v2/services")
+@router.post("/v1/services")
 async def register_service(
     req: RegisterServiceRequest,
     service: RegistryService = Depends(get_registry_service),
@@ -184,7 +188,7 @@ async def register_service(
     new_svc = await service.register_service(req.model_dump(), owner)
     return {"status": "success", "serviceId": new_svc["serviceId"], "service": new_svc}
 
-@router.put("/v2/services/{service_record_id}")
+@router.put("/v1/services/{service_record_id}")
 async def update_service(
     service_record_id: str, 
     req: Dict[str, Any], 
@@ -198,7 +202,7 @@ async def update_service(
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "service": updated}
 
-@router.delete("/v2/services/{service_record_id}")
+@router.delete("/v1/services/{service_record_id}")
 async def delete_service(
     service_record_id: str, 
     service: RegistryService = Depends(get_registry_service),
@@ -211,7 +215,7 @@ async def delete_service(
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Service deleted"}
 
-@router.post("/v2/services/{service_record_id}/rotate-key")
+@router.post("/v1/services/{service_record_id}/rotate-key")
 async def rotate_service_key(
     service_record_id: str,
     service: RegistryService = Depends(get_registry_service),
@@ -223,7 +227,7 @@ async def rotate_service_key(
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Key rotated (mock)"}
 
-@router.post("/v2/services/{service_record_id}/ping")
+@router.post("/v1/services/{service_record_id}/ping")
 async def ping_service(
     service_record_id: str,
     service: RegistryService = Depends(get_registry_service),
@@ -235,7 +239,7 @@ async def ping_service(
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Pong"}
 
-@router.post("/v2/services/parse-curl")
+@router.post("/v1/services/parse-curl")
 async def parse_curl_endpoint(
     req: ParseCurlRequest,
     authorization: AuthorizationHeader = None,

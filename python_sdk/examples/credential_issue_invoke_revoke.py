@@ -156,7 +156,7 @@ def invoke_generate_with_polling(
 
     while True:
         response = requests.post(
-            f"{api_base}/api/v2/generate",
+            f"{api_base}/api/v1/gateway/generate",
             headers={
                 "Content-Type": CONTENT_TYPE_JSON,
                 "X-Service-Id": service_id,

@@ -27,7 +27,7 @@ class SynapseClient:
 
     def discover_services(self, intent: Optional[str] = None) -> DiscoveryResponse:
         """Dynamically fetch all available AI services on the Synapse Network."""
-        url = f"{self.gateway_url}/api/v2/services/discover"
+        url = f"{self.gateway_url}/api/v1/services/discover"
         params: Dict[str, str] = {}
         if intent:
             params["intent"] = intent
@@ -62,7 +62,7 @@ class SynapseClient:
         if not service_id or not service_id.strip():
             raise ValueError("service_id is required")
 
-        url = f"{self.gateway_url}/api/v2/generate"
+        url = f"{self.gateway_url}/api/v1/gateway/generate"
         headers = {
             "Content-Type": "application/json",
             "X-Service-Id": service_id,

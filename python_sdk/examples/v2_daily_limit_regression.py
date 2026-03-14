@@ -63,12 +63,12 @@ def build_auth_headers(token: str, owner_address: str, with_json: bool = True) -
 
 
 def pick_target_service(api_base: str) -> tuple[str, float]:
-    response = requests.get(f"{api_base}/api/v2/services/discover", timeout=20)
+    response = requests.get(f"{api_base}/api/v1/services/discover", timeout=20)
     response.raise_for_status()
     payload = response.json()
     services = payload.get("services", [])
     if not services:
-        raise RuntimeError("No active services found from /api/v2/services/discover")
+        raise RuntimeError("No active services found from /api/v1/services/discover")
 
     target = services[0]
     service_id = str(target.get("serviceId", "")).strip()
@@ -107,7 +107,7 @@ def issue_credential(api_base: str, token: str, owner_address: str) -> str:
 
 def set_daily_limit(api_base: str, token: str, owner_address: str, daily_limit_usdc: float) -> None:
     response = requests.post(
-        f"{api_base}/api/v2/router/config",
+        f"{api_base}/api/v1/router/config",
         headers=build_auth_headers(token, owner_address),
         json={"dailyLimitUsdc": round(daily_limit_usdc, 6)},
         timeout=20,
@@ -207,7 +207,7 @@ def submit_and_wait_deposit_confirmation(
     timeout_sec: int = 90,
 ) -> None:
     intent_resp = requests.post(
-        f"{api_base}/api/v2/balance/deposit/intent",
+        f"{api_base}/api/v1/balance/deposit/intent",
         headers=build_auth_headers(token, owner_address),
         json={
             "txHash": tx_hash,
@@ -221,7 +221,7 @@ def submit_and_wait_deposit_confirmation(
     last_state: Optional[Dict[str, Any]] = None
     while True:
         list_resp = requests.get(
-            f"{api_base}/api/v2/balance/deposit/intents?limit=50",
+            f"{api_base}/api/v1/balance/deposit/intents?limit=50",
             headers=build_auth_headers(token, owner_address, with_json=False),
             timeout=20,
         )
@@ -247,7 +247,7 @@ def submit_and_wait_deposit_confirmation(
 
 def invoke_v2_generate(api_base: str, credential: str, service_id: str, prompt: str) -> requests.Response:
     return requests.post(
-        f"{api_base}/api/v2/generate",
+        f"{api_base}/api/v1/gateway/generate",
         headers={
             "Content-Type": CONTENT_TYPE_JSON,
             "X-Credential": credential,

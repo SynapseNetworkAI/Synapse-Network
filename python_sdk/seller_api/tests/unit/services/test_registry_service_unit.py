@@ -32,6 +32,44 @@ async def test_register_service_normalizes_cluster_and_health_path(temp_json_sto
     assert len(result["invoke"]["targets"]) == 2
 
 
+@pytest.mark.asyncio
+async def test_discover_services_exposes_platform_gateway_not_seller_target(temp_json_storage):
+    service = RegistryService(temp_json_storage)
+
+    payload = {
+        "serviceName": "获取名人名言 Top3",
+        "pricing": {"currency": "USDC", "amount": "1"},
+        "summary": "输入主题或关键词，返回相关的前三名名人名言。",
+        "tags": ["quote", "inspiration", "chinese", "famous"],
+        "healthCheck": {"path": "/health", "method": "GET"},
+        "invoke": {
+            "method": "POST",
+            "targets": [
+                {"url": "http://127.0.0.1:8100/api/v1/quotes/famous/top3", "weight": 100, "region": None}
+            ],
+            "timeoutMs": 3000,
+            "request": {
+                "contentType": "application/json",
+                "schema": {"type": "object", "required": ["text"]},
+            },
+            "response": {"contentType": "application/json", "schema": {}},
+        },
+    }
+    await service.register_service(payload, "0xabc")
+
+    rows = await service.discover_services(
+        intent="名人名言",
+        public_gateway_url="http://127.0.0.1:8000/api/v1/gateway/generate",
+    )
+
+    assert len(rows) == 1
+    invoke = rows[0]["invoke"]
+    assert invoke["targets"] == [
+        {"url": "http://127.0.0.1:8000/api/v1/gateway/generate", "weight": 100, "region": None}
+    ]
+    assert "8100/api/v1/quotes/famous/top3" not in invoke["targets"][0]["url"]
+
+
 def test_normalize_service_payload_requires_invoke_targets():
     payload = {
         "serviceName": "Invalid",

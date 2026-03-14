@@ -22,7 +22,7 @@ def test_registration_guide_returns_field_metadata(monkeypatch):
 
     client = TestClient(app)
     resp = client.get(
-        "/api/v2/services/registration-guide",
+        "/api/v1/services/registration-guide",
         headers={"Authorization": "Bearer t", "X-User-Address": "0xowner"},
     )
 

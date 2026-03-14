@@ -86,7 +86,7 @@
 4. **一秒落盘**: 提取完成的对象自动刷入前端 React Form State，右侧终端预览瞬间完成 JSON 的高亮编译，接着卖家一键确认即可上链发版。
 
 ### 5.4 后端多模型架构 (Multi-Model Parser Gateway)
-为了防止某个底座大模型（如 DeepSeek）宕机，网关侧（FastAPI）需预留路由模块 (`POST /api/v2/services/manifest/auto-gen`)：
+为了防止某个底座大模型（如 DeepSeek）宕机，网关侧（FastAPI）需预留路由模块 (`POST /api/v1/services/manifest/auto-gen`)：
 请求参数包含：
 ```json
 {

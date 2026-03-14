@@ -229,7 +229,7 @@ Dashboard 不只是数据面板，而是 **Synapse Network 的业务导航系统
 	- 用于判定是否满足当前阈值（`allowance >= requiredAllowance`）。
 
 2. **平台余额状态（后端账本）**
-	- 读取 `GET /api/v2/balance` 的 `buyerBalance`。
+	- 读取 `GET /api/v1/balance` 的 `buyerBalance`。
 	- 用于判定是否具备可消费余额。
 
 3. **共享凭据状态（后端凭据表）**

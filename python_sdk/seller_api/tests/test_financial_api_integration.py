@@ -71,14 +71,14 @@ def test_financial_api_auth_and_idempotency_flow():
 
                 # refund minimum amount must be >= 10
                 bad = client.post(
-                    "/api/v2/refund",
+                    "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_min_123456"},
                     json={"amountUsdc": 9.9, "reason": "too-small"},
                 )
                 assert bad.status_code in (400, 422)
 
                 ok = client.post(
-                    "/api/v2/refund",
+                    "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_ok_123456"},
                     json={"amountUsdc": 10, "reason": "ok"},
                 )
@@ -86,7 +86,7 @@ def test_financial_api_auth_and_idempotency_flow():
                 first = ok.json()
 
                 replay = client.post(
-                    "/api/v2/refund",
+                    "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_ok_123456"},
                     json={"amountUsdc": 10, "reason": "ok"},
                 )
@@ -95,7 +95,7 @@ def test_financial_api_auth_and_idempotency_flow():
                 assert first["refundId"] == second["refundId"]
 
                 mismatch = client.post(
-                    "/api/v2/refund",
+                    "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_ok_123456"},
                     json={"amountUsdc": 11, "reason": "mismatch"},
                 )
@@ -122,27 +122,27 @@ def test_owner_isolation_and_router_limit_range():
 
                 # Create refund for owner1
                 create_refund = client.post(
-                    "/api/v2/refund",
+                    "/api/v1/refund",
                     headers={**_auth_headers(token1, owner1), "X-Idempotency-Key": "k_owner1_refund_12345"},
                     json={"amountUsdc": 20, "reason": "owner1"},
                 )
                 assert create_refund.status_code == 200
 
                 # owner2 should not see owner1 refunds
-                list_owner2 = client.get("/api/v2/refunds", headers=_auth_headers(token2, owner2))
+                list_owner2 = client.get("/api/v1/refunds", headers=_auth_headers(token2, owner2))
                 assert list_owner2.status_code == 200
                 assert list_owner2.json().get("refunds") == []
 
                 # Router limit range check [0, 10000]
                 invalid_router = client.post(
-                    "/api/v2/router/config",
+                    "/api/v1/router/config",
                     headers=_auth_headers(token1, owner1),
                     json={"dailyLimitUsdc": 20000},
                 )
                 assert invalid_router.status_code in (400, 422)
 
                 valid_router = client.post(
-                    "/api/v2/router/config",
+                    "/api/v1/router/config",
                     headers=_auth_headers(token1, owner1),
                     json={"dailyLimitUsdc": 10000},
                 )

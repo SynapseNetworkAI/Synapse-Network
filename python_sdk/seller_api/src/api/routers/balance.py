@@ -30,7 +30,7 @@ def _extract_request_meta(request: Request) -> Dict[str, Any]:
     }
 
 
-@router.get("/v2/balance", responses={500: {"description": "Database IO blocked"}})
+@router.get("/v1/balance", responses={500: {"description": "Database IO blocked"}})
 async def get_balance(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
@@ -43,7 +43,7 @@ async def get_balance(
         raise HTTPException(status_code=500, detail=f"Database IO blocked: {str(e)}")
 
 
-@router.post("/v2/balance/deposit/intent")
+@router.post("/v1/balance/deposit/intent")
 async def register_deposit_intent(
     intent: DepositIntentRequest,
     request: Request,
@@ -62,7 +62,7 @@ async def register_deposit_intent(
     }
 
 
-@router.get("/v2/balance/deposit/intents")
+@router.get("/v1/balance/deposit/intents")
 async def list_deposit_intents(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
@@ -72,7 +72,7 @@ async def list_deposit_intents(
     return {"status": "success", "intents": intents[:limit]}
 
 
-@router.post("/v2/refund")
+@router.post("/v1/refund")
 async def process_refund(
     refund_req: RefundIntentRequest,
     request: Request,
@@ -86,7 +86,7 @@ async def process_refund(
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
-@router.get("/v2/refunds")
+@router.get("/v1/refunds")
 async def list_refunds(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
@@ -96,7 +96,7 @@ async def list_refunds(
     return {"status": "success", "ownerAddress": owner_wallet, "refunds": rows[:limit]}
 
 
-@router.get("/v2/router/config")
+@router.get("/v1/router/config")
 async def get_router_config(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
@@ -105,7 +105,7 @@ async def get_router_config(
     return {"status": "success", "ownerAddress": owner_wallet, "config": config}
 
 
-@router.post("/v2/router/config")
+@router.post("/v1/router/config")
 async def set_router_config(
     config: RouterConfigRequest,
     request: Request,
@@ -116,7 +116,7 @@ async def set_router_config(
     return {"status": "success", "ownerAddress": owner_wallet, "config": saved}
 
 
-@router.get("/v2/finance/audit-logs")
+@router.get("/v1/finance/audit-logs")
 async def list_finance_audit_logs(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
@@ -126,7 +126,7 @@ async def list_finance_audit_logs(
     return {"status": "success", "ownerAddress": owner_wallet, "logs": rows, "count": len(rows)}
 
 
-@router.get("/v2/usage/logs")
+@router.get("/v1/usage/logs")
 async def get_usage_logs(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     storage: Annotated[BaseStorage, Depends(get_storage)],
@@ -148,7 +148,7 @@ async def get_usage_logs(
     }
 
 
-@router.get("/v2/indexer/status")
+@router.get("/v1/indexer/status")
 async def get_v2_indexer_status():
     return {
         "status": "success",

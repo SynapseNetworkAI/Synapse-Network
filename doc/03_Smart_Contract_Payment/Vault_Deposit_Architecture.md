@@ -86,7 +86,7 @@ flowchart LR
 
 ### 3.6 Gateway Forwarder（网关转发）
 
-网关入口 `/api/v2/generate` 职责：
+网关入口 `/api/v1/gateway/generate` 职责：
 
 1. 验证 `Authorization`、`X-User-Address`、`X-Agent-Credential`
 2. 验证 service scope 与凭据状态（未过期/未撤销/未超配额）
@@ -134,7 +134,7 @@ flowchart LR
 
 ### Phase C：高频调用
 
-1. 买家调用平台 `/api/v2/generate`（不直连卖家）。
+1. 买家调用平台 `/api/v1/gateway/generate`（不直连卖家）。
 2. 网关先做阶段准入校验（充值确认/凭据有效/额度未超），再做余额校验 + 限流。
 3. 校验通过后扣费并转发到卖家 API。
 4. 平台记录调用流水并累计：
@@ -211,18 +211,18 @@ flowchart LR
 ## 7. 关键 API（建议）
 
 ### 控制面
-- `POST /api/v2/agents`
-- `POST /api/v2/services`
-- `POST /api/v2/credentials/issue`
-- `POST /api/v2/credentials/{id}/revoke`
+- `POST /api/v1/agents`
+- `POST /api/v1/services`
+- `POST /api/v1/credentials/issue`
+- `POST /api/v1/credentials/{id}/revoke`
 
 ### 资金面
-- `POST /api/v2/deposit/confirm`（由 indexer/回调写入账本）
-- `GET /api/v2/balance`
-- `POST /api/v2/settlement/run`
+- `POST /api/v1/deposit/confirm`（由 indexer/回调写入账本）
+- `GET /api/v1/balance`
+- `POST /api/v1/settlement/run`
 
 ### 数据面
-- `POST /api/v2/generate`（网关接入点，转发到 seller）
+- `POST /api/v1/gateway/generate`（网关接入点，转发到 seller）
 
 ---
 

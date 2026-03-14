@@ -12,9 +12,9 @@ sequenceDiagram
     participant Gateway as Seller API Gateway (FastAPI)
 
     Buyer->>Contract: 1. on-chain payment tx (approve + payForService)
-    Buyer->>Gateway: 2. POST /api/v2/balance/deposit/intent {txHash, amountUsdc}
+    Buyer->>Gateway: 2. POST /api/v1/balance/deposit/intent {txHash, amountUsdc}
     Gateway->>Gateway: 3. Indexer confirms chain tx and credits buyerBalance
-    Buyer->>Gateway: 4. HTTP POST /api/v2/generate + X-Agent-Credential
+    Buyer->>Gateway: 4. HTTP POST /api/v1/gateway/generate + X-Agent-Credential
     Gateway->>Gateway: 5. verify credential + balance + rate limits
     Gateway-->>Buyer: 6. HTTP 200 OK + JSON Data
 ```
@@ -78,11 +78,11 @@ contract Synapse NetworkSyncRouter {
 ### 3.1 职责说明
 FastAPI 网关承担三件事：
 1. 接收充值 intent 并由后台 Indexer 异步确认入账；
-2. 在 `/api/v2/generate` 做凭据、限流、余额扣减与审计；
+2. 在 `/api/v1/gateway/generate` 做凭据、限流、余额扣减与审计；
 3. 返回统一业务响应，不再要求每次调用携带 `tx_hash`。
 
 ### 3.2 V2 校验器（Gateway Validator）
-每次调用 `POST /api/v2/generate` 时，网关按以下顺序校验：
+每次调用 `POST /api/v1/gateway/generate` 时，网关按以下顺序校验：
 
 1. **凭据有效性**：`X-Agent-Credential` 未过期、未撤销、未超配额。
 2. **限流策略**：owner/agent/service 三维限流通过。
@@ -96,7 +96,7 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-@app.post("/api/v2/generate")
+@app.post("/api/v1/gateway/generate")
 async def generate_v2(request: RequestPayload, credential: str = Header(alias="X-Agent-Credential")):
     active_credential = validate_credential(credential)
     service = load_service(request.service_id)
@@ -112,7 +112,7 @@ async def generate_v2(request: RequestPayload, credential: str = Header(alias="X
 ## 4. 核心组件 3：Buyer Agent (Consumer 端)
 
 ### 4.1 职责说明
-Buyer 侧标准流程：`链上支付` -> `提交充值 intent` -> `等待余额可用` -> `调用 /api/v2/generate`。
+Buyer 侧标准流程：`链上支付` -> `提交充值 intent` -> `等待余额可用` -> `调用 /api/v1/gateway/generate`。
 
 ### 4.2 代码骨架设计 (`buyer_client.py`)
 ```python
@@ -124,7 +124,7 @@ def buy_ai_service(gateway_url, service_id, credential, payload):
         "X-Agent-Credential": credential,
         "X-Service-Id": service_id,
     }
-    response = requests.post(f"{gateway_url}/api/v2/generate", json=payload, headers=headers)
+    response = requests.post(f"{gateway_url}/api/v1/gateway/generate", json=payload, headers=headers)
     
     if response.status_code == 200:
         return response.json()
@@ -155,13 +155,13 @@ def buy_ai_service(gateway_url, service_id, credential, payload):
 
 ### Q3: 长时耗任务 (超过 HTTP Timeout 的任务) 怎么处理？
 对于需要 10 分钟运行的任务（如深度爬虫，视频生成），采用 **"Ticket 机制"**：
-1. 买方完成余额准备后，调用 `POST /api/v2/long-task`。
+1. 买方完成余额准备后，调用 `POST /api/v1/long-task`。
 2. 卖方验证完毕后不等待任务结束，而是立即返回 `HTTP 202 Accepted` 和 `{ "ticket_id": "xxx" }`。
-3. 买方开启 `轮询`：`GET /api/v2/result/{ticket_id}` ，直到 Seller 将存在 MinIO 的链接返回。
+3. 买方开启 `轮询`：`GET /api/v1/result/{ticket_id}` ，直到 Seller 将存在 MinIO 的链接返回。
 
 ## 6. 当前落地状态
 
 当前实现已采用 V2 主路径：
 1. 充值 intent + indexer 确认入账。
-2. `/api/v2/generate` 统一扣费与审计。
+2. `/api/v1/gateway/generate` 统一扣费与审计。
 3. Buyer SDK 默认调用 V2 接口。

@@ -57,7 +57,7 @@ sequenceDiagram
     participant G as Synapse Gateway
     participant C as SynapseCore Contract
     
-    B->>G: 1. `POST /api/v2/refund` (请求退款)
+    B->>G: 1. `POST /api/v1/refund` (请求退款)
     Note over G: 开启事务<br/>读 balance<br/>写入 balance = 0
     G->>C: 2. RPC 查询 `nonces(buyer_address)`
     C-->>G: 返回 nonce
@@ -96,7 +96,7 @@ sequenceDiagram
 为了确保退款资金安全和数据一致性，网关层必须遵循以下状态流转与校验规则：
 
 ### 4.1 前置条件严格校验 (Pre-condition Checks)
-1. **身份认证**：发起 `POST /api/v2/refund` 必须携带对应钱包的 EIP-4361 / SIWE 签名 Session，网关验证通过后方可执行。不允许匿名或仅凭 API Key 发起退款。
+1. **身份认证**：发起 `POST /api/v1/refund` 必须携带对应钱包的 EIP-4361 / SIWE 签名 Session，网关验证通过后方可执行。不允许匿名或仅凭 API Key 发起退款。
 2. **余额充足**：离线内存账本中买家的可用余额必须严格 `> 0`。若为 `0` 或发生超扣，则直接驳回为 `400 Bad Request`。
 
 ### 4.2 凭据强制失效机制 (Credential Invalidation)

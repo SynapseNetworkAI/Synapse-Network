@@ -31,7 +31,7 @@
 
 ## 2. 网关秒级扣费逻辑 (核心主链路)
 
-当买家携带 `X-Agent-Credential` 和请求体打向网关入口 `http://网关/api/v2/generate` 时，Python 中间件执行以下极速鉴权与切账：
+当买家携带 `X-Agent-Credential` 和请求体打向网关入口 `http://网关/api/v1/gateway/generate` 时，Python 中间件执行以下极速鉴权与切账：
 
 ### Step 1: 身份与余额前置校验
 1. 解析并验证 `Credential`，提取对应的 `buyer_address`。
@@ -60,7 +60,7 @@
 当买家不想再使用，且其离线账本表中还剩余一定 USDC（比如 15 U 此前已经全部充进了 `SynapseCore.sol`）时，出金（Refund）流程遵循“由平台发票，用户自己提现”策略：
 
 ### Step 1: 用户在前端发起退款请求
-前端调用网关专用接口: `POST /api/v2/refund`
+前端调用网关专用接口: `POST /api/v1/refund`
 
 ### Step 2: Python 网关结算出票账本
 1. 查出用户可用全额: `refundable_amount = buyerBalances[buyer_address]`

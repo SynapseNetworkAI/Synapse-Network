@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
+from urllib.parse import urlparse
 
 from fastapi.testclient import TestClient
 
@@ -39,7 +40,7 @@ def _issue_session(client: TestClient):
 
 def _register_service_and_credential(client: TestClient, owner: str, token: str, seller_wallet: str):
     reg_res = client.post(
-        "/api/v2/services",
+        "/api/v1/services",
         headers=_auth_headers(token, owner),
         json={
             "serviceName": "Gateway E2E Test Service",
@@ -137,12 +138,60 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
                 _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 3.0)
 
                 resp = client.post(
-                    "/api/v2/generate",
+                    "/api/v1/gateway/generate",
                     headers={"X-Credential": credential_token},
                     json={"prompt": "hello", "serviceId": service_id},
                 )
                 assert resp.status_code == 200
 
+                _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 2.0, 0.9, 0.1)
+        finally:
+            cfg.settings.data_dir = old_data_dir
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            app_module.run_v2_deposit_indexer = old_indexer
+
+
+def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
+    _mock_upstream(monkeypatch)
+    _mock_owner_auth(monkeypatch)
+
+    with TemporaryDirectory() as tmp:
+        old_data_dir = cfg.settings.data_dir
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_indexer = app_module.run_v2_deposit_indexer
+        cfg.settings.data_dir = tmp
+        cfg.settings.runtime_storage_dir = tmp
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                buyer_wallet, buyer_token = _issue_session(client)
+                seller_wallet = "0x" + "5" * 40
+                service_id, credential_token = _register_service_and_credential(client, buyer_wallet, buyer_token, seller_wallet)
+
+                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 3.0)
+
+                discover = client.get("/api/v1/services/discover")
+                assert discover.status_code == 200
+                body = discover.json()
+                assert body.get("status") == "success"
+                assert body.get("count") == 1
+
+                service = body["services"][0]
+                assert service.get("serviceId") == service_id
+                target_url = service["invoke"]["targets"][0]["url"]
+                assert target_url == "http://testserver/api/v1/gateway/generate"
+                assert "8100/api/v1/quotes/famous" not in target_url
+
+                parsed = urlparse(target_url)
+                gateway_path = parsed.path
+
+                resp = client.post(
+                    gateway_path,
+                    headers={"X-Credential": credential_token},
+                    json={"prompt": "hello", "serviceId": service_id},
+                )
+                assert resp.status_code == 200
                 _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 2.0, 0.9, 0.1)
         finally:
             cfg.settings.data_dir = old_data_dir
@@ -173,7 +222,7 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
 
                 def _call_once(i: int):
                     return client.post(
-                        "/api/v2/generate",
+                        "/api/v1/gateway/generate",
                         headers={"X-Credential": credential_token},
                         json={"prompt": f"hello-{i}", "serviceId": service_id},
                     )
@@ -220,14 +269,14 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
                 _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 1.0)
 
                 first = client.post(
-                    "/api/v2/generate",
+                    "/api/v1/gateway/generate",
                     headers={"X-Credential": credential_token},
                     json={"prompt": "first", "serviceId": service_id},
                 )
                 assert first.status_code == 200
 
                 second = client.post(
-                    "/api/v2/generate",
+                    "/api/v1/gateway/generate",
                     headers={"X-Credential": credential_token},
                     json={"prompt": "second", "serviceId": service_id},
                 )
@@ -245,7 +294,7 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
                 # Top up and verify the same credential works again.
                 _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 1.0)
                 third = client.post(
-                    "/api/v2/generate",
+                    "/api/v1/gateway/generate",
                     headers={"X-Credential": credential_token},
                     json={"prompt": "third", "serviceId": service_id},
                 )

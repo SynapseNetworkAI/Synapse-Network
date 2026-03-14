@@ -61,11 +61,11 @@ SDK 提供：
 
 当前 Buyer SDK 的 invoke 默认对接：
 
-- `POST /api/v2/generate`
+- `POST /api/v1/gateway/generate`
 
 并自动附带：
 
 - `X-Agent-Credential`
 - `X-Service-Id`
 
-若后续新增标准网关转发接口（如 `/api/v2/gateway/forward/{service_id}`），可在 `buyer_sdk/client.py` 内平滑切换。 
+若后续新增标准网关转发接口（如 `/api/v1/gateway/forward/{service_id}`），可在 `buyer_sdk/client.py` 内平滑切换。 

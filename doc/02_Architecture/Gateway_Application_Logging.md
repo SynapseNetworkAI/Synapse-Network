@@ -66,7 +66,7 @@ from loguru import logger # 引入 loguru
 
 router = APIRouter()
 
-@router.post("/v1/generate_v2")
+@router.post("/v1/gateway/generate")
 async def generate_response_v2(
     request: Request,
     body: dict,

@@ -19,7 +19,7 @@
                                 +-----------------------------------+
  [ Buyer Agent ]                |         API Gateway (Seller API)  |
       │                         |                                   |
-      │ 1) POST /api/v2/generate|  +-----------+     +-----------+  |
+      │ 1) POST /api/v1/gateway/generate|  +-----------+     +-----------+  |
       ├─────────────────────────┼─►| 1. 访问控制 |────►| 2. 计费限流 |  |
       │                         |  | (Auth)    |     | (Billing) |  |
       │                         |  +-----------+     +-----------+  |
@@ -209,7 +209,7 @@
 
 **针对上述 Manifest，买家 Agent 或客户端向网关发起的最终调用范例 (Curl)：**
 ```bash
-curl -X POST https://gateway.synapse.network/api/v2/generate \
+curl -X POST https://gateway.synapse.network/api/v1/gateway/generate \
   -H "X-Agent-Credential: agt_5f3b2a19..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -233,7 +233,7 @@ curl -X POST https://gateway.synapse.network/api/v2/generate \
 
 #### 阶段二：买方动态服务发现 (Buyer Discovery)
 买家（如 LangChain 里的 Agent）无需显式硬编码（Hardcode）调用 URL，更不用手写参数检查：
-1. **意图路由下发**：买方 Agent 仅需“凭意图”寻找外挂大脑：`GET /api/v2/services/discover?intent=名人名言`。
+1. **意图路由下发**：买方 Agent 仅需“凭意图”寻找外挂大脑：`GET /api/v1/services/discover?intent=名人名言`。
 2. **获悉入参契约 (Pull Schema)**：网关动态吐出这个卖家的 Manifest 元文件。
 3. **Zero-Code 工具装填 (核心降维打击)**：买方的核心大脑（OpenAI/DeepSeek 等）直接读取 `description` 与 `input_schema`。大模型内部原生支持把 JSON Schema 当做 Function Calling Tool 吞下，并在瞬间掌握了**该如何调用这个世界上完全陌生的 API**！
 

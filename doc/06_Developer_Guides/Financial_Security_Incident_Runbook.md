@@ -17,7 +17,7 @@ Trigger high-priority alert when any rule matches:
 
 ## 3. Triage Checklist
 
-1. Identify affected owner(s), endpoint(s), and action types from `GET /api/v2/finance/audit-logs`.
+1. Identify affected owner(s), endpoint(s), and action types from `GET /api/v1/finance/audit-logs`.
 2. Confirm whether traffic comes from single source IP/User-Agent or distributed sources.
 3. Verify if anomaly is caused by client retry bug vs malicious replay pattern.
 4. Check Redis health and latency when distributed controls are enabled.

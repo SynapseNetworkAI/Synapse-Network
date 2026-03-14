@@ -97,8 +97,8 @@ Synapse-Network/
 
 - Gateway health: `GET /health`
 - Credential lifecycle: `/api/v1/credentials/*`
-- Paid invoke: `POST /api/v2/generate`
-- Deposit and balance flow: `/api/v2/balance/*`
+- Paid invoke: `POST /api/v1/gateway/generate`
+- Deposit and balance flow: `/api/v1/balance/*`
 
 ## Design Principles
 

@@ -19,6 +19,32 @@ def _generate_service_id(owner_wallet: str) -> str:
     return f"SVC_{_seller_short(owner_wallet)}_{time36}_{rand4}"
 
 
+def _build_public_invoke(svc: Dict[str, Any], public_gateway_url: Optional[str]) -> Dict[str, Any]:
+    invoke = svc.get("invoke") if isinstance(svc.get("invoke"), dict) else {}
+    timeout_ms = int(invoke.get("timeoutMs") or 3000)
+    method = str(invoke.get("method") or "POST").upper()
+    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {"contentType": "application/json", "schema": {}}
+    response_spec = invoke.get("response") if isinstance(invoke.get("response"), dict) else {"contentType": "application/json", "schema": {}}
+
+    gateway_url = str(public_gateway_url or "").strip()
+    if not gateway_url:
+        gateway_url = "/api/v1/gateway/generate"
+
+    return {
+        "method": method,
+        "targets": [
+            {
+                "url": gateway_url,
+                "weight": 100,
+                "region": None,
+            }
+        ],
+        "timeoutMs": timeout_ms,
+        "request": request_spec,
+        "response": response_spec,
+    }
+
+
 def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:
     invoke = req_data.get("invoke") if isinstance(req_data.get("invoke"), dict) else {}
     if not invoke:
@@ -175,7 +201,7 @@ class RegistryService:
                 return True
         return False
 
-    async def discover_services(self, intent: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def discover_services(self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None) -> List[Dict[str, Any]]:
         rows = self.storage.get_collection('service_registry') or []
         available_services = [row for row in rows if row.get("isActive") is True]
         
@@ -201,7 +227,7 @@ class RegistryService:
                 "pricing": svc.get("pricing"),
                 "summary": svc.get("summary"),
                 "tags": svc.get("tags"),
-                "invoke": svc.get("invoke", {})
+                "invoke": _build_public_invoke(svc, public_gateway_url),
             }
             public_services.append(public_svc)
 

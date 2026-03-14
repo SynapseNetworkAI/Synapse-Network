@@ -49,7 +49,7 @@ chmod +x test/setup_local_env.sh
 **运行成功后，系统将自动就绪：**
 * **Hardhat Node** 正在本地 `127.0.0.1:8545` 运行并产出区块。
 * **部署逻辑** 已自动将新的合约 ABI 生成到 `python_sdk/Synapse NetworkSyncRouterABI.json` 以供后端中间件调用。
-* **Seller API Gateway** (V2 网关) 运行在 `http://127.0.0.1:8000/api/v2/generate`。
+* **Seller API Gateway** (V1 网关) 运行在 `http://127.0.0.1:8000/api/v1/gateway/generate`。
 * **Frontend Next.js** 运行在 `http://127.0.0.1:3000`。
 * 脚本会输出 `TX_HASH` 测试前置脚本命令，以及本次启动的 PID。
 
@@ -120,7 +120,7 @@ npx hardhat run scripts/e2e_sync_payment.js --network localhost
 ### 3.2 提交充值 intent（等待 Indexer 入账）
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v2/balance/deposit/intent \
+curl -X POST http://127.0.0.1:8000/api/v1/balance/deposit/intent \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -H "X-User-Address: <owner_wallet>" \
@@ -130,7 +130,7 @@ curl -X POST http://127.0.0.1:8000/api/v2/balance/deposit/intent \
 可通过以下接口查询入账状态：
 
 ```bash
-curl -X GET "http://127.0.0.1:8000/api/v2/balance/deposit/intents?limit=20" \
+curl -X GET "http://127.0.0.1:8000/api/v1/balance/deposit/intents?limit=20" \
   -H "Authorization: Bearer <token>" \
   -H "X-User-Address: <owner_wallet>"
 ```
@@ -138,7 +138,7 @@ curl -X GET "http://127.0.0.1:8000/api/v2/balance/deposit/intents?limit=20" \
 ### 3.3 调用 V2 Generate
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v2/generate \
+curl -X POST http://127.0.0.1:8000/api/v1/gateway/generate \
 	-H "Content-Type: application/json" \
 	-H "X-Agent-Credential: <X-Agent-Credential>" \
   -H "X-Service-Id: SVC_DEMO" \

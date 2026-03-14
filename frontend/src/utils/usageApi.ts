@@ -1,7 +1,7 @@
 import { buildAuthedHeaders } from "@/utils/authSession";
 import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/v2/usage";
+const API_BASE_URL = "http://127.0.0.1:8000/api/v1/usage";
 
 export type UsageLogRecord = {
   request_id: string;

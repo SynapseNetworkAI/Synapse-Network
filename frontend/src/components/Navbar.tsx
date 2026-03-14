@@ -32,7 +32,7 @@ export default function Navbar() {
       try {
         // Ping a lightweight public endpoint on the Python Gateway
         // We use AbortSignal to timeout quickly if the server is unreachable
-        const res = await fetch("http://127.0.0.1:8000/api/v2/services/discover", {
+        const res = await fetch("http://127.0.0.1:8000/api/v1/services/discover", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

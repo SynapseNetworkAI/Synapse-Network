@@ -52,7 +52,7 @@
 - 阻断通过该凭证发起的所有请求。
 
 ### 4.4 数据面调用 (调用方 -> Seller Gateway)
-网关接口 `POST /api/v2/services/invoke` 或 `POST /{service_id}/generate`
+网关接口 `POST /api/v1/services/invoke` 或 `POST /{service_id}/generate`
 - 必带 HTTP Header：`Authorization: Bearer sk_live_synapse_xxx` (也就是 Service Key)。
 - 校验流：
   1. Header 提取 `Service Key` -> 查询匹配 `ownerAddress`。

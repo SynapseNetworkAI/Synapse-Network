@@ -21,7 +21,7 @@
 我们需要在 `frontend/src/app/dashboard/billing/page.tsx` 中新增一个独立的板块或者 Tab：**Withdrawal & Refunds (提现与退款明细)**。
 
 ### 1.1 数据结构映射 (Data Mapping)
-前端将通过 GET `/api/v2/refunds/history` 类似接口拉取状态机中的流水。
+前端将通过 GET `/api/v1/refunds/history` 类似接口拉取状态机中的流水。
 展示的数据来源即后端的 `refund_intents.json` (或将要迁移的 DB 表)：
 * `tx_hash` (链上交易哈希)
 * `amount` (金额 USDC)
@@ -54,7 +54,7 @@
 
 为了让 Billing 页面能渲染上述组件，Python SDK 后台需增加一个查询自己名下提款记录的只读接口。
 
-### `GET /api/v2/refunds`
+### `GET /api/v1/refunds`
 * **鉴权**: 必须带有 `Depends(require_auth)` 且认证通过获得 `wallet_address`。
 * **业务逻辑**: 读取 `load_refund_intents()`，清洗并过滤出 `intent["buyer_address"] == wallet` 的所有记录。
 * **返回格式**: 按时间倒序排序 (DESC)。

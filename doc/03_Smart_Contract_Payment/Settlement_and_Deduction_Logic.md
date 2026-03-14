@@ -327,15 +327,15 @@ $$
 ## 11. 最小 API 设计
 
 ### 控制面
-- `POST /api/v2/withdraw/request`
-- `GET /api/v2/withdraw/{id}`
+- `POST /api/v1/withdraw/request`
+- `GET /api/v1/withdraw/{id}`
 
 ### 资金面
-- `POST /api/v2/deposit/confirm`
-- `GET /api/v2/balance`
+- `POST /api/v1/deposit/confirm`
+- `GET /api/v1/balance`
 
 ### 数据面
-- `POST /api/v2/generate`
+- `POST /api/v1/gateway/generate`
 
 ---
 
@@ -440,7 +440,7 @@ sequenceDiagram
     G->>D: 创建 agent + credential
     G-->>BO: 返回 X-Agent-Credential
 
-    BO->>G: POST /api/v2/generate + credential + request_id
+    BO->>G: POST /api/v1/gateway/generate + credential + request_id
     G->>D: 校验凭据/余额/限流
     G->>D: 原子预扣 + usage(accepted)
     G->>S: 转发请求
@@ -485,7 +485,7 @@ sequenceDiagram
     participant L as Ledger DB
     participant S as Seller Service
 
-    B->>G: POST /api/v2/generate + credential + request_id
+    B->>G: POST /api/v1/gateway/generate + credential + request_id
     G->>G: 校验会话/凭据/限流/服务状态
     G->>L: 原子预扣 + 写 usage(accepted)
     G->>S: 转发业务请求
@@ -581,7 +581,7 @@ sequenceDiagram
 
 阶段建议：
 1. 先用链上事件保障“成功扣费”可审计（已完成）
-2. 再接 `GET /api/v2/usage/logs` 打通全状态机（`accepted→succeeded/refunded/failed`）
+2. 再接 `GET /api/v1/usage/logs` 打通全状态机（`accepted→succeeded/refunded/failed`）
 3. 最终以 `request_id` 作为前后端与账单对账主键，链上 tx 作为旁证
 
 ---
@@ -614,10 +614,10 @@ sequenceDiagram
 
 ## 13. 最小接口建议（扣款相关）
 
-- `POST /api/v2/generate`：网关扣款与转发入口
-- `GET /api/v2/balance`：余额查询
-- `GET /api/v2/usage/logs`：调用与扣费明细
-- `POST /api/v2/usage/reconcile`（内部）: 卡单/异常补偿
+- `POST /api/v1/gateway/generate`：网关扣款与转发入口
+- `GET /api/v1/balance`：余额查询
+- `GET /api/v1/usage/logs`：调用与扣费明细
+- `POST /api/v1/usage/reconcile`（内部）: 卡单/异常补偿
 
 ---
 

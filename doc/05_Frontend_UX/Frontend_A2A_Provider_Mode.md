@@ -176,7 +176,7 @@ type ServiceProfile = {
 
 ### Step 6: 支付与调用
 1. Buyer 完成链上支付并提交 `deposit intent`，等待余额入账。
-2. Buyer 调用平台网关 `/api/v2/generate`，Header 携带 `X-Agent-Credential` 与 `X-Service-Id`。
+2. Buyer 调用平台网关 `/api/v1/gateway/generate`，Header 携带 `X-Agent-Credential` 与 `X-Service-Id`。
 3. Gateway 完成凭据、限流、余额校验后再执行业务。
 
 ### Step 7: 收益回流
@@ -493,7 +493,7 @@ P2（可选）：
 1. Buyer 获取 `sellerAddress/serviceId/pricing/invoke.url`。
 2. Buyer 链上支付并提交 `deposit intent`。
 3. Indexer 完成链上确认后，余额进入 `buyerBalance`。
-4. Buyer 调用 `/api/v2/generate`，携带 `X-Agent-Credential` 与 `X-Service-Id`。
+4. Buyer 调用 `/api/v1/gateway/generate`，携带 `X-Agent-Credential` 与 `X-Service-Id`。
 5. Gateway 校验并扣费后执行业务，返回结果。
 
 #### 12.12.2 未立即确认充值（链上确认延迟）
@@ -1123,28 +1123,28 @@ Service {
 
 #### 18.6.1 读接口
 
-1. `GET /api/v2/services`
+1. `GET /api/v1/services`
 	- 不接受自由 owner 参数作为授权依据。
 	- 只返回 `owner_address == subject_wallet` 的记录。
 
-2. （可选）`GET /api/v2/services?ownerAddress=...`
+2. （可选）`GET /api/v1/services?ownerAddress=...`
 	- 后端只接受 `ownerAddress == subject_wallet`。
 	- 不匹配直接拒绝。
 
 #### 18.6.2 写接口
 
-1. `POST /api/v2/services`
+1. `POST /api/v1/services`
 	- 创建时不接受 `serviceId`，由系统生成。
 	- 校验 `agentId` 必须属于 `subject_wallet`。
 	- 校验 `invoke.method/url/timeoutMs/request.schema/response.schema`。
 
-2. `PUT /api/v2/services/{id}`
+2. `PUT /api/v1/services/{id}`
 	- 查询目标 service。
 	- 校验其 owner 为 `subject_wallet`。
 	- 禁止跨租户迁移 owner。
 	- 禁止修改 `serviceId`。
 
-3. `DELETE /api/v2/services/{id}`
+3. `DELETE /api/v1/services/{id}`
 	- 同上先查 owner，再删除。
 
 ### 18.7 服务端校验清单（代码层）

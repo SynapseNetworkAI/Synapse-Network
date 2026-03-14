@@ -9,7 +9,7 @@ import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { createServiceRegistry } from "@/utils/serviceApi";
 import AuthMask from "@/components/AuthMask";
 
-const PARSE_CURL_ENDPOINT = `${process.env.NEXT_PUBLIC_GATEWAY_BASE_URL || "http://127.0.0.1:8000"}/api/v2/services/parse-curl`;
+const PARSE_CURL_ENDPOINT = `${process.env.NEXT_PUBLIC_GATEWAY_BASE_URL || "http://127.0.0.1:8000"}/api/v1/services/parse-curl`;
 const TOOL_NAME_REGEX = /^[a-z0-9_-]+$/;
 const INTENT_TAG_REGEX = /^[a-z0-9_-]{2,24}$/;
 const AI_SERVICE_NAME_MIN = 4;

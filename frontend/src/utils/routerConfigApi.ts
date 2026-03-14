@@ -1,6 +1,6 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 
-const API_BASE = "http://127.0.0.1:8000/api/v2/router/config";
+const API_BASE = "http://127.0.0.1:8000/api/v1/router/config";
 
 export type RouterConfig = {
   dailyLimitUsdc: number;

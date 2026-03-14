@@ -13,7 +13,7 @@ CredentialHeader = Annotated[Optional[str], Header(alias="X-Credential")]
 StorageDep = Annotated[BaseStorage, Depends(get_storage)]
 
 
-@router.post("/v2/generate")
+@router.post("/v1/gateway/generate")
 async def generate_response_v2(
     request: InferenceRequest,
     storage: StorageDep,

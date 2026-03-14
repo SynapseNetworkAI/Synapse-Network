@@ -14,51 +14,51 @@
 
 ### A. 控制面（2）
 
-1) `POST /api/v2/agents`
+1) `POST /api/v1/agents`
 - 作用：创建 agent
 - 鉴权：owner token
 - 输出：agent 基本信息
 
-2) `POST /api/v2/services`
+2) `POST /api/v1/services`
 - 作用：注册卖家 service
 - 鉴权：owner token
 - 输出：service 配置（`serviceId`, `price`, `feeRate`, `endpoint`）
 
 ### B. 资金面（3）
 
-3) `POST /api/v2/deposit/confirm`
+3) `POST /api/v1/deposit/confirm`
 - 作用：写入充值到账（由 indexer/内部任务调用）
 - 入参：`txHash`, `buyerAddress`, `amount`, `token`, `chainId`
 - 输出：`buyerBalance` 最新值
 
-4) `GET /api/v2/balance`
+4) `GET /api/v1/balance`
 - 作用：查询买家余额
 - 鉴权：buyer token + `X-User-Address`
 - 输出：`available`, `locked`, `updatedAt`
 
-5) `POST /api/v2/settlement/run`
+5) `POST /api/v1/settlement/run`
 - 作用：按阈值/批次发起结算（管理端或 cron）
 - 输出：`batchId`, `txHash`, `sellerCount`, `totalNet`, `totalFee`
 
 ### C. 凭据面（2）
 
-6) `POST /api/v2/credentials/issue`
+6) `POST /api/v1/credentials/issue`
 - 作用：签发 `X-Agent-Credential`
 - 鉴权：owner token
 - 入参：`agentId`, `serviceScope`, `exp`, `maxCalls`, `rpm`
 
-7) `POST /api/v2/credentials/{id}/revoke`
+7) `POST /api/v1/credentials/{id}/revoke`
 - 作用：撤销凭据
 - 鉴权：owner token
 
 ### D. 数据面（1）
 
-8) `POST /api/v2/generate`
+8) `POST /api/v1/gateway/generate`
 - 作用：网关入口（验证 + 记账 + 转发）
 - 输入头：`Authorization`, `X-User-Address`, `X-Agent-Credential`, `X-Request-Id`
 - 输出：seller 结果 + 计费摘要
 
-## 3. `POST /api/v2/generate` 内部步骤（强约束）
+## 3. `POST /api/v1/gateway/generate` 内部步骤（强约束）
 
 1. 校验会话与钱包一致性
 2. 校验凭据：未过期/未撤销/作用域匹配/未超配额
@@ -75,10 +75,10 @@
 - D1-D2：资金账本模型 + deposit confirm
 - D3：credential issue/revoke
 - D4：service 注册与查询
-- D5：`/api/v2/generate` 骨架 + mock 转发
+- D5：`/api/v1/gateway/generate` 骨架 + mock 转发
 
 ### Week 2
-- D1：`/api/v2/generate` 原子扣费 + 幂等
+- D1：`/api/v1/gateway/generate` 原子扣费 + 幂等
 - D2：usage 日志 + 审计
 - D3：settlement run（单批次）
 - D4：e2e 联调（deposit -> generate -> settlement）

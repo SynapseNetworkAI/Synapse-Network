@@ -137,7 +137,7 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 - 新接口：`app/api/v1/endpoints/*.py`
 - 新模型：`app/schemas/*.py`
 - 新外部服务适配：`app/services/*.py`
-- 新版本路由：`app/api/v2/`
+- 新版本路由：`app/api/v1/`
 
 建议每个新接口保持：
 - 独立 schema

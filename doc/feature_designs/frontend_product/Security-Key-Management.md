@@ -31,10 +31,10 @@
 ### 后端 API (FastAPI)
 - **数据结构**：`service_registry.json` 中保存实体的 `secretKey`。
 - **路由修改**：
-  - `GET /api/v2/services` 及 `GET /api/v2/services/discover` 过滤掉 `secretKey`，返回 `maskedKey`（截取后 4 位）。
-  - `POST /api/v2/services` 创建新服务时生成随机 `secretKey` 并返回（仅此一次展示）。
-  - **新增** `POST /api/v2/services/{id}/rotate-key`：更新 JSON 文件中的 `secretKey`，返回新的完整 Key。
-  - **新增** `POST /api/v2/services/{id}/ping`：网关侧对卖家服务器发送一笔模拟签名的空探针。
+  - `GET /api/v1/services` 及 `GET /api/v1/services/discover` 过滤掉 `secretKey`，返回 `maskedKey`（截取后 4 位）。
+  - `POST /api/v1/services` 创建新服务时生成随机 `secretKey` 并返回（仅此一次展示）。
+  - **新增** `POST /api/v1/services/{id}/rotate-key`：更新 JSON 文件中的 `secretKey`，返回新的完整 Key。
+  - **新增** `POST /api/v1/services/{id}/ping`：网关侧对卖家服务器发送一笔模拟签名的空探针。
 
 ### 前端 UI (Next.js)
 - **页面**：`frontend/src/app/dashboard/services/page.tsx`

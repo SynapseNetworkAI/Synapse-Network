@@ -51,7 +51,7 @@
 
 买家 AI 接收到 Master（用户）的自然语言任务指令（如：“我要去吉隆坡，帮我查查今天会不会下雨”）后，首要动作是向 Synapse Network 的“赛博黄页”进行服务查阅。
 
-- **交互动作**: `GET /api/v2/services/discover?intent=天气查询`
+- **交互动作**: `GET /api/v1/services/discover?intent=天气查询`
 - **底层引擎**: 
   - V1 阶段：基于关键字与标签（Tags/Description）匹配。
   - V2 阶段：基于向量数据库（Vector DB）的语义检索映射。
@@ -95,12 +95,12 @@ sequenceDiagram
 
     %% 阶段1：挂单
     Note over S,AP: Phase 1: Service Registration
-    S->>AP: POST /api/v2/services (Submit JSON Schema)
+    S->>AP: POST /api/v1/services (Submit JSON Schema)
     AP-->>S: 201 Created (Listed on Market)
 
     %% 阶段2：发现
     Note over B,AP: Phase 2: Service Discovery
-    B->>AP: GET /api/v2/services/discover?intent=weather
+    B->>AP: GET /api/v1/services/discover?intent=weather
     AP->>AP: 检索 DB / Vector 匹配
     AP-->>B: 返回服务列表 (srv_kl_weather_001, Schema, 0.05 USDC)
 

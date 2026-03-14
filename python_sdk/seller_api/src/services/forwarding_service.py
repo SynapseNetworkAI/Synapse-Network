@@ -316,7 +316,7 @@ async def generate_response_v2(
 ) -> Dict[str, Any]:
     service_id = _validate_service_id(x_service_id, request.serviceId)
     if not credential_token:
-        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_REQUIRED", "message": "X-Credential is required for /api/v2/generate"})
+        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_REQUIRED", "message": "X-Credential is required for /api/v1/gateway/generate"})
 
     credential = credential_service.resolve_active_credential(storage, credential_token)
     await _check_rpm_limit(str(credential.get("id")), int(credential.get("rpm") or 0))
