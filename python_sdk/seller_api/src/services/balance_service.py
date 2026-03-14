@@ -6,6 +6,7 @@ from fastapi import HTTPException
 import asyncio
 import hashlib
 import json
+import re
 import time
 from uuid import uuid4
 
@@ -58,12 +59,37 @@ class BalanceService:
         rows = self._normalize_rows(self.storage.get_collection("idempotency_keys"))
         now = int(time.time())
         filtered = [row for row in rows if int(row.get("expiresAt") or 0) > now]
+        max_rows = max(500, int(settings.finance_idempotency_max_rows))
+        if len(filtered) > max_rows:
+            filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
+            filtered = filtered[:max_rows]
         if len(filtered) != len(rows):
             self.storage.save_collection("idempotency_keys", {"rows": filtered, "updatedAt": now})
         return filtered
 
     def _save_idempotency_rows(self, rows: List[Dict[str, Any]]) -> None:
+        max_rows = max(500, int(settings.finance_idempotency_max_rows))
+        if len(rows) > max_rows:
+            rows.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
+            rows = rows[:max_rows]
         self.storage.save_collection("idempotency_keys", {"rows": rows, "updatedAt": int(time.time())})
+
+    def _validate_idempotency_key(self, idempotency_key: str) -> str:
+        key = str(idempotency_key or "").strip()
+        if len(key) < 16 or len(key) > 128:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_IDEMPOTENCY_KEY", "message": "idempotency key length must be 16..128."},
+            )
+        if not re.fullmatch(r"[A-Za-z0-9._:-]+", key):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_IDEMPOTENCY_KEY",
+                    "message": "idempotency key has invalid characters; allowed: A-Z a-z 0-9 . _ : -",
+                },
+            )
+        return key
 
     def _append_financial_audit(self, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
         self.storage.append_to_collection(
@@ -164,11 +190,7 @@ class BalanceService:
         所有资金写入必须加锁，防止并发重入。
         """
         async with self._lock:
-            if not idempotency_key:
-                raise HTTPException(
-                    status_code=400,
-                    detail={"code": "MISSING_IDEMPOTENCY_KEY", "message": "X-Idempotency-Key is required."},
-                )
+            idempotency_key = self._validate_idempotency_key(idempotency_key)
 
             tx_hash = str(intent.get("txHash") or "").strip()
             if not tx_hash.startswith("0x") or len(tx_hash) != 66:
@@ -258,11 +280,7 @@ class BalanceService:
         idempotency_key: str,
     ) -> Dict[str, Any]:
         async with self._lock:
-            if not idempotency_key:
-                raise HTTPException(
-                    status_code=400,
-                    detail={"code": "MISSING_IDEMPOTENCY_KEY", "message": "X-Idempotency-Key is required."},
-                )
+            idempotency_key = self._validate_idempotency_key(idempotency_key)
 
             amount_usdc = float(payload.get("amountUsdc") or 0)
             if amount_usdc < 0:
@@ -348,3 +366,75 @@ class BalanceService:
         ]
         filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
         return filtered
+
+    async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        owner = normalize_wallet(owner_wallet)
+        raw = self.storage.get_collection("router_config")
+        rows: List[Dict[str, Any]]
+        if isinstance(raw, list):
+            rows = [item for item in raw if isinstance(item, dict)]
+        elif isinstance(raw, dict) and isinstance(raw.get("rows"), list):
+            rows = [item for item in raw.get("rows", []) if isinstance(item, dict)]
+        else:
+            rows = []
+
+        found = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
+        if not found:
+            return {"ownerAddress": owner, "dailyLimitUsdc": 0.0, "updatedAt": None}
+
+        return {
+            "ownerAddress": owner,
+            "dailyLimitUsdc": round(float(found.get("dailyLimitUsdc") or 0.0), 6),
+            "updatedAt": int(found.get("updatedAt") or 0) or None,
+        }
+
+    async def set_router_config(self, owner_wallet: str, daily_limit_usdc: float) -> Dict[str, Any]:
+        async with self._lock:
+            if daily_limit_usdc < 0 or daily_limit_usdc > 1_000_000_000:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INVALID_DAILY_LIMIT",
+                        "message": "dailyLimitUsdc must be within [0, 1000000000].",
+                    },
+                )
+
+            owner = normalize_wallet(owner_wallet)
+            now = int(time.time())
+            raw = self.storage.get_collection("router_config")
+            rows: List[Dict[str, Any]]
+            if isinstance(raw, list):
+                rows = [item for item in raw if isinstance(item, dict)]
+            elif isinstance(raw, dict) and isinstance(raw.get("rows"), list):
+                rows = [item for item in raw.get("rows", []) if isinstance(item, dict)]
+            else:
+                rows = []
+
+            existing = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
+            if existing is None:
+                existing = {
+                    "id": str(uuid4()),
+                    "ownerAddress": owner,
+                    "dailyLimitUsdc": round(float(daily_limit_usdc), 6),
+                    "createdAt": now,
+                    "updatedAt": now,
+                }
+                rows.append(existing)
+            else:
+                existing["dailyLimitUsdc"] = round(float(daily_limit_usdc), 6)
+                existing["updatedAt"] = now
+
+            self.storage.save_collection("router_config", {"rows": rows, "updatedAt": now})
+            self._append_financial_audit(
+                "ROUTER_CONFIG_UPDATED",
+                owner,
+                {
+                    "dailyLimitUsdc": existing.get("dailyLimitUsdc"),
+                },
+            )
+            return {
+                "ownerAddress": owner,
+                "dailyLimitUsdc": existing.get("dailyLimitUsdc"),
+                "updatedAt": existing.get("updatedAt"),
+            }

@@ -135,6 +135,8 @@ class Settings:
     auth_challenge_ttl_sec: int = _env_int("AUTH_CHALLENGE_TTL_SEC", 600)
     # Financial idempotency record ttl in seconds.
     finance_idempotency_ttl_sec: int = _env_int("FINANCE_IDEMPOTENCY_TTL_SEC", 86400)
+    # Max number of cached idempotency rows retained after pruning.
+    finance_idempotency_max_rows: int = _env_int("FINANCE_IDEMPOTENCY_MAX_ROWS", 10000)
     # Replay-protection window for duplicate tx/retry collisions in seconds.
     finance_replay_window_sec: int = _env_int("FINANCE_REPLAY_WINDOW_SEC", 900)
     # Keep backward-compatible auth behavior enabled by default.

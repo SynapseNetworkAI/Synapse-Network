@@ -3,7 +3,7 @@ from typing import Dict, Any, Annotated
 
 from src.api.deps import get_balance_service
 from src.core.auth import require_owner_wallet
-from src.models.pydantic_models import DepositIntentRequest, RefundIntentRequest
+from src.models.pydantic_models import DepositIntentRequest, RefundIntentRequest, RouterConfigRequest
 from src.services.balance_service import BalanceService
 from src.services.v2_indexer import get_indexer_status
 from src.storage import get_storage, BaseStorage
@@ -72,17 +72,22 @@ async def list_refunds(
 
 
 @router.get("/v2/router/config")
-async def get_router_config(storage: Annotated[BaseStorage, Depends(get_storage)]):
-    return storage.get_collection("router_config") or {}
+async def get_router_config(
+    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    config = await service.get_router_config(owner_wallet)
+    return {"status": "success", "ownerAddress": owner_wallet, "config": config}
 
 
 @router.post("/v2/router/config")
 async def set_router_config(
-    config: Dict[str, Any],
-    storage: Annotated[BaseStorage, Depends(get_storage)],
+    config: RouterConfigRequest,
+    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
-    storage.save_collection("router_config", config)
-    return {"status": "success"}
+    saved = await service.set_router_config(owner_wallet, config.dailyLimitUsdc)
+    return {"status": "success", "ownerAddress": owner_wallet, "config": saved}
 
 
 @router.get("/v2/usage/logs")

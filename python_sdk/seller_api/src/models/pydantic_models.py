@@ -68,6 +68,10 @@ class RefundIntentRequest(BaseModel):
     reason: Optional[str] = Field(default=None, max_length=256)
 
 
+class RouterConfigRequest(BaseModel):
+    dailyLimitUsdc: float = Field(..., ge=0, le=1_000_000_000)
+
+
 # Backward-compatible aliases.
 AgentCredentialIssueRequest = CredentialIssueRequest
 AgentCredentialQuotaUpdateRequest = CredentialQuotaUpdateRequest

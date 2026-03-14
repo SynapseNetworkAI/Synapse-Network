@@ -22,6 +22,8 @@
   - `POST /api/v2/refund`
   - `GET /api/v2/refunds`
   - `GET /api/v2/usage/logs`
+  - `GET /api/v2/router/config`
+  - `POST /api/v2/router/config`
   - `/api/v1/secrets/seller/*`
   - `/api/v1/credentials/buyer/*`
 
@@ -108,7 +110,7 @@
 - **Path**: `POST /api/v2/balance/deposit/intent`
 - **Desc**: 买家前端调用 Web3 智能合约 `Deposit` 函数后，将哈希告知 Gateway。网关会在后台挂起一只 `Web3 Daemon` 异步独立扫链核实后，加锁执行内部余额充值挂账。**此接口绝不接受伪造到账**。
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
-- **Security Headers**: Requires `X-Idempotency-Key` (16-128 chars). Same key + same payload returns the same logical result; same key + different payload returns `409`.
+- **Security Headers**: Requires `X-Idempotency-Key` (16-128 chars, allowed chars: `A-Z a-z 0-9 . _ : -`). Same key + same payload returns the same logical result; same key + different payload returns `409`.
 - **Replay Protection**: duplicate `txHash` for same owner inside replay window is rejected with `409`.
 - **Body**:
   ```json
@@ -139,7 +141,14 @@
 - **Security Headers**: `POST /api/v2/refund` requires `X-Idempotency-Key`.
 - **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
 
-### 3.5 索引器状态探针 (Indexer Health & Counters)
+### 3.5 Router Config (Owner Scoped)
+- **Paths**:
+  - `GET /api/v2/router/config`
+  - `POST /api/v2/router/config`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Desc**: Router config is owner-scoped; each owner can only read/write their own config.
+
+### 3.6 索引器状态探针 (Indexer Health & Counters)
 - **Path**: `GET /api/v2/indexer/status`
 - **Desc**: 返回充值索引器实时健康度，包含当前监听合约地址、最近一轮处理计数、最后处理时间与最近错误，便于快速定位“链上已成功但余额未更新”问题。
 - **Auth**: Public endpoint. No wallet challenge and no platform session required.
