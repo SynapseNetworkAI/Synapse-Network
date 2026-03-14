@@ -74,6 +74,9 @@ export default function DeveloperConsole() {
   const [keys, setKeys] = useState<AgentCredentialRecord[]>([]);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState("My App Key");
+  const [newKeyCreditLimit, setNewKeyCreditLimit] = useState("100");
+  const [newKeyResetFrequency, setNewKeyResetFrequency] = useState<"hourly" | "daily" | "weekly" | "monthly" | "never">("daily");
+  const [newKeyExpirationDays, setNewKeyExpirationDays] = useState("30");
   const [latestIssued, setLatestIssued] = useState<AgentCredentialIssueResponse | null>(null);
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
@@ -328,10 +331,21 @@ export default function DeveloperConsole() {
     if (!address) return;
     try {
       setIsRoleWarningOpen(false);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const expirationDays = Number(newKeyExpirationDays);
+      const expiration = Number.isFinite(expirationDays) && expirationDays > 0
+        ? nowSec + Math.floor(expirationDays * 24 * 3600)
+        : undefined;
+
+      const creditLimit = Number(newKeyCreditLimit);
       const created = await issueAgentCredential(address, {
+        name: newKeyName.trim() || "My App Key",
         expiresInSec: 3600 * 24 * 365 * 10, // 10 years / basically never
         maxCalls: 1000000, 
         rpm: 600,
+        creditLimit: Number.isFinite(creditLimit) && creditLimit > 0 ? creditLimit : undefined,
+        resetInterval: newKeyResetFrequency,
+        expiration,
       });
       setLatestIssued(created);
       toast.success("New API Key created!");
@@ -474,9 +488,15 @@ export default function DeveloperConsole() {
                   <div key={key.id} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${selectedTokenPrefix === key.tokenPrefix ? "border-green-500/50 bg-green-500/5" : "border-gray-800 bg-gray-900/30"} cursor-pointer`} onClick={() => setSelectedTokenPrefix(key.tokenPrefix || "")}>
                     <div>
                       <p className="font-mono text-sm text-gray-300">{key.tokenPrefix || "agt_"}••••••••</p>
+                      {key.name && <p className="mt-1 text-xs text-gray-400">{key.name}</p>}
                       <p className="mt-1 text-[10px] text-gray-500 uppercase tracking-widest">
                         {key.callsUsed} / {key.maxCalls} Calls Used
                       </p>
+                      {typeof key.creditLimit === "number" && (
+                        <p className="mt-1 text-[10px] text-amber-400 uppercase tracking-widest">
+                          Limit: ${key.creditLimit} / {key.resetInterval || "daily"}
+                        </p>
+                      )}
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleRevoke(key.id); }}
@@ -620,7 +640,48 @@ print(response.content){"\n"}
                 className="w-full px-4 py-3 mt-1 text-sm font-semibold text-white bg-black border border-gray-700 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500/50 outline-none"
                 placeholder="Database Script..."
               />
-              <p className="mt-2 text-xs text-gray-500">By default, new keys have full access to all proxy services.</p>
+            </label>
+
+            <label className="block mb-4">
+              <span className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">Credit Limit (USDC)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newKeyCreditLimit}
+                onChange={(e) => setNewKeyCreditLimit(e.target.value)}
+                className="w-full px-4 py-3 mt-1 text-sm font-semibold text-white bg-black border border-gray-700 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500/50 outline-none"
+                placeholder="100"
+              />
+            </label>
+
+            <label className="block mb-4">
+              <span className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">Reset Frequency</span>
+              <select
+                value={newKeyResetFrequency}
+                onChange={(e) => setNewKeyResetFrequency(e.target.value as "hourly" | "daily" | "weekly" | "monthly" | "never")}
+                className="w-full px-4 py-3 mt-1 text-sm font-semibold text-white bg-black border border-gray-700 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500/50 outline-none"
+              >
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="never">Never Reset</option>
+              </select>
+            </label>
+
+            <label className="block mb-6">
+              <span className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">Expiration (Days)</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={newKeyExpirationDays}
+                onChange={(e) => setNewKeyExpirationDays(e.target.value)}
+                className="w-full px-4 py-3 mt-1 text-sm font-semibold text-white bg-black border border-gray-700 rounded-xl focus:border-green-500 focus:ring-1 focus:ring-green-500/50 outline-none"
+                placeholder="30"
+              />
+              <p className="mt-2 text-xs text-gray-500">Gateway enforces this secret&apos;s spend cap during request forwarding.</p>
             </label>
 
             <div className="flex gap-3 justify-end mt-8">
