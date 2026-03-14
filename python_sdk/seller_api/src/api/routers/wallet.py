@@ -1,18 +1,26 @@
-from fastapi import APIRouter, Depends, Path, HTTPException, Body
-from typing import Dict, Any
+from typing import Annotated
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from pydantic import BaseModel
-from src.storage import get_storage, BaseStorage
+
 from src.core.common import normalize_wallet
+from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
 
 class BindRoleRequest(BaseModel):
     role: str
 
-@router.get("/v1/wallet/role/{address}")
+
+AddressPath = Annotated[str, Path(...)]
+StorageDep = Annotated[BaseStorage, Depends(get_storage)]
+BindRoleBody = Annotated[BindRoleRequest, Body(...)]
+
+
+@router.get("/v1/wallet/role/{address}", responses={404: {"description": "Role not found"}})
 async def get_wallet_role(
-    address: str = Path(...),
-    storage: BaseStorage = Depends(get_storage)
+    address: AddressPath,
+    storage: StorageDep,
 ):
     """获取用户的身份角色(buyer或seller)"""
     wallet = normalize_wallet(address)
@@ -24,11 +32,11 @@ async def get_wallet_role(
         
     return {"role": role}
 
-@router.post("/v1/wallet/role/{address}/bind")
+@router.post("/v1/wallet/role/{address}/bind", responses={400: {"description": "Invalid role specified"}})
 async def bind_wallet_role(
-    address: str = Path(...),
-    req: BindRoleRequest = Body(...),
-    storage: BaseStorage = Depends(get_storage)
+    address: AddressPath,
+    req: BindRoleBody,
+    storage: StorageDep,
 ):
     """为用户绑定身份角色(buyer或seller)"""
     wallet = normalize_wallet(address)

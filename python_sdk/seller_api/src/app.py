@@ -39,7 +39,8 @@ async def lifespan(app: FastAPI):
         try:
             await app.state.v2_indexer_task
         except asyncio.CancelledError:
-            pass
+            logger.info("V2 indexer task cancelled during shutdown")
+            raise
 
 def create_app() -> FastAPI:
     app = FastAPI(
