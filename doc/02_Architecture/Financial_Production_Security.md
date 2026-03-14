@@ -52,6 +52,20 @@ This document defines production-grade security controls for Synapse financial p
    - `router_config`
 3. Rate-limit hits are audited as `FINANCE_RATE_LIMIT_HIT`.
 
+### 2.6 Third-Round API Behavior (Contract)
+
+1. `POST /api/v2/balance/deposit/intent`
+   - requires `X-Idempotency-Key`
+   - enforces owner write rate limit for `deposit_intent`
+2. `POST /api/v2/refund`
+   - requires `X-Idempotency-Key`
+   - enforces owner write rate limit for `refund_intent`
+3. `POST /api/v2/router/config`
+   - enforces owner write rate limit for `router_config`
+4. `GET /api/v2/finance/audit-logs`
+   - returns owner-scoped finance actions only
+   - supports `limit` in `1..500`
+
 ## 3. Configuration Contract
 
 Key runtime knobs in `python_sdk/seller_api/src/core/config.py`:
