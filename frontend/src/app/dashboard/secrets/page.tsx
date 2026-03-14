@@ -99,7 +99,12 @@ export default function SecretsPage() {
   };
 
   return (
-    <AuthMask>
+    <AuthMask
+      allowChallengeAuthorize={false}
+      sessionHelpText="This page requires an active wallet session. Complete sign-in once from Provider Service Management, then return."
+      sessionRecoveryHref="/provider/sell"
+      sessionRecoveryLabel="Go to Provider Console"
+    >
       {/* Modal Overlay */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
