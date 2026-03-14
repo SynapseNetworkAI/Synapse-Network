@@ -48,6 +48,26 @@ class InferenceRequest(BaseModel):
     serviceId: Optional[str] = None
 
 
+class DepositIntentRequest(BaseModel):
+    txHash: str = Field(..., min_length=66, max_length=66)
+    amountUsdc: float = Field(..., gt=0)
+
+    @validator("txHash")
+    def validate_tx_hash(cls, value: str) -> str:
+        normalized = str(value).strip()
+        if not normalized.startswith("0x"):
+            raise ValueError("txHash must start with 0x")
+        hex_part = normalized[2:]
+        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+            raise ValueError("txHash must be a valid 32-byte hex string")
+        return normalized
+
+
+class RefundIntentRequest(BaseModel):
+    amountUsdc: float = Field(default=0, ge=0)
+    reason: Optional[str] = Field(default=None, max_length=256)
+
+
 # Backward-compatible aliases.
 AgentCredentialIssueRequest = CredentialIssueRequest
 AgentCredentialQuotaUpdateRequest = CredentialQuotaUpdateRequest

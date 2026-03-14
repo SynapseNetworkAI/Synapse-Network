@@ -184,10 +184,17 @@ Note: challenge is not required for each business request after session issuance
 7. `POST /api/v2/services/parse-curl`
 8. `/api/v1/secrets/seller/*`
 9. `/api/v1/credentials/buyer/*`
+10. `GET /api/v2/balance`
+11. `POST /api/v2/balance/deposit/intent`
+12. `GET /api/v2/balance/deposit/intents`
+13. `POST /api/v2/refund`
+14. `GET /api/v2/refunds`
+15. `GET /api/v2/usage/logs`
 
 ### Public interfaces (no session required)
 
 1. `GET /api/v2/services/discover`
+2. `GET /api/v2/indexer/status`
 
 ## 9. API/Doc Contract Requirements
 
@@ -208,5 +215,6 @@ Adopt this baseline:
 ## 11. Doc/Code Consistency Notes
 
 1. Service-management routes (`/api/v2/services` create/list/update/delete, rotate-key, ping, parse-curl) are session-protected and owner-scoped.
-2. Discovery route (`/api/v2/services/discover`) remains public.
-3. If docs claim service management is open/public, that is outdated and must be corrected.
+2. Billing/refund/usage routes (`/api/v2/balance*`, `/api/v2/refund`, `/api/v2/refunds`, `/api/v2/usage/logs`) are session-protected and owner-scoped.
+3. Discovery route (`/api/v2/services/discover`) and indexer health (`/api/v2/indexer/status`) remain public.
+4. If docs claim service management or private billing routes are open/public, that is outdated and must be corrected.

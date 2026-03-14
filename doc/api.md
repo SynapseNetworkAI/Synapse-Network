@@ -16,16 +16,23 @@
   - `POST /api/v2/services/{id}/rotate-key`
   - `POST /api/v2/services/{id}/ping`
   - `POST /api/v2/services/parse-curl`
+  - `GET /api/v2/balance`
+  - `POST /api/v2/balance/deposit/intent`
+  - `GET /api/v2/balance/deposit/intents`
+  - `POST /api/v2/refund`
+  - `GET /api/v2/refunds`
+  - `GET /api/v2/usage/logs`
   - `/api/v1/secrets/seller/*`
   - `/api/v1/credentials/buyer/*`
 
 - **Public APIs**:
   - `GET /api/v2/services/discover`
+  - `GET /api/v2/indexer/status`
 
 ### 1.1 获取登录挑战 (Get Challenge)
 - **Path**: `GET /api/v1/auth/challenge`
 - **Desc**: 针对以太坊钱包的登录认证挑战接口。返回供前端钱包签名（EIP-191 `personal_sign`）的一次性 challenge（含随机 Nonce）。
-- **TTL**: challenge 为短时有效、一次性使用（由 `AUTH_CHALLENGE_TTL_SEC` 控制，默认 300 秒）。
+- **TTL**: challenge 为短时有效、一次性使用（由 `AUTH_CHALLENGE_TTL_SEC` 控制，默认 600 秒）。
 - **Params**:
   - `address` (query, required): 用户的 `0x...` 以太坊钱包地址。
 - **Returns (200 OK)**:
@@ -100,6 +107,9 @@
 ### 3.1 跨库意向申报 (Deposit Intent Registration)
 - **Path**: `POST /api/v2/balance/deposit/intent`
 - **Desc**: 买家前端调用 Web3 智能合约 `Deposit` 函数后，将哈希告知 Gateway。网关会在后台挂起一只 `Web3 Daemon` 异步独立扫链核实后，加锁执行内部余额充值挂账。**此接口绝不接受伪造到账**。
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Security Headers**: Requires `X-Idempotency-Key` (16-128 chars). Same key + same payload returns the same logical result; same key + different payload returns `409`.
+- **Replay Protection**: duplicate `txHash` for same owner inside replay window is rejected with `409`.
 - **Body**:
   ```json
   {
@@ -111,11 +121,28 @@
 
 ### 3.2 余额查询对账 (Query Heat-Wallet Balance)
 - **Path**: `GET /api/v2/balance`
-- **Desc**: 读取此时存储在 Gateway 热钱包高速内存映射层中的剩余抵扣 USDCs 余额。(依赖 Gateway Token)
+- **Desc**: 读取当前会话 owner 的余额摘要（buyerBalance / sellerReceivable / platformFeeAccrued）。
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 
-### 3.3 索引器状态探针 (Indexer Health & Counters)
+### 3.3 充值意图列表 (Deposit Intent List)
+- **Path**: `GET /api/v2/balance/deposit/intents`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Desc**: 返回当前 owner 的充值意图列表，不返回其他 owner 数据。
+
+### 3.4 退款与账务流水 (Refund / Usage)
+- **Paths**:
+  - `POST /api/v2/refund`
+  - `GET /api/v2/refunds`
+  - `GET /api/v2/usage/logs`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Desc**: 仅返回当前 owner 作用域内账务数据。
+- **Security Headers**: `POST /api/v2/refund` requires `X-Idempotency-Key`.
+- **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
+
+### 3.5 索引器状态探针 (Indexer Health & Counters)
 - **Path**: `GET /api/v2/indexer/status`
 - **Desc**: 返回充值索引器实时健康度，包含当前监听合约地址、最近一轮处理计数、最后处理时间与最近错误，便于快速定位“链上已成功但余额未更新”问题。
+- **Auth**: Public endpoint. No wallet challenge and no platform session required.
 - **Returns (200 OK)**:
   ```json
   {

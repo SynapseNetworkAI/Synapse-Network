@@ -2,6 +2,15 @@ import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 
 const API_BASE = "http://127.0.0.1:8000/api/v2";
 
+function buildIdempotencyKey(prefix: string): string {
+  const now = Date.now().toString(36);
+  const random =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replaceAll("-", "")
+      : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  return `${prefix}_${now}_${random}`.slice(0, 120);
+}
+
 export type BalanceSummary = {
   buyerBalance: number;
   sellerReceivable: number;
@@ -88,9 +97,14 @@ export async function createDepositIntent(
   userAddress: string,
   payload: { txHash: string; amountUsdc: number }
 ): Promise<DepositIntentRecord> {
+  const headers = {
+    ...buildAuthedHeaders(userAddress),
+    "X-Idempotency-Key": buildIdempotencyKey("deposit"),
+  };
+
   const response = await fetch(`${API_BASE}/balance/deposit/intent`, {
     method: "POST",
-    headers: buildAuthedHeaders(userAddress),
+    headers,
     body: JSON.stringify({
       ...payload,
       ownerAddress: userAddress,
@@ -104,11 +118,13 @@ export async function createDepositIntent(
 
   const data = (await response.json()) as {
     deposit?: Partial<DepositIntentRecord>;
+    intent?: Partial<DepositIntentRecord>;
+    tx_hash?: string;
   };
 
-  const deposit = data.deposit ?? {};
+  const deposit = data.deposit ?? data.intent ?? {};
   return {
-    txHash: String(deposit.txHash || payload.txHash),
+    txHash: String(deposit.txHash || data.tx_hash || payload.txHash),
     amountUsdc: Number(deposit.amountUsdc ?? payload.amountUsdc),
     creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,10 +149,10 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
   return rows.map((row) => ({
     id: typeof row.id === "string" ? row.id : undefined,
     ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
-    txHash: String(row.txHash || ""),
+    txHash: typeof row.txHash === "string" ? row.txHash : "",
     amountUsdc: Number(row.amountUsdc ?? 0),
     creditedAmountUsdc: Number(row.creditedAmountUsdc ?? 0),
-    status: String(row.status || "pending"),
+    status: typeof row.status === "string" ? row.status : "pending",
     failureReason: typeof row.failureReason === "string" ? row.failureReason : undefined,
     createdAt: Number(row.createdAt ?? 0) || undefined,
     updatedAt: Number(row.updatedAt ?? 0) || undefined,
@@ -145,9 +161,14 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
 }
 
 export async function requestV2Refund(userAddress: string): Promise<{ signature: string; amountRefunded: number }> {
+  const headers = {
+    ...buildAuthedHeaders(userAddress, true),
+    "X-Idempotency-Key": buildIdempotencyKey("refund"),
+  };
+
   const response = await fetch(`${API_BASE}/refund`, {
     method: "POST",
-    headers: buildAuthedHeaders(userAddress, true),
+    headers,
     body: JSON.stringify({})
   });
 

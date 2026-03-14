@@ -1,3 +1,5 @@
+import { buildAuthedHeaders } from "@/utils/authSession";
+
 export type RefundRecord = {
   id: string; // pseudo id or tx_hash if available
   timestamp: number;
@@ -13,19 +15,23 @@ export async function fetchRefunds(userAddress: string): Promise<RefundRecord[]>
   try {
     const res = await fetch(`http://127.0.0.1:8000/api/v2/refunds`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Wallet-Address": userAddress,
-      }
+      headers: buildAuthedHeaders(userAddress, false),
     });
     
     if (!res.ok) {
       throw new Error("Failed to fetch refunds history");
     }
     
-    const data = await res.json();
+    const data = (await res.json()) as {
+      status?: string;
+      refunds?: RefundRecord[];
+      data?: RefundRecord[];
+    };
+    if (data.status === "success" && Array.isArray(data.refunds)) {
+      return data.refunds;
+    }
     if (data.status === "success" && Array.isArray(data.data)) {
-      return data.data as RefundRecord[];
+      return data.data;
     }
     return [];
   } catch (err) {
