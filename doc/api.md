@@ -133,16 +133,17 @@
 - **Path**: `POST /api/v2/generate`
 - **Desc**: 大脑发起真实 M2M 调用的核心漏斗。在此经历：“扣减高速内存锁余额” -> “分布式速率限制” -> “反向代理给真实提供商服务” -> “结果聚合审计” 的连贯动作。这也是整个系统价值捕获的中心。
 - **Headers**:
-  - `X-Agent-Credential`: "agt_123..." (子凭据独立密钥)
+  - `X-Credential`: "agt_123..." (调用凭据)
   - `X-Service-Id`: "svc_demo" (卖家在网络上的通用注册编号)
 - **Body**: 必须匹配对应 Service 注册时声明的 Schema 净载荷。 
 
 ---
 
-## 5. 客户端 Agent 身份签发 (API Keys Lifecycle)
+## 5. 凭据签发与生命周期 (Credentials Lifecycle)
 
-- **创建 AI Agent 子密钥**: `POST /v1/agent-credentials/issue`
-- **获取所有活动子密钥**: `GET /v1/agent-credentials`
-- **一键硬撤销子密钥**: `POST /v1/agent-credentials/{credential_id}/revoke` 
+- **创建凭据**: `POST /api/v1/credentials/issue`
+- **获取所有活动凭据**: `GET /api/v1/credentials`
+- **一键撤销凭据**: `POST /api/v1/credentials/{credential_id}/revoke`
+- **更新凭据限额**: `PATCH /api/v1/credentials/{credential_id}/quota`
 
 > 这一组 API 将主钱包的高额安全和实际高频、暴露给多物理机的子实例解耦，完美支撑了“大额充值不暴露主密钥”的重要愿景。

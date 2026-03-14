@@ -8,7 +8,7 @@ def setup_logger():
     # Ensure request_id always exists in extra
     logger.configure(extra={"request_id": "SYS"})
     
-    # 1. Console output for local debugging
+    # 1) Console output: developer-friendly single-line logs with request_id.
     logger.add(
         sys.stdout,
         colorize=True,
@@ -16,7 +16,7 @@ def setup_logger():
         enqueue=True,
     )
     
-    # 2. File output for production (JSON)
+    # 2) Optional JSON file sink for production shipping/analysis.
     # logger.add(
     #     "logs/gateway_{time:YYYY-MM-DD}.log",
     #     rotation="100 MB",

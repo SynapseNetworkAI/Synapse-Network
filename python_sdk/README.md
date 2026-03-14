@@ -175,7 +175,7 @@ curl -X DELETE http://127.0.0.1:8000/api/v2/services/<service_record_id> \
 `/api/v2/generate`
 
 1. 校验 `serviceId`（header/body 一致性）。
-2. 如传入 `X-Agent-Credential`：
+2. 如传入 `X-Credential`：
    - `credentials.find_active_credential_or_unauthorized` 校验凭证。
    - `credentials.enforce_generate_rate_limits` 执行三维限流。
 3. 校验买家余额是否充足（余额由充值确认入账获得）。
@@ -213,7 +213,7 @@ pip install -e .
 from buyer_sdk import SynapseBuyer
 
 client = SynapseBuyer(
-  credential_token="<X-Agent-Credential>",
+  credential_token="<X-Credential>",
   gateway_url="http://127.0.0.1:8000",
 )
 
@@ -226,7 +226,7 @@ result = client.invoke_service(
 )
 ```
 
-说明：当前 SDK 调用链路对接 `/api/v2/generate`（携带 `X-Agent-Credential` + `X-Service-Id`）。
+说明：当前 SDK 调用链路对接 `/api/v2/generate`（携带 `X-Credential` + `X-Service-Id`）。
 
 ## 关键兼容点
 
@@ -236,4 +236,4 @@ result = client.invoke_service(
 - 前端依赖的鉴权/凭证头不变：
   - `Authorization: Bearer <token>`
   - `X-User-Address`
-  - `X-Agent-Credential`（可选/可强制）
+  - `X-Credential`（可选/可强制）

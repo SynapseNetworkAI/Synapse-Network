@@ -18,90 +18,128 @@ def _load_router_address_from_contract_config() -> str:
     except Exception:
         return ""
 
+# Chain RPC endpoint for payment verification and event reads.
 RPC_URL = os.getenv("RPC_URL", "http://127.0.0.1:8545")
+# Fallback seller address used by legacy payment validation flows.
 SELLER_ADDRESS = os.getenv("SELLER_ADDRESS", "0x0000000000000000000000000000000000000000")
+# Legacy expected payment amount (wei) when service-specific pricing is absent.
 EXPECTED_PRICE = int(os.getenv("EXPECTED_PRICE", "1000000000000000000"))
+# Router contract to validate on-chain payments and deposits.
 ROUTER_ADDRESS = os.getenv("ROUTER_ADDRESS", "").strip() or _load_router_address_from_contract_config() or "0x0000000000000000000000000000000000000000"
+# Minimum confirmations for legacy payment verification endpoints.
 MIN_CONFIRMATIONS = int(os.getenv("MIN_CONFIRMATIONS", "1"))
+# Maximum seconds to wait for pending payment confirmation.
 PAYMENT_TTL_SEC = int(os.getenv("PAYMENT_TTL_SEC", "600"))
+# Optional allow-list for accepted token contracts.
 ALLOWED_TOKEN_ADDRESSES = {
     addr.strip().lower()
     for addr in os.getenv("ALLOWED_TOKEN_ADDRESSES", "").split(",")
     if addr.strip()
 }
+# JSON map for per-service static pricing overrides.
 SERVICE_PRICES_JSON = os.getenv("SERVICE_PRICES_JSON", "{}")
+# Generic timeout message returned when payment confirmation exceeds TTL.
 PAYMENT_TIMEOUT_MESSAGE = "Payment confirmation timed out"
+# Generic invalid-address error message for request validation.
 INVALID_ADDRESS_MESSAGE = "address is invalid"
 
+# Service registry persistence path.
 SERVICE_REGISTRY_PATH = os.getenv(
     "SERVICE_REGISTRY_PATH",
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "service_registry.json"),
 )
 
+# Agent registry persistence path.
 AGENT_REGISTRY_PATH = os.getenv(
     "AGENT_REGISTRY_PATH",
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent_registry.json"),
 )
 
+# JWT secret for wallet auth challenge/verify.
 AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-secret-change-me")
+# Token TTL (seconds) for signed auth sessions.
 AUTH_TOKEN_TTL_SEC = int(os.getenv("AUTH_TOKEN_TTL_SEC", "3600"))
+# Challenge nonce TTL (seconds) for replay protection.
 AUTH_CHALLENGE_TTL_SEC = int(os.getenv("AUTH_CHALLENGE_TTL_SEC", "300"))
+# Feature flag to keep backward-compatible auth behavior.
 ALLOW_LEGACY_AUTH = os.getenv("ALLOW_LEGACY_AUTH", "1") == "1"
 
+# Credential store path.
 AGENT_CREDENTIALS_PATH = os.getenv(
     "AGENT_CREDENTIALS_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "agent_credentials.json"),
 )
+# Audit log JSONL path.
 AUDIT_LOG_PATH = os.getenv(
     "AUDIT_LOG_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "audit_log.jsonl"),
 )
+# Buyer/seller/platform balance ledger path.
 BALANCE_LEDGER_PATH = os.getenv(
     "BALANCE_LEDGER_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "balance_ledger.json"),
 )
+# Usage log path for metering results.
 USAGE_LOG_PATH = os.getenv(
     "USAGE_LOG_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "usage_log.json"),
 )
+# Deposit intent queue path.
 DEPOSIT_INTENTS_PATH = os.getenv(
     "DEPOSIT_INTENTS_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_intents.json"),
 )
+# Cursor file path for legacy deposit scanner.
 DEPOSIT_EVENT_CURSOR_PATH = os.getenv(
     "DEPOSIT_EVENT_CURSOR_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_event_cursor.json"),
 )
+# Processed event-key store path for idempotency.
 DEPOSIT_EVENT_PROCESSED_PATH = os.getenv(
     "DEPOSIT_EVENT_PROCESSED_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_event_processed.json"),
 )
+# Refund intent queue path.
 REFUND_INTENTS_PATH = os.getenv(
     "REFUND_INTENTS_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "refund_intents.json"),
 )
+# Router owner-level config persistence path.
 ROUTER_CONFIG_PATH = os.getenv(
     "ROUTER_CONFIG_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "router_config.json"),
 )
+# Confirmations required by the v2 deposit indexer.
 V2_DEPOSIT_CONFIRMATIONS = int(os.getenv("V2_DEPOSIT_CONFIRMATIONS", "1"))
+# Poll interval for the v2 background indexer loop.
 V2_INDEXER_POLL_INTERVAL_SEC = float(os.getenv("V2_INDEXER_POLL_INTERVAL_SEC", "2"))
+# Reserved block batch size for future block-range indexing.
 V2_INDEXER_BLOCK_BATCH = int(os.getenv("V2_INDEXER_BLOCK_BATCH", "100"))
 
+# Default credential TTL when caller omits expiresInSec.
 AGENT_CREDENTIAL_DEFAULT_TTL_SEC = int(os.getenv("AGENT_CREDENTIAL_DEFAULT_TTL_SEC", "3600"))
+# Hard upper bound for issued credential TTL.
 AGENT_CREDENTIAL_MAX_TTL_SEC = int(os.getenv("AGENT_CREDENTIAL_MAX_TTL_SEC", "259200"))
+# Default max call count per credential.
 AGENT_CREDENTIAL_MAX_CALLS_DEFAULT = int(os.getenv("AGENT_CREDENTIAL_MAX_CALLS_DEFAULT", "1000"))
+# Owner control-plane rate limit per minute.
 OWNER_RATE_LIMIT_PER_MIN = int(os.getenv("OWNER_RATE_LIMIT_PER_MIN", "240"))
+# Credential data-plane rate limit per minute.
 AGENT_RATE_LIMIT_PER_MIN = int(os.getenv("AGENT_RATE_LIMIT_PER_MIN", "600"))
+# Service-level aggregate rate limit per minute.
 SERVICE_RATE_LIMIT_PER_MIN = int(os.getenv("SERVICE_RATE_LIMIT_PER_MIN", "1200"))
+# Shared seconds window for rate-limit buckets.
 RATE_LIMIT_WINDOW_SEC = int(os.getenv("RATE_LIMIT_WINDOW_SEC", "60"))
+# Whether /generate hard-requires credential header.
 REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE = os.getenv("REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE", "0") == "1"
 
 try:
+    # Parsed int map: serviceId -> wei price.
     SERVICE_PRICES = {k: int(v) for k, v in json.loads(SERVICE_PRICES_JSON).items()}
 except Exception:
     SERVICE_PRICES = {}
 
+# Standardized response metadata for payment-layer exceptions.
 ERROR_RESPONSES = {
     402: {"description": "Payment required or invalid payment proof"},
     403: {"description": "Payment does not match seller/service policy"},
@@ -111,6 +149,7 @@ ERROR_RESPONSES = {
     500: {"description": "Provider API misconfiguration"},
 }
 
+# Standardized response metadata for service registry APIs.
 SERVICE_REGISTRY_RESPONSES = {
     401: {"description": "Unauthorized"},
     403: {"description": "Forbidden (owner mismatch)"},
@@ -119,14 +158,14 @@ SERVICE_REGISTRY_RESPONSES = {
     500: {"description": "Service registry persistence error"},
 }
 
+# Standardized response metadata for auth APIs.
 AUTH_RESPONSES = {
     401: {"description": "Unauthorized"},
     400: {"description": "Invalid auth payload"},
 }
 
+# Wallet role map persistence path.
 WALLET_ROLES_PATH = os.getenv(
     "WALLET_ROLES_PATH",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "wallet_roles.json"),
 )
-
-WALLET_ROLES_PATH = os.getenv("WALLET_ROLES_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "wallet_roles.json"))

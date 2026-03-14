@@ -53,15 +53,17 @@ async def verify_signature(
             
         wallet = normalize_wallet(request.wallet_address)
         
-        credentials = storage.get_collection('agent_credentials')
-        
-        credentials[wallet] = {
+        sessions = storage.get_collection('auth_sessions')
+        if not isinstance(sessions, dict):
+            sessions = {}
+
+        sessions[wallet] = {
             "registered_at": int(time.time()),
             "last_login": int(time.time()),
             "status": "active"
         }
-        
-        storage.save_collection('agent_credentials', credentials)
+
+        storage.save_collection('auth_sessions', sessions)
             
         return TokenResponse(
             success=True,

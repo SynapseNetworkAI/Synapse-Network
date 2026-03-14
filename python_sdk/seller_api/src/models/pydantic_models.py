@@ -22,3 +22,33 @@ class TokenResponse(BaseResponse):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+
+
+class CredentialIssueRequest(BaseModel):
+    serviceId: Optional[str] = None
+    name: Optional[str] = None
+    expiresInSec: Optional[int] = None
+    maxCalls: Optional[int] = None
+    rpm: Optional[int] = None
+    creditLimit: Optional[float] = None
+    resetInterval: Optional[str] = None
+    expiration: Optional[int] = None
+
+
+class CredentialQuotaUpdateRequest(BaseModel):
+    maxCalls: Optional[int] = None
+    rpm: Optional[int] = None
+    expiresAt: Optional[int] = None
+    creditLimit: Optional[float] = None
+    resetInterval: Optional[str] = None
+    expiration: Optional[int] = None
+
+
+class InferenceRequest(BaseModel):
+    prompt: str
+    serviceId: Optional[str] = None
+
+
+# Backward-compatible aliases.
+AgentCredentialIssueRequest = CredentialIssueRequest
+AgentCredentialQuotaUpdateRequest = CredentialQuotaUpdateRequest

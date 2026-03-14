@@ -66,7 +66,7 @@ class SynapseClient:
         headers = {
             "Content-Type": "application/json",
             "X-Service-Id": service_id,
-            "X-Agent-Credential": self.api_key,
+            "X-Credential": self.api_key,
         }
 
         # Build payload dynamically

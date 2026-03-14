@@ -5,13 +5,16 @@ const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
 export type AgentCredentialRecord = {
   id: string;
   ownerAddress: string;
-  agentId?: string | null;
+  name?: string;
   serviceId?: string | null;
   tokenPrefix?: string;
   status: "active" | "revoked";
   maxCalls: number;
   callsUsed: number;
   rpm: number;
+  creditLimit?: number | null;
+  resetInterval?: "hourly" | "daily" | "weekly" | "monthly" | "never";
+  expiration?: number | null;
   expiresAt: number;
   createdAt?: number;
   updatedAt?: number;
@@ -22,11 +25,14 @@ export type AgentCredentialIssueResponse = {
   id: string;
   token: string;
   ownerAddress: string;
-  agentId?: string | null;
+  name?: string;
   serviceId?: string | null;
   maxCalls: number;
   callsUsed: number;
   rpm: number;
+  creditLimit?: number | null;
+  resetInterval?: "hourly" | "daily" | "weekly" | "monthly" | "never";
+  expiration?: number | null;
   expiresAt: number;
   status: "active" | "revoked";
 };
@@ -57,9 +63,18 @@ async function parseError(response: Response, fallback: string): Promise<string>
 
 export async function issueAgentCredential(
   userAddress: string,
-  payload: { agentId?: string; serviceId?: string; expiresInSec?: number; maxCalls?: number; rpm?: number }
+  payload: {
+    serviceId?: string;
+    name?: string;
+    expiresInSec?: number;
+    maxCalls?: number;
+    rpm?: number;
+    creditLimit?: number;
+    resetInterval?: "hourly" | "daily" | "weekly" | "monthly" | "never";
+    expiration?: number;
+  }
 ): Promise<AgentCredentialIssueResponse> {
-  const response = await fetch(`${API_BASE_URL}/agent-credentials/issue`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/issue`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify(payload),
@@ -74,7 +89,7 @@ export async function issueAgentCredential(
 }
 
 export async function listAgentCredentials(userAddress: string): Promise<AgentCredentialRecord[]> {
-  const response = await fetch(`${API_BASE_URL}/agent-credentials`, {
+  const response = await fetch(`${API_BASE_URL}/credentials`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
   });
@@ -88,7 +103,7 @@ export async function listAgentCredentials(userAddress: string): Promise<AgentCr
 }
 
 export async function revokeAgentCredential(userAddress: string, credentialId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/agent-credentials/${encodeURIComponent(credentialId)}/revoke`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/${encodeURIComponent(credentialId)}/revoke`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress, false),
   });
@@ -103,7 +118,7 @@ export async function updateAgentCredentialQuota(
   credentialId: string,
   payload: { maxCalls?: number; rpm?: number; expiresAt?: number }
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/agent-credentials/${encodeURIComponent(credentialId)}/quota`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/${encodeURIComponent(credentialId)}/quota`, {
     method: "PATCH",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify(payload),

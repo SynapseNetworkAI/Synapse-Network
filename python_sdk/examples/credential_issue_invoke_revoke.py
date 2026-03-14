@@ -148,7 +148,6 @@ def mint_and_pay_for_service(
 def invoke_generate_with_polling(
     api_base: str,
     service_id: str,
-    tx_hash: str,
     credential_token: str,
     prompt: str,
     timeout_sec: int = 90,
@@ -157,14 +156,13 @@ def invoke_generate_with_polling(
 
     while True:
         response = requests.post(
-            f"{api_base}/api/v1/generate",
+            f"{api_base}/api/v2/generate",
             headers={
                 "Content-Type": CONTENT_TYPE_JSON,
-                "X-Tx-Hash": tx_hash,
                 "X-Service-Id": service_id,
-                "X-Agent-Credential": credential_token,
+                "X-Credential": credential_token,
             },
-            json={"prompt": prompt, "service_id": service_id},
+            json={"prompt": prompt, "serviceId": service_id},
             timeout=40,
         )
 
@@ -196,7 +194,6 @@ def main() -> None:
 
     owner_private_key = require_env("OWNER_PRIVATE_KEY")
     service_id = require_env("SERVICE_ID")
-    agent_id = require_env("AGENT_ID")
     seller_address = require_env("SELLER_ADDRESS")
 
     deployer_private_key = os.getenv("DEPLOYER_PRIVATE_KEY", DEFAULT_DEPLOYER_PRIVATE_KEY)
@@ -214,10 +211,9 @@ def main() -> None:
 
     print("[step] issue credential ...")
     issue_resp = requests.post(
-        f"{api_base}/api/v1/agent-credentials/issue",
+        f"{api_base}/api/v1/credentials/issue",
         headers=build_auth_headers(token, owner_address),
         json={
-            "agentId": agent_id,
             "serviceId": service_id,
             "expiresInSec": expires_in_sec,
             "maxCalls": max_calls,
@@ -232,7 +228,7 @@ def main() -> None:
     print(f"[credential] issued id={credential_id}")
 
     print("[step] payForService to get tx hash ...")
-    tx_hash = mint_and_pay_for_service(
+    mint_and_pay_for_service(
         root_dir=root_dir,
         rpc_url=rpc_url,
         service_id=service_id,
@@ -246,7 +242,6 @@ def main() -> None:
     generate_result = invoke_generate_with_polling(
         api_base=api_base,
         service_id=service_id,
-        tx_hash=tx_hash,
         credential_token=credential_token,
         prompt=prompt,
     )
@@ -255,7 +250,7 @@ def main() -> None:
 
     print("[step] revoke credential ...")
     revoke_resp = requests.post(
-        f"{api_base}/api/v1/agent-credentials/{credential_id}/revoke",
+        f"{api_base}/api/v1/credentials/{credential_id}/revoke",
         headers=build_auth_headers(token, owner_address, with_json=False),
         timeout=20,
     )

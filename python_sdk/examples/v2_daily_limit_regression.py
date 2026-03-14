@@ -88,10 +88,9 @@ def pick_target_service(api_base: str) -> tuple[str, float]:
 
 def issue_credential(api_base: str, token: str, owner_address: str) -> str:
     response = requests.post(
-        f"{api_base}/api/v1/agent-credentials/issue",
+        f"{api_base}/api/v1/credentials/issue",
         headers=build_auth_headers(token, owner_address),
         json={
-            "agentId": "OWNER_SHARED",
             "expiresInSec": 3600,
             "maxCalls": 100,
             "rpm": 600,
@@ -251,10 +250,10 @@ def invoke_v2_generate(api_base: str, credential: str, service_id: str, prompt: 
         f"{api_base}/api/v2/generate",
         headers={
             "Content-Type": CONTENT_TYPE_JSON,
-            "X-Agent-Credential": credential,
+            "X-Credential": credential,
             "X-Service-Id": service_id,
         },
-        json={"prompt": prompt, "service_id": service_id},
+        json={"prompt": prompt, "serviceId": service_id},
         timeout=30,
     )
 

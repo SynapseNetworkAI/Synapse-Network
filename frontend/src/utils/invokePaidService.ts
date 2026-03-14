@@ -5,7 +5,7 @@ export type InvokePaidServiceParams<TPayload = unknown> = {
   serviceId: string;
   payload: TPayload;
   payForService: PayForServiceFn;
-  agentCredential?: string;
+  credential?: string;
   maxWaitMs?: number;
   defaultRetryAfterMs?: number;
   maxAttempts?: number;
@@ -53,7 +53,7 @@ export async function invokePaidService<TPayload = unknown, TResponse = unknown>
     serviceId,
     payload,
     payForService,
-    agentCredential,
+    credential,
     maxWaitMs = 60_000,
     defaultRetryAfterMs = 2_000,
     maxAttempts = 20,
@@ -73,8 +73,8 @@ export async function invokePaidService<TPayload = unknown, TResponse = unknown>
       "X-Tx-Hash": txHash,
       "X-Service-Id": serviceId,
     };
-    if (agentCredential) {
-      headers["X-Agent-Credential"] = agentCredential;
+    if (credential) {
+      headers["X-Credential"] = credential;
     }
 
     const res = await fetch(endpoint, {

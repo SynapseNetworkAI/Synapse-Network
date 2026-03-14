@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     # 该任务负责充值事件的异步确认与最终一致性入账。
     app.state.v2_indexer_stop_event = asyncio.Event()
     app.state.v2_indexer_task = asyncio.create_task(
-        run_v2_deposit_indexer(app.state.v2_indexer_stop_event)
+        run_v2_deposit_indexer(app.state.v2_indexer_stop_event, app.state.storage)
     )
 
     yield

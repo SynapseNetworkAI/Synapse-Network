@@ -1,0 +1,23 @@
+from typing import Annotated, Optional
+
+from fastapi import APIRouter, Depends, Header
+
+from src.models.pydantic_models import InferenceRequest
+from src.services import forwarding_service
+from src.storage import BaseStorage, get_storage
+
+router = APIRouter()
+
+ServiceIdHeader = Annotated[Optional[str], Header(default=None, alias="X-Service-Id")]
+CredentialHeader = Annotated[Optional[str], Header(default=None, alias="X-Credential")]
+StorageDep = Annotated[BaseStorage, Depends(get_storage)]
+
+
+@router.post("/v2/generate")
+async def generate_response_v2(
+    request: InferenceRequest,
+    x_service_id: ServiceIdHeader,
+    x_credential: CredentialHeader,
+    storage: StorageDep,
+):
+    return await forwarding_service.generate_response_v2(storage, request, x_service_id, x_credential)

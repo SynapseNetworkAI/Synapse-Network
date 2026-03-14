@@ -4,33 +4,21 @@ import os
 import time
 from threading import Lock
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from web3 import Web3
 from web3.exceptions import TransactionNotFound
 
 from src.core.common import normalize_wallet
-from seller_api.persistence import (
-    append_audit_log,
-    load_balance_ledger,
-    load_deposit_intents,
-    load_processed_deposit_event_keys,
-    save_balance_ledger,
-    save_deposit_intents,
-    save_processed_deposit_event_keys,
-)
-from seller_api.settings import (
-    RPC_URL,
-    ROUTER_ADDRESS,
-    V2_DEPOSIT_CONFIRMATIONS,
-    V2_INDEXER_POLL_INTERVAL_SEC,
-)
+from src.core.config import settings
+from src.storage import BaseStorage
 
 lock = Lock()
-w3 = Web3(Web3.HTTPProvider(RPC_URL))
+w3 = Web3(Web3.HTTPProvider(settings.rpc_url))
 
 INDEXER_STATUS: Dict[str, Any] = {
     "running": False,
-    "listenerAddress": normalize_wallet(ROUTER_ADDRESS),
+    "listenerAddress": normalize_wallet(settings.router_address),
     "lastCounters": {"credited": 0, "failed": 0, "pending": 0},
     "lastProcessedAt": None,
     "lastError": None,
@@ -50,11 +38,78 @@ def get_indexer_status() -> Dict[str, Any]:
             "lastCounters": dict(INDEXER_STATUS.get("lastCounters") or {"credited": 0, "failed": 0, "pending": 0}),
             "lastProcessedAt": INDEXER_STATUS.get("lastProcessedAt"),
             "lastError": INDEXER_STATUS.get("lastError"),
-            "pollIntervalSec": V2_INDEXER_POLL_INTERVAL_SEC,
+            "pollIntervalSec": settings.v2_indexer_poll_interval_sec,
         }
 
 TRANSFER_TOPIC = Web3.to_hex(Web3.keccak(text="Transfer(address,address,uint256)")).lower()
 TOKEN_DECIMALS_CACHE: Dict[str, int] = {}
+
+
+def _now() -> int:
+    return int(time.time())
+
+
+def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
+    raw = storage.get_collection("deposit_intents")
+    if isinstance(raw, list):
+        return [row for row in raw if isinstance(row, dict)]
+    if isinstance(raw, dict) and isinstance(raw.get("intents"), list):
+        return [row for row in raw["intents"] if isinstance(row, dict)]
+    return []
+
+
+def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
+    storage.save_collection("deposit_intents", {"intents": rows, "updatedAt": _now()})
+
+
+def _load_balance_ledger(storage: BaseStorage) -> Dict[str, Any]:
+    raw = storage.get_collection("balance_ledger")
+    if not isinstance(raw, dict):
+        raw = {}
+    raw.setdefault("buyers", {})
+    raw.setdefault("sellers", {})
+    raw.setdefault("platform", {"feeAccrued": 0.0})
+    if not isinstance(raw.get("buyers"), dict):
+        raw["buyers"] = {}
+    if not isinstance(raw.get("sellers"), dict):
+        raw["sellers"] = {}
+    if not isinstance(raw.get("platform"), dict):
+        raw["platform"] = {"feeAccrued": 0.0}
+    raw["platform"].setdefault("feeAccrued", 0.0)
+    raw.setdefault("updatedAt", _now())
+    return raw
+
+
+def _save_balance_ledger(storage: BaseStorage, ledger: Dict[str, Any]) -> None:
+    next_ledger = dict(ledger)
+    next_ledger["updatedAt"] = _now()
+    storage.save_collection("balance_ledger", next_ledger)
+
+
+def _load_processed_deposit_event_keys(storage: BaseStorage) -> List[str]:
+    raw = storage.get_collection("deposit_event_processed")
+    if isinstance(raw, dict) and isinstance(raw.get("keys"), list):
+        return [str(item) for item in raw["keys"]]
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    return []
+
+
+def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) -> None:
+    storage.save_collection("deposit_event_processed", {"keys": keys, "updatedAt": _now()})
+
+
+def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
+    storage.append_to_collection(
+        "audit_log",
+        {
+            "id": str(uuid4()),
+            "timestamp": _now(),
+            "action": action,
+            "ownerAddress": normalize_wallet(owner_wallet),
+            "details": details,
+        },
+    )
 
 
 def _normalize_tx_hash(value: str) -> str:
@@ -91,8 +146,7 @@ def _decode_amount_raw(data: Any) -> int:
         return int.from_bytes(data, byteorder="big", signed=False)
     try:
         return int(str(data), 16)
-    except Exception as e:
-        import traceback; traceback.print_exc()
+    except Exception:
         return 0
 
 
@@ -103,8 +157,7 @@ def _extract_router_event_rows(contract: Any, event_name: str, tx_receipt: Any, 
 
     try:
         rows = event_cls().process_receipt(tx_receipt)
-    except Exception as e:
-        import traceback; traceback.print_exc()
+    except Exception:
         return []
 
     parsed: List[Dict[str, Any]] = []
@@ -131,9 +184,8 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
     try:
         with open(abi_path, "r", encoding="utf-8") as file:
             router_abi = json.load(file)
-        contract = w3.eth.contract(address=w3.to_checksum_address(ROUTER_ADDRESS), abi=router_abi)
-    except Exception as e:
-        import traceback; traceback.print_exc()
+        contract = w3.eth.contract(address=w3.to_checksum_address(settings.router_address), abi=router_abi)
+    except Exception:
         return []
 
     tx_hash = tx_receipt["transactionHash"].hex().lower()
@@ -144,7 +196,7 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
 
 
 def _decode_erc20_transfer_to_router(tx_receipt: Any) -> List[Dict[str, Any]]:
-    router = normalize_wallet(ROUTER_ADDRESS)
+    router = normalize_wallet(settings.router_address)
     if not router or router == "0x0000000000000000000000000000000000000000":
         return []
 
@@ -206,8 +258,7 @@ def _resolve_token_decimals(token_address: str) -> int:
             value = 6
         TOKEN_DECIMALS_CACHE[token] = value
         return value
-    except Exception as e:
-        import traceback; traceback.print_exc()
+    except Exception:
         TOKEN_DECIMALS_CACHE[token] = 6
         return 6
 
@@ -262,8 +313,7 @@ def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[Dict[str, Any]]:
         tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     except TransactionNotFound:
         return None
-    except Exception as e:
-        import traceback; traceback.print_exc()
+    except Exception:
         return None
 
     if tx_receipt is None:
@@ -271,7 +321,7 @@ def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[Dict[str, Any]]:
     if int(tx_receipt.get("status", 0)) != 1:
         return {"failed": True}
     confirmations = _confirmations_for_receipt(tx_receipt)
-    if confirmations < V2_DEPOSIT_CONFIRMATIONS:
+    if confirmations < settings.v2_deposit_confirmations:
         return None
     return {
         "failed": False,
@@ -288,6 +338,7 @@ def _resolve_matched_event(tx_receipt: Any, owner_wallet: str, min_amount_usdc: 
 
 
 def _process_single_intent(
+    storage: BaseStorage,
     intent: Dict[str, Any],
     processed_keys: set[str],
     buyers: Dict[str, float],
@@ -345,7 +396,8 @@ def _process_single_intent(
     intent["eventToken"] = matched.get("token")
     intent["updatedAt"] = now
 
-    append_audit_log(
+    _append_audit_log(
+        storage,
         "V2_DEPOSIT_CONFIRMED",
         owner_wallet,
         {
@@ -376,19 +428,19 @@ def _accumulate_outcome_counts(outcome: Dict[str, Any], counters: Dict[str, int]
         counters["pending"] += 1
 
 
-def process_pending_deposit_intents_once() -> Dict[str, int]:
+def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]:
     # 单轮处理：扫描所有 pending intent，链上核验后进行幂等入账。
     # 这个函数是“最终一致性”的核心，重启后也可继续恢复处理。
-    now = int(time.time())
+    now = _now()
     counters = {"credited": 0, "failed": 0, "pending": 0}
 
     with lock:
-        intents = load_deposit_intents()
+        intents = _load_deposit_intents(storage)
         if not intents:
             return {"credited": 0, "failed": 0, "pending": 0}
 
-        processed_keys = set(load_processed_deposit_event_keys())
-        ledger = load_balance_ledger()
+        processed_keys = set(_load_processed_deposit_event_keys(storage))
+        ledger = _load_balance_ledger(storage)
         buyers = ledger.setdefault("buyers", {})
 
         changed_intents = False
@@ -398,7 +450,7 @@ def process_pending_deposit_intents_once() -> Dict[str, int]:
         for intent in intents:
             # 核心幂等点：同一笔 intent 多次执行不会重复记账，
             # 因为 outcome 与 processed_keys 会拦截重放。
-            outcome = _process_single_intent(intent, processed_keys, buyers, now)
+            outcome = _process_single_intent(storage, intent, processed_keys, buyers, now)
 
             if outcome.get("changedIntent"):
                 changed_intents = True
@@ -410,29 +462,27 @@ def process_pending_deposit_intents_once() -> Dict[str, int]:
             _accumulate_outcome_counts(outcome, counters)
 
         if changed_ledger:
-            save_balance_ledger(ledger)
+            _save_balance_ledger(storage, ledger)
         if changed_processed:
-            save_processed_deposit_event_keys(sorted(processed_keys))
+            _save_processed_deposit_event_keys(storage, sorted(processed_keys))
         if changed_intents:
-            save_deposit_intents(intents)
+            _save_deposit_intents(storage, intents)
 
     _set_status(lastCounters=counters, lastProcessedAt=now, lastError=None)
     return counters
 
 
-async def run_v2_deposit_indexer(stop_event: asyncio.Event) -> None:
+async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage) -> None:
     # 常驻索引循环：按固定周期轮询 pending intents。
     # 设计目标：让“链上成功但服务端暂未入账”在后续周期自动修复。
-    _set_status(running=True, listenerAddress=normalize_wallet(ROUTER_ADDRESS))
+    _set_status(running=True, listenerAddress=normalize_wallet(settings.router_address))
     while not stop_event.is_set():
         try:
-            process_pending_deposit_intents_once()
+            process_pending_deposit_intents_once(storage)
         except Exception as e:
-            _set_status(lastError=str(e), lastProcessedAt=int(time.time()))
-            import traceback; traceback.print_exc()
-            pass
+            _set_status(lastError=str(e), lastProcessedAt=_now())
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=V2_INDEXER_POLL_INTERVAL_SEC)
+            await asyncio.wait_for(stop_event.wait(), timeout=settings.v2_indexer_poll_interval_sec)
         except asyncio.TimeoutError:
             continue
     _set_status(running=False)
