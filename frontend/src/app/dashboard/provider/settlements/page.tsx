@@ -2,10 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { Database, ReceiptText, Activity } from "lucide-react";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function ProviderSettlementsPage() {
   const { providerStats, paidEvents } = useDashboardData();
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [requestInput, setRequestInput] = useState("");
   const [serviceInput, setServiceInput] = useState("");
   const [requestQuery, setRequestQuery] = useState("");
@@ -17,6 +21,14 @@ export default function ProviderSettlementsPage() {
     setRequestQuery(requestInput);
     setServiceQuery(serviceInput);
     setPage(1);
+  };
+
+  const handleSearch = () => {
+    if (!isConnected) {
+      openConnectModal?.();
+      return;
+    }
+    applySearch();
   };
 
   const filtered = useMemo(() => {
@@ -59,7 +71,7 @@ export default function ProviderSettlementsPage() {
           onChange={(e) => setRequestInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              applySearch();
+              handleSearch();
             }
           }}
           placeholder="Search RequestId"
@@ -70,14 +82,14 @@ export default function ProviderSettlementsPage() {
           onChange={(e) => setServiceInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              applySearch();
+              handleSearch();
             }
           }}
           placeholder="Search Service (fuzzy)"
           className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] w-full lg:w-[320px]"
         />
         <button
-          onClick={applySearch}
+          onClick={handleSearch}
           className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors lg:ml-auto"
         >
           Search

@@ -5,8 +5,12 @@ import { useEffect, useState } from "react";
 import { ServiceRegistryRecord, discoverServices } from "@/utils/serviceApi";
 import { Copy, TerminalSquare, Activity, Globe } from "lucide-react";
 import toast from "react-hot-toast";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 
 export default function DiscoverPage() {
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [intent, setIntent] = useState("");
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,6 +27,14 @@ export default function DiscoverPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDiscoverClick = async () => {
+    if (!isConnected) {
+      openConnectModal?.();
+      return;
+    }
+    await handleSearch();
   };
 
   useEffect(() => {
@@ -53,11 +65,15 @@ export default function DiscoverPage() {
             placeholder="Search intent or tags (e.g. weather, llm, image, data)..."
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                void handleDiscoverClick();
+              }
+            }}
             className="w-full px-4 py-3 text-white bg-gray-900 border border-gray-700 rounded-lg focus:outline-none focus:border-green-500"
           />
           <button
-            onClick={handleSearch}
+            onClick={() => void handleDiscoverClick()}
             disabled={loading}
             className="px-8 py-3 font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400 disabled:opacity-50 min-w-[140px]"
           >

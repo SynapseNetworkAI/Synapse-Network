@@ -4,11 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { RefreshCw, Shield, ArrowRight, ArrowUpRight, AlertTriangle, Loader2, Key, Activity, TerminalSquare } from "lucide-react";
 import toast from "react-hot-toast";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useBuyerData } from "@/hooks/useBuyerData";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { requestV2Refund } from "@/utils/balanceApi";
 
 export default function BuyerOverview() {
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const { userAddress, isRefreshing, stats, logs, handleRefresh } = useBuyerData();
   const { isSessionAuthenticated } = useAuth();
   
@@ -42,6 +46,18 @@ export default function BuyerOverview() {
     }
   };
 
+  const handleRefreshClick = async () => {
+    if (!isConnected) {
+      openConnectModal?.();
+      return;
+    }
+    await handleRefresh();
+  };
+
+  const emptyLogStateText = isSessionAuthenticated
+    ? "Awaiting agent activity..."
+    : "Authenticate terminal to view stream";
+
   return (
     <div className="p-6 md:p-10 mx-auto space-y-12 max-w-7xl font-sans text-white bg-black min-h-screen">
       {/* Header */}
@@ -60,7 +76,7 @@ export default function BuyerOverview() {
             Manage API Keys
           </Link>
           <button
-            onClick={handleRefresh}
+            onClick={() => void handleRefreshClick()}
             className="p-3 text-[#86868b] transition-colors bg-[#0a0a0a] border border-[#222222] rounded-xl hover:bg-[#111111] hover:text-white"
           >
             <RefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin text-[#22c55e]" : ""}`} />
@@ -144,6 +160,7 @@ export default function BuyerOverview() {
           </h2>
           <span className="text-xs text-[#86868b] font-mono flex items-center bg-[#0a0a0a] border border-[#222222] px-4 py-2 rounded-full">
             <span className="w-2 h-2 rounded-full bg-[#22c55e] mr-2 animate-[pulse_2s_ease-in-out_infinite]" />
+            {" "}
             Live Stream
           </span>
         </div>
@@ -166,7 +183,7 @@ export default function BuyerOverview() {
                   <td colSpan={6} className="py-20 text-center">
                     <TerminalSquare className="w-8 h-8 text-[#222222] mx-auto mb-4" />
                     <span className="text-sm text-[#86868b] font-medium tracking-wide">
-                      {!isSessionAuthenticated ? "Authenticate terminal to view stream" : "Awaiting agent activity..."}
+                      {emptyLogStateText}
                     </span>
                   </td>
                 </tr>

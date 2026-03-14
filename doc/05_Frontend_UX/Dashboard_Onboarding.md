@@ -259,6 +259,26 @@ Router 页面固定展示 3 条 setup 状态：
 
 ## 13. 数据库边界：哪些需要存，哪些不需要存
 
+## 14. 钱包连接拦截与交互统一（2026-03）
+
+为降低无效点击并统一入口行为，Dashboard 与 Provider Workspace 的关键按钮统一采用以下策略：
+
+1. **未连接钱包**：点击关键动作按钮时，前端直接唤起 RainbowKit Connect 弹窗。
+2. **已连接钱包**：继续执行原业务流程（搜索、刷新、发现）。
+
+覆盖入口：
+
+- `/provider/nodes`：`Search`
+- `/provider/settlements`：`Search`
+- `/provider/usage`：`Refresh Data`
+- `/dashboard/discover`：`Discover`
+- `/dashboard/usage`：`Refresh Data`
+- `/dashboard/buyer`：右上角刷新按钮
+
+视觉规范补充：
+
+- `/provider/usage` 与 `/dashboard/usage` 的 `Refresh Data` 使用荧光绿主按钮（`#22c55e` 语义），用于强化“实时刷新/状态更新”信号。
+
 ### 13.1 不需要存数据库（链上真相）
 
 - ERC20 `allowance`

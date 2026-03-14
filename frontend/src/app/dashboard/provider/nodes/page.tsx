@@ -3,12 +3,16 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Server, ArrowRight, Shield, Gauge, Link2, Search } from "lucide-react";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 type NodeStatus = "all" | "online" | "offline";
 
 export default function ProviderNodesPage() {
   const { services } = useDashboardData();
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [queryInput, setQueryInput] = useState("");
   const [statusInput, setStatusInput] = useState<NodeStatus>("all");
   const [query, setQuery] = useState("");
@@ -20,6 +24,14 @@ export default function ProviderNodesPage() {
     setQuery(queryInput);
     setStatus(statusInput);
     setPage(1);
+  };
+
+  const handleSearch = () => {
+    if (!isConnected) {
+      openConnectModal?.();
+      return;
+    }
+    applySearch();
   };
 
   const filtered = useMemo(() => {
@@ -63,7 +75,7 @@ export default function ProviderNodesPage() {
             onChange={(e) => setQueryInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                applySearch();
+                handleSearch();
               }
             }}
             placeholder="Search Service ID or name"
@@ -81,7 +93,7 @@ export default function ProviderNodesPage() {
             <option value="offline">Offline</option>
           </select>
           <button
-            onClick={applySearch}
+            onClick={handleSearch}
             className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors"
           >
             Search

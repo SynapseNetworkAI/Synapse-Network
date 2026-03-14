@@ -2,10 +2,22 @@
 
 import { useMemo } from "react";
 import { BarChart3, LineChart, TrendingUp } from "lucide-react";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function UsageAnalyticsPage() {
   const { providerStats, paidEvents, handleRefresh, isRefreshing } = useDashboardData();
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+
+  const handleRefreshClick = async () => {
+    if (!isConnected) {
+      openConnectModal?.();
+      return;
+    }
+    await handleRefresh();
+  };
 
   const trendRows = useMemo(() => {
     const bucket = new Map<string, { calls: number; net: number }>();
@@ -69,8 +81,8 @@ export default function UsageAnalyticsPage() {
           </p>
         </div>
         <button
-          onClick={handleRefresh}
-          className="px-4 py-2 rounded-xl border border-[#222222] bg-[#0a0a0a] hover:bg-[#111111] text-sm font-medium text-[#e5e5ea]"
+          onClick={() => void handleRefreshClick()}
+          className="px-4 py-2 rounded-xl border border-[#22c55e]/40 bg-[#22c55e]/10 hover:bg-[#22c55e] hover:text-black text-sm font-semibold text-[#22c55e] transition-colors"
         >
           {isRefreshing ? "Refreshing..." : "Refresh Data"}
         </button>
