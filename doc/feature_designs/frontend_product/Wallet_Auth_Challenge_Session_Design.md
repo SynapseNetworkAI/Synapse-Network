@@ -94,7 +94,7 @@ Why:
    - session expired
    - wallet changed
 4. Warn before destructive sign-out actions.
-5. Do not auto-popup wallet signature on page load. Dashboard pages should check session first and stay in session-only mode.
+5. If wallet is connected (including reconnect) but session is missing, frontend should auto-attempt one authorization challenge once, then fall back to explicit manual retry.
 6. Trigger challenge explicitly on sign-in/renew-session actions, and on fund-critical flows that require wallet signatures.
 
 ## 7. Current Runtime Mapping
@@ -150,8 +150,8 @@ Rule of thumb:
 
 Connect + Login merged policy:
 
-1. For user-initiated wallet connections, connect and session login are treated as one continuous flow.
-2. System attempts authorization once automatically immediately after connect.
+1. For wallet connect and reconnect events, connect and session login are treated as one continuous flow when session is missing.
+2. System attempts authorization once automatically immediately after connect/reconnect.
 3. Manual `Authorize Login` remains available as deterministic recovery path.
 
 ## 8.2 Page Auth Matrix (Frontend)

@@ -208,7 +208,6 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   useAccountEffect({
     onConnect(data) {
       if (!data.address) return;
-      if (data.isReconnected) return;
       pendingAutoAuthorizeWalletRef.current = data.address.toLowerCase();
       autoAuthorizeTriedWalletRef.current = null;
     },
