@@ -5,11 +5,13 @@ import { Key, ShieldCheck, Activity, Copy, CheckCircle2, FileCode2, Plus, Trash2
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import AuthMask from "@/components/AuthMask";
+import { useAuth } from "@/components/WalletAuthGuard";
 
 import { listApiSecrets, createApiSecret, deleteApiSecret, ProviderSecret } from "@/utils/serviceApi";
 
 export default function SecretsPage() {
   const { address } = useAccount();
+  const { isSessionAuthenticated } = useAuth();
   const [secrets, setSecrets] = useState<ProviderSecret[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"python" | "node" | "java">("node");
@@ -22,7 +24,10 @@ export default function SecretsPage() {
   
   useEffect(() => {
     async function init() {
-      if (!address) return;
+      if (!address || !isSessionAuthenticated) {
+        setSecrets([]);
+        return;
+      }
       try {
         setLoading(true);
         const data = await listApiSecrets(address as string);
@@ -37,10 +42,13 @@ export default function SecretsPage() {
       }
     }
     init();
-  }, [address]);
+  }, [address, isSessionAuthenticated]);
 
   const handleCreateSecret = async () => {
-    if (!address) return;
+    if (!address || !isSessionAuthenticated) {
+      toast("Please sign in with wallet session first.", { icon: "🔐" });
+      return;
+    }
     const finalName = newSecretName.trim() || `Secret Key ${secrets.length + 1}`;
     try {
       setIsCreating(true);
@@ -69,7 +77,10 @@ export default function SecretsPage() {
   };
 
   const handleDeleteSecret = async (id: string) => {
-    if (!address) return;
+    if (!address || !isSessionAuthenticated) {
+      toast("Please sign in with wallet session first.", { icon: "🔐" });
+      return;
+    }
     if (!confirm("Are you sure you want to delete this secret key? Any services using it will be blocked.")) return;
     try {
       await deleteApiSecret(id, address as string);
