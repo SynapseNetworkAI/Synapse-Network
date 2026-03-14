@@ -243,7 +243,7 @@ export type ProviderSecret = {
   maskedKey: string;
   creditLimit?: number | null;
   resetInterval?: string | null;
-  expiration?: string | null;
+  expiration?: number | null;
   createdAt: number;
 };
 
@@ -261,7 +261,14 @@ export async function listApiSecrets(userAddress: string): Promise<ProviderSecre
   return Array.isArray(payload.secrets) ? payload.secrets : [];
 }
 
-export async function createApiSecret(name: string, userAddress: string, creditLimit: number | null = null, resetInterval: string | null = null, expiration: string | null = null, rpm: number | null = null): Promise<ProviderSecret> {
+export async function createApiSecret(
+  name: string,
+  userAddress: string,
+  creditLimit: number | null = null,
+  resetInterval: string | null = null,
+  expiration: number | null = null,
+  rpm: number | null = null,
+): Promise<ProviderSecret> {
   const response = await fetch(`${API_BASE_URL.replace('/services', '/secrets')}`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),

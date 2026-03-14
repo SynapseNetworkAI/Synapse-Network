@@ -85,3 +85,28 @@
 - **创建凭证**: 弹出专属 Modal，要求输入易于记忆的名称（如“Chatbot Key”），可选的并发上限（RPM）和明确的过期策略（如 30 days）。每个字段配有完整的 Info Tooltip 用于辅导。
 - **关联视图**: 页面弱化原先繁重的“Agent”逻辑，统一转换为极简的 "Wallet 关联 Keys -> Keys 调动 Services" 的层级。
 
+## 7. 买家凭证与卖家凭证是否要隔离（结论与方案）
+
+### 7.1 结论
+需要隔离。至少做**逻辑隔离**，生产环境建议做**物理隔离**。
+
+### 7.2 为什么要隔离
+- 权限边界不同：Buyer Credential 负责消费扣费；Provider Secret 负责卖家控制平面与服务调用授权。
+- 风险模型不同：买家侧重点是余额盗刷与超扣；卖家侧重点是服务被滥用、密钥泄露导致供应侧损失。
+- 审计主体不同：买家审计看消费责任链，卖家审计看服务收益与调用来源，查询维度天然不同。
+- 降低爆炸半径：任一侧凭证泄露，不应横向影响另一侧业务权限。
+
+### 7.3 落地设计
+- Dev(JSON) 阶段：
+  - 统一文件可接受（例如 `credentials.json`），但每条记录必须带 `credentialType`（`buyer`/`provider`）。
+  - 服务层严格按 `credentialType` 进行鉴权与路由校验，禁止跨类型使用。
+- Prod(DB) 阶段：
+  - 建议拆分为 `buyer_credentials` 与 `provider_credentials` 两张表（或独立 schema）。
+  - 按类型单独配置限流、索引、轮转策略、审计 retention。
+  - 提供统一只读聚合视图给运营看板，不打破隔离边界。
+
+### 7.4 与当前实现的对齐建议
+- Provider Secret API (`/api/v2/secrets/*`) 固定处理 `provider` 侧凭据。
+- Buyer 调用凭据 (`/api/v1/credentials/*`) 固定处理 `buyer` 侧凭据。
+- 在后续 schema 迭代中补充 `credentialType` 字段，并在旧数据迁移时默认回填对应类型。
+

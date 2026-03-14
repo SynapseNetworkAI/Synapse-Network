@@ -17,8 +17,8 @@ export default function SecretsPage() {
   const [newSecretName, setNewSecretName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [creditLimit, setCreditLimit] = useState<string>("");
-    const [expiration, setExpiration] = useState("Never");
+  const [qpsLimit, setQpsLimit] = useState<string>("");
+  const [expiration, setExpiration] = useState("Never");
   
   useEffect(() => {
     async function init() {
@@ -44,15 +44,19 @@ export default function SecretsPage() {
     const finalName = newSecretName.trim() || `Secret Key ${secrets.length + 1}`;
     try {
       setIsCreating(true);
-      const cLimit = creditLimit.trim() ? parseFloat(creditLimit) : null;
-      const exp = expiration !== "Never" ? expiration : null;
-      
-      const newSecret = await createApiSecret(finalName, address as string, cLimit, null, exp, null);
+      const rpm = qpsLimit.trim() ? Number.parseInt(qpsLimit, 10) : null;
+      const expirationDays = expiration === "Never" ? null : Number.parseInt(expiration, 10);
+      const expirationTs = expirationDays && expirationDays > 0
+        ? Math.floor(Date.now() / 1000) + expirationDays * 24 * 3600
+        : null;
+
+      const newSecret = await createApiSecret(finalName, address as string, null, null, expirationTs, rpm);
       
       setSecrets([newSecret, ...secrets]);
       toast.success("Secret created successfully");
       setNewSecretName("");
-      setCreditLimit("");
+      setQpsLimit("");
+      setExpiration("Never");
       setIsModalOpen(false);
     } catch (error: unknown) { console.error('ERROR Loading secrets:', error);
       const msg = error instanceof Error ? error.message : String(error);
@@ -131,8 +135,8 @@ export default function SecretsPage() {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={creditLimit}
-                    onChange={(e) => setCreditLimit(e.target.value)}
+                    value={qpsLimit}
+                    onChange={(e) => setQpsLimit(e.target.value)}
                     placeholder="e.g. 50"
                     className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all"
                   />
@@ -156,9 +160,9 @@ export default function SecretsPage() {
                   className="w-full bg-[#0A0A0A] border border-gray-800 px-3 py-2 rounded-md text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all appearance-none"
                 >
                   <option value="Never">Never</option>
-                  <option value="30 days">30 days</option>
-                  <option value="60 days">60 days</option>
-                  <option value="90 days">90 days</option>
+                  <option value="30">30 days</option>
+                  <option value="60">60 days</option>
+                  <option value="90">90 days</option>
                 </select>
               </div>
             </div>
