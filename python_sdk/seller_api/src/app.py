@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.log_config import setup_logger
-from src.api.routers import auth, services, balance, agents, wallet
+from src.api.routers import auth, services, balance, wallet, credentials, forwarding
 from src.storage import get_storage, JsonStorage
 from src.services.v2_indexer import run_v2_deposit_indexer
 
@@ -63,7 +63,8 @@ def create_app() -> FastAPI:
     app.include_router(wallet.router, prefix="/api", tags=["wallet"])
     app.include_router(services.router, prefix="/api", tags=["services"])
     app.include_router(balance.router, prefix="/api", tags=["balance"])
-    app.include_router(agents.router, prefix="/api", tags=["agents"])
+    app.include_router(credentials.router, prefix="/api", tags=["credentials"])
+    app.include_router(forwarding.router, prefix="/api", tags=["forwarding"])
     
     @app.get("/health")
     async def health_check():

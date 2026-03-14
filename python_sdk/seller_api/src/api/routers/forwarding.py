@@ -8,16 +8,16 @@ from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
 
-ServiceIdHeader = Annotated[Optional[str], Header(default=None, alias="X-Service-Id")]
-CredentialHeader = Annotated[Optional[str], Header(default=None, alias="X-Credential")]
+ServiceIdHeader = Annotated[Optional[str], Header(alias="X-Service-Id")]
+CredentialHeader = Annotated[Optional[str], Header(alias="X-Credential")]
 StorageDep = Annotated[BaseStorage, Depends(get_storage)]
 
 
 @router.post("/v2/generate")
 async def generate_response_v2(
     request: InferenceRequest,
-    x_service_id: ServiceIdHeader,
-    x_credential: CredentialHeader,
     storage: StorageDep,
+    x_service_id: ServiceIdHeader = None,
+    x_credential: CredentialHeader = None,
 ):
     return await forwarding_service.generate_response_v2(storage, request, x_service_id, x_credential)
