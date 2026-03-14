@@ -49,7 +49,7 @@ export type ServiceRegistryPayload = {
   };
   invoke: {
     method: string;
-    url: string;
+    url?: string;
     targets?: Array<{
       url: string;
       weight?: number;

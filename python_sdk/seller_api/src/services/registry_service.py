@@ -21,7 +21,11 @@ def _generate_service_id(owner_wallet: str) -> str:
 
 def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:
     invoke = req_data.get("invoke") if isinstance(req_data.get("invoke"), dict) else {}
+    if not invoke:
+        raise ValueError("invoke is required")
     targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
+    if not targets:
+        raise ValueError("invoke.targets must contain at least one target")
     normalized_targets = []
     for row in targets:
         if not isinstance(row, dict):
@@ -34,6 +38,16 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
             "weight": int(row.get("weight") or 100),
             "region": row.get("region"),
         })
+    if not normalized_targets:
+        raise ValueError("invoke.targets must contain valid URLs")
+    health_check = req_data.get("healthCheck") if isinstance(req_data.get("healthCheck"), dict) else {}
+    if not health_check:
+        raise ValueError("healthCheck is required")
+    health_path = str(health_check.get("path") or "").strip()
+    if not health_path:
+        raise ValueError("healthCheck.path is required")
+    if not health_path.startswith("/"):
+        health_path = f"/{health_path}"
     constraints = req_data.get("constraints") if isinstance(req_data.get("constraints"), dict) else {}
     pricing_value = req_data.get("pricing")
     pricing_amount = "0"
@@ -43,9 +57,7 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
         pricing_currency = str(pricing_value.get("currency") or "USDC")
     elif pricing_value is not None:
         pricing_amount = str(pricing_value)
-    endpoint = str(invoke.get("url") or req_data.get("endpoint") or "").strip()
-    if not endpoint and normalized_targets:
-        endpoint = str(normalized_targets[0].get("url") or "").strip()
+    endpoint = str(normalized_targets[0].get("url") or "").strip()
     service_name = str(req_data.get("serviceName") or req_data.get("service_name") or "").strip()
     tags = req_data.get("tags") if isinstance(req_data.get("tags"), list) else req_data.get("intent") if isinstance(req_data.get("intent"), list) else []
 
@@ -64,15 +76,9 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
         "address": str(req_data.get("address") or owner_wallet),
         "status": str(req_data.get("status") or ("active" if req_data.get("isActive", True) else "inactive")),
         "isActive": bool(req_data.get("isActive", True)),
-        "healthCheck": req_data.get("healthCheck") if isinstance(req_data.get("healthCheck"), dict) else {
-            "path": str(req_data.get("health_check") or "/health"),
-            "url": str(req_data.get("health_check") or ""),
-            "method": "GET",
-            "intervalSec": 30,
-            "timeoutMs": min(int(constraints.get("timeoutMs") or constraints.get("timeout_ms") or 3000), 5000),
-            "successCodes": [200],
-            "healthyThreshold": 2,
-            "unhealthyThreshold": 3,
+        "healthCheck": {
+            **health_check,
+            "path": health_path,
         },
         "constraints": req_data.get("constraints") if isinstance(req_data.get("constraints"), dict) else {
             "timeoutMs": int(constraints.get("timeoutMs") or constraints.get("timeout_ms") or 3000),
@@ -97,26 +103,12 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
             "requestIdRequired": True,
             "responseSizeMetering": True,
         },
-        "invoke": invoke,
+        "invoke": {
+            **invoke,
+            "url": endpoint,
+            "targets": normalized_targets,
+        },
     }
-    if isinstance(normalized.get("healthCheck"), dict):
-        hc = dict(normalized["healthCheck"])
-        path = str(hc.get("path") or "").strip()
-        if not path:
-            path = "/health"
-        if not path.startswith("/"):
-            path = f"/{path}"
-        hc["path"] = path
-        normalized["healthCheck"] = hc
-    if isinstance(normalized.get("invoke"), dict):
-        inv = dict(normalized["invoke"])
-        if normalized_targets:
-            inv["targets"] = normalized_targets
-            if not inv.get("url"):
-                inv["url"] = normalized_targets[0]["url"]
-        elif inv.get("url"):
-            inv["targets"] = [{"url": str(inv["url"]), "weight": 100, "region": None}]
-        normalized["invoke"] = inv
     return normalized
 
 class RegistryService:

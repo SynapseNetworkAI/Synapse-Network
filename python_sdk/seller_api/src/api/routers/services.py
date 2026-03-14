@@ -17,7 +17,6 @@ class ServicePricing(BaseModel):
 
 class HealthCheckSpec(BaseModel):
     path: str = "/health"
-    url: Optional[str] = None
     method: str = "GET"
     intervalSec: int = 30
     timeoutMs: int = 3000
@@ -56,8 +55,7 @@ class InvokeMethod(BaseModel):
         region: Optional[str] = None
 
     method: str
-    url: str
-    targets: List[InvokeTarget] = Field(default_factory=list)
+    targets: List[InvokeTarget] = Field(min_length=1)
     timeoutMs: int = 3000
     request: dict
     response: dict
@@ -77,7 +75,7 @@ class RegisterServiceRequest(BaseModel):
     constraints: ConstraintsSpec = Field(default_factory=ConstraintsSpec)
     forwarding: ForwardingSpec = Field(default_factory=ForwardingSpec)
     metering: MeteringSpec = Field(default_factory=MeteringSpec)
-    invoke: Optional[InvokeMethod] = None
+    invoke: InvokeMethod
     isActive: bool = True
 
 

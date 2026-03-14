@@ -422,7 +422,6 @@ export default function DeployManifestPage() {
         },
         invoke: {
           method: "POST",
-          url: normalizedTargets[0],
           targets: normalizedTargets.map((url, index) => ({
             url,
             weight: index === 0 ? 100 : 80,

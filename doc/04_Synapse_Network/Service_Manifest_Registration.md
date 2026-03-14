@@ -317,47 +317,43 @@
   - 含义：上游调用 HTTP 方法。
   - 平台使用：转发引擎按该方法发起请求。
 
-6. `invoke.url`
-  - 含义：兼容字段，默认主目标地址（首选目标）。
-  - 平台使用：当 `invoke.targets` 缺失时回退使用。
-
-7. `invoke.targets[]`
+6. `invoke.targets[]`
   - 含义：集群目标地址列表，可带 `weight`、`region`。
   - 平台使用：按权重路由流量，支持同服务多节点高可用。
 
-8. `invoke.timeoutMs`
+7. `invoke.timeoutMs`
   - 含义：单次转发超时。
   - 平台使用：超时熔断与失败计数，防止慢请求拖垮资源池。
 
-9. `invoke.request.schema` / `invoke.response.schema`
+8. `invoke.request.schema` / `invoke.response.schema`
   - 含义：输入/输出 JSON 契约。
   - 平台使用：调用前参数校验与调用后结构校验，提升 Buyer 接入成功率。
 
-10. `healthCheck.path`
+9. `healthCheck.path`
   - 含义：统一探活路径（不是完整 URL）。
   - 平台使用：针对每个 target 组装 `origin + path` 执行健康检查。
 
-11. `constraints.maxRequestBytes` / `maxResponseBytes` / `maxQps`
+10. `constraints.maxRequestBytes` / `maxResponseBytes` / `maxQps`
   - 含义：请求大小、响应大小、QPS 上限。
   - 平台使用：网关限流/限包策略和安全防护阈值。
 
-12. `forwarding.requestIdHeader`
+11. `forwarding.requestIdHeader`
   - 含义：请求追踪头名（默认 `X-Synapse-Request-Id`）。
   - 平台使用：对账主键贯穿路由、计费、审计全链路。
 
-13. `forwarding.passThroughHeaders` / `injectHeaders`
+12. `forwarding.passThroughHeaders` / `injectHeaders`
   - 含义：透传或网关注入的转发头。
   - 平台使用：保留 trace、环境信息，并注入服务上下文。
 
-14. `forwarding.retryPolicy`
+13. `forwarding.retryPolicy`
   - 含义：失败重试策略。
   - 平台使用：仅对可重试状态码进行有限重试，避免无限重放。
 
-15. `metering.billingUnit` / `billOnError` / `billableStatusClasses`
+14. `metering.billingUnit` / `billOnError` / `billableStatusClasses`
   - 含义：计费单位、错误是否计费、哪些状态码计费。
   - 平台使用：扣费决策引擎，保证账单可解释可审计。
 
-16. `metering.requestIdRequired` / `responseSizeMetering`
+15. `metering.requestIdRequired` / `responseSizeMetering`
   - 含义：是否强制请求号、是否按响应大小参与计量。
   - 平台使用：防重复扣费与容量/成本精细化核算。
 

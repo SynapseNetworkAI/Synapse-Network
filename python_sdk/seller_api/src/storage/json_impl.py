@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 from .base import BaseStorage
 
 
@@ -10,7 +10,6 @@ def _normalize_service_row(row: Any) -> Any:
         return row
     service_name = str(row.get('serviceName') or row.get('name') or '').strip()
     invoke = row.get('invoke') if isinstance(row.get('invoke'), dict) else {}
-    endpoint = str(row.get('endpoint') or invoke.get('url') or '').strip()
     targets = invoke.get('targets') if isinstance(invoke.get('targets'), list) else []
     normalized_targets = []
     for item in targets:
@@ -24,8 +23,11 @@ def _normalize_service_row(row: Any) -> Any:
             'weight': int(item.get('weight') or 100),
             'region': item.get('region'),
         })
-    if not normalized_targets and endpoint:
-        normalized_targets = [{'url': endpoint, 'weight': 100, 'region': None}]
+    endpoint = str(normalized_targets[0].get('url') or '').strip() if normalized_targets else ''
+    health_check = row.get('healthCheck') if isinstance(row.get('healthCheck'), dict) else {}
+    path = str(health_check.get('path') or '/health').strip() or '/health'
+    if not path.startswith('/'):
+        path = f'/{path}'
     normalized = {
         **row,
         'schemaVersion': int(row.get('schemaVersion') or 2),
@@ -39,9 +41,9 @@ def _normalize_service_row(row: Any) -> Any:
             'maxRequestBytes': 4096,
             'maxQps': 50,
         },
-        'healthCheck': row.get('healthCheck') if isinstance(row.get('healthCheck'), dict) else {
-            'path': str(row.get('health_check') or '/health'),
-            'url': str(row.get('health_check') or ''),
+        'healthCheck': {
+            **health_check,
+            'path': path,
             'method': 'GET',
             'intervalSec': 30,
             'timeoutMs': 3000,
@@ -55,13 +57,6 @@ def _normalize_service_row(row: Any) -> Any:
             'targets': normalized_targets,
         },
     }
-    if isinstance(normalized.get('healthCheck'), dict):
-        hc = dict(normalized['healthCheck'])
-        path = str(hc.get('path') or '').strip() or '/health'
-        if not path.startswith('/'):
-            path = f'/{path}'
-        hc['path'] = path
-        normalized['healthCheck'] = hc
     return normalized
 
 class JsonStorage(BaseStorage):
@@ -95,8 +90,6 @@ class JsonStorage(BaseStorage):
                         return data['intents']
                     if collection_name == 'usage_log' and 'logs' in data:
                         return data['logs']
-                if collection_name == 'service_registry' and isinstance(data, list):
-                    return [_normalize_service_row(svc) for svc in data]
                 return data
         except json.JSONDecodeError:
             if collection_name in {'credentials', 'agent_credentials', 'buyer_credentials', 'seller_secrets', 'provider_secrets'}: return {}

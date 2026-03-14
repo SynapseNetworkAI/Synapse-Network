@@ -274,10 +274,15 @@ async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) 
         target_urls.append(url)
         target_weights.append(max(1, int(item.get("weight") or 100)))
 
-    if target_urls:
-        upstream_url = random.choices(target_urls, weights=target_weights, k=1)[0]
-    else:
-        upstream_url = str(invoke.get("url") or "http://127.0.0.1:8100/api/v1/quotes/famous")
+    if not target_urls:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_INVOKE_CONFIG",
+                "message": "invoke.targets must contain at least one valid target URL",
+            },
+        )
+    upstream_url = random.choices(target_urls, weights=target_weights, k=1)[0]
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         headers = {"X-Request-Id": request_id}

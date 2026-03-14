@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = ROOT / "seller_api"
@@ -41,38 +42,44 @@ def test_normalize_payload_prefers_targets_and_normalizes_health_path():
     assert normalized["healthCheck"]["path"] == "/ready"
 
 
-def test_normalize_payload_backfills_targets_from_single_url():
+def test_normalize_payload_requires_targets():
     payload = {
         "serviceName": "Single Endpoint Service",
         "invoke": {
             "method": "POST",
-            "url": "http://127.0.0.1:8100/infer",
+            "targets": [],
             "timeoutMs": 3000,
             "request": {"contentType": "application/json", "schema": {}},
             "response": {"contentType": "application/json", "schema": {}},
         },
+        "healthCheck": {"path": "/health", "method": "GET"},
     }
 
-    normalized = _normalize_service_payload(payload, "0xabc")
-
-    assert normalized["invoke"]["targets"] == [
-        {"url": "http://127.0.0.1:8100/infer", "weight": 100, "region": None}
-    ]
+    with pytest.raises(ValueError) as exc:
+        _normalize_service_payload(payload, "0xabc")
+    assert "invoke.targets" in str(exc.value)
 
 
-def test_storage_row_normalization_migrates_health_path_and_targets():
+def test_storage_row_normalization_keeps_new_shape():
     row = {
-        "serviceName": "Legacy Service",
-        "endpoint": "http://127.0.0.1:8100/api/v1/legacy",
-        "health_check": "healthz",
+        "serviceName": "Cluster Service",
+        "healthCheck": {"path": "ready", "method": "GET"},
+        "invoke": {
+            "method": "POST",
+            "targets": [
+                {"url": "http://127.0.0.1:8100/api/v1/cluster", "weight": 90, "region": "sg-1"},
+                {"url": "http://127.0.0.1:8101/api/v1/cluster", "weight": 10, "region": "sg-2"},
+            ],
+        },
     }
 
     normalized = _normalize_service_row(row)
 
-    assert normalized["healthCheck"]["path"] == "/healthz"
-    assert normalized["invoke"]["url"] == "http://127.0.0.1:8100/api/v1/legacy"
+    assert normalized["healthCheck"]["path"] == "/ready"
+    assert normalized["invoke"]["url"] == "http://127.0.0.1:8100/api/v1/cluster"
     assert normalized["invoke"]["targets"] == [
-        {"url": "http://127.0.0.1:8100/api/v1/legacy", "weight": 100, "region": None}
+        {"url": "http://127.0.0.1:8100/api/v1/cluster", "weight": 90, "region": "sg-1"},
+        {"url": "http://127.0.0.1:8101/api/v1/cluster", "weight": 10, "region": "sg-2"},
     ]
 
 
@@ -131,7 +138,6 @@ async def test_call_upstream_uses_targets_selection(monkeypatch):
                 {"url": "http://10.0.0.1:8100/infer", "weight": 100},
                 {"url": "http://10.0.0.2:8100/infer", "weight": 20},
             ],
-            "url": "http://fallback:8100/infer",
         }
     }
 
@@ -143,25 +149,15 @@ async def test_call_upstream_uses_targets_selection(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_call_upstream_falls_back_to_invoke_url(monkeypatch):
-    calls = []
-
-    def _fake_client_factory(timeout=15.0):
-        assert abs(timeout - 15.0) < 1e-6
-        return _FakeAsyncClient(calls)
-
-    monkeypatch.setattr(forwarding_service.httpx, "AsyncClient", _fake_client_factory)
-
+async def test_call_upstream_requires_targets():
     service = {
         "invoke": {
             "method": "GET",
-            "url": "http://fallback:8100/infer",
             "targets": [],
         }
     }
 
-    quote = await forwarding_service._call_upstream(service, "hello", "req-456")
-
-    assert quote == "ok"
-    assert calls[0][0] == "GET"
-    assert calls[0][1] == "http://fallback:8100/infer"
+    with pytest.raises(HTTPException) as exc:
+        await forwarding_service._call_upstream(service, "hello", "req-456")
+    assert exc.value.status_code == 500
+    assert "invoke.targets" in str(exc.value.detail)
