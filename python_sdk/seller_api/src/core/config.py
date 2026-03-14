@@ -26,6 +26,13 @@ def _load_router_address_from_contract_config() -> str:
     except Exception:
         return ""
 
+
+def _default_runtime_storage_dir() -> str:
+    # Shared runtime storage root for all JSON persistence artifacts.
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "runtime_storage")
+    )
+
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
     environment: str = os.getenv("ENVIRONMENT", "development")
@@ -43,8 +50,10 @@ class Settings:
     private_key: str = os.getenv("PRIVATE_KEY", "")
     # Optional contract address used by compatibility paths.
     contract_address: str = os.getenv("CONTRACT_ADDRESS", "")
-    # Base data directory for JSON storage in local/runtime environments.
-    data_dir: str = os.getenv("DATA_DIR", ".")
+    # Unified runtime directory for JSON persistence (ledgers, intents, logs, configs).
+    runtime_storage_dir: str = os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir())
+    # Storage directory used by JsonStorage; defaults to unified runtime directory.
+    data_dir: str = os.getenv("DATA_DIR", os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir()))
     # JWT secret for auth token signing and verification.
     jwt_secret: str = os.getenv("JWT_SECRET", "super-secret-key-change-me")
     # API bind host.

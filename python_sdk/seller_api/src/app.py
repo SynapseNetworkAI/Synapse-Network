@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize storage on startup
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    data_dir = os.path.abspath(settings.data_dir)
+    os.makedirs(data_dir, exist_ok=True)
     storage = JsonStorage(directory=data_dir)
     app.state.storage = storage
     logger.info("Application starting up... Storage Connected.")

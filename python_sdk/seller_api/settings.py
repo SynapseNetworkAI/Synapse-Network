@@ -18,6 +18,21 @@ def _load_router_address_from_contract_config() -> str:
     except Exception:
         return ""
 
+
+def _default_runtime_storage_dir() -> str:
+    # Keep all runtime JSON artifacts under one directory instead of python_sdk root.
+    return os.path.abspath(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "runtime_storage")
+    )
+
+
+RUNTIME_STORAGE_DIR = os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir())
+os.makedirs(RUNTIME_STORAGE_DIR, exist_ok=True)
+
+
+def _runtime_path(filename: str) -> str:
+    return os.path.join(RUNTIME_STORAGE_DIR, filename)
+
 # Chain RPC endpoint for payment verification and event reads.
 RPC_URL = os.getenv("RPC_URL", "http://127.0.0.1:8545")
 # Fallback seller address used by legacy payment validation flows.
@@ -46,13 +61,13 @@ INVALID_ADDRESS_MESSAGE = "address is invalid"
 # Service registry persistence path.
 SERVICE_REGISTRY_PATH = os.getenv(
     "SERVICE_REGISTRY_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "service_registry.json"),
+    _runtime_path("service_registry.json"),
 )
 
 # Agent registry persistence path.
 AGENT_REGISTRY_PATH = os.getenv(
     "AGENT_REGISTRY_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent_registry.json"),
+    _runtime_path("agent_registry.json"),
 )
 
 # JWT secret for wallet auth challenge/verify.
@@ -67,47 +82,47 @@ ALLOW_LEGACY_AUTH = os.getenv("ALLOW_LEGACY_AUTH", "1") == "1"
 # Credential store path.
 AGENT_CREDENTIALS_PATH = os.getenv(
     "AGENT_CREDENTIALS_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "agent_credentials.json"),
+    _runtime_path("agent_credentials.json"),
 )
 # Audit log JSONL path.
 AUDIT_LOG_PATH = os.getenv(
     "AUDIT_LOG_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "audit_log.jsonl"),
+    _runtime_path("audit_log.jsonl"),
 )
 # Buyer/seller/platform balance ledger path.
 BALANCE_LEDGER_PATH = os.getenv(
     "BALANCE_LEDGER_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "balance_ledger.json"),
+    _runtime_path("balance_ledger.json"),
 )
 # Usage log path for metering results.
 USAGE_LOG_PATH = os.getenv(
     "USAGE_LOG_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "usage_log.json"),
+    _runtime_path("usage_log.json"),
 )
 # Deposit intent queue path.
 DEPOSIT_INTENTS_PATH = os.getenv(
     "DEPOSIT_INTENTS_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_intents.json"),
+    _runtime_path("deposit_intents.json"),
 )
 # Cursor file path for legacy deposit scanner.
 DEPOSIT_EVENT_CURSOR_PATH = os.getenv(
     "DEPOSIT_EVENT_CURSOR_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_event_cursor.json"),
+    _runtime_path("deposit_event_cursor.json"),
 )
 # Processed event-key store path for idempotency.
 DEPOSIT_EVENT_PROCESSED_PATH = os.getenv(
     "DEPOSIT_EVENT_PROCESSED_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "deposit_event_processed.json"),
+    _runtime_path("deposit_event_processed.json"),
 )
 # Refund intent queue path.
 REFUND_INTENTS_PATH = os.getenv(
     "REFUND_INTENTS_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "refund_intents.json"),
+    _runtime_path("refund_intents.json"),
 )
 # Router owner-level config persistence path.
 ROUTER_CONFIG_PATH = os.getenv(
     "ROUTER_CONFIG_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "router_config.json"),
+    _runtime_path("router_config.json"),
 )
 # Confirmations required by the v2 deposit indexer.
 V2_DEPOSIT_CONFIRMATIONS = int(os.getenv("V2_DEPOSIT_CONFIRMATIONS", "1"))
@@ -167,5 +182,8 @@ AUTH_RESPONSES = {
 # Wallet role map persistence path.
 WALLET_ROLES_PATH = os.getenv(
     "WALLET_ROLES_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "wallet_roles.json"),
+    _runtime_path("wallet_roles.json"),
 )
+
+# Provider secret store path used by persistence helper functions.
+PROVIDER_SECRETS_PATH = os.getenv("PROVIDER_SECRETS_PATH", _runtime_path("provider_secrets.json"))

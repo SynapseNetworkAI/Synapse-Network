@@ -17,6 +17,7 @@ from .settings import (
     ROUTER_CONFIG_PATH,
     SERVICE_REGISTRY_PATH,
     USAGE_LOG_PATH,
+    PROVIDER_SECRETS_PATH,
 )
 
 
@@ -244,10 +245,8 @@ def enforce_wallet_role(wallet: str, required_role: str) -> None:
 
 
 def load_provider_secrets() -> List[Dict[str, Any]]:
-    path = os.path.join(os.path.dirname(AGENT_REGISTRY_PATH), "provider_secrets.json")
-    data = _read_json(path, [])
+    data = _read_json(PROVIDER_SECRETS_PATH, [])
     return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
 
 def save_provider_secrets(rows: List[Dict[str, Any]]) -> None:
-    path = os.path.join(os.path.dirname(AGENT_REGISTRY_PATH), "provider_secrets.json")
-    _write_json_atomic(path, rows)
+    _write_json_atomic(PROVIDER_SECRETS_PATH, rows)
