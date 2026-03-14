@@ -24,6 +24,7 @@ def _service_manifest_template() -> Dict[str, Any]:
         },
         "constraints": {
             "max_response_bytes": 2048,
+            "max_request_bytes": 4096,
             "timeout_ms": 3000,
             "max_qps": 50,
         },

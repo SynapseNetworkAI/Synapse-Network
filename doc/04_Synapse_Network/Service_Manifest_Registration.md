@@ -146,10 +146,52 @@
   "serviceName": "获取名人名言",
   "role": "Provider / Seller",
   "address": "0x...",
-  "pricing": "0.05",
+  "pricing": {
+    "currency": "USDC",
+    "amount": "0.05"
+  },
   "isActive": true,
+  "status": "active",
   "summary": "输入主题返回名人名言",
   "tags": ["quote", "cn"],
+  "auth": {
+    "type": "service_key",
+    "headerName": "X-Credential"
+  },
+  "healthCheck": {
+    "url": "http://127.0.0.1:8100/health",
+    "method": "GET",
+    "intervalSec": 30,
+    "timeoutMs": 3000,
+    "successCodes": [200],
+    "healthyThreshold": 2,
+    "unhealthyThreshold": 3
+  },
+  "constraints": {
+    "timeoutMs": 3000,
+    "maxResponseBytes": 2048,
+    "maxRequestBytes": 4096,
+    "maxQps": 50
+  },
+  "forwarding": {
+    "requestIdHeader": "X-Synapse-Request-Id",
+    "passThroughHeaders": ["X-Trace-Id", "X-Client-Version"],
+    "injectHeaders": {
+      "X-Synapse-Service-Id": "get_famous_quotes_top3"
+    },
+    "retryPolicy": {
+      "maxAttempts": 2,
+      "backoffMs": 200,
+      "retryOnStatus": [429, 500, 502, 503, 504]
+    }
+  },
+  "metering": {
+    "billingUnit": "per_call",
+    "billOnError": false,
+    "billableStatusClasses": [2],
+    "requestIdRequired": true,
+    "responseSizeMetering": true
+  },
   "invoke": {
     "method": "POST",
     "url": "http://127.0.0.1:8100/api/v1/quotes/famous",
@@ -184,13 +226,68 @@
   "service": {
     "id": "2f3f...",
     "serviceId": "SVC_SA_0Z8K2F_7Q3N",
+   "schemaVersion": 2,
     "serviceName": "获取名人名言",
-    "pricing": "0.05",
+   "pricing": {
+    "currency": "USDC",
+    "amount": "0.05"
+   },
     "isActive": true,
+   "status": "active",
+   "healthCheck": { "...": "..." },
+   "constraints": { "...": "..." },
+   "forwarding": { "...": "..." },
+   "metering": { "...": "..." },
     "invoke": { "...": "..." }
   }
 }
 ```
+
+### 5.1.1 参考 Google/AWS 的注册增强字段（建议必备）
+
+1. **可用性字段（Availability）**
+  - `healthCheck.url/method/intervalSec/timeoutMs/successCodes`
+  - `healthyThreshold` / `unhealthyThreshold`
+  - 作用：避免把流量打给已退化节点，提升 Buyer 成功率。
+
+2. **转发与熔断字段（Forwarding & Protection）**
+  - `constraints.timeoutMs`
+  - `constraints.maxRequestBytes` / `maxResponseBytes`
+  - `constraints.maxQps`
+  - `forwarding.retryPolicy`
+  - 作用：控制资源上限、防止大包与慢请求拖垮网关。
+
+3. **可观测与追踪字段（Observability）**
+  - `forwarding.requestIdHeader`（标准化 `X-Synapse-Request-Id`）
+  - `forwarding.passThroughHeaders`（trace 透传）
+  - 作用：实现端到端追踪与工单级对账。
+
+4. **计费字段（Metering）**
+  - `metering.billingUnit`
+  - `metering.billOnError`
+  - `metering.billableStatusClasses`
+  - `metering.responseSizeMetering`
+  - 作用：确保扣费与转发结果可解释、可审计、可复算。
+
+### 5.1.2 如何保证“注册后服务可用、安全、易接入、易统计”
+
+1. **可用性（Service Availability）**
+  - 注册时强制 `invoke.url` + `healthCheck`，并在上线前做一次主动探测。
+  - 健康检查失败服务不进入 `discover` 可路由池。
+
+2. **安全性（Security）**
+  - `auth.type=service_key` 且要求请求带 `X-Credential`。
+  - 网关注入 `X-Synapse-Request-Id`，卖家端必须落库该请求号用于幂等与审计。
+  - 通过 `maxRequestBytes/maxResponseBytes` 防止 payload 滥用。
+
+3. **Buyer 易接入（Developer Experience）**
+  - 保证 `invoke.request.schema` / `invoke.response.schema` 最小可用。
+  - 提供 `invoke.examples`，让模型可直接 few-shot 调用。
+
+4. **平台可统计、可扣费、可转发（Ops & Billing）**
+  - 统一 `requestId` 作为路由、账单、审计主键。
+  - `metering` 明确哪些状态码计费、错误是否计费。
+  - `forwarding.retryPolicy` 保证重试行为可预测，避免重复扣费。
 
 ### 5.2 Update（不允许改 `serviceId`）
 

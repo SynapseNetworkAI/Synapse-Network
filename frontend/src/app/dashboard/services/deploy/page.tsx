@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle2, Wand2, TerminalSquare, Server, X, Check } from
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { createServiceRegistry } from "@/utils/serviceApi";
 import AuthMask from "@/components/AuthMask";
 
 const PARSE_CURL_ENDPOINT = `${process.env.NEXT_PUBLIC_GATEWAY_BASE_URL || "http://127.0.0.1:8000"}/api/v2/services/parse-curl`;
@@ -28,6 +29,7 @@ const OVERRIDABLE_PATHS = [
   "pricing.amount",
   "pricing.type",
   "constraints.max_response_bytes",
+  "constraints.max_request_bytes",
   "constraints.timeout_ms",
   "constraints.max_qps",
   "input_schema",
@@ -99,6 +101,7 @@ interface ServiceManifest {
   };
   constraints: {
     max_response_bytes: number;
+    max_request_bytes: number;
     timeout_ms: number;
     max_qps: number;
   };
@@ -122,6 +125,7 @@ export default function DeployManifestPage() {
     },
     constraints: {
       max_response_bytes: 2048,
+      max_request_bytes: 4096,
       timeout_ms: 3000,
       max_qps: 50,
     },
@@ -334,15 +338,97 @@ export default function DeployManifestPage() {
       toast.error(`AI interface validation failed: ${aiInterfaceValidationErrors[0]}`);
       return;
     }
+    if (!address) {
+      toast.error("Wallet not connected. Please connect wallet and sign in first.");
+      return;
+    }
     setIsDeploying(true);
-    localStorage.removeItem("synapse_manifest_draft"); // clear draft on deploy
-    // Simulate network delay
-    await new Promise((res) => setTimeout(res, 1500));
-    setIsDeploying(false);
+    try {
+      const endpoint = manifest.endpoint.trim();
+      const healthCheckUrl = manifest.health_check.trim() || (() => {
+        try {
+          const parsed = new URL(endpoint);
+          return `${parsed.protocol}//${parsed.host}/health`;
+        } catch {
+          return "";
+        }
+      })();
 
-    // Mock successful deployment & return of the HMAC key
-    setIsSuccess(true);
-    toast.success("Manifest successfully injected into Synapse Network!");
+      const payload = {
+        serviceName: manifest.service_name.trim(),
+        role: "Provider / Seller",
+        address,
+        pricing: manifest.pricing.amount,
+        isActive: true,
+        status: "active" as const,
+        summary: manifest.description.trim(),
+        tags: manifest.intent,
+        auth: {
+          type: "service_key",
+          headerName: "X-Credential",
+        },
+        healthCheck: {
+          url: healthCheckUrl,
+          method: "GET" as const,
+          intervalSec: 30,
+          timeoutMs: Math.min(5000, manifest.constraints.timeout_ms),
+          successCodes: [200],
+          healthyThreshold: 2,
+          unhealthyThreshold: 3,
+        },
+        constraints: {
+          timeoutMs: manifest.constraints.timeout_ms,
+          maxResponseBytes: manifest.constraints.max_response_bytes,
+          maxRequestBytes: manifest.constraints.max_request_bytes,
+          maxQps: manifest.constraints.max_qps,
+        },
+        forwarding: {
+          requestIdHeader: "X-Synapse-Request-Id",
+          passThroughHeaders: ["X-Trace-Id", "X-Client-Version"],
+          injectHeaders: {
+            "X-Synapse-Service-Id": manifest.agent_tool_name.trim(),
+          },
+          retryPolicy: {
+            maxAttempts: 2,
+            backoffMs: 200,
+            retryOnStatus: [429, 500, 502, 503, 504],
+          },
+        },
+        metering: {
+          billingUnit: "per_call" as const,
+          billOnError: false,
+          billableStatusClasses: [2 as 2],
+          requestIdRequired: true,
+          responseSizeMetering: true,
+        },
+        invoke: {
+          method: "POST",
+          url: endpoint,
+          timeoutMs: manifest.constraints.timeout_ms,
+          request: {
+            contentType: "application/json",
+            schema: manifest.input_schema as Record<string, unknown>,
+          },
+          response: {
+            schema: manifest.output_schema as Record<string, unknown>,
+          },
+          headersTemplate: {
+            "X-Synapse-Request-Id": "{{requestId}}",
+          },
+          examples: [],
+        },
+      };
+
+      await createServiceRegistry(payload, address);
+      localStorage.removeItem("synapse_manifest_draft");
+      setIsSuccess(true);
+      toast.success("Manifest successfully registered to Synapse Network!");
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : "Failed to deploy manifest";
+      toast.error(errMsg);
+    } finally {
+      setIsDeploying(false);
+    }
   };
 
   const readinessChecks = [
@@ -637,6 +723,18 @@ export default function DeployManifestPage() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Health Check Endpoint</label>
+              <input
+                type="text"
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
+                placeholder="https://your-server.com/health"
+                value={manifest.health_check}
+                onChange={(e) => handleUpdate("health_check", e.target.value)}
+              />
+              <p className="text-xs text-gray-600 mt-1">Recommended for routing safety. If empty, deploy uses endpoint host + /health.</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">Price / Call (USDC)</label>
@@ -648,6 +746,39 @@ export default function DeployManifestPage() {
                   onChange={(e) => handleUpdate("pricing.amount", e.target.value)}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Timeout (ms)</label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
+                  value={manifest.constraints.timeout_ms}
+                  onChange={(e) => handleUpdate("constraints.timeout_ms", parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Max Response Bytes</label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
+                  value={manifest.constraints.max_response_bytes}
+                  onChange={(e) => handleUpdate("constraints.max_response_bytes", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Max Request Bytes</label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
+                  value={manifest.constraints.max_request_bytes}
+                  onChange={(e) => handleUpdate("constraints.max_request_bytes", parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">Max QPS Rate Limit</label>
                 <input 

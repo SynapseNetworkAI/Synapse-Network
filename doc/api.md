@@ -224,6 +224,11 @@
   - Response: `{ status, data, fallback, reason?, raw? }`
   - `data` is always a manifest object for frontend `Expected / Generated JSON Response` rendering.
   - When DeepSeek is unavailable/invalid, backend returns `fallback=true` with heuristic manifest to avoid empty payload crashes.
+- **`POST /api/v2/services` registration fields (v2 enhanced)**:
+  - `healthCheck`: active probe policy (`url/method/intervalSec/timeoutMs/successCodes/...`)
+  - `constraints`: forwarding limits (`timeoutMs/maxRequestBytes/maxResponseBytes/maxQps`)
+  - `forwarding`: routing behavior (`requestIdHeader/passThroughHeaders/injectHeaders/retryPolicy`)
+  - `metering`: billing strategy (`billingUnit/billOnError/billableStatusClasses/requestIdRequired/responseSizeMetering`)
 
 ---
 

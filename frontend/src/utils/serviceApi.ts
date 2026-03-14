@@ -3,15 +3,48 @@ import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 export type ServiceRegistryPayload = {
   id?: string;
   serviceName: string;
-  role: string;
-  address: string;
-  pricing: string;
+  role?: string;
+  address?: string;
+  pricing: string | { currency: string; amount: string };
   isActive: boolean;
   summary?: string;
   tags?: string[];
+  status?: "active" | "inactive" | "archived";
   auth?: {
     type?: string;
     headerName?: string;
+  };
+  healthCheck?: {
+    url?: string;
+    method?: "GET" | "HEAD" | "POST";
+    intervalSec?: number;
+    timeoutMs?: number;
+    successCodes?: number[];
+    healthyThreshold?: number;
+    unhealthyThreshold?: number;
+  };
+  constraints?: {
+    timeoutMs?: number;
+    maxResponseBytes?: number;
+    maxRequestBytes?: number;
+    maxQps?: number;
+  };
+  forwarding?: {
+    requestIdHeader?: string;
+    passThroughHeaders?: string[];
+    injectHeaders?: Record<string, string>;
+    retryPolicy?: {
+      maxAttempts?: number;
+      backoffMs?: number;
+      retryOnStatus?: number[];
+    };
+  };
+  metering?: {
+    billingUnit?: "per_call" | "per_success_call";
+    billOnError?: boolean;
+    billableStatusClasses?: Array<2 | 4 | 5>;
+    requestIdRequired?: boolean;
+    responseSizeMetering?: boolean;
   };
   invoke: {
     method: string;
@@ -33,6 +66,7 @@ export type ServiceRegistryRecord = {
   id: string;
   name: string;
   serviceName?: string;
+  schemaVersion?: number;
   role: string;
   ownerAddress: string;
   address: string;
@@ -40,11 +74,44 @@ export type ServiceRegistryRecord = {
   pricing: string;
   endpoint: string;
   isActive: boolean;
+  status?: "active" | "inactive" | "archived";
   summary?: string | null;
   tags?: string[];
   auth?: {
     type?: string;
     headerName?: string;
+  } | null;
+  healthCheck?: {
+    url?: string;
+    method?: "GET" | "HEAD" | "POST";
+    intervalSec?: number;
+    timeoutMs?: number;
+    successCodes?: number[];
+    healthyThreshold?: number;
+    unhealthyThreshold?: number;
+  } | null;
+  constraints?: {
+    timeoutMs?: number;
+    maxResponseBytes?: number;
+    maxRequestBytes?: number;
+    maxQps?: number;
+  } | null;
+  forwarding?: {
+    requestIdHeader?: string;
+    passThroughHeaders?: string[];
+    injectHeaders?: Record<string, string>;
+    retryPolicy?: {
+      maxAttempts?: number;
+      backoffMs?: number;
+      retryOnStatus?: number[];
+    };
+  } | null;
+  metering?: {
+    billingUnit?: "per_call" | "per_success_call";
+    billOnError?: boolean;
+    billableStatusClasses?: Array<2 | 4 | 5>;
+    requestIdRequired?: boolean;
+    responseSizeMetering?: boolean;
   } | null;
   invoke?: {
     method: string;

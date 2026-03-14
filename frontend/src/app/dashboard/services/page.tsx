@@ -8,6 +8,22 @@ import toast from "react-hot-toast";
 import { discoverServices, listServiceRegistry, rotateServiceKey, testServicePing, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { useAuth } from "@/components/WalletAuthGuard";
 
+function formatPricing(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const payload = value as { amount?: string; currency?: string };
+    if (payload.amount && payload.currency) {
+      return `${payload.amount} ${payload.currency}`;
+    }
+    if (payload.amount) {
+      return payload.amount;
+    }
+  }
+  return "N/A";
+}
+
 export default function ServicesPage() {
   const { address } = useAccount();
   const { isSessionAuthenticated } = useAuth();
@@ -197,7 +213,7 @@ export default function ServicesPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Pricing</span>
-                  <span className="font-mono text-green-400">{svc.pricing} USDC</span>
+                  <span className="font-mono text-green-400">{formatPricing(svc.pricing)}</span>
                 </div>
               </div>
               
@@ -241,7 +257,7 @@ export default function ServicesPage() {
                 <p className="text-sm text-gray-400 mt-3 line-clamp-2">{svc.summary || "No summary provided."}</p>
                 <div className="mt-3 flex items-center justify-between text-xs">
                   <span className="text-gray-500">Pricing</span>
-                  <span className="text-green-300 font-mono">{svc.pricing || "N/A"}</span>
+                  <span className="text-green-300 font-mono">{formatPricing(svc.pricing)}</span>
                 </div>
               </div>
             ))}

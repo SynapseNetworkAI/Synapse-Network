@@ -4,7 +4,7 @@ from src.api.deps import get_registry_service
 from src.services.registry_service import RegistryService
 from src.services import credential_service
 from src.services.manifest_parser_service import parse_manifest_from_curl
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
@@ -15,16 +15,61 @@ class ServicePricing(BaseModel):
     currency: str = "USD"
     amount: str
 
+class HealthCheckSpec(BaseModel):
+    url: Optional[str] = None
+    method: str = "GET"
+    intervalSec: int = 30
+    timeoutMs: int = 3000
+    successCodes: List[int] = Field(default_factory=lambda: [200])
+    healthyThreshold: int = 2
+    unhealthyThreshold: int = 3
+
+class ConstraintsSpec(BaseModel):
+    timeoutMs: int = 3000
+    maxResponseBytes: int = 2048
+    maxRequestBytes: int = 4096
+    maxQps: int = 50
+
+class RetryPolicySpec(BaseModel):
+    maxAttempts: int = 2
+    backoffMs: int = 200
+    retryOnStatus: List[int] = Field(default_factory=lambda: [429, 500, 502, 503, 504])
+
+class ForwardingSpec(BaseModel):
+    requestIdHeader: str = "X-Synapse-Request-Id"
+    passThroughHeaders: List[str] = Field(default_factory=list)
+    injectHeaders: Dict[str, str] = Field(default_factory=dict)
+    retryPolicy: RetryPolicySpec = Field(default_factory=RetryPolicySpec)
+
+class MeteringSpec(BaseModel):
+    billingUnit: str = "per_call"
+    billOnError: bool = False
+    billableStatusClasses: List[int] = Field(default_factory=lambda: [2])
+    requestIdRequired: bool = True
+    responseSizeMetering: bool = True
+
 class InvokeMethod(BaseModel):
     method: str
+    url: str
+    timeoutMs: int = 3000
     request: dict
     response: dict
+    headersTemplate: Dict[str, str] = Field(default_factory=dict)
+    examples: List[Dict[str, Any]] = Field(default_factory=list)
 
 class RegisterServiceRequest(BaseModel):
     serviceName: str
-    pricing: ServicePricing
-    summary: str
-    tags: List[str] = []
+    role: str = "Provider / Seller"
+    address: Optional[str] = None
+    pricing: ServicePricing | str
+    summary: str = ""
+    tags: List[str] = Field(default_factory=list)
+    status: str = "active"
+    auth: Dict[str, Any] = Field(default_factory=dict)
+    healthCheck: HealthCheckSpec = Field(default_factory=HealthCheckSpec)
+    constraints: ConstraintsSpec = Field(default_factory=ConstraintsSpec)
+    forwarding: ForwardingSpec = Field(default_factory=ForwardingSpec)
+    metering: MeteringSpec = Field(default_factory=MeteringSpec)
     invoke: Optional[InvokeMethod] = None
     isActive: bool = True
 
