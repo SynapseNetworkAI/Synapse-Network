@@ -6,7 +6,6 @@ export type AgentCredentialRecord = {
   id: string;
   ownerAddress: string;
   name?: string;
-  serviceId?: string | null;
   tokenPrefix?: string;
   status: "active" | "revoked";
   maxCalls: number;
@@ -26,7 +25,6 @@ export type AgentCredentialIssueResponse = {
   token: string;
   ownerAddress: string;
   name?: string;
-  serviceId?: string | null;
   maxCalls: number;
   callsUsed: number;
   rpm: number;
@@ -64,7 +62,6 @@ async function parseError(response: Response, fallback: string): Promise<string>
 export async function issueAgentCredential(
   userAddress: string,
   payload: {
-    serviceId?: string;
     name?: string;
     expiresInSec?: number;
     maxCalls?: number;

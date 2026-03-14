@@ -60,7 +60,7 @@ export default function PaidInvokePanel({
           prompt: testPrompt,
           service_id: serviceId,
         },
-        agentCredential: getCredentialForService(serviceId),
+        credential: getCredentialForService(serviceId),
         payForService: async () =>
           payForServiceWithApproval({
             seller: sellerAddress as Address,

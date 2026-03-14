@@ -23,15 +23,14 @@
 
 ---
 
-## 2. `agent_credentials`
+## 2. `credentials`
 
 用途：保存调用凭据（仅存 hash，不存明文 token）。
 
 字段：
 - `id` (uuid, pk)
 - `owner_address` (varchar, index)
-- `agent_id` (varchar, index)
-- `service_scope` (json/text)
+- `credential_type` (buyer/provider, index)
 - `token_hash` (varchar, unique)
 - `token_prefix` (varchar)
 - `status` (active/revoked/expired)
@@ -45,7 +44,7 @@
 
 索引建议：
 - unique(`token_hash`)
-- index(`owner_address`, `agent_id`)
+- index(`owner_address`, `credential_type`)
 - index(`expires_at`)
 
 ---
@@ -111,7 +110,7 @@
 
 1) `usage_records.request_id` 全局唯一，确保幂等。  
 2) 扣费与 usage 状态更新同事务。  
-3) `agent_credentials.calls_used` 只在成功计费后递增。  
+3) `credentials.calls_used` 只在成功计费后递增。  
 4) 结算批次确认后，关联 usage 标记为 `settled=true`（可后续扩展字段）。
 
 ## 6. 状态流转建议
@@ -125,3 +124,21 @@
 若当前仍是 JSON 文件：
 - 先按同结构实现 repository 接口；
 - 后续切 DB 时仅替换 repository，不改网关业务逻辑。
+
+## 8. 买家凭据与卖家凭据是否隔离（结论）
+
+结论：**需要隔离（逻辑隔离为必须，物理隔离在生产建议启用）**。
+
+为什么：
+- 权限边界不同：Buyer credential 用于消费扣费；Provider credential 用于卖家控制平面，泄露风险模型不同。
+- 风控策略不同：Buyer 关注余额/限额/反超扣；Provider 关注服务发布与管理权限。
+- 审计诉求不同：两类凭据在合规审计中的主体、责任链与查询维度不同。
+- 降低爆炸半径：单侧凭据泄露时不应横向影响另一侧业务面。
+
+推荐落地：
+- Dev(JSON): 统一文件 `credentials.json`，但每条记录强制 `credential_type`，并在服务层按类型鉴权。
+- Prod(DB): 拆分为 `buyer_credentials` 与 `provider_credentials` 两张表（或独立 schema），同时保留统一查询视图用于运营看板。
+
+当前实现说明：
+- 运行时文件名统一为 `credentials.json`。
+- 历史字段 `agentId/serviceId/serviceRecordId` 已废弃，不再写入与返回。

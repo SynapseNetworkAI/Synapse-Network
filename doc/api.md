@@ -146,4 +146,15 @@
 - **一键撤销凭据**: `POST /api/v1/credentials/{credential_id}/revoke`
 - **更新凭据限额**: `PATCH /api/v1/credentials/{credential_id}/quota`
 
+创建凭据请求体（当前版本）：
+- `name` (optional)
+- `expiresInSec` (optional)
+- `maxCalls` (optional)
+- `rpm` (optional)
+- `creditLimit` (optional)
+- `resetInterval` (optional)
+- `expiration` (optional)
+
+说明：凭据不再绑定 `serviceId`，服务选择在调用阶段通过 `X-Service-Id`/请求体 `serviceId` 决定。
+
 > 这一组 API 将主钱包的高额安全和实际高频、暴露给多物理机的子实例解耦，完美支撑了“大额充值不暴露主密钥”的重要愿景。

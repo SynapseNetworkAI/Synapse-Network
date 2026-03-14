@@ -18,6 +18,7 @@ from src.storage import BaseStorage
 write_lock = asyncio.Lock()
 _CREDENTIALS_COLLECTION = "credentials"
 _LEGACY_CREDENTIALS_COLLECTION = "agent_credentials"
+_REMOVED_CREDENTIAL_FIELDS = {"agentId", "serviceId", "serviceRecordId"}
 
 
 def now_ts() -> int:
@@ -63,11 +64,18 @@ def require_owner_wallet(authorization: Optional[str], x_user_address: Optional[
 
 def normalize_credential_rows(raw: Any) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     if isinstance(raw, list):
-        return [r for r in raw if isinstance(r, dict)], {}
+        rows = [r for r in raw if isinstance(r, dict)]
+        for row in rows:
+            for field in _REMOVED_CREDENTIAL_FIELDS:
+                row.pop(field, None)
+        return rows, {}
 
     if isinstance(raw, dict):
         base_rows = raw.get("credentials") if isinstance(raw.get("credentials"), list) else []
         rows = [r for r in base_rows if isinstance(r, dict)]
+        for row in rows:
+            for field in _REMOVED_CREDENTIAL_FIELDS:
+                row.pop(field, None)
         extras = {k: v for k, v in raw.items() if k not in {"credentials", "updatedAt"}}
         return rows, extras
 
@@ -80,18 +88,20 @@ def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extra
         payload.update(extras)
 
     storage.save_collection(_CREDENTIALS_COLLECTION, payload)
-    # Backward compatibility for old consumers still reading agent_credentials.json.
-    storage.save_collection(_LEGACY_CREDENTIALS_COLLECTION, payload)
 
 
 def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     primary = storage.get_collection(_CREDENTIALS_COLLECTION)
     rows, extras = normalize_credential_rows(primary)
-    if rows:
+    if rows or extras:
         return rows, extras
 
     legacy = storage.get_collection(_LEGACY_CREDENTIALS_COLLECTION)
-    return normalize_credential_rows(legacy)
+    legacy_rows, legacy_extras = normalize_credential_rows(legacy)
+    if legacy_rows or legacy_extras:
+        # One-way migration: read legacy once, then write canonical credentials store.
+        save_credential_rows(storage, legacy_rows, legacy_extras)
+    return legacy_rows, legacy_extras
 
 
 def resolve_ttl_seconds(expires_in_sec: Optional[int]) -> int:
@@ -183,7 +193,6 @@ def _build_visible_credential(row: Dict[str, Any]) -> Dict[str, Any]:
         "id": row.get("id"),
         "ownerAddress": row.get("ownerAddress"),
         "name": row.get("name"),
-        "serviceId": row.get("serviceId"),
         "tokenPrefix": row.get("tokenPrefix"),
         "status": row.get("status"),
         "maxCalls": row.get("maxCalls"),
@@ -263,7 +272,6 @@ async def issue_credential_for_owner(storage: BaseStorage, owner_wallet: str, re
         "id": str(uuid4()),
         "ownerAddress": owner_wallet,
         "name": (req.name or "My Secret Key").strip(),
-        "serviceId": req.serviceId,
         "tokenHash": hash_token(plain_token),
         "tokenPrefix": token_prefix(plain_token),
         "status": "active",

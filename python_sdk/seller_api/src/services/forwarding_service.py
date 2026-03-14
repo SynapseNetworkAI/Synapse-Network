@@ -150,12 +150,6 @@ def _validate_service_id(x_service_id: Optional[str], request_service_id: Option
     return service_id
 
 
-def _validate_credential_service_binding(credential: Dict[str, Any], service_id: str) -> None:
-    bound_service_id = str(credential.get("serviceId") or "").strip()
-    if bound_service_id and bound_service_id != service_id:
-        raise HTTPException(status_code=403, detail={"code": "CREDENTIAL_SERVICE_MISMATCH", "message": "Credential serviceId mismatch"})
-
-
 async def _check_credit_limit(credential: Dict[str, Any], unit_price: float) -> None:
     credit_limit = credential.get("creditLimit")
     if credit_limit is None:
@@ -304,7 +298,6 @@ async def generate_response_v2(
         raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_REQUIRED", "message": "X-Credential is required for /api/v2/generate"})
 
     credential = credential_service.resolve_active_credential(storage, credential_token)
-    _validate_credential_service_binding(credential, service_id)
     await _check_rpm_limit(str(credential.get("id")), int(credential.get("rpm") or 0))
 
     service = _find_active_service(storage, service_id)

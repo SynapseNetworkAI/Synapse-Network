@@ -25,7 +25,6 @@ class TokenResponse(BaseResponse):
 
 
 class CredentialIssueRequest(BaseModel):
-    serviceId: Optional[str] = None
     name: Optional[str] = None
     expiresInSec: Optional[int] = None
     maxCalls: Optional[int] = None

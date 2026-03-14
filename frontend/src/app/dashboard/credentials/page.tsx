@@ -88,7 +88,8 @@ function CredentialsContent() {
 
   const filteredCredentials = useMemo(() => {
     if (!serviceFilter) return credentials;
-    return credentials.filter((item) => !item.serviceId || item.serviceId === serviceFilter);
+    // Credentials are owner-scoped now and no longer service-bound.
+    return credentials;
   }, [credentials, serviceFilter]);
 
 
@@ -164,9 +165,7 @@ function CredentialsContent() {
       const res = await issueAgentCredential(userAddress, payload);
       setLatestIssued(res);
 
-      if (!res.serviceId) {
-        setCredentialForService("OWNER_SHARED", res.token);
-      }
+      setCredentialForService("OWNER_SHARED", res.token);
 
       toast.success("API Key successfully generated");
       await loadAll();
