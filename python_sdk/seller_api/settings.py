@@ -1,189 +1,52 @@
-import json
-import os
+"""Deprecated compatibility layer.
 
+All new code should import `settings` from `src.core.config`.
+This module remains only to preserve legacy constant imports.
+"""
 
-def _load_router_address_from_contract_config() -> str:
-    """Fallback: read deployed router/core address from frontend contract-config."""
-    try:
-        seller_api_dir = os.path.dirname(os.path.abspath(__file__))
-        contract_config_path = os.path.join(seller_api_dir, "..", "..", "frontend", "src", "contract-config.json")
-        contract_config_path = os.path.abspath(contract_config_path)
-        if not os.path.exists(contract_config_path):
-            return ""
-        with open(contract_config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        # Prefer SynapseCore; fallback to legacy router key.
-        value = data.get("SynapseCore") or data.get("A2APaySyncRouter") or ""
-        return str(value).strip()
-    except Exception:
-        return ""
+from src.core.config import settings
 
-
-def _default_runtime_storage_dir() -> str:
-    # Keep all runtime JSON artifacts under one directory instead of python_sdk root.
-    return os.path.abspath(
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "runtime_storage")
-    )
-
-
-RUNTIME_STORAGE_DIR = os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir())
-os.makedirs(RUNTIME_STORAGE_DIR, exist_ok=True)
-
-
-def _runtime_path(filename: str) -> str:
-    return os.path.join(RUNTIME_STORAGE_DIR, filename)
-
-# Chain RPC endpoint for payment verification and event reads.
-RPC_URL = os.getenv("RPC_URL", "http://127.0.0.1:8545")
-# Fallback seller address used by legacy payment validation flows.
-SELLER_ADDRESS = os.getenv("SELLER_ADDRESS", "0x0000000000000000000000000000000000000000")
-# Legacy expected payment amount (wei) when service-specific pricing is absent.
-EXPECTED_PRICE = int(os.getenv("EXPECTED_PRICE", "1000000000000000000"))
-# Router contract to validate on-chain payments and deposits.
-ROUTER_ADDRESS = os.getenv("ROUTER_ADDRESS", "").strip() or _load_router_address_from_contract_config() or "0x0000000000000000000000000000000000000000"
-# Minimum confirmations for legacy payment verification endpoints.
-MIN_CONFIRMATIONS = int(os.getenv("MIN_CONFIRMATIONS", "1"))
-# Maximum seconds to wait for pending payment confirmation.
-PAYMENT_TTL_SEC = int(os.getenv("PAYMENT_TTL_SEC", "600"))
-# Optional allow-list for accepted token contracts.
-ALLOWED_TOKEN_ADDRESSES = {
-    addr.strip().lower()
-    for addr in os.getenv("ALLOWED_TOKEN_ADDRESSES", "").split(",")
-    if addr.strip()
-}
-# JSON map for per-service static pricing overrides.
-SERVICE_PRICES_JSON = os.getenv("SERVICE_PRICES_JSON", "{}")
-# Generic timeout message returned when payment confirmation exceeds TTL.
-PAYMENT_TIMEOUT_MESSAGE = "Payment confirmation timed out"
-# Generic invalid-address error message for request validation.
-INVALID_ADDRESS_MESSAGE = "address is invalid"
-
-# Service registry persistence path.
-SERVICE_REGISTRY_PATH = os.getenv(
-    "SERVICE_REGISTRY_PATH",
-    _runtime_path("service_registry.json"),
-)
-
-# Agent registry persistence path.
-AGENT_REGISTRY_PATH = os.getenv(
-    "AGENT_REGISTRY_PATH",
-    _runtime_path("agent_registry.json"),
-)
-
-# JWT secret for wallet auth challenge/verify.
-AUTH_SECRET = os.getenv("AUTH_SECRET", "dev-secret-change-me")
-# Token TTL (seconds) for signed auth sessions.
-AUTH_TOKEN_TTL_SEC = int(os.getenv("AUTH_TOKEN_TTL_SEC", "3600"))
-# Challenge nonce TTL (seconds) for replay protection.
-AUTH_CHALLENGE_TTL_SEC = int(os.getenv("AUTH_CHALLENGE_TTL_SEC", "300"))
-# Feature flag to keep backward-compatible auth behavior.
-ALLOW_LEGACY_AUTH = os.getenv("ALLOW_LEGACY_AUTH", "1") == "1"
-
-# Credential store path.
-AGENT_CREDENTIALS_PATH = os.getenv(
-    "AGENT_CREDENTIALS_PATH",
-    _runtime_path("agent_credentials.json"),
-)
-# Audit log JSONL path.
-AUDIT_LOG_PATH = os.getenv(
-    "AUDIT_LOG_PATH",
-    _runtime_path("audit_log.jsonl"),
-)
-# Buyer/seller/platform balance ledger path.
-BALANCE_LEDGER_PATH = os.getenv(
-    "BALANCE_LEDGER_PATH",
-    _runtime_path("balance_ledger.json"),
-)
-# Usage log path for metering results.
-USAGE_LOG_PATH = os.getenv(
-    "USAGE_LOG_PATH",
-    _runtime_path("usage_log.json"),
-)
-# Deposit intent queue path.
-DEPOSIT_INTENTS_PATH = os.getenv(
-    "DEPOSIT_INTENTS_PATH",
-    _runtime_path("deposit_intents.json"),
-)
-# Cursor file path for legacy deposit scanner.
-DEPOSIT_EVENT_CURSOR_PATH = os.getenv(
-    "DEPOSIT_EVENT_CURSOR_PATH",
-    _runtime_path("deposit_event_cursor.json"),
-)
-# Processed event-key store path for idempotency.
-DEPOSIT_EVENT_PROCESSED_PATH = os.getenv(
-    "DEPOSIT_EVENT_PROCESSED_PATH",
-    _runtime_path("deposit_event_processed.json"),
-)
-# Refund intent queue path.
-REFUND_INTENTS_PATH = os.getenv(
-    "REFUND_INTENTS_PATH",
-    _runtime_path("refund_intents.json"),
-)
-# Router owner-level config persistence path.
-ROUTER_CONFIG_PATH = os.getenv(
-    "ROUTER_CONFIG_PATH",
-    _runtime_path("router_config.json"),
-)
-# Confirmations required by the v2 deposit indexer.
-V2_DEPOSIT_CONFIRMATIONS = int(os.getenv("V2_DEPOSIT_CONFIRMATIONS", "1"))
-# Poll interval for the v2 background indexer loop.
-V2_INDEXER_POLL_INTERVAL_SEC = float(os.getenv("V2_INDEXER_POLL_INTERVAL_SEC", "2"))
-# Reserved block batch size for future block-range indexing.
-V2_INDEXER_BLOCK_BATCH = int(os.getenv("V2_INDEXER_BLOCK_BATCH", "100"))
-
-# Default credential TTL when caller omits expiresInSec.
-AGENT_CREDENTIAL_DEFAULT_TTL_SEC = int(os.getenv("AGENT_CREDENTIAL_DEFAULT_TTL_SEC", "3600"))
-# Hard upper bound for issued credential TTL.
-AGENT_CREDENTIAL_MAX_TTL_SEC = int(os.getenv("AGENT_CREDENTIAL_MAX_TTL_SEC", "259200"))
-# Default max call count per credential.
-AGENT_CREDENTIAL_MAX_CALLS_DEFAULT = int(os.getenv("AGENT_CREDENTIAL_MAX_CALLS_DEFAULT", "1000"))
-# Owner control-plane rate limit per minute.
-OWNER_RATE_LIMIT_PER_MIN = int(os.getenv("OWNER_RATE_LIMIT_PER_MIN", "240"))
-# Credential data-plane rate limit per minute.
-AGENT_RATE_LIMIT_PER_MIN = int(os.getenv("AGENT_RATE_LIMIT_PER_MIN", "600"))
-# Service-level aggregate rate limit per minute.
-SERVICE_RATE_LIMIT_PER_MIN = int(os.getenv("SERVICE_RATE_LIMIT_PER_MIN", "1200"))
-# Shared seconds window for rate-limit buckets.
-RATE_LIMIT_WINDOW_SEC = int(os.getenv("RATE_LIMIT_WINDOW_SEC", "60"))
-# Whether /generate hard-requires credential header.
-REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE = os.getenv("REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE", "0") == "1"
-
-try:
-    # Parsed int map: serviceId -> wei price.
-    SERVICE_PRICES = {k: int(v) for k, v in json.loads(SERVICE_PRICES_JSON).items()}
-except Exception:
-    SERVICE_PRICES = {}
-
-# Standardized response metadata for payment-layer exceptions.
-ERROR_RESPONSES = {
-    402: {"description": "Payment required or invalid payment proof"},
-    403: {"description": "Payment does not match seller/service policy"},
-    408: {"description": "Payment confirmation timed out"},
-    409: {"description": "Replay detected"},
-    422: {"description": "Required serviceId missing"},
-    500: {"description": "Provider API misconfiguration"},
-}
-
-# Standardized response metadata for service registry APIs.
-SERVICE_REGISTRY_RESPONSES = {
-    401: {"description": "Unauthorized"},
-    403: {"description": "Forbidden (owner mismatch)"},
-    400: {"description": "Invalid service registration payload"},
-    404: {"description": "Service record not found"},
-    500: {"description": "Service registry persistence error"},
-}
-
-# Standardized response metadata for auth APIs.
-AUTH_RESPONSES = {
-    401: {"description": "Unauthorized"},
-    400: {"description": "Invalid auth payload"},
-}
-
-# Wallet role map persistence path.
-WALLET_ROLES_PATH = os.getenv(
-    "WALLET_ROLES_PATH",
-    _runtime_path("wallet_roles.json"),
-)
-
-# Provider secret store path used by persistence helper functions.
-PROVIDER_SECRETS_PATH = os.getenv("PROVIDER_SECRETS_PATH", _runtime_path("provider_secrets.json"))
+# Compatibility aliases (read-only values sourced from centralized settings).
+RUNTIME_STORAGE_DIR = settings.runtime_storage_dir
+RPC_URL = settings.rpc_url
+SELLER_ADDRESS = settings.seller_address
+EXPECTED_PRICE = settings.expected_price
+ROUTER_ADDRESS = settings.router_address
+MIN_CONFIRMATIONS = settings.min_confirmations
+PAYMENT_TTL_SEC = settings.payment_ttl_sec
+ALLOWED_TOKEN_ADDRESSES = settings.allowed_token_addresses
+SERVICE_PRICES_JSON = settings.service_prices_json
+PAYMENT_TIMEOUT_MESSAGE = settings.payment_timeout_message
+INVALID_ADDRESS_MESSAGE = settings.invalid_address_message
+SERVICE_REGISTRY_PATH = settings.service_registry_path
+AGENT_REGISTRY_PATH = settings.agent_registry_path
+AUTH_SECRET = settings.auth_secret
+AUTH_TOKEN_TTL_SEC = settings.auth_token_ttl_sec
+AUTH_CHALLENGE_TTL_SEC = settings.auth_challenge_ttl_sec
+ALLOW_LEGACY_AUTH = settings.allow_legacy_auth
+AGENT_CREDENTIALS_PATH = settings.agent_credentials_path
+AUDIT_LOG_PATH = settings.audit_log_path
+BALANCE_LEDGER_PATH = settings.balance_ledger_path
+USAGE_LOG_PATH = settings.usage_log_path
+DEPOSIT_INTENTS_PATH = settings.deposit_intents_path
+DEPOSIT_EVENT_CURSOR_PATH = settings.deposit_event_cursor_path
+DEPOSIT_EVENT_PROCESSED_PATH = settings.deposit_event_processed_path
+REFUND_INTENTS_PATH = settings.refund_intents_path
+ROUTER_CONFIG_PATH = settings.router_config_path
+V2_DEPOSIT_CONFIRMATIONS = settings.v2_deposit_confirmations
+V2_INDEXER_POLL_INTERVAL_SEC = settings.v2_indexer_poll_interval_sec
+V2_INDEXER_BLOCK_BATCH = settings.v2_indexer_block_batch
+AGENT_CREDENTIAL_DEFAULT_TTL_SEC = settings.agent_credential_default_ttl_sec
+AGENT_CREDENTIAL_MAX_TTL_SEC = settings.agent_credential_max_ttl_sec
+AGENT_CREDENTIAL_MAX_CALLS_DEFAULT = settings.agent_credential_max_calls_default
+OWNER_RATE_LIMIT_PER_MIN = settings.owner_rate_limit_per_min
+AGENT_RATE_LIMIT_PER_MIN = settings.agent_rate_limit_per_min
+SERVICE_RATE_LIMIT_PER_MIN = settings.service_rate_limit_per_min
+RATE_LIMIT_WINDOW_SEC = settings.rate_limit_window_sec
+REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE = settings.require_agent_credential_for_generate
+SERVICE_PRICES = settings.service_prices
+ERROR_RESPONSES = settings.error_responses
+SERVICE_REGISTRY_RESPONSES = settings.service_registry_responses
+AUTH_RESPONSES = settings.auth_responses
+WALLET_ROLES_PATH = settings.wallet_roles_path
+PROVIDER_SECRETS_PATH = settings.provider_secrets_path

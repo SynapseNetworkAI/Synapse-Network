@@ -218,3 +218,83 @@ docker-compose up -d
 
 > 💡 **状态检查**：运行 `docker-compose ps` 确认所有容器均处于 `Up` 状态。
 > **MinIO界面控制台** 位于 `http://127.0.0.1:9001` (默认账号密码: admin/password)。
+
+## 6. `python_sdk` 配置文件位置与统一收口方案
+
+### 6.1 当前配置文件在哪里（现状盘点）
+
+当前 `python_sdk` 中存在多处配置入口：
+
+- `python_sdk/.env`
+  - 主要是 SDK / AI Agent Demo 侧配置（如 `API_BASE_URL`、`DEEPSEEK_*`、`MINIO_*`）。
+- `python_sdk/seller_api/src/core/config.py`
+  - **当前 FastAPI 网关主配置入口**（被 `src/app.py` 直接使用）。
+  - 包含：`RPC_URL`、`ROUTER_ADDRESS`、`DATA_DIR`、`JWT_SECRET`、`HOST`、`PORT` 等。
+- `python_sdk/seller_api/settings.py`
+  - 历史兼容配置模块，仍被部分 legacy 代码（如 `persistence.py`）引用。
+  - 与 `src/core/config.py` 存在字段重复。
+- `python_sdk/config.py`
+  - 旧静态配置文件（例如固定 `RPC_URL`），不建议作为新逻辑入口。
+
+结论：目前是“主入口 + 兼容入口 + 遗留入口”并存，存在配置分散与重复定义风险。
+
+### 6.2 统一收口目标（目标架构）
+
+统一为**单一配置中心**：
+
+- 唯一读取入口：`python_sdk/seller_api/src/core/config.py`
+- 唯一环境文件：`python_sdk/.env`（按环境可扩展 `.env.development` / `.env.staging` / `.env.production`）
+- 唯一运行时存储根：`python_sdk/runtime_storage/`
+
+约束原则：
+
+- 所有业务代码禁止直接 `os.getenv(...)` 取值（仅 `src/core/config.py` 可读取环境变量）。
+- 路由层、服务层、存储层只依赖 `settings` 对象，不感知环境变量细节。
+- 路径、密钥、限流、链上参数分组管理，避免“散点配置”。
+
+### 6.3 推荐配置分层（建议）
+
+在 `src/core/config.py` 内按 Domain 分组：
+
+- `AppSettings`：`environment/host/port`
+- `ChainSettings`：`rpc_url/router_address/v2_deposit_confirmations`
+- `AuthSettings`：`jwt_secret/auth_ttl/challenge_ttl`
+- `StorageSettings`：`runtime_storage_dir/data_dir`
+- `RateLimitSettings`：`owner_rpm/agent_rpm/service_rpm/window_sec`
+- `FeatureFlags`：兼容开关、灰度开关
+
+最终对外暴露一个聚合对象：`settings`。
+
+### 6.4 收口迁移步骤（可执行）
+
+1. **冻结新增配置入口**
+   - 新增参数只允许进入 `src/core/config.py`。
+
+2. **建立兼容桥接层**
+   - 在 `seller_api/settings.py` 保留最薄兼容壳：
+   - 仅 `from src.core.config import settings`，并导出必要兼容别名。
+
+3. **逐步替换 legacy 引用**
+   - 将 `persistence.py` 等 legacy 模块对 `seller_api/settings.py` 的依赖迁移到 `src/core/config.py`。
+
+4. **移除重复字段与死配置**
+   - 清理 `python_sdk/config.py` 与 `seller_api/settings.py` 中重复且不再被调用字段。
+
+5. **配置契约化**
+   - 维护 `python_sdk/.env.example` 作为唯一配置契约文档。
+   - CI 增加“必填配置校验”与“未使用配置检测”。
+
+### 6.5 命名规范（建议）
+
+- 统一前缀：
+  - 网关后端：`SYNAPSE_GATEWAY_*`
+  - SDK/客户端：`SYNAPSE_CLIENT_*`
+  - 链上参数：`SYNAPSE_CHAIN_*`
+- 避免混用历史变量名（例如同义 `AUTH_SECRET` / `JWT_SECRET` 并存）。
+
+### 6.6 配置收口完成标准（Done Definition）
+
+- 代码库中除 `src/core/config.py` 外，不再出现新增 `os.getenv(...)`。
+- `seller_api/settings.py` 仅保留兼容导出，不再承载独立配置逻辑。
+- 文档、`.env.example`、运行行为三者一致。
+- 本地与 CI 能通过同一套配置启动流程。

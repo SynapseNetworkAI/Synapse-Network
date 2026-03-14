@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
@@ -7,6 +6,7 @@ import httpx
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
+from src.core.config import settings
 from src.models.pydantic_models import InferenceRequest
 from src.services import credential_service
 from src.storage import BaseStorage
@@ -44,7 +44,7 @@ async def _get_redis_client():
     if _redis_client is not None:
         return _redis_client
 
-    redis_url = os.getenv("REDIS_URL", "").strip()
+    redis_url = settings.redis_url
     if not redis_url:
         return None
 

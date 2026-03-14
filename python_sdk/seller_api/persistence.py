@@ -5,20 +5,7 @@ from typing import Any, Dict, List
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
-from .settings import (
-    AGENT_CREDENTIALS_PATH,
-    AGENT_REGISTRY_PATH,
-    AUDIT_LOG_PATH,
-    BALANCE_LEDGER_PATH,
-    DEPOSIT_EVENT_CURSOR_PATH,
-    DEPOSIT_EVENT_PROCESSED_PATH,
-    DEPOSIT_INTENTS_PATH,
-    REFUND_INTENTS_PATH,
-    ROUTER_CONFIG_PATH,
-    SERVICE_REGISTRY_PATH,
-    USAGE_LOG_PATH,
-    PROVIDER_SECRETS_PATH,
-)
+from src.core.config import settings
 
 
 def _read_json(path: str, default: Any) -> Any:
@@ -48,28 +35,28 @@ def _extract_list_payload(raw: Any, wrapped_key: str) -> List[Dict[str, Any]]:
     return []
 
 def load_agent_registry() -> List[Dict[str, Any]]:
-    return _extract_list_payload(_read_json(AGENT_REGISTRY_PATH, []), "agents")
+    return _extract_list_payload(_read_json(settings.agent_registry_path, []), "agents")
 
 def save_agent_registry(rows: List[Dict[str, Any]]) -> None:
     payload = {"agents": rows, "updatedAt": int(time.time())}
-    _write_json_atomic(AGENT_REGISTRY_PATH, payload)
+    _write_json_atomic(settings.agent_registry_path, payload)
 
 def load_service_registry() -> List[Dict[str, Any]]:
-    return _extract_list_payload(_read_json(SERVICE_REGISTRY_PATH, []), "services")
+    return _extract_list_payload(_read_json(settings.service_registry_path, []), "services")
 
 
 def save_service_registry(rows: List[Dict[str, Any]]) -> None:
     payload = {"services": rows, "updatedAt": int(time.time())}
-    _write_json_atomic(SERVICE_REGISTRY_PATH, payload)
+    _write_json_atomic(settings.service_registry_path, payload)
 
 
 def load_agent_credentials() -> List[Dict[str, Any]]:
-    return _extract_list_payload(_read_json(AGENT_CREDENTIALS_PATH, []), "credentials")
+    return _extract_list_payload(_read_json(settings.agent_credentials_path, []), "credentials")
 
 
 def save_agent_credentials(rows: List[Dict[str, Any]]) -> None:
     payload = {"credentials": rows, "updatedAt": int(time.time())}
-    _write_json_atomic(AGENT_CREDENTIALS_PATH, payload)
+    _write_json_atomic(settings.agent_credentials_path, payload)
 
 
 def load_balance_ledger() -> Dict[str, Any]:
@@ -80,7 +67,7 @@ def load_balance_ledger() -> Dict[str, Any]:
         "dailySpend": {},
         "updatedAt": int(time.time()),
     }
-    data = _read_json(BALANCE_LEDGER_PATH, default_payload)
+    data = _read_json(settings.balance_ledger_path, default_payload)
     if not isinstance(data, dict):
         return default_payload
 
@@ -104,30 +91,30 @@ def load_balance_ledger() -> Dict[str, Any]:
 def save_balance_ledger(payload: Dict[str, Any]) -> None:
     next_payload = dict(payload)
     next_payload["updatedAt"] = int(time.time())
-    _write_json_atomic(BALANCE_LEDGER_PATH, next_payload)
+    _write_json_atomic(settings.balance_ledger_path, next_payload)
 
 
 def load_usage_logs() -> List[Dict[str, Any]]:
-    return _extract_list_payload(_read_json(USAGE_LOG_PATH, []), "logs")
+    return _extract_list_payload(_read_json(settings.usage_log_path, []), "logs")
 
 
 def save_usage_logs(rows: List[Dict[str, Any]]) -> None:
     payload = {"logs": rows, "updatedAt": int(time.time())}
-    _write_json_atomic(USAGE_LOG_PATH, payload)
+    _write_json_atomic(settings.usage_log_path, payload)
 
 
 def load_deposit_intents() -> List[Dict[str, Any]]:
-    return _extract_list_payload(_read_json(DEPOSIT_INTENTS_PATH, []), "intents")
+    return _extract_list_payload(_read_json(settings.deposit_intents_path, []), "intents")
 
 
 def save_deposit_intents(rows: List[Dict[str, Any]]) -> None:
     payload = {"intents": rows, "updatedAt": int(time.time())}
-    _write_json_atomic(DEPOSIT_INTENTS_PATH, payload)
+    _write_json_atomic(settings.deposit_intents_path, payload)
 
 
 def load_deposit_event_cursor() -> Dict[str, Any]:
     default_payload: Dict[str, Any] = {"lastSyncedBlock": None, "updatedAt": int(time.time())}
-    data = _read_json(DEPOSIT_EVENT_CURSOR_PATH, default_payload)
+    data = _read_json(settings.deposit_event_cursor_path, default_payload)
     if not isinstance(data, dict):
         return default_payload
     data.setdefault("lastSyncedBlock", None)
@@ -138,11 +125,11 @@ def load_deposit_event_cursor() -> Dict[str, Any]:
 def save_deposit_event_cursor(payload: Dict[str, Any]) -> None:
     next_payload = dict(payload)
     next_payload["updatedAt"] = int(time.time())
-    _write_json_atomic(DEPOSIT_EVENT_CURSOR_PATH, next_payload)
+    _write_json_atomic(settings.deposit_event_cursor_path, next_payload)
 
 
 def load_processed_deposit_event_keys() -> List[str]:
-    data = _read_json(DEPOSIT_EVENT_PROCESSED_PATH, [])
+    data = _read_json(settings.deposit_event_processed_path, [])
     if isinstance(data, dict) and isinstance(data.get("keys"), list):
         return [str(item) for item in data["keys"]]
     if isinstance(data, list):
@@ -152,12 +139,12 @@ def load_processed_deposit_event_keys() -> List[str]:
 
 def save_processed_deposit_event_keys(keys: List[str]) -> None:
     payload = {"keys": keys, "updatedAt": int(time.time())}
-    _write_json_atomic(DEPOSIT_EVENT_PROCESSED_PATH, payload)
+    _write_json_atomic(settings.deposit_event_processed_path, payload)
 
 
 def load_router_config() -> Dict[str, Any]:
     default_payload: Dict[str, Any] = {"owners": {}, "updatedAt": int(time.time())}
-    data = _read_json(ROUTER_CONFIG_PATH, default_payload)
+    data = _read_json(settings.router_config_path, default_payload)
     if not isinstance(data, dict):
         return default_payload
     data.setdefault("owners", {})
@@ -173,7 +160,7 @@ def save_router_config(payload: Dict[str, Any]) -> None:
     if not isinstance(next_payload.get("owners"), dict):
         next_payload["owners"] = {}
     next_payload["updatedAt"] = int(time.time())
-    _write_json_atomic(ROUTER_CONFIG_PATH, next_payload)
+    _write_json_atomic(settings.router_config_path, next_payload)
 
 
 def append_audit_log(action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
@@ -184,17 +171,17 @@ def append_audit_log(action: str, owner_wallet: str, details: Dict[str, Any]) ->
         "ownerAddress": normalize_wallet(owner_wallet),
         "details": details,
     }
-    with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as file:
+    with open(settings.audit_log_path, "a", encoding="utf-8") as file:
         file.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
 def list_audit_logs(owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
     owner = normalize_wallet(owner_wallet)
-    if not os.path.exists(AUDIT_LOG_PATH):
+    if not os.path.exists(settings.audit_log_path):
         return []
 
     logs: List[Dict[str, Any]] = []
-    with open(AUDIT_LOG_PATH, "r", encoding="utf-8") as file:
+    with open(settings.audit_log_path, "r", encoding="utf-8") as file:
         for line in file:
             line = line.strip()
             if not line:
@@ -210,25 +197,23 @@ def list_audit_logs(owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
     return logs[:limit]
 
 def load_refund_intents() -> List[Dict[str, Any]]:
-    data = _read_json(REFUND_INTENTS_PATH, [])
+    data = _read_json(settings.refund_intents_path, [])
     return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
 
 def save_refund_intents(rows: List[Dict[str, Any]]) -> None:
-    _write_json_atomic(REFUND_INTENTS_PATH, rows)
+    _write_json_atomic(settings.refund_intents_path, rows)
 
 
 
 def load_wallet_roles() -> Dict[str, str]:
-    from .settings import WALLET_ROLES_PATH
-    raw = _read_json(WALLET_ROLES_PATH, {})
+    raw = _read_json(settings.wallet_roles_path, {})
     if not isinstance(raw, dict):
         return {}
     # Keep only normalized string mappings to prevent runtime key/type issues.
     return {str(k): str(v) for k, v in raw.items()}
 
 def save_wallet_roles(roles: Dict[str, str]) -> None:
-    from .settings import WALLET_ROLES_PATH
-    _write_json_atomic(WALLET_ROLES_PATH, roles)
+    _write_json_atomic(settings.wallet_roles_path, roles)
 
 def enforce_wallet_role(wallet: str, required_role: str) -> None:
     norm_wallet = normalize_wallet(wallet)
@@ -245,8 +230,8 @@ def enforce_wallet_role(wallet: str, required_role: str) -> None:
 
 
 def load_provider_secrets() -> List[Dict[str, Any]]:
-    data = _read_json(PROVIDER_SECRETS_PATH, [])
+    data = _read_json(settings.provider_secrets_path, [])
     return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
 
 def save_provider_secrets(rows: List[Dict[str, Any]]) -> None:
-    _write_json_atomic(PROVIDER_SECRETS_PATH, rows)
+    _write_json_atomic(settings.provider_secrets_path, rows)
