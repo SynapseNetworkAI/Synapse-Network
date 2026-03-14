@@ -231,6 +231,10 @@
   - `forwarding`: routing behavior (`requestIdHeader/passThroughHeaders/injectHeaders/retryPolicy`)
   - `metering`: billing strategy (`billingUnit/billOnError/billableStatusClasses/requestIdRequired/responseSizeMetering`)
   - Probe URL composition: platform computes health-check URL as each target origin + `healthCheck.path`.
+- **`GET /api/v2/services/registration-guide`**:
+  - Returns field-by-field guidance metadata for UI tooltips and onboarding.
+  - Response includes `principles` and `fields[]` (`key/title/description/howToConfigure/platformUse/example`).
+  - Requires owner session headers (same auth model as other seller control-plane APIs).
 
 ---
 

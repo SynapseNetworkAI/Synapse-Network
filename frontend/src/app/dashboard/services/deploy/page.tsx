@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Wand2, TerminalSquare, Server, X, Check } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Wand2, TerminalSquare, Server, X, Check, CircleHelp } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
@@ -18,6 +18,120 @@ const AI_DESCRIPTION_MIN = 12;
 const AI_DESCRIPTION_MAX = 240;
 const AI_INTENT_MAX = 8;
 const MAX_CLUSTER_TARGETS = 10;
+
+type FieldGuideItem = {
+  title: string;
+  purpose: string;
+  howToConfigure: string;
+  platformUse: string;
+  example?: string;
+};
+
+const FIELD_GUIDES: Record<string, FieldGuideItem> = {
+  service_name: {
+    title: "Service Name",
+    purpose: "Human-readable service title for discovery and trust.",
+    howToConfigure: "Use a clear product-like name, 4-80 chars.",
+    platformUse: "Shown in marketplace and seller console cards.",
+    example: "DeepSeek Market Analysis",
+  },
+  agent_tool_name: {
+    title: "Agent Tool Name",
+    purpose: "Stable machine key used by autonomous agents.",
+    howToConfigure: "Use snake style with [a-z0-9_-], 3-64 chars.",
+    platformUse: "Bound to routing identity and tracing headers.",
+    example: "get_market_analysis",
+  },
+  description: {
+    title: "Description",
+    purpose: "Instruction for when/why agents should call this tool.",
+    howToConfigure: "Write concrete trigger conditions in 12-240 chars.",
+    platformUse: "Used by intent matching and buyer-side selection.",
+  },
+  intent: {
+    title: "Intent Tags",
+    purpose: "Semantic routing labels for discovery.",
+    howToConfigure: "Add 1-8 tags, each 2-24 chars, lowercase preferred.",
+    platformUse: "Improves recall and ranking in discover queries.",
+    example: "market_data, crypto_research",
+  },
+  cluster_targets: {
+    title: "Cluster Targets",
+    purpose: "Active-active upstream endpoints.",
+    howToConfigure: "One full URL per line; first target is primary weight.",
+    platformUse: "Gateway routes with weighted target selection.",
+    example: "https://a.example.com/infer",
+  },
+  health_check: {
+    title: "Health Check Path",
+    purpose: "Single probe path shared by all cluster nodes.",
+    howToConfigure: "Use path only, start with '/'.",
+    platformUse: "Gateway composes origin + path for each target probe.",
+    example: "/health",
+  },
+  pricing: {
+    title: "Price / Call",
+    purpose: "Unit price in USDC for one successful call.",
+    howToConfigure: "Use decimal format and align with your margin model.",
+    platformUse: "Used by billing and settlement ledger.",
+    example: "0.01",
+  },
+  timeout_ms: {
+    title: "Timeout",
+    purpose: "Maximum upstream response waiting time.",
+    howToConfigure: "Start around 2000-5000ms for API workloads.",
+    platformUse: "Feeds timeout control and reliability scoring.",
+  },
+  max_response_bytes: {
+    title: "Max Response Bytes",
+    purpose: "Safety limit for response payload size.",
+    howToConfigure: "Set to real model output envelope size.",
+    platformUse: "Protects gateway memory and billable traffic bounds.",
+  },
+  max_request_bytes: {
+    title: "Max Request Bytes",
+    purpose: "Safety limit for incoming request payload size.",
+    howToConfigure: "Match your backend parser limits.",
+    platformUse: "Rejects oversized traffic before forwarding.",
+  },
+  max_qps: {
+    title: "Max QPS",
+    purpose: "Advertised burst-safe request rate.",
+    howToConfigure: "Set to proven load-test capacity.",
+    platformUse: "Used by scheduler and rate protection.",
+  },
+  input_schema: {
+    title: "Input Schema",
+    purpose: "Expected JSON shape for request body.",
+    howToConfigure: "Define strict fields and data types.",
+    platformUse: "Used by AI caller contract understanding.",
+  },
+  output_schema: {
+    title: "Output Schema",
+    purpose: "Expected JSON shape for response body.",
+    howToConfigure: "Expose stable keys and value types.",
+    platformUse: "Improves downstream parsing and reliability.",
+  },
+};
+
+function FieldGuideHint({ fieldKey }: { fieldKey: string }) {
+  const guide = FIELD_GUIDES[fieldKey];
+  if (!guide) return null;
+  return (
+    <details className="relative inline-block ml-1 align-middle group">
+      <summary className="list-none cursor-pointer inline-flex items-center text-gray-500 hover:text-green-300">
+        <CircleHelp className="w-3.5 h-3.5" />
+      </summary>
+      <div className="absolute z-30 mt-2 w-72 rounded-xl border border-gray-700 bg-[#0b0d12] p-3 text-[11px] shadow-2xl">
+        <p className="text-white font-semibold">{guide.title}</p>
+        <p className="mt-2 text-gray-300">{guide.purpose}</p>
+        <p className="mt-2 text-gray-400">Configure: {guide.howToConfigure}</p>
+        <p className="mt-1 text-gray-400">Platform: {guide.platformUse}</p>
+        {guide.example && <p className="mt-1 text-green-300">Example: {guide.example}</p>}
+      </div>
+    </details>
+  );
+}
 
 const OVERRIDABLE_PATHS = [
   "service_name",
@@ -84,7 +198,7 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> => {
 };
 
 const normalizeIntentTag = (raw: string): string => {
-  return raw.trim().toLowerCase().replace(/\s+/g, "_");
+  return raw.trim().toLowerCase().replaceAll(/\s+/g, "_");
 };
 
 // Extracted from api_gateway_reverse_proxy_design.md
@@ -143,7 +257,6 @@ export default function DeployManifestPage() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
-  const [previewMode, setPreviewMode] = useState<"summary" | "json">("summary");
 
   useEffect(() => {
     const draft = localStorage.getItem("synapse_manifest_draft");
@@ -281,6 +394,20 @@ export default function DeployManifestPage() {
     return collectOverrideChanges(parsedPreview, manifest);
   }, [parsedPreview, manifest]);
 
+  const parsedClusterTargets = useMemo(() => {
+    const fromInput = endpointTargetsInput
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .filter((value, index, arr) => arr.indexOf(value) === index)
+      .slice(0, MAX_CLUSTER_TARGETS);
+    if (fromInput.length > 0) {
+      return fromInput;
+    }
+    const endpoint = manifest.endpoint.trim();
+    return endpoint ? [endpoint] : [];
+  }, [endpointTargetsInput, manifest.endpoint]);
+
   const autofillAIMagic = async () => {
     setIsAiGenerating(true);
     try {
@@ -355,15 +482,7 @@ export default function DeployManifestPage() {
     }
     setIsDeploying(true);
     try {
-      const endpoint = manifest.endpoint.trim();
-      const clusterTargets = endpointTargetsInput
-        .split(/\r?\n/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .filter((value, index, arr) => arr.indexOf(value) === index);
-      const normalizedTargets = (clusterTargets.length > 0 ? clusterTargets : [endpoint])
-        .slice(0, MAX_CLUSTER_TARGETS)
-        .filter((value) => /^https?:\/\//i.test(value));
+      const normalizedTargets = parsedClusterTargets.filter((value) => /^https?:\/\//i.test(value));
 
       if (normalizedTargets.length === 0) {
         toast.error("At least one valid cluster endpoint URL is required.");
@@ -458,86 +577,66 @@ export default function DeployManifestPage() {
     { label: "Tool name", ok: Boolean(manifest.agent_tool_name.trim()) },
     { label: "Description", ok: Boolean(manifest.description.trim()) },
     { label: "Semantic intents", ok: manifest.intent.length > 0 },
-    { label: "Endpoint", ok: Boolean(manifest.endpoint.trim()) },
+    { label: "Cluster targets", ok: parsedClusterTargets.length > 0 },
+    { label: "Health path", ok: Boolean((manifest.health_check || "/health").trim()) },
   ];
 
-  const aiInterfaceValidationErrors = useMemo(() => {
-    const errors: string[] = [];
+  const fieldErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
     const serviceName = manifest.service_name.trim();
     const toolName = manifest.agent_tool_name.trim();
     const description = manifest.description.trim();
 
     if (!serviceName) {
-      errors.push("Service Name is required.");
+      errors.service_name = "Service Name is required.";
     } else if (serviceName.length < AI_SERVICE_NAME_MIN || serviceName.length > AI_SERVICE_NAME_MAX) {
-      errors.push(`Service Name must be ${AI_SERVICE_NAME_MIN}-${AI_SERVICE_NAME_MAX} characters.`);
+      errors.service_name = `Service Name must be ${AI_SERVICE_NAME_MIN}-${AI_SERVICE_NAME_MAX} characters.`;
     }
 
     if (!toolName) {
-      errors.push("Agent Tool Name is required.");
+      errors.agent_tool_name = "Agent Tool Name is required.";
     } else if (toolName.length < 3 || toolName.length > 64) {
-      errors.push("Agent Tool Name must be 3-64 characters.");
+      errors.agent_tool_name = "Agent Tool Name must be 3-64 characters.";
     } else if (!TOOL_NAME_REGEX.test(toolName)) {
-      errors.push("Agent Tool Name must match ^[a-z0-9_-]+$.");
+      errors.agent_tool_name = "Agent Tool Name must match ^[a-z0-9_-]+$.";
     }
 
     if (!description) {
-      errors.push("Description is required.");
+      errors.description = "Description is required.";
     } else if (description.length < AI_DESCRIPTION_MIN || description.length > AI_DESCRIPTION_MAX) {
-      errors.push(`Description must be ${AI_DESCRIPTION_MIN}-${AI_DESCRIPTION_MAX} characters.`);
+      errors.description = `Description must be ${AI_DESCRIPTION_MIN}-${AI_DESCRIPTION_MAX} characters.`;
     }
 
     if (manifest.intent.length < 1) {
-      errors.push("At least one intent tag is required.");
-    }
-    if (manifest.intent.length > AI_INTENT_MAX) {
-      errors.push(`Intent tags cannot exceed ${AI_INTENT_MAX}.`);
+      errors.intent = "At least one intent tag is required.";
+    } else if (manifest.intent.length > AI_INTENT_MAX) {
+      errors.intent = `Intent tags cannot exceed ${AI_INTENT_MAX}.`;
     }
     for (const tag of manifest.intent) {
       if (!INTENT_TAG_REGEX.test(tag)) {
-        errors.push(`Invalid intent tag \"${tag}\". Use [a-z0-9_-], 2-24 chars.`);
+        errors.intent = `Invalid intent tag "${tag}". Use [a-z0-9_-], 2-24 chars.`;
         break;
       }
     }
 
-    const clusterTargets = endpointTargetsInput
-      .split(/\r?\n/)
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .filter((value, index, arr) => arr.indexOf(value) === index);
-    if (clusterTargets.length > MAX_CLUSTER_TARGETS) {
-      errors.push(`Cluster targets cannot exceed ${MAX_CLUSTER_TARGETS}.`);
+    if (parsedClusterTargets.length < 1) {
+      errors.cluster_targets = "At least one cluster endpoint URL is required.";
+    } else if (parsedClusterTargets.length > MAX_CLUSTER_TARGETS) {
+      errors.cluster_targets = `Cluster targets cannot exceed ${MAX_CLUSTER_TARGETS}.`;
     }
-    if (clusterTargets.length > 0 && clusterTargets.some((value) => !/^https?:\/\//i.test(value))) {
-      errors.push("Every cluster endpoint must start with http:// or https://.");
+    if (parsedClusterTargets.some((value) => !/^https?:\/\//i.test(value))) {
+      errors.cluster_targets = "Every cluster endpoint must start with http:// or https://.";
     }
 
-    const healthCheckPathRaw = manifest.health_check.trim();
-    if (healthCheckPathRaw && !healthCheckPathRaw.startsWith("/")) {
-      errors.push("Health check path must start with / (for example /health). ");
+    const healthCheckPathRaw = (manifest.health_check || "/health").trim();
+    if (!healthCheckPathRaw.startsWith("/")) {
+      errors.health_check = "Health check path must start with / (for example /health).";
     }
 
     return errors;
-  }, [manifest, endpointTargetsInput]);
+  }, [manifest, parsedClusterTargets]);
 
-  const aiInterfaceRules = [
-    {
-      label: `Service Name: required, ${AI_SERVICE_NAME_MIN}-${AI_SERVICE_NAME_MAX} chars`,
-      ok: manifest.service_name.trim().length >= AI_SERVICE_NAME_MIN && manifest.service_name.trim().length <= AI_SERVICE_NAME_MAX,
-    },
-    {
-      label: "Agent Tool Name: required, 3-64 chars, regex ^[a-z0-9_-]+$",
-      ok: manifest.agent_tool_name.trim().length >= 3 && manifest.agent_tool_name.trim().length <= 64 && TOOL_NAME_REGEX.test(manifest.agent_tool_name.trim()),
-    },
-    {
-      label: `Description: required, ${AI_DESCRIPTION_MIN}-${AI_DESCRIPTION_MAX} chars`,
-      ok: manifest.description.trim().length >= AI_DESCRIPTION_MIN && manifest.description.trim().length <= AI_DESCRIPTION_MAX,
-    },
-    {
-      label: `Intent Tags: 1-${AI_INTENT_MAX}, each regex [a-z0-9_-]{2,24}`,
-      ok: manifest.intent.length >= 1 && manifest.intent.length <= AI_INTENT_MAX && manifest.intent.every((tag) => INTENT_TAG_REGEX.test(tag)),
-    },
-  ];
+  const aiInterfaceValidationErrors = useMemo(() => Object.values(fieldErrors), [fieldErrors]);
 
   const completedChecks = readinessChecks.filter((item) => item.ok).length;
   const isManifestReady = completedChecks === readinessChecks.length;
@@ -545,48 +644,6 @@ export default function DeployManifestPage() {
   const missingRequiredFields = readinessChecks.filter((item) => !item.ok).map((item) => item.label);
   const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest)).length;
   const formattedPrice = `${manifest.pricing.amount || "0"} ${manifest.pricing.currency}`;
-  const releaseTag = `${manifest.agent_tool_name || "draft"}.r${completedChecks}${manifest.intent.length}`;
-
-  const releaseNotes = [
-    manifest.service_name ? `Service display name set to ${manifest.service_name}` : null,
-    manifest.agent_tool_name ? `Tool contract key: ${manifest.agent_tool_name}` : null,
-    manifest.endpoint ? "Routing endpoint is configured" : null,
-    manifest.intent.length > 0 ? `${manifest.intent.length} semantic intents attached` : null,
-    manifest.pricing.amount ? `Pricing policy: ${formattedPrice} per call` : null,
-  ].filter((item): item is string => Boolean(item));
-
-  const riskSignals: Array<{ level: "warn" | "info"; text: string }> = [];
-  if (manifest.endpoint && !/^https:\/\//i.test(manifest.endpoint)) {
-    riskSignals.push({
-      level: "warn",
-      text: "Endpoint is not HTTPS. Buyer traffic may be blocked or downgraded.",
-    });
-  }
-  if (manifest.constraints.timeout_ms > 5000) {
-    riskSignals.push({
-      level: "info",
-      text: `Timeout is ${manifest.constraints.timeout_ms}ms. Slow endpoints can reduce routing priority.`,
-    });
-  }
-  if (manifest.constraints.max_qps > 200) {
-    riskSignals.push({
-      level: "info",
-      text: `Max QPS is set to ${manifest.constraints.max_qps}. Ensure backend capacity is pre-provisioned.`,
-    });
-  }
-  if (manifest.description.trim() && manifest.description.trim().length < 24) {
-    riskSignals.push({
-      level: "info",
-      text: "Description is short. Agents may route less accurately without stronger trigger context.",
-    });
-  }
-
-  let endpointHost = "Not set";
-  try {
-    endpointHost = manifest.endpoint ? new URL(manifest.endpoint).host : "Not set";
-  } catch {
-    endpointHost = manifest.endpoint || "Not set";
-  }
 
   if (isSuccess) {
     return (
@@ -665,26 +722,12 @@ export default function DeployManifestPage() {
           {/* Section 1: AI Interface */}
           <section className="space-y-4">
             <h2 className="text-lg font-bold text-white border-b border-gray-800 pb-2">1. Artificial Intelligence Interface</h2>
-            <div className="rounded-lg border border-gray-800 bg-black/60 p-3">
-              <p className="text-[11px] text-gray-400 mb-2">Business Validation Rules</p>
-              <div className="space-y-1.5">
-                {aiInterfaceRules.map((rule) => (
-                  <div
-                    key={rule.label}
-                    className={`text-[11px] px-2 py-1 rounded border ${
-                      rule.ok
-                        ? "text-green-300 border-green-500/30 bg-green-500/10"
-                        : "text-yellow-200 border-yellow-500/30 bg-yellow-500/10"
-                    }`}
-                  >
-                    {rule.ok ? "OK" : "Pending"} · {rule.label}
-                  </div>
-                ))}
-              </div>
-            </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Service Name (Human Readable)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Service Name (Human Readable)
+                <FieldGuideHint fieldKey="service_name" />
+              </label>
               <input 
                 type="text" 
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-green-500"
@@ -692,10 +735,18 @@ export default function DeployManifestPage() {
                 value={manifest.service_name}
                 onChange={(e) => handleUpdate("service_name", e.target.value)}
               />
+              {fieldErrors.service_name ? (
+                <p className="text-xs text-yellow-300 mt-1">{fieldErrors.service_name}</p>
+              ) : (
+                <p className="text-xs text-gray-600 mt-1">Keep it short, readable, and product-grade.</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Agent Tool Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Agent Tool Name <span className="text-red-500">*</span>
+                <FieldGuideHint fieldKey="agent_tool_name" />
+              </label>
               <input 
                 type="text" 
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
@@ -703,22 +754,36 @@ export default function DeployManifestPage() {
                 value={manifest.agent_tool_name}
                 onChange={(e) => handleUpdate("agent_tool_name", e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
               />
-              <p className="text-xs text-gray-600 mt-1">Required. 3-64 chars, must match regex ^[a-z0-9_-]+$.</p>
+              {fieldErrors.agent_tool_name ? (
+                <p className="text-xs text-yellow-300 mt-1">{fieldErrors.agent_tool_name}</p>
+              ) : (
+                <p className="text-xs text-gray-600 mt-1">Required. 3-64 chars, regex: ^[a-z0-9_-]+$</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Description (Trigger Condition)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Description (Trigger Condition)
+                <FieldGuideHint fieldKey="description" />
+              </label>
               <textarea 
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-green-500 h-24"
                 placeholder="Give autonomous agents clear instructions on WHEN and WHY they should invoke this tool..."
                 value={manifest.description}
                 onChange={(e) => handleUpdate("description", e.target.value)}
               />
-              <p className="text-xs text-gray-600 mt-1">Required. {AI_DESCRIPTION_MIN}-{AI_DESCRIPTION_MAX} chars.</p>
+              {fieldErrors.description ? (
+                <p className="text-xs text-yellow-300 mt-1">{fieldErrors.description}</p>
+              ) : (
+                <p className="text-xs text-gray-600 mt-1">Required. {AI_DESCRIPTION_MIN}-{AI_DESCRIPTION_MAX} chars.</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Semantic Intents (Tags)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Semantic Intents (Tags)
+                <FieldGuideHint fieldKey="intent" />
+              </label>
               <div className="flex gap-2 mb-2">
                 <input 
                   type="text" 
@@ -735,7 +800,11 @@ export default function DeployManifestPage() {
                 />
                 <button onClick={handleAddIntent} className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700">Add</button>
               </div>
-              <p className="text-xs text-gray-600 mb-2">Required. Add 1-{AI_INTENT_MAX} tags. Allowed pattern: [a-z0-9_-], 2-24 chars each.</p>
+              {fieldErrors.intent ? (
+                <p className="text-xs text-yellow-300 mb-2">{fieldErrors.intent}</p>
+              ) : (
+                <p className="text-xs text-gray-600 mb-2">Add 1-{AI_INTENT_MAX} tags, each [a-z0-9_-], 2-24 chars.</p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {manifest.intent.map((tag) => (
                   <span key={tag} className="px-3 py-1 bg-green-900/30 border border-green-500/30 text-green-400 text-xs rounded-full flex items-center">
@@ -750,31 +819,39 @@ export default function DeployManifestPage() {
           {/* Section 2: Economics and Routing */}
           <section className="space-y-4">
             <h2 className="text-lg font-bold text-white border-b border-gray-800 pb-2">2. Routing & SLA Economics</h2>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Physical Provider Endpoint</label>
-              <input 
-                type="text" 
-                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
-                placeholder="https://your-server.com/api/v1/invoke"
-                value={manifest.endpoint}
-                onChange={(e) => handleUpdate("endpoint", e.target.value)}
-              />
-            </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Cluster Endpoint URLs (one per line)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Cluster Endpoint URLs (one per line)
+                <FieldGuideHint fieldKey="cluster_targets" />
+              </label>
               <textarea
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500 h-24"
                 placeholder="http://127.0.0.1:8100/api/v1/quotes/famous/top3\nhttp://127.0.0.1:8101/api/v1/quotes/famous/top3"
                 value={endpointTargetsInput}
-                onChange={(e) => setEndpointTargetsInput(e.target.value)}
+                onChange={(e) => {
+                  setEndpointTargetsInput(e.target.value);
+                  const first = e.target.value
+                    .split(/\r?\n/)
+                    .map((item) => item.trim())
+                    .find(Boolean);
+                  if (first) {
+                    handleUpdate("endpoint", first);
+                  }
+                }}
               />
-              <p className="text-xs text-gray-600 mt-1">Supports active-active cluster mode. Platform routes traffic across targets using weights.</p>
+              {fieldErrors.cluster_targets ? (
+                <p className="text-xs text-yellow-300 mt-1">{fieldErrors.cluster_targets}</p>
+              ) : (
+                <p className="text-xs text-gray-600 mt-1">Platform routes across targets using weights (first target starts as primary).</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Health Check Path</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Health Check Path
+                <FieldGuideHint fieldKey="health_check" />
+              </label>
               <input
                 type="text"
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
@@ -782,12 +859,19 @@ export default function DeployManifestPage() {
                 value={manifest.health_check}
                 onChange={(e) => handleUpdate("health_check", e.target.value)}
               />
-              <p className="text-xs text-gray-600 mt-1">Platform composes probe URL as each target origin + path. Example: target http://10.0.0.1:8100 + /health.</p>
+              {fieldErrors.health_check ? (
+                <p className="text-xs text-yellow-300 mt-1">{fieldErrors.health_check}</p>
+              ) : (
+                <p className="text-xs text-gray-600 mt-1">Gateway probes each target using origin + this path.</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Price / Call (USDC)</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Price / Call (USDC)
+                  <FieldGuideHint fieldKey="pricing" />
+                </label>
                 <input 
                   type="number" 
                   step="0.001"
@@ -797,45 +881,57 @@ export default function DeployManifestPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Timeout (ms)</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Timeout (ms)
+                  <FieldGuideHint fieldKey="timeout_ms" />
+                </label>
                 <input
                   type="number"
                   className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
                   value={manifest.constraints.timeout_ms}
-                  onChange={(e) => handleUpdate("constraints.timeout_ms", parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleUpdate("constraints.timeout_ms", Number.parseInt(e.target.value, 10) || 0)}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Max Response Bytes</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Max Response Bytes
+                  <FieldGuideHint fieldKey="max_response_bytes" />
+                </label>
                 <input
                   type="number"
                   className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
                   value={manifest.constraints.max_response_bytes}
-                  onChange={(e) => handleUpdate("constraints.max_response_bytes", parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleUpdate("constraints.max_response_bytes", Number.parseInt(e.target.value, 10) || 0)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Max Request Bytes</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Max Request Bytes
+                  <FieldGuideHint fieldKey="max_request_bytes" />
+                </label>
                 <input
                   type="number"
                   className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
                   value={manifest.constraints.max_request_bytes}
-                  onChange={(e) => handleUpdate("constraints.max_request_bytes", parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleUpdate("constraints.max_request_bytes", Number.parseInt(e.target.value, 10) || 0)}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Max QPS Rate Limit</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Max QPS Rate Limit
+                  <FieldGuideHint fieldKey="max_qps" />
+                </label>
                 <input 
                   type="number" 
                   className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-green-500"
                   value={manifest.constraints.max_qps}
-                  onChange={(e) => handleUpdate("constraints.max_qps", parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleUpdate("constraints.max_qps", Number.parseInt(e.target.value, 10) || 0)}
                 />
               </div>
             </div>
@@ -847,7 +943,10 @@ export default function DeployManifestPage() {
               <h2 className="text-lg font-bold text-white">3. Data Schema</h2>              </div>
               <p className="text-xs text-gray-500">Define the JSON Schema that agents will use to parse arguments and responses. Generating via AI is recommended.</p>
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1">Input Schema (JSON)</label>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Input Schema (JSON)
+                <FieldGuideHint fieldKey="input_schema" />
+              </label>
               <textarea 
                 className="w-full px-4 py-2 bg-black border border-gray-800 rounded-lg text-gray-300 font-mono text-xs focus:outline-none focus:border-gray-600 h-32"
                 value={JSON.stringify(manifest.input_schema, null, 2)}
@@ -858,7 +957,10 @@ export default function DeployManifestPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1 mt-4">Output Schema (JSON)</label>
+              <label className="block text-xs font-medium text-gray-400 mb-1 mt-4">
+                Output Schema (JSON)
+                <FieldGuideHint fieldKey="output_schema" />
+              </label>
               <textarea 
                 className="w-full px-4 py-2 bg-black border border-gray-800 rounded-lg text-gray-300 font-mono text-xs focus:outline-none focus:border-gray-600 h-32"
                 value={JSON.stringify(manifest.output_schema, null, 2)}
@@ -872,7 +974,7 @@ export default function DeployManifestPage() {
           <div className="pt-6 border-t border-gray-800">
             <button
               onClick={submitDeploy}
-              disabled={isDeploying || !manifest.agent_tool_name || !manifest.endpoint || aiInterfaceValidationErrors.length > 0}
+              disabled={isDeploying || !manifest.agent_tool_name || parsedClusterTargets.length === 0 || aiInterfaceValidationErrors.length > 0}
               className="w-full py-3 font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
             >
               {isDeploying ? "DEPLOYING..." : "CONFIRM & DEPLOY"}
@@ -977,7 +1079,7 @@ export default function DeployManifestPage() {
                 ? "text-green-300 border-green-500/40 bg-green-500/10"
                 : "text-yellow-300 border-yellow-500/30 bg-yellow-500/10"
             }`}>
-              {isManifestReady ? "Ready to Deploy" : `${completedChecks}/4 Required Fields`}
+              {isManifestReady ? "Ready to Deploy" : `${completedChecks}/${readinessChecks.length} Required Fields`}
             </span>
           </div>
           <div className="flex space-x-2">
@@ -1001,145 +1103,57 @@ export default function DeployManifestPage() {
               </p>
             </div>
 
-            <div className="rounded-lg border border-gray-800 bg-black/70 p-1 inline-flex gap-1">
-              <button
-                type="button"
-                onClick={() => setPreviewMode("summary")}
-                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
-                  previewMode === "summary"
-                    ? "bg-green-500 text-black"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
-                }`}
-              >
-                Release Summary
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewMode("json")}
-                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
-                  previewMode === "json"
-                    ? "bg-green-500 text-black"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
-                }`}
-              >
-                Raw JSON
-              </button>
+            <div className="rounded-lg border border-green-900/40 bg-black/70 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-gray-300 font-semibold tracking-wide">Deployment Readiness</p>
+                <p className={`text-xs font-semibold ${isManifestReady ? "text-green-300" : "text-yellow-300"}`}>
+                  {readinessPercent}%
+                </p>
+              </div>
+              <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-200 ${isManifestReady ? "bg-green-500" : "bg-yellow-400"}`}
+                  style={{ width: `${readinessPercent}%` }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                {readinessChecks.map((item) => (
+                  <div
+                    key={item.label}
+                    className={`rounded-md border px-2 py-1 text-[11px] ${
+                      item.ok
+                        ? "border-green-500/30 bg-green-500/10 text-green-300"
+                        : "border-gray-700 bg-gray-900/40 text-gray-500"
+                    }`}
+                  >
+                    {item.ok ? "OK" : "Missing"} · {item.label}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-[11px] mt-3">
+                <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
+                  <p className="text-gray-500">Tool Name</p>
+                  <p className="text-green-300 mt-1 break-all">{manifest.agent_tool_name || "Not set"}</p>
+                </div>
+                <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
+                  <p className="text-gray-500">Price / Call</p>
+                  <p className="text-gray-200 mt-1">{formattedPrice}</p>
+                </div>
+                <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2 col-span-2">
+                  <p className="text-gray-500">Manifest Size</p>
+                  <p className="text-gray-200 mt-1">{manifestBytes} bytes</p>
+                </div>
+              </div>
             </div>
 
-            {previewMode === "summary" ? (
-              <>
-                <div className="rounded-lg border border-green-900/40 bg-black/70 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs text-gray-300 font-semibold tracking-wide">Release Readiness</p>
-                    <p className={`text-xs font-semibold ${isManifestReady ? "text-green-300" : "text-yellow-300"}`}>
-                      {readinessPercent}%
-                    </p>
-                  </div>
-                  <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-200 ${isManifestReady ? "bg-green-500" : "bg-yellow-400"}`}
-                      style={{ width: `${readinessPercent}%` }}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    {readinessChecks.map((item) => (
-                      <div
-                        key={item.label}
-                        className={`rounded-md border px-2 py-1 text-[11px] ${
-                          item.ok
-                            ? "border-green-500/30 bg-green-500/10 text-green-300"
-                            : "border-gray-700 bg-gray-900/40 text-gray-500"
-                        }`}
-                      >
-                        {item.ok ? "OK" : "Missing"} · {item.label}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-gray-800 bg-black/70 overflow-hidden">
-                  <div className="px-3 py-2 border-b border-gray-800 text-[11px] text-gray-400">
-                    Publish Snapshot
-                  </div>
-                  <div className="p-3 grid grid-cols-2 gap-3 text-[11px]">
-                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
-                      <p className="text-gray-500">Tool Name</p>
-                      <p className="text-green-300 mt-1 break-all">{manifest.agent_tool_name || "Not set"}</p>
-                    </div>
-                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
-                      <p className="text-gray-500">Endpoint Host</p>
-                      <p className="text-gray-200 mt-1 break-all">{endpointHost}</p>
-                    </div>
-                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
-                      <p className="text-gray-500">Price / Call</p>
-                      <p className="text-gray-200 mt-1">{formattedPrice}</p>
-                    </div>
-                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
-                      <p className="text-gray-500">Manifest Size</p>
-                      <p className="text-gray-200 mt-1">{manifestBytes} bytes</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-gray-800 bg-black/70 overflow-hidden">
-                  <div className="px-3 py-2 border-b border-gray-800 text-[11px] text-gray-400">
-                    Release Candidate Notes
-                  </div>
-                  <div className="p-3 text-[11px] space-y-2">
-                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
-                      <p className="text-gray-500">Release Tag</p>
-                      <p className="text-green-300 mt-1">{releaseTag}</p>
-                    </div>
-                    {releaseNotes.length > 0 ? (
-                      releaseNotes.map((note) => (
-                        <div key={note} className="text-gray-300 border border-gray-800 bg-gray-900/30 rounded-md px-2 py-1.5">
-                          {note}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-gray-500 border border-gray-800 bg-gray-900/30 rounded-md px-2 py-1.5">
-                        No release notes yet. Fill core fields to generate notes.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-gray-800 bg-black/70 overflow-hidden">
-                  <div className="px-3 py-2 border-b border-gray-800 text-[11px] text-gray-400">
-                    Pre-Deploy Risk Signals
-                  </div>
-                  <div className="p-3 text-[11px] space-y-2">
-                    {riskSignals.length === 0 ? (
-                      <div className="rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1.5 text-green-300">
-                        No major risk signals detected.
-                      </div>
-                    ) : (
-                      riskSignals.map((signal) => (
-                        <div
-                          key={signal.text}
-                          className={`rounded-md border px-2 py-1.5 ${
-                            signal.level === "warn"
-                              ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-200"
-                              : "border-blue-500/30 bg-blue-500/10 text-blue-200"
-                          }`}
-                        >
-                          {signal.text}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-lg border border-green-900/40 bg-black/70 overflow-hidden">
-                <div className="px-3 py-2 border-b border-green-900/30 text-[11px] text-gray-400">
-                  Manifest JSON Preview
-                </div>
-                <pre className="p-3 text-green-300 whitespace-pre-wrap overflow-x-auto text-xs leading-relaxed">
-                  {JSON.stringify(manifest, null, 2)}
-                </pre>
+            <div className="rounded-lg border border-green-900/40 bg-black/70 overflow-hidden">
+              <div className="px-3 py-2 border-b border-green-900/30 text-[11px] text-gray-400">
+                Manifest JSON Preview
               </div>
-            )}
+              <pre className="p-3 text-green-300 whitespace-pre-wrap overflow-x-auto text-xs leading-relaxed">
+                {JSON.stringify(manifest, null, 2)}
+              </pre>
+            </div>
           </div>
         </div>
 

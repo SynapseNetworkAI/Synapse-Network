@@ -11,6 +11,52 @@ router = APIRouter()
 AuthorizationHeader = Annotated[Optional[str], Header(alias="Authorization")]
 UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
 
+REGISTRATION_GUIDE_FIELDS: List[Dict[str, Any]] = [
+    {
+        "key": "serviceName",
+        "required": True,
+        "title": "Service Name",
+        "description": "Human-readable service title shown in marketplace and seller console.",
+        "howToConfigure": "Use a concise product-grade name, 4-80 chars.",
+        "platformUse": "Display, search ranking, and trust cues.",
+        "example": "DeepSeek Market Analysis",
+    },
+    {
+        "key": "agentToolName",
+        "required": True,
+        "title": "Agent Tool Name",
+        "description": "Machine-facing stable key for AI callers.",
+        "howToConfigure": "Use [a-z0-9_-], 3-64 chars.",
+        "platformUse": "Routing identity and request tracing.",
+        "example": "get_market_analysis",
+    },
+    {
+        "key": "invoke.targets",
+        "required": True,
+        "title": "Cluster Targets",
+        "description": "Active-active upstream endpoint list.",
+        "howToConfigure": "Provide one full URL per node; first target is primary.",
+        "platformUse": "Weighted traffic routing and failover candidates.",
+    },
+    {
+        "key": "healthCheck.path",
+        "required": True,
+        "title": "Health Check Path",
+        "description": "Shared probe path for every target origin.",
+        "howToConfigure": "Use path only and always start with '/'.",
+        "platformUse": "Gateway computes probe URL as origin + path.",
+        "example": "/health",
+    },
+    {
+        "key": "constraints",
+        "required": False,
+        "title": "Limits & SLA",
+        "description": "Timeout, size and QPS guardrails.",
+        "howToConfigure": "Set values from load test and production capacity.",
+        "platformUse": "Admission control, circuit safety and scheduler hints.",
+    },
+]
+
 class ServicePricing(BaseModel):
     currency: str = "USD"
     amount: str
@@ -109,6 +155,23 @@ async def list_services(
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
     rows = await service.list_owner_services(owner)
     return {"status": "success", "services": rows}
+
+@router.get("/v2/services/registration-guide")
+async def registration_guide(
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    credential_service.require_owner_wallet(authorization, x_user_address)
+    return {
+        "status": "success",
+        "designStyle": "Google AWS Apple inspired: progressive disclosure + inline guidance",
+        "principles": [
+            "Keep form fields minimal and grouped by intent",
+            "Show validation next to each field instead of top-level dump",
+            "Provide contextual explainers for every critical field",
+        ],
+        "fields": REGISTRATION_GUIDE_FIELDS,
+    }
 
 @router.post("/v2/services")
 async def register_service(

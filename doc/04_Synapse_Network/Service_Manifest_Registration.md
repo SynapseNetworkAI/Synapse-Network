@@ -413,6 +413,27 @@
 5. 部署门禁
   - 只要上述任一规则未通过，`Deploy Manifest` 按钮必须保持禁用，并在页面提示第一条校验失败原因。
 
+### 6.2 注册页体验重构（Google / AWS / Apple 风格）
+
+1. 交互目标
+  - 从“规则堆叠”升级为“就地理解 + 就地修正”。
+  - 让卖家在 1 屏内完成核心注册，不被冗余信息打断。
+
+2. 设计原则
+  - Google 风格：字段旁上下文帮助（contextual help）。
+  - AWS 风格：按业务域分组（AI Interface / Routing / Limits / Schema）。
+  - Apple 风格：减少视觉噪音，突出主要任务按钮与就绪状态。
+
+3. 已实现方案
+  - 移除顶部集中校验块，改为每个字段下方展示即时校验结果。
+  - 每个核心字段旁提供引导入口（点击/悬停可查看：字段作用、配置方法、平台用途、示例）。
+  - 统一以 `invoke.targets[]` 作为上游配置入口，不再展示重复 endpoint 输入。
+  - 右侧预览区精简为“部署就绪度 + Manifest JSON”，去掉冗长的发布注释卡片。
+
+4. 后端契约支持
+  - 新增 `GET /api/v2/services/registration-guide`。
+  - 返回字段说明元数据（`key/title/description/howToConfigure/platformUse/example`），用于前端引导与后续 i18n 扩展。
+
 ---
 
 ## 7. 与现有系统兼容策略
