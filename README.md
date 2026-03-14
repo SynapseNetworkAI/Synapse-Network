@@ -22,8 +22,8 @@ This repository includes:
 From repo root:
 
 ```bash
-chmod +x test/setup_local_env.sh
-./test/setup_local_env.sh
+chmod +x scripts/local/setup_local_env.sh
+./scripts/local/setup_local_env.sh
 ```
 
 This script will start local chain, deploy contracts, start backend, and run frontend.
@@ -31,14 +31,29 @@ This script will start local chain, deploy contracts, start backend, and run fro
 ### 2) Restart / stop
 
 ```bash
-chmod +x test/restart_local_env.sh
-./test/restart_local_env.sh
+chmod +x scripts/local/restart_local_env.sh
+./scripts/local/restart_local_env.sh
 
-chmod +x test/stop_local_env.sh
-./test/stop_local_env.sh
+chmod +x scripts/local/stop_local_env.sh
+./scripts/local/stop_local_env.sh
 ```
 
-### 3) Frontend only
+### 3) Prod backend scripts (seller_fastapi only)
+
+Prod scripts only manage `python_sdk/seller_fastapi.py` and do not start local Anvil or deploy localhost contracts.
+
+```bash
+chmod +x scripts/prod/start_prod_env.sh
+./scripts/prod/start_prod_env.sh
+
+chmod +x scripts/prod/restart_prod_env.sh
+./scripts/prod/restart_prod_env.sh
+
+chmod +x scripts/prod/stop_prod_env.sh
+./scripts/prod/stop_prod_env.sh
+```
+
+### 4) Frontend only
 
 ```bash
 cd frontend
@@ -46,7 +61,7 @@ yarn install
 yarn dev
 ```
 
-### 4) Python backend only
+### 5) Python backend only
 
 ```bash
 cd python_sdk
@@ -104,8 +119,8 @@ GitHub issue templates for direct assignment:
 ```text
 Synapse-Network/
 	contracts/                # Solidity contracts
-	scripts/                  # Deploy, funding, and chain scripts
-	test/                     # One-click local env scripts and contract tests
+	scripts/                  # Deploy scripts + local/prod operation scripts
+	test/                     # Contract tests
 	python_sdk/               # FastAPI gateway + Python SDK + runtime storage
 	frontend/                 # Next.js dashboard and developer console
 	docker-compose/           # Optional infra services

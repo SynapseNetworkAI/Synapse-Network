@@ -32,7 +32,7 @@ pip install -r requirements.txt
 
 ## 2. 一键启动本地集群 (推荐)
 
-为简化启动流程，我们在根目录提供了 `setup_local_env.sh` 脚本。它将一键完成：
+为简化启动流程，我们在根目录提供了 `scripts/local/setup_local_env.sh` 脚本。它将一键完成：
 - 启动 **Hardhat 本地链** (`127.0.0.1:8545`)
 - 部署 **Synapse NetworkSyncRouter + MockUSDC**
 - 自动读取 `frontend/src/contract-config.json` 并注入 Seller API 所需环境变量
@@ -42,8 +42,8 @@ pip install -r requirements.txt
 
 请在**项目根目录**（Synapse Network）打开一个新的终端窗口并执行：
 ```bash
-chmod +x test/setup_local_env.sh
-./test/setup_local_env.sh
+chmod +x scripts/local/setup_local_env.sh
+./scripts/local/setup_local_env.sh
 ```
 
 **运行成功后，系统将自动就绪：**
@@ -57,22 +57,40 @@ chmod +x test/setup_local_env.sh
 
 推荐使用一键停止脚本：
 ```bash
-chmod +x test/stop_local_env.sh
-./test/stop_local_env.sh
+chmod +x scripts/local/stop_local_env.sh
+./scripts/local/stop_local_env.sh
 ```
 
 如需“一键重启”（先停再起）：
 ```bash
-chmod +x test/restart_local_env.sh
-./test/restart_local_env.sh
+chmod +x scripts/local/restart_local_env.sh
+./scripts/local/restart_local_env.sh
 ```
 
-说明：`restart_local_env.sh` 现在会在重启完成后自动执行 V2 日限额回归烟测（`python_sdk/examples/v2_daily_limit_regression.py`），并在失败时返回非 0。
+说明：`scripts/local/restart_local_env.sh` 会在重启完成后自动执行 V2 日限额回归烟测（`python_sdk/examples/v2_daily_limit_regression.py`），并在失败时返回非 0。
 
 若仅需快速重启、不跑烟测：
 ```bash
-SKIP_V2_SMOKE=1 ./test/restart_local_env.sh
+SKIP_V2_SMOKE=1 ./scripts/local/restart_local_env.sh
 ```
+
+## 2.1 生产环境启动脚本（仅 Seller API）
+
+生产环境脚本位于 `scripts/prod/`，只管理 `python_sdk/seller_fastapi.py`，不启动 Anvil，也不会执行 `deploy_anvil.js`。
+
+```bash
+chmod +x scripts/prod/start_prod_env.sh scripts/prod/restart_prod_env.sh scripts/prod/stop_prod_env.sh
+
+./scripts/prod/start_prod_env.sh
+./scripts/prod/restart_prod_env.sh
+./scripts/prod/stop_prod_env.sh
+```
+
+建议在 `python_sdk/.env.prod` 中配置：
+
+- `ENVIRONMENT=prod`
+- `STORAGE_BACKEND=postgres`
+- `POSTGRES_DSN=postgresql://<user>:<password>@<host>:5432/synapse_gateway`
 
 ## 3. 进行端到端 (E2E) 调用测试
 

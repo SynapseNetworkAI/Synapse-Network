@@ -195,9 +195,9 @@ curl -X DELETE http://127.0.0.1:8000/api/v1/services/<service_record_id> \
 在 `python_sdk` 目录下：
 
 - 启动开发服务：`python seller_fastapi.py`
-- 或回到项目根目录使用脚本：`cd .. && ./test/setup_local_env.sh`
-- 一键重启并执行 V2 日限额烟测：`cd .. && ./test/restart_local_env.sh`
-- 仅重启不跑烟测：`cd .. && SKIP_V2_SMOKE=1 ./test/restart_local_env.sh`
+- 或回到项目根目录使用脚本：`cd .. && ./scripts/local/setup_local_env.sh`
+- 一键重启并执行 V2 日限额烟测：`cd .. && ./scripts/local/restart_local_env.sh`
+- 仅重启不跑烟测：`cd .. && SKIP_V2_SMOKE=1 ./scripts/local/restart_local_env.sh`
 
 ## 多环境部署（local / prod）
 
@@ -238,6 +238,14 @@ ENVIRONMENT=local ENV_FILE=.env.local python seller_fastapi.py
 cd python_sdk
 cp .env.prod.example .env.prod
 ENVIRONMENT=prod ENV_FILE=.env.prod python seller_fastapi.py
+```
+
+或在项目根目录直接使用 prod 运维脚本（只管理 seller_fastapi，不启动 anvil，不部署本地合约）：
+
+```bash
+./scripts/prod/start_prod_env.sh
+./scripts/prod/restart_prod_env.sh
+./scripts/prod/stop_prod_env.sh
 ```
 
 关键字段：

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 
 find_pid_by_port() {
@@ -23,9 +23,9 @@ fi
 
 cd "${ROOT_DIR}"
 
-echo "=== A2A Local Environment Setup (Provider Mode) ==="
+echo "=== Synapse Local Environment Setup ==="
 
-echo "1) Starting Anvil Node in background..."
+echo "1) Starting Anvil node in background..."
 EXISTING_ANVIL_PID="$(find_pid_by_port 8545)"
 if [[ -n "$EXISTING_ANVIL_PID" ]]; then
 	echo "Port 8545 already in use by PID ${EXISTING_ANVIL_PID}. Reusing existing local RPC node."
@@ -45,10 +45,10 @@ fi
 
 echo "2) Deploying contracts to localhost..."
 npx hardhat run scripts/deploy_anvil.js --network localhost
-echo "2.1) Funding testnet accounts..."
+
+echo "2.1) Funding test accounts..."
 npx hardhat run scripts/fund_eth.js --network localhost
 npx hardhat run scripts/fund_usdc.js --network localhost
-
 
 CONFIG_FILE="${ROOT_DIR}/frontend/src/contract-config.json"
 if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -59,7 +59,7 @@ fi
 ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.A2APaySyncRouter)")
 SELLER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
-echo "3) Starting Seller FastAPI in background..."
+echo "3) Starting seller_fastapi.py in background (local profile)..."
 cd "${ROOT_DIR}/python_sdk"
 
 if [[ -x "${ROOT_DIR}/python_sdk/venv/bin/python" ]]; then
@@ -84,11 +84,23 @@ if [[ -n "$EXISTING_SELLER_PID" ]]; then
 	fi
 fi
 
-RPC_URL="http://127.0.0.1:8545" \
-ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-SELLER_ADDRESS="$SELLER_ADDRESS" \
-EXPECTED_PRICE="1000000000000000000" \
-"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/python_sdk/seller_api.log" 2>&1 &
+LOCAL_ENV_FILE="${ROOT_DIR}/python_sdk/.env.local"
+if [[ -f "$LOCAL_ENV_FILE" ]]; then
+	ENVIRONMENT=local \
+	ENV_FILE=.env.local \
+	RPC_URL="http://127.0.0.1:8545" \
+	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+	SELLER_ADDRESS="$SELLER_ADDRESS" \
+	EXPECTED_PRICE="1000000000000000000" \
+	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/python_sdk/seller_api.log" 2>&1 &
+else
+	ENVIRONMENT=local \
+	RPC_URL="http://127.0.0.1:8545" \
+	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+	SELLER_ADDRESS="$SELLER_ADDRESS" \
+	EXPECTED_PRICE="1000000000000000000" \
+	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/python_sdk/seller_api.log" 2>&1 &
+fi
 SELLER_PID=$!
 sleep 3
 
@@ -100,7 +112,7 @@ if ! kill -0 "$SELLER_PID" >/dev/null 2>&1; then
 	exit 1
 fi
 
-echo "4) Starting Frontend Next.js in background..."
+echo "4) Starting frontend Next.js in background..."
 cd "${ROOT_DIR}/frontend"
 
 EXISTING_FRONTEND_PID="$(find_pid_by_port 3000)"
@@ -138,19 +150,18 @@ FRONTEND_OWNED_BY_SCRIPT=$FRONTEND_OWNED_BY_SCRIPT
 EOF
 
 echo ""
-echo "=== System Running ==="
-echo "Anvil PID : $ANVIL_PID"
-echo "Seller PID  : $SELLER_PID"
-echo "Frontend PID: $FRONTEND_PID"
-echo "Router      : $ROUTER_ADDRESS"
-echo "Seller      : $SELLER_ADDRESS"
-echo "PID file    : $PID_FILE"
-echo "Frontend    : http://127.0.0.1:3000"
+echo "=== Local system running ==="
+echo "Anvil PID    : $ANVIL_PID"
+echo "Seller PID   : $SELLER_PID"
+echo "Frontend PID : $FRONTEND_PID"
+echo "Router       : $ROUTER_ADDRESS"
+echo "Seller       : $SELLER_ADDRESS"
+echo "PID file     : $PID_FILE"
+echo "Frontend URL : http://127.0.0.1:3000"
 echo ""
-echo "Next (E2E test):"
+echo "E2E test command:"
 echo "  cd ${ROOT_DIR}"
 echo "  npx hardhat run scripts/e2e_sync_payment.js --network localhost"
-echo "  # Then use printed TX_HASH to call FastAPI (see Python-Dev-Guide.md)"
 echo ""
 echo "Shutdown command:"
-echo "  kill $ANVIL_PID $SELLER_PID $FRONTEND_PID"
+echo "  bash scripts/local/stop_local_env.sh"

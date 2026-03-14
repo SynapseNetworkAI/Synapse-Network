@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 
 find_pid_by_port() {
@@ -14,13 +14,12 @@ find_pid_by_port() {
 ANVIL_PID=""
 SELLER_PID=""
 FRONTEND_PID=""
-ANVIL_OWNED_BY_SCRIPT=0
 
 if [[ -f "$PID_FILE" ]]; then
   source "$PID_FILE"
 else
   echo "No PID file found at: $PID_FILE"
-  echo "Trying fallback by port scan (8545 / 8000)..."
+  echo "Trying fallback by port scan (8545 / 8000 / 3000)..."
   ANVIL_PID="$(find_pid_by_port 8545)"
   SELLER_PID="$(find_pid_by_port 8000)"
   FRONTEND_PID="$(find_pid_by_port 3000)"
@@ -49,7 +48,7 @@ stop_pid() {
   fi
 }
 
-echo "=== Stopping A2A Local Environment ==="
+echo "=== Stopping Synapse local environment ==="
 stop_pid "Anvil" "${ANVIL_PID:-}"
 stop_pid "SellerAPI" "${SELLER_PID:-}"
 stop_pid "Frontend" "${FRONTEND_PID:-}"
@@ -58,4 +57,5 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
   echo "Removed PID file: $PID_FILE"
 fi
+
 echo "Done."

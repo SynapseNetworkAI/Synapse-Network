@@ -3,27 +3,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-echo "=== Restarting A2A Local Environment ==="
+echo "=== Restarting Synapse local environment ==="
 
 if [[ -x "${SCRIPT_DIR}/stop_local_env.sh" ]]; then
   "${SCRIPT_DIR}/stop_local_env.sh" || true
 else
-  echo "stop_local_env.sh not executable, running with bash..."
   bash "${SCRIPT_DIR}/stop_local_env.sh" || true
 fi
 
-echo "Starting fresh environment..."
+echo "Starting fresh local environment..."
 if [[ -x "${SCRIPT_DIR}/setup_local_env.sh" ]]; then
   "${SCRIPT_DIR}/setup_local_env.sh"
 else
-  echo "setup_local_env.sh not executable, running with bash..."
   bash "${SCRIPT_DIR}/setup_local_env.sh"
 fi
 
 if [[ "${SKIP_V2_SMOKE:-1}" == "1" ]]; then
-  echo "Skipping V2 smoke regression (SKIP_V2_SMOKE=1 by default for new Vault architecture)."
+  echo "Skipping V2 smoke regression (SKIP_V2_SMOKE=1 by default)."
   exit 0
 fi
 
