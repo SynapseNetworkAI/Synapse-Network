@@ -16,8 +16,8 @@ from src.models.pydantic_models import CredentialIssueRequest, CredentialQuotaUp
 from src.storage import BaseStorage
 
 write_lock = asyncio.Lock()
-_CREDENTIALS_COLLECTION = "credentials"
-_LEGACY_CREDENTIALS_COLLECTION = "agent_credentials"
+_BUYER_CREDENTIALS_COLLECTION = "buyer_credentials"
+_LEGACY_BUYER_COLLECTIONS = ("credentials", "agent_credentials")
 _REMOVED_CREDENTIAL_FIELDS = {"agentId", "serviceId", "serviceRecordId"}
 
 
@@ -82,26 +82,37 @@ def normalize_credential_rows(raw: Any) -> Tuple[List[Dict[str, Any]], Dict[str,
     return [], {}
 
 
+def _mark_buyer_rows(rows: List[Dict[str, Any]]) -> None:
+    for row in rows:
+        row["credentialType"] = "buyer"
+
+
 def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extras: Optional[Dict[str, Any]] = None) -> None:
+    _mark_buyer_rows(rows)
     payload: Dict[str, Any] = {"credentials": rows, "updatedAt": now_ts()}
     if extras:
         payload.update(extras)
 
-    storage.save_collection(_CREDENTIALS_COLLECTION, payload)
+    storage.save_collection(_BUYER_CREDENTIALS_COLLECTION, payload)
 
 
 def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    primary = storage.get_collection(_CREDENTIALS_COLLECTION)
+    primary = storage.get_collection(_BUYER_CREDENTIALS_COLLECTION)
     rows, extras = normalize_credential_rows(primary)
     if rows or extras:
+        _mark_buyer_rows(rows)
         return rows, extras
 
-    legacy = storage.get_collection(_LEGACY_CREDENTIALS_COLLECTION)
-    legacy_rows, legacy_extras = normalize_credential_rows(legacy)
-    if legacy_rows or legacy_extras:
-        # One-way migration: read legacy once, then write canonical credentials store.
-        save_credential_rows(storage, legacy_rows, legacy_extras)
-    return legacy_rows, legacy_extras
+    for legacy_collection in _LEGACY_BUYER_COLLECTIONS:
+        legacy = storage.get_collection(legacy_collection)
+        legacy_rows, legacy_extras = normalize_credential_rows(legacy)
+        if legacy_rows or legacy_extras:
+            _mark_buyer_rows(legacy_rows)
+            # One-way migration: read legacy once, then write canonical buyer credentials store.
+            save_credential_rows(storage, legacy_rows, legacy_extras)
+            return legacy_rows, legacy_extras
+
+    return [], {}
 
 
 def resolve_ttl_seconds(expires_in_sec: Optional[int]) -> int:
@@ -270,6 +281,7 @@ async def issue_credential_for_owner(storage: BaseStorage, owner_wallet: str, re
     plain_token = issue_token()
     record = {
         "id": str(uuid4()),
+        "credentialType": "buyer",
         "ownerAddress": owner_wallet,
         "name": (req.name or "My Secret Key").strip(),
         "tokenHash": hash_token(plain_token),

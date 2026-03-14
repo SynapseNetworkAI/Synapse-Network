@@ -141,10 +141,15 @@
 
 ## 5. 凭据签发与生命周期 (Credentials Lifecycle)
 
-- **创建凭据**: `POST /api/v1/credentials/issue`
-- **获取所有活动凭据**: `GET /api/v1/credentials`
-- **一键撤销凭据**: `POST /api/v1/credentials/{credential_id}/revoke`
-- **更新凭据限额**: `PATCH /api/v1/credentials/{credential_id}/quota`
+- **Buyer 凭据签发**: `POST /api/v1/credentials/buyer/issue`
+- **Buyer 凭据列表**: `GET /api/v1/credentials/buyer/list`
+- **Buyer 凭据撤销**: `POST /api/v1/credentials/buyer/{credential_id}/revoke`
+- **Buyer 凭据限额更新**: `PATCH /api/v1/credentials/buyer/{credential_id}/quota`
+- **Buyer 审计日志**: `GET /api/v1/credentials/buyer/audit-logs`
+
+- **Seller Secret 签发**: `POST /api/v1/secrets/seller/issue`
+- **Seller Secret 列表**: `GET /api/v1/secrets/seller/list`
+- **Seller Secret 撤销**: `DELETE /api/v1/secrets/seller/{secret_id}`
 
 创建凭据请求体（当前版本）：
 - `name` (optional)
@@ -155,6 +160,6 @@
 - `resetInterval` (optional)
 - `expiration` (optional)
 
-说明：凭据不再绑定 `serviceId`，服务选择在调用阶段通过 `X-Service-Id`/请求体 `serviceId` 决定。
+说明：凭据不再绑定 `serviceId`，服务选择在调用阶段通过 `X-Service-Id`/请求体 `serviceId` 决定。Buyer 与 Seller 凭据在 API 路径与存储层均已隔离。
 
 > 这一组 API 将主钱包的高额安全和实际高频、暴露给多物理机的子实例解耦，完美支撑了“大额充值不暴露主密钥”的重要愿景。

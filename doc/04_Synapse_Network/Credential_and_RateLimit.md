@@ -38,17 +38,17 @@
 ## 4. API 设计 (后端)
 
 ### 4.1 签发 Service Key
-`POST /api/v2/secrets`
+`POST /api/v1/secrets/seller/issue`
 - 鉴权：Seller 钱包签名 Session。
 - 入参：`name` (名称), `expiration` (过期时间), `rpm` (可选，独立凭证速率上限)。
 - 输出：明文 `secretKey` 及元数据。
 
 ### 4.2 列出所有 Keys
-`GET /api/v2/secrets`
+`GET /api/v1/secrets/seller/list`
 - 仅返回属于自身的凭证列表（脱敏掩码 `maskedKey`）。
 
 ### 4.3 撤销/删除 Key
-`DELETE /api/v2/secrets/{secret_id}`
+`DELETE /api/v1/secrets/seller/{secret_id}`
 - 阻断通过该凭证发起的所有请求。
 
 ### 4.4 数据面调用 (调用方 -> Seller Gateway)
@@ -106,7 +106,7 @@
   - 提供统一只读聚合视图给运营看板，不打破隔离边界。
 
 ### 7.4 与当前实现的对齐建议
-- Provider Secret API (`/api/v2/secrets/*`) 固定处理 `provider` 侧凭据。
-- Buyer 调用凭据 (`/api/v1/credentials/*`) 固定处理 `buyer` 侧凭据。
+- Provider Secret API (`/api/v1/secrets/seller/*`) 固定处理 `provider/seller` 侧凭据。
+- Buyer 调用凭据 (`/api/v1/credentials/buyer/*`) 固定处理 `buyer` 侧凭据。
 - 在后续 schema 迭代中补充 `credentialType` 字段，并在旧数据迁移时默认回填对应类型。
 

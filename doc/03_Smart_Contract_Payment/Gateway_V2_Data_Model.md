@@ -23,7 +23,7 @@
 
 ---
 
-## 2. `credentials`
+## 2. `buyer_credentials`
 
 用途：保存调用凭据（仅存 hash，不存明文 token）。
 
@@ -110,7 +110,7 @@
 
 1) `usage_records.request_id` 全局唯一，确保幂等。  
 2) 扣费与 usage 状态更新同事务。  
-3) `credentials.calls_used` 只在成功计费后递增。  
+3) `buyer_credentials.calls_used` 只在成功计费后递增。  
 4) 结算批次确认后，关联 usage 标记为 `settled=true`（可后续扩展字段）。
 
 ## 6. 状态流转建议
@@ -136,9 +136,9 @@
 - 降低爆炸半径：单侧凭据泄露时不应横向影响另一侧业务面。
 
 推荐落地：
-- Dev(JSON): 统一文件 `credentials.json`，但每条记录强制 `credential_type`，并在服务层按类型鉴权。
+- Dev(JSON): 使用 `buyer_credentials.json` 与 `seller_secrets.json` 两个独立文件，避免混存。
 - Prod(DB): 拆分为 `buyer_credentials` 与 `provider_credentials` 两张表（或独立 schema），同时保留统一查询视图用于运营看板。
 
 当前实现说明：
-- 运行时文件名统一为 `credentials.json`。
+- 运行时文件名拆分为 `buyer_credentials.json` 与 `seller_secrets.json`。
 - 历史字段 `agentId/serviceId/serviceRecordId` 已废弃，不再写入与返回。

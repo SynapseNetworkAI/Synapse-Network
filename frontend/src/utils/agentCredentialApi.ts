@@ -71,7 +71,7 @@ export async function issueAgentCredential(
     expiration?: number;
   }
 ): Promise<AgentCredentialIssueResponse> {
-  const response = await fetch(`${API_BASE_URL}/credentials/issue`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/buyer/issue`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify(payload),
@@ -86,7 +86,7 @@ export async function issueAgentCredential(
 }
 
 export async function listAgentCredentials(userAddress: string): Promise<AgentCredentialRecord[]> {
-  const response = await fetch(`${API_BASE_URL}/credentials`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/buyer/list`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
   });
@@ -100,7 +100,7 @@ export async function listAgentCredentials(userAddress: string): Promise<AgentCr
 }
 
 export async function revokeAgentCredential(userAddress: string, credentialId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/credentials/${encodeURIComponent(credentialId)}/revoke`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/buyer/${encodeURIComponent(credentialId)}/revoke`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress, false),
   });
@@ -115,7 +115,7 @@ export async function updateAgentCredentialQuota(
   credentialId: string,
   payload: { maxCalls?: number; rpm?: number; expiresAt?: number }
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/credentials/${encodeURIComponent(credentialId)}/quota`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/buyer/${encodeURIComponent(credentialId)}/quota`, {
     method: "PATCH",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify(payload),
@@ -127,7 +127,7 @@ export async function updateAgentCredentialQuota(
 }
 
 export async function listAuditLogs(userAddress: string, limit: number = 100): Promise<AuditLogRecord[]> {
-  const response = await fetch(`${API_BASE_URL}/audit-logs?limit=${encodeURIComponent(String(limit))}`, {
+  const response = await fetch(`${API_BASE_URL}/credentials/buyer/audit-logs?limit=${encodeURIComponent(String(limit))}`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
   });

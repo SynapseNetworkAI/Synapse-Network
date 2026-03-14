@@ -16,7 +16,7 @@ class JsonStorage(BaseStorage):
     def get_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
         path = self._path(collection_name)
         if not os.path.exists(path): 
-            if collection_name in {'credentials', 'agent_credentials'}: return {}
+            if collection_name in {'credentials', 'agent_credentials', 'buyer_credentials', 'seller_secrets', 'provider_secrets'}: return {}
             return {} if 'ledger' in collection_name or 'config' in collection_name else []
             
         try:
@@ -34,7 +34,7 @@ class JsonStorage(BaseStorage):
                         return data['logs']
                 return data
         except json.JSONDecodeError:
-            if collection_name in {'credentials', 'agent_credentials'}: return {}
+            if collection_name in {'credentials', 'agent_credentials', 'buyer_credentials', 'seller_secrets', 'provider_secrets'}: return {}
             return {} if 'ledger' in collection_name or 'config' in collection_name else []
 
     def save_collection(self, collection_name: str, data: Union[List[Any], Dict[str, Any]]) -> None:
