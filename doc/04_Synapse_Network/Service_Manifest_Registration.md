@@ -284,6 +284,26 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 
 不满足硬上限时，注册接口返回 `422 SERVICE_REGISTRATION_INVALID`。
 
+后端配置源（单一真相，必须与前端校验和文档一致）：
+
+1. 硬上限（`python_sdk/seller_api/src/core/config.py`）
+  - `GATEWAY_MIN_TIMEOUT_MS=300`
+  - `GATEWAY_MAX_TIMEOUT_MS=15000`
+  - `GATEWAY_MIN_REQUEST_BYTES=256`
+  - `GATEWAY_MAX_REQUEST_BYTES=262144`
+  - `GATEWAY_MIN_RESPONSE_BYTES=256`
+  - `GATEWAY_MAX_RESPONSE_BYTES=1048576`
+  - `GATEWAY_MIN_SERVICE_QPS=1`
+  - `GATEWAY_MAX_SERVICE_QPS=200`
+
+2. 默认值（`python_sdk/seller_api/src/core/config.py`）
+  - `GATEWAY_DEFAULT_TIMEOUT_MS=3000`
+  - `GATEWAY_DEFAULT_REQUEST_BYTES=4096`
+  - `GATEWAY_DEFAULT_RESPONSE_BYTES=2048`
+  - `GATEWAY_DEFAULT_SERVICE_QPS=50`
+
+说明：以上默认值被路由模型、注册标准化逻辑、转发约束夹逼逻辑、JSON 持久化兜底逻辑共同复用，避免多处硬编码漂移。
+
 ### 5.1.4 Buyer 调用阶段约束执行（运行时）
 
 网关在 `POST /api/v1/gateway/generate` 执行时，会基于注册时 `constraints` 对买家请求做准入控制：
@@ -414,7 +434,7 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
   - 推荐索引：`(serviceId, targetUrl, checkedAt DESC)`
 
 3.1.2 Seller 健康明细接口（Owner Scope）
-  - `GET /api/v1/services/{serviceId}/health/history?limitPerTarget=50&days=7`
+  - `GET /api/v1/services/{serviceId}/health/history?limitPerTarget=720&hours=24`
   - 返回每个 target 的最新状态 + 最近 N 次探测历史。
   - 仅服务 owner 可访问。
 
@@ -431,11 +451,12 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
   - 每 target 每日探测记录量约：`86400 / probeIntervalSec`
   - 默认 `probeIntervalSec=15` => `5760` 条/target/天
   - 若 `serviceA` 有 3 个 targets：`17280` 条/天
-  - 7 天约 `120960` 条；30 天约 `518400` 条
-  - 推荐保留：`7 天`（足够排障且显著节约存储成本）
+  - 3 小时约 `2160` 条；7 天约 `120960` 条；30 天约 `518400` 条
+  - 默认保留：`3 小时`（`SERVICE_HEALTH_HISTORY_RETENTION_HOURS=3`）
   - 系统会自动：
     1. 清理超过 retention 的历史
     2. 清理已删除 service 的 orphan 历史
+  - 清理触发频率可配置：`SERVICE_HEALTH_HISTORY_PRUNE_INTERVAL_SEC`（默认 300 秒）
 
 4. Discover 准入
   - 仅返回满足 `isActive=true` 且 `healthyTargets>=1` 的服务。
@@ -646,6 +667,50 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 4. 后端契约支持
   - 新增 `GET /api/v1/services/registration-guide`。
   - 返回字段说明元数据（`key/title/description/howToConfigure/platformUse/example`），用于前端引导与后续 i18n 扩展。
+
+### 6.3 Edit Service 页面（Manifest 对齐）
+
+为避免“创建页字段齐全、编辑页字段缺失”导致配置漂移，`Edit Service` 需要支持以下分区编辑：
+
+1. Basic Profile
+  - `serviceName`
+  - `pricing.amount`
+  - `summary`
+  - `tags`
+  - `auth.type` / `auth.headerName`（只读展示，平台托管，不允许 Seller 编辑）
+  - `isActive`
+
+2. Health And Constraints
+  - `healthCheck.path/method/intervalSec/timeoutMs/successCodes/healthyThreshold/unhealthyThreshold`
+  - `constraints.timeoutMs/maxRequestBytes/maxResponseBytes/maxQps`
+
+3. Forwarding And Metering
+  - `forwarding.requestIdHeader`
+  - `forwarding.passThroughHeaders`
+  - `forwarding.injectHeaders`
+  - `forwarding.retryPolicy.maxAttempts/backoffMs/retryOnStatus`
+  - `metering.billingUnit/billOnError/requestIdRequired/responseSizeMetering`
+
+4. Invoke Contract
+  - `invoke.method`
+  - `invoke.url`
+  - `invoke.timeoutMs`
+  - `invoke.targets[]`
+  - `invoke.request.schema`
+  - `invoke.response.schema`
+
+5. 编辑页校验（最低门禁）
+  - `serviceName` 必填。
+  - `pricing.amount` 必须为正数。
+  - `healthCheck.path` 必填，且必须以 `/` 开头。
+  - `invoke.url` 必填。
+  - `invoke.targets[]` 必须为 JSON 数组且至少包含一个有效 `url`。
+  - `invoke.request.schema`、`invoke.response.schema`、`forwarding.injectHeaders` 必须是合法 JSON object。
+  - `constraints` 字段执行平台硬上限即时校验（越界红线提示并禁用保存，防止提交后触发 `422 SERVICE_REGISTRATION_INVALID`）：
+    1. `constraints.timeoutMs`: `300-15000`
+    2. `constraints.maxRequestBytes`: `256-262144`
+    3. `constraints.maxResponseBytes`: `256-1048576`
+    4. `constraints.maxQps`: `1-200`
 
 ---
 

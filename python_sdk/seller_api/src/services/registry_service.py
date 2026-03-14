@@ -7,6 +7,7 @@ import time
 import asyncio
 import random
 import string
+import math
 
 JSON_CONTENT_TYPE = "application/json"
 
@@ -25,7 +26,7 @@ def _generate_service_id(owner_wallet: str) -> str:
 
 def _build_public_invoke(svc: Dict[str, Any], public_gateway_url: Optional[str]) -> Dict[str, Any]:
     invoke = svc.get("invoke") if isinstance(svc.get("invoke"), dict) else {}
-    timeout_ms = int(invoke.get("timeoutMs") or 3000)
+    timeout_ms = int(invoke.get("timeoutMs") or settings.gateway_default_timeout_ms)
     method = str(invoke.get("method") or "POST").upper()
     request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
     response_spec = invoke.get("response") if isinstance(invoke.get("response"), dict) else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
@@ -99,25 +100,37 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     constraints = req_data.get("constraints") if isinstance(req_data.get("constraints"), dict) else {}
     timeout_ms = _require_range(
         "constraints.timeoutMs",
-        _as_int(constraints.get("timeoutMs") or constraints.get("timeout_ms") or 3000, 3000),
+        _as_int(
+            constraints.get("timeoutMs") or constraints.get("timeout_ms") or settings.gateway_default_timeout_ms,
+            settings.gateway_default_timeout_ms,
+        ),
         settings.gateway_min_timeout_ms,
         settings.gateway_max_timeout_ms,
     )
     max_request_bytes = _require_range(
         "constraints.maxRequestBytes",
-        _as_int(constraints.get("maxRequestBytes") or constraints.get("max_request_bytes") or 4096, 4096),
+        _as_int(
+            constraints.get("maxRequestBytes") or constraints.get("max_request_bytes") or settings.gateway_default_request_bytes,
+            settings.gateway_default_request_bytes,
+        ),
         settings.gateway_min_request_bytes,
         settings.gateway_max_request_bytes,
     )
     max_response_bytes = _require_range(
         "constraints.maxResponseBytes",
-        _as_int(constraints.get("maxResponseBytes") or constraints.get("max_response_bytes") or 2048, 2048),
+        _as_int(
+            constraints.get("maxResponseBytes") or constraints.get("max_response_bytes") or settings.gateway_default_response_bytes,
+            settings.gateway_default_response_bytes,
+        ),
         settings.gateway_min_response_bytes,
         settings.gateway_max_response_bytes,
     )
     max_qps = _require_range(
         "constraints.maxQps",
-        _as_int(constraints.get("maxQps") or constraints.get("max_qps") or 50, 50),
+        _as_int(
+            constraints.get("maxQps") or constraints.get("max_qps") or settings.gateway_default_service_qps,
+            settings.gateway_default_service_qps,
+        ),
         settings.gateway_min_service_qps,
         settings.gateway_max_service_qps,
     )
@@ -330,6 +343,7 @@ class RegistryService:
         service_record_id: str,
         owner_wallet: str,
         limit_per_target: int,
+        hours: Optional[int] = None,
         days: Optional[int] = None,
     ) -> Dict[str, Any]:
         rows = self.storage.get_collection("service_registry") or []
@@ -345,9 +359,15 @@ class RegistryService:
         if not isinstance(history, list):
             history = []
 
-        retention_days = max(1, int(settings.service_health_history_retention_days))
-        window_days = retention_days if days is None else max(1, min(int(days), retention_days))
-        cutoff_ms = int(time.time() * 1000) - (window_days * 24 * 60 * 60 * 1000)
+        retention_hours = max(1, int(settings.service_health_history_retention_hours))
+        if hours is not None:
+            requested_hours = int(hours)
+        elif days is not None:
+            requested_hours = int(days) * 24
+        else:
+            requested_hours = retention_hours
+        window_hours = max(1, min(requested_hours, retention_hours))
+        cutoff_ms = int(time.time() * 1000) - (window_hours * 60 * 60 * 1000)
 
         per_target: Dict[str, List[Dict[str, Any]]] = {}
         for row in history:
@@ -364,7 +384,7 @@ class RegistryService:
             bucket = per_target.setdefault(target_url, [])
             bucket.append(row)
 
-        normalized_limit = max(1, min(int(limit_per_target), 500))
+        normalized_limit = max(1, min(int(limit_per_target), 2000))
         targets = []
         for target_url, entries in per_target.items():
             sorted_entries = sorted(entries, key=lambda item: int(item.get("checkedAt") or 0), reverse=True)
@@ -381,8 +401,10 @@ class RegistryService:
         return {
             "serviceId": service_record_id,
             "serviceName": service_row.get("serviceName"),
-            "windowDays": window_days,
-            "retentionDays": retention_days,
+            "windowHours": window_hours,
+            "retentionHours": retention_hours,
+            "windowDays": max(1, int(math.ceil(window_hours / 24))),
+            "retentionDays": max(1, int(math.ceil(retention_hours / 24))),
             "limitPerTarget": normalized_limit,
             "targets": targets,
         }

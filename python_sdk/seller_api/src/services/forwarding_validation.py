@@ -27,10 +27,10 @@ def as_int(raw: Any, fallback: int) -> int:
 def effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
     """Clamp seller constraints into platform-safe runtime boundaries."""
     raw = service.get("constraints") if isinstance(service.get("constraints"), dict) else {}
-    timeout_ms = as_int(raw.get("timeoutMs"), 3000)
-    max_request_bytes = as_int(raw.get("maxRequestBytes"), 4096)
-    max_response_bytes = as_int(raw.get("maxResponseBytes"), 2048)
-    max_qps = as_int(raw.get("maxQps"), 50)
+    timeout_ms = as_int(raw.get("timeoutMs"), settings.gateway_default_timeout_ms)
+    max_request_bytes = as_int(raw.get("maxRequestBytes"), settings.gateway_default_request_bytes)
+    max_response_bytes = as_int(raw.get("maxResponseBytes"), settings.gateway_default_response_bytes)
+    max_qps = as_int(raw.get("maxQps"), settings.gateway_default_service_qps)
 
     timeout_ms = min(max(timeout_ms, settings.gateway_min_timeout_ms), settings.gateway_max_timeout_ms)
     max_request_bytes = min(max(max_request_bytes, settings.gateway_min_request_bytes), settings.gateway_max_request_bytes)

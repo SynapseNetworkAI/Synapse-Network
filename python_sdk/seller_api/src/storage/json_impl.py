@@ -2,6 +2,7 @@ import json
 import os
 import time
 from typing import Any, Dict, List, Union
+from src.core.config import settings
 from .base import BaseStorage
 
 
@@ -36,17 +37,17 @@ def _normalize_service_row(row: Any) -> Any:
         'endpoint': endpoint,
         'status': row.get('status') or ('active' if row.get('isActive', True) else 'inactive'),
         'constraints': row.get('constraints') if isinstance(row.get('constraints'), dict) else {
-            'timeoutMs': 3000,
-            'maxResponseBytes': 2048,
-            'maxRequestBytes': 4096,
-            'maxQps': 50,
+            'timeoutMs': settings.gateway_default_timeout_ms,
+            'maxResponseBytes': settings.gateway_default_response_bytes,
+            'maxRequestBytes': settings.gateway_default_request_bytes,
+            'maxQps': settings.gateway_default_service_qps,
         },
         'healthCheck': {
             **health_check,
             'path': path,
             'method': 'GET',
             'intervalSec': 30,
-            'timeoutMs': 3000,
+            'timeoutMs': settings.gateway_default_timeout_ms,
             'successCodes': [200],
             'healthyThreshold': 2,
             'unhealthyThreshold': 3,

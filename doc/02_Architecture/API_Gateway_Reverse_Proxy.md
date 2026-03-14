@@ -102,8 +102,9 @@
   - 若无健康节点，直接返回 `503 SERVICE_UNAVAILABLE`，不盲打故障上游。
 
 6. **存储成本控制（Retention & Cleanup）**
-  - 默认历史保留：`7 天`（`SERVICE_HEALTH_HISTORY_RETENTION_DAYS=7`）。
-  - 每轮探活后执行两类清理：
+  - 默认历史保留：`3 小时`（`SERVICE_HEALTH_HISTORY_RETENTION_HOURS=3`）。
+  - 按配置节奏执行清理（`SERVICE_HEALTH_HISTORY_PRUNE_INTERVAL_SEC`，默认 300 秒），避免每轮探活都全量 prune。
+  - 每次清理执行两类删除：
     1. 清理过期历史记录（`checkedAt < now - retention`）
     2. 清理 orphan 记录（`serviceId` 已不存在于 `service_registry`）
   - 当 Seller 删除服务时，服务注册与健康快照/历史会保持同步，相关健康任务数据不会残留。

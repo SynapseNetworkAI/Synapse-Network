@@ -4,6 +4,7 @@ from src.api.deps import get_registry_service
 from src.services.registry_service import RegistryService
 from src.services import credential_service
 from src.services.manifest_parser_service import parse_manifest_from_curl
+from src.core.config import settings
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -71,10 +72,10 @@ class HealthCheckSpec(BaseModel):
     unhealthyThreshold: int = 3
 
 class ConstraintsSpec(BaseModel):
-    timeoutMs: int = Field(default=3000, ge=300, le=15000)
-    maxResponseBytes: int = Field(default=2048, ge=256, le=1048576)
-    maxRequestBytes: int = Field(default=4096, ge=256, le=262144)
-    maxQps: int = Field(default=50, ge=1, le=200)
+    timeoutMs: int = Field(default=settings.gateway_default_timeout_ms, ge=settings.gateway_min_timeout_ms, le=settings.gateway_max_timeout_ms)
+    maxResponseBytes: int = Field(default=settings.gateway_default_response_bytes, ge=settings.gateway_min_response_bytes, le=settings.gateway_max_response_bytes)
+    maxRequestBytes: int = Field(default=settings.gateway_default_request_bytes, ge=settings.gateway_min_request_bytes, le=settings.gateway_max_request_bytes)
+    maxQps: int = Field(default=settings.gateway_default_service_qps, ge=settings.gateway_min_service_qps, le=settings.gateway_max_service_qps)
 
 class RetryPolicySpec(BaseModel):
     maxAttempts: int = 2
@@ -102,7 +103,7 @@ class InvokeMethod(BaseModel):
 
     method: str
     targets: List[InvokeTarget] = Field(min_length=1)
-    timeoutMs: int = 3000
+    timeoutMs: int = settings.gateway_default_timeout_ms
     request: dict
     response: dict
     headersTemplate: Dict[str, str] = Field(default_factory=dict)
@@ -165,7 +166,8 @@ async def discover_health_status(
 async def service_health_history(
     service_record_id: str,
     service: RegistryService = Depends(get_registry_service),
-    limit_per_target: int = Query(50, alias="limitPerTarget", ge=1, le=500, description="Recent probe records per target"),
+    limit_per_target: int = Query(50, alias="limitPerTarget", ge=1, le=2000, description="Recent probe records per target"),
+    hours: Optional[int] = Query(None, ge=1, le=168, description="History window in hours (capped by retention)"),
     days: Optional[int] = Query(None, ge=1, le=365, description="History window in days (capped by retention)"),
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
@@ -176,6 +178,7 @@ async def service_health_history(
             service_record_id=service_record_id,
             owner_wallet=owner,
             limit_per_target=limit_per_target,
+            hours=hours,
             days=days,
         )
     except ValueError:
@@ -264,18 +267,6 @@ async def delete_service(
     if not success:
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Service deleted"}
-
-@router.post("/v1/services/{service_record_id}/rotate-key")
-async def rotate_service_key(
-    service_record_id: str,
-    service: RegistryService = Depends(get_registry_service),
-    authorization: AuthorizationHeader = None,
-    x_user_address: UserAddressHeader = None,
-):
-    owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    if not await service.has_owner_service(service_record_id, owner):
-        raise HTTPException(status_code=404, detail="Service not found")
-    return {"status": "success", "message": "Key rotated (mock)"}
 
 @router.post("/v1/services/{service_record_id}/ping")
 async def ping_service(

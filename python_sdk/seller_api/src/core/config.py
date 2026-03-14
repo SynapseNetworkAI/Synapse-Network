@@ -139,6 +139,14 @@ def _env_bool(name: str, default: bool) -> bool:
 # Load environment files once so all runtime entry points share the same config contract.
 _load_environment_files()
 
+_service_health_history_retention_hours_default = max(
+    1,
+    _env_int(
+        "SERVICE_HEALTH_HISTORY_RETENTION_HOURS",
+        _env_int("SERVICE_HEALTH_HISTORY_RETENTION_DAYS", 7) * 24,
+    ),
+)
+
 
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
@@ -264,6 +272,10 @@ class Settings:
     gateway_max_response_bytes: int = _env_int("GATEWAY_MAX_RESPONSE_BYTES", 1048576)
     gateway_min_service_qps: int = _env_int("GATEWAY_MIN_SERVICE_QPS", 1)
     gateway_max_service_qps: int = _env_int("GATEWAY_MAX_SERVICE_QPS", 200)
+    gateway_default_timeout_ms: int = _env_int("GATEWAY_DEFAULT_TIMEOUT_MS", 3000)
+    gateway_default_request_bytes: int = _env_int("GATEWAY_DEFAULT_REQUEST_BYTES", 4096)
+    gateway_default_response_bytes: int = _env_int("GATEWAY_DEFAULT_RESPONSE_BYTES", 2048)
+    gateway_default_service_qps: int = _env_int("GATEWAY_DEFAULT_SERVICE_QPS", 50)
 
     # Service health monitor controls for seller upstream availability checks.
     service_health_monitor_enabled: bool = _env_bool("SERVICE_HEALTH_MONITOR_ENABLED", True)
@@ -272,7 +284,8 @@ class Settings:
     service_health_stale_after_sec: int = _env_int("SERVICE_HEALTH_STALE_AFTER_SEC", 120)
     forwarding_require_healthy_targets: bool = _env_bool("FORWARDING_REQUIRE_HEALTHY_TARGETS", True)
     service_health_history_enabled: bool = _env_bool("SERVICE_HEALTH_HISTORY_ENABLED", True)
-    service_health_history_retention_days: int = _env_int("SERVICE_HEALTH_HISTORY_RETENTION_DAYS", 7)
+    service_health_history_retention_hours: int = _service_health_history_retention_hours_default
+    service_health_history_prune_interval_sec: int = _env_int("SERVICE_HEALTH_HISTORY_PRUNE_INTERVAL_SEC", 300)
     service_health_history_default_limit_per_target: int = _env_int("SERVICE_HEALTH_HISTORY_DEFAULT_LIMIT_PER_TARGET", 50)
 
     # Server bind host for the main app process.

@@ -132,7 +132,7 @@ def test_sync_service_target_health_table_generates_one_row_per_target(temp_json
 
 def test_prune_health_history_removes_expired_and_orphan_rows(temp_json_storage, monkeypatch):
     now_ms = int(time.time() * 1000)
-    monkeypatch.setattr("src.services.service_health_service.settings.service_health_history_retention_days", 7)
+    monkeypatch.setattr("src.services.service_health_service.settings.service_health_history_retention_hours", 3)
 
     temp_json_storage.save_collection(
         "service_registry",
@@ -153,7 +153,7 @@ def test_prune_health_history_removes_expired_and_orphan_rows(temp_json_storage,
         "service_target_health_history",
         [
             {"serviceId": "serviceA", "targetUrl": "url1", "checkedAt": now_ms - 1_000},
-            {"serviceId": "serviceA", "targetUrl": "url1", "checkedAt": now_ms - (8 * 24 * 60 * 60 * 1000)},
+            {"serviceId": "serviceA", "targetUrl": "url1", "checkedAt": now_ms - (4 * 60 * 60 * 1000)},
             {"serviceId": "serviceB", "targetUrl": "urlX", "checkedAt": now_ms - 1_000},
         ],
     )

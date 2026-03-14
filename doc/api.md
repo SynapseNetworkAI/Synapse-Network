@@ -13,7 +13,6 @@
 
 - **Session-required business APIs**:
   - `GET/POST/PUT/DELETE /api/v1/services*`（除 `/discover` 外）
-  - `POST /api/v1/services/{id}/rotate-key`
   - `POST /api/v1/services/{id}/ping`
   - `POST /api/v1/services/parse-curl`
   - `GET /api/v1/balance`
@@ -317,15 +316,18 @@
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: 返回指定 serviceId 下每个 target 的最近 N 次探测历史（按时间倒序）。
 - **Query**:
-  - `limitPerTarget` (`1..500`, default `50`)
-  - `days` (`1..365`, optional): 实际窗口会被 `SERVICE_HEALTH_HISTORY_RETENTION_DAYS` 截断。
+  - `limitPerTarget` (`1..2000`, default `50`)
+  - `hours` (`1..168`, optional): 小时级窗口，实际会被 `SERVICE_HEALTH_HISTORY_RETENTION_HOURS` 截断。
+  - `days` (`1..365`, optional): 兼容参数；未传 `hours` 时按 `days*24` 计算后再截断。
 - **Returns (200 OK)**:
   ```json
   {
     "status": "success",
     "serviceId": "serviceA",
-    "windowDays": 7,
-    "retentionDays": 7,
+    "windowHours": 3,
+    "retentionHours": 3,
+    "windowDays": 1,
+    "retentionDays": 1,
     "limitPerTarget": 50,
     "targets": [
       {
@@ -349,12 +351,13 @@
   - 每 target 每日写入约 `86400 / probeIntervalSec` 条。
   - 默认 `probeIntervalSec=15`，则每 target 每日约 `5760` 条。
   - 例如一个 service 有 3 个 targets：每日约 `17280` 条。
-- **推荐保留期**：`7 天`。
-  - 3 targets 的 service，7 天约 `120960` 条；
-  - 若保留 30 天则约 `518400` 条，存储与查询成本显著上升。
+- **默认保留期**：`3 小时`（`SERVICE_HEALTH_HISTORY_RETENTION_HOURS=3`）。
+  - 3 targets 的 service，3 小时约 `2160` 条（按 15s 探活）；
+  - 相比 7 天（`120960` 条）和 30 天（`518400` 条）显著降低存储与查询压力。
 - **清理策略**：
   - 定时探活后自动清理过期历史（`checkedAt` 超过 retention）。
   - 对已删除/不存在 serviceId 的健康历史执行 orphan 清理。
+  - 清理节奏由 `SERVICE_HEALTH_HISTORY_PRUNE_INTERVAL_SEC` 控制，避免每轮探活都全量 prune。
 
 ### 4.2 高频服务分发流水线 (Generate/Invoke API)
 - **Path**: `POST /api/v1/gateway/generate`
@@ -448,7 +451,6 @@
   - `POST /api/v1/services`
   - `PUT /api/v1/services/{service_record_id}`
   - `DELETE /api/v1/services/{service_record_id}`
-  - `POST /api/v1/services/{service_record_id}/rotate-key`
   - `POST /api/v1/services/{service_record_id}/ping`
   - `POST /api/v1/services/parse-curl`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`).

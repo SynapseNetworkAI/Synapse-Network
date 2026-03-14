@@ -1,24 +1,339 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Server, ArrowRight, Shield, Gauge, Link2, Search } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Server, Shield, Gauge, Link2, Search, X, Activity } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import toast from "react-hot-toast";
+import {
+  listServiceRegistry,
+  updateServiceRegistry,
+  type ServiceRegistryPayload,
+  type ServiceRegistryRecord,
+} from "@/utils/serviceApi";
+import { useAuth } from "@/components/WalletAuthGuard";
 
 type NodeStatus = "all" | "online" | "offline";
 
+const CONSTRAINT_LIMITS = {
+  timeoutMs: { min: 300, max: 15000 },
+  maxRequestBytes: { min: 256, max: 262144 },
+  maxResponseBytes: { min: 256, max: 1048576 },
+  maxQps: { min: 1, max: 200 },
+} as const;
+
+const CONSTRAINT_DEFAULTS = {
+  timeoutMs: 3000,
+  maxRequestBytes: 4096,
+  maxResponseBytes: 2048,
+  maxQps: 50,
+} as const;
+
+type EditDraft = {
+  serviceName: string;
+  summary: string;
+  pricingAmount: string;
+  isActive: boolean;
+  tagsText: string;
+  authType: string;
+  authHeaderName: string;
+  healthPath: string;
+  healthMethod: "GET" | "HEAD" | "POST";
+  healthIntervalSec: string;
+  healthTimeoutMs: string;
+  healthSuccessCodesText: string;
+  healthyThreshold: string;
+  unhealthyThreshold: string;
+  constraintsTimeoutMs: string;
+  constraintsMaxResponseBytes: string;
+  constraintsMaxRequestBytes: string;
+  constraintsMaxQps: string;
+  requestIdHeader: string;
+  passThroughHeadersText: string;
+  injectHeadersJson: string;
+  retryMaxAttempts: string;
+  retryBackoffMs: string;
+  retryOnStatusText: string;
+  billingUnit: "per_call" | "per_success_call";
+  billOnError: boolean;
+  requestIdRequired: boolean;
+  responseSizeMetering: boolean;
+  invokeMethod: string;
+  invokeUrl: string;
+  invokeTimeoutMs: string;
+  invokeTargetsJson: string;
+  requestSchemaJson: string;
+  responseSchemaJson: string;
+};
+
+function toEditDraft(svc: ServiceRegistryRecord): EditDraft {
+  const invokeTargets = svc.invoke?.targets || (svc.endpoint ? [{ url: svc.endpoint, weight: 100 }] : []);
+  const invokeUrl = svc.invoke?.url || invokeTargets[0]?.url || svc.endpoint || "";
+
+  return {
+    serviceName: svc.serviceName || svc.name || "",
+    summary: svc.summary || "",
+    pricingAmount: typeof svc.pricing === "string" ? svc.pricing : String(svc.pricing ?? "0.01"),
+    isActive: Boolean(svc.isActive),
+    tagsText: (svc.tags || []).join(", "),
+    authType: svc.auth?.type || "service_key",
+    authHeaderName: svc.auth?.headerName || "X-Credential",
+    healthPath: svc.healthCheck?.path || "/health",
+    healthMethod: svc.healthCheck?.method || "GET",
+    healthIntervalSec: String(svc.healthCheck?.intervalSec ?? 30),
+    healthTimeoutMs: String(svc.healthCheck?.timeoutMs ?? 3000),
+    healthSuccessCodesText: (svc.healthCheck?.successCodes || [200]).join(","),
+    healthyThreshold: String(svc.healthCheck?.healthyThreshold ?? 2),
+    unhealthyThreshold: String(svc.healthCheck?.unhealthyThreshold ?? 3),
+    constraintsTimeoutMs: String(svc.constraints?.timeoutMs ?? svc.invoke?.timeoutMs ?? CONSTRAINT_DEFAULTS.timeoutMs),
+    constraintsMaxResponseBytes: String(svc.constraints?.maxResponseBytes ?? CONSTRAINT_DEFAULTS.maxResponseBytes),
+    constraintsMaxRequestBytes: String(svc.constraints?.maxRequestBytes ?? CONSTRAINT_DEFAULTS.maxRequestBytes),
+    constraintsMaxQps: String(svc.constraints?.maxQps ?? CONSTRAINT_DEFAULTS.maxQps),
+    requestIdHeader: svc.forwarding?.requestIdHeader || "X-Synapse-Request-Id",
+    passThroughHeadersText: (svc.forwarding?.passThroughHeaders || []).join(", "),
+    injectHeadersJson: JSON.stringify(svc.forwarding?.injectHeaders || {}, null, 2),
+    retryMaxAttempts: String(svc.forwarding?.retryPolicy?.maxAttempts ?? 2),
+    retryBackoffMs: String(svc.forwarding?.retryPolicy?.backoffMs ?? 200),
+    retryOnStatusText: (svc.forwarding?.retryPolicy?.retryOnStatus || [429, 500, 502, 503, 504]).join(","),
+    billingUnit: svc.metering?.billingUnit || "per_call",
+    billOnError: Boolean(svc.metering?.billOnError),
+    requestIdRequired: svc.metering?.requestIdRequired !== false,
+    responseSizeMetering: svc.metering?.responseSizeMetering !== false,
+    invokeMethod: svc.invoke?.method || "POST",
+    invokeUrl,
+    invokeTimeoutMs: String(svc.invoke?.timeoutMs ?? 3000),
+    invokeTargetsJson: JSON.stringify(invokeTargets, null, 2),
+    requestSchemaJson: JSON.stringify(svc.invoke?.request?.schema || { type: "object", properties: {} }, null, 2),
+    responseSchemaJson: JSON.stringify(svc.invoke?.response?.schema || { type: "object", properties: {} }, null, 2),
+  };
+}
+
+function parseCsvText(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseCsvNumbers(value: string): number[] {
+  return parseCsvText(value)
+    .map((item) => Number.parseInt(item, 10))
+    .filter((num) => Number.isFinite(num));
+}
+
+function parsePositiveInt(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parseObjectJson(value: string): Record<string, unknown> {
+  const parsed = JSON.parse(value) as unknown;
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+    throw new Error("JSON must be an object");
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function parseTargetsJson(value: string): Array<{ url: string; weight?: number; region?: string }> {
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new TypeError("Targets must be a JSON array");
+  }
+  const targets = parsed
+    .filter((item): item is { url?: unknown; weight?: unknown; region?: unknown } => Boolean(item && typeof item === "object"))
+    .map((item) => {
+      const url = typeof item.url === "string" ? item.url.trim() : "";
+      const weight = Number.isFinite(Number(item.weight)) ? Number(item.weight) : undefined;
+      const region = typeof item.region === "string" ? item.region.trim() : undefined;
+      return { url, weight, region };
+    })
+    .filter((item) => Boolean(item.url));
+
+  if (targets.length === 0) {
+    throw new Error("At least one invoke target with a valid url is required");
+  }
+
+  return targets;
+}
+
+function parseStrictInt(value: string): number | null {
+  if (!value.trim()) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    return null;
+  }
+  return parsed;
+}
+
+function isPositiveNumber(value: string): boolean {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
+}
+
+type EditValidation = {
+  isValid: boolean;
+  firstError: string | null;
+  errors: Record<string, string>;
+};
+
+function validateConstraintField(
+  value: string,
+  fieldName: string,
+  limits: { min: number; max: number },
+  errors: Record<string, string>,
+  label: string,
+): void {
+  const parsed = parseStrictInt(value);
+  if (parsed === null) {
+    errors[fieldName] = `${label} must be an integer.`;
+    return;
+  }
+  if (parsed < limits.min || parsed > limits.max) {
+    errors[fieldName] = `${label} must be ${limits.min}-${limits.max}.`;
+  }
+}
+
+function validateJsonField(
+  value: string,
+  fieldName: string,
+  errors: Record<string, string>,
+  message: string,
+): void {
+  try {
+    parseObjectJson(value);
+  } catch {
+    errors[fieldName] = message;
+  }
+}
+
+function validateEditDraft(draft: EditDraft | null): EditValidation {
+  const errors: Record<string, string> = {};
+
+  if (!draft) {
+    return {
+      isValid: false,
+      firstError: "Draft not ready",
+      errors,
+    };
+  }
+
+  if (!draft.serviceName.trim()) {
+    errors.serviceName = "Service name is required.";
+  }
+  if (!isPositiveNumber(draft.pricingAmount)) {
+    errors.pricingAmount = "Unit price must be a positive number.";
+  }
+  if (!draft.healthPath.trim()) {
+    errors.healthPath = "Health path is required.";
+  } else if (!draft.healthPath.trim().startsWith("/")) {
+    errors.healthPath = "Health path must start with /.";
+  }
+  if (!draft.invokeUrl.trim()) {
+    errors.invokeUrl = "Invoke URL is required.";
+  }
+
+  validateConstraintField(draft.constraintsTimeoutMs, "constraintsTimeoutMs", CONSTRAINT_LIMITS.timeoutMs, errors, "Constraint timeout");
+  validateConstraintField(
+    draft.constraintsMaxRequestBytes,
+    "constraintsMaxRequestBytes",
+    CONSTRAINT_LIMITS.maxRequestBytes,
+    errors,
+    "Max request bytes",
+  );
+  validateConstraintField(
+    draft.constraintsMaxResponseBytes,
+    "constraintsMaxResponseBytes",
+    CONSTRAINT_LIMITS.maxResponseBytes,
+    errors,
+    "Max response bytes",
+  );
+  validateConstraintField(draft.constraintsMaxQps, "constraintsMaxQps", CONSTRAINT_LIMITS.maxQps, errors, "Max QPS");
+
+  try {
+    parseTargetsJson(draft.invokeTargetsJson);
+  } catch (err) {
+    errors.invokeTargetsJson = err instanceof Error ? err.message : "Invalid invoke targets JSON.";
+  }
+
+  validateJsonField(draft.requestSchemaJson, "requestSchemaJson", errors, "Request schema must be a valid JSON object.");
+  validateJsonField(draft.responseSchemaJson, "responseSchemaJson", errors, "Response schema must be a valid JSON object.");
+  validateJsonField(draft.injectHeadersJson, "injectHeadersJson", errors, "Inject headers must be a valid JSON object.");
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    firstError: Object.values(errors)[0] || null,
+    errors,
+  };
+}
+
 export default function ProviderNodesPage() {
-  const { services } = useDashboardData();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
+  const { isSessionAuthenticated } = useAuth();
   const { openConnectModal } = useConnectModal();
+  const searchParams = useSearchParams();
+  const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [queryInput, setQueryInput] = useState("");
   const [statusInput, setStatusInput] = useState<NodeStatus>("all");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<NodeStatus>("all");
   const [page, setPage] = useState(1);
+  const [editing, setEditing] = useState<ServiceRegistryRecord | null>(null);
+  const [draft, setDraft] = useState<EditDraft | null>(null);
+  const [saving, setSaving] = useState(false);
   const PAGE_SIZE = 8;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!address || !isSessionAuthenticated) {
+        setServices([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const rows = await listServiceRegistry(address, address);
+        if (!cancelled) {
+          setServices(rows);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setServices([]);
+          toast.error(err instanceof Error ? err.message : "Failed to load services");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, isSessionAuthenticated]);
+
+  useEffect(() => {
+    const editServiceId = searchParams.get("edit");
+    if (!editServiceId || services.length === 0) {
+      return;
+    }
+    const matched = services.find((svc) => svc.serviceId === editServiceId);
+    if (matched) {
+      setEditing(matched);
+      setDraft(toEditDraft(matched));
+    }
+  }, [searchParams, services]);
 
   const applySearch = () => {
     setQuery(queryInput);
@@ -38,7 +353,7 @@ export default function ProviderNodesPage() {
     const q = query.trim().toLowerCase();
     return services.filter((svc) => {
       const byServiceId = (svc.serviceId || "").toLowerCase().includes(q);
-      const byName = (svc.name || "").toLowerCase().includes(q);
+      const byName = (svc.name || svc.serviceName || "").toLowerCase().includes(q);
       const matchesText = !q || byServiceId || byName;
       const matchesStatus =
         status === "all" ||
@@ -54,6 +369,162 @@ export default function ProviderNodesPage() {
     const start = (safePage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, safePage]);
+
+  const editValidation = useMemo(() => validateEditDraft(draft), [draft]);
+
+  const closeModal = () => {
+    setEditing(null);
+    setDraft(null);
+  };
+
+  const openEditModal = (svc: ServiceRegistryRecord) => {
+    setEditing(svc);
+    setDraft(toEditDraft(svc));
+  };
+
+  const persistEdit = async () => {
+    if (!address || !editing || !draft) {
+      return;
+    }
+
+    if (!editValidation.isValid) {
+      toast.error(editValidation.firstError || "Please fix validation errors before saving.");
+      return;
+    }
+
+    const normalizedPath = draft.healthPath.trim().startsWith("/")
+      ? draft.healthPath.trim()
+      : `/${draft.healthPath.trim() || "health"}`;
+
+    let invokeTargets: Array<{ url: string; weight?: number; region?: string }> = [];
+    let requestSchema: Record<string, unknown> = {};
+    let responseSchema: Record<string, unknown> = {};
+    let injectHeaders: Record<string, string> = {};
+
+    try {
+      invokeTargets = parseTargetsJson(draft.invokeTargetsJson);
+      requestSchema = parseObjectJson(draft.requestSchemaJson);
+      responseSchema = parseObjectJson(draft.responseSchemaJson);
+      const injectHeadersRaw = parseObjectJson(draft.injectHeadersJson);
+      injectHeaders = Object.entries(injectHeadersRaw).reduce<Record<string, string>>((acc, [key, value]) => {
+        if (typeof value === "string") {
+          acc[key] = value;
+        }
+        return acc;
+      }, {});
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Invalid JSON fields in edit form");
+      return;
+    }
+
+    const tags = Array.from(new Set(parseCsvText(draft.tagsText)));
+    const passThroughHeaders = parseCsvText(draft.passThroughHeadersText);
+    const successCodes = parseCsvNumbers(draft.healthSuccessCodesText);
+    const retryOnStatus = parseCsvNumbers(draft.retryOnStatusText);
+
+    const invokeUrl = draft.invokeUrl.trim() || invokeTargets[0]?.url || "";
+    if (!invokeUrl) {
+      toast.error("Invoke URL is required");
+      return;
+    }
+
+    const payload: ServiceRegistryPayload = {
+      id: editing.id,
+      serviceName: draft.serviceName.trim(),
+      role: editing.role,
+      address: editing.address,
+      pricing: {
+        currency: "USDC",
+        amount: draft.pricingAmount.trim() || "0.01",
+      },
+      isActive: draft.isActive,
+      summary: draft.summary.trim(),
+      tags,
+      status: draft.isActive ? "active" : "inactive",
+      auth: {
+        type: editing.auth?.type || "service_key",
+        headerName: editing.auth?.headerName || "X-Credential",
+      },
+      healthCheck: {
+        path: normalizedPath,
+        method: draft.healthMethod,
+        intervalSec: parsePositiveInt(draft.healthIntervalSec, 30),
+        timeoutMs: parsePositiveInt(draft.healthTimeoutMs, 3000),
+        successCodes: successCodes.length > 0 ? successCodes : [200],
+        healthyThreshold: parsePositiveInt(draft.healthyThreshold, 2),
+        unhealthyThreshold: parsePositiveInt(draft.unhealthyThreshold, 3),
+      },
+      constraints: {
+        timeoutMs: parsePositiveInt(draft.constraintsTimeoutMs, CONSTRAINT_DEFAULTS.timeoutMs),
+        maxResponseBytes: parsePositiveInt(draft.constraintsMaxResponseBytes, CONSTRAINT_DEFAULTS.maxResponseBytes),
+        maxRequestBytes: parsePositiveInt(draft.constraintsMaxRequestBytes, CONSTRAINT_DEFAULTS.maxRequestBytes),
+        maxQps: parsePositiveInt(draft.constraintsMaxQps, CONSTRAINT_DEFAULTS.maxQps),
+      },
+      forwarding: {
+        requestIdHeader: draft.requestIdHeader.trim() || "X-Synapse-Request-Id",
+        passThroughHeaders,
+        injectHeaders,
+        retryPolicy: {
+          maxAttempts: parsePositiveInt(draft.retryMaxAttempts, 2),
+          backoffMs: parsePositiveInt(draft.retryBackoffMs, 200),
+          retryOnStatus: retryOnStatus.length > 0 ? retryOnStatus : [429, 500, 502, 503, 504],
+        },
+      },
+      metering: {
+        billingUnit: draft.billingUnit,
+        billOnError: draft.billOnError,
+        billableStatusClasses: editing.metering?.billableStatusClasses || [2],
+        requestIdRequired: draft.requestIdRequired,
+        responseSizeMetering: draft.responseSizeMetering,
+      },
+      invoke: {
+        method: draft.invokeMethod.trim() || "POST",
+        url: invokeUrl,
+        targets: invokeTargets,
+        timeoutMs: parsePositiveInt(draft.invokeTimeoutMs, 3000),
+        request: {
+          contentType: editing.invoke?.request?.contentType || "application/json",
+          schema: requestSchema,
+        },
+        response: {
+          schema: responseSchema,
+        },
+        headersTemplate: editing.invoke?.headersTemplate,
+        examples: editing.invoke?.examples,
+      },
+    };
+
+    setSaving(true);
+    try {
+      await updateServiceRegistry(payload, address);
+      setServices((prev) => prev.map((svc) => (
+        svc.id === editing.id
+          ? {
+              ...svc,
+              name: payload.serviceName,
+              serviceName: payload.serviceName,
+              summary: payload.summary || "",
+              pricing: typeof payload.pricing === "string" ? payload.pricing : payload.pricing.amount,
+              isActive: payload.isActive,
+              status: payload.status,
+              tags: payload.tags,
+              auth: payload.auth,
+              healthCheck: payload.healthCheck,
+              constraints: payload.constraints,
+              forwarding: payload.forwarding,
+              metering: payload.metering,
+              invoke: payload.invoke,
+            }
+          : svc
+      )));
+      toast.success("Service updated");
+      closeModal();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update service");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="p-6 md:p-10 mx-auto max-w-7xl text-white bg-[#000000] min-h-screen space-y-6">
@@ -116,14 +587,14 @@ export default function ProviderNodesPage() {
             {pageRows.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-14 text-center text-sm text-[#86868b]">
-                  No API services match the current filters.
+                  {loading ? "Loading API services..." : "No API services match the current filters."}
                 </td>
               </tr>
             )}
             {pageRows.map((svc) => (
               <tr key={svc.id} className="hover:bg-[#111111] transition-colors">
                 <td className="py-5 px-6">
-                  <div className="font-semibold text-white">{svc.name || "Unnamed Service"}</div>
+                  <div className="font-semibold text-white">{svc.name || svc.serviceName || "Unnamed Service"}</div>
                   <div className="text-xs text-[#86868b] mt-1 flex items-center gap-1">
                     <Link2 className="w-3.5 h-3.5" />
                     {svc.endpoint || "-"}
@@ -144,12 +615,21 @@ export default function ProviderNodesPage() {
                   )}
                 </td>
                 <td className="py-5 px-6 text-right">
-                  <Link
-                    href="/provider/services"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333333] hover:border-[#ffffff] text-white hover:bg-white hover:text-black transition-all"
-                  >
-                    Manage <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
+                  <div className="inline-flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(svc)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333333] hover:border-[#ffffff] text-white hover:bg-white hover:text-black transition-all"
+                    >
+                      Edit
+                    </button>
+                    <Link
+                      href={`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black transition-all"
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      Health
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -187,6 +667,409 @@ export default function ProviderNodesPage() {
         <Shield className="w-4 h-4 text-[#22c55e]" />
         Publish flow requires at least one Access Key to protect provider endpoints with gateway signature validation.
       </div>
+
+      {editing && draft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl border border-[#2a2a2a] bg-[#0a0a0a] p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between border-b border-[#1d1d1d] pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white">Edit Service</h2>
+                <p className="mt-1 text-xs text-[#86868b] font-mono">{editing.serviceId}</p>
+              </div>
+              <button
+                onClick={closeModal}
+                className="rounded-lg border border-[#333333] p-2 text-[#86868b] hover:text-white hover:border-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {!editValidation.isValid && (
+              <div className="mb-4 rounded-lg border border-[#7f1d1d] bg-[#2a0f12] px-4 py-3 text-sm text-[#fca5a5]">
+                Validation failed. Fix highlighted fields to avoid `422 SERVICE_REGISTRATION_INVALID`.
+              </div>
+            )}
+
+            <div className="space-y-6">
+              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Basic Profile</h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Service Name</span>
+                    <input
+                      value={draft.serviceName}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, serviceName: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.serviceName ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.serviceName && <p className="text-xs text-[#f87171]">{editValidation.errors.serviceName}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Unit Price (USDC)</span>
+                    <input
+                      value={draft.pricingAmount}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, pricingAmount: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.pricingAmount ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.pricingAmount && <p className="text-xs text-[#f87171]">{editValidation.errors.pricingAmount}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-2">
+                    <span className="text-[#c6c6c9]">Summary</span>
+                    <textarea
+                      rows={2}
+                      value={draft.summary}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, summary: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-2">
+                    <span className="text-[#c6c6c9]">Tags (comma separated)</span>
+                    <input
+                      value={draft.tagsText}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, tagsText: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Auth Type (Platform Managed)</span>
+                    <input
+                      value={draft.authType}
+                      readOnly
+                      disabled
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#111111] px-3 py-2 text-[#a1a1aa] outline-none cursor-not-allowed"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Auth Header Name (Platform Managed)</span>
+                    <input
+                      value={draft.authHeaderName}
+                      readOnly
+                      disabled
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#111111] px-3 py-2 text-[#a1a1aa] outline-none cursor-not-allowed"
+                    />
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
+                    <input
+                      type="checkbox"
+                      checked={draft.isActive}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, isActive: e.target.checked } : prev))}
+                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
+                    />
+                    <span>Service Active</span>
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Health And Constraints</h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <label className="space-y-2 text-sm md:col-span-2">
+                    <span className="text-[#c6c6c9]">Health Path</span>
+                    <input
+                      value={draft.healthPath}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthPath: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.healthPath ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.healthPath && <p className="text-xs text-[#f87171]">{editValidation.errors.healthPath}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Health Method</span>
+                    <select
+                      value={draft.healthMethod}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthMethod: e.target.value as "GET" | "HEAD" | "POST" } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    >
+                      <option value="GET">GET</option>
+                      <option value="HEAD">HEAD</option>
+                      <option value="POST">POST</option>
+                    </select>
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Health Interval Sec</span>
+                    <input
+                      value={draft.healthIntervalSec}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthIntervalSec: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Health Timeout Ms</span>
+                    <input
+                      value={draft.healthTimeoutMs}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthTimeoutMs: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-2">
+                    <span className="text-[#c6c6c9]">Health Success Codes (comma separated)</span>
+                    <input
+                      value={draft.healthSuccessCodesText}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthSuccessCodesText: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Healthy Threshold</span>
+                    <input
+                      value={draft.healthyThreshold}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthyThreshold: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Unhealthy Threshold</span>
+                    <input
+                      value={draft.unhealthyThreshold}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, unhealthyThreshold: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Constraint Timeout Ms</span>
+                    <input
+                      value={draft.constraintsTimeoutMs}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsTimeoutMs: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsTimeoutMs ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.timeoutMs.min}-{CONSTRAINT_LIMITS.timeoutMs.max}</p>
+                    {editValidation.errors.constraintsTimeoutMs && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsTimeoutMs}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Max Request Bytes</span>
+                    <input
+                      value={draft.constraintsMaxRequestBytes}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxRequestBytes: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxRequestBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.maxRequestBytes.min}-{CONSTRAINT_LIMITS.maxRequestBytes.max}</p>
+                    {editValidation.errors.constraintsMaxRequestBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxRequestBytes}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Max Response Bytes</span>
+                    <input
+                      value={draft.constraintsMaxResponseBytes}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxResponseBytes: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxResponseBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.maxResponseBytes.min}-{CONSTRAINT_LIMITS.maxResponseBytes.max}</p>
+                    {editValidation.errors.constraintsMaxResponseBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxResponseBytes}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Max QPS</span>
+                    <input
+                      value={draft.constraintsMaxQps}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxQps: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxQps ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.maxQps.min}-{CONSTRAINT_LIMITS.maxQps.max}</p>
+                    {editValidation.errors.constraintsMaxQps && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxQps}</p>}
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Forwarding And Metering</h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Request Id Header</span>
+                    <input
+                      value={draft.requestIdHeader}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, requestIdHeader: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Pass Through Headers</span>
+                    <input
+                      value={draft.passThroughHeadersText}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, passThroughHeadersText: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-2">
+                    <span className="text-[#c6c6c9]">Inject Headers (JSON)</span>
+                    <textarea
+                      rows={4}
+                      value={draft.injectHeadersJson}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, injectHeadersJson: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.injectHeadersJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.injectHeadersJson && <p className="text-xs text-[#f87171]">{editValidation.errors.injectHeadersJson}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Retry Max Attempts</span>
+                    <input
+                      value={draft.retryMaxAttempts}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, retryMaxAttempts: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Retry Backoff Ms</span>
+                    <input
+                      value={draft.retryBackoffMs}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, retryBackoffMs: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-2">
+                    <span className="text-[#c6c6c9]">Retry On Status (comma separated)</span>
+                    <input
+                      value={draft.retryOnStatusText}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, retryOnStatusText: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Billing Unit</span>
+                    <select
+                      value={draft.billingUnit}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, billingUnit: e.target.value as "per_call" | "per_success_call" } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    >
+                      <option value="per_call">per_call</option>
+                      <option value="per_success_call">per_success_call</option>
+                    </select>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
+                    <input
+                      type="checkbox"
+                      checked={draft.billOnError}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, billOnError: e.target.checked } : prev))}
+                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
+                    />
+                    <span>Bill On Error</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
+                    <input
+                      type="checkbox"
+                      checked={draft.requestIdRequired}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, requestIdRequired: e.target.checked } : prev))}
+                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
+                    />
+                    <span>Request Id Required</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
+                    <input
+                      type="checkbox"
+                      checked={draft.responseSizeMetering}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, responseSizeMetering: e.target.checked } : prev))}
+                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
+                    />
+                    <span>Response Size Metering</span>
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Invoke Contract</h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Invoke Method</span>
+                    <input
+                      value={draft.invokeMethod}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeMethod: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-2">
+                    <span className="text-[#c6c6c9]">Invoke URL</span>
+                    <input
+                      value={draft.invokeUrl}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeUrl: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.invokeUrl ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.invokeUrl && <p className="text-xs text-[#f87171]">{editValidation.errors.invokeUrl}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm">
+                    <span className="text-[#c6c6c9]">Invoke Timeout Ms</span>
+                    <input
+                      value={draft.invokeTimeoutMs}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeTimeoutMs: e.target.value } : prev))}
+                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                    />
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-3">
+                    <span className="text-[#c6c6c9]">Invoke Targets (JSON Array)</span>
+                    <textarea
+                      rows={6}
+                      value={draft.invokeTargetsJson}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeTargetsJson: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.invokeTargetsJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.invokeTargetsJson && <p className="text-xs text-[#f87171]">{editValidation.errors.invokeTargetsJson}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-3">
+                    <span className="text-[#c6c6c9]">Request Schema (JSON)</span>
+                    <textarea
+                      rows={6}
+                      value={draft.requestSchemaJson}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, requestSchemaJson: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.requestSchemaJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.requestSchemaJson && <p className="text-xs text-[#f87171]">{editValidation.errors.requestSchemaJson}</p>}
+                  </label>
+
+                  <label className="space-y-2 text-sm md:col-span-3">
+                    <span className="text-[#c6c6c9]">Response Schema (JSON)</span>
+                    <textarea
+                      rows={6}
+                      value={draft.responseSchemaJson}
+                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, responseSchemaJson: e.target.value } : prev))}
+                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.responseSchemaJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
+                    />
+                    {editValidation.errors.responseSchemaJson && <p className="text-xs text-[#f87171]">{editValidation.errors.responseSchemaJson}</p>}
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={closeModal}
+                className="rounded-lg border border-[#333333] px-4 py-2 text-sm text-[#c6c6c9] hover:border-white hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={persistEdit}
+                disabled={saving || !editValidation.isValid}
+                className="rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/15 px-4 py-2 text-sm font-semibold text-[#22c55e] hover:bg-[#22c55e] hover:text-black disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

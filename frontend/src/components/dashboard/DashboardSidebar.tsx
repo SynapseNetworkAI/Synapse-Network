@@ -97,6 +97,10 @@ export default function DashboardSidebar() {
               <GitBranch className="w-4 h-4 mr-3" />
               API Services
             </Link>
+            <Link href={`${providerRoot}/health`} className={getLinkClasses(["/dashboard/provider/health", `${providerRoot}/health`], false)}>
+              <Terminal className="w-4 h-4 mr-3" />
+              Health Console
+            </Link>
             <Link href={`${providerRoot}/settlements`} className={getLinkClasses(["/dashboard/provider/settlements", `${providerRoot}/settlements`], false)}>
               <Rows4 className="w-4 h-4 mr-3" />
               Settlements

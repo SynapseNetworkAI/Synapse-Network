@@ -8,6 +8,7 @@ from src.core.log_config import setup_logger
 from src.api.routers import auth, services, balance, wallet, buyer_credentials, seller_secrets, forwarding
 from src.storage import create_storage
 from src.services.v2_indexer import run_v2_deposit_indexer
+from src.services.service_health_service import run_service_health_monitor
 
 setup_logger()
 logger = logging.getLogger(__name__)
@@ -26,6 +27,14 @@ async def lifespan(app: FastAPI):
         run_v2_deposit_indexer(app.state.v2_indexer_stop_event, app.state.storage)
     )
 
+    # Service health monitor keeps seller target liveness fresh for discover and routing.
+    app.state.service_health_stop_event = asyncio.Event()
+    app.state.service_health_task = None
+    if settings.service_health_monitor_enabled:
+        app.state.service_health_task = asyncio.create_task(
+            run_service_health_monitor(app.state.service_health_stop_event, app.state.storage)
+        )
+
     yield
     # Cleanup on shutdown
     logger.info("Application shutting down...")
@@ -37,7 +46,14 @@ async def lifespan(app: FastAPI):
             await app.state.v2_indexer_task
         except asyncio.CancelledError:
             logger.info("V2 indexer task cancelled during shutdown")
-            raise
+    if hasattr(app.state, "service_health_stop_event"):
+        app.state.service_health_stop_event.set()
+    if hasattr(app.state, "service_health_task") and app.state.service_health_task is not None:
+        app.state.service_health_task.cancel()
+        try:
+            await app.state.service_health_task
+        except asyncio.CancelledError:
+            logger.info("Service health task cancelled during shutdown")
 
 def create_app() -> FastAPI:
     app = FastAPI(

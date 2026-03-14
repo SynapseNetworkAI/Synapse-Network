@@ -221,6 +221,56 @@ async def test_service_health_history_returns_latest_n_per_target(temp_json_stor
     assert first_target["history"][0]["checkedAt"] == now_ms - 1000
 
 
+@pytest.mark.asyncio
+async def test_service_health_history_caps_hours_by_retention(temp_json_storage, monkeypatch):
+    monkeypatch.setattr("src.services.registry_service.settings.service_health_history_retention_hours", 3)
+
+    original_probe = service_health_service.probe_service_health
+    service_health_service.probe_service_health = _healthy_probe_stub
+    service = RegistryService(temp_json_storage)
+
+    payload = {
+        "serviceName": "Retention Window Service",
+        "pricing": {"currency": "USDC", "amount": "0.01"},
+        "summary": "retention window",
+        "tags": ["history"],
+        "healthCheck": {"path": "/health", "method": "GET"},
+        "invoke": {
+            "method": "POST",
+            "targets": [
+                {"url": "http://127.0.0.1:8100/api/v1/run", "weight": 100},
+            ],
+            "timeoutMs": 3000,
+            "request": {"contentType": "application/json", "schema": {}},
+            "response": {"contentType": "application/json", "schema": {}},
+        },
+    }
+
+    try:
+        created = await service.register_service(payload, "0xabc")
+    finally:
+        service_health_service.probe_service_health = original_probe
+
+    service_id = str(created["serviceId"])
+    now_ms = int(time.time() * 1000)
+    temp_json_storage.save_collection(
+        "service_target_health_history",
+        [
+            {"serviceId": service_id, "targetUrl": "http://127.0.0.1:8100/api/v1/run", "status": "healthy", "checkedAt": now_ms - 1000},
+        ],
+    )
+
+    history = await service.service_health_history(
+        service_record_id=service_id,
+        owner_wallet="0xabc",
+        limit_per_target=50,
+        hours=24,
+    )
+
+    assert history["windowHours"] == 3
+    assert history["retentionHours"] == 3
+
+
 def test_normalize_service_payload_requires_invoke_targets():
     payload = {
         "serviceName": "Invalid",

@@ -80,7 +80,13 @@ export type ServiceRegistryRecord = {
   pricing: string;
   endpoint: string;
   isActive: boolean;
-  status?: "active" | "inactive" | "archived";
+  status?: "active" | "inactive" | "archived" | "healthy" | "degraded" | "unhealthy" | "unknown";
+  health?: {
+    overallStatus?: "healthy" | "degraded" | "unhealthy" | "unknown";
+    healthyTargets?: number;
+    totalTargets?: number;
+    lastCheckedAt?: number | null;
+  };
   summary?: string | null;
   tags?: string[];
   auth?: {
@@ -284,23 +290,6 @@ export async function bindWalletRole(userAddress: string, role: string): Promise
   }
 }
 
-export async function rotateServiceKey(serviceId: string, userAddress: string): Promise<{secretKey: string, maskedKey: string}> {
-  const response = await fetch(`${API_BASE_URL}/${serviceId}/rotate-key`, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Backend key rotation failed"));
-  }
-
-  const payload = await response.json();
-  return {
-    secretKey: payload.secretKey,
-    maskedKey: payload.maskedKey
-  };
-}
-
 export async function testServicePing(serviceId: string, userAddress: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/${serviceId}/ping`, {
     method: "POST",
@@ -310,6 +299,52 @@ export async function testServicePing(serviceId: string, userAddress: string): P
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Service ping failed"));
   }
+}
+
+export type ServiceTargetHealthHistoryPoint = {
+  status: "healthy" | "degraded" | "unhealthy" | "unknown";
+  checkedAt: number;
+  latencyMs?: number | null;
+  httpStatus?: number | null;
+};
+
+export type ServiceTargetHealthHistory = {
+  targetUrl: string;
+  latestStatus: "healthy" | "degraded" | "unhealthy" | "unknown";
+  history: ServiceTargetHealthHistoryPoint[];
+};
+
+export type ServiceHealthHistoryResponse = {
+  status: "success";
+  serviceId: string;
+  serviceName?: string;
+  windowHours: number;
+  retentionHours: number;
+  limitPerTarget: number;
+  targets: ServiceTargetHealthHistory[];
+};
+
+export async function getServiceHealthHistory(
+  serviceId: string,
+  userAddress: string,
+  options?: { limitPerTarget?: number; hours?: number },
+): Promise<ServiceHealthHistoryResponse> {
+  const limitPerTarget = options?.limitPerTarget ?? 720;
+  const hours = options?.hours ?? 24;
+  const query = new URLSearchParams({
+    limitPerTarget: String(limitPerTarget),
+    hours: String(hours),
+  });
+  const response = await fetch(`${API_BASE_URL}/${serviceId}/health/history?${query.toString()}`, {
+    method: "GET",
+    headers: buildAuthedHeaders(userAddress, false),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Service health history fetch failed"));
+  }
+
+  return (await response.json()) as ServiceHealthHistoryResponse;
 }
 
 // --- Secrets Management ---

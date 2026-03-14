@@ -12,6 +12,7 @@ from src.storage.base import BaseStorage
 logger = logging.getLogger(__name__)
 
 DEFAULT_HEALTH_PATH = "/health"
+_last_health_history_prune_ms = 0
 
 
 def _now_ms() -> int:
@@ -231,13 +232,26 @@ def _history_row_kept(row: Dict[str, Any], valid_ids: set[str], cutoff_ms: int) 
     return checked_at >= cutoff_ms
 
 
+def _history_cutoff_ms() -> int:
+    retention_hours = max(1, int(settings.service_health_history_retention_hours))
+    return _now_ms() - (retention_hours * 60 * 60 * 1000)
+
+
+def _should_prune_history(now_ms: int) -> bool:
+    global _last_health_history_prune_ms
+    interval_ms = max(30, int(settings.service_health_history_prune_interval_sec)) * 1000
+    if now_ms - _last_health_history_prune_ms < interval_ms:
+        return False
+    _last_health_history_prune_ms = now_ms
+    return True
+
+
 def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[str]] = None) -> Dict[str, int]:
     existing = storage.get_collection("service_target_health_history") or []
     if not isinstance(existing, list):
         return {"before": 0, "after": 0, "removed": 0}
 
-    retention_days = max(1, int(settings.service_health_history_retention_days))
-    cutoff_ms = _now_ms() - (retention_days * 24 * 60 * 60 * 1000)
+    cutoff_ms = _history_cutoff_ms()
     valid_ids = valid_service_ids if valid_service_ids is not None else _current_valid_service_ids(storage)
 
     before = len(existing)
@@ -430,7 +444,11 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
         for row in next_rows
         if isinstance(row, dict) and str(row.get("serviceId") or "").strip()
     }
-    prune_stats = prune_health_history(storage, valid_service_ids=valid_service_ids)
+    now_ms = _now_ms()
+    if _should_prune_history(now_ms):
+        prune_stats = prune_health_history(storage, valid_service_ids=valid_service_ids)
+    else:
+        prune_stats = {"before": 0, "after": 0, "removed": 0}
 
     return {
         "checked": checked,
