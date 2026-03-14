@@ -106,3 +106,87 @@ For every backend behavior change:
 4. Keep doc/code/test semantics aligned.
 
 If one side (doc/code/test) is missing, the change is incomplete.
+
+## 9. E2E: Buyer -> serviceId -> Gateway Billing Validation
+
+This section covers the exact scenario:
+1. Buyer calls gateway with `serviceId`.
+2. Gateway charges correctly.
+3. Concurrency does not overspend balance.
+4. Balance exhausted blocks calls but does not auto-inactivate credential.
+
+### 9.1 Frameworks Used
+
+1. `pytest`: test orchestration.
+2. `fastapi.testclient.TestClient`: real route-level e2e calls.
+3. `pytest monkeypatch`: stable auth/upstream isolation for deterministic local e2e.
+4. `concurrent.futures.ThreadPoolExecutor`: local concurrency pressure on `/api/v2/generate`.
+5. `TemporaryDirectory`: isolated runtime storage per test case.
+
+### 9.2 Test Data Preparation Strategy
+
+Prefer automated fixture setup over manual preloaded data.
+
+Automated setup in each e2e case:
+1. Start app with isolated `data_dir` and `runtime_storage_dir`.
+2. Patch owner auth dependency to deterministic local owner identity.
+3. Register service via `/api/v2/services` (strict `invoke.targets` + `healthCheck.path`).
+4. Issue buyer credential via `/api/v1/credentials/buyer/issue`.
+5. Seed ledger (`balance_ledger`) programmatically for deterministic balances.
+6. Mock upstream call path to avoid external network instability.
+
+### 9.3 E2E Test File
+
+Implemented file:
+1. `python_sdk/seller_api/tests/integration/test_gateway_generate_e2e.py`
+
+Covered cases:
+1. `test_e2e_gateway_charge_by_service_id`
+  - Verifies one successful `/api/v2/generate` call decrements buyer, increments seller/platform by expected split.
+2. `test_e2e_gateway_concurrency_no_overspend`
+  - Runs concurrent requests and asserts successful call count never exceeds affordable balance.
+  - Asserts no negative balance and ledger split remains consistent.
+3. `test_e2e_balance_exhausted_does_not_inactivate_credential`
+  - Verifies insufficient balance returns `INSUFFICIENT_BALANCE`.
+  - Verifies credential remains active.
+  - Verifies top-up enables same credential to succeed again.
+
+### 9.4 Execution Commands
+
+Run integration e2e only:
+
+```bash
+cd python_sdk/seller_api
+python -m pytest -q tests/integration/test_gateway_generate_e2e.py
+```
+
+Run unit + integration regression (exclude performance):
+
+```bash
+cd python_sdk/seller_api
+python -m pytest -q tests/unit tests/integration -m "not performance"
+```
+
+### 9.5 Recorded Test Results (Current Baseline)
+
+Executed in local isolated env:
+1. Unit + existing regression + new integration (non-performance): `12 passed`
+2. Performance smoke: `1 passed`
+3. New gateway e2e integration subset: `3 passed`
+
+Result interpretation:
+1. Gateway billing path is correct for serviceId-based invocation.
+2. Concurrency path preserves balance safety (no overspend).
+3. Balance exhaustion blocks billing requests but does not deactivate credential record.
+
+### 9.6 Which is Better: Manual Data vs Automation?
+
+Recommended: **Automation-first**.
+
+Reason:
+1. Repeatable and CI-friendly.
+2. Refactor-safe with deterministic setup/teardown.
+3. Easier root-cause when regression appears.
+4. Better coverage for concurrency and edge conditions than manual verification.
+
+Use manual only for exploratory debugging after automated baseline is green.
