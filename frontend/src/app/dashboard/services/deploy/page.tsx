@@ -283,11 +283,10 @@ export default function DeployManifestPage() {
           return;
         }
         setAIResponse(JSON.stringify(parsed, null, 2));
-        applyParsedManifest(parsed);
         if (payload.fallback) {
-          toast("Parsed via fallback parser and auto-filled form.", { icon: "⚙️" });
+          toast("Parsed via fallback parser. Review JSON and click Confirm Override.", { icon: "⚙️" });
         } else {
-          toast.success("AI manifest generated from real parser endpoint and auto-filled.", { icon: "🪄" });
+          toast.success("AI manifest generated. Review JSON and click Confirm Override.", { icon: "🪄" });
         }
       } else {
         throw new Error(payload.detail || "Unknown parsing error");
@@ -656,7 +655,7 @@ export default function DeployManifestPage() {
                   disabled={isAiGenerating || !aiCurl}
                     className="px-8 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-bold flex items-center justify-center disabled:opacity-50 min-w-[120px]"
                   >
-                    {isAiGenerating ? <span className="animate-pulse">Generating...</span> : "Generate & Fill"}
+                    {isAiGenerating ? <span className="animate-pulse">Generating...</span> : "Generate JSON"}
                   </button>
                   <button 
                     onClick={confirmAndInject}
