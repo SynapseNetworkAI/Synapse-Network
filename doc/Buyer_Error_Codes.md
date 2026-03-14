@@ -61,10 +61,11 @@
 
 1. SERVICE_NOT_FOUND (404)：服务不存在。
 2. SERVICE_INACTIVE (403)：服务被停用。
-3. INVALID_SERVICE_PRICE (500)：服务价格配置异常。
-4. INVALID_INVOKE_CONFIG (500)：服务转发配置异常。
-5. INSUFFICIENT_BALANCE (402)：买家余额不足。
-6. UPSTREAM_ERROR (502)：上游调用失败。
+3. SERVICE_UNAVAILABLE (503)：服务当前无健康实例可用（例如 targets 全部 unhealthy/degraded 且无 healthy，或健康池为空）。
+4. INVALID_SERVICE_PRICE (500)：服务价格配置异常。
+5. INVALID_INVOKE_CONFIG (500)：服务转发配置异常。
+6. INSUFFICIENT_BALANCE (402)：买家余额不足。
+7. UPSTREAM_ERROR (502)：上游调用失败。
 
 ### 4.4 服务约束与资源保护
 

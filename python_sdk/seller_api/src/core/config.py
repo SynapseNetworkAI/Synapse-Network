@@ -265,6 +265,16 @@ class Settings:
     gateway_min_service_qps: int = _env_int("GATEWAY_MIN_SERVICE_QPS", 1)
     gateway_max_service_qps: int = _env_int("GATEWAY_MAX_SERVICE_QPS", 200)
 
+    # Service health monitor controls for seller upstream availability checks.
+    service_health_monitor_enabled: bool = _env_bool("SERVICE_HEALTH_MONITOR_ENABLED", True)
+    service_health_probe_interval_sec: float = _env_float("SERVICE_HEALTH_PROBE_INTERVAL_SEC", 15.0)
+    service_health_probe_timeout_ms: int = _env_int("SERVICE_HEALTH_PROBE_TIMEOUT_MS", 1500)
+    service_health_stale_after_sec: int = _env_int("SERVICE_HEALTH_STALE_AFTER_SEC", 120)
+    forwarding_require_healthy_targets: bool = _env_bool("FORWARDING_REQUIRE_HEALTHY_TARGETS", True)
+    service_health_history_enabled: bool = _env_bool("SERVICE_HEALTH_HISTORY_ENABLED", True)
+    service_health_history_retention_days: int = _env_int("SERVICE_HEALTH_HISTORY_RETENTION_DAYS", 7)
+    service_health_history_default_limit_per_target: int = _env_int("SERVICE_HEALTH_HISTORY_DEFAULT_LIMIT_PER_TARGET", 50)
+
     # Server bind host for the main app process.
     host: str = os.getenv("HOST", "0.0.0.1")
     # Server bind port for the main app process.

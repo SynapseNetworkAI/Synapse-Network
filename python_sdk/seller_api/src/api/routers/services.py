@@ -150,6 +150,38 @@ async def discover_services(
         "count": len(public_services)
     }
 
+
+@router.get("/v1/services/health/status")
+async def discover_health_status(
+    intent: Optional[str] = Query(None, description="Search keyword for service health status"),
+    include_inactive: bool = Query(False, alias="includeInactive", description="Include inactive services"),
+    service: RegistryService = Depends(get_registry_service),
+):
+    rows = await service.health_status(intent=intent, include_inactive=include_inactive)
+    return {"status": "success", "services": rows, "count": len(rows)}
+
+
+@router.get("/v1/services/{service_record_id}/health/history")
+async def service_health_history(
+    service_record_id: str,
+    service: RegistryService = Depends(get_registry_service),
+    limit_per_target: int = Query(50, alias="limitPerTarget", ge=1, le=500, description="Recent probe records per target"),
+    days: Optional[int] = Query(None, ge=1, le=365, description="History window in days (capped by retention)"),
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    owner = credential_service.require_owner_wallet(authorization, x_user_address)
+    try:
+        payload = await service.service_health_history(
+            service_record_id=service_record_id,
+            owner_wallet=owner,
+            limit_per_target=limit_per_target,
+            days=days,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"})
+    return {"status": "success", **payload}
+
 @router.get("/v1/services")
 async def list_services(
     service: RegistryService = Depends(get_registry_service),

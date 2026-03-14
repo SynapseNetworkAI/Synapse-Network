@@ -251,6 +251,11 @@
 - **Desc**: 允许任何 Buyer 终端查询整个平台挂卷的“卖家功能单意图”和配置列表，可带入大语言模型自动作为 Function Calling 工具箱使用。支持按 `?intent=` 意图匹配词反向搜索。
 - **Auth**: Public endpoint. No wallet challenge and no platform session required.
 - **Routing Contract**: 对外返回的 `invoke.targets[].url` 为平台网关地址（`/api/v1/gateway/generate`），不暴露卖家真实上游地址。
+- **Health Contract**:
+  - 只返回 `isActive=true` 且 `serviceHealth.healthyTargets >= 1` 的服务。
+  - `status` 字段表示实时可用性（`healthy | degraded | unhealthy | unknown`），不是卖家配置态（`active/inactive`）。
+  - `health` 字段来自网关探活状态缓存，并持久化在服务注册存储中（JSON 或 PostgreSQL）。
+  - 平台同步维护规范化健康表 `service_target_health`（每个 target 一条记录），discover 与 forwarding 使用同一健康事实源。
 - **Returns (200 OK)**:
   ```json
   {
@@ -258,6 +263,13 @@
     "services": [
       {
         "serviceId": "SVC_F8_5800A9_0648",
+        "status": "healthy",
+        "health": {
+          "overallStatus": "healthy",
+          "healthyTargets": 2,
+          "totalTargets": 2,
+          "lastCheckedAt": 1773417000000
+        },
         "invoke": {
           "method": "POST",
           "targets": [
@@ -273,6 +285,76 @@
     "count": 1
   }
   ```
+
+### 4.1.1 服务健康状态查询 (Service Health Status)
+- **Path**: `GET /api/v1/services/health/status`
+- **Desc**: 返回当前服务探活摘要，支持按 `intent` 检索，可选包含 inactive 服务（`includeInactive=true`）。
+- **Auth**: Public endpoint.
+- **Returns (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "services": [
+      {
+        "serviceId": "SVC_F8_5800A9_0648",
+        "serviceName": "获取名人名言 Top3",
+        "isActive": true,
+        "status": "active",
+        "health": {
+          "overallStatus": "degraded",
+          "healthyTargets": 1,
+          "totalTargets": 2,
+          "lastCheckedAt": 1773417000000
+        }
+      }
+    ],
+    "count": 1
+  }
+  ```
+
+### 4.1.2 Seller 健康明细历史 (Owner Scoped)
+- **Path**: `GET /api/v1/services/{serviceId}/health/history`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Desc**: 返回指定 serviceId 下每个 target 的最近 N 次探测历史（按时间倒序）。
+- **Query**:
+  - `limitPerTarget` (`1..500`, default `50`)
+  - `days` (`1..365`, optional): 实际窗口会被 `SERVICE_HEALTH_HISTORY_RETENTION_DAYS` 截断。
+- **Returns (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "serviceId": "serviceA",
+    "windowDays": 7,
+    "retentionDays": 7,
+    "limitPerTarget": 50,
+    "targets": [
+      {
+        "targetUrl": "http://url1/api",
+        "latestStatus": "healthy",
+        "history": [
+          {
+            "status": "healthy",
+            "checkedAt": 1773417000000,
+            "latencyMs": 24,
+            "httpStatus": 200
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
+### 4.1.3 健康历史保留与写入规模
+- **写入规模公式**：
+  - 每 target 每日写入约 `86400 / probeIntervalSec` 条。
+  - 默认 `probeIntervalSec=15`，则每 target 每日约 `5760` 条。
+  - 例如一个 service 有 3 个 targets：每日约 `17280` 条。
+- **推荐保留期**：`7 天`。
+  - 3 targets 的 service，7 天约 `120960` 条；
+  - 若保留 30 天则约 `518400` 条，存储与查询成本显著上升。
+- **清理策略**：
+  - 定时探活后自动清理过期历史（`checkedAt` 超过 retention）。
+  - 对已删除/不存在 serviceId 的健康历史执行 orphan 清理。
 
 ### 4.2 高频服务分发流水线 (Generate/Invoke API)
 - **Path**: `POST /api/v1/gateway/generate`
@@ -318,6 +400,7 @@
 - **Body**: 必须匹配对应 Service 注册时声明的 Schema 净载荷。 
 
 - **Validation Rules（安全 + 可观测性 + 转发必需）**:
+  - 当 `FORWARDING_REQUIRE_HEALTHY_TARGETS=true` 时，网关只会在健康上游池中选路；若无健康目标，返回 `503 SERVICE_UNAVAILABLE`。
   - `prompt`：必填，不能为空白字符串，最大长度 `8000`。
   - `serviceId`：必填（Header 或 Body 至少一个），Header 与 Body 同时传入时必须一致。
   - `serviceId` 格式：仅允许 `[A-Za-z0-9._:-]`，最大长度 `128`。

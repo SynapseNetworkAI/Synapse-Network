@@ -1,19 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ServiceRegistryRecord, discoverServices } from "@/utils/serviceApi";
 import { Copy, TerminalSquare, Activity, Globe } from "lucide-react";
 import toast from "react-hot-toast";
 
+function resolveStatusStyle(healthStatus: string) {
+  if (healthStatus === "healthy") {
+    return {
+      dot: "bg-green-500",
+      pulse: "bg-green-400",
+      text: "text-green-500",
+      label: "Healthy",
+    };
+  }
+  if (healthStatus === "degraded") {
+    return {
+      dot: "bg-amber-500",
+      pulse: "bg-amber-400",
+      text: "text-amber-400",
+      label: "Degraded",
+    };
+  }
+  if (healthStatus === "unhealthy") {
+    return {
+      dot: "bg-red-500",
+      pulse: "bg-red-400",
+      text: "text-red-400",
+      label: "Unhealthy",
+    };
+  }
+  return {
+    dot: "bg-gray-500",
+    pulse: "bg-gray-400",
+    text: "text-gray-400",
+    label: "Unknown",
+  };
+}
+
 export default function DiscoverPage() {
+  const AUTO_POLL_MS = 10000;
   const [intent, setIntent] = useState("");
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [polling, setPolling] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSearch = async () => {
-    setLoading(true);
+  const handleSearch = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = Boolean(options?.silent);
+    if (silent) {
+      setPolling(true);
+    } else {
+      setLoading(true);
+    }
     setError("");
     try {
       const data = await discoverServices(intent);
@@ -21,18 +61,29 @@ export default function DiscoverPage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to discover services");
     } finally {
-      setLoading(false);
+      if (silent) {
+        setPolling(false);
+      } else {
+        setLoading(false);
+      }
     }
-  };
+  }, [intent]);
 
   const handleDiscoverClick = async () => {
     await handleSearch();
   };
 
   useEffect(() => {
-    handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void handleSearch();
+  }, [handleSearch]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void handleSearch({ silent: true });
+    }, AUTO_POLL_MS);
+
+    return () => clearInterval(timer);
+  }, [handleSearch]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -98,6 +149,12 @@ export default function DiscoverPage() {
                 </tr>
               )}
               {services.map((svc) => (
+                (() => {
+                  const healthStatus = svc.health?.overallStatus || svc.status || "unknown";
+                  const healthMeta = svc.health;
+                  const statusStyle = resolveStatusStyle(healthStatus);
+
+                  return (
                 <tr 
                   key={svc.serviceId} 
                   className="transition-colors hover:bg-gray-900/50 group"
@@ -141,12 +198,14 @@ export default function DiscoverPage() {
                     <div className="flex flex-col items-center justify-center">
                       <div className="flex items-center space-x-2">
                         <div className="relative flex w-2 h-2">
-                          <span className="absolute inline-flex w-full h-full bg-green-400 rounded-full opacity-75 animate-ping"></span>
-                          <span className="relative inline-flex w-2 h-2 bg-green-500 rounded-full"></span>
+                          <span className={`absolute inline-flex w-full h-full rounded-full opacity-75 animate-ping ${statusStyle.pulse}`}></span>
+                          <span className={`relative inline-flex w-2 h-2 rounded-full ${statusStyle.dot}`}></span>
                         </div>
-                        <span className="text-xs font-semibold text-green-500">99.9%</span>
+                        <span className={`text-xs font-semibold ${statusStyle.text}`}>{statusStyle.label}</span>
                       </div>
-                      <span className="text-[10px] text-gray-600 mt-0.5">{"<"} 40ms</span>
+                      <span className="text-[10px] text-gray-600 mt-0.5">
+                        {`${healthMeta?.healthyTargets ?? 0}/${healthMeta?.totalTargets ?? 0} nodes healthy`}
+                      </span>
                     </div>
                   </td>
 
@@ -169,6 +228,8 @@ export default function DiscoverPage() {
                     </div>
                   </td>
                 </tr>
+                  );
+                })()
               ))}
             </tbody>
           </table>
@@ -177,7 +238,9 @@ export default function DiscoverPage() {
       <div className="flex items-center justify-center pt-4">
         <p className="text-xs text-gray-600 flex items-center">
           <Activity className="w-3 h-3 mr-1" />
-          Real-time network indices updated locally by Synapse Gateway
+          {polling
+            ? "Refreshing health view..."
+            : `Auto-refresh every ${AUTO_POLL_MS / 1000}s by Synapse Gateway health monitor`}
         </p>
       </div>
     </div>

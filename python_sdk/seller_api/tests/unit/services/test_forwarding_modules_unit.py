@@ -45,6 +45,23 @@ def test_upstream_target_normalization_rejects_non_integer_weight():
     assert exc.value.detail["code"] == "INVALID_INVOKE_CONFIG"
 
 
+def test_upstream_target_selection_rejects_when_no_healthy_targets():
+    invoke = {
+        "targets": [
+            {"url": "http://127.0.0.1:8100/mock", "weight": 100},
+        ]
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        forwarding_upstream.select_weighted_target_url(
+            invoke,
+            allowed_target_urls={"http://127.0.0.1:8101/mock"},
+        )
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail["code"] == "SERVICE_UNAVAILABLE"
+
+
 def test_billing_receipt_keeps_public_fields_only():
     receipt = forwarding_billing.build_buyer_receipt(
         request_id="req-split-1",

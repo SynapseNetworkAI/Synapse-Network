@@ -71,7 +71,49 @@
 *   请求通过 Provider 处理成功并返回内容后。网关将结果包装成统一规范如 `{ status: "success", "billing": {...}, "data": {...} }` 返回给调用方。
 *   利用 FastAPI 的 `BackgroundTasks` 或 MQ，把此次成功交易记录写入异步 Kafka 或 Audit log 中（参考第一阶段的 File Tracing 方案）。
 
-### 3.5 Forwarding Service 分层重构（2026-03）
+### 3.5 服务健康监控与健康路由（Service Health Monitor）
+**设计原则**：发现与转发一致（Discover == Routing），避免“展示可用但实际不可用”的状态错配。
+
+1. **持续探活任务（Background Probe Loop）**
+  - 在 Seller API 启动时拉起后台任务：`run_service_health_monitor`。
+  - 固定周期扫描 active 服务并探测每个 `invoke.targets[]`。
+  - 默认探测间隔：`SERVICE_HEALTH_PROBE_INTERVAL_SEC=15`。
+
+2. **探活地址与判定策略**
+  - 探活地址规则：`origin(target.url) + healthCheck.path`。
+  - 例：`http://127.0.0.1:8100/api/v1/quotes/famous` + `/health` => `http://127.0.0.1:8100/health`。
+  - 成功状态码：`healthCheck.successCodes`。
+  - 阈值：`healthyThreshold` / `unhealthyThreshold`。
+
+3. **状态持久化（DB-first）**
+  - 每个 service 记录持久化 `serviceHealth`：
+  - `overallStatus`、`healthyTargets`、`totalTargets`、`lastCheckedAt`。
+  - `targets[url]` 子状态：`status/httpStatus/latencyMs/consecutiveSuccesses/consecutiveFailures/lastHealthyAt/error`。
+  - 存储后端与主数据一致：JSON（Dev）或 PostgreSQL（Prod）。
+  - 同步写入规范化健康表 `service_target_health`（每个 target 一行），用于可观测与审计查询。
+  - 同步写入历史表 `service_target_health_history`（每次探测一行），用于 Seller 健康明细回溯。
+
+4. **Discover 准入门禁**
+  - `GET /api/v1/services/discover` 仅返回 `healthyTargets >= 1` 的 active 服务。
+  - `status` 字段返回健康状态（`healthy|degraded|unhealthy|unknown`），用于前端实时展示。
+
+5. **Forwarding 健康选路**
+  - `POST /api/v1/gateway/generate` 默认仅从健康节点池做加权随机。
+  - 若无健康节点，直接返回 `503 SERVICE_UNAVAILABLE`，不盲打故障上游。
+
+6. **存储成本控制（Retention & Cleanup）**
+  - 默认历史保留：`7 天`（`SERVICE_HEALTH_HISTORY_RETENTION_DAYS=7`）。
+  - 每轮探活后执行两类清理：
+    1. 清理过期历史记录（`checkedAt < now - retention`）
+    2. 清理 orphan 记录（`serviceId` 已不存在于 `service_registry`）
+  - 当 Seller 删除服务时，服务注册与健康快照/历史会保持同步，相关健康任务数据不会残留。
+
+这套策略对齐了 Google/AWS 的常见生产实践：
+1. 健康检查状态缓存 + 周期刷新。
+2. 控制面（发现页）与数据面（转发）使用同一健康事实源。
+3. 无健康节点时快速失败而非放大延迟尾部风险。
+
+### 3.6 Forwarding Service 分层重构（2026-03）
 为降低 `generate` 主路径复杂度并提升可维护性，转发链路在服务层拆分为“编排层 + 能力模块”，外部行为保持不变：
 
 1. `src/services/forwarding_service.py`
@@ -85,7 +127,7 @@
 
 该拆分遵循高内聚低耦合原则：策略规则与副作用（账本写入/网络 IO）分离，便于单元测试精准覆盖与后续横向扩展（例如替换存储实现、替换路由策略）。
 
-### 3.6 Provider 收益可观测设计（DB-first）
+### 3.7 Provider 收益可观测设计（DB-first）
 
 Provider Console 的收益面板采用网关数据库作为主数据源，而不是链上事件回放：
 

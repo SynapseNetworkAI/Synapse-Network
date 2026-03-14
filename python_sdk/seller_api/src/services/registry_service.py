@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
+from src.services import service_health_service
 import uuid
 import time
 import asyncio
@@ -199,9 +200,11 @@ class RegistryService:
             new_svc["id"] = str(new_svc.get("id") or uuid.uuid4())
             new_svc["createdAt"] = int(time.time() * 1000)
             new_svc["updatedAt"] = new_svc["createdAt"]
+            new_svc = await service_health_service.probe_service_health(new_svc)
             
             rows.append(new_svc)
             self.storage.save_collection('service_registry', rows)
+            service_health_service.sync_service_target_health_table(self.storage, rows)
             return new_svc
 
     async def update_service(self, service_record_id: str, req_data: Dict[str, Any], owner_wallet: str) -> Optional[Dict[str, Any]]:
@@ -221,8 +224,10 @@ class RegistryService:
                     updated["createdAt"] = svc.get("createdAt")
                     updated["ownerAddress"] = owner_wallet
                     updated["updatedAt"] = int(time.time() * 1000)
+                    updated = await service_health_service.probe_service_health(updated)
                     rows[i] = updated
                     self.storage.save_collection('service_registry', rows)
+                    service_health_service.sync_service_target_health_table(self.storage, rows)
                     return updated
             return None
 
@@ -237,6 +242,8 @@ class RegistryService:
             if len(rows) == original_len:
                 return False
             self.storage.save_collection('service_registry', rows)
+            service_health_service.sync_service_target_health_table(self.storage, rows)
+            service_health_service.prune_health_history(self.storage)
             return True
 
     async def has_owner_service(self, service_record_id: str, owner_wallet: str) -> bool:
@@ -248,7 +255,7 @@ class RegistryService:
 
     async def discover_services(self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None) -> List[Dict[str, Any]]:
         rows = self.storage.get_collection('service_registry') or []
-        available_services = [row for row in rows if row.get("isActive") is True]
+        available_services = [row for row in rows if service_health_service.is_service_discoverable(row)]
         
         if intent:
             intent_lower = intent.lower()
@@ -272,6 +279,8 @@ class RegistryService:
                 "pricing": svc.get("pricing"),
                 "summary": svc.get("summary"),
                 "tags": svc.get("tags"),
+                "status": service_health_service.public_discover_status(svc),
+                "health": service_health_service.public_health_summary(svc),
                 "invoke": _build_public_invoke(svc, public_gateway_url),
             }
             public_services.append(public_svc)
@@ -281,3 +290,99 @@ class RegistryService:
     async def list_owner_services(self, owner_wallet: str) -> List[Dict[str, Any]]:
         rows = self.storage.get_collection("service_registry") or []
         return [svc for svc in rows if svc.get("ownerAddress") == owner_wallet]
+
+    async def health_status(self, intent: Optional[str] = None, include_inactive: bool = False) -> List[Dict[str, Any]]:
+        rows = self.storage.get_collection("service_registry") or []
+        scoped = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if not include_inactive and not bool(row.get("isActive", False)):
+                continue
+            scoped.append(row)
+
+        if intent:
+            intent_lower = intent.lower()
+            filtered = []
+            for svc in scoped:
+                searchable_text = " ".join([
+                    str(svc.get("serviceName", "")).lower(),
+                    str(svc.get("summary", "")).lower(),
+                    " ".join(str(t).lower() for t in svc.get("tags", [])),
+                ])
+                if intent_lower in searchable_text:
+                    filtered.append(svc)
+            scoped = filtered
+
+        return [
+            {
+                "serviceId": svc.get("serviceId"),
+                "serviceName": svc.get("serviceName"),
+                "isActive": bool(svc.get("isActive", False)),
+                "status": str(svc.get("status") or "unknown"),
+                "health": service_health_service.public_health_summary(svc),
+            }
+            for svc in scoped
+        ]
+
+    async def service_health_history(
+        self,
+        service_record_id: str,
+        owner_wallet: str,
+        limit_per_target: int,
+        days: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        rows = self.storage.get_collection("service_registry") or []
+        service_row = None
+        for row in rows:
+            if isinstance(row, dict) and row.get("serviceId") == service_record_id and row.get("ownerAddress") == owner_wallet:
+                service_row = row
+                break
+        if service_row is None:
+            raise ValueError("SERVICE_NOT_FOUND_OR_FORBIDDEN")
+
+        history = self.storage.get_collection("service_target_health_history") or []
+        if not isinstance(history, list):
+            history = []
+
+        retention_days = max(1, int(settings.service_health_history_retention_days))
+        window_days = retention_days if days is None else max(1, min(int(days), retention_days))
+        cutoff_ms = int(time.time() * 1000) - (window_days * 24 * 60 * 60 * 1000)
+
+        per_target: Dict[str, List[Dict[str, Any]]] = {}
+        for row in history:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("serviceId") or "") != service_record_id:
+                continue
+            checked_at = int(row.get("checkedAt") or 0)
+            if checked_at < cutoff_ms:
+                continue
+            target_url = str(row.get("targetUrl") or "").strip()
+            if not target_url:
+                continue
+            bucket = per_target.setdefault(target_url, [])
+            bucket.append(row)
+
+        normalized_limit = max(1, min(int(limit_per_target), 500))
+        targets = []
+        for target_url, entries in per_target.items():
+            sorted_entries = sorted(entries, key=lambda item: int(item.get("checkedAt") or 0), reverse=True)
+            latest = sorted_entries[0] if sorted_entries else None
+            targets.append(
+                {
+                    "targetUrl": target_url,
+                    "latestStatus": str((latest or {}).get("status") or "unknown"),
+                    "history": sorted_entries[:normalized_limit],
+                }
+            )
+
+        targets.sort(key=lambda item: item["targetUrl"])
+        return {
+            "serviceId": service_record_id,
+            "serviceName": service_row.get("serviceName"),
+            "windowDays": window_days,
+            "retentionDays": retention_days,
+            "limitPerTarget": normalized_limit,
+            "targets": targets,
+        }

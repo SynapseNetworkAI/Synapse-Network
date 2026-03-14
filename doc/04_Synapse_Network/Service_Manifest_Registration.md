@@ -339,9 +339,10 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 网关执行规则：
 
 1. 每次 Buyer 调用进入网关后，使用 `invoke.targets[]` 作为候选上游池。
-2. 按 `weight` 做加权随机选路（weighted random）。
+2. 先基于 `serviceHealth.targets` 过滤健康节点，再按 `weight` 做加权随机选路（weighted random）。
 3. `weight` 必须为整数且范围 `[1, 10000]`；非法配置返回 `500 INVALID_INVOKE_CONFIG`。
 4. 候选池为空或 URL 全部无效时，返回 `500 INVALID_INVOKE_CONFIG`。
+5. 若配置合法但当前健康节点为空，返回 `503 SERVICE_UNAVAILABLE`。
 
 效果：
 
@@ -369,6 +370,84 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
   - 注册时强制 `invoke.targets[]`（至少一个 URL）+ `healthCheck.path`，并在上线前做一次主动探测。
   - 平台探活地址规则：`target.url` 的 `scheme://host[:port]` + `healthCheck.path`。
   - 健康检查失败服务不进入 `discover` 可路由池。
+
+### 5.1.2.A 平台健康检查执行与存储（已落地）
+
+平台在 Seller API 里实现了持续探活任务，参考 Google Cloud Health Check 与 AWS Target Group Health 的执行方式：
+
+1. 后台任务
+  - 任务名：`run_service_health_monitor`
+  - 执行周期：`SERVICE_HEALTH_PROBE_INTERVAL_SEC`（默认 15s）
+  - 目标对象：所有 active 服务的 `invoke.targets[]`
+
+2. 探活 URL 规则
+  - `probeUrl = origin(target.url) + healthCheck.path`
+  - 例：`http://127.0.0.1:8100/api/v1/quotes/famous` + `/health` => `http://127.0.0.1:8100/health`
+
+3. 持久化字段（存储于 service 记录）
+  - `serviceHealth.overallStatus`: `healthy|degraded|unhealthy|unknown`
+  - `serviceHealth.healthyTargets`
+  - `serviceHealth.totalTargets`
+  - `serviceHealth.lastCheckedAt`
+  - `serviceHealth.targets[url]`: 节点粒度的状态、连续成功/失败计数、最近健康时间、错误信息
+
+3.1 规范化健康检查表（每个 target 一条记录）
+  - 表名/集合名：`service_target_health`
+  - 主键建议：`(serviceId, targetUrl)`
+  - 关键字段：
+    - `serviceId`
+    - `targetUrl`
+    - `probeUrl`（例如 `url1 + /health`）
+    - `status`（`healthy|degraded|unhealthy|unknown`）
+    - `overallStatus`
+    - `httpStatus`
+    - `latencyMs`
+    - `consecutiveSuccesses`
+    - `consecutiveFailures`
+    - `lastCheckedAt`
+    - `lastHealthyAt`
+    - `error`
+
+3.1.1 健康历史表（每次探测一条）
+  - 表名/集合名：`service_target_health_history`
+  - 用途：支持 Seller 侧按 `serviceId` 查询每个 target 最近 N 次探测轨迹。
+  - 推荐索引：`(serviceId, targetUrl, checkedAt DESC)`
+
+3.1.2 Seller 健康明细接口（Owner Scope）
+  - `GET /api/v1/services/{serviceId}/health/history?limitPerTarget=50&days=7`
+  - 返回每个 target 的最新状态 + 最近 N 次探测历史。
+  - 仅服务 owner 可访问。
+
+3.2 示例：`serviceA` 三节点
+  - targets：`url1, url2, url3`
+  - 健康表对应 3 条记录：
+    - `url1/health -> healthy`
+    - `url2/health -> degraded`
+    - `url3/health -> unhealthy`
+  - 网关转发：只在 healthy 节点选路，因此只会转发到 `url1`。
+  - discover：`serviceA` 仍展示（因为至少 1 个 healthy 节点）。
+
+3.3 历史数据保留策略（防表膨胀）
+  - 每 target 每日探测记录量约：`86400 / probeIntervalSec`
+  - 默认 `probeIntervalSec=15` => `5760` 条/target/天
+  - 若 `serviceA` 有 3 个 targets：`17280` 条/天
+  - 7 天约 `120960` 条；30 天约 `518400` 条
+  - 推荐保留：`7 天`（足够排障且显著节约存储成本）
+  - 系统会自动：
+    1. 清理超过 retention 的历史
+    2. 清理已删除 service 的 orphan 历史
+
+4. Discover 准入
+  - 仅返回满足 `isActive=true` 且 `healthyTargets>=1` 的服务。
+  - discover 响应中的 `status` 为健康可用性状态，而非卖家配置态。
+
+5. 网关转发
+  - 默认 `FORWARDING_REQUIRE_HEALTHY_TARGETS=true`
+  - 仅在健康节点集合内选路；无健康节点时返回 `503 SERVICE_UNAVAILABLE`
+
+这保证了：
+1. `http://localhost:3000/dashboard/discover` 看到的是实时探活状态，不是静态占位文案。
+2. discover 的可见性与真实转发行为一致，不会出现“看起来可用但被路由到坏节点”。
 
 2. **安全性（Security）**
   - `auth.type=service_key` 且要求请求带 `X-Credential`。
