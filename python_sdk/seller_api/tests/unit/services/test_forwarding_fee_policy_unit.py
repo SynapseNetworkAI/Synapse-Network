@@ -1,5 +1,8 @@
 # pyright: reportMissingImports=false
 
+import pytest
+from fastapi import HTTPException
+
 from src.services import forwarding_service
 
 
@@ -140,3 +143,43 @@ def test_build_buyer_success_response_does_not_leak_settlement_fields():
     assert "platformFee" not in payload["receipt"]
     assert "platformFeeTotal" not in payload["receipt"]
     assert "sellerNet" not in payload["receipt"]
+
+
+def test_validate_prompt_rejects_blank():
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._validate_prompt("   ")
+    assert exc.value.status_code == 422
+    assert exc.value.detail["code"] == "PROMPT_REQUIRED"
+
+
+def test_validate_prompt_rejects_too_long():
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._validate_prompt("a" * 8001)
+    assert exc.value.status_code == 422
+    assert exc.value.detail["code"] == "PROMPT_TOO_LONG"
+
+
+def test_validate_service_id_rejects_invalid_characters():
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._validate_service_id(None, "svc bad")
+    assert exc.value.status_code == 422
+    assert exc.value.detail["code"] == "SERVICE_ID_INVALID_FORMAT"
+
+
+def test_validate_credential_token_rejects_invalid_format():
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._validate_credential_token("bad-token")
+    assert exc.value.status_code == 422
+    assert exc.value.detail["code"] == "CREDENTIAL_FORMAT_INVALID"
+
+
+def test_resolve_request_id_uses_client_value_when_valid():
+    request_id = forwarding_service._resolve_request_id("buyer-req-001")
+    assert request_id == "buyer-req-001"
+
+
+def test_resolve_request_id_rejects_invalid_format():
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._resolve_request_id("invalid request id")
+    assert exc.value.status_code == 422
+    assert exc.value.detail["code"] == "INVALID_REQUEST_ID"

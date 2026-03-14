@@ -267,7 +267,37 @@
 - **Headers**:
   - `X-Credential`: "agt_123..." (调用凭据)
   - `X-Service-Id`: "svc_demo" (卖家在网络上的通用注册编号)
+  - `X-Request-Id`: "buyer-trace-001" (可选，买家侧链路追踪 ID；会原样透传到上游并回显到 `payload.receipt.requestId`)
 - **Body**: 必须匹配对应 Service 注册时声明的 Schema 净载荷。 
+
+- **Validation Rules（安全 + 可观测性 + 转发必需）**:
+  - `prompt`：必填，不能为空白字符串，最大长度 `8000`。
+  - `serviceId`：必填（Header 或 Body 至少一个），Header 与 Body 同时传入时必须一致。
+  - `serviceId` 格式：仅允许 `[A-Za-z0-9._:-]`，最大长度 `128`。
+  - `X-Credential`：必填，格式必须匹配 `agt_[A-Za-z0-9]+`，最大长度 `128`。
+  - `X-Request-Id`：可选；若传入，格式必须匹配 `[A-Za-z0-9._:-]`，最大长度 `128`。
+
+- **Buyer 常见错误码（Generate）**:
+  - `PROMPT_REQUIRED` (`422`)：`prompt` 为空或全空白。
+  - `PROMPT_TOO_LONG` (`422`)：`prompt` 超过最大长度。
+  - `SERVICE_ID_REQUIRED` (`422`)：未提供 `serviceId`。
+  - `SERVICE_ID_MISMATCH` (`403`)：Header 与 Body 的 `serviceId` 不一致。
+  - `SERVICE_ID_INVALID_FORMAT` (`422`)：`serviceId` 格式非法。
+  - `CREDENTIAL_REQUIRED` (`401`)：缺少 `X-Credential`。
+  - `CREDENTIAL_FORMAT_INVALID` (`422`)：`X-Credential` 格式非法。
+  - `CREDENTIAL_INVALID` (`401`)：凭据无效。
+  - `CREDENTIAL_INACTIVE` (`401`)：凭据已停用。
+  - `CREDENTIAL_EXPIRED` (`401`)：凭据已过期。
+  - `CREDENTIAL_RPM_EXCEEDED` (`429`)：凭据速率超限。
+  - `CREDENTIAL_MAX_CALLS_EXCEEDED` (`429`)：凭据调用次数超限。
+  - `CREDENTIAL_CREDIT_LIMIT_EXCEEDED` (`402`)：凭据额度超限。
+  - `INSUFFICIENT_BALANCE` (`402`)：余额不足。
+  - `INVALID_REQUEST_ID` (`422`)：`X-Request-Id` 格式非法。
+  - `SERVICE_NOT_FOUND` (`404`)：服务不存在。
+  - `SERVICE_INACTIVE` (`403`)：服务未激活。
+  - `UPSTREAM_ERROR` (`502`)：上游服务调用失败。
+
+- **统一异常码文档**：详见 [doc/Buyer_Error_Codes.md](doc/Buyer_Error_Codes.md)。
 
 ### 4.3 卖家服务管理 (Provider Service Management)
 

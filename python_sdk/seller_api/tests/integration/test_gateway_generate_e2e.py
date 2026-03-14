@@ -143,7 +143,7 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
 
                 resp = client.post(
                     "/api/v1/gateway/generate",
-                    headers={"X-Credential": credential_token},
+                    headers={"X-Credential": credential_token, "X-Request-Id": "buyer-trace-001"},
                     json={"prompt": "hello", "serviceId": service_id},
                 )
                 assert resp.status_code == 200
@@ -154,6 +154,7 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
                 receipt = payload.get("receipt", {})
                 assert payload.get("status") == "success"
                 assert payload.get("code") == "DELIVERED"
+                assert receipt.get("requestId") == "buyer-trace-001"
                 assert abs(float(receipt.get("totalCharge", 0.0)) - 1.0001) < 1e-9
                 assert abs(float(receipt.get("buyerBalanceAfter", 0.0)) - 1.9999) < 1e-9
                 assert abs(float(receipt.get("serviceUnitPrice", 0.0)) - 1.0) < 1e-9
@@ -336,6 +337,46 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
                     json={"prompt": "third", "serviceId": service_id},
                 )
                 assert third.status_code == 200
+        finally:
+            cfg.settings.data_dir = old_data_dir
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            cfg.settings.platform_fee_rate = old_fee_rate
+            cfg.settings.gateway_routing_tax = old_routing_tax
+            app_module.run_v2_deposit_indexer = old_indexer
+
+
+def test_e2e_gateway_rejects_invalid_request_id(monkeypatch):
+    _mock_upstream(monkeypatch)
+    _mock_owner_auth(monkeypatch)
+
+    with TemporaryDirectory() as tmp:
+        old_data_dir = cfg.settings.data_dir
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_fee_rate = cfg.settings.platform_fee_rate
+        old_routing_tax = cfg.settings.gateway_routing_tax
+        old_indexer = app_module.run_v2_deposit_indexer
+        cfg.settings.data_dir = tmp
+        cfg.settings.runtime_storage_dir = tmp
+        cfg.settings.platform_fee_rate = 0.10
+        cfg.settings.gateway_routing_tax = 0.0001
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                buyer_wallet, buyer_token = _issue_session(client)
+                seller_wallet = "0x" + "6" * 40
+                service_id, credential_token = _register_service_and_credential(client, buyer_wallet, buyer_token, seller_wallet)
+                _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 2.0)
+
+                resp = client.post(
+                    "/api/v1/gateway/generate",
+                    headers={"X-Credential": credential_token, "X-Request-Id": "bad request id"},
+                    json={"prompt": "hello", "serviceId": service_id},
+                )
+
+                assert resp.status_code == 422
+                detail = resp.json().get("detail", {})
+                assert detail.get("code") == "INVALID_REQUEST_ID"
         finally:
             cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir

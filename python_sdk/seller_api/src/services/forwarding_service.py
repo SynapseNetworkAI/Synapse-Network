@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
+import re
 import random
 
 import httpx
@@ -14,6 +15,14 @@ from src.storage import BaseStorage
 
 _redis_client = None
 _memory_window_counters: Dict[str, Tuple[float, int]] = {}
+
+_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
+_SERVICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
+_CREDENTIAL_PATTERN = re.compile(r"^agt_[A-Za-z0-9]+$")
+_MAX_PROMPT_LENGTH = 8000
+_MAX_SERVICE_ID_LENGTH = 128
+_MAX_REQUEST_ID_LENGTH = 128
+_MAX_CREDENTIAL_LENGTH = 128
 
 
 def _sanitize_fee_rate(raw: Any, fallback: float) -> float:
@@ -215,7 +224,61 @@ def _validate_service_id(x_service_id: Optional[str], request_service_id: Option
         raise HTTPException(status_code=422, detail={"code": "SERVICE_ID_REQUIRED", "message": "serviceId is required"})
     if x_service_id and request_service_id and x_service_id != request_service_id:
         raise HTTPException(status_code=403, detail={"code": "SERVICE_ID_MISMATCH", "message": "Header and body serviceId mismatch"})
+    if len(service_id) > _MAX_SERVICE_ID_LENGTH or not _SERVICE_ID_PATTERN.fullmatch(service_id):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "SERVICE_ID_INVALID_FORMAT",
+                "message": "serviceId format is invalid; only letters, digits, dot, underscore, colon, hyphen are allowed (max 128)",
+            },
+        )
     return service_id
+
+
+def _validate_prompt(prompt: str) -> str:
+    raw = str(prompt or "")
+    if not raw.strip():
+        raise HTTPException(status_code=422, detail={"code": "PROMPT_REQUIRED", "message": "prompt is required and cannot be empty"})
+    if len(raw) > _MAX_PROMPT_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "PROMPT_TOO_LONG",
+                "message": f"prompt exceeds max length {_MAX_PROMPT_LENGTH}",
+                "maxLength": _MAX_PROMPT_LENGTH,
+            },
+        )
+    return raw
+
+
+def _validate_credential_token(credential_token: Optional[str]) -> str:
+    token = str(credential_token or "").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_REQUIRED", "message": "X-Credential is required for /api/v1/gateway/generate"})
+    if len(token) > _MAX_CREDENTIAL_LENGTH or not _CREDENTIAL_PATTERN.fullmatch(token):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "CREDENTIAL_FORMAT_INVALID",
+                "message": "X-Credential format is invalid",
+            },
+        )
+    return token
+
+
+def _resolve_request_id(client_request_id: Optional[str]) -> str:
+    candidate = str(client_request_id or "").strip()
+    if not candidate:
+        return str(uuid4())
+    if len(candidate) > _MAX_REQUEST_ID_LENGTH or not _REQUEST_ID_PATTERN.fullmatch(candidate):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_REQUEST_ID",
+                "message": "X-Request-Id must match [A-Za-z0-9._:-] and be <= 128 chars",
+            },
+        )
+    return candidate
 
 
 async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) -> None:
@@ -383,12 +446,14 @@ async def generate_response_v2(
     request: InferenceRequest,
     x_service_id: Optional[str],
     credential_token: Optional[str],
+    x_request_id: Optional[str],
 ) -> Dict[str, Any]:
+    prompt = _validate_prompt(request.prompt)
     service_id = _validate_service_id(x_service_id, request.serviceId)
-    if not credential_token:
-        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_REQUIRED", "message": "X-Credential is required for /api/v1/gateway/generate"})
+    token = _validate_credential_token(credential_token)
+    request_id = _resolve_request_id(x_request_id)
 
-    credential = credential_service.resolve_active_credential(storage, credential_token)
+    credential = credential_service.resolve_active_credential(storage, token)
     await _check_rpm_limit(str(credential.get("id")), int(credential.get("rpm") or 0))
 
     service = _find_active_service(storage, service_id)
@@ -399,7 +464,6 @@ async def generate_response_v2(
     fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = _pricing_breakdown(storage, seller_wallet, unit_price)
     await _check_credit_limit(credential, total_charge)
 
-    request_id = str(uuid4())
     buyer_after, updated_credential = await _charge_and_mark_usage(
         storage,
         owner_wallet,
@@ -411,7 +475,7 @@ async def generate_response_v2(
     )
 
     try:
-        upstream_result = await _call_upstream(service, request.prompt, request_id)
+        upstream_result = await _call_upstream(service, prompt, request_id)
     except Exception as exc:
         await _rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
         _append_usage_log(

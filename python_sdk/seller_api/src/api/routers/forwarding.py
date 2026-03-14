@@ -10,6 +10,7 @@ router = APIRouter()
 
 ServiceIdHeader = Annotated[Optional[str], Header(alias="X-Service-Id")]
 CredentialHeader = Annotated[Optional[str], Header(alias="X-Credential")]
+RequestIdHeader = Annotated[Optional[str], Header(alias="X-Request-Id")]
 StorageDep = Annotated[BaseStorage, Depends(get_storage)]
 
 
@@ -19,5 +20,6 @@ async def generate_response_v2(
     storage: StorageDep,
     x_service_id: ServiceIdHeader = None,
     x_credential: CredentialHeader = None,
+    x_request_id: RequestIdHeader = None,
 ):
-    return await forwarding_service.generate_response_v2(storage, request, x_service_id, x_credential)
+    return await forwarding_service.generate_response_v2(storage, request, x_service_id, x_credential, x_request_id)
