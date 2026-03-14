@@ -13,7 +13,9 @@ import {
   DollarSign, 
   ShieldAlert, 
   Home,
-  Key
+  Key,
+  GitBranch,
+  Rows4
 } from "lucide-react";
 
 export default function DashboardSidebar() {
@@ -86,7 +88,15 @@ export default function DashboardSidebar() {
             </Link>
             <Link href="/dashboard/secrets" className={getLinkClasses("/dashboard/secrets", false)}>
               <Key className="w-4 h-4 mr-3" />
-              API Secrets
+              Access Keys
+            </Link>
+            <Link href="/dashboard/provider/nodes" className={getLinkClasses("/dashboard/provider/nodes", false)}>
+              <GitBranch className="w-4 h-4 mr-3" />
+              Network Nodes
+            </Link>
+            <Link href="/dashboard/provider/settlements" className={getLinkClasses("/dashboard/provider/settlements", false)}>
+              <Rows4 className="w-4 h-4 mr-3" />
+              Settlements
             </Link>
             <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
               <BarChart2 className="w-4 h-4 mr-3" />
