@@ -6,10 +6,18 @@ import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function ProviderSettlementsPage() {
   const { providerStats, paidEvents } = useDashboardData();
+  const [requestInput, setRequestInput] = useState("");
+  const [serviceInput, setServiceInput] = useState("");
   const [requestQuery, setRequestQuery] = useState("");
   const [serviceQuery, setServiceQuery] = useState("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  const applySearch = () => {
+    setRequestQuery(requestInput);
+    setServiceQuery(serviceInput);
+    setPage(1);
+  };
 
   const filtered = useMemo(() => {
     const rq = requestQuery.trim().toLowerCase();
@@ -45,25 +53,35 @@ export default function ProviderSettlementsPage() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 flex flex-col lg:flex-row lg:items-center gap-2">
         <input
-          value={requestQuery}
-          onChange={(e) => {
-            setRequestQuery(e.target.value);
-            setPage(1);
+          value={requestInput}
+          onChange={(e) => setRequestInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              applySearch();
+            }
           }}
           placeholder="Search RequestId"
-          className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b]"
+          className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] w-full lg:w-[320px]"
         />
         <input
-          value={serviceQuery}
-          onChange={(e) => {
-            setServiceQuery(e.target.value);
-            setPage(1);
+          value={serviceInput}
+          onChange={(e) => setServiceInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              applySearch();
+            }
           }}
           placeholder="Search Service (fuzzy)"
-          className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b]"
+          className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] w-full lg:w-[320px]"
         />
+        <button
+          onClick={applySearch}
+          className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors lg:ml-auto"
+        >
+          Search
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

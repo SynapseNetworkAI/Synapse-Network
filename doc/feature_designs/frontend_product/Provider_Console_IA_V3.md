@@ -46,11 +46,13 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 - 展示服务节点、endpoint、serviceId、定价、状态。
 - 支持 Service ID / 服务名模糊搜索。
 - 支持状态筛选（All / Online / Offline）。
+- 搜索区采用紧凑工具条（输入框 + 状态下拉 + Search 按钮），点击 Search 后更新列表。
 - 支持分页浏览。
 - 面向运维与发布校验。
 
 ### 5.2 Settlements 页面
 - 支持 RequestId 搜索与 Service 模糊搜索。
+- 搜索区采用紧凑工具条并使用 Search 按钮触发过滤，避免输入时频繁重算。
 - 支持分页浏览。
 - 表格字段统一：RequestId / Service / Gross / Protocol Fee / Routing Tax / Net / Call Time。
 - 强调 request_id 去重后的统计可信度。

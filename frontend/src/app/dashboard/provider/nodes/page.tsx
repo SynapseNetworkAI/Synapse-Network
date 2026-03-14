@@ -5,12 +5,22 @@ import Link from "next/link";
 import { Server, ArrowRight, Shield, Gauge, Link2, Search } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
+type NodeStatus = "all" | "online" | "offline";
+
 export default function ProviderNodesPage() {
   const { services } = useDashboardData();
+  const [queryInput, setQueryInput] = useState("");
+  const [statusInput, setStatusInput] = useState<NodeStatus>("all");
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | "online" | "offline">("all");
+  const [status, setStatus] = useState<NodeStatus>("all");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 8;
+
+  const applySearch = () => {
+    setQuery(queryInput);
+    setStatus(statusInput);
+    setPage(1);
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -45,31 +55,38 @@ export default function ProviderNodesPage() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
-        <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] w-full md:max-w-md">
+      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 flex flex-col lg:flex-row gap-2 lg:items-center lg:justify-between">
+        <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] w-full lg:w-[360px]">
           <Search className="w-4 h-4 text-[#86868b]" />
           <input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                applySearch();
+              }
             }}
             placeholder="Search Service ID or name"
             className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#86868b]"
           />
         </label>
-        <select
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value as "all" | "online" | "offline");
-            setPage(1);
-          }}
-          className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] text-sm text-white outline-none"
-        >
-          <option value="all">All Status</option>
-          <option value="online">Online</option>
-          <option value="offline">Offline</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={statusInput}
+            onChange={(e) => setStatusInput(e.target.value as NodeStatus)}
+            className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none min-w-[130px]"
+          >
+            <option value="all">All Status</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+          </select>
+          <button
+            onClick={applySearch}
+            className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors"
+          >
+            Search
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-[1.5rem] border border-[#222222] bg-[#0a0a0a]">
