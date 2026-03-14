@@ -14,7 +14,7 @@
 
 并在 Provider Console 的 Deploy Pipeline 中执行前置校验：
 - 点击 `Publish API` 前，必须先检测 seller 是否已创建至少一个 Access Key。
-- 若未创建，流程应直接引导到 `/dashboard/secrets`，而不是继续发布。
+- 若未创建，流程应直接引导到 `/provider/secrets`，而不是继续发布。
 
 ### a) 脱敏指纹 (Masked Fingerprint)
 - **展示规则**：系统不再返回完整的 `secretKey`，而是返回 `maskedKey`（例如 `sk_live_********1d0c`）。

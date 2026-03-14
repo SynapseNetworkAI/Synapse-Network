@@ -10,25 +10,23 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 
 ## 2. 新导航结构（Provider Space）
 
-- My Services: `/dashboard/sell`
-- Access Keys: `/dashboard/secrets`
-- Network Nodes: `/dashboard/provider/nodes`
-- Settlements: `/dashboard/provider/settlements`
-- Usage Analytics: `/dashboard/usage`
-- Treasury Ledger: `/dashboard/billing`
+- My Services: `/provider/sell`
+- Access Keys: `/provider/secrets`
+- API Services: `/provider/nodes`
+- Settlements: `/provider/settlements`
+- Revenue Analytics: `/provider/usage`
+- Treasury Ledger: `/provider/billing`
 
-## 3. 首页职责（/dashboard/sell）
+兼容策略：保留历史 `/dashboard/**` 页面，新增 `/provider/**` 作为卖家工作空间统一入口。
+
+## 3. 首页职责（/provider/sell）
 
 首页只做三件事：
 1. KPI 摘要：Net / Gross / Calls / Active Nodes
 2. Deploy Pipeline（2 Steps）：
    - Step 01 Access Keys
    - Step 02 Publish API
-3. 导航卡片：
-   - Registered Network Nodes -> `/dashboard/provider/nodes`
-   - Settlement Pipeline -> `/dashboard/provider/settlements`
-
-不再在首页承载大表格，避免首屏信息过载。
+不再在首页承载大表格，也移除 Nodes/Settlements 导航卡片，避免首屏信息过载。
 
 ## 4. 工作流约束
 
@@ -44,11 +42,17 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 ## 5. 页面职责拆分
 
 ### 5.1 Network Nodes 页面
+- 页面命名统一为 API Services。
 - 展示服务节点、endpoint、serviceId、定价、状态。
+- 支持 Service ID / 服务名模糊搜索。
+- 支持状态筛选（All / Online / Offline）。
+- 支持分页浏览。
 - 面向运维与发布校验。
 
 ### 5.2 Settlements 页面
-- 展示结算口径与最近流水：gross / protocol fee / routing tax / net。
+- 支持 RequestId 搜索与 Service 模糊搜索。
+- 支持分页浏览。
+- 表格字段统一：RequestId / Service / Gross / Protocol Fee / Routing Tax / Net / Call Time。
 - 强调 request_id 去重后的统计可信度。
 
 ## 6. 一致性要求

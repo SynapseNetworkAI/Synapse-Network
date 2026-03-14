@@ -29,14 +29,14 @@ export default function SellDashboard() {
       const secrets = await listApiSecrets(address);
       if (secrets.length === 0) {
         toast.error("Create Access Keys first before publishing API.");
-        router.push("/dashboard/secrets");
+        router.push("/provider/secrets");
         return;
       }
-      router.push("/dashboard/services/deploy");
+      router.push("/provider/services/deploy");
     } catch(e) {
       console.warn("Precheck failed", e);
       toast.error("Unable to verify Access Keys. Please open Access Keys and retry.");
-      router.push("/dashboard/secrets");
+      router.push("/provider/secrets");
     }
   };
 
@@ -59,7 +59,7 @@ export default function SellDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/services/deploy" className="hidden md:flex items-center px-6 py-3 text-sm font-bold text-black transition-colors bg-white rounded-xl hover:bg-gray-200">
+          <Link href="/provider/services/deploy" className="hidden md:flex items-center px-6 py-3 text-sm font-bold text-black transition-colors bg-white rounded-xl hover:bg-gray-200">
             <Plus className="w-4 h-4 mr-2" />
             Deploy Manifest
           </Link>
@@ -204,7 +204,7 @@ export default function SellDashboard() {
             <button 
               onClick={() => {
                 if(!isConnected) { toast.error("Connect terminal to manage keys"); return; }
-                router.push("/dashboard/secrets");
+                router.push("/provider/secrets");
               }}
               className="w-full py-4 text-sm font-bold border border-[#222222] text-[#ffffff] hover:bg-[#ffffff] hover:text-[#000000] transition-all bg-[#0a0a0a] flex items-center justify-center gap-2 rounded-2xl"
             >
@@ -234,40 +234,6 @@ export default function SellDashboard() {
           </div>
         </div>
       </section>
-
-      {isConnected && (
-        <section className="space-y-6 pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link
-              href="/dashboard/provider/nodes"
-              className="bg-[#050505] border border-[#222222] p-6 rounded-[1.5rem] group hover:border-[#444444] transition-colors"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Server className="w-5 h-5 text-[#86868b]" />
-                  Registered Network Nodes
-                </h3>
-                <ArrowRight className="w-4 h-4 text-[#86868b] group-hover:text-white" />
-              </div>
-              <p className="text-sm text-[#86868b]">Inspect service endpoints, status, SLA constraints, and deployment state.</p>
-            </Link>
-
-            <Link
-              href="/dashboard/provider/settlements"
-              className="bg-[#050505] border border-[#222222] p-6 rounded-[1.5rem] group hover:border-[#22c55e]/50 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Database className="w-5 h-5 text-[#22c55e]" />
-                  Settlement Pipeline
-                </h3>
-                <ArrowRight className="w-4 h-4 text-[#22c55e]" />
-              </div>
-              <p className="text-sm text-[#86868b]">Review settled calls, protocol fee, routing tax, and net payout timeline.</p>
-            </Link>
-          </div>
-        </section>
-      )}
     </div>
   );
 }

@@ -1,10 +1,37 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Database, ReceiptText, Activity } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function ProviderSettlementsPage() {
   const { providerStats, paidEvents } = useDashboardData();
+  const [requestQuery, setRequestQuery] = useState("");
+  const [serviceQuery, setServiceQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  const filtered = useMemo(() => {
+    const rq = requestQuery.trim().toLowerCase();
+    const sq = serviceQuery.trim().toLowerCase();
+    return paidEvents.filter((event) => {
+      const matchesRequest = !rq || event.txHash.toLowerCase().includes(rq);
+      const matchesService = !sq || (event.serviceId || "").toLowerCase().includes(sq);
+      return matchesRequest && matchesService;
+    });
+  }, [paidEvents, requestQuery, serviceQuery]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, safePage]);
+
+  const formatCallTime = (timestampSeconds: number) => {
+    if (!timestampSeconds) return "-";
+    return new Date(timestampSeconds * 1000).toLocaleString();
+  };
 
   return (
     <div className="p-6 md:p-10 mx-auto max-w-7xl text-white bg-[#000000] min-h-screen space-y-6">
@@ -16,6 +43,27 @@ export default function ProviderSettlementsPage() {
         <p className="mt-2 text-sm text-[#86868b]">
           Reconciled provider payouts from gateway settlement logs (deduplicated by request ID).
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input
+          value={requestQuery}
+          onChange={(e) => {
+            setRequestQuery(e.target.value);
+            setPage(1);
+          }}
+          placeholder="Search RequestId"
+          className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b]"
+        />
+        <input
+          value={serviceQuery}
+          onChange={(e) => {
+            setServiceQuery(e.target.value);
+            setPage(1);
+          }}
+          placeholder="Search Service (fuzzy)"
+          className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b]"
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -41,23 +89,24 @@ export default function ProviderSettlementsPage() {
         <table className="w-full text-left border-collapse whitespace-nowrap">
           <thead>
             <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
-              <th className="py-5 px-6">Request</th>
+              <th className="py-5 px-6">RequestId</th>
               <th className="py-5 px-6">Service</th>
               <th className="py-5 px-6 text-right">Gross</th>
               <th className="py-5 px-6 text-right">Protocol Fee</th>
               <th className="py-5 px-6 text-right">Routing Tax</th>
               <th className="py-5 px-6 text-right">Net</th>
+              <th className="py-5 px-6 text-right">Call Time</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
-            {paidEvents.length === 0 && (
+            {pageRows.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-14 text-center text-sm text-[#86868b]">
+                <td colSpan={7} className="py-14 text-center text-sm text-[#86868b]">
                   No settlement events yet.
                 </td>
               </tr>
             )}
-            {paidEvents.map((event) => (
+            {pageRows.map((event) => (
               <tr key={event.txHash + String(event.blockNumber)} className="hover:bg-[#111111] transition-colors">
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{event.txHash}</td>
                 <td className="py-4 px-6 text-sm font-semibold text-white">{event.serviceId || "unknown"}</td>
@@ -65,10 +114,37 @@ export default function ProviderSettlementsPage() {
                 <td className="py-4 px-6 text-sm text-right font-mono text-[#ff9f0a]">{event.fee.toFixed(4)}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-[#22c55e]">{event.routingTax.toFixed(4)}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">{(event.amount - event.fee).toFixed(4)}</td>
+                <td className="py-4 px-6 text-xs text-right text-[#86868b]">{formatCallTime(event.timestamp)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs text-[#86868b]">
+        <div>
+          Showing {(safePage - 1) * PAGE_SIZE + (filtered.length ? 1 : 0)}-
+          {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
+          >
+            Prev
+          </button>
+          <span className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#050505] text-white">
+            {safePage} / {pageCount}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            disabled={safePage >= pageCount}
+            className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b] flex items-center gap-2">

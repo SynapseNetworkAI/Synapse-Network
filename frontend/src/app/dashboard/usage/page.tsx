@@ -1,92 +1,168 @@
 "use client";
 
-import { useUsageData } from "@/hooks/useUsageData";
-import { formatEther } from "viem";
+import { useMemo } from "react";
+import { BarChart3, LineChart, TrendingUp } from "lucide-react";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function UsageAnalyticsPage() {
-  const { loading, stats, refetch } = useUsageData();
+  const { providerStats, paidEvents, handleRefresh, isRefreshing } = useDashboardData();
 
-  if (loading) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="text-xl text-default-500 animate-pulse">Loading Analytics...</div>
-      </div>
-    );
-  }
+  const trendRows = useMemo(() => {
+    const bucket = new Map<string, { calls: number; net: number }>();
+    const days = 7;
+    const now = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      bucket.set(key, { calls: 0, net: 0 });
+    }
+
+    for (const event of paidEvents) {
+      if (!event.timestamp) continue;
+      const key = new Date(event.timestamp * 1000).toISOString().slice(0, 10);
+      if (!bucket.has(key)) continue;
+      const row = bucket.get(key)!;
+      row.calls += 1;
+      row.net += Math.max(0, event.amount - event.fee);
+    }
+
+    return Array.from(bucket.entries()).map(([day, value]) => ({
+      day,
+      label: day.slice(5),
+      calls: value.calls,
+      net: value.net,
+    }));
+  }, [paidEvents]);
+
+  const maxNet = Math.max(1, ...trendRows.map((row) => row.net));
+  const maxCalls = Math.max(1, ...trendRows.map((row) => row.calls));
+
+  const topServices = useMemo(() => {
+    const map = new Map<string, { calls: number; gross: number; net: number; fee: number }>();
+    for (const event of paidEvents) {
+      const key = event.serviceId || "unknown";
+      const current = map.get(key) || { calls: 0, gross: 0, net: 0, fee: 0 };
+      current.calls += 1;
+      current.gross += event.amount;
+      current.net += Math.max(0, event.amount - event.fee);
+      current.fee += event.fee;
+      map.set(key, current);
+    }
+    return Array.from(map.entries())
+      .map(([serviceId, value]) => ({ serviceId, ...value }))
+      .sort((a, b) => b.calls - a.calls)
+      .slice(0, 10);
+  }, [paidEvents]);
+
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-default-900">Usage & Analytics</h1>
+    <div className="p-6 md:p-10 mx-auto max-w-7xl text-white bg-[#000000] min-h-screen space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#222222] pb-5">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
+            <BarChart3 className="w-8 h-8 text-[#22c55e]" />
+            Seller Revenue Analytics
+          </h1>
+          <p className="mt-2 text-sm text-[#86868b]">
+            Revenue and call trends from deduplicated settlement records.
+          </p>
+        </div>
         <button
-          onClick={refetch}
-          className="px-4 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors text-sm font-medium"
+          onClick={handleRefresh}
+          className="px-4 py-2 rounded-xl border border-[#222222] bg-[#0a0a0a] hover:bg-[#111111] text-sm font-medium text-[#e5e5ea]"
         >
-          Refresh Data
+          {isRefreshing ? "Refreshing..." : "Refresh Data"}
         </button>
       </div>
 
-      {/* High-level KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-content1 rounded-2xl p-6 border border-default-200 shadow-sm">
-          <p className="text-sm font-medium text-default-500 mb-1">Total Buyer Setup Calls</p>
-          <p className="text-3xl font-bold text-default-900">{stats.totalBuyerCalls}</p>
+        <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Net Earnings</p>
+          <p className="text-3xl font-mono font-bold text-white">{providerStats.receivable.toFixed(4)} USDC</p>
         </div>
-        <div className="bg-content1 rounded-2xl p-6 border border-default-200 shadow-sm">
-          <p className="text-sm font-medium text-default-500 mb-1">Total Spent</p>
-          <p className="text-3xl font-bold text-warning-500">
-            {parseFloat(formatEther(BigInt(Math.floor(stats.totalBuyerSpent)))).toFixed(6)} <span className="text-lg">USDC</span>
-          </p>
+        <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Gross Earnings</p>
+          <p className="text-3xl font-mono font-bold text-white">{providerStats.totalEarned.toFixed(4)} USDC</p>
         </div>
-        <div className="bg-content1 rounded-2xl p-6 border border-default-200 shadow-sm">
-          <p className="text-sm font-medium text-default-500 mb-1">Total Seller Calls Served</p>
-          <p className="text-3xl font-bold text-default-900">{stats.totalSellerCalls}</p>
+        <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Protocol Fee</p>
+          <p className="text-3xl font-mono font-bold text-[#ff9f0a]">{providerStats.totalFees.toFixed(4)} USDC</p>
         </div>
-        <div className="bg-content1 rounded-2xl p-6 border border-default-200 shadow-sm">
-          <p className="text-sm font-medium text-default-500 mb-1">Total Earned</p>
-          <p className="text-3xl font-bold text-success-500">
-            {parseFloat(formatEther(BigInt(Math.floor(stats.totalSellerEarned)))).toFixed(6)} <span className="text-lg">USDC</span>
-          </p>
+        <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Routing Tax</p>
+          <p className="text-3xl font-mono font-bold text-[#22c55e]">{providerStats.totalRoutingTax.toFixed(4)} USDC</p>
         </div>
       </div>
 
-      {/* Detailed Table */}
-      <div className="bg-content1 rounded-2xl border border-default-200 overflow-hidden shadow-sm">
-        <div className="px-6 py-4 border-b border-default-200 bg-default-50">
-          <h2 className="text-lg font-semibold text-default-900">Aggregated Usage by Service</h2>
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <div className="xl:col-span-3 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <LineChart className="w-4 h-4 text-[#22c55e]" />
+            <h2 className="text-sm font-semibold tracking-wide text-white">Net Earnings Trend (7D)</h2>
+          </div>
+          <div className="h-56 flex items-end gap-2">
+            {trendRows.map((row) => {
+              const h = (row.net / maxNet) * 100;
+              return (
+                <div key={row.day} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-2">
+                  <div className="w-full rounded-t-md bg-[#22c55e]" style={{ height: `${Math.max(6, h)}%` }} />
+                  <span className="text-[10px] text-[#86868b]">{row.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="xl:col-span-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-4 h-4 text-[#86868b]" />
+            <h2 className="text-sm font-semibold tracking-wide text-white">Call Volume Trend (7D)</h2>
+          </div>
+          <div className="h-56 flex items-end gap-2">
+            {trendRows.map((row) => {
+              const h = (row.calls / maxCalls) * 100;
+              return (
+                <div key={`${row.day}-calls`} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-2">
+                  <div className="w-full rounded-t-md bg-[#3b82f6]" style={{ height: `${Math.max(6, h)}%` }} />
+                  <span className="text-[10px] text-[#86868b]">{row.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#222222] bg-[#050505]">
+          <h2 className="text-lg font-semibold text-white">Top Services by Calls</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
-              <tr className="bg-default-100/50 text-default-600 text-sm">
+              <tr className="bg-[#050505] text-[#86868b] text-sm border-b border-[#222222]">
                 <th className="py-4 px-6 font-medium">Service ID</th>
                 <th className="py-4 px-6 font-medium">Total Calls</th>
-                <th className="py-4 px-6 font-medium text-right">Spent (Buyer)</th>
-                <th className="py-4 px-6 font-medium text-right">Earned (Seller)</th>
-                <th className="py-4 px-6 font-medium text-right">Platform Fee Paid</th>
+                <th className="py-4 px-6 font-medium text-right">Gross</th>
+                <th className="py-4 px-6 font-medium text-right">Protocol Fee</th>
+                <th className="py-4 px-6 font-medium text-right">Net</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-default-200 text-sm">
-              {stats.aggregatedList.length > 0 ? (
-                stats.aggregatedList.map((st) => (
-                  <tr key={st.serviceId} className="hover:bg-default-50/50 transition-colors">
-                    <td className="py-4 px-6 font-mono text-default-900">{st.serviceId}</td>
-                    <td className="py-4 px-6 font-medium">{st.totalCalls}</td>
-                    <td className="py-4 px-6 font-mono text-warning-600 text-right">
-                      {parseFloat(formatEther(BigInt(Math.floor(st.totalSpent)))).toFixed(6)}
-                    </td>
-                    <td className="py-4 px-6 font-mono text-success-600 text-right">
-                      {parseFloat(formatEther(BigInt(Math.floor(st.totalEarned)))).toFixed(6)}
-                    </td>
-                    <td className="py-4 px-6 font-mono text-default-500 text-right">
-                      {parseFloat(formatEther(BigInt(Math.floor(st.platformFee)))).toFixed(6)}
-                    </td>
+            <tbody className="divide-y divide-[#151515] text-sm">
+              {topServices.length > 0 ? (
+                topServices.map((row) => (
+                  <tr key={row.serviceId} className="hover:bg-[#111111] transition-colors">
+                    <td className="py-4 px-6 font-mono text-white">{row.serviceId}</td>
+                    <td className="py-4 px-6 font-medium text-white">{row.calls}</td>
+                    <td className="py-4 px-6 font-mono text-right text-white">{row.gross.toFixed(4)}</td>
+                    <td className="py-4 px-6 font-mono text-right text-[#ff9f0a]">{row.fee.toFixed(4)}</td>
+                    <td className="py-4 px-6 font-mono text-right text-[#22c55e]">{row.net.toFixed(4)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-default-500">
-                    No usage metrics available yet.
+                  <td colSpan={5} className="py-8 text-center text-[#86868b]">
+                    No seller revenue metrics available yet.
                   </td>
                 </tr>
               )}
@@ -94,7 +170,6 @@ export default function UsageAnalyticsPage() {
           </table>
         </div>
       </div>
-
     </div>
   );
 }

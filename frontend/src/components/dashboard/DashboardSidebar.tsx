@@ -23,6 +23,8 @@ export default function DashboardSidebar() {
   const { address } = useAccount();
   const [role, setRole] = useState<AppRole | undefined>(undefined);
 
+  const providerRoot = "/provider";
+
   useEffect(() => {
     setRole(getAppRole());
   }, []);
@@ -30,8 +32,9 @@ export default function DashboardSidebar() {
   // Admin address logic
   const isAdminAddress = address?.toLowerCase() === "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".toLowerCase();
 
-  const getLinkClasses = (path: string, exact = false) => {
-    const active = exact ? pathname === path : pathname.startsWith(path);
+  const getLinkClasses = (paths: string | string[], exact = false) => {
+    const candidates = Array.isArray(paths) ? paths : [paths];
+    const active = candidates.some((path) => (exact ? pathname === path : pathname.startsWith(path)));
     if (active) {
       return "flex items-center px-4 py-2 mt-1 text-sm font-bold text-green-400 bg-green-900/20 border-l-4 border-green-500 rounded-r shadow-[0_0_12px_rgba(34,197,94,0.1)] transition-all";
     }
@@ -82,27 +85,27 @@ export default function DashboardSidebar() {
             🔽 Provider Space (卖家)
           </h3>
           <nav className="flex flex-col">
-            <Link href="/dashboard/sell" className={getLinkClasses("/dashboard/sell", false)}>
+            <Link href={`${providerRoot}/sell`} className={getLinkClasses(["/dashboard/sell", `${providerRoot}/sell`], false)}>
               <Server className="w-4 h-4 mr-3" />
               My Services
             </Link>
-            <Link href="/dashboard/secrets" className={getLinkClasses("/dashboard/secrets", false)}>
+            <Link href={`${providerRoot}/secrets`} className={getLinkClasses(["/dashboard/secrets", `${providerRoot}/secrets`], false)}>
               <Key className="w-4 h-4 mr-3" />
               Access Keys
             </Link>
-            <Link href="/dashboard/provider/nodes" className={getLinkClasses("/dashboard/provider/nodes", false)}>
+            <Link href={`${providerRoot}/nodes`} className={getLinkClasses(["/dashboard/provider/nodes", `${providerRoot}/nodes`], false)}>
               <GitBranch className="w-4 h-4 mr-3" />
-              Network Nodes
+              API Services
             </Link>
-            <Link href="/dashboard/provider/settlements" className={getLinkClasses("/dashboard/provider/settlements", false)}>
+            <Link href={`${providerRoot}/settlements`} className={getLinkClasses(["/dashboard/provider/settlements", `${providerRoot}/settlements`], false)}>
               <Rows4 className="w-4 h-4 mr-3" />
               Settlements
             </Link>
-            <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
+            <Link href={`${providerRoot}/usage`} className={getLinkClasses(["/dashboard/usage", `${providerRoot}/usage`], false)}>
               <BarChart2 className="w-4 h-4 mr-3" />
-              Usage Analytics
+              Revenue Analytics
             </Link>
-            <Link href="/dashboard/billing" className={getLinkClasses("/dashboard/billing", false)}>
+            <Link href={`${providerRoot}/billing`} className={getLinkClasses(["/dashboard/billing", `${providerRoot}/billing`], false)}>
               <DollarSign className="w-4 h-4 mr-3" />
               Treasury Ledger
             </Link>

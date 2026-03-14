@@ -1,22 +1,75 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Server, ArrowRight, Shield, Gauge, Link2 } from "lucide-react";
+import { Server, ArrowRight, Shield, Gauge, Link2, Search } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function ProviderNodesPage() {
   const { services } = useDashboardData();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<"all" | "online" | "offline">("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 8;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return services.filter((svc) => {
+      const byServiceId = (svc.serviceId || "").toLowerCase().includes(q);
+      const byName = (svc.name || "").toLowerCase().includes(q);
+      const matchesText = !q || byServiceId || byName;
+      const matchesStatus =
+        status === "all" ||
+        (status === "online" && svc.isActive) ||
+        (status === "offline" && !svc.isActive);
+      return matchesText && matchesStatus;
+    });
+  }, [query, services, status]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, safePage]);
 
   return (
     <div className="p-6 md:p-10 mx-auto max-w-7xl text-white bg-[#000000] min-h-screen space-y-6">
       <div className="border-b border-[#222222] pb-5">
         <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
           <Server className="w-8 h-8 text-[#22c55e]" />
-          Registered Network Nodes
+          API Services
         </h1>
         <p className="mt-2 text-sm text-[#86868b]">
-          Provider endpoints, SLA constraints, and service readiness for marketplace routing.
+          Service endpoints, status, pricing, and readiness for marketplace routing.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+        <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] w-full md:max-w-md">
+          <Search className="w-4 h-4 text-[#86868b]" />
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search Service ID or name"
+            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#86868b]"
+          />
+        </label>
+        <select
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value as "all" | "online" | "offline");
+            setPage(1);
+          }}
+          className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505] text-sm text-white outline-none"
+        >
+          <option value="all">All Status</option>
+          <option value="online">Online</option>
+          <option value="offline">Offline</option>
+        </select>
       </div>
 
       <div className="overflow-x-auto rounded-[1.5rem] border border-[#222222] bg-[#0a0a0a]">
@@ -31,14 +84,14 @@ export default function ProviderNodesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
-            {services.length === 0 && (
+            {pageRows.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-14 text-center text-sm text-[#86868b]">
-                  No nodes published yet.
+                  No API services match the current filters.
                 </td>
               </tr>
             )}
-            {services.map((svc) => (
+            {pageRows.map((svc) => (
               <tr key={svc.id} className="hover:bg-[#111111] transition-colors">
                 <td className="py-5 px-6">
                   <div className="font-semibold text-white">{svc.name || "Unnamed Service"}</div>
@@ -63,7 +116,7 @@ export default function ProviderNodesPage() {
                 </td>
                 <td className="py-5 px-6 text-right">
                   <Link
-                    href="/dashboard/services"
+                    href="/provider/services"
                     className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333333] hover:border-[#ffffff] text-white hover:bg-white hover:text-black transition-all"
                   >
                     Manage <ArrowRight className="w-3.5 h-3.5" />
@@ -73,6 +126,32 @@ export default function ProviderNodesPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs text-[#86868b]">
+        <div>
+          Showing {(safePage - 1) * PAGE_SIZE + (filtered.length ? 1 : 0)}-
+          {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+            className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
+          >
+            Prev
+          </button>
+          <span className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#050505] text-white">
+            {safePage} / {pageCount}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            disabled={safePage >= pageCount}
+            className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b] flex items-center gap-2">
