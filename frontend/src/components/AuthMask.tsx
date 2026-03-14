@@ -9,6 +9,7 @@ import { ReactNode } from "react";
 interface AuthMaskProps {
   children: ReactNode;
   allowChallengeAuthorize?: boolean;
+  allowSessionAuthorize?: boolean;
   sessionHelpText?: string;
   sessionRecoveryHref?: string;
   sessionRecoveryLabel?: string;
@@ -17,10 +18,11 @@ interface AuthMaskProps {
 export default function AuthMask({
   children,
   allowChallengeAuthorize = true,
+  allowSessionAuthorize = true,
   sessionHelpText,
   sessionRecoveryHref,
   sessionRecoveryLabel = "Go to Sign-In",
-}: AuthMaskProps) {
+}: Readonly<AuthMaskProps>) {
   const { isConnected, isSessionAuthenticated, authError, isAuthorizing, authorize } = useAuth();
 
   const isMasked = !isConnected || !isSessionAuthenticated;
@@ -49,7 +51,7 @@ export default function AuthMask({
                   <ConnectButton />
                 </div>
               </>
-            ) : isAuthorizing && allowChallengeAuthorize ? (
+            ) : isAuthorizing ? (
               <>
                 <Loader2 className="w-12 h-12 mb-4 text-cyan-400 animate-spin" />
                 <h3 className="text-xl font-bold text-white mb-2">Authenticating</h3>
@@ -80,6 +82,15 @@ export default function AuthMask({
                     <p className="text-gray-400 text-sm mb-0">
                       {authError || sessionHelpText || "An active wallet session is required to access this page. Please complete sign-in from the authentication entry page."}
                     </p>
+                    {allowSessionAuthorize ? (
+                      <button
+                        type="button"
+                        onClick={() => authorize()}
+                        className="mt-5 px-6 py-2.5 text-sm font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+                      >
+                        Sign In Session
+                      </button>
+                    ) : null}
                     {sessionRecoveryHref ? (
                       <Link
                         href={sessionRecoveryHref}
