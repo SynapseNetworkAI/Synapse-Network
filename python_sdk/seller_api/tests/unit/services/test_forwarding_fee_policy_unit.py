@@ -97,3 +97,46 @@ def test_pricing_breakdown_invalid_rate_is_clamped(monkeypatch, temp_json_storag
     assert abs(platform_fee_total - 0.0001) < 1e-9
     assert abs(seller_net - 1.0) < 1e-9
     assert abs(total_charge - 1.0001) < 1e-9
+
+
+def test_build_buyer_receipt_exposes_only_buyer_cost_fields():
+    receipt = forwarding_service._build_buyer_receipt(
+        request_id="req-1",
+        service_id="svc-1",
+        unit_price=1.0,
+        total_charge=1.0001,
+        buyer_balance_after=9.9999,
+    )
+
+    assert receipt == {
+        "requestId": "req-1",
+        "serviceId": "svc-1",
+        "totalCharge": 1.0001,
+        "buyerBalanceAfter": 9.9999,
+        "serviceUnitPrice": 1.0,
+    }
+
+
+def test_build_buyer_success_response_does_not_leak_settlement_fields():
+    receipt = forwarding_service._build_buyer_receipt(
+        request_id="req-2",
+        service_id="svc-2",
+        unit_price=2.0,
+        total_charge=2.0001,
+        buyer_balance_after=7.9999,
+    )
+    response = forwarding_service._build_buyer_success_response(receipt, {"hello": "world"})
+
+    assert response["statusCode"] == 200
+    assert response["ok"] is True
+    payload = response["payload"]
+    assert payload["status"] == "success"
+    assert payload["code"] == "DELIVERED"
+    assert abs(float(payload["receipt"]["totalCharge"]) - 2.0001) < 1e-9
+    assert payload["data"]["result"] == {"hello": "world"}
+
+    assert "billing" not in payload
+    assert "feeRate" not in payload["receipt"]
+    assert "platformFee" not in payload["receipt"]
+    assert "platformFeeTotal" not in payload["receipt"]
+    assert "sellerNet" not in payload["receipt"]

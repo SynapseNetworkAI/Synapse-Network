@@ -193,7 +193,7 @@
   - Owner must be included in `PLATFORM_FEE_ADMIN_WALLETS`.
   - Development fallback: when allow-list is empty and `ENVIRONMENT=development`, authenticated owner can manage policy for local debug.
 - **Payload** (`PUT`): `{ defaultRate?: number, ownerRates?: Record<wallet, rate> }` with rate in `[0,1]`.
-- **Effect**: controls `billing.feeRate` resolution priority on generate path.
+- **Effect**: controls internal settlement `feeRate` resolution priority on generate path.
 
 ---
 
@@ -230,14 +230,40 @@
 ### 4.2 高频服务分发流水线 (Generate/Invoke API)
 - **Path**: `POST /api/v1/gateway/generate`
 - **Desc**: 大脑发起真实 M2M 调用的核心漏斗。在此经历：“扣减高速内存锁余额” -> “分布式速率限制” -> “反向代理给真实提供商服务” -> “结果聚合审计” 的连贯动作。这也是整个系统价值捕获的中心。
-- **Billing Split**:
+- **Settlement (Internal, Not Exposed to Buyer)**:
   - `unitPrice` 来自服务注册价格。
   - `routingTax` 来自 `GATEWAY_ROUTING_TAX`（固定每次调用路由费）。
   - 买家实扣：`totalCharge = unitPrice + routingTax`。
-  - `billing.feeRate` 为本次调用实际生效费率。
+  - `feeRate` 为本次调用实际生效费率。
   - 协议抽成：`platformFee = unitPrice * feeRate`。
   - 平台总收入：`platformFeeTotal = platformFee + routingTax`。
   - 生效优先级：owner 覆盖费率 > 运行时默认费率 > `PLATFORM_FEE_RATE`。
+- **Buyer Receipt (Public API)**:
+  - 公开返回仅包含 `requestId`、`serviceId`、`totalCharge`、`buyerBalanceAfter`、`serviceUnitPrice`。
+  - 不返回卖家净收入与平台抽成拆分（如 `feeRate/platformFee/platformFeeTotal/sellerNet/routingTax`）。
+- **Response Example**:
+  ```json
+  {
+    "statusCode": 200,
+    "ok": true,
+    "payload": {
+      "status": "success",
+      "code": "DELIVERED",
+      "receipt": {
+        "requestId": "fb7f6d64-78a1-4a13-96f5-7faf2cd0a801",
+        "serviceId": "SVC_F8_5800A9_0648",
+        "totalCharge": 1.0001,
+        "buyerBalanceAfter": 107.9998,
+        "serviceUnitPrice": 1.0
+      },
+      "data": {
+        "result": {
+          "quote": "..."
+        }
+      }
+    }
+  }
+  ```
 - **Headers**:
   - `X-Credential`: "agt_123..." (调用凭据)
   - `X-Service-Id`: "svc_demo" (卖家在网络上的通用注册编号)

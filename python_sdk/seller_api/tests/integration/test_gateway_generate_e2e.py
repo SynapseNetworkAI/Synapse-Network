@@ -147,10 +147,21 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
                     json={"prompt": "hello", "serviceId": service_id},
                 )
                 assert resp.status_code == 200
-                billing = resp.json().get("billing", {})
-                assert abs(float(billing.get("routingTax", 0.0)) - 0.0001) < 1e-9
-                assert abs(float(billing.get("platformFeeTotal", 0.0)) - 0.1001) < 1e-9
-                assert abs(float(billing.get("totalCharge", 0.0)) - 1.0001) < 1e-9
+                body = resp.json()
+                assert body.get("statusCode") == 200
+                assert body.get("ok") is True
+                payload = body.get("payload", {})
+                receipt = payload.get("receipt", {})
+                assert payload.get("status") == "success"
+                assert payload.get("code") == "DELIVERED"
+                assert abs(float(receipt.get("totalCharge", 0.0)) - 1.0001) < 1e-9
+                assert abs(float(receipt.get("buyerBalanceAfter", 0.0)) - 1.9999) < 1e-9
+                assert abs(float(receipt.get("serviceUnitPrice", 0.0)) - 1.0) < 1e-9
+                assert "billing" not in payload
+                assert "feeRate" not in receipt
+                assert "platformFee" not in receipt
+                assert "platformFeeTotal" not in receipt
+                assert "sellerNet" not in receipt
 
                 _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 1.9999, 0.9, 0.1001)
         finally:

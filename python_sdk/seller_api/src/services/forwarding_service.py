@@ -54,6 +54,35 @@ def _resolve_gateway_routing_tax() -> float:
     return round(value, 6)
 
 
+def _build_buyer_receipt(
+    request_id: str,
+    service_id: str,
+    unit_price: float,
+    total_charge: float,
+    buyer_balance_after: float,
+) -> Dict[str, Any]:
+    return {
+        "requestId": request_id,
+        "serviceId": service_id,
+        "totalCharge": total_charge,
+        "buyerBalanceAfter": buyer_balance_after,
+        "serviceUnitPrice": unit_price,
+    }
+
+
+def _build_buyer_success_response(receipt: Dict[str, Any], upstream_result: Any) -> Dict[str, Any]:
+    return {
+        "statusCode": 200,
+        "ok": True,
+        "payload": {
+            "status": "success",
+            "code": "DELIVERED",
+            "receipt": receipt,
+            "data": {"result": upstream_result},
+        },
+    }
+
+
 def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
     now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc)
     if reset_interval == "never":
@@ -446,20 +475,11 @@ async def generate_response_v2(
         },
     )
 
-    return {
-        "status": "success",
-        "code": "DELIVERED",
-        "billing": {
-            "requestId": request_id,
-            "serviceId": service_id,
-            "unitPrice": unit_price,
-            "feeRate": fee_rate,
-            "platformFee": protocol_fee,
-            "routingTax": routing_tax,
-            "platformFeeTotal": platform_fee_total,
-            "sellerNet": seller_net,
-            "totalCharge": total_charge,
-            "buyerBalanceAfter": buyer_after,
-        },
-        "data": {"result": upstream_result},
-    }
+    receipt = _build_buyer_receipt(
+        request_id=request_id,
+        service_id=service_id,
+        unit_price=unit_price,
+        total_charge=total_charge,
+        buyer_balance_after=buyer_after,
+    )
+    return _build_buyer_success_response(receipt, upstream_result)
