@@ -20,10 +20,13 @@
 
 ## 🎨 4. 产品与 UI/UX 美学 (Design Philosophy)
 - **产品名称**：Synapse Network（突触网络）
-- **中文 Slogan*11*： “Synapse：链接硅基生命的 API 结算中枢。”
-- **视觉质感**：Matrix & Cyberpunk（黑/深灰底色 + 极客荧光绿/电光蓝点缀）、有设计感、有美感、有质感。
-- **设计语言**：极度克制、充满未来感。UI 要像高级服务器控制台（Developer Console），而非古典的臃肿 SaaS。
-- **操作无感化**：把复杂的 Web3 概念（Approve, TxHash, Gas）隐藏在极简的交互背后。必须做到：一键 Faucet、一键 Permit 授权充值、SDK 复制即用、页面跳转流畅、体验丝滑。
+- **品牌定位 Slogan**："The Settlement Layer for AI Agents"（Stripe for AI Agents）。
+- **中文品牌语**："驱动 AI 经济的清算引擎。为机器经济打造的 API 支付网关 (Stripe for AI Agents)"。
+- **视觉质感基准**：Apple Pro + Dev-Luxury。主基调为深空黑、钛白字、金属灰注释，辅以 5% 荧光绿用于状态与资金流信号。
+- **导航与交互标准**：顶部导航使用玻璃胶囊（API Marketplace / Blog / About / Language），具备 active 高亮、液态滑块、hover 跟随与轻微按压反馈。
+- **设计语言**：极度克制、信息优先、层级清晰。UI 需体现基础设施可信度，而非花哨 Web3 面板风。
+- **多语言标准**：前端默认英文，可切换中英文；文案统一走全局 i18n 配置与词典资源，禁止页面散落硬编码。
+- **操作无感化**：隐藏复杂 Web3 细节（Approve、TxHash、Gas），保持一键接入、SDK 复制即用、路由清晰、反馈即时。
 - **报错说人话**：任何异常（余额不足、签名失败），必须返回优雅的 JSON 或 UI 弹窗，绝不暴露底层堆栈。
 
 ## 💻 5. 工程与代码规范 (Engineering Standards)

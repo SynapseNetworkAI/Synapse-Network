@@ -1,9 +1,70 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Wand2, TerminalSquare, Server, X, Check } from "lucide-react";
 import toast from "react-hot-toast";
+
+const PARSE_CURL_ENDPOINT = `${process.env.NEXT_PUBLIC_GATEWAY_BASE_URL || "http://127.0.0.1:8000"}/api/v2/services/parse-curl`;
+
+const OVERRIDABLE_PATHS = [
+  "service_name",
+  "agent_tool_name",
+  "description",
+  "intent",
+  "endpoint",
+  "health_check",
+  "pricing.currency",
+  "pricing.amount",
+  "pricing.type",
+  "constraints.max_response_bytes",
+  "constraints.timeout_ms",
+  "constraints.max_qps",
+  "input_schema",
+  "output_schema",
+] as const;
+
+const readByPath = (obj: unknown, path: string): unknown => {
+  if (!obj || typeof obj !== "object") {
+    return undefined;
+  }
+  return path.split(".").reduce<unknown>((acc, key) => {
+    if (!acc || typeof acc !== "object") {
+      return undefined;
+    }
+    return (acc as Record<string, unknown>)[key];
+  }, obj);
+};
+
+const hasOwnByPath = (obj: unknown, path: string): boolean => {
+  if (!obj || typeof obj !== "object") {
+    return false;
+  }
+  const keys = path.split(".");
+  let cursor: unknown = obj;
+  for (const key of keys) {
+    if (!cursor || typeof cursor !== "object" || !(key in (cursor as Record<string, unknown>))) {
+      return false;
+    }
+    cursor = (cursor as Record<string, unknown>)[key];
+  }
+  return true;
+};
+
+const collectOverrideChanges = (parsed: Partial<ServiceManifest>, current: ServiceManifest): string[] => {
+  const changed: string[] = [];
+  for (const path of OVERRIDABLE_PATHS) {
+    if (!hasOwnByPath(parsed, path)) {
+      continue;
+    }
+    const nextValue = readByPath(parsed, path);
+    const currentValue = readByPath(current, path);
+    if (JSON.stringify(nextValue) !== JSON.stringify(currentValue)) {
+      changed.push(path);
+    }
+  }
+  return changed;
+};
 
 // Extracted from api_gateway_reverse_proxy_design.md
 interface ServiceManifest {
@@ -57,6 +118,7 @@ export default function DeployManifestPage() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"summary" | "json">("summary");
 
   useEffect(() => {
     const draft = localStorage.getItem("synapse_manifest_draft");
@@ -112,27 +174,54 @@ export default function DeployManifestPage() {
     );
   };
 
+  const applyParsedManifest = (parsed: Partial<ServiceManifest>) => {
+    setManifest((prev) => ({
+      ...prev,
+      ...parsed,
+      input_schema: parsed.input_schema || prev.input_schema,
+      output_schema: parsed.output_schema || prev.output_schema,
+      pricing: parsed.pricing || prev.pricing,
+      constraints: parsed.constraints || prev.constraints,
+    }));
+  };
+
   const confirmAndInject = () => {
     try {
-      const parsed = JSON.parse(aiResponse);
+      const parsed = JSON.parse(aiResponse) as Partial<ServiceManifest>;
+      const changes = collectOverrideChanges(parsed, manifest);
       const isMissingRequired = !parsed.service_name || !parsed.agent_tool_name || !parsed.endpoint;
       if (isMissingRequired) {
          toast.error("Please fill in missing required fields.");
       }
-      setManifest((prev) => ({
-        ...prev,
-        ...parsed,
-        input_schema: parsed.input_schema || prev.input_schema,
-        output_schema: parsed.output_schema || prev.output_schema,
-        pricing: parsed.pricing || prev.pricing,
-        constraints: parsed.constraints || prev.constraints,
-      }));
+      if (changes.length === 0) {
+        toast("No manifest changes detected.", { icon: "ℹ️" });
+        return;
+      }
+      applyParsedManifest(parsed);
       setShowAIModal(false);
-      toast.success("Manifest injected from AI!");
+      toast.success(`Applied ${changes.length} field updates to form.`);
     } catch {
       toast.error("Valid JSON is required in the right panel!");
     }
   };
+
+  const parsedPreview = useMemo(() => {
+    if (!aiResponse.trim()) {
+      return null;
+    }
+    try {
+      return JSON.parse(aiResponse) as Partial<ServiceManifest>;
+    } catch {
+      return null;
+    }
+  }, [aiResponse]);
+
+  const overrideChanges = useMemo(() => {
+    if (!parsedPreview) {
+      return [];
+    }
+    return collectOverrideChanges(parsedPreview, manifest);
+  }, [parsedPreview, manifest]);
 
   const autofillAIMagic = async () => {
     setIsAiGenerating(true);
@@ -144,8 +233,8 @@ export default function DeployManifestPage() {
         currentManifest: manifest
       };
 
-      // Call Gateway/Provider Backend API
-      const res = await fetch("http://127.0.0.1:8000/api/v2/services/parse-curl", {
+      // Call real gateway parser endpoint
+      const res = await fetch(PARSE_CURL_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -160,11 +249,13 @@ export default function DeployManifestPage() {
       const payload = await res.json();
       
       if (payload.status === "success") {
-        setAIResponse(JSON.stringify(payload.data, null, 2));
+        const parsed = payload.data as Partial<ServiceManifest>;
+        setAIResponse(JSON.stringify(parsed, null, 2));
+        applyParsedManifest(parsed);
         if (payload.fallback) {
-           toast("Parsed via fallback parser (no AI key).", { icon: "⚙️" });
+          toast("Parsed via fallback parser and auto-filled form.", { icon: "⚙️" });
         } else {
-           toast.success("AI schema generated! Review the right panel before confirming.", { icon: "🪄" });
+          toast.success("AI manifest generated from real parser endpoint and auto-filled.", { icon: "🪄" });
         }
       } else {
         throw new Error(payload.detail || "Unknown parsing error");
@@ -188,6 +279,62 @@ export default function DeployManifestPage() {
     setIsSuccess(true);
     toast.success("Manifest successfully injected into Synapse Network!");
   };
+
+  const readinessChecks = [
+    { label: "Service name", ok: Boolean(manifest.service_name.trim()) },
+    { label: "Tool name", ok: Boolean(manifest.agent_tool_name.trim()) },
+    { label: "Description", ok: Boolean(manifest.description.trim()) },
+    { label: "Endpoint", ok: Boolean(manifest.endpoint.trim()) },
+  ];
+
+  const completedChecks = readinessChecks.filter((item) => item.ok).length;
+  const isManifestReady = completedChecks === readinessChecks.length;
+  const readinessPercent = Math.round((completedChecks / readinessChecks.length) * 100);
+  const missingRequiredFields = readinessChecks.filter((item) => !item.ok).map((item) => item.label);
+  const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest)).length;
+  const formattedPrice = `${manifest.pricing.amount || "0"} ${manifest.pricing.currency}`;
+  const releaseTag = `${manifest.agent_tool_name || "draft"}.r${completedChecks}${manifest.intent.length}`;
+
+  const releaseNotes = [
+    manifest.service_name ? `Service display name set to ${manifest.service_name}` : null,
+    manifest.agent_tool_name ? `Tool contract key: ${manifest.agent_tool_name}` : null,
+    manifest.endpoint ? "Routing endpoint is configured" : null,
+    manifest.intent.length > 0 ? `${manifest.intent.length} semantic intents attached` : null,
+    manifest.pricing.amount ? `Pricing policy: ${formattedPrice} per call` : null,
+  ].filter((item): item is string => Boolean(item));
+
+  const riskSignals: Array<{ level: "warn" | "info"; text: string }> = [];
+  if (manifest.endpoint && !/^https:\/\//i.test(manifest.endpoint)) {
+    riskSignals.push({
+      level: "warn",
+      text: "Endpoint is not HTTPS. Buyer traffic may be blocked or downgraded.",
+    });
+  }
+  if (manifest.constraints.timeout_ms > 5000) {
+    riskSignals.push({
+      level: "info",
+      text: `Timeout is ${manifest.constraints.timeout_ms}ms. Slow endpoints can reduce routing priority.`,
+    });
+  }
+  if (manifest.constraints.max_qps > 200) {
+    riskSignals.push({
+      level: "info",
+      text: `Max QPS is set to ${manifest.constraints.max_qps}. Ensure backend capacity is pre-provisioned.`,
+    });
+  }
+  if (manifest.description.trim() && manifest.description.trim().length < 24) {
+    riskSignals.push({
+      level: "info",
+      text: "Description is short. Agents may route less accurately without stronger trigger context.",
+    });
+  }
+
+  let endpointHost = "Not set";
+  try {
+    endpointHost = manifest.endpoint ? new URL(manifest.endpoint).host : "Not set";
+  } catch {
+    endpointHost = manifest.endpoint || "Not set";
+  }
 
   if (isSuccess) {
     return (
@@ -397,7 +544,7 @@ export default function DeployManifestPage() {
         </div>
       </div>
 
-      {/* RIGHT SIDE: TERMINAL PREVIEW */}
+      {/* RIGHT SIDE: LIVE PREVIEW */}
       <div className="w-full md:w-1/2 h-full bg-[#0a0a0a] flex flex-col relative">
         <div className="p-3 border-b border-green-900/30 bg-black flex justify-between items-center">
           {/* AI Auto-Gen Modal */}
@@ -415,7 +562,10 @@ export default function DeployManifestPage() {
             </div>
             <div className="p-6 space-y-4 flex-1 overflow-y-auto w-full">
               <p className="text-sm text-gray-400 mb-2">
-                Paste your raw cURL command. Parse will auto-infer schemas/routing. Confirm to inject.
+                Paste your raw cURL command. Generate calls the real parser endpoint, uses AI to infer schema and routing, and auto-fills the form.
+              </p>
+              <p className="text-xs text-gray-500 -mt-2">
+                Use Confirm Override only after manually editing the JSON on the right.
               </p>
               
               <div className="grid grid-cols-2 gap-4">
@@ -443,20 +593,35 @@ export default function DeployManifestPage() {
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-800 mt-4">
+                <div className="mr-auto">
+                  {aiResponse.trim() && !parsedPreview ? (
+                    <p className="text-xs text-red-300">JSON format invalid. Fix syntax before override.</p>
+                  ) : (
+                    <p className="text-xs text-gray-400">
+                      Override preview: {overrideChanges.length} field{overrideChanges.length === 1 ? "" : "s"} will change.
+                    </p>
+                  )}
+                  {overrideChanges.length > 0 && (
+                    <p className="text-[11px] text-gray-500 mt-1 max-w-[520px] truncate">
+                      {overrideChanges.slice(0, 6).join(" | ")}
+                      {overrideChanges.length > 6 ? ` +${overrideChanges.length - 6} more` : ""}
+                    </p>
+                  )}
+                </div>
                 <button 
                   onClick={autofillAIMagic}
                   disabled={isAiGenerating || !aiCurl}
                     className="px-8 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-bold flex items-center justify-center disabled:opacity-50 min-w-[120px]"
                   >
-                    {isAiGenerating ? <span className="animate-pulse">Parsing...</span> : "Parse"}
+                    {isAiGenerating ? <span className="animate-pulse">Generating...</span> : "Generate & Fill"}
                   </button>
                   <button 
                     onClick={confirmAndInject}
-                    disabled={!aiResponse || isAiGenerating}
+                    disabled={!parsedPreview || isAiGenerating || overrideChanges.length === 0}
                     className="px-8 py-2 bg-green-500 hover:bg-green-400 text-black rounded-lg transition-colors font-bold flex items-center justify-center shadow-[0_0_15px_rgba(34,197,94,0.3)] min-w-[120px] disabled:opacity-50 disabled:shadow-none"
                   >
                     <Check className="w-5 h-5 mr-1" />
-                    Confirm
+                    Confirm Override
                   </button>
               </div>
             </div>
@@ -464,9 +629,18 @@ export default function DeployManifestPage() {
         </div>
       )}
 
-      <div className="flex items-center text-xs text-green-500 font-mono">
-            <TerminalSquare className="w-4 h-4 mr-2" />
-            LIVE_COMPILER_VIEW
+      <div className="flex items-center gap-3">
+            <div className="text-xs text-green-400 font-mono tracking-wide flex items-center">
+              <TerminalSquare className="w-4 h-4 mr-2" />
+              LIVE MANIFEST PREVIEW
+            </div>
+            <span className={`text-[10px] px-2 py-1 rounded border font-semibold tracking-wide ${
+              isManifestReady
+                ? "text-green-300 border-green-500/40 bg-green-500/10"
+                : "text-yellow-300 border-yellow-500/30 bg-yellow-500/10"
+            }`}>
+              {isManifestReady ? "Ready to Deploy" : `${completedChecks}/4 Required Fields`}
+            </span>
           </div>
           <div className="flex space-x-2">
             <div className="w-3 h-3 rounded-full bg-red-600"></div>
@@ -478,28 +652,182 @@ export default function DeployManifestPage() {
         <div className="flex-1 overflow-y-auto p-6 font-mono text-sm leading-relaxed hide-scrollbar relative">
           {/* Abstract Cyberpunk Grid Background */}
           <div className="absolute inset-0 pointer-events-none opacity-5 bg-[linear-gradient(rgba(34,197,94,0.3)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.3)_1px,transparent_1px)] bg-[size:20px_20px]" />
-          
-          <pre className="text-green-400 whitespace-pre-wrap">
-            <span className="text-gray-500">{"// SYNAPSE NETWORK: MANIFEST PREVIEW"}</span>
-            <br />
-            <span className="text-gray-500">{"// Status: Ready to Deploy"}</span>
-            <br /><br />
-            {JSON.stringify(manifest, null, 2).replace(/"(.*?)":/g, '<span style="color: #60a5fa">"$1"</span>:')}
-          </pre>
+
+          <div className="relative z-10 space-y-4">
+            <div className="rounded-lg border border-gray-800 bg-black/60 p-3">
+              <p className="text-xs text-gray-300">
+                This is the final contract the gateway and AI buyers will read after deployment.
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                It updates in real-time while you edit the form on the left.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-gray-800 bg-black/70 p-1 inline-flex gap-1">
+              <button
+                type="button"
+                onClick={() => setPreviewMode("summary")}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
+                  previewMode === "summary"
+                    ? "bg-green-500 text-black"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800"
+                }`}
+              >
+                Release Summary
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewMode("json")}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
+                  previewMode === "json"
+                    ? "bg-green-500 text-black"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800"
+                }`}
+              >
+                Raw JSON
+              </button>
+            </div>
+
+            {previewMode === "summary" ? (
+              <>
+                <div className="rounded-lg border border-green-900/40 bg-black/70 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-gray-300 font-semibold tracking-wide">Release Readiness</p>
+                    <p className={`text-xs font-semibold ${isManifestReady ? "text-green-300" : "text-yellow-300"}`}>
+                      {readinessPercent}%
+                    </p>
+                  </div>
+                  <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-200 ${isManifestReady ? "bg-green-500" : "bg-yellow-400"}`}
+                      style={{ width: `${readinessPercent}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    {readinessChecks.map((item) => (
+                      <div
+                        key={item.label}
+                        className={`rounded-md border px-2 py-1 text-[11px] ${
+                          item.ok
+                            ? "border-green-500/30 bg-green-500/10 text-green-300"
+                            : "border-gray-700 bg-gray-900/40 text-gray-500"
+                        }`}
+                      >
+                        {item.ok ? "OK" : "Missing"} · {item.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-800 bg-black/70 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-800 text-[11px] text-gray-400">
+                    Publish Snapshot
+                  </div>
+                  <div className="p-3 grid grid-cols-2 gap-3 text-[11px]">
+                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
+                      <p className="text-gray-500">Tool Name</p>
+                      <p className="text-green-300 mt-1 break-all">{manifest.agent_tool_name || "Not set"}</p>
+                    </div>
+                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
+                      <p className="text-gray-500">Endpoint Host</p>
+                      <p className="text-gray-200 mt-1 break-all">{endpointHost}</p>
+                    </div>
+                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
+                      <p className="text-gray-500">Price / Call</p>
+                      <p className="text-gray-200 mt-1">{formattedPrice}</p>
+                    </div>
+                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
+                      <p className="text-gray-500">Manifest Size</p>
+                      <p className="text-gray-200 mt-1">{manifestBytes} bytes</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-800 bg-black/70 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-800 text-[11px] text-gray-400">
+                    Release Candidate Notes
+                  </div>
+                  <div className="p-3 text-[11px] space-y-2">
+                    <div className="rounded-md border border-gray-800 bg-gray-900/40 p-2">
+                      <p className="text-gray-500">Release Tag</p>
+                      <p className="text-green-300 mt-1">{releaseTag}</p>
+                    </div>
+                    {releaseNotes.length > 0 ? (
+                      releaseNotes.map((note) => (
+                        <div key={note} className="text-gray-300 border border-gray-800 bg-gray-900/30 rounded-md px-2 py-1.5">
+                          {note}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-gray-500 border border-gray-800 bg-gray-900/30 rounded-md px-2 py-1.5">
+                        No release notes yet. Fill core fields to generate notes.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-800 bg-black/70 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-gray-800 text-[11px] text-gray-400">
+                    Pre-Deploy Risk Signals
+                  </div>
+                  <div className="p-3 text-[11px] space-y-2">
+                    {riskSignals.length === 0 ? (
+                      <div className="rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1.5 text-green-300">
+                        No major risk signals detected.
+                      </div>
+                    ) : (
+                      riskSignals.map((signal) => (
+                        <div
+                          key={signal.text}
+                          className={`rounded-md border px-2 py-1.5 ${
+                            signal.level === "warn"
+                              ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-200"
+                              : "border-blue-500/30 bg-blue-500/10 text-blue-200"
+                          }`}
+                        >
+                          {signal.text}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-lg border border-green-900/40 bg-black/70 overflow-hidden">
+                <div className="px-3 py-2 border-b border-green-900/30 text-[11px] text-gray-400">
+                  Manifest JSON Preview
+                </div>
+                <pre className="p-3 text-green-300 whitespace-pre-wrap overflow-x-auto text-xs leading-relaxed">
+                  {JSON.stringify(manifest, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="p-6 bg-black border-t border-green-900/30 mt-auto shadow-[0_-20px_40px_rgba(0,0,0,0.5)] z-10">
           <button
             onClick={submitDeploy}
-            disabled={isDeploying || !manifest.agent_tool_name || !manifest.endpoint}
+            disabled={isDeploying || missingRequiredFields.length > 0}
             className="w-full py-4 font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
           >
             {isDeploying ? (
               <span className="animate-pulse">INJECTING TO MAINNET...</span>
+            ) : missingRequiredFields.length > 0 ? (
+              <span>COMPLETE REQUIRED FIELDS TO DEPLOY</span>
             ) : (
               <span>DEPLOY MANIFEST</span>
             )}
           </button>
+          {missingRequiredFields.length > 0 ? (
+            <p className="text-center text-[11px] text-yellow-300 mt-3">
+              Missing: {missingRequiredFields.join(" / ")}
+            </p>
+          ) : (
+            <p className="text-center text-[11px] text-green-300 mt-3">
+              Ready for deployment. Gateway contract checks passed.
+            </p>
+          )}
           <p className="text-center text-[10px] text-gray-600 mt-3 font-mono">
             By deploying, you accept the Seller Gateway ToS. Cost: 0 Gas (Off-chain injection).
           </p>
