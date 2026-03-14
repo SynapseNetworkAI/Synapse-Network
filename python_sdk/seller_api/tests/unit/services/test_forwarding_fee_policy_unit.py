@@ -251,3 +251,41 @@ async def test_service_qps_limit_enforced_in_memory(monkeypatch):
 
     assert exc.value.status_code == 429
     assert exc.value.detail["code"] == "SERVICE_QPS_EXCEEDED"
+
+
+def test_select_weighted_target_url_uses_registered_weights(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def _fake_choices(population, weights=None, k=1):
+        captured["population"] = population
+        captured["weights"] = weights
+        captured["k"] = k
+        return [population[1]]
+
+    monkeypatch.setattr(forwarding_service.random, "choices", _fake_choices)
+    invoke = {
+        "targets": [
+            {"url": "http://127.0.0.1:8100/a", "weight": 100, "region": "ap-sg-1"},
+            {"url": "http://127.0.0.1:8101/a", "weight": 80, "region": "ap-sg-2"},
+        ]
+    }
+
+    selected = forwarding_service._select_weighted_target_url(invoke)
+
+    assert selected == "http://127.0.0.1:8101/a"
+    assert captured["weights"] == [100, 80]
+    assert captured["k"] == 1
+
+
+def test_select_weighted_target_url_rejects_non_positive_weight():
+    invoke = {
+        "targets": [
+            {"url": "http://127.0.0.1:8100/a", "weight": 0},
+        ]
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        forwarding_service._select_weighted_target_url(invoke)
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail["code"] == "INVALID_INVOKE_CONFIG"

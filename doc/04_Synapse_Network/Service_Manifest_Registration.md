@@ -293,6 +293,33 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 3. `timeoutMs`：转发客户端超时严格按服务配置执行（并受平台硬上限保护）。
 4. `maxResponseBytes`：上游响应超限时终止并返回 `413 RESPONSE_PAYLOAD_TOO_LARGE`。
 
+### 5.1.5 Gateway 加权转发策略（基于 Seller targets）
+
+对于 Seller 注册的：
+
+```json
+"invoke": {
+  "method": "POST",
+  "targets": [
+    { "url": "http://127.0.0.1:8100/api/v1/quotes/famous", "weight": 100, "region": "ap-sg-1" },
+    { "url": "http://127.0.0.1:8101/api/v1/quotes/famous", "weight": 80, "region": "ap-sg-2" }
+  ]
+}
+```
+
+网关执行规则：
+
+1. 每次 Buyer 调用进入网关后，使用 `invoke.targets[]` 作为候选上游池。
+2. 按 `weight` 做加权随机选路（weighted random）。
+3. `weight` 必须为整数且范围 `[1, 10000]`；非法配置返回 `500 INVALID_INVOKE_CONFIG`。
+4. 候选池为空或 URL 全部无效时，返回 `500 INVALID_INVOKE_CONFIG`。
+
+效果：
+
+1. 权重更高的节点获得更高流量占比。
+2. Seller 可通过调权实现灰度和容量迁移，无需改 Buyer 调用代码。
+3. `discover` 仍仅暴露平台入口，不泄露 Seller 上游地址。
+
 这套机制保证了：Seller 的 SLA 声明能被网关执行，Buyer 请求不会绕过安全阈值，平台资源不会被单服务失控拖垮。
 
 3. **可观测与追踪字段（Observability）**
@@ -328,7 +355,7 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
   - `metering` 明确哪些状态码计费、错误是否计费。
   - `forwarding.retryPolicy` 保证重试行为可预测，避免重复扣费。
 
-### 5.1.5 注册字段说明（字段含义 + 平台使用方式）
+### 5.1.6 注册字段说明（字段含义 + 平台使用方式）
 
 1. `serviceName`
   - 含义：人类可读服务名。

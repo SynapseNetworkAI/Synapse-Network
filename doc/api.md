@@ -277,6 +277,11 @@
   - `X-Credential`：必填，格式必须匹配 `agt_[A-Za-z0-9]+`，最大长度 `128`。
   - `X-Request-Id`：可选；若传入，格式必须匹配 `[A-Za-z0-9._:-]`，最大长度 `128`。
   - `constraints` 在转发阶段强制执行：`maxQps/maxRequestBytes/maxResponseBytes/timeoutMs`。
+  - `invoke.targets[].weight` 在转发阶段强制校验，必须是整数且在 `[1,10000]`。
+
+- **Routing Execution**:
+  - 网关每次转发按 `invoke.targets[]` 执行加权随机选路（weighted random）。
+  - 候选节点为空或权重非法时返回 `INVALID_INVOKE_CONFIG`。
 
 - **Buyer 常见错误码（Generate）**:
   - `PROMPT_REQUIRED` (`422`)：`prompt` 为空或全空白。

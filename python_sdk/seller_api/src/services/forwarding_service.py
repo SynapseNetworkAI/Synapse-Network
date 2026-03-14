@@ -24,6 +24,7 @@ _MAX_PROMPT_LENGTH = 8000
 _MAX_SERVICE_ID_LENGTH = 128
 _MAX_REQUEST_ID_LENGTH = 128
 _MAX_CREDENTIAL_LENGTH = 128
+_MAX_TARGET_WEIGHT = 10000
 
 
 def _as_int(raw: Any, fallback: int) -> int:
@@ -460,27 +461,7 @@ async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) 
 
     invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
     upstream_method = str(invoke.get("method") or "POST").upper()
-    targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
-    target_urls = []
-    target_weights = []
-    for item in targets:
-        if not isinstance(item, dict):
-            continue
-        url = str(item.get("url") or "").strip()
-        if not url:
-            continue
-        target_urls.append(url)
-        target_weights.append(max(1, int(item.get("weight") or 100)))
-
-    if not target_urls:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "code": "INVALID_INVOKE_CONFIG",
-                "message": "invoke.targets must contain at least one valid target URL",
-            },
-        )
-    upstream_url = random.choices(target_urls, weights=target_weights, k=1)[0]
+    upstream_url = _select_weighted_target_url(invoke)
 
     timeout_sec = float(constraints["timeoutMs"]) / 1000.0
     async with httpx.AsyncClient(timeout=timeout_sec) as client:
@@ -507,6 +488,55 @@ async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) 
         if isinstance(data, dict) and "quote" in data:
             return data.get("quote")
         return data
+
+
+def _normalized_weighted_targets(invoke: Dict[str, Any]) -> Tuple[list[Dict[str, Any]], list[int]]:
+    targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
+    normalized_targets: list[Dict[str, Any]] = []
+    normalized_weights: list[int] = []
+
+    for item in targets:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        if not url:
+            continue
+        try:
+            weight = int(item.get("weight") if item.get("weight") is not None else 100)
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "code": "INVALID_INVOKE_CONFIG",
+                    "message": "invoke.targets[].weight must be an integer",
+                },
+            )
+        if weight <= 0 or weight > _MAX_TARGET_WEIGHT:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "code": "INVALID_INVOKE_CONFIG",
+                    "message": f"invoke.targets[].weight must be in [1, {_MAX_TARGET_WEIGHT}]",
+                },
+            )
+        normalized_targets.append(item)
+        normalized_weights.append(weight)
+
+    if not normalized_targets:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_INVOKE_CONFIG",
+                "message": "invoke.targets must contain at least one valid target URL",
+            },
+        )
+    return normalized_targets, normalized_weights
+
+
+def _select_weighted_target_url(invoke: Dict[str, Any]) -> str:
+    targets, weights = _normalized_weighted_targets(invoke)
+    selected = random.choices(targets, weights=weights, k=1)[0]
+    return str(selected.get("url") or "").strip()
 
 
 async def _record_credit_window_spend(credential: Dict[str, Any], charge_amount: float) -> None:
