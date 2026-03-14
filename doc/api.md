@@ -140,7 +140,7 @@
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: 仅返回当前 owner 作用域内账务数据。
 - **Security Headers**: `POST /api/v2/refund` requires `X-Idempotency-Key`.
-- **Validation**: `POST /api/v2/refund` requires `amountUsdc >= 10`.
+- **Validation**: `POST /api/v2/refund` requires `amountUsdc >= 10` (USDC).
 - **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
 
 ### 3.5 Router Config (Owner Scoped)

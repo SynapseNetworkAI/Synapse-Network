@@ -13,6 +13,8 @@ Trigger high-priority alert when any rule matches:
 3. `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD` exceeds 3 events in 10 minutes.
 4. Refund intent creation spikes > 3x baseline in 15 minutes.
 
+5. Redis idempotency claim conflict spikes (same key collisions) exceed baseline by 2x in 10 minutes.
+
 ## 3. Triage Checklist
 
 1. Identify affected owner(s), endpoint(s), and action types from `GET /api/v2/finance/audit-logs`.
@@ -39,6 +41,7 @@ Trigger high-priority alert when any rule matches:
 1. Add/adjust regression tests for exact failure mode.
 2. Add monitoring dashboard panel and SLO error budget tracking.
 3. Review whether thresholds in this runbook need tighter values.
+4. Verify Lua-script fallback behavior during Redis degraded mode tests.
 
 ## 7. Ownership
 

@@ -33,4 +33,4 @@ jobs:
         env:
           PYTHONPATH: seller_api
         run: |
-          pytest -q seller_api/tests/test_financial_security.py
+          pytest -q seller_api/tests/test_financial_*.py

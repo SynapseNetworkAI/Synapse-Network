@@ -1,14 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
-from typing import Dict, Any, Annotated
+from typing import Dict, Any, Annotated, Optional
 
 from src.api.deps import get_balance_service
-from src.core.auth import require_owner_wallet
 from src.models.pydantic_models import DepositIntentRequest, RefundIntentRequest, RouterConfigRequest
 from src.services.balance_service import BalanceService
+from src.services import credential_service
 from src.services.v2_indexer import get_indexer_status
 from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
+
+AuthorizationHeader = Annotated[Optional[str], Header(alias="Authorization")]
+UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
+
+
+def get_owner_wallet(
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+) -> str:
+    return credential_service.require_owner_wallet(authorization, x_user_address)
 
 
 def _extract_request_meta(request: Request) -> Dict[str, Any]:
@@ -22,7 +32,7 @@ def _extract_request_meta(request: Request) -> Dict[str, Any]:
 
 @router.get("/v2/balance", responses={500: {"description": "Database IO blocked"}})
 async def get_balance(
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     """[极速路由] 获取当前会话 owner 的余额摘要。"""
@@ -38,7 +48,7 @@ async def register_deposit_intent(
     intent: DepositIntentRequest,
     request: Request,
     idempotency_key: Annotated[str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)],
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     """登记 owner 充值意图，owner 由 session 决定。"""
@@ -54,7 +64,7 @@ async def register_deposit_intent(
 
 @router.get("/v2/balance/deposit/intents")
 async def list_deposit_intents(
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ):
@@ -67,7 +77,7 @@ async def process_refund(
     refund_req: RefundIntentRequest,
     request: Request,
     idempotency_key: Annotated[str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)],
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     result = await service.process_refund_intent(
@@ -78,7 +88,7 @@ async def process_refund(
 
 @router.get("/v2/refunds")
 async def list_refunds(
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ):
@@ -88,7 +98,7 @@ async def list_refunds(
 
 @router.get("/v2/router/config")
 async def get_router_config(
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     config = await service.get_router_config(owner_wallet)
@@ -99,7 +109,7 @@ async def get_router_config(
 async def set_router_config(
     config: RouterConfigRequest,
     request: Request,
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     saved = await service.set_router_config(owner_wallet, config.dailyLimitUsdc, _extract_request_meta(request))
@@ -108,7 +118,7 @@ async def set_router_config(
 
 @router.get("/v2/finance/audit-logs")
 async def list_finance_audit_logs(
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
@@ -118,7 +128,7 @@ async def list_finance_audit_logs(
 
 @router.get("/v2/usage/logs")
 async def get_usage_logs(
-    owner_wallet: Annotated[str, Depends(require_owner_wallet)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     storage: Annotated[BaseStorage, Depends(get_storage)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):

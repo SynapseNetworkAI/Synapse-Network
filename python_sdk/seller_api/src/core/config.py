@@ -102,7 +102,7 @@ class Settings:
     # Storage directory used by JsonStorage; defaults to unified runtime directory.
     data_dir: str = os.getenv("DATA_DIR", os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir()))
     # JWT secret for auth token signing and verification.
-    jwt_secret: str = os.getenv("JWT_SECRET", "super-secret-key-change-me")
+    jwt_secret: str = os.getenv("JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret")
     # Optional Redis URL for distributed counters and rate limits.
     redis_url: str = os.getenv("REDIS_URL", "").strip()
 
@@ -128,7 +128,10 @@ class Settings:
     invalid_address_message: str = "address is invalid"
 
     # Wallet challenge JWT secret alias (defaults to jwt_secret for single-source config).
-    auth_secret: str = os.getenv("AUTH_SECRET", os.getenv("JWT_SECRET", "super-secret-key-change-me"))
+    auth_secret: str = os.getenv(
+        "AUTH_SECRET",
+        os.getenv("JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret"),
+    )
     # Issued auth token ttl in seconds.
     auth_token_ttl_sec: int = _env_int("AUTH_TOKEN_TTL_SEC", 86400)
     # Wallet-signature challenge ttl in seconds.

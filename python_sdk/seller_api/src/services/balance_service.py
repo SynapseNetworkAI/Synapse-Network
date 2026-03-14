@@ -14,6 +14,28 @@ from uuid import uuid4
 _redis_client = None
 logger = logging.getLogger(__name__)
 
+REDIS_IDEM_CLAIM_LUA = """
+local existing = redis.call('GET', KEYS[1])
+if existing then
+    return {0, existing}
+end
+local payload = cjson.encode({
+    requestHash = ARGV[1],
+    status = 'processing',
+    createdAt = tonumber(ARGV[2])
+})
+redis.call('SET', KEYS[1], payload, 'EX', tonumber(ARGV[3]))
+return {1, ''}
+"""
+
+REDIS_RATE_LIMIT_LUA = """
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
+end
+return current
+"""
+
 class BalanceService:
     def __init__(self, storage: BaseStorage):
         self.storage = storage
@@ -157,19 +179,29 @@ class BalanceService:
             return False
 
         ttl_sec = max(300, int(settings.finance_idempotency_ttl_sec))
-        payload = {
-            "requestHash": request_hash,
-            "status": "processing",
-            "createdAt": int(time.time()),
-        }
-        return bool(
-            await redis_client.set(
-                self._idem_key(scope, owner_wallet, idempotency_key),
-                json.dumps(payload, ensure_ascii=True, separators=(",", ":")),
-                ex=ttl_sec,
-                nx=True,
+        key = self._idem_key(scope, owner_wallet, idempotency_key)
+        now = int(time.time())
+        try:
+            result = await redis_client.eval(REDIS_IDEM_CLAIM_LUA, 1, key, request_hash, now, ttl_sec)
+            # [1, ''] => claimed; [0, existing_json] => already exists.
+            if isinstance(result, list) and result and int(result[0]) == 1:
+                return True
+            return False
+        except Exception:
+            # Fallback to non-lua setnx flow if eval is unavailable in current redis mode.
+            payload = {
+                "requestHash": request_hash,
+                "status": "processing",
+                "createdAt": now,
+            }
+            return bool(
+                await redis_client.set(
+                    key,
+                    json.dumps(payload, ensure_ascii=True, separators=(",", ":")),
+                    ex=ttl_sec,
+                    nx=True,
+                )
             )
-        )
 
     async def _complete_idempotency_redis(
         self,
@@ -237,39 +269,61 @@ class BalanceService:
             "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
         }
 
-    async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
+    def _rate_limit_context(self, owner_wallet: str) -> tuple[str, int, int, int]:
         owner = normalize_wallet(owner_wallet)
         now = int(time.time())
         window_sec = 60
         max_per_min = max(1, int(settings.finance_write_rate_limit_per_min))
-        redis_client = await self._get_redis_client()
+        return owner, now, window_sec, max_per_min
 
-        if redis_client is not None:
-            window_bucket = now // window_sec
-            redis_key = f"finance:rl:{owner}:{action}:{window_bucket}"
+    async def _enforce_owner_write_rate_limit_redis(
+        self,
+        owner: str,
+        action: str,
+        now: int,
+        window_sec: int,
+        max_per_min: int,
+    ) -> bool:
+        redis_client = await self._get_redis_client()
+        if redis_client is None:
+            return False
+
+        window_bucket = now // window_sec
+        redis_key = f"finance:rl:{owner}:{action}:{window_bucket}"
+        try:
+            current = int(await redis_client.eval(REDIS_RATE_LIMIT_LUA, 1, redis_key, window_sec + 5))
+        except Exception:
             current = int(await redis_client.incr(redis_key))
             if current == 1:
                 await redis_client.expire(redis_key, window_sec + 5)
-            if current > max_per_min:
-                self._append_financial_audit(
-                    "FINANCE_RATE_LIMIT_HIT",
-                    owner,
-                    {
-                        "action": action,
-                        "limitPerMin": max_per_min,
-                        "windowBucket": window_bucket,
-                        "backend": "redis",
-                    },
-                )
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "code": "FINANCE_RATE_LIMIT_EXCEEDED",
-                        "message": f"Finance write rate limit exceeded for action={action}.",
-                    },
-                )
-            return
 
+        if current > max_per_min:
+            self._append_financial_audit(
+                "FINANCE_RATE_LIMIT_HIT",
+                owner,
+                {
+                    "action": action,
+                    "limitPerMin": max_per_min,
+                    "windowBucket": window_bucket,
+                    "backend": "redis",
+                },
+            )
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "FINANCE_RATE_LIMIT_EXCEEDED",
+                    "message": f"Finance write rate limit exceeded for action={action}.",
+                },
+            )
+        return True
+
+    def _enforce_owner_write_rate_limit_fallback(
+        self,
+        owner: str,
+        action: str,
+        now: int,
+        max_per_min: int,
+    ) -> None:
         raw = self.storage.get_collection("finance_write_rate_limit")
         rows = self._normalize_rows(raw)
 
@@ -294,7 +348,7 @@ class BalanceService:
             rows.append(matched)
 
         window_start = int(matched.get("windowStart") or now)
-        if now - window_start >= window_sec:
+        if now - window_start >= 60:
             matched["windowStart"] = now
             matched["count"] = 0
 
@@ -321,6 +375,12 @@ class BalanceService:
         matched["count"] = count + 1
         matched["updatedAt"] = now
         self.storage.save_collection("finance_write_rate_limit", {"rows": rows, "updatedAt": now})
+
+    async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
+        owner, now, window_sec, max_per_min = self._rate_limit_context(owner_wallet)
+        used_redis = await self._enforce_owner_write_rate_limit_redis(owner, action, now, window_sec, max_per_min)
+        if not used_redis:
+            self._enforce_owner_write_rate_limit_fallback(owner, action, now, max_per_min)
 
     def _try_get_idempotent_response(
         self,

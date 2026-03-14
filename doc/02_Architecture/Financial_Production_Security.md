@@ -66,7 +66,13 @@ Router daily limit definition:
    - `DEPOSIT_REPLAY_DETECTED`
    - `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`
 
-### 2.7 API Behavior (Contract)
+### 2.7 Fifth-Round Atomic Controls and Integration Tests
+
+1. Redis Lua scripts are used for atomic idempotency-claim and finance write-rate counters.
+2. API integration tests now cover full auth/session flow (challenge -> sign -> verify -> protected finance APIs).
+3. CI now executes both unit-style financial security tests and API integration tests.
+
+### 2.8 API Behavior (Contract)
 
 1. `POST /api/v2/balance/deposit/intent`
    - requires `X-Idempotency-Key`
@@ -90,6 +96,7 @@ Key runtime knobs in `python_sdk/seller_api/src/core/config.py`:
 2. `FINANCE_IDEMPOTENCY_MAX_ROWS`
 3. `FINANCE_REPLAY_WINDOW_SEC`
 4. `FINANCE_WRITE_RATE_LIMIT_PER_MIN`
+5. `JWT_SECRET` / `AUTH_SECRET` should be 32+ bytes for HS256 production safety.
 
 Default examples live in `python_sdk/.env.example`.
 
@@ -97,15 +104,16 @@ Default examples live in `python_sdk/.env.example`.
 
 ### 4.1 Stronger Distributed Guarantees
 
-1. Add Redis Lua scripts for stricter atomic rate-limit + idempotency state transitions.
-2. Add Postgres-backed durable idempotency records for long-term reconciliation.
-3. Add crash-safe transaction boundaries for multi-step financial mutations.
+1. Add Postgres-backed durable idempotency records for long-term reconciliation.
+2. Add crash-safe transaction boundaries for multi-step financial mutations.
+3. Add cross-region cache consistency strategy for multi-dc deployments.
 
 ### 4.2 Security Verification and Tests
 
 1. Financial security tests are added for replay, owner isolation, concurrency, and idempotency consistency.
-2. CI blocking workflow is added on push/PR for the financial security test suite.
-3. Next: expand to full API integration tests (auth + router layer + storage permutations).
+2. API integration tests are added for real auth/session + protected finance endpoints.
+3. CI blocking workflow is added on push/PR for the financial test suite.
+4. Next: expand to storage-mode matrix tests (Redis on/off, failure injection).
 
 ### 4.3 Operational Controls
 
