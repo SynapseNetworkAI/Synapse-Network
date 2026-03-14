@@ -30,6 +30,7 @@ python_sdk/agentpay_buyer_sdk.egg-info/
 python_sdk/agent_credentials.json
 python_sdk/audit_log.jsonl
 python_sdk/service_registry.json
+python_sdk/runtime_storage/
 python_sdk/*.egg-info/
 
 logs/
