@@ -49,7 +49,13 @@ async def verify_signature(
         )
         
         if not token:
-            raise HTTPException(status_code=401, detail="Invalid signature")
+            raise HTTPException(
+                status_code=401,
+                detail=(
+                    f"Invalid signature or expired challenge. "
+                    f"Please request a new challenge and sign within {settings.auth_challenge_ttl_sec}s."
+                ),
+            )
             
         wallet = normalize_wallet(request.wallet_address)
         
@@ -69,7 +75,7 @@ async def verify_signature(
             success=True,
             access_token=token,
             token_type="bearer",
-            expires_in=86400  # 24 hours
+            expires_in=max(60, int(settings.auth_token_ttl_sec)),
         )
     except HTTPException:
         raise

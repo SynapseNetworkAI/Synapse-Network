@@ -20,6 +20,7 @@ type AuthVerifyResponse = {
 type AuthVerifyNormalizedResponse = {
   token: string;
   wallet: string;
+  expiresInSec: number;
 };
 
 const AUTH_SESSION_STORAGE_KEY = "a2a_auth_session";
@@ -77,10 +78,11 @@ export function getStoredAuthSession(): AuthSession | null {
   }
 }
 
-export function storeAuthSession(token: string, wallet: string): void {
+export function storeAuthSession(token: string, wallet: string, expiresInSec: number = AUTH_SESSION_TTL_SEC): void {
   if (!isBrowser()) return;
 
-  const expiresAt = Date.now() + AUTH_SESSION_TTL_SEC * 1000;
+  const normalizedTtl = Number.isFinite(expiresInSec) ? Math.max(60, Math.floor(expiresInSec)) : AUTH_SESSION_TTL_SEC;
+  const expiresAt = Date.now() + normalizedTtl * 1000;
   const nextSession: AuthSession = {
     token,
     wallet: normalizeAddress(wallet),
@@ -159,6 +161,10 @@ export async function verifyAuthSignature(address: string, message: string, sign
 
   if (!response.ok) {
     const text = await response.text();
+    const normalized = String(text || "").toLowerCase();
+    if (normalized.includes("invalid signature") || normalized.includes("expired challenge")) {
+      throw new Error("Wallet signature invalid or challenge expired. Please request a new challenge and sign again.");
+    }
     throw new Error(text || "Failed to verify wallet signature");
   }
 
@@ -166,5 +172,6 @@ export async function verifyAuthSignature(address: string, message: string, sign
   return {
     token: payload.access_token,
     wallet: address,
+    expiresInSec: Number(payload.expires_in) > 0 ? Number(payload.expires_in) : AUTH_SESSION_TTL_SEC,
   };
 }

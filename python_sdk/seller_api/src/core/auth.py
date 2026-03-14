@@ -12,7 +12,10 @@ import jwt
 
 # Cache for pending auth challenges - simple in-memory cache
 # Format: {wallet_address: challenge_string}
-pending_challenges = TTLCache(maxsize=1000, ttl=300) # 5 min TTL
+pending_challenges = TTLCache(
+    maxsize=1000,
+    ttl=max(30, int(settings.auth_challenge_ttl_sec)),
+)
 
 def create_auth_challenge(wallet_address: str) -> Optional[str]:
     """Generate a challenge string for wallet authentication"""
@@ -69,8 +72,8 @@ def verify_auth_signature(wallet_address: str, signature: str, message: str) -> 
         token_data = {
             "sub": wallet,
             "role": "agent",
-           "iat": int(time.time()),
-            "exp": int(time.time()) + 86400  # 24 hours
+            "iat": int(time.time()),
+            "exp": int(time.time()) + max(60, int(settings.auth_token_ttl_sec)),
         }
         
         token = jwt.encode(token_data, settings.jwt_secret, algorithm="HS256")

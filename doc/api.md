@@ -7,7 +7,8 @@
 
 ### 1.1 获取登录挑战 (Get Challenge)
 - **Path**: `GET /api/v1/auth/challenge`
-- **Desc**: 针对以太坊钱包的登录认证挑战接口。返回供前端 EIP-712 签名的随机 Nonce 和格式字符串。
+- **Desc**: 针对以太坊钱包的登录认证挑战接口。返回供前端钱包签名（EIP-191 `personal_sign`）的一次性 challenge（含随机 Nonce）。
+- **TTL**: challenge 为短时有效、一次性使用（由 `AUTH_CHALLENGE_TTL_SEC` 控制，默认 300 秒）。
 - **Params**:
   - `address` (query, required): 用户的 `0x...` 以太坊钱包地址。
 - **Returns (200 OK)**:
@@ -21,7 +22,7 @@
 
 ### 1.2 校验签名并获取 Token (Verify Challenge)
 - **Path**: `POST /api/v1/auth/verify`
-- **Desc**: 前端提交通过 Wallet 签署完成后的签名进行验证登入。成功入库后，返回 JWT Base 令牌。
+- **Desc**: 前端提交 Wallet 签名结果进行验签。验签通过后签发平台会话 token（JWT）。
 - **Body**: 
   ```json
   {
@@ -39,6 +40,10 @@
     "expires_in": 86400
   }
   ```
+
+- **Notes**:
+  - `expires_in` 为服务端配置值（`AUTH_TOKEN_TTL_SEC`），不是固定常量。
+  - 当 challenge 过期或已失效时，接口返回 `401`，前端应重新请求 challenge 并重新签名。
 
 ---
 
@@ -120,6 +125,7 @@
 ### 4.1 自动发掘市场大盘 (Service Discovery)
 - **Path**: `GET /api/v2/services/discover`
 - **Desc**: 允许任何 Buyer 终端查询整个平台挂卷的“卖家功能单意图”和配置列表，可带入大语言模型自动作为 Function Calling 工具箱使用。支持按 `?intent=` 意图匹配词反向搜索。
+- **Auth**: Public endpoint. No wallet challenge and no platform session required.
 - **Returns (200 OK)**:
   ```json
   {
@@ -136,6 +142,20 @@
   - `X-Credential`: "agt_123..." (调用凭据)
   - `X-Service-Id`: "svc_demo" (卖家在网络上的通用注册编号)
 - **Body**: 必须匹配对应 Service 注册时声明的 Schema 净载荷。 
+
+### 4.3 卖家服务管理 (Provider Service Management)
+
+- **Paths**:
+  - `GET /api/v2/services`
+  - `POST /api/v2/services`
+  - `PUT /api/v2/services/{service_record_id}`
+  - `DELETE /api/v2/services/{service_record_id}`
+  - `POST /api/v2/services/{service_record_id}/rotate-key`
+  - `POST /api/v2/services/{service_record_id}/ping`
+  - `POST /api/v2/services/parse-curl`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`).
+- **Challenge**: Not required for each operation if session is still valid. Re-challenge only when signing in or when session expired.
+- **Tenant Isolation**: Owner is derived from token subject, client-provided owner must not bypass server-side ownership checks.
 
 ---
 

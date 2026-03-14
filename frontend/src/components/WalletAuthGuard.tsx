@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, createContext, useContext } from "react";
+import { useEffect, useState, useCallback, createContext, useContext, useRef } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { toHex } from "viem";
 import toast from "react-hot-toast";
@@ -39,6 +39,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [verifiedWallet, setVerifiedWallet] = useState<string | null>(null);
+  const disconnectClearTimer = useRef<number | null>(null);
 
   // We no longer block access globally based on isPublicRoute.
   // The context provides auth state to downstream components that use <AuthMask />.
@@ -114,7 +115,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
       }
 
       const verified = await verifyAuthSignature(address, challengeMessage, signature);
-      storeAuthSession(verified.token, verified.wallet);
+      storeAuthSession(verified.token, verified.wallet, verified.expiresInSec);
 
       setVerifiedWallet(verified.wallet.toLowerCase());
       setIsAuthorizing(false);
@@ -154,11 +155,20 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   }, [address, signMessageAsync, signWithInjectedProvider]);
 
   useEffect(() => {
+    if (disconnectClearTimer.current) {
+      globalThis.clearTimeout(disconnectClearTimer.current);
+      disconnectClearTimer.current = null;
+    }
+
     if (!isConnected || !address) {
-      clearAuthSession();
-      setVerifiedWallet(null);
-      setAuthError(null);
-      setIsAuthorizing(false);
+      // Some wallets briefly report disconnected while reconnecting.
+      // Delay clearing to avoid forcing unnecessary re-sign.
+      disconnectClearTimer.current = globalThis.setTimeout(() => {
+        clearAuthSession();
+        setVerifiedWallet(null);
+        setAuthError(null);
+        setIsAuthorizing(false);
+      }, 12000);
       return;
     }
 
@@ -174,6 +184,13 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
     if (!verifiedWallet && !authError && !isAuthorizing) {
       void authorize();
     }
+
+    return () => {
+      if (disconnectClearTimer.current) {
+        globalThis.clearTimeout(disconnectClearTimer.current);
+        disconnectClearTimer.current = null;
+      }
+    };
   }, [isConnected, address, verifiedWallet, authError, isAuthorizing, authorize]);
 
   useEffect(() => {

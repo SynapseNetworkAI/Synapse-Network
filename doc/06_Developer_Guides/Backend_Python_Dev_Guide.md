@@ -265,6 +265,11 @@ docker-compose up -d
 
 最终对外暴露一个聚合对象：`settings`。
 
+补充说明（Auth 生命周期设计）：
+
+- challenge/session 的边界、TTL 推荐值与用户体验策略，见：
+  - `doc/feature_designs/frontend_product/Wallet_Auth_Challenge_Session_Design.md`
+
 ### 6.4 收口迁移步骤（可执行）
 
 1. **冻结新增配置入口**

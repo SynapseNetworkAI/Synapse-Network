@@ -130,9 +130,9 @@ class Settings:
     # Wallet challenge JWT secret alias (defaults to jwt_secret for single-source config).
     auth_secret: str = os.getenv("AUTH_SECRET", os.getenv("JWT_SECRET", "super-secret-key-change-me"))
     # Issued auth token ttl in seconds.
-    auth_token_ttl_sec: int = _env_int("AUTH_TOKEN_TTL_SEC", 3600)
+    auth_token_ttl_sec: int = _env_int("AUTH_TOKEN_TTL_SEC", 86400)
     # Wallet-signature challenge ttl in seconds.
-    auth_challenge_ttl_sec: int = _env_int("AUTH_CHALLENGE_TTL_SEC", 300)
+    auth_challenge_ttl_sec: int = _env_int("AUTH_CHALLENGE_TTL_SEC", 600)
     # Keep backward-compatible auth behavior enabled by default.
     allow_legacy_auth: bool = _env_bool("ALLOW_LEGACY_AUTH", True)
 
