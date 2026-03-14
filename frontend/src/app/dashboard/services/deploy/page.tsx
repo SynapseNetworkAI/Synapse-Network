@@ -270,9 +270,17 @@ export default function DeployManifestPage() {
       const payload = await res.json();
       
       if (payload.status === "success") {
-        const parsed = payload.data;
+        let parsed: unknown = payload.data ?? payload.parsed ?? payload.manifest ?? payload.result;
+        if (typeof parsed === "string") {
+          try {
+            parsed = JSON.parse(parsed);
+          } catch {
+            parsed = null;
+          }
+        }
         if (!isObjectRecord(parsed)) {
-          throw new Error("Parser returned empty manifest payload.");
+          toast("Parser is not returning a structured manifest yet. Please edit fields manually.", { icon: "ℹ️" });
+          return;
         }
         setAIResponse(JSON.stringify(parsed, null, 2));
         applyParsedManifest(parsed);
