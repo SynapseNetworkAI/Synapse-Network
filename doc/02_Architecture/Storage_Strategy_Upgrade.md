@@ -209,8 +209,10 @@ Phase 3（日志爆发后）：
   - `src/storage/postgres/repositories/idempotency_repository.py`
   - `src/storage/postgres/repositories/audit_log_repository.py`
   - `src/storage/postgres/repositories/balance_repository.py`
+  - `src/storage/postgres/repositories/service_registry_repository.py`
+  - `src/storage/postgres/repositories/credential_auth_repository.py`
 3. 门面层：
-  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance 方法委托给对应 repository。
+  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance / service registry / credential & auth 方法委托给对应 repository。
 
 执行收益：
 1. SQL 逻辑按领域聚合，后续功能迭代与单测更可控。
