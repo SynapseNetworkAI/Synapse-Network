@@ -4,7 +4,7 @@ import json
 from typing import List, Optional
 
 from src.domain.audit import AuditLogEntry
-from src.domain.storage_entities import AuditLogRow, SystemAuditLogRow
+from src.domain.audit import AuditLogRow, SystemAuditLogRow
 
 from ..database_manager import DatabaseManager
 
@@ -145,7 +145,9 @@ class AuditLogRepository:
             if isinstance(row, AuditLogEntry):
                 self.append_audit_row(row)
 
-    def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[AuditLogEntry]:
+    def read_audit_rows(
+        self, owner_wallet: Optional[str] = None, limit: int = 200
+    ) -> List[AuditLogEntry]:
         sql = (
             "SELECT id, action_type, business_type, risk_level, owner_address, actor, request_id, tx_hash, "
             "trace_id, counterparty_address, direction, status, risk_reason_code, ledger_id, client_ip, user_agent, "
@@ -207,8 +209,12 @@ class AuditLogRepository:
                 "clientIp": client_ip,
                 "userAgent": user_agent,
                 "deltaAmount": float(amount_delta) if amount_delta is not None else 0.0,
-                "beforeBalance": float(before_balance) if before_balance is not None else None,
-                "afterBalance": float(after_balance) if after_balance is not None else None,
+                "beforeBalance": float(before_balance)
+                if before_balance is not None
+                else None,
+                "afterBalance": float(after_balance)
+                if after_balance is not None
+                else None,
                 "resultStatus": result_status,
                 "errorCode": error_code,
                 "message": message,
@@ -225,7 +231,9 @@ class AuditLogRepository:
             )
         return result
 
-    def read_system_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[AuditLogEntry]:
+    def read_system_audit_rows(
+        self, owner_wallet: Optional[str] = None, limit: int = 200
+    ) -> List[AuditLogEntry]:
         sql = (
             "SELECT id, action_type, owner_address, actor, request_id, trace_id, "
             "resource_type, resource_id, result_status, error_code, ip_address, user_agent, detail_json, "

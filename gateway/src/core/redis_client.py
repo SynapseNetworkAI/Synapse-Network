@@ -22,7 +22,9 @@ async def get_redis_client() -> Optional[Any]:
         try:
             import redis.asyncio as redis_async  # type: ignore[import-not-found]
 
-            client = redis_async.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+            client = redis_async.from_url(
+                settings.redis_url, encoding="utf-8", decode_responses=True
+            )
             await client.ping()
             _redis_client = client
         except Exception:

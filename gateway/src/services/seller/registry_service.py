@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
-from src.domain.storage_entities import ServiceRegistryRow
+from src.domain.registry import ServiceRegistryRow
 from src.services.platform import service_health_service
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 import uuid
@@ -23,16 +23,28 @@ def _seller_short(owner_wallet: str) -> str:
 def _generate_service_id(owner_wallet: str) -> str:
     # Example: SVC_SA_0Z8K2F_7Q3N
     time36 = format(int(time.time() * 1000), "x")[-6:].upper()
-    rand4 = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+    rand4 = "".join(
+        random.choice(string.ascii_uppercase + string.digits) for _ in range(4)
+    )
     return f"SVC_{_seller_short(owner_wallet)}_{time36}_{rand4}"
 
 
-def _build_public_invoke(svc: Dict[str, Any], public_gateway_url: Optional[str]) -> Dict[str, Any]:
+def _build_public_invoke(
+    svc: Dict[str, Any], public_gateway_url: Optional[str]
+) -> Dict[str, Any]:
     invoke = svc.get("invoke") if isinstance(svc.get("invoke"), dict) else {}
     timeout_ms = int(invoke.get("timeoutMs") or settings.gateway_default_timeout_ms)
     method = str(invoke.get("method") or "POST").upper()
-    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
-    response_spec = invoke.get("response") if isinstance(invoke.get("response"), dict) else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
+    request_spec = (
+        invoke.get("request")
+        if isinstance(invoke.get("request"), dict)
+        else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
+    )
+    response_spec = (
+        invoke.get("response")
+        if isinstance(invoke.get("response"), dict)
+        else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
+    )
 
     gateway_url = str(public_gateway_url or "").strip()
     if not gateway_url:
@@ -53,7 +65,9 @@ def _build_public_invoke(svc: Dict[str, Any], public_gateway_url: Optional[str])
     }
 
 
-def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:
+def _normalize_service_payload(
+    req_data: Dict[str, Any], owner_wallet: str
+) -> Dict[str, Any]:
     def _as_int(raw: Any, fallback: int) -> int:
         try:
             return int(raw)
@@ -71,8 +85,12 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     invoke_method = str(invoke.get("method") or "POST").upper()
     if invoke_method != "POST":
         raise ValueError("invoke.method must be POST")
-    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
-    request_content_type = str(request_spec.get("contentType") or JSON_CONTENT_TYPE).strip().lower()
+    request_spec = (
+        invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
+    )
+    request_content_type = (
+        str(request_spec.get("contentType") or JSON_CONTENT_TYPE).strip().lower()
+    )
     if request_content_type != JSON_CONTENT_TYPE:
         raise ValueError("invoke.request.contentType must be application/json")
     targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
@@ -85,14 +103,20 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
         url = str(row.get("url") or "").strip()
         if not url:
             continue
-        normalized_targets.append({
-            "url": url,
-            "weight": int(row.get("weight") or 100),
-            "region": row.get("region"),
-        })
+        normalized_targets.append(
+            {
+                "url": url,
+                "weight": int(row.get("weight") or 100),
+                "region": row.get("region"),
+            }
+        )
     if not normalized_targets:
         raise ValueError("invoke.targets must contain valid URLs")
-    health_check = req_data.get("healthCheck") if isinstance(req_data.get("healthCheck"), dict) else {}
+    health_check = (
+        req_data.get("healthCheck")
+        if isinstance(req_data.get("healthCheck"), dict)
+        else {}
+    )
     if not health_check:
         raise ValueError("healthCheck is required")
     health_path = str(health_check.get("path") or "").strip()
@@ -100,11 +124,17 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
         raise ValueError("healthCheck.path is required")
     if not health_path.startswith("/"):
         health_path = f"/{health_path}"
-    constraints = req_data.get("constraints") if isinstance(req_data.get("constraints"), dict) else {}
+    constraints = (
+        req_data.get("constraints")
+        if isinstance(req_data.get("constraints"), dict)
+        else {}
+    )
     timeout_ms = _require_range(
         "constraints.timeoutMs",
         _as_int(
-            constraints.get("timeoutMs") or constraints.get("timeout_ms") or settings.gateway_default_timeout_ms,
+            constraints.get("timeoutMs")
+            or constraints.get("timeout_ms")
+            or settings.gateway_default_timeout_ms,
             settings.gateway_default_timeout_ms,
         ),
         settings.gateway_min_timeout_ms,
@@ -113,7 +143,9 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     max_request_bytes = _require_range(
         "constraints.maxRequestBytes",
         _as_int(
-            constraints.get("maxRequestBytes") or constraints.get("max_request_bytes") or settings.gateway_default_request_bytes,
+            constraints.get("maxRequestBytes")
+            or constraints.get("max_request_bytes")
+            or settings.gateway_default_request_bytes,
             settings.gateway_default_request_bytes,
         ),
         settings.gateway_min_request_bytes,
@@ -122,7 +154,9 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     max_response_bytes = _require_range(
         "constraints.maxResponseBytes",
         _as_int(
-            constraints.get("maxResponseBytes") or constraints.get("max_response_bytes") or settings.gateway_default_response_bytes,
+            constraints.get("maxResponseBytes")
+            or constraints.get("max_response_bytes")
+            or settings.gateway_default_response_bytes,
             settings.gateway_default_response_bytes,
         ),
         settings.gateway_min_response_bytes,
@@ -131,7 +165,9 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     max_qps = _require_range(
         "constraints.maxQps",
         _as_int(
-            constraints.get("maxQps") or constraints.get("max_qps") or settings.gateway_default_service_qps,
+            constraints.get("maxQps")
+            or constraints.get("max_qps")
+            or settings.gateway_default_service_qps,
             settings.gateway_default_service_qps,
         ),
         settings.gateway_min_service_qps,
@@ -146,8 +182,16 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     elif pricing_value is not None:
         pricing_amount = str(pricing_value)
     endpoint = str(normalized_targets[0].get("url") or "").strip()
-    service_name = str(req_data.get("serviceName") or req_data.get("service_name") or "").strip()
-    tags = req_data.get("tags") if isinstance(req_data.get("tags"), list) else req_data.get("intent") if isinstance(req_data.get("intent"), list) else []
+    service_name = str(
+        req_data.get("serviceName") or req_data.get("service_name") or ""
+    ).strip()
+    tags = (
+        req_data.get("tags")
+        if isinstance(req_data.get("tags"), list)
+        else req_data.get("intent")
+        if isinstance(req_data.get("intent"), list)
+        else []
+    )
 
     normalized = {
         **req_data,
@@ -155,14 +199,19 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
         "ownerAddress": owner_wallet,
         "name": service_name,
         "serviceName": service_name,
-        "summary": str(req_data.get("summary") or req_data.get("description") or "").strip(),
+        "summary": str(
+            req_data.get("summary") or req_data.get("description") or ""
+        ).strip(),
         "tags": tags,
         "pricing": pricing_amount,
         "pricingCurrency": pricing_currency,
         "endpoint": endpoint,
         "role": str(req_data.get("role") or "Provider / Seller"),
         "address": str(req_data.get("address") or owner_wallet),
-        "status": str(req_data.get("status") or ("active" if req_data.get("isActive", True) else "inactive")),
+        "status": str(
+            req_data.get("status")
+            or ("active" if req_data.get("isActive", True) else "inactive")
+        ),
         "isActive": bool(req_data.get("isActive", True)),
         "healthCheck": {
             **health_check,
@@ -174,17 +223,23 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
             "maxRequestBytes": max_request_bytes,
             "maxQps": max_qps,
         },
-        "forwarding": req_data.get("forwarding") if isinstance(req_data.get("forwarding"), dict) else {
+        "forwarding": req_data.get("forwarding")
+        if isinstance(req_data.get("forwarding"), dict)
+        else {
             "requestIdHeader": "X-Synapse-Request-Id",
             "passThroughHeaders": ["X-Trace-Id", "X-Client-Version"],
-            "injectHeaders": {"X-Synapse-Service-Id": str(req_data.get("serviceId") or "")},
+            "injectHeaders": {
+                "X-Synapse-Service-Id": str(req_data.get("serviceId") or "")
+            },
             "retryPolicy": {
                 "maxAttempts": 2,
                 "backoffMs": 200,
                 "retryOnStatus": [429, 500, 502, 503, 504],
             },
         },
-        "metering": req_data.get("metering") if isinstance(req_data.get("metering"), dict) else {
+        "metering": req_data.get("metering")
+        if isinstance(req_data.get("metering"), dict)
+        else {
             "billingUnit": "per_call",
             "billOnError": False,
             "billableStatusClasses": [2],
@@ -202,8 +257,16 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
 
 def _bind_forwarding_service_id(service_payload: Dict[str, Any]) -> Dict[str, Any]:
     service_id = str(service_payload.get("serviceId") or "").strip()
-    forwarding = service_payload.get("forwarding") if isinstance(service_payload.get("forwarding"), dict) else {}
-    inject_headers = forwarding.get("injectHeaders") if isinstance(forwarding.get("injectHeaders"), dict) else {}
+    forwarding = (
+        service_payload.get("forwarding")
+        if isinstance(service_payload.get("forwarding"), dict)
+        else {}
+    )
+    inject_headers = (
+        forwarding.get("injectHeaders")
+        if isinstance(forwarding.get("injectHeaders"), dict)
+        else {}
+    )
     if not service_id:
         return service_payload
     forwarding["injectHeaders"] = {
@@ -212,6 +275,7 @@ def _bind_forwarding_service_id(service_payload: Dict[str, Any]) -> Dict[str, An
     }
     service_payload["forwarding"] = forwarding
     return service_payload
+
 
 class RegistryService:
     def __init__(self, storage: BaseStorage):
@@ -225,7 +289,11 @@ class RegistryService:
 
         index: Dict[str, Dict[str, Any]] = {}
         for row in rows:
-            payload = row.model_dump(by_alias=True) if isinstance(row, ServiceTargetHealth) else row
+            payload = (
+                row.model_dump(by_alias=True)
+                if isinstance(row, ServiceTargetHealth)
+                else row
+            )
             if not isinstance(payload, dict):
                 continue
             service_id = str(payload.get("serviceId") or "").strip()
@@ -264,7 +332,9 @@ class RegistryService:
                 bucket["overallStatus"] = overall_status
 
         for bucket in index.values():
-            targets = bucket.get("targets") if isinstance(bucket.get("targets"), dict) else {}
+            targets = (
+                bucket.get("targets") if isinstance(bucket.get("targets"), dict) else {}
+            )
             healthy_count = 0
             for target in targets.values():
                 if str((target or {}).get("status") or "").lower() == "healthy":
@@ -272,7 +342,10 @@ class RegistryService:
             total_targets = len(targets)
             bucket["healthyTargets"] = healthy_count
             bucket["totalTargets"] = total_targets
-            if not bucket.get("overallStatus") or str(bucket.get("overallStatus")).lower() == "unknown":
+            if (
+                not bucket.get("overallStatus")
+                or str(bucket.get("overallStatus")).lower() == "unknown"
+            ):
                 if total_targets <= 0:
                     bucket["overallStatus"] = "unknown"
                 elif healthy_count == total_targets:
@@ -284,7 +357,9 @@ class RegistryService:
         return index
 
     def _load_service_registry_rows(self) -> List[Dict[str, Any]]:
-        raw_rows = self.storage.get_data_manager().system.registry.read_service_registry_rows()
+        raw_rows = (
+            self.storage.get_data_manager().system.registry.read_service_registry_rows()
+        )
         health_index = self._health_index_by_service_id()
         rows: List[Dict[str, Any]] = []
         if not isinstance(raw_rows, list):
@@ -319,11 +394,21 @@ class RegistryService:
                     "targets": dict(health.get("targets") or {}),
                 }
 
-                existing_invoke = payload.get("invoke") if isinstance(payload.get("invoke"), dict) else {}
-                existing_targets = existing_invoke.get("targets") if isinstance(existing_invoke.get("targets"), list) else []
+                existing_invoke = (
+                    payload.get("invoke")
+                    if isinstance(payload.get("invoke"), dict)
+                    else {}
+                )
+                existing_targets = (
+                    existing_invoke.get("targets")
+                    if isinstance(existing_invoke.get("targets"), list)
+                    else []
+                )
                 if not existing_targets:
                     targets: List[Dict[str, Any]] = []
-                    for target_url, target_payload in (health.get("targets") or {}).items():
+                    for target_url, target_payload in (
+                        health.get("targets") or {}
+                    ).items():
                         if not isinstance(target_payload, dict):
                             continue
                         targets.append(
@@ -336,7 +421,10 @@ class RegistryService:
                     payload["invoke"] = {
                         "method": "POST",
                         "targets": targets,
-                        "timeoutMs": int(payload["constraints"].get("timeoutMs") or settings.gateway_default_timeout_ms),
+                        "timeoutMs": int(
+                            payload["constraints"].get("timeoutMs")
+                            or settings.gateway_default_timeout_ms
+                        ),
                         "request": {"contentType": JSON_CONTENT_TYPE, "schema": {}},
                         "response": {"contentType": JSON_CONTENT_TYPE, "schema": {}},
                     }
@@ -357,7 +445,11 @@ class RegistryService:
             if not isinstance(row, dict):
                 continue
             pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
-            constraints = row.get("constraints") if isinstance(row.get("constraints"), dict) else {}
+            constraints = (
+                row.get("constraints")
+                if isinstance(row.get("constraints"), dict)
+                else {}
+            )
             typed_rows.append(
                 ServiceRegistryRow(
                     serviceId=str(row.get("serviceId") or "").strip(),
@@ -369,15 +461,31 @@ class RegistryService:
                     isActive=bool(row.get("isActive", True)),
                     pricingAmount=str(pricing.get("amount") or 0),
                     pricingCurrency=str(pricing.get("currency") or "USDC"),
-                    timeoutMs=int(constraints.get("timeoutMs") or row.get("timeoutMs") or 15000),
+                    timeoutMs=int(
+                        constraints.get("timeoutMs") or row.get("timeoutMs") or 15000
+                    ),
                     maxQps=int(constraints.get("maxQps") or row.get("maxQps") or 100),
-                    maxRequestBytes=int(constraints.get("maxRequestBytes") or row.get("maxRequestBytes") or 262144),
-                    maxResponseBytes=int(constraints.get("maxResponseBytes") or row.get("maxResponseBytes") or 262144),
+                    maxRequestBytes=int(
+                        constraints.get("maxRequestBytes")
+                        or row.get("maxRequestBytes")
+                        or 262144
+                    ),
+                    maxResponseBytes=int(
+                        constraints.get("maxResponseBytes")
+                        or row.get("maxResponseBytes")
+                        or 262144
+                    ),
                     id=str(row.get("id") or "") or None,
-                    schemaVersion=int(row.get("schemaVersion")) if row.get("schemaVersion") is not None else None,
+                    schemaVersion=int(row.get("schemaVersion"))
+                    if row.get("schemaVersion") is not None
+                    else None,
                     role=str(row.get("role") or "") or None,
                     address=str(row.get("address") or "") or None,
-                    tags=[str(tag) for tag in (row.get("tags") or []) if isinstance(tag, (str, int, float))],
+                    tags=[
+                        str(tag)
+                        for tag in (row.get("tags") or [])
+                        if isinstance(tag, (str, int, float))
+                    ],
                     auth=dict(row.get("auth") or {}),
                     healthCheck=dict(row.get("healthCheck") or {}),
                     forwarding=dict(row.get("forwarding") or {}),
@@ -389,10 +497,16 @@ class RegistryService:
             )
         repo.write_service_registry_rows(typed_rows)
 
-    def _load_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
-        return list(self.storage.get_data_manager().system.registry.read_service_target_health_history_rows())
+    def _load_service_target_health_history_rows(
+        self,
+    ) -> List[ServiceTargetHealthHistory]:
+        return list(
+            self.storage.get_data_manager().system.registry.read_service_target_health_history_rows()
+        )
 
-    async def register_service(self, req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:
+    async def register_service(
+        self, req_data: Dict[str, Any], owner_wallet: str
+    ) -> Dict[str, Any]:
         """
         [网关防弹层] 注册新的 AI Service
         """
@@ -406,21 +520,32 @@ class RegistryService:
             new_svc["createdAt"] = now_dt_str()
             new_svc["updatedAt"] = new_svc["createdAt"]
             new_svc = await service_health_service.probe_service_health(new_svc)
-            
+
             rows.append(new_svc)
             self._save_service_registry_rows(rows)
             service_health_service.sync_service_target_health_table(self.storage, rows)
             return new_svc
 
-    async def update_service(self, service_record_id: str, req_data: Dict[str, Any], owner_wallet: str) -> Optional[Dict[str, Any]]:
+    async def update_service(
+        self, service_record_id: str, req_data: Dict[str, Any], owner_wallet: str
+    ) -> Optional[Dict[str, Any]]:
         """
         [网关防弹层] 更新现有的 AI Service
         """
         async with self._lock:
             rows = self._load_service_registry_rows()
             for i, svc in enumerate(rows):
-                if svc.get("serviceId") == service_record_id and svc.get("ownerAddress") == owner_wallet:
-                    blocked = {"id", "serviceId", "ownerAddress", "createdAt", "schemaVersion"}
+                if (
+                    svc.get("serviceId") == service_record_id
+                    and svc.get("ownerAddress") == owner_wallet
+                ):
+                    blocked = {
+                        "id",
+                        "serviceId",
+                        "ownerAddress",
+                        "createdAt",
+                        "schemaVersion",
+                    }
                     safe_patch = {k: v for k, v in req_data.items() if k not in blocked}
                     updated = {**svc, **safe_patch}
                     updated = _normalize_service_payload(updated, owner_wallet)
@@ -433,7 +558,9 @@ class RegistryService:
                     updated = await service_health_service.probe_service_health(updated)
                     rows[i] = updated
                     self._save_service_registry_rows(rows)
-                    service_health_service.sync_service_target_health_table(self.storage, rows)
+                    service_health_service.sync_service_target_health_table(
+                        self.storage, rows
+                    )
                     return updated
             return None
 
@@ -442,8 +569,12 @@ class RegistryService:
             rows = self._load_service_registry_rows()
             original_len = len(rows)
             rows = [
-                r for r in rows
-                if not (r.get("serviceId") == service_record_id and r.get("ownerAddress") == owner_wallet)
+                r
+                for r in rows
+                if not (
+                    r.get("serviceId") == service_record_id
+                    and r.get("ownerAddress") == owner_wallet
+                )
             ]
             if len(rows) == original_len:
                 return False
@@ -452,26 +583,37 @@ class RegistryService:
             service_health_service.prune_health_history(self.storage)
             return True
 
-    async def has_owner_service(self, service_record_id: str, owner_wallet: str) -> bool:
+    async def has_owner_service(
+        self, service_record_id: str, owner_wallet: str
+    ) -> bool:
         rows = self._load_service_registry_rows()
         for svc in rows:
-            if svc.get("serviceId") == service_record_id and svc.get("ownerAddress") == owner_wallet:
+            if (
+                svc.get("serviceId") == service_record_id
+                and svc.get("ownerAddress") == owner_wallet
+            ):
                 return True
         return False
 
-    async def discover_services(self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def discover_services(
+        self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         rows = self._load_service_registry_rows()
-        available_services = [row for row in rows if service_health_service.is_service_discoverable(row)]
-        
+        available_services = [
+            row for row in rows if service_health_service.is_service_discoverable(row)
+        ]
+
         if intent:
             intent_lower = intent.lower()
             matched_services = []
             for svc in available_services:
-                searchable_text = " ".join([
-                    str(svc.get("serviceName", "")).lower(),
-                    str(svc.get("summary", "")).lower(),
-                    " ".join(str(t).lower() for t in svc.get("tags", []))
-                ])
+                searchable_text = " ".join(
+                    [
+                        str(svc.get("serviceName", "")).lower(),
+                        str(svc.get("summary", "")).lower(),
+                        " ".join(str(t).lower() for t in svc.get("tags", [])),
+                    ]
+                )
                 if intent_lower in searchable_text:
                     matched_services.append(svc)
             available_services = matched_services
@@ -502,11 +644,15 @@ class RegistryService:
             enriched = dict(svc)
             enriched["status"] = service_health_service.public_discover_status(svc)
             enriched["health"] = service_health_service.public_health_summary(svc)
-            enriched["runtimeAvailable"] = service_health_service.is_service_discoverable(svc)
+            enriched["runtimeAvailable"] = (
+                service_health_service.is_service_discoverable(svc)
+            )
             owner_rows.append(enriched)
         return owner_rows
 
-    async def health_status(self, intent: Optional[str] = None, include_inactive: bool = False) -> List[Dict[str, Any]]:
+    async def health_status(
+        self, intent: Optional[str] = None, include_inactive: bool = False
+    ) -> List[Dict[str, Any]]:
         rows = self._load_service_registry_rows()
         scoped = []
         for row in rows:
@@ -520,11 +666,13 @@ class RegistryService:
             intent_lower = intent.lower()
             filtered = []
             for svc in scoped:
-                searchable_text = " ".join([
-                    str(svc.get("serviceName", "")).lower(),
-                    str(svc.get("summary", "")).lower(),
-                    " ".join(str(t).lower() for t in svc.get("tags", [])),
-                ])
+                searchable_text = " ".join(
+                    [
+                        str(svc.get("serviceName", "")).lower(),
+                        str(svc.get("summary", "")).lower(),
+                        " ".join(str(t).lower() for t in svc.get("tags", [])),
+                    ]
+                )
                 if intent_lower in searchable_text:
                     filtered.append(svc)
             scoped = filtered
@@ -551,7 +699,11 @@ class RegistryService:
         rows = self._load_service_registry_rows()
         service_row = None
         for row in rows:
-            if isinstance(row, dict) and row.get("serviceId") == service_record_id and row.get("ownerAddress") == owner_wallet:
+            if (
+                isinstance(row, dict)
+                and row.get("serviceId") == service_record_id
+                and row.get("ownerAddress") == owner_wallet
+            ):
                 service_row = row
                 break
         if service_row is None:
@@ -587,7 +739,9 @@ class RegistryService:
         normalized_limit = max(1, min(int(limit_per_target), 2000))
         targets = []
         for target_url, entries in per_target.items():
-            sorted_entries = sorted(entries, key=lambda item: int(item.get("checkedAt") or 0), reverse=True)
+            sorted_entries = sorted(
+                entries, key=lambda item: int(item.get("checkedAt") or 0), reverse=True
+            )
             latest = sorted_entries[0] if sorted_entries else None
             targets.append(
                 {

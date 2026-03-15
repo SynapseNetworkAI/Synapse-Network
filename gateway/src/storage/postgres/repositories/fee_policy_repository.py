@@ -15,9 +15,13 @@ class FeePolicyRepository:
 
     def get_platform_fee_policy(self) -> FeePolicyEntity:
         with self._db.readonly_cursor() as cur:
-            cur.execute("SELECT default_rate, updated_at, updated_by FROM synapse_platform_fee_policy_default WHERE singleton_id = 1")
+            cur.execute(
+                "SELECT default_rate, updated_at, updated_by FROM synapse_platform_fee_policy_default WHERE singleton_id = 1"
+            )
             default_row = cur.fetchone()
-            cur.execute("SELECT owner_address, fee_rate FROM synapse_platform_fee_policy_owner")
+            cur.execute(
+                "SELECT owner_address, fee_rate FROM synapse_platform_fee_policy_owner"
+            )
             owner_rows = cur.fetchall()
 
         default_rate = 0.0
@@ -25,7 +29,9 @@ class FeePolicyRepository:
         updated_by = None
         if default_row is not None:
             default_rate = float(self._q6(default_row[0]))
-            updated_at = to_dt_str(default_row[1]) if default_row[1] is not None else None
+            updated_at = (
+                to_dt_str(default_row[1]) if default_row[1] is not None else None
+            )
             updated_by = default_row[2]
 
         owner_rates: Dict[str, float] = {}
@@ -39,7 +45,13 @@ class FeePolicyRepository:
             updated_by=updated_by,
         )
 
-    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, float], updated_by: str, updated_at: str | int) -> None:
+    def set_platform_fee_policy(
+        self,
+        default_rate: float,
+        owner_rates: Dict[str, float],
+        updated_by: str,
+        updated_at: str | int,
+    ) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
@@ -48,7 +60,11 @@ class FeePolicyRepository:
                 ON CONFLICT (singleton_id)
                 DO UPDATE SET default_rate = EXCLUDED.default_rate, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
                 """,
-                (str(self._q6(default_rate)), to_dt_str(updated_at, now_dt_str()), str(updated_by or "")),
+                (
+                    str(self._q6(default_rate)),
+                    to_dt_str(updated_at, now_dt_str()),
+                    str(updated_by or ""),
+                ),
             )
             cur.execute("DELETE FROM synapse_platform_fee_policy_owner")
             for owner, fee_rate in (owner_rates or {}).items():

@@ -4,13 +4,13 @@ import json
 from typing import Any, Callable, List
 
 from src.domain.gateway import RouterConfigRow
-from src.domain.storage_entities import (
+from src.domain.finance import (
     DepositIntentRow,
-    ProcessedDepositEventRow,
     RefundIntentRow,
     UsageLogRow,
     WithdrawalIntentRow,
 )
+from src.domain.system import ProcessedDepositEventRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -111,7 +111,9 @@ class GatewayStateRepository:
             for row_id, owner, tx_hash, status, request_id, buyer_address, amount_usdc, idempotency_key, created_at, updated_at in rows
         ]
 
-    def write_refund_intents(self, rows: List[RefundIntentRow], updated_at: str | int) -> None:
+    def write_refund_intents(
+        self, rows: List[RefundIntentRow], updated_at: str | int
+    ) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_refund_intents")
             for row in rows:
@@ -200,7 +202,9 @@ class GatewayStateRepository:
             ) in rows
         ]
 
-    def write_withdrawal_intents(self, rows: List[WithdrawalIntentRow], updated_at: str | int) -> None:
+    def write_withdrawal_intents(
+        self, rows: List[WithdrawalIntentRow], updated_at: str | int
+    ) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_withdrawal_intents")
             for row in rows:
@@ -253,7 +257,9 @@ class GatewayStateRepository:
 
     def read_router_config_rows(self) -> List[RouterConfigRow]:
         with self._db.readonly_cursor() as cur:
-            cur.execute("SELECT owner_address, daily_limit_usdc, created_at, updated_at FROM synapse_router_config ORDER BY updated_at DESC")
+            cur.execute(
+                "SELECT owner_address, daily_limit_usdc, created_at, updated_at FROM synapse_router_config ORDER BY updated_at DESC"
+            )
             rows = cur.fetchall()
         return [
             RouterConfigRow(
@@ -265,7 +271,9 @@ class GatewayStateRepository:
             for owner, limit, created, updated in rows
         ]
 
-    def write_router_config_rows(self, rows: List[RouterConfigRow], updated_at: str | int) -> None:
+    def write_router_config_rows(
+        self, rows: List[RouterConfigRow], updated_at: str | int
+    ) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_router_config")
             for row in rows:
@@ -304,9 +312,13 @@ class GatewayStateRepository:
                 sellerAddress=seller,
                 status=status,
                 unitPrice=self._q6(unit_price) if unit_price is not None else None,
-                protocolFee=self._q6(protocol_fee) if protocol_fee is not None else None,
+                protocolFee=self._q6(protocol_fee)
+                if protocol_fee is not None
+                else None,
                 routingTax=self._q6(routing_tax) if routing_tax is not None else None,
-                totalCharge=self._q6(total_charge) if total_charge is not None else None,
+                totalCharge=self._q6(total_charge)
+                if total_charge is not None
+                else None,
                 businessType=str(business_type or "charge"),
                 riskLevel=str(risk_level or "green"),
             )
@@ -361,10 +373,18 @@ class GatewayStateRepository:
                         row.buyer_address.lower() if row.buyer_address else None,
                         row.seller_address.lower() if row.seller_address else None,
                         row.status,
-                        str(self._q6(row.unit_price)) if row.unit_price is not None else None,
-                        str(self._q6(row.protocol_fee)) if row.protocol_fee is not None else None,
-                        str(self._q6(row.routing_tax)) if row.routing_tax is not None else None,
-                        str(self._q6(row.total_charge)) if row.total_charge is not None else None,
+                        str(self._q6(row.unit_price))
+                        if row.unit_price is not None
+                        else None,
+                        str(self._q6(row.protocol_fee))
+                        if row.protocol_fee is not None
+                        else None,
+                        str(self._q6(row.routing_tax))
+                        if row.routing_tax is not None
+                        else None,
+                        str(self._q6(row.total_charge))
+                        if row.total_charge is not None
+                        else None,
                         row.business_type,
                         row.risk_level,
                     ),
@@ -372,18 +392,25 @@ class GatewayStateRepository:
 
     def read_processed_deposit_event_keys(self) -> List[str]:
         with self._db.readonly_cursor() as cur:
-            cur.execute("SELECT dedup_key FROM synapse_processed_deposit_events ORDER BY updated_at DESC")
+            cur.execute(
+                "SELECT dedup_key FROM synapse_processed_deposit_events ORDER BY updated_at DESC"
+            )
             rows = cur.fetchall()
         return [str(row[0]) for row in rows if row and row[0] is not None]
 
-    def write_processed_deposit_event_keys(self, keys: List[str], updated_at: str | int) -> None:
+    def write_processed_deposit_event_keys(
+        self, keys: List[str], updated_at: str | int
+    ) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_processed_deposit_events")
             for key in keys:
                 dedup_key = str(key or "").strip()
                 if not dedup_key:
                     continue
-                entity = ProcessedDepositEventRow(dedupKey=dedup_key, updatedAt=to_dt_str(updated_at, now_dt_str()) or now_dt_str())
+                entity = ProcessedDepositEventRow(
+                    dedupKey=dedup_key,
+                    updatedAt=to_dt_str(updated_at, now_dt_str()) or now_dt_str(),
+                )
                 cur.execute(
                     "INSERT INTO synapse_processed_deposit_events (dedup_key, updated_at) VALUES (%s, %s)",
                     (entity.dedup_key, entity.updated_at),

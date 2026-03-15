@@ -26,8 +26,14 @@ def normalize_service_row(row: Any) -> Any:
             }
         )
 
-    endpoint = str(normalized_targets[0].get("url") or "").strip() if normalized_targets else ""
-    health_check = row.get("healthCheck") if isinstance(row.get("healthCheck"), dict) else {}
+    endpoint = (
+        str(normalized_targets[0].get("url") or "").strip()
+        if normalized_targets
+        else ""
+    )
+    health_check = (
+        row.get("healthCheck") if isinstance(row.get("healthCheck"), dict) else {}
+    )
     path = str(health_check.get("path") or "/health").strip() or "/health"
     if not path.startswith("/"):
         path = f"/{path}"
@@ -38,7 +44,8 @@ def normalize_service_row(row: Any) -> Any:
         "name": service_name,
         "serviceName": service_name,
         "endpoint": endpoint,
-        "status": row.get("status") or ("active" if row.get("isActive", True) else "inactive"),
+        "status": row.get("status")
+        or ("active" if row.get("isActive", True) else "inactive"),
         "constraints": row.get("constraints")
         if isinstance(row.get("constraints"), dict)
         else {

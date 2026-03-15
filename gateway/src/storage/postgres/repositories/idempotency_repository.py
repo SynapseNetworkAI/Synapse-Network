@@ -4,7 +4,7 @@ import time
 from typing import Any, List
 
 from src.domain.idempotency import IdempotencyRow, RateLimitRow
-from src.domain.storage_entities import FinanceRateLimitRow, IdempotencyKeyRow
+from src.domain.idempotency import FinanceRateLimitRow, IdempotencyKeyRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -28,9 +28,28 @@ class IdempotencyRepository:
         result: List[IdempotencyKeyRow] = []
         for row in rows:
             if len(row) == 9:
-                row_id, scope, owner, key, req_hash, response_code, response_digest, created_at, expires_at = row
+                (
+                    row_id,
+                    scope,
+                    owner,
+                    key,
+                    req_hash,
+                    response_code,
+                    response_digest,
+                    created_at,
+                    expires_at,
+                ) = row
             elif len(row) == 8:
-                row_id, scope, owner, key, req_hash, response_obj, created_at, expires_at = row
+                (
+                    row_id,
+                    scope,
+                    owner,
+                    key,
+                    req_hash,
+                    response_obj,
+                    created_at,
+                    expires_at,
+                ) = row
                 if isinstance(response_obj, dict):
                     response_code = str(response_obj.get("code") or "") or None
                     response_digest = str(response_obj.get("digest") or "") or None
@@ -65,8 +84,10 @@ class IdempotencyRepository:
                         ownerAddress=row.owner_address,
                         idempotencyKey=row.idempotency_key,
                         requestHash=row.request_hash,
-                        responseCode=str((row.response or {}).get("code") or "") or None,
-                        responseDigest=str((row.response or {}).get("digest") or "") or None,
+                        responseCode=str((row.response or {}).get("code") or "")
+                        or None,
+                        responseDigest=str((row.response or {}).get("digest") or "")
+                        or None,
                         createdAt=row.created_at,
                         expiresAt=row.expires_at,
                     )
@@ -74,8 +95,13 @@ class IdempotencyRepository:
                     row = IdempotencyKeyRow.model_validate(row)
                 if not isinstance(row, IdempotencyKeyRow):
                     continue
-                row_id = row.id.strip() or f"idem-{int(time.time()*1000)}"
-                if not row.owner_address or not row.scope or not row.idempotency_key or not row.request_hash:
+                row_id = row.id.strip() or f"idem-{int(time.time() * 1000)}"
+                if (
+                    not row.owner_address
+                    or not row.scope
+                    or not row.idempotency_key
+                    or not row.request_hash
+                ):
                     continue
                 cur.execute(
                     """
@@ -99,7 +125,9 @@ class IdempotencyRepository:
 
     def read_rate_limit_rows(self) -> List[FinanceRateLimitRow]:
         with self._db.readonly_cursor() as cur:
-            cur.execute("SELECT id, owner_address, action, window_start, count, updated_at FROM synapse_finance_rate_limit")
+            cur.execute(
+                "SELECT id, owner_address, action, window_start, count, updated_at FROM synapse_finance_rate_limit"
+            )
             rows = cur.fetchall()
         return [
             FinanceRateLimitRow(
@@ -132,7 +160,7 @@ class IdempotencyRepository:
                     continue
                 if not row.owner_address or not row.action:
                     continue
-                row_id = row.id or f"rl-{int(time.time()*1000)}"
+                row_id = row.id or f"rl-{int(time.time() * 1000)}"
                 cur.execute(
                     "INSERT INTO synapse_finance_rate_limit (id, owner_address, action, window_start, count, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
                     (

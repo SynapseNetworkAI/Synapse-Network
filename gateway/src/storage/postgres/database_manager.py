@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, Optional
+from typing import Any, Callable, Generator
 
 
 class DatabaseManager:

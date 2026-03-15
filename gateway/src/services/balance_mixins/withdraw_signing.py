@@ -33,7 +33,9 @@ USDC_DECIMALS = 18
 
 class BalanceWithdrawSigningMixin:
     def _resolve_withdraw_deadline_sec(self) -> int:
-        raw = getattr(settings, "provider_withdraw_deadline_sec", WITHDRAW_DEADLINE_SEC_DEFAULT)
+        raw = getattr(
+            settings, "provider_withdraw_deadline_sec", WITHDRAW_DEADLINE_SEC_DEFAULT
+        )
         try:
             parsed = int(raw)
         except Exception:
@@ -60,13 +62,22 @@ class BalanceWithdrawSigningMixin:
         if Web3 is None:
             raise HTTPException(
                 status_code=500,
-                detail={"code": "CHAIN_SDK_NOT_INSTALLED", "message": "web3 dependency is required for withdrawal signing."},
+                detail={
+                    "code": "CHAIN_SDK_NOT_INSTALLED",
+                    "message": "web3 dependency is required for withdrawal signing.",
+                },
             )
         contract_address = normalize_wallet(settings.router_address)
-        if not contract_address or contract_address == "0x0000000000000000000000000000000000000000":
+        if (
+            not contract_address
+            or contract_address == "0x0000000000000000000000000000000000000000"
+        ):
             raise HTTPException(
                 status_code=500,
-                detail={"code": "WITHDRAW_CONTRACT_NOT_CONFIGURED", "message": "ROUTER_ADDRESS/SynapseCore address is not configured."},
+                detail={
+                    "code": "WITHDRAW_CONTRACT_NOT_CONFIGURED",
+                    "message": "ROUTER_ADDRESS/SynapseCore address is not configured.",
+                },
             )
         try:
             provider = Web3(Web3.HTTPProvider(settings.rpc_url))
@@ -76,9 +87,13 @@ class BalanceWithdrawSigningMixin:
                 address=Web3.to_checksum_address(contract_address),
                 abi=[
                     {
-                        "inputs": [{"internalType": "address", "name": "", "type": "address"}],
+                        "inputs": [
+                            {"internalType": "address", "name": "", "type": "address"}
+                        ],
                         "name": "userNonces",
-                        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                        "outputs": [
+                            {"internalType": "uint256", "name": "", "type": "uint256"}
+                        ],
                         "stateMutability": "view",
                         "type": "function",
                     }
@@ -90,7 +105,10 @@ class BalanceWithdrawSigningMixin:
         except Exception:
             raise HTTPException(
                 status_code=503,
-                detail={"code": "CHAIN_RPC_UNAVAILABLE", "message": "Unable to reach chain RPC for withdrawal nonce."},
+                detail={
+                    "code": "CHAIN_RPC_UNAVAILABLE",
+                    "message": "Unable to reach chain RPC for withdrawal nonce.",
+                },
             )
 
     def _build_withdraw_typed_data(
@@ -104,9 +122,13 @@ class BalanceWithdrawSigningMixin:
         chain_id: int,
         verifying_contract: str,
     ) -> Dict[str, Any]:
-        checksum_owner = Web3.to_checksum_address(owner_wallet) if Web3 is not None else owner_wallet
+        checksum_owner = (
+            Web3.to_checksum_address(owner_wallet) if Web3 is not None else owner_wallet
+        )
         checksum_contract = (
-            Web3.to_checksum_address(verifying_contract) if Web3 is not None else verifying_contract
+            Web3.to_checksum_address(verifying_contract)
+            if Web3 is not None
+            else verifying_contract
         )
         return {
             "types": {
@@ -140,11 +162,16 @@ class BalanceWithdrawSigningMixin:
             },
         }
 
-    def _sign_withdraw_ticket(self, typed_data: Dict[str, Any], private_key: str) -> str:
+    def _sign_withdraw_ticket(
+        self, typed_data: Dict[str, Any], private_key: str
+    ) -> str:
         if Account is None:
             raise HTTPException(
                 status_code=500,
-                detail={"code": "CHAIN_SDK_NOT_INSTALLED", "message": "eth-account dependency is required for withdrawal signing."},
+                detail={
+                    "code": "CHAIN_SDK_NOT_INSTALLED",
+                    "message": "eth-account dependency is required for withdrawal signing.",
+                },
             )
         if encode_typed_data is not None:
             signable = encode_typed_data(full_message=typed_data)
@@ -153,7 +180,10 @@ class BalanceWithdrawSigningMixin:
         else:
             raise HTTPException(
                 status_code=500,
-                detail={"code": "CHAIN_SDK_NOT_INSTALLED", "message": "eth-account typed-data encoder is unavailable."},
+                detail={
+                    "code": "CHAIN_SDK_NOT_INSTALLED",
+                    "message": "eth-account typed-data encoder is unavailable.",
+                },
             )
         signed = Account.sign_message(signable, private_key=private_key)
         return str(signed.signature.hex())
@@ -167,6 +197,9 @@ class BalanceWithdrawSigningMixin:
         except Exception:
             raise HTTPException(
                 status_code=503,
-                detail={"code": "CHAIN_RPC_UNAVAILABLE", "message": "Unable to query nonce/chainId for withdrawal."},
+                detail={
+                    "code": "CHAIN_RPC_UNAVAILABLE",
+                    "message": "Unable to query nonce/chainId for withdrawal.",
+                },
             )
         return nonce, chain_id

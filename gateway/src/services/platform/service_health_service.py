@@ -8,7 +8,7 @@ import httpx
 
 from src.core.config import settings
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
-from src.domain.storage_entities import ServiceRegistryRow
+from src.domain.registry import ServiceRegistryRow
 from src.storage.base import BaseStorage
 
 logger = logging.getLogger(__name__)
@@ -24,10 +24,16 @@ def _service_entity_to_dict(row: ServiceRegistryRow) -> Dict[str, Any]:
         "currency": str(payload.get("pricingCurrency") or "USDC"),
     }
     payload["constraints"] = {
-        "timeoutMs": int(payload.get("timeoutMs") or settings.gateway_default_timeout_ms),
+        "timeoutMs": int(
+            payload.get("timeoutMs") or settings.gateway_default_timeout_ms
+        ),
         "maxQps": int(payload.get("maxQps") or settings.gateway_default_service_qps),
-        "maxRequestBytes": int(payload.get("maxRequestBytes") or settings.gateway_default_request_bytes),
-        "maxResponseBytes": int(payload.get("maxResponseBytes") or settings.gateway_default_response_bytes),
+        "maxRequestBytes": int(
+            payload.get("maxRequestBytes") or settings.gateway_default_request_bytes
+        ),
+        "maxResponseBytes": int(
+            payload.get("maxResponseBytes") or settings.gateway_default_response_bytes
+        ),
     }
     endpoint = str(payload.get("endpoint") or "").strip()
     payload.setdefault(
@@ -47,7 +53,11 @@ def _service_entity_to_dict(row: ServiceRegistryRow) -> Dict[str, Any]:
 
 def _service_dict_to_entity(service: Dict[str, Any]) -> ServiceRegistryRow:
     pricing = service.get("pricing") if isinstance(service.get("pricing"), dict) else {}
-    constraints = service.get("constraints") if isinstance(service.get("constraints"), dict) else {}
+    constraints = (
+        service.get("constraints")
+        if isinstance(service.get("constraints"), dict)
+        else {}
+    )
     invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
     targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
     endpoint = str(service.get("endpoint") or "").strip()
@@ -63,15 +73,37 @@ def _service_dict_to_entity(service: Dict[str, Any]) -> ServiceRegistryRow:
         isActive=bool(service.get("isActive", True)),
         pricingAmount=str(pricing.get("amount") or 0),
         pricingCurrency=str(pricing.get("currency") or "USDC"),
-        timeoutMs=int(constraints.get("timeoutMs") or service.get("timeoutMs") or settings.gateway_default_timeout_ms),
-        maxQps=int(constraints.get("maxQps") or service.get("maxQps") or settings.gateway_default_service_qps),
-        maxRequestBytes=int(constraints.get("maxRequestBytes") or service.get("maxRequestBytes") or settings.gateway_default_request_bytes),
-        maxResponseBytes=int(constraints.get("maxResponseBytes") or service.get("maxResponseBytes") or settings.gateway_default_response_bytes),
+        timeoutMs=int(
+            constraints.get("timeoutMs")
+            or service.get("timeoutMs")
+            or settings.gateway_default_timeout_ms
+        ),
+        maxQps=int(
+            constraints.get("maxQps")
+            or service.get("maxQps")
+            or settings.gateway_default_service_qps
+        ),
+        maxRequestBytes=int(
+            constraints.get("maxRequestBytes")
+            or service.get("maxRequestBytes")
+            or settings.gateway_default_request_bytes
+        ),
+        maxResponseBytes=int(
+            constraints.get("maxResponseBytes")
+            or service.get("maxResponseBytes")
+            or settings.gateway_default_response_bytes
+        ),
         id=str(service.get("id") or "") or None,
-        schemaVersion=int(service.get("schemaVersion")) if service.get("schemaVersion") is not None else None,
+        schemaVersion=int(service.get("schemaVersion"))
+        if service.get("schemaVersion") is not None
+        else None,
         role=str(service.get("role") or "") or None,
         address=str(service.get("address") or "") or None,
-        tags=[str(tag) for tag in (service.get("tags") or []) if isinstance(tag, (str, int, float))],
+        tags=[
+            str(tag)
+            for tag in (service.get("tags") or [])
+            if isinstance(tag, (str, int, float))
+        ],
         auth=dict(service.get("auth") or {}),
         healthCheck=dict(service.get("healthCheck") or {}),
         forwarding=dict(service.get("forwarding") or {}),
@@ -97,25 +129,40 @@ def build_probe_url(target_url: str, health_path: str) -> str:
     parsed = urlsplit(str(target_url or "").strip())
     if not parsed.scheme or not parsed.netloc:
         raise ValueError("Invalid target URL")
-    return urlunsplit((parsed.scheme, parsed.netloc, _normalize_health_path(health_path), "", ""))
+    return urlunsplit(
+        (parsed.scheme, parsed.netloc, _normalize_health_path(health_path), "", "")
+    )
 
 
 def _health_check_config(service: Dict[str, Any]) -> Dict[str, Any]:
-    spec = service.get("healthCheck") if isinstance(service.get("healthCheck"), dict) else {}
+    spec = (
+        service.get("healthCheck")
+        if isinstance(service.get("healthCheck"), dict)
+        else {}
+    )
     timeout_ms = int(spec.get("timeoutMs") or settings.service_health_probe_timeout_ms)
-    success_codes = spec.get("successCodes") if isinstance(spec.get("successCodes"), list) else [200]
+    success_codes = (
+        spec.get("successCodes")
+        if isinstance(spec.get("successCodes"), list)
+        else [200]
+    )
     return {
         "path": _normalize_health_path(str(spec.get("path") or DEFAULT_HEALTH_PATH)),
         "method": str(spec.get("method") or "GET").upper(),
         "timeoutMs": max(200, timeout_ms),
-        "successCodes": [int(code) for code in success_codes if str(code).isdigit()] or [200],
+        "successCodes": [int(code) for code in success_codes if str(code).isdigit()]
+        or [200],
         "healthyThreshold": max(1, int(spec.get("healthyThreshold") or 2)),
         "unhealthyThreshold": max(1, int(spec.get("unhealthyThreshold") or 3)),
     }
 
 
 def _target_health_map(service: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    health = service.get("serviceHealth") if isinstance(service.get("serviceHealth"), dict) else {}
+    health = (
+        service.get("serviceHealth")
+        if isinstance(service.get("serviceHealth"), dict)
+        else {}
+    )
     targets = health.get("targets") if isinstance(health.get("targets"), dict) else {}
     normalized: Dict[str, Dict[str, Any]] = {}
     for url, row in targets.items():
@@ -140,11 +187,17 @@ def _service_targets(service: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def public_health_summary(service: Dict[str, Any]) -> Dict[str, Any]:
-    health = service.get("serviceHealth") if isinstance(service.get("serviceHealth"), dict) else {}
+    health = (
+        service.get("serviceHealth")
+        if isinstance(service.get("serviceHealth"), dict)
+        else {}
+    )
     return {
         "overallStatus": str(health.get("overallStatus") or "unknown"),
         "healthyTargets": int(health.get("healthyTargets") or 0),
-        "totalTargets": int(health.get("totalTargets") or len(_service_targets(service))),
+        "totalTargets": int(
+            health.get("totalTargets") or len(_service_targets(service))
+        ),
         "lastCheckedAt": health.get("lastCheckedAt"),
     }
 
@@ -159,10 +212,18 @@ def get_healthy_target_urls(
     stale_after_sec: Optional[int] = None,
 ) -> List[str]:
     now = int(now_ms if now_ms is not None else _now_ms())
-    stale_sec = int(stale_after_sec if stale_after_sec is not None else settings.service_health_stale_after_sec)
+    stale_sec = int(
+        stale_after_sec
+        if stale_after_sec is not None
+        else settings.service_health_stale_after_sec
+    )
     stale_after_ms = max(1000, stale_sec * 1000)
 
-    health = service.get("serviceHealth") if isinstance(service.get("serviceHealth"), dict) else {}
+    health = (
+        service.get("serviceHealth")
+        if isinstance(service.get("serviceHealth"), dict)
+        else {}
+    )
     last_checked = int(health.get("lastCheckedAt") or 0)
     if last_checked <= 0 or now - last_checked > stale_after_ms:
         return []
@@ -185,7 +246,11 @@ def is_service_discoverable(service: Dict[str, Any]) -> bool:
     return len(get_healthy_target_urls(service)) > 0
 
 
-def _service_health_row(service: Dict[str, Any], target: Dict[str, Any], target_health: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _service_health_row(
+    service: Dict[str, Any],
+    target: Dict[str, Any],
+    target_health: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
     service_id = str(service.get("serviceId") or "").strip()
     if not service_id:
         return None
@@ -213,7 +278,9 @@ def _service_health_row(service: Dict[str, Any], target: Dict[str, Any], target_
     }
 
 
-def _build_service_target_health_rows(services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _build_service_target_health_rows(
+    services: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for service in services:
         if not isinstance(service, dict):
@@ -233,7 +300,11 @@ def _load_persisted_target_health(storage: BaseStorage) -> Dict[str, Dict[str, A
 
     index: Dict[str, Dict[str, Any]] = {}
     for row in rows:
-        payload = row.model_dump(by_alias=True) if isinstance(row, ServiceTargetHealth) else row
+        payload = (
+            row.model_dump(by_alias=True)
+            if isinstance(row, ServiceTargetHealth)
+            else row
+        )
         if not isinstance(payload, dict):
             continue
         service_id = str(payload.get("serviceId") or "").strip()
@@ -278,7 +349,9 @@ def _load_persisted_target_health(storage: BaseStorage) -> Dict[str, Dict[str, A
     return index
 
 
-def _seed_service_health_from_persisted_rows(storage: BaseStorage, services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _seed_service_health_from_persisted_rows(
+    storage: BaseStorage, services: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     persisted_index = _load_persisted_target_health(storage)
     if not persisted_index:
         return services
@@ -292,8 +365,16 @@ def _seed_service_health_from_persisted_rows(storage: BaseStorage, services: Lis
         if not service_id:
             seeded.append(service)
             continue
-        current_health = service.get("serviceHealth") if isinstance(service.get("serviceHealth"), dict) else {}
-        current_targets = current_health.get("targets") if isinstance(current_health.get("targets"), dict) else {}
+        current_health = (
+            service.get("serviceHealth")
+            if isinstance(service.get("serviceHealth"), dict)
+            else {}
+        )
+        current_targets = (
+            current_health.get("targets")
+            if isinstance(current_health.get("targets"), dict)
+            else {}
+        )
         if current_targets:
             seeded.append(service)
             continue
@@ -315,19 +396,27 @@ def _seed_service_health_from_persisted_rows(storage: BaseStorage, services: Lis
     return seeded
 
 
-def sync_service_target_health_table(storage: BaseStorage, services: Optional[List[Dict[str, Any]]] = None) -> int:
+def sync_service_target_health_table(
+    storage: BaseStorage, services: Optional[List[Dict[str, Any]]] = None
+) -> int:
     if services is None:
-        raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
+        raw_rows = (
+            storage.get_data_manager().system.registry.read_service_registry_rows()
+        )
         if isinstance(raw_rows, list):
             services = [
-                _service_entity_to_dict(row) if isinstance(row, ServiceRegistryRow) else row
+                _service_entity_to_dict(row)
+                if isinstance(row, ServiceRegistryRow)
+                else row
                 for row in raw_rows
                 if isinstance(row, (ServiceRegistryRow, dict))
             ]
         else:
             services = []
     rows = _build_service_target_health_rows(services)
-    typed_rows = [ServiceTargetHealth.model_validate(row) for row in rows if isinstance(row, dict)]
+    typed_rows = [
+        ServiceTargetHealth.model_validate(row) for row in rows if isinstance(row, dict)
+    ]
     repo = storage.get_data_manager().system.registry
     try:
         repo.write_service_target_health_rows(typed_rows)
@@ -336,7 +425,9 @@ def sync_service_target_health_table(storage: BaseStorage, services: Optional[Li
     return len(rows)
 
 
-def _history_row_from_target(service: Dict[str, Any], target_url: str, target_status: Dict[str, Any]) -> Dict[str, Any]:
+def _history_row_from_target(
+    service: Dict[str, Any], target_url: str, target_status: Dict[str, Any]
+) -> Dict[str, Any]:
     checked_at = int(target_status.get("lastCheckedAt") or _now_ms())
     return {
         "serviceId": str(service.get("serviceId") or "").strip(),
@@ -375,8 +466,14 @@ def build_probe_history_rows(service: Dict[str, Any]) -> List[Dict[str, Any]]:
 def append_health_history_rows(storage: BaseStorage, rows: List[Dict[str, Any]]) -> int:
     if not rows:
         return 0
-    existing: list = list(storage.get_data_manager().system.registry.read_service_target_health_history_rows())
-    existing.extend(ServiceTargetHealthHistory.model_validate(row) for row in rows if isinstance(row, dict))
+    existing: list = list(
+        storage.get_data_manager().system.registry.read_service_target_health_history_rows()
+    )
+    existing.extend(
+        ServiceTargetHealthHistory.model_validate(row)
+        for row in rows
+        if isinstance(row, dict)
+    )
     repo = storage.get_data_manager().system.registry
     try:
         repo.write_service_target_health_history_rows(existing)
@@ -423,18 +520,28 @@ def _history_cutoff_ms() -> int:
 
 def _should_prune_history(now_ms: int) -> bool:
     global _last_health_history_prune_ms
-    interval_ms = max(30, int(settings.service_health_history_prune_interval_sec)) * 1000
+    interval_ms = (
+        max(30, int(settings.service_health_history_prune_interval_sec)) * 1000
+    )
     if now_ms - _last_health_history_prune_ms < interval_ms:
         return False
     _last_health_history_prune_ms = now_ms
     return True
 
 
-def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[str]] = None) -> Dict[str, int]:
-    existing: list = list(storage.get_data_manager().system.registry.read_service_target_health_history_rows())
+def prune_health_history(
+    storage: BaseStorage, valid_service_ids: Optional[set[str]] = None
+) -> Dict[str, int]:
+    existing: list = list(
+        storage.get_data_manager().system.registry.read_service_target_health_history_rows()
+    )
 
     cutoff_ms = _history_cutoff_ms()
-    valid_ids = valid_service_ids if valid_service_ids is not None else _current_valid_service_ids(storage)
+    valid_ids = (
+        valid_service_ids
+        if valid_service_ids is not None
+        else _current_valid_service_ids(storage)
+    )
 
     before = len(existing)
     filtered = [row for row in existing if _history_row_kept(row, valid_ids, cutoff_ms)]
@@ -445,7 +552,9 @@ def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[s
         try:
             repo.write_service_target_health_history_rows(filtered)
         except Exception:
-            repo.write_service_target_health_history_rows([row for row in filtered if isinstance(row, dict)])
+            repo.write_service_target_health_history_rows(
+                [row for row in filtered if isinstance(row, dict)]
+            )
     return {"before": before, "after": after, "removed": max(0, before - after)}
 
 
@@ -518,7 +627,9 @@ def _merge_target_health(
     }
 
 
-async def probe_service_health(service: Dict[str, Any], client: Optional[httpx.AsyncClient] = None) -> Dict[str, Any]:
+async def probe_service_health(
+    service: Dict[str, Any], client: Optional[httpx.AsyncClient] = None
+) -> Dict[str, Any]:
     targets = _service_targets(service)
     if not targets:
         updated = dict(service)
@@ -573,7 +684,13 @@ async def probe_service_health(service: Dict[str, Any], client: Optional[httpx.A
                 probe_url,
             )
 
-        healthy_targets = len([row for row in next_target_health.values() if str(row.get("status") or "") == "healthy"])
+        healthy_targets = len(
+            [
+                row
+                for row in next_target_health.values()
+                if str(row.get("status") or "") == "healthy"
+            ]
+        )
         total_targets = len(targets)
         if healthy_targets == 0:
             overall = "unhealthy"
@@ -632,7 +749,9 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
     if updated > 0:
         repo = storage.get_data_manager().system.registry
         try:
-            repo.write_service_registry_rows([_service_dict_to_entity(row) for row in next_rows])
+            repo.write_service_registry_rows(
+                [_service_dict_to_entity(row) for row in next_rows]
+            )
         except Exception:
             repo.write_service_registry_rows(next_rows)
 
@@ -657,7 +776,9 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
     }
 
 
-async def run_service_health_monitor(stop_event: asyncio.Event, storage: BaseStorage) -> None:
+async def run_service_health_monitor(
+    stop_event: asyncio.Event, storage: BaseStorage
+) -> None:
     interval = max(1.0, float(settings.service_health_probe_interval_sec))
     logger.info("Service health monitor started: interval=%ss", interval)
 

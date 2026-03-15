@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useDisconnect, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
@@ -28,6 +28,10 @@ const vaultABI = parseAbi([
 ]);
 
 const DEPOSIT_INTENT_RETRY_QUEUE_KEY = "synapse_deposit_intent_retry_queue";
+const INDEXER_ADMIN_WALLETS = String(process.env.NEXT_PUBLIC_INDEXER_ADMIN_WALLETS || "")
+  .split(",")
+  .map((row) => row.trim().toLowerCase())
+  .filter(Boolean);
 
 type PendingDepositIntentRetry = {
   id: string;
@@ -126,6 +130,11 @@ export default function DeveloperConsole() {
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus | null>(null);
+  const canPollIndexerStatus = useMemo(() => {
+    if (!address || !isSessionAuthenticated) return false;
+    if (INDEXER_ADMIN_WALLETS.length === 0) return false;
+    return INDEXER_ADMIN_WALLETS.includes(address.toLowerCase());
+  }, [address, isSessionAuthenticated]);
   const depositRetryInFlightRef = useRef(false);
 
   const handleAddFundsClick = useCallback(async () => {
@@ -261,7 +270,7 @@ export default function DeveloperConsole() {
   }, [isConnected, address, isSessionAuthenticated]);
 
   useEffect(() => {
-    if (!address || !isSessionAuthenticated) {
+    if (!canPollIndexerStatus || !address) {
       setIndexerStatus(null);
       return;
     }
@@ -282,7 +291,7 @@ export default function DeveloperConsole() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [address, isSessionAuthenticated]);
+  }, [address, canPollIndexerStatus]);
 
   useEffect(() => {
     if (!address || !isSessionAuthenticated) return;

@@ -5,7 +5,7 @@ import re
 from fastapi import HTTPException
 
 from src.core.config import settings
-from src.domain.storage_entities import ServiceRegistryRow
+from src.domain.registry import ServiceRegistryRow
 from src.storage import BaseStorage
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
@@ -27,16 +27,35 @@ def as_int(raw: Any, fallback: int) -> int:
 
 def effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
     """Clamp seller constraints into platform-safe runtime boundaries."""
-    raw = service.get("constraints") if isinstance(service.get("constraints"), dict) else {}
+    raw = (
+        service.get("constraints")
+        if isinstance(service.get("constraints"), dict)
+        else {}
+    )
     timeout_ms = as_int(raw.get("timeoutMs"), settings.gateway_default_timeout_ms)
-    max_request_bytes = as_int(raw.get("maxRequestBytes"), settings.gateway_default_request_bytes)
-    max_response_bytes = as_int(raw.get("maxResponseBytes"), settings.gateway_default_response_bytes)
+    max_request_bytes = as_int(
+        raw.get("maxRequestBytes"), settings.gateway_default_request_bytes
+    )
+    max_response_bytes = as_int(
+        raw.get("maxResponseBytes"), settings.gateway_default_response_bytes
+    )
     max_qps = as_int(raw.get("maxQps"), settings.gateway_default_service_qps)
 
-    timeout_ms = min(max(timeout_ms, settings.gateway_min_timeout_ms), settings.gateway_max_timeout_ms)
-    max_request_bytes = min(max(max_request_bytes, settings.gateway_min_request_bytes), settings.gateway_max_request_bytes)
-    max_response_bytes = min(max(max_response_bytes, settings.gateway_min_response_bytes), settings.gateway_max_response_bytes)
-    max_qps = min(max(max_qps, settings.gateway_min_service_qps), settings.gateway_max_service_qps)
+    timeout_ms = min(
+        max(timeout_ms, settings.gateway_min_timeout_ms),
+        settings.gateway_max_timeout_ms,
+    )
+    max_request_bytes = min(
+        max(max_request_bytes, settings.gateway_min_request_bytes),
+        settings.gateway_max_request_bytes,
+    )
+    max_response_bytes = min(
+        max(max_response_bytes, settings.gateway_min_response_bytes),
+        settings.gateway_max_response_bytes,
+    )
+    max_qps = min(
+        max(max_qps, settings.gateway_min_service_qps), settings.gateway_max_service_qps
+    )
 
     return {
         "timeoutMs": timeout_ms,
@@ -49,7 +68,11 @@ def effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
 def find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]:
     """Load one active service by serviceId, otherwise raise a gateway-safe HTTP error."""
     raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
-    rows = [row for row in raw_rows if isinstance(row, ServiceRegistryRow)] if isinstance(raw_rows, list) else []
+    rows = (
+        [row for row in raw_rows if isinstance(row, ServiceRegistryRow)]
+        if isinstance(raw_rows, list)
+        else []
+    )
 
     hit = next((r for r in rows if str(r.service_id or "").strip() == service_id), None)
     target = hit.model_dump(by_alias=True, mode="json") if hit is not None else None
@@ -59,14 +82,28 @@ def find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]
             "currency": str(target.get("pricingCurrency") or "USDC"),
         }
         target.setdefault("constraints", {})
-        target["constraints"]["timeoutMs"] = int(target.get("timeoutMs") or settings.gateway_default_timeout_ms)
-        target["constraints"]["maxQps"] = int(target.get("maxQps") or settings.gateway_default_service_qps)
-        target["constraints"]["maxRequestBytes"] = int(target.get("maxRequestBytes") or settings.gateway_default_request_bytes)
-        target["constraints"]["maxResponseBytes"] = int(target.get("maxResponseBytes") or settings.gateway_default_response_bytes)
+        target["constraints"]["timeoutMs"] = int(
+            target.get("timeoutMs") or settings.gateway_default_timeout_ms
+        )
+        target["constraints"]["maxQps"] = int(
+            target.get("maxQps") or settings.gateway_default_service_qps
+        )
+        target["constraints"]["maxRequestBytes"] = int(
+            target.get("maxRequestBytes") or settings.gateway_default_request_bytes
+        )
+        target["constraints"]["maxResponseBytes"] = int(
+            target.get("maxResponseBytes") or settings.gateway_default_response_bytes
+        )
     if not target:
-        raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"},
+        )
     if target.get("isActive") is False:
-        raise HTTPException(status_code=403, detail={"code": "SERVICE_INACTIVE", "message": "Service is inactive"})
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "SERVICE_INACTIVE", "message": "Service is inactive"},
+        )
     return target
 
 
@@ -77,20 +114,45 @@ def parse_service_price_usdc(service_row: Dict[str, Any]) -> float:
     try:
         amount = float(raw_amount)
     except Exception:
-        raise HTTPException(status_code=500, detail={"code": "INVALID_SERVICE_PRICE", "message": "service pricing is invalid"})
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_SERVICE_PRICE",
+                "message": "service pricing is invalid",
+            },
+        )
     if amount <= 0:
-        raise HTTPException(status_code=500, detail={"code": "INVALID_SERVICE_PRICE", "message": "service pricing must be positive"})
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_SERVICE_PRICE",
+                "message": "service pricing must be positive",
+            },
+        )
     return round(amount, 6)
 
 
-def validate_service_id(x_service_id: Optional[str], request_service_id: Optional[str]) -> str:
+def validate_service_id(
+    x_service_id: Optional[str], request_service_id: Optional[str]
+) -> str:
     """Validate serviceId from header/body and enforce canonical allowed format."""
     service_id = (x_service_id or request_service_id or "").strip()
     if not service_id:
-        raise HTTPException(status_code=422, detail={"code": "SERVICE_ID_REQUIRED", "message": "serviceId is required"})
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "SERVICE_ID_REQUIRED", "message": "serviceId is required"},
+        )
     if x_service_id and request_service_id and x_service_id != request_service_id:
-        raise HTTPException(status_code=403, detail={"code": "SERVICE_ID_MISMATCH", "message": "Header and body serviceId mismatch"})
-    if len(service_id) > _MAX_SERVICE_ID_LENGTH or not _SERVICE_ID_PATTERN.fullmatch(service_id):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "SERVICE_ID_MISMATCH",
+                "message": "Header and body serviceId mismatch",
+            },
+        )
+    if len(service_id) > _MAX_SERVICE_ID_LENGTH or not _SERVICE_ID_PATTERN.fullmatch(
+        service_id
+    ):
         raise HTTPException(
             status_code=422,
             detail={
@@ -105,7 +167,13 @@ def validate_prompt(prompt: str) -> str:
     """Validate buyer prompt for non-empty content and platform max length."""
     raw = str(prompt or "")
     if not raw.strip():
-        raise HTTPException(status_code=422, detail={"code": "PROMPT_REQUIRED", "message": "prompt is required and cannot be empty"})
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "PROMPT_REQUIRED",
+                "message": "prompt is required and cannot be empty",
+            },
+        )
     if len(raw) > _MAX_PROMPT_LENGTH:
         raise HTTPException(
             status_code=422,
@@ -122,7 +190,13 @@ def validate_credential_token(credential_token: Optional[str]) -> str:
     """Validate buyer credential token format before credential lookup."""
     token = str(credential_token or "").strip()
     if not token:
-        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_REQUIRED", "message": "X-Credential is required for /api/v1/gateway/generate"})
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "CREDENTIAL_REQUIRED",
+                "message": "X-Credential is required for /api/v1/gateway/generate",
+            },
+        )
     if len(token) > _MAX_CREDENTIAL_LENGTH or not _CREDENTIAL_PATTERN.fullmatch(token):
         raise HTTPException(
             status_code=422,
@@ -139,7 +213,9 @@ def resolve_request_id(client_request_id: Optional[str]) -> str:
     candidate = str(client_request_id or "").strip()
     if not candidate:
         return str(uuid4())
-    if len(candidate) > _MAX_REQUEST_ID_LENGTH or not _REQUEST_ID_PATTERN.fullmatch(candidate):
+    if len(candidate) > _MAX_REQUEST_ID_LENGTH or not _REQUEST_ID_PATTERN.fullmatch(
+        candidate
+    ):
         raise HTTPException(
             status_code=422,
             detail={
@@ -150,7 +226,9 @@ def resolve_request_id(client_request_id: Optional[str]) -> str:
     return candidate
 
 
-def validate_invoke_request_contract(service: Dict[str, Any], payload: Dict[str, Any]) -> None:
+def validate_invoke_request_contract(
+    service: Dict[str, Any], payload: Dict[str, Any]
+) -> None:
     """Enforce runtime invoke contract: POST + JSON + required fields from schema."""
     invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
     service_id = str(service.get("serviceId") or "unknown")
@@ -165,8 +243,12 @@ def validate_invoke_request_contract(service: Dict[str, Any], payload: Dict[str,
             },
         )
 
-    request_spec = invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
-    content_type = str(request_spec.get("contentType") or "application/json").strip().lower()
+    request_spec = (
+        invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
+    )
+    content_type = (
+        str(request_spec.get("contentType") or "application/json").strip().lower()
+    )
     if content_type != "application/json":
         raise HTTPException(
             status_code=500,
@@ -176,12 +258,19 @@ def validate_invoke_request_contract(service: Dict[str, Any], payload: Dict[str,
             },
         )
 
-    schema = request_spec.get("schema") if isinstance(request_spec.get("schema"), dict) else {}
-    required = schema.get("required") if isinstance(schema.get("required"), list) else []
+    schema = (
+        request_spec.get("schema")
+        if isinstance(request_spec.get("schema"), dict)
+        else {}
+    )
+    required = (
+        schema.get("required") if isinstance(schema.get("required"), list) else []
+    )
     missing_fields = [
         str(field)
         for field in required
-        if isinstance(field, str) and (field not in payload or payload.get(field) is None)
+        if isinstance(field, str)
+        and (field not in payload or payload.get(field) is None)
     ]
     if missing_fields:
         raise HTTPException(

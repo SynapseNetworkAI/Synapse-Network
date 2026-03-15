@@ -198,7 +198,9 @@ def _resolve_postgres_dsn(
     if parsed.port:
         host_part = f"{host_part}:{parsed.port}"
     netloc = f"{encoded_user}:{encoded_password}@{host_part}"
-    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+    return urlunsplit(
+        (parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment)
+    )
 
 
 def _redis_auth_fragment(username: str, password: str) -> str:
@@ -293,11 +295,17 @@ class Settings:
     # RPC endpoint used by chain-facing flows (deposit indexer, receipt checks).
     rpc_url: str = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     # Listener contract for deposit events; falls back to frontend contract config.
-    router_address: str = os.getenv("ROUTER_ADDRESS", "").strip() or _load_router_address_from_contract_config() or "0x0000000000000000000000000000000000000000"
+    router_address: str = (
+        os.getenv("ROUTER_ADDRESS", "").strip()
+        or _load_router_address_from_contract_config()
+        or "0x0000000000000000000000000000000000000000"
+    )
     # Minimum block confirmations before crediting a deposit intent.
     v2_deposit_confirmations: int = _env_int("V2_DEPOSIT_CONFIRMATIONS", 1)
     # Poll interval for the background deposit indexer loop.
-    v2_indexer_poll_interval_sec: float = _env_float("V2_INDEXER_POLL_INTERVAL_SEC", 2.0)
+    v2_indexer_poll_interval_sec: float = _env_float(
+        "V2_INDEXER_POLL_INTERVAL_SEC", 2.0
+    )
     # Reserved block batch size for indexer scaling upgrades.
     v2_indexer_block_batch: int = _env_int("V2_INDEXER_BLOCK_BATCH", 100)
     # Enable block-range backfill scanner for missed onchain deposits.
@@ -309,11 +317,19 @@ class Settings:
     # Reconciliation monitor switch for chain-vs-ledger consistency checks.
     v2_reconciliation_enabled: bool = _env_bool("V2_RECONCILIATION_ENABLED", True)
     # Minimum interval between reconciliation checks.
-    v2_reconciliation_interval_sec: float = max(2.0, _env_float("V2_RECONCILIATION_INTERVAL_SEC", 30.0))
+    v2_reconciliation_interval_sec: float = max(
+        2.0, _env_float("V2_RECONCILIATION_INTERVAL_SEC", 30.0)
+    )
     # Alert threshold in USDC for chain-vs-ledger absolute delta.
-    v2_reconciliation_alert_delta_usdc: float = max(0.0, _env_float("V2_RECONCILIATION_ALERT_DELTA_USDC", 1.0))
+    v2_reconciliation_alert_delta_usdc: float = max(
+        0.0, _env_float("V2_RECONCILIATION_ALERT_DELTA_USDC", 1.0)
+    )
     # Token contract used for onchain vault balance reconciliation.
-    usdc_token_address: str = os.getenv("USDC_TOKEN_ADDRESS", "").strip() or _load_usdc_address_from_contract_config() or ""
+    usdc_token_address: str = (
+        os.getenv("USDC_TOKEN_ADDRESS", "").strip()
+        or _load_usdc_address_from_contract_config()
+        or ""
+    )
     # Optional signer key for legacy or maintenance chain operations.
     private_key: str = os.getenv("PRIVATE_KEY", "")
     # Optional contract address used by compatibility paths.
@@ -322,13 +338,17 @@ class Settings:
     # Runtime artifact directory is fixed to sdk/runtime_storage (not env-configurable).
     runtime_storage_dir: str = _default_runtime_storage_dir()
     # Storage backend switch. Only "postgres" is supported.
-    storage_backend: str = os.getenv("STORAGE_BACKEND", "postgres").strip().lower() or "postgres"
+    storage_backend: str = (
+        os.getenv("STORAGE_BACKEND", "postgres").strip().lower() or "postgres"
+    )
     # PostgreSQL basic connection fields used when POSTGRES_DSN is omitted or password override is required.
     postgres_host: str = os.getenv("POSTGRES_HOST", "postgres").strip()
     postgres_port: int = _env_int("POSTGRES_PORT", 5432)
     postgres_user: str = os.getenv("POSTGRES_USER", "synapse").strip()
     postgres_password: str = os.getenv("POSTGRES_PASSWORD", "").strip()
-    postgres_db: str = os.getenv("POSTGRES_DB", os.getenv("POSTGRES_DATABASE", "synapse_gateway")).strip()
+    postgres_db: str = os.getenv(
+        "POSTGRES_DB", os.getenv("POSTGRES_DATABASE", "synapse_gateway")
+    ).strip()
     # PostgreSQL DSN used by all environments (dev/stage/prod).
     postgres_dsn: str = _resolve_postgres_dsn(
         os.getenv("POSTGRES_DSN", ""),
@@ -341,7 +361,9 @@ class Settings:
     # Auto-create PostgreSQL tables/indexes on startup when using postgres backend.
     postgres_auto_init: bool = _env_bool("POSTGRES_AUTO_INIT", True)
     # JWT secret for auth token signing and verification.
-    jwt_secret: str = os.getenv("JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret")
+    jwt_secret: str = os.getenv(
+        "JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret"
+    )
     # Optional Redis URL and fields for distributed counters and rate limits.
     redis_host: str = os.getenv("REDIS_HOST", "").strip()
     redis_port: int = _env_int("REDIS_PORT", 6379)
@@ -381,14 +403,20 @@ class Settings:
     # DeepSeek API key used by service manifest parse-curl endpoint.
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "").strip()
     # DeepSeek API base URL for chat completion calls.
-    deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip()
+    deepseek_base_url: str = os.getenv(
+        "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
+    ).strip()
     # Default model used to parse cURL into service manifest fields.
-    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat").strip() or "deepseek-chat"
+    deepseek_model: str = (
+        os.getenv("DEEPSEEK_MODEL", "deepseek-chat").strip() or "deepseek-chat"
+    )
     # Timeout (seconds) for DeepSeek parse-curl requests.
     deepseek_timeout_s: float = _env_float("DEEPSEEK_TIMEOUT_S", 30.0)
 
     # Legacy payment fallback seller wallet (for compatibility-only flows).
-    seller_address: str = os.getenv("SELLER_ADDRESS", "0x0000000000000000000000000000000000000000")
+    seller_address: str = os.getenv(
+        "SELLER_ADDRESS", "0x0000000000000000000000000000000000000000"
+    )
     # Legacy payment fallback expected price in wei.
     expected_price: int = _env_int("EXPECTED_PRICE", 1000000000000000000)
     # Minimum confirmations for legacy payment-verification endpoints.
@@ -424,16 +452,22 @@ class Settings:
     # Replay-protection window for duplicate tx/retry collisions in seconds.
     finance_replay_window_sec: int = _env_int("FINANCE_REPLAY_WINDOW_SEC", 900)
     # Owner-scoped write rate-limit for finance mutation endpoints (per minute).
-    finance_write_rate_limit_per_min: int = _env_int("FINANCE_WRITE_RATE_LIMIT_PER_MIN", 60)
+    finance_write_rate_limit_per_min: int = _env_int(
+        "FINANCE_WRITE_RATE_LIMIT_PER_MIN", 60
+    )
     # Keep backward-compatible auth behavior enabled by default.
     allow_legacy_auth: bool = _env_bool("ALLOW_LEGACY_AUTH", True)
 
     # Default credential ttl (seconds) when caller omits expiration.
-    agent_credential_default_ttl_sec: int = _env_int("AGENT_CREDENTIAL_DEFAULT_TTL_SEC", 3600)
+    agent_credential_default_ttl_sec: int = _env_int(
+        "AGENT_CREDENTIAL_DEFAULT_TTL_SEC", 3600
+    )
     # Maximum allowed credential ttl (seconds).
     agent_credential_max_ttl_sec: int = _env_int("AGENT_CREDENTIAL_MAX_TTL_SEC", 259200)
     # Default max calls for newly created credentials.
-    agent_credential_max_calls_default: int = _env_int("AGENT_CREDENTIAL_MAX_CALLS_DEFAULT", 1000)
+    agent_credential_max_calls_default: int = _env_int(
+        "AGENT_CREDENTIAL_MAX_CALLS_DEFAULT", 1000
+    )
     # Owner control-plane rate limit per minute.
     owner_rate_limit_per_min: int = _env_int("OWNER_RATE_LIMIT_PER_MIN", 240)
     # Credential data-plane rate limit per minute.
@@ -443,7 +477,9 @@ class Settings:
     # Sliding-window seconds used for rate-limit buckets.
     rate_limit_window_sec: int = _env_int("RATE_LIMIT_WINDOW_SEC", 60)
     # Feature flag: require X-Credential on /generate paths.
-    require_agent_credential_for_generate: bool = _env_bool("REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE", False)
+    require_agent_credential_for_generate: bool = _env_bool(
+        "REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE", False
+    )
 
     # Platform hard caps for seller-registered forwarding constraints.
     # These guardrails prevent a single service manifest from exhausting gateway resources.
@@ -457,13 +493,21 @@ class Settings:
     gateway_max_service_qps: int = _env_int("GATEWAY_MAX_SERVICE_QPS", 200)
     gateway_default_timeout_ms: int = _env_int("GATEWAY_DEFAULT_TIMEOUT_MS", 3000)
     gateway_default_request_bytes: int = _env_int("GATEWAY_DEFAULT_REQUEST_BYTES", 4096)
-    gateway_default_response_bytes: int = _env_int("GATEWAY_DEFAULT_RESPONSE_BYTES", 2048)
+    gateway_default_response_bytes: int = _env_int(
+        "GATEWAY_DEFAULT_RESPONSE_BYTES", 2048
+    )
     gateway_default_service_qps: int = _env_int("GATEWAY_DEFAULT_SERVICE_QPS", 50)
     # Provider withdraw ticket expiry seconds for EIP-712 signed claim payload.
-    provider_withdraw_deadline_sec: int = _env_int("PROVIDER_WITHDRAW_DEADLINE_SEC", 900)
+    provider_withdraw_deadline_sec: int = _env_int(
+        "PROVIDER_WITHDRAW_DEADLINE_SEC", 900
+    )
     # Withdrawal risk-engine thresholds.
-    withdrawal_auto_single_limit_usdc: float = max(0.0, _env_float("WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC", 100.0))
-    withdrawal_auto_24h_limit_usdc: float = max(0.0, _env_float("WITHDRAWAL_AUTO_24H_LIMIT_USDC", 500.0))
+    withdrawal_auto_single_limit_usdc: float = max(
+        0.0, _env_float("WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC", 100.0)
+    )
+    withdrawal_auto_24h_limit_usdc: float = max(
+        0.0, _env_float("WITHDRAWAL_AUTO_24H_LIMIT_USDC", 500.0)
+    )
     withdrawal_window_hours: int = max(1, _env_int("WITHDRAWAL_WINDOW_HOURS", 24))
     # Comma-separated seller addresses always treated as high risk.
     withdrawal_high_risk_seller_addresses: set[str] = {
@@ -473,15 +517,33 @@ class Settings:
     }
 
     # Service health monitor controls for seller upstream availability checks.
-    service_health_monitor_enabled: bool = _env_bool("SERVICE_HEALTH_MONITOR_ENABLED", True)
-    service_health_probe_interval_sec: float = _env_float("SERVICE_HEALTH_PROBE_INTERVAL_SEC", 15.0)
-    service_health_probe_timeout_ms: int = _env_int("SERVICE_HEALTH_PROBE_TIMEOUT_MS", 1500)
-    service_health_stale_after_sec: int = _env_int("SERVICE_HEALTH_STALE_AFTER_SEC", 120)
-    forwarding_require_healthy_targets: bool = _env_bool("FORWARDING_REQUIRE_HEALTHY_TARGETS", True)
-    service_health_history_enabled: bool = _env_bool("SERVICE_HEALTH_HISTORY_ENABLED", True)
-    service_health_history_retention_hours: int = _service_health_history_retention_hours_default
-    service_health_history_prune_interval_sec: int = _env_int("SERVICE_HEALTH_HISTORY_PRUNE_INTERVAL_SEC", 300)
-    service_health_history_default_limit_per_target: int = _env_int("SERVICE_HEALTH_HISTORY_DEFAULT_LIMIT_PER_TARGET", 50)
+    service_health_monitor_enabled: bool = _env_bool(
+        "SERVICE_HEALTH_MONITOR_ENABLED", True
+    )
+    service_health_probe_interval_sec: float = _env_float(
+        "SERVICE_HEALTH_PROBE_INTERVAL_SEC", 15.0
+    )
+    service_health_probe_timeout_ms: int = _env_int(
+        "SERVICE_HEALTH_PROBE_TIMEOUT_MS", 1500
+    )
+    service_health_stale_after_sec: int = _env_int(
+        "SERVICE_HEALTH_STALE_AFTER_SEC", 120
+    )
+    forwarding_require_healthy_targets: bool = _env_bool(
+        "FORWARDING_REQUIRE_HEALTHY_TARGETS", True
+    )
+    service_health_history_enabled: bool = _env_bool(
+        "SERVICE_HEALTH_HISTORY_ENABLED", True
+    )
+    service_health_history_retention_hours: int = (
+        _service_health_history_retention_hours_default
+    )
+    service_health_history_prune_interval_sec: int = _env_int(
+        "SERVICE_HEALTH_HISTORY_PRUNE_INTERVAL_SEC", 300
+    )
+    service_health_history_default_limit_per_target: int = _env_int(
+        "SERVICE_HEALTH_HISTORY_DEFAULT_LIMIT_PER_TARGET", 50
+    )
 
     # Server bind host for the main app process.
     host: str = os.getenv("HOST", "0.0.0.1")
@@ -493,31 +555,53 @@ class Settings:
     seller_api_port: int = _env_int("SELLER_API_PORT", 8000)
 
     # Runtime JSON path: service registry.
-    service_registry_path: str = os.getenv("SERVICE_REGISTRY_PATH", _runtime_path("service_registry.json"))
+    service_registry_path: str = os.getenv(
+        "SERVICE_REGISTRY_PATH", _runtime_path("service_registry.json")
+    )
     # Runtime JSON path: agent registry.
-    agent_registry_path: str = os.getenv("AGENT_REGISTRY_PATH", _runtime_path("agent_registry.json"))
+    agent_registry_path: str = os.getenv(
+        "AGENT_REGISTRY_PATH", _runtime_path("agent_registry.json")
+    )
     # Runtime JSON path: buyer credential records.
-    agent_credentials_path: str = os.getenv("AGENT_CREDENTIALS_PATH", _runtime_path("agent_credentials.json"))
+    agent_credentials_path: str = os.getenv(
+        "AGENT_CREDENTIALS_PATH", _runtime_path("agent_credentials.json")
+    )
     # Runtime JSONL path: audit events.
     audit_log_path: str = os.getenv("AUDIT_LOG_PATH", _runtime_path("audit_log.jsonl"))
     # Runtime JSON path: buyer/seller/platform balances.
-    balance_ledger_path: str = os.getenv("BALANCE_LEDGER_PATH", _runtime_path("balance_ledger.json"))
+    balance_ledger_path: str = os.getenv(
+        "BALANCE_LEDGER_PATH", _runtime_path("balance_ledger.json")
+    )
     # Runtime JSON path: usage logs.
     usage_log_path: str = os.getenv("USAGE_LOG_PATH", _runtime_path("usage_log.json"))
     # Runtime JSON path: deposit intents.
-    deposit_intents_path: str = os.getenv("DEPOSIT_INTENTS_PATH", _runtime_path("deposit_intents.json"))
+    deposit_intents_path: str = os.getenv(
+        "DEPOSIT_INTENTS_PATH", _runtime_path("deposit_intents.json")
+    )
     # Runtime JSON path: legacy deposit cursor.
-    deposit_event_cursor_path: str = os.getenv("DEPOSIT_EVENT_CURSOR_PATH", _runtime_path("deposit_event_cursor.json"))
+    deposit_event_cursor_path: str = os.getenv(
+        "DEPOSIT_EVENT_CURSOR_PATH", _runtime_path("deposit_event_cursor.json")
+    )
     # Runtime JSON path: processed deposit event keys.
-    deposit_event_processed_path: str = os.getenv("DEPOSIT_EVENT_PROCESSED_PATH", _runtime_path("deposit_event_processed.json"))
+    deposit_event_processed_path: str = os.getenv(
+        "DEPOSIT_EVENT_PROCESSED_PATH", _runtime_path("deposit_event_processed.json")
+    )
     # Runtime JSON path: refund intents.
-    refund_intents_path: str = os.getenv("REFUND_INTENTS_PATH", _runtime_path("refund_intents.json"))
+    refund_intents_path: str = os.getenv(
+        "REFUND_INTENTS_PATH", _runtime_path("refund_intents.json")
+    )
     # Runtime JSON path: router owner configs.
-    router_config_path: str = os.getenv("ROUTER_CONFIG_PATH", _runtime_path("router_config.json"))
+    router_config_path: str = os.getenv(
+        "ROUTER_CONFIG_PATH", _runtime_path("router_config.json")
+    )
     # Runtime JSON path: wallet role mapping.
-    wallet_roles_path: str = os.getenv("WALLET_ROLES_PATH", _runtime_path("wallet_roles.json"))
+    wallet_roles_path: str = os.getenv(
+        "WALLET_ROLES_PATH", _runtime_path("wallet_roles.json")
+    )
     # Runtime JSON path: provider secrets.
-    provider_secrets_path: str = os.getenv("PROVIDER_SECRETS_PATH", _runtime_path("provider_secrets.json"))
+    provider_secrets_path: str = os.getenv(
+        "PROVIDER_SECRETS_PATH", _runtime_path("provider_secrets.json")
+    )
 
     # Standardized payment-layer error metadata.
     error_responses: dict[int, dict[str, str]] = {

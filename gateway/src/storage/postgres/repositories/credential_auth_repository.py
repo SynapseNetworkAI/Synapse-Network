@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Callable, List, Optional
 
-from src.domain.storage_entities import AuthSessionRow, CredentialRow, WalletRoleRow
+from src.domain.auth import AuthSessionRow, CredentialRow, WalletRoleRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -40,7 +40,9 @@ class CredentialAuthRepository:
                 maxCalls=max_calls,
                 callsUsed=calls_used,
                 rpm=rpm,
-                creditLimit=self._q6(credit_limit) if credit_limit is not None else None,
+                creditLimit=self._q6(credit_limit)
+                if credit_limit is not None
+                else None,
                 resetInterval=reset_interval,
                 expiration=expiration,
                 expiresAt=expires_at,
@@ -69,9 +71,14 @@ class CredentialAuthRepository:
             ) in rows
         ]
 
-    def write_credential_rows(self, credential_type: str, rows: List[CredentialRow]) -> None:
+    def write_credential_rows(
+        self, credential_type: str, rows: List[CredentialRow]
+    ) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_credentials WHERE credential_type = %s", (str(credential_type or ""),))
+            cur.execute(
+                "DELETE FROM synapse_credentials WHERE credential_type = %s",
+                (str(credential_type or ""),),
+            )
             for row in rows:
                 if not isinstance(row, CredentialRow):
                     continue
@@ -97,7 +104,9 @@ class CredentialAuthRepository:
                         row.max_calls,
                         row.calls_used,
                         row.rpm,
-                        str(self._q6(row.credit_limit or Decimal("0"))) if row.credit_limit is not None else None,
+                        str(self._q6(row.credit_limit or Decimal("0")))
+                        if row.credit_limit is not None
+                        else None,
                         row.reset_interval,
                         row.expiration,
                         row.expires_at,
@@ -109,7 +118,10 @@ class CredentialAuthRepository:
 
     def get_wallet_role(self, wallet: str) -> Optional[str]:
         with self._db.readonly_cursor() as cur:
-            cur.execute("SELECT role FROM synapse_wallet_roles WHERE wallet_address = %s", (str(wallet or "").lower(),))
+            cur.execute(
+                "SELECT role FROM synapse_wallet_roles WHERE wallet_address = %s",
+                (str(wallet or "").lower(),),
+            )
             row = cur.fetchone()
         if row is None:
             return None
@@ -117,7 +129,11 @@ class CredentialAuthRepository:
 
     def set_wallet_role(self, wallet: str, role: str) -> None:
         self.upsert_wallet_role(
-            WalletRoleRow(walletAddress=str(wallet or "").lower(), role=str(role or ""), updatedAt=now_dt_str())
+            WalletRoleRow(
+                walletAddress=str(wallet or "").lower(),
+                role=str(role or ""),
+                updatedAt=now_dt_str(),
+            )
         )
 
     def upsert_wallet_role(self, row: WalletRoleRow) -> None:
@@ -130,10 +146,16 @@ class CredentialAuthRepository:
                 ON CONFLICT (wallet_address)
                 DO UPDATE SET role = EXCLUDED.role, updated_at = EXCLUDED.updated_at
                 """,
-                (str(row.wallet_address or "").lower(), str(row.role or ""), to_dt_str(row.updated_at or now, now)),
+                (
+                    str(row.wallet_address or "").lower(),
+                    str(row.role or ""),
+                    to_dt_str(row.updated_at or now, now),
+                ),
             )
 
-    def upsert_auth_session(self, wallet: str, registered_at: int, last_login: int, status: str) -> None:
+    def upsert_auth_session(
+        self, wallet: str, registered_at: int, last_login: int, status: str
+    ) -> None:
         self.save_auth_session(
             AuthSessionRow(
                 walletAddress=str(wallet or "").lower(),

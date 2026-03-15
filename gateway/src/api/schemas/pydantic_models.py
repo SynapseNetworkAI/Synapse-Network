@@ -1,25 +1,29 @@
 from pydantic import BaseModel, Field, validator
-from typing import Dict, Any, List, Optional
-import time
+from typing import Optional
 
 TX_HASH_PREFIX_ERROR = "txHash must start with 0x"
 TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
 
+
 class BaseResponse(BaseModel):
     success: bool = True
     error: Optional[str] = None
-    
+
+
 class ChallengeRequest(BaseModel):
     wallet_address: str = Field(..., description="Wallet address of the buyer")
+
 
 class ChallengeResponse(BaseResponse):
     challenge: str
     domain: str
 
+
 class VerifyAuthRequest(BaseModel):
     wallet_address: str
     signature: str
     message: str
+
 
 class TokenResponse(BaseResponse):
     access_token: str
@@ -61,7 +65,9 @@ class DepositIntentRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+        if len(hex_part) != 64 or any(
+            ch not in "0123456789abcdefABCDEF" for ch in hex_part
+        ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized
 
@@ -80,7 +86,9 @@ class AdminDepositReplayRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+        if len(hex_part) != 64 or any(
+            ch not in "0123456789abcdefABCDEF" for ch in hex_part
+        ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized.lower()
 
@@ -107,7 +115,9 @@ class RefundCompleteRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+        if len(hex_part) != 64 or any(
+            ch not in "0123456789abcdefABCDEF" for ch in hex_part
+        ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized.lower()
 
@@ -125,7 +135,9 @@ class ProviderWithdrawCompleteRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+        if len(hex_part) != 64 or any(
+            ch not in "0123456789abcdefABCDEF" for ch in hex_part
+        ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized.lower()
 

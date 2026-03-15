@@ -13,8 +13,11 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.audit import AuditLogEntry
-from src.domain.storage_entities import CredentialRow
-from src.api.schemas.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
+from src.domain.auth import CredentialRow
+from src.api.schemas.pydantic_models import (
+    CredentialIssueRequest,
+    CredentialQuotaUpdateRequest,
+)
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -50,25 +53,38 @@ def token_prefix(raw_token: str) -> str:
 
 def parse_authorization(auth_header: Optional[str]) -> str:
     if not auth_header or not auth_header.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Missing bearer token"})
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "UNAUTHORIZED", "message": "Missing bearer token"},
+        )
     return auth_header.split(" ", 1)[1].strip()
 
 
-def require_owner_wallet(authorization: Optional[str], x_user_address: Optional[str]) -> str:
+def require_owner_wallet(
+    authorization: Optional[str], x_user_address: Optional[str]
+) -> str:
     token = parse_authorization(authorization)
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
     except Exception:
-        raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid token"})
+        raise HTTPException(
+            status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid token"}
+        )
 
     sub = normalize_wallet(str(payload.get("sub") or ""))
     if not sub:
-        raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid token subject"})
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "UNAUTHORIZED", "message": "Invalid token subject"},
+        )
 
     if x_user_address:
         requested = normalize_wallet(x_user_address)
         if requested != sub:
-            raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "Wallet mismatch"})
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "FORBIDDEN", "message": "Wallet mismatch"},
+            )
 
     return sub
 
@@ -82,7 +98,9 @@ def normalize_credential_rows(raw: Any) -> Tuple[List[Dict[str, Any]], Dict[str,
         return rows, {}
 
     if isinstance(raw, dict):
-        base_rows = raw.get("credentials") if isinstance(raw.get("credentials"), list) else []
+        base_rows = (
+            raw.get("credentials") if isinstance(raw.get("credentials"), list) else []
+        )
         rows = [r for r in base_rows if isinstance(r, dict)]
         for row in rows:
             for field in _REMOVED_CREDENTIAL_FIELDS:
@@ -98,7 +116,11 @@ def _mark_buyer_rows(rows: List[Dict[str, Any]]) -> None:
         row["credentialType"] = "buyer"
 
 
-def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extras: Optional[Dict[str, Any]] = None) -> None:
+def save_credential_rows(
+    storage: BaseStorage,
+    rows: List[Dict[str, Any]],
+    extras: Optional[Dict[str, Any]] = None,
+) -> None:
     _mark_buyer_rows(rows)
     now = now_dt_str()
     for row in rows:
@@ -109,12 +131,20 @@ def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extra
         payload.update(extras)
 
     _ = payload
-    typed_rows = [CredentialRow.model_validate(row) for row in rows if isinstance(row, dict)]
-    storage.get_data_manager().system.credential_auth.write_credential_rows("buyer", typed_rows)
+    typed_rows = [
+        CredentialRow.model_validate(row) for row in rows if isinstance(row, dict)
+    ]
+    storage.get_data_manager().system.credential_auth.write_credential_rows(
+        "buyer", typed_rows
+    )
 
 
-def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    primary_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("buyer")
+def load_credential_rows(
+    storage: BaseStorage,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    primary_entities = (
+        storage.get_data_manager().system.credential_auth.read_credential_rows("buyer")
+    )
     primary_rows = [_row_as_dict(row) for row in primary_entities]
     primary_rows = [row for row in primary_rows if row]
     primary = {"credentials": primary_rows, "updatedAt": 0}
@@ -125,7 +155,11 @@ def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Di
 
     for legacy_collection in _LEGACY_BUYER_COLLECTIONS:
         _ = legacy_collection
-        legacy_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("buyer")
+        legacy_entities = (
+            storage.get_data_manager().system.credential_auth.read_credential_rows(
+                "buyer"
+            )
+        )
         legacy_rows_raw = [_row_as_dict(row) for row in legacy_entities]
         legacy_rows_raw = [row for row in legacy_rows_raw if row]
         legacy = {"credentials": legacy_rows_raw, "updatedAt": 0}
@@ -145,7 +179,13 @@ def resolve_ttl_seconds(expires_in_sec: Optional[int]) -> int:
 
     ttl = int(expires_in_sec)
     if ttl <= 0:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_EXPIRES_IN", "message": "expiresInSec must be positive"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_EXPIRES_IN",
+                "message": "expiresInSec must be positive",
+            },
+        )
 
     return ttl
 
@@ -157,12 +197,20 @@ def resolve_reset_interval(value: Optional[str]) -> str:
     normalized = value.strip().lower()
     allowed = {"hourly", "daily", "weekly", "monthly", "never"}
     if normalized not in allowed:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_RESET_INTERVAL", "message": "resetInterval must be one of hourly,daily,weekly,monthly,never"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_RESET_INTERVAL",
+                "message": "resetInterval must be one of hourly,daily,weekly,monthly,never",
+            },
+        )
 
     return normalized
 
 
-def _normalize_system_audit_details(action: str, details: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_system_audit_details(
+    action: str, details: Dict[str, Any]
+) -> Dict[str, Any]:
     normalized = dict(details)
 
     secret_id = normalized.get("secretId")
@@ -181,14 +229,18 @@ def _normalize_system_audit_details(action: str, details: Dict[str, Any]) -> Dic
             normalized["resourceId"] = credential_id
 
     if not isinstance(normalized.get("resultStatus"), str) and (
-        action.endswith("_ISSUED") or action.endswith("_UPDATED") or action.endswith("_REVOKED")
+        action.endswith("_ISSUED")
+        or action.endswith("_UPDATED")
+        or action.endswith("_REVOKED")
     ):
         normalized["resultStatus"] = "success"
 
     return normalized
 
 
-def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
+def append_audit_log(
+    storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]
+) -> None:
     normalized_details = _normalize_system_audit_details(action, details)
     storage.get_data_manager().audit.logs.append_audit_row(
         AuditLogEntry(
@@ -202,15 +254,22 @@ def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, detai
     )
 
 
-def read_audit_log(storage: BaseStorage, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
+def read_audit_log(
+    storage: BaseStorage, owner_wallet: str, limit: int
+) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
     try:
         audit_repo = storage.get_data_manager().audit.logs
         if hasattr(audit_repo, "read_system_audit_rows"):
-            rows = audit_repo.read_system_audit_rows(owner_wallet=owner_wallet, limit=limit)
+            rows = audit_repo.read_system_audit_rows(
+                owner_wallet=owner_wallet, limit=limit
+            )
         else:
             rows = audit_repo.read_audit_rows(owner_wallet=owner_wallet, limit=limit)
-        result = [row.model_dump(by_alias=True) if isinstance(row, AuditLogEntry) else row for row in rows]
+        result = [
+            row.model_dump(by_alias=True) if isinstance(row, AuditLogEntry) else row
+            for row in rows
+        ]
         result.sort(key=lambda r: int(r.get("timestamp", 0)), reverse=True)
         return result[:limit]
     except Exception:
@@ -248,19 +307,34 @@ def resolve_active_credential(storage: BaseStorage, token: str) -> Dict[str, Any
     now = now_ts()
     found = next((r for r in rows if str(r.get("tokenHash", "")) == token_hash), None)
     if not found:
-        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_INVALID", "message": "Credential is invalid"})
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "CREDENTIAL_INVALID", "message": "Credential is invalid"},
+        )
     if str(found.get("status", "")) != "active":
-        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_INACTIVE", "message": "Credential is inactive"})
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "CREDENTIAL_INACTIVE", "message": "Credential is inactive"},
+        )
 
     expires_at = int(found.get("expiresAt") or 0)
     expiration = int(found.get("expiration") or 0)
     if (expires_at and expires_at <= now) or (expiration and expiration <= now):
-        raise HTTPException(status_code=401, detail={"code": "CREDENTIAL_EXPIRED", "message": "Credential has expired"})
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "CREDENTIAL_EXPIRED", "message": "Credential has expired"},
+        )
 
     max_calls = int(found.get("maxCalls") or 0)
     calls_used = int(found.get("callsUsed") or 0)
     if max_calls > 0 and calls_used >= max_calls:
-        raise HTTPException(status_code=429, detail={"code": "CREDENTIAL_MAX_CALLS_EXCEEDED", "message": "Credential max calls reached"})
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "CREDENTIAL_MAX_CALLS_EXCEEDED",
+                "message": "Credential max calls reached",
+            },
+        )
 
     return found
 
@@ -285,7 +359,9 @@ def _build_visible_credential(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def list_credentials_by_owner(storage: BaseStorage, owner_wallet: str) -> List[Dict[str, Any]]:
+def list_credentials_by_owner(
+    storage: BaseStorage, owner_wallet: str
+) -> List[Dict[str, Any]]:
     rows, _ = load_credential_rows(storage)
     visible = [
         _build_visible_credential(row)
@@ -296,7 +372,9 @@ def list_credentials_by_owner(storage: BaseStorage, owner_wallet: str) -> List[D
     return visible
 
 
-def list_secrets_by_owner(storage: BaseStorage, owner_wallet: str) -> List[Dict[str, Any]]:
+def list_secrets_by_owner(
+    storage: BaseStorage, owner_wallet: str
+) -> List[Dict[str, Any]]:
     rows, _ = load_credential_rows(storage)
     result: List[Dict[str, Any]] = []
     for row in rows:
@@ -316,11 +394,19 @@ def list_secrets_by_owner(storage: BaseStorage, owner_wallet: str) -> List[Dict[
             }
         )
 
-    result.sort(key=lambda x: to_dt_str(x.get("createdAt"), "1970-01-01 00:00:00") or "1970-01-01 00:00:00", reverse=True)
+    result.sort(
+        key=lambda x: (
+            to_dt_str(x.get("createdAt"), "1970-01-01 00:00:00")
+            or "1970-01-01 00:00:00"
+        ),
+        reverse=True,
+    )
     return result
 
 
-def _validate_issue_request(req: CredentialIssueRequest, now: int) -> Tuple[int, int, Optional[float], str, Optional[int], int]:
+def _validate_issue_request(
+    req: CredentialIssueRequest, now: int
+) -> Tuple[int, int, Optional[float], str, Optional[int], int]:
     expires_at = now + resolve_ttl_seconds(req.expiresInSec)
     max_calls = int(req.maxCalls or 1000000)
     rpm = int(req.rpm or 600)
@@ -329,21 +415,46 @@ def _validate_issue_request(req: CredentialIssueRequest, now: int) -> Tuple[int,
     expiration = int(req.expiration) if req.expiration else None
 
     if max_calls <= 0:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_MAX_CALLS", "message": "maxCalls must be positive"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_MAX_CALLS",
+                "message": "maxCalls must be positive",
+            },
+        )
     if rpm <= 0:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_RPM", "message": "rpm must be positive"})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_RPM", "message": "rpm must be positive"},
+        )
     if credit_limit is not None and credit_limit <= 0:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_CREDIT_LIMIT", "message": "creditLimit must be positive"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_CREDIT_LIMIT",
+                "message": "creditLimit must be positive",
+            },
+        )
     if expiration is not None and expiration <= now:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_EXPIRATION", "message": "expiration must be in the future"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_EXPIRATION",
+                "message": "expiration must be in the future",
+            },
+        )
 
     return max_calls, rpm, credit_limit, reset_interval, expiration, expires_at
 
 
-async def issue_credential_for_owner(storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest) -> Dict[str, Any]:
+async def issue_credential_for_owner(
+    storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest
+) -> Dict[str, Any]:
     now = now_ts()
     now_str = now_dt_str()
-    max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = _validate_issue_request(req, now)
+    max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = (
+        _validate_issue_request(req, now)
+    )
 
     plain_token = issue_token()
     record = {
@@ -402,13 +513,21 @@ async def revoke_credential_for_owner(
 
     async with write_lock:
         rows, extras = load_credential_rows(storage)
-        index = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
+        index = next(
+            (i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1
+        )
         if index < 0:
-            raise HTTPException(status_code=404, detail={"code": not_found_code, "message": not_found_message})
+            raise HTTPException(
+                status_code=404,
+                detail={"code": not_found_code, "message": not_found_message},
+            )
 
         found = rows[index]
         if normalize_wallet(str(found.get("ownerAddress", ""))) != owner_wallet:
-            raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": forbidden_message})
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "FORBIDDEN", "message": forbidden_message},
+            )
 
         found["status"] = "revoked"
         found["updatedAt"] = now_dt_str()
@@ -416,7 +535,9 @@ async def revoke_credential_for_owner(
         rows[index] = found
         save_credential_rows(storage, rows, extras)
 
-    append_audit_log(storage, audit_action, owner_wallet, {"credentialId": credential_id})
+    append_audit_log(
+        storage, audit_action, owner_wallet, {"credentialId": credential_id}
+    )
     return {"status": "success", "credential": found}
 
 
@@ -430,15 +551,42 @@ def _update_if_present(found: Dict[str, Any], field: str, value: Any, now: int) 
         value = round(float(value), 6)
 
     if field == "maxCalls" and value <= 0:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_MAX_CALLS", "message": "maxCalls must be positive"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_MAX_CALLS",
+                "message": "maxCalls must be positive",
+            },
+        )
     if field == "rpm" and value <= 0:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_RPM", "message": "rpm must be positive"})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_RPM", "message": "rpm must be positive"},
+        )
     if field == "expiresAt" and value <= now:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_EXPIRES_AT", "message": "expiresAt must be in the future"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_EXPIRES_AT",
+                "message": "expiresAt must be in the future",
+            },
+        )
     if field == "creditLimit" and value <= 0:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_CREDIT_LIMIT", "message": "creditLimit must be positive"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_CREDIT_LIMIT",
+                "message": "creditLimit must be positive",
+            },
+        )
     if field == "expiration" and value <= now:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_EXPIRATION", "message": "expiration must be in the future"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_EXPIRATION",
+                "message": "expiration must be in the future",
+            },
+        )
     if field == "resetInterval":
         value = resolve_reset_interval(value)
 
@@ -455,13 +603,27 @@ async def update_credential_quota_for_owner(
 
     async with write_lock:
         rows, extras = load_credential_rows(storage)
-        index = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
+        index = next(
+            (i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1
+        )
         if index < 0:
-            raise HTTPException(status_code=404, detail={"code": "CREDENTIAL_NOT_FOUND", "message": "Credential not found"})
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "CREDENTIAL_NOT_FOUND",
+                    "message": "Credential not found",
+                },
+            )
 
         found = rows[index]
         if normalize_wallet(str(found.get("ownerAddress", ""))) != owner_wallet:
-            raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "Credential does not belong to current wallet"})
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "FORBIDDEN",
+                    "message": "Credential does not belong to current wallet",
+                },
+            )
 
         updates = {
             "maxCalls": req.maxCalls,
@@ -478,5 +640,10 @@ async def update_credential_quota_for_owner(
         rows[index] = found
         save_credential_rows(storage, rows, extras)
 
-    append_audit_log(storage, "CREDENTIAL_QUOTA_UPDATED", owner_wallet, {"credentialId": credential_id})
+    append_audit_log(
+        storage,
+        "CREDENTIAL_QUOTA_UPDATED",
+        owner_wallet,
+        {"credentialId": credential_id},
+    )
     return {"status": "success", "credential": found}

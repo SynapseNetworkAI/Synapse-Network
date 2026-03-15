@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
-import random
 
 from fastapi import HTTPException
 
@@ -26,10 +25,14 @@ def _build_buyer_receipt(
     buyer_balance_after: float,
 ) -> Dict[str, Any]:
     """Build buyer-facing receipt fields only, hiding internal settlement split details."""
-    return forwarding_billing.build_buyer_receipt(request_id, service_id, unit_price, total_charge, buyer_balance_after)
+    return forwarding_billing.build_buyer_receipt(
+        request_id, service_id, unit_price, total_charge, buyer_balance_after
+    )
 
 
-def _build_buyer_success_response(receipt: Dict[str, Any], upstream_result: Any) -> Dict[str, Any]:
+def _build_buyer_success_response(
+    receipt: Dict[str, Any], upstream_result: Any
+) -> Dict[str, Any]:
     """Return the canonical generate success envelope consumed by buyer SDKs."""
     return forwarding_billing.build_buyer_success_response(receipt, upstream_result)
 
@@ -39,7 +42,9 @@ def _effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
     return forwarding_validation.effective_service_constraints(service)
 
 
-def _pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: float) -> Tuple[float, float, float, float, float, float]:
+def _pricing_breakdown(
+    storage: BaseStorage, seller_wallet: str, unit_price: float
+) -> Tuple[float, float, float, float, float, float]:
     """Compute fee-rate decomposition for charging, reconciliation, and audits."""
     return forwarding_billing.pricing_breakdown(storage, seller_wallet, unit_price)
 
@@ -49,7 +54,9 @@ def _append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
     forwarding_billing.append_usage_log(storage, row)
 
 
-def _validate_service_id(x_service_id: Optional[str], request_service_id: Optional[str]) -> str:
+def _validate_service_id(
+    x_service_id: Optional[str], request_service_id: Optional[str]
+) -> str:
     """Validate and normalize serviceId from headers/body before service lookup."""
     return forwarding_validation.validate_service_id(x_service_id, request_service_id)
 
@@ -79,7 +86,9 @@ def _parse_service_price_usdc(service_row: Dict[str, Any]) -> float:
     return forwarding_validation.parse_service_price_usdc(service_row)
 
 
-def _validate_invoke_request_contract(service: Dict[str, Any], payload: Dict[str, Any]) -> None:
+def _validate_invoke_request_contract(
+    service: Dict[str, Any], payload: Dict[str, Any]
+) -> None:
     """Enforce invoke contract requirements for method/content-type/required fields."""
     forwarding_validation.validate_invoke_request_contract(service, payload)
 
@@ -101,21 +110,39 @@ def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
         return "never", 86400 * 365 * 50
     if reset_interval == "hourly":
         next_dt = now_dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        return now_dt.strftime("%Y%m%d%H"), max(1, int((next_dt - now_dt).total_seconds()))
+        return now_dt.strftime("%Y%m%d%H"), max(
+            1, int((next_dt - now_dt).total_seconds())
+        )
     if reset_interval == "daily":
-        next_dt = now_dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        return now_dt.strftime("%Y%m%d"), max(1, int((next_dt - now_dt).total_seconds()))
+        next_dt = now_dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(
+            days=1
+        )
+        return now_dt.strftime("%Y%m%d"), max(
+            1, int((next_dt - now_dt).total_seconds())
+        )
     if reset_interval == "weekly":
         week_start = now_dt - timedelta(days=now_dt.weekday())
         key = week_start.strftime("%Y%W")
-        next_dt = week_start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=7)
+        next_dt = week_start.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=7)
         return key, max(1, int((next_dt - now_dt).total_seconds()))
 
     key = now_dt.strftime("%Y%m")
     if now_dt.month == 12:
-        next_dt = now_dt.replace(year=now_dt.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_dt = now_dt.replace(
+            year=now_dt.year + 1,
+            month=1,
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
     else:
-        next_dt = now_dt.replace(month=now_dt.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_dt = now_dt.replace(
+            month=now_dt.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
     return key, max(1, int((next_dt - now_dt).total_seconds()))
 
 
@@ -132,7 +159,9 @@ async def _get_redis_client():
     try:
         import redis.asyncio as redis_async  # type: ignore[import-not-found]
 
-        _redis_client = redis_async.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        _redis_client = redis_async.from_url(
+            redis_url, encoding="utf-8", decode_responses=True
+        )
         await _redis_client.ping()
         return _redis_client
     except Exception:
@@ -155,7 +184,9 @@ async def _get_window_spend(credential_id: str, window_key: str) -> float:
     return float(value)
 
 
-async def _add_window_spend(credential_id: str, window_key: str, ttl_sec: int, amount: float) -> None:
+async def _add_window_spend(
+    credential_id: str, window_key: str, ttl_sec: int, amount: float
+) -> None:
     """Accumulate spend for one credit window in Redis or in-memory fallback counters."""
     key = f"cred_spend:{credential_id}:{window_key}"
     redis_client = await _get_redis_client()
@@ -165,7 +196,10 @@ async def _add_window_spend(credential_id: str, window_key: str, ttl_sec: int, a
         return
 
     current, _ = _memory_window_counters.get(key, (0.0, 0))
-    _memory_window_counters[key] = (float(current) + float(amount), credential_service.now_ts() + int(ttl_sec))
+    _memory_window_counters[key] = (
+        float(current) + float(amount),
+        credential_service.now_ts() + int(ttl_sec),
+    )
 
 
 async def _check_rpm_limit(credential_id: str, rpm: int) -> None:
@@ -180,7 +214,13 @@ async def _check_rpm_limit(credential_id: str, rpm: int) -> None:
         if current == 1:
             await redis_client.expire(key, 65)
         if int(current) > rpm:
-            raise HTTPException(status_code=429, detail={"code": "CREDENTIAL_RPM_EXCEEDED", "message": "Credential rate limit exceeded"})
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "CREDENTIAL_RPM_EXCEEDED",
+                    "message": "Credential rate limit exceeded",
+                },
+            )
         return
 
     count, expires_at = _memory_window_counters.get(key, (0.0, 0))
@@ -189,7 +229,13 @@ async def _check_rpm_limit(credential_id: str, rpm: int) -> None:
     count += 1.0
     _memory_window_counters[key] = (count, credential_service.now_ts() + 65)
     if int(count) > rpm:
-        raise HTTPException(status_code=429, detail={"code": "CREDENTIAL_RPM_EXCEEDED", "message": "Credential rate limit exceeded"})
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "CREDENTIAL_RPM_EXCEEDED",
+                "message": "Credential rate limit exceeded",
+            },
+        )
 
 
 async def _check_service_qps_limit(service_id: str, max_qps: int) -> None:
@@ -204,7 +250,13 @@ async def _check_service_qps_limit(service_id: str, max_qps: int) -> None:
         if current == 1:
             await redis_client.expire(key, 2)
         if int(current) > max_qps:
-            raise HTTPException(status_code=429, detail={"code": "SERVICE_QPS_EXCEEDED", "message": "Service QPS limit exceeded"})
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "SERVICE_QPS_EXCEEDED",
+                    "message": "Service QPS limit exceeded",
+                },
+            )
         return
 
     count, expires_at = _memory_window_counters.get(key, (0.0, 0))
@@ -213,7 +265,13 @@ async def _check_service_qps_limit(service_id: str, max_qps: int) -> None:
     count += 1.0
     _memory_window_counters[key] = (count, credential_service.now_ts() + 2)
     if int(count) > max_qps:
-        raise HTTPException(status_code=429, detail={"code": "SERVICE_QPS_EXCEEDED", "message": "Service QPS limit exceeded"})
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "SERVICE_QPS_EXCEEDED",
+                "message": "Service QPS limit exceeded",
+            },
+        )
 
 
 async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) -> None:
@@ -222,7 +280,9 @@ async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) 
     if credit_limit is None:
         return
 
-    reset_interval = credential_service.resolve_reset_interval(str(credential.get("resetInterval") or "daily"))
+    reset_interval = credential_service.resolve_reset_interval(
+        str(credential.get("resetInterval") or "daily")
+    )
     win_key, _ = _window_key_and_ttl(reset_interval, credential_service.now_ts())
     spent = await _get_window_spend(str(credential.get("id")), win_key)
     if float(spent) + float(charge_amount) <= float(credit_limit) + 1e-9:
@@ -241,13 +301,17 @@ async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) 
     )
 
 
-async def _record_credit_window_spend(credential: Dict[str, Any], charge_amount: float) -> None:
+async def _record_credit_window_spend(
+    credential: Dict[str, Any], charge_amount: float
+) -> None:
     """Record successful charge into credential credit window counters."""
     credit_limit = credential.get("creditLimit")
     if credit_limit is None:
         return
 
-    reset_interval = credential_service.resolve_reset_interval(str(credential.get("resetInterval") or "daily"))
+    reset_interval = credential_service.resolve_reset_interval(
+        str(credential.get("resetInterval") or "daily")
+    )
     win_key, ttl_sec = _window_key_and_ttl(reset_interval, credential_service.now_ts())
     await _add_window_spend(str(credential.get("id")), win_key, ttl_sec, charge_amount)
 
@@ -307,8 +371,17 @@ async def generate_response_v2(
     unit_price = _parse_service_price_usdc(service)
 
     owner_wallet = normalize_wallet(str(credential.get("ownerAddress") or ""))
-    seller_wallet = normalize_wallet(str(service.get("address") or service.get("ownerAddress") or ""))
-    fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = _pricing_breakdown(storage, seller_wallet, unit_price)
+    seller_wallet = normalize_wallet(
+        str(service.get("address") or service.get("ownerAddress") or "")
+    )
+    (
+        fee_rate,
+        protocol_fee,
+        routing_tax,
+        platform_fee_total,
+        seller_net,
+        total_charge,
+    ) = _pricing_breakdown(storage, seller_wallet, unit_price)
     await _check_credit_limit(credential, total_charge)
     settlement = {
         "unit_price": unit_price,
@@ -333,7 +406,15 @@ async def generate_response_v2(
     try:
         upstream_result = await _call_upstream(service, prompt, request_id)
     except HTTPException as exc:
-        await forwarding_billing.rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
+        await forwarding_billing.rollback_charge(
+            storage,
+            owner_wallet,
+            seller_wallet,
+            total_charge,
+            platform_fee_total,
+            seller_net,
+            updated_credential,
+        )
         _log_upstream_failure(
             storage,
             request_id,
@@ -345,7 +426,15 @@ async def generate_response_v2(
         )
         raise
     except Exception as exc:
-        await forwarding_billing.rollback_charge(storage, owner_wallet, seller_wallet, total_charge, platform_fee_total, seller_net, updated_credential)
+        await forwarding_billing.rollback_charge(
+            storage,
+            owner_wallet,
+            seller_wallet,
+            total_charge,
+            platform_fee_total,
+            seller_net,
+            updated_credential,
+        )
         _log_upstream_failure(
             storage,
             request_id,
@@ -355,7 +444,13 @@ async def generate_response_v2(
             settlement,
             error_message=str(exc),
         )
-        raise HTTPException(status_code=502, detail={"code": "UPSTREAM_ERROR", "message": f"Upstream provider failed: {str(exc)}"})
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "UPSTREAM_ERROR",
+                "message": f"Upstream provider failed: {str(exc)}",
+            },
+        )
 
     await _record_credit_window_spend(credential, total_charge)
 

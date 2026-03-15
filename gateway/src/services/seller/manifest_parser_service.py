@@ -33,7 +33,9 @@ def _service_manifest_template() -> Dict[str, Any]:
     }
 
 
-def _merge_manifest(default_manifest: Dict[str, Any], current_manifest: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _merge_manifest(
+    default_manifest: Dict[str, Any], current_manifest: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
     merged = {**default_manifest}
     if isinstance(current_manifest, dict):
         merged.update(current_manifest)
@@ -100,7 +102,11 @@ def _infer_schema_from_json_payload(payload: Any) -> Dict[str, Any]:
             "properties": properties,
         }
     if isinstance(payload, list):
-        item_schema = _infer_schema_from_json_payload(payload[0]) if payload else {"type": "string"}
+        item_schema = (
+            _infer_schema_from_json_payload(payload[0])
+            if payload
+            else {"type": "string"}
+        )
         return {"type": "array", "items": item_schema}
     if isinstance(payload, bool):
         return {"type": "boolean"}
@@ -118,7 +124,10 @@ def _extract_curl_parts(curl_command: str) -> Dict[str, Any]:
     url_match = re.search(r"https?://[^\s'\"\\]+", curl_command)
     endpoint = url_match.group(0) if url_match else ""
 
-    data_match = re.search(r"(?:^|\s)(?:--data-raw|--data|--data-binary|-d)\s+('([^']*)'|\"([^\"]*)\")", curl_command)
+    data_match = re.search(
+        r"(?:^|\s)(?:--data-raw|--data|--data-binary|-d)\s+('([^']*)'|\"([^\"]*)\")",
+        curl_command,
+    )
     body_str = ""
     if data_match:
         body_str = data_match.group(2) or data_match.group(3) or ""
@@ -145,7 +154,9 @@ def _to_agent_tool_name(name: str) -> str:
     return normalized[:64] if normalized else "invoke_service"
 
 
-def _build_fallback_manifest(curl_command: str, current_manifest: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_fallback_manifest(
+    curl_command: str, current_manifest: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
     parts = _extract_curl_parts(curl_command)
     endpoint = parts.get("endpoint", "")
 
@@ -157,18 +168,43 @@ def _build_fallback_manifest(curl_command: str, current_manifest: Optional[Dict[
         parsed = urlparse(endpoint)
         path_segments = [seg for seg in parsed.path.split("/") if seg]
         if path_segments:
-            service_name = " ".join(segment.replace("-", " ") for segment in path_segments[-2:]).title()
+            service_name = " ".join(
+                segment.replace("-", " ") for segment in path_segments[-2:]
+            ).title()
             intent = list(dict.fromkeys(path_segments[-3:] + ["api"]))
         if parsed.scheme and parsed.netloc:
             health_check = f"{parsed.scheme}://{parsed.netloc}/health"
 
     base = _merge_manifest(_service_manifest_template(), current_manifest)
-    base["service_name"] = current_manifest.get("service_name") if isinstance(current_manifest, dict) and current_manifest.get("service_name") else service_name
-    base["agent_tool_name"] = current_manifest.get("agent_tool_name") if isinstance(current_manifest, dict) and current_manifest.get("agent_tool_name") else _to_agent_tool_name(base["service_name"])
-    base["description"] = current_manifest.get("description") if isinstance(current_manifest, dict) and current_manifest.get("description") else "Generated from cURL command. Review and refine before deployment."
-    base["intent"] = current_manifest.get("intent") if isinstance(current_manifest, dict) and current_manifest.get("intent") else intent
-    base["endpoint"] = endpoint or (current_manifest.get("endpoint") if isinstance(current_manifest, dict) else "")
-    base["health_check"] = health_check or (current_manifest.get("health_check") if isinstance(current_manifest, dict) else "")
+    base["service_name"] = (
+        current_manifest.get("service_name")
+        if isinstance(current_manifest, dict) and current_manifest.get("service_name")
+        else service_name
+    )
+    base["agent_tool_name"] = (
+        current_manifest.get("agent_tool_name")
+        if isinstance(current_manifest, dict)
+        and current_manifest.get("agent_tool_name")
+        else _to_agent_tool_name(base["service_name"])
+    )
+    base["description"] = (
+        current_manifest.get("description")
+        if isinstance(current_manifest, dict) and current_manifest.get("description")
+        else "Generated from cURL command. Review and refine before deployment."
+    )
+    base["intent"] = (
+        current_manifest.get("intent")
+        if isinstance(current_manifest, dict) and current_manifest.get("intent")
+        else intent
+    )
+    base["endpoint"] = endpoint or (
+        current_manifest.get("endpoint") if isinstance(current_manifest, dict) else ""
+    )
+    base["health_check"] = health_check or (
+        current_manifest.get("health_check")
+        if isinstance(current_manifest, dict)
+        else ""
+    )
 
     body = parts.get("body")
     if body is not None:
@@ -183,9 +219,15 @@ def _build_fallback_manifest(curl_command: str, current_manifest: Optional[Dict[
     return base
 
 
-def _build_messages(curl_command: str, current_manifest: Optional[Dict[str, Any]], parser_doc: str) -> list[dict[str, str]]:
-    current_manifest_payload = current_manifest if isinstance(current_manifest, dict) else {}
-    default_manifest = _merge_manifest(_service_manifest_template(), current_manifest_payload)
+def _build_messages(
+    curl_command: str, current_manifest: Optional[Dict[str, Any]], parser_doc: str
+) -> list[dict[str, str]]:
+    current_manifest_payload = (
+        current_manifest if isinstance(current_manifest, dict) else {}
+    )
+    default_manifest = _merge_manifest(
+        _service_manifest_template(), current_manifest_payload
+    )
 
     system_prompt = (
         "You are a strict API contract parser for Synapse Network. "

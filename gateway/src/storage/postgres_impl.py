@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 from decimal import Decimal, ROUND_HALF_UP
 
 from .base import (
@@ -19,14 +19,16 @@ from .postgres.repositories.gateway_state_repository import GatewayStateReposito
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.audit import AuditLogEntry
-from src.domain.storage_entities import BuyerChargeResult, DepositIntentRow, UsageLogRow
+from src.domain.finance import BuyerChargeResult, DepositIntentRow, UsageLogRow
 
 try:
     import psycopg  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - optional dependency at import time
     psycopg = None
 
-_AUDIT_INSERT_SQL = "INSERT INTO synapse_audit_log (collection_name, payload) VALUES (%s, %s::jsonb)"
+_AUDIT_INSERT_SQL = (
+    "INSERT INTO synapse_audit_log (collection_name, payload) VALUES (%s, %s::jsonb)"
+)
 _BALANCE_FOR_UPDATE_SQL = (
     "SELECT available_balance, pending_balance, frozen_balance "
     "FROM synapse_balances WHERE owner_address = %s AND account_type = %s FOR UPDATE"
@@ -96,12 +98,18 @@ class PostgresStorage(BaseStorage):
         credential_auth = CredentialAuthRepository(self._db, q6)
         gateway_state = GatewayStateRepository(self._db, q6)
         finance_atomic = FinanceAtomicRepository(
-            self._db, q6, _BALANCE_UPSERT_SQL, _BALANCE_FOR_UPDATE_SQL,
-            _AUDIT_INSERT_SQL, _RISK_RESTRICTED_SESSION_STATUSES,
+            self._db,
+            q6,
+            _BALANCE_UPSERT_SQL,
+            _BALANCE_FOR_UPDATE_SQL,
+            _AUDIT_INSERT_SQL,
+            _RISK_RESTRICTED_SESSION_STATUSES,
         )
         self._data_manager = SynapseDataManager(
             uow=SynapseUnitOfWork(db=self._db),
-            finance=FinanceDomain(balance=balance, atomic=finance_atomic, fee_policy=fee_policy),
+            finance=FinanceDomain(
+                balance=balance, atomic=finance_atomic, fee_policy=fee_policy
+            ),
             system=SystemDomain(
                 gateway_state=gateway_state,
                 idempotency=idempotency,
@@ -185,11 +193,27 @@ class PostgresStorage(BaseStorage):
             sign_ticket_factory=sign_ticket_factory,
         )
 
-    def register_deposit_intent_atomic(self, owner_wallet: str, tx_hash: str, request_id: str, intent_row: DepositIntentRow) -> DepositIntentRow:
-        return self._data_manager.finance.atomic.register_deposit_intent_atomic(owner_wallet, tx_hash, request_id, intent_row)
+    def register_deposit_intent_atomic(
+        self,
+        owner_wallet: str,
+        tx_hash: str,
+        request_id: str,
+        intent_row: DepositIntentRow,
+    ) -> DepositIntentRow:
+        return self._data_manager.finance.atomic.register_deposit_intent_atomic(
+            owner_wallet, tx_hash, request_id, intent_row
+        )
 
-    def confirm_deposit_intent_atomic(self, owner_wallet: str, deposit_intent_id: str, event_key: str, confirmations: int) -> DepositIntentRow:
-        return self._data_manager.finance.atomic.confirm_deposit_intent_atomic(owner_wallet, deposit_intent_id, event_key, confirmations)
+    def confirm_deposit_intent_atomic(
+        self,
+        owner_wallet: str,
+        deposit_intent_id: str,
+        event_key: str,
+        confirmations: int,
+    ) -> DepositIntentRow:
+        return self._data_manager.finance.atomic.confirm_deposit_intent_atomic(
+            owner_wallet, deposit_intent_id, event_key, confirmations
+        )
 
     def charge_buyer_and_record_usage_atomic(
         self,
@@ -210,5 +234,9 @@ class PostgresStorage(BaseStorage):
             usage_row=usage_row,
         )
 
-    def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[AuditLogEntry]:
-        return self._data_manager.audit.logs.read_audit_rows(owner_wallet=owner_wallet, limit=limit)
+    def read_audit_rows(
+        self, owner_wallet: Optional[str] = None, limit: int = 200
+    ) -> List[AuditLogEntry]:
+        return self._data_manager.audit.logs.read_audit_rows(
+            owner_wallet=owner_wallet, limit=limit
+        )

@@ -4,7 +4,7 @@ import json
 from typing import List, Optional
 
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
-from src.domain.storage_entities import ServiceRegistryRow
+from src.domain.registry import ServiceRegistryRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -175,7 +175,9 @@ class ServiceRegistryRepository:
                     maxRequestBytes=max_request_bytes,
                     maxResponseBytes=max_response_bytes,
                     id=str(record_id) if record_id else None,
-                    schemaVersion=int(schema_version) if schema_version is not None else None,
+                    schemaVersion=int(schema_version)
+                    if schema_version is not None
+                    else None,
                     role=str(service_role) if service_role else None,
                     address=str(service_address) if service_address else None,
                     tags=self._normalize_json_list(tags_json),
@@ -385,7 +387,9 @@ class ServiceRegistryRepository:
                     ),
                 )
 
-    def read_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
+    def read_service_target_health_history_rows(
+        self,
+    ) -> List[ServiceTargetHealthHistory]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
@@ -415,7 +419,9 @@ class ServiceRegistryRepository:
             for service_id, owner, target_url, status, http_status, latency_ms, probe_url, successes, failures, checked_at, last_healthy_at, error in rows
         ]
 
-    def write_service_target_health_history_rows(self, rows: List[ServiceTargetHealthHistory]) -> None:
+    def write_service_target_health_history_rows(
+        self, rows: List[ServiceTargetHealthHistory]
+    ) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_service_target_health_history")
             for row in rows:

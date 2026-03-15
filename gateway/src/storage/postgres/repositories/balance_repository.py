@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict
 
-from src.domain.finance import BalanceLedger, PlatformFees
+from src.domain.finance import BalanceLedger
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
 
 class BalanceRepository:
-    def __init__(self, db: DatabaseManager, quantize6: Callable[[Any], Any], balance_upsert_sql: str):
+    def __init__(
+        self,
+        db: DatabaseManager,
+        quantize6: Callable[[Any], Any],
+        balance_upsert_sql: str,
+    ):
         self._db = db
         self._q6 = quantize6
         self._balance_upsert_sql = balance_upsert_sql
@@ -23,7 +28,14 @@ class BalanceRepository:
 
         ledger = BalanceLedger()
         max_updated = ""
-        for owner, account_type, available_balance, pending_balance, frozen_balance, updated_at in rows:
+        for (
+            owner,
+            account_type,
+            available_balance,
+            pending_balance,
+            frozen_balance,
+            updated_at,
+        ) in rows:
             updated = to_dt_str(updated_at, "") or ""
             if updated > max_updated:
                 max_updated = updated
@@ -44,16 +56,39 @@ class BalanceRepository:
         return ledger
 
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
-        updated_at = to_dt_str(ledger.updated_at or now_dt_str(), now_dt_str()) or now_dt_str()
+        updated_at = (
+            to_dt_str(ledger.updated_at or now_dt_str(), now_dt_str()) or now_dt_str()
+        )
 
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_balances")
-            self._upsert_account_rows(cur, "buyer", ledger.buyers, ledger.buyers_locked, ledger.buyers_frozen, updated_at)
-            self._upsert_account_rows(cur, "seller", ledger.sellers, ledger.sellers_locked, ledger.sellers_frozen, updated_at)
+            self._upsert_account_rows(
+                cur,
+                "buyer",
+                ledger.buyers,
+                ledger.buyers_locked,
+                ledger.buyers_frozen,
+                updated_at,
+            )
+            self._upsert_account_rows(
+                cur,
+                "seller",
+                ledger.sellers,
+                ledger.sellers_locked,
+                ledger.sellers_frozen,
+                updated_at,
+            )
 
             cur.execute(
                 self._balance_upsert_sql,
-                ("__platform__", "platform_fee", str(self._q6(ledger.platform.fee_accrued)), "0", "0", updated_at),
+                (
+                    "__platform__",
+                    "platform_fee",
+                    str(self._q6(ledger.platform.fee_accrued)),
+                    "0",
+                    "0",
+                    updated_at,
+                ),
             )
 
     def _upsert_account_rows(

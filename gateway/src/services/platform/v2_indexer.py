@@ -14,7 +14,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.audit import AuditLogEntry
 from src.domain.finance import BalanceLedger
-from src.domain.storage_entities import DepositIntentRow
+from src.domain.finance import DepositIntentRow
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -72,8 +72,12 @@ def _public_status_snapshot() -> Dict[str, Any]:
     backfill = dict(snapshot.get("backfill") or {})
     reconciliation = dict(snapshot.get("reconciliation") or {})
 
-    snapshot["lastError"] = _to_public_error_code(snapshot.get("lastError"), _INDEXER_LOOP_ERROR_CODE)
-    backfill["lastError"] = _to_public_error_code(backfill.get("lastError"), _BACKFILL_ERROR_CODE)
+    snapshot["lastError"] = _to_public_error_code(
+        snapshot.get("lastError"), _INDEXER_LOOP_ERROR_CODE
+    )
+    backfill["lastError"] = _to_public_error_code(
+        backfill.get("lastError"), _BACKFILL_ERROR_CODE
+    )
     reconciliation["lastError"] = _to_public_error_code(
         reconciliation.get("lastError"),
         _RECONCILIATION_ERROR_CODE,
@@ -90,7 +94,10 @@ def get_indexer_status() -> Dict[str, Any]:
         return {
             "running": bool(snapshot.get("running")),
             "listenerAddress": str(snapshot.get("listenerAddress") or ""),
-            "lastCounters": dict(snapshot.get("lastCounters") or {"credited": 0, "failed": 0, "pending": 0}),
+            "lastCounters": dict(
+                snapshot.get("lastCounters")
+                or {"credited": 0, "failed": 0, "pending": 0}
+            ),
             "lastProcessedAt": snapshot.get("lastProcessedAt"),
             "lastError": snapshot.get("lastError"),
             "pollIntervalSec": settings.v2_indexer_poll_interval_sec,
@@ -98,7 +105,10 @@ def get_indexer_status() -> Dict[str, Any]:
             "reconciliation": dict(snapshot.get("reconciliation") or {}),
         }
 
-TRANSFER_TOPIC = Web3.to_hex(Web3.keccak(text="Transfer(address,address,uint256)")).lower()
+
+TRANSFER_TOPIC = Web3.to_hex(
+    Web3.keccak(text="Transfer(address,address,uint256)")
+).lower()
 TOKEN_DECIMALS_CACHE: Dict[str, int] = {}
 
 
@@ -120,7 +130,9 @@ def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
 
 
 def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
-    typed_rows = [DepositIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+    typed_rows = [
+        DepositIntentRow.model_validate(row) for row in rows if isinstance(row, dict)
+    ]
     repo = storage.get_data_manager().system.gateway_state
     try:
         repo.write_deposit_intents(typed_rows)
@@ -143,11 +155,15 @@ def _load_processed_deposit_event_keys(storage: BaseStorage) -> List[str]:
 
 
 def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) -> None:
-    storage.get_data_manager().system.gateway_state.write_processed_deposit_event_keys(keys, now_dt_str())
+    storage.get_data_manager().system.gateway_state.write_processed_deposit_event_keys(
+        keys, now_dt_str()
+    )
 
 
 def _load_backfill_state(storage: BaseStorage) -> Dict[str, Any]:
-    raw = storage.get_data_manager().system.gateway_state.read_runtime_state("deposit_backfill_state")
+    raw = storage.get_data_manager().system.gateway_state.read_runtime_state(
+        "deposit_backfill_state"
+    )
     if isinstance(raw, dict):
         return dict(raw)
     return {}
@@ -156,10 +172,14 @@ def _load_backfill_state(storage: BaseStorage) -> Dict[str, Any]:
 def _save_backfill_state(storage: BaseStorage, state: Dict[str, Any]) -> None:
     payload = dict(state)
     payload["updatedAt"] = now_dt_str()
-    storage.get_data_manager().system.gateway_state.write_runtime_state("deposit_backfill_state", payload)
+    storage.get_data_manager().system.gateway_state.write_runtime_state(
+        "deposit_backfill_state", payload
+    )
 
 
-def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
+def _append_audit_log(
+    storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]
+) -> None:
     storage.get_data_manager().audit.logs.append_audit_row(
         AuditLogEntry(
             id=str(uuid4()),
@@ -185,7 +205,9 @@ def _topic_to_address(topic: Any) -> str:
     return Web3.to_checksum_address("0x" + topic_hex[-40:]).lower()
 
 
-def _make_event_row(tx_hash: str, log_index: int, buyer: str, amount_raw: int, token: str) -> Optional[Dict[str, Any]]:
+def _make_event_row(
+    tx_hash: str, log_index: int, buyer: str, amount_raw: int, token: str
+) -> Optional[Dict[str, Any]]:
     normalized_buyer = normalize_wallet(buyer)
     if not normalized_buyer or amount_raw <= 0:
         return None
@@ -209,7 +231,9 @@ def _decode_amount_raw(data: Any) -> int:
         return 0
 
 
-def _extract_router_event_rows(contract: Any, event_name: str, tx_receipt: Any, tx_hash: str) -> List[Dict[str, Any]]:
+def _extract_router_event_rows(
+    contract: Any, event_name: str, tx_receipt: Any, tx_hash: str
+) -> List[Dict[str, Any]]:
     event_cls = getattr(contract.events, event_name, None)
     if event_cls is None:
         return []
@@ -236,21 +260,27 @@ def _extract_router_event_rows(contract: Any, event_name: str, tx_receipt: Any, 
 
 
 def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
-    abi_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "SynapseCoreABI.json")
+    abi_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "SynapseCoreABI.json"
+    )
     if not os.path.exists(abi_path):
         return []
 
     try:
         with open(abi_path, "r", encoding="utf-8") as file:
             router_abi = json.load(file)
-        contract = w3.eth.contract(address=w3.to_checksum_address(settings.router_address), abi=router_abi)
+        contract = w3.eth.contract(
+            address=w3.to_checksum_address(settings.router_address), abi=router_abi
+        )
     except Exception:
         return []
 
     tx_hash = tx_receipt["transactionHash"].hex().lower()
     events: List[Dict[str, Any]] = []
     for event_name in ("DepositInfo", "Deposit", "Deposited"):
-        events.extend(_extract_router_event_rows(contract, event_name, tx_receipt, tx_hash))
+        events.extend(
+            _extract_router_event_rows(contract, event_name, tx_receipt, tx_hash)
+        )
     return events
 
 
@@ -322,7 +352,9 @@ def _resolve_token_decimals(token_address: str) -> int:
         return 6
 
 
-def _pick_matching_event(events: List[Dict[str, Any]], owner_wallet: str, min_amount_usdc: float) -> Optional[Dict[str, Any]]:
+def _pick_matching_event(
+    events: List[Dict[str, Any]], owner_wallet: str, min_amount_usdc: float
+) -> Optional[Dict[str, Any]]:
     owner = normalize_wallet(owner_wallet)
     candidate: Optional[Dict[str, Any]] = None
 
@@ -331,10 +363,14 @@ def _pick_matching_event(events: List[Dict[str, Any]], owner_wallet: str, min_am
         if buyer != owner:
             continue
         decimals = _resolve_token_decimals(str(row.get("token") or ""))
-        amount_usdc = _amount_usdc_from_raw(int(row.get("amountRaw", 0)), decimals=decimals)
+        amount_usdc = _amount_usdc_from_raw(
+            int(row.get("amountRaw", 0)), decimals=decimals
+        )
         if amount_usdc + 1e-9 < min_amount_usdc:
             continue
-        if candidate is None or int(row.get("amountRaw", 0)) > int(candidate.get("amountRaw", 0)):
+        if candidate is None or int(row.get("amountRaw", 0)) > int(
+            candidate.get("amountRaw", 0)
+        ):
             candidate = row
 
     return candidate
@@ -389,7 +425,9 @@ def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def _resolve_matched_event(tx_receipt: Any, owner_wallet: str, min_amount_usdc: float) -> Optional[Dict[str, Any]]:
+def _resolve_matched_event(
+    tx_receipt: Any, owner_wallet: str, min_amount_usdc: float
+) -> Optional[Dict[str, Any]]:
     events = _decode_router_deposit_events(tx_receipt)
     if not events:
         events = _decode_erc20_transfer_to_router(tx_receipt)
@@ -435,7 +473,9 @@ def _process_single_intent(
     )
 
 
-def _build_deposit_confirmation_context(intent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _build_deposit_confirmation_context(
+    intent: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
     intent_fields = _extract_intent_fields(intent)
     if not intent_fields:
         return None
@@ -493,13 +533,17 @@ def _apply_confirmed_deposit(
     owner_wallet = context["owner_wallet"]
     tx_hash = context["tx_hash"]
 
-    event_key = _resolve_event_key_or_mark_duplicate(intent, matched, processed_keys, now)
+    event_key = _resolve_event_key_or_mark_duplicate(
+        intent, matched, processed_keys, now
+    )
     if not event_key:
         return {"result": "failed", "changedIntent": True}
 
     token = str(matched.get("token") or "")
     decimals = _resolve_token_decimals(token) if token else 6
-    amount_usdc = _amount_usdc_from_raw(int(matched.get("amountRaw", 0)), decimals=decimals)
+    amount_usdc = _amount_usdc_from_raw(
+        int(matched.get("amountRaw", 0)), decimals=decimals
+    )
     applied = _apply_confirmed_balance_to_ledger(
         storage=storage,
         intent=intent,
@@ -584,7 +628,12 @@ def _apply_confirmed_balance_to_ledger(
         elif isinstance(confirmed, dict):
             intent.update(confirmed)
         intent["status"] = "CONFIRMED"
-        return {"result": "ok", "next_balance": float(intent.get("availableAfter") or buyers.get(owner_wallet, 0.0) or 0.0)}
+        return {
+            "result": "ok",
+            "next_balance": float(
+                intent.get("availableAfter") or buyers.get(owner_wallet, 0.0) or 0.0
+            ),
+        }
 
     next_balance = round(float(buyers.get(owner_wallet, 0.0)) + amount_usdc, 6)
     buyers[owner_wallet] = next_balance
@@ -593,7 +642,9 @@ def _apply_confirmed_balance_to_ledger(
     return {"result": "ok", "next_balance": next_balance}
 
 
-def _accumulate_outcome_counts(outcome: Dict[str, Any], counters: Dict[str, int]) -> None:
+def _accumulate_outcome_counts(
+    outcome: Dict[str, Any], counters: Dict[str, int]
+) -> None:
     result = str(outcome.get("result") or "skip")
     if result == "credited":
         counters["credited"] += 1
@@ -637,7 +688,11 @@ def _collect_router_candidate_tx_hashes(start_block: int, end_block: int) -> Lis
         except Exception:
             continue
 
-        transactions = block.get("transactions", []) if isinstance(block, dict) else getattr(block, "transactions", [])
+        transactions = (
+            block.get("transactions", [])
+            if isinstance(block, dict)
+            else getattr(block, "transactions", [])
+        )
         if not isinstance(transactions, list):
             continue
         for tx in transactions:
@@ -656,13 +711,20 @@ def _collect_router_candidate_tx_hashes(start_block: int, end_block: int) -> Lis
     return sorted(dedup)
 
 
-def _find_intent_by_tx_owner(intents: List[Dict[str, Any]], tx_hash: str, owner_wallet: str) -> Optional[Dict[str, Any]]:
+def _find_intent_by_tx_owner(
+    intents: List[Dict[str, Any]], tx_hash: str, owner_wallet: str
+) -> Optional[Dict[str, Any]]:
     owner = normalize_wallet(owner_wallet)
     tx = _normalize_tx_hash(tx_hash)
     if not owner or not tx:
         return None
     for row in intents:
-        if normalize_wallet(str(row.get("ownerAddress") or row.get("buyerAddress") or "")) != owner:
+        if (
+            normalize_wallet(
+                str(row.get("ownerAddress") or row.get("buyerAddress") or "")
+            )
+            != owner
+        ):
             continue
         if _normalize_tx_hash(str(row.get("txHash") or "")) != tx:
             continue
@@ -670,7 +732,9 @@ def _find_intent_by_tx_owner(intents: List[Dict[str, Any]], tx_hash: str, owner_
     return None
 
 
-def _build_recovery_intent(tx_hash: str, owner_wallet: str, amount_usdc: float, event_key: str, now: int) -> Dict[str, Any]:
+def _build_recovery_intent(
+    tx_hash: str, owner_wallet: str, amount_usdc: float, event_key: str, now: int
+) -> Dict[str, Any]:
     now_text = to_dt_str(now, now_dt_str()) or now_dt_str()
     return {
         "id": str(uuid4()),
@@ -695,7 +759,12 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
     state = _load_backfill_state(storage)
     confirmed_head = _confirmed_head_block()
     if confirmed_head <= 0:
-        return {"enabled": True, "scanned": 0, "recovered": 0, "lastScannedBlock": state.get("lastScannedBlock")}
+        return {
+            "enabled": True,
+            "scanned": 0,
+            "recovered": 0,
+            "lastScannedBlock": state.get("lastScannedBlock"),
+        }
 
     last_scanned = int(state.get("lastScannedBlock") or 0)
     if last_scanned <= 0:
@@ -703,11 +772,15 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
         if configured_start > 0:
             start_block = configured_start
         else:
-            start_block = max(1, confirmed_head - max(1, int(settings.v2_backfill_block_batch)) + 1)
+            start_block = max(
+                1, confirmed_head - max(1, int(settings.v2_backfill_block_batch)) + 1
+            )
     else:
         start_block = last_scanned + 1
 
-    end_block = min(confirmed_head, start_block + max(1, int(settings.v2_backfill_block_batch)) - 1)
+    end_block = min(
+        confirmed_head, start_block + max(1, int(settings.v2_backfill_block_batch)) - 1
+    )
     if start_block > end_block:
         _set_status(
             backfill={
@@ -718,7 +791,12 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
                 "lastError": None,
             }
         )
-        return {"enabled": True, "scanned": 0, "recovered": 0, "lastScannedBlock": last_scanned}
+        return {
+            "enabled": True,
+            "scanned": 0,
+            "recovered": 0,
+            "lastScannedBlock": last_scanned,
+        }
 
     with lock:
         intents = _load_deposit_intents(storage)
@@ -752,17 +830,23 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
                     continue
                 token = str(event.get("token") or "")
                 decimals = _resolve_token_decimals(token) if token else 6
-                amount_usdc = _amount_usdc_from_raw(int(event.get("amountRaw") or 0), decimals=decimals)
+                amount_usdc = _amount_usdc_from_raw(
+                    int(event.get("amountRaw") or 0), decimals=decimals
+                )
                 if amount_usdc <= 0:
                     continue
 
                 target_intent = _find_intent_by_tx_owner(intents, tx_hash, owner_wallet)
                 if target_intent is None:
-                    target_intent = _build_recovery_intent(tx_hash, owner_wallet, amount_usdc, event_key, now)
+                    target_intent = _build_recovery_intent(
+                        tx_hash, owner_wallet, amount_usdc, event_key, now
+                    )
                     intents.append(target_intent)
                     changed_intents = True
 
-                outcome = _process_single_intent(storage, target_intent, processed_keys, buyers, now)
+                outcome = _process_single_intent(
+                    storage, target_intent, processed_keys, buyers, now
+                )
                 if outcome.get("changedIntent"):
                     changed_intents = True
                 if outcome.get("changedLedger"):
@@ -824,7 +908,9 @@ def _read_chain_vault_balance_usdc() -> float:
         }
     ]
     contract = w3.eth.contract(address=w3.to_checksum_address(token), abi=abi)
-    raw_balance = int(contract.functions.balanceOf(w3.to_checksum_address(router)).call())
+    raw_balance = int(
+        contract.functions.balanceOf(w3.to_checksum_address(router)).call()
+    )
     decimals = _resolve_token_decimals(token)
     return _amount_usdc_from_raw(raw_balance, decimals=decimals)
 
@@ -840,14 +926,18 @@ def run_reconciliation_check_once(storage: BaseStorage) -> Dict[str, Any]:
     delta = round(abs(chain_vault - ledger_obligation), 6)
     alert = bool(delta > float(settings.v2_reconciliation_alert_delta_usdc))
 
-    alert_state = storage.get_data_manager().system.gateway_state.read_runtime_state("deposit_reconciliation_state")
+    alert_state = storage.get_data_manager().system.gateway_state.read_runtime_state(
+        "deposit_reconciliation_state"
+    )
     state = dict(alert_state) if isinstance(alert_state, dict) else {}
     last_alert_at = int(state.get("lastAlertAt") or 0)
     should_emit_alert = alert and (now - last_alert_at >= 300)
 
     if should_emit_alert:
         state["lastAlertAt"] = now
-        storage.get_data_manager().system.gateway_state.write_runtime_state("deposit_reconciliation_state", state)
+        storage.get_data_manager().system.gateway_state.write_runtime_state(
+            "deposit_reconciliation_state", state
+        )
         _append_audit_log(
             storage,
             "V2_DEPOSIT_RECONCILIATION_ALERT",
@@ -873,7 +963,9 @@ def run_reconciliation_check_once(storage: BaseStorage) -> Dict[str, Any]:
     return summary
 
 
-def replay_deposit_tx(storage: BaseStorage, tx_hash: str, requested_by: str) -> Dict[str, Any]:
+def replay_deposit_tx(
+    storage: BaseStorage, tx_hash: str, requested_by: str
+) -> Dict[str, Any]:
     normalized_tx = _normalize_tx_hash(tx_hash)
     if not normalized_tx:
         raise ValueError("INVALID_TX_HASH")
@@ -894,7 +986,14 @@ def replay_deposit_tx(storage: BaseStorage, tx_hash: str, requested_by: str) -> 
     if not events:
         raise RuntimeError("NO_MATCHING_DEPOSIT_EVENT")
 
-    summary = {"txHash": normalized_tx, "events": len(events), "intentsCreated": 0, "credited": 0, "failed": 0, "pending": 0}
+    summary = {
+        "txHash": normalized_tx,
+        "events": len(events),
+        "intentsCreated": 0,
+        "credited": 0,
+        "failed": 0,
+        "pending": 0,
+    }
 
     with lock:
         intents = _load_deposit_intents(storage)
@@ -912,17 +1011,25 @@ def replay_deposit_tx(storage: BaseStorage, tx_hash: str, requested_by: str) -> 
                 continue
             token = str(event.get("token") or "")
             decimals = _resolve_token_decimals(token) if token else 6
-            amount_usdc = _amount_usdc_from_raw(int(event.get("amountRaw") or 0), decimals=decimals)
+            amount_usdc = _amount_usdc_from_raw(
+                int(event.get("amountRaw") or 0), decimals=decimals
+            )
             event_key = str(event.get("eventKey") or "")
 
-            target_intent = _find_intent_by_tx_owner(intents, normalized_tx, owner_wallet)
+            target_intent = _find_intent_by_tx_owner(
+                intents, normalized_tx, owner_wallet
+            )
             if target_intent is None:
-                target_intent = _build_recovery_intent(normalized_tx, owner_wallet, amount_usdc, event_key, now)
+                target_intent = _build_recovery_intent(
+                    normalized_tx, owner_wallet, amount_usdc, event_key, now
+                )
                 intents.append(target_intent)
                 changed_intents = True
                 summary["intentsCreated"] += 1
 
-            outcome = _process_single_intent(storage, target_intent, processed_keys, buyers, now)
+            outcome = _process_single_intent(
+                storage, target_intent, processed_keys, buyers, now
+            )
             if outcome.get("changedIntent"):
                 changed_intents = True
             if outcome.get("changedLedger"):
@@ -969,7 +1076,9 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]
         for intent in intents:
             # 核心幂等点：同一笔 intent 多次执行不会重复记账，
             # 因为 outcome 与 processed_keys 会拦截重放。
-            outcome = _process_single_intent(storage, intent, processed_keys, buyers, now)
+            outcome = _process_single_intent(
+                storage, intent, processed_keys, buyers, now
+            )
 
             if outcome.get("changedIntent"):
                 changed_intents = True
@@ -991,7 +1100,9 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]
     return counters
 
 
-async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage) -> None:
+async def run_v2_deposit_indexer(
+    stop_event: asyncio.Event, storage: BaseStorage
+) -> None:
     # 常驻索引循环：按固定周期轮询 pending intents。
     # 设计目标：让“链上成功但服务端暂未入账”在后续周期自动修复。
     _set_status(running=True, listenerAddress=normalize_wallet(settings.router_address))
@@ -1015,7 +1126,9 @@ async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage
             process_pending_deposit_intents_once(storage)
 
             now = _now()
-            if settings.v2_reconciliation_enabled and (now - last_reconciliation_at) >= int(settings.v2_reconciliation_interval_sec):
+            if settings.v2_reconciliation_enabled and (
+                now - last_reconciliation_at
+            ) >= int(settings.v2_reconciliation_interval_sec):
                 try:
                     run_reconciliation_check_once(storage)
                     last_reconciliation_at = now
@@ -1036,7 +1149,9 @@ async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage
             logger.exception("V2 indexer loop failed")
             _set_status(lastError=_INDEXER_LOOP_ERROR_CODE, lastProcessedAt=_now())
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=settings.v2_indexer_poll_interval_sec)
+            await asyncio.wait_for(
+                stop_event.wait(), timeout=settings.v2_indexer_poll_interval_sec
+            )
         except asyncio.TimeoutError:
             continue
     _set_status(running=False)

@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.api.schemas.pydantic_models import CredentialIssueRequest
-from src.domain.storage_entities import CredentialRow
+from src.domain.auth import CredentialRow
 from src.services.platform import credential_service
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
@@ -31,21 +31,36 @@ def _normalize_secret_rows(raw: Any) -> Tuple[List[Dict[str, Any]], Dict[str, An
     return rows, extras
 
 
-def save_seller_secret_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extras: Optional[Dict[str, Any]] = None) -> None:
+def save_seller_secret_rows(
+    storage: BaseStorage,
+    rows: List[Dict[str, Any]],
+    extras: Optional[Dict[str, Any]] = None,
+) -> None:
     for row in rows:
         row["credentialType"] = "seller"
         row["createdAt"] = to_dt_str(row.get("createdAt"), now_dt_str())
         row["updatedAt"] = to_dt_str(row.get("updatedAt"), now_dt_str())
-    payload: Dict[str, Any] = {"credentials": rows, "updatedAt": credential_service.now_ts()}
+    payload: Dict[str, Any] = {
+        "credentials": rows,
+        "updatedAt": credential_service.now_ts(),
+    }
     if extras:
         payload.update(extras)
     _ = payload
-    typed_rows = [CredentialRow.model_validate(row) for row in rows if isinstance(row, dict)]
-    storage.get_data_manager().system.credential_auth.write_credential_rows("seller", typed_rows)
+    typed_rows = [
+        CredentialRow.model_validate(row) for row in rows if isinstance(row, dict)
+    ]
+    storage.get_data_manager().system.credential_auth.write_credential_rows(
+        "seller", typed_rows
+    )
 
 
-def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    primary_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
+def load_seller_secret_rows(
+    storage: BaseStorage,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    primary_entities = (
+        storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
+    )
     primary_rows = [_row_as_dict(row) for row in primary_entities]
     primary_rows = [row for row in primary_rows if row]
     primary = {"credentials": primary_rows, "updatedAt": 0}
@@ -55,7 +70,11 @@ def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]],
 
     for legacy_collection in _LEGACY_SELLER_COLLECTIONS:
         _ = legacy_collection
-        legacy_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
+        legacy_entities = (
+            storage.get_data_manager().system.credential_auth.read_credential_rows(
+                "seller"
+            )
+        )
         legacy_rows_raw = [_row_as_dict(row) for row in legacy_entities]
         legacy_rows_raw = [row for row in legacy_rows_raw if row]
         legacy = {"credentials": legacy_rows_raw, "updatedAt": 0}
@@ -67,7 +86,9 @@ def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]],
     return [], {}
 
 
-def list_seller_secrets_by_owner(storage: BaseStorage, owner_wallet: str) -> List[Dict[str, Any]]:
+def list_seller_secrets_by_owner(
+    storage: BaseStorage, owner_wallet: str
+) -> List[Dict[str, Any]]:
     rows, _ = load_seller_secret_rows(storage)
     result: List[Dict[str, Any]] = []
     for row in rows:
@@ -94,14 +115,24 @@ def list_seller_secrets_by_owner(storage: BaseStorage, owner_wallet: str) -> Lis
             }
         )
 
-    result.sort(key=lambda x: to_dt_str(x.get("createdAt"), "1970-01-01 00:00:00") or "1970-01-01 00:00:00", reverse=True)
+    result.sort(
+        key=lambda x: (
+            to_dt_str(x.get("createdAt"), "1970-01-01 00:00:00")
+            or "1970-01-01 00:00:00"
+        ),
+        reverse=True,
+    )
     return result
 
 
-async def issue_seller_secret_for_owner(storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest) -> Dict[str, Any]:
+async def issue_seller_secret_for_owner(
+    storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest
+) -> Dict[str, Any]:
     now_ts = credential_service.now_ts()
     now = now_dt_str()
-    max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = credential_service._validate_issue_request(req, now_ts)
+    max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = (
+        credential_service._validate_issue_request(req, now_ts)
+    )
 
     plain_token = credential_service.issue_token()
     record = {
@@ -161,18 +192,31 @@ async def issue_seller_secret_for_owner(storage: BaseStorage, owner_wallet: str,
     }
 
 
-async def revoke_seller_secret_for_owner(storage: BaseStorage, owner_wallet: str, secret_id: str) -> Dict[str, Any]:
+async def revoke_seller_secret_for_owner(
+    storage: BaseStorage, owner_wallet: str, secret_id: str
+) -> Dict[str, Any]:
     now = credential_service.now_ts()
 
     async with seller_write_lock:
         rows, extras = load_seller_secret_rows(storage)
-        index = next((i for i, row in enumerate(rows) if str(row.get("id")) == secret_id), -1)
+        index = next(
+            (i for i, row in enumerate(rows) if str(row.get("id")) == secret_id), -1
+        )
         if index < 0:
-            raise HTTPException(status_code=404, detail={"code": "SECRET_NOT_FOUND", "message": "Secret key not found"})
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "SECRET_NOT_FOUND", "message": "Secret key not found"},
+            )
 
         found = rows[index]
         if normalize_wallet(str(found.get("ownerAddress", ""))) != owner_wallet:
-            raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "Secret does not belong to current wallet"})
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "FORBIDDEN",
+                    "message": "Secret does not belong to current wallet",
+                },
+            )
 
         found["status"] = "revoked"
         found["updatedAt"] = now_dt_str()
@@ -180,5 +224,7 @@ async def revoke_seller_secret_for_owner(storage: BaseStorage, owner_wallet: str
         rows[index] = found
         save_seller_secret_rows(storage, rows, extras)
 
-    credential_service.append_audit_log(storage, "SELLER_SECRET_REVOKED", owner_wallet, {"secretId": secret_id})
+    credential_service.append_audit_log(
+        storage, "SELLER_SECRET_REVOKED", owner_wallet, {"secretId": secret_id}
+    )
     return {"status": "success", "message": "Deleted"}

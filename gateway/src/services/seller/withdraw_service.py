@@ -10,7 +10,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_lock import RedisLockManager
 from src.domain.finance import BalanceLedger
-from src.domain.storage_entities import WithdrawalIntentRow
+from src.domain.finance import WithdrawalIntentRow
 from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
@@ -21,11 +21,18 @@ from src.storage.base import BaseStorage
 
 
 WITHDRAW_AUTO_APPROVAL_LIMIT_USDC = 100.0
-ACTIVE_WITHDRAWAL_STATUSES = {"REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "PENDING"}
+ACTIVE_WITHDRAWAL_STATUSES = {
+    "REQUESTED",
+    "APPROVED_AUTO",
+    "PENDING_MANUAL_REVIEW",
+    "PENDING",
+}
 INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds seller receivable."
 
 
-class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin):
+class SellerWithdrawService(
+    BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin
+):
     """Seller-side withdrawal domain service."""
 
     def __init__(
@@ -55,7 +62,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             return self._signing_delegate._require_withdraw_signer()  # type: ignore[attr-defined]
         return super()._require_withdraw_signer()
 
-    def _sign_withdraw_ticket(self, typed_data: Dict[str, Any], private_key: str) -> str:
+    def _sign_withdraw_ticket(
+        self, typed_data: Dict[str, Any], private_key: str
+    ) -> str:
         if self._signing_delegate is not None:
             return self._signing_delegate._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
         return super()._sign_withdraw_ticket(typed_data, private_key)
@@ -90,7 +99,11 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             # Preserve full dict payload for in-memory/non-SQL repositories.
             repo.write_withdrawal_intents(rows, int(time.time()))
         except Exception:
-            typed_rows = [WithdrawalIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+            typed_rows = [
+                WithdrawalIntentRow.model_validate(row)
+                for row in rows
+                if isinstance(row, dict)
+            ]
             repo.write_withdrawal_intents(typed_rows, int(time.time()))
 
     def _load_balance_ledger(self) -> BalanceLedger:
@@ -100,7 +113,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         ledger.updated_at = int(time.time())
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
-    def _get_pending_withdrawal(self, rows: List[Dict[str, Any]], owner_wallet: str) -> Optional[Dict[str, Any]]:
+    def _get_pending_withdrawal(
+        self, rows: List[Dict[str, Any]], owner_wallet: str
+    ) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         for row in rows:
             if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
@@ -109,7 +124,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 return row
         return None
 
-    def _find_withdrawal_by_id(self, rows: List[Dict[str, Any]], owner_wallet: str, withdrawal_id: str) -> Optional[Dict[str, Any]]:
+    def _find_withdrawal_by_id(
+        self, rows: List[Dict[str, Any]], owner_wallet: str, withdrawal_id: str
+    ) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         target = str(withdrawal_id or "").strip()
         if not target:
@@ -122,13 +139,18 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             return row
         return None
 
-    def _parse_withdraw_amount_usdc(self, payload: Dict[str, Any], available: float) -> float:
+    def _parse_withdraw_amount_usdc(
+        self, payload: Dict[str, Any], available: float
+    ) -> float:
         raw = payload.get("amountUsdc")
         if raw is None:
             if available <= 0:
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": "No seller receivable available for withdrawal."},
+                    detail={
+                        "code": "INSUFFICIENT_SELLER_RECEIVABLE",
+                        "message": "No seller receivable available for withdrawal.",
+                    },
                 )
             return round(available, 6)
         try:
@@ -136,18 +158,27 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         except Exception:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a number."},
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc must be a number.",
+                },
             )
         amount = round(amount, 6)
         if amount <= 0:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc must be greater than 0.",
+                },
             )
         if amount > available:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": INSUFFICIENT_RECEIVABLE_MESSAGE},
+                detail={
+                    "code": "INSUFFICIENT_SELLER_RECEIVABLE",
+                    "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
+                },
             )
         return amount
 
@@ -174,11 +205,16 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         if not normalized.startswith("0x") or len(normalized) != 66:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_TX_HASH", "message": "txHash must be a 66-char 0x-prefixed hash."},
+                detail={
+                    "code": "INVALID_TX_HASH",
+                    "message": "txHash must be a 66-char 0x-prefixed hash.",
+                },
             )
         return normalized
 
-    def _assert_withdrawal_completable(self, target: Dict[str, Any], tx_hash: str) -> Optional[Dict[str, Any]]:
+    def _assert_withdrawal_completable(
+        self, target: Dict[str, Any], tx_hash: str
+    ) -> Optional[Dict[str, Any]]:
         status = str(target.get("status") or "").upper()
         if status == "COMPLETED":
             existing_tx = str(target.get("txHash") or "")
@@ -205,7 +241,13 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             )
         return None
 
-    def _assert_no_withdraw_tx_replay(self, rows: List[Dict[str, Any]], owner_wallet: str, tx_hash: str, current_withdrawal_id: str) -> None:
+    def _assert_no_withdraw_tx_replay(
+        self,
+        rows: List[Dict[str, Any]],
+        owner_wallet: str,
+        tx_hash: str,
+        current_withdrawal_id: str,
+    ) -> None:
         owner = normalize_wallet(owner_wallet)
         for row in rows:
             if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
@@ -236,20 +278,31 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         ledger.sellers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
-    def _reserve_withdraw_amount(self, owner: str, amount_usdc: float, ledger: BalanceLedger) -> None:
-        ledger.sellers[owner] = round(float(ledger.sellers.get(owner, 0.0)) - amount_usdc, 6)
-        ledger.sellers_locked[owner] = round(float(ledger.sellers_locked.get(owner, 0.0)) + amount_usdc, 6)
+    def _reserve_withdraw_amount(
+        self, owner: str, amount_usdc: float, ledger: BalanceLedger
+    ) -> None:
+        ledger.sellers[owner] = round(
+            float(ledger.sellers.get(owner, 0.0)) - amount_usdc, 6
+        )
+        ledger.sellers_locked[owner] = round(
+            float(ledger.sellers_locked.get(owner, 0.0)) + amount_usdc, 6
+        )
         if hasattr(self.storage, "reserve_seller_withdraw_atomic"):
             try:
                 getattr(self.storage, "reserve_seller_withdraw_atomic")(
                     owner_wallet=owner,
-                    amount_usdc=Decimal(str(amount_usdc)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+                    amount_usdc=Decimal(str(amount_usdc)).quantize(
+                        Decimal("0.000001"), rounding=ROUND_HALF_UP
+                    ),
                 )
             except RuntimeError as exc:
                 if str(exc) == "INSUFFICIENT_SELLER_RECEIVABLE":
                     raise HTTPException(
                         status_code=400,
-                        detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": INSUFFICIENT_RECEIVABLE_MESSAGE},
+                        detail={
+                            "code": "INSUFFICIENT_SELLER_RECEIVABLE",
+                            "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
+                        },
                     )
                 raise
             return
@@ -319,8 +372,12 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             },
         }
 
-    def _build_atomic_signing_ticket(self, owner: str, amount_usdc: Decimal) -> Dict[str, Any]:
-        payload = self._prepare_withdraw_ticket(owner=owner, amount_usdc=float(amount_usdc))
+    def _build_atomic_signing_ticket(
+        self, owner: str, amount_usdc: Decimal
+    ) -> Dict[str, Any]:
+        payload = self._prepare_withdraw_ticket(
+            owner=owner, amount_usdc=float(amount_usdc)
+        )
         if bool(payload.get("requiresManualReview")):
             return {}
         return payload.get("ticket") if isinstance(payload.get("ticket"), dict) else {}
@@ -348,23 +405,35 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 request_id=request_id,
                 idempotency_key=idempotency_key,
                 request_meta=request_meta,
-                single_limit_usdc=Decimal(str(settings.withdrawal_auto_single_limit_usdc)),
-                rolling_24h_limit_usdc=Decimal(str(settings.withdrawal_auto_24h_limit_usdc)),
+                single_limit_usdc=Decimal(
+                    str(settings.withdrawal_auto_single_limit_usdc)
+                ),
+                rolling_24h_limit_usdc=Decimal(
+                    str(settings.withdrawal_auto_24h_limit_usdc)
+                ),
                 window_seconds=window_seconds,
                 high_risk_override=high_risk_override,
-                sign_ticket_factory=lambda value: self._build_atomic_signing_ticket(owner, value),
+                sign_ticket_factory=lambda value: self._build_atomic_signing_ticket(
+                    owner, value
+                ),
             )
         except RuntimeError as exc:
             code = str(exc)
             if code == "INSUFFICIENT_SELLER_RECEIVABLE":
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": INSUFFICIENT_RECEIVABLE_MESSAGE},
+                    detail={
+                        "code": "INSUFFICIENT_SELLER_RECEIVABLE",
+                        "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
+                    },
                 )
             if code == "INVALID_WITHDRAW_AMOUNT":
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
+                    detail={
+                        "code": "INVALID_AMOUNT",
+                        "message": "amountUsdc must be greater than 0.",
+                    },
                 )
             raise
 
@@ -382,7 +451,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         request_id = str((request_meta or {}).get("requestId") or str(uuid4()))
         atomic_result = self.process_withdrawal_request(
             seller_address=owner,
-            amount_usdc=Decimal(str(amount_usdc)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+            amount_usdc=Decimal(str(amount_usdc)).quantize(
+                Decimal("0.000001"), rounding=ROUND_HALF_UP
+            ),
             request_id=request_id,
             idempotency_key=idempotency_key,
             request_meta=request_meta,
@@ -390,8 +461,12 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         response = {
             "withdrawalId": str(atomic_result.get("withdrawalId") or ""),
             "status": str(atomic_result.get("status") or "REQUESTED"),
-            "amountUsdc": round(float(atomic_result.get("amountUsdc") or amount_usdc), 6),
-            "ticket": atomic_result.get("ticket") if isinstance(atomic_result.get("ticket"), dict) else {},
+            "amountUsdc": round(
+                float(atomic_result.get("amountUsdc") or amount_usdc), 6
+            ),
+            "ticket": atomic_result.get("ticket")
+            if isinstance(atomic_result.get("ticket"), dict)
+            else {},
             "message": str(atomic_result.get("message") or ""),
         }
         await self._finish_provider_withdraw_idempotency(
@@ -406,8 +481,14 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             raise HTTPException(
                 status_code=403,
                 detail={
-                    "code": str(atomic_result.get("riskReasonCode") or "WITHDRAWAL_BLOCKED_BY_RISK_POLICY"),
-                    "message": str(atomic_result.get("message") or "Withdrawal blocked by risk policy."),
+                    "code": str(
+                        atomic_result.get("riskReasonCode")
+                        or "WITHDRAWAL_BLOCKED_BY_RISK_POLICY"
+                    ),
+                    "message": str(
+                        atomic_result.get("message")
+                        or "Withdrawal blocked by risk policy."
+                    ),
                 },
             )
 
@@ -480,7 +561,11 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         deadline = int(ticket_payload.get("deadline") or 0)
         signature = str(ticket_payload.get("signature") or "")
         signer_address = str(ticket_payload.get("signerAddress") or "")
-        ticket = ticket_payload.get("ticket") if isinstance(ticket_payload.get("ticket"), dict) else {}
+        ticket = (
+            ticket_payload.get("ticket")
+            if isinstance(ticket_payload.get("ticket"), dict)
+            else {}
+        )
 
         now = int(time.time())
         withdrawal_id = str(uuid4())
@@ -531,7 +616,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
-            await self._enforce_owner_write_rate_limit(owner, "provider_withdraw_intent")
+            await self._enforce_owner_write_rate_limit(
+                owner, "provider_withdraw_intent"
+            )
 
             request_hash = self._request_hash(
                 {
@@ -539,7 +626,11 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                     "amountUsdc": self._requested_withdraw_amount_for_hash(payload),
                 }
             )
-            existing_response, redis_client, idem_rows = await self._begin_provider_withdraw_idempotency(
+            (
+                existing_response,
+                redis_client,
+                idem_rows,
+            ) = await self._begin_provider_withdraw_idempotency(
                 owner=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
@@ -549,7 +640,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
 
             ledger = self._load_balance_ledger()
             available_receivable = round(float(ledger.sellers.get(owner, 0.0)), 6)
-            amount_usdc = self._parse_withdraw_amount_usdc(payload, available_receivable)
+            amount_usdc = self._parse_withdraw_amount_usdc(
+                payload, available_receivable
+            )
 
             rows = self._normalize_withdrawal_rows()
             pending_response = await self._resolve_pending_withdrawal_response(
@@ -575,7 +668,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                     idem_rows=idem_rows,
                 )
 
-            ticket_payload = self._prepare_withdraw_ticket(owner=owner, amount_usdc=amount_usdc)
+            ticket_payload = self._prepare_withdraw_ticket(
+                owner=owner, amount_usdc=amount_usdc
+            )
             self._reserve_withdraw_amount(owner, amount_usdc, ledger)
             row, response = self._build_withdraw_row_and_response(
                 owner=owner,
@@ -610,11 +705,17 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             )
             return response
 
-    async def list_provider_withdrawals(self, owner_wallet: str) -> List[Dict[str, Any]]:
+    async def list_provider_withdrawals(
+        self, owner_wallet: str
+    ) -> List[Dict[str, Any]]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
         rows = self._normalize_withdrawal_rows()
-        filtered = [row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner]
+        filtered = [
+            row
+            for row in rows
+            if normalize_wallet(str(row.get("ownerAddress") or "")) == owner
+        ]
         filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
         return filtered
 
@@ -627,13 +728,18 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
     ) -> Dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_complete"):
-            await self._enforce_owner_write_rate_limit(owner, "provider_withdraw_complete")
+            await self._enforce_owner_write_rate_limit(
+                owner, "provider_withdraw_complete"
+            )
             rows = self._normalize_withdrawal_rows()
             target = self._find_withdrawal_by_id(rows, owner, withdrawal_id)
             if target is None:
                 raise HTTPException(
                     status_code=404,
-                    detail={"code": "WITHDRAWAL_NOT_FOUND", "message": "Provider withdrawal intent not found."},
+                    detail={
+                        "code": "WITHDRAWAL_NOT_FOUND",
+                        "message": "Provider withdrawal intent not found.",
+                    },
                 )
 
             normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)
@@ -653,7 +759,9 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                             "message": "txHash is already bound to another withdrawal.",
                         },
                     )
-            self._assert_no_withdraw_tx_replay(rows, owner, normalized_tx_hash, str(target.get("id") or ""))
+            self._assert_no_withdraw_tx_replay(
+                rows, owner, normalized_tx_hash, str(target.get("id") or "")
+            )
             completed = self._assert_withdrawal_completable(target, normalized_tx_hash)
             if completed is not None:
                 return completed

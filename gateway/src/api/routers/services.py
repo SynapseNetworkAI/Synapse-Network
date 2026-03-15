@@ -58,9 +58,11 @@ REGISTRATION_GUIDE_FIELDS: List[Dict[str, Any]] = [
     },
 ]
 
+
 class ServicePricing(BaseModel):
     currency: str = "USD"
     amount: str
+
 
 class HealthCheckSpec(BaseModel):
     path: str = "/health"
@@ -71,16 +73,35 @@ class HealthCheckSpec(BaseModel):
     healthyThreshold: int = 2
     unhealthyThreshold: int = 3
 
+
 class ConstraintsSpec(BaseModel):
-    timeoutMs: int = Field(default=settings.gateway_default_timeout_ms, ge=settings.gateway_min_timeout_ms, le=settings.gateway_max_timeout_ms)
-    maxResponseBytes: int = Field(default=settings.gateway_default_response_bytes, ge=settings.gateway_min_response_bytes, le=settings.gateway_max_response_bytes)
-    maxRequestBytes: int = Field(default=settings.gateway_default_request_bytes, ge=settings.gateway_min_request_bytes, le=settings.gateway_max_request_bytes)
-    maxQps: int = Field(default=settings.gateway_default_service_qps, ge=settings.gateway_min_service_qps, le=settings.gateway_max_service_qps)
+    timeoutMs: int = Field(
+        default=settings.gateway_default_timeout_ms,
+        ge=settings.gateway_min_timeout_ms,
+        le=settings.gateway_max_timeout_ms,
+    )
+    maxResponseBytes: int = Field(
+        default=settings.gateway_default_response_bytes,
+        ge=settings.gateway_min_response_bytes,
+        le=settings.gateway_max_response_bytes,
+    )
+    maxRequestBytes: int = Field(
+        default=settings.gateway_default_request_bytes,
+        ge=settings.gateway_min_request_bytes,
+        le=settings.gateway_max_request_bytes,
+    )
+    maxQps: int = Field(
+        default=settings.gateway_default_service_qps,
+        ge=settings.gateway_min_service_qps,
+        le=settings.gateway_max_service_qps,
+    )
+
 
 class RetryPolicySpec(BaseModel):
     maxAttempts: int = 2
     backoffMs: int = 200
     retryOnStatus: List[int] = Field(default_factory=lambda: [429, 500, 502, 503, 504])
+
 
 class ForwardingSpec(BaseModel):
     requestIdHeader: str = "X-Synapse-Request-Id"
@@ -88,12 +109,14 @@ class ForwardingSpec(BaseModel):
     injectHeaders: Dict[str, str] = Field(default_factory=dict)
     retryPolicy: RetryPolicySpec = Field(default_factory=RetryPolicySpec)
 
+
 class MeteringSpec(BaseModel):
     billingUnit: str = "per_call"
     billOnError: bool = False
     billableStatusClasses: List[int] = Field(default_factory=lambda: [2])
     requestIdRequired: bool = True
     responseSizeMetering: bool = True
+
 
 class InvokeMethod(BaseModel):
     class InvokeTarget(BaseModel):
@@ -108,6 +131,7 @@ class InvokeMethod(BaseModel):
     response: dict
     headersTemplate: Dict[str, str] = Field(default_factory=dict)
     examples: List[Dict[str, Any]] = Field(default_factory=list)
+
 
 class RegisterServiceRequest(BaseModel):
     serviceName: str
@@ -131,11 +155,14 @@ class ParseCurlRequest(BaseModel):
     model: Optional[str] = None
     currentManifest: Optional[Dict[str, Any]] = None
 
+
 @router.get("/v1/services/discover")
 async def discover_services(
-    intent: Optional[str] = Query(None, description="Search keyword for service discovery"),
+    intent: Optional[str] = Query(
+        None, description="Search keyword for service discovery"
+    ),
     request: Request = None,
-    service: RegistryService = Depends(get_registry_service)
+    service: RegistryService = Depends(get_registry_service),
 ):
     """
     Public endpoint for Buyer AI Agents to discover available services.
@@ -144,18 +171,24 @@ async def discover_services(
     gateway_url = None
     if request is not None:
         gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
-    public_services = await service.discover_services(intent, public_gateway_url=gateway_url)
+    public_services = await service.discover_services(
+        intent, public_gateway_url=gateway_url
+    )
     return {
-        "status": "success", 
-        "services": public_services, 
-        "count": len(public_services)
+        "status": "success",
+        "services": public_services,
+        "count": len(public_services),
     }
 
 
 @router.get("/v1/services/health/status")
 async def discover_health_status(
-    intent: Optional[str] = Query(None, description="Search keyword for service health status"),
-    include_inactive: bool = Query(False, alias="includeInactive", description="Include inactive services"),
+    intent: Optional[str] = Query(
+        None, description="Search keyword for service health status"
+    ),
+    include_inactive: bool = Query(
+        False, alias="includeInactive", description="Include inactive services"
+    ),
     service: RegistryService = Depends(get_registry_service),
 ):
     rows = await service.health_status(intent=intent, include_inactive=include_inactive)
@@ -166,9 +199,19 @@ async def discover_health_status(
 async def service_health_history(
     service_record_id: str,
     service: RegistryService = Depends(get_registry_service),
-    limit_per_target: int = Query(50, alias="limitPerTarget", ge=1, le=2000, description="Recent probe records per target"),
-    hours: Optional[int] = Query(None, ge=1, le=168, description="History window in hours (capped by retention)"),
-    days: Optional[int] = Query(None, ge=1, le=365, description="History window in days (capped by retention)"),
+    limit_per_target: int = Query(
+        50,
+        alias="limitPerTarget",
+        ge=1,
+        le=2000,
+        description="Recent probe records per target",
+    ),
+    hours: Optional[int] = Query(
+        None, ge=1, le=168, description="History window in hours (capped by retention)"
+    ),
+    days: Optional[int] = Query(
+        None, ge=1, le=365, description="History window in days (capped by retention)"
+    ),
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
 ):
@@ -182,8 +225,12 @@ async def service_health_history(
             days=days,
         )
     except ValueError:
-        raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"},
+        )
     return {"status": "success", **payload}
+
 
 @router.get("/v1/services")
 async def list_services(
@@ -194,6 +241,7 @@ async def list_services(
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
     rows = await service.list_owner_services(owner)
     return {"status": "success", "services": rows}
+
 
 @router.get("/v1/services/registration-guide")
 async def registration_guide(
@@ -211,6 +259,7 @@ async def registration_guide(
         ],
         "fields": REGISTRATION_GUIDE_FIELDS,
     }
+
 
 @router.post("/v1/services")
 async def register_service(
@@ -232,10 +281,11 @@ async def register_service(
         )
     return {"status": "success", "serviceId": new_svc["serviceId"], "service": new_svc}
 
+
 @router.put("/v1/services/{service_record_id}")
 async def update_service(
-    service_record_id: str, 
-    req: Dict[str, Any], 
+    service_record_id: str,
+    req: Dict[str, Any],
     service: RegistryService = Depends(get_registry_service),
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
@@ -255,9 +305,10 @@ async def update_service(
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "service": updated}
 
+
 @router.delete("/v1/services/{service_record_id}")
 async def delete_service(
-    service_record_id: str, 
+    service_record_id: str,
     service: RegistryService = Depends(get_registry_service),
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
@@ -267,6 +318,7 @@ async def delete_service(
     if not success:
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Service deleted"}
+
 
 @router.post("/v1/services/{service_record_id}/ping")
 async def ping_service(
@@ -279,6 +331,7 @@ async def ping_service(
     if not await service.has_owner_service(service_record_id, owner):
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Pong"}
+
 
 @router.post("/v1/services/parse-curl")
 async def parse_curl_endpoint(

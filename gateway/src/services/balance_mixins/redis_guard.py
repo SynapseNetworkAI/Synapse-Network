@@ -54,7 +54,9 @@ class BalanceRedisGuardMixin:
         if not normalized:
             return 0
         try:
-            dt = datetime.strptime(normalized, DATETIME_FORMAT).replace(tzinfo=timezone.utc)
+            dt = datetime.strptime(normalized, DATETIME_FORMAT).replace(
+                tzinfo=timezone.utc
+            )
             return int(dt.timestamp())
         except Exception:
             return int(time.time())
@@ -63,14 +65,20 @@ class BalanceRedisGuardMixin:
         return await get_redis_client()
 
     def _idem_key(self, scope: str, owner_wallet: str, idempotency_key: str) -> str:
-        return f"finance:idem:{scope}:{normalize_wallet(owner_wallet)}:{idempotency_key}"
+        return (
+            f"finance:idem:{scope}:{normalize_wallet(owner_wallet)}:{idempotency_key}"
+        )
 
     def _request_hash(self, payload: Dict[str, Any]) -> str:
-        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+        encoded = json.dumps(
+            payload, sort_keys=True, ensure_ascii=True, separators=(",", ":")
+        )
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
     def _load_idempotency_rows(self) -> List[IdempotencyRow]:
-        rows = self.storage.get_data_manager().system.idempotency.read_idempotency_rows()
+        rows = (
+            self.storage.get_data_manager().system.idempotency.read_idempotency_rows()
+        )
         now = int(time.time())
         filtered = [row for row in rows if int(row.expires_at or 0) > now]
         max_rows = max(500, int(settings.finance_idempotency_max_rows))
@@ -78,7 +86,9 @@ class BalanceRedisGuardMixin:
             filtered.sort(key=lambda row: int(row.created_at or 0), reverse=True)
             filtered = filtered[:max_rows]
         if len(filtered) != len(rows):
-            self.storage.get_data_manager().system.idempotency.write_idempotency_rows(filtered, now)
+            self.storage.get_data_manager().system.idempotency.write_idempotency_rows(
+                filtered, now
+            )
         return filtered
 
     def _save_idempotency_rows(self, rows: List[IdempotencyRow]) -> None:
@@ -87,7 +97,9 @@ class BalanceRedisGuardMixin:
             rows.sort(key=lambda row: int(row.created_at or 0), reverse=True)
             rows = rows[:max_rows]
         now = int(time.time())
-        self.storage.get_data_manager().system.idempotency.write_idempotency_rows(rows, now)
+        self.storage.get_data_manager().system.idempotency.write_idempotency_rows(
+            rows, now
+        )
 
     async def _check_idempotency_redis(
         self,
@@ -101,7 +113,9 @@ class BalanceRedisGuardMixin:
         if redis_client is None:
             return None
 
-        raw = await redis_client.get(self._idem_key(scope, owner_wallet, idempotency_key))
+        raw = await redis_client.get(
+            self._idem_key(scope, owner_wallet, idempotency_key)
+        )
         if not raw:
             return None
 
@@ -149,7 +163,9 @@ class BalanceRedisGuardMixin:
         key = self._idem_key(scope, owner_wallet, idempotency_key)
         now = int(time.time())
         try:
-            result = await redis_client.eval(REDIS_IDEM_CLAIM_LUA, 1, key, request_hash, now, ttl_sec)
+            result = await redis_client.eval(
+                REDIS_IDEM_CLAIM_LUA, 1, key, request_hash, now, ttl_sec
+            )
             if isinstance(result, list) and result and int(result[0]) == 1:
                 return True
             return False
@@ -198,7 +214,10 @@ class BalanceRedisGuardMixin:
         if len(key) < 16 or len(key) > 128:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_IDEMPOTENCY_KEY", "message": "idempotency key length must be 16..128."},
+                detail={
+                    "code": "INVALID_IDEMPOTENCY_KEY",
+                    "message": "idempotency key length must be 16..128.",
+                },
             )
         if not re.fullmatch(r"[A-Za-z0-9._:-]+", key):
             raise HTTPException(
@@ -232,7 +251,11 @@ class BalanceRedisGuardMixin:
         window_bucket = now // window_sec
         redis_key = f"finance:rl:{owner}:{action}:{window_bucket}"
         try:
-            current = int(await redis_client.eval(REDIS_RATE_LIMIT_LUA, 1, redis_key, window_sec + 5))
+            current = int(
+                await redis_client.eval(
+                    REDIS_RATE_LIMIT_LUA, 1, redis_key, window_sec + 5
+                )
+            )
         except Exception:
             current = int(await redis_client.incr(redis_key))
             if current == 1:
@@ -271,7 +294,8 @@ class BalanceRedisGuardMixin:
             (
                 row
                 for row in rows
-                if normalize_wallet(row.owner_address or "") == owner and (row.action or "") == action
+                if normalize_wallet(row.owner_address or "") == owner
+                and (row.action or "") == action
             ),
             None,
         )
@@ -312,13 +336,21 @@ class BalanceRedisGuardMixin:
 
         matched.count = matched.count + 1
         matched.updated_at = now_dt_str()
-        self.storage.get_data_manager().system.idempotency.write_rate_limit_rows(rows, now)
+        self.storage.get_data_manager().system.idempotency.write_rate_limit_rows(
+            rows, now
+        )
 
-    async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
+    async def _enforce_owner_write_rate_limit(
+        self, owner_wallet: str, action: str
+    ) -> None:
         owner, now, window_sec, max_per_min = self._rate_limit_context(owner_wallet)
-        used_redis = await self._enforce_owner_write_rate_limit_redis(owner, action, now, window_sec, max_per_min)
+        used_redis = await self._enforce_owner_write_rate_limit_redis(
+            owner, action, now, window_sec, max_per_min
+        )
         if not used_redis:
-            self._enforce_owner_write_rate_limit_fallback(owner, action, now, max_per_min)
+            self._enforce_owner_write_rate_limit_fallback(
+                owner, action, now, max_per_min
+            )
 
     def _try_get_idempotent_response(
         self,
@@ -381,12 +413,16 @@ class BalanceRedisGuardMixin:
         )
         self._save_idempotency_rows(rows)
 
-    def _validate_unique_recent_deposit(self, rows: List[Dict[str, Any]], owner_wallet: str, tx_hash: str) -> None:
+    def _validate_unique_recent_deposit(
+        self, rows: List[Dict[str, Any]], owner_wallet: str, tx_hash: str
+    ) -> None:
         owner = normalize_wallet(owner_wallet)
         now = int(time.time())
         replay_window = max(60, int(settings.finance_replay_window_sec))
         for row in rows:
-            row_owner = normalize_wallet(str(row.get("ownerAddress") or row.get("buyerAddress") or ""))
+            row_owner = normalize_wallet(
+                str(row.get("ownerAddress") or row.get("buyerAddress") or "")
+            )
             if row_owner != owner:
                 continue
             if str(row.get("txHash") or "").strip().lower() != tx_hash.strip().lower():
