@@ -10,8 +10,10 @@ from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from .postgres.repositories.fee_policy_repository import FeePolicyRepository
+from .postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from .postgres.repositories.gateway_state_repository import GatewayStateRepository
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
+from .postgres.repositories.legacy_collection_repository import LegacyCollectionRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 
 try:
@@ -404,6 +406,15 @@ class PostgresStorage(BaseStorage):
         self._service_registry_repo = ServiceRegistryRepository(self._db)
         self._credential_auth_repo = CredentialAuthRepository(self._db, _q6)
         self._gateway_state_repo = GatewayStateRepository(self._db, _q6)
+        self._finance_atomic_repo = FinanceAtomicRepository(
+            self._db,
+            _q6,
+            _BALANCE_UPSERT_SQL,
+            _BALANCE_FOR_UPDATE_SQL,
+            _AUDIT_INSERT_SQL,
+            _RISK_RESTRICTED_SESSION_STATUSES,
+        )
+        self._legacy_collection_repo = LegacyCollectionRepository(self._db, normalize_service_row, self._audit_repo)
         _ = ensure_schema
 
     def _connect(self):
@@ -689,65 +700,18 @@ class PostgresStorage(BaseStorage):
         high_risk_override: bool,
         sign_ticket_factory: Optional[Callable[[Decimal], Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        owner = str(seller_address or "").strip().lower()
-        now = int(time.time())
-        amount = _q6(amount_usdc)
-        if amount <= Decimal("0"):
-            raise RuntimeError("INVALID_WITHDRAW_AMOUNT")
-
-        with self._connect() as conn:
-            try:
-                with conn.cursor() as cur:
-                    available_balance, pending_balance, frozen_balance = self._load_locked_balance_triplet(cur, owner, "seller", now)
-
-                    if available_balance < amount:
-                        raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
-
-                    rolling_24h, historical_net_income, high_risk_from_db = self._compute_withdrawal_risk_metrics(
-                        cur, owner, now, window_seconds
-                    )
-                    is_high_risk = bool(high_risk_override or high_risk_from_db)
-
-                    red_reason = self._resolve_red_reason(amount, historical_net_income, is_high_risk)
-                    withdrawal_id = f"wd-{now}-{owner[-8:]}"
-                    if red_reason:
-                        response = self._persist_red_withdrawal(
-                            cur,
-                            withdrawal_id=withdrawal_id,
-                            owner=owner,
-                            amount=amount,
-                            now=now,
-                            request_id=request_id,
-                            idempotency_key=idempotency_key,
-                            request_meta=request_meta,
-                            red_reason=red_reason,
-                            rolling_24h=rolling_24h,
-                            historical_net_income=historical_net_income,
-                        )
-                        conn.commit()
-                        return response
-
-                    response = self._persist_non_red_withdrawal(
-                        cur,
-                        withdrawal_id=withdrawal_id,
-                        owner=owner,
-                        amount=amount,
-                        now=now,
-                        request_context={
-                            "requestId": request_id,
-                            "idempotencyKey": idempotency_key,
-                            "requestMeta": request_meta or {},
-                        },
-                        balances=(available_balance, pending_balance, frozen_balance),
-                        thresholds=(single_limit_usdc, rolling_24h_limit_usdc),
-                        risk_metrics=(rolling_24h, historical_net_income),
-                        sign_ticket_factory=sign_ticket_factory,
-                    )
-                conn.commit()
-                return response
-            except Exception:
-                conn.rollback()
-                raise
+        return self._finance_atomic_repo.process_withdrawal_request_atomic(
+            seller_address=seller_address,
+            amount_usdc=amount_usdc,
+            request_id=request_id,
+            idempotency_key=idempotency_key,
+            request_meta=request_meta,
+            single_limit_usdc=single_limit_usdc,
+            rolling_24h_limit_usdc=rolling_24h_limit_usdc,
+            window_seconds=window_seconds,
+            high_risk_override=high_risk_override,
+            sign_ticket_factory=sign_ticket_factory,
+        )
 
     def _load_collection_for_update(self, cur: Any, collection_name: str) -> Any:
         cur.execute(
@@ -776,139 +740,10 @@ class PostgresStorage(BaseStorage):
         )
 
     def register_deposit_intent_atomic(self, owner_wallet: str, tx_hash: str, request_id: str, intent_row: Dict[str, Any]) -> Dict[str, Any]:
-        owner = str(owner_wallet or "").strip().lower()
-        tx = str(tx_hash or "").strip().lower()
-        now = int(time.time())
-        row = dict(intent_row)
-        row.setdefault("ownerAddress", owner)
-        row.setdefault("txHash", tx)
-        row.setdefault("status", "PENDING_CONFIRMATION")
-        row.setdefault("createdAt", now)
-        row["updatedAt"] = now
-        amount_usdc = _q6(row.get("amountUsdc") or 0)
-        if amount_usdc <= Decimal("0"):
-            raise RuntimeError("INVALID_DEPOSIT_AMOUNT")
-        row_id = str(row.get("id") or "").strip() or f"dep-{now}-{tx[-8:]}"
-        row["id"] = row_id
-
-        # ACID + UNIQUE: tx_hash duplicate replay is blocked physically.
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                try:
-                    cur.execute(
-                        "INSERT INTO synapse_deposit_dedup (tx_hash, owner_address, request_id) VALUES (%s, %s, %s)",
-                        (tx, owner, request_id or None),
-                    )
-                except psycopg.IntegrityError:
-                    conn.rollback()
-                    with self._connect() as lookup_conn:
-                        with lookup_conn.cursor() as lookup_cur:
-                            lookup_cur.execute(
-                                "SELECT payload FROM synapse_deposit_intents WHERE tx_hash = %s AND owner_address = %s",
-                                (tx, owner),
-                            )
-                            hit = lookup_cur.fetchone()
-                            if hit and isinstance(hit[0], dict):
-                                return hit[0]
-                    return {}
-
-                available_balance, pending_balance, frozen_balance = self._load_locked_balance_triplet(cur, owner, "buyer", now)
-                cur.execute(
-                    _BALANCE_UPSERT_SQL,
-                    (
-                        owner,
-                        "buyer",
-                        str(available_balance),
-                        str(_q6(pending_balance + amount_usdc)),
-                        str(frozen_balance),
-                        now,
-                    ),
-                )
-
-                cur.execute(
-                    """
-                    INSERT INTO synapse_deposit_intents (id, owner_address, tx_hash, status, created_at, updated_at, payload)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
-                    ON CONFLICT (id)
-                    DO UPDATE SET
-                        owner_address = EXCLUDED.owner_address,
-                        tx_hash = EXCLUDED.tx_hash,
-                        status = EXCLUDED.status,
-                        updated_at = EXCLUDED.updated_at,
-                        payload = EXCLUDED.payload
-                    """,
-                    (
-                        row_id,
-                        owner,
-                        tx,
-                        str(row.get("status") or "PENDING_CONFIRMATION"),
-                        int(row.get("createdAt") or now),
-                        int(row.get("updatedAt") or now),
-                        json.dumps(row, ensure_ascii=False),
-                    ),
-                )
-            conn.commit()
-        return row
+        return self._finance_atomic_repo.register_deposit_intent_atomic(owner_wallet, tx_hash, request_id, intent_row)
 
     def confirm_deposit_intent_atomic(self, owner_wallet: str, deposit_intent_id: str, event_key: str, confirmations: int) -> Dict[str, Any]:
-        owner = str(owner_wallet or "").strip().lower()
-        intent_id = str(deposit_intent_id or "").strip()
-        if not intent_id:
-            raise RuntimeError("DEPOSIT_INTENT_NOT_FOUND")
-        now = int(time.time())
-
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, status, amount_usdc, payload FROM synapse_deposit_intents WHERE id = %s AND owner_address = %s FOR UPDATE",
-                    (intent_id, owner),
-                )
-                hit = cur.fetchone()
-                if hit is None:
-                    raise RuntimeError("DEPOSIT_INTENT_NOT_FOUND")
-
-                row_id = str(hit[0] or intent_id)
-                status = str(hit[1] or "").upper()
-                amount = _q6(hit[2] or 0)
-                payload = hit[3] if isinstance(hit[3], dict) else {}
-
-                if status == "CONFIRMED":
-                    return payload
-
-                if status not in {"PENDING_CONFIRMATION", "PENDING"}:
-                    raise RuntimeError("DEPOSIT_STATUS_INVALID")
-
-                available_balance, pending_balance, frozen_balance = self._load_locked_balance_triplet(cur, owner, "buyer", now)
-                if pending_balance < amount:
-                    raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
-
-                next_available = _q6(available_balance + amount)
-                next_pending = _q6(pending_balance - amount)
-                cur.execute(
-                    _BALANCE_UPSERT_SQL,
-                    (owner, "buyer", str(next_available), str(next_pending), str(frozen_balance), now),
-                )
-
-                next_payload = dict(payload)
-                next_payload["status"] = "CONFIRMED"
-                next_payload["confirmedAt"] = now
-                next_payload["confirmations"] = int(confirmations)
-                next_payload["eventKey"] = str(event_key or "")
-                next_payload["creditedAmountUsdc"] = float(amount)
-                next_payload["availableAfter"] = float(next_available)
-                next_payload["pendingAfter"] = float(next_pending)
-                next_payload["updatedAt"] = now
-
-                cur.execute(
-                    """
-                    UPDATE synapse_deposit_intents
-                    SET status = %s, updated_at = %s, payload = %s::jsonb
-                    WHERE id = %s AND owner_address = %s
-                    """,
-                    ("CONFIRMED", now, json.dumps(next_payload, ensure_ascii=False), row_id, owner),
-                )
-            conn.commit()
-        return next_payload
+        return self._finance_atomic_repo.confirm_deposit_intent_atomic(owner_wallet, deposit_intent_id, event_key, confirmations)
 
     def charge_buyer_and_record_usage_atomic(
         self,
@@ -920,156 +755,20 @@ class PostgresStorage(BaseStorage):
         platform_fee_total: Decimal,
         usage_row: Dict[str, Any],
     ) -> Dict[str, Any]:
-        now = int(time.time())
-        owner = str(owner_wallet or "").strip().lower()
-        seller = str(seller_wallet or "").strip().lower()
-
-        def _load_balance(cur: Any, wallet: str, account_type: str, column_name: str) -> Decimal:
-            hit = self._load_locked_balance_triplet(cur, wallet, account_type, now)
-            idx = {"available_balance": 0, "pending_balance": 1, "frozen_balance": 2}[column_name]
-            return _q6(hit[idx])
-
-        def _set_available(cur: Any, wallet: str, account_type: str, available_value: Decimal) -> None:
-            current_pending = _load_balance(cur, wallet, account_type, "pending_balance")
-            current_frozen = _load_balance(cur, wallet, account_type, "frozen_balance")
-            cur.execute(
-                _BALANCE_UPSERT_SQL,
-                (wallet, account_type, str(_q6(available_value)), str(_q6(current_pending)), str(_q6(current_frozen)), now),
-            )
-
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                if self._is_account_restricted_for_charge(cur, owner, "buyer", now):
-                    raise RuntimeError("BUYER_RESTRICTED_RISK_BLOCK")
-                if self._is_account_restricted_for_charge(cur, seller, "seller", now):
-                    raise RuntimeError("SELLER_RESTRICTED_RISK_BLOCK")
-
-                before_buyer = _load_balance(cur, owner, "buyer", "available_balance")
-                if before_buyer < _q6(total_charge):
-                    raise RuntimeError("INSUFFICIENT_BALANCE")
-
-                seller_before = _load_balance(cur, seller, "seller", "available_balance")
-                platform_before = _load_balance(cur, "__platform__", "platform_fee", "available_balance")
-                buyer_after = _q6(before_buyer - _q6(total_charge))
-                seller_after = _q6(seller_before + _q6(seller_net))
-                platform_after = _q6(platform_before + _q6(platform_fee_total))
-
-                _set_available(cur, owner, "buyer", buyer_after)
-                _set_available(cur, seller, "seller", seller_after)
-                _set_available(cur, "__platform__", "platform_fee", platform_after)
-
-                usage_id = str(usage_row.get("id") or f"usage-{now}-{owner[-6:]}")
-                payload = dict(usage_row)
-                payload.setdefault("id", usage_id)
-                payload.setdefault("timestamp", int(usage_row.get("timestamp") or now))
-                payload.setdefault("buyer", owner)
-                payload.setdefault("seller", seller)
-                payload.setdefault("status", str(usage_row.get("status") or "accepted"))
-                payload.setdefault("totalCharge", float(_q6(total_charge)))
-                cur.execute(
-                    """
-                    INSERT INTO synapse_usage_log (
-                        id,
-                        ts,
-                        buyer_address,
-                        seller_address,
-                        status,
-                        total_charge,
-                        business_type,
-                        risk_level,
-                        payload
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level, %s::jsonb)
-                    ON CONFLICT (id)
-                    DO UPDATE SET
-                        ts = EXCLUDED.ts,
-                        buyer_address = EXCLUDED.buyer_address,
-                        seller_address = EXCLUDED.seller_address,
-                        status = EXCLUDED.status,
-                        total_charge = EXCLUDED.total_charge,
-                        business_type = EXCLUDED.business_type,
-                        risk_level = EXCLUDED.risk_level,
-                        payload = EXCLUDED.payload
-                    """,
-                    (
-                        usage_id,
-                        int(payload.get("timestamp") or now),
-                        str(payload.get("buyer") or owner),
-                        str(payload.get("seller") or seller),
-                        str(payload.get("status") or "accepted"),
-                        str(_q6(payload.get("totalCharge") or total_charge)),
-                        "charge",
-                        str(payload.get("riskLevel") or "green").lower(),
-                        json.dumps(payload, ensure_ascii=False),
-                    ),
-                )
-
-                audit_payload = {
-                    "id": usage_row.get("id") or "",
-                    "timestamp": now,
-                    "action": "BUYER_CHARGE_ATOMIC",
-                    "ownerAddress": owner,
-                    "details": {
-                        "beforeBalance": float(before_buyer),
-                        "deltaAmount": float(-_q6(total_charge)),
-                        "afterBalance": float(_q6(before_buyer - _q6(total_charge))),
-                        "seller": seller,
-                    },
-                }
-                cur.execute(
-                    _AUDIT_INSERT_SQL,
-                    ("audit_log", json.dumps(audit_payload, ensure_ascii=False)),
-                )
-
-            conn.commit()
-        return {"buyerBalanceAfter": float(_q6(before_buyer - _q6(total_charge)))}
+        return self._finance_atomic_repo.charge_buyer_and_record_usage_atomic(
+            owner_wallet=owner_wallet,
+            seller_wallet=seller_wallet,
+            total_charge=total_charge,
+            seller_net=seller_net,
+            platform_fee_total=platform_fee_total,
+            usage_row=usage_row,
+        )
 
     def reserve_seller_withdraw_atomic(self, owner_wallet: str, amount_usdc: Decimal) -> Dict[str, float]:
-        owner = str(owner_wallet or "").strip().lower()
-        now = int(time.time())
-
-        def _load_balances(cur: Any, wallet: str, account_type: str) -> tuple[Decimal, Decimal, Decimal]:
-            return self._load_locked_balance_triplet(cur, wallet, account_type, now)
-
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                before_available, before_pending, before_frozen = _load_balances(cur, owner, "seller")
-                if before_available < _q6(amount_usdc):
-                    raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
-                after_available = _q6(before_available - _q6(amount_usdc))
-                after_pending = _q6(before_pending + _q6(amount_usdc))
-
-                cur.execute(
-                    _BALANCE_UPSERT_SQL,
-                    (
-                        owner,
-                        "seller",
-                        str(after_available),
-                        str(after_pending),
-                        str(before_frozen),
-                        now,
-                    ),
-                )
-
-            conn.commit()
-        return {
-            "beforeBalance": float(before_available),
-            "afterBalance": float(_q6(before_available - _q6(amount_usdc))),
-        }
+        return self._finance_atomic_repo.reserve_seller_withdraw_atomic(owner_wallet, amount_usdc)
 
     def complete_withdraw_tx_atomic(self, owner_wallet: str, tx_hash: str, kind: str) -> bool:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                try:
-                    cur.execute(
-                        "INSERT INTO synapse_withdraw_tx_dedup (owner_address, tx_hash, kind) VALUES (%s, %s, %s)",
-                        (owner_wallet, tx_hash, kind),
-                    )
-                except psycopg.IntegrityError:
-                    conn.rollback()
-                    return False
-            conn.commit()
-        return True
+        return self._finance_atomic_repo.complete_withdraw_tx_atomic(owner_wallet, tx_hash, kind)
 
     def read_deposit_intents(self) -> List[Dict[str, Any]]:
         return self._gateway_state_repo.read_deposit_intents()
@@ -1219,72 +918,13 @@ class PostgresStorage(BaseStorage):
         return payload
 
     def get_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
-        if collection_name == "audit_log":
-            with self._connect() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT payload FROM synapse_audit_log WHERE collection_name = %s ORDER BY id ASC",
-                        (collection_name,),
-                    )
-                    rows = cur.fetchall()
-            return [row[0] for row in rows if isinstance(row[0], dict)]
-
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT payload FROM synapse_collections WHERE collection_name = %s",
-                    (collection_name,),
-                )
-                row = cur.fetchone()
-
-        if row is None:
-            return self._default_collection(collection_name)
-
-        payload = row[0]
-        return self._normalize_loaded_payload(collection_name, payload)
+        return self._legacy_collection_repo.get_collection(collection_name)
 
     def save_collection(self, collection_name: str, data: Union[List[Any], Dict[str, Any]]) -> None:
-        payload: Union[List[Any], Dict[str, Any]] = data
-
-        if collection_name == "service_registry" and isinstance(data, list):
-            payload = {"services": data, "updatedAt": int(time.time())}
-        elif collection_name == "agent_registry" and isinstance(data, list):
-            payload = {"agents": data, "updatedAt": int(time.time())}
-
-        if collection_name == "audit_log":
-            rows: List[Dict[str, Any]]
-            if isinstance(payload, list):
-                rows = [row for row in payload if isinstance(row, dict)]
-            elif isinstance(payload, dict):
-                rows = [payload]
-            else:
-                rows = []
-
-            self._audit_repo.replace_audit_collection(rows)
-            return
-
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO synapse_collections (collection_name, payload, updated_at)
-                    VALUES (%s, %s::jsonb, NOW())
-                    ON CONFLICT (collection_name)
-                    DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()
-                    """,
-                    (collection_name, json.dumps(payload, ensure_ascii=False)),
-                )
-            conn.commit()
+        self._legacy_collection_repo.save_collection(collection_name, data)
 
     def append_to_collection(self, collection_name: str, item: Any) -> None:
-        if collection_name == "audit_log":
-            self._audit_repo.append_to_audit_collection(item)
-            return
-
-        data = self.get_collection(collection_name)
-        if isinstance(data, list):
-            data.append(item)
-            self.save_collection(collection_name, data)
+        self._legacy_collection_repo.append_to_collection(collection_name, item)
 
     def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
         return self._audit_repo.read_audit_rows(owner_wallet=owner_wallet, limit=limit)

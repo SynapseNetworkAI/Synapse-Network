@@ -212,8 +212,10 @@ Phase 3（日志爆发后）：
   - `src/storage/postgres/repositories/service_registry_repository.py`
   - `src/storage/postgres/repositories/credential_auth_repository.py`
   - `src/storage/postgres/repositories/gateway_state_repository.py`
+  - `src/storage/postgres/repositories/finance_atomic_repository.py`
+  - `src/storage/postgres/repositories/legacy_collection_repository.py`
 3. 门面层：
-  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance / service registry / credential & auth / gateway state 方法委托给对应 repository。
+  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance / service registry / credential & auth / gateway state / finance atomic / legacy collection 方法委托给对应 repository。
 
 ### 9.5 Schema 生命周期策略（已执行）
 
@@ -223,6 +225,17 @@ Phase 3（日志爆发后）：
 1. 表结构与索引变更统一由 migration 流程管理，不在应用进程启动时执行。
 2. 应用进程仅负责连接、读写与事务，不负责 schema 创建。
 3. Dev/Stage/Prod 统一依赖同一 migration 事实源，避免“本地可跑、线上缺表”分叉。
+
+### 9.6 剩余业务语义归位（已执行）
+
+本阶段将 `postgres_impl.py` 中最后两类高耦合逻辑完成归位：
+
+1. `finance_atomic_repository.py`
+  - 负责充值确认、扣费记账、提现风控决策、提现预留与去重写入等 ACID 原子事务路径。
+2. `legacy_collection_repository.py`
+  - 负责通用 collection 兼容读写（迁移窗口使用）与审计 collection 兼容写入。
+
+最终目标：门面层只暴露 typed storage API，不承载跨领域 SQL 编排细节。
 
 执行收益：
 1. SQL 逻辑按领域聚合，后续功能迭代与单测更可控。
