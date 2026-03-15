@@ -5,7 +5,7 @@ import { useAccount } from "wagmi";
 import { ethers } from "ethers";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
-import A2APaySyncRouterABI from "@/A2APaySyncRouterABI.json";
+import SynapseCoreABI from "@/SynapseCoreABI.json";
 import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
 import { listUsageLogs } from "@/utils/usageApi";
 
@@ -39,7 +39,7 @@ export function useSettlementData() {
       try {
         const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
         const usdc = new ethers.Contract(contractConfig.MockUSDC, MockUSDCABI, provider);
-        const router = new ethers.Contract(contractConfig.SynapseCore, A2APaySyncRouterABI, provider);
+        const router = new ethers.Contract(contractConfig.SynapseCore, SynapseCoreABI, provider);
 
         const sellerAddresses = new Set<string>([
           userAddress.toLowerCase(),

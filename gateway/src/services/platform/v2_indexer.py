@@ -169,7 +169,7 @@ def _extract_router_event_rows(contract: Any, event_name: str, tx_receipt: Any, 
 
 
 def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
-    abi_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "A2APaySyncRouterABI.json")
+    abi_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "SynapseCoreABI.json")
     if not os.path.exists(abi_path):
         return []
 
