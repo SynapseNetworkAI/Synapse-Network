@@ -221,21 +221,98 @@ EXPECTED_PRICE=1000000000000000000 \
 python3 seller_fastapi.py
 ```
 
-## 5. 本地基础设施组件启动 (Docker Compose)
-如果将来的实际 AI Agent 计算结果极大（如高清图像渲染图，几十兆的语意视频等），请勿将其塞入纯文本响应。您可以搭配本地 MinIO（S3）服务进行地址链接的流转；同时我们也在逐步引入其他依赖基础设施。
+## 5. 本地基础设施组件维护 (Docker Compose)
+如果将来的实际 AI Agent 计算结果极大（如高清图像渲染图，几十兆语义视频等），请勿将其塞入纯文本响应。可搭配本地 MinIO（S3）服务进行地址链接流转。
 
-**第一步：安装 Docker **
-请确保您的机器已经安装了 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，且 `docker-compose` CLI环境可用。
+### 5.1 前置条件
 
-**第二步：配置与启动 `docker-compose`**
-在 Synapse Network 根目录下执行：
+请确保机器已安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)，并可使用 `docker compose`（V2）命令。
+
+进入 compose 目录：
+
 ```bash
 cd docker-compose
-docker-compose up -d
 ```
 
-> 💡 **状态检查**：运行 `docker-compose ps` 确认所有容器均处于 `Up` 状态。
-> **MinIO界面控制台** 位于 `http://127.0.0.1:9001` (默认账号密码: admin/password)。
+### 5.2 启动（首次或冷启动）
+
+```bash
+docker compose up -d
+```
+
+说明：该命令会按 `docker-compose.yml` 启动 `postgres`、`minio`、`otterscan`。
+
+### 5.3 重启（推荐运维操作）
+
+重启全部服务：
+
+```bash
+docker compose restart
+```
+
+仅重启单服务（示例）：
+
+```bash
+docker compose restart postgres
+docker compose restart minio
+docker compose restart otterscan
+```
+
+若希望重建容器并刷新运行参数（不删卷）：
+
+```bash
+docker compose up -d --force-recreate
+```
+
+### 5.4 停止与下线
+
+停止服务但保留网络与卷：
+
+```bash
+docker compose stop
+```
+
+下线并删除容器与网络（保留卷）：
+
+```bash
+docker compose down
+```
+
+下线并删除卷（会清空 Postgres/MinIO 本地数据，谨慎执行）：
+
+```bash
+docker compose down -v
+```
+
+### 5.5 状态与日志排障
+
+查看状态：
+
+```bash
+docker compose ps
+```
+
+查看最近日志：
+
+```bash
+docker compose logs --tail=200
+```
+
+持续跟踪日志（示例）：
+
+```bash
+docker compose logs -f postgres
+docker compose logs -f minio
+```
+
+### 5.6 访问地址
+
+- MinIO Console: `http://127.0.0.1:9001`
+- MinIO API: `http://127.0.0.1:9000`
+- PostgreSQL: `127.0.0.1:5432`
+- Otterscan: `http://127.0.0.1:5100`
+
+备注：若本地是旧版 Compose，也可将 `docker compose` 替换为 `docker-compose` 执行同等命令。
 
 ## 6. `python_sdk` 配置文件位置与统一收口方案
 
