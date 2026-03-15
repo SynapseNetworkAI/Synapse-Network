@@ -48,7 +48,7 @@ chmod +x scripts/local/setup_local_env.sh
 
 **运行成功后，系统将自动就绪：**
 * **Hardhat Node** 正在本地 `127.0.0.1:8545` 运行并产出区块。
-* **部署逻辑** 已自动将新的合约 ABI 生成到 `gateway/A2APaySyncRouterABI.json` 以供后端中间件调用。
+* **部署逻辑** 已自动将新的合约 ABI 生成到 `gateway/SynapseCoreABI.json` 以供后端中间件调用。
 * **Seller API Gateway** (V1 网关) 运行在 `http://127.0.0.1:8000/api/v1/gateway/generate`。
 * **Frontend Next.js** 运行在 `http://127.0.0.1:3000`。
 * 脚本会输出 `TX_HASH` 测试前置脚本命令，以及本次启动的 PID。

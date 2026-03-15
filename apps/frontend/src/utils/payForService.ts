@@ -1,7 +1,7 @@
 import { createPublicClient, createWalletClient, custom, http, parseUnits } from "viem";
 import type { Address, EIP1193Provider, Hash } from "viem";
 import contractConfig from "@/contract-config.json";
-import A2APaySyncRouterABI from "@/A2APaySyncRouterABI.json";
+import SynapseCoreABI from "@/SynapseCoreABI.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 
 export type PayForServiceInput = {
@@ -73,7 +73,7 @@ export async function payForServiceWithApproval(input: PayForServiceInput): Prom
   const payHash = await walletClient.writeContract({
     account: walletAddress,
     address: routerAddress,
-    abi: A2APaySyncRouterABI,
+    abi: SynapseCoreABI,
     functionName: "payForService",
     args: [token, seller, amount, serviceId],
     chain: { id: chainId, name: `chain-${chainId}`, nativeCurrency: { name: "Native", symbol: "NATIVE", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } },

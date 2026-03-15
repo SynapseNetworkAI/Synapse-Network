@@ -73,7 +73,7 @@ def mint_and_pay_for_service(
     buyer_private_key: str,
 ) -> str:
     contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
-    router_abi = load_json(root_dir / "frontend" / "src" / "A2APaySyncRouterABI.json")
+    router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
     usdc_abi = load_json(root_dir / "frontend" / "src" / "MockUSDCABI.json")
 
     web3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -81,7 +81,7 @@ def mint_and_pay_for_service(
         raise RuntimeError(f"Cannot connect RPC: {rpc_url}")
 
     chain_id = int(web3.eth.chain_id)
-    router_address = Web3.to_checksum_address(contract_config["A2APaySyncRouter"])
+    router_address = Web3.to_checksum_address(contract_config["SynapseCore"])
     token_address = Web3.to_checksum_address(contract_config["MockUSDC"])
     seller_checksum = Web3.to_checksum_address(seller_address)
 

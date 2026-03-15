@@ -125,7 +125,7 @@ def build_payment_tx(
     seller_address: Optional[str] = None,
 ) -> str:
     contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
-    router_abi = load_json(root_dir / "frontend" / "src" / "A2APaySyncRouterABI.json")
+    router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
     usdc_abi = load_json(root_dir / "frontend" / "src" / "MockUSDCABI.json")
 
     web3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -133,7 +133,7 @@ def build_payment_tx(
         raise RuntimeError(f"Cannot connect RPC: {rpc_url}")
 
     chain_id = int(web3.eth.chain_id)
-    router_address = Web3.to_checksum_address(contract_config["A2APaySyncRouter"])
+    router_address = Web3.to_checksum_address(contract_config["SynapseCore"])
     token_address = Web3.to_checksum_address(contract_config["MockUSDC"])
 
     deployer = web3.eth.account.from_key(deployer_private_key)
@@ -240,7 +240,7 @@ def submit_and_wait_deposit_confirmation(
         if time.time() - started_at > timeout_sec:
             raise TimeoutError(
                 f"Timed out waiting for deposit confirmation. last_state={last_state}. "
-                "Please ensure backend indexer is running and ROUTER_ADDRESS matches deployed A2APaySyncRouter."
+                "Please ensure backend indexer is running and ROUTER_ADDRESS matches deployed SynapseCore."
             )
         time.sleep(2)
 
