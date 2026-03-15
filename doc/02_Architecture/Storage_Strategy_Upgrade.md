@@ -217,6 +217,7 @@ Phase 3（日志爆发后）：
 3. 门面层：
   - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance / service registry / credential & auth / gateway state / finance atomic / legacy collection 方法委托给对应 repository。
   - 对于 `reserve_seller_withdraw_atomic` / `complete_withdraw_tx_atomic` / `read_deposit_intents`，上层已改为直接调用对应 repository，门面层不再提供中间转发包装。
+  - 历史壳层 `src/storage/finance_repository.py` / `src/storage/registry_repository.py` / `src/storage/credential_repository.py` 已移除；路由与服务层改为直接调用 typed storage API/真实 repository 能力。
 
 ### 9.5 Schema 生命周期策略（已执行）
 

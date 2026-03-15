@@ -5,7 +5,6 @@ import re
 from fastapi import HTTPException
 
 from src.core.config import settings
-from src.storage.registry_repository import RegistryRepository
 from src.storage import BaseStorage
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
@@ -48,7 +47,8 @@ def effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
 
 def find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]:
     """Load one active service by serviceId, otherwise raise a gateway-safe HTTP error."""
-    rows = RegistryRepository(storage).load_service_registry()
+    raw_rows = getattr(storage, "read_service_registry_rows")()
+    rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
     target = next((r for r in rows if isinstance(r, dict) and str(r.get("serviceId", "")).strip() == service_id), None)
     if not target:
