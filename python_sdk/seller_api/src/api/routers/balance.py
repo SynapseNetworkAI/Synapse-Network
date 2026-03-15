@@ -17,6 +17,7 @@ from src.services.platform.v2_indexer import get_indexer_status
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.storage import get_storage, BaseStorage
+from src.storage.finance_repository import FinanceRepository
 
 router = APIRouter()
 
@@ -218,7 +219,7 @@ async def get_usage_logs(
     storage: Annotated[BaseStorage, Depends(get_storage)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
-    rows = storage.get_collection("usage_log") or []
+    rows = FinanceRepository(storage).load_usage_log_rows()
     owner = owner_wallet.lower()
     filtered = []
     for row in rows:
@@ -305,7 +306,7 @@ async def get_fee_policy(
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     admin_wallet = _ensure_fee_policy_admin(owner_wallet)
-    raw = storage.get_collection("platform_fee_policy") or {}
+    raw = getattr(storage, "get_platform_fee_policy")() or {}
     if not isinstance(raw, dict):
         raw = {}
 
@@ -345,7 +346,12 @@ async def set_fee_policy(
         "updatedAt": credential_service.now_ts(),
         "updatedBy": admin_wallet,
     }
-    storage.save_collection("platform_fee_policy", saved)
+    getattr(storage, "set_platform_fee_policy")(
+        default_rate=float(saved.get("defaultRate") or 0.0),
+        owner_rates=saved.get("ownerRates") if isinstance(saved.get("ownerRates"), dict) else {},
+        updated_by=admin_wallet,
+        updated_at=int(saved.get("updatedAt") or credential_service.now_ts()),
+    )
     return {
         "status": "success",
         "requestedBy": admin_wallet,

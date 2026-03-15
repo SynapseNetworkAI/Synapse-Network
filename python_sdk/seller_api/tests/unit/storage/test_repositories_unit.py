@@ -21,6 +21,91 @@ class StubStorage:
     def append_to_collection(self, collection_name: str, item: Dict[str, Any]) -> None:
         self.append_calls.append((collection_name, item))
 
+    def read_deposit_intents(self) -> Any:
+        value = self.collections.get("deposit_intents")
+        if isinstance(value, dict):
+            return value.get("intents")
+        return value
+
+    def write_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
+        self.collections["deposit_intents"] = rows
+
+    def read_refund_intents(self) -> Any:
+        value = self.collections.get("refund_intents")
+        return value.get("rows") if isinstance(value, dict) else value
+
+    def write_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        self.collections["refund_intents"] = {"rows": rows, "updatedAt": int(updated_at)}
+
+    def read_withdrawal_intents(self) -> Any:
+        value = self.collections.get("provider_withdrawal_intents")
+        return value.get("rows") if isinstance(value, dict) else value
+
+    def write_withdrawal_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        self.collections["provider_withdrawal_intents"] = {"rows": rows, "updatedAt": int(updated_at)}
+
+    def read_balance_ledger(self) -> Any:
+        return self.collections.get("balance_ledger")
+
+    def write_balance_ledger(self, ledger: Dict[str, Any]) -> None:
+        self.collections["balance_ledger"] = ledger
+
+    def read_router_config_rows(self) -> Any:
+        value = self.collections.get("router_config")
+        return value.get("rows") if isinstance(value, dict) else value
+
+    def write_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        self.collections["router_config"] = {"rows": rows, "updatedAt": int(updated_at)}
+
+    def read_usage_log_rows(self) -> Any:
+        return self.collections.get("usage_log")
+
+    def write_usage_log_rows(self, rows: List[Dict[str, Any]]) -> None:
+        self.collections["usage_log"] = rows
+
+    def append_audit_row(self, row: Dict[str, Any]) -> None:
+        self.append_calls.append(("audit_log", row))
+
+    def read_processed_deposit_event_keys(self) -> List[str]:
+        value = self.collections.get("deposit_event_processed")
+        if isinstance(value, dict) and isinstance(value.get("keys"), list):
+            return [str(item) for item in value.get("keys")]
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        return []
+
+    def write_processed_deposit_event_keys(self, keys: List[str], updated_at: int) -> None:
+        self.collections["deposit_event_processed"] = {"keys": keys, "updatedAt": int(updated_at)}
+
+    def read_service_registry_rows(self) -> Any:
+        return self.collections.get("service_registry")
+
+    def write_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
+        self.collections["service_registry"] = rows
+
+    def read_service_target_health_rows(self) -> Any:
+        return self.collections.get("service_target_health")
+
+    def write_service_target_health_rows(self, rows: List[Dict[str, Any]]) -> None:
+        self.collections["service_target_health"] = rows
+
+    def read_service_target_health_history_rows(self) -> Any:
+        return self.collections.get("service_target_health_history")
+
+    def write_service_target_health_history_rows(self, rows: List[Dict[str, Any]]) -> None:
+        self.collections["service_target_health_history"] = rows
+
+    def read_credential_rows(self, credential_type: str) -> List[Dict[str, Any]]:
+        key = "seller_secrets" if credential_type == "seller" else "buyer_credentials"
+        value = self.collections.get(key)
+        if isinstance(value, dict) and isinstance(value.get("credentials"), list):
+            return [row for row in value["credentials"] if isinstance(row, dict)]
+        return []
+
+    def write_credential_rows(self, credential_type: str, rows: List[Dict[str, Any]]) -> None:
+        key = "seller_secrets" if credential_type == "seller" else "buyer_credentials"
+        self.collections[key] = {"credentials": rows, "updatedAt": 0}
+
 
 class StubStorageWithAudit(StubStorage):
     directory = "/tmp/synapse-test"
@@ -101,8 +186,8 @@ def test_credential_repository_audit_capability_and_directory() -> None:
     storage = StubStorageWithAudit()
     repo = CredentialRepository(storage)
 
-    repo.save_collection("seller_secrets", {"rows": [{"id": "sec-1"}]})
-    assert repo.load_collection("seller_secrets") == {"rows": [{"id": "sec-1"}]}
+    repo.save_collection("seller_secrets", {"credentials": [{"id": "sec-1"}]})
+    assert repo.load_collection("seller_secrets") == {"credentials": [{"id": "sec-1"}], "updatedAt": 0}
 
     repo.append_audit_log({"event": "credential-updated"})
     assert storage.append_calls == [("audit_log", {"event": "credential-updated"})]

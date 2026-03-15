@@ -25,28 +25,31 @@ class FinanceRepository:
         return []
 
     def load_deposit_intents(self) -> List[Dict[str, Any]]:
-        return self._normalize_intents(self._storage.get_collection("deposit_intents"))
+        rows = getattr(self._storage, "read_deposit_intents")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def save_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        self._storage.save_collection("deposit_intents", rows)
+        getattr(self._storage, "write_deposit_intents")(rows)
 
     def load_refund_intents(self) -> List[Dict[str, Any]]:
-        return self._normalize_rows(self._storage.get_collection("refund_intents"))
+        rows = getattr(self._storage, "read_refund_intents")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def save_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._storage.save_collection("refund_intents", {"rows": rows, "updatedAt": int(updated_at)})
+        getattr(self._storage, "write_refund_intents")(rows, int(updated_at))
 
     def load_withdrawal_intents(self) -> List[Dict[str, Any]]:
-        rows = self._normalize_rows(self._storage.get_collection("provider_withdrawal_intents"))
+        raw_rows = getattr(self._storage, "read_withdrawal_intents")()
+        rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
         for row in rows:
             row.setdefault("status", "PENDING")
         return rows
 
     def save_withdrawal_intents(self, rows: List[Dict[str, Any]]) -> None:
-        self._storage.save_collection("provider_withdrawal_intents", {"rows": rows, "updatedAt": int(time.time())})
+        getattr(self._storage, "write_withdrawal_intents")(rows, int(time.time()))
 
     def load_balance_ledger(self) -> Dict[str, Any]:
-        ledger = self._storage.get_collection("balance_ledger") or {}
+        ledger = getattr(self._storage, "read_balance_ledger")() or {}
         if not isinstance(ledger, dict):
             ledger = {}
         buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
@@ -66,33 +69,28 @@ class FinanceRepository:
     def save_balance_ledger(self, ledger: Dict[str, Any]) -> None:
         next_ledger = dict(ledger)
         next_ledger["updatedAt"] = int(time.time())
-        self._storage.save_collection("balance_ledger", next_ledger)
+        getattr(self._storage, "write_balance_ledger")(next_ledger)
 
     def load_router_config_rows(self) -> List[Dict[str, Any]]:
-        return self._normalize_rows(self._storage.get_collection("router_config"))
+        rows = getattr(self._storage, "read_router_config_rows")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def save_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._storage.save_collection("router_config", {"rows": rows, "updatedAt": int(updated_at)})
+        getattr(self._storage, "write_router_config_rows")(rows, int(updated_at))
 
     def load_usage_log_rows(self) -> List[Dict[str, Any]]:
-        rows = self._storage.get_collection("usage_log") or []
-        if not isinstance(rows, list):
-            return []
-        return [row for row in rows if isinstance(row, dict)]
+        rows = getattr(self._storage, "read_usage_log_rows")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def save_usage_log_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._storage.save_collection("usage_log", rows)
+        getattr(self._storage, "write_usage_log_rows")(rows)
 
     def append_audit_log(self, row: Dict[str, Any]) -> None:
-        self._storage.append_to_collection("audit_log", row)
+        getattr(self._storage, "append_audit_row")(row)
 
     def load_processed_deposit_event_keys(self) -> List[str]:
-        raw = self._storage.get_collection("deposit_event_processed")
-        if isinstance(raw, dict) and isinstance(raw.get("keys"), list):
-            return [str(item) for item in raw["keys"]]
-        if isinstance(raw, list):
-            return [str(item) for item in raw]
-        return []
+        keys = getattr(self._storage, "read_processed_deposit_event_keys")()
+        return [str(item) for item in keys] if isinstance(keys, list) else []
 
     def save_processed_deposit_event_keys(self, keys: List[str], updated_at: int) -> None:
-        self._storage.save_collection("deposit_event_processed", {"keys": keys, "updatedAt": int(updated_at)})
+        getattr(self._storage, "write_processed_deposit_event_keys")(keys, int(updated_at))

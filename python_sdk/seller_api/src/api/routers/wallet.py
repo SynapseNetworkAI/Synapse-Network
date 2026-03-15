@@ -24,8 +24,7 @@ async def get_wallet_role(
 ):
     """获取用户的身份角色(buyer或seller)"""
     wallet = normalize_wallet(address)
-    roles = storage.get_collection('wallet_roles') or {}
-    role = roles.get(wallet)
+    role = getattr(storage, "get_wallet_role")(wallet)
     
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -40,15 +39,13 @@ async def bind_wallet_role(
 ):
     """为用户绑定身份角色(buyer或seller)"""
     wallet = normalize_wallet(address)
-    roles = storage.get_collection('wallet_roles') or {}
     
     if req.role not in ["buyer", "seller", "CONSUMER", "PROVIDER"]:
         raise HTTPException(status_code=400, detail="Invalid role specified")
         
     # 统一转换成前端所需的常量宏
     bound_role = "CONSUMER" if req.role in ["buyer", "CONSUMER"] else "PROVIDER"
-    
-    roles[wallet] = bound_role
-    storage.save_collection('wallet_roles', roles)
+
+    getattr(storage, "set_wallet_role")(wallet, bound_role)
     
     return {"status": "success", "role": bound_role}

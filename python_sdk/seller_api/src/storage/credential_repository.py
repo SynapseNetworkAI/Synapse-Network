@@ -10,13 +10,26 @@ class CredentialRepository:
         self._storage = storage
 
     def load_collection(self, collection_name: str) -> Any:
-        return self._storage.get_collection(collection_name)
+        if collection_name in {"buyer_credentials", "credentials", "agent_credentials"}:
+            return {"credentials": getattr(self._storage, "read_credential_rows")("buyer"), "updatedAt": 0}
+        if collection_name in {"seller_secrets", "provider_secrets"}:
+            return {"credentials": getattr(self._storage, "read_credential_rows")("seller"), "updatedAt": 0}
+        return {}
 
     def save_collection(self, collection_name: str, payload: Any) -> None:
-        self._storage.save_collection(collection_name, payload)
+        rows: List[Dict[str, Any]] = []
+        if isinstance(payload, dict) and isinstance(payload.get("credentials"), list):
+            rows = [row for row in payload["credentials"] if isinstance(row, dict)]
+        elif isinstance(payload, list):
+            rows = [row for row in payload if isinstance(row, dict)]
+
+        if collection_name in {"buyer_credentials", "credentials", "agent_credentials"}:
+            getattr(self._storage, "write_credential_rows")("buyer", rows)
+        elif collection_name in {"seller_secrets", "provider_secrets"}:
+            getattr(self._storage, "write_credential_rows")("seller", rows)
 
     def append_audit_log(self, row: Dict[str, Any]) -> None:
-        self._storage.append_to_collection("audit_log", row)
+        getattr(self._storage, "append_audit_row")(row)
 
     def read_audit_rows(self, owner_wallet: str, limit: int) -> Tuple[bool, List[Dict[str, Any]]]:
         if not hasattr(self._storage, "read_audit_rows"):

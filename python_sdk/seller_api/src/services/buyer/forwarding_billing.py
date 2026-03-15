@@ -26,7 +26,7 @@ def sanitize_fee_rate(raw: Any, fallback: float) -> float:
 def resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float:
     """Resolve effective fee rate using owner override > runtime default > global config."""
     fallback = sanitize_fee_rate(settings.platform_fee_rate, 0.10)
-    policy = storage.get_collection("platform_fee_policy") or {}
+    policy = getattr(storage, "get_platform_fee_policy")() or {}
     if not isinstance(policy, dict):
         return fallback
 

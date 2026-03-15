@@ -10,28 +10,22 @@ class RegistryRepository:
         self._storage = storage
 
     def load_service_registry(self) -> List[Dict[str, Any]]:
-        rows = self._storage.get_collection("service_registry") or []
-        if not isinstance(rows, list):
-            return []
-        return [row for row in rows if isinstance(row, dict)]
+        rows = getattr(self._storage, "read_service_registry_rows")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def save_service_registry(self, rows: List[Dict[str, Any]]) -> None:
-        self._storage.save_collection("service_registry", rows)
+        getattr(self._storage, "write_service_registry_rows")(rows)
 
     def load_target_health_rows(self) -> List[Dict[str, Any]]:
-        rows = self._storage.get_collection("service_target_health") or []
-        if not isinstance(rows, list):
-            return []
-        return [row for row in rows if isinstance(row, dict)]
+        rows = getattr(self._storage, "read_service_target_health_rows")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def save_target_health_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._storage.save_collection("service_target_health", rows)
+        getattr(self._storage, "write_service_target_health_rows")(rows)
 
     def load_target_health_history_rows(self) -> List[Dict[str, Any]]:
-        rows = self._storage.get_collection("service_target_health_history") or []
-        if not isinstance(rows, list):
-            return []
-        return [row for row in rows if isinstance(row, dict)]
+        rows = getattr(self._storage, "read_service_target_health_history_rows")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def save_target_health_history_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._storage.save_collection("service_target_health_history", rows)
+        getattr(self._storage, "write_service_target_health_history_rows")(rows)

@@ -46,7 +46,8 @@ class BalanceRedisGuardMixin:
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
     def _load_idempotency_rows(self) -> List[Dict[str, Any]]:
-        rows = self._normalize_rows(self.storage.get_collection("idempotency_keys"))
+        rows = getattr(self.storage, "read_idempotency_rows")()
+        rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
         now = int(time.time())
         filtered = [row for row in rows if int(row.get("expiresAt") or 0) > now]
         max_rows = max(500, int(settings.finance_idempotency_max_rows))
@@ -54,7 +55,7 @@ class BalanceRedisGuardMixin:
             filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
             filtered = filtered[:max_rows]
         if len(filtered) != len(rows):
-            self.storage.save_collection("idempotency_keys", {"rows": filtered, "updatedAt": now})
+            getattr(self.storage, "write_idempotency_rows")(filtered, now)
         return filtered
 
     def _save_idempotency_rows(self, rows: List[Dict[str, Any]]) -> None:
@@ -62,7 +63,8 @@ class BalanceRedisGuardMixin:
         if len(rows) > max_rows:
             rows.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
             rows = rows[:max_rows]
-        self.storage.save_collection("idempotency_keys", {"rows": rows, "updatedAt": int(time.time())})
+        now = int(time.time())
+        getattr(self.storage, "write_idempotency_rows")(rows, now)
 
     async def _check_idempotency_redis(
         self,
@@ -240,8 +242,8 @@ class BalanceRedisGuardMixin:
         now: int,
         max_per_min: int,
     ) -> None:
-        raw = self.storage.get_collection("finance_write_rate_limit")
-        rows = self._normalize_rows(raw)
+        raw_rows = getattr(self.storage, "read_rate_limit_rows")()
+        rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
         matched = next(
             (
@@ -290,7 +292,7 @@ class BalanceRedisGuardMixin:
 
         matched["count"] = count + 1
         matched["updatedAt"] = now
-        self.storage.save_collection("finance_write_rate_limit", {"rows": rows, "updatedAt": now})
+        getattr(self.storage, "write_rate_limit_rows")(rows, now)
 
     async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
         owner, now, window_sec, max_per_min = self._rate_limit_context(owner_wallet)

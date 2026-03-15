@@ -12,16 +12,14 @@ logger = logging.getLogger(__name__)
 
 class BalanceAuditMixin:
     def _append_financial_audit(self, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-        self.storage.append_to_collection(
-            "audit_log",
-            {
-                "id": str(uuid4()),
-                "timestamp": int(time.time()),
-                "action": action,
-                "ownerAddress": normalize_wallet(owner_wallet),
-                "details": details,
-            },
-        )
+        row = {
+            "id": str(uuid4()),
+            "timestamp": int(time.time()),
+            "action": action,
+            "ownerAddress": normalize_wallet(owner_wallet),
+            "details": details,
+        }
+        getattr(self.storage, "append_audit_row")(row)
         if action in {"FINANCE_RATE_LIMIT_HIT", "DEPOSIT_REPLAY_DETECTED", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"}:
             logger.warning("finance_anomaly action=%s owner=%s details=%s", action, normalize_wallet(owner_wallet), details)
 

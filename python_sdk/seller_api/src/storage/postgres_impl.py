@@ -70,6 +70,226 @@ CREATE INDEX IF NOT EXISTS idx_synapse_withdraw_tx_dedup_owner
 ON synapse_withdraw_tx_dedup (owner_address, created_at DESC);
 """
 
+_BALANCE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_balances (
+    owner_address TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    amount NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    updated_at BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (owner_address, bucket)
+);
+"""
+
+_DEPOSIT_INTENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_deposit_intents (
+    id TEXT PRIMARY KEY,
+    owner_address TEXT NOT NULL,
+    tx_hash TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    payload JSONB NOT NULL
+);
+"""
+
+_REFUND_INTENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_refund_intents (
+    id TEXT PRIMARY KEY,
+    owner_address TEXT NOT NULL,
+    tx_hash TEXT,
+    status TEXT NOT NULL,
+    amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    payload JSONB NOT NULL
+);
+"""
+
+_WITHDRAWAL_INTENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_withdrawal_intents (
+    id TEXT PRIMARY KEY,
+    owner_address TEXT NOT NULL,
+    tx_hash TEXT,
+    status TEXT NOT NULL,
+    amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    payload JSONB NOT NULL
+);
+"""
+
+_ROUTER_CONFIG_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_router_config (
+    owner_address TEXT PRIMARY KEY,
+    daily_limit_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+"""
+
+_USAGE_LOG_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_usage_log (
+    id TEXT PRIMARY KEY,
+    ts BIGINT NOT NULL,
+    buyer_address TEXT,
+    seller_address TEXT,
+    status TEXT,
+    total_charge NUMERIC(36, 6),
+    payload JSONB NOT NULL
+);
+"""
+
+_USAGE_LOG_OWNER_IDX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_synapse_usage_log_owner
+ON synapse_usage_log (lower(buyer_address), lower(seller_address), ts DESC);
+"""
+
+_PROCESSED_DEPOSIT_EVENT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_processed_deposit_events (
+    dedup_key TEXT PRIMARY KEY,
+    updated_at BIGINT NOT NULL
+);
+"""
+
+_SERVICE_REGISTRY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_service_registry (
+    service_id TEXT PRIMARY KEY,
+    owner_address TEXT NOT NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    payload JSONB NOT NULL
+);
+"""
+
+_SERVICE_TARGET_HEALTH_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_service_target_health (
+    service_id TEXT NOT NULL,
+    target_url TEXT NOT NULL,
+    owner_address TEXT,
+    status TEXT,
+    overall_status TEXT,
+    http_status INTEGER,
+    latency_ms INTEGER,
+    consecutive_successes INTEGER NOT NULL DEFAULT 0,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    probe_url TEXT,
+    last_checked_at BIGINT,
+    last_healthy_at BIGINT,
+    error TEXT,
+    weight INTEGER,
+    region TEXT,
+    PRIMARY KEY (service_id, target_url)
+);
+"""
+
+_SERVICE_TARGET_HEALTH_HISTORY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_service_target_health_history (
+    id BIGSERIAL PRIMARY KEY,
+    service_id TEXT NOT NULL,
+    owner_address TEXT,
+    target_url TEXT NOT NULL,
+    status TEXT,
+    http_status INTEGER,
+    latency_ms INTEGER,
+    probe_url TEXT,
+    consecutive_successes INTEGER NOT NULL DEFAULT 0,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    checked_at BIGINT NOT NULL,
+    last_healthy_at BIGINT,
+    error TEXT
+);
+"""
+
+_CREDENTIALS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_credentials (
+    id TEXT PRIMARY KEY,
+    credential_type TEXT NOT NULL,
+    owner_address TEXT NOT NULL,
+    name TEXT,
+    token_hash TEXT,
+    token_prefix TEXT,
+    status TEXT,
+    max_calls INTEGER,
+    calls_used INTEGER,
+    rpm INTEGER,
+    credit_limit NUMERIC(36, 6),
+    reset_interval TEXT,
+    expiration BIGINT,
+    expires_at BIGINT,
+    created_at BIGINT,
+    updated_at BIGINT,
+    revoked_at BIGINT,
+    payload JSONB NOT NULL
+);
+"""
+
+_CREDENTIALS_TYPE_OWNER_IDX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_synapse_credentials_type_owner
+ON synapse_credentials (credential_type, lower(owner_address), created_at DESC);
+"""
+
+_WALLET_ROLE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_wallet_roles (
+    wallet_address TEXT PRIMARY KEY,
+    role TEXT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+"""
+
+_AUTH_SESSION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_auth_sessions (
+    wallet_address TEXT PRIMARY KEY,
+    registered_at BIGINT NOT NULL,
+    last_login BIGINT NOT NULL,
+    status TEXT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+"""
+
+_FEE_POLICY_DEFAULT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_platform_fee_policy_default (
+    singleton_id SMALLINT PRIMARY KEY,
+    default_rate NUMERIC(10, 6) NOT NULL,
+    updated_at BIGINT,
+    updated_by TEXT
+);
+"""
+
+_FEE_POLICY_OWNER_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_platform_fee_policy_owner (
+    owner_address TEXT PRIMARY KEY,
+    fee_rate NUMERIC(10, 6) NOT NULL
+);
+"""
+
+_IDEMPOTENCY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    owner_address TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    response JSONB,
+    created_at BIGINT NOT NULL,
+    expires_at BIGINT NOT NULL,
+    UNIQUE (scope, owner_address, idempotency_key)
+);
+"""
+
+_RATE_LIMIT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
+    id TEXT PRIMARY KEY,
+    owner_address TEXT NOT NULL,
+    action TEXT NOT NULL,
+    window_start BIGINT NOT NULL,
+    count INTEGER NOT NULL,
+    updated_at BIGINT NOT NULL,
+    UNIQUE (owner_address, action)
+);
+"""
+
+_BALANCE_INSERT_SQL = "INSERT INTO synapse_balances (owner_address, bucket, amount, updated_at) VALUES (%s, %s, %s, %s)"
+
 
 def _d(value: Any) -> Decimal:
     try:
@@ -121,6 +341,25 @@ class PostgresStorage(BaseStorage):
                 cur.execute(_WITHDRAW_TX_DEDUP_TABLE_SQL)
                 cur.execute(_DEPOSIT_DEDUP_OWNER_IDX_SQL)
                 cur.execute(_WITHDRAW_TX_DEDUP_OWNER_IDX_SQL)
+                cur.execute(_BALANCE_TABLE_SQL)
+                cur.execute(_DEPOSIT_INTENTS_TABLE_SQL)
+                cur.execute(_REFUND_INTENTS_TABLE_SQL)
+                cur.execute(_WITHDRAWAL_INTENTS_TABLE_SQL)
+                cur.execute(_ROUTER_CONFIG_TABLE_SQL)
+                cur.execute(_USAGE_LOG_TABLE_SQL)
+                cur.execute(_USAGE_LOG_OWNER_IDX_SQL)
+                cur.execute(_PROCESSED_DEPOSIT_EVENT_TABLE_SQL)
+                cur.execute(_SERVICE_REGISTRY_TABLE_SQL)
+                cur.execute(_SERVICE_TARGET_HEALTH_TABLE_SQL)
+                cur.execute(_SERVICE_TARGET_HEALTH_HISTORY_TABLE_SQL)
+                cur.execute(_CREDENTIALS_TABLE_SQL)
+                cur.execute(_CREDENTIALS_TYPE_OWNER_IDX_SQL)
+                cur.execute(_WALLET_ROLE_TABLE_SQL)
+                cur.execute(_AUTH_SESSION_TABLE_SQL)
+                cur.execute(_FEE_POLICY_DEFAULT_TABLE_SQL)
+                cur.execute(_FEE_POLICY_OWNER_TABLE_SQL)
+                cur.execute(_IDEMPOTENCY_TABLE_SQL)
+                cur.execute(_RATE_LIMIT_TABLE_SQL)
             conn.commit()
 
     def _load_collection_for_update(self, cur: Any, collection_name: str) -> Any:
@@ -150,31 +389,63 @@ class PostgresStorage(BaseStorage):
         )
 
     def register_deposit_intent_atomic(self, owner_wallet: str, tx_hash: str, request_id: str, intent_row: Dict[str, Any]) -> Dict[str, Any]:
+        owner = str(owner_wallet or "").strip().lower()
+        tx = str(tx_hash or "").strip().lower()
+        now = int(time.time())
+        row = dict(intent_row)
+        row.setdefault("ownerAddress", owner)
+        row.setdefault("txHash", tx)
+        row.setdefault("status", "PENDING")
+        row.setdefault("createdAt", now)
+        row["updatedAt"] = now
+        row_id = str(row.get("id") or "").strip() or f"dep-{now}-{tx[-8:]}"
+        row["id"] = row_id
+
         # ACID + UNIQUE: tx_hash duplicate replay is blocked physically.
         with self._connect() as conn:
             with conn.cursor() as cur:
                 try:
                     cur.execute(
                         "INSERT INTO synapse_deposit_dedup (tx_hash, owner_address, request_id) VALUES (%s, %s, %s)",
-                        (tx_hash, owner_wallet, request_id or None),
+                        (tx, owner, request_id or None),
                     )
                 except psycopg.IntegrityError:
                     conn.rollback()
                     with self._connect() as lookup_conn:
                         with lookup_conn.cursor() as lookup_cur:
-                            payload = self._load_collection_for_update(lookup_cur, "deposit_intents")
-                            rows = _json_rows(payload)
-                            for row in rows:
-                                if str(row.get("txHash") or "").strip().lower() == str(tx_hash).strip().lower() and str(row.get("ownerAddress") or "") == owner_wallet:
-                                    return row
+                            lookup_cur.execute(
+                                "SELECT payload FROM synapse_deposit_intents WHERE tx_hash = %s AND owner_address = %s",
+                                (tx, owner),
+                            )
+                            hit = lookup_cur.fetchone()
+                            if hit and isinstance(hit[0], dict):
+                                return hit[0]
                     return {}
 
-                payload = self._load_collection_for_update(cur, "deposit_intents")
-                rows = _json_rows(payload)
-                rows.append(intent_row)
-                self._save_collection_in_tx(cur, "deposit_intents", rows)
+                cur.execute(
+                    """
+                    INSERT INTO synapse_deposit_intents (id, owner_address, tx_hash, status, created_at, updated_at, payload)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT (id)
+                    DO UPDATE SET
+                        owner_address = EXCLUDED.owner_address,
+                        tx_hash = EXCLUDED.tx_hash,
+                        status = EXCLUDED.status,
+                        updated_at = EXCLUDED.updated_at,
+                        payload = EXCLUDED.payload
+                    """,
+                    (
+                        row_id,
+                        owner,
+                        tx,
+                        str(row.get("status") or "PENDING"),
+                        int(row.get("createdAt") or now),
+                        int(row.get("updatedAt") or now),
+                        json.dumps(row, ensure_ascii=False),
+                    ),
+                )
             conn.commit()
-        return intent_row
+        return row
 
     def charge_buyer_and_record_usage_atomic(
         self,
@@ -186,43 +457,93 @@ class PostgresStorage(BaseStorage):
         platform_fee_total: Decimal,
         usage_row: Dict[str, Any],
     ) -> Dict[str, Any]:
+        now = int(time.time())
+        owner = str(owner_wallet or "").strip().lower()
+        seller = str(seller_wallet or "").strip().lower()
+
+        def _load_balance(cur: Any, wallet: str, bucket: str) -> Decimal:
+            cur.execute(
+                "SELECT amount FROM synapse_balances WHERE owner_address = %s AND bucket = %s FOR UPDATE",
+                (wallet, bucket),
+            )
+            hit = cur.fetchone()
+            if hit is None:
+                cur.execute(
+                    _BALANCE_INSERT_SQL,
+                    (wallet, bucket, "0", now),
+                )
+                return Decimal("0")
+            return _q6(hit[0])
+
+        def _set_balance(cur: Any, wallet: str, bucket: str, value: Decimal) -> None:
+            cur.execute(
+                """
+                INSERT INTO synapse_balances (owner_address, bucket, amount, updated_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (owner_address, bucket)
+                DO UPDATE SET amount = EXCLUDED.amount, updated_at = EXCLUDED.updated_at
+                """,
+                (wallet, bucket, str(_q6(value)), now),
+            )
+
         with self._connect() as conn:
             with conn.cursor() as cur:
-                ledger_payload = self._load_collection_for_update(cur, "balance_ledger")
-                ledger = _json_dict(ledger_payload)
-                buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
-                sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
-                platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
-
-                before_buyer = _q6(buyers.get(owner_wallet, "0"))
+                before_buyer = _load_balance(cur, owner, "buyer")
                 if before_buyer < _q6(total_charge):
                     raise RuntimeError("INSUFFICIENT_BALANCE")
 
-                buyers[owner_wallet] = float(_q6(before_buyer - _q6(total_charge)))
-                sellers[seller_wallet] = float(_q6(_q6(sellers.get(seller_wallet, "0")) + _q6(seller_net)))
-                platform["feeAccrued"] = float(_q6(_q6(platform.get("feeAccrued", "0")) + _q6(platform_fee_total)))
+                seller_before = _load_balance(cur, seller, "seller")
+                platform_before = _load_balance(cur, "__platform__", "platform_fee")
+                buyer_after = _q6(before_buyer - _q6(total_charge))
+                seller_after = _q6(seller_before + _q6(seller_net))
+                platform_after = _q6(platform_before + _q6(platform_fee_total))
 
-                ledger["buyers"] = buyers
-                ledger["sellers"] = sellers
-                ledger["platform"] = platform
-                ledger["updatedAt"] = int(time.time())
-                self._save_collection_in_tx(cur, "balance_ledger", ledger)
+                _set_balance(cur, owner, "buyer", buyer_after)
+                _set_balance(cur, seller, "seller", seller_after)
+                _set_balance(cur, "__platform__", "platform_fee", platform_after)
 
-                usage_payload = self._load_collection_for_update(cur, "usage_log")
-                usage_rows = usage_payload if isinstance(usage_payload, list) else []
-                usage_rows.append(usage_row)
-                self._save_collection_in_tx(cur, "usage_log", usage_rows)
+                usage_id = str(usage_row.get("id") or f"usage-{now}-{owner[-6:]}")
+                payload = dict(usage_row)
+                payload.setdefault("id", usage_id)
+                payload.setdefault("timestamp", int(usage_row.get("timestamp") or now))
+                payload.setdefault("buyer", owner)
+                payload.setdefault("seller", seller)
+                payload.setdefault("status", str(usage_row.get("status") or "accepted"))
+                payload.setdefault("totalCharge", float(_q6(total_charge)))
+                cur.execute(
+                    """
+                    INSERT INTO synapse_usage_log (id, ts, buyer_address, seller_address, status, total_charge, payload)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT (id)
+                    DO UPDATE SET
+                        ts = EXCLUDED.ts,
+                        buyer_address = EXCLUDED.buyer_address,
+                        seller_address = EXCLUDED.seller_address,
+                        status = EXCLUDED.status,
+                        total_charge = EXCLUDED.total_charge,
+                        payload = EXCLUDED.payload
+                    """,
+                    (
+                        usage_id,
+                        int(payload.get("timestamp") or now),
+                        str(payload.get("buyer") or owner),
+                        str(payload.get("seller") or seller),
+                        str(payload.get("status") or "accepted"),
+                        str(_q6(payload.get("totalCharge") or total_charge)),
+                        json.dumps(payload, ensure_ascii=False),
+                    ),
+                )
 
                 audit_payload = {
                     "id": usage_row.get("id") or "",
-                    "timestamp": int(time.time()),
+                    "timestamp": now,
                     "action": "BUYER_CHARGE_ATOMIC",
-                    "ownerAddress": owner_wallet,
+                    "ownerAddress": owner,
                     "details": {
                         "beforeBalance": float(before_buyer),
                         "deltaAmount": float(-_q6(total_charge)),
                         "afterBalance": float(_q6(before_buyer - _q6(total_charge))),
-                        "seller": seller_wallet,
+                        "seller": seller,
                     },
                 }
                 cur.execute(
@@ -234,23 +555,47 @@ class PostgresStorage(BaseStorage):
         return {"buyerBalanceAfter": float(_q6(before_buyer - _q6(total_charge)))}
 
     def reserve_seller_withdraw_atomic(self, owner_wallet: str, amount_usdc: Decimal) -> Dict[str, float]:
+        owner = str(owner_wallet or "").strip().lower()
+        now = int(time.time())
+
+        def _load_balance(cur: Any, wallet: str, bucket: str) -> Decimal:
+            cur.execute(
+                "SELECT amount FROM synapse_balances WHERE owner_address = %s AND bucket = %s FOR UPDATE",
+                (wallet, bucket),
+            )
+            hit = cur.fetchone()
+            if hit is None:
+                cur.execute(
+                    _BALANCE_INSERT_SQL,
+                    (wallet, bucket, "0", now),
+                )
+                return Decimal("0")
+            return _q6(hit[0])
+
+        def _set_balance(cur: Any, wallet: str, bucket: str, value: Decimal) -> None:
+            cur.execute(
+                """
+                INSERT INTO synapse_balances (owner_address, bucket, amount, updated_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (owner_address, bucket)
+                DO UPDATE SET amount = EXCLUDED.amount, updated_at = EXCLUDED.updated_at
+                """,
+                (wallet, bucket, str(_q6(value)), now),
+            )
+
         with self._connect() as conn:
             with conn.cursor() as cur:
-                ledger_payload = self._load_collection_for_update(cur, "balance_ledger")
-                ledger = _json_dict(ledger_payload)
-                sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
-                sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
-
-                before_available = _q6(sellers.get(owner_wallet, "0"))
+                before_available = _load_balance(cur, owner, "seller")
                 if before_available < _q6(amount_usdc):
                     raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
 
-                sellers[owner_wallet] = float(_q6(before_available - _q6(amount_usdc)))
-                sellers_locked[owner_wallet] = float(_q6(_q6(sellers_locked.get(owner_wallet, "0")) + _q6(amount_usdc)))
-                ledger["sellers"] = sellers
-                ledger["sellersLocked"] = sellers_locked
-                ledger["updatedAt"] = int(time.time())
-                self._save_collection_in_tx(cur, "balance_ledger", ledger)
+                before_locked = _load_balance(cur, owner, "seller_locked")
+                after_available = _q6(before_available - _q6(amount_usdc))
+                after_locked = _q6(before_locked + _q6(amount_usdc))
+
+                _set_balance(cur, owner, "seller", after_available)
+                _set_balance(cur, owner, "seller_locked", after_locked)
+
             conn.commit()
         return {
             "beforeBalance": float(before_available),
@@ -270,6 +615,646 @@ class PostgresStorage(BaseStorage):
                     return False
             conn.commit()
         return True
+
+    def _replace_table_with_payload(self, table_name: str, rows: List[Dict[str, Any]], id_sql: str, value_sql_builder) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"DELETE FROM {table_name}")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    values = value_sql_builder(row)
+                    if values is None:
+                        continue
+                    cur.execute(id_sql, values)
+            conn.commit()
+
+    def read_deposit_intents(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT payload FROM synapse_deposit_intents ORDER BY created_at ASC")
+                rows = cur.fetchall()
+        return [row[0] for row in rows if isinstance(row[0], dict)]
+
+    def write_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
+        self._replace_table_with_payload(
+            "synapse_deposit_intents",
+            rows,
+            """
+            INSERT INTO synapse_deposit_intents (id, owner_address, tx_hash, status, created_at, updated_at, payload)
+            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (id)
+            DO UPDATE SET owner_address = EXCLUDED.owner_address, tx_hash = EXCLUDED.tx_hash, status = EXCLUDED.status,
+                          created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
+            """,
+            lambda row: (
+                str(row.get("id") or ""),
+                str(row.get("ownerAddress") or "").lower(),
+                str(row.get("txHash") or "").lower(),
+                str(row.get("status") or "PENDING"),
+                int(row.get("createdAt") or 0),
+                int(row.get("updatedAt") or 0),
+                json.dumps(row, ensure_ascii=False),
+            ) if str(row.get("id") or "").strip() else None,
+        )
+
+    def read_refund_intents(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT payload FROM synapse_refund_intents ORDER BY created_at ASC")
+                rows = cur.fetchall()
+        return [row[0] for row in rows if isinstance(row[0], dict)]
+
+    def write_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        self._replace_table_with_payload(
+            "synapse_refund_intents",
+            rows,
+            """
+            INSERT INTO synapse_refund_intents (id, owner_address, tx_hash, status, amount_usdc, created_at, updated_at, payload)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (id)
+            DO UPDATE SET owner_address = EXCLUDED.owner_address, tx_hash = EXCLUDED.tx_hash, status = EXCLUDED.status,
+                          amount_usdc = EXCLUDED.amount_usdc, created_at = EXCLUDED.created_at,
+                          updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
+            """,
+            lambda row: (
+                str(row.get("id") or ""),
+                str(row.get("ownerAddress") or "").lower(),
+                str(row.get("txHash") or "").lower() or None,
+                str(row.get("status") or "PENDING"),
+                str(_q6(row.get("amountUsdc") or 0)),
+                int(row.get("createdAt") or updated_at),
+                int(row.get("updatedAt") or updated_at),
+                json.dumps(row, ensure_ascii=False),
+            ) if str(row.get("id") or "").strip() else None,
+        )
+
+    def read_withdrawal_intents(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT payload FROM synapse_withdrawal_intents ORDER BY created_at ASC")
+                rows = cur.fetchall()
+        return [row[0] for row in rows if isinstance(row[0], dict)]
+
+    def write_withdrawal_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        self._replace_table_with_payload(
+            "synapse_withdrawal_intents",
+            rows,
+            """
+            INSERT INTO synapse_withdrawal_intents (id, owner_address, tx_hash, status, amount_usdc, created_at, updated_at, payload)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (id)
+            DO UPDATE SET owner_address = EXCLUDED.owner_address, tx_hash = EXCLUDED.tx_hash, status = EXCLUDED.status,
+                          amount_usdc = EXCLUDED.amount_usdc, created_at = EXCLUDED.created_at,
+                          updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
+            """,
+            lambda row: (
+                str(row.get("id") or ""),
+                str(row.get("ownerAddress") or "").lower(),
+                str(row.get("txHash") or "").lower() or None,
+                str(row.get("status") or "PENDING"),
+                str(_q6(row.get("amountUsdc") or 0)),
+                int(row.get("createdAt") or updated_at),
+                int(row.get("updatedAt") or updated_at),
+                json.dumps(row, ensure_ascii=False),
+            ) if str(row.get("id") or "").strip() else None,
+        )
+
+    def read_balance_ledger(self) -> Dict[str, Any]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT owner_address, bucket, amount, updated_at FROM synapse_balances")
+                rows = cur.fetchall()
+
+        ledger: Dict[str, Any] = {
+            "buyers": {},
+            "buyersLocked": {},
+            "sellers": {},
+            "sellersLocked": {},
+            "platform": {"feeAccrued": 0.0},
+            "updatedAt": 0,
+        }
+        max_updated = 0
+        for owner, bucket, amount, updated_at in rows:
+            updated = int(updated_at or 0)
+            if updated > max_updated:
+                max_updated = updated
+            val = float(_q6(amount))
+            if bucket == "buyer":
+                ledger["buyers"][str(owner)] = val
+            elif bucket == "buyer_locked":
+                ledger["buyersLocked"][str(owner)] = val
+            elif bucket == "seller":
+                ledger["sellers"][str(owner)] = val
+            elif bucket == "seller_locked":
+                ledger["sellersLocked"][str(owner)] = val
+            elif bucket == "platform_fee" and str(owner) == "__platform__":
+                ledger["platform"]["feeAccrued"] = val
+        ledger["updatedAt"] = max_updated
+        return ledger
+
+    def write_balance_ledger(self, ledger: Dict[str, Any]) -> None:
+        updated_at = int(ledger.get("updatedAt") or int(time.time()))
+        buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
+        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
+        sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
+        platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
+
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_balances")
+                for owner, value in buyers.items():
+                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "buyer", str(_q6(value)), updated_at))
+                for owner, value in buyers_locked.items():
+                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "buyer_locked", str(_q6(value)), updated_at))
+                for owner, value in sellers.items():
+                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "seller", str(_q6(value)), updated_at))
+                for owner, value in sellers_locked.items():
+                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "seller_locked", str(_q6(value)), updated_at))
+                cur.execute(_BALANCE_INSERT_SQL, ("__platform__", "platform_fee", str(_q6(platform.get("feeAccrued") or 0)), updated_at))
+            conn.commit()
+
+    def read_router_config_rows(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT owner_address, daily_limit_usdc, created_at, updated_at FROM synapse_router_config ORDER BY updated_at DESC")
+                rows = cur.fetchall()
+        return [{"ownerAddress": str(owner), "dailyLimitUsdc": float(_q6(limit)), "createdAt": int(created), "updatedAt": int(updated)} for owner, limit, created, updated in rows]
+
+    def write_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_router_config")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    owner = str(row.get("ownerAddress") or "").lower()
+                    if not owner:
+                        continue
+                    cur.execute(
+                        "INSERT INTO synapse_router_config (owner_address, daily_limit_usdc, created_at, updated_at) VALUES (%s, %s, %s, %s)",
+                        (owner, str(_q6(row.get("dailyLimitUsdc") or 0)), int(row.get("createdAt") or updated_at), int(row.get("updatedAt") or updated_at)),
+                    )
+            conn.commit()
+
+    def read_usage_log_rows(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT payload FROM synapse_usage_log ORDER BY ts DESC")
+                rows = cur.fetchall()
+        return [row[0] for row in rows if isinstance(row[0], dict)]
+
+    def write_usage_log_rows(self, rows: List[Dict[str, Any]]) -> None:
+        self._replace_table_with_payload(
+            "synapse_usage_log",
+            rows,
+            """
+            INSERT INTO synapse_usage_log (id, ts, buyer_address, seller_address, status, total_charge, payload)
+            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (id)
+            DO UPDATE SET ts = EXCLUDED.ts, buyer_address = EXCLUDED.buyer_address, seller_address = EXCLUDED.seller_address,
+                          status = EXCLUDED.status, total_charge = EXCLUDED.total_charge, payload = EXCLUDED.payload
+            """,
+            lambda row: (
+                str(row.get("id") or f"usage-{int(time.time())}"),
+                int(row.get("timestamp") or int(time.time())),
+                str(row.get("buyer") or "").lower() or None,
+                str(row.get("seller") or "").lower() or None,
+                str(row.get("status") or ""),
+                str(_q6(row.get("totalCharge") or 0)),
+                json.dumps(row, ensure_ascii=False),
+            ),
+        )
+
+    def append_audit_row(self, row: Dict[str, Any]) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(_AUDIT_INSERT_SQL, ("audit_log", json.dumps(row, ensure_ascii=False)))
+            conn.commit()
+
+    def read_processed_deposit_event_keys(self) -> List[str]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT dedup_key FROM synapse_processed_deposit_events ORDER BY updated_at DESC")
+                rows = cur.fetchall()
+        return [str(row[0]) for row in rows if row and row[0] is not None]
+
+    def write_processed_deposit_event_keys(self, keys: List[str], updated_at: int) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_processed_deposit_events")
+                for key in keys:
+                    dedup_key = str(key or "").strip()
+                    if not dedup_key:
+                        continue
+                    cur.execute("INSERT INTO synapse_processed_deposit_events (dedup_key, updated_at) VALUES (%s, %s)", (dedup_key, int(updated_at)))
+            conn.commit()
+
+    def read_service_registry_rows(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT payload FROM synapse_service_registry ORDER BY created_at ASC")
+                rows = cur.fetchall()
+        return [normalize_service_row(row[0]) for row in rows if isinstance(row[0], dict)]
+
+    def write_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
+        self._replace_table_with_payload(
+            "synapse_service_registry",
+            rows,
+            """
+            INSERT INTO synapse_service_registry (service_id, owner_address, created_at, updated_at, payload)
+            VALUES (%s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (service_id)
+            DO UPDATE SET owner_address = EXCLUDED.owner_address, created_at = EXCLUDED.created_at,
+                          updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
+            """,
+            lambda row: (
+                str(row.get("serviceId") or ""),
+                str(row.get("ownerAddress") or "").lower(),
+                int(row.get("createdAt") or 0),
+                int(row.get("updatedAt") or 0),
+                json.dumps(row, ensure_ascii=False),
+            ) if str(row.get("serviceId") or "").strip() else None,
+        )
+
+    def read_service_target_health_rows(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT service_id, owner_address, target_url, weight, region, status, overall_status,
+                           http_status, latency_ms, consecutive_successes, consecutive_failures,
+                           probe_url, last_checked_at, last_healthy_at, error
+                    FROM synapse_service_target_health
+                    ORDER BY service_id, target_url
+                    """
+                )
+                rows = cur.fetchall()
+        return [
+            {
+                "serviceId": service_id,
+                "ownerAddress": owner,
+                "targetUrl": target_url,
+                "weight": weight,
+                "region": region,
+                "status": status,
+                "overallStatus": overall_status,
+                "httpStatus": http_status,
+                "latencyMs": latency_ms,
+                "consecutiveSuccesses": int(successes or 0),
+                "consecutiveFailures": int(failures or 0),
+                "probeUrl": probe_url,
+                "lastCheckedAt": last_checked_at,
+                "lastHealthyAt": last_healthy_at,
+                "error": error,
+            }
+            for service_id, owner, target_url, weight, region, status, overall_status, http_status, latency_ms, successes, failures, probe_url, last_checked_at, last_healthy_at, error in rows
+        ]
+
+    def write_service_target_health_rows(self, rows: List[Dict[str, Any]]) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_service_target_health")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    service_id = str(row.get("serviceId") or "").strip()
+                    target_url = str(row.get("targetUrl") or "").strip()
+                    if not service_id or not target_url:
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_service_target_health (
+                            service_id, owner_address, target_url, weight, region, status, overall_status,
+                            http_status, latency_ms, consecutive_successes, consecutive_failures,
+                            probe_url, last_checked_at, last_healthy_at, error
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            service_id,
+                            str(row.get("ownerAddress") or "").lower() or None,
+                            target_url,
+                            int(row.get("weight") or 100),
+                            row.get("region"),
+                            row.get("status"),
+                            row.get("overallStatus"),
+                            row.get("httpStatus"),
+                            row.get("latencyMs"),
+                            int(row.get("consecutiveSuccesses") or 0),
+                            int(row.get("consecutiveFailures") or 0),
+                            row.get("probeUrl"),
+                            row.get("lastCheckedAt"),
+                            row.get("lastHealthyAt"),
+                            row.get("error"),
+                        ),
+                    )
+            conn.commit()
+
+    def read_service_target_health_history_rows(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT service_id, owner_address, target_url, status, http_status, latency_ms,
+                           probe_url, consecutive_successes, consecutive_failures, checked_at,
+                           last_healthy_at, error
+                    FROM synapse_service_target_health_history
+                    ORDER BY id ASC
+                    """
+                )
+                rows = cur.fetchall()
+        return [
+            {
+                "serviceId": service_id,
+                "ownerAddress": owner,
+                "targetUrl": target_url,
+                "status": status,
+                "httpStatus": http_status,
+                "latencyMs": latency_ms,
+                "probeUrl": probe_url,
+                "consecutiveSuccesses": int(successes or 0),
+                "consecutiveFailures": int(failures or 0),
+                "checkedAt": int(checked_at or 0),
+                "lastHealthyAt": last_healthy_at,
+                "error": error,
+            }
+            for service_id, owner, target_url, status, http_status, latency_ms, probe_url, successes, failures, checked_at, last_healthy_at, error in rows
+        ]
+
+    def write_service_target_health_history_rows(self, rows: List[Dict[str, Any]]) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_service_target_health_history")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    service_id = str(row.get("serviceId") or "").strip()
+                    target_url = str(row.get("targetUrl") or "").strip()
+                    if not service_id or not target_url:
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_service_target_health_history (
+                            service_id, owner_address, target_url, status, http_status, latency_ms,
+                            probe_url, consecutive_successes, consecutive_failures, checked_at,
+                            last_healthy_at, error
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            service_id,
+                            str(row.get("ownerAddress") or "").lower() or None,
+                            target_url,
+                            row.get("status"),
+                            row.get("httpStatus"),
+                            row.get("latencyMs"),
+                            row.get("probeUrl"),
+                            int(row.get("consecutiveSuccesses") or 0),
+                            int(row.get("consecutiveFailures") or 0),
+                            int(row.get("checkedAt") or 0),
+                            row.get("lastHealthyAt"),
+                            row.get("error"),
+                        ),
+                    )
+            conn.commit()
+
+    def read_credential_rows(self, credential_type: str) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT payload FROM synapse_credentials WHERE credential_type = %s ORDER BY created_at DESC",
+                    (str(credential_type or ""),),
+                )
+                rows = cur.fetchall()
+        return [row[0] for row in rows if isinstance(row[0], dict)]
+
+    def write_credential_rows(self, credential_type: str, rows: List[Dict[str, Any]]) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_credentials WHERE credential_type = %s", (str(credential_type or ""),))
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    row_id = str(row.get("id") or "").strip()
+                    if not row_id:
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_credentials (
+                            id, credential_type, owner_address, name, token_hash, token_prefix, status,
+                            max_calls, calls_used, rpm, credit_limit, reset_interval, expiration,
+                            expires_at, created_at, updated_at, revoked_at, payload
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                        """,
+                        (
+                            row_id,
+                            str(credential_type or ""),
+                            str(row.get("ownerAddress") or "").lower(),
+                            row.get("name"),
+                            row.get("tokenHash"),
+                            row.get("tokenPrefix"),
+                            row.get("status"),
+                            row.get("maxCalls"),
+                            row.get("callsUsed"),
+                            row.get("rpm"),
+                            str(_q6(row.get("creditLimit") or 0)) if row.get("creditLimit") is not None else None,
+                            row.get("resetInterval"),
+                            row.get("expiration"),
+                            row.get("expiresAt"),
+                            row.get("createdAt"),
+                            row.get("updatedAt"),
+                            row.get("revokedAt"),
+                            json.dumps(row, ensure_ascii=False),
+                        ),
+                    )
+            conn.commit()
+
+    def get_wallet_role(self, wallet: str) -> Optional[str]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT role FROM synapse_wallet_roles WHERE wallet_address = %s", (str(wallet or "").lower(),))
+                row = cur.fetchone()
+        if row is None:
+            return None
+        return str(row[0] or "")
+
+    def set_wallet_role(self, wallet: str, role: str) -> None:
+        now = int(time.time())
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO synapse_wallet_roles (wallet_address, role, updated_at)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (wallet_address)
+                    DO UPDATE SET role = EXCLUDED.role, updated_at = EXCLUDED.updated_at
+                    """,
+                    (str(wallet or "").lower(), str(role or ""), now),
+                )
+            conn.commit()
+
+    def upsert_auth_session(self, wallet: str, registered_at: int, last_login: int, status: str) -> None:
+        now = int(time.time())
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO synapse_auth_sessions (wallet_address, registered_at, last_login, status, updated_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (wallet_address)
+                    DO UPDATE SET
+                        registered_at = LEAST(synapse_auth_sessions.registered_at, EXCLUDED.registered_at),
+                        last_login = EXCLUDED.last_login,
+                        status = EXCLUDED.status,
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    (str(wallet or "").lower(), int(registered_at), int(last_login), str(status or "active"), now),
+                )
+            conn.commit()
+
+    def get_platform_fee_policy(self) -> Dict[str, Any]:
+        policy: Dict[str, Any] = {"defaultRate": 0.0, "ownerRates": {}, "updatedAt": None, "updatedBy": None}
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT default_rate, updated_at, updated_by FROM synapse_platform_fee_policy_default WHERE singleton_id = 1")
+                default_row = cur.fetchone()
+                if default_row is not None:
+                    policy["defaultRate"] = float(_q6(default_row[0]))
+                    policy["updatedAt"] = int(default_row[1]) if default_row[1] is not None else None
+                    policy["updatedBy"] = default_row[2]
+                cur.execute("SELECT owner_address, fee_rate FROM synapse_platform_fee_policy_owner")
+                owner_rows = cur.fetchall()
+        owner_rates: Dict[str, float] = {}
+        for owner, fee_rate in owner_rows:
+            owner_rates[str(owner)] = float(_q6(fee_rate))
+        policy["ownerRates"] = owner_rates
+        return policy
+
+    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, Any], updated_by: str, updated_at: int) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO synapse_platform_fee_policy_default (singleton_id, default_rate, updated_at, updated_by)
+                    VALUES (1, %s, %s, %s)
+                    ON CONFLICT (singleton_id)
+                    DO UPDATE SET default_rate = EXCLUDED.default_rate, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
+                    """,
+                    (str(_q6(default_rate)), int(updated_at), str(updated_by or "")),
+                )
+                cur.execute("DELETE FROM synapse_platform_fee_policy_owner")
+                for owner, fee_rate in (owner_rates or {}).items():
+                    wallet = str(owner or "").strip().lower()
+                    if not wallet:
+                        continue
+                    cur.execute(
+                        "INSERT INTO synapse_platform_fee_policy_owner (owner_address, fee_rate) VALUES (%s, %s)",
+                        (wallet, str(_q6(fee_rate))),
+                    )
+            conn.commit()
+
+    def read_idempotency_rows(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, scope, owner_address, idempotency_key, request_hash, response, created_at, expires_at FROM synapse_idempotency_keys ORDER BY created_at DESC"
+                )
+                rows = cur.fetchall()
+        result: List[Dict[str, Any]] = []
+        for row_id, scope, owner, key, req_hash, response, created_at, expires_at in rows:
+            result.append(
+                {
+                    "id": row_id,
+                    "scope": scope,
+                    "ownerAddress": owner,
+                    "idempotencyKey": key,
+                    "requestHash": req_hash,
+                    "response": response if isinstance(response, dict) else None,
+                    "createdAt": int(created_at or 0),
+                    "expiresAt": int(expires_at or 0),
+                }
+            )
+        return result
+
+    def _to_idempotency_insert_values(self, row: Dict[str, Any], updated_at: int) -> Optional[tuple[Any, ...]]:
+        row_id = str(row.get("id") or "").strip() or f"idem-{int(time.time()*1000)}"
+        owner = str(row.get("ownerAddress") or "").lower()
+        scope = str(row.get("scope") or "")
+        key = str(row.get("idempotencyKey") or "")
+        req_hash = str(row.get("requestHash") or "")
+        if not owner or not scope or not key or not req_hash:
+            return None
+        return (
+            row_id,
+            scope,
+            owner,
+            key,
+            req_hash,
+            json.dumps(row.get("response") if isinstance(row.get("response"), dict) else None, ensure_ascii=False),
+            int(row.get("createdAt") or updated_at),
+            int(row.get("expiresAt") or updated_at),
+        )
+
+    def write_idempotency_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_idempotency_keys")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    values = self._to_idempotency_insert_values(row, updated_at)
+                    if values is None:
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_idempotency_keys (id, scope, owner_address, idempotency_key, request_hash, response, created_at, expires_at)
+                        VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        """,
+                        values,
+                    )
+            conn.commit()
+
+    def read_rate_limit_rows(self) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, owner_address, action, window_start, count, updated_at FROM synapse_finance_rate_limit")
+                rows = cur.fetchall()
+        return [
+            {
+                "id": row_id,
+                "ownerAddress": owner,
+                "action": action,
+                "windowStart": int(window_start or 0),
+                "count": int(count or 0),
+                "updatedAt": int(updated_at or 0),
+            }
+            for row_id, owner, action, window_start, count, updated_at in rows
+        ]
+
+    def write_rate_limit_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM synapse_finance_rate_limit")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    row_id = str(row.get("id") or "").strip() or f"rl-{int(time.time()*1000)}"
+                    owner = str(row.get("ownerAddress") or "").lower()
+                    action = str(row.get("action") or "")
+                    if not owner or not action:
+                        continue
+                    cur.execute(
+                        "INSERT INTO synapse_finance_rate_limit (id, owner_address, action, window_start, count, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            row_id,
+                            owner,
+                            action,
+                            int(row.get("windowStart") or updated_at),
+                            int(row.get("count") or 0),
+                            int(row.get("updatedAt") or updated_at),
+                        ),
+                    )
+            conn.commit()
 
     def _default_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
         if collection_name in {

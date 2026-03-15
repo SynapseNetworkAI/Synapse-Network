@@ -155,3 +155,45 @@ Phase 3（日志爆发后）：
 - 正确性优先
 - 可审计优先
 - 演进式扩容优先
+
+## 9. 关系化落地基线（已执行）
+
+为消除 Demo 阶段的通用 JSON collection 存储，本轮后端已切换为“按领域建表 + repository 专用接口”模式。
+
+### 9.1 已关系化的核心表
+
+- 资金域：
+  - `synapse_balances`
+  - `synapse_deposit_intents`
+  - `synapse_refund_intents`
+  - `synapse_withdrawal_intents`
+  - `synapse_usage_log`
+  - `synapse_processed_deposit_events`
+  - `synapse_deposit_dedup`
+  - `synapse_withdraw_tx_dedup`
+- 平台配置与会话域：
+  - `synapse_router_config`
+  - `synapse_platform_fee_policy_default`
+  - `synapse_platform_fee_policy_owner`
+  - `synapse_wallet_roles`
+  - `synapse_auth_sessions`
+- 服务注册与健康域：
+  - `synapse_service_registry`
+  - `synapse_service_target_health`
+  - `synapse_service_target_health_history`
+- 凭据域：
+  - `synapse_credentials`
+- 风险控制域：
+  - `synapse_idempotency_keys`
+  - `synapse_finance_rate_limit`
+
+### 9.2 执行规则
+
+1. 业务层禁止直接读写通用 collection。
+2. 路由层只调用 service；service 只调用 repository；repository 只调用 typed storage API。
+3. 资金路径优先使用原子 SQL（行锁/条件更新）与唯一约束，禁止内存账本读改写。
+4. 任意新增资金字段，必须先落关系表和索引，再开放 API 字段。
+
+### 9.3 兼容策略
+
+为避免一次性迁移风险，底层仍保留旧接口壳用于回放/迁移窗口，但生产主路径不再依赖通用 collection 表。
