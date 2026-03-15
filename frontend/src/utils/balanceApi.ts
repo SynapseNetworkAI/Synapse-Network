@@ -106,6 +106,14 @@ export async function createDepositIntent(
   userAddress: string,
   payload: { txHash: string; amountUsdc: number }
 ): Promise<DepositIntentRecord> {
+  const normalizedTx = String(payload.txHash || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
+    throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+  }
+  if (!Number.isFinite(payload.amountUsdc) || payload.amountUsdc <= 0) {
+    throw new Error("amountUsdc must be a positive number.");
+  }
+
   const headers = {
     ...buildAuthedHeaders(userAddress),
     "X-Idempotency-Key": buildIdempotencyKey("deposit"),
@@ -116,6 +124,7 @@ export async function createDepositIntent(
     headers,
     body: JSON.stringify({
       ...payload,
+      txHash: normalizedTx,
       ownerAddress: userAddress,
       buyerAddress: userAddress,
     }),

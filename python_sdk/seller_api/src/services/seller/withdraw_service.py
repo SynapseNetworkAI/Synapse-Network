@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 import asyncio
 import time
 from uuid import uuid4
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException
 
@@ -210,6 +211,29 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         ledger["sellersLocked"] = sellers_locked
         self._save_balance_ledger(ledger)
 
+    def _reserve_withdraw_amount(self, owner: str, amount_usdc: float, ledger: Dict[str, Any]) -> None:
+        sellers = ledger.get("sellers", {})
+        sellers[owner] = round(float(sellers.get(owner, 0.0)) - amount_usdc, 6)
+        sellers_locked = ledger.get("sellersLocked", {})
+        sellers_locked[owner] = round(float(sellers_locked.get(owner, 0.0)) + amount_usdc, 6)
+        ledger["sellers"] = sellers
+        ledger["sellersLocked"] = sellers_locked
+        if hasattr(self.storage, "reserve_seller_withdraw_atomic"):
+            try:
+                getattr(self.storage, "reserve_seller_withdraw_atomic")(
+                    owner_wallet=owner,
+                    amount_usdc=Decimal(str(amount_usdc)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+                )
+            except RuntimeError as exc:
+                if str(exc) == "INSUFFICIENT_SELLER_RECEIVABLE":
+                    raise HTTPException(
+                        status_code=400,
+                        detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": "amountUsdc exceeds seller receivable."},
+                    )
+                raise
+            return
+        self._save_balance_ledger(ledger)
+
     async def create_provider_withdraw_intent(
         self,
         payload: Dict[str, Any],
@@ -290,12 +314,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             except Exception:
                 signer_address = ""
 
-            sellers[owner] = round(float(sellers.get(owner, 0.0)) - amount_usdc, 6)
-            sellers_locked = ledger.get("sellersLocked", {})
-            sellers_locked[owner] = round(float(sellers_locked.get(owner, 0.0)) + amount_usdc, 6)
-            ledger["sellers"] = sellers
-            ledger["sellersLocked"] = sellers_locked
-            self._save_balance_ledger(ledger)
+            self._reserve_withdraw_amount(owner, amount_usdc, ledger)
 
             now = int(time.time())
             withdrawal_id = str(uuid4())
@@ -385,6 +404,22 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 )
 
             normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)
+            if hasattr(self.storage, "complete_withdraw_tx_atomic"):
+                bound = bool(
+                    getattr(self.storage, "complete_withdraw_tx_atomic")(
+                        owner_wallet=owner,
+                        tx_hash=normalized_tx_hash,
+                        kind="provider_withdraw",
+                    )
+                )
+                if not bound:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "WITHDRAWAL_TX_REPLAY_DETECTED",
+                            "message": "txHash is already bound to another withdrawal.",
+                        },
+                    )
             self._assert_no_withdraw_tx_replay(rows, owner, normalized_tx_hash, str(target.get("id") or ""))
             completed = self._assert_withdrawal_completable(target, normalized_tx_hash)
             if completed is not None:

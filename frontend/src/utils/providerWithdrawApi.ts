@@ -115,10 +115,15 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
 }
 
 export async function completeProviderWithdrawal(userAddress: string, withdrawalId: string, txHash: string): Promise<void> {
+  const normalizedTx = String(txHash || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
+    throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+  }
+
   const response = await fetch(`${API_BASE}/${encodeURIComponent(withdrawalId)}/complete`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify({ txHash }),
+    body: JSON.stringify({ txHash: normalizedTx }),
   });
 
   if (!response.ok) {

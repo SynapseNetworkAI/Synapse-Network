@@ -96,6 +96,28 @@ async def test_deposit_replay_protection(balance_service):
 
 
 @pytest.mark.asyncio
+async def test_deposit_uses_atomic_storage_hook_when_available(balance_service):
+    called = {"ok": False}
+
+    def _register_deposit_intent_atomic(**kwargs):
+        called["ok"] = True
+        row = dict(kwargs["intent_row"])
+        row["id"] = "dep-atomic-1"
+        return row
+
+    setattr(balance_service.storage, "register_deposit_intent_atomic", _register_deposit_intent_atomic)
+
+    result = await balance_service.register_deposit_intent(
+        {"txHash": "0x" + "2" * 64, "amountUsdc": 12.345678},
+        "0xowner",
+        "deposit_key_atomic_123456",
+    )
+
+    assert called["ok"] is True
+    assert result["id"] == "dep-atomic-1"
+
+
+@pytest.mark.asyncio
 async def test_owner_scope_isolation_for_refunds(balance_service):
     _set_buyer_balance(balance_service, "0xowner1", 100)
     _set_buyer_balance(balance_service, "0xowner2", 100)

@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional, Tuple
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException
 
@@ -110,6 +111,39 @@ async def charge_and_mark_usage(
     now = credential_service.now_ts()
     buyer_after = 0.0
     updated_credential = None
+
+    if hasattr(storage, "charge_buyer_and_record_usage_atomic"):
+        usage_row = {
+            "id": f"usage-{now}-{credential_id}",
+            "timestamp": now,
+            "buyer": owner_wallet,
+            "seller": seller_wallet,
+            "status": "accepted",
+            "totalCharge": float(Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)),
+        }
+        try:
+            result = getattr(storage, "charge_buyer_and_record_usage_atomic")(
+                owner_wallet=owner_wallet,
+                seller_wallet=seller_wallet,
+                total_charge=Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+                seller_net=Decimal(str(seller_net)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+                platform_fee_total=Decimal(str(platform_fee_total)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+                usage_row=usage_row,
+            )
+            buyer_after = float(result.get("buyerBalanceAfter") or 0.0)
+        except RuntimeError as exc:
+            if str(exc) == "INSUFFICIENT_BALANCE":
+                raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"})
+            raise
+
+        rows, extras = credential_service.load_credential_rows(storage)
+        idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
+        if idx >= 0:
+            rows[idx]["callsUsed"] = int(rows[idx].get("callsUsed") or 0) + 1
+            rows[idx]["updatedAt"] = now
+            updated_credential = rows[idx]
+            credential_service.save_credential_rows(storage, rows, extras)
+        return buyer_after, updated_credential
 
     async with credential_service.write_lock:
         repo = FinanceRepository(storage)

@@ -117,6 +117,9 @@
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Security Headers**: Requires `X-Idempotency-Key` (16-128 chars, allowed chars: `A-Z a-z 0-9 . _ : -`). Same key + same payload returns the same logical result; same key + different payload returns `409`.
 - **Replay Protection**: duplicate `txHash` for same owner inside replay window is rejected with `409`.
+- **PostgreSQL Hardening**:
+  - Physical dedup is enforced by unique constraint (`synapse_deposit_dedup.tx_hash`).
+  - Backend captures DB integrity conflicts and returns stable idempotent response (no duplicate credit).
 - **Body**:
   ```json
   {
@@ -154,6 +157,9 @@
   - Refund completion consumes lock: `buyersLocked[owner] -= amount`.
 - **Gas Responsibility**: refund responses include `gasPayer=BUYER`, `gasModel=BUYER_PAYS_ONCHAIN`.
 - **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
+- **Transaction Safety**:
+  - Buyer charge/settlement path prefers PostgreSQL atomic transaction APIs (ledger update + usage log + audit in one commit).
+  - Seller withdraw completion binds `owner + txHash + kind` in DB dedup table to block replay across retries/multi-instance races.
 
 ### 3.5 Router Config (Owner Scoped)
 - **Paths**:

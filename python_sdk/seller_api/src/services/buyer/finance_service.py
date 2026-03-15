@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 import asyncio
 import time
 from uuid import uuid4
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException
 
@@ -254,6 +255,88 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         )
         return response
 
+    async def _begin_deposit_idempotency(
+        self,
+        *,
+        owner: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> tuple[Optional[Dict[str, Any]], Optional[Any], List[Dict[str, Any]]]:
+        redis_client = await self._get_redis_client()
+        redis_hit = await self._check_idempotency_redis(
+            scope="deposit_intent",
+            owner_wallet=owner,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+        )
+        if redis_hit is not None:
+            return redis_hit, redis_client, []
+
+        started = await self._start_idempotency_redis(
+            scope="deposit_intent",
+            owner_wallet=owner,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+        )
+        if not started:
+            redis_retry = await self._check_idempotency_redis(
+                scope="deposit_intent",
+                owner_wallet=owner,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            if redis_retry is not None:
+                return redis_retry, redis_client, []
+
+        idem_rows: List[Dict[str, Any]] = []
+        if redis_client is None:
+            idem_rows = self._load_idempotency_rows()
+            idem_hit = self._try_get_idempotent_response(
+                rows=idem_rows,
+                scope="deposit_intent",
+                owner_wallet=owner,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+            )
+            if idem_hit is not None:
+                return idem_hit, redis_client, idem_rows
+
+        return None, redis_client, idem_rows
+
+    def _persist_deposit_intent(
+        self,
+        *,
+        owner: str,
+        tx_hash: str,
+        amount_usdc: Decimal,
+        idempotency_key: str,
+        intent: Dict[str, Any],
+        intents: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        now = int(time.time())
+        next_intent = dict(intent)
+        next_intent["ownerAddress"] = owner
+        next_intent["buyerAddress"] = owner
+        next_intent["txHash"] = tx_hash
+        next_intent["amountUsdc"] = float(amount_usdc)
+        next_intent["idempotencyKey"] = idempotency_key
+        next_intent.setdefault("id", str(uuid4()))
+        next_intent.setdefault("status", "PENDING")
+        next_intent.setdefault("createdAt", now)
+        next_intent["updatedAt"] = now
+        if hasattr(self.storage, "register_deposit_intent_atomic"):
+            saved = getattr(self.storage, "register_deposit_intent_atomic")(
+                owner_wallet=owner,
+                tx_hash=tx_hash.lower(),
+                request_id=idempotency_key,
+                intent_row=next_intent,
+            )
+            if isinstance(saved, dict) and saved:
+                return saved
+        intents.append(next_intent)
+        self.repo.save_deposit_intents(intents)
+        return next_intent
+
     async def register_deposit_intent(
         self,
         intent: Dict[str, Any],
@@ -273,8 +356,16 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     detail={"code": "INVALID_TX_HASH", "message": "txHash must be a 66-char 0x-prefixed hash."},
                 )
 
-            amount_usdc = float(intent.get("amountUsdc") or 0)
-            if amount_usdc <= 0:
+            try:
+                amount_usdc = Decimal(str(intent.get("amountUsdc") or "0")).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                )
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a valid decimal number."},
+                )
+            if amount_usdc <= Decimal("0"):
                 raise HTTPException(
                     status_code=400,
                     detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
@@ -284,64 +375,27 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             request_payload = {
                 "ownerAddress": owner,
                 "txHash": tx_hash.lower(),
-                "amountUsdc": round(amount_usdc, 6),
+                "amountUsdc": float(amount_usdc),
             }
             request_hash = self._request_hash(request_payload)
-            redis_client = await self._get_redis_client()
-
-            redis_hit = await self._check_idempotency_redis(
-                scope="deposit_intent",
-                owner_wallet=owner,
+            idem_hit, redis_client, idem_rows = await self._begin_deposit_idempotency(
+                owner=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
             )
-            if redis_hit is not None:
-                return redis_hit
-
-            started = await self._start_idempotency_redis(
-                scope="deposit_intent",
-                owner_wallet=owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-            )
-            if not started:
-                redis_retry = await self._check_idempotency_redis(
-                    scope="deposit_intent",
-                    owner_wallet=owner,
-                    idempotency_key=idempotency_key,
-                    request_hash=request_hash,
-                )
-                if redis_retry is not None:
-                    return redis_retry
-
-            idem_rows: List[Dict[str, Any]] = []
-            if redis_client is None:
-                idem_rows = self._load_idempotency_rows()
-                idem_hit = self._try_get_idempotent_response(
-                    rows=idem_rows,
-                    scope="deposit_intent",
-                    owner_wallet=owner,
-                    idempotency_key=idempotency_key,
-                    request_hash=request_hash,
-                )
-                if idem_hit is not None:
-                    return idem_hit
+            if idem_hit is not None:
+                return idem_hit
 
             self._validate_unique_recent_deposit(intents, owner, tx_hash)
 
-            now = int(time.time())
-            next_intent = dict(intent)
-            next_intent["ownerAddress"] = owner
-            next_intent["buyerAddress"] = owner
-            next_intent["txHash"] = tx_hash
-            next_intent["amountUsdc"] = round(amount_usdc, 6)
-            next_intent["idempotencyKey"] = idempotency_key
-            next_intent.setdefault("id", str(uuid4()))
-            next_intent.setdefault("status", "PENDING")
-            next_intent.setdefault("createdAt", now)
-            next_intent["updatedAt"] = now
-            intents.append(next_intent)
-            self.repo.save_deposit_intents(intents)
+            next_intent = self._persist_deposit_intent(
+                owner=owner,
+                tx_hash=tx_hash,
+                amount_usdc=amount_usdc,
+                idempotency_key=idempotency_key,
+                intent=intent,
+                intents=intents,
+            )
 
             response = dict(next_intent)
             if redis_client is None:
@@ -546,6 +600,22 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 )
 
             normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)
+            if hasattr(self.storage, "complete_withdraw_tx_atomic"):
+                bound = bool(
+                    getattr(self.storage, "complete_withdraw_tx_atomic")(
+                        owner_wallet=owner,
+                        tx_hash=normalized_tx_hash,
+                        kind="buyer_refund",
+                    )
+                )
+                if not bound:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "REFUND_TX_REPLAY_DETECTED",
+                            "message": "txHash is already bound to another refund intent.",
+                        },
+                    )
             self._assert_no_refund_tx_replay(rows, owner, normalized_tx_hash, str(target.get("id") or ""))
             completed = self._assert_refund_completable(target, normalized_tx_hash)
             if completed is not None:

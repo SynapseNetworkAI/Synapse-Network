@@ -219,3 +219,55 @@ async def test_complete_provider_withdrawal_releases_lock_and_is_idempotent(monk
         )
     assert exc.value.status_code == 409
     assert exc.value.detail["code"] == "WITHDRAWAL_ALREADY_COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_complete_provider_withdrawal_uses_db_tx_dedup_hook(temp_storage):
+    owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
+    service = BalanceService(temp_storage)
+
+    temp_storage.save_collection(
+        "balance_ledger",
+        {
+            "buyers": {},
+            "sellers": {owner.lower(): 0.0},
+            "sellersLocked": {owner.lower(): 1.5},
+            "platform": {"feeAccrued": 0},
+        },
+    )
+    temp_storage.save_collection(
+        "provider_withdrawal_intents",
+        {
+            "rows": [
+                {
+                    "id": "wd-db-1",
+                    "ownerAddress": owner.lower(),
+                    "amountUsdc": 1.5,
+                    "status": "PENDING",
+                    "nonce": 7,
+                    "createdAt": 1,
+                    "updatedAt": 1,
+                }
+            ]
+        },
+    )
+
+    dedup_state = {"seen": set()}
+
+    def _complete_withdraw_tx_atomic(owner_wallet: str, tx_hash: str, kind: str) -> bool:
+        key = (owner_wallet, tx_hash, kind)
+        if key in dedup_state["seen"]:
+            return False
+        dedup_state["seen"].add(key)
+        return True
+
+    setattr(temp_storage, "complete_withdraw_tx_atomic", _complete_withdraw_tx_atomic)
+
+    tx_hash = "0x" + "45" * 32
+    done = await service.complete_provider_withdrawal(owner_wallet=owner, withdrawal_id="wd-db-1", tx_hash=tx_hash)
+    assert done["status"] == "COMPLETED"
+
+    with pytest.raises(HTTPException) as exc:
+        await service.complete_provider_withdrawal(owner_wallet=owner, withdrawal_id="wd-db-1", tx_hash=tx_hash)
+    assert exc.value.status_code == 409
+    assert exc.value.detail["code"] == "WITHDRAWAL_TX_REPLAY_DETECTED"
