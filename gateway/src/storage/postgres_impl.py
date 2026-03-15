@@ -21,6 +21,7 @@ from .postgres.repositories.idempotency_repository import IdempotencyRepository
 from .postgres.repositories.legacy_collection_repository import LegacyCollectionRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.audit import AuditLogEntry
+from src.domain.storage_entities import BuyerChargeResult, DepositIntentRow, UsageLogRow
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -51,6 +52,15 @@ DO UPDATE SET
     updated_at = EXCLUDED.updated_at
 """
 
+_BALANCE_REQUIRED_COLUMNS = {
+    "owner_address",
+    "account_type",
+    "available_balance",
+    "pending_balance",
+    "frozen_balance",
+    "updated_at",
+}
+
 
 def _d(value: Any) -> Decimal:
     try:
@@ -74,6 +84,8 @@ class PostgresStorage(BaseStorage):
 
         self.dsn = dsn.strip()
         self._db = DatabaseManager(self._connect)
+        if ensure_schema:
+            self._validate_schema_contract()
 
         # -- Build repository set (inlined from former repository_factory.py) --
         q6 = _q6
@@ -102,7 +114,26 @@ class PostgresStorage(BaseStorage):
             ),
             audit=AuditDomain(logs=audit),
         )
-        _ = ensure_schema
+
+    def _validate_schema_contract(self) -> None:
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'synapse_balances'
+                """
+            )
+            rows = cur.fetchall()
+
+        actual = {str(row[0]).strip().lower() for row in rows if row and row[0]}
+        missing = sorted(_BALANCE_REQUIRED_COLUMNS - actual)
+        if missing:
+            raise RuntimeError(
+                "PostgreSQL schema mismatch: synapse_balances is missing required columns "
+                f"{', '.join(missing)}. "
+                "Please initialize DB with docker-compose/postgres/init/001_synapse_schema.sql."
+            )
 
     def _connect(self):
         return psycopg.connect(self.dsn)
@@ -140,10 +171,10 @@ class PostgresStorage(BaseStorage):
             sign_ticket_factory=sign_ticket_factory,
         )
 
-    def register_deposit_intent_atomic(self, owner_wallet: str, tx_hash: str, request_id: str, intent_row: Dict[str, Any]) -> Dict[str, Any]:
+    def register_deposit_intent_atomic(self, owner_wallet: str, tx_hash: str, request_id: str, intent_row: DepositIntentRow) -> DepositIntentRow:
         return self._data_manager.finance.atomic.register_deposit_intent_atomic(owner_wallet, tx_hash, request_id, intent_row)
 
-    def confirm_deposit_intent_atomic(self, owner_wallet: str, deposit_intent_id: str, event_key: str, confirmations: int) -> Dict[str, Any]:
+    def confirm_deposit_intent_atomic(self, owner_wallet: str, deposit_intent_id: str, event_key: str, confirmations: int) -> DepositIntentRow:
         return self._data_manager.finance.atomic.confirm_deposit_intent_atomic(owner_wallet, deposit_intent_id, event_key, confirmations)
 
     def charge_buyer_and_record_usage_atomic(
@@ -154,8 +185,8 @@ class PostgresStorage(BaseStorage):
         total_charge: Decimal,
         seller_net: Decimal,
         platform_fee_total: Decimal,
-        usage_row: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        usage_row: UsageLogRow,
+    ) -> BuyerChargeResult:
         return self._data_manager.finance.atomic.charge_buyer_and_record_usage_atomic(
             owner_wallet=owner_wallet,
             seller_wallet=seller_wallet,

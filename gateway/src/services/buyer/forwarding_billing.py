@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.finance import BalanceLedger, FeePolicyEntity
+from src.domain.storage_entities import UsageLogRow
 from src.services.platform import credential_service
 from src.storage import BaseStorage
 
@@ -31,7 +32,10 @@ def resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float
     fallback = sanitize_fee_rate(settings.platform_fee_rate, 0.10)
     policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
-    policy_default = sanitize_fee_rate(policy.default_rate, fallback)
+    if policy.updated_at is None and not policy.owner_rates and abs(float(policy.default_rate)) < 1e-12:
+        policy_default = fallback
+    else:
+        policy_default = sanitize_fee_rate(policy.default_rate, fallback)
     owner_key = normalize_wallet(str(seller_wallet or ""))
     if owner_key and owner_key in policy.owner_rates:
         return sanitize_fee_rate(policy.owner_rates.get(owner_key), policy_default)
@@ -94,12 +98,25 @@ def pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: floa
 def append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
     """Append one usage event into usage_log collection with safe list normalization."""
     raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
-    rows = [item for item in raw_rows if isinstance(item, dict)] if isinstance(raw_rows, list) else []
-    rows.append(row)
-    storage.get_data_manager().system.gateway_state.write_usage_log_rows(rows)
+    rows = list(raw_rows) if isinstance(raw_rows, list) else []
+    typed_row = UsageLogRow.model_validate(row)
+    rows.append(typed_row)
+    repo = storage.get_data_manager().system.gateway_state
+    try:
+        repo.write_usage_log_rows(rows)
+    except Exception:
+        fallback_rows = [item.model_dump(by_alias=True, mode="json") if isinstance(item, UsageLogRow) else item for item in rows]
+        repo.write_usage_log_rows(fallback_rows)
 
 
 def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
+    manager = storage.get_data_manager().system.credential_auth
+    if hasattr(manager, "read_auth_session"):
+        session = manager.read_auth_session(normalize_wallet(wallet))
+        if session is not None:
+            status = str(session.status or "").strip().lower()
+            return status in RISK_RESTRICTED_STATUSES
+
     sessions = storage.get_collection("auth_sessions")
     if not isinstance(sessions, dict):
         return False
@@ -180,14 +197,14 @@ def _charge_and_mark_usage_atomic(
     buyer_after = 0.0
     updated_credential = None
 
-    usage_row = {
-        "id": f"usage-{now}-{credential_id}",
-        "timestamp": now,
-        "buyer": owner_wallet,
-        "seller": seller_wallet,
-        "status": "accepted",
-        "totalCharge": float(Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)),
-    }
+    usage_row = UsageLogRow(
+        id=f"usage-{now}-{credential_id}",
+        ts=now,
+        buyerAddress=owner_wallet,
+        sellerAddress=seller_wallet,
+        status="accepted",
+        totalCharge=Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+    )
     try:
         result = getattr(storage, "charge_buyer_and_record_usage_atomic")(
             owner_wallet=owner_wallet,
@@ -197,7 +214,10 @@ def _charge_and_mark_usage_atomic(
             platform_fee_total=Decimal(str(platform_fee_total)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
             usage_row=usage_row,
         )
-        buyer_after = float(result.get("buyerBalanceAfter") or 0.0)
+        if isinstance(result, dict):
+            buyer_after = float(result.get("buyerBalanceAfter") or 0.0)
+        else:
+            buyer_after = float(result.buyer_balance_after)
     except RuntimeError as exc:
         if str(exc) == "INSUFFICIENT_BALANCE":
             raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"})

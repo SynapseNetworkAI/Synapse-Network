@@ -119,6 +119,29 @@ Synapse 的数据有两类，必须分开看：
 - gateway_logs 按时间分区（推荐按月，流量很大时按天）。
 - 分区创建任务自动化，避免临界日写入失败。
 
+## 6. Repository 契约升级（SQL Table -> Pydantic Entity）
+
+为彻底消除 `Dict[str, Any]` 在仓储边界扩散导致的字段漂移风险，网关存储层已升级为“表实体驱动”。
+
+强制规则：
+- 每张 SQL 业务表必须对应一个 Pydantic 实体（定义于 `gateway/src/domain/storage_entities.py`）。
+- `gateway/src/storage/postgres/repositories/` 的方法入参/返回值使用实体对象，不再直接吞吐裸字典。
+- 仓储 SQL 必须按列读写，不依赖历史 `payload` JSONB 影子字段。
+
+关键映射（示例）：
+- `synapse_deposit_intents` -> `DepositIntentRow`
+- `synapse_refund_intents` -> `RefundIntentRow`
+- `synapse_withdrawal_intents` -> `WithdrawalIntentRow`
+- `synapse_usage_log` -> `UsageLogRow`
+- `synapse_credentials` -> `CredentialRow`
+- `synapse_service_registry` -> `ServiceRegistryRow`
+- `synapse_idempotency_keys` -> `IdempotencyKeyRow`
+
+收益：
+- 字段语义由实体静态约束，避免 key 拼写错误和隐式缺字段。
+- 仓储层和 SQL 契约一一对应，迁移/审计路径可验证。
+- 上层服务可以渐进转换，但底层账本与持久化边界已强类型化。
+
 ## 5.4 备份与恢复
 - 启用自动备份（每日全量 + WAL 增量）。
 - 每月至少一次恢复演练，验证 RTO/RPO。

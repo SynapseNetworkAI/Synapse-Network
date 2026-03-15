@@ -5,6 +5,7 @@ import re
 from fastapi import HTTPException
 
 from src.core.config import settings
+from src.domain.storage_entities import ServiceRegistryRow
 from src.storage import BaseStorage
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
@@ -48,9 +49,20 @@ def effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
 def find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]:
     """Load one active service by serviceId, otherwise raise a gateway-safe HTTP error."""
     raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
-    rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    rows = [row for row in raw_rows if isinstance(row, ServiceRegistryRow)] if isinstance(raw_rows, list) else []
 
-    target = next((r for r in rows if isinstance(r, dict) and str(r.get("serviceId", "")).strip() == service_id), None)
+    hit = next((r for r in rows if str(r.service_id or "").strip() == service_id), None)
+    target = hit.model_dump(by_alias=True, mode="json") if hit is not None else None
+    if isinstance(target, dict):
+        target["pricing"] = {
+            "amount": str(target.get("pricingAmount") or "0"),
+            "currency": str(target.get("pricingCurrency") or "USDC"),
+        }
+        target.setdefault("constraints", {})
+        target["constraints"]["timeoutMs"] = int(target.get("timeoutMs") or settings.gateway_default_timeout_ms)
+        target["constraints"]["maxQps"] = int(target.get("maxQps") or settings.gateway_default_service_qps)
+        target["constraints"]["maxRequestBytes"] = int(target.get("maxRequestBytes") or settings.gateway_default_request_bytes)
+        target["constraints"]["maxResponseBytes"] = int(target.get("maxResponseBytes") or settings.gateway_default_response_bytes)
     if not target:
         raise HTTPException(status_code=404, detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"})
     if target.get("isActive") is False:
