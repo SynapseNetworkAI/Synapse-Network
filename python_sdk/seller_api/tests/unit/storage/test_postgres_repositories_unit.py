@@ -10,6 +10,7 @@ from src.storage.postgres.repositories.audit_log_repository import AuditLogRepos
 from src.storage.postgres.repositories.balance_repository import BalanceRepository
 from src.storage.postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from src.storage.postgres.repositories.fee_policy_repository import FeePolicyRepository
+from src.storage.postgres.repositories.gateway_state_repository import GatewayStateRepository
 from src.storage.postgres.repositories.idempotency_repository import IdempotencyRepository
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
 
@@ -261,3 +262,38 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     assert "DELETE FROM synapse_credentials WHERE credential_type = %s" in tx_sql
     assert "INSERT INTO synapse_wallet_roles" in tx_sql
     assert "INSERT INTO synapse_auth_sessions" in tx_sql
+
+
+def test_gateway_state_repository_read_and_write() -> None:
+    db = FakeDB()
+    db.readonly_plan.append({"fetchall": [[({"id": "dep-1"},)]]})
+    db.readonly_plan.append({"fetchall": [[({"id": "ref-1"},)]]})
+    db.readonly_plan.append({"fetchall": [[({"id": "wd-1"},)]]})
+    db.readonly_plan.append({"fetchall": [[("0xabc", Decimal("100"), 1, 2)]]})
+    db.readonly_plan.append({"fetchall": [[({"id": "usage-1"},)]]})
+    db.readonly_plan.append({"fetchall": [[("ek-1",)]]})
+    repo = GatewayStateRepository(db, _q6)
+
+    assert repo.read_deposit_intents() == [{"id": "dep-1"}]
+    assert repo.read_refund_intents() == [{"id": "ref-1"}]
+    assert repo.read_withdrawal_intents() == [{"id": "wd-1"}]
+    router_rows = repo.read_router_config_rows()
+    assert router_rows[0]["ownerAddress"] == "0xabc"
+    assert abs(router_rows[0]["dailyLimitUsdc"] - 100.0) < 1e-9
+    assert repo.read_usage_log_rows() == [{"id": "usage-1"}]
+    assert repo.read_processed_deposit_event_keys() == ["ek-1"]
+
+    repo.write_deposit_intents([{"id": "dep-2", "ownerAddress": "0xA", "txHash": "0xT"}])
+    repo.write_refund_intents([{"id": "ref-2", "ownerAddress": "0xA", "amountUsdc": 1}], updated_at=9)
+    repo.write_withdrawal_intents([{"id": "wd-2", "ownerAddress": "0xA", "amountUsdc": 2}], updated_at=9)
+    repo.write_router_config_rows([{"ownerAddress": "0xA", "dailyLimitUsdc": 10}], updated_at=9)
+    repo.write_usage_log_rows([{"id": "usage-2", "buyer": "0xA", "seller": "0xB", "totalCharge": 1}])
+    repo.write_processed_deposit_event_keys(["ek-2"], updated_at=9)
+
+    tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert "DELETE FROM synapse_deposit_intents" in tx_sql
+    assert "DELETE FROM synapse_refund_intents" in tx_sql
+    assert "DELETE FROM synapse_withdrawal_intents" in tx_sql
+    assert "DELETE FROM synapse_router_config" in tx_sql
+    assert "DELETE FROM synapse_usage_log" in tx_sql
+    assert "DELETE FROM synapse_processed_deposit_events" in tx_sql
