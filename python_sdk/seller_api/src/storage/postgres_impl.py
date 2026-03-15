@@ -5,6 +5,11 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from .base import BaseStorage
 from .normalizers import normalize_service_row
+from .postgres.database_manager import DatabaseManager
+from .postgres.repositories.audit_log_repository import AuditLogRepository
+from .postgres.repositories.balance_repository import BalanceRepository
+from .postgres.repositories.fee_policy_repository import FeePolicyRepository
+from .postgres.repositories.idempotency_repository import IdempotencyRepository
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -388,6 +393,11 @@ class PostgresStorage(BaseStorage):
             raise RuntimeError("POSTGRES_DSN is required when STORAGE_BACKEND=postgres")
 
         self.dsn = dsn.strip()
+        self._db = DatabaseManager(self._connect)
+        self._fee_policy_repo = FeePolicyRepository(self._db, _q6)
+        self._idempotency_repo = IdempotencyRepository(self._db)
+        self._audit_repo = AuditLogRepository(self._db, _AUDIT_INSERT_SQL)
+        self._balance_repo = BalanceRepository(self._db, _q6, _BALANCE_UPSERT_SQL)
         if ensure_schema:
             self._ensure_schema()
 
@@ -1197,88 +1207,10 @@ class PostgresStorage(BaseStorage):
         )
 
     def read_balance_ledger(self) -> Dict[str, Any]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT owner_address, account_type, available_balance, pending_balance, frozen_balance, updated_at FROM synapse_balances"
-                )
-                rows = cur.fetchall()
-
-        ledger: Dict[str, Any] = {
-            "buyers": {},
-            "buyersLocked": {},
-            "buyersFrozen": {},
-            "sellers": {},
-            "sellersLocked": {},
-            "sellersFrozen": {},
-            "platform": {"feeAccrued": 0.0},
-            "updatedAt": 0,
-        }
-        max_updated = 0
-        for owner, account_type, available_balance, pending_balance, frozen_balance, updated_at in rows:
-            updated = int(updated_at or 0)
-            if updated > max_updated:
-                max_updated = updated
-            available_val = float(_q6(available_balance))
-            pending_val = float(_q6(pending_balance))
-            frozen_val = float(_q6(frozen_balance))
-            if account_type == "buyer":
-                ledger["buyers"][str(owner)] = available_val
-                ledger["buyersLocked"][str(owner)] = pending_val
-                ledger["buyersFrozen"][str(owner)] = frozen_val
-            elif account_type == "seller":
-                ledger["sellers"][str(owner)] = available_val
-                ledger["sellersLocked"][str(owner)] = pending_val
-                ledger["sellersFrozen"][str(owner)] = frozen_val
-            elif account_type == "platform_fee" and str(owner) == "__platform__":
-                ledger["platform"]["feeAccrued"] = available_val
-        ledger["updatedAt"] = max_updated
-        return ledger
+        return self._balance_repo.read_balance_ledger()
 
     def write_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        updated_at = int(ledger.get("updatedAt") or int(time.time()))
-        buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
-        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
-        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
-        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
-        sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
-        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
-        platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
-
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_balances")
-                all_buyers = {str(owner).lower() for owner in buyers} | {str(owner).lower() for owner in buyers_locked} | {str(owner).lower() for owner in buyers_frozen}
-                for owner in all_buyers:
-                    cur.execute(
-                        _BALANCE_UPSERT_SQL,
-                        (
-                            owner,
-                            "buyer",
-                            str(_q6(buyers.get(owner, 0))),
-                            str(_q6(buyers_locked.get(owner, 0))),
-                            str(_q6(buyers_frozen.get(owner, 0))),
-                            updated_at,
-                        ),
-                    )
-                all_sellers = {str(owner).lower() for owner in sellers} | {str(owner).lower() for owner in sellers_locked} | {str(owner).lower() for owner in sellers_frozen}
-                for owner in all_sellers:
-                    cur.execute(
-                        _BALANCE_UPSERT_SQL,
-                        (
-                            owner,
-                            "seller",
-                            str(_q6(sellers.get(owner, 0))),
-                            str(_q6(sellers_locked.get(owner, 0))),
-                            str(_q6(sellers_frozen.get(owner, 0))),
-                            updated_at,
-                        ),
-                    )
-                cur.execute(
-                    _BALANCE_UPSERT_SQL,
-                    ("__platform__", "platform_fee", str(_q6(platform.get("feeAccrued") or 0)), "0", "0", updated_at),
-                )
-            conn.commit()
+        self._balance_repo.write_balance_ledger(ledger)
 
     def read_router_config_rows(self) -> List[Dict[str, Any]]:
         with self._connect() as conn:
@@ -1347,10 +1279,7 @@ class PostgresStorage(BaseStorage):
         )
 
     def append_audit_row(self, row: Dict[str, Any]) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(_AUDIT_INSERT_SQL, ("audit_log", json.dumps(row, ensure_ascii=False)))
-            conn.commit()
+        self._audit_repo.append_audit_row(row)
 
     def read_processed_deposit_event_keys(self) -> List[str]:
         with self._connect() as conn:
@@ -1632,68 +1561,13 @@ class PostgresStorage(BaseStorage):
             conn.commit()
 
     def get_platform_fee_policy(self) -> Dict[str, Any]:
-        policy: Dict[str, Any] = {"defaultRate": 0.0, "ownerRates": {}, "updatedAt": None, "updatedBy": None}
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT default_rate, updated_at, updated_by FROM synapse_platform_fee_policy_default WHERE singleton_id = 1")
-                default_row = cur.fetchone()
-                if default_row is not None:
-                    policy["defaultRate"] = float(_q6(default_row[0]))
-                    policy["updatedAt"] = int(default_row[1]) if default_row[1] is not None else None
-                    policy["updatedBy"] = default_row[2]
-                cur.execute("SELECT owner_address, fee_rate FROM synapse_platform_fee_policy_owner")
-                owner_rows = cur.fetchall()
-        owner_rates: Dict[str, float] = {}
-        for owner, fee_rate in owner_rows:
-            owner_rates[str(owner)] = float(_q6(fee_rate))
-        policy["ownerRates"] = owner_rates
-        return policy
+        return self._fee_policy_repo.get_platform_fee_policy()
 
     def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, Any], updated_by: str, updated_at: int) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO synapse_platform_fee_policy_default (singleton_id, default_rate, updated_at, updated_by)
-                    VALUES (1, %s, %s, %s)
-                    ON CONFLICT (singleton_id)
-                    DO UPDATE SET default_rate = EXCLUDED.default_rate, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
-                    """,
-                    (str(_q6(default_rate)), int(updated_at), str(updated_by or "")),
-                )
-                cur.execute("DELETE FROM synapse_platform_fee_policy_owner")
-                for owner, fee_rate in (owner_rates or {}).items():
-                    wallet = str(owner or "").strip().lower()
-                    if not wallet:
-                        continue
-                    cur.execute(
-                        "INSERT INTO synapse_platform_fee_policy_owner (owner_address, fee_rate) VALUES (%s, %s)",
-                        (wallet, str(_q6(fee_rate))),
-                    )
-            conn.commit()
+        self._fee_policy_repo.set_platform_fee_policy(default_rate, owner_rates, updated_by, updated_at)
 
     def read_idempotency_rows(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, scope, owner_address, idempotency_key, request_hash, response, created_at, expires_at FROM synapse_idempotency_keys ORDER BY created_at DESC"
-                )
-                rows = cur.fetchall()
-        result: List[Dict[str, Any]] = []
-        for row_id, scope, owner, key, req_hash, response, created_at, expires_at in rows:
-            result.append(
-                {
-                    "id": row_id,
-                    "scope": scope,
-                    "ownerAddress": owner,
-                    "idempotencyKey": key,
-                    "requestHash": req_hash,
-                    "response": response if isinstance(response, dict) else None,
-                    "createdAt": int(created_at or 0),
-                    "expiresAt": int(expires_at or 0),
-                }
-            )
-        return result
+        return self._idempotency_repo.read_idempotency_rows()
 
     def _to_idempotency_insert_values(self, row: Dict[str, Any], updated_at: int) -> Optional[tuple[Any, ...]]:
         row_id = str(row.get("id") or "").strip() or f"idem-{int(time.time()*1000)}"
@@ -1715,65 +1589,13 @@ class PostgresStorage(BaseStorage):
         )
 
     def write_idempotency_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_idempotency_keys")
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    values = self._to_idempotency_insert_values(row, updated_at)
-                    if values is None:
-                        continue
-                    cur.execute(
-                        """
-                        INSERT INTO synapse_idempotency_keys (id, scope, owner_address, idempotency_key, request_hash, response, created_at, expires_at)
-                        VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-                        """,
-                        values,
-                    )
-            conn.commit()
+        self._idempotency_repo.write_idempotency_rows(rows, updated_at)
 
     def read_rate_limit_rows(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT id, owner_address, action, window_start, count, updated_at FROM synapse_finance_rate_limit")
-                rows = cur.fetchall()
-        return [
-            {
-                "id": row_id,
-                "ownerAddress": owner,
-                "action": action,
-                "windowStart": int(window_start or 0),
-                "count": int(count or 0),
-                "updatedAt": int(updated_at or 0),
-            }
-            for row_id, owner, action, window_start, count, updated_at in rows
-        ]
+        return self._idempotency_repo.read_rate_limit_rows()
 
     def write_rate_limit_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_finance_rate_limit")
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    row_id = str(row.get("id") or "").strip() or f"rl-{int(time.time()*1000)}"
-                    owner = str(row.get("ownerAddress") or "").lower()
-                    action = str(row.get("action") or "")
-                    if not owner or not action:
-                        continue
-                    cur.execute(
-                        "INSERT INTO synapse_finance_rate_limit (id, owner_address, action, window_start, count, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
-                        (
-                            row_id,
-                            owner,
-                            action,
-                            int(row.get("windowStart") or updated_at),
-                            int(row.get("count") or 0),
-                            int(row.get("updatedAt") or updated_at),
-                        ),
-                    )
-            conn.commit()
+        self._idempotency_repo.write_rate_limit_rows(rows, updated_at)
 
     def _default_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
         if collection_name in {
@@ -1849,18 +1671,7 @@ class PostgresStorage(BaseStorage):
             else:
                 rows = []
 
-            with self._connect() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "DELETE FROM synapse_audit_log WHERE collection_name = %s",
-                        (collection_name,),
-                    )
-                    for row in rows:
-                        cur.execute(
-                            _AUDIT_INSERT_SQL,
-                            (collection_name, json.dumps(row, ensure_ascii=False)),
-                        )
-                conn.commit()
+            self._audit_repo.replace_audit_collection(rows)
             return
 
         with self._connect() as conn:
@@ -1878,14 +1689,7 @@ class PostgresStorage(BaseStorage):
 
     def append_to_collection(self, collection_name: str, item: Any) -> None:
         if collection_name == "audit_log":
-            row = item if isinstance(item, dict) else {"raw": item}
-            with self._connect() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        _AUDIT_INSERT_SQL,
-                        (collection_name, json.dumps(row, ensure_ascii=False)),
-                    )
-                conn.commit()
+            self._audit_repo.append_to_audit_collection(item)
             return
 
         data = self.get_collection(collection_name)
@@ -1894,21 +1698,4 @@ class PostgresStorage(BaseStorage):
             self.save_collection(collection_name, data)
 
     def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
-        sql = "SELECT payload FROM synapse_audit_log WHERE collection_name = %s"
-        params: List[Any] = ["audit_log"]
-
-        if owner_wallet:
-            sql += " AND lower(payload->>'ownerAddress') = lower(%s)"
-            params.append(owner_wallet)
-
-        sql += " ORDER BY id DESC LIMIT %s"
-        params.append(max(1, min(limit, 1000)))
-
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, params)
-                rows = cur.fetchall()
-
-        result = [row[0] for row in rows if isinstance(row[0], dict)]
-        result.sort(key=lambda item: int(item.get("timestamp") or 0), reverse=True)
-        return result
+        return self._audit_repo.read_audit_rows(owner_wallet=owner_wallet, limit=limit)
