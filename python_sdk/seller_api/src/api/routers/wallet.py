@@ -4,7 +4,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from pydantic import BaseModel
 
 from src.core.common import normalize_wallet
-from src.services.repository_access import credential_auth_repo
+from src.storage.repository_provider import credential_auth_repo
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from src.core.config import settings
-from src.services.repository_access import service_registry_repo
+from src.storage.repository_provider import service_registry_repo
 from src.storage.base import BaseStorage
 
 logger = logging.getLogger(__name__)

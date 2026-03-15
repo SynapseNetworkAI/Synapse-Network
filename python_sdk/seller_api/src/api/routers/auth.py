@@ -1,5 +1,5 @@
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Annotated
 from fastapi import APIRouter, HTTPException, Depends
 from loguru import logger
 import aiohttp
@@ -14,11 +14,16 @@ from src.models.pydantic_models import (
 from src.core.auth import create_auth_challenge, verify_auth_signature
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.storage.repository_provider import credential_auth_repo
 from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
 
-@router.get("/v1/auth/challenge", response_model=ChallengeResponse)
+@router.get(
+    "/v1/auth/challenge",
+    response_model=ChallengeResponse,
+    responses={400: {"description": "Failed to create challenge"}, 500: {"description": "Internal server error"}},
+)
 async def get_challenge(address: str):
     """Get an authentication challenge for a wallet"""
     try:
@@ -35,10 +40,14 @@ async def get_challenge(address: str):
         logger.error(f"Challenge generation failed: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-@router.post("/v1/auth/verify", response_model=TokenResponse)
+@router.post(
+    "/v1/auth/verify",
+    response_model=TokenResponse,
+    responses={401: {"description": "Invalid signature"}, 500: {"description": "Verification failed"}},
+)
 async def verify_signature(
     request: VerifyAuthRequest,
-    storage: BaseStorage = Depends(get_storage)
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     """Verify signature and issue JWT"""
     try:
@@ -60,7 +69,7 @@ async def verify_signature(
         wallet = normalize_wallet(request.wallet_address)
 
         now = int(time.time())
-        getattr(storage, "upsert_auth_session")(
+        credential_auth_repo(storage).upsert_auth_session(
             wallet=wallet,
             registered_at=now,
             last_login=now,

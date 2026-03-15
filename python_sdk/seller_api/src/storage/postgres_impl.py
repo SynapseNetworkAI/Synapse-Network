@@ -5,6 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from .base import BaseStorage
 from .normalizers import normalize_service_row
+from .repository_provider import StorageRepositoryProvider
 from .postgres.database_manager import DatabaseManager
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
@@ -96,10 +97,22 @@ class PostgresStorage(BaseStorage):
             _RISK_RESTRICTED_SESSION_STATUSES,
         )
         self._legacy_collection_repo = LegacyCollectionRepository(self._db, normalize_service_row, self._audit_repo)
+        self._repository_provider = StorageRepositoryProvider(
+            gateway_state=self._gateway_state_repo,
+            balance=self._balance_repo,
+            audit=self._audit_repo,
+            service_registry=self._service_registry_repo,
+            credential_auth=self._credential_auth_repo,
+            fee_policy=self._fee_policy_repo,
+            idempotency=self._idempotency_repo,
+        )
         _ = ensure_schema
 
     def _connect(self):
         return psycopg.connect(self.dsn)
+
+    def get_repository_provider(self) -> StorageRepositoryProvider:
+        return self._repository_provider
 
     def _load_locked_balance_triplet(self, cur: Any, owner: str, account_type: str, now: int) -> tuple[Decimal, Decimal, Decimal]:
         cur.execute(_BALANCE_FOR_UPDATE_SQL, (owner, account_type))

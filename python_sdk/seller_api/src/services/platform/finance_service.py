@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
-from src.services.repository_access import balance_repo, gateway_state_repo
+from src.storage.repository_provider import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 

@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_client import get_redis_client
-from src.services.repository_access import idempotency_repo
+from src.storage.repository_provider import idempotency_repo
 
 REDIS_IDEM_CLAIM_LUA = """
 local existing = redis.call('GET', KEYS[1])

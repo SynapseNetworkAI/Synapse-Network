@@ -5,7 +5,7 @@ import re
 from fastapi import HTTPException
 
 from src.core.config import settings
-from src.services.repository_access import service_registry_repo
+from src.storage.repository_provider import service_registry_repo
 from src.storage import BaseStorage
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")

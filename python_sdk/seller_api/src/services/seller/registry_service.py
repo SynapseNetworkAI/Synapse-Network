@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
 from src.services.platform import service_health_service
-from src.services.repository_access import service_registry_repo
+from src.storage.repository_provider import service_registry_repo
 import uuid
 import time
 import asyncio

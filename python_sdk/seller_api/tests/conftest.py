@@ -15,11 +15,24 @@ if str(SRC_ROOT) not in sys.path:
 
 from src.storage.base import BaseStorage  # noqa: E402
 from src.storage.normalizers import normalize_service_row  # noqa: E402
+from src.storage.repository_provider import StorageRepositoryProvider  # noqa: E402
 
 
 class InMemoryStorage(BaseStorage):
     def __init__(self):
         self._collections: Dict[str, Union[List[Any], Dict[str, Any]]] = {}
+        self._repository_provider = StorageRepositoryProvider(
+            gateway_state=self,
+            balance=self,
+            audit=self,
+            service_registry=self,
+            credential_auth=self,
+            fee_policy=self,
+            idempotency=self,
+        )
+
+    def get_repository_provider(self) -> StorageRepositoryProvider:
+        return self._repository_provider
 
     def _default_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
         if collection_name in {

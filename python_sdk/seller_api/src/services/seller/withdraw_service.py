@@ -15,7 +15,7 @@ from src.services.balance_mixins import (
     BalanceWithdrawSigningMixin,
     USDC_DECIMALS,
 )
-from src.services.repository_access import balance_repo, gateway_state_repo
+from src.storage.repository_provider import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 
