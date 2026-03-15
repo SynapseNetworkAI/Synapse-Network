@@ -1,9 +1,32 @@
 -- Synapse Gateway PostgreSQL bootstrap schema
 -- Executed automatically on first container initialization via docker-entrypoint-initdb.d
 
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_business_type') THEN
+        CREATE TYPE synapse_business_type AS ENUM ('deposit', 'charge', 'refund', 'withdraw', 'freeze', 'unfreeze');
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_risk_level') THEN
+        CREATE TYPE synapse_risk_level AS ENUM ('green', 'yellow', 'red');
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_withdraw_status') THEN
+        CREATE TYPE synapse_withdraw_status AS ENUM ('REQUESTED', 'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'REJECTED', 'COMPLETED');
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS synapse_audit_log (
     id BIGSERIAL PRIMARY KEY,
     action_type TEXT NOT NULL,
+    business_type synapse_business_type NOT NULL DEFAULT 'charge',
+    risk_level synapse_risk_level NOT NULL DEFAULT 'green',
     owner_address TEXT NOT NULL,
     actor TEXT,
     request_id TEXT,
@@ -48,10 +71,16 @@ ON synapse_withdraw_tx_dedup (owner_address, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS synapse_balances (
     owner_address TEXT NOT NULL,
-    bucket TEXT NOT NULL,
-    amount NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    account_type TEXT NOT NULL,
+    available_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    pending_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    frozen_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
     updated_at BIGINT NOT NULL DEFAULT 0,
-    PRIMARY KEY (owner_address, bucket)
+    PRIMARY KEY (owner_address, account_type),
+    CHECK (account_type IN ('buyer', 'seller', 'platform_fee')),
+    CHECK (available_balance >= 0),
+    CHECK (pending_balance >= 0),
+    CHECK (frozen_balance >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS synapse_deposit_intents (
@@ -90,7 +119,7 @@ CREATE TABLE IF NOT EXISTS synapse_withdrawal_intents (
     id TEXT PRIMARY KEY,
     owner_address TEXT NOT NULL,
     tx_hash TEXT,
-    status TEXT NOT NULL,
+    status synapse_withdraw_status NOT NULL DEFAULT 'REQUESTED',
     request_id TEXT,
     idempotency_key TEXT,
     amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
@@ -127,7 +156,9 @@ CREATE TABLE IF NOT EXISTS synapse_usage_log (
     unit_price NUMERIC(36, 6),
     protocol_fee NUMERIC(36, 6),
     routing_tax NUMERIC(36, 6),
-    total_charge NUMERIC(36, 6)
+    total_charge NUMERIC(36, 6),
+    business_type synapse_business_type NOT NULL DEFAULT 'charge',
+    risk_level synapse_risk_level NOT NULL DEFAULT 'green'
 );
 
 CREATE INDEX IF NOT EXISTS idx_synapse_usage_log_owner
@@ -275,6 +306,8 @@ CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
 -- Column comments (schema dictionary)
 COMMENT ON COLUMN synapse_audit_log.id IS '审计日志主键ID';
 COMMENT ON COLUMN synapse_audit_log.action_type IS '资金动作类型';
+COMMENT ON COLUMN synapse_audit_log.business_type IS '标准资金业务类型枚举';
+COMMENT ON COLUMN synapse_audit_log.risk_level IS '风控风险等级枚举';
 COMMENT ON COLUMN synapse_audit_log.owner_address IS '资金归属钱包地址';
 COMMENT ON COLUMN synapse_audit_log.actor IS '触发动作的执行者';
 COMMENT ON COLUMN synapse_audit_log.request_id IS '请求追踪ID';
@@ -298,8 +331,10 @@ COMMENT ON COLUMN synapse_withdraw_tx_dedup.kind IS '交易类型(提现或退�
 COMMENT ON COLUMN synapse_withdraw_tx_dedup.created_at IS '去重记录创建时间';
 
 COMMENT ON COLUMN synapse_balances.owner_address IS '余额归属钱包地址';
-COMMENT ON COLUMN synapse_balances.bucket IS '余额桶名称(available/hold等)';
-COMMENT ON COLUMN synapse_balances.amount IS '当前桶余额';
+COMMENT ON COLUMN synapse_balances.account_type IS '账户余额类型(buyer/seller/platform_fee)';
+COMMENT ON COLUMN synapse_balances.available_balance IS '可用余额(可扣费/可提现)';
+COMMENT ON COLUMN synapse_balances.pending_balance IS '待确认余额(链上确认中/审核中)';
+COMMENT ON COLUMN synapse_balances.frozen_balance IS '冻结余额(命中风控或人工冻结)';
 COMMENT ON COLUMN synapse_balances.updated_at IS '更新时间戳(毫秒)';
 
 COMMENT ON COLUMN synapse_deposit_intents.id IS '充值意图ID';
@@ -358,6 +393,8 @@ COMMENT ON COLUMN synapse_usage_log.unit_price IS '服务单价';
 COMMENT ON COLUMN synapse_usage_log.protocol_fee IS '协议手续费';
 COMMENT ON COLUMN synapse_usage_log.routing_tax IS '路由税';
 COMMENT ON COLUMN synapse_usage_log.total_charge IS '总扣费金额';
+COMMENT ON COLUMN synapse_usage_log.business_type IS '资金业务类型枚举';
+COMMENT ON COLUMN synapse_usage_log.risk_level IS '风控风险等级枚举';
 
 COMMENT ON COLUMN synapse_processed_deposit_events.dedup_key IS '链上事件去重键';
 COMMENT ON COLUMN synapse_processed_deposit_events.updated_at IS '更新时间戳(毫秒)';

@@ -42,7 +42,13 @@ class FinanceRepository:
         raw_rows = getattr(self._storage, "read_withdrawal_intents")()
         rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
         for row in rows:
-            row.setdefault("status", "PENDING")
+            status = str(row.get("status") or "").upper()
+            if not status:
+                row["status"] = "REQUESTED"
+            elif status == "PENDING":
+                row["status"] = "REQUESTED"
+            else:
+                row["status"] = status
         return rows
 
     def save_withdrawal_intents(self, rows: List[Dict[str, Any]]) -> None:
@@ -54,14 +60,18 @@ class FinanceRepository:
             ledger = {}
         buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
         buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
+        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
         sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
         sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
+        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
         platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
         platform.setdefault("feeAccrued", 0.0)
         ledger["buyers"] = buyers
         ledger["buyersLocked"] = buyers_locked
+        ledger["buyersFrozen"] = buyers_frozen
         ledger["sellers"] = sellers
         ledger["sellersLocked"] = sellers_locked
+        ledger["sellersFrozen"] = sellers_frozen
         ledger["platform"] = platform
         ledger.setdefault("updatedAt", int(time.time()))
         return ledger

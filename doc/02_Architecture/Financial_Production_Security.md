@@ -118,6 +118,18 @@ Router daily limit definition:
    - platform modules do not depend on buyer/seller business internals beyond explicit orchestration seams.
 4. Unit and integration suites are updated to import domain paths directly, eliminating implicit root-level coupling.
 
+### 2.12 Ninth-Round Balance Stratification and Withdrawal State Machine
+
+1. PostgreSQL balance schema now uses stratified columns per account type (`available_balance`, `pending_balance`, `frozen_balance`) instead of a single amount bucket model.
+2. Finance domain enum types are introduced at schema level:
+   - `synapse_business_type`: `deposit|charge|refund|withdraw|freeze|unfreeze`
+   - `synapse_risk_level`: `green|yellow|red`
+   - `synapse_withdraw_status`: `REQUESTED|APPROVED_AUTO|PENDING_MANUAL_REVIEW|REJECTED|COMPLETED`
+3. Provider withdrawal path now emits risk-aligned statuses:
+   - auto-approved intents: `APPROVED_AUTO`
+   - high-amount intents requiring manual review: `PENDING_MANUAL_REVIEW`
+4. Legacy `PENDING` withdrawal rows are normalized to `REQUESTED` in repository compatibility layer.
+
 ## 3. Configuration Contract
 
 Key runtime knobs in `python_sdk/seller_api/src/core/config.py`:
