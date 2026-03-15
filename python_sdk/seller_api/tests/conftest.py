@@ -15,7 +15,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from src.storage.base import BaseStorage  # noqa: E402
 from src.storage.normalizers import normalize_service_row  # noqa: E402
-from src.storage.repository_provider import (  # noqa: E402
+from src.storage.base import (  # noqa: E402
     AuditDomain,
     FinanceDomain,
     SynapseDataManager,
