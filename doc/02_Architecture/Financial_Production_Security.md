@@ -95,6 +95,15 @@ Router daily limit definition:
    - returns owner-scoped finance actions only
    - supports `limit` in `1..500`
 
+### 2.10 Seventh-Round Domain Service Decomposition
+
+1. Financial service orchestration is split into explicit domains:
+   - `BuyerFinanceService`: deposit intent + refund intent paths.
+   - `SellerWithdrawService`: provider withdrawal intent/completion paths.
+2. `BalanceService` is now a thin orchestrator that delegates domain flows while retaining existing API contract.
+3. Both domain services share the same Redis-first mutation lock manager and financial guard mixins, preserving cross-instance safety and idempotency guarantees.
+4. Withdrawal signing hooks remain patchable via orchestrator delegation, keeping testability and operational override capability intact.
+
 ## 3. Configuration Contract
 
 Key runtime knobs in `python_sdk/seller_api/src/core/config.py`:
