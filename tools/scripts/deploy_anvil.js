@@ -50,7 +50,7 @@ async function main() {
     config = JSON.parse(fs.readFileSync(configPath, "utf8"));
   }
 
-  // 覆盖这两个关键地址，保留可能存在的其他的配置如 A2APaySyncRouter
+  // 覆盖这两个关键地址，保留可能存在的其他配置
   config.MockUSDC = usdcAddress;
   config.SynapseCore = vaultAddress;
 

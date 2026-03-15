@@ -8,7 +8,7 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import "@rainbow-me/rainbowkit/styles.css";
 
 const config = getDefaultConfig({
-  appName: "A2A-Pay Dashboard",
+  appName: "Synapse Network Dashboard",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "8a80cea8b6033bbbd67f6bbdbbe70054", // Use env variable, fallback to a public testing ID
   chains: [hardhat, sepolia, baseSepolia, arbitrumSepolia],
   ssr: false, // 设置为 false 才可以让 wagmi 持久化钱包连接状态到 localStorage

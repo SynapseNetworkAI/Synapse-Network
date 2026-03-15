@@ -15,13 +15,13 @@ async function main() {
   const [deployer, buyer] = await hre.ethers.getSigners();
 
   const usdc = new hre.ethers.Contract(config.MockUSDC, usdcAbi, deployer);
-  const router = new hre.ethers.Contract(config.A2APaySyncRouter, routerAbi, buyer);
+  const router = new hre.ethers.Contract(config.SynapseCore, routerAbi, buyer);
 
   const amount = hre.ethers.parseUnits("1", 18);
   const serviceId = "V1_DEMO";
 
   await (await usdc.mint(buyer.address, amount)).wait();
-  await (await usdc.connect(buyer).approve(config.A2APaySyncRouter, amount)).wait();
+  await (await usdc.connect(buyer).approve(config.SynapseCore, amount)).wait();
 
   const tx = await router.payForService(config.MockUSDC, config.Treasury, amount, serviceId);
   const receipt = await tx.wait();

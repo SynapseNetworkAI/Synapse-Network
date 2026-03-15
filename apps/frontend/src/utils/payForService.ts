@@ -49,8 +49,7 @@ export async function payForServiceWithApproval(input: PayForServiceInput): Prom
   });
 
   const amount = parseUnits(priceUsdc, decimals);
-  const routerAddress = normalizeAddress(contractConfig.A2APaySyncRouter);
-
+  const routerAddress = normalizeAddress(contractConfig.SynapseCore);
   const allowance = (await publicClient.readContract({
     address: token,
     abi: MockUSDCABI,
