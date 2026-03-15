@@ -172,23 +172,90 @@ def test_audit_log_repository_append_replace_and_read() -> None:
     db = FakeDB()
     db.readonly_plan.append(
         {
-            "fetchall": [[({"timestamp": 1, "msg": "a"},), ({"timestamp": 3, "msg": "c"},)]],
+            "fetchall": [[
+                (
+                    1,
+                    "FINANCE_RATE_LIMIT_HIT",
+                    "charge",
+                    "yellow",
+                    "0xabc",
+                    "system",
+                    "req-1",
+                    "0xtx1",
+                    "trace-1",
+                    "0xdef",
+                    "debit",
+                    "REJECTED",
+                    "RATE_LIMIT",
+                    "ledger-1",
+                    "127.0.0.1",
+                    "pytest",
+                    Decimal("0.100000"),
+                    Decimal("1.000000"),
+                    Decimal("0.900000"),
+                    "rejected",
+                    "RATE_LIMIT",
+                    "blocked",
+                    100,
+                )
+            ]],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchall": [[
+                (
+                    9,
+                    "SELLER_SECRET_ISSUED",
+                    "0xabc",
+                    "owner",
+                    "req-2",
+                    "trace-2",
+                    "credential",
+                    "cred-1",
+                    "success",
+                    None,
+                    "127.0.0.2",
+                    "pytest",
+                    {"secretId": "cred-1"},
+                    200,
+                )
+            ]],
         }
     )
     repo = AuditLogRepository(db, "INSERT INTO synapse_audit_log (collection_name, payload) VALUES (%s, %s::jsonb)")
 
     from src.domain.audit import AuditLogEntry
-    repo.append_audit_row(AuditLogEntry(action="x"))
-    repo.append_to_audit_collection({"event": "y"})
-    repo.replace_audit_collection([{"event": "z"}])
+    repo.append_audit_row(
+        AuditLogEntry(
+            action="FINANCE_RATE_LIMIT_HIT",
+            ownerAddress="0xabc",
+            details={"businessType": "charge", "riskLevel": "yellow", "requestId": "req-1"},
+        )
+    )
+    repo.append_audit_row(
+        AuditLogEntry(
+            action="SELLER_SECRET_ISSUED",
+            domain="system",
+            ownerAddress="0xabc",
+            details={"requestId": "req-2", "resourceType": "credential", "resourceId": "cred-1"},
+        )
+    )
 
     combined_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "DELETE FROM synapse_audit_log WHERE collection_name = %s" in combined_sql
+    assert "INSERT INTO synapse_audit_log" in combined_sql
+    assert "INSERT INTO synapse_system_activity_log" in combined_sql
 
     rows = repo.read_audit_rows(owner_wallet="0xabc", limit=10)
-    assert len(rows) == 2
-    assert rows[0].timestamp == 3
-    assert rows[1].timestamp == 1
+    assert len(rows) == 1
+    assert rows[0].domain == "finance"
+    assert rows[0].details["requestId"] == "req-1"
+    assert rows[0].details["riskReasonCode"] == "RATE_LIMIT"
+
+    system_rows = repo.read_system_audit_rows(owner_wallet="0xabc", limit=10)
+    assert len(system_rows) == 1
+    assert system_rows[0].domain == "system"
+    assert system_rows[0].details["resourceType"] == "credential"
 
 
 def test_balance_repository_read_and_write() -> None:

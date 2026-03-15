@@ -153,6 +153,7 @@ def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, detai
             id=str(uuid4()),
             timestamp=now_ts(),
             action=action,
+            domain="system",
             owner_address=owner_wallet,
             details=details,
         )
@@ -162,7 +163,11 @@ def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, detai
 def read_audit_log(storage: BaseStorage, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
     try:
-        rows = storage.get_data_manager().audit.logs.read_audit_rows(owner_wallet=owner_wallet, limit=limit)
+        audit_repo = storage.get_data_manager().audit.logs
+        if hasattr(audit_repo, "read_system_audit_rows"):
+            rows = audit_repo.read_system_audit_rows(owner_wallet=owner_wallet, limit=limit)
+        else:
+            rows = audit_repo.read_audit_rows(owner_wallet=owner_wallet, limit=limit)
         result = [row.model_dump(by_alias=True) if isinstance(row, AuditLogEntry) else row for row in rows]
         result.sort(key=lambda r: int(r.get("timestamp", 0)), reverse=True)
         return result[:limit]
@@ -173,7 +178,9 @@ def read_audit_log(storage: BaseStorage, owner_wallet: str, limit: int) -> List[
     if not directory:
         return []
 
-    path = os.path.join(directory, "audit_log.jsonl")
+    path = os.path.join(directory, "system_audit_log.jsonl")
+    if not os.path.exists(path):
+        path = os.path.join(directory, "audit_log.jsonl")
     if not os.path.exists(path):
         return []
 

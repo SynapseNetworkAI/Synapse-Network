@@ -17,10 +17,11 @@ Trigger high-priority alert when any rule matches:
 
 ## 3. Triage Checklist
 
-1. Identify affected owner(s), endpoint(s), and action types from `GET /api/v1/finance/audit-logs`.
+1. Identify affected owner(s), endpoint(s), and action types from `GET /api/v1/finance/audit-logs` and system activity log exports.
 2. Confirm whether traffic comes from single source IP/User-Agent or distributed sources.
 3. Verify if anomaly is caused by client retry bug vs malicious replay pattern.
 4. Check Redis health and latency when distributed controls are enabled.
+5. Correlate `request_id/trace_id` across `synapse_audit_log` and `synapse_system_activity_log`.
 
 ## 4. Immediate Containment
 
@@ -42,6 +43,9 @@ Trigger high-priority alert when any rule matches:
 2. Add monitoring dashboard panel and SLO error budget tracking.
 3. Review whether thresholds in this runbook need tighter values.
 4. Verify Lua-script fallback behavior during Redis degraded mode tests.
+5. Verify domain routing correctness:
+	- finance actions must land in `synapse_audit_log`
+	- credential/service/session actions must land in `synapse_system_activity_log`
 
 ## 7. Ownership
 

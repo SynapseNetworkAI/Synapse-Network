@@ -1,21 +1,23 @@
 """Audit domain entity — AuditLogEntry.
 
-审计日志不可变（append-only），字段类型明确化后
-杜绝上层用 Dict[str, Any] 漏字段或拼错 key 的风险。
+审计日志采用统一事件协议，按 domain 路由到不同物理表：
+1. finance -> synapse_audit_log
+2. system -> synapse_system_activity_log
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuditLogEntry(BaseModel):
-    """单条审计日志实体（对应 synapse_audit_log.payload JSONB）。"""
+    """单条审计日志事件实体（统一协议）。"""
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = ""
     timestamp: int = 0
     action: str = ""
+    domain: Literal["finance", "system"] = "finance"
     owner_address: str = Field(default="", alias="ownerAddress")
     details: Dict[str, Any] = Field(default_factory=dict)

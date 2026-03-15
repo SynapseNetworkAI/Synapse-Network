@@ -167,12 +167,24 @@ class InMemoryStorage(BaseStorage):
 
     def append_audit_row(self, entry: Any) -> None:
         if isinstance(entry, AuditLogEntry):
-            self.append_to_collection("audit_log", entry.model_dump(by_alias=True))
-        else:
-            self.append_to_collection("audit_log", entry)
+            target = "system_audit_log" if str(entry.domain or "finance") == "system" else "audit_log"
+            self.append_to_collection(target, entry.model_dump(by_alias=True))
+            return
+        self.append_to_collection("audit_log", entry)
 
     def read_audit_rows(self, owner_wallet: str = "", limit: int = 200) -> List[AuditLogEntry]:
         raw = self.get_collection("audit_log")
+        rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        if owner_wallet:
+            from src.core.common import normalize_wallet
+            normalized = normalize_wallet(owner_wallet)
+            rows = [r for r in rows if normalize_wallet(str(r.get("ownerAddress", ""))) == normalized]
+        entries = [AuditLogEntry.model_validate(r) for r in rows]
+        entries.sort(key=lambda e: e.timestamp, reverse=True)
+        return entries[:max(1, min(limit, 1000))]
+
+    def read_system_audit_rows(self, owner_wallet: str = "", limit: int = 200) -> List[AuditLogEntry]:
+        raw = self.get_collection("system_audit_log")
         rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
         if owner_wallet:
             from src.core.common import normalize_wallet
