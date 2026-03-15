@@ -316,6 +316,14 @@ docker-compose logs -f postgres
 docker-compose logs -f minio
 ```
 
+重新创建并且导入sql
+```bash
+cd /Users/cliff/workspace/Synapse-Network/docker-compose
+docker-compose down postgres -v
+docker-compose up -d postgres
+docker-compose logs -f postgres
+```
+
 ### 5.6 访问地址
 
 - MinIO Console: `http://127.0.0.1:9001`
@@ -335,7 +343,7 @@ docker-compose logs -f minio
   - 主要是 SDK / AI Agent Demo 侧配置（如 `API_BASE_URL`、`DEEPSEEK_*`、`MINIO_*`）。
 - `python_sdk/seller_api/src/core/config.py`
   - **当前 FastAPI 网关主配置入口**（被 `src/app.py` 直接使用）。
-  - 包含：`RPC_URL`、`ROUTER_ADDRESS`、`RUNTIME_STORAGE_DIR`、`JWT_SECRET`、`HOST`、`PORT` 等。
+  - 包含：`RPC_URL`、`ROUTER_ADDRESS`、`JWT_SECRET`、`HOST`、`PORT`、`POSTGRES_*`、`REDIS_*` 等。
 - `python_sdk/seller_api/settings.py`
   - 历史兼容配置模块，仍被部分 legacy 代码（如 `persistence.py`）引用。
   - 与 `src/core/config.py` 存在字段重复。
@@ -365,7 +373,7 @@ docker-compose logs -f minio
 - `AppSettings`：`environment/host/port`
 - `ChainSettings`：`rpc_url/router_address/v2_deposit_confirmations`
 - `AuthSettings`：`jwt_secret/auth_ttl/challenge_ttl`
-- `StorageSettings`：`runtime_storage_dir/storage_backend/postgres_*`
+- `StorageSettings`：`storage_backend/postgres_*`
 - `RateLimitSettings`：`owner_rpm/agent_rpm/service_rpm/window_sec`
 - `BillingSettings`：`platform_fee_rate`（全局默认手续费率）
 - `FeatureFlags`：兼容开关、灰度开关

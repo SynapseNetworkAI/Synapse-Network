@@ -271,3 +271,192 @@ CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
     updated_at BIGINT NOT NULL,
     UNIQUE (owner_address, action)
 );
+
+-- Column comments (schema dictionary)
+COMMENT ON COLUMN synapse_audit_log.id IS '审计日志主键ID';
+COMMENT ON COLUMN synapse_audit_log.action_type IS '资金动作类型';
+COMMENT ON COLUMN synapse_audit_log.owner_address IS '资金归属钱包地址';
+COMMENT ON COLUMN synapse_audit_log.actor IS '触发动作的执行者';
+COMMENT ON COLUMN synapse_audit_log.request_id IS '请求追踪ID';
+COMMENT ON COLUMN synapse_audit_log.tx_hash IS '链上交易哈希';
+COMMENT ON COLUMN synapse_audit_log.amount_delta IS '本次资金变动值';
+COMMENT ON COLUMN synapse_audit_log.before_balance IS '变动前余额';
+COMMENT ON COLUMN synapse_audit_log.after_balance IS '变动后余额';
+COMMENT ON COLUMN synapse_audit_log.result_status IS '动作执行结果状态';
+COMMENT ON COLUMN synapse_audit_log.error_code IS '业务错误码';
+COMMENT ON COLUMN synapse_audit_log.message IS '审计补充说明';
+COMMENT ON COLUMN synapse_audit_log.created_at IS '记录创建时间';
+
+COMMENT ON COLUMN synapse_deposit_dedup.tx_hash IS '充值去重主键: 交易哈希';
+COMMENT ON COLUMN synapse_deposit_dedup.owner_address IS '充值归属钱包地址';
+COMMENT ON COLUMN synapse_deposit_dedup.request_id IS '充值请求ID';
+COMMENT ON COLUMN synapse_deposit_dedup.created_at IS '去重记录创建时间';
+
+COMMENT ON COLUMN synapse_withdraw_tx_dedup.owner_address IS '提现/退款归属钱包地址';
+COMMENT ON COLUMN synapse_withdraw_tx_dedup.tx_hash IS '提现/退款完成交易哈希';
+COMMENT ON COLUMN synapse_withdraw_tx_dedup.kind IS '交易类型(提现或退款)';
+COMMENT ON COLUMN synapse_withdraw_tx_dedup.created_at IS '去重记录创建时间';
+
+COMMENT ON COLUMN synapse_balances.owner_address IS '余额归属钱包地址';
+COMMENT ON COLUMN synapse_balances.bucket IS '余额桶名称(available/hold等)';
+COMMENT ON COLUMN synapse_balances.amount IS '当前桶余额';
+COMMENT ON COLUMN synapse_balances.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_deposit_intents.id IS '充值意图ID';
+COMMENT ON COLUMN synapse_deposit_intents.owner_address IS '充值归属钱包地址';
+COMMENT ON COLUMN synapse_deposit_intents.tx_hash IS '充值链上交易哈希';
+COMMENT ON COLUMN synapse_deposit_intents.request_id IS '充值请求ID';
+COMMENT ON COLUMN synapse_deposit_intents.buyer_address IS '买家钱包地址';
+COMMENT ON COLUMN synapse_deposit_intents.amount_usdc IS '充值金额(USDC)';
+COMMENT ON COLUMN synapse_deposit_intents.idempotency_key IS '幂等键';
+COMMENT ON COLUMN synapse_deposit_intents.status IS '充值状态';
+COMMENT ON COLUMN synapse_deposit_intents.created_at IS '创建时间戳(毫秒)';
+COMMENT ON COLUMN synapse_deposit_intents.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_refund_intents.id IS '退款意图ID';
+COMMENT ON COLUMN synapse_refund_intents.owner_address IS '退款归属钱包地址';
+COMMENT ON COLUMN synapse_refund_intents.tx_hash IS '退款链上交易哈希';
+COMMENT ON COLUMN synapse_refund_intents.status IS '退款状态';
+COMMENT ON COLUMN synapse_refund_intents.request_id IS '退款请求ID';
+COMMENT ON COLUMN synapse_refund_intents.buyer_address IS '买家钱包地址';
+COMMENT ON COLUMN synapse_refund_intents.amount_usdc IS '退款金额(USDC)';
+COMMENT ON COLUMN synapse_refund_intents.idempotency_key IS '幂等键';
+COMMENT ON COLUMN synapse_refund_intents.created_at IS '创建时间戳(毫秒)';
+COMMENT ON COLUMN synapse_refund_intents.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_withdrawal_intents.id IS '提现意图ID';
+COMMENT ON COLUMN synapse_withdrawal_intents.owner_address IS '提现归属钱包地址';
+COMMENT ON COLUMN synapse_withdrawal_intents.tx_hash IS '提现链上交易哈希';
+COMMENT ON COLUMN synapse_withdrawal_intents.status IS '提现状态';
+COMMENT ON COLUMN synapse_withdrawal_intents.request_id IS '提现请求ID';
+COMMENT ON COLUMN synapse_withdrawal_intents.idempotency_key IS '幂等键';
+COMMENT ON COLUMN synapse_withdrawal_intents.amount_usdc IS '提现金额(USDC)';
+COMMENT ON COLUMN synapse_withdrawal_intents.amount_wei IS '提现金额(最小单位字符串)';
+COMMENT ON COLUMN synapse_withdrawal_intents.fee_wei IS '提现手续费(最小单位字符串)';
+COMMENT ON COLUMN synapse_withdrawal_intents.nonce IS '提现签名nonce';
+COMMENT ON COLUMN synapse_withdrawal_intents.deadline IS '签名有效期截止时间';
+COMMENT ON COLUMN synapse_withdrawal_intents.signature IS 'EIP-712签名';
+COMMENT ON COLUMN synapse_withdrawal_intents.chain_id IS '链ID';
+COMMENT ON COLUMN synapse_withdrawal_intents.contract_address IS '提现合约地址';
+COMMENT ON COLUMN synapse_withdrawal_intents.signer_address IS '签名地址';
+COMMENT ON COLUMN synapse_withdrawal_intents.created_at IS '创建时间戳(毫秒)';
+COMMENT ON COLUMN synapse_withdrawal_intents.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_router_config.owner_address IS '路由配置归属钱包地址';
+COMMENT ON COLUMN synapse_router_config.daily_limit_usdc IS '每日限额(USDC)';
+COMMENT ON COLUMN synapse_router_config.created_at IS '创建时间戳(毫秒)';
+COMMENT ON COLUMN synapse_router_config.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_usage_log.id IS '用量日志ID';
+COMMENT ON COLUMN synapse_usage_log.ts IS '计费时间戳(毫秒)';
+COMMENT ON COLUMN synapse_usage_log.request_id IS '请求ID';
+COMMENT ON COLUMN synapse_usage_log.service_id IS '服务ID';
+COMMENT ON COLUMN synapse_usage_log.buyer_address IS '买家钱包地址';
+COMMENT ON COLUMN synapse_usage_log.seller_address IS '卖家钱包地址';
+COMMENT ON COLUMN synapse_usage_log.status IS '调用状态';
+COMMENT ON COLUMN synapse_usage_log.unit_price IS '服务单价';
+COMMENT ON COLUMN synapse_usage_log.protocol_fee IS '协议手续费';
+COMMENT ON COLUMN synapse_usage_log.routing_tax IS '路由税';
+COMMENT ON COLUMN synapse_usage_log.total_charge IS '总扣费金额';
+
+COMMENT ON COLUMN synapse_processed_deposit_events.dedup_key IS '链上事件去重键';
+COMMENT ON COLUMN synapse_processed_deposit_events.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_service_registry.service_id IS '服务唯一ID';
+COMMENT ON COLUMN synapse_service_registry.owner_address IS '服务拥有者钱包地址';
+COMMENT ON COLUMN synapse_service_registry.service_name IS '服务名称';
+COMMENT ON COLUMN synapse_service_registry.summary IS '服务简介';
+COMMENT ON COLUMN synapse_service_registry.endpoint IS '服务主入口URL';
+COMMENT ON COLUMN synapse_service_registry.status IS '服务状态';
+COMMENT ON COLUMN synapse_service_registry.is_active IS '服务是否激活';
+COMMENT ON COLUMN synapse_service_registry.pricing_amount IS '服务定价金额';
+COMMENT ON COLUMN synapse_service_registry.pricing_currency IS '定价币种';
+COMMENT ON COLUMN synapse_service_registry.timeout_ms IS '上游超时阈值(毫秒)';
+COMMENT ON COLUMN synapse_service_registry.max_qps IS '最大QPS限制';
+COMMENT ON COLUMN synapse_service_registry.max_request_bytes IS '最大请求体字节数';
+COMMENT ON COLUMN synapse_service_registry.max_response_bytes IS '最大响应体字节数';
+COMMENT ON COLUMN synapse_service_registry.created_at IS '创建时间戳(毫秒)';
+COMMENT ON COLUMN synapse_service_registry.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_service_target_health.service_id IS '服务ID';
+COMMENT ON COLUMN synapse_service_target_health.target_url IS '目标节点URL';
+COMMENT ON COLUMN synapse_service_target_health.owner_address IS '节点归属钱包地址';
+COMMENT ON COLUMN synapse_service_target_health.status IS '当前探活状态';
+COMMENT ON COLUMN synapse_service_target_health.overall_status IS '聚合健康状态';
+COMMENT ON COLUMN synapse_service_target_health.http_status IS '最近HTTP状态码';
+COMMENT ON COLUMN synapse_service_target_health.latency_ms IS '最近延迟(毫秒)';
+COMMENT ON COLUMN synapse_service_target_health.consecutive_successes IS '连续成功次数';
+COMMENT ON COLUMN synapse_service_target_health.consecutive_failures IS '连续失败次数';
+COMMENT ON COLUMN synapse_service_target_health.probe_url IS '探活URL';
+COMMENT ON COLUMN synapse_service_target_health.last_checked_at IS '最近检查时间戳(毫秒)';
+COMMENT ON COLUMN synapse_service_target_health.last_healthy_at IS '最近健康时间戳(毫秒)';
+COMMENT ON COLUMN synapse_service_target_health.error IS '最近错误信息';
+COMMENT ON COLUMN synapse_service_target_health.weight IS '负载权重';
+COMMENT ON COLUMN synapse_service_target_health.region IS '节点区域';
+
+COMMENT ON COLUMN synapse_service_target_health_history.id IS '健康历史主键ID';
+COMMENT ON COLUMN synapse_service_target_health_history.service_id IS '服务ID';
+COMMENT ON COLUMN synapse_service_target_health_history.owner_address IS '节点归属钱包地址';
+COMMENT ON COLUMN synapse_service_target_health_history.target_url IS '目标节点URL';
+COMMENT ON COLUMN synapse_service_target_health_history.status IS '本次探活状态';
+COMMENT ON COLUMN synapse_service_target_health_history.http_status IS '本次HTTP状态码';
+COMMENT ON COLUMN synapse_service_target_health_history.latency_ms IS '本次延迟(毫秒)';
+COMMENT ON COLUMN synapse_service_target_health_history.probe_url IS '探活URL';
+COMMENT ON COLUMN synapse_service_target_health_history.consecutive_successes IS '连续成功次数';
+COMMENT ON COLUMN synapse_service_target_health_history.consecutive_failures IS '连续失败次数';
+COMMENT ON COLUMN synapse_service_target_health_history.checked_at IS '检查时间戳(毫秒)';
+COMMENT ON COLUMN synapse_service_target_health_history.last_healthy_at IS '最近健康时间戳(毫秒)';
+COMMENT ON COLUMN synapse_service_target_health_history.error IS '错误信息';
+
+COMMENT ON COLUMN synapse_credentials.id IS '凭据ID';
+COMMENT ON COLUMN synapse_credentials.credential_type IS '凭据类型(API_KEY等)';
+COMMENT ON COLUMN synapse_credentials.owner_address IS '凭据归属钱包地址';
+COMMENT ON COLUMN synapse_credentials.name IS '凭据名称';
+COMMENT ON COLUMN synapse_credentials.token_hash IS '凭据哈希值';
+COMMENT ON COLUMN synapse_credentials.token_prefix IS '凭据前缀(用于展示)';
+COMMENT ON COLUMN synapse_credentials.status IS '凭据状态';
+COMMENT ON COLUMN synapse_credentials.max_calls IS '调用总额度';
+COMMENT ON COLUMN synapse_credentials.calls_used IS '已使用调用次数';
+COMMENT ON COLUMN synapse_credentials.rpm IS '每分钟请求上限';
+COMMENT ON COLUMN synapse_credentials.credit_limit IS '信用额度';
+COMMENT ON COLUMN synapse_credentials.reset_interval IS '额度重置周期';
+COMMENT ON COLUMN synapse_credentials.expiration IS '过期时间戳(兼容字段)';
+COMMENT ON COLUMN synapse_credentials.expires_at IS '过期时间戳(毫秒)';
+COMMENT ON COLUMN synapse_credentials.created_at IS '创建时间戳(毫秒)';
+COMMENT ON COLUMN synapse_credentials.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_credentials.revoked_at IS '吊销时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_wallet_roles.wallet_address IS '钱包地址';
+COMMENT ON COLUMN synapse_wallet_roles.role IS '钱包角色';
+COMMENT ON COLUMN synapse_wallet_roles.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_auth_sessions.wallet_address IS '会话绑定钱包地址';
+COMMENT ON COLUMN synapse_auth_sessions.registered_at IS '首次注册时间戳(毫秒)';
+COMMENT ON COLUMN synapse_auth_sessions.last_login IS '最近登录时间戳(毫秒)';
+COMMENT ON COLUMN synapse_auth_sessions.status IS '会话状态';
+COMMENT ON COLUMN synapse_auth_sessions.updated_at IS '更新时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_platform_fee_policy_default.singleton_id IS '单例配置ID';
+COMMENT ON COLUMN synapse_platform_fee_policy_default.default_rate IS '默认平台费率';
+COMMENT ON COLUMN synapse_platform_fee_policy_default.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_platform_fee_policy_default.updated_by IS '最后更新操作者';
+
+COMMENT ON COLUMN synapse_platform_fee_policy_owner.owner_address IS '费率归属钱包地址';
+COMMENT ON COLUMN synapse_platform_fee_policy_owner.fee_rate IS '钱包级平台费率';
+
+COMMENT ON COLUMN synapse_idempotency_keys.id IS '幂等记录ID';
+COMMENT ON COLUMN synapse_idempotency_keys.scope IS '幂等作用域';
+COMMENT ON COLUMN synapse_idempotency_keys.owner_address IS '归属钱包地址';
+COMMENT ON COLUMN synapse_idempotency_keys.idempotency_key IS '幂等键';
+COMMENT ON COLUMN synapse_idempotency_keys.request_hash IS '请求内容哈希';
+COMMENT ON COLUMN synapse_idempotency_keys.response_code IS '响应状态码';
+COMMENT ON COLUMN synapse_idempotency_keys.response_digest IS '响应摘要';
+COMMENT ON COLUMN synapse_idempotency_keys.created_at IS '创建时间戳(毫秒)';
+COMMENT ON COLUMN synapse_idempotency_keys.expires_at IS '过期时间戳(毫秒)';
+
+COMMENT ON COLUMN synapse_finance_rate_limit.id IS '限流记录ID';
+COMMENT ON COLUMN synapse_finance_rate_limit.owner_address IS '限流归属钱包地址';
+COMMENT ON COLUMN synapse_finance_rate_limit.action IS '受限动作类型';
+COMMENT ON COLUMN synapse_finance_rate_limit.window_start IS '窗口起始时间戳(毫秒)';
+COMMENT ON COLUMN synapse_finance_rate_limit.count IS '窗口内请求计数';
+COMMENT ON COLUMN synapse_finance_rate_limit.updated_at IS '更新时间戳(毫秒)';

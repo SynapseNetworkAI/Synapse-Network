@@ -280,8 +280,8 @@ class Settings:
     # Optional contract address used by compatibility paths.
     contract_address: str = os.getenv("CONTRACT_ADDRESS", "")
 
-    # Runtime directory for local artifacts (non-DB outputs, optional runtime traces).
-    runtime_storage_dir: str = os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir())
+    # Runtime artifact directory is fixed to sdk/runtime_storage (not env-configurable).
+    runtime_storage_dir: str = _default_runtime_storage_dir()
     # Storage backend switch. Only "postgres" is supported.
     storage_backend: str = os.getenv("STORAGE_BACKEND", "postgres").strip().lower() or "postgres"
     # PostgreSQL basic connection fields used when POSTGRES_DSN is omitted or password override is required.

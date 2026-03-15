@@ -7,7 +7,6 @@ This module remains only to preserve legacy constant imports.
 from src.core.config import settings
 
 # Compatibility aliases (read-only values sourced from centralized settings).
-RUNTIME_STORAGE_DIR = settings.runtime_storage_dir
 RPC_URL = settings.rpc_url
 SELLER_ADDRESS = settings.seller_address
 EXPECTED_PRICE = settings.expected_price
