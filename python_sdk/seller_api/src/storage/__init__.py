@@ -1,6 +1,9 @@
 from fastapi import Request
 from .base import BaseStorage
 from .postgres_impl import PostgresStorage
+from .finance_repository import FinanceRepository
+from .registry_repository import RegistryRepository
+from .credential_repository import CredentialRepository
 
 
 def create_storage(settings: object) -> BaseStorage:
@@ -15,4 +18,12 @@ def get_storage(request: Request) -> BaseStorage:
     return request.app.state.storage
 
 
-__all__ = ["BaseStorage", "PostgresStorage", "create_storage", "get_storage"]
+__all__ = [
+    "BaseStorage",
+    "PostgresStorage",
+    "FinanceRepository",
+    "RegistryRepository",
+    "CredentialRepository",
+    "create_storage",
+    "get_storage",
+]

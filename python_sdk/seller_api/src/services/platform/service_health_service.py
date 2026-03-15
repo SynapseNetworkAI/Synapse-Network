@@ -8,6 +8,7 @@ import httpx
 
 from src.core.config import settings
 from src.storage.base import BaseStorage
+from src.storage.registry_repository import RegistryRepository
 
 logger = logging.getLogger(__name__)
 
@@ -160,11 +161,11 @@ def _build_service_target_health_rows(services: List[Dict[str, Any]]) -> List[Di
 
 
 def sync_service_target_health_table(storage: BaseStorage, services: Optional[List[Dict[str, Any]]] = None) -> int:
+    repo = RegistryRepository(storage)
     if services is None:
-        loaded = storage.get_collection("service_registry") or []
-        services = loaded if isinstance(loaded, list) else []
+        services = repo.load_service_registry()
     rows = _build_service_target_health_rows(services)
-    storage.save_collection("service_target_health", rows)
+    repo.save_target_health_rows(rows)
     return len(rows)
 
 
@@ -207,16 +208,15 @@ def build_probe_history_rows(service: Dict[str, Any]) -> List[Dict[str, Any]]:
 def append_health_history_rows(storage: BaseStorage, rows: List[Dict[str, Any]]) -> int:
     if not rows:
         return 0
-    existing = storage.get_collection("service_target_health_history") or []
-    if not isinstance(existing, list):
-        existing = []
+    repo = RegistryRepository(storage)
+    existing = repo.load_target_health_history_rows()
     existing.extend(rows)
-    storage.save_collection("service_target_health_history", existing)
+    repo.save_target_health_history_rows(existing)
     return len(rows)
 
 
 def _current_valid_service_ids(storage: BaseStorage) -> set[str]:
-    services = storage.get_collection("service_registry") or []
+    services = RegistryRepository(storage).load_service_registry()
     return {
         str(row.get("serviceId") or "").strip()
         for row in services
@@ -247,9 +247,8 @@ def _should_prune_history(now_ms: int) -> bool:
 
 
 def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[str]] = None) -> Dict[str, int]:
-    existing = storage.get_collection("service_target_health_history") or []
-    if not isinstance(existing, list):
-        return {"before": 0, "after": 0, "removed": 0}
+    repo = RegistryRepository(storage)
+    existing = repo.load_target_health_history_rows()
 
     cutoff_ms = _history_cutoff_ms()
     valid_ids = valid_service_ids if valid_service_ids is not None else _current_valid_service_ids(storage)
@@ -259,7 +258,7 @@ def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[s
 
     after = len(filtered)
     if after != before:
-        storage.save_collection("service_target_health_history", filtered)
+        repo.save_target_health_history_rows(filtered)
     return {"before": before, "after": after, "removed": max(0, before - after)}
 
 
@@ -411,9 +410,8 @@ async def probe_service_health(service: Dict[str, Any], client: Optional[httpx.A
 
 
 async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
-    rows = storage.get_collection("service_registry") or []
-    if not isinstance(rows, list):
-        return {"checked": 0, "updated": 0}
+    repo = RegistryRepository(storage)
+    rows = repo.load_service_registry()
 
     checked = 0
     updated = 0
@@ -436,7 +434,7 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
             next_rows.append(next_row)
 
     if updated > 0:
-        storage.save_collection("service_registry", next_rows)
+        repo.save_service_registry(next_rows)
 
     synced_rows = sync_service_target_health_table(storage, next_rows)
     valid_service_ids = {

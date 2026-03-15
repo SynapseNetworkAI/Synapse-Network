@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.models.pydantic_models import CredentialIssueRequest
 from src.services.platform import credential_service
+from src.storage.credential_repository import CredentialRepository
 from src.storage import BaseStorage
 
 seller_write_lock = asyncio.Lock()
@@ -27,17 +28,18 @@ def save_seller_secret_rows(storage: BaseStorage, rows: List[Dict[str, Any]], ex
     payload: Dict[str, Any] = {"credentials": rows, "updatedAt": credential_service.now_ts()}
     if extras:
         payload.update(extras)
-    storage.save_collection(_SELLER_SECRETS_COLLECTION, payload)
+    CredentialRepository(storage).save_collection(_SELLER_SECRETS_COLLECTION, payload)
 
 
 def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    primary = storage.get_collection(_SELLER_SECRETS_COLLECTION)
+    repo = CredentialRepository(storage)
+    primary = repo.load_collection(_SELLER_SECRETS_COLLECTION)
     rows, extras = _normalize_secret_rows(primary)
     if rows or extras:
         return rows, extras
 
     for legacy_collection in _LEGACY_SELLER_COLLECTIONS:
-        legacy = storage.get_collection(legacy_collection)
+        legacy = repo.load_collection(legacy_collection)
         legacy_rows, legacy_extras = _normalize_secret_rows(legacy)
         if legacy_rows or legacy_extras:
             save_seller_secret_rows(storage, legacy_rows, legacy_extras)

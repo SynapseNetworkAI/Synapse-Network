@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
+from src.storage.finance_repository import FinanceRepository
 from src.storage.base import BaseStorage
 
 
@@ -21,6 +22,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         guard_delegate: Optional[BalanceRedisGuardMixin] = None,
     ):
         self.storage = storage
+        self.repo = FinanceRepository(storage)
         self._mutation_lock = mutation_lock
         self._guard_delegate = guard_delegate
 
@@ -40,9 +42,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         """Only return current authenticated owner's balance summary."""
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        balance_data = self.storage.get_collection("balance_ledger") or {}
-        if not isinstance(balance_data, dict):
-            balance_data = {}
+        balance_data = self.repo.load_balance_ledger()
 
         buyers = balance_data.get("buyers") if isinstance(balance_data.get("buyers"), dict) else {}
         sellers = balance_data.get("sellers") if isinstance(balance_data.get("sellers"), dict) else {}
@@ -61,8 +61,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
-        raw = self.storage.get_collection("router_config")
-        rows = self._normalize_rows(raw)
+        rows = self.repo.load_router_config_rows()
 
         found = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
         if not found:
@@ -93,7 +92,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 )
 
             now = int(time.time())
-            rows = self._normalize_rows(self.storage.get_collection("router_config"))
+            rows = self.repo.load_router_config_rows()
 
             existing = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
             if existing is None:
@@ -109,7 +108,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 existing["dailyLimitUsdc"] = round(float(daily_limit_usdc), 6)
                 existing["updatedAt"] = now
 
-            self.storage.save_collection("router_config", {"rows": rows, "updatedAt": now})
+            self.repo.save_router_config_rows(rows, now)
             self._append_financial_audit(
                 "ROUTER_CONFIG_UPDATED",
                 owner,

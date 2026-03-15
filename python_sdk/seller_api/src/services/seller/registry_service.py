@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
+from src.storage.registry_repository import RegistryRepository
 from src.core.config import settings
 from src.services.platform import service_health_service
 import uuid
@@ -199,6 +200,7 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
 class RegistryService:
     def __init__(self, storage: BaseStorage):
         self.storage = storage
+        self.repo = RegistryRepository(storage)
         self._lock = asyncio.Lock()
 
     async def register_service(self, req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:
@@ -206,7 +208,7 @@ class RegistryService:
         [网关防弹层] 注册新的 AI Service
         """
         async with self._lock:
-            rows = self.storage.get_collection('service_registry') or []
+            rows = self.repo.load_service_registry()
             new_svc = _normalize_service_payload(req_data, owner_wallet)
             if not new_svc.get("serviceId"):
                 new_svc["serviceId"] = _generate_service_id(owner_wallet)
@@ -216,7 +218,7 @@ class RegistryService:
             new_svc = await service_health_service.probe_service_health(new_svc)
             
             rows.append(new_svc)
-            self.storage.save_collection('service_registry', rows)
+            self.repo.save_service_registry(rows)
             service_health_service.sync_service_target_health_table(self.storage, rows)
             return new_svc
 
@@ -225,7 +227,7 @@ class RegistryService:
         [网关防弹层] 更新现有的 AI Service
         """
         async with self._lock:
-            rows = self.storage.get_collection('service_registry') or []
+            rows = self.repo.load_service_registry()
             for i, svc in enumerate(rows):
                 if svc.get("serviceId") == service_record_id and svc.get("ownerAddress") == owner_wallet:
                     blocked = {"id", "serviceId", "ownerAddress", "createdAt", "schemaVersion"}
@@ -239,14 +241,14 @@ class RegistryService:
                     updated["updatedAt"] = int(time.time() * 1000)
                     updated = await service_health_service.probe_service_health(updated)
                     rows[i] = updated
-                    self.storage.save_collection('service_registry', rows)
+                    self.repo.save_service_registry(rows)
                     service_health_service.sync_service_target_health_table(self.storage, rows)
                     return updated
             return None
 
     async def delete_service(self, service_record_id: str, owner_wallet: str) -> bool:
         async with self._lock:
-            rows = self.storage.get_collection('service_registry') or []
+            rows = self.repo.load_service_registry()
             original_len = len(rows)
             rows = [
                 r for r in rows
@@ -254,20 +256,20 @@ class RegistryService:
             ]
             if len(rows) == original_len:
                 return False
-            self.storage.save_collection('service_registry', rows)
+            self.repo.save_service_registry(rows)
             service_health_service.sync_service_target_health_table(self.storage, rows)
             service_health_service.prune_health_history(self.storage)
             return True
 
     async def has_owner_service(self, service_record_id: str, owner_wallet: str) -> bool:
-        rows = self.storage.get_collection('service_registry') or []
+        rows = self.repo.load_service_registry()
         for svc in rows:
             if svc.get("serviceId") == service_record_id and svc.get("ownerAddress") == owner_wallet:
                 return True
         return False
 
     async def discover_services(self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None) -> List[Dict[str, Any]]:
-        rows = self.storage.get_collection('service_registry') or []
+        rows = self.repo.load_service_registry()
         available_services = [row for row in rows if service_health_service.is_service_discoverable(row)]
         
         if intent:
@@ -301,11 +303,11 @@ class RegistryService:
         return public_services
 
     async def list_owner_services(self, owner_wallet: str) -> List[Dict[str, Any]]:
-        rows = self.storage.get_collection("service_registry") or []
+        rows = self.repo.load_service_registry()
         return [svc for svc in rows if svc.get("ownerAddress") == owner_wallet]
 
     async def health_status(self, intent: Optional[str] = None, include_inactive: bool = False) -> List[Dict[str, Any]]:
-        rows = self.storage.get_collection("service_registry") or []
+        rows = self.repo.load_service_registry()
         scoped = []
         for row in rows:
             if not isinstance(row, dict):
@@ -346,7 +348,7 @@ class RegistryService:
         hours: Optional[int] = None,
         days: Optional[int] = None,
     ) -> Dict[str, Any]:
-        rows = self.storage.get_collection("service_registry") or []
+        rows = self.repo.load_service_registry()
         service_row = None
         for row in rows:
             if isinstance(row, dict) and row.get("serviceId") == service_record_id and row.get("ownerAddress") == owner_wallet:
@@ -355,7 +357,7 @@ class RegistryService:
         if service_row is None:
             raise ValueError("SERVICE_NOT_FOUND_OR_FORBIDDEN")
 
-        history = self.storage.get_collection("service_target_health_history") or []
+        history = self.repo.load_target_health_history_rows()
         if not isinstance(history, list):
             history = []
 

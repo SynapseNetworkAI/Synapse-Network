@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
+from src.storage.finance_repository import FinanceRepository
 from src.storage.base import BaseStorage
 
 
@@ -21,6 +22,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         guard_delegate: Optional[BalanceRedisGuardMixin] = None,
     ):
         self.storage = storage
+        self.repo = FinanceRepository(storage)
         self._mutation_lock = mutation_lock
         self._guard_delegate = guard_delegate
 
@@ -69,7 +71,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
                 )
 
-            intents = self._normalize_intents(self.storage.get_collection("deposit_intents"))
+            intents = self.repo.load_deposit_intents()
             request_payload = {
                 "ownerAddress": owner,
                 "txHash": tx_hash.lower(),
@@ -130,7 +132,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             next_intent.setdefault("createdAt", now)
             next_intent["updatedAt"] = now
             intents.append(next_intent)
-            self.storage.save_collection("deposit_intents", intents)
+            self.repo.save_deposit_intents(intents)
 
             response = dict(next_intent)
             if redis_client is None:
@@ -165,7 +167,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def list_deposit_intents(self, owner_wallet: str) -> list:
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        rows = self._normalize_intents(self.storage.get_collection("deposit_intents"))
+        rows = self.repo.load_deposit_intents()
         return [
             row
             for row in rows
@@ -245,7 +247,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     return idem_hit
 
             now = int(time.time())
-            rows = self._normalize_rows(self.storage.get_collection("refund_intents"))
+            rows = self.repo.load_refund_intents()
             refund_id = str(uuid4())
             signature = f"mock-refund-signature-{refund_id[:12]}"
             refund_row = {
@@ -260,7 +262,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 "updatedAt": now,
             }
             rows.append(refund_row)
-            self.storage.save_collection("refund_intents", {"rows": rows, "updatedAt": now})
+            self.repo.save_refund_intents(rows, now)
 
             response = {
                 "refundId": refund_id,
@@ -299,7 +301,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def list_refunds(self, owner_wallet: str) -> List[Dict[str, Any]]:
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        rows = self._normalize_rows(self.storage.get_collection("refund_intents"))
+        rows = self.repo.load_refund_intents()
         filtered = [
             row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == normalized_owner
         ]

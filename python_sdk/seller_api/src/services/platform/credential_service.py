@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.models.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
+from src.storage.credential_repository import CredentialRepository
 from src.storage import BaseStorage
 
 write_lock = asyncio.Lock()
@@ -93,18 +94,19 @@ def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extra
     if extras:
         payload.update(extras)
 
-    storage.save_collection(_BUYER_CREDENTIALS_COLLECTION, payload)
+    CredentialRepository(storage).save_collection(_BUYER_CREDENTIALS_COLLECTION, payload)
 
 
 def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    primary = storage.get_collection(_BUYER_CREDENTIALS_COLLECTION)
+    repo = CredentialRepository(storage)
+    primary = repo.load_collection(_BUYER_CREDENTIALS_COLLECTION)
     rows, extras = normalize_credential_rows(primary)
     if rows or extras:
         _mark_buyer_rows(rows)
         return rows, extras
 
     for legacy_collection in _LEGACY_BUYER_COLLECTIONS:
-        legacy = storage.get_collection(legacy_collection)
+        legacy = repo.load_collection(legacy_collection)
         legacy_rows, legacy_extras = normalize_credential_rows(legacy)
         if legacy_rows or legacy_extras:
             _mark_buyer_rows(legacy_rows)
@@ -139,35 +141,32 @@ def resolve_reset_interval(value: Optional[str]) -> str:
 
 
 def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-    storage.append_to_collection(
-        "audit_log",
+    CredentialRepository(storage).append_audit_log(
         {
             "id": str(uuid4()),
             "timestamp": now_ts(),
             "action": action,
             "ownerAddress": owner_wallet,
             "details": details,
-        },
+        }
     )
 
 
 def read_audit_log(storage: BaseStorage, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
+    repo = CredentialRepository(storage)
 
-    if hasattr(storage, "read_audit_rows"):
-        try:
-            rows = getattr(storage, "read_audit_rows")(owner_wallet=owner_wallet, limit=limit)
-            if isinstance(rows, list):
-                result = [row for row in rows if isinstance(row, dict)]
-                result.sort(key=lambda r: int(r.get("timestamp", 0)), reverse=True)
-                return result[:limit]
-        except Exception:
-            pass
+    found_rows, rows = repo.read_audit_rows(owner_wallet, limit)
+    if found_rows:
+        result = rows
+        result.sort(key=lambda r: int(r.get("timestamp", 0)), reverse=True)
+        return result[:limit]
 
-    if not hasattr(storage, "directory"):
+    directory = repo.storage_directory()
+    if not directory:
         return []
 
-    path = os.path.join(getattr(storage, "directory"), "audit_log.jsonl")
+    path = os.path.join(directory, "audit_log.jsonl")
     if not os.path.exists(path):
         return []
 

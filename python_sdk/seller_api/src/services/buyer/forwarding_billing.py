@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.services.platform import credential_service
+from src.storage.finance_repository import FinanceRepository
 from src.storage import BaseStorage
 
 
@@ -91,11 +92,9 @@ def pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: floa
 
 def append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
     """Append one usage event into usage_log collection with safe list normalization."""
-    rows = storage.get_collection("usage_log") or []
-    if not isinstance(rows, list):
-        rows = []
+    rows = FinanceRepository(storage).load_usage_log_rows()
     rows.append(row)
-    storage.save_collection("usage_log", rows)
+    FinanceRepository(storage).save_usage_log_rows(rows)
 
 
 async def charge_and_mark_usage(
@@ -113,9 +112,8 @@ async def charge_and_mark_usage(
     updated_credential = None
 
     async with credential_service.write_lock:
-        ledger = storage.get_collection("balance_ledger") or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
+        repo = FinanceRepository(storage)
+        ledger = repo.load_balance_ledger()
         buyers = ledger.setdefault("buyers", {})
         sellers = ledger.setdefault("sellers", {})
         platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
@@ -129,7 +127,7 @@ async def charge_and_mark_usage(
         sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) + seller_net, 6)
         platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) + platform_fee_total, 6)
         ledger["updatedAt"] = now
-        storage.save_collection("balance_ledger", ledger)
+        repo.save_balance_ledger(ledger)
 
         rows, extras = credential_service.load_credential_rows(storage)
         idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
@@ -153,9 +151,8 @@ async def rollback_charge(
 ) -> None:
     """Rollback buyer/seller/platform ledger and credential usage when upstream fails."""
     async with credential_service.write_lock:
-        ledger = storage.get_collection("balance_ledger") or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
+        repo = FinanceRepository(storage)
+        ledger = repo.load_balance_ledger()
         buyers = ledger.setdefault("buyers", {})
         sellers = ledger.setdefault("sellers", {})
         platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
@@ -164,7 +161,7 @@ async def rollback_charge(
         sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) - seller_net, 6)
         platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) - platform_fee_total, 6)
         ledger["updatedAt"] = credential_service.now_ts()
-        storage.save_collection("balance_ledger", ledger)
+        repo.save_balance_ledger(ledger)
 
         if not updated_credential:
             return

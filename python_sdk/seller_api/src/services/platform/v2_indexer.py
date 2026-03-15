@@ -11,6 +11,7 @@ from web3.exceptions import TransactionNotFound
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.storage.finance_repository import FinanceRepository
 from src.storage import BaseStorage
 
 lock = Lock()
@@ -50,65 +51,38 @@ def _now() -> int:
 
 
 def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
-    raw = storage.get_collection("deposit_intents")
-    if isinstance(raw, list):
-        return [row for row in raw if isinstance(row, dict)]
-    if isinstance(raw, dict) and isinstance(raw.get("intents"), list):
-        return [row for row in raw["intents"] if isinstance(row, dict)]
-    return []
+    return FinanceRepository(storage).load_deposit_intents()
 
 
 def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
-    storage.save_collection("deposit_intents", {"intents": rows, "updatedAt": _now()})
+    FinanceRepository(storage).save_deposit_intents(rows)
 
 
 def _load_balance_ledger(storage: BaseStorage) -> Dict[str, Any]:
-    raw = storage.get_collection("balance_ledger")
-    if not isinstance(raw, dict):
-        raw = {}
-    raw.setdefault("buyers", {})
-    raw.setdefault("sellers", {})
-    raw.setdefault("platform", {"feeAccrued": 0.0})
-    if not isinstance(raw.get("buyers"), dict):
-        raw["buyers"] = {}
-    if not isinstance(raw.get("sellers"), dict):
-        raw["sellers"] = {}
-    if not isinstance(raw.get("platform"), dict):
-        raw["platform"] = {"feeAccrued": 0.0}
-    raw["platform"].setdefault("feeAccrued", 0.0)
-    raw.setdefault("updatedAt", _now())
-    return raw
+    return FinanceRepository(storage).load_balance_ledger()
 
 
 def _save_balance_ledger(storage: BaseStorage, ledger: Dict[str, Any]) -> None:
-    next_ledger = dict(ledger)
-    next_ledger["updatedAt"] = _now()
-    storage.save_collection("balance_ledger", next_ledger)
+    FinanceRepository(storage).save_balance_ledger(ledger)
 
 
 def _load_processed_deposit_event_keys(storage: BaseStorage) -> List[str]:
-    raw = storage.get_collection("deposit_event_processed")
-    if isinstance(raw, dict) and isinstance(raw.get("keys"), list):
-        return [str(item) for item in raw["keys"]]
-    if isinstance(raw, list):
-        return [str(item) for item in raw]
-    return []
+    return FinanceRepository(storage).load_processed_deposit_event_keys()
 
 
 def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) -> None:
-    storage.save_collection("deposit_event_processed", {"keys": keys, "updatedAt": _now()})
+    FinanceRepository(storage).save_processed_deposit_event_keys(keys, _now())
 
 
 def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-    storage.append_to_collection(
-        "audit_log",
+    FinanceRepository(storage).append_audit_log(
         {
             "id": str(uuid4()),
             "timestamp": _now(),
             "action": action,
             "ownerAddress": normalize_wallet(owner_wallet),
             "details": details,
-        },
+        }
     )
 
 
