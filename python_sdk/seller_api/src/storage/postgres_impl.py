@@ -75,6 +75,9 @@ class PostgresStorage(BaseStorage):
     def _connect(self):
         return psycopg.connect(self.dsn)
 
+    def get_database_manager(self) -> DatabaseManager:
+        return self._db
+
     def get_repository_provider(self) -> StorageRepositoryProvider:
         return self._repository_provider
 

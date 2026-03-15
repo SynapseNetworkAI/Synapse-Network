@@ -15,7 +15,7 @@ from src.services.platform.balance_service import BalanceService
 from src.services.seller.provider_analytics_service import ProviderAnalyticsService
 from src.services.platform import credential_service
 from src.services.platform.v2_indexer import get_indexer_status
-from src.storage.repository_provider import fee_policy_repo, gateway_state_repo
+from src.storage.postgres.direct_repo_access import direct_fee_policy_repo, direct_gateway_state_repo
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.storage import get_storage, BaseStorage
@@ -246,7 +246,7 @@ async def get_usage_logs(
     storage: Annotated[BaseStorage, Depends(get_storage)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
-    raw_rows = gateway_state_repo(storage).read_usage_log_rows()
+    raw_rows = direct_gateway_state_repo(storage).read_usage_log_rows()
     rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
     owner = owner_wallet.lower()
     filtered = []
@@ -334,7 +334,7 @@ async def get_fee_policy(
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     admin_wallet = _ensure_fee_policy_admin(owner_wallet)
-    raw = fee_policy_repo(storage).get_platform_fee_policy() or {}
+    raw = direct_fee_policy_repo(storage).get_platform_fee_policy() or {}
     if not isinstance(raw, dict):
         raw = {}
 
@@ -374,7 +374,7 @@ async def set_fee_policy(
         "updatedAt": credential_service.now_ts(),
         "updatedBy": admin_wallet,
     }
-    fee_policy_repo(storage).set_platform_fee_policy(
+    direct_fee_policy_repo(storage).set_platform_fee_policy(
         default_rate=float(saved.get("defaultRate") or 0.0),
         owner_rates=saved.get("ownerRates") if isinstance(saved.get("ownerRates"), dict) else {},
         updated_by=admin_wallet,
