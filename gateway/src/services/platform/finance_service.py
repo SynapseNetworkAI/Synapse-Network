@@ -11,6 +11,7 @@ from src.domain.finance import BalanceLedger
 from src.domain.gateway import RouterConfigRow
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
+from src.utils.datetime_utils import now_dt_str
 
 
 class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
@@ -95,13 +96,13 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     id=str(uuid4()),
                     owner_address=owner,
                     daily_limit_usdc=round(float(daily_limit_usdc), 6),
-                    created_at=now,
-                    updated_at=now,
+                    created_at=now_dt_str(),
+                    updated_at=now_dt_str(),
                 )
                 rows.append(existing)
             else:
                 existing.daily_limit_usdc = round(float(daily_limit_usdc), 6)
-                existing.updated_at = now
+                existing.updated_at = now_dt_str()
 
             self.storage.get_data_manager().system.gateway_state.write_router_config_rows(rows, now)
             self._append_financial_audit(

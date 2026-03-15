@@ -12,6 +12,7 @@ from src.domain.finance import BalanceLedger
 from src.domain.storage_entities import DepositIntentRow, RefundIntentRow, UsageLogRow
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
+from src.utils.datetime_utils import now_dt_str
 
 
 REFUND_MANUAL_REVIEW_THRESHOLD_USDC = 500.0
@@ -56,7 +57,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return self.storage.get_data_manager().finance.balance.read_balance_ledger()
 
     def _save_balance_ledger(self, ledger: BalanceLedger) -> None:
-        ledger.updated_at = int(time.time())
+        ledger.updated_at = now_dt_str()
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
     def _load_deposit_intents(self) -> List[Dict[str, Any]]:
@@ -750,8 +751,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         next_intent["idempotencyKey"] = idempotency_key
         next_intent.setdefault("id", str(uuid4()))
         next_intent.setdefault("status", "PENDING_CONFIRMATION")
-        next_intent.setdefault("createdAt", now)
-        next_intent["updatedAt"] = now
+        next_intent.setdefault("createdAt", now_dt_str())
+        next_intent["updatedAt"] = now_dt_str()
         if hasattr(self.storage, "register_deposit_intent_atomic"):
             register_atomic = getattr(self.storage, "register_deposit_intent_atomic")
             try:
@@ -903,7 +904,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             target["confirmations"] = int(confirmations)
             target["creditedAmountUsdc"] = float(amount_usdc)
             target["confirmedAt"] = now
-            target["updatedAt"] = now
+            target["updatedAt"] = now_dt_str()
             self._save_deposit_intents(intents)
 
             self._audit_deposit_confirm(

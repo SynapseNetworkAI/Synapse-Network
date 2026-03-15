@@ -11,6 +11,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_client import get_redis_client
 from src.domain.idempotency import IdempotencyRow, RateLimitRow
+from src.utils.datetime_utils import now_dt_str
 
 REDIS_IDEM_CLAIM_LUA = """
 local existing = redis.call('GET', KEYS[1])
@@ -260,7 +261,7 @@ class BalanceRedisGuardMixin:
                 action=action,
                 window_start=now,
                 count=0,
-                updated_at=now,
+                updated_at=now_dt_str(),
             )
             rows.append(matched)
 
@@ -288,7 +289,7 @@ class BalanceRedisGuardMixin:
             )
 
         matched.count = matched.count + 1
-        matched.updated_at = now
+        matched.updated_at = now_dt_str()
         self.storage.get_data_manager().system.idempotency.write_rate_limit_rows(rows, now)
 
     async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
@@ -352,7 +353,7 @@ class BalanceRedisGuardMixin:
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 response=response,
-                created_at=now,
+                created_at=now_dt_str(),
                 expires_at=expires_at,
             )
         )
