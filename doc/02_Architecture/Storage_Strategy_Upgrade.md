@@ -254,9 +254,12 @@ Phase 3（日志爆发后）：
 
 #### 新增文件
 
-- `src/domain/__init__.py` — 模块出口
+- `src/domain/__init__.py` — 模块出口（9 个实体）
 - `src/domain/finance.py` — `BalanceLedger` / `PlatformFees` / `FeePolicyEntity`
 - `src/domain/audit.py` — `AuditLogEntry`
+- `src/domain/gateway.py` — `RouterConfigRow`（Phase 2）
+- `src/domain/idempotency.py` — `IdempotencyRow` / `RateLimitRow`（Phase 2）
+- `src/domain/registry.py` — `ServiceTargetHealth` / `ServiceTargetHealthHistory`（Phase 2）
 
 #### 实体设计规范
 
@@ -265,7 +268,7 @@ Phase 3（日志爆发后）：
 | 基类 | Pydantic v2 `BaseModel`（`ConfigDict(populate_by_name=True)`） |
 | 字段命名 | Python snake_case 属性 + `Field(alias="camelCase")` 双向访问 |
 | DB 写入 | `entity.model_dump(by_alias=True)` 序列化为 camelCase JSONB |
-| DB 读取 | `Entity.model_validate(dict)` 从 JSONB 反序列化 |
+| DB 读取 | `Entity.model_validate(dict)` 从 JSONB 反序列化；列映射表直接构造实体 |
 | 默认值 | 所有字段带默认值，消除上层 defensive `.get()` / `.setdefault()` |
 
 #### 仓储签名变更
@@ -277,6 +280,24 @@ Phase 3（日志爆发后）：
 | `FeePolicyRepository.get_platform_fee_policy()` | `→ Dict[str, Any]` | `→ FeePolicyEntity` |
 | `AuditLogRepository.append_audit_row()` | `(dict)` | `(AuditLogEntry)` |
 | `AuditLogRepository.read_audit_rows()` | `→ List[Dict]` | `→ List[AuditLogEntry]` |
+| `GatewayStateRepository.read_router_config_rows()` | `→ List[Dict]` | `→ List[RouterConfigRow]` |
+| `GatewayStateRepository.write_router_config_rows()` | `(List[Dict])` | `(List[Union[RouterConfigRow, Dict]])` |
+| `IdempotencyRepository.read_idempotency_rows()` | `→ List[Dict]` | `→ List[IdempotencyRow]` |
+| `IdempotencyRepository.write_idempotency_rows()` | `(List[Dict])` | `(List[Union[IdempotencyRow, Dict]])` |
+| `IdempotencyRepository.read_rate_limit_rows()` | `→ List[Dict]` | `→ List[RateLimitRow]` |
+| `IdempotencyRepository.write_rate_limit_rows()` | `(List[Dict])` | `(List[Union[RateLimitRow, Dict]])` |
+| `ServiceRegistryRepository.read_service_target_health_rows()` | `→ List[Dict]` | `→ List[ServiceTargetHealth]` |
+| `ServiceRegistryRepository.write_service_target_health_rows()` | `(List[Dict])` | `(List[Union[ServiceTargetHealth, Dict]])` |
+| `ServiceRegistryRepository.read_service_target_health_history_rows()` | `→ List[Dict]` | `→ List[ServiceTargetHealthHistory]` |
+| `ServiceRegistryRepository.write_service_target_health_history_rows()` | `(List[Dict])` | `(List[Union[ServiceTargetHealthHistory, Dict]])` |
+
+#### Phase 2 设计说明
+
+Phase 2 覆盖列映射表（column-mapped tables）：`synapse_router_config`、`synapse_idempotency_keys`、`synapse_finance_rate_limit`、`synapse_service_target_health`、`synapse_service_target_health_history`。
+
+JSONB payload 模式表（`synapse_deposit_intents`、`synapse_refund_intents`、`synapse_withdrawal_intents`、`synapse_usage_log`、`synapse_service_registry`、`synapse_credentials`）因存储整 dict 为 JSONB 且上游 mutation 点众多（20+ 处），列入后续 Phase 3 范围。
+
+Phase 2 write 方法保留 `Union[Entity, Dict]` 双模式兼容，确保过渡期零回归。
 
 #### 上层迁移模式
 
@@ -290,11 +311,19 @@ ledger["buyers"] = buyers
 # After (Entity)
 ledger = repo.read_balance_ledger()
 ledger.buyers[owner] = round(float(ledger.buyers.get(owner, 0.0)) + amount, 6)
+
+# Phase 2 — router config
+row = next((r for r in rows if r.owner_address == owner), None)
+row.daily_limit_usdc = round(float(new_limit), 6)
+
+# Phase 2 — rate limit
+matched.count = matched.count + 1
+matched.updated_at = now
 ```
 
 #### 执行规则
 
-1. Finance / Audit 领域的 repository 入参和返回值必须为领域实体，禁止再用 `Dict[str, Any]`。
+1. Finance / Audit / Gateway / Idempotency / Registry 列映射领域的 repository 入参和返回值必须为领域实体，禁止再用 `Dict[str, Any]`。
 2. 新增领域时先定义实体再实现仓储，确保类型约束前置。
 3. InMemoryStorage 测试替身同步遵守实体签名（`model_validate` / `model_dump`）。
 
