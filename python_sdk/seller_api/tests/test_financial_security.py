@@ -66,6 +66,24 @@ def _set_buyer_balance(balance_service, owner: str, amount: float) -> None:
     balance_service.storage.save_collection("balance_ledger", ledger)
 
 
+def _seed_refundable_usage(balance_service, owner: str, origin_request_id: str, total_charge: float) -> None:
+    storage = balance_service.storage
+    rows = storage.get_collection("usage_log")
+    usage_rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    usage_rows.append(
+        {
+            "id": f"usage-{origin_request_id}",
+            "buyer": str(owner).lower(),
+            "seller": "0xseller",
+            "status": "succeeded",
+            "totalCharge": round(float(total_charge), 6),
+            "originRequestId": origin_request_id,
+            "timestamp": 1700000000,
+        }
+    )
+    storage.save_collection("usage_log", usage_rows)
+
+
 @pytest.mark.asyncio
 async def test_refund_min_amount_enforced(balance_service):
     with pytest.raises(HTTPException) as exc:
@@ -118,16 +136,45 @@ async def test_deposit_uses_atomic_storage_hook_when_available(balance_service):
 
 
 @pytest.mark.asyncio
+async def test_deposit_starts_pending_then_confirms_to_available(balance_service):
+    owner = "0xowner"
+    created = await balance_service.register_deposit_intent(
+        {"txHash": "0x" + "3" * 64, "amountUsdc": 20},
+        owner,
+        "deposit_key_pending_confirm_1234",
+    )
+
+    assert created["status"] == "PENDING_CONFIRMATION"
+    ledger = balance_service.storage.get_collection("balance_ledger")
+    assert abs(float(ledger.get("buyers", {}).get(owner, 0.0)) - 0.0) < 1e-9
+    assert abs(float(ledger.get("buyersLocked", {}).get(owner, 0.0)) - 20.0) < 1e-9
+
+    confirmed = await balance_service.confirm_deposit_intent(
+        owner_wallet=owner,
+        deposit_intent_id=str(created["id"]),
+        event_key="event:tx:3:0",
+        confirmations=2,
+    )
+    assert confirmed["status"] == "CONFIRMED"
+
+    ledger_after = balance_service.storage.get_collection("balance_ledger")
+    assert abs(float(ledger_after.get("buyers", {}).get(owner, 0.0)) - 20.0) < 1e-9
+    assert abs(float(ledger_after.get("buyersLocked", {}).get(owner, 0.0)) - 0.0) < 1e-9
+
+
+@pytest.mark.asyncio
 async def test_owner_scope_isolation_for_refunds(balance_service):
     _set_buyer_balance(balance_service, "0xowner1", 100)
     _set_buyer_balance(balance_service, "0xowner2", 100)
+    _seed_refundable_usage(balance_service, "0xowner1", "req-owner-1", 40)
+    _seed_refundable_usage(balance_service, "0xowner2", "req-owner-2", 40)
     await balance_service.process_refund_intent(
-        {"amountUsdc": 12, "reason": "r1"},
+        {"amountUsdc": 12, "reason": "r1", "originRequestId": "req-owner-1"},
         "0xowner1",
         "refund_key_owner1_123456",
     )
     await balance_service.process_refund_intent(
-        {"amountUsdc": 18, "reason": "r2"},
+        {"amountUsdc": 18, "reason": "r2", "originRequestId": "req-owner-2"},
         "0xowner2",
         "refund_key_owner2_123456",
     )
@@ -144,11 +191,12 @@ async def test_owner_scope_isolation_for_refunds(balance_service):
 @pytest.mark.asyncio
 async def test_idempotency_consistency_with_concurrency(balance_service):
     _set_buyer_balance(balance_service, "0xowner", 100)
+    _seed_refundable_usage(balance_service, "0xowner", "req-concurrency-1", 60)
     key = "refund_key_concurrency_1234"
 
     async def _call_once():
         return await balance_service.process_refund_intent(
-            {"amountUsdc": 20, "reason": "concurrency"},
+            {"amountUsdc": 20, "reason": "concurrency", "originRequestId": "req-concurrency-1"},
             "0xowner",
             key,
         )
@@ -190,16 +238,17 @@ async def test_redis_distributed_rate_limit_is_used(balance_service, monkeypatch
 @pytest.mark.asyncio
 async def test_idempotency_payload_mismatch_returns_409(balance_service):
     _set_buyer_balance(balance_service, "0xowner", 100)
+    _seed_refundable_usage(balance_service, "0xowner", "req-mismatch-1", 60)
     key = "refund_key_mismatch_12345"
     await balance_service.process_refund_intent(
-        {"amountUsdc": 20, "reason": "mismatch-a"},
+        {"amountUsdc": 20, "reason": "mismatch-a", "originRequestId": "req-mismatch-1"},
         "0xowner",
         key,
     )
 
     with pytest.raises(HTTPException) as exc:
         await balance_service.process_refund_intent(
-            {"amountUsdc": 21, "reason": "mismatch-b"},
+            {"amountUsdc": 21, "reason": "mismatch-b", "originRequestId": "req-mismatch-1"},
             "0xowner",
             key,
         )
@@ -209,10 +258,12 @@ async def test_idempotency_payload_mismatch_returns_409(balance_service):
 @pytest.mark.asyncio
 async def test_refund_pending_and_completion_replay_guard(balance_service):
     owner = "0xowner"
+    origin_request_id = "req-replay-1"
     _set_buyer_balance(balance_service, owner, 120)
+    _seed_refundable_usage(balance_service, owner, origin_request_id, 90)
 
     created = await balance_service.process_refund_intent(
-        {"amountUsdc": 25, "reason": "exit"},
+        {"amountUsdc": 25, "reason": "exit", "originRequestId": origin_request_id},
         owner,
         "refund_pending_123456",
     )
@@ -221,7 +272,7 @@ async def test_refund_pending_and_completion_replay_guard(balance_service):
 
     with pytest.raises(HTTPException) as pending_exc:
         await balance_service.process_refund_intent(
-            {"amountUsdc": 30, "reason": "second"},
+            {"amountUsdc": 30, "reason": "second", "originRequestId": origin_request_id},
             owner,
             "refund_pending_654321",
         )

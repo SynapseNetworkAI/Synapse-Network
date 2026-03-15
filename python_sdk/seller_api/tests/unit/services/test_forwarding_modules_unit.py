@@ -78,3 +78,75 @@ def test_billing_receipt_keeps_public_fields_only():
         "buyerBalanceAfter": 8.9999,
         "serviceUnitPrice": 1.0,
     }
+
+
+@pytest.mark.asyncio
+async def test_charge_blocked_when_buyer_is_frozen_and_restricted(temp_storage):
+    temp_storage.save_collection(
+        "balance_ledger",
+        {
+            "buyers": {"0xbuyer": 50.0},
+            "buyersFrozen": {"0xbuyer": 5.0},
+            "buyersLocked": {},
+            "sellers": {"0xseller": 0.0},
+            "sellersFrozen": {},
+            "sellersLocked": {},
+            "platform": {"feeAccrued": 0.0},
+        },
+    )
+    temp_storage.save_collection(
+        "auth_sessions",
+        {
+            "0xbuyer": {"status": "restricted", "registered_at": 1, "last_login": 1},
+        },
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await forwarding_billing.charge_and_mark_usage(
+            temp_storage,
+            "0xbuyer",
+            "0xseller",
+            1.0,
+            0.1,
+            0.9,
+            "cred-1",
+        )
+
+    assert exc.value.status_code == 403
+    assert exc.value.detail["code"] == "BUYER_RESTRICTED_RISK_BLOCK"
+
+
+@pytest.mark.asyncio
+async def test_charge_blocked_when_seller_is_frozen_and_restricted(temp_storage):
+    temp_storage.save_collection(
+        "balance_ledger",
+        {
+            "buyers": {"0xbuyer": 50.0},
+            "buyersFrozen": {},
+            "buyersLocked": {},
+            "sellers": {"0xseller": 0.0},
+            "sellersFrozen": {"0xseller": 2.0},
+            "sellersLocked": {},
+            "platform": {"feeAccrued": 0.0},
+        },
+    )
+    temp_storage.save_collection(
+        "auth_sessions",
+        {
+            "0xseller": {"status": "restricted", "registered_at": 1, "last_login": 1},
+        },
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await forwarding_billing.charge_and_mark_usage(
+            temp_storage,
+            "0xbuyer",
+            "0xseller",
+            1.0,
+            0.1,
+            0.9,
+            "cred-2",
+        )
+
+    assert exc.value.status_code == 403
+    assert exc.value.detail["code"] == "SELLER_RESTRICTED_RISK_BLOCK"

@@ -66,13 +66,26 @@ class DepositIntentRequest(BaseModel):
         return normalized
 
 
+class DepositConfirmRequest(BaseModel):
+    eventKey: str = Field(..., min_length=1, max_length=128)
+    confirmations: int = Field(default=1, ge=1, le=1000000)
+
+
 class RefundIntentRequest(BaseModel):
     amountUsdc: float = Field(default=10, ge=10)
     reason: Optional[str] = Field(default=None, max_length=256)
+    originRequestId: Optional[str] = Field(default=None, max_length=128)
+    originTxHash: Optional[str] = Field(default=None, min_length=66, max_length=66)
+    refundType: Optional[str] = Field(default="SYSTEM_FAILURE", max_length=32)
+    destinationAddress: Optional[str] = Field(default=None, max_length=64)
+    evidenceSummary: Optional[str] = Field(default=None, max_length=512)
 
 
 class RefundCompleteRequest(BaseModel):
     txHash: str = Field(..., min_length=66, max_length=66)
+    reviewerAddress: Optional[str] = Field(default=None, max_length=64)
+    reviewDecision: Optional[str] = Field(default=None, max_length=16)
+    reviewerNote: Optional[str] = Field(default=None, max_length=512)
 
     @validator("txHash")
     def validate_tx_hash(cls, value: str) -> str:

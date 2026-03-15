@@ -50,6 +50,24 @@ def _seed_buyer_balance(app, owner: str, amount: float) -> None:
     storage.save_collection("balance_ledger", ledger)
 
 
+def _seed_refundable_usage(app, owner: str, origin_request_id: str, total_charge: float) -> None:
+    storage = app.state.storage
+    rows = storage.get_collection("usage_log")
+    usage_rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    usage_rows.append(
+        {
+            "id": f"usage-{origin_request_id}",
+            "buyer": str(owner).lower(),
+            "seller": "0xseller",
+            "status": "succeeded",
+            "totalCharge": round(float(total_charge), 6),
+            "originRequestId": origin_request_id,
+            "timestamp": 1700000000,
+        }
+    )
+    storage.save_collection("usage_log", usage_rows)
+
+
 def _issue_session(client: TestClient):
     acct = Account.create()
     address = acct.address.lower()
@@ -86,19 +104,20 @@ def test_financial_api_auth_and_idempotency_flow(monkeypatch):
             with TestClient(app) as client:
                 owner, token = _issue_session(client)
                 _seed_buyer_balance(app, owner, 200)
+                _seed_refundable_usage(app, owner, "req-api-idem-1", 50)
 
                 # refund minimum amount must be >= 10
                 bad = client.post(
                     "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_min_123456"},
-                    json={"amountUsdc": 9.9, "reason": "too-small"},
+                    json={"amountUsdc": 9.9, "reason": "too-small", "originRequestId": "req-api-idem-1"},
                 )
                 assert bad.status_code in (400, 422)
 
                 ok = client.post(
                     "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_ok_123456"},
-                    json={"amountUsdc": 10, "reason": "ok"},
+                    json={"amountUsdc": 10, "reason": "ok", "originRequestId": "req-api-idem-1"},
                 )
                 assert ok.status_code == 200
                 first = ok.json()
@@ -106,7 +125,7 @@ def test_financial_api_auth_and_idempotency_flow(monkeypatch):
                 replay = client.post(
                     "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_ok_123456"},
-                    json={"amountUsdc": 10, "reason": "ok"},
+                    json={"amountUsdc": 10, "reason": "ok", "originRequestId": "req-api-idem-1"},
                 )
                 assert replay.status_code == 200
                 second = replay.json()
@@ -115,7 +134,7 @@ def test_financial_api_auth_and_idempotency_flow(monkeypatch):
                 mismatch = client.post(
                     "/api/v1/refund",
                     headers={**_auth_headers(token, owner), "X-Idempotency-Key": "k_refund_ok_123456"},
-                    json={"amountUsdc": 11, "reason": "mismatch"},
+                    json={"amountUsdc": 11, "reason": "mismatch", "originRequestId": "req-api-idem-1"},
                 )
                 assert mismatch.status_code == 409
         finally:
@@ -137,12 +156,14 @@ def test_owner_isolation_and_router_limit_range(monkeypatch):
                 owner2, token2 = _issue_session(client)
                 _seed_buyer_balance(app, owner1, 200)
                 _seed_buyer_balance(app, owner2, 200)
+                _seed_refundable_usage(app, owner1, "req-owner1-api", 50)
+                _seed_refundable_usage(app, owner2, "req-owner2-api", 50)
 
                 # Create refund for owner1
                 create_refund = client.post(
                     "/api/v1/refund",
                     headers={**_auth_headers(token1, owner1), "X-Idempotency-Key": "k_owner1_refund_12345"},
-                    json={"amountUsdc": 20, "reason": "owner1"},
+                    json={"amountUsdc": 20, "reason": "owner1", "originRequestId": "req-owner1-api"},
                 )
                 assert create_refund.status_code == 200
 

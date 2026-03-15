@@ -120,6 +120,8 @@
 - **PostgreSQL Hardening**:
   - Physical dedup is enforced by unique constraint (`synapse_deposit_dedup.tx_hash`).
   - Backend captures DB integrity conflicts and returns stable idempotent response (no duplicate credit).
+  - 注册意图时先进入 `PENDING_CONFIRMATION`，并把金额记入 `pending_balance`（不直接进入可用余额）。
+  - 确认通过后才执行 `pending_balance -> available_balance`。
 - **Body**:
   ```json
   {
@@ -139,6 +141,20 @@
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: 返回当前 owner 的充值意图列表，不返回其他 owner 数据。
 
+### 3.3.1 充值确认（模拟确认）
+- **Path**: `POST /api/v1/balance/deposit/intents/{depositIntentId}/confirm`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Desc**: 模拟确认链上到账完成，状态流转 `PENDING_CONFIRMATION -> CONFIRMED`，并执行余额迁移：
+  - `buyer.pending_balance -= amount`
+  - `buyer.available_balance += amount`
+- **Body**:
+  ```json
+  {
+    "eventKey": "txhash:logIndex",
+    "confirmations": 2
+  }
+  ```
+
 ### 3.4 退款与账务流水 (Refund / Usage)
 - **Paths**:
   - `POST /api/v1/refund`
@@ -150,11 +166,17 @@
 - **Security Headers**: `POST /api/v1/refund` requires `X-Idempotency-Key`.
 - **Validation**:
   - `POST /api/v1/refund` requires `amountUsdc >= 10` (USDC) and `amountUsdc <= buyer available balance`.
-  - `POST /api/v1/refund` enforces one `PENDING` refund per owner (anti-double-withdraw).
+  - `POST /api/v1/refund` requires origin binding: at least one of `originRequestId` / `originTxHash`.
+  - `POST /api/v1/refund` enforces origin ceiling: refund amount cannot exceed remaining refundable amount derived from successful charge usage rows.
+  - `POST /api/v1/refund` enforces one active refund per owner (`PENDING` or `PENDING_MANUAL_REVIEW`).
+  - `POST /api/v1/refund` enforces destination consistency: `destinationAddress` (if provided) must equal owner address (route-back only).
+  - `POST /api/v1/refund` supports `refundType` (`SYSTEM_FAILURE` / `MANUAL_APPEAL`) and emits `riskLevel` / `riskReasonCode` / `message`.
   - `POST /api/v1/refunds/{refundId}/complete` requires valid `txHash` and rejects cross-intent tx replay.
+  - `POST /api/v1/refunds/{refundId}/complete` for manual-review refunds supports `reviewDecision` (`APPROVE|REJECT`), `reviewerAddress`, `reviewerNote`.
 - **Ledger Safety**:
   - Refund intent creation atomically moves funds: `buyers[owner] -= amount`, `buyersLocked[owner] += amount`.
   - Refund completion consumes lock: `buyersLocked[owner] -= amount`.
+  - Refund manual rejection releases lock back to buyer available balance (`buyersLocked[owner] -= amount`, `buyers[owner] += amount`) and marks intent `REJECTED`.
 - **Gas Responsibility**: refund responses include `gasPayer=BUYER`, `gasModel=BUYER_PAYS_ONCHAIN`.
 - **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
 - **Transaction Safety**:
@@ -273,11 +295,17 @@
   - Header: `X-Idempotency-Key` 必填。
   - Body: `{ "amountUsdc": number }`（可选；空值表示全额可提）。
   - 业务规则:
-    - 同 owner 仅允许一个 `PENDING` 提现单。
-    - 创建意图时原子锁仓：
-      - `balance_ledger.sellers[owner] -= amount`
-      - `balance_ledger.sellersLocked[owner] += amount`
-    - 返回 ticket 字段：`amount`, `fee`, `nonce`, `deadline`, `signature`, `chainId`, `contractAddress`。
+    - 同 owner 仅允许一个活跃提现单（`APPROVED_AUTO` / `PENDING_MANUAL_REVIEW` / `REQUESTED`）。
+    - 网关执行三段式风控阀门（Red/Yellow/Green），所有资金写入在 PostgreSQL 单事务内完成（`SELECT ... FOR UPDATE` + rollback）：
+      - **Red（拒绝）**：返回 `403`，状态写入 `REJECTED`，并记录审计事件（如高危卖家、提现额超历史净收入）。
+      - **Yellow（人工审核）**：`available -> frozen`，状态 `PENDING_MANUAL_REVIEW`，返回无签名票据。
+      - **Green（自动放行）**：`available -> pending`，状态 `APPROVED_AUTO`，返回 EIP-712 ticket。
+    - 风控规则引擎支持环境变量配置：
+      - `WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC`（单笔黄灯阈值）
+      - `WITHDRAWAL_AUTO_24H_LIMIT_USDC`（24h 累计黄灯阈值）
+      - `WITHDRAWAL_WINDOW_HOURS`（滚动窗口小时数）
+      - `WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES`（逗号分隔高危地址白名单）
+    - Green 分支返回 ticket 字段：`amount`, `fee`, `nonce`, `deadline`, `signature`, `chainId`, `contractAddress`。
 
 - **`GET /api/v1/providers/withdrawals`**:
   - 返回 owner 作用域提现记录（按创建时间倒序）。
@@ -429,6 +457,8 @@
   - 协议抽成：`platformFee = unitPrice * feeRate`。
   - 平台总收入：`platformFeeTotal = platformFee + routingTax`。
   - 生效优先级：owner 覆盖费率 > 运行时默认费率 > `PLATFORM_FEE_RATE`。
+  - 扣费风控前置：当买家或卖家满足 `frozen_balance > 0` 且账户状态为 `restricted/suspended/blocked` 时，直接阻断交易并返回 `403`。
+  - 原子性：买家扣减、卖家入账、平台手续费累加、usage 流水写入必须在同一个 DB 事务提交。
 - **Buyer Receipt (Public API)**:
   - 公开返回仅包含 `requestId`、`serviceId`、`totalCharge`、`buyerBalanceAfter`、`serviceUnitPrice`。
   - 不返回卖家净收入与平台抽成拆分（如 `feeRate/platformFee/platformFeeTotal/sellerNet/routingTax`）。
