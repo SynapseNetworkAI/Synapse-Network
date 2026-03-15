@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import List
+import json
+from typing import List, Optional
 
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.storage_entities import ServiceRegistryRow
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
@@ -11,102 +13,311 @@ from ..database_manager import DatabaseManager
 class ServiceRegistryRepository:
     def __init__(self, db: DatabaseManager):
         self._db = db
+        self._has_extended_registry_schema: Optional[bool] = None
 
-    def read_service_registry_rows(self) -> List[ServiceRegistryRow]:
+    def _supports_extended_registry_schema(self) -> bool:
+        if self._has_extended_registry_schema is not None:
+            return self._has_extended_registry_schema
+
+        required_columns = {
+            "record_id",
+            "schema_version",
+            "service_role",
+            "service_address",
+            "tags_json",
+            "auth_json",
+            "health_check_json",
+            "forwarding_json",
+            "metering_json",
+            "invoke_config",
+        }
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
-                SELECT service_id, owner_address, service_name, summary, endpoint, status,
-                       is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
-                       max_request_bytes, max_response_bytes, created_at, updated_at
-                FROM synapse_service_registry
-                ORDER BY created_at ASC
-                """
+                SELECT COUNT(1)
+                FROM information_schema.columns
+                WHERE table_name = 'synapse_service_registry'
+                  AND column_name = ANY(%s)
+                """,
+                (list(required_columns),),
             )
-            rows = cur.fetchall()
-        return [
-            ServiceRegistryRow(
-                serviceId=str(service_id),
-                ownerAddress=str(owner_address).lower(),
-                serviceName=str(service_name or ""),
-                summary=summary,
-                endpoint=endpoint,
-                status=str(status or "active"),
-                isActive=bool(is_active),
-                pricingAmount=pricing_amount,
-                pricingCurrency=str(pricing_currency or "USDC"),
-                timeoutMs=timeout_ms,
-                maxQps=max_qps,
-                maxRequestBytes=max_request_bytes,
-                maxResponseBytes=max_response_bytes,
-                createdAt=int(created_at or 0),
-                updatedAt=int(updated_at or 0),
-            )
-            for (
-                service_id,
-                owner_address,
-                service_name,
-                summary,
-                endpoint,
-                status,
-                is_active,
-                pricing_amount,
-                pricing_currency,
-                timeout_ms,
-                max_qps,
-                max_request_bytes,
-                max_response_bytes,
-                created_at,
-                updated_at,
-            ) in rows
-        ]
+            row = cur.fetchone() or (0,)
+        self._has_extended_registry_schema = int(row[0] or 0) >= len(required_columns)
+        return self._has_extended_registry_schema
 
-    def write_service_registry_rows(self, rows: List[ServiceRegistryRow]) -> None:
-        with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_service_registry")
-            for row in rows:
+    @staticmethod
+    def _normalize_json_object(value: object) -> dict:
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except Exception:
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
+    @staticmethod
+    def _normalize_json_list(value: object) -> list:
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except Exception:
+                return []
+            return parsed if isinstance(parsed, list) else []
+        return []
+
+    def read_service_registry_rows(self) -> List[ServiceRegistryRow]:
+        rows: list = []
+        extended_schema = self._supports_extended_registry_schema()
+        with self._db.readonly_cursor() as cur:
+            if extended_schema:
                 cur.execute(
                     """
-                    INSERT INTO synapse_service_registry (
-                        service_id, owner_address, service_name, summary, endpoint, status,
-                        is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
-                        max_request_bytes, max_response_bytes, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (service_id)
-                    DO UPDATE SET
-                        owner_address = EXCLUDED.owner_address,
-                        service_name = EXCLUDED.service_name,
-                        summary = EXCLUDED.summary,
-                        endpoint = EXCLUDED.endpoint,
-                        status = EXCLUDED.status,
-                        is_active = EXCLUDED.is_active,
-                        pricing_amount = EXCLUDED.pricing_amount,
-                        pricing_currency = EXCLUDED.pricing_currency,
-                        timeout_ms = EXCLUDED.timeout_ms,
-                        max_qps = EXCLUDED.max_qps,
-                        max_request_bytes = EXCLUDED.max_request_bytes,
-                        max_response_bytes = EXCLUDED.max_response_bytes,
-                        created_at = EXCLUDED.created_at,
-                        updated_at = EXCLUDED.updated_at
-                    """,
-                    (
-                        row.service_id,
-                        row.owner_address.lower(),
-                        row.service_name,
-                        row.summary,
-                        row.endpoint,
-                        row.status,
-                        bool(row.is_active),
-                        str(row.pricing_amount),
-                        row.pricing_currency,
-                        row.timeout_ms,
-                        row.max_qps,
-                        row.max_request_bytes,
-                        row.max_response_bytes,
-                        int(row.created_at),
-                        int(row.updated_at),
-                    ),
+                    SELECT service_id, owner_address, service_name, summary, endpoint, status,
+                           is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
+                           max_request_bytes, max_response_bytes, created_at, updated_at,
+                           record_id, schema_version, service_role, service_address,
+                           tags_json, auth_json, health_check_json, forwarding_json,
+                           metering_json, invoke_config
+                    FROM synapse_service_registry
+                    ORDER BY created_at ASC
+                    """
                 )
+            else:
+                cur.execute(
+                    """
+                    SELECT service_id, owner_address, service_name, summary, endpoint, status,
+                           is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
+                           max_request_bytes, max_response_bytes, created_at, updated_at
+                    FROM synapse_service_registry
+                    ORDER BY created_at ASC
+                    """
+                )
+            rows = cur.fetchall()
+
+        result: List[ServiceRegistryRow] = []
+        for row in rows:
+            if len(row) >= 25:
+                (
+                    service_id,
+                    owner_address,
+                    service_name,
+                    summary,
+                    endpoint,
+                    status,
+                    is_active,
+                    pricing_amount,
+                    pricing_currency,
+                    timeout_ms,
+                    max_qps,
+                    max_request_bytes,
+                    max_response_bytes,
+                    created_at,
+                    updated_at,
+                    record_id,
+                    schema_version,
+                    service_role,
+                    service_address,
+                    tags_json,
+                    auth_json,
+                    health_check_json,
+                    forwarding_json,
+                    metering_json,
+                    invoke_config,
+                ) = row
+            elif len(row) >= 15:
+                (
+                    service_id,
+                    owner_address,
+                    service_name,
+                    summary,
+                    endpoint,
+                    status,
+                    is_active,
+                    pricing_amount,
+                    pricing_currency,
+                    timeout_ms,
+                    max_qps,
+                    max_request_bytes,
+                    max_response_bytes,
+                    created_at,
+                    updated_at,
+                ) = row[:15]
+                record_id = None
+                schema_version = None
+                service_role = None
+                service_address = None
+                tags_json = []
+                auth_json = {}
+                health_check_json = {}
+                forwarding_json = {}
+                metering_json = {}
+                invoke_config = {}
+            else:
+                continue
+
+            result.append(
+                ServiceRegistryRow(
+                    serviceId=str(service_id),
+                    ownerAddress=str(owner_address).lower(),
+                    serviceName=str(service_name or ""),
+                    summary=summary,
+                    endpoint=endpoint,
+                    status=str(status or "active"),
+                    isActive=bool(is_active),
+                    pricingAmount=pricing_amount,
+                    pricingCurrency=str(pricing_currency or "USDC"),
+                    timeoutMs=timeout_ms,
+                    maxQps=max_qps,
+                    maxRequestBytes=max_request_bytes,
+                    maxResponseBytes=max_response_bytes,
+                    id=str(record_id) if record_id else None,
+                    schemaVersion=int(schema_version) if schema_version is not None else None,
+                    role=str(service_role) if service_role else None,
+                    address=str(service_address) if service_address else None,
+                    tags=self._normalize_json_list(tags_json),
+                    auth=self._normalize_json_object(auth_json),
+                    healthCheck=self._normalize_json_object(health_check_json),
+                    forwarding=self._normalize_json_object(forwarding_json),
+                    metering=self._normalize_json_object(metering_json),
+                    invoke=self._normalize_json_object(invoke_config),
+                    createdAt=to_dt_str(created_at, "") or "",
+                    updatedAt=to_dt_str(updated_at, "") or "",
+                )
+            )
+        return result
+
+    def write_service_registry_rows(self, rows: List[ServiceRegistryRow]) -> None:
+        typed_rows: List[ServiceRegistryRow] = []
+        for row in rows:
+            if isinstance(row, ServiceRegistryRow):
+                typed_rows.append(row)
+            elif isinstance(row, dict):
+                typed_rows.append(ServiceRegistryRow.model_validate(row))
+
+        extended_schema = self._supports_extended_registry_schema()
+        with self._db.tx_cursor() as cur:
+            cur.execute("DELETE FROM synapse_service_registry")
+            for row in typed_rows:
+                if extended_schema:
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_service_registry (
+                            service_id, owner_address, service_name, summary, endpoint, status,
+                            is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
+                            max_request_bytes, max_response_bytes, created_at, updated_at,
+                            record_id, schema_version, service_role, service_address,
+                            tags_json, auth_json, health_check_json, forwarding_json,
+                            metering_json, invoke_config
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s,
+                            %s, %s, %s, %s,
+                            %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb,
+                            %s::jsonb, %s::jsonb
+                        )
+                        ON CONFLICT (service_id)
+                        DO UPDATE SET
+                            owner_address = EXCLUDED.owner_address,
+                            service_name = EXCLUDED.service_name,
+                            summary = EXCLUDED.summary,
+                            endpoint = EXCLUDED.endpoint,
+                            status = EXCLUDED.status,
+                            is_active = EXCLUDED.is_active,
+                            pricing_amount = EXCLUDED.pricing_amount,
+                            pricing_currency = EXCLUDED.pricing_currency,
+                            timeout_ms = EXCLUDED.timeout_ms,
+                            max_qps = EXCLUDED.max_qps,
+                            max_request_bytes = EXCLUDED.max_request_bytes,
+                            max_response_bytes = EXCLUDED.max_response_bytes,
+                            created_at = EXCLUDED.created_at,
+                            updated_at = EXCLUDED.updated_at,
+                            record_id = EXCLUDED.record_id,
+                            schema_version = EXCLUDED.schema_version,
+                            service_role = EXCLUDED.service_role,
+                            service_address = EXCLUDED.service_address,
+                            tags_json = EXCLUDED.tags_json,
+                            auth_json = EXCLUDED.auth_json,
+                            health_check_json = EXCLUDED.health_check_json,
+                            forwarding_json = EXCLUDED.forwarding_json,
+                            metering_json = EXCLUDED.metering_json,
+                            invoke_config = EXCLUDED.invoke_config
+                        """,
+                        (
+                            row.service_id,
+                            row.owner_address.lower(),
+                            row.service_name,
+                            row.summary,
+                            row.endpoint,
+                            row.status,
+                            bool(row.is_active),
+                            str(row.pricing_amount),
+                            row.pricing_currency,
+                            row.timeout_ms,
+                            row.max_qps,
+                            row.max_request_bytes,
+                            row.max_response_bytes,
+                            to_dt_str(row.created_at, now_dt_str()),
+                            to_dt_str(row.updated_at, now_dt_str()),
+                            row.id,
+                            row.schema_version,
+                            row.role,
+                            row.address,
+                            json.dumps(row.tags or []),
+                            json.dumps(row.auth or {}),
+                            json.dumps(row.health_check or {}),
+                            json.dumps(row.forwarding or {}),
+                            json.dumps(row.metering or {}),
+                            json.dumps(row.invoke or {}),
+                        ),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_service_registry (
+                            service_id, owner_address, service_name, summary, endpoint, status,
+                            is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
+                            max_request_bytes, max_response_bytes, created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (service_id)
+                        DO UPDATE SET
+                            owner_address = EXCLUDED.owner_address,
+                            service_name = EXCLUDED.service_name,
+                            summary = EXCLUDED.summary,
+                            endpoint = EXCLUDED.endpoint,
+                            status = EXCLUDED.status,
+                            is_active = EXCLUDED.is_active,
+                            pricing_amount = EXCLUDED.pricing_amount,
+                            pricing_currency = EXCLUDED.pricing_currency,
+                            timeout_ms = EXCLUDED.timeout_ms,
+                            max_qps = EXCLUDED.max_qps,
+                            max_request_bytes = EXCLUDED.max_request_bytes,
+                            max_response_bytes = EXCLUDED.max_response_bytes,
+                            created_at = EXCLUDED.created_at,
+                            updated_at = EXCLUDED.updated_at
+                        """,
+                        (
+                            row.service_id,
+                            row.owner_address.lower(),
+                            row.service_name,
+                            row.summary,
+                            row.endpoint,
+                            row.status,
+                            bool(row.is_active),
+                            str(row.pricing_amount),
+                            row.pricing_currency,
+                            row.timeout_ms,
+                            row.max_qps,
+                            row.max_request_bytes,
+                            row.max_response_bytes,
+                            to_dt_str(row.created_at, now_dt_str()),
+                            to_dt_str(row.updated_at, now_dt_str()),
+                        ),
+                    )
 
     def read_service_target_health_rows(self) -> List[ServiceTargetHealth]:
         with self._db.readonly_cursor() as cur:

@@ -28,7 +28,7 @@ class BalanceLedger(BaseModel):
     sellers_locked: Dict[str, float] = Field(default_factory=dict, alias="sellersLocked")
     sellers_frozen: Dict[str, float] = Field(default_factory=dict, alias="sellersFrozen")
     platform: PlatformFees = Field(default_factory=PlatformFees)
-    updated_at: int = Field(default=0, alias="updatedAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class FeePolicyEntity(BaseModel):
@@ -37,5 +37,5 @@ class FeePolicyEntity(BaseModel):
 
     default_rate: float = Field(default=0.0, alias="defaultRate")
     owner_rates: Dict[str, float] = Field(default_factory=dict, alias="ownerRates")
-    updated_at: Optional[int] = Field(default=None, alias="updatedAt")
+    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
     updated_by: Optional[str] = Field(default=None, alias="updatedBy")

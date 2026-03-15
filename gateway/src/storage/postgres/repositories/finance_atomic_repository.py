@@ -11,6 +11,7 @@ from src.domain.storage_entities import (
     UsageLogRow,
     WithdrawalDecision,
 )
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
@@ -44,7 +45,7 @@ class FinanceAtomicRepository:
         cur.execute(self._balance_for_update_sql, (owner, account_type))
         hit = cur.fetchone()
         if hit is None:
-            cur.execute(self._balance_upsert_sql, (owner, account_type, "0", "0", "0", now))
+            cur.execute(self._balance_upsert_sql, (owner, account_type, "0", "0", "0", to_dt_str(now, now_dt_str())))
             return Decimal("0"), Decimal("0"), Decimal("0")
         return self._q6(hit[0]), self._q6(hit[1]), self._q6(hit[2])
 
@@ -58,7 +59,7 @@ class FinanceAtomicRepository:
               AND created_at >= %s
               AND status <> 'REJECTED'
             """,
-            (owner, window_start),
+            (owner, to_dt_str(window_start, now_dt_str())),
         )
         rolling_24h = self._q6((cur.fetchone() or [0])[0])
 
@@ -135,6 +136,7 @@ class FinanceAtomicRepository:
     ) -> WithdrawalDecision:
         owner = str(seller_address or "").strip().lower()
         now = int(time.time())
+        now_text = to_dt_str(now, now_dt_str())
         amount = self._q6(amount_usdc)
         _ = request_meta
         if amount <= Decimal("0"):
@@ -162,7 +164,7 @@ class FinanceAtomicRepository:
                                 amount_usdc, created_at, updated_at
                             ) VALUES (%s, %s, NULL, 'REJECTED', %s, %s, %s, %s, %s)
                             """,
-                            (withdrawal_id, owner, request_id, idempotency_key, str(amount), now, now),
+                            (withdrawal_id, owner, request_id, idempotency_key, str(amount), now_text, now_text),
                         )
                         self._append_withdrawal_audit(
                             cur,
@@ -190,7 +192,7 @@ class FinanceAtomicRepository:
                         status = "PENDING_MANUAL_REVIEW"
                         cur.execute(
                             self._balance_upsert_sql,
-                            (owner, "seller", str(next_available), str(pending_balance), str(self._q6(frozen_balance + amount)), now),
+                            (owner, "seller", str(next_available), str(pending_balance), str(self._q6(frozen_balance + amount)), now_text),
                         )
                         ticket = {}
                         message = "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
@@ -199,7 +201,7 @@ class FinanceAtomicRepository:
                         status = "APPROVED_AUTO"
                         cur.execute(
                             self._balance_upsert_sql,
-                            (owner, "seller", str(next_available), str(self._q6(pending_balance + amount)), str(frozen_balance), now),
+                            (owner, "seller", str(next_available), str(self._q6(pending_balance + amount)), str(frozen_balance), now_text),
                         )
                         ticket = sign_ticket_factory(amount) if sign_ticket_factory is not None else {}
                         message = ""
@@ -220,7 +222,7 @@ class FinanceAtomicRepository:
                             amount_usdc = EXCLUDED.amount_usdc,
                             updated_at = EXCLUDED.updated_at
                         """,
-                        (withdrawal_id, owner, status, request_id, idempotency_key, str(amount), now, now),
+                        (withdrawal_id, owner, status, request_id, idempotency_key, str(amount), now_text, now_text),
                     )
 
                     self._append_withdrawal_audit(
@@ -270,6 +272,7 @@ class FinanceAtomicRepository:
         owner = str(owner_wallet or "").strip().lower()
         tx = str(tx_hash or "").strip().lower()
         now = int(time.time())
+        now_text = to_dt_str(now, now_dt_str())
         amount_usdc = self._q6(intent_row.amount_usdc)
         if amount_usdc <= Decimal("0"):
             raise RuntimeError("INVALID_DEPOSIT_AMOUNT")
@@ -284,8 +287,8 @@ class FinanceAtomicRepository:
             amountUsdc=amount_usdc,
             idempotencyKey=intent_row.idempotency_key,
             status=intent_row.status or "PENDING_CONFIRMATION",
-            createdAt=int(intent_row.created_at or now),
-            updatedAt=now,
+            createdAt=to_dt_str(intent_row.created_at or now_text, now_text) or now_text,
+            updatedAt=now_text,
         )
 
         with self._db.connect() as conn:
@@ -318,8 +321,8 @@ class FinanceAtomicRepository:
                                 amountUsdc=self._q6(hit[5]),
                                 idempotencyKey=hit[6],
                                 status=str(hit[7]),
-                                createdAt=int(hit[8]),
-                                updatedAt=int(hit[9]),
+                                createdAt=to_dt_str(hit[8], now_text) or now_text,
+                                updatedAt=to_dt_str(hit[9], now_text) or now_text,
                             )
                     raise RuntimeError("DEPOSIT_ALREADY_PROCESSED")
 
@@ -332,7 +335,7 @@ class FinanceAtomicRepository:
                         str(available_balance),
                         str(self._q6(pending_balance + amount_usdc)),
                         str(frozen_balance),
-                        now,
+                        now_text,
                     ),
                 )
 
@@ -375,6 +378,7 @@ class FinanceAtomicRepository:
         if not intent_id:
             raise RuntimeError("DEPOSIT_INTENT_NOT_FOUND")
         now = int(time.time())
+        now_text = to_dt_str(now, now_dt_str())
 
         with self._db.connect() as conn:
             with conn.cursor() as cur:
@@ -401,8 +405,8 @@ class FinanceAtomicRepository:
                     amountUsdc=self._q6(hit[5]),
                     idempotencyKey=hit[6],
                     status=str(hit[7]),
-                    createdAt=int(hit[8]),
-                    updatedAt=int(hit[9]),
+                    createdAt=to_dt_str(hit[8], now_text) or now_text,
+                    updatedAt=to_dt_str(hit[9], now_text) or now_text,
                 )
 
                 if row.status.upper() == "CONFIRMED":
@@ -418,12 +422,12 @@ class FinanceAtomicRepository:
                 next_pending = self._q6(pending_balance - row.amount_usdc)
                 cur.execute(
                     self._balance_upsert_sql,
-                    (owner, "buyer", str(next_available), str(next_pending), str(frozen_balance), now),
+                    (owner, "buyer", str(next_available), str(next_pending), str(frozen_balance), now_text),
                 )
 
                 cur.execute(
                     "UPDATE synapse_deposit_intents SET status = %s, updated_at = %s WHERE id = %s AND owner_address = %s",
-                    ("CONFIRMED", now, row.id, owner),
+                    ("CONFIRMED", now_text, row.id, owner),
                 )
 
                 self._append_withdrawal_audit(
@@ -448,7 +452,7 @@ class FinanceAtomicRepository:
             idempotencyKey=row.idempotency_key,
             status="CONFIRMED",
             createdAt=row.created_at,
-            updatedAt=now,
+            updatedAt=now_text,
         )
 
     def charge_buyer_and_record_usage_atomic(
@@ -462,6 +466,7 @@ class FinanceAtomicRepository:
         usage_row: UsageLogRow,
     ) -> BuyerChargeResult:
         now = int(time.time())
+        now_text = to_dt_str(now, now_dt_str())
         owner = str(owner_wallet or "").strip().lower()
         seller = str(seller_wallet or "").strip().lower()
 
@@ -475,7 +480,7 @@ class FinanceAtomicRepository:
             current_frozen = _load_balance(cur, wallet, account_type, "frozen_balance")
             cur.execute(
                 self._balance_upsert_sql,
-                (wallet, account_type, str(self._q6(available_value)), str(self._q6(current_pending)), str(self._q6(current_frozen)), now),
+                (wallet, account_type, str(self._q6(available_value)), str(self._q6(current_pending)), str(self._q6(current_frozen)), now_text),
             )
 
         with self._db.connect() as conn:
@@ -577,6 +582,7 @@ class FinanceAtomicRepository:
     def reserve_seller_withdraw_atomic(self, owner_wallet: str, amount_usdc: Decimal) -> BalanceMutationResult:
         owner = str(owner_wallet or "").strip().lower()
         now = int(time.time())
+        now_text = to_dt_str(now, now_dt_str())
 
         with self._db.connect() as conn:
             with conn.cursor() as cur:
@@ -588,7 +594,7 @@ class FinanceAtomicRepository:
 
                 cur.execute(
                     self._balance_upsert_sql,
-                    (owner, "seller", str(after_available), str(after_pending), str(before_frozen), now),
+                    (owner, "seller", str(after_available), str(after_pending), str(before_frozen), now_text),
                 )
 
             conn.commit()

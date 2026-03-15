@@ -19,7 +19,7 @@ class IdempotencyRow(BaseModel):
     idempotency_key: str = Field(default="", alias="idempotencyKey")
     request_hash: str = Field(default="", alias="requestHash")
     response: Optional[Dict[str, Any]] = None
-    created_at: int = Field(default=0, alias="createdAt")
+    created_at: str = Field(default="", alias="createdAt")
     expires_at: int = Field(default=0, alias="expiresAt")
 
 
@@ -32,4 +32,4 @@ class RateLimitRow(BaseModel):
     action: str = ""
     window_start: int = Field(default=0, alias="windowStart")
     count: int = 0
-    updated_at: int = Field(default=0, alias="updatedAt")
+    updated_at: str = Field(default="", alias="updatedAt")

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import time
 from typing import Any, Callable, Dict
 
 from src.domain.finance import BalanceLedger, PlatformFees
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
@@ -22,9 +22,9 @@ class BalanceRepository:
             rows = cur.fetchall()
 
         ledger = BalanceLedger()
-        max_updated = 0
+        max_updated = ""
         for owner, account_type, available_balance, pending_balance, frozen_balance, updated_at in rows:
-            updated = int(updated_at or 0)
+            updated = to_dt_str(updated_at, "") or ""
             if updated > max_updated:
                 max_updated = updated
             available_val = float(self._q6(available_balance))
@@ -44,7 +44,7 @@ class BalanceRepository:
         return ledger
 
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
-        updated_at = ledger.updated_at or int(time.time())
+        updated_at = to_dt_str(ledger.updated_at or now_dt_str(), now_dt_str()) or now_dt_str()
 
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_balances")
@@ -63,7 +63,7 @@ class BalanceRepository:
         available_map: Dict[str, Any],
         pending_map: Dict[str, Any],
         frozen_map: Dict[str, Any],
-        updated_at: int,
+        updated_at: str,
     ) -> None:
         owners = {str(owner).lower() for owner in available_map}
         owners |= {str(owner).lower() for owner in pending_map}

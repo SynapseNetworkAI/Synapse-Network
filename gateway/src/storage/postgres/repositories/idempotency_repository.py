@@ -5,6 +5,7 @@ from typing import Any, List
 
 from src.domain.idempotency import IdempotencyRow, RateLimitRow
 from src.domain.storage_entities import FinanceRateLimitRow, IdempotencyKeyRow
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
@@ -47,13 +48,13 @@ class IdempotencyRepository:
                     requestHash=str(req_hash),
                     responseCode=response_code,
                     responseDigest=response_digest,
-                    createdAt=int(created_at or 0),
+                    createdAt=to_dt_str(created_at, "") or "",
                     expiresAt=int(expires_at or 0),
                 )
             )
         return result
 
-    def write_idempotency_rows(self, rows: List[Any], updated_at: int) -> None:
+    def write_idempotency_rows(self, rows: List[Any], updated_at: str | int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_idempotency_keys")
             for row in rows:
@@ -91,8 +92,8 @@ class IdempotencyRepository:
                         row.request_hash,
                         row.response_code,
                         row.response_digest,
-                        int(row.created_at or updated_at),
-                        int(row.expires_at or updated_at),
+                        to_dt_str(row.created_at or updated_at, now_dt_str()),
+                        int(row.expires_at or int(time.time())),
                     ),
                 )
 
@@ -107,12 +108,12 @@ class IdempotencyRepository:
                 action=str(action),
                 windowStart=int(window_start or 0),
                 count=int(count or 0),
-                updatedAt=int(updated_at or 0),
+                updatedAt=to_dt_str(updated_at, "") or "",
             )
             for row_id, owner, action, window_start, count, updated_at in rows
         ]
 
-    def write_rate_limit_rows(self, rows: List[Any], updated_at: int) -> None:
+    def write_rate_limit_rows(self, rows: List[Any], updated_at: str | int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_finance_rate_limit")
             for row in rows:
@@ -140,6 +141,6 @@ class IdempotencyRepository:
                         row.action,
                         int(row.window_start or updated_at),
                         int(row.count or 0),
-                        int(row.updated_at or updated_at),
+                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
                     ),
                 )

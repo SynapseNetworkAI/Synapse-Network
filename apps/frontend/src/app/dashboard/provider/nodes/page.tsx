@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Server, Shield, Gauge, Link2, Search, X, Activity } from "lucide-react";
+import { Server, Shield, Gauge, Link2, Search, X, Activity, Plus } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
@@ -13,6 +13,8 @@ import {
   type ServiceRegistryPayload,
   type ServiceRegistryRecord,
 } from "@/utils/serviceApi";
+import { nowDateTimeString } from "@/utils/time";
+import { extractPricingAmount, formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
 
 type NodeStatus = "all" | "online" | "offline";
@@ -75,7 +77,7 @@ function toEditDraft(svc: ServiceRegistryRecord): EditDraft {
   return {
     serviceName: svc.serviceName || svc.name || "",
     summary: svc.summary || "",
-    pricingAmount: typeof svc.pricing === "string" ? svc.pricing : String(svc.pricing ?? "0.01"),
+    pricingAmount: extractPricingAmount(svc.pricing, "0.01"),
     isActive: Boolean(svc.isActive),
     tagsText: (svc.tags || []).join(", "),
     authType: svc.auth?.type || "service_key",
@@ -172,9 +174,13 @@ function parseStrictInt(value: string): number | null {
   return parsed;
 }
 
-function isPositiveNumber(value: string): boolean {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0;
+function isNonNegativeNumber(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0;
 }
 
 type EditValidation = {
@@ -227,8 +233,8 @@ function validateEditDraft(draft: EditDraft | null): EditValidation {
   if (!draft.serviceName.trim()) {
     errors.serviceName = "Service name is required.";
   }
-  if (!isPositiveNumber(draft.pricingAmount)) {
-    errors.pricingAmount = "Unit price must be a positive number.";
+  if (!isNonNegativeNumber(draft.pricingAmount)) {
+    errors.pricingAmount = "Unit price must be a non-negative number.";
   }
   if (!draft.healthPath.trim()) {
     errors.healthPath = "Health path is required.";
@@ -430,6 +436,9 @@ export default function ProviderNodesPage() {
 
     const payload: ServiceRegistryPayload = {
       id: editing.id,
+      serviceId: editing.serviceId,
+      createdAt: String(editing.createdAt || ""),
+      updatedAt: nowDateTimeString(),
       serviceName: draft.serviceName.trim(),
       role: editing.role,
       address: editing.address,
@@ -498,7 +507,7 @@ export default function ProviderNodesPage() {
     try {
       await updateServiceRegistry(payload, address);
       setServices((prev) => prev.map((svc) => (
-        svc.id === editing.id
+        svc.serviceId === editing.serviceId
           ? {
               ...svc,
               name: payload.serviceName,
@@ -513,7 +522,10 @@ export default function ProviderNodesPage() {
               constraints: payload.constraints,
               forwarding: payload.forwarding,
               metering: payload.metering,
-              invoke: payload.invoke,
+              invoke: {
+                ...payload.invoke,
+                url: payload.invoke.url || svc.invoke?.url || svc.endpoint || "",
+              },
             }
           : svc
       )));
@@ -539,36 +551,45 @@ export default function ProviderNodesPage() {
       </div>
 
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 flex flex-col lg:flex-row gap-2 lg:items-center lg:justify-between">
-        <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] w-full lg:w-[360px]">
-          <Search className="w-4 h-4 text-[#86868b]" />
-          <input
-            value={queryInput}
-            onChange={(e) => setQueryInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSearch();
-              }
-            }}
-            placeholder="Search Service ID or name"
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#86868b]"
-          />
-        </label>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full lg:w-auto lg:flex-1">
+          <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] w-full lg:w-[360px]">
+            <Search className="w-4 h-4 text-[#86868b]" />
+            <input
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearch();
+                }
+              }}
+              placeholder="Search Service ID or name"
+              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#86868b]"
+            />
+          </label>
           <select
             value={statusInput}
             onChange={(e) => setStatusInput(e.target.value as NodeStatus)}
-            className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none min-w-[130px]"
+            className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white text-left outline-none min-w-[130px]"
           >
             <option value="all">All Status</option>
             <option value="online">Online</option>
             <option value="offline">Offline</option>
           </select>
+        </div>
+        <div className="flex items-center gap-2 lg:justify-end">
           <button
             onClick={handleSearch}
             className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors"
           >
             Search
           </button>
+          <Link
+            href="/dashboard/services/deploy"
+            className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-[#3a3a3a] bg-[#050505] text-sm font-semibold text-white hover:border-[#22c55e]/50 hover:text-[#22c55e] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Service
+          </Link>
         </div>
       </div>
 
@@ -601,7 +622,7 @@ export default function ProviderNodesPage() {
                   </div>
                 </td>
                 <td className="py-5 px-6 text-sm font-mono text-[#e5e5ea]">{svc.serviceId}</td>
-                <td className="py-5 px-6 text-sm text-[#e5e5ea] font-mono">{svc.pricing} USDC / CALL</td>
+                <td className="py-5 px-6 text-sm text-[#e5e5ea] font-mono">{formatPricing(svc.pricing)} / CALL</td>
                 <td className="py-5 px-6 text-center">
                   {svc.isActive ? (
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#22c55e] border border-[#22c55e]/30 bg-[#22c55e]/10">

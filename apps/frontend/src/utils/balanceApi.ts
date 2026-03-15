@@ -1,6 +1,7 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
-const API_BASE = "http://127.0.0.1:8000/api/v1";
+const API_BASE = `${getGatewayBaseUrl()}/api/v1`;
 
 function buildIdempotencyKey(prefix: string): string {
   const now = Date.now().toString(36);
@@ -25,8 +26,8 @@ export type DepositIntentRecord = {
   creditedAmountUsdc?: number;
   status: string;
   failureReason?: string;
-  createdAt?: number;
-  updatedAt?: number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
   confirmedAt?: number;
 };
 
@@ -172,8 +173,8 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
     creditedAmountUsdc: Number(row.creditedAmountUsdc ?? 0),
     status: typeof row.status === "string" ? row.status : "pending",
     failureReason: typeof row.failureReason === "string" ? row.failureReason : undefined,
-    createdAt: Number(row.createdAt ?? 0) || undefined,
-    updatedAt: Number(row.updatedAt ?? 0) || undefined,
+    createdAt: (row.createdAt as string | number | undefined) ?? undefined,
+    updatedAt: (row.updatedAt as string | number | undefined) ?? undefined,
     confirmedAt: Number(row.confirmedAt ?? 0) || undefined,
   }));
 }

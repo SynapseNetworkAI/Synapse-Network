@@ -1,10 +1,11 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
-const API_BASE = "http://127.0.0.1:8000/api/v1/router/config";
+const API_BASE = `${getGatewayBaseUrl()}/api/v1/router/config`;
 
 export type RouterConfig = {
   dailyLimitUsdc: number;
-  updatedAt?: number | null;
+  updatedAt?: string | number | null;
 };
 
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {

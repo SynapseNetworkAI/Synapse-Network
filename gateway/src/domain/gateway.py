@@ -16,5 +16,5 @@ class RouterConfigRow(BaseModel):
     id: Optional[str] = None
     owner_address: str = Field(default="", alias="ownerAddress")
     daily_limit_usdc: float = Field(default=0.0, alias="dailyLimitUsdc")
-    created_at: int = Field(default=0, alias="createdAt")
-    updated_at: int = Field(default=0, alias="updatedAt")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")

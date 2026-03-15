@@ -1,6 +1,7 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
+const API_BASE_URL = `${getGatewayBaseUrl()}/api/v1`;
 
 export type AgentCredentialRecord = {
   id: string;
@@ -15,8 +16,8 @@ export type AgentCredentialRecord = {
   resetInterval?: "hourly" | "daily" | "weekly" | "monthly" | "never";
   expiration?: number | null;
   expiresAt: number;
-  createdAt?: number;
-  updatedAt?: number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
   revokedAt?: number | null;
 };
 

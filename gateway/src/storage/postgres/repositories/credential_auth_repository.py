@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import time
 from decimal import Decimal
 from typing import Any, Callable, List, Optional
 
 from src.domain.storage_entities import AuthSessionRow, CredentialRow, WalletRoleRow
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
@@ -44,8 +44,8 @@ class CredentialAuthRepository:
                 resetInterval=reset_interval,
                 expiration=expiration,
                 expiresAt=expires_at,
-                createdAt=created_at,
-                updatedAt=updated_at,
+                createdAt=to_dt_str(created_at),
+                updatedAt=to_dt_str(updated_at),
                 revokedAt=revoked_at,
             )
             for (
@@ -101,8 +101,8 @@ class CredentialAuthRepository:
                         row.reset_interval,
                         row.expiration,
                         row.expires_at,
-                        row.created_at,
-                        row.updated_at,
+                        to_dt_str(row.created_at, now_dt_str()),
+                        to_dt_str(row.updated_at, now_dt_str()),
                         row.revoked_at,
                     ),
                 )
@@ -117,11 +117,11 @@ class CredentialAuthRepository:
 
     def set_wallet_role(self, wallet: str, role: str) -> None:
         self.upsert_wallet_role(
-            WalletRoleRow(walletAddress=str(wallet or "").lower(), role=str(role or ""), updatedAt=int(time.time()))
+            WalletRoleRow(walletAddress=str(wallet or "").lower(), role=str(role or ""), updatedAt=now_dt_str())
         )
 
     def upsert_wallet_role(self, row: WalletRoleRow) -> None:
-        now = int(time.time())
+        now = now_dt_str()
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
@@ -130,7 +130,7 @@ class CredentialAuthRepository:
                 ON CONFLICT (wallet_address)
                 DO UPDATE SET role = EXCLUDED.role, updated_at = EXCLUDED.updated_at
                 """,
-                (str(row.wallet_address or "").lower(), str(row.role or ""), int(row.updated_at or now)),
+                (str(row.wallet_address or "").lower(), str(row.role or ""), to_dt_str(row.updated_at or now, now)),
             )
 
     def upsert_auth_session(self, wallet: str, registered_at: int, last_login: int, status: str) -> None:
@@ -140,7 +140,7 @@ class CredentialAuthRepository:
                 registeredAt=int(registered_at),
                 lastLogin=int(last_login),
                 status=str(status or "active"),
-                updatedAt=int(time.time()),
+                updatedAt=now_dt_str(),
             )
         )
 
@@ -158,11 +158,11 @@ class CredentialAuthRepository:
             registeredAt=int(row[1] or 0),
             lastLogin=int(row[2] or 0),
             status=str(row[3] or ""),
-            updatedAt=int(row[4] or 0),
+            updatedAt=to_dt_str(row[4], "") or "",
         )
 
     def save_auth_session(self, row: AuthSessionRow) -> None:
-        now = int(time.time())
+        now = now_dt_str()
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
@@ -180,6 +180,6 @@ class CredentialAuthRepository:
                     int(row.registered_at),
                     int(row.last_login),
                     str(row.status or "active"),
-                    int(row.updated_at or now),
+                    to_dt_str(row.updated_at or now, now),
                 ),
             )

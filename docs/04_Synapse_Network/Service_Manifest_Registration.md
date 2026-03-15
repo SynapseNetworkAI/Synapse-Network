@@ -70,7 +70,7 @@
 - `id`: 服务记录 ID（现有字段）
 - `serviceId`: 系统生成、不可变
 - `ownerAddress`: 由鉴权钱包注入
-- `createdAt` / `updatedAt`
+- `createdAt` / `updatedAt`（格式：`yyyy-MM-dd HH:mm:ss`，示例 `2026-03-15 14:24:00`）
 - `status`: `active | inactive | archived`
 
 ---
@@ -146,6 +146,8 @@
 ```json
 {
   "serviceName": "获取名人名言",
+  "createdAt": "2026-03-15 14:24:00",
+  "updatedAt": "2026-03-15 14:24:00",
   "role": "Provider / Seller",
   "address": "0x...",
   "pricing": {
@@ -548,9 +550,9 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 
 ### 5.2 Update（不允许改 `serviceId`）
 
-`PUT /api/v1/services/{id}`
+`PUT /api/v1/services/{serviceId}`
 
-- 允许改：`serviceName/pricing/isActive/summary/tags/invoke`
+- 允许改：`serviceName/pricing/isActive/status/summary/tags/healthCheck/constraints/forwarding/metering/invoke`
 - 禁止改：`serviceId/ownerAddress/createdAt`
 
 ### 5.3 Discover（对外只暴露平台调用地址）
@@ -701,7 +703,7 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 
 5. 编辑页校验（最低门禁）
   - `serviceName` 必填。
-  - `pricing.amount` 必须为正数。
+  - `pricing.amount` 必须为非负数。
   - `healthCheck.path` 必填，且必须以 `/` 开头。
   - `invoke.url` 必填。
   - `invoke.targets[]` 必须为 JSON 数组且至少包含一个有效 `url`。
@@ -717,7 +719,7 @@ Seller 在注册时填写的 `constraints` 不是“建议值”，而是网关�
 ## 7. 与现有系统兼容策略
 
 1. 直接停用未带版本号的旧接口：`/api/services*` 不再使用。
-2. 前端与后端统一使用新版模型：`POST /api/v1/services`、`PUT /api/v1/services/{id}`。
+2. 前端与后端统一使用新版模型：`POST /api/v1/services`、`PUT /api/v1/services/{serviceId}`。
 3. 服务注册请求体统一为新契约。
 4. 扣款/结算/账单继续使用系统生成的 `serviceId` 作为稳定关联键。
 

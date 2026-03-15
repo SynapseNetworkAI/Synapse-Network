@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS synapse_balances (
     available_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
     pending_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
     frozen_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
-    updated_at BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (owner_address, account_type),
     CHECK (account_type IN ('buyer', 'seller', 'platform_fee')),
     CHECK (available_balance >= 0),
@@ -92,8 +92,8 @@ CREATE TABLE IF NOT EXISTS synapse_deposit_intents (
     amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
     idempotency_key TEXT,
     status TEXT NOT NULL,
-    created_at BIGINT NOT NULL,
-    updated_at BIGINT NOT NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_synapse_deposit_intents_owner
@@ -108,8 +108,8 @@ CREATE TABLE IF NOT EXISTS synapse_refund_intents (
     buyer_address TEXT,
     amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
     idempotency_key TEXT,
-    created_at BIGINT NOT NULL,
-    updated_at BIGINT NOT NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_synapse_refund_intents_owner
@@ -131,8 +131,8 @@ CREATE TABLE IF NOT EXISTS synapse_withdrawal_intents (
     chain_id BIGINT,
     contract_address TEXT,
     signer_address TEXT,
-    created_at BIGINT NOT NULL,
-    updated_at BIGINT NOT NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_synapse_withdrawal_intents_owner
@@ -141,8 +141,8 @@ ON synapse_withdrawal_intents (lower(owner_address), created_at DESC);
 CREATE TABLE IF NOT EXISTS synapse_router_config (
     owner_address TEXT PRIMARY KEY,
     daily_limit_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
-    created_at BIGINT NOT NULL,
-    updated_at BIGINT NOT NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS synapse_usage_log (
@@ -169,29 +169,79 @@ ON synapse_usage_log (request_id);
 
 CREATE TABLE IF NOT EXISTS synapse_processed_deposit_events (
     dedup_key TEXT PRIMARY KEY,
-    updated_at BIGINT NOT NULL
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS synapse_service_registry (
     service_id TEXT PRIMARY KEY,
+    record_id TEXT,
     owner_address TEXT NOT NULL,
     service_name TEXT NOT NULL,
+    service_role TEXT NOT NULL DEFAULT 'Provider / Seller',
+    service_address TEXT,
     summary TEXT,
     endpoint TEXT,
-    status TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     pricing_amount NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    auth_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    health_check_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    forwarding_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metering_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    invoke_config JSONB NOT NULL DEFAULT '{}'::jsonb,
     pricing_currency TEXT NOT NULL DEFAULT 'USDC',
-    timeout_ms INTEGER,
-    max_qps INTEGER,
-    max_request_bytes INTEGER,
-    max_response_bytes INTEGER,
-    created_at BIGINT NOT NULL,
-    updated_at BIGINT NOT NULL
+    schema_version BIGINT NOT NULL DEFAULT 2,
+    timeout_ms INTEGER NOT NULL DEFAULT 3000,
+    max_qps INTEGER NOT NULL DEFAULT 50,
+    max_request_bytes INTEGER NOT NULL DEFAULT 4096,
+    max_response_bytes INTEGER NOT NULL DEFAULT 2048,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'inactive', 'archived')),
+    CHECK (pricing_amount >= 0),
+    CHECK (timeout_ms BETWEEN 300 AND 15000),
+    CHECK (max_qps BETWEEN 1 AND 200),
+    CHECK (max_request_bytes BETWEEN 256 AND 262144),
+    CHECK (max_response_bytes BETWEEN 256 AND 1048576),
+    CHECK (jsonb_typeof(tags_json) = 'array'),
+    CHECK (jsonb_typeof(auth_json) = 'object'),
+    CHECK (jsonb_typeof(health_check_json) = 'object'),
+    CHECK (jsonb_typeof(forwarding_json) = 'object'),
+    CHECK (jsonb_typeof(metering_json) = 'object'),
+    CHECK (jsonb_typeof(invoke_config) = 'object')
 );
+
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS record_id TEXT;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS schema_version BIGINT;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS service_role TEXT;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS service_address TEXT;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS tags_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS auth_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS health_check_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS forwarding_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS metering_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS invoke_config JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE synapse_service_registry ALTER COLUMN status SET DEFAULT 'active';
+ALTER TABLE synapse_service_registry ALTER COLUMN pricing_amount SET DEFAULT 0;
+ALTER TABLE synapse_service_registry ALTER COLUMN pricing_currency SET DEFAULT 'USDC';
+ALTER TABLE synapse_service_registry ALTER COLUMN schema_version SET DEFAULT 2;
+ALTER TABLE synapse_service_registry ALTER COLUMN timeout_ms SET DEFAULT 3000;
+ALTER TABLE synapse_service_registry ALTER COLUMN max_qps SET DEFAULT 50;
+ALTER TABLE synapse_service_registry ALTER COLUMN max_request_bytes SET DEFAULT 4096;
+ALTER TABLE synapse_service_registry ALTER COLUMN max_response_bytes SET DEFAULT 2048;
 
 CREATE INDEX IF NOT EXISTS idx_synapse_service_registry_owner
 ON synapse_service_registry (lower(owner_address), updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_registry_active
+ON synapse_service_registry (is_active, status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_registry_tags_gin
+ON synapse_service_registry USING GIN (tags_json);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_registry_invoke_gin
+ON synapse_service_registry USING GIN (invoke_config);
 
 CREATE TABLE IF NOT EXISTS synapse_service_target_health (
     service_id TEXT NOT NULL,
@@ -243,8 +293,8 @@ CREATE TABLE IF NOT EXISTS synapse_credentials (
     reset_interval TEXT,
     expiration BIGINT,
     expires_at BIGINT,
-    created_at BIGINT,
-    updated_at BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     revoked_at BIGINT
 );
 
@@ -254,7 +304,7 @@ ON synapse_credentials (credential_type, lower(owner_address), created_at DESC);
 CREATE TABLE IF NOT EXISTS synapse_wallet_roles (
     wallet_address TEXT PRIMARY KEY,
     role TEXT NOT NULL,
-    updated_at BIGINT NOT NULL
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS synapse_auth_sessions (
@@ -262,13 +312,13 @@ CREATE TABLE IF NOT EXISTS synapse_auth_sessions (
     registered_at BIGINT NOT NULL,
     last_login BIGINT NOT NULL,
     status TEXT NOT NULL,
-    updated_at BIGINT NOT NULL
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS synapse_platform_fee_policy_default (
     singleton_id SMALLINT PRIMARY KEY,
     default_rate NUMERIC(10, 6) NOT NULL,
-    updated_at BIGINT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_by TEXT
 );
 
@@ -285,7 +335,7 @@ CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
     request_hash TEXT NOT NULL,
     response_code TEXT,
     response_digest TEXT,
-    created_at BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at BIGINT NOT NULL,
     UNIQUE (scope, owner_address, idempotency_key)
 );
@@ -299,7 +349,7 @@ CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
     action TEXT NOT NULL,
     window_start BIGINT NOT NULL,
     count INTEGER NOT NULL,
-    updated_at BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (owner_address, action)
 );
 
@@ -335,7 +385,7 @@ COMMENT ON COLUMN synapse_balances.account_type IS '账户余额类型(buyer/sel
 COMMENT ON COLUMN synapse_balances.available_balance IS '可用余额(可扣费/可提现)';
 COMMENT ON COLUMN synapse_balances.pending_balance IS '待确认余额(链上确认中/审核中)';
 COMMENT ON COLUMN synapse_balances.frozen_balance IS '冻结余额(命中风控或人工冻结)';
-COMMENT ON COLUMN synapse_balances.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_balances.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_deposit_intents.id IS '充值意图ID';
 COMMENT ON COLUMN synapse_deposit_intents.owner_address IS '充值归属钱包地址';
@@ -345,8 +395,8 @@ COMMENT ON COLUMN synapse_deposit_intents.buyer_address IS '买家钱包地址';
 COMMENT ON COLUMN synapse_deposit_intents.amount_usdc IS '充值金额(USDC)';
 COMMENT ON COLUMN synapse_deposit_intents.idempotency_key IS '幂等键';
 COMMENT ON COLUMN synapse_deposit_intents.status IS '充值状态';
-COMMENT ON COLUMN synapse_deposit_intents.created_at IS '创建时间戳(毫秒)';
-COMMENT ON COLUMN synapse_deposit_intents.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_deposit_intents.created_at IS '创建时间（yyyy-MM-dd HH:mm:ss）';
+COMMENT ON COLUMN synapse_deposit_intents.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_refund_intents.id IS '退款意图ID';
 COMMENT ON COLUMN synapse_refund_intents.owner_address IS '退款归属钱包地址';
@@ -356,8 +406,8 @@ COMMENT ON COLUMN synapse_refund_intents.request_id IS '退款请求ID';
 COMMENT ON COLUMN synapse_refund_intents.buyer_address IS '买家钱包地址';
 COMMENT ON COLUMN synapse_refund_intents.amount_usdc IS '退款金额(USDC)';
 COMMENT ON COLUMN synapse_refund_intents.idempotency_key IS '幂等键';
-COMMENT ON COLUMN synapse_refund_intents.created_at IS '创建时间戳(毫秒)';
-COMMENT ON COLUMN synapse_refund_intents.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_refund_intents.created_at IS '创建时间（yyyy-MM-dd HH:mm:ss）';
+COMMENT ON COLUMN synapse_refund_intents.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_withdrawal_intents.id IS '提现意图ID';
 COMMENT ON COLUMN synapse_withdrawal_intents.owner_address IS '提现归属钱包地址';
@@ -374,13 +424,13 @@ COMMENT ON COLUMN synapse_withdrawal_intents.signature IS 'EIP-712签名';
 COMMENT ON COLUMN synapse_withdrawal_intents.chain_id IS '链ID';
 COMMENT ON COLUMN synapse_withdrawal_intents.contract_address IS '提现合约地址';
 COMMENT ON COLUMN synapse_withdrawal_intents.signer_address IS '签名地址';
-COMMENT ON COLUMN synapse_withdrawal_intents.created_at IS '创建时间戳(毫秒)';
-COMMENT ON COLUMN synapse_withdrawal_intents.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_withdrawal_intents.created_at IS '创建时间（yyyy-MM-dd HH:mm:ss）';
+COMMENT ON COLUMN synapse_withdrawal_intents.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_router_config.owner_address IS '路由配置归属钱包地址';
 COMMENT ON COLUMN synapse_router_config.daily_limit_usdc IS '每日限额(USDC)';
-COMMENT ON COLUMN synapse_router_config.created_at IS '创建时间戳(毫秒)';
-COMMENT ON COLUMN synapse_router_config.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_router_config.created_at IS '创建时间（yyyy-MM-dd HH:mm:ss）';
+COMMENT ON COLUMN synapse_router_config.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_usage_log.id IS '用量日志ID';
 COMMENT ON COLUMN synapse_usage_log.ts IS '计费时间戳(毫秒)';
@@ -412,8 +462,18 @@ COMMENT ON COLUMN synapse_service_registry.timeout_ms IS '上游超时阈值(毫
 COMMENT ON COLUMN synapse_service_registry.max_qps IS '最大QPS限制';
 COMMENT ON COLUMN synapse_service_registry.max_request_bytes IS '最大请求体字节数';
 COMMENT ON COLUMN synapse_service_registry.max_response_bytes IS '最大响应体字节数';
-COMMENT ON COLUMN synapse_service_registry.created_at IS '创建时间戳(毫秒)';
-COMMENT ON COLUMN synapse_service_registry.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_service_registry.record_id IS '服务记录ID(兼容前端编辑ID字段)';
+COMMENT ON COLUMN synapse_service_registry.schema_version IS '服务清单Schema版本';
+COMMENT ON COLUMN synapse_service_registry.service_role IS '服务角色';
+COMMENT ON COLUMN synapse_service_registry.service_address IS '服务地址(兼容字段)';
+COMMENT ON COLUMN synapse_service_registry.tags_json IS '服务标签JSON数组';
+COMMENT ON COLUMN synapse_service_registry.auth_json IS '鉴权配置JSON';
+COMMENT ON COLUMN synapse_service_registry.health_check_json IS '健康检查配置JSON';
+COMMENT ON COLUMN synapse_service_registry.forwarding_json IS '转发策略JSON';
+COMMENT ON COLUMN synapse_service_registry.metering_json IS '计费策略JSON';
+COMMENT ON COLUMN synapse_service_registry.invoke_config IS '调用配置JSON';
+COMMENT ON COLUMN synapse_service_registry.created_at IS '创建时间（yyyy-MM-dd HH:mm:ss）';
+COMMENT ON COLUMN synapse_service_registry.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_service_target_health.service_id IS '服务ID';
 COMMENT ON COLUMN synapse_service_target_health.target_url IS '目标节点URL';
@@ -459,23 +519,23 @@ COMMENT ON COLUMN synapse_credentials.credit_limit IS '信用额度';
 COMMENT ON COLUMN synapse_credentials.reset_interval IS '额度重置周期';
 COMMENT ON COLUMN synapse_credentials.expiration IS '过期时间戳(兼容字段)';
 COMMENT ON COLUMN synapse_credentials.expires_at IS '过期时间戳(毫秒)';
-COMMENT ON COLUMN synapse_credentials.created_at IS '创建时间戳(毫秒)';
-COMMENT ON COLUMN synapse_credentials.updated_at IS '更新时间戳(毫秒)';
-COMMENT ON COLUMN synapse_credentials.revoked_at IS '吊销时间戳(毫秒)';
+COMMENT ON COLUMN synapse_credentials.created_at IS '创建时间（yyyy-MM-dd HH:mm:ss）';
+COMMENT ON COLUMN synapse_credentials.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
+COMMENT ON COLUMN synapse_credentials.revoked_at IS '吊销时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_wallet_roles.wallet_address IS '钱包地址';
 COMMENT ON COLUMN synapse_wallet_roles.role IS '钱包角色';
-COMMENT ON COLUMN synapse_wallet_roles.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_wallet_roles.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_auth_sessions.wallet_address IS '会话绑定钱包地址';
-COMMENT ON COLUMN synapse_auth_sessions.registered_at IS '首次注册时间戳(毫秒)';
-COMMENT ON COLUMN synapse_auth_sessions.last_login IS '最近登录时间戳(毫秒)';
+COMMENT ON COLUMN synapse_auth_sessions.registered_at IS '首次注册时间戳(秒)';
+COMMENT ON COLUMN synapse_auth_sessions.last_login IS '最近登录时间戳(秒)';
 COMMENT ON COLUMN synapse_auth_sessions.status IS '会话状态';
-COMMENT ON COLUMN synapse_auth_sessions.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_auth_sessions.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
 COMMENT ON COLUMN synapse_platform_fee_policy_default.singleton_id IS '单例配置ID';
 COMMENT ON COLUMN synapse_platform_fee_policy_default.default_rate IS '默认平台费率';
-COMMENT ON COLUMN synapse_platform_fee_policy_default.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_platform_fee_policy_default.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 COMMENT ON COLUMN synapse_platform_fee_policy_default.updated_by IS '最后更新操作者';
 
 COMMENT ON COLUMN synapse_platform_fee_policy_owner.owner_address IS '费率归属钱包地址';
@@ -496,4 +556,4 @@ COMMENT ON COLUMN synapse_finance_rate_limit.owner_address IS '限流归属钱�
 COMMENT ON COLUMN synapse_finance_rate_limit.action IS '受限动作类型';
 COMMENT ON COLUMN synapse_finance_rate_limit.window_start IS '窗口起始时间戳(毫秒)';
 COMMENT ON COLUMN synapse_finance_rate_limit.count IS '窗口内请求计数';
-COMMENT ON COLUMN synapse_finance_rate_limit.updated_at IS '更新时间戳(毫秒)';
+COMMENT ON COLUMN synapse_finance_rate_limit.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';

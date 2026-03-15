@@ -74,8 +74,8 @@ type AgentProfile = {
 	agentName: string;
 	role: string;
 	agentWalletAddress: string;
-	createdAt: number;
-	updatedAt: number;
+	createdAt: string;
+	updatedAt: string;
 }
 ```
 
@@ -89,8 +89,8 @@ type ServiceProfile = {
 	pricing: string;
 	endpoint: string;          // 一个 Service 对应一个 endpoint
 	isActive: boolean;
-	createdAt: number;
-	updatedAt: number;
+	createdAt: string;
+	updatedAt: string;
 }
 ```
 

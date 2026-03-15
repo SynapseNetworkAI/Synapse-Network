@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Wand2, TerminalSquare, Server, X, Check, CircleHelp } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Wand2, TerminalSquare, Server, X, Check, CircleHelp } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import { createServiceRegistry } from "@/utils/serviceApi";
+import { nowDateTimeString } from "@/utils/time";
 import AuthMask from "@/components/AuthMask";
 
-const PARSE_CURL_ENDPOINT = `${process.env.NEXT_PUBLIC_GATEWAY_BASE_URL || "http://127.0.0.1:8000"}/api/v1/services/parse-curl`;
+const PARSE_CURL_ENDPOINT = `${getGatewayBaseUrl()}/api/v1/services/parse-curl`;
 const TOOL_NAME_REGEX = /^[a-z0-9_-]+$/;
 const INTENT_TAG_REGEX = /^[a-z0-9_-]{2,24}$/;
 const AI_SERVICE_NAME_MIN = 4;
@@ -209,6 +212,25 @@ const normalizeIntentTag = (raw: string): string => {
   return raw.trim().toLowerCase().replaceAll(/\s+/g, "_");
 };
 
+const normalizeHealthCheckPath = (raw: string): string => {
+  const value = String(raw || "").trim();
+  if (!value) {
+    return "/health";
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      const path = `${parsed.pathname || "/"}${parsed.search || ""}`;
+      return path.startsWith("/") ? path : `/${path}`;
+    } catch {
+      // Fall back to raw normalization below.
+    }
+  }
+
+  return value.startsWith("/") ? value : `/${value}`;
+};
+
 // Extracted from api_gateway_reverse_proxy_design.md
 interface ServiceManifest {
   service_name: string;
@@ -233,6 +255,7 @@ interface ServiceManifest {
 }
 
 export default function DeployManifestPage() {
+  const router = useRouter();
   const { address } = useAccount();
   const [manifest, setManifest] = useState<ServiceManifest>({
     service_name: "",
@@ -263,7 +286,6 @@ export default function DeployManifestPage() {
   const [aiResponse, setAIResponse] = useState("");
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
 
   useEffect(() => {
@@ -349,9 +371,14 @@ export default function DeployManifestPage() {
     }
 
     const normalized = parsed as Partial<ServiceManifest>;
+    const normalizedHealthCheck =
+      typeof normalized.health_check === "string"
+        ? normalizeHealthCheckPath(normalized.health_check)
+        : undefined;
     setManifest((prev) => ({
       ...prev,
       ...normalized,
+      ...(normalizedHealthCheck ? { health_check: normalizedHealthCheck } : {}),
       input_schema: normalized.input_schema || prev.input_schema,
       output_schema: normalized.output_schema || prev.output_schema,
       pricing: normalized.pricing || prev.pricing,
@@ -499,9 +526,12 @@ export default function DeployManifestPage() {
 
       const healthCheckPathRaw = manifest.health_check.trim() || "/health";
       const healthCheckPath = healthCheckPathRaw.startsWith("/") ? healthCheckPathRaw : `/${healthCheckPathRaw}`;
+      const defaultBillableStatusClasses = [2] as const;
 
       const payload = {
         serviceName: manifest.service_name.trim(),
+        createdAt: nowDateTimeString(),
+        updatedAt: nowDateTimeString(),
         role: "Provider / Seller",
         address,
         pricing: manifest.pricing.amount,
@@ -543,7 +573,7 @@ export default function DeployManifestPage() {
         metering: {
           billingUnit: "per_call" as const,
           billOnError: false,
-          billableStatusClasses: [2 as 2],
+          billableStatusClasses: [...defaultBillableStatusClasses],
           requestIdRequired: true,
           responseSizeMetering: true,
         },
@@ -570,8 +600,8 @@ export default function DeployManifestPage() {
 
       await createServiceRegistry(payload, address);
       localStorage.removeItem("synapse_manifest_draft");
-      setIsSuccess(true);
-      toast.success("Manifest successfully registered to Synapse Network!");
+      toast.success("导入成功");
+      router.replace("/dashboard/provider/nodes");
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : "Failed to deploy manifest";
       toast.error(errMsg);
@@ -671,38 +701,18 @@ export default function DeployManifestPage() {
   const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest)).length;
   const formattedPrice = `${manifest.pricing.amount || "0"} ${manifest.pricing.currency}`;
 
-  if (isSuccess) {
-    return (
-      <div className="max-w-3xl p-8 mx-auto mt-10 border border-green-500 shadow-2xl rounded-2xl bg-gray-900/80 shadow-green-500/20 backdrop-blur-md animate-in fade-in zoom-in">
-        <div className="flex flex-col items-center text-center">
-          <div className="p-4 mb-6 rounded-full bg-green-500/20">
-            <CheckCircle2 className="w-16 h-16 text-green-400" />
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-2">Service Deployed Successfully!</h2>
-          <p className="text-gray-400 mb-8 max-w-lg">
-            Your API is now live on Synapse Network. Buyers can automatically discover and call your service using the <span className="font-mono text-green-400">&quot;{manifest.agent_tool_name}&quot;</span> tool.
-          </p>
-
-          <Link href="/dashboard/services" className="px-8 py-3 font-bold text-black border border-green-500 bg-green-500 rounded-lg hover:bg-green-400 transition-colors w-full sm:w-auto">
-            Return to Service Management
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <AuthMask
       allowChallengeAuthorize={false}
       sessionHelpText="This page is session-only. Please complete wallet sign-in from Service Management, then return to deploy."
-      sessionRecoveryHref="/dashboard/services"
-      sessionRecoveryLabel="Go to Service Management"
+      sessionRecoveryHref="/dashboard/provider/nodes"
+      sessionRecoveryLabel="Go to API Services"
     >
     <div className="h-[calc(100vh-80px)] flex flex-col md:flex-row bg-[#050505] overflow-hidden">
       {/* LEFT SIDE: BUILDER FORM */}
       <div className="w-full md:w-1/2 h-full overflow-y-auto border-r border-gray-800 p-8 hide-scrollbar">
         <div className="mb-6">
-          <Link href="/dashboard/services" className="inline-flex items-center text-gray-400 hover:text-green-400 mb-6 transition-colors">
+          <Link href="/dashboard/provider/nodes" className="inline-flex items-center text-gray-400 hover:text-green-400 mb-6 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Link>
           <div className="flex justify-between items-start">

@@ -1,7 +1,11 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 export type ServiceRegistryPayload = {
   id?: string;
+  serviceId?: string;
+  createdAt?: string;
+  updatedAt?: string;
   serviceName: string;
   role?: string;
   address?: string;
@@ -77,7 +81,7 @@ export type ServiceRegistryRecord = {
   ownerAddress: string;
   address: string;
   serviceId: string;
-  pricing: string;
+  pricing: string | { currency?: string; amount?: string | number };
   endpoint: string;
   isActive: boolean;
   status?: "active" | "inactive" | "archived" | "healthy" | "degraded" | "unhealthy" | "unknown";
@@ -145,11 +149,71 @@ export type ServiceRegistryRecord = {
     headersTemplate?: Record<string, string>;
     examples?: Array<Record<string, unknown>>;
   };
-  createdAt?: number;
-  updatedAt?: number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
 };
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1/services";
+type ServiceRegistryApiRecord = Partial<ServiceRegistryRecord> & {
+  pricingAmount?: string | number;
+  pricingCurrency?: string;
+  serviceHealth?: {
+    overallStatus?: "healthy" | "degraded" | "unhealthy" | "unknown";
+    healthyTargets?: number;
+    totalTargets?: number;
+    lastCheckedAt?: number | null;
+  };
+};
+
+function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryRecord {
+  let serviceId = "";
+  if (typeof raw.serviceId === "string" && raw.serviceId.trim()) {
+    serviceId = raw.serviceId;
+  } else if (typeof raw.id === "string" && raw.id.trim()) {
+    serviceId = raw.id;
+  }
+
+  const invokeTargets = Array.isArray(raw.invoke?.targets) ? raw.invoke?.targets : [];
+  const firstTargetUrl = invokeTargets[0]?.url;
+  const endpoint = raw.endpoint || raw.invoke?.url || firstTargetUrl || "";
+
+  const pricing = raw.pricing || {
+    amount: String(raw.pricingAmount ?? "0"),
+    currency: raw.pricingCurrency || "USDC",
+  };
+
+  return {
+    id: typeof raw.id === "string" && raw.id.trim() ? raw.id : serviceId,
+    name: raw.name || raw.serviceName || serviceId || "Unnamed Service",
+    serviceName: raw.serviceName || raw.name || serviceId || "",
+    schemaVersion: raw.schemaVersion,
+    role: raw.role || "provider",
+    ownerAddress: raw.ownerAddress || raw.address || "",
+    address: raw.address || raw.ownerAddress || "",
+    serviceId,
+    pricing,
+    endpoint,
+    isActive: typeof raw.isActive === "boolean" ? raw.isActive : raw.status === "active",
+    status: raw.status,
+    health: raw.health || raw.serviceHealth,
+    summary: raw.summary,
+    tags: raw.tags || [],
+    auth: raw.auth || null,
+    healthCheck: raw.healthCheck || null,
+    constraints: raw.constraints || null,
+    forwarding: raw.forwarding || null,
+    metering: raw.metering || null,
+    invoke: raw.invoke
+      ? {
+          ...raw.invoke,
+          url: raw.invoke.url || endpoint,
+        }
+      : undefined,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+const API_BASE_URL = `${getGatewayBaseUrl()}/api/v1/services`;
 
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
@@ -182,20 +246,21 @@ export async function createServiceRegistry(payload: ServiceRegistryPayload, use
     throw new Error(await readErrorMessage(response, "Backend service registration failed"));
   }
 
-  const data = (await response.json()) as { service?: ServiceRegistryRecord };
+  const data = (await response.json()) as { service?: ServiceRegistryApiRecord };
   if (data.service) {
-    return data.service;
+    return normalizeServiceRecord(data.service);
   }
 
   throw new Error("Backend service response missing service payload");
 }
 
 export async function updateServiceRegistry(payload: ServiceRegistryPayload, userAddress: string): Promise<void> {
-  if (!payload.id) {
-    throw new Error("Missing service record id");
+  const identifier = payload.serviceId || payload.id;
+  if (!identifier) {
+    throw new Error("Missing service identifier");
   }
 
-  const response = await fetch(`${API_BASE_URL}/${payload.id}`, {
+  const response = await fetch(`${API_BASE_URL}/${identifier}`, {
     method: "PUT",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify(payload),
@@ -228,8 +293,11 @@ export async function listServiceRegistry(userAddress: string, ownerAddress?: st
     throw new Error(await readErrorMessage(response, "Backend service list failed"));
   }
 
-  const payload = (await response.json()) as { services?: ServiceRegistryRecord[] };
-  return Array.isArray(payload.services) ? payload.services : [];
+  const payload = (await response.json()) as { services?: ServiceRegistryApiRecord[] };
+  if (!Array.isArray(payload.services)) {
+    return [];
+  }
+  return payload.services.map(normalizeServiceRecord);
 }
 
 export async function discoverServices(intent?: string): Promise<ServiceRegistryRecord[]> {
@@ -246,14 +314,17 @@ export async function discoverServices(intent?: string): Promise<ServiceRegistry
     throw new Error(await readErrorMessage(response, "Backend service discovery failed"));
   }
 
-  const payload = (await response.json()) as { services?: ServiceRegistryRecord[] };
-  return Array.isArray(payload.services) ? payload.services : [];
+  const payload = (await response.json()) as { services?: ServiceRegistryApiRecord[] };
+  if (!Array.isArray(payload.services)) {
+    return [];
+  }
+  return payload.services.map(normalizeServiceRecord);
 }
 
 
 export async function getWalletRole(userAddress: string): Promise<string | null> {
   try {
-    const res = await fetch(`http://127.0.0.1:8000/api/v1/wallet/role/${userAddress}`, {
+    const res = await fetch(`${getGatewayBaseUrl()}/api/v1/wallet/role/${userAddress}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -272,7 +343,7 @@ export async function getWalletRole(userAddress: string): Promise<string | null>
 }
 export async function bindWalletRole(userAddress: string, role: string): Promise<boolean> {
   try {
-    const res = await fetch(`http://127.0.0.1:8000/api/v1/wallet/role/${userAddress}/bind`, {
+    const res = await fetch(`${getGatewayBaseUrl()}/api/v1/wallet/role/${userAddress}/bind`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -362,7 +433,7 @@ export type ProviderSecret = {
 };
 
 export async function listApiSecrets(userAddress: string): Promise<ProviderSecret[]> {
-  const response = await fetch(`http://127.0.0.1:8000/api/v1/secrets/seller/list`, {
+  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/seller/list`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
   });
@@ -383,7 +454,7 @@ export async function createApiSecret(
   expiration: number | null = null,
   rpm: number | null = null,
 ): Promise<ProviderSecret> {
-  const response = await fetch(`http://127.0.0.1:8000/api/v1/secrets/seller/issue`, {
+  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/seller/issue`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify({ name, creditLimit, resetInterval, expiration, rpm }),
@@ -401,7 +472,7 @@ export async function createApiSecret(
 }
 
 export async function deleteApiSecret(secretId: string, userAddress: string): Promise<void> {
-  const response = await fetch(`http://127.0.0.1:8000/api/v1/secrets/seller/${secretId}`, {
+  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/seller/${secretId}`, {
     method: "DELETE",
     headers: buildAuthedHeaders(userAddress, false),
   });

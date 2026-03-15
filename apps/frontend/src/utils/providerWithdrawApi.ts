@@ -1,6 +1,7 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
-const API_BASE = "http://127.0.0.1:8000/api/v1/providers/withdrawals";
+const API_BASE = `${getGatewayBaseUrl()}/api/v1/providers/withdrawals`;
 
 function buildIdempotencyKey(prefix: string): string {
   const now = Date.now().toString(36);
@@ -55,8 +56,8 @@ export type ProviderWithdrawRecord = {
   deadline: number;
   signature?: string;
   txHash?: string;
-  createdAt?: number;
-  completedAt?: number;
+  createdAt?: string | number;
+  completedAt?: string | number;
   ticket?: ProviderWithdrawTicket;
 };
 
@@ -126,8 +127,8 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
     deadline: Number(row.deadline || 0),
     signature: typeof row.signature === "string" ? row.signature : undefined,
     txHash: typeof row.txHash === "string" ? row.txHash : undefined,
-    createdAt: Number(row.createdAt || 0) || undefined,
-    completedAt: Number(row.completedAt || 0) || undefined,
+    createdAt: (row.createdAt as string | number | undefined) ?? undefined,
+    completedAt: (row.completedAt as string | number | undefined) ?? undefined,
     ticket: row.ticket && typeof row.ticket === "object" ? (row.ticket as ProviderWithdrawTicket) : undefined,
   }));
 }
