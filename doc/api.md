@@ -139,12 +139,20 @@
 ### 3.4 退款与账务流水 (Refund / Usage)
 - **Paths**:
   - `POST /api/v1/refund`
+  - `POST /api/v1/refunds/{refundId}/complete`
   - `GET /api/v1/refunds`
   - `GET /api/v1/usage/logs`
 - **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
 - **Desc**: 仅返回当前 owner 作用域内账务数据。
 - **Security Headers**: `POST /api/v1/refund` requires `X-Idempotency-Key`.
-- **Validation**: `POST /api/v1/refund` requires `amountUsdc >= 10` (USDC).
+- **Validation**:
+  - `POST /api/v1/refund` requires `amountUsdc >= 10` (USDC) and `amountUsdc <= buyer available balance`.
+  - `POST /api/v1/refund` enforces one `PENDING` refund per owner (anti-double-withdraw).
+  - `POST /api/v1/refunds/{refundId}/complete` requires valid `txHash` and rejects cross-intent tx replay.
+- **Ledger Safety**:
+  - Refund intent creation atomically moves funds: `buyers[owner] -= amount`, `buyersLocked[owner] += amount`.
+  - Refund completion consumes lock: `buyersLocked[owner] -= amount`.
+- **Gas Responsibility**: refund responses include `gasPayer=BUYER`, `gasModel=BUYER_PAYS_ONCHAIN`.
 - **Pagination Guardrails**: list endpoints use strict limits (`1..200` for refunds/intents, `1..500` for usage logs).
 
 ### 3.5 Router Config (Owner Scoped)

@@ -8,7 +8,7 @@ import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useBuyerData } from "@/hooks/useBuyerData";
 import { useAuth } from "@/components/WalletAuthGuard";
-import { requestV2Refund } from "@/utils/balanceApi";
+import { completeV2Refund, requestV2Refund } from "@/utils/balanceApi";
 
 export default function BuyerOverview() {
   const { isConnected } = useAccount();
@@ -18,6 +18,12 @@ export default function BuyerOverview() {
   
   const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
+  const [refundIntentId, setRefundIntentId] = useState("");
+  const [refundSignature, setRefundSignature] = useState("");
+  const [refundAmount, setRefundAmount] = useState(0);
+  const [completionTxHash, setCompletionTxHash] = useState("");
+
+  const isValidTxHash = /^0x[0-9a-f]{64}$/.exec(completionTxHash.trim().toLowerCase()) !== null;
 
   const handleSettlement = async () => {
     if (!userAddress) {
@@ -26,21 +32,49 @@ export default function BuyerOverview() {
     }
     
     setIsSettling(true);
-    const toastId = toast.loading("Requesting EIP-712 Signature...");
+    const toastId = toast.loading("Requesting secure refund ticket...");
     try {
-      // 真实调用后端结算扣减接口
-      const refundResult = await requestV2Refund(userAddress);
-      
-      toast.success(`Ticket Generated: ${refundResult.signature.slice(0, 8)}... Prompting Wallet`, { id: toastId });
-      
-      // 模拟链上确认等待时间
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast.success(`Successfully Withdrawn ${refundResult.amountRefunded} USDC`, { id: toastId });
-      setIsSettlementModalOpen(false);
-      handleRefresh();
+      const refundable = Number(stats.buyerBalance || 0);
+      if (refundable < 10) {
+        throw new Error("Refund requires at least 10 USDC available balance.");
+      }
+      const refundResult = await requestV2Refund(userAddress, refundable);
+      setRefundIntentId(refundResult.refundId);
+      setRefundSignature(refundResult.signature);
+      setRefundAmount(refundResult.amountRefunded);
+      setCompletionTxHash("");
+      toast.success("Ticket generated. Submit on-chain withdraw and paste tx hash to finalize.", { id: toastId });
+      await handleRefresh();
     } catch {
       toast.error("Settlement failed. Please try again.", { id: toastId });
+    } finally {
+      setIsSettling(false);
+    }
+  };
+
+  const handleCompleteSettlement = async () => {
+    if (!userAddress || !refundIntentId) {
+      toast.error("Missing refund intent context.");
+      return;
+    }
+    if (!isValidTxHash) {
+      toast.error("Enter a valid 66-char 0x tx hash.");
+      return;
+    }
+
+    setIsSettling(true);
+    const toastId = toast.loading("Finalizing refund against tx hash...");
+    try {
+      await completeV2Refund(userAddress, refundIntentId, completionTxHash.trim());
+      toast.success(`Refund completed: ${refundAmount.toFixed(6)} USDC`, { id: toastId });
+      setIsSettlementModalOpen(false);
+      setRefundIntentId("");
+      setRefundSignature("");
+      setRefundAmount(0);
+      setCompletionTxHash("");
+      await handleRefresh();
+    } catch {
+      toast.error("Unable to complete refund. Verify tx hash and retry.", { id: toastId });
     } finally {
       setIsSettling(false);
     }
@@ -142,7 +176,7 @@ export default function BuyerOverview() {
           </div>
           <button 
             onClick={() => setIsSettlementModalOpen(true)}
-            disabled={Number(stats.buyerBalance) <= 0}
+            disabled={Number(stats.buyerBalance) < 10}
             className="w-full px-8 py-4 font-bold text-black transition-all bg-white rounded-2xl hover:bg-gray-200 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 flex justify-center items-center text-sm shadow-[0_0_20px_rgba(255,255,255,0.1)]"
           >
             Initiate Exit
@@ -258,10 +292,34 @@ export default function BuyerOverview() {
                   <Shield className="w-4 h-4 mr-2" /> Security Notice
                 </h4>
                 <p className="text-sm font-medium leading-relaxed opacity-90">
-                  Executing this transaction will instantly zero out your off-chain ledger. 
-                  All active API Keys will return <code className="bg-black/10 px-1.5 py-0.5 rounded font-mono text-xs">HTTP 402 Payment Required</code> for future calls until you top up again.
+                  Buyer pays gas for on-chain withdraw. Gateway only issues an owner-bound refund ticket and locks funds.
+                  No duplicate refund ticket can be minted while one is pending.
                 </p>
               </div>
+
+              {refundIntentId ? (
+                <div className="p-6 bg-black rounded-3xl space-y-4 border border-[#222222]">
+                  <p className="text-[10px] text-[#86868b] uppercase tracking-[0.2em]">Pending Refund Ticket</p>
+                  <p className="text-sm text-white font-mono break-all">{refundIntentId}</p>
+                  <p className="text-sm text-[#86868b]">Signature: {refundSignature.slice(0, 16)}...</p>
+                  <p className="text-sm text-[#86868b]">Amount: {refundAmount.toFixed(6)} USDC</p>
+                  <input
+                    type="text"
+                    value={completionTxHash}
+                    onChange={(e) => setCompletionTxHash(e.target.value)}
+                    placeholder="Paste on-chain withdraw tx hash (0x...)"
+                    className="w-full px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b]"
+                    disabled={isSettling}
+                  />
+                  <button
+                    onClick={handleCompleteSettlement}
+                    disabled={isSettling || !isValidTxHash}
+                    className="w-full px-6 py-3 font-bold text-black transition-all bg-white border border-white rounded-2xl hover:bg-gray-200 disabled:opacity-50 text-sm"
+                  >
+                    Complete Refund
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex gap-4 mt-10">
@@ -274,7 +332,7 @@ export default function BuyerOverview() {
               </button>
               <button
                 onClick={handleSettlement}
-                disabled={isSettling}
+                disabled={isSettling || Number(stats.buyerBalance) < 10}
                 className="flex-[2] px-6 py-4 font-bold text-black transition-all bg-white border border-white rounded-2xl hover:bg-gray-200 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center text-sm shadow-[0_0_20px_rgba(255,255,255,0.1)]"
               >
                 {isSettling ? (

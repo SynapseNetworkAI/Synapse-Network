@@ -30,6 +30,15 @@ export type DepositIntentRecord = {
   confirmedAt?: number;
 };
 
+export type BuyerRefundIntent = {
+  refundId: string;
+  signature: string;
+  amountRefunded: number;
+  status: "PENDING" | "COMPLETED";
+  gasPayer: "BUYER";
+  gasModel: "BUYER_PAYS_ONCHAIN";
+};
+
 export type IndexerStatus = {
   running: boolean;
   listenerAddress: string;
@@ -160,7 +169,7 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
   }));
 }
 
-export async function requestV2Refund(userAddress: string): Promise<{ signature: string; amountRefunded: number }> {
+export async function requestV2Refund(userAddress: string, amountUsdc: number): Promise<BuyerRefundIntent> {
   const headers = {
     ...buildAuthedHeaders(userAddress, true),
     "X-Idempotency-Key": buildIdempotencyKey("refund"),
@@ -169,21 +178,36 @@ export async function requestV2Refund(userAddress: string): Promise<{ signature:
   const response = await fetch(`${API_BASE}/refund`, {
     method: "POST",
     headers,
-    body: JSON.stringify({})
+    body: JSON.stringify({ amountUsdc }),
   });
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Failed to process refund"));
   }
 
-  const payload = await response.json();
-  if (payload.status === "error") {
-      throw new Error(payload.message || "Refund failed");
-  }
+  const payload = (await response.json()) as Record<string, unknown>;
+  const refundId = typeof payload.refundId === "string" ? payload.refundId : "";
+  const signature = typeof payload.signature === "string" ? payload.signature : "";
   return {
-    signature: payload.signature || "",
-    amountRefunded: Number(payload.amountRefunded || 0)
+    refundId,
+    signature,
+    amountRefunded: Number(payload.amountRefunded || 0),
+    status: payload.status === "COMPLETED" ? "COMPLETED" : "PENDING",
+    gasPayer: "BUYER",
+    gasModel: "BUYER_PAYS_ONCHAIN",
   };
+}
+
+export async function completeV2Refund(userAddress: string, refundId: string, txHash: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/refunds/${encodeURIComponent(refundId)}/complete`, {
+    method: "POST",
+    headers: buildAuthedHeaders(userAddress),
+    body: JSON.stringify({ txHash }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Failed to complete refund"));
+  }
 }
 
 export async function getV2IndexerStatus(userAddress: string): Promise<IndexerStatus> {

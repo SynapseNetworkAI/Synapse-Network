@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field, validator
 from typing import Dict, Any, List, Optional
 import time
 
+TX_HASH_PREFIX_ERROR = "txHash must start with 0x"
+TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
+
 class BaseResponse(BaseModel):
     success: bool = True
     error: Optional[str] = None
@@ -56,16 +59,30 @@ class DepositIntentRequest(BaseModel):
     def validate_tx_hash(cls, value: str) -> str:
         normalized = str(value).strip()
         if not normalized.startswith("0x"):
-            raise ValueError("txHash must start with 0x")
+            raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
         if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
-            raise ValueError("txHash must be a valid 32-byte hex string")
+            raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized
 
 
 class RefundIntentRequest(BaseModel):
     amountUsdc: float = Field(default=10, ge=10)
     reason: Optional[str] = Field(default=None, max_length=256)
+
+
+class RefundCompleteRequest(BaseModel):
+    txHash: str = Field(..., min_length=66, max_length=66)
+
+    @validator("txHash")
+    def validate_tx_hash(cls, value: str) -> str:
+        normalized = str(value).strip()
+        if not normalized.startswith("0x"):
+            raise ValueError(TX_HASH_PREFIX_ERROR)
+        hex_part = normalized[2:]
+        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+            raise ValueError(TX_HASH_FORMAT_ERROR)
+        return normalized.lower()
 
 
 class ProviderWithdrawIntentRequest(BaseModel):
@@ -79,10 +96,10 @@ class ProviderWithdrawCompleteRequest(BaseModel):
     def validate_tx_hash(cls, value: str) -> str:
         normalized = str(value).strip()
         if not normalized.startswith("0x"):
-            raise ValueError("txHash must start with 0x")
+            raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
         if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
-            raise ValueError("txHash must be a valid 32-byte hex string")
+            raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized.lower()
 
 

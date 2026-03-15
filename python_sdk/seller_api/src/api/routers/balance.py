@@ -5,6 +5,7 @@ from src.api.deps import get_balance_service, get_provider_analytics_service
 from src.models.pydantic_models import (
     DepositIntentRequest,
     RefundIntentRequest,
+    RefundCompleteRequest,
     RouterConfigRequest,
     ProviderWithdrawIntentRequest,
     ProviderWithdrawCompleteRequest,
@@ -162,6 +163,23 @@ async def list_refunds(
 ):
     rows = await service.list_refunds(owner_wallet)
     return {"status": "success", "ownerAddress": owner_wallet, "refunds": rows[:limit]}
+
+
+@router.post("/v1/refunds/{refund_id}/complete")
+async def complete_refund(
+    refund_id: str,
+    payload: RefundCompleteRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    result = await service.complete_refund_intent(
+        owner_wallet=owner_wallet,
+        refund_id=refund_id,
+        tx_hash=payload.txHash,
+        request_meta=_extract_request_meta(request),
+    )
+    return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
 @router.get("/v1/router/config")

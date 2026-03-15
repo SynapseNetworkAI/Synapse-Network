@@ -109,12 +109,14 @@ sequenceDiagram
 
 * **状态一：PENDING（已处理 / 待上链）**
   * **触发时机**：网关完成链下余额清零，向买家返回了 Signature（赛博银票）的同一事务内。
-  * **操作**：创建一条记录包含 `buyer_address, amount, nonce, signature, status=PENDING, created_at`。这代表网关已经承认该买家提走了属于他的账。
+   * **操作**：创建一条记录包含 `buyer_address, amount, signature, status=PENDING, created_at`，并将账本从 `buyers[owner]` 原子转入 `buyersLocked[owner]`。
+   * **安全门禁**：同一 owner 仅允许 1 条 `PENDING` 退款票据；重复申请会返回已有票据（同金额）或 `PENDING_REFUND_EXISTS`（不同金额）。
   * **此时平台总账本**：虽然买家余额清零，但此时 USDC 还锁在智能合约 (Vault) 内。此时无需修改平台的“链上总额记录”。
 
 * **状态二：COMPLETED（完全已确认）**
-  * **触发时机**：买家在钱包里完成交易，以太坊智能合约发出 `Withdrawn(buyer, amount, nonce)` 事件，被后端的事件监听/区块同步服务（Sync Worker）扫块捕获。
+   * **触发时机**：买家在钱包里完成链上交易后，前端调用 `POST /api/v1/refunds/{refundId}/complete` 回传 `txHash`。
   * **操作**：
-    1. 根据日志提取的 `buyer` 和 `nonce` 匹配到 `refund_intents` 表/文件中的那个 `PENDING` 记录。
-    2. 将记录状态更新为 `COMPLETED`，打上链上 `tx_hash` 与上链时间戳。
-    3. **更新平台总余额 (Platform Remaining Balance)**：将全局平台的统计总存款 / 以及对应金库的大盘总额扣减掉这笔成功退款的 `amount`，形成财务闭环！
+      1. 根据 `refundId + owner` 命中 `PENDING` 记录。
+      2. 校验 `txHash` 不能复用于同 owner 下其他退款记录（防 tx replay）。
+      3. 更新状态为 `COMPLETED` 并从 `buyersLocked[owner]` 扣减对应金额。
+      4. 写入审计日志，形成 requestId / owner / amount / txHash 的可追踪证据链。

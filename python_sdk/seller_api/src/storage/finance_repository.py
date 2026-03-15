@@ -50,11 +50,13 @@ class FinanceRepository:
         if not isinstance(ledger, dict):
             ledger = {}
         buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
         sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
         sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
         platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
         platform.setdefault("feeAccrued", 0.0)
         ledger["buyers"] = buyers
+        ledger["buyersLocked"] = buyers_locked
         ledger["sellers"] = sellers
         ledger["sellersLocked"] = sellers_locked
         ledger["platform"] = platform

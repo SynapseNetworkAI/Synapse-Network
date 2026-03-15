@@ -54,6 +54,18 @@ def balance_service(temp_storage):
     return BalanceService(temp_storage)
 
 
+def _set_buyer_balance(balance_service, owner: str, amount: float) -> None:
+    ledger = balance_service.storage.get_collection("balance_ledger") or {}
+    if not isinstance(ledger, dict):
+        ledger = {}
+    buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+    buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
+    buyers[str(owner).lower()] = round(float(amount), 6)
+    ledger["buyers"] = buyers
+    ledger["buyersLocked"] = buyers_locked
+    balance_service.storage.save_collection("balance_ledger", ledger)
+
+
 @pytest.mark.asyncio
 async def test_refund_min_amount_enforced(balance_service):
     with pytest.raises(HTTPException) as exc:
@@ -85,6 +97,8 @@ async def test_deposit_replay_protection(balance_service):
 
 @pytest.mark.asyncio
 async def test_owner_scope_isolation_for_refunds(balance_service):
+    _set_buyer_balance(balance_service, "0xowner1", 100)
+    _set_buyer_balance(balance_service, "0xowner2", 100)
     await balance_service.process_refund_intent(
         {"amountUsdc": 12, "reason": "r1"},
         "0xowner1",
@@ -107,6 +121,7 @@ async def test_owner_scope_isolation_for_refunds(balance_service):
 
 @pytest.mark.asyncio
 async def test_idempotency_consistency_with_concurrency(balance_service):
+    _set_buyer_balance(balance_service, "0xowner", 100)
     key = "refund_key_concurrency_1234"
 
     async def _call_once():
@@ -152,6 +167,7 @@ async def test_redis_distributed_rate_limit_is_used(balance_service, monkeypatch
 
 @pytest.mark.asyncio
 async def test_idempotency_payload_mismatch_returns_409(balance_service):
+    _set_buyer_balance(balance_service, "0xowner", 100)
     key = "refund_key_mismatch_12345"
     await balance_service.process_refund_intent(
         {"amountUsdc": 20, "reason": "mismatch-a"},
@@ -166,3 +182,37 @@ async def test_idempotency_payload_mismatch_returns_409(balance_service):
             key,
         )
     assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_refund_pending_and_completion_replay_guard(balance_service):
+    owner = "0xowner"
+    _set_buyer_balance(balance_service, owner, 120)
+
+    created = await balance_service.process_refund_intent(
+        {"amountUsdc": 25, "reason": "exit"},
+        owner,
+        "refund_pending_123456",
+    )
+    assert created["status"] == "PENDING"
+    assert created["gasPayer"] == "BUYER"
+
+    with pytest.raises(HTTPException) as pending_exc:
+        await balance_service.process_refund_intent(
+            {"amountUsdc": 30, "reason": "second"},
+            owner,
+            "refund_pending_654321",
+        )
+    assert pending_exc.value.status_code == 409
+
+    refund_id = str(created["refundId"])
+    tx_hash = "0x" + "a" * 64
+    completed = await balance_service.complete_refund_intent(owner, refund_id, tx_hash)
+    assert completed["status"] == "COMPLETED"
+
+    completed_again = await balance_service.complete_refund_intent(owner, refund_id, tx_hash)
+    assert completed_again["status"] == "COMPLETED"
+
+    with pytest.raises(HTTPException) as replay_exc:
+        await balance_service.complete_refund_intent(owner, refund_id, "0x" + "b" * 64)
+    assert replay_exc.value.status_code == 409

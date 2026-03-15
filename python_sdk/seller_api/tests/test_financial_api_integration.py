@@ -37,6 +37,19 @@ def _use_inmemory_storage(monkeypatch):
     monkeypatch.setattr(app_module, "create_storage", lambda _settings: InMemoryStorage())
 
 
+def _seed_buyer_balance(app, owner: str, amount: float) -> None:
+    storage = app.state.storage
+    ledger = storage.get_collection("balance_ledger") or {}
+    if not isinstance(ledger, dict):
+        ledger = {}
+    buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+    buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
+    buyers[str(owner).lower()] = round(float(amount), 6)
+    ledger["buyers"] = buyers
+    ledger["buyersLocked"] = buyers_locked
+    storage.save_collection("balance_ledger", ledger)
+
+
 def _issue_session(client: TestClient):
     acct = Account.create()
     address = acct.address.lower()
@@ -72,6 +85,7 @@ def test_financial_api_auth_and_idempotency_flow(monkeypatch):
             app = app_module.create_app()
             with TestClient(app) as client:
                 owner, token = _issue_session(client)
+                _seed_buyer_balance(app, owner, 200)
 
                 # refund minimum amount must be >= 10
                 bad = client.post(
@@ -121,6 +135,8 @@ def test_owner_isolation_and_router_limit_range(monkeypatch):
             with TestClient(app) as client:
                 owner1, token1 = _issue_session(client)
                 owner2, token2 = _issue_session(client)
+                _seed_buyer_balance(app, owner1, 200)
+                _seed_buyer_balance(app, owner2, 200)
 
                 # Create refund for owner1
                 create_refund = client.post(

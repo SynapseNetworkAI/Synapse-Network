@@ -84,6 +84,20 @@ class BalanceService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawS
     async def list_refunds(self, owner_wallet: str) -> List[Dict[str, Any]]:
         return await self.buyer_finance_service.list_refunds(owner_wallet)
 
+    async def complete_refund_intent(
+        self,
+        owner_wallet: str,
+        refund_id: str,
+        tx_hash: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return await self.buyer_finance_service.complete_refund_intent(
+            owner_wallet=owner_wallet,
+            refund_id=refund_id,
+            tx_hash=tx_hash,
+            request_meta=request_meta,
+        )
+
     async def create_provider_withdraw_intent(
         self,
         payload: Dict[str, Any],
