@@ -85,6 +85,7 @@ export type ServiceRegistryRecord = {
   endpoint: string;
   isActive: boolean;
   status?: "active" | "inactive" | "archived" | "healthy" | "degraded" | "unhealthy" | "unknown";
+  runtimeAvailable?: boolean;
   health?: {
     overallStatus?: "healthy" | "degraded" | "unhealthy" | "unknown";
     healthyTargets?: number;
@@ -162,7 +163,107 @@ type ServiceRegistryApiRecord = Partial<ServiceRegistryRecord> & {
     totalTargets?: number;
     lastCheckedAt?: number | null;
   };
+  runtimeAvailable?: boolean;
 };
+
+const DEFAULT_SERVICE_LIST_CACHE_TTL_MS = 20_000;
+
+function resolveServiceListCacheTtlMs(): number {
+  const raw = process.env.NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS?.trim();
+  if (!raw) {
+    return DEFAULT_SERVICE_LIST_CACHE_TTL_MS;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_SERVICE_LIST_CACHE_TTL_MS;
+  }
+
+  return Math.floor(parsed);
+}
+
+const SERVICE_LIST_CACHE_TTL_MS = resolveServiceListCacheTtlMs();
+
+type ServiceListCacheEntry = {
+  expiresAt: number;
+  data: ServiceRegistryRecord[];
+};
+
+const serviceListCache = new Map<string, ServiceListCacheEntry>();
+
+function normalizeKeyPart(value?: string): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function buildServiceListCacheKey(userAddress: string, ownerAddress?: string): string {
+  return `${normalizeKeyPart(userAddress)}::${normalizeKeyPart(ownerAddress)}`;
+}
+
+function cloneServiceList(rows: ServiceRegistryRecord[]): ServiceRegistryRecord[] {
+  return rows.map((row) => ({ ...row }));
+}
+
+function upsertCachedRecord(record: ServiceRegistryRecord): void {
+  const owner = normalizeKeyPart(record.ownerAddress || record.address);
+  if (!owner) {
+    return;
+  }
+
+  serviceListCache.forEach((entry, key) => {
+    const [, ownerPart] = key.split("::");
+    if (ownerPart && ownerPart !== owner) {
+      return;
+    }
+    const nextRows = cloneServiceList(entry.data);
+    const existingIdx = nextRows.findIndex((svc) => svc.serviceId === record.serviceId);
+    if (existingIdx >= 0) {
+      nextRows[existingIdx] = { ...nextRows[existingIdx], ...record };
+    } else {
+      nextRows.unshift({ ...record });
+    }
+    serviceListCache.set(key, {
+      expiresAt: Date.now() + SERVICE_LIST_CACHE_TTL_MS,
+      data: nextRows,
+    });
+  });
+}
+
+function removeCachedRecord(serviceId: string): void {
+  if (!serviceId.trim()) {
+    return;
+  }
+  serviceListCache.forEach((entry, key) => {
+    const nextRows = entry.data.filter((svc) => svc.serviceId !== serviceId);
+    if (nextRows.length === entry.data.length) {
+      return;
+    }
+    serviceListCache.set(key, {
+      expiresAt: Date.now() + SERVICE_LIST_CACHE_TTL_MS,
+      data: cloneServiceList(nextRows),
+    });
+  });
+}
+
+export function invalidateServiceRegistryListCache(ownerAddress?: string): void {
+  const owner = normalizeKeyPart(ownerAddress);
+  if (!owner) {
+    serviceListCache.clear();
+    return;
+  }
+  Array.from(serviceListCache.keys()).forEach((key) => {
+    if (key.endsWith(`::${owner}`)) {
+      serviceListCache.delete(key);
+    }
+  });
+}
+
+export function upsertServiceRegistryListCache(record: ServiceRegistryRecord): void {
+  upsertCachedRecord(record);
+}
+
+export function removeServiceRegistryListCache(serviceId: string): void {
+  removeCachedRecord(serviceId);
+}
 
 function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryRecord {
   let serviceId = "";
@@ -194,6 +295,7 @@ function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryR
     endpoint,
     isActive: typeof raw.isActive === "boolean" ? raw.isActive : raw.status === "active",
     status: raw.status,
+    runtimeAvailable: typeof raw.runtimeAvailable === "boolean" ? raw.runtimeAvailable : undefined,
     health: raw.health || raw.serviceHealth,
     summary: raw.summary,
     tags: raw.tags || [],
@@ -248,13 +350,16 @@ export async function createServiceRegistry(payload: ServiceRegistryPayload, use
 
   const data = (await response.json()) as { service?: ServiceRegistryApiRecord };
   if (data.service) {
-    return normalizeServiceRecord(data.service);
+    const created = normalizeServiceRecord(data.service);
+    upsertCachedRecord(created);
+    return created;
   }
 
   throw new Error("Backend service response missing service payload");
 }
 
 export async function updateServiceRegistry(payload: ServiceRegistryPayload, userAddress: string): Promise<void> {
+  invalidateServiceRegistryListCache(userAddress);
   const identifier = payload.serviceId || payload.id;
   if (!identifier) {
     throw new Error("Missing service identifier");
@@ -272,6 +377,7 @@ export async function updateServiceRegistry(payload: ServiceRegistryPayload, use
 }
 
 export async function deleteServiceRegistry(serviceId: string, userAddress: string): Promise<void> {
+  invalidateServiceRegistryListCache(userAddress);
   const response = await fetch(`${API_BASE_URL}/${serviceId}`, {
     method: "DELETE",
     headers: buildAuthedHeaders(userAddress, false),
@@ -280,9 +386,23 @@ export async function deleteServiceRegistry(serviceId: string, userAddress: stri
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend service delete failed"));
   }
+
+  removeCachedRecord(serviceId);
 }
 
-export async function listServiceRegistry(userAddress: string, ownerAddress?: string): Promise<ServiceRegistryRecord[]> {
+export async function listServiceRegistry(
+  userAddress: string,
+  ownerAddress?: string,
+  options?: { forceRefresh?: boolean; ttlMs?: number },
+): Promise<ServiceRegistryRecord[]> {
+  const cacheKey = buildServiceListCacheKey(userAddress, ownerAddress);
+  const cacheEntry = serviceListCache.get(cacheKey);
+  const now = Date.now();
+  const ttlMs = Number.isFinite(options?.ttlMs) ? Math.max(0, Number(options?.ttlMs)) : SERVICE_LIST_CACHE_TTL_MS;
+  if (!options?.forceRefresh && cacheEntry && cacheEntry.expiresAt > now) {
+    return cloneServiceList(cacheEntry.data);
+  }
+
   const query = ownerAddress ? `?ownerAddress=${encodeURIComponent(ownerAddress)}` : "";
   const response = await fetch(`${API_BASE_URL}${query}`, {
     method: "GET",
@@ -295,9 +415,19 @@ export async function listServiceRegistry(userAddress: string, ownerAddress?: st
 
   const payload = (await response.json()) as { services?: ServiceRegistryApiRecord[] };
   if (!Array.isArray(payload.services)) {
+    serviceListCache.set(cacheKey, {
+      expiresAt: now + ttlMs,
+      data: [],
+    });
     return [];
   }
-  return payload.services.map(normalizeServiceRecord);
+
+  const rows = payload.services.map(normalizeServiceRecord);
+  serviceListCache.set(cacheKey, {
+    expiresAt: now + ttlMs,
+    data: cloneServiceList(rows),
+  });
+  return rows;
 }
 
 export async function discoverServices(intent?: string): Promise<ServiceRegistryRecord[]> {

@@ -1,6 +1,6 @@
 import time
 from typing import Dict, List, Optional, Annotated
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from loguru import logger
 import aiohttp
 
@@ -15,8 +15,12 @@ from src.core.auth import create_auth_challenge, verify_auth_signature
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.storage import get_storage, BaseStorage
+from src.services.platform import credential_service
 
 router = APIRouter()
+
+AuthorizationHeader = Annotated[Optional[str], Header(alias="Authorization")]
+UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
 
 @router.get(
     "/v1/auth/challenge",
@@ -86,3 +90,31 @@ async def verify_signature(
     except Exception as e:
         logger.error(f"Signature verification failed: {e}")
         raise HTTPException(status_code=500, detail="Verification failed")
+
+
+@router.post(
+    "/v1/auth/logout",
+    response_model=BaseResponse,
+    responses={401: {"description": "Unauthorized"}, 500: {"description": "Logout failed"}},
+)
+async def logout(
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    """Invalidate current wallet auth session status in gateway state."""
+    try:
+        owner = credential_service.require_owner_wallet(authorization, x_user_address)
+        now = int(time.time())
+        storage.get_data_manager().system.credential_auth.upsert_auth_session(
+            wallet=owner,
+            registered_at=now,
+            last_login=now,
+            status="inactive",
+        )
+        return BaseResponse(success=True)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Logout failed: {e}")
+        raise HTTPException(status_code=500, detail="Logout failed")

@@ -226,6 +226,95 @@ def _build_service_target_health_rows(services: List[Dict[str, Any]]) -> List[Di
     return rows
 
 
+def _load_persisted_target_health(storage: BaseStorage) -> Dict[str, Dict[str, Any]]:
+    rows = storage.get_data_manager().system.registry.read_service_target_health_rows()
+    if not isinstance(rows, list):
+        return {}
+
+    index: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        payload = row.model_dump(by_alias=True) if isinstance(row, ServiceTargetHealth) else row
+        if not isinstance(payload, dict):
+            continue
+        service_id = str(payload.get("serviceId") or "").strip()
+        target_url = str(payload.get("targetUrl") or "").strip()
+        if not service_id or not target_url:
+            continue
+
+        bucket = index.setdefault(
+            service_id,
+            {
+                "overallStatus": "unknown",
+                "healthyTargets": 0,
+                "totalTargets": 0,
+                "lastCheckedAt": 0,
+                "targets": {},
+            },
+        )
+
+        row_last_checked = int(payload.get("lastCheckedAt") or 0)
+        bucket["targets"][target_url] = {
+            "status": str(payload.get("status") or "unknown"),
+            "httpStatus": payload.get("httpStatus"),
+            "latencyMs": payload.get("latencyMs"),
+            "consecutiveSuccesses": int(payload.get("consecutiveSuccesses") or 0),
+            "consecutiveFailures": int(payload.get("consecutiveFailures") or 0),
+            "probeUrl": payload.get("probeUrl") or None,
+            "lastCheckedAt": row_last_checked or None,
+            "lastHealthyAt": payload.get("lastHealthyAt") or None,
+            "error": payload.get("error") or None,
+        }
+
+        bucket["totalTargets"] = int(bucket.get("totalTargets") or 0) + 1
+        if str(payload.get("status") or "").lower() == "healthy":
+            bucket["healthyTargets"] = int(bucket.get("healthyTargets") or 0) + 1
+        if row_last_checked > int(bucket.get("lastCheckedAt") or 0):
+            bucket["lastCheckedAt"] = row_last_checked
+
+        overall_status = str(payload.get("overallStatus") or "").strip()
+        if overall_status:
+            bucket["overallStatus"] = overall_status
+
+    return index
+
+
+def _seed_service_health_from_persisted_rows(storage: BaseStorage, services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    persisted_index = _load_persisted_target_health(storage)
+    if not persisted_index:
+        return services
+
+    seeded: List[Dict[str, Any]] = []
+    for service in services:
+        if not isinstance(service, dict):
+            seeded.append(service)
+            continue
+        service_id = str(service.get("serviceId") or "").strip()
+        if not service_id:
+            seeded.append(service)
+            continue
+        current_health = service.get("serviceHealth") if isinstance(service.get("serviceHealth"), dict) else {}
+        current_targets = current_health.get("targets") if isinstance(current_health.get("targets"), dict) else {}
+        if current_targets:
+            seeded.append(service)
+            continue
+
+        persisted = persisted_index.get(service_id)
+        if not isinstance(persisted, dict):
+            seeded.append(service)
+            continue
+
+        next_service = dict(service)
+        next_service["serviceHealth"] = {
+            "overallStatus": str(persisted.get("overallStatus") or "unknown"),
+            "healthyTargets": int(persisted.get("healthyTargets") or 0),
+            "totalTargets": int(persisted.get("totalTargets") or 0),
+            "lastCheckedAt": persisted.get("lastCheckedAt") or None,
+            "targets": dict(persisted.get("targets") or {}),
+        }
+        seeded.append(next_service)
+    return seeded
+
+
 def sync_service_target_health_table(storage: BaseStorage, services: Optional[List[Dict[str, Any]]] = None) -> int:
     if services is None:
         raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
@@ -517,6 +606,8 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
         ]
     else:
         rows = []
+
+    rows = _seed_service_health_from_persisted_rows(storage, rows)
 
     checked = 0
     updated = 0

@@ -85,6 +85,10 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
     return () => globalThis.window.removeEventListener("unhandledrejection", handleUnhandledRejection);
   }, []);
 
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
@@ -93,7 +97,7 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
           accentColorForeground: "white",
           borderRadius: "medium",
         })}>
-          {mounted && children}
+          {children}
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

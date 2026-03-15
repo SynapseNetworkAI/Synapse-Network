@@ -10,6 +10,7 @@
 - **Challenge-only login flow**:
   - `GET /api/v1/auth/challenge`
   - `POST /api/v1/auth/verify`
+  - `POST /api/v1/auth/logout`
 
 - **Session-required business APIs**:
   - `GET/POST/PUT/DELETE /api/v1/services*`（除 `/discover` 外）
@@ -75,6 +76,17 @@
 - **Notes**:
   - `expires_in` 为服务端配置值（`AUTH_TOKEN_TTL_SEC`），不是固定常量。
   - 当 challenge 过期或已失效时，接口返回 `401`，前端应重新请求 challenge 并重新签名。
+
+### 1.3 会话登出 (Logout Session)
+- **Path**: `POST /api/v1/auth/logout`
+- **Desc**: 标记当前钱包在网关侧的会话状态为 `inactive`，用于控制台显式登出。
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Returns (200 OK)**:
+  ```json
+  {
+    "success": true
+  }
+  ```
 
 ---
 
