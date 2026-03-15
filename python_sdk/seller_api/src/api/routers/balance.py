@@ -4,6 +4,7 @@ from typing import Dict, Any, Annotated, Optional
 from src.api.deps import get_balance_service, get_provider_analytics_service
 from src.models.pydantic_models import (
     DepositIntentRequest,
+    DepositConfirmRequest,
     RefundIntentRequest,
     RefundCompleteRequest,
     RouterConfigRequest,
@@ -142,6 +143,24 @@ async def list_deposit_intents(
     return {"status": "success", "intents": intents[:limit]}
 
 
+@router.post("/v1/balance/deposit/intents/{deposit_intent_id}/confirm")
+async def confirm_deposit_intent(
+    deposit_intent_id: str,
+    payload: DepositConfirmRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    confirmed = await service.confirm_deposit_intent(
+        owner_wallet=owner_wallet,
+        deposit_intent_id=deposit_intent_id,
+        event_key=payload.eventKey,
+        confirmations=payload.confirmations,
+        request_meta=_extract_request_meta(request),
+    )
+    return {"status": "success", "intent": confirmed}
+
+
 @router.post("/v1/refund")
 async def process_refund(
     refund_req: RefundIntentRequest,
@@ -174,11 +193,19 @@ async def complete_refund(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
+    request_meta = _extract_request_meta(request)
+    review_meta = {
+        "decision": str(payload.reviewDecision or "").strip().upper(),
+        "reviewerAddress": str(payload.reviewerAddress or "").strip().lower(),
+        "reviewerNote": str(payload.reviewerNote or "").strip(),
+    }
+    if any(review_meta.values()):
+        request_meta["review"] = review_meta
     result = await service.complete_refund_intent(
         owner_wallet=owner_wallet,
         refund_id=refund_id,
         tx_hash=payload.txHash,
-        request_meta=_extract_request_meta(request),
+        request_meta=request_meta,
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 

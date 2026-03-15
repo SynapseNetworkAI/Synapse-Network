@@ -264,7 +264,7 @@ def _confirmations_for_receipt(tx_receipt: Any) -> int:
 
 
 def _mark_intent_failed(intent: Dict[str, Any], reason: str, now: int) -> None:
-    intent["status"] = "failed"
+    intent["status"] = "FAILED"
     intent["failureReason"] = reason
     intent["updatedAt"] = now
 
@@ -318,52 +318,118 @@ def _process_single_intent(
     buyers: Dict[str, float],
     now: int,
 ) -> Dict[str, Any]:
-    if str(intent.get("status") or "pending").lower() != "pending":
+    status = str(intent.get("status") or "PENDING_CONFIRMATION").upper()
+    if status not in {"PENDING_CONFIRMATION", "PENDING"}:
         return {"result": "skip"}
 
-    intent_fields = _extract_intent_fields(intent)
-    if not intent_fields:
+    context = _build_deposit_confirmation_context(intent)
+    if context is None:
         _mark_intent_failed(intent, "INVALID_INTENT", now)
         return {"result": "failed", "changedIntent": True}
 
-    tx_hash = str(intent_fields["tx_hash"])
-    owner_wallet = str(intent_fields["owner_wallet"])
-    min_amount_usdc = float(intent_fields["min_amount_usdc"])
+    tx_state = _resolve_deposit_receipt_state(
+        tx_hash=context["tx_hash"],
+        owner_wallet=context["owner_wallet"],
+        min_amount_usdc=context["min_amount_usdc"],
+        now=now,
+        intent=intent,
+    )
+    if tx_state is None:
+        return {"result": "pending"}
+    if str(tx_state.get("result") or "") == "failed":
+        return {"result": "failed", "changedIntent": True}
 
+    return _apply_confirmed_deposit(
+        storage=storage,
+        intent=intent,
+        context=context,
+        tx_state=tx_state,
+        processed_keys=processed_keys,
+        buyers=buyers,
+        now=now,
+    )
+
+
+def _build_deposit_confirmation_context(intent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    intent_fields = _extract_intent_fields(intent)
+    if not intent_fields:
+        return None
+    return {
+        "tx_hash": str(intent_fields["tx_hash"]),
+        "owner_wallet": str(intent_fields["owner_wallet"]),
+        "min_amount_usdc": float(intent_fields["min_amount_usdc"]),
+    }
+
+
+def _resolve_deposit_receipt_state(
+    *,
+    tx_hash: str,
+    owner_wallet: str,
+    min_amount_usdc: float,
+    now: int,
+    intent: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
     tx_receipt = _get_confirmed_receipt_or_none(tx_hash)
     if tx_receipt is None:
-        return {"result": "pending"}
-
+        return None
     if tx_receipt.get("failed") is True:
         _mark_intent_failed(intent, "CHAIN_TX_FAILED", now)
-        return {"result": "failed", "changedIntent": True}
+        return {"result": "failed"}
 
     receipt_obj = tx_receipt.get("receipt")
     if receipt_obj is None:
         _mark_intent_failed(intent, "MISSING_TX_RECEIPT", now)
-        return {"result": "failed", "changedIntent": True}
+        return {"result": "failed"}
 
     matched = _resolve_matched_event(receipt_obj, owner_wallet, min_amount_usdc)
     if not matched:
         _mark_intent_failed(intent, "NO_MATCHING_DEPOSIT_EVENT", now)
-        return {"result": "failed", "changedIntent": True}
+        return {"result": "failed"}
 
-    event_key = str(matched.get("eventKey") or "")
-    if not event_key or event_key in processed_keys:
-        intent["status"] = "duplicate"
-        intent["failureReason"] = "DEPOSIT_EVENT_REPLAY"
-        intent["updatedAt"] = now
+    return {
+        "result": "ok",
+        "tx_receipt": tx_receipt,
+        "matched": matched,
+    }
+
+
+def _apply_confirmed_deposit(
+    *,
+    storage: BaseStorage,
+    intent: Dict[str, Any],
+    context: Dict[str, Any],
+    tx_state: Dict[str, Any],
+    processed_keys: set[str],
+    buyers: Dict[str, float],
+    now: int,
+) -> Dict[str, Any]:
+    matched = tx_state["matched"]
+    tx_receipt = tx_state["tx_receipt"]
+    owner_wallet = context["owner_wallet"]
+    tx_hash = context["tx_hash"]
+
+    event_key = _resolve_event_key_or_mark_duplicate(intent, matched, processed_keys, now)
+    if not event_key:
         return {"result": "failed", "changedIntent": True}
 
     token = str(matched.get("token") or "")
     decimals = _resolve_token_decimals(token) if token else 6
     amount_usdc = _amount_usdc_from_raw(int(matched.get("amountRaw", 0)), decimals=decimals)
-    next_balance = round(float(buyers.get(owner_wallet, 0.0)) + amount_usdc, 6)
-    buyers[owner_wallet] = next_balance
-    processed_keys.add(event_key)
+    applied = _apply_confirmed_balance_to_ledger(
+        storage=storage,
+        intent=intent,
+        owner_wallet=owner_wallet,
+        event_key=event_key,
+        confirmations=int(tx_receipt.get("confirmations") or 0),
+        buyers=buyers,
+        amount_usdc=amount_usdc,
+        now=now,
+    )
+    if str(applied.get("result") or "") == "failed":
+        return {"result": "failed", "changedIntent": True}
+    next_balance = float(applied.get("next_balance") or 0.0)
 
-    intent["status"] = "confirmed"
-    intent["creditedAmountUsdc"] = amount_usdc
+    processed_keys.add(event_key)
     intent["confirmedAt"] = now
     intent["confirmations"] = int(tx_receipt.get("confirmations") or 0)
     intent["eventKey"] = event_key
@@ -377,7 +443,7 @@ def _process_single_intent(
         {
             "txHash": tx_hash,
             "eventKey": event_key,
-            "amountUsdc": amount_usdc,
+            "amountUsdc": float(intent.get("creditedAmountUsdc") or amount_usdc),
             "balanceAfter": next_balance,
         },
     )
@@ -388,6 +454,55 @@ def _process_single_intent(
         "changedLedger": True,
         "changedProcessed": True,
     }
+
+
+def _resolve_event_key_or_mark_duplicate(
+    intent: Dict[str, Any],
+    matched: Dict[str, Any],
+    processed_keys: set[str],
+    now: int,
+) -> str:
+    event_key = str(matched.get("eventKey") or "")
+    if event_key and event_key not in processed_keys:
+        return event_key
+    intent["status"] = "DUPLICATE"
+    intent["failureReason"] = "DEPOSIT_EVENT_REPLAY"
+    intent["updatedAt"] = now
+    return ""
+
+
+def _apply_confirmed_balance_to_ledger(
+    *,
+    storage: BaseStorage,
+    intent: Dict[str, Any],
+    owner_wallet: str,
+    event_key: str,
+    confirmations: int,
+    buyers: Dict[str, float],
+    amount_usdc: float,
+    now: int,
+) -> Dict[str, Any]:
+    if hasattr(storage, "confirm_deposit_intent_atomic"):
+        try:
+            confirmed = getattr(storage, "confirm_deposit_intent_atomic")(
+                owner_wallet=owner_wallet,
+                deposit_intent_id=str(intent.get("id") or ""),
+                event_key=event_key,
+                confirmations=confirmations,
+            )
+        except RuntimeError:
+            _mark_intent_failed(intent, "DEPOSIT_CONFIRM_APPLY_FAILED", now)
+            return {"result": "failed"}
+
+        intent.update(confirmed if isinstance(confirmed, dict) else {})
+        intent["status"] = "CONFIRMED"
+        return {"result": "ok", "next_balance": float(intent.get("availableAfter") or buyers.get(owner_wallet, 0.0) or 0.0)}
+
+    next_balance = round(float(buyers.get(owner_wallet, 0.0)) + amount_usdc, 6)
+    buyers[owner_wallet] = next_balance
+    intent["status"] = "CONFIRMED"
+    intent["creditedAmountUsdc"] = amount_usdc
+    return {"result": "ok", "next_balance": next_balance}
 
 
 def _accumulate_outcome_counts(outcome: Dict[str, Any], counters: Dict[str, int]) -> None:

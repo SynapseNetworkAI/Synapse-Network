@@ -21,6 +21,7 @@ from src.storage.base import BaseStorage
 
 WITHDRAW_AUTO_APPROVAL_LIMIT_USDC = 100.0
 ACTIVE_WITHDRAWAL_STATUSES = {"REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "PENDING"}
+INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds seller receivable."
 
 
 class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin):
@@ -125,7 +126,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         if amount > available:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": "amountUsdc exceeds seller receivable."},
+                detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": INSUFFICIENT_RECEIVABLE_MESSAGE},
             )
         return amount
 
@@ -233,7 +234,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 if str(exc) == "INSUFFICIENT_SELLER_RECEIVABLE":
                     raise HTTPException(
                         status_code=400,
-                        detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": "amountUsdc exceeds seller receivable."},
+                        detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": INSUFFICIENT_RECEIVABLE_MESSAGE},
                     )
                 raise
             return
@@ -302,6 +303,112 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 "contractAddress": normalize_wallet(settings.router_address),
             },
         }
+
+    def _build_atomic_signing_ticket(self, owner: str, amount_usdc: Decimal) -> Dict[str, Any]:
+        payload = self._prepare_withdraw_ticket(owner=owner, amount_usdc=float(amount_usdc))
+        if bool(payload.get("requiresManualReview")):
+            return {}
+        return payload.get("ticket") if isinstance(payload.get("ticket"), dict) else {}
+
+    def process_withdrawal_request(
+        self,
+        *,
+        seller_address: str,
+        amount_usdc: Decimal,
+        request_id: str,
+        idempotency_key: str,
+        request_meta: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if not hasattr(self.storage, "process_withdrawal_request_atomic"):
+            raise RuntimeError("WITHDRAWAL_ATOMIC_NOT_SUPPORTED")
+
+        owner = normalize_wallet(seller_address)
+        high_risk_override = owner in settings.withdrawal_high_risk_seller_addresses
+        window_seconds = max(1, int(settings.withdrawal_window_hours)) * 3600
+
+        try:
+            return getattr(self.storage, "process_withdrawal_request_atomic")(
+                seller_address=owner,
+                amount_usdc=amount_usdc,
+                request_id=request_id,
+                idempotency_key=idempotency_key,
+                request_meta=request_meta,
+                single_limit_usdc=Decimal(str(settings.withdrawal_auto_single_limit_usdc)),
+                rolling_24h_limit_usdc=Decimal(str(settings.withdrawal_auto_24h_limit_usdc)),
+                window_seconds=window_seconds,
+                high_risk_override=high_risk_override,
+                sign_ticket_factory=lambda value: self._build_atomic_signing_ticket(owner, value),
+            )
+        except RuntimeError as exc:
+            code = str(exc)
+            if code == "INSUFFICIENT_SELLER_RECEIVABLE":
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "INSUFFICIENT_SELLER_RECEIVABLE", "message": INSUFFICIENT_RECEIVABLE_MESSAGE},
+                )
+            if code == "INVALID_WITHDRAW_AMOUNT":
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
+                )
+            raise
+
+    async def _create_provider_withdraw_intent_atomic(
+        self,
+        *,
+        owner: str,
+        amount_usdc: float,
+        idempotency_key: str,
+        request_hash: str,
+        request_meta: Optional[Dict[str, Any]],
+        redis_client: Optional[Any],
+        idem_rows: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        request_id = str((request_meta or {}).get("requestId") or str(uuid4()))
+        atomic_result = self.process_withdrawal_request(
+            seller_address=owner,
+            amount_usdc=Decimal(str(amount_usdc)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+            request_id=request_id,
+            idempotency_key=idempotency_key,
+            request_meta=request_meta,
+        )
+        response = {
+            "withdrawalId": str(atomic_result.get("withdrawalId") or ""),
+            "status": str(atomic_result.get("status") or "REQUESTED"),
+            "amountUsdc": round(float(atomic_result.get("amountUsdc") or amount_usdc), 6),
+            "ticket": atomic_result.get("ticket") if isinstance(atomic_result.get("ticket"), dict) else {},
+            "message": str(atomic_result.get("message") or ""),
+        }
+        await self._finish_provider_withdraw_idempotency(
+            owner=owner,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            response=response,
+            redis_client=redis_client,
+            idem_rows=idem_rows,
+        )
+        if str(atomic_result.get("decision") or "").lower() == "red":
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": str(atomic_result.get("riskReasonCode") or "WITHDRAWAL_BLOCKED_BY_RISK_POLICY"),
+                    "message": str(atomic_result.get("message") or "Withdrawal blocked by risk policy."),
+                },
+            )
+
+        self._append_financial_audit(
+            "PROVIDER_WITHDRAW_INTENT_CREATED",
+            owner,
+            {
+                "withdrawalId": response["withdrawalId"],
+                "amountUsdc": response["amountUsdc"],
+                "status": response["status"],
+                "idempotencyKey": idempotency_key,
+                "requestId": request_id,
+                "requestMeta": request_meta or {},
+            },
+        )
+        return response
 
     async def _resolve_pending_withdrawal_response(
         self,
@@ -442,6 +549,17 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             )
             if pending_response is not None:
                 return pending_response
+
+            if hasattr(self.storage, "process_withdrawal_request_atomic"):
+                return await self._create_provider_withdraw_intent_atomic(
+                    owner=owner,
+                    amount_usdc=amount_usdc,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    request_meta=request_meta,
+                    redis_client=redis_client,
+                    idem_rows=idem_rows,
+                )
 
             ticket_payload = self._prepare_withdraw_ticket(owner=owner, amount_usdc=amount_usdc)
             self._reserve_withdraw_amount(owner, amount_usdc, ledger)

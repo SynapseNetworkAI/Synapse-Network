@@ -67,6 +67,23 @@ class BalanceService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawS
     async def list_deposit_intents(self, owner_wallet: str) -> list:
         return await self.buyer_finance_service.list_deposit_intents(owner_wallet)
 
+    async def confirm_deposit_intent(
+        self,
+        *,
+        owner_wallet: str,
+        deposit_intent_id: str,
+        event_key: str,
+        confirmations: int,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return await self.buyer_finance_service.confirm_deposit_intent(
+            owner_wallet=owner_wallet,
+            deposit_intent_id=deposit_intent_id,
+            event_key=event_key,
+            confirmations=confirmations,
+            request_meta=request_meta,
+        )
+
     async def process_refund_intent(
         self,
         payload: Dict[str, Any],

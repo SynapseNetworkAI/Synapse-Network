@@ -10,6 +10,9 @@ from src.storage.finance_repository import FinanceRepository
 from src.storage import BaseStorage
 
 
+RISK_RESTRICTED_STATUSES = {"restricted", "suspended", "blocked"}
+
+
 def sanitize_fee_rate(raw: Any, fallback: float) -> float:
     """Clamp fee rates to [0,1] so malformed policy data cannot break settlement math."""
     try:
@@ -98,6 +101,39 @@ def append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
     FinanceRepository(storage).save_usage_log_rows(rows)
 
 
+def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
+    sessions = storage.get_collection("auth_sessions")
+    if not isinstance(sessions, dict):
+        return False
+    payload = sessions.get(normalize_wallet(wallet))
+    if not isinstance(payload, dict):
+        return False
+    status = str(payload.get("status") or "").strip().lower()
+    return status in RISK_RESTRICTED_STATUSES
+
+
+def _assert_not_risk_restricted_for_charge(storage: BaseStorage, buyer_wallet: str, seller_wallet: str) -> None:
+    ledger = FinanceRepository(storage).load_balance_ledger()
+    buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
+    sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
+
+    buyer = normalize_wallet(buyer_wallet)
+    seller = normalize_wallet(seller_wallet)
+    buyer_frozen = round(float(buyers_frozen.get(buyer, 0.0)), 6)
+    seller_frozen = round(float(sellers_frozen.get(seller, 0.0)), 6)
+
+    if buyer_frozen > 0 and _wallet_is_restricted(storage, buyer):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "BUYER_RESTRICTED_RISK_BLOCK", "message": "Buyer account is risk-restricted and cannot be charged."},
+        )
+    if seller_frozen > 0 and _wallet_is_restricted(storage, seller):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "SELLER_RESTRICTED_RISK_BLOCK", "message": "Seller account is risk-restricted and cannot settle charges."},
+        )
+
+
 async def charge_and_mark_usage(
     storage: BaseStorage,
     owner_wallet: str,
@@ -109,42 +145,93 @@ async def charge_and_mark_usage(
 ) -> Tuple[float, Optional[Dict[str, Any]]]:
     """Atomically charge buyer, credit seller/platform, and increment credential usage."""
     now = credential_service.now_ts()
+
+    _assert_not_risk_restricted_for_charge(storage, owner_wallet, seller_wallet)
+
+    if hasattr(storage, "charge_buyer_and_record_usage_atomic"):
+        return _charge_and_mark_usage_atomic(
+            storage=storage,
+            owner_wallet=owner_wallet,
+            seller_wallet=seller_wallet,
+            total_charge=total_charge,
+            platform_fee_total=platform_fee_total,
+            seller_net=seller_net,
+            credential_id=credential_id,
+            now=now,
+        )
+    return await _charge_and_mark_usage_fallback(
+        storage=storage,
+        owner_wallet=owner_wallet,
+        seller_wallet=seller_wallet,
+        total_charge=total_charge,
+        platform_fee_total=platform_fee_total,
+        seller_net=seller_net,
+        credential_id=credential_id,
+    )
+
+
+def _charge_and_mark_usage_atomic(
+    *,
+    storage: BaseStorage,
+    owner_wallet: str,
+    seller_wallet: str,
+    total_charge: float,
+    platform_fee_total: float,
+    seller_net: float,
+    credential_id: str,
+    now: int,
+) -> Tuple[float, Optional[Dict[str, Any]]]:
     buyer_after = 0.0
     updated_credential = None
 
-    if hasattr(storage, "charge_buyer_and_record_usage_atomic"):
-        usage_row = {
-            "id": f"usage-{now}-{credential_id}",
-            "timestamp": now,
-            "buyer": owner_wallet,
-            "seller": seller_wallet,
-            "status": "accepted",
-            "totalCharge": float(Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)),
-        }
-        try:
-            result = getattr(storage, "charge_buyer_and_record_usage_atomic")(
-                owner_wallet=owner_wallet,
-                seller_wallet=seller_wallet,
-                total_charge=Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
-                seller_net=Decimal(str(seller_net)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
-                platform_fee_total=Decimal(str(platform_fee_total)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
-                usage_row=usage_row,
-            )
-            buyer_after = float(result.get("buyerBalanceAfter") or 0.0)
-        except RuntimeError as exc:
-            if str(exc) == "INSUFFICIENT_BALANCE":
-                raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"})
-            raise
+    usage_row = {
+        "id": f"usage-{now}-{credential_id}",
+        "timestamp": now,
+        "buyer": owner_wallet,
+        "seller": seller_wallet,
+        "status": "accepted",
+        "totalCharge": float(Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)),
+    }
+    try:
+        result = getattr(storage, "charge_buyer_and_record_usage_atomic")(
+            owner_wallet=owner_wallet,
+            seller_wallet=seller_wallet,
+            total_charge=Decimal(str(total_charge)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+            seller_net=Decimal(str(seller_net)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+            platform_fee_total=Decimal(str(platform_fee_total)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+            usage_row=usage_row,
+        )
+        buyer_after = float(result.get("buyerBalanceAfter") or 0.0)
+    except RuntimeError as exc:
+        if str(exc) == "INSUFFICIENT_BALANCE":
+            raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"})
+        if str(exc) in {"BUYER_RESTRICTED_RISK_BLOCK", "SELLER_RESTRICTED_RISK_BLOCK"}:
+            raise HTTPException(status_code=403, detail={"code": str(exc), "message": "Charge blocked by risk policy."})
+        raise
 
-        rows, extras = credential_service.load_credential_rows(storage)
-        idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
-        if idx >= 0:
-            rows[idx]["callsUsed"] = int(rows[idx].get("callsUsed") or 0) + 1
-            rows[idx]["updatedAt"] = now
-            updated_credential = rows[idx]
-            credential_service.save_credential_rows(storage, rows, extras)
-        return buyer_after, updated_credential
+    rows, extras = credential_service.load_credential_rows(storage)
+    idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
+    if idx >= 0:
+        rows[idx]["callsUsed"] = int(rows[idx].get("callsUsed") or 0) + 1
+        rows[idx]["updatedAt"] = now
+        updated_credential = rows[idx]
+        credential_service.save_credential_rows(storage, rows, extras)
+    return buyer_after, updated_credential
 
+
+async def _charge_and_mark_usage_fallback(
+    *,
+    storage: BaseStorage,
+    owner_wallet: str,
+    seller_wallet: str,
+    total_charge: float,
+    platform_fee_total: float,
+    seller_net: float,
+    credential_id: str,
+) -> Tuple[float, Optional[Dict[str, Any]]]:
+    buyer_after = 0.0
+    updated_credential = None
+    now = credential_service.now_ts()
     async with credential_service.write_lock:
         repo = FinanceRepository(storage)
         ledger = repo.load_balance_ledger()

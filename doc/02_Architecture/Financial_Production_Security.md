@@ -129,6 +129,55 @@ Router daily limit definition:
    - auto-approved intents: `APPROVED_AUTO`
    - high-amount intents requiring manual review: `PENDING_MANUAL_REVIEW`
 4. Legacy `PENDING` withdrawal rows are normalized to `REQUESTED` in repository compatibility layer.
+5. Provider withdrawal intent creation is now executed in one PostgreSQL transaction with row-level lock:
+   - lock seller balance row via `SELECT ... FOR UPDATE`
+   - calculate rolling withdrawal amount in configured time window
+   - calculate historical net income from successful usage settlements
+   - evaluate high-risk seller tag (DB risk flag + env override)
+   - apply red/yellow/green decision and write balance + withdrawal row + audit row atomically
+6. Risk decision outcomes:
+   - `red`: status persisted as `REJECTED`, API returns `403` + reason code
+   - `yellow`: move `available -> frozen`, status `PENDING_MANUAL_REVIEW`
+   - `green`: move `available -> pending`, status `APPROVED_AUTO`, sign and return EIP-712 ticket
+
+### 2.13 Tenth-Round Deposit/Charge Transaction Hardening
+
+1. Deposit registration now follows `PENDING_CONFIRMATION -> CONFIRMED`:
+   - register intent: insert intent with DB-level txHash dedup and move buyer amount into `pending_balance`
+   - confirm intent: move buyer `pending_balance -> available_balance` atomically and persist `CONFIRMED`
+2. Deposit replay handling is dual-layer:
+   - app layer replay window check (`txHash + owner`)
+   - DB physical uniqueness (`synapse_deposit_dedup.tx_hash`) with integrity-error fallback to stable existing result
+3. Charge settlement remains one atomic transaction:
+   - debit buyer available
+   - credit seller available
+   - credit platform fee pool
+   - persist usage ledger row + audit
+4. Charge risk pre-check is enforced before balance mutation:
+   - if buyer/seller `frozen_balance > 0` and account status is `restricted/suspended/blocked`, block with `403`
+
+### 2.14 Eleventh-Round Refund Risk-Control Hardening
+
+1. Refund creation now enforces strict origin traceability:
+   - request must provide at least one of `originRequestId` or `originTxHash`
+   - optional destination address must equal owner wallet (route-back only)
+2. Refund amount is bounded by origin-settlement remaining capacity:
+   - scan successful usage rows (`status in succeeded/success/completed/accepted`) for matching origin
+   - compute `remaining = refundable_total - already_refunded_non_rejected`
+   - reject when requested amount exceeds remaining
+3. Refund intents now run a built-in risk classifier:
+   - `green`: default `PENDING`
+   - `yellow`: large amount (`>= 500 USDC`) or `MANUAL_APPEAL`, status `PENDING_MANUAL_REVIEW`
+   - `red`: abnormal split pattern over same origin in 24h window, status `PENDING_MANUAL_REVIEW` + risk reason code
+4. One-active-refund guard is upgraded to owner-level active statuses set:
+   - active statuses include `PENDING` and `PENDING_MANUAL_REVIEW`
+5. Manual-review completion contract:
+   - `APPROVE`: allow completion and consume locked buyer funds
+   - `REJECT`: release locked funds back to available and persist `REJECTED`
+   - require reviewer metadata (`reviewerAddress`, optional `reviewerNote`) for manual-review rows
+6. Auditing is expanded with refund risk and review attributes:
+   - create logs include origin keys, risk level/reason, and remaining ceiling snapshot
+   - complete/reject logs include reviewer decision metadata
 
 ## 3. Configuration Contract
 
@@ -139,6 +188,10 @@ Key runtime knobs in `python_sdk/seller_api/src/core/config.py`:
 3. `FINANCE_REPLAY_WINDOW_SEC`
 4. `FINANCE_WRITE_RATE_LIMIT_PER_MIN`
 5. `JWT_SECRET` / `AUTH_SECRET` should be 32+ bytes for HS256 production safety.
+6. `WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC`
+7. `WITHDRAWAL_AUTO_24H_LIMIT_USDC`
+8. `WITHDRAWAL_WINDOW_HOURS`
+9. `WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES`
 
 Default examples live in `python_sdk/.env.example`.
 

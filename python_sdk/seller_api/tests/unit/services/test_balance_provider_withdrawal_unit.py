@@ -271,3 +271,88 @@ async def test_complete_provider_withdrawal_uses_db_tx_dedup_hook(temp_storage):
         await service.complete_provider_withdrawal(owner_wallet=owner, withdrawal_id="wd-db-1", tx_hash=tx_hash)
     assert exc.value.status_code == 409
     assert exc.value.detail["code"] == "WITHDRAWAL_TX_REPLAY_DETECTED"
+
+
+@pytest.mark.asyncio
+async def test_create_provider_withdraw_intent_uses_atomic_green_path(monkeypatch, temp_storage):
+    owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
+    service = BalanceService(temp_storage)
+
+    temp_storage.save_collection(
+        "balance_ledger",
+        {
+            "buyers": {},
+            "sellers": {owner.lower(): 8.0},
+            "sellersLocked": {},
+            "platform": {"feeAccrued": 0},
+        },
+    )
+
+    monkeypatch.setattr(service, "_withdraw_contract", lambda: _stub_withdraw_contract(nonce=2, chain_id=31337))
+    monkeypatch.setattr(service, "_require_withdraw_signer", lambda: "0x" + "11" * 32)
+    monkeypatch.setattr(service, "_sign_withdraw_ticket", lambda _typed, _key: "0x" + "dd" * 65)
+
+    called = {"hit": False}
+
+    def _process_withdrawal_request_atomic(**kwargs):
+        called["hit"] = True
+        return {
+            "decision": "green",
+            "withdrawalId": "wd-atomic-green-1",
+            "status": "APPROVED_AUTO",
+            "amountUsdc": 3.0,
+            "ticket": {"nonce": 2, "signature": "0x" + "dd" * 65},
+            "message": "",
+        }
+
+    setattr(temp_storage, "process_withdrawal_request_atomic", _process_withdrawal_request_atomic)
+
+    result = await service.create_provider_withdraw_intent(
+        payload={"amountUsdc": 3.0},
+        owner_wallet=owner,
+        idempotency_key="provider-withdraw-atomic-green-1",
+        request_meta={"requestId": "req-atomic-green-1"},
+    )
+
+    assert called["hit"] is True
+    assert result["withdrawalId"] == "wd-atomic-green-1"
+    assert result["status"] == "APPROVED_AUTO"
+    assert int(result["ticket"]["nonce"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_create_provider_withdraw_intent_atomic_red_returns_403(temp_storage):
+    owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
+    service = BalanceService(temp_storage)
+
+    temp_storage.save_collection(
+        "balance_ledger",
+        {
+            "buyers": {},
+            "sellers": {owner.lower(): 12.0},
+            "sellersLocked": {},
+            "platform": {"feeAccrued": 0},
+        },
+    )
+
+    def _process_withdrawal_request_atomic(**kwargs):
+        return {
+            "decision": "red",
+            "withdrawalId": "wd-atomic-red-1",
+            "status": "REJECTED",
+            "riskReasonCode": "HIGH_RISK_SELLER_TAGGED",
+            "message": "Withdrawal blocked by risk policy.",
+        }
+
+    setattr(temp_storage, "process_withdrawal_request_atomic", _process_withdrawal_request_atomic)
+
+    with pytest.raises(HTTPException) as exc:
+        await service.create_provider_withdraw_intent(
+            payload={"amountUsdc": 2.0},
+            owner_wallet=owner,
+            idempotency_key="provider-withdraw-atomic-red-1",
+            request_meta={"requestId": "req-atomic-red-1"},
+        )
+
+    assert exc.value.status_code == 403
+    assert exc.value.detail["code"] == "HIGH_RISK_SELLER_TAGGED"

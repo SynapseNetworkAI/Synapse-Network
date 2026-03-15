@@ -415,6 +415,16 @@ class Settings:
     gateway_default_service_qps: int = _env_int("GATEWAY_DEFAULT_SERVICE_QPS", 50)
     # Provider withdraw ticket expiry seconds for EIP-712 signed claim payload.
     provider_withdraw_deadline_sec: int = _env_int("PROVIDER_WITHDRAW_DEADLINE_SEC", 900)
+    # Withdrawal risk-engine thresholds.
+    withdrawal_auto_single_limit_usdc: float = max(0.0, _env_float("WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC", 100.0))
+    withdrawal_auto_24h_limit_usdc: float = max(0.0, _env_float("WITHDRAWAL_AUTO_24H_LIMIT_USDC", 500.0))
+    withdrawal_window_hours: int = max(1, _env_int("WITHDRAWAL_WINDOW_HOURS", 24))
+    # Comma-separated seller addresses always treated as high risk.
+    withdrawal_high_risk_seller_addresses: set[str] = {
+        addr.strip().lower()
+        for addr in os.getenv("WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES", "").split(",")
+        if addr.strip()
+    }
 
     # Service health monitor controls for seller upstream availability checks.
     service_health_monitor_enabled: bool = _env_bool("SERVICE_HEALTH_MONITOR_ENABLED", True)
