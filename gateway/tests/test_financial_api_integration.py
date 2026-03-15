@@ -189,3 +189,27 @@ def test_owner_isolation_and_router_limit_range(monkeypatch):
         finally:
             cfg.settings.runtime_storage_dir = old_runtime_dir
             app_module.run_v2_deposit_indexer = old_indexer
+
+
+def test_auth_logout_marks_session_inactive(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
+    with TemporaryDirectory() as tmp:
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_indexer = app_module.run_v2_deposit_indexer
+        cfg.settings.runtime_storage_dir = tmp
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                owner, token = _issue_session(client)
+
+                response = client.post("/api/v1/auth/logout", headers=_auth_headers(token, owner))
+                assert response.status_code == 200
+                assert response.json().get("success") is True
+
+                sessions = app.state.storage.get_collection("auth_sessions")
+                assert isinstance(sessions, dict)
+                assert sessions.get(owner, {}).get("status") == "inactive"
+        finally:
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            app_module.run_v2_deposit_indexer = old_indexer

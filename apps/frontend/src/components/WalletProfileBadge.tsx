@@ -40,12 +40,15 @@ export default function WalletProfileBadge() {
   const handleLogout = useCallback(async () => {
     if (address) {
       try {
-        await fetch(`${getGatewayBaseUrl()}/api/client/logout`, {
+        const response = await fetch(`${getGatewayBaseUrl()}/api/v1/auth/logout`, {
           method: "POST",
           headers: {
             ...buildAuthedHeaders(address, false),
           },
         });
+        if (!response.ok && response.status !== 404) {
+          console.warn("Backend logout warning:", response.status);
+        }
       } catch (error) {
         console.warn("Backend logout warning:", error);
       }

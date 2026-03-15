@@ -73,6 +73,10 @@ def list_seller_secrets_by_owner(storage: BaseStorage, owner_wallet: str) -> Lis
     for row in rows:
         if normalize_wallet(str(row.get("ownerAddress", ""))) != owner_wallet:
             continue
+        status = str(row.get("status") or "").strip().lower()
+        # Revoked keys are logically deleted and should not be listed as active secrets.
+        if status == "revoked" or row.get("revokedAt") is not None:
+            continue
         result.append(
             {
                 "id": row.get("id"),

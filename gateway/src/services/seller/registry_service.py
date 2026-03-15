@@ -495,7 +495,16 @@ class RegistryService:
 
     async def list_owner_services(self, owner_wallet: str) -> List[Dict[str, Any]]:
         rows = self._load_service_registry_rows()
-        return [svc for svc in rows if svc.get("ownerAddress") == owner_wallet]
+        owner_rows: List[Dict[str, Any]] = []
+        for svc in rows:
+            if svc.get("ownerAddress") != owner_wallet:
+                continue
+            enriched = dict(svc)
+            enriched["status"] = service_health_service.public_discover_status(svc)
+            enriched["health"] = service_health_service.public_health_summary(svc)
+            enriched["runtimeAvailable"] = service_health_service.is_service_discoverable(svc)
+            owner_rows.append(enriched)
+        return owner_rows
 
     async def health_status(self, intent: Optional[str] = None, include_inactive: bool = False) -> List[Dict[str, Any]]:
         rows = self._load_service_registry_rows()

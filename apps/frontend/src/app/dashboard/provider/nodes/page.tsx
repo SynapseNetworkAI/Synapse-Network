@@ -8,7 +8,9 @@ import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import {
+  invalidateServiceRegistryListCache,
   listServiceRegistry,
+  upsertServiceRegistryListCache,
   updateServiceRegistry,
   type ServiceRegistryPayload,
   type ServiceRegistryRecord,
@@ -18,6 +20,29 @@ import { extractPricingAmount, formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
 
 type NodeStatus = "all" | "online" | "offline";
+
+function isServiceRuntimeOnline(svc: ServiceRegistryRecord): boolean {
+  if (!svc.isActive) {
+    return false;
+  }
+  if (typeof (svc as { runtimeAvailable?: unknown }).runtimeAvailable === "boolean") {
+    return Boolean((svc as { runtimeAvailable?: boolean }).runtimeAvailable);
+  }
+  const health = svc.health;
+  if (!health) {
+    return true;
+  }
+  const healthyTargets = Number(health.healthyTargets || 0);
+  return healthyTargets > 0 && String(health.overallStatus || "").toLowerCase() !== "unhealthy";
+}
+
+function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inactive" | "archived" {
+  const raw = String(svc.status || "").toLowerCase();
+  if (raw === "inactive" || raw === "archived") {
+    return raw;
+  }
+  return svc.isActive ? "active" : "inactive";
+}
 
 const CONSTRAINT_LIMITS = {
   timeoutMs: { min: 300, max: 15000 },
@@ -361,10 +386,11 @@ export default function ProviderNodesPage() {
       const byServiceId = (svc.serviceId || "").toLowerCase().includes(q);
       const byName = (svc.name || svc.serviceName || "").toLowerCase().includes(q);
       const matchesText = !q || byServiceId || byName;
+      const runtimeOnline = isServiceRuntimeOnline(svc);
       const matchesStatus =
         status === "all" ||
-        (status === "online" && svc.isActive) ||
-        (status === "offline" && !svc.isActive);
+        (status === "online" && runtimeOnline) ||
+        (status === "offline" && !runtimeOnline);
       return matchesText && matchesStatus;
     });
   }, [query, services, status]);
@@ -385,7 +411,14 @@ export default function ProviderNodesPage() {
 
   const openEditModal = (svc: ServiceRegistryRecord) => {
     setEditing(svc);
-    setDraft(toEditDraft(svc));
+    const nextDraft = toEditDraft(svc);
+    if (!nextDraft.invokeUrl.trim()) {
+      nextDraft.invokeUrl =
+        svc.endpoint ||
+        svc.invoke?.url ||
+        (Array.isArray(svc.invoke?.targets) ? (svc.invoke?.targets[0]?.url || "") : "");
+    }
+    setDraft(nextDraft);
   };
 
   const persistEdit = async () => {
@@ -503,35 +536,41 @@ export default function ProviderNodesPage() {
       },
     };
 
+    const optimisticService: ServiceRegistryRecord = {
+      ...editing,
+      name: payload.serviceName,
+      serviceName: payload.serviceName,
+      summary: payload.summary || "",
+      pricing: typeof payload.pricing === "string" ? payload.pricing : payload.pricing.amount,
+      isActive: payload.isActive,
+      status: payload.status,
+      tags: payload.tags,
+      auth: payload.auth,
+      healthCheck: payload.healthCheck,
+      constraints: payload.constraints,
+      forwarding: payload.forwarding,
+      metering: payload.metering,
+      invoke: {
+        ...payload.invoke,
+        url: payload.invoke.url || editing.invoke?.url || editing.endpoint || "",
+      },
+      updatedAt: payload.updatedAt,
+    };
+
+    const prevServices = services;
+    setServices((prev) => prev.map((svc) => (
+      svc.serviceId === editing.serviceId ? optimisticService : svc
+    )));
+    upsertServiceRegistryListCache(optimisticService);
+
     setSaving(true);
     try {
       await updateServiceRegistry(payload, address);
-      setServices((prev) => prev.map((svc) => (
-        svc.serviceId === editing.serviceId
-          ? {
-              ...svc,
-              name: payload.serviceName,
-              serviceName: payload.serviceName,
-              summary: payload.summary || "",
-              pricing: typeof payload.pricing === "string" ? payload.pricing : payload.pricing.amount,
-              isActive: payload.isActive,
-              status: payload.status,
-              tags: payload.tags,
-              auth: payload.auth,
-              healthCheck: payload.healthCheck,
-              constraints: payload.constraints,
-              forwarding: payload.forwarding,
-              metering: payload.metering,
-              invoke: {
-                ...payload.invoke,
-                url: payload.invoke.url || svc.invoke?.url || svc.endpoint || "",
-              },
-            }
-          : svc
-      )));
       toast.success("Service updated");
       closeModal();
     } catch (err) {
+      setServices(prevServices);
+      invalidateServiceRegistryListCache(address);
       toast.error(err instanceof Error ? err.message : "Failed to update service");
     } finally {
       setSaving(false);
@@ -600,14 +639,15 @@ export default function ProviderNodesPage() {
               <th className="py-5 px-6">Service</th>
               <th className="py-5 px-6">Service ID</th>
               <th className="py-5 px-6">Pricing</th>
-              <th className="py-5 px-6 text-center">State</th>
+              <th className="py-5 px-6 text-center">Status</th>
+              <th className="py-5 px-6 text-center">Callable</th>
               <th className="py-5 px-6 text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-14 text-center text-sm text-[#86868b]">
+                <td colSpan={6} className="py-14 text-center text-sm text-[#86868b]">
                   {loading ? "Loading API services..." : "No API services match the current filters."}
                 </td>
               </tr>
@@ -624,14 +664,38 @@ export default function ProviderNodesPage() {
                 <td className="py-5 px-6 text-sm font-mono text-[#e5e5ea]">{svc.serviceId}</td>
                 <td className="py-5 px-6 text-sm text-[#e5e5ea] font-mono">{formatPricing(svc.pricing)} / CALL</td>
                 <td className="py-5 px-6 text-center">
-                  {svc.isActive ? (
+                  {(() => {
+                    const serviceStatus = normalizedServiceStatus(svc);
+                    if (serviceStatus === "active") {
+                      return (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#22c55e] border border-[#22c55e]/30 bg-[#22c55e]/10">
+                          Active
+                        </span>
+                      );
+                    }
+                    if (serviceStatus === "inactive") {
+                      return (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#f59e0b] border border-[#f59e0b]/30 bg-[#f59e0b]/10">
+                          Inactive
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#ef4444] border border-[#ef4444]/30 bg-[#ef4444]/10">
+                        Archived
+                      </span>
+                    );
+                  })()}
+                </td>
+                <td className="py-5 px-6 text-center">
+                  {isServiceRuntimeOnline(svc) ? (
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#22c55e] border border-[#22c55e]/30 bg-[#22c55e]/10">
                       <Gauge className="w-3 h-3 mr-1" />
-                      Online
+                      Callable
                     </span>
                   ) : (
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#86868b] border border-[#333333] bg-[#111111]">
-                      Offline
+                      Unavailable
                     </span>
                   )}
                 </td>
@@ -751,26 +815,6 @@ export default function ProviderNodesPage() {
                       value={draft.tagsText}
                       onChange={(e) => setDraft((prev) => (prev ? { ...prev, tagsText: e.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Auth Type (Platform Managed)</span>
-                    <input
-                      value={draft.authType}
-                      readOnly
-                      disabled
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#111111] px-3 py-2 text-[#a1a1aa] outline-none cursor-not-allowed"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Auth Header Name (Platform Managed)</span>
-                    <input
-                      value={draft.authHeaderName}
-                      readOnly
-                      disabled
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#111111] px-3 py-2 text-[#a1a1aa] outline-none cursor-not-allowed"
                     />
                   </label>
 
@@ -904,109 +948,6 @@ export default function ProviderNodesPage() {
               </section>
 
               <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Forwarding And Metering</h3>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Request Id Header</span>
-                    <input
-                      value={draft.requestIdHeader}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, requestIdHeader: e.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Pass Through Headers</span>
-                    <input
-                      value={draft.passThroughHeadersText}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, passThroughHeadersText: e.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">Inject Headers (JSON)</span>
-                    <textarea
-                      rows={4}
-                      value={draft.injectHeadersJson}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, injectHeadersJson: e.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.injectHeadersJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.injectHeadersJson && <p className="text-xs text-[#f87171]">{editValidation.errors.injectHeadersJson}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Retry Max Attempts</span>
-                    <input
-                      value={draft.retryMaxAttempts}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, retryMaxAttempts: e.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Retry Backoff Ms</span>
-                    <input
-                      value={draft.retryBackoffMs}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, retryBackoffMs: e.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">Retry On Status (comma separated)</span>
-                    <input
-                      value={draft.retryOnStatusText}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, retryOnStatusText: e.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Billing Unit</span>
-                    <select
-                      value={draft.billingUnit}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, billingUnit: e.target.value as "per_call" | "per_success_call" } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    >
-                      <option value="per_call">per_call</option>
-                      <option value="per_success_call">per_success_call</option>
-                    </select>
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
-                    <input
-                      type="checkbox"
-                      checked={draft.billOnError}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, billOnError: e.target.checked } : prev))}
-                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
-                    />
-                    <span>Bill On Error</span>
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
-                    <input
-                      type="checkbox"
-                      checked={draft.requestIdRequired}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, requestIdRequired: e.target.checked } : prev))}
-                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
-                    />
-                    <span>Request Id Required</span>
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
-                    <input
-                      type="checkbox"
-                      checked={draft.responseSizeMetering}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, responseSizeMetering: e.target.checked } : prev))}
-                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
-                    />
-                    <span>Response Size Metering</span>
-                  </label>
-                </div>
-              </section>
-
-              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
                 <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Invoke Contract</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
                   <label className="space-y-2 text-sm">
@@ -1021,7 +962,12 @@ export default function ProviderNodesPage() {
                   <label className="space-y-2 text-sm md:col-span-2">
                     <span className="text-[#c6c6c9]">Invoke URL</span>
                     <input
-                      value={draft.invokeUrl}
+                      value={
+                        draft.invokeUrl ||
+                        editing.endpoint ||
+                        editing.invoke?.url ||
+                        (Array.isArray(editing.invoke?.targets) ? (editing.invoke?.targets[0]?.url || "") : "")
+                      }
                       onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeUrl: e.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.invokeUrl ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />

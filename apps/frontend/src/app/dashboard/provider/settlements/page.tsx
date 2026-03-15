@@ -218,7 +218,7 @@ export default function ProviderSettlementsPage() {
   };
 
   const isAnyLoading = creatingIntent || isWalletPrompting || isTxConfirming;
-  let txStateLabel = "Idle";
+  let txStateLabel = "0";
   if (isWalletPrompting) {
     txStateLabel = "Wallet Prompt";
   }
@@ -284,7 +284,7 @@ export default function ProviderSettlementsPage() {
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
               <div className="uppercase tracking-[0.15em] text-[#86868b]">Pending Ticket</div>
-              <div className="mt-1 font-mono text-white text-sm">{pendingWithdrawal ? pendingWithdrawal.id.slice(0, 10) : "None"}</div>
+              <div className="mt-1 font-mono text-white text-sm">{pendingWithdrawal ? pendingWithdrawal.id.slice(0, 10) : "0"}</div>
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
               <div className="uppercase tracking-[0.15em] text-[#86868b]">Tx State</div>

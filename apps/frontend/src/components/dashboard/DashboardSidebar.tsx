@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useEffect, useState } from "react";
 import { getAppRole, AppRole } from "@/utils/roleStore";
@@ -20,6 +20,7 @@ import {
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { address } = useAccount();
   const [role, setRole] = useState<AppRole | undefined>(undefined);
 
@@ -28,6 +29,53 @@ export default function DashboardSidebar() {
   useEffect(() => {
     setRole(getAppRole());
   }, []);
+
+  useEffect(() => {
+    if (!role) {
+      return;
+    }
+
+    const consumerRoutes = [
+      "/dashboard/buyer",
+      "/dashboard/console",
+      "/dashboard/discover",
+      "/dashboard/usage",
+      "/dashboard/billing",
+    ];
+    const providerRoutes = [
+      `${providerRoot}/sell`,
+      `${providerRoot}/secrets`,
+      `${providerRoot}/nodes`,
+      `${providerRoot}/health`,
+      `${providerRoot}/settlements`,
+      `${providerRoot}/usage`,
+      `${providerRoot}/billing`,
+    ];
+    const adminRoutes = ["/dashboard/admin"];
+
+    let routeCandidates: string[] = [];
+    if (role === "CONSUMER") {
+      routeCandidates = consumerRoutes;
+    } else if (role === "PROVIDER") {
+      routeCandidates = providerRoutes;
+    } else if (role === "ADMIN") {
+      routeCandidates = adminRoutes;
+    }
+
+    const warmup = () => {
+      for (const route of routeCandidates) {
+        router.prefetch(route);
+      }
+    };
+
+    if (typeof globalThis.requestIdleCallback === "function") {
+      const idleId = globalThis.requestIdleCallback(warmup, { timeout: 1200 });
+      return () => globalThis.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = globalThis.setTimeout(warmup, 200);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [providerRoot, role, router]);
 
   // Admin address logic
   const isAdminAddress = address?.toLowerCase() === "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".toLowerCase();

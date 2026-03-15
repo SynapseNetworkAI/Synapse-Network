@@ -169,6 +169,65 @@ async def test_discover_services_filters_out_unhealthy_service(temp_storage):
 
 
 @pytest.mark.asyncio
+async def test_list_owner_services_marks_runtime_unavailable_when_probe_fails(temp_storage):
+    original_probe = service_health_service.probe_service_health
+
+    async def _degraded_probe_stub(service, client=None):
+        now_ms = int(time.time() * 1000)
+        next_service = dict(service)
+        targets = ((service.get("invoke") or {}).get("targets") or [])
+        target_map = {
+            str(target.get("url")): {
+                "status": "degraded",
+                "httpStatus": 404,
+                "latencyMs": 2,
+                "lastCheckedAt": now_ms,
+                "lastHealthyAt": None,
+                "consecutiveSuccesses": 0,
+                "consecutiveFailures": 1,
+            }
+            for target in targets
+            if isinstance(target, dict) and str(target.get("url") or "").strip()
+        }
+        next_service["serviceHealth"] = {
+            "overallStatus": "degraded",
+            "healthyTargets": 0,
+            "totalTargets": len(target_map),
+            "lastCheckedAt": now_ms,
+            "targets": target_map,
+        }
+        return next_service
+
+    service_health_service.probe_service_health = _degraded_probe_stub
+    service = RegistryService(temp_storage)
+    payload = {
+        "serviceName": "Broken Health Service",
+        "pricing": {"currency": "USDC", "amount": "0.01"},
+        "summary": "health should mark unavailable",
+        "tags": ["health"],
+        "healthCheck": {"path": "/api/v1/health", "method": "GET"},
+        "invoke": {
+            "method": "POST",
+            "targets": [{"url": "http://localhost:8000/api/v1/services", "weight": 100}],
+            "timeoutMs": 3000,
+            "request": {"contentType": "application/json", "schema": {}},
+            "response": {"contentType": "application/json", "schema": {}},
+        },
+    }
+
+    try:
+        await service.register_service(payload, "0xabc")
+    finally:
+        service_health_service.probe_service_health = original_probe
+
+    rows = await service.list_owner_services("0xabc")
+    assert len(rows) == 1
+    assert rows[0]["status"] == "degraded"
+    assert rows[0]["runtimeAvailable"] is False
+    assert rows[0]["health"]["healthyTargets"] == 0
+
+
+@pytest.mark.asyncio
 async def test_service_health_history_returns_latest_n_per_target(temp_storage):
     original_probe = service_health_service.probe_service_health
     service_health_service.probe_service_health = _healthy_probe_stub

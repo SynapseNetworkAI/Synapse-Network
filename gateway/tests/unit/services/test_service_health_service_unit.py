@@ -163,3 +163,71 @@ def test_prune_health_history_removes_expired_and_orphan_rows(temp_storage, monk
     rows = temp_storage.get_collection("service_target_health_history")
     assert len(rows) == 1
     assert rows[0]["serviceId"] == "serviceA"
+
+
+@pytest.mark.asyncio
+async def test_refresh_health_reuses_persisted_target_counters(temp_storage, monkeypatch):
+    temp_storage.save_collection(
+        "service_registry",
+        [
+            {
+                "serviceId": "SVC_HEALTH_PERSIST",
+                "ownerAddress": "0xabc",
+                "serviceName": "Persisted Health Service",
+                "isActive": True,
+                "status": "active",
+                "healthCheck": {
+                    "path": "/health",
+                    "method": "GET",
+                    "timeoutMs": 1000,
+                    "successCodes": [200],
+                    "healthyThreshold": 2,
+                    "unhealthyThreshold": 3,
+                },
+                "invoke": {
+                    "targets": [
+                        {"url": "http://127.0.0.1:8100/api/v1/quotes/famous/top3", "weight": 100}
+                    ]
+                },
+            }
+        ],
+    )
+
+    temp_storage.save_collection(
+        "service_target_health",
+        [
+            {
+                "serviceId": "SVC_HEALTH_PERSIST",
+                "ownerAddress": "0xabc",
+                "targetUrl": "http://127.0.0.1:8100/api/v1/quotes/famous/top3",
+                "status": "unknown",
+                "overallStatus": "unknown",
+                "httpStatus": 200,
+                "latencyMs": 3,
+                "consecutiveSuccesses": 1,
+                "consecutiveFailures": 0,
+                "probeUrl": "http://127.0.0.1:8100/health",
+                "lastCheckedAt": 1773580258622,
+                "lastHealthyAt": 1773580258622,
+            }
+        ],
+    )
+
+    async def _always_healthy_probe(_client, _probe_url, _method, _timeout_sec, _success_codes):
+        return {
+            "healthy": True,
+            "httpStatus": 200,
+            "latencyMs": 2,
+            "error": None,
+        }
+
+    monkeypatch.setattr(service_health_service, "_probe_target", _always_healthy_probe)
+
+    result = await service_health_service.refresh_all_service_health(temp_storage)
+    assert result["updated"] == 1
+
+    rows = temp_storage.get_collection("service_target_health")
+    assert isinstance(rows, list)
+    assert len(rows) == 1
+    assert rows[0]["status"] == "healthy"
+    assert int(rows[0]["consecutiveSuccesses"] or 0) >= 2
