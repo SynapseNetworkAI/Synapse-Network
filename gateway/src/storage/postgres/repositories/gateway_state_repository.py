@@ -10,6 +10,7 @@ from src.domain.storage_entities import (
     UsageLogRow,
     WithdrawalIntentRow,
 )
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
@@ -40,8 +41,8 @@ class GatewayStateRepository:
                 amountUsdc=self._q6(amount_usdc),
                 idempotencyKey=idempotency_key,
                 status=str(status),
-                createdAt=int(created_at),
-                updatedAt=int(updated_at),
+                createdAt=to_dt_str(created_at, "") or "",
+                updatedAt=to_dt_str(updated_at, "") or "",
             )
             for row_id, owner, tx_hash, request_id, buyer_address, amount_usdc, idempotency_key, status, created_at, updated_at in rows
         ]
@@ -77,8 +78,8 @@ class GatewayStateRepository:
                         str(self._q6(row.amount_usdc)),
                         row.idempotency_key,
                         row.status,
-                        int(row.created_at),
-                        int(row.updated_at),
+                        to_dt_str(row.created_at, now_dt_str()),
+                        to_dt_str(row.updated_at, now_dt_str()),
                     ),
                 )
 
@@ -103,13 +104,13 @@ class GatewayStateRepository:
                 buyerAddress=buyer_address,
                 amountUsdc=self._q6(amount_usdc),
                 idempotencyKey=idempotency_key,
-                createdAt=int(created_at),
-                updatedAt=int(updated_at),
+                createdAt=to_dt_str(created_at, "") or "",
+                updatedAt=to_dt_str(updated_at, "") or "",
             )
             for row_id, owner, tx_hash, status, request_id, buyer_address, amount_usdc, idempotency_key, created_at, updated_at in rows
         ]
 
-    def write_refund_intents(self, rows: List[RefundIntentRow], updated_at: int) -> None:
+    def write_refund_intents(self, rows: List[RefundIntentRow], updated_at: str | int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_refund_intents")
             for row in rows:
@@ -140,8 +141,8 @@ class GatewayStateRepository:
                         row.buyer_address.lower() if row.buyer_address else None,
                         str(self._q6(row.amount_usdc)),
                         row.idempotency_key,
-                        int(row.created_at or updated_at),
-                        int(row.updated_at or updated_at),
+                        to_dt_str(row.created_at or updated_at, now_dt_str()),
+                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
                     ),
                 )
 
@@ -174,8 +175,8 @@ class GatewayStateRepository:
                 chainId=chain_id,
                 contractAddress=contract_address,
                 signerAddress=signer_address,
-                createdAt=int(created_at),
-                updatedAt=int(updated_at),
+                createdAt=to_dt_str(created_at, "") or "",
+                updatedAt=to_dt_str(updated_at, "") or "",
             )
             for (
                 row_id,
@@ -198,7 +199,7 @@ class GatewayStateRepository:
             ) in rows
         ]
 
-    def write_withdrawal_intents(self, rows: List[WithdrawalIntentRow], updated_at: int) -> None:
+    def write_withdrawal_intents(self, rows: List[WithdrawalIntentRow], updated_at: str | int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_withdrawal_intents")
             for row in rows:
@@ -244,8 +245,8 @@ class GatewayStateRepository:
                         row.chain_id,
                         row.contract_address,
                         row.signer_address,
-                        int(row.created_at or updated_at),
-                        int(row.updated_at or updated_at),
+                        to_dt_str(row.created_at or updated_at, now_dt_str()),
+                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
                     ),
                 )
 
@@ -257,13 +258,13 @@ class GatewayStateRepository:
             RouterConfigRow(
                 ownerAddress=str(owner),
                 dailyLimitUsdc=float(self._q6(limit)),
-                createdAt=int(created),
-                updatedAt=int(updated),
+                createdAt=to_dt_str(created, "") or "",
+                updatedAt=to_dt_str(updated, "") or "",
             )
             for owner, limit, created, updated in rows
         ]
 
-    def write_router_config_rows(self, rows: List[RouterConfigRow], updated_at: int) -> None:
+    def write_router_config_rows(self, rows: List[RouterConfigRow], updated_at: str | int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_router_config")
             for row in rows:
@@ -275,8 +276,8 @@ class GatewayStateRepository:
                     (
                         owner,
                         str(self._q6(row.daily_limit_usdc)),
-                        int(row.created_at or updated_at),
-                        int(row.updated_at or updated_at),
+                        to_dt_str(row.created_at or updated_at, now_dt_str()),
+                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
                     ),
                 )
 
@@ -374,14 +375,14 @@ class GatewayStateRepository:
             rows = cur.fetchall()
         return [str(row[0]) for row in rows if row and row[0] is not None]
 
-    def write_processed_deposit_event_keys(self, keys: List[str], updated_at: int) -> None:
+    def write_processed_deposit_event_keys(self, keys: List[str], updated_at: str | int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_processed_deposit_events")
             for key in keys:
                 dedup_key = str(key or "").strip()
                 if not dedup_key:
                     continue
-                entity = ProcessedDepositEventRow(dedupKey=dedup_key, updatedAt=int(updated_at))
+                entity = ProcessedDepositEventRow(dedupKey=dedup_key, updatedAt=to_dt_str(updated_at, now_dt_str()) or now_dt_str())
                 cur.execute(
                     "INSERT INTO synapse_processed_deposit_events (dedup_key, updated_at) VALUES (%s, %s)",
                     (entity.dedup_key, entity.updated_at),

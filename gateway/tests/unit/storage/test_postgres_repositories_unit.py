@@ -15,6 +15,9 @@ from src.storage.postgres.repositories.gateway_state_repository import GatewaySt
 from src.storage.postgres.repositories.idempotency_repository import IdempotencyRepository
 from src.storage.postgres.repositories.legacy_collection_repository import LegacyCollectionRepository
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
+from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
+from src.domain.gateway import RouterConfigRow
+from src.domain.storage_entities import DepositIntentRow, RefundIntentRow, UsageLogRow, WithdrawalIntentRow
 
 
 class FakeCursor:
@@ -119,7 +122,7 @@ def test_fee_policy_repository_read_write() -> None:
     policy = repo.get_platform_fee_policy()
     assert abs(policy.default_rate - 0.015) < 1e-9
     assert policy.owner_rates == {"0xabc": 0.02, "0xdef": 0.03}
-    assert policy.updated_at == 1700000000
+    assert policy.updated_at == "2023-11-14 22:13:20"
     assert policy.updated_by == "ops"
 
     repo.set_platform_fee_policy(0.05, {"0xABC": 0.04, "": 0.02}, "admin", 1700000001)
@@ -145,8 +148,9 @@ def test_idempotency_repository_read_and_write_rows() -> None:
     assert rows[0].owner_address == "0xabc"
     assert rows[0].idempotency_key == "k1"
     assert rows[0].request_hash == "h1"
-    assert rows[0].response == {"ok": True}
-    assert rows[0].created_at == 100
+    assert rows[0].response_code is None
+    assert rows[0].response_digest is None
+    assert rows[0].created_at == "1970-01-01 00:01:40"
     assert rows[0].expires_at == 200
 
     repo.write_idempotency_rows(
@@ -157,7 +161,8 @@ def test_idempotency_repository_read_and_write_rows() -> None:
                 "ownerAddress": "0xDEF",
                 "idempotencyKey": "k2",
                 "requestHash": "h2",
-                "response": {"status": "ok"},
+                "responseCode": "ok",
+                "responseDigest": "digest-2",
             }
         ],
         updated_at=300,
@@ -277,7 +282,7 @@ def test_balance_repository_read_and_write() -> None:
     assert abs(ledger.buyers["0xbuyer"] - 10.0) < 1e-9
     assert abs(ledger.sellers["0xseller"] - 20.0) < 1e-9
     assert abs(ledger.platform.fee_accrued - 0.5) < 1e-9
-    assert ledger.updated_at == 120
+    assert ledger.updated_at == "1970-01-01 00:02:00"
 
     from src.domain.finance import BalanceLedger, PlatformFees
     repo.write_balance_ledger(
@@ -289,7 +294,7 @@ def test_balance_repository_read_and_write() -> None:
             sellers_locked={"0xS": 5},
             sellers_frozen={"0xS": 6},
             platform=PlatformFees(fee_accrued=7),
-            updated_at=130,
+            updated_at="2026-03-15 14:24:30",
         )
     )
     ops = db.tx_cursors[-1].executed
@@ -305,12 +310,38 @@ def test_service_registry_repository_read_and_write() -> None:
     db = FakeDB()
     db.readonly_plan.append(
         {
-            "fetchone": [(1,)],
+            "fetchone": [(10,)],
         }
     )
     db.readonly_plan.append(
         {
-            "fetchall": [[({"serviceId": "svc-1", "ownerAddress": "0xabc", "name": "SVC"},)]],
+            "fetchall": [[(
+                "svc-1",
+                "0xabc",
+                "SVC",
+                "summary",
+                "https://a",
+                "active",
+                True,
+                Decimal("0.005"),
+                "USDC",
+                3000,
+                50,
+                4096,
+                8192,
+                100,
+                120,
+                "rec-1",
+                2,
+                "provider",
+                "0xabc",
+                ["quotes", "top3"],
+                {"type": "service_key", "headerName": "X-Credential"},
+                {"path": "/health", "method": "GET"},
+                {"requestIdHeader": "X-Synapse-Request-Id"},
+                {"billingUnit": "per_call", "billOnError": False},
+                {"method": "POST", "targets": [{"url": "https://a", "weight": 100}]},
+            )]],
         }
     )
     db.readonly_plan.append(
@@ -331,7 +362,10 @@ def test_service_registry_repository_read_and_write() -> None:
     repo = ServiceRegistryRepository(db)
 
     services = repo.read_service_registry_rows()
-    assert services[0]["serviceId"] == "svc-1"
+    assert services[0].service_id == "svc-1"
+    assert services[0].id == "rec-1"
+    assert services[0].health_check["path"] == "/health"
+    assert services[0].invoke["method"] == "POST"
 
     target_rows = repo.read_service_target_health_rows()
     assert target_rows[0].consecutive_successes == 3
@@ -339,19 +373,52 @@ def test_service_registry_repository_read_and_write() -> None:
     history_rows = repo.read_service_target_health_history_rows()
     assert history_rows[0].checked_at == 11
 
-    repo.write_service_registry_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "createdAt": 1, "updatedAt": 2}])
-    repo.write_service_target_health_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "targetUrl": "https://b"}])
-    repo.write_service_target_health_history_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "targetUrl": "https://b", "checkedAt": 3}])
+    repo.write_service_registry_rows([
+        {
+            "serviceId": "svc-2",
+            "ownerAddress": "0xDEF",
+            "serviceName": "svc-two",
+            "summary": "demo",
+            "status": "active",
+            "isActive": True,
+            "pricingAmount": "0.010000",
+            "pricingCurrency": "USDC",
+            "timeoutMs": 3000,
+            "maxQps": 50,
+            "maxRequestBytes": 4096,
+            "maxResponseBytes": 8192,
+            "id": "rec-2",
+            "schemaVersion": 2,
+            "role": "provider",
+            "address": "0xdef",
+            "tags": ["a"],
+            "auth": {"type": "service_key"},
+            "healthCheck": {"path": "/health", "method": "GET"},
+            "forwarding": {"requestIdHeader": "X-Synapse-Request-Id"},
+            "metering": {"billingUnit": "per_call"},
+            "invoke": {"method": "POST", "targets": [{"url": "https://b"}]},
+            "createdAt": "2026-03-15 14:24:00",
+            "updatedAt": "2026-03-15 14:24:01",
+        }
+    ])
+    repo.write_service_target_health_rows([
+        ServiceTargetHealth(serviceId="svc-2", ownerAddress="0xDEF", targetUrl="https://b")
+    ])
+    repo.write_service_target_health_history_rows([
+        ServiceTargetHealthHistory(serviceId="svc-2", ownerAddress="0xDEF", targetUrl="https://b", checkedAt=3)
+    ])
 
     all_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
     assert "DELETE FROM synapse_service_registry" in all_sql
+    assert "record_id" in all_sql
+    assert "invoke_config" in all_sql
     assert "DELETE FROM synapse_service_target_health" in all_sql
     assert "DELETE FROM synapse_service_target_health_history" in all_sql
 
 
 def test_service_registry_repository_legacy_schema_compatibility() -> None:
     db = FakeDB()
-    db.readonly_plan.append({"fetchone": [None]})
+    db.readonly_plan.append({"fetchone": [(0,)]})
     db.readonly_plan.append(
         {
             "fetchall": [
@@ -377,28 +444,44 @@ def test_service_registry_repository_legacy_schema_compatibility() -> None:
             ]
         }
     )
-    db.readonly_plan.append({"fetchone": [None]})
-
     repo = ServiceRegistryRepository(db)
     rows = repo.read_service_registry_rows()
 
-    assert rows[0]["serviceId"] == "svc-legacy"
-    assert rows[0]["serviceName"] == "Legacy API"
-    assert rows[0]["invoke"]["targets"][0]["url"] == "https://legacy.example.com/invoke"
-    assert rows[0]["pricing"]["currency"] == "USD"
+    assert rows[0].service_id == "svc-legacy"
+    assert rows[0].service_name == "Legacy API"
+    assert rows[0].pricing_currency == "USD"
+    assert rows[0].invoke == {}
 
     repo.write_service_registry_rows(rows)
     sql = "\n".join(stmt for stmt, _ in db.tx_cursors[-1].executed)
     assert "INSERT INTO synapse_service_registry" in sql
     assert "service_name" in sql
-    assert "payload" not in sql
+    assert "invoke_config" not in sql
 
 
 def test_credential_auth_repository_read_write_and_roles() -> None:
     db = FakeDB()
     db.readonly_plan.append(
         {
-            "fetchall": [[({"id": "cred-1", "ownerAddress": "0xabc"},)]],
+            "fetchall": [[(
+                "cred-1",
+                "seller",
+                "0xabc",
+                "cred-name",
+                "hash-1",
+                "sk_live",
+                "active",
+                100,
+                1,
+                10,
+                Decimal("1.250000"),
+                "daily",
+                0,
+                0,
+                "2026-03-15 14:24:00",
+                "2026-03-15 14:24:05",
+                None,
+            )]],
         }
     )
     db.readonly_plan.append(
@@ -409,14 +492,23 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     repo = CredentialAuthRepository(db, _q6)
 
     creds = repo.read_credential_rows("seller")
-    assert creds == [{"id": "cred-1", "ownerAddress": "0xabc"}]
+    assert len(creds) == 1
+    assert creds[0].id == "cred-1"
+    assert creds[0].owner_address == "0xabc"
+    assert creds[0].created_at == "2026-03-15 14:24:00"
 
     role = repo.get_wallet_role("0xABC")
     assert role == "admin"
 
     repo.write_credential_rows(
         "seller",
-        [{"id": "cred-2", "ownerAddress": "0xDEF", "creditLimit": 1.25}],
+        [{
+            "id": "cred-2",
+            "ownerAddress": "0xDEF",
+            "creditLimit": 1.25,
+            "createdAt": "2026-03-15 14:25:00",
+            "updatedAt": "2026-03-15 14:25:01",
+        }],
     )
     repo.set_wallet_role("0xABC", "operator")
     repo.upsert_auth_session("0xABC", 100, 200, "active")
@@ -429,29 +521,51 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
 
 def test_gateway_state_repository_read_and_write() -> None:
     db = FakeDB()
-    db.readonly_plan.append({"fetchall": [[({"id": "dep-1"},)]]})
-    db.readonly_plan.append({"fetchall": [[({"id": "ref-1"},)]]})
-    db.readonly_plan.append({"fetchall": [[({"id": "wd-1"},)]]})
-    db.readonly_plan.append({"fetchall": [[("0xabc", Decimal("100"), 1, 2)]]})
-    db.readonly_plan.append({"fetchall": [[({"id": "usage-1"},)]]})
+    db.readonly_plan.append({"fetchall": [[(
+        "dep-1", "0xabc", "0xtx", "req-1", "0xabc", Decimal("1.0"), "idem-1", "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
+    )]]})
+    db.readonly_plan.append({"fetchall": [[(
+        "ref-1", "0xabc", "0xtx2", "PENDING", "req-2", "0xabc", Decimal("0.5"), "idem-2", "2026-03-15 14:24:02", "2026-03-15 14:24:03"
+    )]]})
+    db.readonly_plan.append({"fetchall": [[(
+        "wd-1", "0xabc", "0xtx3", "REQUESTED", "req-3", "idem-3", Decimal("2.0"), "2000000", "0", 1, 0, "sig", 31337, "0xcontract", "0xsigner", "2026-03-15 14:24:04", "2026-03-15 14:24:05"
+    )]]})
+    db.readonly_plan.append({"fetchall": [[("0xabc", Decimal("100"), "2026-03-15 14:24:06", "2026-03-15 14:24:07")]]})
+    db.readonly_plan.append({"fetchall": [[(
+        "usage-1", 123, "req-u", "svc-1", "0xb", "0xs", "ok", Decimal("1"), Decimal("0.1"), Decimal("0.01"), Decimal("1.11"), "charge", "green"
+    )]]})
     db.readonly_plan.append({"fetchall": [[("ek-1",)]]})
     repo = GatewayStateRepository(db, _q6)
 
-    assert repo.read_deposit_intents() == [{"id": "dep-1"}]
-    assert repo.read_refund_intents() == [{"id": "ref-1"}]
-    assert repo.read_withdrawal_intents() == [{"id": "wd-1"}]
+    deposit_rows = repo.read_deposit_intents()
+    assert len(deposit_rows) == 1 and deposit_rows[0].id == "dep-1"
+    refund_rows = repo.read_refund_intents()
+    assert len(refund_rows) == 1 and refund_rows[0].id == "ref-1"
+    withdraw_rows = repo.read_withdrawal_intents()
+    assert len(withdraw_rows) == 1 and withdraw_rows[0].id == "wd-1"
     router_rows = repo.read_router_config_rows()
     assert router_rows[0].owner_address == "0xabc"
     assert abs(router_rows[0].daily_limit_usdc - 100.0) < 1e-9
-    assert repo.read_usage_log_rows() == [{"id": "usage-1"}]
+    usage_rows = repo.read_usage_log_rows()
+    assert len(usage_rows) == 1 and usage_rows[0].id == "usage-1"
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
 
-    repo.write_deposit_intents([{"id": "dep-2", "ownerAddress": "0xA", "txHash": "0xT"}])
-    repo.write_refund_intents([{"id": "ref-2", "ownerAddress": "0xA", "amountUsdc": 1}], updated_at=9)
-    repo.write_withdrawal_intents([{"id": "wd-2", "ownerAddress": "0xA", "amountUsdc": 2}], updated_at=9)
-    repo.write_router_config_rows([{"ownerAddress": "0xA", "dailyLimitUsdc": 10}], updated_at=9)
-    repo.write_usage_log_rows([{"id": "usage-2", "buyer": "0xA", "seller": "0xB", "totalCharge": 1}])
-    repo.write_processed_deposit_event_keys(["ek-2"], updated_at=9)
+    repo.write_deposit_intents([
+        DepositIntentRow(id="dep-2", ownerAddress="0xA", txHash="0xT", createdAt="2026-03-15 14:26:00", updatedAt="2026-03-15 14:26:01")
+    ])
+    repo.write_refund_intents([
+        RefundIntentRow(id="ref-2", ownerAddress="0xA", amountUsdc=1, createdAt="2026-03-15 14:26:00", updatedAt="2026-03-15 14:26:01")
+    ], updated_at="2026-03-15 14:26:00")
+    repo.write_withdrawal_intents([
+        WithdrawalIntentRow(id="wd-2", ownerAddress="0xA", amountUsdc=2, createdAt="2026-03-15 14:26:01", updatedAt="2026-03-15 14:26:02")
+    ], updated_at="2026-03-15 14:26:01")
+    repo.write_router_config_rows([
+        RouterConfigRow(ownerAddress="0xA", dailyLimitUsdc=10, createdAt="2026-03-15 14:26:02", updatedAt="2026-03-15 14:26:03")
+    ], updated_at="2026-03-15 14:26:02")
+    repo.write_usage_log_rows([
+        UsageLogRow(id="usage-2", ts=124, buyerAddress="0xA", sellerAddress="0xB", totalCharge=1, businessType="charge", riskLevel="green")
+    ])
+    repo.write_processed_deposit_event_keys(["ek-2"], updated_at="2026-03-15 14:26:03")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
     assert "DELETE FROM synapse_deposit_intents" in tx_sql
@@ -476,8 +590,8 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
     )
 
     result = repo.reserve_seller_withdraw_atomic("0xabc", Decimal("2"))
-    assert abs(result["beforeBalance"] - 10.0) < 1e-9
-    assert abs(result["afterBalance"] - 8.0) < 1e-9
+    assert abs(result.before_balance - 10.0) < 1e-9
+    assert abs(result.after_balance - 8.0) < 1e-9
 
     first_conn_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
     assert "BAL_FOR_UPDATE" in first_conn_sql

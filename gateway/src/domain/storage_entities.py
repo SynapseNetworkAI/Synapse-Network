@@ -33,7 +33,7 @@ class AuditLogRow(BaseModel):
     result_status: Optional[str] = Field(default=None, alias="resultStatus")
     error_code: Optional[str] = Field(default=None, alias="errorCode")
     message: Optional[str] = None
-    created_at: Optional[int] = Field(default=None, alias="createdAt")
+    created_at: Optional[str] = Field(default=None, alias="createdAt")
 
 
 class SystemAuditLogRow(BaseModel):
@@ -52,7 +52,7 @@ class SystemAuditLogRow(BaseModel):
     ip_address: Optional[str] = Field(default=None, alias="ipAddress")
     user_agent: Optional[str] = Field(default=None, alias="userAgent")
     detail_json: Dict[str, Any] = Field(default_factory=dict, alias="detailJson")
-    created_at: Optional[int] = Field(default=None, alias="createdAt")
+    created_at: Optional[str] = Field(default=None, alias="createdAt")
 
 
 class DepositDedupRow(BaseModel):
@@ -79,7 +79,7 @@ class BalanceRow(BaseModel):
     available_balance: Decimal = Field(default=Decimal("0"), alias="availableBalance")
     pending_balance: Decimal = Field(default=Decimal("0"), alias="pendingBalance")
     frozen_balance: Decimal = Field(default=Decimal("0"), alias="frozenBalance")
-    updated_at: int = Field(default=0, alias="updatedAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class DepositIntentRow(BaseModel):
@@ -93,8 +93,8 @@ class DepositIntentRow(BaseModel):
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
     status: str = "PENDING_CONFIRMATION"
-    created_at: int = Field(default=0, alias="createdAt")
-    updated_at: int = Field(default=0, alias="updatedAt")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class RefundIntentRow(BaseModel):
@@ -108,8 +108,8 @@ class RefundIntentRow(BaseModel):
     buyer_address: Optional[str] = Field(default=None, alias="buyerAddress")
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
-    created_at: int = Field(default=0, alias="createdAt")
-    updated_at: int = Field(default=0, alias="updatedAt")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class WithdrawalIntentRow(BaseModel):
@@ -130,8 +130,8 @@ class WithdrawalIntentRow(BaseModel):
     chain_id: Optional[int] = Field(default=None, alias="chainId")
     contract_address: Optional[str] = Field(default=None, alias="contractAddress")
     signer_address: Optional[str] = Field(default=None, alias="signerAddress")
-    created_at: int = Field(default=0, alias="createdAt")
-    updated_at: int = Field(default=0, alias="updatedAt")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class UsageLogRow(BaseModel):
@@ -158,7 +158,7 @@ class ProcessedDepositEventRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     dedup_key: str = Field(alias="dedupKey")
-    updated_at: int = Field(default=0, alias="updatedAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class ServiceRegistryRow(BaseModel):
@@ -177,8 +177,18 @@ class ServiceRegistryRow(BaseModel):
     max_qps: Optional[int] = Field(default=None, alias="maxQps")
     max_request_bytes: Optional[int] = Field(default=None, alias="maxRequestBytes")
     max_response_bytes: Optional[int] = Field(default=None, alias="maxResponseBytes")
-    created_at: int = Field(default=0, alias="createdAt")
-    updated_at: int = Field(default=0, alias="updatedAt")
+    id: Optional[str] = None
+    schema_version: Optional[int] = Field(default=None, alias="schemaVersion")
+    role: Optional[str] = None
+    address: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    auth: Dict[str, Any] = Field(default_factory=dict)
+    health_check: Dict[str, Any] = Field(default_factory=dict, alias="healthCheck")
+    forwarding: Dict[str, Any] = Field(default_factory=dict)
+    metering: Dict[str, Any] = Field(default_factory=dict)
+    invoke: Dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class CredentialRow(BaseModel):
@@ -198,8 +208,8 @@ class CredentialRow(BaseModel):
     reset_interval: Optional[str] = Field(default=None, alias="resetInterval")
     expiration: Optional[int] = None
     expires_at: Optional[int] = Field(default=None, alias="expiresAt")
-    created_at: Optional[int] = Field(default=None, alias="createdAt")
-    updated_at: Optional[int] = Field(default=None, alias="updatedAt")
+    created_at: Optional[str] = Field(default=None, alias="createdAt")
+    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
     revoked_at: Optional[int] = Field(default=None, alias="revokedAt")
 
 
@@ -208,7 +218,7 @@ class WalletRoleRow(BaseModel):
 
     wallet_address: str = Field(alias="walletAddress")
     role: str
-    updated_at: int = Field(default=0, alias="updatedAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class AuthSessionRow(BaseModel):
@@ -218,7 +228,7 @@ class AuthSessionRow(BaseModel):
     registered_at: int = Field(default=0, alias="registeredAt")
     last_login: int = Field(default=0, alias="lastLogin")
     status: str
-    updated_at: int = Field(default=0, alias="updatedAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class PlatformFeePolicyDefaultRow(BaseModel):
@@ -226,7 +236,7 @@ class PlatformFeePolicyDefaultRow(BaseModel):
 
     singleton_id: int = Field(default=1, alias="singletonId")
     default_rate: Decimal = Field(default=Decimal("0"), alias="defaultRate")
-    updated_at: Optional[int] = Field(default=None, alias="updatedAt")
+    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
     updated_by: Optional[str] = Field(default=None, alias="updatedBy")
 
 
@@ -247,7 +257,7 @@ class IdempotencyKeyRow(BaseModel):
     request_hash: str = Field(alias="requestHash")
     response_code: Optional[str] = Field(default=None, alias="responseCode")
     response_digest: Optional[str] = Field(default=None, alias="responseDigest")
-    created_at: int = Field(default=0, alias="createdAt")
+    created_at: str = Field(default="", alias="createdAt")
     expires_at: int = Field(default=0, alias="expiresAt")
 
 
@@ -259,7 +269,7 @@ class FinanceRateLimitRow(BaseModel):
     action: str
     window_start: int = Field(default=0, alias="windowStart")
     count: int = 0
-    updated_at: int = Field(default=0, alias="updatedAt")
+    updated_at: str = Field(default="", alias="updatedAt")
 
 
 class WithdrawalDecision(BaseModel):

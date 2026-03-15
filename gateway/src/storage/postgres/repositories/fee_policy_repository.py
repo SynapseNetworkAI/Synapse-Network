@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict
 
 from src.domain.finance import FeePolicyEntity
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
 
@@ -24,7 +25,7 @@ class FeePolicyRepository:
         updated_by = None
         if default_row is not None:
             default_rate = float(self._q6(default_row[0]))
-            updated_at = int(default_row[1]) if default_row[1] is not None else None
+            updated_at = to_dt_str(default_row[1]) if default_row[1] is not None else None
             updated_by = default_row[2]
 
         owner_rates: Dict[str, float] = {}
@@ -38,7 +39,7 @@ class FeePolicyRepository:
             updated_by=updated_by,
         )
 
-    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, float], updated_by: str, updated_at: int) -> None:
+    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, float], updated_by: str, updated_at: str | int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
@@ -47,7 +48,7 @@ class FeePolicyRepository:
                 ON CONFLICT (singleton_id)
                 DO UPDATE SET default_rate = EXCLUDED.default_rate, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
                 """,
-                (str(self._q6(default_rate)), int(updated_at), str(updated_by or "")),
+                (str(self._q6(default_rate)), to_dt_str(updated_at, now_dt_str()), str(updated_by or "")),
             )
             cur.execute("DELETE FROM synapse_platform_fee_policy_owner")
             for owner, fee_rate in (owner_rates or {}).items():

@@ -65,6 +65,8 @@ async def test_register_service_normalizes_cluster_and_health_path(temp_storage)
     assert result["healthCheck"]["path"] == "/healthz"
     assert result["invoke"]["url"] == "http://10.0.0.1:8100/infer"
     assert len(result["invoke"]["targets"]) == 2
+    assert result["forwarding"]["injectHeaders"]["X-Synapse-Service-Id"] == result["serviceId"]
+    assert result["metering"]["billingUnit"] == "per_call"
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,7 @@ from src.core.config import settings
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.storage_entities import ServiceRegistryRow
 from src.services.platform import service_health_service
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 import uuid
 import time
 import asyncio
@@ -198,6 +199,20 @@ def _normalize_service_payload(req_data: Dict[str, Any], owner_wallet: str) -> D
     }
     return normalized
 
+
+def _bind_forwarding_service_id(service_payload: Dict[str, Any]) -> Dict[str, Any]:
+    service_id = str(service_payload.get("serviceId") or "").strip()
+    forwarding = service_payload.get("forwarding") if isinstance(service_payload.get("forwarding"), dict) else {}
+    inject_headers = forwarding.get("injectHeaders") if isinstance(forwarding.get("injectHeaders"), dict) else {}
+    if not service_id:
+        return service_payload
+    forwarding["injectHeaders"] = {
+        **inject_headers,
+        "X-Synapse-Service-Id": service_id,
+    }
+    service_payload["forwarding"] = forwarding
+    return service_payload
+
 class RegistryService:
     def __init__(self, storage: BaseStorage):
         self.storage = storage
@@ -358,8 +373,18 @@ class RegistryService:
                     maxQps=int(constraints.get("maxQps") or row.get("maxQps") or 100),
                     maxRequestBytes=int(constraints.get("maxRequestBytes") or row.get("maxRequestBytes") or 262144),
                     maxResponseBytes=int(constraints.get("maxResponseBytes") or row.get("maxResponseBytes") or 262144),
-                    createdAt=int(row.get("createdAt") or 0),
-                    updatedAt=int(row.get("updatedAt") or 0),
+                    id=str(row.get("id") or "") or None,
+                    schemaVersion=int(row.get("schemaVersion")) if row.get("schemaVersion") is not None else None,
+                    role=str(row.get("role") or "") or None,
+                    address=str(row.get("address") or "") or None,
+                    tags=[str(tag) for tag in (row.get("tags") or []) if isinstance(tag, (str, int, float))],
+                    auth=dict(row.get("auth") or {}),
+                    healthCheck=dict(row.get("healthCheck") or {}),
+                    forwarding=dict(row.get("forwarding") or {}),
+                    metering=dict(row.get("metering") or {}),
+                    invoke=dict(row.get("invoke") or {}),
+                    createdAt=to_dt_str(row.get("createdAt"), "") or "",
+                    updatedAt=to_dt_str(row.get("updatedAt"), "") or "",
                 )
             )
         repo.write_service_registry_rows(typed_rows)
@@ -376,8 +401,9 @@ class RegistryService:
             new_svc = _normalize_service_payload(req_data, owner_wallet)
             if not new_svc.get("serviceId"):
                 new_svc["serviceId"] = _generate_service_id(owner_wallet)
+            new_svc = _bind_forwarding_service_id(new_svc)
             new_svc["id"] = str(new_svc.get("id") or uuid.uuid4())
-            new_svc["createdAt"] = int(time.time() * 1000)
+            new_svc["createdAt"] = now_dt_str()
             new_svc["updatedAt"] = new_svc["createdAt"]
             new_svc = await service_health_service.probe_service_health(new_svc)
             
@@ -400,9 +426,10 @@ class RegistryService:
                     updated = _normalize_service_payload(updated, owner_wallet)
                     updated["id"] = svc.get("id")
                     updated["serviceId"] = svc.get("serviceId")
+                    updated = _bind_forwarding_service_id(updated)
                     updated["createdAt"] = svc.get("createdAt")
                     updated["ownerAddress"] = owner_wallet
-                    updated["updatedAt"] = int(time.time() * 1000)
+                    updated["updatedAt"] = now_dt_str()
                     updated = await service_health_service.probe_service_health(updated)
                     rows[i] = updated
                     self._save_service_registry_rows(rows)
