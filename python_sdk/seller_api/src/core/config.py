@@ -1,5 +1,6 @@
 import json
 import os
+from urllib.parse import quote, urlsplit, urlunsplit
 
 try:
     from dotenv import load_dotenv
@@ -136,6 +137,119 @@ def _env_bool(name: str, default: bool) -> bool:
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _resolve_postgres_dsn(
+    raw_dsn: str,
+    *,
+    user: str,
+    password: str,
+    host: str,
+    port: int,
+    database: str,
+) -> str:
+    dsn = str(raw_dsn or "").strip()
+    password = str(password or "").strip()
+
+    if not dsn:
+        if not host or not database or not user:
+            return ""
+        encoded_user = quote(user, safe="")
+        encoded_password = quote(password, safe="")
+        auth = f"{encoded_user}:{encoded_password}@" if password else f"{encoded_user}@"
+        return f"postgresql://{auth}{host}:{int(port)}/{database}"
+
+    if not dsn.startswith(("postgresql://", "postgres://")):
+        return dsn
+
+    if not password:
+        return dsn
+
+    parsed = urlsplit(dsn)
+    if not parsed.hostname or not parsed.username:
+        return dsn
+
+    encoded_user = quote(parsed.username, safe="")
+    encoded_password = quote(password, safe="")
+    host_part = parsed.hostname
+    if parsed.port:
+        host_part = f"{host_part}:{parsed.port}"
+    netloc = f"{encoded_user}:{encoded_password}@{host_part}"
+    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+def _redis_auth_fragment(username: str, password: str) -> str:
+    encoded_user = quote(str(username or "").strip(), safe="")
+    encoded_password = quote(str(password or "").strip(), safe="")
+    if encoded_user and encoded_password:
+        return f"{encoded_user}:{encoded_password}@"
+    if encoded_password:
+        return f":{encoded_password}@"
+    if encoded_user:
+        return f"{encoded_user}@"
+    return ""
+
+
+def _build_redis_url_from_components(
+    *,
+    username: str,
+    password: str,
+    host: str,
+    port: int,
+    db: int,
+) -> str:
+    if not host:
+        return ""
+    return f"redis://{_redis_auth_fragment(username, password)}{host}:{int(port)}/{max(0, int(db))}"
+
+
+def _normalize_redis_input_url(raw_url: str) -> str:
+    value = str(raw_url or "").strip()
+    if not value:
+        return ""
+    if "://" not in value:
+        return f"redis://{value}"
+    return value
+
+
+def _resolve_redis_url(
+    raw_url: str,
+    *,
+    username: str,
+    password: str,
+    host: str,
+    port: int,
+    db: int,
+) -> str:
+    url = _normalize_redis_input_url(raw_url)
+    username = str(username or "").strip()
+    password = str(password or "").strip()
+
+    if not url:
+        return _build_redis_url_from_components(
+            username=username,
+            password=password,
+            host=host,
+            port=port,
+            db=db,
+        )
+
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"redis", "rediss"}:
+        return url
+
+    hostname = parsed.hostname
+    if not hostname:
+        return url
+
+    final_user = username or (parsed.username or "")
+    final_password = password or (parsed.password or "")
+    final_port = parsed.port or int(port)
+    path = parsed.path if parsed.path and parsed.path != "/" else f"/{max(0, int(db))}"
+
+    auth = _redis_auth_fragment(final_user, final_password)
+    netloc = f"{auth}{hostname}:{final_port}"
+    return urlunsplit((parsed.scheme, netloc, path, parsed.query, parsed.fragment))
+
+
 # Load environment files once so all runtime entry points share the same config contract.
 _load_environment_files()
 
@@ -170,14 +284,39 @@ class Settings:
     runtime_storage_dir: str = os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir())
     # Storage backend switch. Only "postgres" is supported.
     storage_backend: str = os.getenv("STORAGE_BACKEND", "postgres").strip().lower() or "postgres"
+    # PostgreSQL basic connection fields used when POSTGRES_DSN is omitted or password override is required.
+    postgres_host: str = os.getenv("POSTGRES_HOST", "postgres").strip()
+    postgres_port: int = _env_int("POSTGRES_PORT", 5432)
+    postgres_user: str = os.getenv("POSTGRES_USER", "synapse").strip()
+    postgres_password: str = os.getenv("POSTGRES_PASSWORD", "").strip()
+    postgres_db: str = os.getenv("POSTGRES_DB", os.getenv("POSTGRES_DATABASE", "synapse_gateway")).strip()
     # PostgreSQL DSN used by all environments (dev/stage/prod).
-    postgres_dsn: str = os.getenv("POSTGRES_DSN", "").strip()
+    postgres_dsn: str = _resolve_postgres_dsn(
+        os.getenv("POSTGRES_DSN", ""),
+        user=postgres_user,
+        password=postgres_password,
+        host=postgres_host,
+        port=postgres_port,
+        database=postgres_db,
+    )
     # Auto-create PostgreSQL tables/indexes on startup when using postgres backend.
     postgres_auto_init: bool = _env_bool("POSTGRES_AUTO_INIT", True)
     # JWT secret for auth token signing and verification.
     jwt_secret: str = os.getenv("JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret")
-    # Optional Redis URL for distributed counters and rate limits.
-    redis_url: str = os.getenv("REDIS_URL", "").strip()
+    # Optional Redis URL and fields for distributed counters and rate limits.
+    redis_host: str = os.getenv("REDIS_HOST", "").strip()
+    redis_port: int = _env_int("REDIS_PORT", 6379)
+    redis_db: int = _env_int("REDIS_DB", 0)
+    redis_username: str = os.getenv("REDIS_USERNAME", "").strip()
+    redis_password: str = os.getenv("REDIS_PASSWORD", "").strip()
+    redis_url: str = _resolve_redis_url(
+        os.getenv("REDIS_URL", ""),
+        username=redis_username,
+        password=redis_password,
+        host=redis_host,
+        port=redis_port,
+        db=redis_db,
+    )
 
     # Global platform fee rate for gateway billing split, range [0.0, 1.0].
     # Example: 0.10 means 10% platform fee and 90% seller net.

@@ -7,7 +7,7 @@ services:
     environment:
       - POSTGRES_DB=synapse_gateway
       - POSTGRES_USER=synapse
-      - POSTGRES_PASSWORD=synapse_dev_password
+      - POSTGRES_PASSWORD=12345678
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
