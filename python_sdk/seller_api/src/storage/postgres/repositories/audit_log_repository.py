@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional
 
+from src.domain.audit import AuditLogEntry
+
 from ..database_manager import DatabaseManager
 
 
@@ -11,12 +13,17 @@ class AuditLogRepository:
         self._db = db
         self._audit_insert_sql = audit_insert_sql
 
-    def append_audit_row(self, row: Dict[str, Any]) -> None:
+    def append_audit_row(self, entry: AuditLogEntry) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute(self._audit_insert_sql, ("audit_log", json.dumps(row, ensure_ascii=False)))
+            cur.execute(self._audit_insert_sql, ("audit_log", json.dumps(entry.model_dump(by_alias=True), ensure_ascii=False)))
 
     def append_to_audit_collection(self, item: Any) -> None:
-        row = item if isinstance(item, dict) else {"raw": item}
+        if isinstance(item, AuditLogEntry):
+            row = item.model_dump(by_alias=True)
+        elif isinstance(item, dict):
+            row = item
+        else:
+            row = {"raw": item}
         with self._db.tx_cursor() as cur:
             cur.execute(self._audit_insert_sql, ("audit_log", json.dumps(row, ensure_ascii=False)))
 
@@ -26,7 +33,7 @@ class AuditLogRepository:
             for row in rows:
                 cur.execute(self._audit_insert_sql, ("audit_log", json.dumps(row, ensure_ascii=False)))
 
-    def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
+    def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[AuditLogEntry]:
         sql = "SELECT payload FROM synapse_audit_log WHERE collection_name = %s"
         params: List[Any] = ["audit_log"]
 
@@ -41,6 +48,6 @@ class AuditLogRepository:
             cur.execute(sql, params)
             rows = cur.fetchall()
 
-        result = [row[0] for row in rows if isinstance(row[0], dict)]
-        result.sort(key=lambda item: int(item.get("timestamp") or 0), reverse=True)
+        result = [AuditLogEntry.model_validate(row[0]) for row in rows if isinstance(row[0], dict)]
+        result.sort(key=lambda entry: entry.timestamp, reverse=True)
         return result

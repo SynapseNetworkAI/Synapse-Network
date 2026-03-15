@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Dict
 
+from src.domain.finance import BalanceLedger, PlatformFees
+
 from ..database_manager import DatabaseManager
 
 
@@ -12,23 +14,14 @@ class BalanceRepository:
         self._q6 = quantize6
         self._balance_upsert_sql = balance_upsert_sql
 
-    def read_balance_ledger(self) -> Dict[str, Any]:
+    def read_balance_ledger(self) -> BalanceLedger:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 "SELECT owner_address, account_type, available_balance, pending_balance, frozen_balance, updated_at FROM synapse_balances"
             )
             rows = cur.fetchall()
 
-        ledger: Dict[str, Any] = {
-            "buyers": {},
-            "buyersLocked": {},
-            "buyersFrozen": {},
-            "sellers": {},
-            "sellersLocked": {},
-            "sellersFrozen": {},
-            "platform": {"feeAccrued": 0.0},
-            "updatedAt": 0,
-        }
+        ledger = BalanceLedger()
         max_updated = 0
         for owner, account_type, available_balance, pending_balance, frozen_balance, updated_at in rows:
             updated = int(updated_at or 0)
@@ -38,36 +31,29 @@ class BalanceRepository:
             pending_val = float(self._q6(pending_balance))
             frozen_val = float(self._q6(frozen_balance))
             if account_type == "buyer":
-                ledger["buyers"][str(owner)] = available_val
-                ledger["buyersLocked"][str(owner)] = pending_val
-                ledger["buyersFrozen"][str(owner)] = frozen_val
+                ledger.buyers[str(owner)] = available_val
+                ledger.buyers_locked[str(owner)] = pending_val
+                ledger.buyers_frozen[str(owner)] = frozen_val
             elif account_type == "seller":
-                ledger["sellers"][str(owner)] = available_val
-                ledger["sellersLocked"][str(owner)] = pending_val
-                ledger["sellersFrozen"][str(owner)] = frozen_val
+                ledger.sellers[str(owner)] = available_val
+                ledger.sellers_locked[str(owner)] = pending_val
+                ledger.sellers_frozen[str(owner)] = frozen_val
             elif account_type == "platform_fee" and str(owner) == "__platform__":
-                ledger["platform"]["feeAccrued"] = available_val
-        ledger["updatedAt"] = max_updated
+                ledger.platform.fee_accrued = available_val
+        ledger.updated_at = max_updated
         return ledger
 
-    def write_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        updated_at = int(ledger.get("updatedAt") or int(time.time()))
-        buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
-        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
-        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
-        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
-        sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
-        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
-        platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
+    def write_balance_ledger(self, ledger: BalanceLedger) -> None:
+        updated_at = ledger.updated_at or int(time.time())
 
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_balances")
-            self._upsert_account_rows(cur, "buyer", buyers, buyers_locked, buyers_frozen, updated_at)
-            self._upsert_account_rows(cur, "seller", sellers, sellers_locked, sellers_frozen, updated_at)
+            self._upsert_account_rows(cur, "buyer", ledger.buyers, ledger.buyers_locked, ledger.buyers_frozen, updated_at)
+            self._upsert_account_rows(cur, "seller", ledger.sellers, ledger.sellers_locked, ledger.sellers_frozen, updated_at)
 
             cur.execute(
                 self._balance_upsert_sql,
-                ("__platform__", "platform_fee", str(self._q6(platform.get("feeAccrued") or 0)), "0", "0", updated_at),
+                ("__platform__", "platform_fee", str(self._q6(ledger.platform.fee_accrued)), "0", "0", updated_at),
             )
 
     def _upsert_account_rows(

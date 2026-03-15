@@ -246,7 +246,7 @@ async def get_usage_logs(
     storage: Annotated[BaseStorage, Depends(get_storage)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
-    raw_rows = direct_gateway_state_repo(storage).read_usage_log_rows()
+    raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
     rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
     owner = owner_wallet.lower()
     filtered = []
@@ -334,18 +334,19 @@ async def get_fee_policy(
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     admin_wallet = _ensure_fee_policy_admin(owner_wallet)
-    raw = direct_fee_policy_repo(storage).get_platform_fee_policy() or {}
-    if not isinstance(raw, dict):
-        raw = {}
+    policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
-    normalized = _normalize_fee_policy_payload(raw, settings.platform_fee_rate)
+    normalized = _normalize_fee_policy_payload(
+        {"defaultRate": policy.default_rate, "ownerRates": policy.owner_rates},
+        settings.platform_fee_rate,
+    )
     response = {
         "status": "success",
         "requestedBy": admin_wallet,
         "policy": {
             **normalized,
-            "updatedAt": raw.get("updatedAt"),
-            "updatedBy": raw.get("updatedBy"),
+            "updatedAt": policy.updated_at,
+            "updatedBy": policy.updated_by,
         },
     }
     return response
@@ -374,7 +375,7 @@ async def set_fee_policy(
         "updatedAt": credential_service.now_ts(),
         "updatedBy": admin_wallet,
     }
-    direct_fee_policy_repo(storage).set_platform_fee_policy(
+    storage.get_data_manager().finance.fee_policy.set_platform_fee_policy(
         default_rate=float(saved.get("defaultRate") or 0.0),
         owner_rates=saved.get("ownerRates") if isinstance(saved.get("ownerRates"), dict) else {},
         updated_by=admin_wallet,

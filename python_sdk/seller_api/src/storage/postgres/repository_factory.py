@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Sequence
+from typing import Any, Callable, Sequence
 
 from ..normalizers import normalize_service_row
-from ..repository_provider import StorageRepositoryProvider
+from ..repository_provider import (
+    AuditDomain,
+    FinanceDomain,
+    SynapseDataManager,
+    SynapseUnitOfWork,
+    SystemDomain,
+)
 from .database_manager import DatabaseManager
 from .repositories.audit_log_repository import AuditLogRepository
 from .repositories.balance_repository import BalanceRepository
@@ -19,10 +25,8 @@ from .repositories.service_registry_repository import ServiceRegistryRepository
 
 @dataclass(frozen=True)
 class PostgresRepositorySet:
-    provider: StorageRepositoryProvider
-    finance_atomic: FinanceAtomicRepository
+    data_manager: SynapseDataManager
     legacy_collection: LegacyCollectionRepository
-    audit: AuditLogRepository
 
 
 def build_postgres_repository_set(
@@ -51,18 +55,22 @@ def build_postgres_repository_set(
     )
     legacy_collection = LegacyCollectionRepository(db, normalize_service_row, audit)
 
-    provider = StorageRepositoryProvider(
-        gateway_state=gateway_state,
-        balance=balance,
-        audit=audit,
-        service_registry=service_registry,
-        credential_auth=credential_auth,
-        fee_policy=fee_policy,
-        idempotency=idempotency,
+    data_manager = SynapseDataManager(
+        uow=SynapseUnitOfWork(db=db),
+        finance=FinanceDomain(
+            balance=balance,
+            atomic=finance_atomic,
+            fee_policy=fee_policy,
+        ),
+        system=SystemDomain(
+            gateway_state=gateway_state,
+            idempotency=idempotency,
+            registry=service_registry,
+            credential_auth=credential_auth,
+        ),
+        audit=AuditDomain(logs=audit),
     )
     return PostgresRepositorySet(
-        provider=provider,
-        finance_atomic=finance_atomic,
+        data_manager=data_manager,
         legacy_collection=legacy_collection,
-        audit=audit,
     )

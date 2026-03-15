@@ -1,101 +1,43 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Protocol
-
-
-class GatewayStateRepositoryProtocol(Protocol):
-    def read_deposit_intents(self) -> List[Dict[str, Any]]: ...
-    def write_deposit_intents(self, rows: List[Dict[str, Any]]) -> None: ...
-    def read_refund_intents(self) -> List[Dict[str, Any]]: ...
-    def write_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None: ...
-    def read_withdrawal_intents(self) -> List[Dict[str, Any]]: ...
-    def write_withdrawal_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None: ...
-    def read_router_config_rows(self) -> List[Dict[str, Any]]: ...
-    def write_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None: ...
-    def read_usage_log_rows(self) -> List[Dict[str, Any]]: ...
-    def write_usage_log_rows(self, rows: List[Dict[str, Any]]) -> None: ...
-    def read_processed_deposit_event_keys(self) -> List[str]: ...
-    def write_processed_deposit_event_keys(self, keys: List[str], updated_at: int) -> None: ...
-
-
-class BalanceRepositoryProtocol(Protocol):
-    def read_balance_ledger(self) -> Dict[str, Any]: ...
-    def write_balance_ledger(self, ledger: Dict[str, Any]) -> None: ...
-
-
-class AuditRepositoryProtocol(Protocol):
-    def append_audit_row(self, row: Dict[str, Any]) -> None: ...
-    def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]: ...
-
-
-class ServiceRegistryRepositoryProtocol(Protocol):
-    def read_service_registry_rows(self) -> List[Dict[str, Any]]: ...
-    def write_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None: ...
-    def read_service_target_health_rows(self) -> List[Dict[str, Any]]: ...
-    def write_service_target_health_rows(self, rows: List[Dict[str, Any]]) -> None: ...
-    def read_service_target_health_history_rows(self) -> List[Dict[str, Any]]: ...
-    def write_service_target_health_history_rows(self, rows: List[Dict[str, Any]]) -> None: ...
-
-
-class CredentialAuthRepositoryProtocol(Protocol):
-    def read_credential_rows(self, credential_type: str) -> List[Dict[str, Any]]: ...
-    def write_credential_rows(self, credential_type: str, rows: List[Dict[str, Any]]) -> None: ...
-    def get_wallet_role(self, wallet: str) -> Optional[str]: ...
-    def set_wallet_role(self, wallet: str, role: str) -> None: ...
-    def upsert_auth_session(self, wallet: str, registered_at: int, last_login: int, status: str) -> None: ...
-
-
-class FeePolicyRepositoryProtocol(Protocol):
-    def get_platform_fee_policy(self) -> Dict[str, Any]: ...
-    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, Any], updated_by: str, updated_at: int) -> None: ...
-
-
-class IdempotencyRepositoryProtocol(Protocol):
-    def read_idempotency_rows(self) -> List[Dict[str, Any]]: ...
-    def write_idempotency_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None: ...
-    def read_rate_limit_rows(self) -> List[Dict[str, Any]]: ...
-    def write_rate_limit_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None: ...
+from typing import Any
 
 
 @dataclass(frozen=True)
-class StorageRepositoryProvider:
-    gateway_state: GatewayStateRepositoryProtocol
-    balance: BalanceRepositoryProtocol
-    audit: AuditRepositoryProtocol
-    service_registry: ServiceRegistryRepositoryProtocol
-    credential_auth: CredentialAuthRepositoryProtocol
-    fee_policy: FeePolicyRepositoryProtocol
-    idempotency: IdempotencyRepositoryProtocol
+class SynapseUnitOfWork:
+    db: Any
+
+    def tx_cursor(self):
+        return self.db.tx_cursor()
+
+    def readonly_cursor(self):
+        return self.db.readonly_cursor()
 
 
-class SupportsRepositoryProvider(Protocol):
-    def get_repository_provider(self) -> StorageRepositoryProvider: ...
+@dataclass(frozen=True)
+class FinanceDomain:
+    balance: Any
+    atomic: Any
+    fee_policy: Any
 
 
-def gateway_state_repo(storage: SupportsRepositoryProvider) -> GatewayStateRepositoryProtocol:
-    return storage.get_repository_provider().gateway_state
+@dataclass(frozen=True)
+class SystemDomain:
+    gateway_state: Any
+    idempotency: Any
+    registry: Any
+    credential_auth: Any
 
 
-def balance_repo(storage: SupportsRepositoryProvider) -> BalanceRepositoryProtocol:
-    return storage.get_repository_provider().balance
+@dataclass(frozen=True)
+class AuditDomain:
+    logs: Any
 
 
-def audit_repo(storage: SupportsRepositoryProvider) -> AuditRepositoryProtocol:
-    return storage.get_repository_provider().audit
-
-
-def service_registry_repo(storage: SupportsRepositoryProvider) -> ServiceRegistryRepositoryProtocol:
-    return storage.get_repository_provider().service_registry
-
-
-def credential_auth_repo(storage: SupportsRepositoryProvider) -> CredentialAuthRepositoryProtocol:
-    return storage.get_repository_provider().credential_auth
-
-
-def fee_policy_repo(storage: SupportsRepositoryProvider) -> FeePolicyRepositoryProtocol:
-    return storage.get_repository_provider().fee_policy
-
-
-def idempotency_repo(storage: SupportsRepositoryProvider) -> IdempotencyRepositoryProtocol:
-    return storage.get_repository_provider().idempotency
+@dataclass(frozen=True)
+class SynapseDataManager:
+    uow: SynapseUnitOfWork
+    finance: FinanceDomain
+    system: SystemDomain
+    audit: AuditDomain

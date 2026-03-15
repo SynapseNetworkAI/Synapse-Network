@@ -8,8 +8,8 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
+from src.domain.finance import BalanceLedger
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
-from src.storage.repository_provider import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 
@@ -51,81 +51,53 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             return [item for item in raw["rows"] if isinstance(item, dict)]
         return []
 
-    def _load_balance_ledger(self) -> Dict[str, Any]:
-        ledger = balance_repo(self.storage).read_balance_ledger() or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
-        buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
-        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
-        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
-        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
-        sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
-        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
-        platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
-        platform.setdefault("feeAccrued", 0.0)
-        ledger["buyers"] = buyers
-        ledger["buyersLocked"] = buyers_locked
-        ledger["buyersFrozen"] = buyers_frozen
-        ledger["sellers"] = sellers
-        ledger["sellersLocked"] = sellers_locked
-        ledger["sellersFrozen"] = sellers_frozen
-        ledger["platform"] = platform
-        ledger.setdefault("updatedAt", int(time.time()))
-        return ledger
+    def _load_balance_ledger(self) -> BalanceLedger:
+        return self.storage.get_data_manager().finance.balance.read_balance_ledger()
 
-    def _save_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        next_ledger = dict(ledger)
-        next_ledger["updatedAt"] = int(time.time())
-        balance_repo(self.storage).write_balance_ledger(next_ledger)
+    def _save_balance_ledger(self, ledger: BalanceLedger) -> None:
+        ledger.updated_at = int(time.time())
+        self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
     def _load_deposit_intents(self) -> List[Dict[str, Any]]:
-        rows = gateway_state_repo(self.storage).read_deposit_intents()
+        rows = self.storage.get_data_manager().system.gateway_state.read_deposit_intents()
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def _save_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        gateway_state_repo(self.storage).write_deposit_intents(rows)
+        self.storage.get_data_manager().system.gateway_state.write_deposit_intents(rows)
 
     def _load_refund_intents(self) -> List[Dict[str, Any]]:
-        rows = gateway_state_repo(self.storage).read_refund_intents()
+        rows = self.storage.get_data_manager().system.gateway_state.read_refund_intents()
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def _save_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        gateway_state_repo(self.storage).write_refund_intents(rows, int(updated_at))
+        self.storage.get_data_manager().system.gateway_state.write_refund_intents(rows, int(updated_at))
 
     def _load_usage_log_rows(self) -> List[Dict[str, Any]]:
-        rows = gateway_state_repo(self.storage).read_usage_log_rows()
+        rows = self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
-        buyers = ledger.get("buyers", {})
-        buyers_locked = ledger.get("buyersLocked", {})
-        buyers.setdefault(owner, round(float(buyers.get(owner, 0.0)), 6))
-        buyers_locked[owner] = round(float(buyers_locked.get(owner, 0.0)) + float(amount_usdc), 6)
-        ledger["buyers"] = buyers
-        ledger["buyersLocked"] = buyers_locked
+        ledger.buyers.setdefault(owner, round(float(ledger.buyers.get(owner, 0.0)), 6))
+        ledger.buyers_locked[owner] = round(float(ledger.buyers_locked.get(owner, 0.0)) + float(amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
     def _confirm_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> Dict[str, float]:
         ledger = self._load_balance_ledger()
-        buyers = ledger.get("buyers", {})
-        buyers_locked = ledger.get("buyersLocked", {})
-        available_before = round(float(buyers.get(owner, 0.0)), 6)
-        pending_before = round(float(buyers_locked.get(owner, 0.0)), 6)
+        available_before = round(float(ledger.buyers.get(owner, 0.0)), 6)
+        pending_before = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
         amount = round(float(amount_usdc), 6)
         if pending_before + 1e-9 < amount:
             raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
 
-        buyers[owner] = round(available_before + amount, 6)
-        buyers_locked[owner] = round(max(0.0, pending_before - amount), 6)
-        ledger["buyers"] = buyers
-        ledger["buyersLocked"] = buyers_locked
+        ledger.buyers[owner] = round(available_before + amount, 6)
+        ledger.buyers_locked[owner] = round(max(0.0, pending_before - amount), 6)
         self._save_balance_ledger(ledger)
         return {
             "availableBefore": available_before,
-            "availableAfter": round(float(buyers[owner]), 6),
+            "availableAfter": round(float(ledger.buyers[owner]), 6),
             "pendingBefore": pending_before,
-            "pendingAfter": round(float(buyers_locked[owner]), 6),
+            "pendingAfter": round(float(ledger.buyers_locked[owner]), 6),
         }
 
     def _parse_refund_amount_usdc(self, payload: Dict[str, Any], available: float) -> float:
@@ -385,8 +357,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _consume_locked_refund_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
-        buyers_locked = ledger.get("buyersLocked", {})
-        locked = round(float(buyers_locked.get(owner, 0.0)), 6)
+        locked = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
         if locked + 1e-9 < amount_usdc:
             raise HTTPException(
                 status_code=409,
@@ -395,24 +366,19 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     "message": "Locked buyer balance is insufficient for this refund intent.",
                 },
             )
-        buyers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
-        ledger["buyersLocked"] = buyers_locked
+        ledger.buyers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
     def _reserve_buyer_refund_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
-        buyers = ledger.get("buyers", {})
-        buyers_locked = ledger.get("buyersLocked", {})
-        available_balance = round(float(buyers.get(owner, 0.0)), 6)
+        available_balance = round(float(ledger.buyers.get(owner, 0.0)), 6)
         if amount_usdc > available_balance:
             raise HTTPException(
                 status_code=400,
                 detail={"code": "INSUFFICIENT_BUYER_BALANCE", "message": "amountUsdc exceeds buyer available balance."},
             )
-        buyers[owner] = round(float(buyers.get(owner, 0.0)) - amount_usdc, 6)
-        buyers_locked[owner] = round(float(buyers_locked.get(owner, 0.0)) + amount_usdc, 6)
-        ledger["buyers"] = buyers
-        ledger["buyersLocked"] = buyers_locked
+        ledger.buyers[owner] = round(float(ledger.buyers.get(owner, 0.0)) - amount_usdc, 6)
+        ledger.buyers_locked[owner] = round(float(ledger.buyers_locked.get(owner, 0.0)) + amount_usdc, 6)
         self._save_balance_ledger(ledger)
 
     async def _finalize_refund_idempotency(
@@ -533,9 +499,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _release_locked_refund_to_available(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
-        buyers = ledger.get("buyers", {})
-        buyers_locked = ledger.get("buyersLocked", {})
-        locked = round(float(buyers_locked.get(owner, 0.0)), 6)
+        locked = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
         if locked + 1e-9 < amount_usdc:
             raise HTTPException(
                 status_code=409,
@@ -544,10 +508,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     "message": "Locked buyer balance is insufficient for refund rejection release.",
                 },
             )
-        buyers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
-        buyers[owner] = round(float(buyers.get(owner, 0.0)) + amount_usdc, 6)
-        ledger["buyers"] = buyers
-        ledger["buyersLocked"] = buyers_locked
+        ledger.buyers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
+        ledger.buyers[owner] = round(float(ledger.buyers.get(owner, 0.0)) + amount_usdc, 6)
         self._save_balance_ledger(ledger)
 
     def _parse_refund_review_context(self, request_meta: Optional[Dict[str, Any]]) -> Dict[str, str]:
@@ -1012,8 +974,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             await self._enforce_owner_write_rate_limit(owner, "refund_intent")
 
             ledger = self._load_balance_ledger()
-            buyers = ledger.get("buyers", {})
-            available_balance = round(float(buyers.get(owner, 0.0)), 6)
+            available_balance = round(float(ledger.buyers.get(owner, 0.0)), 6)
             context = self._parse_refund_create_context(payload, owner, available_balance)
             amount_usdc = float(context["amountUsdc"])
             reason = str(context["reason"])

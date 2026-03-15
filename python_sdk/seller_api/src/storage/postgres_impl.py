@@ -2,9 +2,10 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
 
 from .base import BaseStorage
-from .repository_provider import StorageRepositoryProvider
+from .repository_provider import SynapseDataManager
 from .postgres.database_manager import DatabaseManager
 from .postgres.repository_factory import build_postgres_repository_set
+from src.domain.audit import AuditLogEntry
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -66,10 +67,8 @@ class PostgresStorage(BaseStorage):
             audit_insert_sql=_AUDIT_INSERT_SQL,
             risk_restricted_statuses=_RISK_RESTRICTED_SESSION_STATUSES,
         )
-        self._repository_provider = repositories.provider
-        self._finance_atomic_repo = repositories.finance_atomic
+        self._data_manager = repositories.data_manager
         self._legacy_collection_repo = repositories.legacy_collection
-        self._audit_repo = repositories.audit
         _ = ensure_schema
 
     def _connect(self):
@@ -78,8 +77,8 @@ class PostgresStorage(BaseStorage):
     def get_database_manager(self) -> DatabaseManager:
         return self._db
 
-    def get_repository_provider(self) -> StorageRepositoryProvider:
-        return self._repository_provider
+    def get_data_manager(self) -> SynapseDataManager:
+        return self._data_manager
 
     def process_withdrawal_request_atomic(
         self,
@@ -95,7 +94,7 @@ class PostgresStorage(BaseStorage):
         high_risk_override: bool,
         sign_ticket_factory: Optional[Callable[[Decimal], Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        return self._finance_atomic_repo.process_withdrawal_request_atomic(
+        return self._data_manager.finance.atomic.process_withdrawal_request_atomic(
             seller_address=seller_address,
             amount_usdc=amount_usdc,
             request_id=request_id,
@@ -109,10 +108,10 @@ class PostgresStorage(BaseStorage):
         )
 
     def register_deposit_intent_atomic(self, owner_wallet: str, tx_hash: str, request_id: str, intent_row: Dict[str, Any]) -> Dict[str, Any]:
-        return self._finance_atomic_repo.register_deposit_intent_atomic(owner_wallet, tx_hash, request_id, intent_row)
+        return self._data_manager.finance.atomic.register_deposit_intent_atomic(owner_wallet, tx_hash, request_id, intent_row)
 
     def confirm_deposit_intent_atomic(self, owner_wallet: str, deposit_intent_id: str, event_key: str, confirmations: int) -> Dict[str, Any]:
-        return self._finance_atomic_repo.confirm_deposit_intent_atomic(owner_wallet, deposit_intent_id, event_key, confirmations)
+        return self._data_manager.finance.atomic.confirm_deposit_intent_atomic(owner_wallet, deposit_intent_id, event_key, confirmations)
 
     def charge_buyer_and_record_usage_atomic(
         self,
@@ -124,7 +123,7 @@ class PostgresStorage(BaseStorage):
         platform_fee_total: Decimal,
         usage_row: Dict[str, Any],
     ) -> Dict[str, Any]:
-        return self._finance_atomic_repo.charge_buyer_and_record_usage_atomic(
+        return self._data_manager.finance.atomic.charge_buyer_and_record_usage_atomic(
             owner_wallet=owner_wallet,
             seller_wallet=seller_wallet,
             total_charge=total_charge,
@@ -142,5 +141,5 @@ class PostgresStorage(BaseStorage):
     def append_to_collection(self, collection_name: str, item: Any) -> None:
         self._legacy_collection_repo.append_to_collection(collection_name, item)
 
-    def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
-        return self._audit_repo.read_audit_rows(owner_wallet=owner_wallet, limit=limit)
+    def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[AuditLogEntry]:
+        return self._data_manager.audit.logs.read_audit_rows(owner_wallet=owner_wallet, limit=limit)

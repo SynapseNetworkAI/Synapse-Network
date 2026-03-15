@@ -7,8 +7,8 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
+from src.domain.finance import BalanceLedger
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
-from src.storage.repository_provider import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 
@@ -41,28 +41,21 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         """Only return current authenticated owner's balance summary."""
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        balance_data = balance_repo(self.storage).read_balance_ledger() or {}
-        if not isinstance(balance_data, dict):
-            balance_data = {}
-
-        buyers = balance_data.get("buyers") if isinstance(balance_data.get("buyers"), dict) else {}
-        sellers = balance_data.get("sellers") if isinstance(balance_data.get("sellers"), dict) else {}
-        sellers_locked = balance_data.get("sellersLocked") if isinstance(balance_data.get("sellersLocked"), dict) else {}
-        platform = balance_data.get("platform") if isinstance(balance_data.get("platform"), dict) else {}
+        balance_data = self.storage.get_data_manager().finance.balance.read_balance_ledger()
 
         return {
             "ownerAddress": normalized_owner,
-            "buyerBalance": round(float(buyers.get(normalized_owner, 0.0)), 6),
-            "sellerReceivable": round(float(sellers.get(normalized_owner, 0.0)), 6),
-            "sellerLocked": round(float(sellers_locked.get(normalized_owner, 0.0)), 6),
-            "platformFeeAccrued": round(float(platform.get("feeAccrued", 0.0)), 6),
-            "updatedAt": int(balance_data.get("updatedAt") or 0),
+            "buyerBalance": round(float(balance_data.buyers.get(normalized_owner, 0.0)), 6),
+            "sellerReceivable": round(float(balance_data.sellers.get(normalized_owner, 0.0)), 6),
+            "sellerLocked": round(float(balance_data.sellers_locked.get(normalized_owner, 0.0)), 6),
+            "platformFeeAccrued": round(balance_data.platform.fee_accrued, 6),
+            "updatedAt": balance_data.updated_at,
         }
 
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
-        raw_rows = gateway_state_repo(self.storage).read_router_config_rows()
+        raw_rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
         rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
         found = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
@@ -94,7 +87,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 )
 
             now = int(time.time())
-            raw_rows = gateway_state_repo(self.storage).read_router_config_rows()
+            raw_rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
             rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
             existing = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
@@ -111,7 +104,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 existing["dailyLimitUsdc"] = round(float(daily_limit_usdc), 6)
                 existing["updatedAt"] = now
 
-            gateway_state_repo(self.storage).write_router_config_rows(rows, now)
+            self.storage.get_data_manager().system.gateway_state.write_router_config_rows(rows, now)
             self._append_financial_audit(
                 "ROUTER_CONFIG_UPDATED",
                 owner,

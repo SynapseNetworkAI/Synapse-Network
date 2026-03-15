@@ -14,7 +14,6 @@ from src.models.pydantic_models import (
 from src.core.auth import create_auth_challenge, verify_auth_signature
 from src.core.common import normalize_wallet
 from src.core.config import settings
-from src.storage.repository_provider import credential_auth_repo
 from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
@@ -69,7 +68,7 @@ async def verify_signature(
         wallet = normalize_wallet(request.wallet_address)
 
         now = int(time.time())
-        credential_auth_repo(storage).upsert_auth_session(
+        storage.get_data_manager().system.credential_auth.upsert_auth_session(
             wallet=wallet,
             registered_at=now,
             last_login=now,
