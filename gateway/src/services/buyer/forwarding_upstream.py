@@ -7,7 +7,10 @@ from fastapi import HTTPException
 
 from src.core.config import settings
 from src.services.platform import service_health_service
-from src.services.buyer.forwarding_validation import effective_service_constraints, validate_invoke_request_contract
+from src.services.buyer.forwarding_validation import (
+    effective_service_constraints,
+    validate_invoke_request_contract,
+)
 
 _MAX_TARGET_WEIGHT = 10000
 
@@ -74,9 +77,13 @@ def normalized_weighted_targets(
     return normalized_targets, normalized_weights
 
 
-def select_weighted_target_url(invoke: Dict[str, Any], allowed_target_urls: set[str] | None = None) -> str:
+def select_weighted_target_url(
+    invoke: Dict[str, Any], allowed_target_urls: set[str] | None = None
+) -> str:
     """Pick one upstream URL with weighted-random routing from normalized target list."""
-    targets, weights = normalized_weighted_targets(invoke, allowed_target_urls=allowed_target_urls)
+    targets, weights = normalized_weighted_targets(
+        invoke, allowed_target_urls=allowed_target_urls
+    )
     selected = random.choices(targets, weights=weights, k=1)[0]
     return str(selected.get("url") or "").strip()
 
@@ -108,7 +115,9 @@ async def call_upstream(service: Dict[str, Any], prompt: str, request_id: str) -
     timeout_sec = float(constraints["timeoutMs"]) / 1000.0
     async with httpx.AsyncClient(timeout=timeout_sec) as client:
         headers = {"X-Request-Id": request_id}
-        response = await client.post(upstream_url, json=request_payload, headers=headers)
+        response = await client.post(
+            upstream_url, json=request_payload, headers=headers
+        )
 
         response_size = len(response.content or b"")
         if response_size > constraints["maxResponseBytes"]:

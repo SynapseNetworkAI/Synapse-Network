@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.domain.finance import BalanceLedger
-from src.domain.storage_entities import DepositIntentRow, RefundIntentRow, UsageLogRow
+from src.domain.finance import DepositIntentRow, RefundIntentRow, UsageLogRow
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
@@ -61,7 +61,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
     def _load_deposit_intents(self) -> List[Dict[str, Any]]:
-        rows = self.storage.get_data_manager().system.gateway_state.read_deposit_intents()
+        rows = (
+            self.storage.get_data_manager().system.gateway_state.read_deposit_intents()
+        )
         if not isinstance(rows, list):
             return []
         result: List[Dict[str, Any]] = []
@@ -73,7 +75,11 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return result
 
     def _save_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        typed_rows = [DepositIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+        typed_rows = [
+            DepositIntentRow.model_validate(row)
+            for row in rows
+            if isinstance(row, dict)
+        ]
         repo = self.storage.get_data_manager().system.gateway_state
         try:
             repo.write_deposit_intents(typed_rows)
@@ -81,7 +87,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             repo.write_deposit_intents(rows)
 
     def _load_refund_intents(self) -> List[Dict[str, Any]]:
-        rows = self.storage.get_data_manager().system.gateway_state.read_refund_intents()
+        rows = (
+            self.storage.get_data_manager().system.gateway_state.read_refund_intents()
+        )
         if not isinstance(rows, list):
             return []
         result: List[Dict[str, Any]] = []
@@ -93,7 +101,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return result
 
     def _save_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        typed_rows = [RefundIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+        typed_rows = [
+            RefundIntentRow.model_validate(row) for row in rows if isinstance(row, dict)
+        ]
         repo = self.storage.get_data_manager().system.gateway_state
         try:
             repo.write_refund_intents(typed_rows, int(updated_at))
@@ -101,7 +111,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             repo.write_refund_intents(rows, int(updated_at))
 
     def _load_usage_log_rows(self) -> List[Dict[str, Any]]:
-        rows = self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
+        rows = (
+            self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
+        )
         if not isinstance(rows, list):
             return []
         result: List[Dict[str, Any]] = []
@@ -120,10 +132,14 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
         ledger.buyers.setdefault(owner, round(float(ledger.buyers.get(owner, 0.0)), 6))
-        ledger.buyers_locked[owner] = round(float(ledger.buyers_locked.get(owner, 0.0)) + float(amount_usdc), 6)
+        ledger.buyers_locked[owner] = round(
+            float(ledger.buyers_locked.get(owner, 0.0)) + float(amount_usdc), 6
+        )
         self._save_balance_ledger(ledger)
 
-    def _confirm_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> Dict[str, float]:
+    def _confirm_pending_deposit_amount(
+        self, owner: str, amount_usdc: Decimal
+    ) -> Dict[str, float]:
         ledger = self._load_balance_ledger()
         available_before = round(float(ledger.buyers.get(owner, 0.0)), 6)
         pending_before = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
@@ -141,29 +157,42 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "pendingAfter": round(float(ledger.buyers_locked[owner]), 6),
         }
 
-    def _parse_refund_amount_usdc(self, payload: Dict[str, Any], available: float) -> float:
+    def _parse_refund_amount_usdc(
+        self, payload: Dict[str, Any], available: float
+    ) -> float:
         raw = payload.get("amountUsdc")
         try:
             amount = round(float(raw), 6)
         except Exception:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a number."},
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc must be a number.",
+                },
             )
 
         if amount < 10:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be >= 10 USDC."},
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc must be >= 10 USDC.",
+                },
             )
         if amount > available:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INSUFFICIENT_BUYER_BALANCE", "message": "amountUsdc exceeds buyer available balance."},
+                detail={
+                    "code": "INSUFFICIENT_BUYER_BALANCE",
+                    "message": "amountUsdc exceeds buyer available balance.",
+                },
             )
         return amount
 
-    def _find_pending_refund(self, rows: List[Dict[str, Any]], owner_wallet: str) -> Optional[Dict[str, Any]]:
+    def _find_pending_refund(
+        self, rows: List[Dict[str, Any]], owner_wallet: str
+    ) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         for row in rows:
             if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
@@ -172,7 +201,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 return row
         return None
 
-    def _find_refund_by_id(self, rows: List[Dict[str, Any]], owner_wallet: str, refund_id: str) -> Optional[Dict[str, Any]]:
+    def _find_refund_by_id(
+        self, rows: List[Dict[str, Any]], owner_wallet: str, refund_id: str
+    ) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         target = str(refund_id or "").strip()
         if not target:
@@ -204,7 +235,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         if not origin_request_id and not origin_tx_hash:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "REFUND_ORIGIN_REQUIRED", "message": "originRequestId or originTxHash is required."},
+                detail={
+                    "code": "REFUND_ORIGIN_REQUIRED",
+                    "message": "originRequestId or originTxHash is required.",
+                },
             )
         if origin_tx_hash:
             origin_tx_hash = self._normalize_tx_hash_or_raise(origin_tx_hash)
@@ -218,7 +252,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         if destination and normalize_wallet(destination) != owner:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "REFUND_DESTINATION_NOT_ALLOWED", "message": "Refund destination must equal original payer address."},
+                detail={
+                    "code": "REFUND_DESTINATION_NOT_ALLOWED",
+                    "message": "Refund destination must equal original payer address.",
+                },
             )
 
     def _resolve_refund_type(self, payload: Dict[str, Any]) -> str:
@@ -226,13 +263,22 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         if refund_type not in {REFUND_AUTO_TYPE, REFUND_MANUAL_TYPE}:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_REFUND_TYPE", "message": "refundType must be SYSTEM_FAILURE or MANUAL_APPEAL."},
+                detail={
+                    "code": "INVALID_REFUND_TYPE",
+                    "message": "refundType must be SYSTEM_FAILURE or MANUAL_APPEAL.",
+                },
             )
         return refund_type
 
     def _origin_matches(self, row: Dict[str, Any], origin: Dict[str, str]) -> bool:
-        req_hit = bool(origin["originRequestId"]) and str(row.get("originRequestId") or "") == origin["originRequestId"]
-        tx_hit = bool(origin["originTxHash"]) and str(row.get("originTxHash") or "").lower() == origin["originTxHash"]
+        req_hit = (
+            bool(origin["originRequestId"])
+            and str(row.get("originRequestId") or "") == origin["originRequestId"]
+        )
+        tx_hit = (
+            bool(origin["originTxHash"])
+            and str(row.get("originTxHash") or "").lower() == origin["originTxHash"]
+        )
         return req_hit or tx_hit
 
     def _row_numeric(self, row: Dict[str, Any], *keys: str) -> float:
@@ -260,7 +306,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "remaining": round(max(0.0, refundable_total - consumed), 6),
         }
 
-    def _sum_refundable_usage_total(self, *, owner: str, origin: Dict[str, str]) -> float:
+    def _sum_refundable_usage_total(
+        self, *, owner: str, origin: Dict[str, str]
+    ) -> float:
         usage_rows = self._load_usage_log_rows()
         refundable_total = 0.0
         for usage in usage_rows:
@@ -271,10 +319,16 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 continue
             if not self._origin_matches(usage, origin):
                 continue
-            refundable_total = round(refundable_total + self._row_numeric(usage, "total_charge", "totalCharge"), 6)
+            refundable_total = round(
+                refundable_total
+                + self._row_numeric(usage, "total_charge", "totalCharge"),
+                6,
+            )
         return refundable_total
 
-    def _sum_consumed_refunds(self, *, owner: str, origin: Dict[str, str], rows: List[Dict[str, Any]]) -> float:
+    def _sum_consumed_refunds(
+        self, *, owner: str, origin: Dict[str, str], rows: List[Dict[str, Any]]
+    ) -> float:
         consumed = 0.0
         for row in rows:
             if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
@@ -283,7 +337,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 continue
             if str(row.get("status") or "").upper() == "REJECTED":
                 continue
-            consumed = round(consumed + self._row_numeric(row, "amountUsdc", "amountRefunded"), 6)
+            consumed = round(
+                consumed + self._row_numeric(row, "amountUsdc", "amountRefunded"), 6
+            )
         return consumed
 
     def _detect_abnormal_split_refund(
@@ -308,7 +364,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             count += 1
         return count >= 2
 
-    def _classify_refund_risk(self, *, amount_usdc: float, refund_type: str, abnormal_split: bool) -> Dict[str, str]:
+    def _classify_refund_risk(
+        self, *, amount_usdc: float, refund_type: str, abnormal_split: bool
+    ) -> Dict[str, str]:
         if abnormal_split:
             return {
                 "status": "PENDING_MANUAL_REVIEW",
@@ -342,7 +400,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         if not normalized.startswith("0x") or len(normalized) != 66:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_TX_HASH", "message": "txHash must be a 66-char 0x-prefixed hash."},
+                detail={
+                    "code": "INVALID_TX_HASH",
+                    "message": "txHash must be a 66-char 0x-prefixed hash.",
+                },
             )
         return normalized
 
@@ -369,7 +430,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 },
             )
 
-    def _assert_refund_completable(self, target: Dict[str, Any], tx_hash: str) -> Optional[Dict[str, Any]]:
+    def _assert_refund_completable(
+        self, target: Dict[str, Any], tx_hash: str
+    ) -> Optional[Dict[str, Any]]:
         status = str(target.get("status") or "").upper()
         if status == "COMPLETED":
             existing_tx = str(target.get("txHash") or "")
@@ -416,10 +479,17 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         if amount_usdc > available_balance:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INSUFFICIENT_BUYER_BALANCE", "message": "amountUsdc exceeds buyer available balance."},
+                detail={
+                    "code": "INSUFFICIENT_BUYER_BALANCE",
+                    "message": "amountUsdc exceeds buyer available balance.",
+                },
             )
-        ledger.buyers[owner] = round(float(ledger.buyers.get(owner, 0.0)) - amount_usdc, 6)
-        ledger.buyers_locked[owner] = round(float(ledger.buyers_locked.get(owner, 0.0)) + amount_usdc, 6)
+        ledger.buyers[owner] = round(
+            float(ledger.buyers.get(owner, 0.0)) - amount_usdc, 6
+        )
+        ledger.buyers_locked[owner] = round(
+            float(ledger.buyers_locked.get(owner, 0.0)) + amount_usdc, 6
+        )
         self._save_balance_ledger(ledger)
 
     async def _finalize_refund_idempotency(
@@ -480,24 +550,34 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         )
         return response
 
-    def _parse_refund_create_context(self, payload: Dict[str, Any], owner: str, available_balance: float) -> Dict[str, Any]:
+    def _parse_refund_create_context(
+        self, payload: Dict[str, Any], owner: str, available_balance: float
+    ) -> Dict[str, Any]:
         amount_usdc = self._parse_refund_amount_usdc(payload, available_balance)
         reason = str(payload.get("reason") or "").strip()
         if len(reason) > 256:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_REASON", "message": "reason must be <= 256 chars."},
+                detail={
+                    "code": "INVALID_REASON",
+                    "message": "reason must be <= 256 chars.",
+                },
             )
         evidence_summary = str(payload.get("evidenceSummary") or "").strip()
         if len(evidence_summary) > 512:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_EVIDENCE_SUMMARY", "message": "evidenceSummary must be <= 512 chars."},
+                detail={
+                    "code": "INVALID_EVIDENCE_SUMMARY",
+                    "message": "evidenceSummary must be <= 512 chars.",
+                },
             )
         origin = self._parse_refund_origin(payload)
         self._validate_refund_destination(owner, payload)
         refund_type = self._resolve_refund_type(payload)
-        destination_address = normalize_wallet(str(payload.get("destinationAddress") or owner))
+        destination_address = normalize_wallet(
+            str(payload.get("destinationAddress") or owner)
+        )
         request_payload = {
             "ownerAddress": owner,
             "amountUsdc": round(amount_usdc, 6),
@@ -518,8 +598,17 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "requestHash": self._request_hash(request_payload),
         }
 
-    def _validate_refund_origin_limit_or_raise(self, *, owner: str, origin: Dict[str, str], rows: List[Dict[str, Any]], amount_usdc: float) -> Dict[str, float]:
-        limits = self._compute_refund_origin_limits(owner=owner, origin=origin, rows=rows)
+    def _validate_refund_origin_limit_or_raise(
+        self,
+        *,
+        owner: str,
+        origin: Dict[str, str],
+        rows: List[Dict[str, Any]],
+        amount_usdc: float,
+    ) -> Dict[str, float]:
+        limits = self._compute_refund_origin_limits(
+            owner=owner, origin=origin, rows=rows
+        )
         if limits["refundableTotal"] <= 0:
             raise HTTPException(
                 status_code=400,
@@ -538,7 +627,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             )
         return limits
 
-    def _release_locked_refund_to_available(self, owner: str, amount_usdc: float) -> None:
+    def _release_locked_refund_to_available(
+        self, owner: str, amount_usdc: float
+    ) -> None:
         ledger = self._load_balance_ledger()
         locked = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
         if locked + 1e-9 < amount_usdc:
@@ -550,12 +641,25 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 },
             )
         ledger.buyers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
-        ledger.buyers[owner] = round(float(ledger.buyers.get(owner, 0.0)) + amount_usdc, 6)
+        ledger.buyers[owner] = round(
+            float(ledger.buyers.get(owner, 0.0)) + amount_usdc, 6
+        )
         self._save_balance_ledger(ledger)
 
-    def _parse_refund_review_context(self, request_meta: Optional[Dict[str, Any]]) -> Dict[str, str]:
-        review_ctx = request_meta.get("review") if isinstance(request_meta, dict) and isinstance(request_meta.get("review"), dict) else {}
-        reviewer_address = normalize_wallet(str(review_ctx.get("reviewerAddress") or "")) if review_ctx.get("reviewerAddress") else ""
+    def _parse_refund_review_context(
+        self, request_meta: Optional[Dict[str, Any]]
+    ) -> Dict[str, str]:
+        review_ctx = (
+            request_meta.get("review")
+            if isinstance(request_meta, dict)
+            and isinstance(request_meta.get("review"), dict)
+            else {}
+        )
+        reviewer_address = (
+            normalize_wallet(str(review_ctx.get("reviewerAddress") or ""))
+            if review_ctx.get("reviewerAddress")
+            else ""
+        )
         return {
             "decision": str(review_ctx.get("decision") or "APPROVE").strip().upper(),
             "reviewerAddress": reviewer_address,
@@ -819,12 +923,18 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             if code == "DEPOSIT_INTENT_NOT_FOUND":
                 raise HTTPException(
                     status_code=404,
-                    detail={"code": "DEPOSIT_INTENT_NOT_FOUND", "message": "Deposit intent not found."},
+                    detail={
+                        "code": "DEPOSIT_INTENT_NOT_FOUND",
+                        "message": "Deposit intent not found.",
+                    },
                 )
             if code == "DEPOSIT_STATUS_INVALID":
                 raise HTTPException(
                     status_code=409,
-                    detail={"code": "DEPOSIT_STATUS_INVALID", "message": "Deposit intent cannot be confirmed from current status."},
+                    detail={
+                        "code": "DEPOSIT_STATUS_INVALID",
+                        "message": "Deposit intent cannot be confirmed from current status.",
+                    },
                 )
             raise
         if isinstance(result, DepositIntentRow):
@@ -848,7 +958,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             return row
         raise HTTPException(
             status_code=404,
-            detail={"code": "DEPOSIT_INTENT_NOT_FOUND", "message": "Deposit intent not found."},
+            detail={
+                "code": "DEPOSIT_INTENT_NOT_FOUND",
+                "message": "Deposit intent not found.",
+            },
         )
 
     def _assert_deposit_confirmable(self, status: str) -> None:
@@ -856,7 +969,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             return
         raise HTTPException(
             status_code=409,
-            detail={"code": "DEPOSIT_STATUS_INVALID", "message": "Deposit intent cannot be confirmed from current status."},
+            detail={
+                "code": "DEPOSIT_STATUS_INVALID",
+                "message": "Deposit intent cannot be confirmed from current status.",
+            },
         )
 
     async def confirm_deposit_intent(
@@ -889,14 +1005,18 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 return result
 
             intents = self._load_deposit_intents()
-            target = self._find_owner_deposit_intent(intents=intents, owner=owner, deposit_intent_id=deposit_intent_id)
+            target = self._find_owner_deposit_intent(
+                intents=intents, owner=owner, deposit_intent_id=deposit_intent_id
+            )
 
             status = str(target.get("status") or "").upper()
             if status == "CONFIRMED":
                 return target
             self._assert_deposit_confirmable(status)
 
-            amount_usdc = Decimal(str(target.get("amountUsdc") or 0)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+            amount_usdc = Decimal(str(target.get("amountUsdc") or 0)).quantize(
+                Decimal("0.000001"), rounding=ROUND_HALF_UP
+            )
             moved = self._confirm_pending_deposit_amount(owner, amount_usdc)
             now = int(time.time())
             target["status"] = "CONFIRMED"
@@ -933,7 +1053,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             if not tx_hash.startswith("0x") or len(tx_hash) != 66:
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "INVALID_TX_HASH", "message": "txHash must be a 66-char 0x-prefixed hash."},
+                    detail={
+                        "code": "INVALID_TX_HASH",
+                        "message": "txHash must be a 66-char 0x-prefixed hash.",
+                    },
                 )
 
             try:
@@ -943,12 +1066,18 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             except Exception:
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a valid decimal number."},
+                    detail={
+                        "code": "INVALID_AMOUNT",
+                        "message": "amountUsdc must be a valid decimal number.",
+                    },
                 )
             if amount_usdc <= Decimal("0"):
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
+                    detail={
+                        "code": "INVALID_AMOUNT",
+                        "message": "amountUsdc must be greater than 0.",
+                    },
                 )
 
             intents = self._load_deposit_intents()
@@ -1014,7 +1143,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return [
             row
             for row in rows
-            if normalize_wallet(str(row.get("ownerAddress") or row.get("buyerAddress") or "")) == normalized_owner
+            if normalize_wallet(
+                str(row.get("ownerAddress") or row.get("buyerAddress") or "")
+            )
+            == normalized_owner
         ]
 
     async def process_refund_intent(
@@ -1031,7 +1163,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
             ledger = self._load_balance_ledger()
             available_balance = round(float(ledger.buyers.get(owner, 0.0)), 6)
-            context = self._parse_refund_create_context(payload, owner, available_balance)
+            context = self._parse_refund_create_context(
+                payload, owner, available_balance
+            )
             amount_usdc = float(context["amountUsdc"])
             reason = str(context["reason"])
             evidence_summary = str(context["evidenceSummary"])
@@ -1102,7 +1236,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             now = int(time.time())
             refund_id = str(uuid4())
             signature = f"mock-refund-signature-{refund_id[:12]}"
-            abnormal_split = self._detect_abnormal_split_refund(owner=owner, origin=origin, rows=rows, now=now)
+            abnormal_split = self._detect_abnormal_split_refund(
+                owner=owner, origin=origin, rows=rows, now=now
+            )
             risk = self._classify_refund_risk(
                 amount_usdc=amount_usdc,
                 refund_type=refund_type,
@@ -1179,7 +1315,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         normalized_owner = normalize_wallet(owner_wallet)
         rows = self._load_refund_intents()
         filtered = [
-            row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == normalized_owner
+            row
+            for row in rows
+            if normalize_wallet(str(row.get("ownerAddress") or "")) == normalized_owner
         ]
         filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
         return filtered
@@ -1199,7 +1337,10 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             if target is None:
                 raise HTTPException(
                     status_code=404,
-                    detail={"code": "REFUND_NOT_FOUND", "message": "Refund intent not found."},
+                    detail={
+                        "code": "REFUND_NOT_FOUND",
+                        "message": "Refund intent not found.",
+                    },
                 )
 
             normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)
@@ -1219,7 +1360,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                             "message": "txHash is already bound to another refund intent.",
                         },
                     )
-            self._assert_no_refund_tx_replay(rows, owner, normalized_tx_hash, str(target.get("id") or ""))
+            self._assert_no_refund_tx_replay(
+                rows, owner, normalized_tx_hash, str(target.get("id") or "")
+            )
             completed = self._assert_refund_completable(target, normalized_tx_hash)
             if completed is not None:
                 return completed

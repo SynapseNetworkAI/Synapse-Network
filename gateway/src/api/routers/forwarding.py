@@ -22,4 +22,6 @@ async def generate_response_v2(
     x_credential: CredentialHeader = None,
     x_request_id: RequestIdHeader = None,
 ):
-    return await forwarding_service.generate_response_v2(storage, request, x_service_id, x_credential, x_request_id)
+    return await forwarding_service.generate_response_v2(
+        storage, request, x_service_id, x_credential, x_request_id
+    )

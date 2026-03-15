@@ -21,7 +21,10 @@ async def list_seller_secrets(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return {"status": "success", "secrets": seller_secret_service.list_seller_secrets_by_owner(storage, owner)}
+    return {
+        "status": "success",
+        "secrets": seller_secret_service.list_seller_secrets_by_owner(storage, owner),
+    }
 
 
 @router.post("/v1/secrets/seller/issue")
@@ -32,7 +35,9 @@ async def issue_seller_secret(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await seller_secret_service.issue_seller_secret_for_owner(storage, owner, req)
+    return await seller_secret_service.issue_seller_secret_for_owner(
+        storage, owner, req
+    )
 
 
 @router.delete("/v1/secrets/seller/{secret_id}")
@@ -43,4 +48,6 @@ async def revoke_seller_secret(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await seller_secret_service.revoke_seller_secret_for_owner(storage, owner, secret_id)
+    return await seller_secret_service.revoke_seller_secret_for_owner(
+        storage, owner, secret_id
+    )

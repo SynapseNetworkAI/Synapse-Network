@@ -9,6 +9,7 @@ from typing import Any
 # Domain facade dataclasses — 仓储层的领域导航容器
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class SynapseUnitOfWork:
     db: Any
@@ -51,6 +52,7 @@ class SynapseDataManager:
 # ---------------------------------------------------------------------------
 # Abstract storage interface
 # ---------------------------------------------------------------------------
+
 
 class BaseStorage(ABC):
     @abstractmethod

@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 class BalanceAuditMixin:
-    def _append_financial_audit(self, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
+    def _append_financial_audit(
+        self, action: str, owner_wallet: str, details: Dict[str, Any]
+    ) -> None:
         entry = AuditLogEntry(
             id=str(uuid4()),
             timestamp=int(time.time()),
@@ -21,8 +23,17 @@ class BalanceAuditMixin:
             details=details,
         )
         self.storage.get_data_manager().audit.logs.append_audit_row(entry)
-        if action in {"FINANCE_RATE_LIMIT_HIT", "DEPOSIT_REPLAY_DETECTED", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"}:
-            logger.warning("finance_anomaly action=%s owner=%s details=%s", action, normalize_wallet(owner_wallet), details)
+        if action in {
+            "FINANCE_RATE_LIMIT_HIT",
+            "DEPOSIT_REPLAY_DETECTED",
+            "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+        }:
+            logger.warning(
+                "finance_anomaly action=%s owner=%s details=%s",
+                action,
+                normalize_wallet(owner_wallet),
+                details,
+            )
 
     def _finance_audit_actions(self) -> set[str]:
         return {
@@ -37,13 +48,24 @@ class BalanceAuditMixin:
             "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
         }
 
-    async def list_finance_audit_logs(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
-        return await asyncio.to_thread(self._list_finance_audit_logs_sync, owner_wallet, limit)
+    async def list_finance_audit_logs(
+        self, owner_wallet: str, limit: int
+    ) -> List[Dict[str, Any]]:
+        return await asyncio.to_thread(
+            self._list_finance_audit_logs_sync, owner_wallet, limit
+        )
 
-    def _read_audit_rows_from_storage(self, owner: str, limit: int) -> Optional[List[Dict[str, Any]]]:
+    def _read_audit_rows_from_storage(
+        self, owner: str, limit: int
+    ) -> Optional[List[Dict[str, Any]]]:
         try:
-            rows = self.storage.get_data_manager().audit.logs.read_audit_rows(owner_wallet=owner, limit=max(1, min(limit, 500)))
-            return [row.model_dump(by_alias=True) if isinstance(row, AuditLogEntry) else row for row in rows]
+            rows = self.storage.get_data_manager().audit.logs.read_audit_rows(
+                owner_wallet=owner, limit=max(1, min(limit, 500))
+            )
+            return [
+                row.model_dump(by_alias=True) if isinstance(row, AuditLogEntry) else row
+                for row in rows
+            ]
         except Exception:
             return None
 
@@ -72,7 +94,9 @@ class BalanceAuditMixin:
                 rows.append(row)
         return rows
 
-    def _list_finance_audit_logs_sync(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
+    def _list_finance_audit_logs_sync(
+        self, owner_wallet: str, limit: int
+    ) -> List[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         allowed_actions = self._finance_audit_actions()
 
@@ -80,11 +104,7 @@ class BalanceAuditMixin:
         if rows is None:
             rows = self._read_audit_rows_from_jsonl(owner)
 
-        rows = [
-            row
-            for row in rows
-            if str(row.get("action") or "") in allowed_actions
-        ]
+        rows = [row for row in rows if str(row.get("action") or "") in allowed_actions]
 
         rows.sort(key=lambda item: int(item.get("timestamp") or 0), reverse=True)
         return rows[: max(1, min(limit, 500))]

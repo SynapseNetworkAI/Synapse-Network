@@ -13,7 +13,6 @@ from src.storage.postgres.repositories.fee_policy_repository import FeePolicyRep
 from src.storage.postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from src.storage.postgres.repositories.gateway_state_repository import GatewayStateRepository
 from src.storage.postgres.repositories.idempotency_repository import IdempotencyRepository
-from src.storage.postgres.repositories.legacy_collection_repository import LegacyCollectionRepository
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.gateway import RouterConfigRow
@@ -603,7 +602,6 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
     assert "INSERT INTO synapse_withdraw_tx_dedup" in second_conn_sql
 
 
-def test_legacy_collection_repository_read_save_append() -> None:
     class FakeAuditRepo:
         def __init__(self):
             self.append_calls: List[Any] = []

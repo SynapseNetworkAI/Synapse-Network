@@ -124,7 +124,7 @@ Synapse 的数据有两类，必须分开看：
 为彻底消除 `Dict[str, Any]` 在仓储边界扩散导致的字段漂移风险，网关存储层已升级为“表实体驱动”。
 
 强制规则：
-- 每张 SQL 业务表必须对应一个 Pydantic 实体（定义于 `gateway/src/domain/storage_entities.py`）。
+- 每张 SQL 业务表必须对应一个 Pydantic 实体（定义于 `gateway/src/domain/`）。
 - `gateway/src/storage/postgres/repositories/` 的方法入参/返回值使用实体对象，不再直接吞吐裸字典。
 - 仓储 SQL 必须按列读写，不依赖历史 `payload` JSONB 影子字段。
 

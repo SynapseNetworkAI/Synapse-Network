@@ -12,7 +12,9 @@ from src.services.platform.finance_service import PlatformFinanceService
 from src.services.seller.withdraw_service import SellerWithdrawService
 
 
-class BalanceService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin):
+class BalanceService(
+    BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin
+):
     """Financial safety service orchestrator with Redis-first idempotency/rate-limit/locks."""
 
     def __init__(self, storage: BaseStorage):
@@ -129,8 +131,12 @@ class BalanceService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawS
             request_meta=request_meta,
         )
 
-    async def list_provider_withdrawals(self, owner_wallet: str) -> List[Dict[str, Any]]:
-        return await self.seller_withdraw_service.list_provider_withdrawals(owner_wallet)
+    async def list_provider_withdrawals(
+        self, owner_wallet: str
+    ) -> List[Dict[str, Any]]:
+        return await self.seller_withdraw_service.list_provider_withdrawals(
+            owner_wallet
+        )
 
     async def complete_provider_withdrawal(
         self,

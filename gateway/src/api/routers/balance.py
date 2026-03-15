@@ -18,7 +18,7 @@ from src.services.platform import credential_service
 from src.services.platform.v2_indexer import get_indexer_status, replay_deposit_tx
 from src.core.common import normalize_wallet
 from src.core.config import settings
-from src.domain.storage_entities import UsageLogRow
+from src.domain.finance import UsageLogRow
 from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
@@ -50,7 +50,10 @@ def _ensure_fee_policy_admin(owner_wallet: str) -> str:
         if owner not in admins:
             raise HTTPException(
                 status_code=403,
-                detail={"code": "FORBIDDEN", "message": "Only fee policy admins can access this endpoint"},
+                detail={
+                    "code": "FORBIDDEN",
+                    "message": "Only fee policy admins can access this endpoint",
+                },
             )
         return owner
 
@@ -81,7 +84,10 @@ def _ensure_indexer_admin(owner_wallet: str) -> str:
     if owner not in admins:
         raise HTTPException(
             status_code=403,
-            detail={"code": "FORBIDDEN", "message": "Only indexer admins can access this endpoint"},
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Only indexer admins can access this endpoint",
+            },
         )
     return owner
 
@@ -100,7 +106,9 @@ def _clamp_rate(value: Any, fallback: Optional[float] = None) -> float:
     return float(rate)
 
 
-def _normalize_fee_policy_payload(payload: Dict[str, Any], default_fallback: float) -> Dict[str, Any]:
+def _normalize_fee_policy_payload(
+    payload: Dict[str, Any], default_fallback: float
+) -> Dict[str, Any]:
     default_rate = _clamp_rate(payload.get("defaultRate"), default_fallback)
     owner_rates_raw = payload.get("ownerRates")
     if owner_rates_raw is None:
@@ -138,13 +146,18 @@ async def get_balance(
 async def register_deposit_intent(
     intent: DepositIntentRequest,
     request: Request,
-    idempotency_key: Annotated[str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)],
+    idempotency_key: Annotated[
+        str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)
+    ],
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     """登记 owner 充值意图，owner 由 session 决定。"""
     stored_intent = await service.register_deposit_intent(
-        intent.model_dump(), owner_wallet, idempotency_key, _extract_request_meta(request)
+        intent.model_dump(),
+        owner_wallet,
+        idempotency_key,
+        _extract_request_meta(request),
     )
     return {
         "status": "success",
@@ -185,12 +198,17 @@ async def confirm_deposit_intent(
 async def process_refund(
     refund_req: RefundIntentRequest,
     request: Request,
-    idempotency_key: Annotated[str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)],
+    idempotency_key: Annotated[
+        str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)
+    ],
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     result = await service.process_refund_intent(
-        refund_req.model_dump(), owner_wallet, idempotency_key, _extract_request_meta(request)
+        refund_req.model_dump(),
+        owner_wallet,
+        idempotency_key,
+        _extract_request_meta(request),
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
@@ -246,7 +264,9 @@ async def set_router_config(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
-    saved = await service.set_router_config(owner_wallet, config.dailyLimitUsdc, _extract_request_meta(request))
+    saved = await service.set_router_config(
+        owner_wallet, config.dailyLimitUsdc, _extract_request_meta(request)
+    )
     return {"status": "success", "ownerAddress": owner_wallet, "config": saved}
 
 
@@ -257,7 +277,12 @@ async def list_finance_audit_logs(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
     rows = await service.list_finance_audit_logs(owner_wallet, limit)
-    return {"status": "success", "ownerAddress": owner_wallet, "logs": rows, "count": len(rows)}
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        "logs": rows,
+        "count": len(rows),
+    }
 
 
 @router.get("/v1/usage/logs")
@@ -267,11 +292,17 @@ async def get_usage_logs(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
     raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
-    rows = [
-        row.model_dump(by_alias=True, mode="json") if isinstance(row, UsageLogRow) else row
-        for row in raw_rows
-        if isinstance(row, (UsageLogRow, dict))
-    ] if isinstance(raw_rows, list) else []
+    rows = (
+        [
+            row.model_dump(by_alias=True, mode="json")
+            if isinstance(row, UsageLogRow)
+            else row
+            for row in raw_rows
+            if isinstance(row, (UsageLogRow, dict))
+        ]
+        if isinstance(raw_rows, list)
+        else []
+    )
     owner = owner_wallet.lower()
     filtered = []
     for row in rows:
@@ -290,7 +321,9 @@ async def get_usage_logs(
 @router.get("/v1/providers/earnings/summary")
 async def get_provider_earnings_summary(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
-    analytics_service: Annotated[ProviderAnalyticsService, Depends(get_provider_analytics_service)],
+    analytics_service: Annotated[
+        ProviderAnalyticsService, Depends(get_provider_analytics_service)
+    ],
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
 ):
     summary = analytics_service.get_provider_earnings_summary(owner_wallet, limit)
@@ -304,12 +337,17 @@ async def get_provider_earnings_summary(
 async def create_provider_withdraw_intent(
     payload: ProviderWithdrawIntentRequest,
     request: Request,
-    idempotency_key: Annotated[str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)],
+    idempotency_key: Annotated[
+        str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)
+    ],
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
     result = await service.create_provider_withdraw_intent(
-        payload.model_dump(), owner_wallet, idempotency_key, _extract_request_meta(request)
+        payload.model_dump(),
+        owner_wallet,
+        idempotency_key,
+        _extract_request_meta(request),
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
@@ -321,7 +359,11 @@ async def list_provider_withdrawals(
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ):
     rows = await service.list_provider_withdrawals(owner_wallet)
-    return {"status": "success", "ownerAddress": owner_wallet, "withdrawals": rows[:limit]}
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        "withdrawals": rows[:limit],
+    }
 
 
 @router.post("/v1/providers/withdrawals/{withdrawal_id}/complete")
@@ -396,9 +438,13 @@ async def set_fee_policy(
 ):
     admin_wallet = _ensure_fee_policy_admin(owner_wallet)
     try:
-        normalized = _normalize_fee_policy_payload(payload if isinstance(payload, dict) else {}, settings.platform_fee_rate)
+        normalized = _normalize_fee_policy_payload(
+            payload if isinstance(payload, dict) else {}, settings.platform_fee_rate
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_FEE_POLICY", "message": str(exc)})
+        raise HTTPException(
+            status_code=400, detail={"code": "INVALID_FEE_POLICY", "message": str(exc)}
+        )
 
     saved = {
         **normalized,
@@ -407,7 +453,9 @@ async def set_fee_policy(
     }
     storage.get_data_manager().finance.fee_policy.set_platform_fee_policy(
         default_rate=float(saved.get("defaultRate") or 0.0),
-        owner_rates=saved.get("ownerRates") if isinstance(saved.get("ownerRates"), dict) else {},
+        owner_rates=saved.get("ownerRates")
+        if isinstance(saved.get("ownerRates"), dict)
+        else {},
         updated_by=admin_wallet,
         updated_at=int(saved.get("updatedAt") or credential_service.now_ts()),
     )
@@ -437,18 +485,42 @@ async def replay_deposit_by_tx_hash(
         summary = replay_deposit_tx(storage, payload.txHash, admin_wallet)
     except ValueError as exc:
         if str(exc) == "INVALID_TX_HASH":
-            raise HTTPException(status_code=400, detail={"code": "INVALID_TX_HASH", "message": "txHash must be a valid 0x-prefixed hash."})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_TX_HASH",
+                    "message": "txHash must be a valid 0x-prefixed hash.",
+                },
+            )
         raise
     except RuntimeError as exc:
         code = str(exc)
         if code == "TX_NOT_CONFIRMED":
-            raise HTTPException(status_code=409, detail={"code": code, "message": "Transaction is not confirmed yet."})
+            raise HTTPException(
+                status_code=409,
+                detail={"code": code, "message": "Transaction is not confirmed yet."},
+            )
         if code == "TX_FAILED":
-            raise HTTPException(status_code=409, detail={"code": code, "message": "Transaction failed on-chain and cannot be credited."})
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": code,
+                    "message": "Transaction failed on-chain and cannot be credited.",
+                },
+            )
         if code == "MISSING_TX_RECEIPT":
-            raise HTTPException(status_code=409, detail={"code": code, "message": "Transaction receipt is unavailable."})
+            raise HTTPException(
+                status_code=409,
+                detail={"code": code, "message": "Transaction receipt is unavailable."},
+            )
         if code == "NO_MATCHING_DEPOSIT_EVENT":
-            raise HTTPException(status_code=404, detail={"code": code, "message": "No router deposit event found for this tx hash."})
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": code,
+                    "message": "No router deposit event found for this tx hash.",
+                },
+            )
         raise
 
     return {

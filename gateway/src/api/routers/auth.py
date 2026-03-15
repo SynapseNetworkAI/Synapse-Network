@@ -1,15 +1,13 @@
 import time
-from typing import Dict, List, Optional, Annotated
+from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Depends, Header
 from loguru import logger
-import aiohttp
 
 from src.api.schemas.pydantic_models import (
-    ChallengeRequest, 
-    ChallengeResponse, 
+    ChallengeResponse,
     VerifyAuthRequest,
     TokenResponse,
-    BaseResponse
+    BaseResponse,
 )
 from src.core.auth import create_auth_challenge, verify_auth_signature
 from src.core.common import normalize_wallet
@@ -22,10 +20,14 @@ router = APIRouter()
 AuthorizationHeader = Annotated[Optional[str], Header(alias="Authorization")]
 UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
 
+
 @router.get(
     "/v1/auth/challenge",
     response_model=ChallengeResponse,
-    responses={400: {"description": "Failed to create challenge"}, 500: {"description": "Internal server error"}},
+    responses={
+        400: {"description": "Failed to create challenge"},
+        500: {"description": "Internal server error"},
+    },
 )
 async def get_challenge(address: str):
     """Get an authentication challenge for a wallet"""
@@ -33,20 +35,22 @@ async def get_challenge(address: str):
         challenge = create_auth_challenge(address)
         if not challenge:
             raise HTTPException(status_code=400, detail="Failed to create challenge")
-            
+
         return ChallengeResponse(
-            success=True,
-            challenge=challenge,
-            domain="a2a-pay-network"
+            success=True, challenge=challenge, domain="a2a-pay-network"
         )
     except Exception as e:
         logger.error(f"Challenge generation failed: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+
 @router.post(
     "/v1/auth/verify",
     response_model=TokenResponse,
-    responses={401: {"description": "Invalid signature"}, 500: {"description": "Verification failed"}},
+    responses={
+        401: {"description": "Invalid signature"},
+        500: {"description": "Verification failed"},
+    },
 )
 async def verify_signature(
     request: VerifyAuthRequest,
@@ -55,11 +59,9 @@ async def verify_signature(
     """Verify signature and issue JWT"""
     try:
         token = verify_auth_signature(
-            request.wallet_address,
-            request.signature,
-            request.message
+            request.wallet_address, request.signature, request.message
         )
-        
+
         if not token:
             raise HTTPException(
                 status_code=401,
@@ -68,7 +70,7 @@ async def verify_signature(
                     f"Please request a new challenge and sign within {settings.auth_challenge_ttl_sec}s."
                 ),
             )
-            
+
         wallet = normalize_wallet(request.wallet_address)
 
         now = int(time.time())
@@ -78,7 +80,7 @@ async def verify_signature(
             last_login=now,
             status="active",
         )
-            
+
         return TokenResponse(
             success=True,
             access_token=token,
@@ -95,7 +97,10 @@ async def verify_signature(
 @router.post(
     "/v1/auth/logout",
     response_model=BaseResponse,
-    responses={401: {"description": "Unauthorized"}, 500: {"description": "Logout failed"}},
+    responses={
+        401: {"description": "Unauthorized"},
+        500: {"description": "Logout failed"},
+    },
 )
 async def logout(
     storage: Annotated[BaseStorage, Depends(get_storage)],
