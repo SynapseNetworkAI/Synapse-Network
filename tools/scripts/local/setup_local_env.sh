@@ -107,9 +107,14 @@ if [[ -n "$EXISTING_SELLER_PID" ]]; then
 fi
 
 LOCAL_ENV_FILE="${ROOT_DIR}/gateway/.env.local"
+DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse_gateway"
+LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+# Normalize docker-network hostname for host-run local mode.
+LOCAL_POSTGRES_DSN="${LOCAL_POSTGRES_DSN/@postgres:/@127.0.0.1:}"
 if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ENVIRONMENT=local \
 	ENV_FILE=.env.local \
+	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	SELLER_ADDRESS="$SELLER_ADDRESS" \
@@ -117,6 +122,7 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/gateway/logs/seller_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
+	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	SELLER_ADDRESS="$SELLER_ADDRESS" \
