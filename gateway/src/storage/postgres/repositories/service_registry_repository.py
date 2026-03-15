@@ -13,13 +13,173 @@ class ServiceRegistryRepository:
     def __init__(self, db: DatabaseManager):
         self._db = db
 
-    def read_service_registry_rows(self) -> List[Dict[str, Any]]:
+    def _has_payload_column(self) -> bool:
         with self._db.readonly_cursor() as cur:
-            cur.execute("SELECT payload FROM synapse_service_registry ORDER BY created_at ASC")
+            cur.execute(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'synapse_service_registry' AND column_name = 'payload'
+                LIMIT 1
+                """
+            )
+            return cur.fetchone() is not None
+
+    @staticmethod
+    def _legacy_row_to_payload(row: Any) -> Dict[str, Any]:
+        (
+            service_id,
+            owner_address,
+            service_name,
+            summary,
+            endpoint,
+            status,
+            is_active,
+            pricing_amount,
+            pricing_currency,
+            timeout_ms,
+            max_qps,
+            max_request_bytes,
+            max_response_bytes,
+            created_at,
+            updated_at,
+        ) = row
+        invoke_timeout = int(timeout_ms or 15000)
+        target_url = str(endpoint or "").strip()
+        payload = {
+            "serviceId": str(service_id or "").strip(),
+            "ownerAddress": str(owner_address or "").lower(),
+            "serviceName": str(service_name or "").strip(),
+            "summary": str(summary or ""),
+            "status": str(status or "active"),
+            "isActive": bool(is_active),
+            "pricing": {
+                "amount": str(pricing_amount or "0"),
+                "currency": str(pricing_currency or "USD"),
+            },
+            "tags": [],
+            "constraints": {
+                "timeoutMs": invoke_timeout,
+                "maxQps": int(max_qps or 100),
+                "maxRequestBytes": int(max_request_bytes or 262144),
+                "maxResponseBytes": int(max_response_bytes or 262144),
+            },
+            "invoke": {
+                "method": "POST",
+                "targets": ([{"url": target_url, "weight": 100}] if target_url else []),
+                "timeoutMs": invoke_timeout,
+                "request": {},
+                "response": {},
+                "headersTemplate": {},
+                "examples": [],
+            },
+            "createdAt": int(created_at or 0),
+            "updatedAt": int(updated_at or 0),
+        }
+        return payload
+
+    @staticmethod
+    def _extract_primary_target(row: Dict[str, Any]) -> str:
+        invoke = row.get("invoke") if isinstance(row, dict) else None
+        if isinstance(invoke, dict):
+            targets = invoke.get("targets")
+            if isinstance(targets, list) and targets:
+                first = targets[0]
+                if isinstance(first, dict):
+                    return str(first.get("url") or "").strip()
+        return str(row.get("endpoint") or "").strip()
+
+    @staticmethod
+    def _extract_pricing(row: Dict[str, Any]) -> tuple[str, str]:
+        pricing = row.get("pricing")
+        if isinstance(pricing, dict):
+            amount = str(pricing.get("amount") or "0")
+            currency = str(pricing.get("currency") or "USD")
+            return amount, currency
+        if isinstance(pricing, str):
+            return pricing, "USD"
+        return "0", "USD"
+
+    def read_service_registry_rows(self) -> List[Dict[str, Any]]:
+        if self._has_payload_column():
+            with self._db.readonly_cursor() as cur:
+                cur.execute("SELECT payload FROM synapse_service_registry ORDER BY created_at ASC")
+                rows = cur.fetchall()
+            return [normalize_service_row(row[0]) for row in rows if isinstance(row[0], dict)]
+
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT service_id, owner_address, service_name, summary, endpoint, status,
+                       is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
+                       max_request_bytes, max_response_bytes, created_at, updated_at
+                FROM synapse_service_registry
+                ORDER BY created_at ASC
+                """
+            )
             rows = cur.fetchall()
-        return [normalize_service_row(row[0]) for row in rows if isinstance(row[0], dict)]
+        return [normalize_service_row(self._legacy_row_to_payload(row)) for row in rows]
 
     def write_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
+        if not self._has_payload_column():
+            with self._db.tx_cursor() as cur:
+                cur.execute("DELETE FROM synapse_service_registry")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    service_id = str(row.get("serviceId") or "").strip()
+                    if not service_id:
+                        continue
+                    amount, currency = self._extract_pricing(row)
+                    constraints = row.get("constraints") if isinstance(row.get("constraints"), dict) else {}
+                    timeout_ms = int((constraints or {}).get("timeoutMs") or row.get("timeoutMs") or 15000)
+                    max_qps = int((constraints or {}).get("maxQps") or row.get("maxQps") or 100)
+                    max_request_bytes = int((constraints or {}).get("maxRequestBytes") or row.get("maxRequestBytes") or 262144)
+                    max_response_bytes = int((constraints or {}).get("maxResponseBytes") or row.get("maxResponseBytes") or 262144)
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_service_registry (
+                            service_id, owner_address, service_name, summary, endpoint, status,
+                            is_active, pricing_amount, pricing_currency, timeout_ms, max_qps,
+                            max_request_bytes, max_response_bytes, created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (service_id)
+                        DO UPDATE SET
+                            owner_address = EXCLUDED.owner_address,
+                            service_name = EXCLUDED.service_name,
+                            summary = EXCLUDED.summary,
+                            endpoint = EXCLUDED.endpoint,
+                            status = EXCLUDED.status,
+                            is_active = EXCLUDED.is_active,
+                            pricing_amount = EXCLUDED.pricing_amount,
+                            pricing_currency = EXCLUDED.pricing_currency,
+                            timeout_ms = EXCLUDED.timeout_ms,
+                            max_qps = EXCLUDED.max_qps,
+                            max_request_bytes = EXCLUDED.max_request_bytes,
+                            max_response_bytes = EXCLUDED.max_response_bytes,
+                            created_at = EXCLUDED.created_at,
+                            updated_at = EXCLUDED.updated_at
+                        """,
+                        (
+                            service_id,
+                            str(row.get("ownerAddress") or "").lower(),
+                            str(row.get("serviceName") or ""),
+                            str(row.get("summary") or ""),
+                            self._extract_primary_target(row),
+                            str(row.get("status") or "active"),
+                            bool(row.get("isActive", True)),
+                            amount,
+                            currency,
+                            timeout_ms,
+                            max_qps,
+                            max_request_bytes,
+                            max_response_bytes,
+                            int(row.get("createdAt") or 0),
+                            int(row.get("updatedAt") or 0),
+                        ),
+                    )
+            return
+
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_service_registry")
             for row in rows:

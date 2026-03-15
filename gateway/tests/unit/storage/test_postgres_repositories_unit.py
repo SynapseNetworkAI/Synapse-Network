@@ -238,6 +238,11 @@ def test_service_registry_repository_read_and_write() -> None:
     db = FakeDB()
     db.readonly_plan.append(
         {
+            "fetchone": [(1,)],
+        }
+    )
+    db.readonly_plan.append(
+        {
             "fetchall": [[({"serviceId": "svc-1", "ownerAddress": "0xabc", "name": "SVC"},)]],
         }
     )
@@ -249,6 +254,11 @@ def test_service_registry_repository_read_and_write() -> None:
     db.readonly_plan.append(
         {
             "fetchall": [[("svc-1", "0xabc", "https://a", "up", 200, 12, "https://a/health", 3, 1, 11, 9, None)]],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchone": [(1,)],
         }
     )
     repo = ServiceRegistryRepository(db)
@@ -270,6 +280,51 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "DELETE FROM synapse_service_registry" in all_sql
     assert "DELETE FROM synapse_service_target_health" in all_sql
     assert "DELETE FROM synapse_service_target_health_history" in all_sql
+
+
+def test_service_registry_repository_legacy_schema_compatibility() -> None:
+    db = FakeDB()
+    db.readonly_plan.append({"fetchone": [None]})
+    db.readonly_plan.append(
+        {
+            "fetchall": [
+                [
+                    (
+                        "svc-legacy",
+                        "0xabc",
+                        "Legacy API",
+                        "legacy summary",
+                        "https://legacy.example.com/invoke",
+                        "active",
+                        True,
+                        Decimal("0.005"),
+                        "USD",
+                        18000,
+                        50,
+                        4096,
+                        8192,
+                        100,
+                        120,
+                    )
+                ]
+            ]
+        }
+    )
+    db.readonly_plan.append({"fetchone": [None]})
+
+    repo = ServiceRegistryRepository(db)
+    rows = repo.read_service_registry_rows()
+
+    assert rows[0]["serviceId"] == "svc-legacy"
+    assert rows[0]["serviceName"] == "Legacy API"
+    assert rows[0]["invoke"]["targets"][0]["url"] == "https://legacy.example.com/invoke"
+    assert rows[0]["pricing"]["currency"] == "USD"
+
+    repo.write_service_registry_rows(rows)
+    sql = "\n".join(stmt for stmt, _ in db.tx_cursors[-1].executed)
+    assert "INSERT INTO synapse_service_registry" in sql
+    assert "service_name" in sql
+    assert "payload" not in sql
 
 
 def test_credential_auth_repository_read_write_and_roles() -> None:
