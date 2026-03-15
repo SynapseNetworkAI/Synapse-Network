@@ -126,7 +126,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 	exit 1
 fi
 
-ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.A2APaySyncRouter)")
+ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore)")
 SELLER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
 echo "3) Starting gateway/seller_fastapi.py in background (local profile)..."

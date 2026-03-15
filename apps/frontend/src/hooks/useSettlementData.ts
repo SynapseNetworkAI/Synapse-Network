@@ -39,7 +39,7 @@ export function useSettlementData() {
       try {
         const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
         const usdc = new ethers.Contract(contractConfig.MockUSDC, MockUSDCABI, provider);
-        const router = new ethers.Contract(contractConfig.A2APaySyncRouter, A2APaySyncRouterABI, provider);
+        const router = new ethers.Contract(contractConfig.SynapseCore, A2APaySyncRouterABI, provider);
 
         const sellerAddresses = new Set<string>([
           userAddress.toLowerCase(),

@@ -20,9 +20,8 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { listServiceRegistry } from "@/utils/serviceApi";
 import RoleWarningModal from "@/components/RoleWarningModal";
 
-const ROUTER_ADDRESS = contractConfig.A2APaySyncRouter as `0x${string}`;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const VAULT_ADDRESS = (contractConfig as any).SynapseCore ? ((contractConfig as any).SynapseCore as `0x${string}`) : ROUTER_ADDRESS;
+const ROUTER_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
+const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 
 const vaultABI = parseAbi([
   "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external"
