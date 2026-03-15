@@ -197,3 +197,22 @@ Phase 3（日志爆发后）：
 ### 9.3 兼容策略
 
 为避免一次性迁移风险，底层仍保留旧接口壳用于回放/迁移窗口，但生产主路径不再依赖通用 collection 表。
+
+### 9.4 PostgresStorage 分层重构（已执行）
+
+为消除 `postgres_impl.py` 的 God Object 风险，本轮完成了连接管理与领域仓储拆分：
+
+1. 连接与事务层：
+  - `src/storage/postgres/database_manager.py`
+2. 领域仓储层：
+  - `src/storage/postgres/repositories/fee_policy_repository.py`
+  - `src/storage/postgres/repositories/idempotency_repository.py`
+  - `src/storage/postgres/repositories/audit_log_repository.py`
+  - `src/storage/postgres/repositories/balance_repository.py`
+3. 门面层：
+  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance 方法委托给对应 repository。
+
+执行收益：
+1. SQL 逻辑按领域聚合，后续功能迭代与单测更可控。
+2. 连接事务逻辑集中，减少重复 commit/rollback 样板。
+3. 在不改变上层 service API 的前提下完成渐进重构，降低回归风险。
