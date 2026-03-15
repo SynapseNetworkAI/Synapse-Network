@@ -29,6 +29,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Enforce PostgreSQL-only storage policy
+        run: |
+          bash ../scripts/ci/check_postgres_only_storage.sh
+
       - name: Run financial security test suite
         env:
           PYTHONPATH: seller_api
