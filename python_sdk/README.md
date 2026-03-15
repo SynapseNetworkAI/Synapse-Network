@@ -8,7 +8,7 @@
   - 买家侧 SDK（服务发现 + 付费调用封装）。
   - `client.py` 暴露 `SynapseBuyer`。
   - `models.py`/`exceptions.py` 提供类型与错误边界。
-- `seller_api/seller_fastapi.py`
+- `gateway/seller_fastapi.py`
   - 薄入口文件，仅负责暴露 `app` 与本地 `uvicorn` 启动。
 - `seller_api/app.py`
   - 路由层（FastAPI endpoint 定义）。
@@ -27,7 +27,7 @@
 
 ```mermaid
 flowchart TD
-    A[seller_api/seller_fastapi.py 入口] --> B[seller_api.app 路由编排]
+    A[gateway/seller_fastapi.py 入口] --> B[seller_api.app 路由编排]
 
     B --> C[auth]
     B --> D[payment]
@@ -194,7 +194,7 @@ curl -X DELETE http://127.0.0.1:8000/api/v1/services/<service_record_id> \
 
 在 `python_sdk` 目录下：
 
-- 启动开发服务：`python seller_api/seller_fastapi.py`
+- 启动开发服务：`python gateway/seller_fastapi.py`
 - 或回到项目根目录使用脚本：`cd .. && ./scripts/local/setup_local_env.sh`
 - 一键重启并执行 V2 日限额烟测：`cd .. && ./scripts/local/restart_local_env.sh`
 - 仅重启不跑烟测：`cd .. && SKIP_V2_SMOKE=1 ./scripts/local/restart_local_env.sh`
@@ -224,7 +224,7 @@ Seller API 现在支持基于配置的多环境切换：
 ```bash
 cd python_sdk
 cp .env.local.example .env.local
-ENVIRONMENT=local ENV_FILE=.env.local python seller_api/seller_fastapi.py
+ENVIRONMENT=local ENV_FILE=.env.local python gateway/seller_fastapi.py
 ```
 
 关键字段：
@@ -237,10 +237,10 @@ ENVIRONMENT=local ENV_FILE=.env.local python seller_api/seller_fastapi.py
 ```bash
 cd python_sdk
 cp .env.prod.example .env.prod
-ENVIRONMENT=prod ENV_FILE=.env.prod python seller_api/seller_fastapi.py
+ENVIRONMENT=prod ENV_FILE=.env.prod python gateway/seller_fastapi.py
 ```
 
-或在项目根目录直接使用 prod 运维脚本（只管理 seller_api/seller_fastapi.py，不启动 anvil，不部署本地合约）：
+或在项目根目录直接使用 prod 运维脚本（只管理 gateway/seller_fastapi.py，不启动 anvil，不部署本地合约）：
 
 ```bash
 ./scripts/prod/start_prod_env.sh

@@ -13,7 +13,7 @@ No exceptions for routes, schemas, service logic, or persistence behavior.
 
 ## Backend Change Checklist
 
-When you modify backend files under `python_sdk/seller_api/src/` or `provider_service/app/`:
+When you modify backend files under `gateway/src/` or `provider_service/app/`:
 1. Update or add tests in the corresponding test module.
 2. Cover success path and at least one failure/edge branch.
 3. Sync affected API docs and field semantics.
@@ -23,7 +23,7 @@ Suggested command examples:
 
 ```bash
 # Seller API
-python -m pytest -q python_sdk/seller_api/tests
+python -m pytest -q gateway/tests
 
 # Provider service
 cd provider_service

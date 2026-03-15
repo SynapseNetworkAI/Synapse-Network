@@ -15,6 +15,32 @@ This repository includes:
 - Frontend console (Next.js)
 - Structured architecture and product documentation
 
+Synapse-Network/
+├── apps/
+│   ├── gateway/               # 核心结算网关（FastAPI）
+│   │   ├── src/
+│   │   ├── tests/
+│   │   ├── main.py            # 原 seller_fastapi 入口
+│   │   ├── pyproject.toml
+│   │   └── .env.example
+│   └── frontend/              # Next.js 控制台
+├── packages/
+│   ├── sdk-python/            # 第三方 Python SDK
+│   │   ├── synapse_client/
+│   │   ├── tests/
+│   │   └── pyproject.toml
+│   └── contracts/             # 纯 Solidity/Hardhat 工作区
+│       ├── src/               # solidity contracts（原 contracts/*.sol）
+│       ├── scripts/           # 部署脚本
+│       ├── test/
+│       ├── hardhat.config.js
+│       └── package.json
+├── infra/
+│   ├── docker/                # 原 docker-compose 及 postgres init
+│   └── env/                   # env 模板与说明（不放密钥）
+├── docs/                      # 原 doc/
+├── tools/                     # 运维/开发脚本（原 scripts/）
+
 ## Quick Start (Local)
 
 ### 1) One-command local environment
@@ -40,7 +66,7 @@ chmod +x scripts/local/stop_local_env.sh
 
 ### 3) Prod backend scripts (seller_fastapi only)
 
-Prod scripts only manage `python_sdk/seller_api/seller_fastapi.py` and do not start local Anvil or deploy localhost contracts.
+Prod scripts only manage `gateway/seller_fastapi.py` and do not start local Anvil or deploy localhost contracts.
 
 ```bash
 chmod +x scripts/prod/start_prod_env.sh
@@ -56,7 +82,7 @@ chmod +x scripts/prod/stop_prod_env.sh
 ### 4) Frontend only
 
 ```bash
-cd frontend
+cd apps/frontend
 yarn install
 yarn dev
 ```
@@ -64,16 +90,16 @@ yarn dev
 ### 5) Python backend only
 
 ```bash
-cd python_sdk
+cd gateway
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python3 seller_api/seller_fastapi.py
+python3 seller_fastapi.py
 ```
 
 ## Documentation Map
 
-All docs are under [doc/](doc/README.md).
+All docs are under [docs/](docs/README.md).
 
 Contribution workflow and quality gates are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -81,9 +107,9 @@ Contribution workflow and quality gates are in [CONTRIBUTING.md](CONTRIBUTING.md
 
 Storage and production-hardening work items are tracked here:
 
-- Strategy doc: [doc/02_Architecture/Storage_Strategy_Upgrade.md](doc/02_Architecture/Storage_Strategy_Upgrade.md)
-- Execution TODO: [doc/02_Architecture/Production_Upgrade_TODO.md](doc/02_Architecture/Production_Upgrade_TODO.md)
-- Product roadmap board: [doc/01_Product_Vision/ROADMAP.md](doc/01_Product_Vision/ROADMAP.md)
+- Strategy doc: [docs/02_Architecture/Storage_Strategy_Upgrade.md](docs/02_Architecture/Storage_Strategy_Upgrade.md)
+- Execution TODO: [docs/02_Architecture/Production_Upgrade_TODO.md](docs/02_Architecture/Production_Upgrade_TODO.md)
+- Product roadmap board: [docs/01_Product_Vision/ROADMAP.md](docs/01_Product_Vision/ROADMAP.md)
 
 This week focus:
 - P0 financial safety baseline: transaction atomicity, row-level locks, idempotency unique constraints
@@ -94,25 +120,25 @@ This week focus:
 GitHub issue templates for direct assignment:
 - Board checklist: [.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
 - Single work item: [.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)
-- Issue seed list (copy-and-create): [doc/02_Architecture/Production_Upgrade_Issue_Seeds.md](doc/02_Architecture/Production_Upgrade_Issue_Seeds.md)
+- Issue seed list (copy-and-create): [docs/02_Architecture/Production_Upgrade_Issue_Seeds.md](docs/02_Architecture/Production_Upgrade_Issue_Seeds.md)
 
 ### 1) Product Vision
-- [doc/01_Product_Vision](doc/01_Product_Vision)
+- [docs/01_Product_Vision](docs/01_Product_Vision)
 
 ### 2) Architecture
-- [doc/02_Architecture](doc/02_Architecture)
+- [docs/02_Architecture](docs/02_Architecture)
 
 ### 3) Smart Contract and Payment
-- [doc/03_Smart_Contract_Payment](doc/03_Smart_Contract_Payment)
+- [docs/03_Smart_Contract_Payment](docs/03_Smart_Contract_Payment)
 
 ### 4) Agent Network and Protocol
-- [doc/04_Synapse_Network](doc/04_Synapse_Network)
+- [docs/04_Synapse_Network](docs/04_Synapse_Network)
 
 ### 5) Frontend UX
-- [doc/05_Frontend_UX](doc/05_Frontend_UX)
+- [docs/05_Frontend_UX](docs/05_Frontend_UX)
 
 ### 6) Developer Guides
-- [doc/06_Developer_Guides](doc/06_Developer_Guides)
+- [docs/06_Developer_Guides](docs/06_Developer_Guides)
 
 ## Main Project Structure
 
@@ -124,7 +150,7 @@ Synapse-Network/
 	python_sdk/               # FastAPI gateway + Python SDK + runtime storage
 	frontend/                 # Next.js dashboard and developer console
 	docker-compose/           # Optional infra services
-	doc/                      # Product, architecture, protocol, and operation docs
+	docs/                     # Product, architecture, protocol, and operation docs
 ```
 
 ## Current API Entry Points
@@ -144,5 +170,5 @@ Synapse-Network/
 ## Notes
 
 - Runtime JSON files are centralized under `python_sdk/runtime_storage/` and ignored from Git.
-- For architecture and protocol details, start from [doc/README.md](doc/README.md).
+- For architecture and protocol details, start from [docs/README.md](docs/README.md).
 
