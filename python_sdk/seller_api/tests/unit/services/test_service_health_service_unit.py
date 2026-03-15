@@ -4,7 +4,7 @@ import pytest
 import httpx
 import time
 
-from src.services import service_health_service
+from src.services.platform import service_health_service
 
 
 @pytest.mark.asyncio
@@ -132,7 +132,7 @@ def test_sync_service_target_health_table_generates_one_row_per_target(temp_stor
 
 def test_prune_health_history_removes_expired_and_orphan_rows(temp_storage, monkeypatch):
     now_ms = int(time.time() * 1000)
-    monkeypatch.setattr("src.services.service_health_service.settings.service_health_history_retention_hours", 3)
+    monkeypatch.setattr("src.services.platform.service_health_service.settings.service_health_history_retention_hours", 3)
 
     temp_storage.save_collection(
         "service_registry",

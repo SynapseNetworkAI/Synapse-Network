@@ -3,9 +3,9 @@
 import pytest
 from fastapi import HTTPException
 
-from src.services import forwarding_billing
-from src.services import forwarding_upstream
-from src.services import forwarding_validation
+from src.services.buyer import forwarding_billing
+from src.services.buyer import forwarding_upstream
+from src.services.buyer import forwarding_validation
 
 
 def test_validation_contract_reports_missing_required_fields_with_service_context():

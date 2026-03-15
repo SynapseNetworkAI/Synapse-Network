@@ -4,8 +4,8 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-from src.services import forwarding_service
-from src.services import credential_service
+from src.services.buyer import forwarding_service
+from src.services.platform import credential_service
 
 
 def test_pricing_breakdown_uses_global_setting(monkeypatch, temp_storage):

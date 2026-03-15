@@ -105,6 +105,19 @@ Router daily limit definition:
 3. Both domain services share the same Redis-first mutation lock manager and financial guard mixins, preserving cross-instance safety and idempotency guarantees.
 4. Withdrawal signing hooks remain patchable via orchestrator delegation, keeping testability and operational override capability intact.
 
+### 2.11 Eighth-Round Physical Service Isolation (Buyer / Platform / Seller)
+
+1. Services are physically isolated by domain folders under `src/services/`:
+   - `buyer/`: forwarding flow and buyer-side charging entry (`forwarding_service`, `forwarding_billing`, `forwarding_upstream`, `forwarding_validation`, `finance_service`).
+   - `platform/`: platform orchestration and infrastructure service set (`balance_service`, `finance_service`, `credential_service`, `service_health_service`, `v2_indexer`).
+   - `seller/`: seller onboarding, analytics, secret and withdrawal service set (`registry_service`, `manifest_parser_service`, `provider_analytics_service`, `secret_service`, `withdraw_service`).
+2. API contracts are unchanged; only service-layer implementation paths are refactored for stronger maintainability and ownership boundaries.
+3. Dependency direction follows domain boundaries:
+   - buyer modules depend on platform primitives only when required (e.g., credential checks, health status).
+   - seller modules depend on platform primitives only when required (e.g., health probes, shared credential helpers).
+   - platform modules do not depend on buyer/seller business internals beyond explicit orchestration seams.
+4. Unit and integration suites are updated to import domain paths directly, eliminating implicit root-level coupling.
+
 ## 3. Configuration Contract
 
 Key runtime knobs in `python_sdk/seller_api/src/core/config.py`:

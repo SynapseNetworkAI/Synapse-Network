@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
-from src.services import credential_service
+from src.services.platform import credential_service
 from src.storage import BaseStorage
 
 

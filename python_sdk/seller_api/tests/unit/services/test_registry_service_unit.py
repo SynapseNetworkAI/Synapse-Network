@@ -3,8 +3,8 @@
 import pytest
 import time
 
-from src.services.registry_service import RegistryService, _normalize_service_payload
-from src.services import service_health_service
+from src.services.seller.registry_service import RegistryService, _normalize_service_payload
+from src.services.platform import service_health_service
 
 
 async def _healthy_probe_stub(service, client=None):
@@ -223,7 +223,7 @@ async def test_service_health_history_returns_latest_n_per_target(temp_storage):
 
 @pytest.mark.asyncio
 async def test_service_health_history_caps_hours_by_retention(temp_storage, monkeypatch):
-    monkeypatch.setattr("src.services.registry_service.settings.service_health_history_retention_hours", 3)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.service_health_history_retention_hours", 3)
 
     original_probe = service_health_service.probe_service_health
     service_health_service.probe_service_health = _healthy_probe_stub
@@ -310,14 +310,14 @@ def test_normalize_service_payload_requires_health_path():
 
 
 def test_normalize_service_payload_rejects_over_limit_constraints(monkeypatch):
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_timeout_ms", 15000)
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_timeout_ms", 300)
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_request_bytes", 256)
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_request_bytes", 262144)
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_response_bytes", 256)
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_response_bytes", 1048576)
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_min_service_qps", 1)
-    monkeypatch.setattr("src.services.registry_service.settings.gateway_max_service_qps", 200)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_max_timeout_ms", 15000)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_min_timeout_ms", 300)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_min_request_bytes", 256)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_max_request_bytes", 262144)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_min_response_bytes", 256)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_max_response_bytes", 1048576)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_min_service_qps", 1)
+    monkeypatch.setattr("src.services.seller.registry_service.settings.gateway_max_service_qps", 200)
 
     payload = {
         "serviceName": "Invalid Limits",

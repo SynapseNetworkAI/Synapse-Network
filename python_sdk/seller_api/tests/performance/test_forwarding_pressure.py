@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from src.services import forwarding_service
+from src.services.buyer import forwarding_service
 
 
 class _FakeResponse:

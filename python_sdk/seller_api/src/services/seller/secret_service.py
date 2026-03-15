@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.models.pydantic_models import CredentialIssueRequest
-from src.services import credential_service
+from src.services.platform import credential_service
 from src.storage import BaseStorage
 
 seller_write_lock = asyncio.Lock()

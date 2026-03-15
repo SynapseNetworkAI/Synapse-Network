@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header
 
 from src.models.pydantic_models import InferenceRequest
-from src.services import forwarding_service
+from src.services.buyer import forwarding_service
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()

@@ -12,7 +12,7 @@ SRC_ROOT = ROOT / "seller_api"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from src.services.balance_service import BalanceService  # noqa: E402
+from src.services.platform.balance_service import BalanceService  # noqa: E402
 
 
 class FakeRedis:

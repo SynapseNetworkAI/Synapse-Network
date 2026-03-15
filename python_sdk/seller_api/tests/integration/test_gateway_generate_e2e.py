@@ -17,7 +17,8 @@ if str(SRC_ROOT) not in sys.path:
 
 from src import app as app_module  # noqa: E402
 from src.core import config as cfg  # noqa: E402
-from src.services import forwarding_service, credential_service  # noqa: E402
+from src.services.buyer import forwarding_service
+from src.services.platform import credential_service  # noqa: E402
 from conftest import InMemoryStorage  # noqa: E402
 
 

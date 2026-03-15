@@ -6,8 +6,8 @@ import httpx
 from fastapi import HTTPException
 
 from src.core.config import settings
-from src.services import service_health_service
-from src.services.forwarding_validation import effective_service_constraints, validate_invoke_request_contract
+from src.services.platform import service_health_service
+from src.services.buyer.forwarding_validation import effective_service_constraints, validate_invoke_request_contract
 
 _MAX_TARGET_WEIGHT = 10000
 

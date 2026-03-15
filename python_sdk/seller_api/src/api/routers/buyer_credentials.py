@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header, Query
 
 from src.models.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
-from src.services import credential_service
+from src.services.platform import credential_service
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()

@@ -3,7 +3,7 @@
 import pytest
 from fastapi import HTTPException
 
-from src.services.balance_service import BalanceService
+from src.services.platform.balance_service import BalanceService
 
 
 class _MockNonceCall:

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from typing import Optional, Dict, Any, List, Annotated
 from src.api.deps import get_registry_service
-from src.services.registry_service import RegistryService
-from src.services import credential_service
-from src.services.manifest_parser_service import parse_manifest_from_curl
+from src.services.seller.registry_service import RegistryService
+from src.services.platform import credential_service
+from src.services.seller.manifest_parser_service import parse_manifest_from_curl
 from src.core.config import settings
 from pydantic import BaseModel, Field
 

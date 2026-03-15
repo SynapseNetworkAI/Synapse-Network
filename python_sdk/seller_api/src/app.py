@@ -7,8 +7,8 @@ from src.core.config import settings
 from src.core.log_config import setup_logger
 from src.api.routers import auth, services, balance, wallet, buyer_credentials, seller_secrets, forwarding
 from src.storage import create_storage
-from src.services.v2_indexer import run_v2_deposit_indexer
-from src.services.service_health_service import run_service_health_monitor
+from src.services.platform.v2_indexer import run_v2_deposit_indexer
+from src.services.platform.service_health_service import run_service_health_monitor
 
 setup_logger()
 logger = logging.getLogger(__name__)

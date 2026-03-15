@@ -12,8 +12,8 @@ SRC_ROOT = ROOT / "seller_api"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from src.services import forwarding_service, forwarding_upstream  # noqa: E402
-from src.services.registry_service import _normalize_service_payload  # noqa: E402
+from src.services.buyer import forwarding_service, forwarding_upstream  # noqa: E402
+from src.services.seller.registry_service import _normalize_service_payload  # noqa: E402
 from src.storage.normalizers import normalize_service_row  # noqa: E402
 
 

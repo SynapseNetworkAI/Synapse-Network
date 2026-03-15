@@ -7,10 +7,10 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.models.pydantic_models import InferenceRequest
-from src.services import credential_service
-from src.services import forwarding_billing
-from src.services import forwarding_upstream
-from src.services import forwarding_validation
+from src.services.platform import credential_service
+from src.services.buyer import forwarding_billing
+from src.services.buyer import forwarding_upstream
+from src.services.buyer import forwarding_validation
 from src.storage import BaseStorage
 
 # Shared best-effort runtime caches. Redis is preferred in production; memory fallback keeps dev mode usable.
