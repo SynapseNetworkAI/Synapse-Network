@@ -11,8 +11,8 @@ find_pid_by_port() {
 	lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
-if ! command -v npx >/dev/null 2>&1; then
-	echo "Error: npx is not installed. Please install Node.js first."
+if ! command -v npm >/dev/null 2>&1; then
+	echo "Error: npm is not installed. Please install Node.js first."
 	exit 1
 fi
 
@@ -21,9 +21,31 @@ if ! command -v python3 >/dev/null 2>&1; then
 	exit 1
 fi
 
+if ! command -v anvil >/dev/null 2>&1; then
+	echo "Error: anvil is not installed. Please install Foundry first."
+	exit 1
+fi
+
+ensure_hardhat_local() {
+	if [[ ! -f "${ROOT_DIR}/package.json" ]]; then
+		echo "Error: package.json is missing in repo root; cannot run local Hardhat deploy scripts."
+		exit 1
+	fi
+
+	if [[ ! -d "${ROOT_DIR}/node_modules/hardhat" ]]; then
+		echo "Installing local contract toolchain dependencies..."
+		(
+			cd "${ROOT_DIR}"
+			npm install
+		)
+	fi
+}
+
 cd "${ROOT_DIR}"
 
 echo "=== Synapse Local Environment Setup ==="
+
+ensure_hardhat_local
 
 echo "1) Starting Anvil node in background..."
 EXISTING_ANVIL_PID="$(find_pid_by_port 8545)"
@@ -121,8 +143,8 @@ if [[ -n "$EXISTING_FRONTEND_PID" ]]; then
 	FRONTEND_PID="$EXISTING_FRONTEND_PID"
 	FRONTEND_OWNED_BY_SCRIPT=0
 else
-	if [[ ! -d "${ROOT_DIR}/frontend/node_modules" ]]; then
-		echo "frontend/node_modules not found. Installing npm dependencies..."
+	if [[ ! -d "${ROOT_DIR}/apps/frontend/node_modules" ]]; then
+		echo "apps/frontend/node_modules not found. Installing npm dependencies..."
 		npm install
 	fi
 
