@@ -211,8 +211,18 @@ Phase 3（日志爆发后）：
   - `src/storage/postgres/repositories/balance_repository.py`
   - `src/storage/postgres/repositories/service_registry_repository.py`
   - `src/storage/postgres/repositories/credential_auth_repository.py`
+  - `src/storage/postgres/repositories/gateway_state_repository.py`
 3. 门面层：
-  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance / service registry / credential & auth 方法委托给对应 repository。
+  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance / service registry / credential & auth / gateway state 方法委托给对应 repository。
+
+### 9.5 Schema 生命周期策略（已执行）
+
+为避免应用启动期隐式 DDL 造成环境漂移，`PostgresStorage` 已移除启动时自动建表/验表逻辑（`_ensure_schema`）。
+
+执行规则：
+1. 表结构与索引变更统一由 migration 流程管理，不在应用进程启动时执行。
+2. 应用进程仅负责连接、读写与事务，不负责 schema 创建。
+3. Dev/Stage/Prod 统一依赖同一 migration 事实源，避免“本地可跑、线上缺表”分叉。
 
 执行收益：
 1. SQL 逻辑按领域聚合，后续功能迭代与单测更可控。

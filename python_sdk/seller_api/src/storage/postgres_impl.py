@@ -10,6 +10,7 @@ from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from .postgres.repositories.fee_policy_repository import FeePolicyRepository
+from .postgres.repositories.gateway_state_repository import GatewayStateRepository
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 
@@ -402,47 +403,11 @@ class PostgresStorage(BaseStorage):
         self._balance_repo = BalanceRepository(self._db, _q6, _BALANCE_UPSERT_SQL)
         self._service_registry_repo = ServiceRegistryRepository(self._db)
         self._credential_auth_repo = CredentialAuthRepository(self._db, _q6)
-        if ensure_schema:
-            self._ensure_schema()
+        self._gateway_state_repo = GatewayStateRepository(self._db, _q6)
+        _ = ensure_schema
 
     def _connect(self):
         return psycopg.connect(self.dsn)
-
-    def _ensure_schema(self) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(_BUSINESS_TYPE_ENUM_SQL)
-                cur.execute(_RISK_LEVEL_ENUM_SQL)
-                cur.execute(_WITHDRAW_STATUS_ENUM_SQL)
-                cur.execute(_COLLECTION_TABLE_SQL)
-                cur.execute(_AUDIT_TABLE_SQL)
-                cur.execute(_AUDIT_IDX_SQL)
-                cur.execute(_AUDIT_OWNER_IDX_SQL)
-                cur.execute(_DEPOSIT_DEDUP_TABLE_SQL)
-                cur.execute(_WITHDRAW_TX_DEDUP_TABLE_SQL)
-                cur.execute(_DEPOSIT_DEDUP_OWNER_IDX_SQL)
-                cur.execute(_WITHDRAW_TX_DEDUP_OWNER_IDX_SQL)
-                cur.execute(_BALANCE_TABLE_SQL)
-                cur.execute(_DEPOSIT_INTENTS_TABLE_SQL)
-                cur.execute(_REFUND_INTENTS_TABLE_SQL)
-                cur.execute(_WITHDRAWAL_INTENTS_TABLE_SQL)
-                cur.execute(_ROUTER_CONFIG_TABLE_SQL)
-                cur.execute(_USAGE_LOG_TABLE_SQL)
-                cur.execute(_USAGE_LOG_OWNER_IDX_SQL)
-                cur.execute(_PROCESSED_DEPOSIT_EVENT_TABLE_SQL)
-                cur.execute(_SERVICE_REGISTRY_TABLE_SQL)
-                cur.execute(_SERVICE_TARGET_HEALTH_TABLE_SQL)
-                cur.execute(_SERVICE_TARGET_HEALTH_HISTORY_TABLE_SQL)
-                cur.execute(_CREDENTIALS_TABLE_SQL)
-                cur.execute(_CREDENTIALS_TYPE_OWNER_IDX_SQL)
-                cur.execute(_WALLET_ROLE_TABLE_SQL)
-                cur.execute(_AUTH_SESSION_TABLE_SQL)
-                cur.execute(_FEE_POLICY_DEFAULT_TABLE_SQL)
-                cur.execute(_FEE_POLICY_OWNER_TABLE_SQL)
-                cur.execute(_IDEMPOTENCY_TABLE_SQL)
-                cur.execute(_RATE_LIMIT_TABLE_SQL)
-                cur.execute(_SELLER_RISK_FLAGS_TABLE_SQL)
-            conn.commit()
 
     def _load_locked_balance_triplet(self, cur: Any, owner: str, account_type: str, now: int) -> tuple[Decimal, Decimal, Decimal]:
         cur.execute(_BALANCE_FOR_UPDATE_SQL, (owner, account_type))
@@ -1106,109 +1071,23 @@ class PostgresStorage(BaseStorage):
             conn.commit()
         return True
 
-    def _replace_table_with_payload(self, table_name: str, rows: List[Dict[str, Any]], id_sql: str, value_sql_builder) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(f"DELETE FROM {table_name}")
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    values = value_sql_builder(row)
-                    if values is None:
-                        continue
-                    cur.execute(id_sql, values)
-            conn.commit()
-
     def read_deposit_intents(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT payload FROM synapse_deposit_intents ORDER BY created_at ASC")
-                rows = cur.fetchall()
-        return [row[0] for row in rows if isinstance(row[0], dict)]
+        return self._gateway_state_repo.read_deposit_intents()
 
     def write_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        self._replace_table_with_payload(
-            "synapse_deposit_intents",
-            rows,
-            """
-            INSERT INTO synapse_deposit_intents (id, owner_address, tx_hash, status, created_at, updated_at, payload)
-            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
-            ON CONFLICT (id)
-            DO UPDATE SET owner_address = EXCLUDED.owner_address, tx_hash = EXCLUDED.tx_hash, status = EXCLUDED.status,
-                          created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
-            """,
-            lambda row: (
-                str(row.get("id") or ""),
-                str(row.get("ownerAddress") or "").lower(),
-                str(row.get("txHash") or "").lower(),
-                str(row.get("status") or "PENDING_CONFIRMATION"),
-                int(row.get("createdAt") or 0),
-                int(row.get("updatedAt") or 0),
-                json.dumps(row, ensure_ascii=False),
-            ) if str(row.get("id") or "").strip() else None,
-        )
+        self._gateway_state_repo.write_deposit_intents(rows)
 
     def read_refund_intents(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT payload FROM synapse_refund_intents ORDER BY created_at ASC")
-                rows = cur.fetchall()
-        return [row[0] for row in rows if isinstance(row[0], dict)]
+        return self._gateway_state_repo.read_refund_intents()
 
     def write_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._replace_table_with_payload(
-            "synapse_refund_intents",
-            rows,
-            """
-            INSERT INTO synapse_refund_intents (id, owner_address, tx_hash, status, amount_usdc, created_at, updated_at, payload)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-            ON CONFLICT (id)
-            DO UPDATE SET owner_address = EXCLUDED.owner_address, tx_hash = EXCLUDED.tx_hash, status = EXCLUDED.status,
-                          amount_usdc = EXCLUDED.amount_usdc, created_at = EXCLUDED.created_at,
-                          updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
-            """,
-            lambda row: (
-                str(row.get("id") or ""),
-                str(row.get("ownerAddress") or "").lower(),
-                str(row.get("txHash") or "").lower() or None,
-                str(row.get("status") or "REQUESTED").upper(),
-                str(_q6(row.get("amountUsdc") or 0)),
-                int(row.get("createdAt") or updated_at),
-                int(row.get("updatedAt") or updated_at),
-                json.dumps(row, ensure_ascii=False),
-            ) if str(row.get("id") or "").strip() else None,
-        )
+        self._gateway_state_repo.write_refund_intents(rows, updated_at)
 
     def read_withdrawal_intents(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT payload FROM synapse_withdrawal_intents ORDER BY created_at ASC")
-                rows = cur.fetchall()
-        return [row[0] for row in rows if isinstance(row[0], dict)]
+        return self._gateway_state_repo.read_withdrawal_intents()
 
     def write_withdrawal_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._replace_table_with_payload(
-            "synapse_withdrawal_intents",
-            rows,
-            """
-            INSERT INTO synapse_withdrawal_intents (id, owner_address, tx_hash, status, amount_usdc, created_at, updated_at, payload)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-            ON CONFLICT (id)
-            DO UPDATE SET owner_address = EXCLUDED.owner_address, tx_hash = EXCLUDED.tx_hash, status = EXCLUDED.status,
-                          amount_usdc = EXCLUDED.amount_usdc, created_at = EXCLUDED.created_at,
-                          updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
-            """,
-            lambda row: (
-                str(row.get("id") or ""),
-                str(row.get("ownerAddress") or "").lower(),
-                str(row.get("txHash") or "").lower() or None,
-                str(row.get("status") or "PENDING"),
-                str(_q6(row.get("amountUsdc") or 0)),
-                int(row.get("createdAt") or updated_at),
-                int(row.get("updatedAt") or updated_at),
-                json.dumps(row, ensure_ascii=False),
-            ) if str(row.get("id") or "").strip() else None,
-        )
+        self._gateway_state_repo.write_withdrawal_intents(rows, updated_at)
 
     def read_balance_ledger(self) -> Dict[str, Any]:
         return self._balance_repo.read_balance_ledger()
@@ -1217,91 +1096,25 @@ class PostgresStorage(BaseStorage):
         self._balance_repo.write_balance_ledger(ledger)
 
     def read_router_config_rows(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT owner_address, daily_limit_usdc, created_at, updated_at FROM synapse_router_config ORDER BY updated_at DESC")
-                rows = cur.fetchall()
-        return [{"ownerAddress": str(owner), "dailyLimitUsdc": float(_q6(limit)), "createdAt": int(created), "updatedAt": int(updated)} for owner, limit, created, updated in rows]
+        return self._gateway_state_repo.read_router_config_rows()
 
     def write_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_router_config")
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    owner = str(row.get("ownerAddress") or "").lower()
-                    if not owner:
-                        continue
-                    cur.execute(
-                        "INSERT INTO synapse_router_config (owner_address, daily_limit_usdc, created_at, updated_at) VALUES (%s, %s, %s, %s)",
-                        (owner, str(_q6(row.get("dailyLimitUsdc") or 0)), int(row.get("createdAt") or updated_at), int(row.get("updatedAt") or updated_at)),
-                    )
-            conn.commit()
+        self._gateway_state_repo.write_router_config_rows(rows, updated_at)
 
     def read_usage_log_rows(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT payload FROM synapse_usage_log ORDER BY ts DESC")
-                rows = cur.fetchall()
-        return [row[0] for row in rows if isinstance(row[0], dict)]
+        return self._gateway_state_repo.read_usage_log_rows()
 
     def write_usage_log_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._replace_table_with_payload(
-            "synapse_usage_log",
-            rows,
-            """
-            INSERT INTO synapse_usage_log (
-                id,
-                ts,
-                buyer_address,
-                seller_address,
-                status,
-                total_charge,
-                business_type,
-                risk_level,
-                payload
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level, %s::jsonb)
-            ON CONFLICT (id)
-            DO UPDATE SET ts = EXCLUDED.ts, buyer_address = EXCLUDED.buyer_address, seller_address = EXCLUDED.seller_address,
-                          status = EXCLUDED.status, total_charge = EXCLUDED.total_charge,
-                          business_type = EXCLUDED.business_type, risk_level = EXCLUDED.risk_level,
-                          payload = EXCLUDED.payload
-            """,
-            lambda row: (
-                str(row.get("id") or f"usage-{int(time.time())}"),
-                int(row.get("timestamp") or int(time.time())),
-                str(row.get("buyer") or "").lower() or None,
-                str(row.get("seller") or "").lower() or None,
-                str(row.get("status") or ""),
-                str(_q6(row.get("totalCharge") or 0)),
-                str(row.get("businessType") or "charge").lower(),
-                str(row.get("riskLevel") or "green").lower(),
-                json.dumps(row, ensure_ascii=False),
-            ),
-        )
+        self._gateway_state_repo.write_usage_log_rows(rows)
 
     def append_audit_row(self, row: Dict[str, Any]) -> None:
         self._audit_repo.append_audit_row(row)
 
     def read_processed_deposit_event_keys(self) -> List[str]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT dedup_key FROM synapse_processed_deposit_events ORDER BY updated_at DESC")
-                rows = cur.fetchall()
-        return [str(row[0]) for row in rows if row and row[0] is not None]
+        return self._gateway_state_repo.read_processed_deposit_event_keys()
 
     def write_processed_deposit_event_keys(self, keys: List[str], updated_at: int) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_processed_deposit_events")
-                for key in keys:
-                    dedup_key = str(key or "").strip()
-                    if not dedup_key:
-                        continue
-                    cur.execute("INSERT INTO synapse_processed_deposit_events (dedup_key, updated_at) VALUES (%s, %s)", (dedup_key, int(updated_at)))
-            conn.commit()
+        self._gateway_state_repo.write_processed_deposit_event_keys(keys, updated_at)
 
     def read_service_registry_rows(self) -> List[Dict[str, Any]]:
         return self._service_registry_repo.read_service_registry_rows()
