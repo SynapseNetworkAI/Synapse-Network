@@ -4,10 +4,10 @@
 
 ## 1. 安装
 
-在 `python_sdk` 目录执行（推荐开发模式）：
+在 `sdk/python` 目录执行（推荐开发模式）：
 
 ```bash
-cd python_sdk
+cd sdk/python
 pip install -e .
 ```
 
@@ -54,8 +54,8 @@ SDK 提供：
 
 ## 5. 文件位置
 
-- SDK 代码：`python_sdk/buyer_sdk/`
-- 示例脚本：`python_sdk/examples/buyer_sdk_discover_invoke.py`
+- SDK 代码：`sdk/python/synapse_client/`
+- 示例脚本：`gateway/examples/buyer_sdk_discover_invoke.py`
 
 ## 6. 当前接口对齐说明
 

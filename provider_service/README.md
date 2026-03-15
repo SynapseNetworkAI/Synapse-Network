@@ -7,8 +7,8 @@
 
 ## 为什么单独新建一个文件夹
 
-这里采用仓库根目录下独立目录 `provider_service/`，而不是混到 `python_sdk/`：
-- `python_sdk` 更偏 SDK 与现有卖家样例逻辑。
+这里采用仓库根目录下独立目录 `provider_service/`，而不是混到 `gateway/` 或 `sdk/python/`：
+- `gateway` 是核心结算网关，`sdk/python` 是开发者客户端代码。
 - `provider_service` 是“可独立部署的服务进程”，职责边界更清晰。
 - 未来新增更多测试接口时，可直接按模块扩展，不影响 SDK。
 

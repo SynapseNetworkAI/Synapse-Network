@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: python_sdk
+        working-directory: gateway
 
     steps:
       - name: Checkout
@@ -35,6 +35,6 @@ jobs:
 
       - name: Run financial security test suite
         env:
-          PYTHONPATH: seller_api
+          PYTHONPATH: .
         run: |
-          pytest -q seller_api/tests/test_financial_*.py
+          pytest -q tests/test_financial_*.py

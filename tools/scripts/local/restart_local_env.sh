@@ -27,18 +27,18 @@ fi
 
 echo "Running V2 daily-limit regression smoke..."
 rm -f \
-  "${ROOT_DIR}/python_sdk/deposit_intents.json" \
-  "${ROOT_DIR}/python_sdk/deposit_event_processed.json" \
-  "${ROOT_DIR}/python_sdk/balance_ledger.json" \
-  "${ROOT_DIR}/python_sdk/usage_log.json"
+  "${ROOT_DIR}/gateway/runtime_storage/deposit_intents.json" \
+  "${ROOT_DIR}/gateway/runtime_storage/deposit_event_processed.json" \
+  "${ROOT_DIR}/gateway/runtime_storage/balance_ledger.json" \
+  "${ROOT_DIR}/gateway/runtime_storage/usage_log.json"
 
 if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
   PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
-elif [[ -x "${ROOT_DIR}/python_sdk/venv/bin/python" ]]; then
-  PYTHON_BIN="${ROOT_DIR}/python_sdk/venv/bin/python"
+elif [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
 else
   PYTHON_BIN="python3"
 fi
 
-"${PYTHON_BIN}" "${ROOT_DIR}/python_sdk/examples/v2_daily_limit_regression.py"
+"${PYTHON_BIN}" "${ROOT_DIR}/gateway/examples/v2_daily_limit_regression.py"
 echo "V2 daily-limit regression passed."

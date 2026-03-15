@@ -17,10 +17,10 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-cd "${ROOT_DIR}/python_sdk"
+cd "${ROOT_DIR}/gateway"
 
-if [[ -x "${ROOT_DIR}/python_sdk/venv/bin/python" ]]; then
-  PYTHON_BIN="${ROOT_DIR}/python_sdk/venv/bin/python"
+if [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
 else
   PYTHON_BIN="python3"
 fi
@@ -43,10 +43,10 @@ if [[ -n "$EXISTING_SELLER_PID" ]]; then
   fi
 fi
 
-if [[ -f "${ROOT_DIR}/python_sdk/.env.prod" ]]; then
-  ENVIRONMENT=prod ENV_FILE=.env.prod "$PYTHON_BIN" ../gateway/seller_fastapi.py > "$LOG_FILE" 2>&1 &
+if [[ -f "${ROOT_DIR}/gateway/.env.prod" ]]; then
+  ENVIRONMENT=prod ENV_FILE=.env.prod "$PYTHON_BIN" seller_fastapi.py > "$LOG_FILE" 2>&1 &
 else
-  ENVIRONMENT=prod "$PYTHON_BIN" ../gateway/seller_fastapi.py > "$LOG_FILE" 2>&1 &
+  ENVIRONMENT=prod "$PYTHON_BIN" seller_fastapi.py > "$LOG_FILE" 2>&1 &
 fi
 
 SELLER_PID=$!

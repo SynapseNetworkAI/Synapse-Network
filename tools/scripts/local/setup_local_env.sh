@@ -50,7 +50,7 @@ echo "2.1) Funding test accounts..."
 npx hardhat run scripts/fund_eth.js --network localhost
 npx hardhat run scripts/fund_usdc.js --network localhost
 
-CONFIG_FILE="${ROOT_DIR}/frontend/src/contract-config.json"
+CONFIG_FILE="${ROOT_DIR}/apps/frontend/src/contract-config.json"
 if [[ ! -f "$CONFIG_FILE" ]]; then
 	echo "Error: contract-config.json not found after deployment."
 	exit 1
@@ -60,10 +60,10 @@ ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.writ
 SELLER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
 echo "3) Starting gateway/seller_fastapi.py in background (local profile)..."
-cd "${ROOT_DIR}/python_sdk"
+cd "${ROOT_DIR}/gateway"
 
-if [[ -x "${ROOT_DIR}/python_sdk/venv/bin/python" ]]; then
-	PYTHON_BIN="${ROOT_DIR}/python_sdk/venv/bin/python"
+if [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
+	PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
 else
 	PYTHON_BIN="python3"
 fi
@@ -84,7 +84,7 @@ if [[ -n "$EXISTING_SELLER_PID" ]]; then
 	fi
 fi
 
-LOCAL_ENV_FILE="${ROOT_DIR}/python_sdk/.env.local"
+LOCAL_ENV_FILE="${ROOT_DIR}/gateway/.env.local"
 if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ENVIRONMENT=local \
 	ENV_FILE=.env.local \
@@ -92,14 +92,14 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	SELLER_ADDRESS="$SELLER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" ../gateway/seller_fastapi.py > "${ROOT_DIR}/gateway/logs/seller_api.log" 2>&1 &
+	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/gateway/logs/seller_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	SELLER_ADDRESS="$SELLER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" ../gateway/seller_fastapi.py > "${ROOT_DIR}/gateway/logs/seller_api.log" 2>&1 &
+	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/gateway/logs/seller_api.log" 2>&1 &
 fi
 SELLER_PID=$!
 sleep 3
@@ -113,7 +113,7 @@ if ! kill -0 "$SELLER_PID" >/dev/null 2>&1; then
 fi
 
 echo "4) Starting frontend Next.js in background..."
-cd "${ROOT_DIR}/frontend"
+cd "${ROOT_DIR}/apps/frontend"
 
 EXISTING_FRONTEND_PID="$(find_pid_by_port 3000)"
 if [[ -n "$EXISTING_FRONTEND_PID" ]]; then
@@ -126,13 +126,13 @@ else
 		npm install
 	fi
 
-	npm run dev > "${ROOT_DIR}/frontend/frontend_dev.log" 2>&1 &
+	npm run dev > "${ROOT_DIR}/apps/frontend/frontend_dev.log" 2>&1 &
 	FRONTEND_PID=$!
 	FRONTEND_OWNED_BY_SCRIPT=1
 	sleep 5
 
 	if ! kill -0 "$FRONTEND_PID" >/dev/null 2>&1; then
-		echo "Error: Frontend failed to start. Check frontend/frontend_dev.log"
+		echo "Error: Frontend failed to start. Check apps/frontend/frontend_dev.log"
 		kill "$SELLER_PID" >/dev/null 2>&1 || true
 		if [[ "$ANVIL_OWNED_BY_SCRIPT" -eq 1 ]]; then
 			kill "$ANVIL_PID" >/dev/null 2>&1 || true
