@@ -14,7 +14,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.audit import AuditLogEntry
 from src.domain.storage_entities import CredentialRow
-from src.models.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
+from src.api.schemas.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 

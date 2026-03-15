@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
-from src.models.pydantic_models import InferenceRequest
+from src.api.schemas.pydantic_models import InferenceRequest
 from src.services.platform import credential_service
 from src.services.buyer import forwarding_billing
 from src.services.buyer import forwarding_upstream

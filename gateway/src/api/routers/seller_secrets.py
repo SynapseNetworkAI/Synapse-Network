@@ -2,7 +2,7 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Header
 
-from src.models.pydantic_models import CredentialIssueRequest
+from src.api.schemas.pydantic_models import CredentialIssueRequest
 from src.services.platform import credential_service
 from src.services.seller import seller_secret_service
 from src.storage import BaseStorage, get_storage
