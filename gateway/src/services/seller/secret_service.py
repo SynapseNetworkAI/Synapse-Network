@@ -9,10 +9,19 @@ from src.models.pydantic_models import CredentialIssueRequest
 from src.domain.storage_entities import CredentialRow
 from src.services.platform import credential_service
 from src.storage import BaseStorage
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 seller_write_lock = asyncio.Lock()
 _SELLER_SECRETS_COLLECTION = "seller_secrets"
 _LEGACY_SELLER_COLLECTIONS = ("provider_secrets", "credentials")
+
+
+def _row_as_dict(row: Any) -> Dict[str, Any]:
+    if isinstance(row, dict):
+        return dict(row)
+    if hasattr(row, "model_dump"):
+        return row.model_dump(by_alias=True, mode="json")
+    return {}
 
 
 def _normalize_secret_rows(raw: Any) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -25,6 +34,8 @@ def _normalize_secret_rows(raw: Any) -> Tuple[List[Dict[str, Any]], Dict[str, An
 def save_seller_secret_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extras: Optional[Dict[str, Any]] = None) -> None:
     for row in rows:
         row["credentialType"] = "seller"
+        row["createdAt"] = to_dt_str(row.get("createdAt"), now_dt_str())
+        row["updatedAt"] = to_dt_str(row.get("updatedAt"), now_dt_str())
     payload: Dict[str, Any] = {"credentials": rows, "updatedAt": credential_service.now_ts()}
     if extras:
         payload.update(extras)
@@ -35,7 +46,8 @@ def save_seller_secret_rows(storage: BaseStorage, rows: List[Dict[str, Any]], ex
 
 def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     primary_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
-    primary_rows = [row.model_dump(by_alias=True, mode="json") for row in primary_entities]
+    primary_rows = [_row_as_dict(row) for row in primary_entities]
+    primary_rows = [row for row in primary_rows if row]
     primary = {"credentials": primary_rows, "updatedAt": 0}
     rows, extras = _normalize_secret_rows(primary)
     if rows or extras:
@@ -44,7 +56,8 @@ def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]],
     for legacy_collection in _LEGACY_SELLER_COLLECTIONS:
         _ = legacy_collection
         legacy_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
-        legacy_rows_raw = [row.model_dump(by_alias=True, mode="json") for row in legacy_entities]
+        legacy_rows_raw = [_row_as_dict(row) for row in legacy_entities]
+        legacy_rows_raw = [row for row in legacy_rows_raw if row]
         legacy = {"credentials": legacy_rows_raw, "updatedAt": 0}
         legacy_rows, legacy_extras = _normalize_secret_rows(legacy)
         if legacy_rows or legacy_extras:
@@ -77,13 +90,14 @@ def list_seller_secrets_by_owner(storage: BaseStorage, owner_wallet: str) -> Lis
             }
         )
 
-    result.sort(key=lambda x: int(x.get("createdAt") or 0), reverse=True)
+    result.sort(key=lambda x: to_dt_str(x.get("createdAt"), "1970-01-01 00:00:00") or "1970-01-01 00:00:00", reverse=True)
     return result
 
 
 async def issue_seller_secret_for_owner(storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest) -> Dict[str, Any]:
-    now = credential_service.now_ts()
-    max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = credential_service._validate_issue_request(req, now)
+    now_ts = credential_service.now_ts()
+    now = now_dt_str()
+    max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = credential_service._validate_issue_request(req, now_ts)
 
     plain_token = credential_service.issue_token()
     record = {
@@ -157,7 +171,7 @@ async def revoke_seller_secret_for_owner(storage: BaseStorage, owner_wallet: str
             raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "Secret does not belong to current wallet"})
 
         found["status"] = "revoked"
-        found["updatedAt"] = now
+        found["updatedAt"] = now_dt_str()
         found["revokedAt"] = now
         rows[index] = found
         save_seller_secret_rows(storage, rows, extras)
