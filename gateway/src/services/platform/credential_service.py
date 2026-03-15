@@ -16,11 +16,20 @@ from src.domain.audit import AuditLogEntry
 from src.domain.storage_entities import CredentialRow
 from src.models.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
 from src.storage import BaseStorage
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 write_lock = asyncio.Lock()
 _BUYER_CREDENTIALS_COLLECTION = "buyer_credentials"
 _LEGACY_BUYER_COLLECTIONS = ("credentials", "agent_credentials")
 _REMOVED_CREDENTIAL_FIELDS = {"agentId", "serviceId", "serviceRecordId"}
+
+
+def _row_as_dict(row: Any) -> Dict[str, Any]:
+    if isinstance(row, dict):
+        return dict(row)
+    if hasattr(row, "model_dump"):
+        return row.model_dump(by_alias=True, mode="json")
+    return {}
 
 
 def now_ts() -> int:
@@ -91,6 +100,10 @@ def _mark_buyer_rows(rows: List[Dict[str, Any]]) -> None:
 
 def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extras: Optional[Dict[str, Any]] = None) -> None:
     _mark_buyer_rows(rows)
+    now = now_dt_str()
+    for row in rows:
+        row["createdAt"] = to_dt_str(row.get("createdAt"), now)
+        row["updatedAt"] = to_dt_str(row.get("updatedAt"), now)
     payload: Dict[str, Any] = {"credentials": rows, "updatedAt": now_ts()}
     if extras:
         payload.update(extras)
@@ -102,7 +115,8 @@ def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extra
 
 def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     primary_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("buyer")
-    primary_rows = [row.model_dump(by_alias=True, mode="json") for row in primary_entities]
+    primary_rows = [_row_as_dict(row) for row in primary_entities]
+    primary_rows = [row for row in primary_rows if row]
     primary = {"credentials": primary_rows, "updatedAt": 0}
     rows, extras = normalize_credential_rows(primary)
     if rows or extras:
@@ -112,7 +126,8 @@ def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Di
     for legacy_collection in _LEGACY_BUYER_COLLECTIONS:
         _ = legacy_collection
         legacy_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("buyer")
-        legacy_rows_raw = [row.model_dump(by_alias=True, mode="json") for row in legacy_entities]
+        legacy_rows_raw = [_row_as_dict(row) for row in legacy_entities]
+        legacy_rows_raw = [row for row in legacy_rows_raw if row]
         legacy = {"credentials": legacy_rows_raw, "updatedAt": 0}
         legacy_rows, legacy_extras = normalize_credential_rows(legacy)
         if legacy_rows or legacy_extras:
@@ -301,7 +316,7 @@ def list_secrets_by_owner(storage: BaseStorage, owner_wallet: str) -> List[Dict[
             }
         )
 
-    result.sort(key=lambda x: int(x.get("createdAt") or 0), reverse=True)
+    result.sort(key=lambda x: to_dt_str(x.get("createdAt"), "1970-01-01 00:00:00") or "1970-01-01 00:00:00", reverse=True)
     return result
 
 
@@ -327,6 +342,7 @@ def _validate_issue_request(req: CredentialIssueRequest, now: int) -> Tuple[int,
 
 async def issue_credential_for_owner(storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest) -> Dict[str, Any]:
     now = now_ts()
+    now_str = now_dt_str()
     max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = _validate_issue_request(req, now)
 
     plain_token = issue_token()
@@ -344,8 +360,8 @@ async def issue_credential_for_owner(storage: BaseStorage, owner_wallet: str, re
         "creditLimit": round(credit_limit, 6) if credit_limit is not None else None,
         "resetInterval": reset_interval,
         "expiration": expiration,
-        "createdAt": now,
-        "updatedAt": now,
+        "createdAt": now_str,
+        "updatedAt": now_str,
         "expiresAt": expires_at,
         "revokedAt": None,
     }
@@ -395,7 +411,7 @@ async def revoke_credential_for_owner(
             raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": forbidden_message})
 
         found["status"] = "revoked"
-        found["updatedAt"] = now
+        found["updatedAt"] = now_dt_str()
         found["revokedAt"] = now
         rows[index] = found
         save_credential_rows(storage, rows, extras)
