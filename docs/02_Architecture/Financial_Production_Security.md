@@ -183,6 +183,18 @@ Router daily limit definition:
    - create logs include origin keys, risk level/reason, and remaining ceiling snapshot
    - complete/reject logs include reviewer decision metadata
 
+### 2.15 Twelfth-Round Runtime State Typing and Legacy Channel Removal
+
+1. Legacy collection passthrough channel (`get_collection/save_collection/append_to_collection`) is removed from production storage facade.
+2. Indexer/backfill/reconciliation runtime checkpoints are moved to typed PostgreSQL state table:
+   - `synapse_runtime_state(state_key, payload, updated_at)`
+3. `GatewayStateRepository` becomes the single persistence entry for runtime scheduler state keys such as:
+   - `deposit_backfill_state`
+   - `deposit_reconciliation_state`
+4. Error handling remains safe-surface:
+   - API payload exposes standardized error codes only
+   - detailed stack traces stay in server logs
+
 ## 3. Configuration Contract
 
 Key runtime knobs in `gateway/src/core/config.py`:

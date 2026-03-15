@@ -236,9 +236,8 @@ Phase 3（日志爆发后）：
   - `src/storage/postgres/repositories/credential_auth_repository.py`
   - `src/storage/postgres/repositories/gateway_state_repository.py`
   - `src/storage/postgres/repositories/finance_atomic_repository.py`
-  - `src/storage/postgres/repositories/legacy_collection_repository.py`
 3. 门面层：
-  - `src/storage/postgres_impl.py` 仅保留连接管理、原子事务入口与 legacy collection 兼容入口，不再承载 gateway/balance/audit/registry/credential/fee/idempotency 的 read/write passthrough。
+  - `src/storage/postgres_impl.py` 仅保留连接管理与 typed 事务入口，不再承载 gateway/balance/audit/registry/credential/fee/idempotency 的 read/write passthrough。
   - `src/storage/repository_provider.py` 升级为 Facade + Unit of Work：
     - `SynapseDataManager`
     - `SynapseUnitOfWork`
@@ -266,10 +265,10 @@ Phase 3（日志爆发后）：
 
 1. `finance_atomic_repository.py`
   - 负责充值确认、扣费记账、提现风控决策、提现预留与去重写入等 ACID 原子事务路径。
-2. `legacy_collection_repository.py`
-  - 负责通用 collection 兼容读写（迁移窗口使用）与审计 collection 兼容写入。
+2. `gateway_state_repository.py`
+  - 负责网关状态、链上处理游标、运行时状态（`synapse_runtime_state`）等 typed 持久化路径。
 
-最终目标：门面层只暴露 typed storage API，不承载跨领域 SQL 编排细节。
+最终目标：门面层只暴露 typed storage API，不承载跨领域 SQL 编排细节；legacy collection 通道已下线。
 
 ### 9.7 领域实体层 — 全局 Dict → Pydantic 强类型（已执行）
 

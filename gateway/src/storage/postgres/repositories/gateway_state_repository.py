@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Callable, List
 
 from src.domain.gateway import RouterConfigRow
@@ -387,3 +388,34 @@ class GatewayStateRepository:
                     "INSERT INTO synapse_processed_deposit_events (dedup_key, updated_at) VALUES (%s, %s)",
                     (entity.dedup_key, entity.updated_at),
                 )
+
+    def read_runtime_state(self, state_key: str) -> dict[str, Any]:
+        key = str(state_key or "").strip()
+        if not key:
+            return {}
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                "SELECT payload FROM synapse_runtime_state WHERE state_key = %s",
+                (key,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return {}
+        payload = row[0]
+        return dict(payload) if isinstance(payload, dict) else {}
+
+    def write_runtime_state(self, state_key: str, payload: dict[str, Any]) -> None:
+        key = str(state_key or "").strip()
+        if not key:
+            return
+        body = dict(payload or {})
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO synapse_runtime_state (state_key, payload, updated_at)
+                VALUES (%s, %s::jsonb, NOW())
+                ON CONFLICT (state_key)
+                DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()
+                """,
+                (key, json.dumps(body, ensure_ascii=False)),
+            )
