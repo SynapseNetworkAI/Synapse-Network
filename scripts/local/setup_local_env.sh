@@ -59,7 +59,7 @@ fi
 ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.A2APaySyncRouter)")
 SELLER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
-echo "3) Starting seller_fastapi.py in background (local profile)..."
+echo "3) Starting seller_api/seller_fastapi.py in background (local profile)..."
 cd "${ROOT_DIR}/python_sdk"
 
 if [[ -x "${ROOT_DIR}/python_sdk/venv/bin/python" ]]; then
@@ -92,14 +92,14 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	SELLER_ADDRESS="$SELLER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/python_sdk/seller_api.log" 2>&1 &
+	"$PYTHON_BIN" seller_api/seller_fastapi.py > "${ROOT_DIR}/python_sdk/seller_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	SELLER_ADDRESS="$SELLER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/python_sdk/seller_api.log" 2>&1 &
+	"$PYTHON_BIN" seller_api/seller_fastapi.py > "${ROOT_DIR}/python_sdk/seller_api.log" 2>&1 &
 fi
 SELLER_PID=$!
 sleep 3

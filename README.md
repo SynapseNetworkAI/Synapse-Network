@@ -40,7 +40,7 @@ chmod +x scripts/local/stop_local_env.sh
 
 ### 3) Prod backend scripts (seller_fastapi only)
 
-Prod scripts only manage `python_sdk/seller_fastapi.py` and do not start local Anvil or deploy localhost contracts.
+Prod scripts only manage `python_sdk/seller_api/seller_fastapi.py` and do not start local Anvil or deploy localhost contracts.
 
 ```bash
 chmod +x scripts/prod/start_prod_env.sh
@@ -68,7 +68,7 @@ cd python_sdk
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python3 seller_fastapi.py
+python3 seller_api/seller_fastapi.py
 ```
 
 ## Documentation Map

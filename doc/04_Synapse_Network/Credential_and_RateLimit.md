@@ -8,7 +8,7 @@
 - 收益统计与审计：透明记录哪个 Key 产生了多少次真实调用与收益，防刷防盗。
 
 ## 2. 架构与适用范围
-适用层：后端 `python_sdk/seller_fastapi.py` 以及所有关联的前端管控 Dashboard (`Secrets Page`)。
+适用层：后端 `python_sdk/seller_api/seller_fastapi.py` 以及所有关联的前端管控 Dashboard (`Secrets Page`)。
 
 新的实体关系：
 - **Seller Owner Address**：平台服务的最终受益人与管控者。
