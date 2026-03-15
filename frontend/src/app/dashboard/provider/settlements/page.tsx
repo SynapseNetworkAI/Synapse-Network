@@ -28,6 +28,12 @@ function normalizeSignature(signature: string): `0x${string}` {
   return normalized as `0x${string}`;
 }
 
+function withdrawalStatusColor(status: ProviderWithdrawRecord["status"]): string {
+  if (status === "COMPLETED") return "text-[#22c55e]";
+  if (status === "REJECTED") return "text-[#ef4444]";
+  return "text-[#ff9f0a]";
+}
+
 export default function ProviderSettlementsPage() {
   const { providerStats, paidEvents, handleRefresh: reloadDashboard } = useDashboardData();
   const { address, isConnected } = useAccount();
@@ -51,7 +57,10 @@ export default function ProviderSettlementsPage() {
   const { isLoading: isTxConfirming, isSuccess: isTxConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
   const pendingWithdrawal = useMemo(
-    () => withdrawals.find((row) => row.status === "PENDING") || null,
+    () =>
+      withdrawals.find((row) =>
+        ["REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW"].includes(row.status)
+      ) || null,
     [withdrawals]
   );
 
@@ -135,8 +144,8 @@ export default function ProviderSettlementsPage() {
       toast.error("Vault contract address missing");
       return;
     }
-    if (pendingWithdrawal?.ticket) {
-      toast.error("Pending withdrawal exists. Complete it before creating a new ticket.");
+    if (pendingWithdrawal) {
+      toast.error("An active withdrawal exists. Complete or review it before creating a new one.");
       return;
     }
 
@@ -155,8 +164,14 @@ export default function ProviderSettlementsPage() {
     const toastId = toast.loading("Generating signed withdrawal ticket...");
     try {
       const intent = await createProviderWithdrawIntent(address, amountUsdc);
-      await startWalletWithdraw(intent.withdrawalId, intent.ticket);
-      toast.success("Ticket generated. Confirm transaction in wallet.", { id: toastId });
+      if (intent.status === "PENDING_MANUAL_REVIEW") {
+        toast.success(intent.message || "Withdrawal queued for manual security review.", { id: toastId });
+      } else if (intent.ticket) {
+        await startWalletWithdraw(intent.withdrawalId, intent.ticket);
+        toast.success("Ticket generated. Confirm transaction in wallet.", { id: toastId });
+      } else {
+        toast.success("Withdrawal intent created.", { id: toastId });
+      }
       await Promise.all([refreshWithdrawals(), reloadDashboard()]);
       setWithdrawAmountInput("");
     } catch (error) {
@@ -248,14 +263,14 @@ export default function ProviderSettlementsPage() {
             />
             <button
               onClick={handleCreateWithdrawalIntent}
-              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || Boolean(pendingWithdrawal?.ticket)}
+              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || Boolean(pendingWithdrawal)}
               className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors disabled:opacity-40"
             >
               {creatingIntent ? "Creating Ticket..." : "Generate & Claim"}
             </button>
             <button
               onClick={resumePendingWithdraw}
-              disabled={!pendingWithdrawal?.ticket || isAnyLoading}
+              disabled={!pendingWithdrawal?.ticket || pendingWithdrawal?.status !== "APPROVED_AUTO" || isAnyLoading}
               className="px-4 py-2 rounded-lg border border-[#222222] bg-[#111111] text-white text-sm font-semibold hover:bg-[#1a1a1a] transition-colors disabled:opacity-40"
             >
               Resume Pending
@@ -409,7 +424,7 @@ export default function ProviderSettlementsPage() {
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.id}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">{row.amountUsdc.toFixed(6)} USDC</td>
                 <td className="py-4 px-6 text-xs">
-                  <span className={row.status === "COMPLETED" ? "text-[#22c55e]" : "text-[#ff9f0a]"}>{row.status}</span>
+                  <span className={withdrawalStatusColor(row.status)}>{row.status}</span>
                 </td>
                 <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">{row.nonce}</td>
                 <td className="py-4 px-6 text-xs text-[#86868b]">{formatTimestamp(row.createdAt)}</td>

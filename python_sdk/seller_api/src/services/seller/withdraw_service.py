@@ -19,6 +19,10 @@ from src.storage.finance_repository import FinanceRepository
 from src.storage.base import BaseStorage
 
 
+WITHDRAW_AUTO_APPROVAL_LIMIT_USDC = 100.0
+ACTIVE_WITHDRAWAL_STATUSES = {"REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "PENDING"}
+
+
 class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin):
     """Seller-side withdrawal domain service."""
 
@@ -79,7 +83,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         for row in rows:
             if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
                 continue
-            if str(row.get("status") or "").upper() == "PENDING":
+            if str(row.get("status") or "").upper() in ACTIVE_WITHDRAWAL_STATUSES:
                 return row
         return None
 
@@ -137,9 +141,10 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
     def _build_pending_withdraw_response(self, row: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "withdrawalId": str(row.get("id") or ""),
-            "status": str(row.get("status") or "PENDING"),
+            "status": str(row.get("status") or "REQUESTED"),
             "amountUsdc": round(float(row.get("amountUsdc") or 0.0), 6),
             "ticket": row.get("ticket") if isinstance(row.get("ticket"), dict) else {},
+            "message": str(row.get("message") or ""),
         }
 
     def _normalize_tx_hash_or_raise(self, tx_hash: str) -> str:
@@ -168,7 +173,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 "status": "COMPLETED",
                 "txHash": existing_tx,
             }
-        if status != "PENDING":
+        if status not in {"APPROVED_AUTO", "REQUESTED", "PENDING"}:
             raise HTTPException(
                 status_code=409,
                 detail={
@@ -234,6 +239,166 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             return
         self._save_balance_ledger(ledger)
 
+    def _prepare_withdraw_ticket(
+        self,
+        *,
+        owner: str,
+        amount_usdc: float,
+    ) -> Dict[str, Any]:
+        requires_manual_review = amount_usdc >= WITHDRAW_AUTO_APPROVAL_LIMIT_USDC
+        amount_wei = int(round(amount_usdc * float(10**USDC_DECIMALS)))
+
+        if requires_manual_review:
+            return {
+                "requiresManualReview": True,
+                "amountWei": amount_wei,
+                "feeWei": 0,
+                "nonce": 0,
+                "chainId": 0,
+                "deadline": 0,
+                "signature": "",
+                "signerAddress": "",
+                "ticket": {},
+            }
+
+        private_key = self._require_withdraw_signer()
+        nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)
+        deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()
+        fee_wei = 0
+        typed_data = self._build_withdraw_typed_data(
+            owner_wallet=owner,
+            amount_wei=amount_wei,
+            fee_wei=fee_wei,
+            nonce=nonce,
+            deadline=deadline,
+            chain_id=chain_id,
+            verifying_contract=normalize_wallet(settings.router_address),
+        )
+        signature = self._sign_withdraw_ticket(typed_data, private_key)
+
+        try:
+            from eth_account import Account  # type: ignore[import-not-found]
+
+            signer_address = normalize_wallet(Account.from_key(private_key).address)
+        except Exception:
+            signer_address = ""
+
+        return {
+            "requiresManualReview": False,
+            "amountWei": amount_wei,
+            "feeWei": fee_wei,
+            "nonce": nonce,
+            "chainId": chain_id,
+            "deadline": deadline,
+            "signature": signature,
+            "signerAddress": signer_address,
+            "ticket": {
+                "amount": str(amount_wei),
+                "fee": str(fee_wei),
+                "nonce": nonce,
+                "deadline": deadline,
+                "signature": signature,
+                "chainId": chain_id,
+                "contractAddress": normalize_wallet(settings.router_address),
+            },
+        }
+
+    async def _resolve_pending_withdrawal_response(
+        self,
+        *,
+        rows: List[Dict[str, Any]],
+        owner: str,
+        amount_usdc: float,
+        idempotency_key: str,
+        request_hash: str,
+        redis_client: Optional[Any],
+        idem_rows: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        pending = self._get_pending_withdrawal(rows, owner)
+        if pending is None:
+            return None
+
+        if (
+            normalize_wallet(str(pending.get("ownerAddress") or "")) == owner
+            and round(float(pending.get("amountUsdc") or 0.0), 6) == amount_usdc
+        ):
+            response = self._build_pending_withdraw_response(pending)
+            await self._finish_provider_withdraw_idempotency(
+                owner=owner,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                response=response,
+                redis_client=redis_client,
+                idem_rows=idem_rows,
+            )
+            return response
+
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "PENDING_WITHDRAWAL_EXISTS",
+                "message": "A pending provider withdrawal already exists. Complete or cancel it before creating a new one.",
+            },
+        )
+
+    def _build_withdraw_row_and_response(
+        self,
+        *,
+        owner: str,
+        amount_usdc: float,
+        idempotency_key: str,
+        request_meta: Optional[Dict[str, Any]],
+        ticket_payload: Dict[str, Any],
+    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+        requires_manual_review = bool(ticket_payload.get("requiresManualReview"))
+        amount_wei = int(ticket_payload.get("amountWei") or 0)
+        fee_wei = int(ticket_payload.get("feeWei") or 0)
+        nonce = int(ticket_payload.get("nonce") or 0)
+        chain_id = int(ticket_payload.get("chainId") or 0)
+        deadline = int(ticket_payload.get("deadline") or 0)
+        signature = str(ticket_payload.get("signature") or "")
+        signer_address = str(ticket_payload.get("signerAddress") or "")
+        ticket = ticket_payload.get("ticket") if isinstance(ticket_payload.get("ticket"), dict) else {}
+
+        now = int(time.time())
+        withdrawal_id = str(uuid4())
+        status = "PENDING_MANUAL_REVIEW" if requires_manual_review else "APPROVED_AUTO"
+        message = (
+            "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
+            if requires_manual_review
+            else ""
+        )
+        row = {
+            "id": withdrawal_id,
+            "ownerAddress": owner,
+            "amountUsdc": amount_usdc,
+            "amountWei": str(amount_wei),
+            "feeWei": str(fee_wei),
+            "nonce": nonce,
+            "deadline": deadline,
+            "signature": signature,
+            "chainId": chain_id,
+            "contractAddress": normalize_wallet(settings.router_address),
+            "signerAddress": signer_address,
+            "status": status,
+            "businessType": "withdraw",
+            "riskLevel": "yellow" if requires_manual_review else "green",
+            "idempotencyKey": idempotency_key,
+            "createdAt": now,
+            "updatedAt": now,
+            "requestMeta": request_meta or {},
+            "message": message,
+            "ticket": ticket,
+        }
+        response = {
+            "withdrawalId": withdrawal_id,
+            "status": status,
+            "amountUsdc": amount_usdc,
+            "ticket": ticket,
+            "message": message,
+        }
+        return row, response
+
     async def create_provider_withdraw_intent(
         self,
         payload: Dict[str, Any],
@@ -266,94 +431,29 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
             amount_usdc = self._parse_withdraw_amount_usdc(payload, available_receivable)
 
             rows = self._normalize_withdrawal_rows()
-            pending = self._get_pending_withdrawal(rows, owner)
-            if pending is not None:
-                if (
-                    normalize_wallet(str(pending.get("ownerAddress") or "")) == owner
-                    and round(float(pending.get("amountUsdc") or 0.0), 6) == amount_usdc
-                ):
-                    response = self._build_pending_withdraw_response(pending)
-                    await self._finish_provider_withdraw_idempotency(
-                        owner=owner,
-                        idempotency_key=idempotency_key,
-                        request_hash=request_hash,
-                        response=response,
-                        redis_client=redis_client,
-                        idem_rows=idem_rows,
-                    )
-                    return response
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "PENDING_WITHDRAWAL_EXISTS",
-                        "message": "A pending provider withdrawal already exists. Complete or cancel it before creating a new one.",
-                    },
-                )
-
-            private_key = self._require_withdraw_signer()
-            nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)
-            deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()
-
-            amount_wei = int(round(amount_usdc * float(10**USDC_DECIMALS)))
-            fee_wei = 0
-            typed_data = self._build_withdraw_typed_data(
-                owner_wallet=owner,
-                amount_wei=amount_wei,
-                fee_wei=fee_wei,
-                nonce=nonce,
-                deadline=deadline,
-                chain_id=chain_id,
-                verifying_contract=normalize_wallet(settings.router_address),
+            pending_response = await self._resolve_pending_withdrawal_response(
+                rows=rows,
+                owner=owner,
+                amount_usdc=amount_usdc,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                redis_client=redis_client,
+                idem_rows=idem_rows,
             )
-            signature = self._sign_withdraw_ticket(typed_data, private_key)
+            if pending_response is not None:
+                return pending_response
 
-            try:
-                from eth_account import Account  # type: ignore[import-not-found]
-
-                signer_address = normalize_wallet(Account.from_key(private_key).address)
-            except Exception:
-                signer_address = ""
-
+            ticket_payload = self._prepare_withdraw_ticket(owner=owner, amount_usdc=amount_usdc)
             self._reserve_withdraw_amount(owner, amount_usdc, ledger)
-
-            now = int(time.time())
-            withdrawal_id = str(uuid4())
-            row = {
-                "id": withdrawal_id,
-                "ownerAddress": owner,
-                "amountUsdc": amount_usdc,
-                "amountWei": str(amount_wei),
-                "feeWei": str(fee_wei),
-                "nonce": nonce,
-                "deadline": deadline,
-                "signature": signature,
-                "chainId": chain_id,
-                "contractAddress": normalize_wallet(settings.router_address),
-                "signerAddress": signer_address,
-                "status": "PENDING",
-                "idempotencyKey": idempotency_key,
-                "createdAt": now,
-                "updatedAt": now,
-                "requestMeta": request_meta or {},
-                "ticket": {
-                    "amount": str(amount_wei),
-                    "fee": str(fee_wei),
-                    "nonce": nonce,
-                    "deadline": deadline,
-                    "signature": signature,
-                    "chainId": chain_id,
-                    "contractAddress": normalize_wallet(settings.router_address),
-                },
-            }
+            row, response = self._build_withdraw_row_and_response(
+                owner=owner,
+                amount_usdc=amount_usdc,
+                idempotency_key=idempotency_key,
+                request_meta=request_meta,
+                ticket_payload=ticket_payload,
+            )
             rows.append(row)
             self._save_withdrawal_rows(rows)
-
-            response = {
-                "withdrawalId": withdrawal_id,
-                "status": "PENDING",
-                "amountUsdc": amount_usdc,
-                "ticket": row["ticket"],
-            }
             await self._finish_provider_withdraw_idempotency(
                 owner=owner,
                 idempotency_key=idempotency_key,
@@ -367,10 +467,11 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 "PROVIDER_WITHDRAW_INTENT_CREATED",
                 owner,
                 {
-                    "withdrawalId": withdrawal_id,
+                    "withdrawalId": response["withdrawalId"],
                     "amountUsdc": amount_usdc,
-                    "nonce": nonce,
-                    "deadline": deadline,
+                    "status": response["status"],
+                    "nonce": row.get("nonce"),
+                    "deadline": row.get("deadline"),
                     "idempotencyKey": idempotency_key,
                     "requestMeta": request_meta or {},
                 },

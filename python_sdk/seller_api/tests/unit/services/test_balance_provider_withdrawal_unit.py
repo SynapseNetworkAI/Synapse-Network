@@ -72,7 +72,7 @@ async def test_create_provider_withdraw_intent_locks_receivable(monkeypatch, tem
         request_meta={"requestId": "req-1"},
     )
 
-    assert result["status"] == "PENDING"
+    assert result["status"] == "APPROVED_AUTO"
     assert abs(float(result["amountUsdc"]) - 12.5) < 1e-9
     assert int(result["ticket"]["nonce"]) == 9
 
@@ -180,7 +180,7 @@ async def test_complete_provider_withdrawal_releases_lock_and_is_idempotent(monk
                     "id": "wd-1",
                     "ownerAddress": owner.lower(),
                     "amountUsdc": 4.0,
-                    "status": "PENDING",
+                    "status": "APPROVED_AUTO",
                     "nonce": 5,
                     "createdAt": 1,
                     "updatedAt": 1,
@@ -243,7 +243,7 @@ async def test_complete_provider_withdrawal_uses_db_tx_dedup_hook(temp_storage):
                     "id": "wd-db-1",
                     "ownerAddress": owner.lower(),
                     "amountUsdc": 1.5,
-                    "status": "PENDING",
+                    "status": "APPROVED_AUTO",
                     "nonce": 7,
                     "createdAt": 1,
                     "updatedAt": 1,

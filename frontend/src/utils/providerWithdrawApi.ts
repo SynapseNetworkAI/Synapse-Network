@@ -44,7 +44,13 @@ export type ProviderWithdrawTicket = {
 export type ProviderWithdrawRecord = {
   id: string;
   amountUsdc: number;
-  status: "PENDING" | "COMPLETED" | "CANCELLED";
+  status:
+    | "REQUESTED"
+    | "APPROVED_AUTO"
+    | "PENDING_MANUAL_REVIEW"
+    | "REJECTED"
+    | "COMPLETED"
+    | "CANCELLED";
   nonce: number;
   deadline: number;
   signature?: string;
@@ -56,9 +62,10 @@ export type ProviderWithdrawRecord = {
 
 export async function createProviderWithdrawIntent(userAddress: string, amountUsdc?: number): Promise<{
   withdrawalId: string;
-  status: "PENDING";
+  status: "REQUESTED" | "APPROVED_AUTO" | "PENDING_MANUAL_REVIEW";
   amountUsdc: number;
-  ticket: ProviderWithdrawTicket;
+  ticket?: ProviderWithdrawTicket;
+  message?: string;
 }> {
   const headers = {
     ...buildAuthedHeaders(userAddress),
@@ -77,9 +84,10 @@ export async function createProviderWithdrawIntent(userAddress: string, amountUs
 
   const payload = (await response.json()) as {
     withdrawalId: string;
-    status: "PENDING";
+    status: "REQUESTED" | "APPROVED_AUTO" | "PENDING_MANUAL_REVIEW";
     amountUsdc: number;
-    ticket: ProviderWithdrawTicket;
+    ticket?: ProviderWithdrawTicket;
+    message?: string;
   };
   return payload;
 }
@@ -97,13 +105,23 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
 
   const payload = (await response.json()) as { withdrawals?: Array<Record<string, unknown>> };
   const rows = Array.isArray(payload.withdrawals) ? payload.withdrawals : [];
+  const validStatuses = new Set([
+    "REQUESTED",
+    "APPROVED_AUTO",
+    "PENDING_MANUAL_REVIEW",
+    "REJECTED",
+    "COMPLETED",
+    "CANCELLED",
+    "PENDING",
+  ]);
   return rows.map((row) => ({
     id: typeof row.id === "string" ? row.id : "",
     amountUsdc: Number(row.amountUsdc || 0),
-    status:
-      row.status === "COMPLETED" || row.status === "CANCELLED" || row.status === "PENDING"
-        ? row.status
-        : "PENDING",
+    status: (() => {
+      const normalized = (typeof row.status === "string" ? row.status : "").toUpperCase();
+      if (!validStatuses.has(normalized)) return "REQUESTED";
+      return normalized === "PENDING" ? "REQUESTED" : (normalized as ProviderWithdrawRecord["status"]);
+    })(),
     nonce: Number(row.nonce || 0),
     deadline: Number(row.deadline || 0),
     signature: typeof row.signature === "string" ? row.signature : undefined,

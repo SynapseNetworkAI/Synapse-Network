@@ -70,13 +70,46 @@ CREATE INDEX IF NOT EXISTS idx_synapse_withdraw_tx_dedup_owner
 ON synapse_withdraw_tx_dedup (owner_address, created_at DESC);
 """
 
+_BUSINESS_TYPE_ENUM_SQL = """
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_business_type') THEN
+        CREATE TYPE synapse_business_type AS ENUM ('deposit', 'charge', 'refund', 'withdraw', 'freeze', 'unfreeze');
+    END IF;
+END $$;
+"""
+
+_RISK_LEVEL_ENUM_SQL = """
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_risk_level') THEN
+        CREATE TYPE synapse_risk_level AS ENUM ('green', 'yellow', 'red');
+    END IF;
+END $$;
+"""
+
+_WITHDRAW_STATUS_ENUM_SQL = """
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_withdraw_status') THEN
+        CREATE TYPE synapse_withdraw_status AS ENUM ('REQUESTED', 'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'REJECTED', 'COMPLETED');
+    END IF;
+END $$;
+"""
+
 _BALANCE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS synapse_balances (
     owner_address TEXT NOT NULL,
-    bucket TEXT NOT NULL,
-    amount NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    account_type TEXT NOT NULL,
+    available_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    pending_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    frozen_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
     updated_at BIGINT NOT NULL DEFAULT 0,
-    PRIMARY KEY (owner_address, bucket)
+    PRIMARY KEY (owner_address, account_type),
+    CHECK (account_type IN ('buyer', 'seller', 'platform_fee')),
+    CHECK (available_balance >= 0),
+    CHECK (pending_balance >= 0),
+    CHECK (frozen_balance >= 0)
 );
 """
 
@@ -110,7 +143,7 @@ CREATE TABLE IF NOT EXISTS synapse_withdrawal_intents (
     id TEXT PRIMARY KEY,
     owner_address TEXT NOT NULL,
     tx_hash TEXT,
-    status TEXT NOT NULL,
+    status synapse_withdraw_status NOT NULL DEFAULT 'REQUESTED',
     amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
@@ -135,6 +168,8 @@ CREATE TABLE IF NOT EXISTS synapse_usage_log (
     seller_address TEXT,
     status TEXT,
     total_charge NUMERIC(36, 6),
+    business_type synapse_business_type NOT NULL DEFAULT 'charge',
+    risk_level synapse_risk_level NOT NULL DEFAULT 'green',
     payload JSONB NOT NULL
 );
 """
@@ -288,7 +323,22 @@ CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
 );
 """
 
-_BALANCE_INSERT_SQL = "INSERT INTO synapse_balances (owner_address, bucket, amount, updated_at) VALUES (%s, %s, %s, %s)"
+_BALANCE_UPSERT_SQL = """
+INSERT INTO synapse_balances (
+    owner_address,
+    account_type,
+    available_balance,
+    pending_balance,
+    frozen_balance,
+    updated_at
+) VALUES (%s, %s, %s, %s, %s, %s)
+ON CONFLICT (owner_address, account_type)
+DO UPDATE SET
+    available_balance = EXCLUDED.available_balance,
+    pending_balance = EXCLUDED.pending_balance,
+    frozen_balance = EXCLUDED.frozen_balance,
+    updated_at = EXCLUDED.updated_at
+"""
 
 
 def _d(value: Any) -> Decimal:
@@ -333,6 +383,9 @@ class PostgresStorage(BaseStorage):
     def _ensure_schema(self) -> None:
         with self._connect() as conn:
             with conn.cursor() as cur:
+                cur.execute(_BUSINESS_TYPE_ENUM_SQL)
+                cur.execute(_RISK_LEVEL_ENUM_SQL)
+                cur.execute(_WITHDRAW_STATUS_ENUM_SQL)
                 cur.execute(_COLLECTION_TABLE_SQL)
                 cur.execute(_AUDIT_TABLE_SQL)
                 cur.execute(_AUDIT_IDX_SQL)
@@ -461,46 +514,41 @@ class PostgresStorage(BaseStorage):
         owner = str(owner_wallet or "").strip().lower()
         seller = str(seller_wallet or "").strip().lower()
 
-        def _load_balance(cur: Any, wallet: str, bucket: str) -> Decimal:
+        def _load_balance(cur: Any, wallet: str, account_type: str, column_name: str) -> Decimal:
             cur.execute(
-                "SELECT amount FROM synapse_balances WHERE owner_address = %s AND bucket = %s FOR UPDATE",
-                (wallet, bucket),
+                "SELECT available_balance, pending_balance, frozen_balance FROM synapse_balances WHERE owner_address = %s AND account_type = %s FOR UPDATE",
+                (wallet, account_type),
             )
             hit = cur.fetchone()
             if hit is None:
-                cur.execute(
-                    _BALANCE_INSERT_SQL,
-                    (wallet, bucket, "0", now),
-                )
+                cur.execute(_BALANCE_UPSERT_SQL, (wallet, account_type, "0", "0", "0", now))
                 return Decimal("0")
-            return _q6(hit[0])
+            idx = {"available_balance": 0, "pending_balance": 1, "frozen_balance": 2}[column_name]
+            return _q6(hit[idx])
 
-        def _set_balance(cur: Any, wallet: str, bucket: str, value: Decimal) -> None:
+        def _set_available(cur: Any, wallet: str, account_type: str, available_value: Decimal) -> None:
+            current_pending = _load_balance(cur, wallet, account_type, "pending_balance")
+            current_frozen = _load_balance(cur, wallet, account_type, "frozen_balance")
             cur.execute(
-                """
-                INSERT INTO synapse_balances (owner_address, bucket, amount, updated_at)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (owner_address, bucket)
-                DO UPDATE SET amount = EXCLUDED.amount, updated_at = EXCLUDED.updated_at
-                """,
-                (wallet, bucket, str(_q6(value)), now),
+                _BALANCE_UPSERT_SQL,
+                (wallet, account_type, str(_q6(available_value)), str(_q6(current_pending)), str(_q6(current_frozen)), now),
             )
 
         with self._connect() as conn:
             with conn.cursor() as cur:
-                before_buyer = _load_balance(cur, owner, "buyer")
+                before_buyer = _load_balance(cur, owner, "buyer", "available_balance")
                 if before_buyer < _q6(total_charge):
                     raise RuntimeError("INSUFFICIENT_BALANCE")
 
-                seller_before = _load_balance(cur, seller, "seller")
-                platform_before = _load_balance(cur, "__platform__", "platform_fee")
+                seller_before = _load_balance(cur, seller, "seller", "available_balance")
+                platform_before = _load_balance(cur, "__platform__", "platform_fee", "available_balance")
                 buyer_after = _q6(before_buyer - _q6(total_charge))
                 seller_after = _q6(seller_before + _q6(seller_net))
                 platform_after = _q6(platform_before + _q6(platform_fee_total))
 
-                _set_balance(cur, owner, "buyer", buyer_after)
-                _set_balance(cur, seller, "seller", seller_after)
-                _set_balance(cur, "__platform__", "platform_fee", platform_after)
+                _set_available(cur, owner, "buyer", buyer_after)
+                _set_available(cur, seller, "seller", seller_after)
+                _set_available(cur, "__platform__", "platform_fee", platform_after)
 
                 usage_id = str(usage_row.get("id") or f"usage-{now}-{owner[-6:]}")
                 payload = dict(usage_row)
@@ -512,8 +560,18 @@ class PostgresStorage(BaseStorage):
                 payload.setdefault("totalCharge", float(_q6(total_charge)))
                 cur.execute(
                     """
-                    INSERT INTO synapse_usage_log (id, ts, buyer_address, seller_address, status, total_charge, payload)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+                    INSERT INTO synapse_usage_log (
+                        id,
+                        ts,
+                        buyer_address,
+                        seller_address,
+                        status,
+                        total_charge,
+                        business_type,
+                        risk_level,
+                        payload
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level, %s::jsonb)
                     ON CONFLICT (id)
                     DO UPDATE SET
                         ts = EXCLUDED.ts,
@@ -521,6 +579,8 @@ class PostgresStorage(BaseStorage):
                         seller_address = EXCLUDED.seller_address,
                         status = EXCLUDED.status,
                         total_charge = EXCLUDED.total_charge,
+                        business_type = EXCLUDED.business_type,
+                        risk_level = EXCLUDED.risk_level,
                         payload = EXCLUDED.payload
                     """,
                     (
@@ -530,6 +590,8 @@ class PostgresStorage(BaseStorage):
                         str(payload.get("seller") or seller),
                         str(payload.get("status") or "accepted"),
                         str(_q6(payload.get("totalCharge") or total_charge)),
+                        "charge",
+                        str(payload.get("riskLevel") or "green").lower(),
                         json.dumps(payload, ensure_ascii=False),
                     ),
                 )
@@ -558,43 +620,36 @@ class PostgresStorage(BaseStorage):
         owner = str(owner_wallet or "").strip().lower()
         now = int(time.time())
 
-        def _load_balance(cur: Any, wallet: str, bucket: str) -> Decimal:
+        def _load_balances(cur: Any, wallet: str, account_type: str) -> tuple[Decimal, Decimal, Decimal]:
             cur.execute(
-                "SELECT amount FROM synapse_balances WHERE owner_address = %s AND bucket = %s FOR UPDATE",
-                (wallet, bucket),
+                "SELECT available_balance, pending_balance, frozen_balance FROM synapse_balances WHERE owner_address = %s AND account_type = %s FOR UPDATE",
+                (wallet, account_type),
             )
             hit = cur.fetchone()
             if hit is None:
-                cur.execute(
-                    _BALANCE_INSERT_SQL,
-                    (wallet, bucket, "0", now),
-                )
-                return Decimal("0")
-            return _q6(hit[0])
-
-        def _set_balance(cur: Any, wallet: str, bucket: str, value: Decimal) -> None:
-            cur.execute(
-                """
-                INSERT INTO synapse_balances (owner_address, bucket, amount, updated_at)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (owner_address, bucket)
-                DO UPDATE SET amount = EXCLUDED.amount, updated_at = EXCLUDED.updated_at
-                """,
-                (wallet, bucket, str(_q6(value)), now),
-            )
+                cur.execute(_BALANCE_UPSERT_SQL, (wallet, account_type, "0", "0", "0", now))
+                return (Decimal("0"), Decimal("0"), Decimal("0"))
+            return (_q6(hit[0]), _q6(hit[1]), _q6(hit[2]))
 
         with self._connect() as conn:
             with conn.cursor() as cur:
-                before_available = _load_balance(cur, owner, "seller")
+                before_available, before_pending, before_frozen = _load_balances(cur, owner, "seller")
                 if before_available < _q6(amount_usdc):
                     raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
-
-                before_locked = _load_balance(cur, owner, "seller_locked")
                 after_available = _q6(before_available - _q6(amount_usdc))
-                after_locked = _q6(before_locked + _q6(amount_usdc))
+                after_pending = _q6(before_pending + _q6(amount_usdc))
 
-                _set_balance(cur, owner, "seller", after_available)
-                _set_balance(cur, owner, "seller_locked", after_locked)
+                cur.execute(
+                    _BALANCE_UPSERT_SQL,
+                    (
+                        owner,
+                        "seller",
+                        str(after_available),
+                        str(after_pending),
+                        str(before_frozen),
+                        now,
+                    ),
+                )
 
             conn.commit()
         return {
@@ -681,7 +736,7 @@ class PostgresStorage(BaseStorage):
                 str(row.get("id") or ""),
                 str(row.get("ownerAddress") or "").lower(),
                 str(row.get("txHash") or "").lower() or None,
-                str(row.get("status") or "PENDING"),
+                str(row.get("status") or "REQUESTED").upper(),
                 str(_q6(row.get("amountUsdc") or 0)),
                 int(row.get("createdAt") or updated_at),
                 int(row.get("updatedAt") or updated_at),
@@ -723,33 +778,39 @@ class PostgresStorage(BaseStorage):
     def read_balance_ledger(self) -> Dict[str, Any]:
         with self._connect() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT owner_address, bucket, amount, updated_at FROM synapse_balances")
+                cur.execute(
+                    "SELECT owner_address, account_type, available_balance, pending_balance, frozen_balance, updated_at FROM synapse_balances"
+                )
                 rows = cur.fetchall()
 
         ledger: Dict[str, Any] = {
             "buyers": {},
             "buyersLocked": {},
+            "buyersFrozen": {},
             "sellers": {},
             "sellersLocked": {},
+            "sellersFrozen": {},
             "platform": {"feeAccrued": 0.0},
             "updatedAt": 0,
         }
         max_updated = 0
-        for owner, bucket, amount, updated_at in rows:
+        for owner, account_type, available_balance, pending_balance, frozen_balance, updated_at in rows:
             updated = int(updated_at or 0)
             if updated > max_updated:
                 max_updated = updated
-            val = float(_q6(amount))
-            if bucket == "buyer":
-                ledger["buyers"][str(owner)] = val
-            elif bucket == "buyer_locked":
-                ledger["buyersLocked"][str(owner)] = val
-            elif bucket == "seller":
-                ledger["sellers"][str(owner)] = val
-            elif bucket == "seller_locked":
-                ledger["sellersLocked"][str(owner)] = val
-            elif bucket == "platform_fee" and str(owner) == "__platform__":
-                ledger["platform"]["feeAccrued"] = val
+            available_val = float(_q6(available_balance))
+            pending_val = float(_q6(pending_balance))
+            frozen_val = float(_q6(frozen_balance))
+            if account_type == "buyer":
+                ledger["buyers"][str(owner)] = available_val
+                ledger["buyersLocked"][str(owner)] = pending_val
+                ledger["buyersFrozen"][str(owner)] = frozen_val
+            elif account_type == "seller":
+                ledger["sellers"][str(owner)] = available_val
+                ledger["sellersLocked"][str(owner)] = pending_val
+                ledger["sellersFrozen"][str(owner)] = frozen_val
+            elif account_type == "platform_fee" and str(owner) == "__platform__":
+                ledger["platform"]["feeAccrued"] = available_val
         ledger["updatedAt"] = max_updated
         return ledger
 
@@ -757,22 +818,45 @@ class PostgresStorage(BaseStorage):
         updated_at = int(ledger.get("updatedAt") or int(time.time()))
         buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
         buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
+        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
         sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
         sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
+        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
         platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
 
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM synapse_balances")
-                for owner, value in buyers.items():
-                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "buyer", str(_q6(value)), updated_at))
-                for owner, value in buyers_locked.items():
-                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "buyer_locked", str(_q6(value)), updated_at))
-                for owner, value in sellers.items():
-                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "seller", str(_q6(value)), updated_at))
-                for owner, value in sellers_locked.items():
-                    cur.execute(_BALANCE_INSERT_SQL, (str(owner).lower(), "seller_locked", str(_q6(value)), updated_at))
-                cur.execute(_BALANCE_INSERT_SQL, ("__platform__", "platform_fee", str(_q6(platform.get("feeAccrued") or 0)), updated_at))
+                all_buyers = {str(owner).lower() for owner in buyers} | {str(owner).lower() for owner in buyers_locked} | {str(owner).lower() for owner in buyers_frozen}
+                for owner in all_buyers:
+                    cur.execute(
+                        _BALANCE_UPSERT_SQL,
+                        (
+                            owner,
+                            "buyer",
+                            str(_q6(buyers.get(owner, 0))),
+                            str(_q6(buyers_locked.get(owner, 0))),
+                            str(_q6(buyers_frozen.get(owner, 0))),
+                            updated_at,
+                        ),
+                    )
+                all_sellers = {str(owner).lower() for owner in sellers} | {str(owner).lower() for owner in sellers_locked} | {str(owner).lower() for owner in sellers_frozen}
+                for owner in all_sellers:
+                    cur.execute(
+                        _BALANCE_UPSERT_SQL,
+                        (
+                            owner,
+                            "seller",
+                            str(_q6(sellers.get(owner, 0))),
+                            str(_q6(sellers_locked.get(owner, 0))),
+                            str(_q6(sellers_frozen.get(owner, 0))),
+                            updated_at,
+                        ),
+                    )
+                cur.execute(
+                    _BALANCE_UPSERT_SQL,
+                    ("__platform__", "platform_fee", str(_q6(platform.get("feeAccrued") or 0)), "0", "0", updated_at),
+                )
             conn.commit()
 
     def read_router_config_rows(self) -> List[Dict[str, Any]]:
@@ -810,11 +894,23 @@ class PostgresStorage(BaseStorage):
             "synapse_usage_log",
             rows,
             """
-            INSERT INTO synapse_usage_log (id, ts, buyer_address, seller_address, status, total_charge, payload)
-            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+            INSERT INTO synapse_usage_log (
+                id,
+                ts,
+                buyer_address,
+                seller_address,
+                status,
+                total_charge,
+                business_type,
+                risk_level,
+                payload
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level, %s::jsonb)
             ON CONFLICT (id)
             DO UPDATE SET ts = EXCLUDED.ts, buyer_address = EXCLUDED.buyer_address, seller_address = EXCLUDED.seller_address,
-                          status = EXCLUDED.status, total_charge = EXCLUDED.total_charge, payload = EXCLUDED.payload
+                          status = EXCLUDED.status, total_charge = EXCLUDED.total_charge,
+                          business_type = EXCLUDED.business_type, risk_level = EXCLUDED.risk_level,
+                          payload = EXCLUDED.payload
             """,
             lambda row: (
                 str(row.get("id") or f"usage-{int(time.time())}"),
@@ -823,6 +919,8 @@ class PostgresStorage(BaseStorage):
                 str(row.get("seller") or "").lower() or None,
                 str(row.get("status") or ""),
                 str(_q6(row.get("totalCharge") or 0)),
+                str(row.get("businessType") or "charge").lower(),
+                str(row.get("riskLevel") or "green").lower(),
                 json.dumps(row, ensure_ascii=False),
             ),
         )

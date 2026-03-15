@@ -131,7 +131,7 @@ def test_finance_repository_normalizes_and_saves() -> None:
 
     assert repo.load_deposit_intents() == [{"id": "dep-1"}]
     assert repo.load_refund_intents() == [{"id": "ref-1"}]
-    assert repo.load_withdrawal_intents() == [{"id": "wd-1", "status": "PENDING"}]
+    assert repo.load_withdrawal_intents() == [{"id": "wd-1", "status": "REQUESTED"}]
 
     ledger = repo.load_balance_ledger()
     assert ledger["buyers"] == {"0x1": 1.0}
