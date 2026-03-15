@@ -3,7 +3,8 @@ const fs = require("fs");
 const path = require("path");
 
 async function main() {
-    const configPath = path.join(__dirname, "../frontend/src/contract-config.json");
+    const repoRoot = path.resolve(__dirname, "..", "..");
+    const configPath = path.join(repoRoot, "apps/frontend/src/contract-config.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     
     let accounts = [];

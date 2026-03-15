@@ -1,8 +1,9 @@
 const { ethers } = require("hardhat");
 const fs = require('fs');
+const path = require("path");
 
 async function main() {
-  const configPath = "./frontend/src/contract-config.json";
+  const configPath = path.resolve(__dirname, "..", "..", "apps/frontend/src/contract-config.json");
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
   const usdcAddress = config.MockUSDC;
   

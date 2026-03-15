@@ -3,10 +3,10 @@ const fs = require("fs");
 const path = require("path");
 
 async function main() {
-  const root = path.join(__dirname, "..");
-  const configPath = path.join(root, "frontend/src/contract-config.json");
-  const routerAbiPath = path.join(root, "frontend/src/A2APaySyncRouterABI.json");
-  const usdcAbiPath = path.join(root, "frontend/src/MockUSDCABI.json");
+  const repoRoot = path.resolve(__dirname, "..", "..");
+  const configPath = path.join(repoRoot, "apps/frontend/src/contract-config.json");
+  const routerAbiPath = path.join(repoRoot, "apps/frontend/src/A2APaySyncRouterABI.json");
+  const usdcAbiPath = path.join(repoRoot, "apps/frontend/src/MockUSDCABI.json");
 
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
   const routerAbi = JSON.parse(fs.readFileSync(routerAbiPath, "utf8"));
