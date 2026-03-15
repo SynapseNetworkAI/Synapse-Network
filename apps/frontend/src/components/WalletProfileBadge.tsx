@@ -6,6 +6,7 @@ import { Coins, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCallback } from "react";
 import { clearAuthSession, buildAuthedHeaders } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import contractConfig from "@/contract-config.json";
 import { parseAbi } from "viem";
 
@@ -39,7 +40,7 @@ export default function WalletProfileBadge() {
   const handleLogout = useCallback(async () => {
     if (address) {
       try {
-        await fetch("http://127.0.0.1:8000/api/client/logout", {
+        await fetch(`${getGatewayBaseUrl()}/api/client/logout`, {
           method: "POST",
           headers: {
             ...buildAuthedHeaders(address, false),

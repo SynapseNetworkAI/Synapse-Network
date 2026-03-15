@@ -1,3 +1,5 @@
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+
 export type AuthSession = {
   token: string;
   wallet: string;
@@ -24,7 +26,7 @@ type AuthVerifyNormalizedResponse = {
 };
 
 const AUTH_SESSION_STORAGE_KEY = "a2a_auth_session";
-const AUTH_API_BASE = "http://127.0.0.1:8000/api/v1/auth";
+const AUTH_API_BASE = `${getGatewayBaseUrl()}/api/v1/auth`;
 const AUTH_SESSION_TTL_SEC = 24 * 60 * 60;
 export const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
 export const AUTH_SESSION_EXPIRED_EVENT = "a2a:auth-session-expired";

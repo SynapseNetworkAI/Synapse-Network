@@ -1,4 +1,5 @@
 import { buildAuthedHeaders } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 export type RefundRecord = {
   id: string; // pseudo id or tx_hash if available
@@ -13,7 +14,7 @@ export type RefundRecord = {
 export async function fetchRefunds(userAddress: string): Promise<RefundRecord[]> {
   if (!userAddress) return [];
   try {
-    const res = await fetch(`http://127.0.0.1:8000/api/v1/refunds`, {
+    const res = await fetch(`${getGatewayBaseUrl()}/api/v1/refunds`, {
       method: "GET",
       headers: buildAuthedHeaders(userAddress, false),
     });

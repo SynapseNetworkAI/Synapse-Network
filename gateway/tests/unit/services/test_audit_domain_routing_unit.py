@@ -73,3 +73,26 @@ def test_finance_audit_routes_to_finance_domain(temp_storage):
     assert isinstance(finance_rows, list) and len(finance_rows) == 1
     assert finance_rows[0]["domain"] == "finance"
     assert isinstance(system_rows, list) and len(system_rows) == 0
+
+
+def test_seller_secret_audit_normalizes_structured_fields(temp_storage):
+    owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
+
+    credential_service.append_audit_log(
+        temp_storage,
+        "SELLER_SECRET_ISSUED",
+        owner,
+        {
+            "secretId": "secret-legacy-1",
+            "rpm": 10,
+            "expiresAt": 2088930891,
+        },
+    )
+
+    logs = credential_service.read_audit_log(temp_storage, owner_wallet=owner.lower(), limit=20)
+    assert len(logs) == 1
+
+    details = logs[0]["details"]
+    assert details["resourceType"] == "secret"
+    assert details["resourceId"] == "secret-legacy-1"
+    assert details["resultStatus"] == "success"

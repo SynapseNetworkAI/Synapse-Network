@@ -8,23 +8,8 @@ import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { discoverServices, listServiceRegistry, type ServiceRegistryRecord } from "@/utils/serviceApi";
+import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
-
-function formatPricing(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (value && typeof value === "object") {
-    const payload = value as { amount?: string; currency?: string };
-    if (payload.amount && payload.currency) {
-      return `${payload.amount} ${payload.currency}`;
-    }
-    if (payload.amount) {
-      return payload.amount;
-    }
-  }
-  return "N/A";
-}
 
 export default function ServicesPage() {
   const router = useRouter();

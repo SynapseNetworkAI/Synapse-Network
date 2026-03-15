@@ -1,6 +1,9 @@
 import { buildAuthedHeaders } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1/providers/earnings";
+function providerEarningsUrl(path: string): string {
+  return `${getGatewayBaseUrl()}/api/v1/providers/earnings${path}`;
+}
 
 export type ProviderRecentCall = {
   requestId: string;
@@ -27,7 +30,7 @@ export type ProviderEarningsSummary = {
 };
 
 export async function getProviderEarningsSummary(userAddress: string, limit: number = 200): Promise<ProviderEarningsSummary> {
-  const response = await fetch(`${API_BASE_URL}/summary?limit=${encodeURIComponent(String(limit))}`, {
+  const response = await fetch(providerEarningsUrl(`/summary?limit=${encodeURIComponent(String(limit))}`), {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
   });

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import WalletProfileBadge from "@/components/WalletProfileBadge";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 type TopNavHref = "/dashboard/discover" | "/blog" | "/about";
 
@@ -32,7 +33,7 @@ export default function Navbar() {
       try {
         // Ping a lightweight public endpoint on the Python Gateway
         // We use AbortSignal to timeout quickly if the server is unreachable
-        const res = await fetch("http://127.0.0.1:8000/api/v1/services/discover", {
+        const res = await fetch(`${getGatewayBaseUrl()}/api/v1/services/discover`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
