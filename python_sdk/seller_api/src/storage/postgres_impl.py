@@ -8,8 +8,10 @@ from .normalizers import normalize_service_row
 from .postgres.database_manager import DatabaseManager
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
+from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from .postgres.repositories.fee_policy_repository import FeePolicyRepository
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
+from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -398,6 +400,8 @@ class PostgresStorage(BaseStorage):
         self._idempotency_repo = IdempotencyRepository(self._db)
         self._audit_repo = AuditLogRepository(self._db, _AUDIT_INSERT_SQL)
         self._balance_repo = BalanceRepository(self._db, _q6, _BALANCE_UPSERT_SQL)
+        self._service_registry_repo = ServiceRegistryRepository(self._db)
+        self._credential_auth_repo = CredentialAuthRepository(self._db, _q6)
         if ensure_schema:
             self._ensure_schema()
 
@@ -1300,265 +1304,37 @@ class PostgresStorage(BaseStorage):
             conn.commit()
 
     def read_service_registry_rows(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT payload FROM synapse_service_registry ORDER BY created_at ASC")
-                rows = cur.fetchall()
-        return [normalize_service_row(row[0]) for row in rows if isinstance(row[0], dict)]
+        return self._service_registry_repo.read_service_registry_rows()
 
     def write_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._replace_table_with_payload(
-            "synapse_service_registry",
-            rows,
-            """
-            INSERT INTO synapse_service_registry (service_id, owner_address, created_at, updated_at, payload)
-            VALUES (%s, %s, %s, %s, %s::jsonb)
-            ON CONFLICT (service_id)
-            DO UPDATE SET owner_address = EXCLUDED.owner_address, created_at = EXCLUDED.created_at,
-                          updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
-            """,
-            lambda row: (
-                str(row.get("serviceId") or ""),
-                str(row.get("ownerAddress") or "").lower(),
-                int(row.get("createdAt") or 0),
-                int(row.get("updatedAt") or 0),
-                json.dumps(row, ensure_ascii=False),
-            ) if str(row.get("serviceId") or "").strip() else None,
-        )
+        self._service_registry_repo.write_service_registry_rows(rows)
 
     def read_service_target_health_rows(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT service_id, owner_address, target_url, weight, region, status, overall_status,
-                           http_status, latency_ms, consecutive_successes, consecutive_failures,
-                           probe_url, last_checked_at, last_healthy_at, error
-                    FROM synapse_service_target_health
-                    ORDER BY service_id, target_url
-                    """
-                )
-                rows = cur.fetchall()
-        return [
-            {
-                "serviceId": service_id,
-                "ownerAddress": owner,
-                "targetUrl": target_url,
-                "weight": weight,
-                "region": region,
-                "status": status,
-                "overallStatus": overall_status,
-                "httpStatus": http_status,
-                "latencyMs": latency_ms,
-                "consecutiveSuccesses": int(successes or 0),
-                "consecutiveFailures": int(failures or 0),
-                "probeUrl": probe_url,
-                "lastCheckedAt": last_checked_at,
-                "lastHealthyAt": last_healthy_at,
-                "error": error,
-            }
-            for service_id, owner, target_url, weight, region, status, overall_status, http_status, latency_ms, successes, failures, probe_url, last_checked_at, last_healthy_at, error in rows
-        ]
+        return self._service_registry_repo.read_service_target_health_rows()
 
     def write_service_target_health_rows(self, rows: List[Dict[str, Any]]) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_service_target_health")
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    service_id = str(row.get("serviceId") or "").strip()
-                    target_url = str(row.get("targetUrl") or "").strip()
-                    if not service_id or not target_url:
-                        continue
-                    cur.execute(
-                        """
-                        INSERT INTO synapse_service_target_health (
-                            service_id, owner_address, target_url, weight, region, status, overall_status,
-                            http_status, latency_ms, consecutive_successes, consecutive_failures,
-                            probe_url, last_checked_at, last_healthy_at, error
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            service_id,
-                            str(row.get("ownerAddress") or "").lower() or None,
-                            target_url,
-                            int(row.get("weight") or 100),
-                            row.get("region"),
-                            row.get("status"),
-                            row.get("overallStatus"),
-                            row.get("httpStatus"),
-                            row.get("latencyMs"),
-                            int(row.get("consecutiveSuccesses") or 0),
-                            int(row.get("consecutiveFailures") or 0),
-                            row.get("probeUrl"),
-                            row.get("lastCheckedAt"),
-                            row.get("lastHealthyAt"),
-                            row.get("error"),
-                        ),
-                    )
-            conn.commit()
+        self._service_registry_repo.write_service_target_health_rows(rows)
 
     def read_service_target_health_history_rows(self) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT service_id, owner_address, target_url, status, http_status, latency_ms,
-                           probe_url, consecutive_successes, consecutive_failures, checked_at,
-                           last_healthy_at, error
-                    FROM synapse_service_target_health_history
-                    ORDER BY id ASC
-                    """
-                )
-                rows = cur.fetchall()
-        return [
-            {
-                "serviceId": service_id,
-                "ownerAddress": owner,
-                "targetUrl": target_url,
-                "status": status,
-                "httpStatus": http_status,
-                "latencyMs": latency_ms,
-                "probeUrl": probe_url,
-                "consecutiveSuccesses": int(successes or 0),
-                "consecutiveFailures": int(failures or 0),
-                "checkedAt": int(checked_at or 0),
-                "lastHealthyAt": last_healthy_at,
-                "error": error,
-            }
-            for service_id, owner, target_url, status, http_status, latency_ms, probe_url, successes, failures, checked_at, last_healthy_at, error in rows
-        ]
+        return self._service_registry_repo.read_service_target_health_history_rows()
 
     def write_service_target_health_history_rows(self, rows: List[Dict[str, Any]]) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_service_target_health_history")
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    service_id = str(row.get("serviceId") or "").strip()
-                    target_url = str(row.get("targetUrl") or "").strip()
-                    if not service_id or not target_url:
-                        continue
-                    cur.execute(
-                        """
-                        INSERT INTO synapse_service_target_health_history (
-                            service_id, owner_address, target_url, status, http_status, latency_ms,
-                            probe_url, consecutive_successes, consecutive_failures, checked_at,
-                            last_healthy_at, error
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            service_id,
-                            str(row.get("ownerAddress") or "").lower() or None,
-                            target_url,
-                            row.get("status"),
-                            row.get("httpStatus"),
-                            row.get("latencyMs"),
-                            row.get("probeUrl"),
-                            int(row.get("consecutiveSuccesses") or 0),
-                            int(row.get("consecutiveFailures") or 0),
-                            int(row.get("checkedAt") or 0),
-                            row.get("lastHealthyAt"),
-                            row.get("error"),
-                        ),
-                    )
-            conn.commit()
+        self._service_registry_repo.write_service_target_health_history_rows(rows)
 
     def read_credential_rows(self, credential_type: str) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT payload FROM synapse_credentials WHERE credential_type = %s ORDER BY created_at DESC",
-                    (str(credential_type or ""),),
-                )
-                rows = cur.fetchall()
-        return [row[0] for row in rows if isinstance(row[0], dict)]
+        return self._credential_auth_repo.read_credential_rows(credential_type)
 
     def write_credential_rows(self, credential_type: str, rows: List[Dict[str, Any]]) -> None:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM synapse_credentials WHERE credential_type = %s", (str(credential_type or ""),))
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    row_id = str(row.get("id") or "").strip()
-                    if not row_id:
-                        continue
-                    cur.execute(
-                        """
-                        INSERT INTO synapse_credentials (
-                            id, credential_type, owner_address, name, token_hash, token_prefix, status,
-                            max_calls, calls_used, rpm, credit_limit, reset_interval, expiration,
-                            expires_at, created_at, updated_at, revoked_at, payload
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                        """,
-                        (
-                            row_id,
-                            str(credential_type or ""),
-                            str(row.get("ownerAddress") or "").lower(),
-                            row.get("name"),
-                            row.get("tokenHash"),
-                            row.get("tokenPrefix"),
-                            row.get("status"),
-                            row.get("maxCalls"),
-                            row.get("callsUsed"),
-                            row.get("rpm"),
-                            str(_q6(row.get("creditLimit") or 0)) if row.get("creditLimit") is not None else None,
-                            row.get("resetInterval"),
-                            row.get("expiration"),
-                            row.get("expiresAt"),
-                            row.get("createdAt"),
-                            row.get("updatedAt"),
-                            row.get("revokedAt"),
-                            json.dumps(row, ensure_ascii=False),
-                        ),
-                    )
-            conn.commit()
+        self._credential_auth_repo.write_credential_rows(credential_type, rows)
 
     def get_wallet_role(self, wallet: str) -> Optional[str]:
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT role FROM synapse_wallet_roles WHERE wallet_address = %s", (str(wallet or "").lower(),))
-                row = cur.fetchone()
-        if row is None:
-            return None
-        return str(row[0] or "")
+        return self._credential_auth_repo.get_wallet_role(wallet)
 
     def set_wallet_role(self, wallet: str, role: str) -> None:
-        now = int(time.time())
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO synapse_wallet_roles (wallet_address, role, updated_at)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (wallet_address)
-                    DO UPDATE SET role = EXCLUDED.role, updated_at = EXCLUDED.updated_at
-                    """,
-                    (str(wallet or "").lower(), str(role or ""), now),
-                )
-            conn.commit()
+        self._credential_auth_repo.set_wallet_role(wallet, role)
 
     def upsert_auth_session(self, wallet: str, registered_at: int, last_login: int, status: str) -> None:
-        now = int(time.time())
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO synapse_auth_sessions (wallet_address, registered_at, last_login, status, updated_at)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (wallet_address)
-                    DO UPDATE SET
-                        registered_at = LEAST(synapse_auth_sessions.registered_at, EXCLUDED.registered_at),
-                        last_login = EXCLUDED.last_login,
-                        status = EXCLUDED.status,
-                        updated_at = EXCLUDED.updated_at
-                    """,
-                    (str(wallet or "").lower(), int(registered_at), int(last_login), str(status or "active"), now),
-                )
-            conn.commit()
+        self._credential_auth_repo.upsert_auth_session(wallet, registered_at, last_login, status)
 
     def get_platform_fee_policy(self) -> Dict[str, Any]:
         return self._fee_policy_repo.get_platform_fee_policy()

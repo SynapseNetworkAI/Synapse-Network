@@ -8,8 +8,10 @@ from typing import Any, Dict, List, Optional
 
 from src.storage.postgres.repositories.audit_log_repository import AuditLogRepository
 from src.storage.postgres.repositories.balance_repository import BalanceRepository
+from src.storage.postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from src.storage.postgres.repositories.fee_policy_repository import FeePolicyRepository
 from src.storage.postgres.repositories.idempotency_repository import IdempotencyRepository
+from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
 
 
 class FakeCursor:
@@ -74,7 +76,7 @@ def test_fee_policy_repository_read_write() -> None:
     repo = FeePolicyRepository(db, _q6)
 
     policy = repo.get_platform_fee_policy()
-    assert policy["defaultRate"] == 0.015
+    assert abs(policy["defaultRate"] - 0.015) < 1e-9
     assert policy["ownerRates"] == {"0xabc": 0.02, "0xdef": 0.03}
     assert policy["updatedAt"] == 1700000000
     assert policy["updatedBy"] == "ops"
@@ -164,9 +166,9 @@ def test_balance_repository_read_and_write() -> None:
     repo = BalanceRepository(db, _q6, "UPSERT")
 
     ledger = repo.read_balance_ledger()
-    assert ledger["buyers"]["0xbuyer"] == 10.0
-    assert ledger["sellers"]["0xseller"] == 20.0
-    assert ledger["platform"]["feeAccrued"] == 0.5
+    assert abs(ledger["buyers"]["0xbuyer"] - 10.0) < 1e-9
+    assert abs(ledger["sellers"]["0xseller"] - 20.0) < 1e-9
+    assert abs(ledger["platform"]["feeAccrued"] - 0.5) < 1e-9
     assert ledger["updatedAt"] == 120
 
     repo.write_balance_ledger(
@@ -188,3 +190,74 @@ def test_balance_repository_read_and_write() -> None:
     assert any(params[0] == "0xb" and params[1] == "buyer" for params in upserts)
     assert any(params[0] == "0xs" and params[1] == "seller" for params in upserts)
     assert any(params[0] == "__platform__" and params[1] == "platform_fee" for params in upserts)
+
+
+def test_service_registry_repository_read_and_write() -> None:
+    db = FakeDB()
+    db.readonly_plan.append(
+        {
+            "fetchall": [[({"serviceId": "svc-1", "ownerAddress": "0xabc", "name": "SVC"},)]],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchall": [[("svc-1", "0xabc", "https://a", 100, "ap", "up", "green", 200, 12, 3, 1, "https://a/health", 10, 9, None)]],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchall": [[("svc-1", "0xabc", "https://a", "up", 200, 12, "https://a/health", 3, 1, 11, 9, None)]],
+        }
+    )
+    repo = ServiceRegistryRepository(db)
+
+    services = repo.read_service_registry_rows()
+    assert services[0]["serviceId"] == "svc-1"
+
+    target_rows = repo.read_service_target_health_rows()
+    assert target_rows[0]["consecutiveSuccesses"] == 3
+
+    history_rows = repo.read_service_target_health_history_rows()
+    assert history_rows[0]["checkedAt"] == 11
+
+    repo.write_service_registry_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "createdAt": 1, "updatedAt": 2}])
+    repo.write_service_target_health_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "targetUrl": "https://b"}])
+    repo.write_service_target_health_history_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "targetUrl": "https://b", "checkedAt": 3}])
+
+    all_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert "DELETE FROM synapse_service_registry" in all_sql
+    assert "DELETE FROM synapse_service_target_health" in all_sql
+    assert "DELETE FROM synapse_service_target_health_history" in all_sql
+
+
+def test_credential_auth_repository_read_write_and_roles() -> None:
+    db = FakeDB()
+    db.readonly_plan.append(
+        {
+            "fetchall": [[({"id": "cred-1", "ownerAddress": "0xabc"},)]],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchone": [("admin",)],
+        }
+    )
+    repo = CredentialAuthRepository(db, _q6)
+
+    creds = repo.read_credential_rows("seller")
+    assert creds == [{"id": "cred-1", "ownerAddress": "0xabc"}]
+
+    role = repo.get_wallet_role("0xABC")
+    assert role == "admin"
+
+    repo.write_credential_rows(
+        "seller",
+        [{"id": "cred-2", "ownerAddress": "0xDEF", "creditLimit": 1.25}],
+    )
+    repo.set_wallet_role("0xABC", "operator")
+    repo.upsert_auth_session("0xABC", 100, 200, "active")
+
+    tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert "DELETE FROM synapse_credentials WHERE credential_type = %s" in tx_sql
+    assert "INSERT INTO synapse_wallet_roles" in tx_sql
+    assert "INSERT INTO synapse_auth_sessions" in tx_sql
