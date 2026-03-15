@@ -2,17 +2,36 @@
 
 import * as React from "react";
 import { RainbowKitProvider, getDefaultConfig, darkTheme } from "@rainbow-me/rainbowkit";
-import { WagmiProvider } from "wagmi";
+import { WagmiProvider, createConfig, http } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { hardhat, sepolia, baseSepolia, arbitrumSepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import "@rainbow-me/rainbowkit/styles.css";
 
-const config = getDefaultConfig({
-  appName: "Synapse Network Dashboard",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "8a80cea8b6033bbbd67f6bbdbbe70054", // Use env variable, fallback to a public testing ID
-  chains: [hardhat, sepolia, baseSepolia, arbitrumSepolia],
-  ssr: false, // 设置为 false 才可以让 wagmi 持久化钱包连接状态到 localStorage
-});
+const chains = [hardhat, sepolia, baseSepolia, arbitrumSepolia] as const;
+const walletConnectProjectId =
+  process.env.NEXT_PUBLIC_REOWN_PROJECT_ID?.trim() ||
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
+  "";
+
+const config = walletConnectProjectId
+  ? getDefaultConfig({
+      appName: "Synapse Network Dashboard",
+      projectId: walletConnectProjectId,
+      chains,
+      ssr: false,
+    })
+  : createConfig({
+      chains,
+      ssr: false,
+      connectors: [injected()],
+      transports: {
+        [hardhat.id]: http(),
+        [sepolia.id]: http(),
+        [baseSepolia.id]: http(),
+        [arbitrumSepolia.id]: http(),
+      },
+    });
 
 const queryClient = new QueryClient();
 
@@ -45,6 +64,12 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
 
   React.useEffect(() => {
     setMounted(true);
+
+    if (!walletConnectProjectId) {
+      console.warn(
+        "[Reown Config] Missing NEXT_PUBLIC_REOWN_PROJECT_ID/NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID. WalletConnect disabled; using injected wallet connector only."
+      );
+    }
 
     // 拦截全局的 Promise 报错，过滤掉来自钱包插件(MetaMask)静默重连失败的幽灵报错
     // 防止触发 Next.js 的红底全屏崩溃页面

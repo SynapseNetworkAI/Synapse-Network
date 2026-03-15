@@ -6,6 +6,7 @@ import { setAppRole } from "@/utils/roleStore";
 import { ShieldCheck, Zap, ReceiptText, ChevronDown, ArrowRight } from "lucide-react";
 import { useAccount, useDisconnect } from "wagmi";
 import { discoverServices, getWalletRole, type ServiceRegistryRecord } from "@/utils/serviceApi";
+import { formatPricing } from "@/utils/pricing";
 import RoleWarningModal from "@/components/RoleWarningModal";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 
@@ -216,7 +217,7 @@ export default function Home() {
                     <p className="text-xs text-gray-500 mt-1">{t("home.serviceIdLabel")}: {service.serviceId}</p>
                     <p className="text-xs text-gray-400 mt-2 break-all">{service.endpoint}</p>
                     <div className="mt-3 flex items-center justify-between text-xs">
-                      <span className="text-green-400">{service.pricing}</span>
+                      <span className="text-green-400">{formatPricing(service.pricing)}</span>
                       <span className="text-gray-500">{service.role}</span>
                     </div>
                   </article>

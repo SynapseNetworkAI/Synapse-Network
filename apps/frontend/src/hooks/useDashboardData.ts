@@ -7,8 +7,10 @@ import { useAccount } from "wagmi";
 import contractConfig from "@/contract-config.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import { listServiceRegistry } from "@/utils/serviceApi";
+import { extractPricingAmount } from "@/utils/pricing";
 import { getProviderEarningsSummary } from "@/utils/providerEarningsApi";
 import { buildAuthedHeaders, clearAuthSession } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
 
@@ -68,7 +70,7 @@ export function useDashboardData() {
         id: service.id,
         name: service.name,
         serviceId: service.serviceId,
-        pricing: service.pricing,
+        pricing: extractPricingAmount(service.pricing, "0.00"),
         endpoint: service.endpoint,
         isActive: service.isActive,
       }));
@@ -166,7 +168,7 @@ export function useDashboardData() {
   const handleLogout = useCallback(async () => {
     if (userAddress) {
       try {
-        await fetch("http://127.0.0.1:8000/api/client/logout", {
+        await fetch(`${getGatewayBaseUrl()}/api/client/logout`, {
           method: "POST",
           headers: {
             ...buildAuthedHeaders(userAddress, false),

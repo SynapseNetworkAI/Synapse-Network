@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ServiceRegistryRecord, discoverServices } from "@/utils/serviceApi";
+import { formatPricing } from "@/utils/pricing";
 import { Copy, TerminalSquare, Activity, Globe } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -189,8 +190,7 @@ export default function DiscoverPage() {
 
                   <td className="p-4 text-right">
                     <div className="inline-flex items-center justify-end px-2 py-1 space-x-1.5 text-sm font-mono text-green-400 bg-green-900/20 rounded">
-                      <span>{svc.pricing}</span>
-                      <span className="text-xs opacity-70">USDC</span>
+                      <span>{formatPricing(svc.pricing)}</span>
                     </div>
                   </td>
 

@@ -147,7 +147,34 @@ def resolve_reset_interval(value: Optional[str]) -> str:
     return normalized
 
 
+def _normalize_system_audit_details(action: str, details: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(details)
+
+    secret_id = normalized.get("secretId")
+    credential_id = normalized.get("credentialId")
+
+    if not isinstance(normalized.get("resourceType"), str):
+        if isinstance(secret_id, str) and secret_id:
+            normalized["resourceType"] = "secret"
+        elif isinstance(credential_id, str) and credential_id:
+            normalized["resourceType"] = "credential"
+
+    if not isinstance(normalized.get("resourceId"), str):
+        if isinstance(secret_id, str) and secret_id:
+            normalized["resourceId"] = secret_id
+        elif isinstance(credential_id, str) and credential_id:
+            normalized["resourceId"] = credential_id
+
+    if not isinstance(normalized.get("resultStatus"), str) and (
+        action.endswith("_ISSUED") or action.endswith("_UPDATED") or action.endswith("_REVOKED")
+    ):
+        normalized["resultStatus"] = "success"
+
+    return normalized
+
+
 def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
+    normalized_details = _normalize_system_audit_details(action, details)
     storage.get_data_manager().audit.logs.append_audit_row(
         AuditLogEntry(
             id=str(uuid4()),
@@ -155,7 +182,7 @@ def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, detai
             action=action,
             domain="system",
             owner_address=owner_wallet,
-            details=details,
+            details=normalized_details,
         )
     )
 
