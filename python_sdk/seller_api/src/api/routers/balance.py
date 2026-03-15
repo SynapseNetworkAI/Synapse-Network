@@ -18,7 +18,6 @@ from src.services.platform.v2_indexer import get_indexer_status
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.storage import get_storage, BaseStorage
-from src.storage.finance_repository import FinanceRepository
 
 router = APIRouter()
 
@@ -246,7 +245,8 @@ async def get_usage_logs(
     storage: Annotated[BaseStorage, Depends(get_storage)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
-    rows = FinanceRepository(storage).load_usage_log_rows()
+    raw_rows = getattr(storage, "read_usage_log_rows")()
+    rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
     owner = owner_wallet.lower()
     filtered = []
     for row in rows:

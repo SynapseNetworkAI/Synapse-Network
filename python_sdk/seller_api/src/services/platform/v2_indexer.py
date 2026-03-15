@@ -11,7 +11,6 @@ from web3.exceptions import TransactionNotFound
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
-from src.storage.finance_repository import FinanceRepository
 from src.storage import BaseStorage
 
 lock = Lock()
@@ -51,31 +50,38 @@ def _now() -> int:
 
 
 def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
-    return FinanceRepository(storage).load_deposit_intents()
+    raw_rows = getattr(storage, "read_deposit_intents")()
+    return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
 
 def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
-    FinanceRepository(storage).save_deposit_intents(rows)
+    getattr(storage, "write_deposit_intents")(rows)
 
 
 def _load_balance_ledger(storage: BaseStorage) -> Dict[str, Any]:
-    return FinanceRepository(storage).load_balance_ledger()
+    ledger = getattr(storage, "read_balance_ledger")() or {}
+    if not isinstance(ledger, dict):
+        return {}
+    return ledger
 
 
 def _save_balance_ledger(storage: BaseStorage, ledger: Dict[str, Any]) -> None:
-    FinanceRepository(storage).save_balance_ledger(ledger)
+    next_ledger = dict(ledger)
+    next_ledger["updatedAt"] = _now()
+    getattr(storage, "write_balance_ledger")(next_ledger)
 
 
 def _load_processed_deposit_event_keys(storage: BaseStorage) -> List[str]:
-    return FinanceRepository(storage).load_processed_deposit_event_keys()
+    keys = getattr(storage, "read_processed_deposit_event_keys")()
+    return [str(item) for item in keys] if isinstance(keys, list) else []
 
 
 def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) -> None:
-    FinanceRepository(storage).save_processed_deposit_event_keys(keys, _now())
+    getattr(storage, "write_processed_deposit_event_keys")(keys, _now())
 
 
 def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-    FinanceRepository(storage).append_audit_log(
+    getattr(storage, "append_audit_row")(
         {
             "id": str(uuid4()),
             "timestamp": _now(),

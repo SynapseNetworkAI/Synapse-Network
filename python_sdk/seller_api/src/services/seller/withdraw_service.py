@@ -15,7 +15,6 @@ from src.services.balance_mixins import (
     BalanceWithdrawSigningMixin,
     USDC_DECIMALS,
 )
-from src.storage.finance_repository import FinanceRepository
 from src.storage.base import BaseStorage
 
 
@@ -35,7 +34,6 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         guard_delegate: Optional[BalanceRedisGuardMixin] = None,
     ):
         self.storage = storage
-        self.repo = FinanceRepository(storage)
         self._mutation_lock = mutation_lock
         self._signing_delegate = signing_delegate
         self._guard_delegate = guard_delegate
@@ -68,16 +66,45 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         return []
 
     def _normalize_withdrawal_rows(self) -> List[Dict[str, Any]]:
-        return self.repo.load_withdrawal_intents()
+        raw_rows = getattr(self.storage, "read_withdrawal_intents")()
+        rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+        for row in rows:
+            status = str(row.get("status") or "").upper()
+            if not status or status == "PENDING":
+                row["status"] = "REQUESTED"
+            else:
+                row["status"] = status
+        return rows
 
     def _save_withdrawal_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self.repo.save_withdrawal_intents(rows)
+        getattr(self.storage, "write_withdrawal_intents")(rows, int(time.time()))
 
     def _load_balance_ledger(self) -> Dict[str, Any]:
-        return self.repo.load_balance_ledger()
+        ledger = getattr(self.storage, "read_balance_ledger")() or {}
+        if not isinstance(ledger, dict):
+            ledger = {}
+        buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
+        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
+        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
+        sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
+        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
+        platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
+        platform.setdefault("feeAccrued", 0.0)
+        ledger["buyers"] = buyers
+        ledger["buyersLocked"] = buyers_locked
+        ledger["buyersFrozen"] = buyers_frozen
+        ledger["sellers"] = sellers
+        ledger["sellersLocked"] = sellers_locked
+        ledger["sellersFrozen"] = sellers_frozen
+        ledger["platform"] = platform
+        ledger.setdefault("updatedAt", int(time.time()))
+        return ledger
 
     def _save_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        self.repo.save_balance_ledger(ledger)
+        next_ledger = dict(ledger)
+        next_ledger["updatedAt"] = int(time.time())
+        getattr(self.storage, "write_balance_ledger")(next_ledger)
 
     def _get_pending_withdrawal(self, rows: List[Dict[str, Any]], owner_wallet: str) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)

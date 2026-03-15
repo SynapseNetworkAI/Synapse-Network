@@ -9,7 +9,6 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
-from src.storage.finance_repository import FinanceRepository
 from src.storage.base import BaseStorage
 
 
@@ -29,7 +28,6 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         guard_delegate: Optional[BalanceRedisGuardMixin] = None,
     ):
         self.storage = storage
-        self.repo = FinanceRepository(storage)
         self._mutation_lock = mutation_lock
         self._guard_delegate = guard_delegate
 
@@ -53,10 +51,49 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return []
 
     def _load_balance_ledger(self) -> Dict[str, Any]:
-        return self.repo.load_balance_ledger()
+        ledger = getattr(self.storage, "read_balance_ledger")() or {}
+        if not isinstance(ledger, dict):
+            ledger = {}
+        buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
+        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
+        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
+        sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
+        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
+        platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
+        platform.setdefault("feeAccrued", 0.0)
+        ledger["buyers"] = buyers
+        ledger["buyersLocked"] = buyers_locked
+        ledger["buyersFrozen"] = buyers_frozen
+        ledger["sellers"] = sellers
+        ledger["sellersLocked"] = sellers_locked
+        ledger["sellersFrozen"] = sellers_frozen
+        ledger["platform"] = platform
+        ledger.setdefault("updatedAt", int(time.time()))
+        return ledger
 
     def _save_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        self.repo.save_balance_ledger(ledger)
+        next_ledger = dict(ledger)
+        next_ledger["updatedAt"] = int(time.time())
+        getattr(self.storage, "write_balance_ledger")(next_ledger)
+
+    def _load_deposit_intents(self) -> List[Dict[str, Any]]:
+        rows = getattr(self.storage, "read_deposit_intents")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+    def _save_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
+        getattr(self.storage, "write_deposit_intents")(rows)
+
+    def _load_refund_intents(self) -> List[Dict[str, Any]]:
+        rows = getattr(self.storage, "read_refund_intents")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+    def _save_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+        getattr(self.storage, "write_refund_intents")(rows, int(updated_at))
+
+    def _load_usage_log_rows(self) -> List[Dict[str, Any]]:
+        rows = getattr(self.storage, "read_usage_log_rows")()
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
@@ -210,7 +247,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         }
 
     def _sum_refundable_usage_total(self, *, owner: str, origin: Dict[str, str]) -> float:
-        usage_rows = self.repo.load_usage_log_rows()
+        usage_rows = self._load_usage_log_rows()
         refundable_total = 0.0
         for usage in usage_rows:
             if normalize_wallet(str(usage.get("buyer") or "")) != owner:
@@ -541,7 +578,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         target["reviewedAt"] = now
         target["updatedAt"] = now
         target["completeMeta"] = request_meta or {}
-        self.repo.save_refund_intents(rows, now)
+        self._save_refund_intents(rows, now)
         self._append_financial_audit(
             "REFUND_INTENT_REJECTED",
             owner,
@@ -623,7 +660,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         target["completedAt"] = now
         target["updatedAt"] = now
         target["completeMeta"] = request_meta or {}
-        self.repo.save_refund_intents(rows, now)
+        self._save_refund_intents(rows, now)
 
         self._append_financial_audit(
             "REFUND_INTENT_COMPLETED",
@@ -723,7 +760,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 return saved
         self._reserve_pending_deposit_amount(owner, amount_usdc)
         intents.append(next_intent)
-        self.repo.save_deposit_intents(intents)
+        self._save_deposit_intents(intents)
         return next_intent
 
     def _audit_deposit_confirm(
@@ -832,7 +869,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 )
                 return result
 
-            intents = self.repo.load_deposit_intents()
+            intents = self._load_deposit_intents()
             target = self._find_owner_deposit_intent(intents=intents, owner=owner, deposit_intent_id=deposit_intent_id)
 
             status = str(target.get("status") or "").upper()
@@ -849,7 +886,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             target["creditedAmountUsdc"] = float(amount_usdc)
             target["confirmedAt"] = now
             target["updatedAt"] = now
-            self.repo.save_deposit_intents(intents)
+            self._save_deposit_intents(intents)
 
             self._audit_deposit_confirm(
                 owner=owner,
@@ -895,7 +932,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
                 )
 
-            intents = self.repo.load_deposit_intents()
+            intents = self._load_deposit_intents()
             request_payload = {
                 "ownerAddress": owner,
                 "txHash": tx_hash.lower(),
@@ -954,7 +991,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def list_deposit_intents(self, owner_wallet: str) -> list:
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        rows = self.repo.load_deposit_intents()
+        rows = self._load_deposit_intents()
         return [
             row
             for row in rows
@@ -1024,7 +1061,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 if idem_hit is not None:
                     return idem_hit
 
-            rows = self.repo.load_refund_intents()
+            rows = self._load_refund_intents()
             limits = self._validate_refund_origin_limit_or_raise(
                 owner=owner,
                 origin=origin,
@@ -1079,7 +1116,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 "requestMeta": request_meta or {},
             }
             rows.append(refund_row)
-            self.repo.save_refund_intents(rows, now)
+            self._save_refund_intents(rows, now)
 
             response = {
                 "refundId": refund_id,
@@ -1122,7 +1159,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def list_refunds(self, owner_wallet: str) -> List[Dict[str, Any]]:
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        rows = self.repo.load_refund_intents()
+        rows = self._load_refund_intents()
         filtered = [
             row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == normalized_owner
         ]
@@ -1139,7 +1176,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_complete"):
             await self._enforce_owner_write_rate_limit(owner, "refund_complete")
-            rows = self.repo.load_refund_intents()
+            rows = self._load_refund_intents()
             target = self._find_refund_by_id(rows, owner, refund_id)
             if target is None:
                 raise HTTPException(

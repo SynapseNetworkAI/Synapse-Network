@@ -7,7 +7,6 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.models.pydantic_models import CredentialIssueRequest
 from src.services.platform import credential_service
-from src.storage.credential_repository import CredentialRepository
 from src.storage import BaseStorage
 
 seller_write_lock = asyncio.Lock()
@@ -28,18 +27,22 @@ def save_seller_secret_rows(storage: BaseStorage, rows: List[Dict[str, Any]], ex
     payload: Dict[str, Any] = {"credentials": rows, "updatedAt": credential_service.now_ts()}
     if extras:
         payload.update(extras)
-    CredentialRepository(storage).save_collection(_SELLER_SECRETS_COLLECTION, payload)
+    _ = payload
+    if hasattr(storage, "write_credential_rows"):
+        getattr(storage, "write_credential_rows")("seller", rows)
 
 
 def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    repo = CredentialRepository(storage)
-    primary = repo.load_collection(_SELLER_SECRETS_COLLECTION)
+    primary_rows = getattr(storage, "read_credential_rows")("seller") if hasattr(storage, "read_credential_rows") else []
+    primary = {"credentials": primary_rows, "updatedAt": 0}
     rows, extras = _normalize_secret_rows(primary)
     if rows or extras:
         return rows, extras
 
     for legacy_collection in _LEGACY_SELLER_COLLECTIONS:
-        legacy = repo.load_collection(legacy_collection)
+        _ = legacy_collection
+        legacy_rows_raw = getattr(storage, "read_credential_rows")("seller") if hasattr(storage, "read_credential_rows") else []
+        legacy = {"credentials": legacy_rows_raw, "updatedAt": 0}
         legacy_rows, legacy_extras = _normalize_secret_rows(legacy)
         if legacy_rows or legacy_extras:
             save_seller_secret_rows(storage, legacy_rows, legacy_extras)
