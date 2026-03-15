@@ -236,6 +236,23 @@ async def test_redis_distributed_rate_limit_is_used(balance_service, monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_rate_limit_fallback_keeps_updated_at_as_string(balance_service, monkeypatch):
+    async def _no_redis_client():
+        await asyncio.sleep(0)
+        return None
+
+    monkeypatch.setattr(balance_service, "_get_redis_client", _no_redis_client)
+
+    await balance_service.set_router_config("0xowner", 100)
+
+    rows = balance_service.storage.get_data_manager().system.idempotency.read_rate_limit_rows()
+    assert len(rows) == 1
+    assert isinstance(rows[0].updated_at, str)
+    assert "-" in rows[0].updated_at
+    assert ":" in rows[0].updated_at
+
+
+@pytest.mark.asyncio
 async def test_idempotency_payload_mismatch_returns_409(balance_service):
     _set_buyer_balance(balance_service, "0xowner", 100)
     _seed_refundable_usage(balance_service, "0xowner", "req-mismatch-1", 60)
