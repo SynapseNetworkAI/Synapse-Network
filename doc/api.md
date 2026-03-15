@@ -273,6 +273,7 @@
   - 业务规则:
     - 仅允许 `PENDING -> COMPLETED` 一次性流转。
     - 完成后释放锁仓：`sellersLocked[owner] -= amount`。
+    - 同 owner 不允许将同一个 `txHash` 复用于不同提现单（防重放）。
     - 已完成记录再次完成时：
       - 同 txHash 视为幂等成功
       - 不同 txHash 返回 `409`。
@@ -297,7 +298,7 @@
 - **Health Contract**:
   - 只返回 `isActive=true` 且 `serviceHealth.healthyTargets >= 1` 的服务。
   - `status` 字段表示实时可用性（`healthy | degraded | unhealthy | unknown`），不是卖家配置态（`active/inactive`）。
-  - `health` 字段来自网关探活状态缓存，并持久化在服务注册存储中（JSON 或 PostgreSQL）。
+  - `health` 字段来自网关探活状态缓存，并持久化在服务注册存储中（PostgreSQL）。
   - 平台同步维护规范化健康表 `service_target_health`（每个 target 一条记录），discover 与 forwarding 使用同一健康事实源。
 - **Returns (200 OK)**:
   ```json

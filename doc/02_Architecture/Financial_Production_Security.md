@@ -72,7 +72,14 @@ Router daily limit definition:
 2. API integration tests now cover full auth/session flow (challenge -> sign -> verify -> protected finance APIs).
 3. CI now executes both unit-style financial security tests and API integration tests.
 
-### 2.8 API Behavior (Contract)
+### 2.8 Sixth-Round Financial Mutation Locking
+
+1. Financial mutation paths now use Redis-first distributed locks (`finance:mutation-lock:*`) to prevent cross-instance race conditions.
+2. Locking scope is owner+action level (deposit/refund/router-config/provider-withdraw), reducing contention while preserving consistency.
+3. When Redis is temporarily unavailable, process-local lock fallback is used to preserve availability without dropping safety checks.
+4. Provider withdrawal completion now rejects txHash replay across different withdrawal intents for the same owner.
+
+### 2.9 API Behavior (Contract)
 
 1. `POST /api/v1/balance/deposit/intent`
    - requires `X-Idempotency-Key`

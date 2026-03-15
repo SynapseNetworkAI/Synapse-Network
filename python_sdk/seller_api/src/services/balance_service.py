@@ -1,72 +1,33 @@
 from typing import Dict, Any, List, Optional
-from src.storage.base import BaseStorage
-from src.core.common import normalize_wallet
-from src.core.config import settings
-from fastapi import HTTPException
-import logging
 import asyncio
-import hashlib
-import json
-import re
 import time
 from uuid import uuid4
 
-try:
-    from web3 import Web3  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - optional at type-check time
-    Web3 = None  # type: ignore[assignment]
+from fastapi import HTTPException
 
-try:
-    from eth_account import Account  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - optional at type-check time
-    Account = None  # type: ignore[assignment]
-
-try:
-    from eth_account.messages import encode_typed_data  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - compatibility fallback for older eth-account
-    encode_typed_data = None
-try:
-    from eth_account.messages import encode_structured_data  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - optional at type-check time
-    encode_structured_data = None
-
-_redis_client = None
-logger = logging.getLogger(__name__)
-
-REDIS_IDEM_CLAIM_LUA = """
-local existing = redis.call('GET', KEYS[1])
-if existing then
-    return {0, existing}
-end
-local payload = cjson.encode({
-    requestHash = ARGV[1],
-    status = 'processing',
-    createdAt = tonumber(ARGV[2])
-})
-redis.call('SET', KEYS[1], payload, 'EX', tonumber(ARGV[3]))
-return {1, ''}
-"""
-
-REDIS_RATE_LIMIT_LUA = """
-local current = redis.call('INCR', KEYS[1])
-if current == 1 then
-    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
-end
-return current
-"""
-
-WITHDRAW_DEADLINE_SEC_MIN = 60
-WITHDRAW_DEADLINE_SEC_MAX = 86400
-WITHDRAW_DEADLINE_SEC_DEFAULT = 900
-USDC_DECIMALS = 18
+from src.storage.base import BaseStorage
+from src.core.common import normalize_wallet
+from src.core.config import settings
+from src.core.redis_lock import RedisLockManager
+from src.services.balance_mixins import (
+    BalanceAuditMixin,
+    BalanceRedisGuardMixin,
+    BalanceWithdrawSigningMixin,
+    USDC_DECIMALS,
+)
 
 
-class BalanceService:
+class BalanceService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin):
+    """Financial safety service orchestrator with Redis-first idempotency/rate-limit/locks."""
+
     def __init__(self, storage: BaseStorage):
         self.storage = storage
-        # 内存锁，模拟生产环境下的 Redis Redlock。
-        # 在处理高频扣费时，必须警惕数据库并发带来的“超扣/漏扣”问题
-        self._lock = asyncio.Lock()
+        self._mutation_lock = RedisLockManager(
+            redis_getter=self._get_redis_client,
+            key_prefix="finance:mutation-lock",
+            acquire_timeout_sec=5.0,
+            poll_interval_sec=0.03,
+        )
 
     def _normalize_withdrawal_rows(self) -> List[Dict[str, Any]]:
         rows = self._normalize_rows(self.storage.get_collection("provider_withdrawal_intents"))
@@ -159,207 +120,6 @@ class BalanceService:
         except Exception:
             return raw
 
-    def _resolve_withdraw_deadline_sec(self) -> int:
-        raw = getattr(settings, "provider_withdraw_deadline_sec", WITHDRAW_DEADLINE_SEC_DEFAULT)
-        try:
-            parsed = int(raw)
-        except Exception:
-            parsed = WITHDRAW_DEADLINE_SEC_DEFAULT
-        if parsed < WITHDRAW_DEADLINE_SEC_MIN:
-            return WITHDRAW_DEADLINE_SEC_MIN
-        if parsed > WITHDRAW_DEADLINE_SEC_MAX:
-            return WITHDRAW_DEADLINE_SEC_MAX
-        return parsed
-
-    def _require_withdraw_signer(self) -> str:
-        private_key = str(getattr(settings, "private_key", "") or "").strip()
-        if not private_key:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "code": "WITHDRAW_SIGNER_NOT_CONFIGURED",
-                    "message": "PRIVATE_KEY is required to sign withdrawal tickets.",
-                },
-            )
-        return private_key
-
-    def _withdraw_contract(self):
-        if Web3 is None:
-            raise HTTPException(
-                status_code=500,
-                detail={"code": "CHAIN_SDK_NOT_INSTALLED", "message": "web3 dependency is required for withdrawal signing."},
-            )
-        contract_address = normalize_wallet(settings.router_address)
-        if not contract_address or contract_address == "0x0000000000000000000000000000000000000000":
-            raise HTTPException(
-                status_code=500,
-                detail={"code": "WITHDRAW_CONTRACT_NOT_CONFIGURED", "message": "ROUTER_ADDRESS/SynapseCore address is not configured."},
-            )
-        try:
-            provider = Web3(Web3.HTTPProvider(settings.rpc_url))
-            if not provider.is_connected():
-                raise RuntimeError("rpc disconnected")
-            contract = provider.eth.contract(
-                address=Web3.to_checksum_address(contract_address),
-                abi=[
-                    {
-                        "inputs": [{"internalType": "address", "name": "", "type": "address"}],
-                        "name": "userNonces",
-                        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-                        "stateMutability": "view",
-                        "type": "function",
-                    }
-                ],
-            )
-            return provider, contract
-        except HTTPException:
-            raise
-        except Exception:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "CHAIN_RPC_UNAVAILABLE", "message": "Unable to reach chain RPC for withdrawal nonce."},
-            )
-
-    def _build_withdraw_typed_data(
-        self,
-        *,
-        owner_wallet: str,
-        amount_wei: int,
-        fee_wei: int,
-        nonce: int,
-        deadline: int,
-        chain_id: int,
-        verifying_contract: str,
-    ) -> Dict[str, Any]:
-        checksum_owner = Web3.to_checksum_address(owner_wallet) if Web3 is not None else owner_wallet
-        checksum_contract = (
-            Web3.to_checksum_address(verifying_contract) if Web3 is not None else verifying_contract
-        )
-        return {
-            "types": {
-                "EIP712Domain": [
-                    {"name": "name", "type": "string"},
-                    {"name": "version", "type": "string"},
-                    {"name": "chainId", "type": "uint256"},
-                    {"name": "verifyingContract", "type": "address"},
-                ],
-                "Withdraw": [
-                    {"name": "user", "type": "address"},
-                    {"name": "amount", "type": "uint256"},
-                    {"name": "fee", "type": "uint256"},
-                    {"name": "nonce", "type": "uint256"},
-                    {"name": "deadline", "type": "uint256"},
-                ],
-            },
-            "primaryType": "Withdraw",
-            "domain": {
-                "name": "SynapseCore",
-                "version": "1",
-                "chainId": int(chain_id),
-                "verifyingContract": checksum_contract,
-            },
-            "message": {
-                "user": checksum_owner,
-                "amount": int(amount_wei),
-                "fee": int(fee_wei),
-                "nonce": int(nonce),
-                "deadline": int(deadline),
-            },
-        }
-
-    def _sign_withdraw_ticket(self, typed_data: Dict[str, Any], private_key: str) -> str:
-        if Account is None:
-            raise HTTPException(
-                status_code=500,
-                detail={"code": "CHAIN_SDK_NOT_INSTALLED", "message": "eth-account dependency is required for withdrawal signing."},
-            )
-        if encode_typed_data is not None:
-            signable = encode_typed_data(full_message=typed_data)
-        elif encode_structured_data is not None:
-            signable = encode_structured_data(primitive=typed_data)
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail={"code": "CHAIN_SDK_NOT_INSTALLED", "message": "eth-account typed-data encoder is unavailable."},
-            )
-        signed = Account.sign_message(signable, private_key=private_key)
-        return str(signed.signature.hex())
-
-    async def _begin_provider_withdraw_idempotency(
-        self,
-        *,
-        owner: str,
-        idempotency_key: str,
-        request_hash: str,
-    ) -> tuple[Optional[Dict[str, Any]], Optional[Any], List[Dict[str, Any]]]:
-        redis_client = await self._get_redis_client()
-        redis_hit = await self._check_idempotency_redis(
-            scope="provider_withdraw_intent",
-            owner_wallet=owner,
-            idempotency_key=idempotency_key,
-            request_hash=request_hash,
-        )
-        if redis_hit is not None:
-            return redis_hit, redis_client, []
-
-        started = await self._start_idempotency_redis(
-            scope="provider_withdraw_intent",
-            owner_wallet=owner,
-            idempotency_key=idempotency_key,
-            request_hash=request_hash,
-        )
-        if not started:
-            redis_retry = await self._check_idempotency_redis(
-                scope="provider_withdraw_intent",
-                owner_wallet=owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-            )
-            if redis_retry is not None:
-                return redis_retry, redis_client, []
-
-        idem_rows: List[Dict[str, Any]] = []
-        if redis_client is None:
-            idem_rows = self._load_idempotency_rows()
-            idem_hit = self._try_get_idempotent_response(
-                rows=idem_rows,
-                scope="provider_withdraw_intent",
-                owner_wallet=owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-            )
-            if idem_hit is not None:
-                return idem_hit, redis_client, idem_rows
-
-        return None, redis_client, idem_rows
-
-    async def _finish_provider_withdraw_idempotency(
-        self,
-        *,
-        owner: str,
-        idempotency_key: str,
-        request_hash: str,
-        response: Dict[str, Any],
-        redis_client: Optional[Any],
-        idem_rows: List[Dict[str, Any]],
-    ) -> None:
-        if redis_client is None:
-            self._record_idempotent_response(
-                rows=idem_rows,
-                scope="provider_withdraw_intent",
-                owner_wallet=owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                response=response,
-            )
-        await self._complete_idempotency_redis(
-            scope="provider_withdraw_intent",
-            owner_wallet=owner,
-            idempotency_key=idempotency_key,
-            request_hash=request_hash,
-            response=response,
-        )
-
     def _build_pending_withdraw_response(self, row: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "withdrawalId": str(row.get("id") or ""),
@@ -367,19 +127,6 @@ class BalanceService:
             "amountUsdc": round(float(row.get("amountUsdc") or 0.0), 6),
             "ticket": row.get("ticket") if isinstance(row.get("ticket"), dict) else {},
         }
-
-    def _resolve_withdraw_nonce_and_chain(self, owner: str) -> tuple[int, int]:
-        provider, contract = self._withdraw_contract()
-        owner_for_chain = Web3.to_checksum_address(owner) if Web3 is not None else owner
-        try:
-            nonce = int(contract.functions.userNonces(owner_for_chain).call())
-            chain_id = int(provider.eth.chain_id)
-        except Exception:
-            raise HTTPException(
-                status_code=503,
-                detail={"code": "CHAIN_RPC_UNAVAILABLE", "message": "Unable to query nonce/chainId for withdrawal."},
-            )
-        return nonce, chain_id
 
     def _normalize_tx_hash_or_raise(self, tx_hash: str) -> str:
         normalized = str(tx_hash or "").strip().lower()
@@ -417,6 +164,23 @@ class BalanceService:
             )
         return None
 
+    def _assert_no_withdraw_tx_replay(self, rows: List[Dict[str, Any]], owner_wallet: str, tx_hash: str, current_withdrawal_id: str) -> None:
+        owner = normalize_wallet(owner_wallet)
+        for row in rows:
+            if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
+                continue
+            if str(row.get("id") or "") == current_withdrawal_id:
+                continue
+            if str(row.get("txHash") or "").strip().lower() != tx_hash:
+                continue
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "WITHDRAWAL_TX_REPLAY_DETECTED",
+                    "message": "txHash is already bound to another withdrawal.",
+                },
+            )
+
     def _consume_locked_withdraw_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
         sellers_locked = ledger.get("sellersLocked", {})
@@ -434,7 +198,7 @@ class BalanceService:
         self._save_balance_ledger(ledger)
 
     async def get_balance(self, owner_wallet: str) -> Dict[str, Any]:
-        """[网关防弹层] 按 owner 读取余额摘要，避免返回全量账本。"""
+        """Only return current authenticated owner's balance summary."""
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
         balance_data = self.storage.get_collection("balance_ledger") or {}
@@ -469,400 +233,6 @@ class BalanceService:
             return [item for item in raw["rows"] if isinstance(item, dict)]
         return []
 
-    async def _get_redis_client(self):
-        global _redis_client
-        if _redis_client is not None:
-            return _redis_client
-
-        redis_url = settings.redis_url
-        if not redis_url:
-            return None
-
-        try:
-            import redis.asyncio as redis_async  # type: ignore[import-not-found]
-
-            _redis_client = redis_async.from_url(redis_url, encoding="utf-8", decode_responses=True)
-            await _redis_client.ping()
-            return _redis_client
-        except Exception:
-            _redis_client = None
-            return None
-
-    def _idem_key(self, scope: str, owner_wallet: str, idempotency_key: str) -> str:
-        return f"finance:idem:{scope}:{normalize_wallet(owner_wallet)}:{idempotency_key}"
-
-    def _request_hash(self, payload: Dict[str, Any]) -> str:
-        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
-        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-    def _load_idempotency_rows(self) -> List[Dict[str, Any]]:
-        rows = self._normalize_rows(self.storage.get_collection("idempotency_keys"))
-        now = int(time.time())
-        filtered = [row for row in rows if int(row.get("expiresAt") or 0) > now]
-        max_rows = max(500, int(settings.finance_idempotency_max_rows))
-        if len(filtered) > max_rows:
-            filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
-            filtered = filtered[:max_rows]
-        if len(filtered) != len(rows):
-            self.storage.save_collection("idempotency_keys", {"rows": filtered, "updatedAt": now})
-        return filtered
-
-    def _save_idempotency_rows(self, rows: List[Dict[str, Any]]) -> None:
-        max_rows = max(500, int(settings.finance_idempotency_max_rows))
-        if len(rows) > max_rows:
-            rows.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
-            rows = rows[:max_rows]
-        self.storage.save_collection("idempotency_keys", {"rows": rows, "updatedAt": int(time.time())})
-
-    async def _check_idempotency_redis(
-        self,
-        *,
-        scope: str,
-        owner_wallet: str,
-        idempotency_key: str,
-        request_hash: str,
-    ) -> Optional[Dict[str, Any]]:
-        redis_client = await self._get_redis_client()
-        if redis_client is None:
-            return None
-
-        raw = await redis_client.get(self._idem_key(scope, owner_wallet, idempotency_key))
-        if not raw:
-            return None
-
-        try:
-            parsed = json.loads(raw)
-        except Exception:
-            return None
-
-        stored_hash = str(parsed.get("requestHash") or "")
-        if stored_hash != request_hash:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
-                    "message": "Idempotency key payload mismatch.",
-                },
-            )
-
-        status = str(parsed.get("status") or "")
-        if status == "done" and isinstance(parsed.get("response"), dict):
-            return parsed.get("response")
-        if status == "processing":
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "IDEMPOTENCY_REQUEST_IN_PROGRESS",
-                    "message": "A request with this idempotency key is already processing.",
-                },
-            )
-        return None
-
-    async def _start_idempotency_redis(
-        self,
-        *,
-        scope: str,
-        owner_wallet: str,
-        idempotency_key: str,
-        request_hash: str,
-    ) -> bool:
-        redis_client = await self._get_redis_client()
-        if redis_client is None:
-            return False
-
-        ttl_sec = max(300, int(settings.finance_idempotency_ttl_sec))
-        key = self._idem_key(scope, owner_wallet, idempotency_key)
-        now = int(time.time())
-        try:
-            result = await redis_client.eval(REDIS_IDEM_CLAIM_LUA, 1, key, request_hash, now, ttl_sec)
-            # [1, ''] => claimed; [0, existing_json] => already exists.
-            if isinstance(result, list) and result and int(result[0]) == 1:
-                return True
-            return False
-        except Exception:
-            # Fallback to non-lua setnx flow if eval is unavailable in current redis mode.
-            payload = {
-                "requestHash": request_hash,
-                "status": "processing",
-                "createdAt": now,
-            }
-            return bool(
-                await redis_client.set(
-                    key,
-                    json.dumps(payload, ensure_ascii=True, separators=(",", ":")),
-                    ex=ttl_sec,
-                    nx=True,
-                )
-            )
-
-    async def _complete_idempotency_redis(
-        self,
-        *,
-        scope: str,
-        owner_wallet: str,
-        idempotency_key: str,
-        request_hash: str,
-        response: Dict[str, Any],
-    ) -> None:
-        redis_client = await self._get_redis_client()
-        if redis_client is None:
-            return
-        ttl_sec = max(300, int(settings.finance_idempotency_ttl_sec))
-        payload = {
-            "requestHash": request_hash,
-            "status": "done",
-            "response": response,
-            "updatedAt": int(time.time()),
-        }
-        await redis_client.set(
-            self._idem_key(scope, owner_wallet, idempotency_key),
-            json.dumps(payload, ensure_ascii=True, separators=(",", ":")),
-            ex=ttl_sec,
-        )
-
-    def _validate_idempotency_key(self, idempotency_key: str) -> str:
-        key = str(idempotency_key or "").strip()
-        if len(key) < 16 or len(key) > 128:
-            raise HTTPException(
-                status_code=400,
-                detail={"code": "INVALID_IDEMPOTENCY_KEY", "message": "idempotency key length must be 16..128."},
-            )
-        if not re.fullmatch(r"[A-Za-z0-9._:-]+", key):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "code": "INVALID_IDEMPOTENCY_KEY",
-                    "message": "idempotency key has invalid characters; allowed: A-Z a-z 0-9 . _ : -",
-                },
-            )
-        return key
-
-    def _append_financial_audit(self, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-        self.storage.append_to_collection(
-            "audit_log",
-            {
-                "id": str(uuid4()),
-                "timestamp": int(time.time()),
-                "action": action,
-                "ownerAddress": normalize_wallet(owner_wallet),
-                "details": details,
-            },
-        )
-        if action in {"FINANCE_RATE_LIMIT_HIT", "DEPOSIT_REPLAY_DETECTED", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"}:
-            logger.warning("finance_anomaly action=%s owner=%s details=%s", action, normalize_wallet(owner_wallet), details)
-
-    def _finance_audit_actions(self) -> set[str]:
-        return {
-            "DEPOSIT_INTENT_REGISTERED",
-            "REFUND_INTENT_CREATED",
-            "PROVIDER_WITHDRAW_INTENT_CREATED",
-            "PROVIDER_WITHDRAW_COMPLETED",
-            "PROVIDER_WITHDRAW_CANCELLED",
-            "ROUTER_CONFIG_UPDATED",
-            "FINANCE_RATE_LIMIT_HIT",
-            "DEPOSIT_REPLAY_DETECTED",
-            "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
-        }
-
-    def _rate_limit_context(self, owner_wallet: str) -> tuple[str, int, int, int]:
-        owner = normalize_wallet(owner_wallet)
-        now = int(time.time())
-        window_sec = 60
-        max_per_min = max(1, int(settings.finance_write_rate_limit_per_min))
-        return owner, now, window_sec, max_per_min
-
-    async def _enforce_owner_write_rate_limit_redis(
-        self,
-        owner: str,
-        action: str,
-        now: int,
-        window_sec: int,
-        max_per_min: int,
-    ) -> bool:
-        redis_client = await self._get_redis_client()
-        if redis_client is None:
-            return False
-
-        window_bucket = now // window_sec
-        redis_key = f"finance:rl:{owner}:{action}:{window_bucket}"
-        try:
-            current = int(await redis_client.eval(REDIS_RATE_LIMIT_LUA, 1, redis_key, window_sec + 5))
-        except Exception:
-            current = int(await redis_client.incr(redis_key))
-            if current == 1:
-                await redis_client.expire(redis_key, window_sec + 5)
-
-        if current > max_per_min:
-            self._append_financial_audit(
-                "FINANCE_RATE_LIMIT_HIT",
-                owner,
-                {
-                    "action": action,
-                    "limitPerMin": max_per_min,
-                    "windowBucket": window_bucket,
-                    "backend": "redis",
-                },
-            )
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "code": "FINANCE_RATE_LIMIT_EXCEEDED",
-                    "message": f"Finance write rate limit exceeded for action={action}.",
-                },
-            )
-        return True
-
-    def _enforce_owner_write_rate_limit_fallback(
-        self,
-        owner: str,
-        action: str,
-        now: int,
-        max_per_min: int,
-    ) -> None:
-        raw = self.storage.get_collection("finance_write_rate_limit")
-        rows = self._normalize_rows(raw)
-
-        matched = next(
-            (
-                row
-                for row in rows
-                if normalize_wallet(str(row.get("ownerAddress") or "")) == owner and str(row.get("action") or "") == action
-            ),
-            None,
-        )
-
-        if matched is None:
-            matched = {
-                "id": str(uuid4()),
-                "ownerAddress": owner,
-                "action": action,
-                "windowStart": now,
-                "count": 0,
-                "updatedAt": now,
-            }
-            rows.append(matched)
-
-        window_start = int(matched.get("windowStart") or now)
-        if now - window_start >= 60:
-            matched["windowStart"] = now
-            matched["count"] = 0
-
-        count = int(matched.get("count") or 0)
-        if count >= max_per_min:
-            self._append_financial_audit(
-                "FINANCE_RATE_LIMIT_HIT",
-                owner,
-                {
-                    "action": action,
-                    "limitPerMin": max_per_min,
-                    "windowStart": int(matched.get("windowStart") or now),
-                    "backend": "json-fallback",
-                },
-            )
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "code": "FINANCE_RATE_LIMIT_EXCEEDED",
-                    "message": f"Finance write rate limit exceeded for action={action}.",
-                },
-            )
-
-        matched["count"] = count + 1
-        matched["updatedAt"] = now
-        self.storage.save_collection("finance_write_rate_limit", {"rows": rows, "updatedAt": now})
-
-    async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
-        owner, now, window_sec, max_per_min = self._rate_limit_context(owner_wallet)
-        used_redis = await self._enforce_owner_write_rate_limit_redis(owner, action, now, window_sec, max_per_min)
-        if not used_redis:
-            self._enforce_owner_write_rate_limit_fallback(owner, action, now, max_per_min)
-
-    def _try_get_idempotent_response(
-        self,
-        *,
-        rows: List[Dict[str, Any]],
-        scope: str,
-        owner_wallet: str,
-        idempotency_key: str,
-        request_hash: str,
-    ) -> Optional[Dict[str, Any]]:
-        owner = normalize_wallet(owner_wallet)
-        for row in rows:
-            if row.get("scope") != scope:
-                continue
-            if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
-                continue
-            if str(row.get("idempotencyKey") or "") != idempotency_key:
-                continue
-            if str(row.get("requestHash") or "") != request_hash:
-                self._append_financial_audit(
-                    "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
-                    owner,
-                    {"scope": scope, "idempotencyKey": idempotency_key},
-                )
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
-                        "message": "Idempotency key payload mismatch.",
-                    },
-                )
-            response = row.get("response")
-            return response if isinstance(response, dict) else None
-        return None
-
-    def _record_idempotent_response(
-        self,
-        *,
-        rows: List[Dict[str, Any]],
-        scope: str,
-        owner_wallet: str,
-        idempotency_key: str,
-        request_hash: str,
-        response: Dict[str, Any],
-    ) -> None:
-        now = int(time.time())
-        owner = normalize_wallet(owner_wallet)
-        expires_at = now + max(300, int(settings.finance_idempotency_ttl_sec))
-        rows.append(
-            {
-                "id": str(uuid4()),
-                "scope": scope,
-                "ownerAddress": owner,
-                "idempotencyKey": idempotency_key,
-                "requestHash": request_hash,
-                "response": response,
-                "createdAt": now,
-                "expiresAt": expires_at,
-            }
-        )
-        self._save_idempotency_rows(rows)
-
-    def _validate_unique_recent_deposit(self, rows: List[Dict[str, Any]], owner_wallet: str, tx_hash: str) -> None:
-        owner = normalize_wallet(owner_wallet)
-        now = int(time.time())
-        replay_window = max(60, int(settings.finance_replay_window_sec))
-        for row in rows:
-            row_owner = normalize_wallet(str(row.get("ownerAddress") or row.get("buyerAddress") or ""))
-            if row_owner != owner:
-                continue
-            if str(row.get("txHash") or "").strip().lower() != tx_hash.strip().lower():
-                continue
-            created_at = int(row.get("createdAt") or 0)
-            if created_at and (now - created_at) <= replay_window:
-                self._append_financial_audit(
-                    "DEPOSIT_REPLAY_DETECTED",
-                    owner,
-                    {"txHash": tx_hash, "replayWindowSec": replay_window},
-                )
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "DEPOSIT_REPLAY_DETECTED",
-                        "message": "Duplicate deposit txHash detected in replay-protection window.",
-                    },
-                )
-
     async def register_deposit_intent(
         self,
         intent: Dict[str, Any],
@@ -870,13 +240,10 @@ class BalanceService:
         idempotency_key: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """
-        [网关防弹层] 处理买家发起的 Deposit Intent。
-        所有资金写入必须加锁，防止并发重入。
-        """
-        async with self._lock:
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:deposit_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
-            await self._enforce_owner_write_rate_limit(owner_wallet, "deposit_intent")
+            await self._enforce_owner_write_rate_limit(owner, "deposit_intent")
 
             tx_hash = str(intent.get("txHash") or "").strip()
             if not tx_hash.startswith("0x") or len(tx_hash) != 66:
@@ -893,9 +260,8 @@ class BalanceService:
                 )
 
             intents = self._normalize_intents(self.storage.get_collection("deposit_intents"))
-            normalized_owner = normalize_wallet(owner_wallet)
             request_payload = {
-                "ownerAddress": normalized_owner,
+                "ownerAddress": owner,
                 "txHash": tx_hash.lower(),
                 "amountUsdc": round(amount_usdc, 6),
             }
@@ -904,7 +270,7 @@ class BalanceService:
 
             redis_hit = await self._check_idempotency_redis(
                 scope="deposit_intent",
-                owner_wallet=normalized_owner,
+                owner_wallet=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
             )
@@ -913,15 +279,14 @@ class BalanceService:
 
             started = await self._start_idempotency_redis(
                 scope="deposit_intent",
-                owner_wallet=normalized_owner,
+                owner_wallet=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
             )
             if not started:
-                # Cross-instance concurrent request won lock, return recorded result or in-progress conflict.
                 redis_retry = await self._check_idempotency_redis(
                     scope="deposit_intent",
-                    owner_wallet=normalized_owner,
+                    owner_wallet=owner,
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                 )
@@ -934,30 +299,19 @@ class BalanceService:
                 idem_hit = self._try_get_idempotent_response(
                     rows=idem_rows,
                     scope="deposit_intent",
-                    owner_wallet=normalized_owner,
+                    owner_wallet=owner,
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                 )
                 if idem_hit is not None:
                     return idem_hit
 
-            idem_hit = self._try_get_idempotent_response(
-                rows=idem_rows,
-                scope="deposit_intent",
-                owner_wallet=normalized_owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-            )
-            if idem_hit is not None:
-                return idem_hit
+            self._validate_unique_recent_deposit(intents, owner, tx_hash)
 
-            self._validate_unique_recent_deposit(intents, normalized_owner, tx_hash)
-
-            # 这里可以进行业务防伪、状态校验等
             now = int(time.time())
             next_intent = dict(intent)
-            next_intent["ownerAddress"] = normalized_owner
-            next_intent["buyerAddress"] = normalized_owner
+            next_intent["ownerAddress"] = owner
+            next_intent["buyerAddress"] = owner
             next_intent["txHash"] = tx_hash
             next_intent["amountUsdc"] = round(amount_usdc, 6)
             next_intent["idempotencyKey"] = idempotency_key
@@ -973,21 +327,21 @@ class BalanceService:
                 self._record_idempotent_response(
                     rows=idem_rows,
                     scope="deposit_intent",
-                    owner_wallet=normalized_owner,
+                    owner_wallet=owner,
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                     response=response,
                 )
             await self._complete_idempotency_redis(
                 scope="deposit_intent",
-                owner_wallet=normalized_owner,
+                owner_wallet=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 response=response,
             )
             self._append_financial_audit(
                 "DEPOSIT_INTENT_REGISTERED",
-                normalized_owner,
+                owner,
                 {
                     "depositIntentId": next_intent.get("id"),
                     "txHash": next_intent.get("txHash"),
@@ -1014,9 +368,10 @@ class BalanceService:
         idempotency_key: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        async with self._lock:
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:refund_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
-            await self._enforce_owner_write_rate_limit(owner_wallet, "refund_intent")
+            await self._enforce_owner_write_rate_limit(owner, "refund_intent")
 
             amount_usdc = float(payload.get("amountUsdc") or 0)
             if amount_usdc < 10:
@@ -1032,9 +387,8 @@ class BalanceService:
                     detail={"code": "INVALID_REASON", "message": "reason must be <= 256 chars."},
                 )
 
-            normalized_owner = normalize_wallet(owner_wallet)
             request_payload = {
-                "ownerAddress": normalized_owner,
+                "ownerAddress": owner,
                 "amountUsdc": round(amount_usdc, 6),
                 "reason": reason,
             }
@@ -1043,7 +397,7 @@ class BalanceService:
 
             redis_hit = await self._check_idempotency_redis(
                 scope="refund_intent",
-                owner_wallet=normalized_owner,
+                owner_wallet=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
             )
@@ -1052,14 +406,14 @@ class BalanceService:
 
             started = await self._start_idempotency_redis(
                 scope="refund_intent",
-                owner_wallet=normalized_owner,
+                owner_wallet=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
             )
             if not started:
                 redis_retry = await self._check_idempotency_redis(
                     scope="refund_intent",
-                    owner_wallet=normalized_owner,
+                    owner_wallet=owner,
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                 )
@@ -1072,22 +426,12 @@ class BalanceService:
                 idem_hit = self._try_get_idempotent_response(
                     rows=idem_rows,
                     scope="refund_intent",
-                    owner_wallet=normalized_owner,
+                    owner_wallet=owner,
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                 )
                 if idem_hit is not None:
                     return idem_hit
-            idem_rows = self._load_idempotency_rows()
-            idem_hit = self._try_get_idempotent_response(
-                rows=idem_rows,
-                scope="refund_intent",
-                owner_wallet=normalized_owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-            )
-            if idem_hit is not None:
-                return idem_hit
 
             now = int(time.time())
             rows = self._normalize_rows(self.storage.get_collection("refund_intents"))
@@ -1095,7 +439,7 @@ class BalanceService:
             signature = f"mock-refund-signature-{refund_id[:12]}"
             refund_row = {
                 "id": refund_id,
-                "ownerAddress": normalized_owner,
+                "ownerAddress": owner,
                 "amountUsdc": round(amount_usdc, 6),
                 "reason": reason,
                 "status": "PENDING",
@@ -1117,21 +461,21 @@ class BalanceService:
                 self._record_idempotent_response(
                     rows=idem_rows,
                     scope="refund_intent",
-                    owner_wallet=normalized_owner,
+                    owner_wallet=owner,
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                     response=response,
                 )
             await self._complete_idempotency_redis(
                 scope="refund_intent",
-                owner_wallet=normalized_owner,
+                owner_wallet=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 response=response,
             )
             self._append_financial_audit(
                 "REFUND_INTENT_CREATED",
-                normalized_owner,
+                owner,
                 {
                     "refundId": refund_id,
                     "amountUsdc": round(amount_usdc, 6),
@@ -1158,11 +502,11 @@ class BalanceService:
         idempotency_key: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        async with self._lock:
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:provider_withdraw_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
-            await self._enforce_owner_write_rate_limit(owner_wallet, "provider_withdraw_intent")
+            await self._enforce_owner_write_rate_limit(owner, "provider_withdraw_intent")
 
-            owner = normalize_wallet(owner_wallet)
             request_hash = self._request_hash(
                 {
                     "ownerAddress": owner,
@@ -1220,7 +564,13 @@ class BalanceService:
                 verifying_contract=normalize_wallet(settings.router_address),
             )
             signature = self._sign_withdraw_ticket(typed_data, private_key)
-            signer_address = normalize_wallet(Account.from_key(private_key).address) if Account is not None else ""
+
+            try:
+                from eth_account import Account  # type: ignore[import-not-found]
+
+                signer_address = normalize_wallet(Account.from_key(private_key).address)
+            except Exception:
+                signer_address = ""
 
             sellers[owner] = round(float(sellers.get(owner, 0.0)) - amount_usdc, 6)
             sellers_locked = ledger.get("sellersLocked", {})
@@ -1307,9 +657,9 @@ class BalanceService:
         tx_hash: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        async with self._lock:
-            await self._enforce_owner_write_rate_limit(owner_wallet, "provider_withdraw_complete")
-            owner = normalize_wallet(owner_wallet)
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:provider_withdraw_complete"):
+            await self._enforce_owner_write_rate_limit(owner, "provider_withdraw_complete")
             rows = self._normalize_withdrawal_rows()
             target = self._find_withdrawal_by_id(rows, owner, withdrawal_id)
             if target is None:
@@ -1319,6 +669,7 @@ class BalanceService:
                 )
 
             normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)
+            self._assert_no_withdraw_tx_replay(rows, owner, normalized_tx_hash, str(target.get("id") or ""))
             completed = self._assert_withdrawal_completable(target, normalized_tx_hash)
             if completed is not None:
                 return completed
@@ -1378,8 +729,9 @@ class BalanceService:
         daily_limit_usdc: float,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        async with self._lock:
-            await self._enforce_owner_write_rate_limit(owner_wallet, "router_config")
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:router_config"):
+            await self._enforce_owner_write_rate_limit(owner, "router_config")
             if daily_limit_usdc < 0 or daily_limit_usdc > 10_000:
                 raise HTTPException(
                     status_code=400,
@@ -1389,7 +741,6 @@ class BalanceService:
                     },
                 )
 
-            owner = normalize_wallet(owner_wallet)
             now = int(time.time())
             raw = self.storage.get_collection("router_config")
             rows: List[Dict[str, Any]]
@@ -1428,59 +779,3 @@ class BalanceService:
                 "dailyLimitUsdc": existing.get("dailyLimitUsdc"),
                 "updatedAt": existing.get("updatedAt"),
             }
-
-    async def list_finance_audit_logs(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
-        return await asyncio.to_thread(self._list_finance_audit_logs_sync, owner_wallet, limit)
-
-    def _read_audit_rows_from_storage(self, owner: str, limit: int) -> Optional[List[Dict[str, Any]]]:
-        if not hasattr(self.storage, "read_audit_rows"):
-            return None
-        try:
-            rows = self.storage.read_audit_rows(owner_wallet=owner, limit=max(1, min(limit, 500)))
-            if isinstance(rows, list):
-                return [row for row in rows if isinstance(row, dict)]
-        except Exception:
-            return None
-        return None
-
-    def _read_audit_rows_from_jsonl(self, owner: str) -> List[Dict[str, Any]]:
-        if not hasattr(self.storage, "directory"):
-            return []
-
-        import os
-
-        path = os.path.join(getattr(self.storage, "directory"), "audit_log.jsonl")
-        if not os.path.exists(path):
-            return []
-
-        rows: List[Dict[str, Any]] = []
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                raw = line.strip()
-                if not raw:
-                    continue
-                try:
-                    row = json.loads(raw)
-                except Exception:
-                    continue
-                if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
-                    continue
-                rows.append(row)
-        return rows
-
-    def _list_finance_audit_logs_sync(self, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
-        owner = normalize_wallet(owner_wallet)
-        allowed_actions = self._finance_audit_actions()
-
-        rows = self._read_audit_rows_from_storage(owner, limit)
-        if rows is None:
-            rows = self._read_audit_rows_from_jsonl(owner)
-
-        rows = [
-            row
-            for row in rows
-            if str(row.get("action") or "") in allowed_actions
-        ]
-
-        rows.sort(key=lambda item: int(item.get("timestamp") or 0), reverse=True)
-        return rows[: max(1, min(limit, 500))]
