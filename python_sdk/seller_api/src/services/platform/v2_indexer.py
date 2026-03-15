@@ -11,7 +11,8 @@ from web3.exceptions import TransactionNotFound
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
-from src.storage.repository_provider import audit_repo, balance_repo, gateway_state_repo
+from src.domain.audit import AuditLogEntry
+from src.domain.finance import BalanceLedger
 from src.storage import BaseStorage
 
 lock = Lock()
@@ -51,45 +52,41 @@ def _now() -> int:
 
 
 def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
-    raw_rows = gateway_state_repo(storage).read_deposit_intents()
+    raw_rows = storage.get_data_manager().system.gateway_state.read_deposit_intents()
     return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
 
 def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
-    gateway_state_repo(storage).write_deposit_intents(rows)
+    storage.get_data_manager().system.gateway_state.write_deposit_intents(rows)
 
 
-def _load_balance_ledger(storage: BaseStorage) -> Dict[str, Any]:
-    ledger = balance_repo(storage).read_balance_ledger() or {}
-    if not isinstance(ledger, dict):
-        return {}
-    return ledger
+def _load_balance_ledger(storage: BaseStorage) -> BalanceLedger:
+    return storage.get_data_manager().finance.balance.read_balance_ledger()
 
 
-def _save_balance_ledger(storage: BaseStorage, ledger: Dict[str, Any]) -> None:
-    next_ledger = dict(ledger)
-    next_ledger["updatedAt"] = _now()
-    balance_repo(storage).write_balance_ledger(next_ledger)
+def _save_balance_ledger(storage: BaseStorage, ledger: BalanceLedger) -> None:
+    ledger.updated_at = _now()
+    storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
 
 def _load_processed_deposit_event_keys(storage: BaseStorage) -> List[str]:
-    keys = gateway_state_repo(storage).read_processed_deposit_event_keys()
+    keys = storage.get_data_manager().system.gateway_state.read_processed_deposit_event_keys()
     return [str(item) for item in keys] if isinstance(keys, list) else []
 
 
 def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) -> None:
-    gateway_state_repo(storage).write_processed_deposit_event_keys(keys, _now())
+    storage.get_data_manager().system.gateway_state.write_processed_deposit_event_keys(keys, _now())
 
 
 def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-    audit_repo(storage).append_audit_row(
-        {
-            "id": str(uuid4()),
-            "timestamp": _now(),
-            "action": action,
-            "ownerAddress": normalize_wallet(owner_wallet),
-            "details": details,
-        }
+    storage.get_data_manager().audit.logs.append_audit_row(
+        AuditLogEntry(
+            id=str(uuid4()),
+            timestamp=_now(),
+            action=action,
+            owner_address=normalize_wallet(owner_wallet),
+            details=details,
+        )
     )
 
 
@@ -537,7 +534,7 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]
 
         processed_keys = set(_load_processed_deposit_event_keys(storage))
         ledger = _load_balance_ledger(storage)
-        buyers = ledger.setdefault("buyers", {})
+        buyers = ledger.buyers
 
         changed_intents = False
         changed_ledger = False

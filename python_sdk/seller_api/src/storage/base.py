@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
-from .repository_provider import StorageRepositoryProvider
+from .repository_provider import SynapseDataManager
 
 class BaseStorage(ABC):
     @abstractmethod
-    def get_repository_provider(self) -> StorageRepositoryProvider:
+    def get_data_manager(self) -> SynapseDataManager:
         pass
 
     @abstractmethod

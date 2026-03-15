@@ -12,8 +12,8 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.domain.audit import AuditLogEntry
 from src.models.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
-from src.storage.repository_provider import audit_repo, credential_auth_repo
 from src.storage import BaseStorage
 
 write_lock = asyncio.Lock()
@@ -95,11 +95,11 @@ def save_credential_rows(storage: BaseStorage, rows: List[Dict[str, Any]], extra
         payload.update(extras)
 
     _ = payload
-    credential_auth_repo(storage).write_credential_rows("buyer", rows)
+    storage.get_data_manager().system.credential_auth.write_credential_rows("buyer", rows)
 
 
 def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    primary_rows = credential_auth_repo(storage).read_credential_rows("buyer")
+    primary_rows = storage.get_data_manager().system.credential_auth.read_credential_rows("buyer")
     primary = {"credentials": primary_rows, "updatedAt": 0}
     rows, extras = normalize_credential_rows(primary)
     if rows or extras:
@@ -108,7 +108,7 @@ def load_credential_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Di
 
     for legacy_collection in _LEGACY_BUYER_COLLECTIONS:
         _ = legacy_collection
-        legacy_rows_raw = credential_auth_repo(storage).read_credential_rows("buyer")
+        legacy_rows_raw = storage.get_data_manager().system.credential_auth.read_credential_rows("buyer")
         legacy = {"credentials": legacy_rows_raw, "updatedAt": 0}
         legacy_rows, legacy_extras = normalize_credential_rows(legacy)
         if legacy_rows or legacy_extras:
@@ -144,25 +144,24 @@ def resolve_reset_interval(value: Optional[str]) -> str:
 
 
 def append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-    audit_repo(storage).append_audit_row(
-        {
-            "id": str(uuid4()),
-            "timestamp": now_ts(),
-            "action": action,
-            "ownerAddress": owner_wallet,
-            "details": details,
-        }
+    storage.get_data_manager().audit.logs.append_audit_row(
+        AuditLogEntry(
+            id=str(uuid4()),
+            timestamp=now_ts(),
+            action=action,
+            owner_address=owner_wallet,
+            details=details,
+        )
     )
 
 
 def read_audit_log(storage: BaseStorage, owner_wallet: str, limit: int) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
     try:
-        rows = audit_repo(storage).read_audit_rows(owner_wallet=owner_wallet, limit=limit)
-        if isinstance(rows, list):
-            result = [row for row in rows if isinstance(row, dict)]
-            result.sort(key=lambda r: int(r.get("timestamp", 0)), reverse=True)
-            return result[:limit]
+        rows = storage.get_data_manager().audit.logs.read_audit_rows(owner_wallet=owner_wallet, limit=limit)
+        result = [row.model_dump(by_alias=True) if isinstance(row, AuditLogEntry) else row for row in rows]
+        result.sort(key=lambda r: int(r.get("timestamp", 0)), reverse=True)
+        return result[:limit]
     except Exception:
         pass
 

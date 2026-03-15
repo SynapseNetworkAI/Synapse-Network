@@ -9,13 +9,13 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_lock import RedisLockManager
+from src.domain.finance import BalanceLedger
 from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
     BalanceWithdrawSigningMixin,
     USDC_DECIMALS,
 )
-from src.storage.repository_provider import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 
@@ -67,7 +67,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         return []
 
     def _normalize_withdrawal_rows(self) -> List[Dict[str, Any]]:
-        raw_rows = gateway_state_repo(self.storage).read_withdrawal_intents()
+        raw_rows = self.storage.get_data_manager().system.gateway_state.read_withdrawal_intents()
         rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
         for row in rows:
             status = str(row.get("status") or "").upper()
@@ -78,34 +78,14 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         return rows
 
     def _save_withdrawal_rows(self, rows: List[Dict[str, Any]]) -> None:
-        gateway_state_repo(self.storage).write_withdrawal_intents(rows, int(time.time()))
+        self.storage.get_data_manager().system.gateway_state.write_withdrawal_intents(rows, int(time.time()))
 
-    def _load_balance_ledger(self) -> Dict[str, Any]:
-        ledger = balance_repo(self.storage).read_balance_ledger() or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
-        buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
-        buyers_locked = ledger.get("buyersLocked") if isinstance(ledger.get("buyersLocked"), dict) else {}
-        buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
-        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
-        sellers_locked = ledger.get("sellersLocked") if isinstance(ledger.get("sellersLocked"), dict) else {}
-        sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
-        platform = ledger.get("platform") if isinstance(ledger.get("platform"), dict) else {}
-        platform.setdefault("feeAccrued", 0.0)
-        ledger["buyers"] = buyers
-        ledger["buyersLocked"] = buyers_locked
-        ledger["buyersFrozen"] = buyers_frozen
-        ledger["sellers"] = sellers
-        ledger["sellersLocked"] = sellers_locked
-        ledger["sellersFrozen"] = sellers_frozen
-        ledger["platform"] = platform
-        ledger.setdefault("updatedAt", int(time.time()))
-        return ledger
+    def _load_balance_ledger(self) -> BalanceLedger:
+        return self.storage.get_data_manager().finance.balance.read_balance_ledger()
 
-    def _save_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        next_ledger = dict(ledger)
-        next_ledger["updatedAt"] = int(time.time())
-        balance_repo(self.storage).write_balance_ledger(next_ledger)
+    def _save_balance_ledger(self, ledger: BalanceLedger) -> None:
+        ledger.updated_at = int(time.time())
+        self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
     def _get_pending_withdrawal(self, rows: List[Dict[str, Any]], owner_wallet: str) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
@@ -231,8 +211,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
 
     def _consume_locked_withdraw_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
-        sellers_locked = ledger.get("sellersLocked", {})
-        locked = round(float(sellers_locked.get(owner, 0.0)), 6)
+        locked = round(float(ledger.sellers_locked.get(owner, 0.0)), 6)
         if locked + 1e-9 < amount_usdc:
             raise HTTPException(
                 status_code=409,
@@ -241,17 +220,12 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                     "message": "Locked seller receivable is insufficient for this withdrawal intent.",
                 },
             )
-        sellers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
-        ledger["sellersLocked"] = sellers_locked
+        ledger.sellers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
-    def _reserve_withdraw_amount(self, owner: str, amount_usdc: float, ledger: Dict[str, Any]) -> None:
-        sellers = ledger.get("sellers", {})
-        sellers[owner] = round(float(sellers.get(owner, 0.0)) - amount_usdc, 6)
-        sellers_locked = ledger.get("sellersLocked", {})
-        sellers_locked[owner] = round(float(sellers_locked.get(owner, 0.0)) + amount_usdc, 6)
-        ledger["sellers"] = sellers
-        ledger["sellersLocked"] = sellers_locked
+    def _reserve_withdraw_amount(self, owner: str, amount_usdc: float, ledger: BalanceLedger) -> None:
+        ledger.sellers[owner] = round(float(ledger.sellers.get(owner, 0.0)) - amount_usdc, 6)
+        ledger.sellers_locked[owner] = round(float(ledger.sellers_locked.get(owner, 0.0)) + amount_usdc, 6)
         if hasattr(self.storage, "reserve_seller_withdraw_atomic"):
             try:
                 getattr(self.storage, "reserve_seller_withdraw_atomic")(
@@ -561,8 +535,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
                 return existing_response
 
             ledger = self._load_balance_ledger()
-            sellers = ledger.get("sellers", {})
-            available_receivable = round(float(sellers.get(owner, 0.0)), 6)
+            available_receivable = round(float(ledger.sellers.get(owner, 0.0)), 6)
             amount_usdc = self._parse_withdraw_amount_usdc(payload, available_receivable)
 
             rows = self._normalize_withdrawal_rows()

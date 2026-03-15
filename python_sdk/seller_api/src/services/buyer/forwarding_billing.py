@@ -5,8 +5,8 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.domain.finance import BalanceLedger, FeePolicyEntity
 from src.services.platform import credential_service
-from src.storage.repository_provider import balance_repo, fee_policy_repo, gateway_state_repo
 from src.storage import BaseStorage
 
 
@@ -29,15 +29,12 @@ def sanitize_fee_rate(raw: Any, fallback: float) -> float:
 def resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float:
     """Resolve effective fee rate using owner override > runtime default > global config."""
     fallback = sanitize_fee_rate(settings.platform_fee_rate, 0.10)
-    policy = fee_policy_repo(storage).get_platform_fee_policy() or {}
-    if not isinstance(policy, dict):
-        return fallback
+    policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
-    policy_default = sanitize_fee_rate(policy.get("defaultRate"), fallback)
-    owner_rates = policy.get("ownerRates") if isinstance(policy.get("ownerRates"), dict) else {}
+    policy_default = sanitize_fee_rate(policy.default_rate, fallback)
     owner_key = normalize_wallet(str(seller_wallet or ""))
-    if owner_key and owner_key in owner_rates:
-        return sanitize_fee_rate(owner_rates.get(owner_key), policy_default)
+    if owner_key and owner_key in policy.owner_rates:
+        return sanitize_fee_rate(policy.owner_rates.get(owner_key), policy_default)
     return policy_default
 
 
@@ -96,10 +93,10 @@ def pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: floa
 
 def append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
     """Append one usage event into usage_log collection with safe list normalization."""
-    raw_rows = gateway_state_repo(storage).read_usage_log_rows()
+    raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
     rows = [item for item in raw_rows if isinstance(item, dict)] if isinstance(raw_rows, list) else []
     rows.append(row)
-    gateway_state_repo(storage).write_usage_log_rows(rows)
+    storage.get_data_manager().system.gateway_state.write_usage_log_rows(rows)
 
 
 def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
@@ -114,16 +111,12 @@ def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
 
 
 def _assert_not_risk_restricted_for_charge(storage: BaseStorage, buyer_wallet: str, seller_wallet: str) -> None:
-    ledger = balance_repo(storage).read_balance_ledger() or {}
-    if not isinstance(ledger, dict):
-        ledger = {}
-    buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
-    sellers_frozen = ledger.get("sellersFrozen") if isinstance(ledger.get("sellersFrozen"), dict) else {}
+    ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
     buyer = normalize_wallet(buyer_wallet)
     seller = normalize_wallet(seller_wallet)
-    buyer_frozen = round(float(buyers_frozen.get(buyer, 0.0)), 6)
-    seller_frozen = round(float(sellers_frozen.get(seller, 0.0)), 6)
+    buyer_frozen = round(float(ledger.buyers_frozen.get(buyer, 0.0)), 6)
+    seller_frozen = round(float(ledger.sellers_frozen.get(seller, 0.0)), 6)
 
     if buyer_frozen > 0 and _wallet_is_restricted(storage, buyer):
         raise HTTPException(
@@ -236,23 +229,18 @@ async def _charge_and_mark_usage_fallback(
     updated_credential = None
     now = credential_service.now_ts()
     async with credential_service.write_lock:
-        ledger = balance_repo(storage).read_balance_ledger() or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
-        buyers = ledger.setdefault("buyers", {})
-        sellers = ledger.setdefault("sellers", {})
-        platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
+        ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
-        buyer_balance = float(buyers.get(owner_wallet, 0.0))
+        buyer_balance = float(ledger.buyers.get(owner_wallet, 0.0))
         if buyer_balance < total_charge:
             raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_BALANCE", "message": "buyer balance is insufficient, please deposit first"})
 
         buyer_after = round(buyer_balance - total_charge, 6)
-        buyers[owner_wallet] = buyer_after
-        sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) + seller_net, 6)
-        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) + platform_fee_total, 6)
-        ledger["updatedAt"] = now
-        balance_repo(storage).write_balance_ledger(ledger)
+        ledger.buyers[owner_wallet] = buyer_after
+        ledger.sellers[seller_wallet] = round(float(ledger.sellers.get(seller_wallet, 0.0)) + seller_net, 6)
+        ledger.platform.fee_accrued = round(ledger.platform.fee_accrued + platform_fee_total, 6)
+        ledger.updated_at = now
+        storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
         rows, extras = credential_service.load_credential_rows(storage)
         idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
@@ -276,18 +264,13 @@ async def rollback_charge(
 ) -> None:
     """Rollback buyer/seller/platform ledger and credential usage when upstream fails."""
     async with credential_service.write_lock:
-        ledger = balance_repo(storage).read_balance_ledger() or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
-        buyers = ledger.setdefault("buyers", {})
-        sellers = ledger.setdefault("sellers", {})
-        platform = ledger.setdefault("platform", {"feeAccrued": 0.0})
+        ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
-        buyers[owner_wallet] = round(float(buyers.get(owner_wallet, 0.0)) + total_charge, 6)
-        sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) - seller_net, 6)
-        platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) - platform_fee_total, 6)
-        ledger["updatedAt"] = credential_service.now_ts()
-        balance_repo(storage).write_balance_ledger(ledger)
+        ledger.buyers[owner_wallet] = round(float(ledger.buyers.get(owner_wallet, 0.0)) + total_charge, 6)
+        ledger.sellers[seller_wallet] = round(float(ledger.sellers.get(seller_wallet, 0.0)) - seller_net, 6)
+        ledger.platform.fee_accrued = round(ledger.platform.fee_accrued - platform_fee_total, 6)
+        ledger.updated_at = credential_service.now_ts()
+        storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
         if not updated_credential:
             return

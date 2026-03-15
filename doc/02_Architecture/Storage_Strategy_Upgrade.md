@@ -216,9 +216,15 @@ Phase 3（日志爆发后）：
   - `src/storage/postgres/repositories/legacy_collection_repository.py`
 3. 门面层：
   - `src/storage/postgres_impl.py` 仅保留连接管理、原子事务入口与 legacy collection 兼容入口，不再承载 gateway/balance/audit/registry/credential/fee/idempotency 的 read/write passthrough。
-  - `src/storage/repository_provider.py` 定义显式、类型化的 `StorageRepositoryProvider`（gateway_state / balance / audit / service_registry / credential_auth / fee_policy / idempotency）。
-  - 路由与服务层只通过 provider helper 获取 repository，不再读取 storage 私有属性，也不再使用 getattr/Any 适配壳。
-  - 第二阶段打孔：允许在具体路由模块通过 `src/storage/postgres/direct_repo_access.py` 直连具体 postgres repository（例如 fee policy / gateway state），并保留非 postgres 场景自动回退到 provider helper。
+  - `src/storage/repository_provider.py` 升级为 Facade + Unit of Work：
+    - `SynapseDataManager`
+    - `SynapseUnitOfWork`
+    - `FinanceDomain` / `SystemDomain` / `AuditDomain`
+  - 路由与服务层统一通过 `storage.get_data_manager()` 访问仓储聚合：
+    - `storage.get_data_manager().finance.*`
+    - `storage.get_data_manager().system.*`
+    - `storage.get_data_manager().audit.*`
+  - `src/storage/postgres/direct_repo_access.py` 简化为 facade 直达入口，不再维护 Protocol 迷宫与 helper 回退分支。
   - 历史壳层 `src/storage/finance_repository.py` / `src/storage/registry_repository.py` / `src/storage/credential_repository.py` 已移除。
 
 ### 9.5 Schema 生命周期策略（已执行）
@@ -241,6 +247,56 @@ Phase 3（日志爆发后）：
   - 负责通用 collection 兼容读写（迁移窗口使用）与审计 collection 兼容写入。
 
 最终目标：门面层只暴露 typed storage API，不承载跨领域 SQL 编排细节。
+
+### 9.7 领域实体层 — 全局 Dict → Pydantic 强类型（已执行）
+
+为杜绝业务层使用裸 `Dict[str, Any]` 传递账本、费率、审计等核心数据时的"拼错 key / 漏字段 / 类型不明"风险，本轮在仓储层与服务层之间新增**独立领域实体层**。
+
+#### 新增文件
+
+- `src/domain/__init__.py` — 模块出口
+- `src/domain/finance.py` — `BalanceLedger` / `PlatformFees` / `FeePolicyEntity`
+- `src/domain/audit.py` — `AuditLogEntry`
+
+#### 实体设计规范
+
+| 规则 | 说明 |
+|------|------|
+| 基类 | Pydantic v2 `BaseModel`（`ConfigDict(populate_by_name=True)`） |
+| 字段命名 | Python snake_case 属性 + `Field(alias="camelCase")` 双向访问 |
+| DB 写入 | `entity.model_dump(by_alias=True)` 序列化为 camelCase JSONB |
+| DB 读取 | `Entity.model_validate(dict)` 从 JSONB 反序列化 |
+| 默认值 | 所有字段带默认值，消除上层 defensive `.get()` / `.setdefault()` |
+
+#### 仓储签名变更
+
+| 仓储 | 旧签名 | 新签名 |
+|------|--------|--------|
+| `BalanceRepository.read_balance_ledger()` | `→ Dict[str, Any]` | `→ BalanceLedger` |
+| `BalanceRepository.write_balance_ledger()` | `(dict)` | `(BalanceLedger)` |
+| `FeePolicyRepository.get_platform_fee_policy()` | `→ Dict[str, Any]` | `→ FeePolicyEntity` |
+| `AuditLogRepository.append_audit_row()` | `(dict)` | `(AuditLogEntry)` |
+| `AuditLogRepository.read_audit_rows()` | `→ List[Dict]` | `→ List[AuditLogEntry]` |
+
+#### 上层迁移模式
+
+```python
+# Before (Dict)
+ledger = repo.read_balance_ledger() or {}
+buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
+buyers[owner] = round(float(buyers.get(owner, 0.0)) + amount, 6)
+ledger["buyers"] = buyers
+
+# After (Entity)
+ledger = repo.read_balance_ledger()
+ledger.buyers[owner] = round(float(ledger.buyers.get(owner, 0.0)) + amount, 6)
+```
+
+#### 执行规则
+
+1. Finance / Audit 领域的 repository 入参和返回值必须为领域实体，禁止再用 `Dict[str, Any]`。
+2. 新增领域时先定义实体再实现仓储，确保类型约束前置。
+3. InMemoryStorage 测试替身同步遵守实体签名（`model_validate` / `model_dump`）。
 
 执行收益：
 1. SQL 逻辑按领域聚合，后续功能迭代与单测更可控。

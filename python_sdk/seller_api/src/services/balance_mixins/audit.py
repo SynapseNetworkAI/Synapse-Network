@@ -6,21 +6,21 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
-from src.storage.repository_provider import audit_repo
+from src.domain.audit import AuditLogEntry
 
 logger = logging.getLogger(__name__)
 
 
 class BalanceAuditMixin:
     def _append_financial_audit(self, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-        row = {
-            "id": str(uuid4()),
-            "timestamp": int(time.time()),
-            "action": action,
-            "ownerAddress": normalize_wallet(owner_wallet),
-            "details": details,
-        }
-        audit_repo(self.storage).append_audit_row(row)
+        entry = AuditLogEntry(
+            id=str(uuid4()),
+            timestamp=int(time.time()),
+            action=action,
+            owner_address=normalize_wallet(owner_wallet),
+            details=details,
+        )
+        self.storage.get_data_manager().audit.logs.append_audit_row(entry)
         if action in {"FINANCE_RATE_LIMIT_HIT", "DEPOSIT_REPLAY_DETECTED", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"}:
             logger.warning("finance_anomaly action=%s owner=%s details=%s", action, normalize_wallet(owner_wallet), details)
 
@@ -42,12 +42,10 @@ class BalanceAuditMixin:
 
     def _read_audit_rows_from_storage(self, owner: str, limit: int) -> Optional[List[Dict[str, Any]]]:
         try:
-            rows = audit_repo(self.storage).read_audit_rows(owner_wallet=owner, limit=max(1, min(limit, 500)))
-            if isinstance(rows, list):
-                return [row for row in rows if isinstance(row, dict)]
+            rows = self.storage.get_data_manager().audit.logs.read_audit_rows(owner_wallet=owner, limit=max(1, min(limit, 500)))
+            return [row.model_dump(by_alias=True) if isinstance(row, AuditLogEntry) else row for row in rows]
         except Exception:
             return None
-        return None
 
     def _read_audit_rows_from_jsonl(self, owner: str) -> List[Dict[str, Any]]:
         if not hasattr(self.storage, "directory"):

@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_client import get_redis_client
-from src.storage.repository_provider import idempotency_repo
 
 REDIS_IDEM_CLAIM_LUA = """
 local existing = redis.call('GET', KEYS[1])
@@ -47,7 +46,7 @@ class BalanceRedisGuardMixin:
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
     def _load_idempotency_rows(self) -> List[Dict[str, Any]]:
-        rows = idempotency_repo(self.storage).read_idempotency_rows()
+        rows = self.storage.get_data_manager().system.idempotency.read_idempotency_rows()
         rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
         now = int(time.time())
         filtered = [row for row in rows if int(row.get("expiresAt") or 0) > now]
@@ -56,7 +55,7 @@ class BalanceRedisGuardMixin:
             filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
             filtered = filtered[:max_rows]
         if len(filtered) != len(rows):
-            idempotency_repo(self.storage).write_idempotency_rows(filtered, now)
+            self.storage.get_data_manager().system.idempotency.write_idempotency_rows(filtered, now)
         return filtered
 
     def _save_idempotency_rows(self, rows: List[Dict[str, Any]]) -> None:
@@ -65,7 +64,7 @@ class BalanceRedisGuardMixin:
             rows.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
             rows = rows[:max_rows]
         now = int(time.time())
-        idempotency_repo(self.storage).write_idempotency_rows(rows, now)
+        self.storage.get_data_manager().system.idempotency.write_idempotency_rows(rows, now)
 
     async def _check_idempotency_redis(
         self,
@@ -243,7 +242,7 @@ class BalanceRedisGuardMixin:
         now: int,
         max_per_min: int,
     ) -> None:
-        raw_rows = idempotency_repo(self.storage).read_rate_limit_rows()
+        raw_rows = self.storage.get_data_manager().system.idempotency.read_rate_limit_rows()
         rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
         matched = next(
@@ -293,7 +292,7 @@ class BalanceRedisGuardMixin:
 
         matched["count"] = count + 1
         matched["updatedAt"] = now
-        idempotency_repo(self.storage).write_rate_limit_rows(rows, now)
+        self.storage.get_data_manager().system.idempotency.write_rate_limit_rows(rows, now)
 
     async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
         owner, now, window_sec, max_per_min = self._rate_limit_context(owner_wallet)

@@ -15,24 +15,44 @@ if str(SRC_ROOT) not in sys.path:
 
 from src.storage.base import BaseStorage  # noqa: E402
 from src.storage.normalizers import normalize_service_row  # noqa: E402
-from src.storage.repository_provider import StorageRepositoryProvider  # noqa: E402
+from src.storage.repository_provider import (  # noqa: E402
+    AuditDomain,
+    FinanceDomain,
+    SynapseDataManager,
+    SynapseUnitOfWork,
+    SystemDomain,
+)
+from src.domain.finance import BalanceLedger, FeePolicyEntity  # noqa: E402
+from src.domain.audit import AuditLogEntry  # noqa: E402
 
 
 class InMemoryStorage(BaseStorage):
     def __init__(self):
         self._collections: Dict[str, Union[List[Any], Dict[str, Any]]] = {}
-        self._repository_provider = StorageRepositoryProvider(
-            gateway_state=self,
-            balance=self,
-            audit=self,
-            service_registry=self,
-            credential_auth=self,
-            fee_policy=self,
-            idempotency=self,
+        self._data_manager = SynapseDataManager(
+            uow=SynapseUnitOfWork(db=self),
+            finance=FinanceDomain(
+                balance=self,
+                atomic=self,
+                fee_policy=self,
+            ),
+            system=SystemDomain(
+                gateway_state=self,
+                idempotency=self,
+                registry=self,
+                credential_auth=self,
+            ),
+            audit=AuditDomain(logs=self),
         )
 
-    def get_repository_provider(self) -> StorageRepositoryProvider:
-        return self._repository_provider
+    def get_data_manager(self) -> SynapseDataManager:
+        return self._data_manager
+
+    def tx_cursor(self):
+        raise NotImplementedError("tx_cursor not supported in InMemoryStorage test double")
+
+    def readonly_cursor(self):
+        raise NotImplementedError("readonly_cursor not supported in InMemoryStorage test double")
 
     def _default_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
         if collection_name in {
@@ -115,12 +135,14 @@ class InMemoryStorage(BaseStorage):
     def write_withdrawal_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
         self.save_collection("provider_withdrawal_intents", {"rows": rows, "updatedAt": int(updated_at)})
 
-    def read_balance_ledger(self) -> Dict[str, Any]:
+    def read_balance_ledger(self) -> BalanceLedger:
         raw = self.get_collection("balance_ledger")
-        return raw if isinstance(raw, dict) else {}
+        if isinstance(raw, dict):
+            return BalanceLedger.model_validate(raw)
+        return BalanceLedger()
 
-    def write_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        self.save_collection("balance_ledger", ledger)
+    def write_balance_ledger(self, ledger: BalanceLedger) -> None:
+        self.save_collection("balance_ledger", ledger.model_dump(by_alias=True))
 
     def read_router_config_rows(self) -> List[Dict[str, Any]]:
         raw = self.get_collection("router_config")
@@ -138,8 +160,22 @@ class InMemoryStorage(BaseStorage):
     def write_usage_log_rows(self, rows: List[Dict[str, Any]]) -> None:
         self.save_collection("usage_log", rows)
 
-    def append_audit_row(self, row: Dict[str, Any]) -> None:
-        self.append_to_collection("audit_log", row)
+    def append_audit_row(self, entry: Any) -> None:
+        if isinstance(entry, AuditLogEntry):
+            self.append_to_collection("audit_log", entry.model_dump(by_alias=True))
+        else:
+            self.append_to_collection("audit_log", entry)
+
+    def read_audit_rows(self, owner_wallet: str = "", limit: int = 200) -> List[AuditLogEntry]:
+        raw = self.get_collection("audit_log")
+        rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        if owner_wallet:
+            from src.core.common import normalize_wallet
+            normalized = normalize_wallet(owner_wallet)
+            rows = [r for r in rows if normalize_wallet(str(r.get("ownerAddress", ""))) == normalized]
+        entries = [AuditLogEntry.model_validate(r) for r in rows]
+        entries.sort(key=lambda e: e.timestamp, reverse=True)
+        return entries[:max(1, min(limit, 1000))]
 
     def read_processed_deposit_event_keys(self) -> List[str]:
         raw = self.get_collection("deposit_event_processed")
@@ -208,9 +244,11 @@ class InMemoryStorage(BaseStorage):
         }
         self.save_collection("auth_sessions", rows)
 
-    def get_platform_fee_policy(self) -> Dict[str, Any]:
+    def get_platform_fee_policy(self) -> FeePolicyEntity:
         raw = self.get_collection("platform_fee_policy")
-        return raw if isinstance(raw, dict) else {}
+        if isinstance(raw, dict) and raw:
+            return FeePolicyEntity.model_validate(raw)
+        return FeePolicyEntity()
 
     def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, Any], updated_by: str, updated_at: int) -> None:
         self.save_collection(

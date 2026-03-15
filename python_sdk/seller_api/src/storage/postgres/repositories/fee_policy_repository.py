@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict
 
+from src.domain.finance import FeePolicyEntity
+
 from ..database_manager import DatabaseManager
 
 
@@ -10,23 +12,31 @@ class FeePolicyRepository:
         self._db = db
         self._q6 = quantize6
 
-    def get_platform_fee_policy(self) -> Dict[str, Any]:
-        policy: Dict[str, Any] = {"defaultRate": 0.0, "ownerRates": {}, "updatedAt": None, "updatedBy": None}
+    def get_platform_fee_policy(self) -> FeePolicyEntity:
         with self._db.readonly_cursor() as cur:
             cur.execute("SELECT default_rate, updated_at, updated_by FROM synapse_platform_fee_policy_default WHERE singleton_id = 1")
             default_row = cur.fetchone()
-            if default_row is not None:
-                policy["defaultRate"] = float(self._q6(default_row[0]))
-                policy["updatedAt"] = int(default_row[1]) if default_row[1] is not None else None
-                policy["updatedBy"] = default_row[2]
             cur.execute("SELECT owner_address, fee_rate FROM synapse_platform_fee_policy_owner")
             owner_rows = cur.fetchall()
+
+        default_rate = 0.0
+        updated_at = None
+        updated_by = None
+        if default_row is not None:
+            default_rate = float(self._q6(default_row[0]))
+            updated_at = int(default_row[1]) if default_row[1] is not None else None
+            updated_by = default_row[2]
 
         owner_rates: Dict[str, float] = {}
         for owner, fee_rate in owner_rows:
             owner_rates[str(owner)] = float(self._q6(fee_rate))
-        policy["ownerRates"] = owner_rates
-        return policy
+
+        return FeePolicyEntity(
+            default_rate=default_rate,
+            owner_rates=owner_rates,
+            updated_at=updated_at,
+            updated_by=updated_by,
+        )
 
     def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, Any], updated_by: str, updated_at: int) -> None:
         with self._db.tx_cursor() as cur:

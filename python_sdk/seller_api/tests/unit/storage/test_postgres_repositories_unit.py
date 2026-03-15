@@ -117,10 +117,10 @@ def test_fee_policy_repository_read_write() -> None:
     repo = FeePolicyRepository(db, _q6)
 
     policy = repo.get_platform_fee_policy()
-    assert abs(policy["defaultRate"] - 0.015) < 1e-9
-    assert policy["ownerRates"] == {"0xabc": 0.02, "0xdef": 0.03}
-    assert policy["updatedAt"] == 1700000000
-    assert policy["updatedBy"] == "ops"
+    assert abs(policy.default_rate - 0.015) < 1e-9
+    assert policy.owner_rates == {"0xabc": 0.02, "0xdef": 0.03}
+    assert policy.updated_at == 1700000000
+    assert policy.updated_by == "ops"
 
     repo.set_platform_fee_policy(0.05, {"0xABC": 0.04, "": 0.02}, "admin", 1700000001)
     tx_ops = db.tx_cursors[-1].executed
@@ -180,7 +180,8 @@ def test_audit_log_repository_append_replace_and_read() -> None:
     )
     repo = AuditLogRepository(db, "INSERT INTO synapse_audit_log (collection_name, payload) VALUES (%s, %s::jsonb)")
 
-    repo.append_audit_row({"event": "x"})
+    from src.domain.audit import AuditLogEntry
+    repo.append_audit_row(AuditLogEntry(action="x"))
     repo.append_to_audit_collection({"event": "y"})
     repo.replace_audit_collection([{"event": "z"}])
 
@@ -188,7 +189,9 @@ def test_audit_log_repository_append_replace_and_read() -> None:
     assert "DELETE FROM synapse_audit_log WHERE collection_name = %s" in combined_sql
 
     rows = repo.read_audit_rows(owner_wallet="0xabc", limit=10)
-    assert rows == [{"timestamp": 3, "msg": "c"}, {"timestamp": 1, "msg": "a"}]
+    assert len(rows) == 2
+    assert rows[0].timestamp == 3
+    assert rows[1].timestamp == 1
 
 
 def test_balance_repository_read_and_write() -> None:
@@ -207,22 +210,23 @@ def test_balance_repository_read_and_write() -> None:
     repo = BalanceRepository(db, _q6, "UPSERT")
 
     ledger = repo.read_balance_ledger()
-    assert abs(ledger["buyers"]["0xbuyer"] - 10.0) < 1e-9
-    assert abs(ledger["sellers"]["0xseller"] - 20.0) < 1e-9
-    assert abs(ledger["platform"]["feeAccrued"] - 0.5) < 1e-9
-    assert ledger["updatedAt"] == 120
+    assert abs(ledger.buyers["0xbuyer"] - 10.0) < 1e-9
+    assert abs(ledger.sellers["0xseller"] - 20.0) < 1e-9
+    assert abs(ledger.platform.fee_accrued - 0.5) < 1e-9
+    assert ledger.updated_at == 120
 
+    from src.domain.finance import BalanceLedger, PlatformFees
     repo.write_balance_ledger(
-        {
-            "buyers": {"0xB": 1},
-            "buyersLocked": {"0xB": 2},
-            "buyersFrozen": {"0xB": 3},
-            "sellers": {"0xS": 4},
-            "sellersLocked": {"0xS": 5},
-            "sellersFrozen": {"0xS": 6},
-            "platform": {"feeAccrued": 7},
-            "updatedAt": 130,
-        }
+        BalanceLedger(
+            buyers={"0xB": 1},
+            buyers_locked={"0xB": 2},
+            buyers_frozen={"0xB": 3},
+            sellers={"0xS": 4},
+            sellers_locked={"0xS": 5},
+            sellers_frozen={"0xS": 6},
+            platform=PlatformFees(fee_accrued=7),
+            updated_at=130,
+        )
     )
     ops = db.tx_cursors[-1].executed
     assert ops[0] == ("DELETE FROM synapse_balances", None)

@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
 from src.core.common import normalize_wallet
-from src.storage.repository_provider import balance_repo, gateway_state_repo
+from src.domain.finance import BalanceLedger
 from src.storage.base import BaseStorage
 
 
@@ -12,15 +12,12 @@ class ProviderAnalyticsService:
         self.storage = storage
 
     def _load_usage_rows(self) -> List[Dict[str, Any]]:
-        raw_rows = gateway_state_repo(self.storage).read_usage_log_rows()
+        raw_rows = self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
         return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
     def _load_seller_receivable(self, owner_wallet: str) -> float:
-        ledger = balance_repo(self.storage).read_balance_ledger() or {}
-        if not isinstance(ledger, dict):
-            ledger = {}
-        sellers = ledger.get("sellers") if isinstance(ledger.get("sellers"), dict) else {}
-        return round(float(sellers.get(owner_wallet, 0.0)), 6)
+        ledger = self.storage.get_data_manager().finance.balance.read_balance_ledger()
+        return round(float(ledger.sellers.get(owner_wallet, 0.0)), 6)
 
     def _seller_rows(self, owner_wallet: str) -> List[Dict[str, Any]]:
         rows = self._load_usage_rows()
