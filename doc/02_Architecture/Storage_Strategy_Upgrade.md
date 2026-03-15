@@ -220,6 +220,7 @@ Phase 3（日志爆发后）：
 ### 9.5 Schema 生命周期策略（已执行）
 
 为避免应用启动期隐式 DDL 造成环境漂移，`PostgresStorage` 已移除启动时自动建表/验表逻辑（`_ensure_schema`）。
+同时，`src/storage/postgres_impl.py` 内历史 `CREATE TABLE/INDEX/ENUM` 常量定义已清理，运行时不再保留任何建表 SQL。
 
 执行规则：
 1. 表结构与索引变更统一由 migration 流程管理，不在应用进程启动时执行。
