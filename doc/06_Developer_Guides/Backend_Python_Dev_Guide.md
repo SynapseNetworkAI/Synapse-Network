@@ -37,7 +37,7 @@ pip install -r requirements.txt
 - 部署 **Synapse NetworkSyncRouter + MockUSDC**
 - 自动读取 `frontend/src/contract-config.json` 并注入 Seller API 所需环境变量
 - 自动优先使用 `python_sdk/venv/bin/python`（若存在），并在缺依赖时自动安装 `python_sdk/requirements.txt`
-- 后台启动 `python_sdk/seller_fastapi.py`
+- 后台启动 `python_sdk/seller_api/seller_fastapi.py`
 - 后台启动 `frontend`（`npm run dev`）
 
 请在**项目根目录**（Synapse Network）打开一个新的终端窗口并执行：
@@ -76,7 +76,7 @@ SKIP_V2_SMOKE=1 ./scripts/local/restart_local_env.sh
 
 ## 2.1 生产环境启动脚本（仅 Seller API）
 
-生产环境脚本位于 `scripts/prod/`，只管理 `python_sdk/seller_fastapi.py`，不启动 Anvil，也不会执行 `deploy_anvil.js`。
+生产环境脚本位于 `scripts/prod/`，只管理 `python_sdk/seller_api/seller_fastapi.py`，不启动 Anvil，也不会执行 `deploy_anvil.js`。
 
 ```bash
 chmod +x scripts/prod/start_prod_env.sh scripts/prod/restart_prod_env.sh scripts/prod/stop_prod_env.sh
@@ -220,7 +220,7 @@ npx hardhat run scripts/deploy_anvil.js --network localhost
 此命令会基于 `uvicorn` 热重载模式启动 API，当您修改相关的 Python 校验代码时自动生效：
 ```bash
 cd python_sdk
-python3 seller_fastapi.py
+python3 seller_api/seller_fastapi.py
 ```
 
 如需手动指定链上校验参数：
@@ -229,7 +229,7 @@ RPC_URL=http://127.0.0.1:8545 \
 ROUTER_ADDRESS=<router_address> \
 SELLER_ADDRESS=<seller_address> \
 EXPECTED_PRICE=1000000000000000000 \
-python3 seller_fastapi.py
+python3 seller_api/seller_fastapi.py
 ```
 
 ## 5. 本地基础设施组件维护 (docker-compose)

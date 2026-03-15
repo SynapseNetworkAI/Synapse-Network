@@ -17,7 +17,7 @@ def test_synapse():
     try:
         discovery = client.discover_services(intent=intent_keyword)
         if not discovery.services:
-            print(f"目前网络内没有匹配 [{intent_keyword}]的存活服务节点，请检查 seller_fastapi.py。")
+            print(f"目前网络内没有匹配 [{intent_keyword}]的存活服务节点，请检查 seller_api/seller_fastapi.py。")
             return
             
         for s in discovery.services:

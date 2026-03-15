@@ -25,7 +25,7 @@ else
   PYTHON_BIN="python3"
 fi
 
-echo "=== Starting Synapse prod profile (seller_fastapi.py only) ==="
+echo "=== Starting Synapse prod profile (seller_api/seller_fastapi.py only) ==="
 echo "Using Python interpreter: ${PYTHON_BIN}"
 
 if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
@@ -44,9 +44,9 @@ if [[ -n "$EXISTING_SELLER_PID" ]]; then
 fi
 
 if [[ -f "${ROOT_DIR}/python_sdk/.env.prod" ]]; then
-  ENVIRONMENT=prod ENV_FILE=.env.prod "$PYTHON_BIN" seller_fastapi.py > "$LOG_FILE" 2>&1 &
+  ENVIRONMENT=prod ENV_FILE=.env.prod "$PYTHON_BIN" seller_api/seller_fastapi.py > "$LOG_FILE" 2>&1 &
 else
-  ENVIRONMENT=prod "$PYTHON_BIN" seller_fastapi.py > "$LOG_FILE" 2>&1 &
+  ENVIRONMENT=prod "$PYTHON_BIN" seller_api/seller_fastapi.py > "$LOG_FILE" 2>&1 &
 fi
 
 SELLER_PID=$!

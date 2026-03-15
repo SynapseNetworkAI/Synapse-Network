@@ -441,9 +441,9 @@ class Settings:
     host: str = os.getenv("HOST", "0.0.0.1")
     # Server bind port for the main app process.
     port: int = _env_int("PORT", 5000)
-    # Dedicated host for seller_fastapi.py launcher compatibility.
+    # Dedicated host for seller_api/seller_fastapi.py launcher compatibility.
     seller_api_host: str = os.getenv("SELLER_API_HOST", "127.0.0.1")
-    # Dedicated port for seller_fastapi.py launcher compatibility.
+    # Dedicated port for seller_api/seller_fastapi.py launcher compatibility.
     seller_api_port: int = _env_int("SELLER_API_PORT", 8000)
 
     # Runtime JSON path: service registry.
