@@ -15,7 +15,6 @@ from src.services.platform.balance_service import BalanceService
 from src.services.seller.provider_analytics_service import ProviderAnalyticsService
 from src.services.platform import credential_service
 from src.services.platform.v2_indexer import get_indexer_status
-from src.storage.postgres.direct_repo_access import direct_fee_policy_repo, direct_gateway_state_repo
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.storage import get_storage, BaseStorage

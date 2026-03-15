@@ -1,10 +1,25 @@
 from typing import Any, Callable, Dict, List, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
 
-from .base import BaseStorage
-from .repository_provider import SynapseDataManager
+from .base import (
+    AuditDomain,
+    BaseStorage,
+    FinanceDomain,
+    SynapseDataManager,
+    SynapseUnitOfWork,
+    SystemDomain,
+)
+from .normalizers import normalize_service_row
 from .postgres.database_manager import DatabaseManager
-from .postgres.repository_factory import build_postgres_repository_set
+from .postgres.repositories.audit_log_repository import AuditLogRepository
+from .postgres.repositories.balance_repository import BalanceRepository
+from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
+from .postgres.repositories.fee_policy_repository import FeePolicyRepository
+from .postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
+from .postgres.repositories.gateway_state_repository import GatewayStateRepository
+from .postgres.repositories.idempotency_repository import IdempotencyRepository
+from .postgres.repositories.legacy_collection_repository import LegacyCollectionRepository
+from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.audit import AuditLogEntry
 
 try:
@@ -59,16 +74,34 @@ class PostgresStorage(BaseStorage):
 
         self.dsn = dsn.strip()
         self._db = DatabaseManager(self._connect)
-        repositories = build_postgres_repository_set(
-            self._db,
-            quantize6=_q6,
-            balance_upsert_sql=_BALANCE_UPSERT_SQL,
-            balance_for_update_sql=_BALANCE_FOR_UPDATE_SQL,
-            audit_insert_sql=_AUDIT_INSERT_SQL,
-            risk_restricted_statuses=_RISK_RESTRICTED_SESSION_STATUSES,
+
+        # -- Build repository set (inlined from former repository_factory.py) --
+        q6 = _q6
+        fee_policy = FeePolicyRepository(self._db, q6)
+        idempotency = IdempotencyRepository(self._db)
+        audit = AuditLogRepository(self._db, _AUDIT_INSERT_SQL)
+        balance = BalanceRepository(self._db, q6, _BALANCE_UPSERT_SQL)
+        service_registry = ServiceRegistryRepository(self._db)
+        credential_auth = CredentialAuthRepository(self._db, q6)
+        gateway_state = GatewayStateRepository(self._db, q6)
+        finance_atomic = FinanceAtomicRepository(
+            self._db, q6, _BALANCE_UPSERT_SQL, _BALANCE_FOR_UPDATE_SQL,
+            _AUDIT_INSERT_SQL, _RISK_RESTRICTED_SESSION_STATUSES,
         )
-        self._data_manager = repositories.data_manager
-        self._legacy_collection_repo = repositories.legacy_collection
+        self._legacy_collection_repo = LegacyCollectionRepository(
+            self._db, normalize_service_row, audit,
+        )
+        self._data_manager = SynapseDataManager(
+            uow=SynapseUnitOfWork(db=self._db),
+            finance=FinanceDomain(balance=balance, atomic=finance_atomic, fee_policy=fee_policy),
+            system=SystemDomain(
+                gateway_state=gateway_state,
+                idempotency=idempotency,
+                registry=service_registry,
+                credential_auth=credential_auth,
+            ),
+            audit=AuditDomain(logs=audit),
+        )
         _ = ensure_schema
 
     def _connect(self):

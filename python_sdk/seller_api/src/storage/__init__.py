@@ -1,13 +1,13 @@
 from fastapi import Request
-from .base import BaseStorage
-from .postgres_impl import PostgresStorage
-from .repository_provider import (
+from .base import (
     AuditDomain,
+    BaseStorage,
     FinanceDomain,
     SynapseDataManager,
     SynapseUnitOfWork,
     SystemDomain,
 )
+from .postgres_impl import PostgresStorage
 
 
 def create_storage(settings: object) -> BaseStorage:
