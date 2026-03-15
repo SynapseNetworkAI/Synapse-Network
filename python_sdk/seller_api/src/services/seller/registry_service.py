@@ -2,6 +2,7 @@ from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
 from src.services.platform import service_health_service
+from src.services.repository_access import service_registry_repo
 import uuid
 import time
 import asyncio
@@ -202,14 +203,14 @@ class RegistryService:
         self._lock = asyncio.Lock()
 
     def _load_service_registry_rows(self) -> List[Dict[str, Any]]:
-        raw_rows = getattr(self.storage, "read_service_registry_rows")()
+        raw_rows = service_registry_repo(self.storage).read_service_registry_rows()
         return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
     def _save_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
-        getattr(self.storage, "write_service_registry_rows")(rows)
+        service_registry_repo(self.storage).write_service_registry_rows(rows)
 
     def _load_service_target_health_history_rows(self) -> List[Dict[str, Any]]:
-        raw_rows = getattr(self.storage, "read_service_target_health_history_rows")()
+        raw_rows = service_registry_repo(self.storage).read_service_target_health_history_rows()
         return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
     async def register_service(self, req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:

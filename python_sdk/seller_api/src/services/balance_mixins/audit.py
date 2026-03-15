@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
+from src.services.repository_access import audit_repo
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class BalanceAuditMixin:
             "ownerAddress": normalize_wallet(owner_wallet),
             "details": details,
         }
-        getattr(self.storage, "append_audit_row")(row)
+        audit_repo(self.storage).append_audit_row(row)
         if action in {"FINANCE_RATE_LIMIT_HIT", "DEPOSIT_REPLAY_DETECTED", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"}:
             logger.warning("finance_anomaly action=%s owner=%s details=%s", action, normalize_wallet(owner_wallet), details)
 
@@ -40,10 +41,8 @@ class BalanceAuditMixin:
         return await asyncio.to_thread(self._list_finance_audit_logs_sync, owner_wallet, limit)
 
     def _read_audit_rows_from_storage(self, owner: str, limit: int) -> Optional[List[Dict[str, Any]]]:
-        if not hasattr(self.storage, "read_audit_rows"):
-            return None
         try:
-            rows = self.storage.read_audit_rows(owner_wallet=owner, limit=max(1, min(limit, 500)))
+            rows = audit_repo(self.storage).read_audit_rows(owner_wallet=owner, limit=max(1, min(limit, 500)))
             if isinstance(rows, list):
                 return [row for row in rows if isinstance(row, dict)]
         except Exception:

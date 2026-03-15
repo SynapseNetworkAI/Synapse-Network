@@ -445,90 +445,6 @@ class PostgresStorage(BaseStorage):
             usage_row=usage_row,
         )
 
-    def write_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        self._gateway_state_repo.write_deposit_intents(rows)
-
-    def read_refund_intents(self) -> List[Dict[str, Any]]:
-        return self._gateway_state_repo.read_refund_intents()
-
-    def write_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._gateway_state_repo.write_refund_intents(rows, updated_at)
-
-    def read_withdrawal_intents(self) -> List[Dict[str, Any]]:
-        return self._gateway_state_repo.read_withdrawal_intents()
-
-    def write_withdrawal_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._gateway_state_repo.write_withdrawal_intents(rows, updated_at)
-
-    def read_balance_ledger(self) -> Dict[str, Any]:
-        return self._balance_repo.read_balance_ledger()
-
-    def write_balance_ledger(self, ledger: Dict[str, Any]) -> None:
-        self._balance_repo.write_balance_ledger(ledger)
-
-    def read_router_config_rows(self) -> List[Dict[str, Any]]:
-        return self._gateway_state_repo.read_router_config_rows()
-
-    def write_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._gateway_state_repo.write_router_config_rows(rows, updated_at)
-
-    def read_usage_log_rows(self) -> List[Dict[str, Any]]:
-        return self._gateway_state_repo.read_usage_log_rows()
-
-    def write_usage_log_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._gateway_state_repo.write_usage_log_rows(rows)
-
-    def append_audit_row(self, row: Dict[str, Any]) -> None:
-        self._audit_repo.append_audit_row(row)
-
-    def read_processed_deposit_event_keys(self) -> List[str]:
-        return self._gateway_state_repo.read_processed_deposit_event_keys()
-
-    def write_processed_deposit_event_keys(self, keys: List[str], updated_at: int) -> None:
-        self._gateway_state_repo.write_processed_deposit_event_keys(keys, updated_at)
-
-    def read_service_registry_rows(self) -> List[Dict[str, Any]]:
-        return self._service_registry_repo.read_service_registry_rows()
-
-    def write_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._service_registry_repo.write_service_registry_rows(rows)
-
-    def read_service_target_health_rows(self) -> List[Dict[str, Any]]:
-        return self._service_registry_repo.read_service_target_health_rows()
-
-    def write_service_target_health_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._service_registry_repo.write_service_target_health_rows(rows)
-
-    def read_service_target_health_history_rows(self) -> List[Dict[str, Any]]:
-        return self._service_registry_repo.read_service_target_health_history_rows()
-
-    def write_service_target_health_history_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self._service_registry_repo.write_service_target_health_history_rows(rows)
-
-    def read_credential_rows(self, credential_type: str) -> List[Dict[str, Any]]:
-        return self._credential_auth_repo.read_credential_rows(credential_type)
-
-    def write_credential_rows(self, credential_type: str, rows: List[Dict[str, Any]]) -> None:
-        self._credential_auth_repo.write_credential_rows(credential_type, rows)
-
-    def get_wallet_role(self, wallet: str) -> Optional[str]:
-        return self._credential_auth_repo.get_wallet_role(wallet)
-
-    def set_wallet_role(self, wallet: str, role: str) -> None:
-        self._credential_auth_repo.set_wallet_role(wallet, role)
-
-    def upsert_auth_session(self, wallet: str, registered_at: int, last_login: int, status: str) -> None:
-        self._credential_auth_repo.upsert_auth_session(wallet, registered_at, last_login, status)
-
-    def get_platform_fee_policy(self) -> Dict[str, Any]:
-        return self._fee_policy_repo.get_platform_fee_policy()
-
-    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, Any], updated_by: str, updated_at: int) -> None:
-        self._fee_policy_repo.set_platform_fee_policy(default_rate, owner_rates, updated_by, updated_at)
-
-    def read_idempotency_rows(self) -> List[Dict[str, Any]]:
-        return self._idempotency_repo.read_idempotency_rows()
-
     def _to_idempotency_insert_values(self, row: Dict[str, Any], updated_at: int) -> Optional[tuple[Any, ...]]:
         row_id = str(row.get("id") or "").strip() or f"idem-{int(time.time()*1000)}"
         owner = str(row.get("ownerAddress") or "").lower()
@@ -547,15 +463,6 @@ class PostgresStorage(BaseStorage):
             int(row.get("createdAt") or updated_at),
             int(row.get("expiresAt") or updated_at),
         )
-
-    def write_idempotency_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._idempotency_repo.write_idempotency_rows(rows, updated_at)
-
-    def read_rate_limit_rows(self) -> List[Dict[str, Any]]:
-        return self._idempotency_repo.read_rate_limit_rows()
-
-    def write_rate_limit_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self._idempotency_repo.write_rate_limit_rows(rows, updated_at)
 
     def _default_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
         if collection_name in {

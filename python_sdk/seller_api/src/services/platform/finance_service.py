@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
+from src.services.repository_access import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 
@@ -40,7 +41,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         """Only return current authenticated owner's balance summary."""
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        balance_data = getattr(self.storage, "read_balance_ledger")() or {}
+        balance_data = balance_repo(self.storage).read_balance_ledger() or {}
         if not isinstance(balance_data, dict):
             balance_data = {}
 
@@ -61,7 +62,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
-        raw_rows = getattr(self.storage, "read_router_config_rows")()
+        raw_rows = gateway_state_repo(self.storage).read_router_config_rows()
         rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
         found = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
@@ -93,7 +94,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 )
 
             now = int(time.time())
-            raw_rows = getattr(self.storage, "read_router_config_rows")()
+            raw_rows = gateway_state_repo(self.storage).read_router_config_rows()
             rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
             existing = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
@@ -110,7 +111,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 existing["dailyLimitUsdc"] = round(float(daily_limit_usdc), 6)
                 existing["updatedAt"] = now
 
-            getattr(self.storage, "write_router_config_rows")(rows, now)
+            gateway_state_repo(self.storage).write_router_config_rows(rows, now)
             self._append_financial_audit(
                 "ROUTER_CONFIG_UPDATED",
                 owner,

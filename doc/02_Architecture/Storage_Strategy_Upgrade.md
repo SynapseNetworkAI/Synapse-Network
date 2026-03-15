@@ -190,13 +190,13 @@ Phase 3（日志爆发后）：
 ### 9.2 执行规则
 
 1. 业务层禁止直接读写通用 collection。
-2. 路由层只调用 service；service 只调用 repository；repository 只调用 typed storage API。
+2. 路由层只调用 service；service 只调用 repository；repository 只调用 SQL/typed 表访问。
 3. 资金路径优先使用原子 SQL（行锁/条件更新）与唯一约束，禁止内存账本读改写。
 4. 任意新增资金字段，必须先落关系表和索引，再开放 API 字段。
 
 ### 9.3 兼容策略
 
-为避免一次性迁移风险，底层仍保留旧接口壳用于回放/迁移窗口，但生产主路径不再依赖通用 collection 表。
+兼容策略仅保留 legacy collection 迁移窗口；业务主路径不再依赖 storage facade passthrough。
 
 ### 9.4 PostgresStorage 分层重构（已执行）
 
@@ -215,9 +215,9 @@ Phase 3（日志爆发后）：
   - `src/storage/postgres/repositories/finance_atomic_repository.py`
   - `src/storage/postgres/repositories/legacy_collection_repository.py`
 3. 门面层：
-  - `src/storage/postgres_impl.py` 仅保留对外兼容接口，并将 fee policy / idempotency / audit / balance / service registry / credential & auth / gateway state / finance atomic / legacy collection 方法委托给对应 repository。
-  - 对于 `reserve_seller_withdraw_atomic` / `complete_withdraw_tx_atomic` / `read_deposit_intents`，上层已改为直接调用对应 repository，门面层不再提供中间转发包装。
-  - 历史壳层 `src/storage/finance_repository.py` / `src/storage/registry_repository.py` / `src/storage/credential_repository.py` 已移除；路由与服务层改为直接调用 typed storage API/真实 repository 能力。
+  - `src/storage/postgres_impl.py` 仅保留连接管理、原子事务入口与 legacy collection 兼容入口，不再承载 gateway/balance/audit/registry/credential/fee/idempotency 的 read/write passthrough。
+  - 路由与服务层通过 `src/services/repository_access.py` 直接获取对应 repository 实例（Postgres 下优先使用 `_xxx_repo`，其他存储实现降级到适配器）。
+  - 历史壳层 `src/storage/finance_repository.py` / `src/storage/registry_repository.py` / `src/storage/credential_repository.py` 已移除。
 
 ### 9.5 Schema 生命周期策略（已执行）
 

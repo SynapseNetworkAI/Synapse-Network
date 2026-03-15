@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.services.platform import credential_service
+from src.services.repository_access import balance_repo, fee_policy_repo, gateway_state_repo
 from src.storage import BaseStorage
 
 
@@ -28,7 +29,7 @@ def sanitize_fee_rate(raw: Any, fallback: float) -> float:
 def resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float:
     """Resolve effective fee rate using owner override > runtime default > global config."""
     fallback = sanitize_fee_rate(settings.platform_fee_rate, 0.10)
-    policy = getattr(storage, "get_platform_fee_policy")() or {}
+    policy = fee_policy_repo(storage).get_platform_fee_policy() or {}
     if not isinstance(policy, dict):
         return fallback
 
@@ -95,10 +96,10 @@ def pricing_breakdown(storage: BaseStorage, seller_wallet: str, unit_price: floa
 
 def append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
     """Append one usage event into usage_log collection with safe list normalization."""
-    raw_rows = getattr(storage, "read_usage_log_rows")()
+    raw_rows = gateway_state_repo(storage).read_usage_log_rows()
     rows = [item for item in raw_rows if isinstance(item, dict)] if isinstance(raw_rows, list) else []
     rows.append(row)
-    getattr(storage, "write_usage_log_rows")(rows)
+    gateway_state_repo(storage).write_usage_log_rows(rows)
 
 
 def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
@@ -113,7 +114,7 @@ def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
 
 
 def _assert_not_risk_restricted_for_charge(storage: BaseStorage, buyer_wallet: str, seller_wallet: str) -> None:
-    ledger = getattr(storage, "read_balance_ledger")() or {}
+    ledger = balance_repo(storage).read_balance_ledger() or {}
     if not isinstance(ledger, dict):
         ledger = {}
     buyers_frozen = ledger.get("buyersFrozen") if isinstance(ledger.get("buyersFrozen"), dict) else {}
@@ -235,7 +236,7 @@ async def _charge_and_mark_usage_fallback(
     updated_credential = None
     now = credential_service.now_ts()
     async with credential_service.write_lock:
-        ledger = getattr(storage, "read_balance_ledger")() or {}
+        ledger = balance_repo(storage).read_balance_ledger() or {}
         if not isinstance(ledger, dict):
             ledger = {}
         buyers = ledger.setdefault("buyers", {})
@@ -251,7 +252,7 @@ async def _charge_and_mark_usage_fallback(
         sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) + seller_net, 6)
         platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) + platform_fee_total, 6)
         ledger["updatedAt"] = now
-        getattr(storage, "write_balance_ledger")(ledger)
+        balance_repo(storage).write_balance_ledger(ledger)
 
         rows, extras = credential_service.load_credential_rows(storage)
         idx = next((i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1)
@@ -275,7 +276,7 @@ async def rollback_charge(
 ) -> None:
     """Rollback buyer/seller/platform ledger and credential usage when upstream fails."""
     async with credential_service.write_lock:
-        ledger = getattr(storage, "read_balance_ledger")() or {}
+        ledger = balance_repo(storage).read_balance_ledger() or {}
         if not isinstance(ledger, dict):
             ledger = {}
         buyers = ledger.setdefault("buyers", {})
@@ -286,7 +287,7 @@ async def rollback_charge(
         sellers[seller_wallet] = round(float(sellers.get(seller_wallet, 0.0)) - seller_net, 6)
         platform["feeAccrued"] = round(float(platform.get("feeAccrued", 0.0)) - platform_fee_total, 6)
         ledger["updatedAt"] = credential_service.now_ts()
-        getattr(storage, "write_balance_ledger")(ledger)
+        balance_repo(storage).write_balance_ledger(ledger)
 
         if not updated_credential:
             return
