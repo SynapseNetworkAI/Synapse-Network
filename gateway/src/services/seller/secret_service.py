@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
-from src.models.pydantic_models import CredentialIssueRequest
+from src.api.schemas.pydantic_models import CredentialIssueRequest
 from src.domain.storage_entities import CredentialRow
 from src.services.platform import credential_service
 from src.storage import BaseStorage

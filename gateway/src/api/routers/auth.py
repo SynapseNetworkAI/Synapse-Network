@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends, Header
 from loguru import logger
 import aiohttp
 
-from src.models.pydantic_models import (
+from src.api.schemas.pydantic_models import (
     ChallengeRequest, 
     ChallengeResponse, 
     VerifyAuthRequest,

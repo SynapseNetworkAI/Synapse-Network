@@ -2,7 +2,7 @@
 
 1. Reorganized into standard `src/` modular layout:
    - `src/core`: `config` holding loaded ENV vars.
-   - `src/models`: Shared pydantic response/request models.
+   - `src/api/schemas`: Shared pydantic response/request models.
    - `src/storage`: Abstract base storage with PostgreSQL implementation mapped via DI.
    - `src/api`: Top level routing logic split into chunks (`auth`, `services`, `registry`).
    - `src/app.py`: Clean initialized FastAPI router.

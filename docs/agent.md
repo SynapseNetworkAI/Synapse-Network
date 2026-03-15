@@ -51,7 +51,7 @@
 1. **API 路由层 (`src/api/routers/`)**：纯净路由，只有出入参、FastAPI DI，绝对没有业务逻辑。
 2. **核心层 (`src/core/`)**：配置 (Pydantic-Settings)、日志重写、挂载 Lifespan。
 3. **业务防弹层 (`src/services/`)**：所有的验证、算账、锁机制、防超扣写在这里。
-4. **模型层 (`src/models/`)**：Pydantic Schema (Req / Res)。
+4. **模型层 (`src/api/schemas/`)**：Pydantic Schema (Req / Res)。
 5. **持久化层 (`src/storage/`)**：定义 `BaseStorage` 接口，实现 `PostgresStorage`（可选 Redis 仅用于分布式幂等与限流加速）。
 6. **工具层 (`src/utils/`)**：时钟、加密、ABI 编码工具。
 
@@ -86,7 +86,7 @@
 ## 🧪 10. 后端单元测试与回归一致性 (Backend Test-First Consistency Protocol)
 为保证后端在重构与扩展后依然可验证、可回归、可维护，新增以下强制规则：
 
-1. **写后端代码必须同步写/改单元测试**：凡是 `src/services/`、`src/api/routers/`、`src/models/`、`src/storage/` 的行为变化，必须在同一批提交中更新对应测试。
+1. **写后端代码必须同步写/改单元测试**：凡是 `src/services/`、`src/api/routers/`、`src/api/schemas/`、`src/storage/` 的行为变化，必须在同一批提交中更新对应测试。
 2. **行为变更先改测试再改实现（或同批改）**：至少保证新增/变更行为有明确断言，不允许“只改实现不补测试”。
 3. **文档-代码-测试三方一致**：接口字段、返回结构、错误码、状态机变化，必须同时同步到文档与测试断言。
 4. **回归验证是交付门禁**：后端改动完成后必须执行对应测试集；测试未通过不得视为完成。

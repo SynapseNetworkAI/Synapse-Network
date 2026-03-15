@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from typing import Dict, Any, Annotated, Optional
 
 from src.api.deps import get_balance_service, get_provider_analytics_service
-from src.models.pydantic_models import (
+from src.api.schemas.pydantic_models import (
     DepositIntentRequest,
     DepositConfirmRequest,
     AdminDepositReplayRequest,
