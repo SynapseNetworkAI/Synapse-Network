@@ -15,6 +15,7 @@ from src.domain.audit import AuditLogEntry
 from src.domain.finance import BalanceLedger
 from src.domain.storage_entities import DepositIntentRow
 from src.storage import BaseStorage
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 lock = Lock()
 w3 = Web3(Web3.HTTPProvider(settings.rpc_url))
@@ -25,6 +26,22 @@ INDEXER_STATUS: Dict[str, Any] = {
     "lastCounters": {"credited": 0, "failed": 0, "pending": 0},
     "lastProcessedAt": None,
     "lastError": None,
+    "backfill": {
+        "enabled": bool(settings.v2_backfill_enabled),
+        "lastScannedBlock": None,
+        "lastScanAt": None,
+        "lastRecovered": 0,
+        "lastError": None,
+    },
+    "reconciliation": {
+        "enabled": bool(settings.v2_reconciliation_enabled),
+        "lastCheckAt": None,
+        "chainVaultUsdc": 0.0,
+        "ledgerObligationUsdc": 0.0,
+        "deltaUsdc": 0.0,
+        "alert": False,
+        "lastError": None,
+    },
 }
 
 
@@ -42,6 +59,8 @@ def get_indexer_status() -> Dict[str, Any]:
             "lastProcessedAt": INDEXER_STATUS.get("lastProcessedAt"),
             "lastError": INDEXER_STATUS.get("lastError"),
             "pollIntervalSec": settings.v2_indexer_poll_interval_sec,
+            "backfill": dict(INDEXER_STATUS.get("backfill") or {}),
+            "reconciliation": dict(INDEXER_STATUS.get("reconciliation") or {}),
         }
 
 TRANSFER_TOPIC = Web3.to_hex(Web3.keccak(text="Transfer(address,address,uint256)")).lower()
@@ -79,7 +98,7 @@ def _load_balance_ledger(storage: BaseStorage) -> BalanceLedger:
 
 
 def _save_balance_ledger(storage: BaseStorage, ledger: BalanceLedger) -> None:
-    ledger.updated_at = _now()
+    ledger.updated_at = now_dt_str()
     storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
 
@@ -89,7 +108,20 @@ def _load_processed_deposit_event_keys(storage: BaseStorage) -> List[str]:
 
 
 def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) -> None:
-    storage.get_data_manager().system.gateway_state.write_processed_deposit_event_keys(keys, _now())
+    storage.get_data_manager().system.gateway_state.write_processed_deposit_event_keys(keys, now_dt_str())
+
+
+def _load_backfill_state(storage: BaseStorage) -> Dict[str, Any]:
+    raw = storage.get_collection("deposit_backfill_state")
+    if isinstance(raw, dict):
+        return dict(raw)
+    return {}
+
+
+def _save_backfill_state(storage: BaseStorage, state: Dict[str, Any]) -> None:
+    payload = dict(state)
+    payload["updatedAt"] = now_dt_str()
+    storage.save_collection("deposit_backfill_state", payload)
 
 
 def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
@@ -284,7 +316,7 @@ def _confirmations_for_receipt(tx_receipt: Any) -> int:
 def _mark_intent_failed(intent: Dict[str, Any], reason: str, now: int) -> None:
     intent["status"] = "FAILED"
     intent["failureReason"] = reason
-    intent["updatedAt"] = now
+    intent["updatedAt"] = to_dt_str(now, now_dt_str()) or now_dt_str()
 
 
 def _extract_intent_fields(intent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -452,7 +484,7 @@ def _apply_confirmed_deposit(
     intent["confirmations"] = int(tx_receipt.get("confirmations") or 0)
     intent["eventKey"] = event_key
     intent["eventToken"] = matched.get("token")
-    intent["updatedAt"] = now
+    intent["updatedAt"] = to_dt_str(now, now_dt_str()) or now_dt_str()
 
     _append_audit_log(
         storage,
@@ -485,7 +517,7 @@ def _resolve_event_key_or_mark_duplicate(
         return event_key
     intent["status"] = "DUPLICATE"
     intent["failureReason"] = "DEPOSIT_EVENT_REPLAY"
-    intent["updatedAt"] = now
+    intent["updatedAt"] = to_dt_str(now, now_dt_str()) or now_dt_str()
     return ""
 
 
@@ -538,6 +570,348 @@ def _accumulate_outcome_counts(outcome: Dict[str, Any], counters: Dict[str, int]
         counters["pending"] += 1
 
 
+def _confirmed_head_block() -> int:
+    latest = int(w3.eth.block_number or 0)
+    confirmations = max(1, int(settings.v2_deposit_confirmations))
+    return max(0, latest - confirmations + 1)
+
+
+def _tx_hash_to_hex(value: Any) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "hex"):
+        try:
+            return str(value.hex()).lower()
+        except Exception:
+            return ""
+    text = str(value).strip().lower()
+    if text.startswith("0x") and len(text) == 66:
+        return text
+    return ""
+
+
+def _collect_router_candidate_tx_hashes(start_block: int, end_block: int) -> List[str]:
+    router = normalize_wallet(settings.router_address)
+    if not router:
+        return []
+
+    dedup: set[str] = set()
+    for block_number in range(int(start_block), int(end_block) + 1):
+        try:
+            block = w3.eth.get_block(block_number, full_transactions=True)
+        except Exception:
+            continue
+
+        transactions = block.get("transactions", []) if isinstance(block, dict) else getattr(block, "transactions", [])
+        if not isinstance(transactions, list):
+            continue
+        for tx in transactions:
+            to_addr = ""
+            tx_hash = ""
+            if isinstance(tx, dict):
+                to_addr = normalize_wallet(str(tx.get("to") or ""))
+                tx_hash = _tx_hash_to_hex(tx.get("hash"))
+            else:
+                to_addr = normalize_wallet(str(getattr(tx, "to", "") or ""))
+                tx_hash = _tx_hash_to_hex(getattr(tx, "hash", None))
+            if to_addr != router:
+                continue
+            if tx_hash:
+                dedup.add(tx_hash)
+    return sorted(dedup)
+
+
+def _find_intent_by_tx_owner(intents: List[Dict[str, Any]], tx_hash: str, owner_wallet: str) -> Optional[Dict[str, Any]]:
+    owner = normalize_wallet(owner_wallet)
+    tx = _normalize_tx_hash(tx_hash)
+    if not owner or not tx:
+        return None
+    for row in intents:
+        if normalize_wallet(str(row.get("ownerAddress") or row.get("buyerAddress") or "")) != owner:
+            continue
+        if _normalize_tx_hash(str(row.get("txHash") or "")) != tx:
+            continue
+        return row
+    return None
+
+
+def _build_recovery_intent(tx_hash: str, owner_wallet: str, amount_usdc: float, event_key: str, now: int) -> Dict[str, Any]:
+    now_text = to_dt_str(now, now_dt_str()) or now_dt_str()
+    return {
+        "id": str(uuid4()),
+        "ownerAddress": normalize_wallet(owner_wallet),
+        "buyerAddress": normalize_wallet(owner_wallet),
+        "txHash": _normalize_tx_hash(tx_hash),
+        "amountUsdc": round(float(amount_usdc), 6),
+        "creditedAmountUsdc": 0.0,
+        "idempotencyKey": f"deposit_backfill_{event_key.replace(':', '_')}",
+        "status": "PENDING_CONFIRMATION",
+        "createdAt": now_text,
+        "updatedAt": now_text,
+        "source": "INDEXER_BACKFILL",
+    }
+
+
+def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
+    if not bool(settings.v2_backfill_enabled):
+        return {"enabled": False}
+
+    now = _now()
+    state = _load_backfill_state(storage)
+    confirmed_head = _confirmed_head_block()
+    if confirmed_head <= 0:
+        return {"enabled": True, "scanned": 0, "recovered": 0, "lastScannedBlock": state.get("lastScannedBlock")}
+
+    last_scanned = int(state.get("lastScannedBlock") or 0)
+    if last_scanned <= 0:
+        configured_start = int(settings.v2_backfill_start_block)
+        if configured_start > 0:
+            start_block = configured_start
+        else:
+            start_block = max(1, confirmed_head - max(1, int(settings.v2_backfill_block_batch)) + 1)
+    else:
+        start_block = last_scanned + 1
+
+    end_block = min(confirmed_head, start_block + max(1, int(settings.v2_backfill_block_batch)) - 1)
+    if start_block > end_block:
+        _set_status(
+            backfill={
+                "enabled": True,
+                "lastScannedBlock": last_scanned,
+                "lastScanAt": now,
+                "lastRecovered": 0,
+                "lastError": None,
+            }
+        )
+        return {"enabled": True, "scanned": 0, "recovered": 0, "lastScannedBlock": last_scanned}
+
+    with lock:
+        intents = _load_deposit_intents(storage)
+        processed_keys = set(_load_processed_deposit_event_keys(storage))
+        ledger = _load_balance_ledger(storage)
+        buyers = ledger.buyers
+
+        changed_intents = False
+        changed_ledger = False
+        changed_processed = False
+        recovered = 0
+
+        tx_hashes = _collect_router_candidate_tx_hashes(start_block, end_block)
+        for tx_hash in tx_hashes:
+            tx_state = _get_confirmed_receipt_or_none(tx_hash)
+            if tx_state is None or tx_state.get("failed") is True:
+                continue
+            receipt_obj = tx_state.get("receipt")
+            if receipt_obj is None:
+                continue
+
+            events = _decode_router_deposit_events(receipt_obj)
+            if not events:
+                events = _decode_erc20_transfer_to_router(receipt_obj)
+            for event in events:
+                event_key = str(event.get("eventKey") or "")
+                if not event_key or event_key in processed_keys:
+                    continue
+                owner_wallet = normalize_wallet(str(event.get("buyer") or ""))
+                if not owner_wallet:
+                    continue
+                token = str(event.get("token") or "")
+                decimals = _resolve_token_decimals(token) if token else 6
+                amount_usdc = _amount_usdc_from_raw(int(event.get("amountRaw") or 0), decimals=decimals)
+                if amount_usdc <= 0:
+                    continue
+
+                target_intent = _find_intent_by_tx_owner(intents, tx_hash, owner_wallet)
+                if target_intent is None:
+                    target_intent = _build_recovery_intent(tx_hash, owner_wallet, amount_usdc, event_key, now)
+                    intents.append(target_intent)
+                    changed_intents = True
+
+                outcome = _process_single_intent(storage, target_intent, processed_keys, buyers, now)
+                if outcome.get("changedIntent"):
+                    changed_intents = True
+                if outcome.get("changedLedger"):
+                    changed_ledger = True
+                if outcome.get("changedProcessed"):
+                    changed_processed = True
+                if str(outcome.get("result") or "") == "credited":
+                    recovered += 1
+
+        if changed_ledger:
+            _save_balance_ledger(storage, ledger)
+        if changed_processed:
+            _save_processed_deposit_event_keys(storage, sorted(processed_keys))
+        if changed_intents:
+            _save_deposit_intents(storage, intents)
+
+    next_state = {
+        "lastScannedBlock": end_block,
+        "lastScanAt": now,
+    }
+    _save_backfill_state(storage, next_state)
+    _set_status(
+        backfill={
+            "enabled": True,
+            "lastScannedBlock": end_block,
+            "lastScanAt": now,
+            "lastRecovered": recovered,
+            "lastError": None,
+        }
+    )
+    return {
+        "enabled": True,
+        "scanned": max(0, end_block - start_block + 1),
+        "recovered": recovered,
+        "lastScannedBlock": end_block,
+    }
+
+
+def _sum_ledger_obligation_usdc(ledger: BalanceLedger) -> float:
+    available = sum(float(value) for value in ledger.buyers.values())
+    pending = sum(float(value) for value in ledger.buyers_locked.values())
+    return round(available + pending, 6)
+
+
+def _read_chain_vault_balance_usdc() -> float:
+    token = normalize_wallet(settings.usdc_token_address)
+    router = normalize_wallet(settings.router_address)
+    if not token or not router:
+        return 0.0
+
+    abi = [
+        {
+            "constant": True,
+            "inputs": [{"name": "account", "type": "address"}],
+            "name": "balanceOf",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view",
+            "type": "function",
+        }
+    ]
+    contract = w3.eth.contract(address=w3.to_checksum_address(token), abi=abi)
+    raw_balance = int(contract.functions.balanceOf(w3.to_checksum_address(router)).call())
+    decimals = _resolve_token_decimals(token)
+    return _amount_usdc_from_raw(raw_balance, decimals=decimals)
+
+
+def run_reconciliation_check_once(storage: BaseStorage) -> Dict[str, Any]:
+    if not bool(settings.v2_reconciliation_enabled):
+        return {"enabled": False}
+
+    now = _now()
+    ledger = _load_balance_ledger(storage)
+    ledger_obligation = _sum_ledger_obligation_usdc(ledger)
+    chain_vault = _read_chain_vault_balance_usdc()
+    delta = round(abs(chain_vault - ledger_obligation), 6)
+    alert = bool(delta > float(settings.v2_reconciliation_alert_delta_usdc))
+
+    alert_state = storage.get_collection("deposit_reconciliation_state")
+    state = dict(alert_state) if isinstance(alert_state, dict) else {}
+    last_alert_at = int(state.get("lastAlertAt") or 0)
+    should_emit_alert = alert and (now - last_alert_at >= 300)
+
+    if should_emit_alert:
+        state["lastAlertAt"] = now
+        storage.save_collection("deposit_reconciliation_state", state)
+        _append_audit_log(
+            storage,
+            "V2_DEPOSIT_RECONCILIATION_ALERT",
+            normalize_wallet(settings.router_address),
+            {
+                "chainVaultUsdc": chain_vault,
+                "ledgerObligationUsdc": ledger_obligation,
+                "deltaUsdc": delta,
+                "thresholdUsdc": float(settings.v2_reconciliation_alert_delta_usdc),
+            },
+        )
+
+    summary = {
+        "enabled": True,
+        "lastCheckAt": now,
+        "chainVaultUsdc": chain_vault,
+        "ledgerObligationUsdc": ledger_obligation,
+        "deltaUsdc": delta,
+        "alert": alert,
+        "lastError": None,
+    }
+    _set_status(reconciliation=summary)
+    return summary
+
+
+def replay_deposit_tx(storage: BaseStorage, tx_hash: str, requested_by: str) -> Dict[str, Any]:
+    normalized_tx = _normalize_tx_hash(tx_hash)
+    if not normalized_tx:
+        raise ValueError("INVALID_TX_HASH")
+
+    now = _now()
+    tx_state = _get_confirmed_receipt_or_none(normalized_tx)
+    if tx_state is None:
+        raise RuntimeError("TX_NOT_CONFIRMED")
+    if tx_state.get("failed") is True:
+        raise RuntimeError("TX_FAILED")
+    receipt_obj = tx_state.get("receipt")
+    if receipt_obj is None:
+        raise RuntimeError("MISSING_TX_RECEIPT")
+
+    events = _decode_router_deposit_events(receipt_obj)
+    if not events:
+        events = _decode_erc20_transfer_to_router(receipt_obj)
+    if not events:
+        raise RuntimeError("NO_MATCHING_DEPOSIT_EVENT")
+
+    summary = {"txHash": normalized_tx, "events": len(events), "intentsCreated": 0, "credited": 0, "failed": 0, "pending": 0}
+
+    with lock:
+        intents = _load_deposit_intents(storage)
+        processed_keys = set(_load_processed_deposit_event_keys(storage))
+        ledger = _load_balance_ledger(storage)
+        buyers = ledger.buyers
+
+        changed_intents = False
+        changed_ledger = False
+        changed_processed = False
+
+        for event in events:
+            owner_wallet = normalize_wallet(str(event.get("buyer") or ""))
+            if not owner_wallet:
+                continue
+            token = str(event.get("token") or "")
+            decimals = _resolve_token_decimals(token) if token else 6
+            amount_usdc = _amount_usdc_from_raw(int(event.get("amountRaw") or 0), decimals=decimals)
+            event_key = str(event.get("eventKey") or "")
+
+            target_intent = _find_intent_by_tx_owner(intents, normalized_tx, owner_wallet)
+            if target_intent is None:
+                target_intent = _build_recovery_intent(normalized_tx, owner_wallet, amount_usdc, event_key, now)
+                intents.append(target_intent)
+                changed_intents = True
+                summary["intentsCreated"] += 1
+
+            outcome = _process_single_intent(storage, target_intent, processed_keys, buyers, now)
+            if outcome.get("changedIntent"):
+                changed_intents = True
+            if outcome.get("changedLedger"):
+                changed_ledger = True
+            if outcome.get("changedProcessed"):
+                changed_processed = True
+            _accumulate_outcome_counts(outcome, summary)
+
+        if changed_ledger:
+            _save_balance_ledger(storage, ledger)
+        if changed_processed:
+            _save_processed_deposit_event_keys(storage, sorted(processed_keys))
+        if changed_intents:
+            _save_deposit_intents(storage, intents)
+
+    _append_audit_log(
+        storage,
+        "V2_DEPOSIT_REPLAY_ADMIN",
+        normalize_wallet(requested_by),
+        summary,
+    )
+    return summary
+
+
 def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]:
     # 单轮处理：扫描所有 pending intent，链上核验后进行幂等入账。
     # 这个函数是“最终一致性”的核心，重启后也可继续恢复处理。
@@ -586,9 +960,41 @@ async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage
     # 常驻索引循环：按固定周期轮询 pending intents。
     # 设计目标：让“链上成功但服务端暂未入账”在后续周期自动修复。
     _set_status(running=True, listenerAddress=normalize_wallet(settings.router_address))
+    last_reconciliation_at = 0
     while not stop_event.is_set():
         try:
+            if settings.v2_backfill_enabled:
+                try:
+                    run_backfill_scan_once(storage)
+                except Exception as backfill_err:
+                    _set_status(
+                        backfill={
+                            "enabled": True,
+                            "lastScannedBlock": None,
+                            "lastScanAt": _now(),
+                            "lastRecovered": 0,
+                            "lastError": str(backfill_err),
+                        }
+                    )
             process_pending_deposit_intents_once(storage)
+
+            now = _now()
+            if settings.v2_reconciliation_enabled and (now - last_reconciliation_at) >= int(settings.v2_reconciliation_interval_sec):
+                try:
+                    run_reconciliation_check_once(storage)
+                    last_reconciliation_at = now
+                except Exception as reconcile_err:
+                    _set_status(
+                        reconciliation={
+                            "enabled": True,
+                            "lastCheckAt": now,
+                            "chainVaultUsdc": 0.0,
+                            "ledgerObligationUsdc": 0.0,
+                            "deltaUsdc": 0.0,
+                            "alert": False,
+                            "lastError": str(reconcile_err),
+                        }
+                    )
         except Exception as e:
             _set_status(lastError=str(e), lastProcessedAt=_now())
         try:

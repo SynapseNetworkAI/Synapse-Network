@@ -30,6 +30,7 @@
   - `GET /api/v1/finance/audit-logs`
   - `GET /api/v1/admin/fee-policy`
   - `PUT /api/v1/admin/fee-policy`
+  - `POST /api/v1/admin/deposits/replay`
   - `/api/v1/secrets/seller/*`
   - `/api/v1/credentials/buyer/*`
 
@@ -228,7 +229,23 @@
       },
       "lastProcessedAt": 1773417000,
       "lastError": null,
-      "pollIntervalSec": 2
+      "pollIntervalSec": 2,
+      "backfill": {
+        "enabled": true,
+        "lastScannedBlock": 123456,
+        "lastScanAt": 1773582000,
+        "lastRecovered": 2,
+        "lastError": null
+      },
+      "reconciliation": {
+        "enabled": true,
+        "lastCheckAt": 1773582000,
+        "chainVaultUsdc": 120.0,
+        "ledgerObligationUsdc": 119.5,
+        "deltaUsdc": 0.5,
+        "alert": false,
+        "lastError": null
+      }
     }
   }
   ```
@@ -244,6 +261,30 @@
   - Development fallback: when allow-list is empty and `ENVIRONMENT=development`, authenticated owner can manage policy for local debug.
 - **Payload** (`PUT`): `{ defaultRate?: number, ownerRates?: Record<wallet, rate> }` with rate in `[0,1]`.
 - **Effect**: controls internal settlement `feeRate` resolution priority on generate path.
+
+### 3.8.1 充值补账回放 (Admin Deposit Replay)
+
+- **Path**: `POST /api/v1/admin/deposits/replay`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Authorization**:
+  - Owner must be included in `PLATFORM_FEE_ADMIN_WALLETS`.
+  - Development fallback: when allow-list is empty and `ENVIRONMENT=development`, authenticated owner can trigger replay.
+- **Body**:
+  ```json
+  {
+    "txHash": "0x..."
+  }
+  ```
+- **Behavior**:
+  - Decode confirmed chain receipt.
+  - Recover missing deposit intent if absent.
+  - Replay confirmation path atomically to avoid manual DB edits.
+- **Error Codes**:
+  - `INVALID_TX_HASH`
+  - `TX_NOT_CONFIRMED`
+  - `TX_FAILED`
+  - `MISSING_TX_RECEIPT`
+  - `NO_MATCHING_DEPOSIT_EVENT`
 
 ### 3.9 Provider 收益汇总 (Provider Earnings Summary)
 

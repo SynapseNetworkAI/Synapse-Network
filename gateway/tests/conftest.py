@@ -27,6 +27,7 @@ from src.domain.audit import AuditLogEntry  # noqa: E402
 from src.domain.gateway import RouterConfigRow  # noqa: E402
 from src.domain.idempotency import IdempotencyRow, RateLimitRow  # noqa: E402
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory  # noqa: E402
+from src.domain.storage_entities import DepositIntentRow  # noqa: E402
 
 
 class InMemoryStorage(BaseStorage):
@@ -118,7 +119,11 @@ class InMemoryStorage(BaseStorage):
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def write_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        self.save_collection("deposit_intents", rows)
+        serialized = [
+            row.model_dump(by_alias=True, mode="json") if isinstance(row, DepositIntentRow) else row
+            for row in rows
+        ]
+        self.save_collection("deposit_intents", serialized)
 
     def read_refund_intents(self) -> List[Dict[str, Any]]:
         rows = self.get_collection("refund_intents")

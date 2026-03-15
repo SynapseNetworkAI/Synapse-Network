@@ -5,6 +5,7 @@ from src.api.deps import get_balance_service, get_provider_analytics_service
 from src.models.pydantic_models import (
     DepositIntentRequest,
     DepositConfirmRequest,
+    AdminDepositReplayRequest,
     RefundIntentRequest,
     RefundCompleteRequest,
     RouterConfigRequest,
@@ -14,7 +15,7 @@ from src.models.pydantic_models import (
 from src.services.platform.balance_service import BalanceService
 from src.services.seller.provider_analytics_service import ProviderAnalyticsService
 from src.services.platform import credential_service
-from src.services.platform.v2_indexer import get_indexer_status
+from src.services.platform.v2_indexer import get_indexer_status, replay_deposit_tx
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.storage_entities import UsageLogRow
@@ -389,4 +390,44 @@ async def set_fee_policy(
         "status": "success",
         "requestedBy": admin_wallet,
         "policy": saved,
+    }
+
+
+@router.post(
+    "/v1/admin/deposits/replay",
+    responses={
+        400: {"description": "Invalid replay payload"},
+        403: {"description": "Forbidden or fee admin not configured"},
+        404: {"description": "Deposit event not found"},
+        409: {"description": "Tx not confirmed or cannot be replayed"},
+    },
+)
+async def replay_deposit_by_tx_hash(
+    payload: AdminDepositReplayRequest,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+):
+    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    try:
+        summary = replay_deposit_tx(storage, payload.txHash, admin_wallet)
+    except ValueError as exc:
+        if str(exc) == "INVALID_TX_HASH":
+            raise HTTPException(status_code=400, detail={"code": "INVALID_TX_HASH", "message": "txHash must be a valid 0x-prefixed hash."})
+        raise
+    except RuntimeError as exc:
+        code = str(exc)
+        if code == "TX_NOT_CONFIRMED":
+            raise HTTPException(status_code=409, detail={"code": code, "message": "Transaction is not confirmed yet."})
+        if code == "TX_FAILED":
+            raise HTTPException(status_code=409, detail={"code": code, "message": "Transaction failed on-chain and cannot be credited."})
+        if code == "MISSING_TX_RECEIPT":
+            raise HTTPException(status_code=409, detail={"code": code, "message": "Transaction receipt is unavailable."})
+        if code == "NO_MATCHING_DEPOSIT_EVENT":
+            raise HTTPException(status_code=404, detail={"code": code, "message": "No router deposit event found for this tx hash."})
+        raise
+
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "replay": summary,
     }

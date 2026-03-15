@@ -15,6 +15,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from src import app as app_module  # noqa: E402
+from src.api.routers import balance as balance_router  # noqa: E402
 from src.core import config as cfg  # noqa: E402
 from conftest import InMemoryStorage  # noqa: E402
 
@@ -211,5 +212,49 @@ def test_auth_logout_marks_session_inactive(monkeypatch):
                 assert isinstance(sessions, dict)
                 assert sessions.get(owner, {}).get("status") == "inactive"
         finally:
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            app_module.run_v2_deposit_indexer = old_indexer
+
+
+def test_admin_deposit_replay_api(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
+    with TemporaryDirectory() as tmp:
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_indexer = app_module.run_v2_deposit_indexer
+        old_admin_wallets = set(cfg.settings.platform_fee_admin_wallets)
+        cfg.settings.runtime_storage_dir = tmp
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                owner, token = _issue_session(client)
+                cfg.settings.platform_fee_admin_wallets = {owner}
+
+                def _fake_replay(storage, tx_hash, requested_by):
+                    _ = storage
+                    return {
+                        "txHash": tx_hash,
+                        "events": 1,
+                        "intentsCreated": 1,
+                        "credited": 1,
+                        "failed": 0,
+                        "pending": 0,
+                        "requestedBy": requested_by,
+                    }
+
+                monkeypatch.setattr(balance_router, "replay_deposit_tx", _fake_replay)
+
+                response = client.post(
+                    "/api/v1/admin/deposits/replay",
+                    headers=_auth_headers(token, owner),
+                    json={"txHash": "0x" + "1" * 64},
+                )
+                assert response.status_code == 200
+                payload = response.json()
+                assert payload.get("status") == "success"
+                assert payload.get("requestedBy") == owner
+                assert payload.get("replay", {}).get("credited") == 1
+        finally:
+            cfg.settings.platform_fee_admin_wallets = old_admin_wallets
             cfg.settings.runtime_storage_dir = old_runtime_dir
             app_module.run_v2_deposit_indexer = old_indexer

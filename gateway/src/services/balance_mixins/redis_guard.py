@@ -2,6 +2,7 @@ import hashlib
 import json
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -11,7 +12,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_client import get_redis_client
 from src.domain.idempotency import IdempotencyRow, RateLimitRow
-from src.utils.datetime_utils import now_dt_str
+from src.utils.datetime_utils import DATETIME_FORMAT, now_dt_str, to_dt_str
 
 REDIS_IDEM_CLAIM_LUA = """
 local existing = redis.call('GET', KEYS[1])
@@ -37,6 +38,27 @@ return current
 
 
 class BalanceRedisGuardMixin:
+    def _parse_created_at_epoch(self, value: Any) -> int:
+        if value is None:
+            return 0
+        if isinstance(value, (int, float)):
+            return int(value)
+
+        text = str(value).strip()
+        if not text:
+            return 0
+        if text.isdigit():
+            return int(text)
+
+        normalized = to_dt_str(text)
+        if not normalized:
+            return 0
+        try:
+            dt = datetime.strptime(normalized, DATETIME_FORMAT).replace(tzinfo=timezone.utc)
+            return int(dt.timestamp())
+        except Exception:
+            return int(time.time())
+
     async def _get_redis_client(self):
         return await get_redis_client()
 
@@ -369,7 +391,7 @@ class BalanceRedisGuardMixin:
                 continue
             if str(row.get("txHash") or "").strip().lower() != tx_hash.strip().lower():
                 continue
-            created_at = int(row.get("createdAt") or 0)
+            created_at = self._parse_created_at_epoch(row.get("createdAt"))
             if created_at and (now - created_at) <= replay_window:
                 self._append_financial_audit(
                     "DEPOSIT_REPLAY_DETECTED",

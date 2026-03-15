@@ -258,3 +258,62 @@ flowchart LR
 ## 10. 一句话结论
 
 在“卖家注册服务到平台、买家通过平台调用”的架构下，平台可完整掌握调用次数与资金流；通过 Deposit 预充值 + Credential 鉴权 + Gateway 记账转发 + 批量结算，最适合 Agent 高频小金额调用场景。
+
+---
+
+## 11. 充值一致性增强（Backfill + Reconciliation + Replay）
+
+为解决“链上成功但平台未入账”的生产故障场景，V2 增加如下四个强制能力：
+
+### 11.1 链上回补任务（Block Backfill Scanner）
+
+1. 在 indexer loop 中按区块范围扫描 Router 相关交易。
+2. 解析交易回执中的 Deposit/Transfer-to-Router 事件。
+3. 若事件未关联到已有 intent，则自动创建 `source=INDEXER_BACKFILL` 的恢复 intent。
+4. 复用同一套确认入账路径（原子确认 + 幂等去重），杜绝双记账。
+
+### 11.2 强一致对账指标（Reconciliation Monitor）
+
+每轮对账计算：
+
+- 链上金库余额：`vault_token_balance(router)`
+- 平台应付买家负债：`sum(buyers.available + buyers.pending)`
+- 差异：`delta = |chain - ledger|`
+
+当 `delta > threshold`（配置项 `V2_RECONCILIATION_ALERT_DELTA_USDC`）时：
+
+1. 写入审计事件 `V2_DEPOSIT_RECONCILIATION_ALERT`。
+2. 在 `GET /api/v1/indexer/status` 暴露 `reconciliation.alert=true`。
+
+### 11.3 前端意图上报失败兜底（Retry Queue）
+
+1. 钱包交易成功后，若 `POST /balance/deposit/intent` 失败，前端将任务写入本地重试队列。
+2. 在会话活跃期间按周期重试，采用有上限回退间隔。
+3. 重试成功后自动移除队列项并刷新余额。
+4. 队列跨页面刷新保留，避免用户重复打钱。
+
+### 11.4 管理员回放补账接口（Admin Replay）
+
+接口：`POST /api/v1/admin/deposits/replay`
+
+1. 输入 tx hash。
+2. 后端解析 receipt 并提取 deposit 事件。
+3. 自动补 intent（若缺失）并执行回放确认。
+4. 返回 replay summary（创建 intent 数、补账成功数、失败数）。
+
+### 11.5 关键配置项
+
+- `V2_BACKFILL_ENABLED`
+- `V2_BACKFILL_BLOCK_BATCH`
+- `V2_BACKFILL_START_BLOCK`
+- `V2_RECONCILIATION_ENABLED`
+- `V2_RECONCILIATION_INTERVAL_SEC`
+- `V2_RECONCILIATION_ALERT_DELTA_USDC`
+- `USDC_TOKEN_ADDRESS`
+
+### 11.6 运营处理 SOP（链上成功但平台未入账）
+
+1. 查询 `GET /api/v1/indexer/status` 查看 `backfill` 与 `reconciliation` 状态。
+2. 使用 `POST /api/v1/admin/deposits/replay` 对指定 tx hash 执行补账回放。
+3. 核对余额和审计日志（`BUYER_DEPOSIT_CONFIRMED` / `V2_DEPOSIT_REPLAY_ADMIN`）。
+4. 若仍存在对账差异，升级为资金一致性事件处理。
