@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from typing import Dict, Any, Annotated, Optional
 
 from src.api.deps import get_balance_service, get_provider_analytics_service
-from src.models.pydantic_models import DepositIntentRequest, RefundIntentRequest, RouterConfigRequest
+from src.models.pydantic_models import (
+    DepositIntentRequest,
+    RefundIntentRequest,
+    RouterConfigRequest,
+    ProviderWithdrawIntentRequest,
+    ProviderWithdrawCompleteRequest,
+)
 from src.services.balance_service import BalanceService
 from src.services.provider_analytics_service import ProviderAnalyticsService
 from src.services import credential_service
@@ -223,6 +229,47 @@ async def get_provider_earnings_summary(
     }
 
 
+@router.post("/v1/providers/withdrawals/intent")
+async def create_provider_withdraw_intent(
+    payload: ProviderWithdrawIntentRequest,
+    request: Request,
+    idempotency_key: Annotated[str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    result = await service.create_provider_withdraw_intent(
+        payload.model_dump(), owner_wallet, idempotency_key, _extract_request_meta(request)
+    )
+    return {"status": "success", "ownerAddress": owner_wallet, **result}
+
+
+@router.get("/v1/providers/withdrawals")
+async def list_provider_withdrawals(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+):
+    rows = await service.list_provider_withdrawals(owner_wallet)
+    return {"status": "success", "ownerAddress": owner_wallet, "withdrawals": rows[:limit]}
+
+
+@router.post("/v1/providers/withdrawals/{withdrawal_id}/complete")
+async def complete_provider_withdrawal(
+    withdrawal_id: str,
+    payload: ProviderWithdrawCompleteRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    result = await service.complete_provider_withdrawal(
+        owner_wallet=owner_wallet,
+        withdrawal_id=withdrawal_id,
+        tx_hash=payload.txHash,
+        request_meta=_extract_request_meta(request),
+    )
+    return {"status": "success", "ownerAddress": owner_wallet, **result}
+
+
 @router.get("/v1/indexer/status")
 async def get_v2_indexer_status():
     return {
@@ -231,7 +278,10 @@ async def get_v2_indexer_status():
     }
 
 
-@router.get("/v1/admin/fee-policy")
+@router.get(
+    "/v1/admin/fee-policy",
+    responses={403: {"description": "Forbidden or fee admin not configured"}},
+)
 async def get_fee_policy(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     storage: Annotated[BaseStorage, Depends(get_storage)],
@@ -254,7 +304,13 @@ async def get_fee_policy(
     return response
 
 
-@router.put("/v1/admin/fee-policy")
+@router.put(
+    "/v1/admin/fee-policy",
+    responses={
+        400: {"description": "Invalid fee policy payload"},
+        403: {"description": "Forbidden or fee admin not configured"},
+    },
+)
 async def set_fee_policy(
     payload: Dict[str, Any],
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],

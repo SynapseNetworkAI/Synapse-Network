@@ -21,6 +21,9 @@
   - `POST /api/v1/refund`
   - `GET /api/v1/refunds`
   - `GET /api/v1/usage/logs`
+  - `POST /api/v1/providers/withdrawals/intent`
+  - `GET /api/v1/providers/withdrawals`
+  - `POST /api/v1/providers/withdrawals/{withdrawalId}/complete`
   - `GET /api/v1/router/config`
   - `POST /api/v1/router/config`
   - `GET /api/v1/finance/audit-logs`
@@ -240,6 +243,47 @@
   - `totalRoutingTax = Σ routingTax`
   - `sellerNetEarned = Σ sellerNet`
   - `sellerReceivable` 直接读取 `balance_ledger.sellers[owner]`，用于提现余额显示。
+
+### 3.10 Provider 提现意图与完成 (Seller Self-Gas Withdrawal)
+
+- **路径**:
+  - `POST /api/v1/providers/withdrawals/intent`
+  - `GET /api/v1/providers/withdrawals`
+  - `POST /api/v1/providers/withdrawals/{withdrawalId}/complete`
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **设计目标**:
+  - 卖家使用钱包自付 Gas 调用合约 `withdraw(...)`。
+  - 网关负责签发 EIP-712 票据与离链锁仓，确保幂等、防重放、防重复提现。
+
+- **`POST /intent`**:
+  - Header: `X-Idempotency-Key` 必填。
+  - Body: `{ "amountUsdc": number }`（可选；空值表示全额可提）。
+  - 业务规则:
+    - 同 owner 仅允许一个 `PENDING` 提现单。
+    - 创建意图时原子锁仓：
+      - `balance_ledger.sellers[owner] -= amount`
+      - `balance_ledger.sellersLocked[owner] += amount`
+    - 返回 ticket 字段：`amount`, `fee`, `nonce`, `deadline`, `signature`, `chainId`, `contractAddress`。
+
+- **`GET /api/v1/providers/withdrawals`**:
+  - 返回 owner 作用域提现记录（按创建时间倒序）。
+
+- **`POST /{withdrawalId}/complete`**:
+  - Body: `{ "txHash": "0x..." }`
+  - 业务规则:
+    - 仅允许 `PENDING -> COMPLETED` 一次性流转。
+    - 完成后释放锁仓：`sellersLocked[owner] -= amount`。
+    - 已完成记录再次完成时：
+      - 同 txHash 视为幂等成功
+      - 不同 txHash 返回 `409`。
+
+- **安全约束**:
+  - API 幂等：`idempotency key + request hash`。
+  - 链上防重放：`nonce + deadline + EIP-712`。
+  - 离链防重复提现：单 owner 单 `PENDING` + 锁仓账本。
+  - 审计事件：
+    - `PROVIDER_WITHDRAW_INTENT_CREATED`
+    - `PROVIDER_WITHDRAW_COMPLETED`
 
 ---
 

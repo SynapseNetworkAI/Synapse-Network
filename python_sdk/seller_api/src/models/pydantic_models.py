@@ -68,6 +68,24 @@ class RefundIntentRequest(BaseModel):
     reason: Optional[str] = Field(default=None, max_length=256)
 
 
+class ProviderWithdrawIntentRequest(BaseModel):
+    amountUsdc: Optional[float] = Field(default=None, gt=0)
+
+
+class ProviderWithdrawCompleteRequest(BaseModel):
+    txHash: str = Field(..., min_length=66, max_length=66)
+
+    @validator("txHash")
+    def validate_tx_hash(cls, value: str) -> str:
+        normalized = str(value).strip()
+        if not normalized.startswith("0x"):
+            raise ValueError("txHash must start with 0x")
+        hex_part = normalized[2:]
+        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+            raise ValueError("txHash must be a valid 32-byte hex string")
+        return normalized.lower()
+
+
 class RouterConfigRequest(BaseModel):
     dailyLimitUsdc: float = Field(..., ge=0, le=10_000)
 

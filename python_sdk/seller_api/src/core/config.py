@@ -276,6 +276,8 @@ class Settings:
     gateway_default_request_bytes: int = _env_int("GATEWAY_DEFAULT_REQUEST_BYTES", 4096)
     gateway_default_response_bytes: int = _env_int("GATEWAY_DEFAULT_RESPONSE_BYTES", 2048)
     gateway_default_service_qps: int = _env_int("GATEWAY_DEFAULT_SERVICE_QPS", 50)
+    # Provider withdraw ticket expiry seconds for EIP-712 signed claim payload.
+    provider_withdraw_deadline_sec: int = _env_int("PROVIDER_WITHDRAW_DEADLINE_SEC", 900)
 
     # Service health monitor controls for seller upstream availability checks.
     service_health_monitor_enabled: bool = _env_bool("SERVICE_HEALTH_MONITOR_ENABLED", True)
