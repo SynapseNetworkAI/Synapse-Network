@@ -203,7 +203,7 @@ curl -X DELETE http://127.0.0.1:8000/api/v1/services/<service_record_id> \
 
 Seller API 现在支持基于配置的多环境切换：
 
-- `local` 环境：读取本地配置，使用 `JsonStorage`
+- `local` 环境：读取本地配置，使用 `PostgresStorage`
 - `prod` 环境：读取生产配置，使用 `PostgresStorage`
 
 配置加载优先级：
@@ -219,7 +219,7 @@ Seller API 现在支持基于配置的多环境切换：
 - 本地模板：`.env.local.example`
 - 生产模板：`.env.prod.example`
 
-### local 启动（JSON）
+### local 启动（PostgreSQL）
 
 ```bash
 cd python_sdk
@@ -229,8 +229,8 @@ ENVIRONMENT=local ENV_FILE=.env.local python seller_fastapi.py
 
 关键字段：
 
-- `STORAGE_BACKEND=json`
-- `DATA_DIR=./runtime_storage`
+- `STORAGE_BACKEND=postgres`
+- `POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:5432/synapse`
 
 ### prod 启动（PostgreSQL）
 

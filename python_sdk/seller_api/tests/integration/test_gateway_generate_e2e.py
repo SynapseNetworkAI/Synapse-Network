@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
+import time
 from urllib.parse import urlparse
 
 from fastapi.testclient import TestClient
@@ -17,12 +18,17 @@ if str(SRC_ROOT) not in sys.path:
 from src import app as app_module  # noqa: E402
 from src.core import config as cfg  # noqa: E402
 from src.services import forwarding_service, credential_service  # noqa: E402
+from conftest import InMemoryStorage  # noqa: E402
 
 
 async def _noop_indexer(stop_event, storage):
     await asyncio.sleep(0)
     _ = (stop_event, storage)
     return None
+
+
+def _use_inmemory_storage(monkeypatch):
+    monkeypatch.setattr(app_module, "create_storage", lambda _settings: InMemoryStorage())
 
 
 def _auth_headers(token: str, address: str):
@@ -95,6 +101,40 @@ def _set_buyer_balance(storage, buyer_wallet: str, seller_wallet: str, amount: f
     storage.save_collection("balance_ledger", ledger)
 
 
+def _mark_service_healthy(storage, service_id: str):
+    now_ms = int(time.time() * 1000)
+    services = storage.get_collection("service_registry") or []
+    if not isinstance(services, list):
+        return
+    for service in services:
+        if not isinstance(service, dict):
+            continue
+        if str(service.get("serviceId") or "") != service_id:
+            continue
+        invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
+        targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
+        target_map = {}
+        for target in targets:
+            if not isinstance(target, dict):
+                continue
+            url = str(target.get("url") or "").strip()
+            if not url:
+                continue
+            target_map[url] = {
+                "status": "healthy",
+                "lastCheckedAt": now_ms,
+            }
+        service["serviceHealth"] = {
+            "overallStatus": "healthy",
+            "healthyTargets": len(target_map),
+            "totalTargets": len(targets),
+            "lastCheckedAt": now_ms,
+            "targets": target_map,
+        }
+        break
+    storage.save_collection("service_registry", services)
+
+
 def _mock_upstream(monkeypatch):
     async def _fake_upstream(service, prompt, request_id):
         await asyncio.sleep(0)
@@ -124,16 +164,15 @@ def _assert_balance(storage, buyer_wallet: str, seller_wallet: str, buyer_expect
 
 
 def test_e2e_gateway_charge_by_service_id(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     _mock_upstream(monkeypatch)
     _mock_owner_auth(monkeypatch)
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
         old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
         cfg.settings.gateway_routing_tax = 0.0001
@@ -204,7 +243,6 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
                 assert int(dedup_summary.get("totalApiCalls", 0)) == 1
                 assert int(dedup_summary.get("duplicateRowsDropped", 0)) >= 1
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
             cfg.settings.gateway_routing_tax = old_routing_tax
@@ -212,16 +250,15 @@ def test_e2e_gateway_charge_by_service_id(monkeypatch):
 
 
 def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     _mock_upstream(monkeypatch)
     _mock_owner_auth(monkeypatch)
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
         old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
         cfg.settings.gateway_routing_tax = 0.0001
@@ -234,6 +271,7 @@ def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
                 service_id, credential_token = _register_service_and_credential(client, buyer_wallet, buyer_token, seller_wallet)
 
                 _set_buyer_balance(app.state.storage, buyer_wallet, seller_wallet, 3.0)
+                _mark_service_healthy(app.state.storage, service_id)
 
                 discover = client.get("/api/v1/services/discover")
                 assert discover.status_code == 200
@@ -258,7 +296,6 @@ def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
                 assert resp.status_code == 200
                 _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 1.9999, 0.9, 0.1001)
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
             cfg.settings.gateway_routing_tax = old_routing_tax
@@ -266,16 +303,15 @@ def test_e2e_discover_returns_platform_url_and_gateway_charges(monkeypatch):
 
 
 def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     _mock_upstream(monkeypatch)
     _mock_owner_auth(monkeypatch)
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
         old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
         cfg.settings.gateway_routing_tax = 0.0001
@@ -318,7 +354,6 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
 
                 _assert_balance(app.state.storage, buyer_wallet, seller_wallet, 0.0, 18.0, 2.002)
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
             cfg.settings.gateway_routing_tax = old_routing_tax
@@ -326,16 +361,15 @@ def test_e2e_gateway_concurrency_no_overspend(monkeypatch):
 
 
 def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     _mock_upstream(monkeypatch)
     _mock_owner_auth(monkeypatch)
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
         old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
         cfg.settings.gateway_routing_tax = 0.0001
@@ -381,7 +415,6 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
                 )
                 assert third.status_code == 200
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
             cfg.settings.gateway_routing_tax = old_routing_tax
@@ -389,17 +422,16 @@ def test_e2e_balance_exhausted_does_not_inactivate_credential(monkeypatch):
 
 
 def test_e2e_gateway_rejects_service_qps_limit(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     _mock_upstream(monkeypatch)
     _mock_owner_auth(monkeypatch)
     monkeypatch.setattr(credential_service, "now_ts", lambda: 200)
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
         old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
         cfg.settings.gateway_routing_tax = 0.0001
@@ -439,7 +471,6 @@ def test_e2e_gateway_rejects_service_qps_limit(monkeypatch):
                 assert second.status_code == 429
                 assert second.json().get("detail", {}).get("code") == "SERVICE_QPS_EXCEEDED"
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
             cfg.settings.gateway_routing_tax = old_routing_tax
@@ -447,16 +478,15 @@ def test_e2e_gateway_rejects_service_qps_limit(monkeypatch):
 
 
 def test_e2e_gateway_rejects_invalid_request_id(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     _mock_upstream(monkeypatch)
     _mock_owner_auth(monkeypatch)
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_fee_rate = cfg.settings.platform_fee_rate
         old_routing_tax = cfg.settings.gateway_routing_tax
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.platform_fee_rate = 0.10
         cfg.settings.gateway_routing_tax = 0.0001
@@ -479,7 +509,6 @@ def test_e2e_gateway_rejects_invalid_request_id(monkeypatch):
                 detail = resp.json().get("detail", {})
                 assert detail.get("code") == "INVALID_REQUEST_ID"
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.platform_fee_rate = old_fee_rate
             cfg.settings.gateway_routing_tax = old_routing_tax

@@ -1,10 +1,8 @@
 # pyright: reportMissingImports=false
 
 import asyncio
-import os
 import sys
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import pytest
 from fastapi import HTTPException
@@ -15,7 +13,6 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from src.services.balance_service import BalanceService  # noqa: E402
-from src.storage.json_impl import JsonStorage  # noqa: E402
 
 
 class FakeRedis:
@@ -53,11 +50,8 @@ class FakeRedis:
 
 
 @pytest.fixture()
-def balance_service():
-    with TemporaryDirectory() as tmp:
-        storage = JsonStorage(directory=tmp)
-        service = BalanceService(storage)
-        yield service
+def balance_service(temp_storage):
+    return BalanceService(temp_storage)
 
 
 @pytest.mark.asyncio

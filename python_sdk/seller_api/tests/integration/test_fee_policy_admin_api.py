@@ -15,12 +15,17 @@ if str(SRC_ROOT) not in sys.path:
 from src import app as app_module  # noqa: E402
 from src.core import config as cfg  # noqa: E402
 from src.api.routers import balance as balance_router  # noqa: E402
+from conftest import InMemoryStorage  # noqa: E402
 
 
 async def _noop_indexer(stop_event, storage):
     await asyncio.sleep(0)
     _ = (stop_event, storage)
     return None
+
+
+def _use_inmemory_storage(monkeypatch):
+    monkeypatch.setattr(app_module, "create_storage", lambda _settings: InMemoryStorage())
 
 
 def _auth_headers(address: str):
@@ -32,6 +37,7 @@ def _auth_headers(address: str):
 
 
 def test_fee_policy_admin_get_put_flow(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     monkeypatch.setattr(
         balance_router.credential_service,
         "require_owner_wallet",
@@ -39,14 +45,12 @@ def test_fee_policy_admin_get_put_flow(monkeypatch):
     )
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_env = cfg.settings.environment
         old_admins = set(cfg.settings.platform_fee_admin_wallets)
         old_default_rate = cfg.settings.platform_fee_rate
         old_indexer = app_module.run_v2_deposit_indexer
 
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.environment = "development"
         cfg.settings.platform_fee_admin_wallets = {"0x" + "1" * 40}
@@ -82,7 +86,6 @@ def test_fee_policy_admin_get_put_flow(monkeypatch):
                 assert current["defaultRate"] == 0.08
                 assert current["ownerRates"]["0xd856907d7e35a8f9bd225859a59e58577147a092"] == 0.03
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.environment = old_env
             cfg.settings.platform_fee_admin_wallets = old_admins
@@ -91,6 +94,7 @@ def test_fee_policy_admin_get_put_flow(monkeypatch):
 
 
 def test_fee_policy_admin_forbidden_for_non_admin(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     monkeypatch.setattr(
         balance_router.credential_service,
         "require_owner_wallet",
@@ -98,13 +102,11 @@ def test_fee_policy_admin_forbidden_for_non_admin(monkeypatch):
     )
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_env = cfg.settings.environment
         old_admins = set(cfg.settings.platform_fee_admin_wallets)
         old_indexer = app_module.run_v2_deposit_indexer
 
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.environment = "development"
         cfg.settings.platform_fee_admin_wallets = {"0x" + "1" * 40}
@@ -116,7 +118,6 @@ def test_fee_policy_admin_forbidden_for_non_admin(monkeypatch):
                 assert forbidden.status_code == 403
                 assert forbidden.json()["detail"]["code"] == "FORBIDDEN"
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.environment = old_env
             cfg.settings.platform_fee_admin_wallets = old_admins
@@ -124,6 +125,7 @@ def test_fee_policy_admin_forbidden_for_non_admin(monkeypatch):
 
 
 def test_fee_policy_admin_rejects_invalid_payload(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     monkeypatch.setattr(
         balance_router.credential_service,
         "require_owner_wallet",
@@ -131,13 +133,11 @@ def test_fee_policy_admin_rejects_invalid_payload(monkeypatch):
     )
 
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_env = cfg.settings.environment
         old_admins = set(cfg.settings.platform_fee_admin_wallets)
         old_indexer = app_module.run_v2_deposit_indexer
 
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         cfg.settings.environment = "development"
         cfg.settings.platform_fee_admin_wallets = {"0x" + "1" * 40}
@@ -153,7 +153,6 @@ def test_fee_policy_admin_rejects_invalid_payload(monkeypatch):
                 assert bad.status_code == 400
                 assert bad.json()["detail"]["code"] == "INVALID_FEE_POLICY"
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             cfg.settings.environment = old_env
             cfg.settings.platform_fee_admin_wallets = old_admins

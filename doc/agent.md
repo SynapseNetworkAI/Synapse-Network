@@ -46,13 +46,13 @@
 
 > "我们不是在写代码，我���是在为硅基生命铸造中央银行。Let's build the fucking M2M Economy!"
 ## 🏗️ 7. Synapse 网关：六层分离架构 (The Six-Layer "Speed Gateway")
-为了支撑百万级 QPS 和亚毫秒级拦截出栈，并能让底层持久化从 `JSON（Dev）` 零缝隙切换到 `Postgres + Redis（Prod）`，我们严格执行以下六层架构：
+为了支撑百万级 QPS 和亚毫秒级拦截出栈，并让 Dev/Prod 持久化保持一致（`Postgres + Redis`），我们严格执行以下六层架构：
 
 1. **API 路由层 (`src/api/routers/`)**：纯净路由，只有出入参、FastAPI DI，绝对没有业务逻辑。
 2. **核心层 (`src/core/`)**：配置 (Pydantic-Settings)、日志重写、挂载 Lifespan。
 3. **业务防弹层 (`src/services/`)**：所有的验证、算账、锁机制、防超扣写在这里。
 4. **模型层 (`src/models/`)**：Pydantic Schema (Req / Res)。
-5. **持久化层 (`src/storage/`)**：定义 `BaseStorage` 接口，实现 `JsonStorage` 和 `RedisStorage`。
+5. **持久化层 (`src/storage/`)**：定义 `BaseStorage` 接口，实现 `PostgresStorage`（可选 Redis 仅用于分布式幂等与限流加速）。
 6. **工具层 (`src/utils/`)**：时钟、加密、ABI 编码工具。
 
 ## 📚 8. 文档一致性铁律 (Docs-Code Sync Protocol)

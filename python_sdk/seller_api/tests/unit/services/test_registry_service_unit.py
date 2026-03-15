@@ -36,10 +36,10 @@ async def _healthy_probe_stub(service, client=None):
 
 
 @pytest.mark.asyncio
-async def test_register_service_normalizes_cluster_and_health_path(temp_json_storage):
+async def test_register_service_normalizes_cluster_and_health_path(temp_storage):
     original_probe = service_health_service.probe_service_health
     service_health_service.probe_service_health = _healthy_probe_stub
-    service = RegistryService(temp_json_storage)
+    service = RegistryService(temp_storage)
 
     payload = {
         "serviceName": "Quote Service",
@@ -68,10 +68,10 @@ async def test_register_service_normalizes_cluster_and_health_path(temp_json_sto
 
 
 @pytest.mark.asyncio
-async def test_discover_services_exposes_platform_gateway_not_seller_target(temp_json_storage):
+async def test_discover_services_exposes_platform_gateway_not_seller_target(temp_storage):
     original_probe = service_health_service.probe_service_health
     service_health_service.probe_service_health = _healthy_probe_stub
-    service = RegistryService(temp_json_storage)
+    service = RegistryService(temp_storage)
 
     payload = {
         "serviceName": "获取名人名言 Top3",
@@ -113,7 +113,7 @@ async def test_discover_services_exposes_platform_gateway_not_seller_target(temp
 
 
 @pytest.mark.asyncio
-async def test_discover_services_filters_out_unhealthy_service(temp_json_storage):
+async def test_discover_services_filters_out_unhealthy_service(temp_storage):
     original_probe = service_health_service.probe_service_health
 
     async def _unhealthy_probe_stub(service, client=None):
@@ -141,7 +141,7 @@ async def test_discover_services_filters_out_unhealthy_service(temp_json_storage
         return next_service
 
     service_health_service.probe_service_health = _unhealthy_probe_stub
-    service = RegistryService(temp_json_storage)
+    service = RegistryService(temp_storage)
     payload = {
         "serviceName": "Unhealthy Quote",
         "pricing": {"currency": "USDC", "amount": "0.01"},
@@ -167,10 +167,10 @@ async def test_discover_services_filters_out_unhealthy_service(temp_json_storage
 
 
 @pytest.mark.asyncio
-async def test_service_health_history_returns_latest_n_per_target(temp_json_storage):
+async def test_service_health_history_returns_latest_n_per_target(temp_storage):
     original_probe = service_health_service.probe_service_health
     service_health_service.probe_service_health = _healthy_probe_stub
-    service = RegistryService(temp_json_storage)
+    service = RegistryService(temp_storage)
 
     payload = {
         "serviceName": "History Service",
@@ -197,7 +197,7 @@ async def test_service_health_history_returns_latest_n_per_target(temp_json_stor
 
     service_id = str(created["serviceId"])
     now_ms = int(time.time() * 1000)
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "service_target_health_history",
         [
             {"serviceId": service_id, "targetUrl": "http://127.0.0.1:8100/api/v1/run", "status": "healthy", "checkedAt": now_ms - 2000},
@@ -222,12 +222,12 @@ async def test_service_health_history_returns_latest_n_per_target(temp_json_stor
 
 
 @pytest.mark.asyncio
-async def test_service_health_history_caps_hours_by_retention(temp_json_storage, monkeypatch):
+async def test_service_health_history_caps_hours_by_retention(temp_storage, monkeypatch):
     monkeypatch.setattr("src.services.registry_service.settings.service_health_history_retention_hours", 3)
 
     original_probe = service_health_service.probe_service_health
     service_health_service.probe_service_health = _healthy_probe_stub
-    service = RegistryService(temp_json_storage)
+    service = RegistryService(temp_storage)
 
     payload = {
         "serviceName": "Retention Window Service",
@@ -253,7 +253,7 @@ async def test_service_health_history_caps_hours_by_retention(temp_json_storage,
 
     service_id = str(created["serviceId"])
     now_ms = int(time.time() * 1000)
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "service_target_health_history",
         [
             {"serviceId": service_id, "targetUrl": "http://127.0.0.1:8100/api/v1/run", "status": "healthy", "checkedAt": now_ms - 1000},

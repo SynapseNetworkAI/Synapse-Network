@@ -47,11 +47,11 @@ def _stub_withdraw_contract(nonce: int = 3, chain_id: int = 31337):
 
 
 @pytest.mark.asyncio
-async def test_create_provider_withdraw_intent_locks_receivable(monkeypatch, temp_json_storage):
+async def test_create_provider_withdraw_intent_locks_receivable(monkeypatch, temp_storage):
     owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
-    service = BalanceService(temp_json_storage)
+    service = BalanceService(temp_storage)
 
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "balance_ledger",
         {
             "buyers": {},
@@ -76,17 +76,17 @@ async def test_create_provider_withdraw_intent_locks_receivable(monkeypatch, tem
     assert abs(float(result["amountUsdc"]) - 12.5) < 1e-9
     assert int(result["ticket"]["nonce"]) == 9
 
-    ledger = temp_json_storage.get_collection("balance_ledger")
+    ledger = temp_storage.get_collection("balance_ledger")
     assert abs(float(ledger["sellers"][owner.lower()]) - 0.0) < 1e-9
     assert abs(float(ledger["sellersLocked"][owner.lower()]) - 12.5) < 1e-9
 
 
 @pytest.mark.asyncio
-async def test_create_provider_withdraw_intent_is_idempotent(monkeypatch, temp_json_storage):
+async def test_create_provider_withdraw_intent_is_idempotent(monkeypatch, temp_storage):
     owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
-    service = BalanceService(temp_json_storage)
+    service = BalanceService(temp_storage)
 
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "balance_ledger",
         {
             "buyers": {},
@@ -115,17 +115,17 @@ async def test_create_provider_withdraw_intent_is_idempotent(monkeypatch, temp_j
 
     assert first["withdrawalId"] == second["withdrawalId"]
 
-    rows = temp_json_storage.get_collection("provider_withdrawal_intents")
+    rows = temp_storage.get_collection("provider_withdrawal_intents")
     assert isinstance(rows, dict)
     assert len(rows.get("rows") or []) == 1
 
 
 @pytest.mark.asyncio
-async def test_create_provider_withdraw_intent_rejects_parallel_pending(monkeypatch, temp_json_storage):
+async def test_create_provider_withdraw_intent_rejects_parallel_pending(monkeypatch, temp_storage):
     owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
-    service = BalanceService(temp_json_storage)
+    service = BalanceService(temp_storage)
 
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "balance_ledger",
         {
             "buyers": {},
@@ -159,11 +159,11 @@ async def test_create_provider_withdraw_intent_rejects_parallel_pending(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_complete_provider_withdrawal_releases_lock_and_is_idempotent(monkeypatch, temp_json_storage):
+async def test_complete_provider_withdrawal_releases_lock_and_is_idempotent(monkeypatch, temp_storage):
     owner = "0xD856907D7E35A8F9BD225859A59E58577147A092"
-    service = BalanceService(temp_json_storage)
+    service = BalanceService(temp_storage)
 
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "balance_ledger",
         {
             "buyers": {},
@@ -172,7 +172,7 @@ async def test_complete_provider_withdrawal_releases_lock_and_is_idempotent(monk
             "platform": {"feeAccrued": 0},
         },
     )
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "provider_withdrawal_intents",
         {
             "rows": [
@@ -199,7 +199,7 @@ async def test_complete_provider_withdrawal_releases_lock_and_is_idempotent(monk
     assert done["status"] == "COMPLETED"
     assert done["txHash"] == "0x" + "12" * 32
 
-    ledger = temp_json_storage.get_collection("balance_ledger")
+    ledger = temp_storage.get_collection("balance_ledger")
     assert abs(float(ledger["sellersLocked"][owner.lower()]) - 0.0) < 1e-9
 
     again = await service.complete_provider_withdrawal(

@@ -8,12 +8,12 @@ from src.services import forwarding_service
 from src.services import credential_service
 
 
-def test_pricing_breakdown_uses_global_setting(monkeypatch, temp_json_storage):
+def test_pricing_breakdown_uses_global_setting(monkeypatch, temp_storage):
     monkeypatch.setattr(forwarding_service.settings, "platform_fee_rate", 0.10)
     monkeypatch.setattr(forwarding_service.settings, "gateway_routing_tax", 0.0001)
 
     fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = forwarding_service._pricing_breakdown(
-        temp_json_storage,
+        temp_storage,
         "0xabc",
         1.0,
     )
@@ -26,10 +26,10 @@ def test_pricing_breakdown_uses_global_setting(monkeypatch, temp_json_storage):
     assert abs(total_charge - 1.0001) < 1e-9
 
 
-def test_pricing_breakdown_owner_override_takes_priority(monkeypatch, temp_json_storage):
+def test_pricing_breakdown_owner_override_takes_priority(monkeypatch, temp_storage):
     monkeypatch.setattr(forwarding_service.settings, "platform_fee_rate", 0.10)
     monkeypatch.setattr(forwarding_service.settings, "gateway_routing_tax", 0.0001)
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "platform_fee_policy",
         {
             "defaultRate": 0.08,
@@ -40,7 +40,7 @@ def test_pricing_breakdown_owner_override_takes_priority(monkeypatch, temp_json_
     )
 
     fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = forwarding_service._pricing_breakdown(
-        temp_json_storage,
+        temp_storage,
         "0xD856907D7E35A8F9BD225859A59E58577147A092",
         2.0,
     )
@@ -53,10 +53,10 @@ def test_pricing_breakdown_owner_override_takes_priority(monkeypatch, temp_json_
     assert abs(total_charge - 2.0001) < 1e-9
 
 
-def test_pricing_breakdown_falls_back_to_runtime_default_rate(monkeypatch, temp_json_storage):
+def test_pricing_breakdown_falls_back_to_runtime_default_rate(monkeypatch, temp_storage):
     monkeypatch.setattr(forwarding_service.settings, "platform_fee_rate", 0.15)
     monkeypatch.setattr(forwarding_service.settings, "gateway_routing_tax", 0.0001)
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "platform_fee_policy",
         {
             "ownerRates": {},
@@ -64,7 +64,7 @@ def test_pricing_breakdown_falls_back_to_runtime_default_rate(monkeypatch, temp_
     )
 
     fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = forwarding_service._pricing_breakdown(
-        temp_json_storage,
+        temp_storage,
         "0xabc",
         2.0,
     )
@@ -77,10 +77,10 @@ def test_pricing_breakdown_falls_back_to_runtime_default_rate(monkeypatch, temp_
     assert abs(total_charge - 2.0001) < 1e-9
 
 
-def test_pricing_breakdown_invalid_rate_is_clamped(monkeypatch, temp_json_storage):
+def test_pricing_breakdown_invalid_rate_is_clamped(monkeypatch, temp_storage):
     monkeypatch.setattr(forwarding_service.settings, "platform_fee_rate", 0.10)
     monkeypatch.setattr(forwarding_service.settings, "gateway_routing_tax", 0.0001)
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "platform_fee_policy",
         {
             "defaultRate": 1.8,
@@ -91,7 +91,7 @@ def test_pricing_breakdown_invalid_rate_is_clamped(monkeypatch, temp_json_storag
     )
 
     fee_rate, protocol_fee, routing_tax, platform_fee_total, seller_net, total_charge = forwarding_service._pricing_breakdown(
-        temp_json_storage,
+        temp_storage,
         "0xabc",
         1.0,
     )

@@ -89,7 +89,7 @@
   - 每个 service 记录持久化 `serviceHealth`：
   - `overallStatus`、`healthyTargets`、`totalTargets`、`lastCheckedAt`。
   - `targets[url]` 子状态：`status/httpStatus/latencyMs/consecutiveSuccesses/consecutiveFailures/lastHealthyAt/error`。
-  - 存储后端与主数据一致：JSON（Dev）或 PostgreSQL（Prod）。
+  - 存储后端与主数据一致：PostgreSQL（Dev/Prod 一致）。
   - 同步写入规范化健康表 `service_target_health`（每个 target 一行），用于可观测与审计查询。
   - 同步写入历史表 `service_target_health_history`（每次探测一行），用于 Seller 健康明细回溯。
 

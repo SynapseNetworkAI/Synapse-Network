@@ -166,16 +166,14 @@ class Settings:
     # Optional contract address used by compatibility paths.
     contract_address: str = os.getenv("CONTRACT_ADDRESS", "")
 
-    # Unified runtime directory for JSON persistence (ledgers, intents, logs, configs).
+    # Runtime directory for local artifacts (non-DB outputs, optional runtime traces).
     runtime_storage_dir: str = os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir())
-    # Storage backend switch: "json" for local files, "postgres" for managed PostgreSQL.
-    storage_backend: str = os.getenv("STORAGE_BACKEND", "json").strip().lower() or "json"
-    # PostgreSQL DSN used when STORAGE_BACKEND=postgres.
+    # Storage backend switch. Only "postgres" is supported.
+    storage_backend: str = os.getenv("STORAGE_BACKEND", "postgres").strip().lower() or "postgres"
+    # PostgreSQL DSN used by all environments (dev/stage/prod).
     postgres_dsn: str = os.getenv("POSTGRES_DSN", "").strip()
     # Auto-create PostgreSQL tables/indexes on startup when using postgres backend.
     postgres_auto_init: bool = _env_bool("POSTGRES_AUTO_INIT", True)
-    # Storage directory used by JsonStorage; defaults to unified runtime directory.
-    data_dir: str = os.getenv("DATA_DIR", os.getenv("RUNTIME_STORAGE_DIR", _default_runtime_storage_dir()))
     # JWT secret for auth token signing and verification.
     jwt_secret: str = os.getenv("JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret")
     # Optional Redis URL for distributed counters and rate limits.
@@ -360,5 +358,5 @@ class Settings:
 
 settings = Settings()
 
-# Ensure runtime storage exists for JSON persistence backends.
+# Ensure runtime artifact directory exists.
 os.makedirs(settings.runtime_storage_dir, exist_ok=True)

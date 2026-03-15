@@ -16,6 +16,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from src import app as app_module  # noqa: E402
 from src.core import config as cfg  # noqa: E402
+from conftest import InMemoryStorage  # noqa: E402
 
 
 async def _noop_indexer(stop_event, storage):
@@ -30,6 +31,10 @@ def _auth_headers(token: str, address: str):
         "X-User-Address": address,
         "Content-Type": "application/json",
     }
+
+
+def _use_inmemory_storage(monkeypatch):
+    monkeypatch.setattr(app_module, "create_storage", lambda _settings: InMemoryStorage())
 
 
 def _issue_session(client: TestClient):
@@ -56,12 +61,11 @@ def _issue_session(client: TestClient):
     return address, token
 
 
-def test_financial_api_auth_and_idempotency_flow():
+def test_financial_api_auth_and_idempotency_flow(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
@@ -101,17 +105,15 @@ def test_financial_api_auth_and_idempotency_flow():
                 )
                 assert mismatch.status_code == 409
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             app_module.run_v2_deposit_indexer = old_indexer
 
 
-def test_owner_isolation_and_router_limit_range():
+def test_owner_isolation_and_router_limit_range(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
     with TemporaryDirectory() as tmp:
-        old_data_dir = cfg.settings.data_dir
         old_runtime_dir = cfg.settings.runtime_storage_dir
         old_indexer = app_module.run_v2_deposit_indexer
-        cfg.settings.data_dir = tmp
         cfg.settings.runtime_storage_dir = tmp
         app_module.run_v2_deposit_indexer = _noop_indexer
         try:
@@ -148,6 +150,5 @@ def test_owner_isolation_and_router_limit_range():
                 )
                 assert valid_router.status_code == 200
         finally:
-            cfg.settings.data_dir = old_data_dir
             cfg.settings.runtime_storage_dir = old_runtime_dir
             app_module.run_v2_deposit_indexer = old_indexer

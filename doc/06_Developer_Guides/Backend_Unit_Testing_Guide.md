@@ -128,7 +128,7 @@ This section covers the exact scenario:
 Prefer automated fixture setup over manual preloaded data.
 
 Automated setup in each e2e case:
-1. Start app with isolated `data_dir` and `runtime_storage_dir`.
+1. Start app with isolated `runtime_storage_dir`.
 2. Patch owner auth dependency to deterministic local owner identity.
 3. Register service via `/api/v1/services` (strict `invoke.targets` + `healthCheck.path`).
 4. Issue buyer credential via `/api/v1/credentials/buyer/issue`.

@@ -88,7 +88,7 @@ def test_build_probe_url_uses_target_origin_and_health_path():
     assert probe_url == "http://127.0.0.1:8100/health"
 
 
-def test_sync_service_target_health_table_generates_one_row_per_target(temp_json_storage):
+def test_sync_service_target_health_table_generates_one_row_per_target(temp_storage):
     rows = [
         {
             "serviceId": "serviceA",
@@ -116,10 +116,10 @@ def test_sync_service_target_health_table_generates_one_row_per_target(temp_json
         }
     ]
 
-    saved_count = service_health_service.sync_service_target_health_table(temp_json_storage, rows)
+    saved_count = service_health_service.sync_service_target_health_table(temp_storage, rows)
     assert saved_count == 3
 
-    table_rows = temp_json_storage.get_collection("service_target_health")
+    table_rows = temp_storage.get_collection("service_target_health")
     assert isinstance(table_rows, list)
     assert len(table_rows) == 3
     assert {row["targetUrl"] for row in table_rows} == {
@@ -130,11 +130,11 @@ def test_sync_service_target_health_table_generates_one_row_per_target(temp_json
     assert {row["status"] for row in table_rows} == {"healthy", "degraded", "unhealthy"}
 
 
-def test_prune_health_history_removes_expired_and_orphan_rows(temp_json_storage, monkeypatch):
+def test_prune_health_history_removes_expired_and_orphan_rows(temp_storage, monkeypatch):
     now_ms = int(time.time() * 1000)
     monkeypatch.setattr("src.services.service_health_service.settings.service_health_history_retention_hours", 3)
 
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "service_registry",
         [
             {
@@ -149,7 +149,7 @@ def test_prune_health_history_removes_expired_and_orphan_rows(temp_json_storage,
         ],
     )
 
-    temp_json_storage.save_collection(
+    temp_storage.save_collection(
         "service_target_health_history",
         [
             {"serviceId": "serviceA", "targetUrl": "url1", "checkedAt": now_ms - 1_000},
@@ -158,8 +158,8 @@ def test_prune_health_history_removes_expired_and_orphan_rows(temp_json_storage,
         ],
     )
 
-    stats = service_health_service.prune_health_history(temp_json_storage)
+    stats = service_health_service.prune_health_history(temp_storage)
     assert stats["removed"] == 2
-    rows = temp_json_storage.get_collection("service_target_health_history")
+    rows = temp_storage.get_collection("service_target_health_history")
     assert len(rows) == 1
     assert rows[0]["serviceId"] == "serviceA"

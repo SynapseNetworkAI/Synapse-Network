@@ -12,9 +12,9 @@ SRC_ROOT = ROOT / "seller_api"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from src.services import forwarding_service  # noqa: E402
+from src.services import forwarding_service, forwarding_upstream  # noqa: E402
 from src.services.registry_service import _normalize_service_payload  # noqa: E402
-from src.storage.json_impl import _normalize_service_row  # noqa: E402
+from src.storage.normalizers import normalize_service_row  # noqa: E402
 
 
 def test_normalize_payload_prefers_targets_and_normalizes_health_path():
@@ -73,7 +73,7 @@ def test_storage_row_normalization_keeps_new_shape():
         },
     }
 
-    normalized = _normalize_service_row(row)
+    normalized = normalize_service_row(row)
 
     assert normalized["healthCheck"]["path"] == "/ready"
     assert normalized["invoke"]["url"] == "http://127.0.0.1:8100/api/v1/cluster"
@@ -84,6 +84,9 @@ def test_storage_row_normalization_keeps_new_shape():
 
 
 class _FakeResponse:
+    def __init__(self):
+        self.content = b'{"quote":"ok"}'
+
     def raise_for_status(self):
         return None
 
@@ -111,25 +114,39 @@ class _FakeAsyncClient:
         self._recorder.append((method, url, json, headers))
         return _FakeResponse()
 
+    async def post(self, url, json=None, headers=None):
+        await asyncio.sleep(0)
+        self._recorder.append(("POST", url, json, headers))
+        return _FakeResponse()
+
 
 @pytest.mark.asyncio
 async def test_call_upstream_uses_targets_selection(monkeypatch):
     calls = []
 
-    def _fake_choices(urls, weights=None, k=1):
+    def _fake_choices(targets, weights=None, k=1):
+        urls = [str(item.get("url") or "") for item in targets]
         assert urls == [
             "http://10.0.0.1:8100/infer",
             "http://10.0.0.2:8100/infer",
         ]
         assert weights == [100, 20]
-        return ["http://10.0.0.2:8100/infer"]
+        return [targets[1]]
 
-    def _fake_client_factory(timeout=15.0):
-        assert abs(timeout - 15.0) < 1e-6
+    def _fake_client_factory(timeout=3.0):
+        assert abs(timeout - 3.0) < 1e-6
         return _FakeAsyncClient(calls)
 
-    monkeypatch.setattr(forwarding_service.random, "choices", _fake_choices)
-    monkeypatch.setattr(forwarding_service.httpx, "AsyncClient", _fake_client_factory)
+    monkeypatch.setattr(forwarding_upstream.random, "choices", _fake_choices)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", _fake_client_factory)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda _service: [
+            "http://10.0.0.1:8100/infer",
+            "http://10.0.0.2:8100/infer",
+        ],
+    )
 
     service = {
         "invoke": {
@@ -152,12 +169,12 @@ async def test_call_upstream_uses_targets_selection(monkeypatch):
 async def test_call_upstream_requires_targets():
     service = {
         "invoke": {
-            "method": "GET",
+            "method": "POST",
             "targets": [],
         }
     }
 
     with pytest.raises(HTTPException) as exc:
         await forwarding_service._call_upstream(service, "hello", "req-456")
-    assert exc.value.status_code == 500
-    assert "invoke.targets" in str(exc.value.detail)
+    assert exc.value.status_code == 503
+    assert exc.value.detail.get("code") == "SERVICE_UNAVAILABLE"

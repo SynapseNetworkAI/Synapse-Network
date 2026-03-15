@@ -3,7 +3,7 @@ import time
 from typing import Any, Dict, List, Optional, Union
 
 from .base import BaseStorage
-from .json_impl import _normalize_service_row
+from .normalizers import normalize_service_row
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -82,7 +82,7 @@ class PostgresStorage(BaseStorage):
         if collection_name == "service_registry" and "services" in payload:
             services = payload["services"]
             if isinstance(services, list):
-                return [_normalize_service_row(svc) for svc in services]
+                return [normalize_service_row(svc) for svc in services]
             return services
 
         list_keys = {

@@ -61,7 +61,7 @@ Router daily limit definition:
 
 1. Finance idempotency store now uses Redis as primary backend when `REDIS_URL` is configured.
 2. Finance write rate-limit now uses Redis distributed counters when `REDIS_URL` is configured.
-3. JSON storage remains as fallback when Redis is unavailable.
+3. Primary runtime persistence remains PostgreSQL when Redis is unavailable.
 4. Added anomaly audit actions:
    - `DEPOSIT_REPLAY_DETECTED`
    - `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`
