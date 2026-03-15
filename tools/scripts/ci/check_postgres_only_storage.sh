@@ -23,7 +23,7 @@ check_pattern "JsonStorage|json_impl" "gateway/src" "removed JSON storage symbol
 check_pattern "\bdata_dir\b" "gateway/src" "deprecated data_dir usage in runtime code"
 
 # Environment templates must never default back to json backend.
-check_pattern "^\s*STORAGE_BACKEND\s*=\s*json\s*$" "python_sdk/.env*.example" "json storage backend in environment templates"
+check_pattern "^\s*STORAGE_BACKEND\s*=\s*json\s*$" "gateway/.env*.example" "json storage backend in environment templates"
 
 if [[ "$violations" -ne 0 ]]; then
   echo "[guard] PostgreSQL-only guard failed"

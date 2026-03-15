@@ -7,10 +7,10 @@
 ## 1. 环境准备 (Python 环境与依赖)
 
 本服务基于 Python 开发，推荐使用 Python 3.9+ 环境。
-在开始之前，确保您已经在项目根目录，并切入了 `python_sdk` 文件夹：
+在开始之前，确保您已经在项目根目录，并切入了 `gateway` 文件夹：
 
 ```bash
-cd python_sdk
+cd gateway
 ```
 
 ### 1.1 创建与激活虚拟环境
@@ -36,7 +36,7 @@ pip install -r requirements.txt
 - 启动 **Hardhat 本地链** (`127.0.0.1:8545`)
 - 部署 **Synapse NetworkSyncRouter + MockUSDC**
 - 自动读取 `frontend/src/contract-config.json` 并注入 Seller API 所需环境变量
-- 自动优先使用 `python_sdk/venv/bin/python`（若存在），并在缺依赖时自动安装 `python_sdk/requirements.txt`
+- 自动优先使用 `gateway/venv/bin/python`（若存在），并在缺依赖时自动安装 `gateway/requirements.txt`
 - 后台启动 `gateway/seller_fastapi.py`
 - 后台启动 `frontend`（`npm run dev`）
 
@@ -48,7 +48,7 @@ chmod +x scripts/local/setup_local_env.sh
 
 **运行成功后，系统将自动就绪：**
 * **Hardhat Node** 正在本地 `127.0.0.1:8545` 运行并产出区块。
-* **部署逻辑** 已自动将新的合约 ABI 生成到 `python_sdk/Synapse NetworkSyncRouterABI.json` 以供后端中间件调用。
+* **部署逻辑** 已自动将新的合约 ABI 生成到 `gateway/A2APaySyncRouterABI.json` 以供后端中间件调用。
 * **Seller API Gateway** (V1 网关) 运行在 `http://127.0.0.1:8000/api/v1/gateway/generate`。
 * **Frontend Next.js** 运行在 `http://127.0.0.1:3000`。
 * 脚本会输出 `TX_HASH` 测试前置脚本命令，以及本次启动的 PID。
@@ -67,7 +67,7 @@ chmod +x scripts/local/restart_local_env.sh
 ./scripts/local/restart_local_env.sh
 ```
 
-说明：`scripts/local/restart_local_env.sh` 会在重启完成后自动执行 V2 日限额回归烟测（`python_sdk/examples/v2_daily_limit_regression.py`），并在失败时返回非 0。
+说明：`scripts/local/restart_local_env.sh` 会在重启完成后自动执行 V2 日限额回归烟测（`gateway/examples/v2_daily_limit_regression.py`），并在失败时返回非 0。
 
 若仅需快速重启、不跑烟测：
 ```bash
@@ -86,7 +86,7 @@ chmod +x scripts/prod/start_prod_env.sh scripts/prod/restart_prod_env.sh scripts
 ./scripts/prod/stop_prod_env.sh
 ```
 
-建议在 `python_sdk/.env.prod` 中配置：
+建议在 `gateway/.env.prod` 中配置：
 
 - `ENVIRONMENT=prod`
 - `STORAGE_BACKEND=postgres`
@@ -333,13 +333,13 @@ docker-compose logs -f postgres
 
 备注：若本地是旧版 Compose，也可将 `docker-compose` 替换为 `docker-compose` 执行同等命令。
 
-## 6. `python_sdk` 配置文件位置与统一收口方案
+## 6. `gateway` 配置文件位置与统一收口方案
 
 ### 6.1 当前配置文件在哪里（现状盘点）
 
-当前 `python_sdk` 中存在多处配置入口：
+当前 `gateway` 中存在多处配置入口：
 
-- `python_sdk/.env`
+- `gateway/.env`
   - 主要是 SDK / AI Agent Demo 侧配置（如 `API_BASE_URL`、`DEEPSEEK_*`、`MINIO_*`）。
 - `gateway/src/core/config.py`
   - **当前 FastAPI 网关主配置入口**（被 `src/app.py` 直接使用）。
@@ -347,8 +347,8 @@ docker-compose logs -f postgres
 - `gateway/settings.py`
   - 历史兼容配置模块，仍被部分 legacy 代码（如 `persistence.py`）引用。
   - 与 `src/core/config.py` 存在字段重复。
-- `python_sdk/config.py`
-  - 旧静态配置文件（例如固定 `RPC_URL`），不建议作为新逻辑入口。
+- `gateway/settings.py`
+  - 历史兼容配置模块，不建议作为新逻辑入口。
 
 结论：目前是“主入口 + 兼容入口 + 遗留入口”并存，存在配置分散与重复定义风险。
 
@@ -357,8 +357,8 @@ docker-compose logs -f postgres
 统一为**单一配置中心**：
 
 - 唯一读取入口：`gateway/src/core/config.py`
-- 唯一环境文件：`python_sdk/.env`（按环境可扩展 `.env.development` / `.env.staging` / `.env.production`）
-- 唯一运行时工件根：`python_sdk/runtime_storage/`
+- 唯一环境文件：`gateway/.env`（按环境可扩展 `.env.development` / `.env.staging` / `.env.production`）
+- 唯一运行时工件根：`gateway/runtime_storage/`
 
 约束原则：
 
@@ -407,10 +407,10 @@ docker-compose logs -f postgres
    - 将 `persistence.py` 等 legacy 模块对 `seller_api/settings.py` 的依赖迁移到 `src/core/config.py`。
 
 4. **移除重复字段与死配置**
-   - 清理 `python_sdk/config.py` 与 `seller_api/settings.py` 中重复且不再被调用字段。
+  - 清理 `gateway/settings.py` 中重复且不再被调用字段。
 
 5. **配置契约化**
-   - 维护 `python_sdk/.env.example` 作为唯一配置契约文档。
+   - 维护 `gateway/.env.example` 作为唯一配置契约文档。
    - CI 增加“必填配置校验”与“未使用配置检测”。
 
 ### 6.5 命名规范（建议）

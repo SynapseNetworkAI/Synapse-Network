@@ -147,7 +147,8 @@ Synapse-Network/
 	contracts/                # Solidity contracts
 	scripts/                  # Deploy scripts + local/prod operation scripts
 	test/                     # Contract tests
-	python_sdk/               # FastAPI gateway + Python SDK + runtime storage
+	gateway/                  # FastAPI settlement gateway
+	sdk/python/               # Python client SDK
 	frontend/                 # Next.js dashboard and developer console
 	docker-compose/           # Optional infra services
 	docs/                     # Product, architecture, protocol, and operation docs
@@ -169,6 +170,6 @@ Synapse-Network/
 
 ## Notes
 
-- Runtime JSON files are centralized under `python_sdk/runtime_storage/` and ignored from Git.
+- Runtime JSON files are centralized under `gateway/runtime_storage/` and ignored from Git.
 - For architecture and protocol details, start from [docs/README.md](docs/README.md).
 

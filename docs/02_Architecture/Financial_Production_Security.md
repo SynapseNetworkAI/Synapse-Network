@@ -193,7 +193,7 @@ Key runtime knobs in `gateway/src/core/config.py`:
 8. `WITHDRAWAL_WINDOW_HOURS`
 9. `WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES`
 
-Default examples live in `python_sdk/.env.example`.
+Default examples live in `gateway/.env.example`.
 
 ## 4. Remaining Work (Production TODO)
 

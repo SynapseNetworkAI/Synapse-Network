@@ -17,6 +17,8 @@ venv/
 *.log
 agent_wallet.json
 .env
+gateway/.env.local
+gateway/.env.prod
 
 # Local runtime artifacts
 .local_env.pids
@@ -24,14 +26,14 @@ temp_check.js
 test_agents.js
 
 # Buyer sdk local build artifacts
-python_sdk/agentpay_buyer_sdk.egg-info/
+sdk/python/agentpay_buyer_sdk.egg-info/
 
-# python_sdk runtime/generated files
-python_sdk/agent_credentials.json
-python_sdk/audit_log.jsonl
-python_sdk/service_registry.json
-python_sdk/runtime_storage/
-python_sdk/*.egg-info/
+# gateway runtime/generated files
+gateway/agent_credentials.json
+gateway/audit_log.jsonl
+gateway/service_registry.json
+gateway/runtime_storage/
+gateway/*.egg-info/
 
 logs/
 *.log
