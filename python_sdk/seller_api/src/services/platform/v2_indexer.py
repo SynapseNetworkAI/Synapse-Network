@@ -11,6 +11,7 @@ from web3.exceptions import TransactionNotFound
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.services.repository_access import audit_repo, balance_repo, gateway_state_repo
 from src.storage import BaseStorage
 
 lock = Lock()
@@ -50,16 +51,16 @@ def _now() -> int:
 
 
 def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
-    raw_rows = getattr(storage, "read_deposit_intents")()
+    raw_rows = gateway_state_repo(storage).read_deposit_intents()
     return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
 
 def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
-    getattr(storage, "write_deposit_intents")(rows)
+    gateway_state_repo(storage).write_deposit_intents(rows)
 
 
 def _load_balance_ledger(storage: BaseStorage) -> Dict[str, Any]:
-    ledger = getattr(storage, "read_balance_ledger")() or {}
+    ledger = balance_repo(storage).read_balance_ledger() or {}
     if not isinstance(ledger, dict):
         return {}
     return ledger
@@ -68,20 +69,20 @@ def _load_balance_ledger(storage: BaseStorage) -> Dict[str, Any]:
 def _save_balance_ledger(storage: BaseStorage, ledger: Dict[str, Any]) -> None:
     next_ledger = dict(ledger)
     next_ledger["updatedAt"] = _now()
-    getattr(storage, "write_balance_ledger")(next_ledger)
+    balance_repo(storage).write_balance_ledger(next_ledger)
 
 
 def _load_processed_deposit_event_keys(storage: BaseStorage) -> List[str]:
-    keys = getattr(storage, "read_processed_deposit_event_keys")()
+    keys = gateway_state_repo(storage).read_processed_deposit_event_keys()
     return [str(item) for item in keys] if isinstance(keys, list) else []
 
 
 def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) -> None:
-    getattr(storage, "write_processed_deposit_event_keys")(keys, _now())
+    gateway_state_repo(storage).write_processed_deposit_event_keys(keys, _now())
 
 
 def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
-    getattr(storage, "append_audit_row")(
+    audit_repo(storage).append_audit_row(
         {
             "id": str(uuid4()),
             "timestamp": _now(),

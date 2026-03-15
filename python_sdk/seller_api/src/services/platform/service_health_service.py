@@ -7,6 +7,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from src.core.config import settings
+from src.services.repository_access import service_registry_repo
 from src.storage.base import BaseStorage
 
 logger = logging.getLogger(__name__)
@@ -161,10 +162,10 @@ def _build_service_target_health_rows(services: List[Dict[str, Any]]) -> List[Di
 
 def sync_service_target_health_table(storage: BaseStorage, services: Optional[List[Dict[str, Any]]] = None) -> int:
     if services is None:
-        raw_rows = getattr(storage, "read_service_registry_rows")()
+        raw_rows = service_registry_repo(storage).read_service_registry_rows()
         services = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
     rows = _build_service_target_health_rows(services)
-    getattr(storage, "write_service_target_health_rows")(rows)
+    service_registry_repo(storage).write_service_target_health_rows(rows)
     return len(rows)
 
 
@@ -207,15 +208,15 @@ def build_probe_history_rows(service: Dict[str, Any]) -> List[Dict[str, Any]]:
 def append_health_history_rows(storage: BaseStorage, rows: List[Dict[str, Any]]) -> int:
     if not rows:
         return 0
-    raw_rows = getattr(storage, "read_service_target_health_history_rows")()
+    raw_rows = service_registry_repo(storage).read_service_target_health_history_rows()
     existing = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
     existing.extend(rows)
-    getattr(storage, "write_service_target_health_history_rows")(existing)
+    service_registry_repo(storage).write_service_target_health_history_rows(existing)
     return len(rows)
 
 
 def _current_valid_service_ids(storage: BaseStorage) -> set[str]:
-    raw_rows = getattr(storage, "read_service_registry_rows")()
+    raw_rows = service_registry_repo(storage).read_service_registry_rows()
     services = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
     return {
         str(row.get("serviceId") or "").strip()
@@ -247,7 +248,7 @@ def _should_prune_history(now_ms: int) -> bool:
 
 
 def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[str]] = None) -> Dict[str, int]:
-    raw_rows = getattr(storage, "read_service_target_health_history_rows")()
+    raw_rows = service_registry_repo(storage).read_service_target_health_history_rows()
     existing = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
     cutoff_ms = _history_cutoff_ms()
@@ -258,7 +259,7 @@ def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[s
 
     after = len(filtered)
     if after != before:
-        getattr(storage, "write_service_target_health_history_rows")(filtered)
+        service_registry_repo(storage).write_service_target_health_history_rows(filtered)
     return {"before": before, "after": after, "removed": max(0, before - after)}
 
 
@@ -410,7 +411,7 @@ async def probe_service_health(service: Dict[str, Any], client: Optional[httpx.A
 
 
 async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
-    raw_rows = getattr(storage, "read_service_registry_rows")()
+    raw_rows = service_registry_repo(storage).read_service_registry_rows()
     rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
 
     checked = 0
@@ -434,7 +435,7 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
             next_rows.append(next_row)
 
     if updated > 0:
-        getattr(storage, "write_service_registry_rows")(next_rows)
+        service_registry_repo(storage).write_service_registry_rows(next_rows)
 
     synced_rows = sync_service_target_health_table(storage, next_rows)
     valid_service_ids = {

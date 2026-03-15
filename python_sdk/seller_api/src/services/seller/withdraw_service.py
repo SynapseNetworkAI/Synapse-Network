@@ -15,6 +15,7 @@ from src.services.balance_mixins import (
     BalanceWithdrawSigningMixin,
     USDC_DECIMALS,
 )
+from src.services.repository_access import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 
@@ -66,7 +67,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         return []
 
     def _normalize_withdrawal_rows(self) -> List[Dict[str, Any]]:
-        raw_rows = getattr(self.storage, "read_withdrawal_intents")()
+        raw_rows = gateway_state_repo(self.storage).read_withdrawal_intents()
         rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
         for row in rows:
             status = str(row.get("status") or "").upper()
@@ -77,10 +78,10 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         return rows
 
     def _save_withdrawal_rows(self, rows: List[Dict[str, Any]]) -> None:
-        getattr(self.storage, "write_withdrawal_intents")(rows, int(time.time()))
+        gateway_state_repo(self.storage).write_withdrawal_intents(rows, int(time.time()))
 
     def _load_balance_ledger(self) -> Dict[str, Any]:
-        ledger = getattr(self.storage, "read_balance_ledger")() or {}
+        ledger = balance_repo(self.storage).read_balance_ledger() or {}
         if not isinstance(ledger, dict):
             ledger = {}
         buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
@@ -104,7 +105,7 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
     def _save_balance_ledger(self, ledger: Dict[str, Any]) -> None:
         next_ledger = dict(ledger)
         next_ledger["updatedAt"] = int(time.time())
-        getattr(self.storage, "write_balance_ledger")(next_ledger)
+        balance_repo(self.storage).write_balance_ledger(next_ledger)
 
     def _get_pending_withdrawal(self, rows: List[Dict[str, Any]], owner_wallet: str) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)

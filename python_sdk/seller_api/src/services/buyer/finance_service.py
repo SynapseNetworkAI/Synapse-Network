@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
+from src.services.repository_access import balance_repo, gateway_state_repo
 from src.storage.base import BaseStorage
 
 
@@ -51,7 +52,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return []
 
     def _load_balance_ledger(self) -> Dict[str, Any]:
-        ledger = getattr(self.storage, "read_balance_ledger")() or {}
+        ledger = balance_repo(self.storage).read_balance_ledger() or {}
         if not isinstance(ledger, dict):
             ledger = {}
         buyers = ledger.get("buyers") if isinstance(ledger.get("buyers"), dict) else {}
@@ -75,24 +76,24 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _save_balance_ledger(self, ledger: Dict[str, Any]) -> None:
         next_ledger = dict(ledger)
         next_ledger["updatedAt"] = int(time.time())
-        getattr(self.storage, "write_balance_ledger")(next_ledger)
+        balance_repo(self.storage).write_balance_ledger(next_ledger)
 
     def _load_deposit_intents(self) -> List[Dict[str, Any]]:
-        rows = getattr(self.storage, "read_deposit_intents")()
+        rows = gateway_state_repo(self.storage).read_deposit_intents()
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def _save_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        getattr(self.storage, "write_deposit_intents")(rows)
+        gateway_state_repo(self.storage).write_deposit_intents(rows)
 
     def _load_refund_intents(self) -> List[Dict[str, Any]]:
-        rows = getattr(self.storage, "read_refund_intents")()
+        rows = gateway_state_repo(self.storage).read_refund_intents()
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def _save_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        getattr(self.storage, "write_refund_intents")(rows, int(updated_at))
+        gateway_state_repo(self.storage).write_refund_intents(rows, int(updated_at))
 
     def _load_usage_log_rows(self) -> List[Dict[str, Any]]:
-        rows = getattr(self.storage, "read_usage_log_rows")()
+        rows = gateway_state_repo(self.storage).read_usage_log_rows()
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
