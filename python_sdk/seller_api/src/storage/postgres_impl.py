@@ -445,15 +445,6 @@ class PostgresStorage(BaseStorage):
             usage_row=usage_row,
         )
 
-    def reserve_seller_withdraw_atomic(self, owner_wallet: str, amount_usdc: Decimal) -> Dict[str, float]:
-        return self._finance_atomic_repo.reserve_seller_withdraw_atomic(owner_wallet, amount_usdc)
-
-    def complete_withdraw_tx_atomic(self, owner_wallet: str, tx_hash: str, kind: str) -> bool:
-        return self._finance_atomic_repo.complete_withdraw_tx_atomic(owner_wallet, tx_hash, kind)
-
-    def read_deposit_intents(self) -> List[Dict[str, Any]]:
-        return self._gateway_state_repo.read_deposit_intents()
-
     def write_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
         self._gateway_state_repo.write_deposit_intents(rows)
 
