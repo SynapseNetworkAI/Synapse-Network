@@ -24,6 +24,9 @@ from src.storage.repository_provider import (  # noqa: E402
 )
 from src.domain.finance import BalanceLedger, FeePolicyEntity  # noqa: E402
 from src.domain.audit import AuditLogEntry  # noqa: E402
+from src.domain.gateway import RouterConfigRow  # noqa: E402
+from src.domain.idempotency import IdempotencyRow, RateLimitRow  # noqa: E402
+from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory  # noqa: E402
 
 
 class InMemoryStorage(BaseStorage):
@@ -144,14 +147,16 @@ class InMemoryStorage(BaseStorage):
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
         self.save_collection("balance_ledger", ledger.model_dump(by_alias=True))
 
-    def read_router_config_rows(self) -> List[Dict[str, Any]]:
+    def read_router_config_rows(self) -> List[RouterConfigRow]:
         raw = self.get_collection("router_config")
         if isinstance(raw, dict):
             raw = raw.get("rows")
-        return [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        return [RouterConfigRow.model_validate(r) for r in rows]
 
-    def write_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self.save_collection("router_config", {"rows": rows, "updatedAt": int(updated_at)})
+    def write_router_config_rows(self, rows: List, updated_at: int) -> None:
+        serialized = [r.model_dump(by_alias=True) if isinstance(r, RouterConfigRow) else r for r in rows]
+        self.save_collection("router_config", {"rows": serialized, "updatedAt": int(updated_at)})
 
     def read_usage_log_rows(self) -> List[Dict[str, Any]]:
         raw = self.get_collection("usage_log")
@@ -193,19 +198,23 @@ class InMemoryStorage(BaseStorage):
     def write_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
         self.save_collection("service_registry", rows)
 
-    def read_service_target_health_rows(self) -> List[Dict[str, Any]]:
+    def read_service_target_health_rows(self) -> List[ServiceTargetHealth]:
         raw = self.get_collection("service_target_health")
-        return [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        return [ServiceTargetHealth.model_validate(r) for r in rows]
 
-    def write_service_target_health_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self.save_collection("service_target_health", rows)
+    def write_service_target_health_rows(self, rows: List) -> None:
+        serialized = [r.model_dump(by_alias=True) if isinstance(r, ServiceTargetHealth) else r for r in rows]
+        self.save_collection("service_target_health", serialized)
 
-    def read_service_target_health_history_rows(self) -> List[Dict[str, Any]]:
+    def read_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
         raw = self.get_collection("service_target_health_history")
-        return [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        return [ServiceTargetHealthHistory.model_validate(r) for r in rows]
 
-    def write_service_target_health_history_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self.save_collection("service_target_health_history", rows)
+    def write_service_target_health_history_rows(self, rows: List) -> None:
+        serialized = [r.model_dump(by_alias=True) if isinstance(r, ServiceTargetHealthHistory) else r for r in rows]
+        self.save_collection("service_target_health_history", serialized)
 
     def read_credential_rows(self, credential_type: str) -> List[Dict[str, Any]]:
         if credential_type == "seller":
@@ -261,23 +270,27 @@ class InMemoryStorage(BaseStorage):
             },
         )
 
-    def read_idempotency_rows(self) -> List[Dict[str, Any]]:
+    def read_idempotency_rows(self) -> List[IdempotencyRow]:
         raw = self.get_collection("idempotency_keys")
         if isinstance(raw, dict):
             raw = raw.get("rows")
-        return [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        return [IdempotencyRow.model_validate(r) for r in rows]
 
-    def write_idempotency_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self.save_collection("idempotency_keys", {"rows": rows, "updatedAt": int(updated_at)})
+    def write_idempotency_rows(self, rows: List, updated_at: int) -> None:
+        serialized = [r.model_dump(by_alias=True) if isinstance(r, IdempotencyRow) else r for r in rows]
+        self.save_collection("idempotency_keys", {"rows": serialized, "updatedAt": int(updated_at)})
 
-    def read_rate_limit_rows(self) -> List[Dict[str, Any]]:
+    def read_rate_limit_rows(self) -> List[RateLimitRow]:
         raw = self.get_collection("finance_write_rate_limit")
         if isinstance(raw, dict):
             raw = raw.get("rows")
-        return [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        rows = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+        return [RateLimitRow.model_validate(r) for r in rows]
 
-    def write_rate_limit_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self.save_collection("finance_write_rate_limit", {"rows": rows, "updatedAt": int(updated_at)})
+    def write_rate_limit_rows(self, rows: List, updated_at: int) -> None:
+        serialized = [r.model_dump(by_alias=True) if isinstance(r, RateLimitRow) else r for r in rows]
+        self.save_collection("finance_write_rate_limit", {"rows": serialized, "updatedAt": int(updated_at)})
 
 
 @pytest.fixture()

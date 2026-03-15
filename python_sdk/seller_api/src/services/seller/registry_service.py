@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
+from src.domain.registry import ServiceTargetHealthHistory
 from src.services.platform import service_health_service
 import uuid
 import time
@@ -208,9 +209,8 @@ class RegistryService:
     def _save_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
         self.storage.get_data_manager().system.registry.write_service_registry_rows(rows)
 
-    def _load_service_target_health_history_rows(self) -> List[Dict[str, Any]]:
-        raw_rows = self.storage.get_data_manager().system.registry.read_service_target_health_history_rows()
-        return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    def _load_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
+        return list(self.storage.get_data_manager().system.registry.read_service_target_health_history_rows())
 
     async def register_service(self, req_data: Dict[str, Any], owner_wallet: str) -> Dict[str, Any]:
         """
@@ -382,18 +382,16 @@ class RegistryService:
 
         per_target: Dict[str, List[Dict[str, Any]]] = {}
         for row in history:
-            if not isinstance(row, dict):
+            if str(row.service_id or "") != service_record_id:
                 continue
-            if str(row.get("serviceId") or "") != service_record_id:
-                continue
-            checked_at = int(row.get("checkedAt") or 0)
+            checked_at = int(row.checked_at or 0)
             if checked_at < cutoff_ms:
                 continue
-            target_url = str(row.get("targetUrl") or "").strip()
+            target_url = str(row.target_url or "").strip()
             if not target_url:
                 continue
             bucket = per_target.setdefault(target_url, [])
-            bucket.append(row)
+            bucket.append(row.model_dump(by_alias=True))
 
         normalized_limit = max(1, min(int(limit_per_target), 2000))
         targets = []

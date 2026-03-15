@@ -7,6 +7,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from src.core.config import settings
+from src.domain.registry import ServiceTargetHealthHistory
 from src.storage.base import BaseStorage
 
 logger = logging.getLogger(__name__)
@@ -207,8 +208,7 @@ def build_probe_history_rows(service: Dict[str, Any]) -> List[Dict[str, Any]]:
 def append_health_history_rows(storage: BaseStorage, rows: List[Dict[str, Any]]) -> int:
     if not rows:
         return 0
-    raw_rows = storage.get_data_manager().system.registry.read_service_target_health_history_rows()
-    existing = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    existing: list = list(storage.get_data_manager().system.registry.read_service_target_health_history_rows())
     existing.extend(rows)
     storage.get_data_manager().system.registry.write_service_target_health_history_rows(existing)
     return len(rows)
@@ -224,11 +224,17 @@ def _current_valid_service_ids(storage: BaseStorage) -> set[str]:
     }
 
 
-def _history_row_kept(row: Dict[str, Any], valid_ids: set[str], cutoff_ms: int) -> bool:
-    service_id = str(row.get("serviceId") or "").strip()
+def _history_row_kept(row: Any, valid_ids: set[str], cutoff_ms: int) -> bool:
+    if isinstance(row, ServiceTargetHealthHistory):
+        service_id = str(row.service_id or "").strip()
+        checked_at = int(row.checked_at or 0)
+    elif isinstance(row, dict):
+        service_id = str(row.get("serviceId") or "").strip()
+        checked_at = int(row.get("checkedAt") or 0)
+    else:
+        return False
     if not service_id or service_id not in valid_ids:
         return False
-    checked_at = int(row.get("checkedAt") or 0)
     return checked_at >= cutoff_ms
 
 
@@ -247,14 +253,13 @@ def _should_prune_history(now_ms: int) -> bool:
 
 
 def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[str]] = None) -> Dict[str, int]:
-    raw_rows = storage.get_data_manager().system.registry.read_service_target_health_history_rows()
-    existing = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    existing: list = list(storage.get_data_manager().system.registry.read_service_target_health_history_rows())
 
     cutoff_ms = _history_cutoff_ms()
     valid_ids = valid_service_ids if valid_service_ids is not None else _current_valid_service_ids(storage)
 
     before = len(existing)
-    filtered = [row for row in existing if isinstance(row, dict) and _history_row_kept(row, valid_ids, cutoff_ms)]
+    filtered = [row for row in existing if _history_row_kept(row, valid_ids, cutoff_ms)]
 
     after = len(filtered)
     if after != before:

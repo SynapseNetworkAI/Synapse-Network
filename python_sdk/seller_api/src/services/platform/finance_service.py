@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.domain.finance import BalanceLedger
+from src.domain.gateway import RouterConfigRow
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
 
@@ -55,17 +56,16 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
-        raw_rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
-        rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+        rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
 
-        found = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
+        found = next((row for row in rows if normalize_wallet(row.owner_address or "") == owner), None)
         if not found:
             return {"ownerAddress": owner, "dailyLimitUsdc": 0.0, "updatedAt": None}
 
         return {
             "ownerAddress": owner,
-            "dailyLimitUsdc": round(float(found.get("dailyLimitUsdc") or 0.0), 6),
-            "updatedAt": int(found.get("updatedAt") or 0) or None,
+            "dailyLimitUsdc": round(float(found.daily_limit_usdc or 0.0), 6),
+            "updatedAt": int(found.updated_at or 0) or None,
         }
 
     async def set_router_config(
@@ -87,34 +87,33 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 )
 
             now = int(time.time())
-            raw_rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
-            rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+            rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
 
-            existing = next((row for row in rows if normalize_wallet(str(row.get("ownerAddress") or "")) == owner), None)
+            existing = next((row for row in rows if normalize_wallet(row.owner_address or "") == owner), None)
             if existing is None:
-                existing = {
-                    "id": str(uuid4()),
-                    "ownerAddress": owner,
-                    "dailyLimitUsdc": round(float(daily_limit_usdc), 6),
-                    "createdAt": now,
-                    "updatedAt": now,
-                }
+                existing = RouterConfigRow(
+                    id=str(uuid4()),
+                    owner_address=owner,
+                    daily_limit_usdc=round(float(daily_limit_usdc), 6),
+                    created_at=now,
+                    updated_at=now,
+                )
                 rows.append(existing)
             else:
-                existing["dailyLimitUsdc"] = round(float(daily_limit_usdc), 6)
-                existing["updatedAt"] = now
+                existing.daily_limit_usdc = round(float(daily_limit_usdc), 6)
+                existing.updated_at = now
 
             self.storage.get_data_manager().system.gateway_state.write_router_config_rows(rows, now)
             self._append_financial_audit(
                 "ROUTER_CONFIG_UPDATED",
                 owner,
                 {
-                    "dailyLimitUsdc": existing.get("dailyLimitUsdc"),
+                    "dailyLimitUsdc": existing.daily_limit_usdc,
                     "requestMeta": request_meta or {},
                 },
             )
             return {
                 "ownerAddress": owner,
-                "dailyLimitUsdc": existing.get("dailyLimitUsdc"),
-                "updatedAt": existing.get("updatedAt"),
+                "dailyLimitUsdc": existing.daily_limit_usdc,
+                "updatedAt": existing.updated_at,
             }

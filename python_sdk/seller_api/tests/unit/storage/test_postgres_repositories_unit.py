@@ -139,18 +139,15 @@ def test_idempotency_repository_read_and_write_rows() -> None:
     repo = IdempotencyRepository(db)
 
     rows = repo.read_idempotency_rows()
-    assert rows == [
-        {
-            "id": "idem-1",
-            "scope": "refund",
-            "ownerAddress": "0xabc",
-            "idempotencyKey": "k1",
-            "requestHash": "h1",
-            "response": {"ok": True},
-            "createdAt": 100,
-            "expiresAt": 200,
-        }
-    ]
+    assert len(rows) == 1
+    assert rows[0].id == "idem-1"
+    assert rows[0].scope == "refund"
+    assert rows[0].owner_address == "0xabc"
+    assert rows[0].idempotency_key == "k1"
+    assert rows[0].request_hash == "h1"
+    assert rows[0].response == {"ok": True}
+    assert rows[0].created_at == 100
+    assert rows[0].expires_at == 200
 
     repo.write_idempotency_rows(
         [
@@ -260,10 +257,10 @@ def test_service_registry_repository_read_and_write() -> None:
     assert services[0]["serviceId"] == "svc-1"
 
     target_rows = repo.read_service_target_health_rows()
-    assert target_rows[0]["consecutiveSuccesses"] == 3
+    assert target_rows[0].consecutive_successes == 3
 
     history_rows = repo.read_service_target_health_history_rows()
-    assert history_rows[0]["checkedAt"] == 11
+    assert history_rows[0].checked_at == 11
 
     repo.write_service_registry_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "createdAt": 1, "updatedAt": 2}])
     repo.write_service_target_health_rows([{"serviceId": "svc-2", "ownerAddress": "0xDEF", "targetUrl": "https://b"}])
@@ -322,8 +319,8 @@ def test_gateway_state_repository_read_and_write() -> None:
     assert repo.read_refund_intents() == [{"id": "ref-1"}]
     assert repo.read_withdrawal_intents() == [{"id": "wd-1"}]
     router_rows = repo.read_router_config_rows()
-    assert router_rows[0]["ownerAddress"] == "0xabc"
-    assert abs(router_rows[0]["dailyLimitUsdc"] - 100.0) < 1e-9
+    assert router_rows[0].owner_address == "0xabc"
+    assert abs(router_rows[0].daily_limit_usdc - 100.0) < 1e-9
     assert repo.read_usage_log_rows() == [{"id": "usage-1"}]
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
 

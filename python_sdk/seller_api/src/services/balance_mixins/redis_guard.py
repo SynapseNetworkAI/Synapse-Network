@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_client import get_redis_client
+from src.domain.idempotency import IdempotencyRow, RateLimitRow
 
 REDIS_IDEM_CLAIM_LUA = """
 local existing = redis.call('GET', KEYS[1])
@@ -45,23 +46,22 @@ class BalanceRedisGuardMixin:
         encoded = json.dumps(payload, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
-    def _load_idempotency_rows(self) -> List[Dict[str, Any]]:
+    def _load_idempotency_rows(self) -> List[IdempotencyRow]:
         rows = self.storage.get_data_manager().system.idempotency.read_idempotency_rows()
-        rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
         now = int(time.time())
-        filtered = [row for row in rows if int(row.get("expiresAt") or 0) > now]
+        filtered = [row for row in rows if int(row.expires_at or 0) > now]
         max_rows = max(500, int(settings.finance_idempotency_max_rows))
         if len(filtered) > max_rows:
-            filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
+            filtered.sort(key=lambda row: int(row.created_at or 0), reverse=True)
             filtered = filtered[:max_rows]
         if len(filtered) != len(rows):
             self.storage.get_data_manager().system.idempotency.write_idempotency_rows(filtered, now)
         return filtered
 
-    def _save_idempotency_rows(self, rows: List[Dict[str, Any]]) -> None:
+    def _save_idempotency_rows(self, rows: List[IdempotencyRow]) -> None:
         max_rows = max(500, int(settings.finance_idempotency_max_rows))
         if len(rows) > max_rows:
-            rows.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
+            rows.sort(key=lambda row: int(row.created_at or 0), reverse=True)
             rows = rows[:max_rows]
         now = int(time.time())
         self.storage.get_data_manager().system.idempotency.write_idempotency_rows(rows, now)
@@ -242,43 +242,40 @@ class BalanceRedisGuardMixin:
         now: int,
         max_per_min: int,
     ) -> None:
-        raw_rows = self.storage.get_data_manager().system.idempotency.read_rate_limit_rows()
-        rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+        rows = self.storage.get_data_manager().system.idempotency.read_rate_limit_rows()
 
         matched = next(
             (
                 row
                 for row in rows
-                if normalize_wallet(str(row.get("ownerAddress") or "")) == owner and str(row.get("action") or "") == action
+                if normalize_wallet(row.owner_address or "") == owner and (row.action or "") == action
             ),
             None,
         )
 
         if matched is None:
-            matched = {
-                "id": str(uuid4()),
-                "ownerAddress": owner,
-                "action": action,
-                "windowStart": now,
-                "count": 0,
-                "updatedAt": now,
-            }
+            matched = RateLimitRow(
+                id=str(uuid4()),
+                owner_address=owner,
+                action=action,
+                window_start=now,
+                count=0,
+                updated_at=now,
+            )
             rows.append(matched)
 
-        window_start = int(matched.get("windowStart") or now)
-        if now - window_start >= 60:
-            matched["windowStart"] = now
-            matched["count"] = 0
+        if now - int(matched.window_start or now) >= 60:
+            matched.window_start = now
+            matched.count = 0
 
-        count = int(matched.get("count") or 0)
-        if count >= max_per_min:
+        if matched.count >= max_per_min:
             self._append_financial_audit(
                 "FINANCE_RATE_LIMIT_HIT",
                 owner,
                 {
                     "action": action,
                     "limitPerMin": max_per_min,
-                    "windowStart": int(matched.get("windowStart") or now),
+                    "windowStart": int(matched.window_start or now),
                     "backend": "storage-fallback",
                 },
             )
@@ -290,8 +287,8 @@ class BalanceRedisGuardMixin:
                 },
             )
 
-        matched["count"] = count + 1
-        matched["updatedAt"] = now
+        matched.count = matched.count + 1
+        matched.updated_at = now
         self.storage.get_data_manager().system.idempotency.write_rate_limit_rows(rows, now)
 
     async def _enforce_owner_write_rate_limit(self, owner_wallet: str, action: str) -> None:
@@ -303,7 +300,7 @@ class BalanceRedisGuardMixin:
     def _try_get_idempotent_response(
         self,
         *,
-        rows: List[Dict[str, Any]],
+        rows: List[IdempotencyRow],
         scope: str,
         owner_wallet: str,
         idempotency_key: str,
@@ -311,13 +308,13 @@ class BalanceRedisGuardMixin:
     ) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         for row in rows:
-            if row.get("scope") != scope:
+            if row.scope != scope:
                 continue
-            if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
+            if normalize_wallet(row.owner_address or "") != owner:
                 continue
-            if str(row.get("idempotencyKey") or "") != idempotency_key:
+            if (row.idempotency_key or "") != idempotency_key:
                 continue
-            if str(row.get("requestHash") or "") != request_hash:
+            if (row.request_hash or "") != request_hash:
                 self._append_financial_audit(
                     "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
                     owner,
@@ -330,14 +327,14 @@ class BalanceRedisGuardMixin:
                         "message": "Idempotency key payload mismatch.",
                     },
                 )
-            response = row.get("response")
+            response = row.response
             return response if isinstance(response, dict) else None
         return None
 
     def _record_idempotent_response(
         self,
         *,
-        rows: List[Dict[str, Any]],
+        rows: List[IdempotencyRow],
         scope: str,
         owner_wallet: str,
         idempotency_key: str,
@@ -348,16 +345,16 @@ class BalanceRedisGuardMixin:
         owner = normalize_wallet(owner_wallet)
         expires_at = now + max(300, int(settings.finance_idempotency_ttl_sec))
         rows.append(
-            {
-                "id": str(uuid4()),
-                "scope": scope,
-                "ownerAddress": owner,
-                "idempotencyKey": idempotency_key,
-                "requestHash": request_hash,
-                "response": response,
-                "createdAt": now,
-                "expiresAt": expires_at,
-            }
+            IdempotencyRow(
+                id=str(uuid4()),
+                scope=scope,
+                owner_address=owner,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                response=response,
+                created_at=now,
+                expires_at=expires_at,
+            )
         )
         self._save_idempotency_rows(rows)
 
@@ -392,7 +389,7 @@ class BalanceRedisGuardMixin:
         owner: str,
         idempotency_key: str,
         request_hash: str,
-    ) -> tuple[Optional[Dict[str, Any]], Optional[Any], List[Dict[str, Any]]]:
+    ) -> tuple[Optional[Dict[str, Any]], Optional[Any], List[IdempotencyRow]]:
         redis_client = await self._get_redis_client()
         redis_hit = await self._check_idempotency_redis(
             scope="provider_withdraw_intent",
@@ -419,7 +416,7 @@ class BalanceRedisGuardMixin:
             if redis_retry is not None:
                 return redis_retry, redis_client, []
 
-        idem_rows: List[Dict[str, Any]] = []
+        idem_rows: List[IdempotencyRow] = []
         if redis_client is None:
             idem_rows = self._load_idempotency_rows()
             idem_hit = self._try_get_idempotent_response(

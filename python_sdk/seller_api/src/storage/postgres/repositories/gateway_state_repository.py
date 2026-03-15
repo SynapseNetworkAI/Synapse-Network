@@ -4,6 +4,8 @@ import json
 import time
 from typing import Any, Callable, Dict, List
 
+from src.domain.gateway import RouterConfigRow
+
 from ..database_manager import DatabaseManager
 
 
@@ -111,32 +113,33 @@ class GatewayStateRepository:
             ) if str(row.get("id") or "").strip() else None,
         )
 
-    def read_router_config_rows(self) -> List[Dict[str, Any]]:
+    def read_router_config_rows(self) -> List[RouterConfigRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute("SELECT owner_address, daily_limit_usdc, created_at, updated_at FROM synapse_router_config ORDER BY updated_at DESC")
             rows = cur.fetchall()
         return [
-            {
-                "ownerAddress": str(owner),
-                "dailyLimitUsdc": float(self._q6(limit)),
-                "createdAt": int(created),
-                "updatedAt": int(updated),
-            }
+            RouterConfigRow(
+                owner_address=str(owner),
+                daily_limit_usdc=float(self._q6(limit)),
+                created_at=int(created),
+                updated_at=int(updated),
+            )
             for owner, limit, created, updated in rows
         ]
 
-    def write_router_config_rows(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
+    def write_router_config_rows(self, rows: List[RouterConfigRow], updated_at: int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_router_config")
             for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                owner = str(row.get("ownerAddress") or "").lower()
+                owner = row.owner_address.lower() if isinstance(row, RouterConfigRow) else str(row.get("ownerAddress") or "").lower()
                 if not owner:
                     continue
+                limit = row.daily_limit_usdc if isinstance(row, RouterConfigRow) else row.get("dailyLimitUsdc", 0)
+                created = row.created_at if isinstance(row, RouterConfigRow) else int(row.get("createdAt") or updated_at)
+                updated = row.updated_at if isinstance(row, RouterConfigRow) else int(row.get("updatedAt") or updated_at)
                 cur.execute(
                     "INSERT INTO synapse_router_config (owner_address, daily_limit_usdc, created_at, updated_at) VALUES (%s, %s, %s, %s)",
-                    (owner, str(self._q6(row.get("dailyLimitUsdc") or 0)), int(row.get("createdAt") or updated_at), int(row.get("updatedAt") or updated_at)),
+                    (owner, str(self._q6(limit)), int(created), int(updated)),
                 )
 
     def read_usage_log_rows(self) -> List[Dict[str, Any]]:
