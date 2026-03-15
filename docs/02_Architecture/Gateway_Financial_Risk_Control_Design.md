@@ -53,6 +53,24 @@
 13. `tx_hash`
 14. `created_at`
 
+### 3.3 审计协议与物理分层（统一协议 + 双表）
+
+为避免“资金审计”和“系统行为日志”语义冲突，审计层采用：
+
+1. **统一事件协议（服务层同一调用形态）**
+2. **双物理表落库（按 domain 路由）**
+
+路由规则：
+
+1. `domain=finance` -> `synapse_audit_log`
+2. `domain=system` -> `synapse_system_activity_log`
+
+说明：
+
+1. `synapse_audit_log` 仅承载资金与风控语义，维持资金告警指标口径稳定。
+2. 凭据签发、服务配置、会话与权限等非资金行为写入 `synapse_system_activity_log`。
+3. 两类日志都保留 `request_id/trace_id/owner_address`，便于跨表关联排障与取证。
+
 ---
 
 ## 4. 三段式提现风控阀门（核心）

@@ -47,6 +47,10 @@ Router daily limit definition:
    - `clientIp`
    - `userAgent`
 3. Added owner-scoped financial audit API: `GET /api/v1/finance/audit-logs`.
+4. Audit persistence now follows **one protocol + two physical tables**:
+   - finance domain -> `synapse_audit_log`
+   - system domain -> `synapse_system_activity_log`
+5. Credential/service/session operations are written as system-domain audits to avoid polluting financial risk signals.
 
 ### 2.5 Third-Round Runtime Hardening
 
