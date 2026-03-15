@@ -10,8 +10,10 @@ from src.storage.postgres.repositories.audit_log_repository import AuditLogRepos
 from src.storage.postgres.repositories.balance_repository import BalanceRepository
 from src.storage.postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from src.storage.postgres.repositories.fee_policy_repository import FeePolicyRepository
+from src.storage.postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from src.storage.postgres.repositories.gateway_state_repository import GatewayStateRepository
 from src.storage.postgres.repositories.idempotency_repository import IdempotencyRepository
+from src.storage.postgres.repositories.legacy_collection_repository import LegacyCollectionRepository
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
 
 
@@ -38,12 +40,43 @@ class FakeCursor:
             return []
         return self.fetchall_queue.pop(0)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class FakeConnection:
+    def __init__(self, plan: Optional[Dict[str, Any]] = None):
+        plan = plan or {}
+        self.cursor_obj = FakeCursor(
+            fetchone_queue=plan.get("fetchone"),
+            fetchall_queue=plan.get("fetchall"),
+        )
+        self.commits = 0
+        self.rollbacks = 0
+
+    def cursor(self) -> FakeCursor:
+        return self.cursor_obj
+
+    def commit(self) -> None:
+        self.commits += 1
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
+
+    def close(self) -> None:
+        return None
+
 
 class FakeDB:
     def __init__(self):
         self.readonly_plan: List[Dict[str, Any]] = []
         self.readonly_cursors: List[FakeCursor] = []
         self.tx_cursors: List[FakeCursor] = []
+        self.connect_plan: List[Dict[str, Any]] = []
+        self.connections: List[FakeConnection] = []
 
     @contextlib.contextmanager
     def readonly_cursor(self):
@@ -60,6 +93,13 @@ class FakeDB:
         cur = FakeCursor()
         self.tx_cursors.append(cur)
         yield cur
+
+    @contextlib.contextmanager
+    def connect(self):
+        plan = self.connect_plan.pop(0) if self.connect_plan else {}
+        conn = FakeConnection(plan)
+        self.connections.append(conn)
+        yield conn
 
 
 def _q6(value: Any) -> Decimal:
@@ -297,3 +337,62 @@ def test_gateway_state_repository_read_and_write() -> None:
     assert "DELETE FROM synapse_router_config" in tx_sql
     assert "DELETE FROM synapse_usage_log" in tx_sql
     assert "DELETE FROM synapse_processed_deposit_events" in tx_sql
+
+
+def test_finance_atomic_repository_reserve_and_complete() -> None:
+    db = FakeDB()
+    db.connect_plan.append({"fetchone": [(Decimal("10"), Decimal("1"), Decimal("2"))]})
+    db.connect_plan.append({})
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    result = repo.reserve_seller_withdraw_atomic("0xabc", Decimal("2"))
+    assert abs(result["beforeBalance"] - 10.0) < 1e-9
+    assert abs(result["afterBalance"] - 8.0) < 1e-9
+
+    first_conn_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "BAL_FOR_UPDATE" in first_conn_sql
+    assert "UPSERT" in first_conn_sql
+
+    ok = repo.complete_withdraw_tx_atomic("0xabc", "0xtx", "seller")
+    assert ok is True
+    second_conn_sql = "\n".join(sql for sql, _ in db.connections[1].cursor_obj.executed)
+    assert "INSERT INTO synapse_withdraw_tx_dedup" in second_conn_sql
+
+
+def test_legacy_collection_repository_read_save_append() -> None:
+    class FakeAuditRepo:
+        def __init__(self):
+            self.append_calls: List[Any] = []
+            self.replace_calls: List[Any] = []
+
+        def append_to_audit_collection(self, item: Any) -> None:
+            self.append_calls.append(item)
+
+        def replace_audit_collection(self, rows: List[Dict[str, Any]]) -> None:
+            self.replace_calls.append(rows)
+
+    db = FakeDB()
+    db.readonly_plan.append({"fetchone": [None]})
+    db.readonly_plan.append({"fetchone": [({"services": [{"serviceId": "svc-1"}]},)]})
+    audit_repo = FakeAuditRepo()
+    repo = LegacyCollectionRepository(db, lambda row: row, audit_repo)
+
+    assert repo.get_collection("missing_list") == []
+    assert repo.get_collection("service_registry") == [{"serviceId": "svc-1"}]
+
+    repo.save_collection("service_registry", [{"serviceId": "svc-2"}])
+    repo.save_collection("audit_log", [{"event": "x"}])
+    repo.append_to_collection("audit_log", {"event": "y"})
+
+    assert audit_repo.replace_calls == [[{"event": "x"}]]
+    assert audit_repo.append_calls == [{"event": "y"}]
+
+    tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert "INSERT INTO synapse_collections" in tx_sql
