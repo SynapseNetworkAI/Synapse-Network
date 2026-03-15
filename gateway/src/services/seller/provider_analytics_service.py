@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 
 from src.core.common import normalize_wallet
 from src.domain.finance import BalanceLedger
+from src.domain.storage_entities import UsageLogRow
 from src.storage.base import BaseStorage
 
 
@@ -13,7 +14,18 @@ class ProviderAnalyticsService:
 
     def _load_usage_rows(self) -> List[Dict[str, Any]]:
         raw_rows = self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
-        return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+        if not isinstance(raw_rows, list):
+            return []
+        rows: List[Dict[str, Any]] = []
+        for row in raw_rows:
+            if isinstance(row, UsageLogRow):
+                payload = row.model_dump(by_alias=True, mode="json")
+                payload.setdefault("seller", payload.get("sellerAddress"))
+                payload.setdefault("buyer", payload.get("buyerAddress"))
+                rows.append(payload)
+            elif isinstance(row, dict):
+                rows.append(row)
+        return rows
 
     def _load_seller_receivable(self, owner_wallet: str) -> float:
         ledger = self.storage.get_data_manager().finance.balance.read_balance_ledger()

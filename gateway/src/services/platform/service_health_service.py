@@ -7,13 +7,69 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from src.core.config import settings
-from src.domain.registry import ServiceTargetHealthHistory
+from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
+from src.domain.storage_entities import ServiceRegistryRow
 from src.storage.base import BaseStorage
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_HEALTH_PATH = "/health"
 _last_health_history_prune_ms = 0
+
+
+def _service_entity_to_dict(row: ServiceRegistryRow) -> Dict[str, Any]:
+    payload = row.model_dump(by_alias=True, mode="json")
+    payload["pricing"] = {
+        "amount": str(payload.get("pricingAmount") or "0"),
+        "currency": str(payload.get("pricingCurrency") or "USDC"),
+    }
+    payload["constraints"] = {
+        "timeoutMs": int(payload.get("timeoutMs") or settings.gateway_default_timeout_ms),
+        "maxQps": int(payload.get("maxQps") or settings.gateway_default_service_qps),
+        "maxRequestBytes": int(payload.get("maxRequestBytes") or settings.gateway_default_request_bytes),
+        "maxResponseBytes": int(payload.get("maxResponseBytes") or settings.gateway_default_response_bytes),
+    }
+    endpoint = str(payload.get("endpoint") or "").strip()
+    payload.setdefault(
+        "invoke",
+        {
+            "method": "POST",
+            "targets": ([{"url": endpoint, "weight": 100}] if endpoint else []),
+            "timeoutMs": int(payload["constraints"]["timeoutMs"]),
+            "request": {},
+            "response": {},
+            "headersTemplate": {},
+            "examples": [],
+        },
+    )
+    return payload
+
+
+def _service_dict_to_entity(service: Dict[str, Any]) -> ServiceRegistryRow:
+    pricing = service.get("pricing") if isinstance(service.get("pricing"), dict) else {}
+    constraints = service.get("constraints") if isinstance(service.get("constraints"), dict) else {}
+    invoke = service.get("invoke") if isinstance(service.get("invoke"), dict) else {}
+    targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
+    endpoint = str(service.get("endpoint") or "").strip()
+    if not endpoint and targets and isinstance(targets[0], dict):
+        endpoint = str(targets[0].get("url") or "").strip()
+    return ServiceRegistryRow(
+        serviceId=str(service.get("serviceId") or "").strip(),
+        ownerAddress=str(service.get("ownerAddress") or "").lower(),
+        serviceName=str(service.get("serviceName") or ""),
+        summary=str(service.get("summary") or ""),
+        endpoint=endpoint or None,
+        status=str(service.get("status") or "active"),
+        isActive=bool(service.get("isActive", True)),
+        pricingAmount=str(pricing.get("amount") or 0),
+        pricingCurrency=str(pricing.get("currency") or "USDC"),
+        timeoutMs=int(constraints.get("timeoutMs") or service.get("timeoutMs") or settings.gateway_default_timeout_ms),
+        maxQps=int(constraints.get("maxQps") or service.get("maxQps") or settings.gateway_default_service_qps),
+        maxRequestBytes=int(constraints.get("maxRequestBytes") or service.get("maxRequestBytes") or settings.gateway_default_request_bytes),
+        maxResponseBytes=int(constraints.get("maxResponseBytes") or service.get("maxResponseBytes") or settings.gateway_default_response_bytes),
+        createdAt=int(service.get("createdAt") or 0),
+        updatedAt=int(service.get("updatedAt") or 0),
+    )
 
 
 def _now_ms() -> int:
@@ -163,9 +219,21 @@ def _build_service_target_health_rows(services: List[Dict[str, Any]]) -> List[Di
 def sync_service_target_health_table(storage: BaseStorage, services: Optional[List[Dict[str, Any]]] = None) -> int:
     if services is None:
         raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
-        services = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+        if isinstance(raw_rows, list):
+            services = [
+                _service_entity_to_dict(row) if isinstance(row, ServiceRegistryRow) else row
+                for row in raw_rows
+                if isinstance(row, (ServiceRegistryRow, dict))
+            ]
+        else:
+            services = []
     rows = _build_service_target_health_rows(services)
-    storage.get_data_manager().system.registry.write_service_target_health_rows(rows)
+    typed_rows = [ServiceTargetHealth.model_validate(row) for row in rows if isinstance(row, dict)]
+    repo = storage.get_data_manager().system.registry
+    try:
+        repo.write_service_target_health_rows(typed_rows)
+    except Exception:
+        repo.write_service_target_health_rows(rows)
     return len(rows)
 
 
@@ -209,14 +277,25 @@ def append_health_history_rows(storage: BaseStorage, rows: List[Dict[str, Any]])
     if not rows:
         return 0
     existing: list = list(storage.get_data_manager().system.registry.read_service_target_health_history_rows())
-    existing.extend(rows)
-    storage.get_data_manager().system.registry.write_service_target_health_history_rows(existing)
+    existing.extend(ServiceTargetHealthHistory.model_validate(row) for row in rows if isinstance(row, dict))
+    repo = storage.get_data_manager().system.registry
+    try:
+        repo.write_service_target_health_history_rows(existing)
+    except Exception:
+        repo.write_service_target_health_history_rows(rows)
     return len(rows)
 
 
 def _current_valid_service_ids(storage: BaseStorage) -> set[str]:
     raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
-    services = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    if isinstance(raw_rows, list):
+        services = [
+            _service_entity_to_dict(row) if isinstance(row, ServiceRegistryRow) else row
+            for row in raw_rows
+            if isinstance(row, (ServiceRegistryRow, dict))
+        ]
+    else:
+        services = []
     return {
         str(row.get("serviceId") or "").strip()
         for row in services
@@ -263,7 +342,11 @@ def prune_health_history(storage: BaseStorage, valid_service_ids: Optional[set[s
 
     after = len(filtered)
     if after != before:
-        storage.get_data_manager().system.registry.write_service_target_health_history_rows(filtered)
+        repo = storage.get_data_manager().system.registry
+        try:
+            repo.write_service_target_health_history_rows(filtered)
+        except Exception:
+            repo.write_service_target_health_history_rows([row for row in filtered if isinstance(row, dict)])
     return {"before": before, "after": after, "removed": max(0, before - after)}
 
 
@@ -416,7 +499,14 @@ async def probe_service_health(service: Dict[str, Any], client: Optional[httpx.A
 
 async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
     raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
-    rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    if isinstance(raw_rows, list):
+        rows = [
+            _service_entity_to_dict(row) if isinstance(row, ServiceRegistryRow) else row
+            for row in raw_rows
+            if isinstance(row, (ServiceRegistryRow, dict))
+        ]
+    else:
+        rows = []
 
     checked = 0
     updated = 0
@@ -439,7 +529,11 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
             next_rows.append(next_row)
 
     if updated > 0:
-        storage.get_data_manager().system.registry.write_service_registry_rows(next_rows)
+        repo = storage.get_data_manager().system.registry
+        try:
+            repo.write_service_registry_rows([_service_dict_to_entity(row) for row in next_rows])
+        except Exception:
+            repo.write_service_registry_rows(next_rows)
 
     synced_rows = sync_service_target_health_table(storage, next_rows)
     valid_service_ids = {

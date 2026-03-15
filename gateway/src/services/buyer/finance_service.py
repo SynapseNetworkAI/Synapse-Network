@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.domain.finance import BalanceLedger
+from src.domain.storage_entities import DepositIntentRow, RefundIntentRow, UsageLogRow
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
 
@@ -60,21 +61,60 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _load_deposit_intents(self) -> List[Dict[str, Any]]:
         rows = self.storage.get_data_manager().system.gateway_state.read_deposit_intents()
-        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+        if not isinstance(rows, list):
+            return []
+        result: List[Dict[str, Any]] = []
+        for row in rows:
+            if isinstance(row, DepositIntentRow):
+                result.append(row.model_dump(by_alias=True, mode="json"))
+            elif isinstance(row, dict):
+                result.append(row)
+        return result
 
     def _save_deposit_intents(self, rows: List[Dict[str, Any]]) -> None:
-        self.storage.get_data_manager().system.gateway_state.write_deposit_intents(rows)
+        typed_rows = [DepositIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+        repo = self.storage.get_data_manager().system.gateway_state
+        try:
+            repo.write_deposit_intents(typed_rows)
+        except Exception:
+            repo.write_deposit_intents(rows)
 
     def _load_refund_intents(self) -> List[Dict[str, Any]]:
         rows = self.storage.get_data_manager().system.gateway_state.read_refund_intents()
-        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+        if not isinstance(rows, list):
+            return []
+        result: List[Dict[str, Any]] = []
+        for row in rows:
+            if isinstance(row, RefundIntentRow):
+                result.append(row.model_dump(by_alias=True, mode="json"))
+            elif isinstance(row, dict):
+                result.append(row)
+        return result
 
     def _save_refund_intents(self, rows: List[Dict[str, Any]], updated_at: int) -> None:
-        self.storage.get_data_manager().system.gateway_state.write_refund_intents(rows, int(updated_at))
+        typed_rows = [RefundIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+        repo = self.storage.get_data_manager().system.gateway_state
+        try:
+            repo.write_refund_intents(typed_rows, int(updated_at))
+        except Exception:
+            repo.write_refund_intents(rows, int(updated_at))
 
     def _load_usage_log_rows(self) -> List[Dict[str, Any]]:
         rows = self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
-        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+        if not isinstance(rows, list):
+            return []
+        result: List[Dict[str, Any]] = []
+        for row in rows:
+            if isinstance(row, UsageLogRow):
+                payload = row.model_dump(by_alias=True, mode="json")
+                payload.setdefault("buyer", payload.get("buyerAddress"))
+                payload.setdefault("seller", payload.get("sellerAddress"))
+                payload.setdefault("requestId", payload.get("requestId"))
+                payload.setdefault("totalCharge", payload.get("totalCharge"))
+                result.append(payload)
+            elif isinstance(row, dict):
+                result.append(row)
+        return result
 
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
@@ -713,12 +753,23 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         next_intent.setdefault("createdAt", now)
         next_intent["updatedAt"] = now
         if hasattr(self.storage, "register_deposit_intent_atomic"):
-            saved = getattr(self.storage, "register_deposit_intent_atomic")(
-                owner_wallet=owner,
-                tx_hash=tx_hash.lower(),
-                request_id=idempotency_key,
-                intent_row=next_intent,
-            )
+            register_atomic = getattr(self.storage, "register_deposit_intent_atomic")
+            try:
+                saved = register_atomic(
+                    owner_wallet=owner,
+                    tx_hash=tx_hash.lower(),
+                    request_id=idempotency_key,
+                    intent_row=DepositIntentRow.model_validate(next_intent),
+                )
+            except Exception:
+                saved = register_atomic(
+                    owner_wallet=owner,
+                    tx_hash=tx_hash.lower(),
+                    request_id=idempotency_key,
+                    intent_row=next_intent,
+                )
+            if isinstance(saved, DepositIntentRow):
+                return saved.model_dump(by_alias=True, mode="json")
             if isinstance(saved, dict) and saved:
                 return saved
         self._reserve_pending_deposit_amount(owner, amount_usdc)
@@ -775,7 +826,11 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     detail={"code": "DEPOSIT_STATUS_INVALID", "message": "Deposit intent cannot be confirmed from current status."},
                 )
             raise
-        return result if isinstance(result, dict) else {}
+        if isinstance(result, DepositIntentRow):
+            return result.model_dump(by_alias=True, mode="json")
+        if isinstance(result, dict):
+            return result
+        return {}
 
     def _find_owner_deposit_intent(
         self,

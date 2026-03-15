@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, List
 
 from src.domain.idempotency import IdempotencyRow, RateLimitRow
+from src.domain.storage_entities import FinanceRateLimitRow, IdempotencyKeyRow
 
 from ..database_manager import DatabaseManager
 
@@ -13,105 +13,133 @@ class IdempotencyRepository:
     def __init__(self, db: DatabaseManager):
         self._db = db
 
-    def read_idempotency_rows(self) -> List[IdempotencyRow]:
+    def read_idempotency_rows(self) -> List[IdempotencyKeyRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
-                "SELECT id, scope, owner_address, idempotency_key, request_hash, response, created_at, expires_at FROM synapse_idempotency_keys ORDER BY created_at DESC"
+                """
+                SELECT id, scope, owner_address, idempotency_key, request_hash,
+                       response_code, response_digest, created_at, expires_at
+                FROM synapse_idempotency_keys
+                ORDER BY created_at DESC
+                """
             )
             rows = cur.fetchall()
-        return [
-            IdempotencyRow(
-                id=row_id,
-                scope=scope,
-                owner_address=owner,
-                idempotency_key=key,
-                request_hash=req_hash,
-                response=response if isinstance(response, dict) else None,
-                created_at=int(created_at or 0),
-                expires_at=int(expires_at or 0),
+        result: List[IdempotencyKeyRow] = []
+        for row in rows:
+            if len(row) == 9:
+                row_id, scope, owner, key, req_hash, response_code, response_digest, created_at, expires_at = row
+            elif len(row) == 8:
+                row_id, scope, owner, key, req_hash, response_obj, created_at, expires_at = row
+                if isinstance(response_obj, dict):
+                    response_code = str(response_obj.get("code") or "") or None
+                    response_digest = str(response_obj.get("digest") or "") or None
+                else:
+                    response_code = None
+                    response_digest = None
+            else:
+                continue
+            result.append(
+                IdempotencyKeyRow(
+                    id=str(row_id),
+                    scope=str(scope),
+                    ownerAddress=str(owner),
+                    idempotencyKey=str(key),
+                    requestHash=str(req_hash),
+                    responseCode=response_code,
+                    responseDigest=response_digest,
+                    createdAt=int(created_at or 0),
+                    expiresAt=int(expires_at or 0),
+                )
             )
-            for row_id, scope, owner, key, req_hash, response, created_at, expires_at in rows
-        ]
+        return result
 
-    def write_idempotency_rows(self, rows: List[IdempotencyRow], updated_at: int) -> None:
+    def write_idempotency_rows(self, rows: List[Any], updated_at: int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_idempotency_keys")
             for row in rows:
-                values = self._to_idempotency_insert_values(row, updated_at)
-                if values is None:
+                if isinstance(row, IdempotencyRow):
+                    row = IdempotencyKeyRow(
+                        id=row.id,
+                        scope=row.scope,
+                        ownerAddress=row.owner_address,
+                        idempotencyKey=row.idempotency_key,
+                        requestHash=row.request_hash,
+                        responseCode=str((row.response or {}).get("code") or "") or None,
+                        responseDigest=str((row.response or {}).get("digest") or "") or None,
+                        createdAt=row.created_at,
+                        expiresAt=row.expires_at,
+                    )
+                elif isinstance(row, dict):
+                    row = IdempotencyKeyRow.model_validate(row)
+                if not isinstance(row, IdempotencyKeyRow):
+                    continue
+                row_id = row.id.strip() or f"idem-{int(time.time()*1000)}"
+                if not row.owner_address or not row.scope or not row.idempotency_key or not row.request_hash:
                     continue
                 cur.execute(
                     """
-                    INSERT INTO synapse_idempotency_keys (id, scope, owner_address, idempotency_key, request_hash, response, created_at, expires_at)
-                    VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                    INSERT INTO synapse_idempotency_keys (
+                        id, scope, owner_address, idempotency_key, request_hash,
+                        response_code, response_digest, created_at, expires_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    values,
+                    (
+                        row_id,
+                        row.scope,
+                        row.owner_address.lower(),
+                        row.idempotency_key,
+                        row.request_hash,
+                        row.response_code,
+                        row.response_digest,
+                        int(row.created_at or updated_at),
+                        int(row.expires_at or updated_at),
+                    ),
                 )
 
-    def read_rate_limit_rows(self) -> List[RateLimitRow]:
+    def read_rate_limit_rows(self) -> List[FinanceRateLimitRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute("SELECT id, owner_address, action, window_start, count, updated_at FROM synapse_finance_rate_limit")
             rows = cur.fetchall()
         return [
-            RateLimitRow(
-                id=row_id,
-                owner_address=owner,
-                action=action,
-                window_start=int(window_start or 0),
+            FinanceRateLimitRow(
+                id=str(row_id),
+                ownerAddress=str(owner),
+                action=str(action),
+                windowStart=int(window_start or 0),
                 count=int(count or 0),
-                updated_at=int(updated_at or 0),
+                updatedAt=int(updated_at or 0),
             )
             for row_id, owner, action, window_start, count, updated_at in rows
         ]
 
-    def write_rate_limit_rows(self, rows: List[RateLimitRow], updated_at: int) -> None:
+    def write_rate_limit_rows(self, rows: List[Any], updated_at: int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_finance_rate_limit")
             for row in rows:
-                owner = row.owner_address.lower() if isinstance(row, RateLimitRow) else str(row.get("ownerAddress") or "").lower()
-                action = row.action if isinstance(row, RateLimitRow) else str(row.get("action") or "")
-                if not owner or not action:
+                if isinstance(row, RateLimitRow):
+                    row = FinanceRateLimitRow(
+                        id=row.id,
+                        ownerAddress=row.owner_address,
+                        action=row.action,
+                        windowStart=row.window_start,
+                        count=row.count,
+                        updatedAt=row.updated_at,
+                    )
+                elif isinstance(row, dict):
+                    row = FinanceRateLimitRow.model_validate(row)
+                if not isinstance(row, FinanceRateLimitRow):
                     continue
-                row_id = row.id if isinstance(row, RateLimitRow) else str(row.get("id") or "")
-                if not row_id:
-                    row_id = f"rl-{int(time.time()*1000)}"
-                ws = row.window_start if isinstance(row, RateLimitRow) else int(row.get("windowStart") or updated_at)
-                cnt = row.count if isinstance(row, RateLimitRow) else int(row.get("count") or 0)
-                ua = row.updated_at if isinstance(row, RateLimitRow) else int(row.get("updatedAt") or updated_at)
+                if not row.owner_address or not row.action:
+                    continue
+                row_id = row.id or f"rl-{int(time.time()*1000)}"
                 cur.execute(
                     "INSERT INTO synapse_finance_rate_limit (id, owner_address, action, window_start, count, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (row_id, owner, action, int(ws), int(cnt), int(ua)),
+                    (
+                        row_id,
+                        row.owner_address.lower(),
+                        row.action,
+                        int(row.window_start or updated_at),
+                        int(row.count or 0),
+                        int(row.updated_at or updated_at),
+                    ),
                 )
-
-    def _to_idempotency_insert_values(self, row: IdempotencyRow, updated_at: int) -> Optional[tuple[Any, ...]]:
-        row_id = row.id.strip() if isinstance(row, IdempotencyRow) else str(row.get("id") or "").strip()
-        if not row_id:
-            row_id = f"idem-{int(time.time()*1000)}"
-        if isinstance(row, IdempotencyRow):
-            owner = row.owner_address.lower()
-            scope = row.scope
-            key = row.idempotency_key
-            req_hash = row.request_hash
-            response = row.response
-            created = row.created_at or updated_at
-            expires = row.expires_at or updated_at
-        else:
-            owner = str(row.get("ownerAddress") or "").lower()
-            scope = str(row.get("scope") or "")
-            key = str(row.get("idempotencyKey") or "")
-            req_hash = str(row.get("requestHash") or "")
-            response = row.get("response") if isinstance(row.get("response"), dict) else None
-            created = int(row.get("createdAt") or updated_at)
-            expires = int(row.get("expiresAt") or updated_at)
-        if not owner or not scope or not key or not req_hash:
-            return None
-        return (
-            row_id,
-            scope,
-            owner,
-            key,
-            req_hash,
-            json.dumps(response, ensure_ascii=False),
-            int(created),
-            int(expires),
-        )

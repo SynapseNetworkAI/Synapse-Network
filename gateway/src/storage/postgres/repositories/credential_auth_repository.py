@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import json
 import time
-from typing import Any, Callable, Dict, List, Optional
+from decimal import Decimal
+from typing import Any, Callable, List, Optional
+
+from src.domain.storage_entities import AuthSessionRow, CredentialRow, WalletRoleRow
 
 from ..database_manager import DatabaseManager
 
@@ -12,22 +14,68 @@ class CredentialAuthRepository:
         self._db = db
         self._q6 = quantize6
 
-    def read_credential_rows(self, credential_type: str) -> List[Dict[str, Any]]:
+    def read_credential_rows(self, credential_type: str) -> List[CredentialRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
-                "SELECT payload FROM synapse_credentials WHERE credential_type = %s ORDER BY created_at DESC",
+                """
+                SELECT id, credential_type, owner_address, name, token_hash, token_prefix, status,
+                       max_calls, calls_used, rpm, credit_limit, reset_interval, expiration,
+                       expires_at, created_at, updated_at, revoked_at
+                FROM synapse_credentials
+                WHERE credential_type = %s
+                ORDER BY created_at DESC
+                """,
                 (str(credential_type or ""),),
             )
             rows = cur.fetchall()
-        return [row[0] for row in rows if isinstance(row[0], dict)]
+        return [
+            CredentialRow(
+                id=str(row_id),
+                credentialType=str(c_type),
+                ownerAddress=str(owner).lower(),
+                name=name,
+                tokenHash=token_hash,
+                tokenPrefix=token_prefix,
+                status=status,
+                maxCalls=max_calls,
+                callsUsed=calls_used,
+                rpm=rpm,
+                creditLimit=self._q6(credit_limit) if credit_limit is not None else None,
+                resetInterval=reset_interval,
+                expiration=expiration,
+                expiresAt=expires_at,
+                createdAt=created_at,
+                updatedAt=updated_at,
+                revokedAt=revoked_at,
+            )
+            for (
+                row_id,
+                c_type,
+                owner,
+                name,
+                token_hash,
+                token_prefix,
+                status,
+                max_calls,
+                calls_used,
+                rpm,
+                credit_limit,
+                reset_interval,
+                expiration,
+                expires_at,
+                created_at,
+                updated_at,
+                revoked_at,
+            ) in rows
+        ]
 
-    def write_credential_rows(self, credential_type: str, rows: List[Dict[str, Any]]) -> None:
+    def write_credential_rows(self, credential_type: str, rows: List[CredentialRow]) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_credentials WHERE credential_type = %s", (str(credential_type or ""),))
             for row in rows:
-                if not isinstance(row, dict):
+                if not isinstance(row, CredentialRow):
                     continue
-                row_id = str(row.get("id") or "").strip()
+                row_id = str(row.id or "").strip()
                 if not row_id:
                     continue
                 cur.execute(
@@ -35,28 +83,27 @@ class CredentialAuthRepository:
                     INSERT INTO synapse_credentials (
                         id, credential_type, owner_address, name, token_hash, token_prefix, status,
                         max_calls, calls_used, rpm, credit_limit, reset_interval, expiration,
-                        expires_at, created_at, updated_at, revoked_at, payload
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                        expires_at, created_at, updated_at, revoked_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         row_id,
                         str(credential_type or ""),
-                        str(row.get("ownerAddress") or "").lower(),
-                        row.get("name"),
-                        row.get("tokenHash"),
-                        row.get("tokenPrefix"),
-                        row.get("status"),
-                        row.get("maxCalls"),
-                        row.get("callsUsed"),
-                        row.get("rpm"),
-                        str(self._q6(row.get("creditLimit") or 0)) if row.get("creditLimit") is not None else None,
-                        row.get("resetInterval"),
-                        row.get("expiration"),
-                        row.get("expiresAt"),
-                        row.get("createdAt"),
-                        row.get("updatedAt"),
-                        row.get("revokedAt"),
-                        json.dumps(row, ensure_ascii=False),
+                        str(row.owner_address or "").lower(),
+                        row.name,
+                        row.token_hash,
+                        row.token_prefix,
+                        row.status,
+                        row.max_calls,
+                        row.calls_used,
+                        row.rpm,
+                        str(self._q6(row.credit_limit or Decimal("0"))) if row.credit_limit is not None else None,
+                        row.reset_interval,
+                        row.expiration,
+                        row.expires_at,
+                        row.created_at,
+                        row.updated_at,
+                        row.revoked_at,
                     ),
                 )
 
@@ -69,6 +116,11 @@ class CredentialAuthRepository:
         return str(row[0] or "")
 
     def set_wallet_role(self, wallet: str, role: str) -> None:
+        self.upsert_wallet_role(
+            WalletRoleRow(walletAddress=str(wallet or "").lower(), role=str(role or ""), updatedAt=int(time.time()))
+        )
+
+    def upsert_wallet_role(self, row: WalletRoleRow) -> None:
         now = int(time.time())
         with self._db.tx_cursor() as cur:
             cur.execute(
@@ -78,10 +130,38 @@ class CredentialAuthRepository:
                 ON CONFLICT (wallet_address)
                 DO UPDATE SET role = EXCLUDED.role, updated_at = EXCLUDED.updated_at
                 """,
-                (str(wallet or "").lower(), str(role or ""), now),
+                (str(row.wallet_address or "").lower(), str(row.role or ""), int(row.updated_at or now)),
             )
 
     def upsert_auth_session(self, wallet: str, registered_at: int, last_login: int, status: str) -> None:
+        self.save_auth_session(
+            AuthSessionRow(
+                walletAddress=str(wallet or "").lower(),
+                registeredAt=int(registered_at),
+                lastLogin=int(last_login),
+                status=str(status or "active"),
+                updatedAt=int(time.time()),
+            )
+        )
+
+    def read_auth_session(self, wallet: str) -> Optional[AuthSessionRow]:
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                "SELECT wallet_address, registered_at, last_login, status, updated_at FROM synapse_auth_sessions WHERE wallet_address = %s",
+                (str(wallet or "").lower(),),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return AuthSessionRow(
+            walletAddress=str(row[0] or ""),
+            registeredAt=int(row[1] or 0),
+            lastLogin=int(row[2] or 0),
+            status=str(row[3] or ""),
+            updatedAt=int(row[4] or 0),
+        )
+
+    def save_auth_session(self, row: AuthSessionRow) -> None:
         now = int(time.time())
         with self._db.tx_cursor() as cur:
             cur.execute(
@@ -95,5 +175,11 @@ class CredentialAuthRepository:
                     status = EXCLUDED.status,
                     updated_at = EXCLUDED.updated_at
                 """,
-                (str(wallet or "").lower(), int(registered_at), int(last_login), str(status or "active"), now),
+                (
+                    str(row.wallet_address or "").lower(),
+                    int(row.registered_at),
+                    int(row.last_login),
+                    str(row.status or "active"),
+                    int(row.updated_at or now),
+                ),
             )

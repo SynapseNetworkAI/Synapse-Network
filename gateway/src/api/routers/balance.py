@@ -17,6 +17,7 @@ from src.services.platform import credential_service
 from src.services.platform.v2_indexer import get_indexer_status
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.domain.storage_entities import UsageLogRow
 from src.storage import get_storage, BaseStorage
 
 router = APIRouter()
@@ -246,12 +247,16 @@ async def get_usage_logs(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
     raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
-    rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    rows = [
+        row.model_dump(by_alias=True, mode="json") if isinstance(row, UsageLogRow) else row
+        for row in raw_rows
+        if isinstance(row, (UsageLogRow, dict))
+    ] if isinstance(raw_rows, list) else []
     owner = owner_wallet.lower()
     filtered = []
     for row in rows:
-        buyer = str(row.get("buyer") or "").lower()
-        seller = str(row.get("seller") or "").lower()
+        buyer = str(row.get("buyer") or row.get("buyerAddress") or "").lower()
+        seller = str(row.get("seller") or row.get("sellerAddress") or "").lower()
         if buyer == owner or seller == owner:
             filtered.append(row)
 

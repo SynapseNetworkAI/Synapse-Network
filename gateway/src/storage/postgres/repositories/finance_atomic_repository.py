@@ -1,9 +1,16 @@
 from __future__ import annotations
 
-import json
 import time
 from decimal import Decimal
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
+
+from src.domain.storage_entities import (
+    BalanceMutationResult,
+    BuyerChargeResult,
+    DepositIntentRow,
+    UsageLogRow,
+    WithdrawalDecision,
+)
 
 from ..database_manager import DatabaseManager
 
@@ -38,8 +45,8 @@ class FinanceAtomicRepository:
         hit = cur.fetchone()
         if hit is None:
             cur.execute(self._balance_upsert_sql, (owner, account_type, "0", "0", "0", now))
-            return (Decimal("0"), Decimal("0"), Decimal("0"))
-        return (self._q6(hit[0]), self._q6(hit[1]), self._q6(hit[2]))
+            return Decimal("0"), Decimal("0"), Decimal("0")
+        return self._q6(hit[0]), self._q6(hit[1]), self._q6(hit[2])
 
     def _compute_withdrawal_risk_metrics(self, cur: Any, owner: str, now: int, window_seconds: int) -> tuple[Decimal, Decimal, bool]:
         window_start = now - max(1, int(window_seconds))
@@ -57,15 +64,7 @@ class FinanceAtomicRepository:
 
         cur.execute(
             """
-            SELECT COALESCE(SUM(
-                CASE
-                    WHEN (payload->>'sellerNet') ~ '^-?[0-9]+(\\.[0-9]+)?$'
-                        THEN (payload->>'sellerNet')::numeric
-                    WHEN total_charge IS NOT NULL
-                        THEN total_charge
-                    ELSE 0
-                END
-            ), 0)
+            SELECT COALESCE(SUM(COALESCE(unit_price, 0) - COALESCE(protocol_fee, 0)), 0)
             FROM synapse_usage_log
             WHERE lower(seller_address) = %s
               AND lower(status) IN ('accepted', 'succeeded', 'success', 'completed')
@@ -81,52 +80,35 @@ class FinanceAtomicRepository:
         high_risk_from_db = cur.fetchone() is not None
         return rolling_24h, historical_net_income, high_risk_from_db
 
-    def _upsert_withdrawal_intent(
-        self,
-        cur: Any,
-        *,
-        withdrawal_id: str,
-        owner: str,
-        status: str,
-        amount: Decimal,
-        now: int,
-        payload: Dict[str, Any],
-    ) -> None:
-        cur.execute(
-            """
-            INSERT INTO synapse_withdrawal_intents (id, owner_address, tx_hash, status, amount_usdc, created_at, updated_at, payload)
-            VALUES (%s, %s, NULL, %s, %s, %s, %s, %s::jsonb)
-            ON CONFLICT (id)
-            DO UPDATE SET status = EXCLUDED.status, amount_usdc = EXCLUDED.amount_usdc,
-                          updated_at = EXCLUDED.updated_at, payload = EXCLUDED.payload
-            """,
-            (withdrawal_id, owner, status, str(amount), now, now, json.dumps(payload, ensure_ascii=False)),
-        )
-
     def _append_withdrawal_audit(
         self,
         cur: Any,
         *,
-        withdrawal_id: str,
-        now: int,
         action: str,
         owner: str,
-        details: Dict[str, Any],
+        request_id: str,
+        amount: Decimal,
+        risk_level: str,
+        risk_reason_code: Optional[str],
+        result_status: str,
+        message: str,
     ) -> None:
         cur.execute(
-            self._audit_insert_sql,
+            """
+            INSERT INTO synapse_audit_log (
+                action_type, business_type, risk_level, owner_address, request_id,
+                amount_delta, result_status, error_code, message
+            ) VALUES (%s, 'withdraw', %s::synapse_risk_level, %s, %s, %s, %s, %s, %s)
+            """,
             (
-                "audit_log",
-                json.dumps(
-                    {
-                        "id": f"audit-{withdrawal_id}",
-                        "timestamp": now,
-                        "action": action,
-                        "ownerAddress": owner,
-                        "details": details,
-                    },
-                    ensure_ascii=False,
-                ),
+                action,
+                risk_level,
+                owner,
+                request_id,
+                str(amount),
+                result_status,
+                risk_reason_code,
+                message,
             ),
         )
 
@@ -137,154 +119,133 @@ class FinanceAtomicRepository:
             return "HIGH_RISK_SELLER_TAGGED"
         return None
 
-    def _persist_red_withdrawal(
+    def process_withdrawal_request_atomic(
         self,
-        cur: Any,
         *,
-        withdrawal_id: str,
-        owner: str,
-        amount: Decimal,
-        now: int,
+        seller_address: str,
+        amount_usdc: Decimal,
         request_id: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]],
-        red_reason: str,
-        rolling_24h: Decimal,
-        historical_net_income: Decimal,
-    ) -> Dict[str, Any]:
-        payload = {
-            "id": withdrawal_id,
-            "ownerAddress": owner,
-            "amountUsdc": float(amount),
-            "status": "REJECTED",
-            "businessType": "withdraw",
-            "riskLevel": "red",
-            "riskReasonCode": red_reason,
-            "requestId": request_id,
-            "idempotencyKey": idempotency_key,
-            "requestMeta": request_meta or {},
-            "createdAt": now,
-            "updatedAt": now,
-        }
-        self._upsert_withdrawal_intent(
-            cur,
-            withdrawal_id=withdrawal_id,
-            owner=owner,
-            status="REJECTED",
-            amount=amount,
-            now=now,
-            payload=payload,
-        )
-        self._append_withdrawal_audit(
-            cur,
-            withdrawal_id=withdrawal_id,
-            now=now,
-            action="PROVIDER_WITHDRAW_REJECTED",
-            owner=owner,
-            details={
-                "businessType": "withdraw",
-                "riskLevel": "red",
-                "riskReasonCode": red_reason,
-                "amountUsdc": float(amount),
-                "rolling24hWithdrawUsdc": float(rolling_24h),
-                "historicalNetIncomeUsdc": float(historical_net_income),
-                "requestId": request_id,
-            },
-        )
-        return {
-            "decision": "red",
-            "withdrawalId": withdrawal_id,
-            "status": "REJECTED",
-            "riskReasonCode": red_reason,
-            "message": "Withdrawal blocked by risk policy.",
-        }
+        request_meta: Optional[dict[str, Any]],
+        single_limit_usdc: Decimal,
+        rolling_24h_limit_usdc: Decimal,
+        window_seconds: int,
+        high_risk_override: bool,
+        sign_ticket_factory: Optional[Callable[[Decimal], dict[str, Any]]] = None,
+    ) -> WithdrawalDecision:
+        owner = str(seller_address or "").strip().lower()
+        now = int(time.time())
+        amount = self._q6(amount_usdc)
+        _ = request_meta
+        if amount <= Decimal("0"):
+            raise RuntimeError("INVALID_WITHDRAW_AMOUNT")
 
-    def _persist_non_red_withdrawal(
-        self,
-        cur: Any,
-        *,
-        withdrawal_id: str,
-        owner: str,
-        amount: Decimal,
-        now: int,
-        request_context: Dict[str, Any],
-        balances: tuple[Decimal, Decimal, Decimal],
-        thresholds: tuple[Decimal, Decimal],
-        risk_metrics: tuple[Decimal, Decimal],
-        sign_ticket_factory: Optional[Callable[[Decimal], Dict[str, Any]]],
-    ) -> Dict[str, Any]:
-        request_id = str(request_context.get("requestId") or "")
-        idempotency_key = str(request_context.get("idempotencyKey") or "")
-        request_meta = request_context.get("requestMeta") if isinstance(request_context.get("requestMeta"), dict) else {}
-        available_balance, pending_balance, frozen_balance = balances
-        single_limit_usdc, rolling_24h_limit_usdc = thresholds
-        rolling_24h, historical_net_income = risk_metrics
-        is_yellow = amount >= self._q6(single_limit_usdc) or (rolling_24h + amount) >= self._q6(rolling_24h_limit_usdc)
-        next_available = self._q6(available_balance - amount)
-        if is_yellow:
-            status = "PENDING_MANUAL_REVIEW"
-            ticket: Dict[str, Any] = {}
-            message = "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
-            cur.execute(
-                self._balance_upsert_sql,
-                (owner, "seller", str(next_available), str(pending_balance), str(self._q6(frozen_balance + amount)), now),
-            )
-        else:
-            status = "APPROVED_AUTO"
-            ticket = sign_ticket_factory(amount) if sign_ticket_factory is not None else {}
-            message = ""
-            cur.execute(
-                self._balance_upsert_sql,
-                (owner, "seller", str(next_available), str(self._q6(pending_balance + amount)), str(frozen_balance), now),
-            )
+        with self._db.connect() as conn:
+            try:
+                with conn.cursor() as cur:
+                    available_balance, pending_balance, frozen_balance = self._load_locked_balance_triplet(cur, owner, "seller", now)
+                    if available_balance < amount:
+                        raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
 
-        payload = {
-            "id": withdrawal_id,
-            "ownerAddress": owner,
-            "amountUsdc": float(amount),
-            "status": status,
-            "businessType": "withdraw",
-            "riskLevel": "yellow" if is_yellow else "green",
-            "requestId": request_id,
-            "idempotencyKey": idempotency_key,
-            "requestMeta": request_meta or {},
-            "ticket": ticket,
-            "message": message,
-            "createdAt": now,
-            "updatedAt": now,
-        }
-        self._upsert_withdrawal_intent(
-            cur,
-            withdrawal_id=withdrawal_id,
-            owner=owner,
-            status=status,
-            amount=amount,
-            now=now,
-            payload=payload,
-        )
-        self._append_withdrawal_audit(
-            cur,
-            withdrawal_id=withdrawal_id,
-            now=now,
-            action="PROVIDER_WITHDRAW_INTENT_CREATED",
-            owner=owner,
-            details={
-                "businessType": "withdraw",
-                "riskLevel": "yellow" if is_yellow else "green",
-                "amountUsdc": float(amount),
-                "rolling24hWithdrawUsdc": float(rolling_24h),
-                "historicalNetIncomeUsdc": float(historical_net_income),
-                "requestId": request_id,
-            },
-        )
-        return {
-            "decision": "yellow" if is_yellow else "green",
-            "withdrawalId": withdrawal_id,
-            "status": status,
-            "amountUsdc": float(amount),
-            "ticket": ticket,
-            "message": message,
-        }
+                    rolling_24h, historical_net_income, high_risk_from_db = self._compute_withdrawal_risk_metrics(
+                        cur, owner, now, window_seconds
+                    )
+                    is_high_risk = bool(high_risk_override or high_risk_from_db)
+                    red_reason = self._resolve_red_reason(amount, historical_net_income, is_high_risk)
+                    withdrawal_id = f"wd-{now}-{owner[-8:]}"
+
+                    if red_reason:
+                        cur.execute(
+                            """
+                            INSERT INTO synapse_withdrawal_intents (
+                                id, owner_address, tx_hash, status, request_id, idempotency_key,
+                                amount_usdc, created_at, updated_at
+                            ) VALUES (%s, %s, NULL, 'REJECTED', %s, %s, %s, %s, %s)
+                            """,
+                            (withdrawal_id, owner, request_id, idempotency_key, str(amount), now, now),
+                        )
+                        self._append_withdrawal_audit(
+                            cur,
+                            action="PROVIDER_WITHDRAW_REJECTED",
+                            owner=owner,
+                            request_id=request_id,
+                            amount=amount,
+                            risk_level="red",
+                            risk_reason_code=red_reason,
+                            result_status="REJECTED",
+                            message="Withdrawal blocked by risk policy.",
+                        )
+                        conn.commit()
+                        return WithdrawalDecision(
+                            decision="red",
+                            withdrawalId=withdrawal_id,
+                            status="REJECTED",
+                            riskReasonCode=red_reason,
+                            message="Withdrawal blocked by risk policy.",
+                        )
+
+                    is_yellow = amount >= self._q6(single_limit_usdc) or (rolling_24h + amount) >= self._q6(rolling_24h_limit_usdc)
+                    next_available = self._q6(available_balance - amount)
+                    if is_yellow:
+                        status = "PENDING_MANUAL_REVIEW"
+                        cur.execute(
+                            self._balance_upsert_sql,
+                            (owner, "seller", str(next_available), str(pending_balance), str(self._q6(frozen_balance + amount)), now),
+                        )
+                        ticket = {}
+                        message = "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
+                        risk_level = "yellow"
+                    else:
+                        status = "APPROVED_AUTO"
+                        cur.execute(
+                            self._balance_upsert_sql,
+                            (owner, "seller", str(next_available), str(self._q6(pending_balance + amount)), str(frozen_balance), now),
+                        )
+                        ticket = sign_ticket_factory(amount) if sign_ticket_factory is not None else {}
+                        message = ""
+                        risk_level = "green"
+
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_withdrawal_intents (
+                            id, owner_address, tx_hash, status, request_id, idempotency_key,
+                            amount_usdc, created_at, updated_at
+                        ) VALUES (%s, %s, NULL, %s::synapse_withdraw_status, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id)
+                        DO UPDATE SET
+                            owner_address = EXCLUDED.owner_address,
+                            status = EXCLUDED.status,
+                            request_id = EXCLUDED.request_id,
+                            idempotency_key = EXCLUDED.idempotency_key,
+                            amount_usdc = EXCLUDED.amount_usdc,
+                            updated_at = EXCLUDED.updated_at
+                        """,
+                        (withdrawal_id, owner, status, request_id, idempotency_key, str(amount), now, now),
+                    )
+
+                    self._append_withdrawal_audit(
+                        cur,
+                        action="PROVIDER_WITHDRAW_INTENT_CREATED",
+                        owner=owner,
+                        request_id=request_id,
+                        amount=amount,
+                        risk_level=risk_level,
+                        risk_reason_code=None,
+                        result_status=status,
+                        message=message,
+                    )
+                conn.commit()
+                return WithdrawalDecision(
+                    decision="yellow" if is_yellow else "green",
+                    withdrawalId=withdrawal_id,
+                    status=status,
+                    amountUsdc=float(amount),
+                    ticket=ticket,
+                    message=message,
+                )
+            except Exception:
+                conn.rollback()
+                raise
 
     def _is_wallet_restricted(self, cur: Any, wallet: str) -> bool:
         cur.execute("SELECT status FROM synapse_auth_sessions WHERE wallet_address = %s", (wallet,))
@@ -299,95 +260,33 @@ class FinanceAtomicRepository:
             return False
         return self._is_wallet_restricted(cur, wallet)
 
-    def process_withdrawal_request_atomic(
+    def register_deposit_intent_atomic(
         self,
-        *,
-        seller_address: str,
-        amount_usdc: Decimal,
+        owner_wallet: str,
+        tx_hash: str,
         request_id: str,
-        idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]],
-        single_limit_usdc: Decimal,
-        rolling_24h_limit_usdc: Decimal,
-        window_seconds: int,
-        high_risk_override: bool,
-        sign_ticket_factory: Optional[Callable[[Decimal], Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
-        owner = str(seller_address or "").strip().lower()
-        now = int(time.time())
-        amount = self._q6(amount_usdc)
-        if amount <= Decimal("0"):
-            raise RuntimeError("INVALID_WITHDRAW_AMOUNT")
-
-        with self._db.connect() as conn:
-            try:
-                with conn.cursor() as cur:
-                    available_balance, pending_balance, frozen_balance = self._load_locked_balance_triplet(cur, owner, "seller", now)
-
-                    if available_balance < amount:
-                        raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
-
-                    rolling_24h, historical_net_income, high_risk_from_db = self._compute_withdrawal_risk_metrics(
-                        cur, owner, now, window_seconds
-                    )
-                    is_high_risk = bool(high_risk_override or high_risk_from_db)
-
-                    red_reason = self._resolve_red_reason(amount, historical_net_income, is_high_risk)
-                    withdrawal_id = f"wd-{now}-{owner[-8:]}"
-                    if red_reason:
-                        response = self._persist_red_withdrawal(
-                            cur,
-                            withdrawal_id=withdrawal_id,
-                            owner=owner,
-                            amount=amount,
-                            now=now,
-                            request_id=request_id,
-                            idempotency_key=idempotency_key,
-                            request_meta=request_meta,
-                            red_reason=red_reason,
-                            rolling_24h=rolling_24h,
-                            historical_net_income=historical_net_income,
-                        )
-                        conn.commit()
-                        return response
-
-                    response = self._persist_non_red_withdrawal(
-                        cur,
-                        withdrawal_id=withdrawal_id,
-                        owner=owner,
-                        amount=amount,
-                        now=now,
-                        request_context={
-                            "requestId": request_id,
-                            "idempotencyKey": idempotency_key,
-                            "requestMeta": request_meta or {},
-                        },
-                        balances=(available_balance, pending_balance, frozen_balance),
-                        thresholds=(single_limit_usdc, rolling_24h_limit_usdc),
-                        risk_metrics=(rolling_24h, historical_net_income),
-                        sign_ticket_factory=sign_ticket_factory,
-                    )
-                conn.commit()
-                return response
-            except Exception:
-                conn.rollback()
-                raise
-
-    def register_deposit_intent_atomic(self, owner_wallet: str, tx_hash: str, request_id: str, intent_row: Dict[str, Any]) -> Dict[str, Any]:
+        intent_row: DepositIntentRow,
+    ) -> DepositIntentRow:
         owner = str(owner_wallet or "").strip().lower()
         tx = str(tx_hash or "").strip().lower()
         now = int(time.time())
-        row = dict(intent_row)
-        row.setdefault("ownerAddress", owner)
-        row.setdefault("txHash", tx)
-        row.setdefault("status", "PENDING_CONFIRMATION")
-        row.setdefault("createdAt", now)
-        row["updatedAt"] = now
-        amount_usdc = self._q6(row.get("amountUsdc") or 0)
+        amount_usdc = self._q6(intent_row.amount_usdc)
         if amount_usdc <= Decimal("0"):
             raise RuntimeError("INVALID_DEPOSIT_AMOUNT")
-        row_id = str(row.get("id") or "").strip() or f"dep-{now}-{tx[-8:]}"
-        row["id"] = row_id
+
+        row_id = str(intent_row.id or "").strip() or f"dep-{now}-{tx[-8:]}"
+        row = DepositIntentRow(
+            id=row_id,
+            ownerAddress=owner,
+            txHash=tx,
+            requestId=request_id or intent_row.request_id,
+            buyerAddress=intent_row.buyer_address,
+            amountUsdc=amount_usdc,
+            idempotencyKey=intent_row.idempotency_key,
+            status=intent_row.status or "PENDING_CONFIRMATION",
+            createdAt=int(intent_row.created_at or now),
+            updatedAt=now,
+        )
 
         with self._db.connect() as conn:
             with conn.cursor() as cur:
@@ -400,13 +299,29 @@ class FinanceAtomicRepository:
                     conn.rollback()
                     with self._db.readonly_cursor() as lookup_cur:
                         lookup_cur.execute(
-                            "SELECT payload FROM synapse_deposit_intents WHERE tx_hash = %s AND owner_address = %s",
+                            """
+                            SELECT id, owner_address, tx_hash, request_id, buyer_address, amount_usdc,
+                                   idempotency_key, status, created_at, updated_at
+                            FROM synapse_deposit_intents
+                            WHERE tx_hash = %s AND owner_address = %s
+                            """,
                             (tx, owner),
                         )
                         hit = lookup_cur.fetchone()
-                        if hit and isinstance(hit[0], dict):
-                            return hit[0]
-                    return {}
+                        if hit is not None:
+                            return DepositIntentRow(
+                                id=str(hit[0]),
+                                ownerAddress=str(hit[1]),
+                                txHash=str(hit[2]),
+                                requestId=hit[3],
+                                buyerAddress=hit[4],
+                                amountUsdc=self._q6(hit[5]),
+                                idempotencyKey=hit[6],
+                                status=str(hit[7]),
+                                createdAt=int(hit[8]),
+                                updatedAt=int(hit[9]),
+                            )
+                    raise RuntimeError("DEPOSIT_ALREADY_PROCESSED")
 
                 available_balance, pending_balance, frozen_balance = self._load_locked_balance_triplet(cur, owner, "buyer", now)
                 cur.execute(
@@ -423,30 +338,38 @@ class FinanceAtomicRepository:
 
                 cur.execute(
                     """
-                    INSERT INTO synapse_deposit_intents (id, owner_address, tx_hash, status, created_at, updated_at, payload)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+                    INSERT INTO synapse_deposit_intents (
+                        id, owner_address, tx_hash, request_id, buyer_address, amount_usdc,
+                        idempotency_key, status, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id)
                     DO UPDATE SET
                         owner_address = EXCLUDED.owner_address,
                         tx_hash = EXCLUDED.tx_hash,
+                        request_id = EXCLUDED.request_id,
+                        buyer_address = EXCLUDED.buyer_address,
+                        amount_usdc = EXCLUDED.amount_usdc,
+                        idempotency_key = EXCLUDED.idempotency_key,
                         status = EXCLUDED.status,
-                        updated_at = EXCLUDED.updated_at,
-                        payload = EXCLUDED.payload
+                        updated_at = EXCLUDED.updated_at
                     """,
                     (
-                        row_id,
-                        owner,
-                        tx,
-                        str(row.get("status") or "PENDING_CONFIRMATION"),
-                        int(row.get("createdAt") or now),
-                        int(row.get("updatedAt") or now),
-                        json.dumps(row, ensure_ascii=False),
+                        row.id,
+                        row.owner_address,
+                        row.tx_hash,
+                        row.request_id,
+                        row.buyer_address,
+                        str(row.amount_usdc),
+                        row.idempotency_key,
+                        row.status,
+                        row.created_at,
+                        row.updated_at,
                     ),
                 )
             conn.commit()
         return row
 
-    def confirm_deposit_intent_atomic(self, owner_wallet: str, deposit_intent_id: str, event_key: str, confirmations: int) -> Dict[str, Any]:
+    def confirm_deposit_intent_atomic(self, owner_wallet: str, deposit_intent_id: str, event_key: str, confirmations: int) -> DepositIntentRow:
         owner = str(owner_wallet or "").strip().lower()
         intent_id = str(deposit_intent_id or "").strip()
         if not intent_id:
@@ -456,55 +379,77 @@ class FinanceAtomicRepository:
         with self._db.connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, status, amount_usdc, payload FROM synapse_deposit_intents WHERE id = %s AND owner_address = %s FOR UPDATE",
+                    """
+                    SELECT id, owner_address, tx_hash, request_id, buyer_address, amount_usdc,
+                           idempotency_key, status, created_at, updated_at
+                    FROM synapse_deposit_intents
+                    WHERE id = %s AND owner_address = %s
+                    FOR UPDATE
+                    """,
                     (intent_id, owner),
                 )
                 hit = cur.fetchone()
                 if hit is None:
                     raise RuntimeError("DEPOSIT_INTENT_NOT_FOUND")
 
-                row_id = str(hit[0] or intent_id)
-                status = str(hit[1] or "").upper()
-                amount = self._q6(hit[2] or 0)
-                payload = hit[3] if isinstance(hit[3], dict) else {}
+                row = DepositIntentRow(
+                    id=str(hit[0]),
+                    ownerAddress=str(hit[1]),
+                    txHash=str(hit[2]),
+                    requestId=hit[3],
+                    buyerAddress=hit[4],
+                    amountUsdc=self._q6(hit[5]),
+                    idempotencyKey=hit[6],
+                    status=str(hit[7]),
+                    createdAt=int(hit[8]),
+                    updatedAt=int(hit[9]),
+                )
 
-                if status == "CONFIRMED":
-                    return payload
-
-                if status not in {"PENDING_CONFIRMATION", "PENDING"}:
+                if row.status.upper() == "CONFIRMED":
+                    return row
+                if row.status.upper() not in {"PENDING_CONFIRMATION", "PENDING"}:
                     raise RuntimeError("DEPOSIT_STATUS_INVALID")
 
                 available_balance, pending_balance, frozen_balance = self._load_locked_balance_triplet(cur, owner, "buyer", now)
-                if pending_balance < amount:
+                if pending_balance < row.amount_usdc:
                     raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
 
-                next_available = self._q6(available_balance + amount)
-                next_pending = self._q6(pending_balance - amount)
+                next_available = self._q6(available_balance + row.amount_usdc)
+                next_pending = self._q6(pending_balance - row.amount_usdc)
                 cur.execute(
                     self._balance_upsert_sql,
                     (owner, "buyer", str(next_available), str(next_pending), str(frozen_balance), now),
                 )
 
-                next_payload = dict(payload)
-                next_payload["status"] = "CONFIRMED"
-                next_payload["confirmedAt"] = now
-                next_payload["confirmations"] = int(confirmations)
-                next_payload["eventKey"] = str(event_key or "")
-                next_payload["creditedAmountUsdc"] = float(amount)
-                next_payload["availableAfter"] = float(next_available)
-                next_payload["pendingAfter"] = float(next_pending)
-                next_payload["updatedAt"] = now
-
                 cur.execute(
-                    """
-                    UPDATE synapse_deposit_intents
-                    SET status = %s, updated_at = %s, payload = %s::jsonb
-                    WHERE id = %s AND owner_address = %s
-                    """,
-                    ("CONFIRMED", now, json.dumps(next_payload, ensure_ascii=False), row_id, owner),
+                    "UPDATE synapse_deposit_intents SET status = %s, updated_at = %s WHERE id = %s AND owner_address = %s",
+                    ("CONFIRMED", now, row.id, owner),
+                )
+
+                self._append_withdrawal_audit(
+                    cur,
+                    action="BUYER_DEPOSIT_CONFIRMED",
+                    owner=owner,
+                    request_id=row.request_id or event_key,
+                    amount=row.amount_usdc,
+                    risk_level="green",
+                    risk_reason_code=None,
+                    result_status="CONFIRMED",
+                    message=f"confirmations={int(confirmations)}",
                 )
             conn.commit()
-        return next_payload
+        return DepositIntentRow(
+            id=row.id,
+            ownerAddress=row.owner_address,
+            txHash=row.tx_hash,
+            requestId=row.request_id,
+            buyerAddress=row.buyer_address,
+            amountUsdc=row.amount_usdc,
+            idempotencyKey=row.idempotency_key,
+            status="CONFIRMED",
+            createdAt=row.created_at,
+            updatedAt=now,
+        )
 
     def charge_buyer_and_record_usage_atomic(
         self,
@@ -514,8 +459,8 @@ class FinanceAtomicRepository:
         total_charge: Decimal,
         seller_net: Decimal,
         platform_fee_total: Decimal,
-        usage_row: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        usage_row: UsageLogRow,
+    ) -> BuyerChargeResult:
         now = int(time.time())
         owner = str(owner_wallet or "").strip().lower()
         seller = str(seller_wallet or "").strip().lower()
@@ -554,82 +499,88 @@ class FinanceAtomicRepository:
                 _set_available(cur, seller, "seller", seller_after)
                 _set_available(cur, "__platform__", "platform_fee", platform_after)
 
-                usage_id = str(usage_row.get("id") or f"usage-{now}-{owner[-6:]}")
-                payload = dict(usage_row)
-                payload.setdefault("id", usage_id)
-                payload.setdefault("timestamp", int(usage_row.get("timestamp") or now))
-                payload.setdefault("buyer", owner)
-                payload.setdefault("seller", seller)
-                payload.setdefault("status", str(usage_row.get("status") or "accepted"))
-                payload.setdefault("totalCharge", float(self._q6(total_charge)))
+                row = UsageLogRow(
+                    id=usage_row.id,
+                    ts=int(usage_row.ts or now),
+                    requestId=usage_row.request_id,
+                    serviceId=usage_row.service_id,
+                    buyerAddress=(usage_row.buyer_address or owner),
+                    sellerAddress=(usage_row.seller_address or seller),
+                    status=usage_row.status or "accepted",
+                    unitPrice=usage_row.unit_price,
+                    protocolFee=usage_row.protocol_fee,
+                    routingTax=usage_row.routing_tax,
+                    totalCharge=usage_row.total_charge or self._q6(total_charge),
+                    businessType=usage_row.business_type,
+                    riskLevel=usage_row.risk_level,
+                )
                 cur.execute(
                     """
                     INSERT INTO synapse_usage_log (
-                        id,
-                        ts,
-                        buyer_address,
-                        seller_address,
-                        status,
-                        total_charge,
-                        business_type,
-                        risk_level,
-                        payload
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level, %s::jsonb)
+                        id, ts, request_id, service_id, buyer_address, seller_address,
+                        status, unit_price, protocol_fee, routing_tax, total_charge,
+                        business_type, risk_level
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level)
                     ON CONFLICT (id)
                     DO UPDATE SET
                         ts = EXCLUDED.ts,
+                        request_id = EXCLUDED.request_id,
+                        service_id = EXCLUDED.service_id,
                         buyer_address = EXCLUDED.buyer_address,
                         seller_address = EXCLUDED.seller_address,
                         status = EXCLUDED.status,
+                        unit_price = EXCLUDED.unit_price,
+                        protocol_fee = EXCLUDED.protocol_fee,
+                        routing_tax = EXCLUDED.routing_tax,
                         total_charge = EXCLUDED.total_charge,
                         business_type = EXCLUDED.business_type,
-                        risk_level = EXCLUDED.risk_level,
-                        payload = EXCLUDED.payload
+                        risk_level = EXCLUDED.risk_level
                     """,
                     (
-                        usage_id,
-                        int(payload.get("timestamp") or now),
-                        str(payload.get("buyer") or owner),
-                        str(payload.get("seller") or seller),
-                        str(payload.get("status") or "accepted"),
-                        str(self._q6(payload.get("totalCharge") or total_charge)),
-                        "charge",
-                        str(payload.get("riskLevel") or "green").lower(),
-                        json.dumps(payload, ensure_ascii=False),
+                        row.id,
+                        int(row.ts),
+                        row.request_id,
+                        row.service_id,
+                        row.buyer_address,
+                        row.seller_address,
+                        row.status,
+                        str(self._q6(row.unit_price)) if row.unit_price is not None else None,
+                        str(self._q6(row.protocol_fee)) if row.protocol_fee is not None else None,
+                        str(self._q6(row.routing_tax)) if row.routing_tax is not None else None,
+                        str(self._q6(row.total_charge)) if row.total_charge is not None else None,
+                        row.business_type,
+                        row.risk_level,
                     ),
                 )
 
-                audit_payload = {
-                    "id": usage_row.get("id") or "",
-                    "timestamp": now,
-                    "action": "BUYER_CHARGE_ATOMIC",
-                    "ownerAddress": owner,
-                    "details": {
-                        "beforeBalance": float(before_buyer),
-                        "deltaAmount": float(-self._q6(total_charge)),
-                        "afterBalance": float(self._q6(before_buyer - self._q6(total_charge))),
-                        "seller": seller,
-                    },
-                }
                 cur.execute(
-                    self._audit_insert_sql,
-                    ("audit_log", json.dumps(audit_payload, ensure_ascii=False)),
+                    """
+                    INSERT INTO synapse_audit_log (
+                        action_type, business_type, risk_level, owner_address,
+                        amount_delta, before_balance, after_balance, result_status, message
+                    ) VALUES (%s, 'charge', 'green', %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        "BUYER_CHARGE_ATOMIC",
+                        owner,
+                        str(-self._q6(total_charge)),
+                        str(before_buyer),
+                        str(buyer_after),
+                        "SUCCEEDED",
+                        f"seller={seller}",
+                    ),
                 )
 
             conn.commit()
-        return {"buyerBalanceAfter": float(self._q6(before_buyer - self._q6(total_charge)))}
+        return BuyerChargeResult(buyerBalanceAfter=float(buyer_after))
 
-    def reserve_seller_withdraw_atomic(self, owner_wallet: str, amount_usdc: Decimal) -> Dict[str, float]:
+    def reserve_seller_withdraw_atomic(self, owner_wallet: str, amount_usdc: Decimal) -> BalanceMutationResult:
         owner = str(owner_wallet or "").strip().lower()
         now = int(time.time())
 
-        def _load_balances(cur: Any, wallet: str, account_type: str) -> tuple[Decimal, Decimal, Decimal]:
-            return self._load_locked_balance_triplet(cur, wallet, account_type, now)
-
         with self._db.connect() as conn:
             with conn.cursor() as cur:
-                before_available, before_pending, before_frozen = _load_balances(cur, owner, "seller")
+                before_available, before_pending, before_frozen = self._load_locked_balance_triplet(cur, owner, "seller", now)
                 if before_available < self._q6(amount_usdc):
                     raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
                 after_available = self._q6(before_available - self._q6(amount_usdc))
@@ -637,21 +588,11 @@ class FinanceAtomicRepository:
 
                 cur.execute(
                     self._balance_upsert_sql,
-                    (
-                        owner,
-                        "seller",
-                        str(after_available),
-                        str(after_pending),
-                        str(before_frozen),
-                        now,
-                    ),
+                    (owner, "seller", str(after_available), str(after_pending), str(before_frozen), now),
                 )
 
             conn.commit()
-        return {
-            "beforeBalance": float(before_available),
-            "afterBalance": float(self._q6(before_available - self._q6(amount_usdc))),
-        }
+        return BalanceMutationResult(beforeBalance=float(before_available), afterBalance=float(after_available))
 
     def complete_withdraw_tx_atomic(self, owner_wallet: str, tx_hash: str, kind: str) -> bool:
         with self._db.connect() as conn:

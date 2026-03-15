@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.models.pydantic_models import CredentialIssueRequest
+from src.domain.storage_entities import CredentialRow
 from src.services.platform import credential_service
 from src.storage import BaseStorage
 
@@ -28,11 +29,13 @@ def save_seller_secret_rows(storage: BaseStorage, rows: List[Dict[str, Any]], ex
     if extras:
         payload.update(extras)
     _ = payload
-    storage.get_data_manager().system.credential_auth.write_credential_rows("seller", rows)
+    typed_rows = [CredentialRow.model_validate(row) for row in rows if isinstance(row, dict)]
+    storage.get_data_manager().system.credential_auth.write_credential_rows("seller", typed_rows)
 
 
 def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    primary_rows = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
+    primary_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
+    primary_rows = [row.model_dump(by_alias=True, mode="json") for row in primary_entities]
     primary = {"credentials": primary_rows, "updatedAt": 0}
     rows, extras = _normalize_secret_rows(primary)
     if rows or extras:
@@ -40,7 +43,8 @@ def load_seller_secret_rows(storage: BaseStorage) -> Tuple[List[Dict[str, Any]],
 
     for legacy_collection in _LEGACY_SELLER_COLLECTIONS:
         _ = legacy_collection
-        legacy_rows_raw = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
+        legacy_entities = storage.get_data_manager().system.credential_auth.read_credential_rows("seller")
+        legacy_rows_raw = [row.model_dump(by_alias=True, mode="json") for row in legacy_entities]
         legacy = {"credentials": legacy_rows_raw, "updatedAt": 0}
         legacy_rows, legacy_extras = _normalize_secret_rows(legacy)
         if legacy_rows or legacy_extras:

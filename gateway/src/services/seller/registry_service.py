@@ -1,7 +1,8 @@
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
-from src.domain.registry import ServiceTargetHealthHistory
+from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
+from src.domain.storage_entities import ServiceRegistryRow
 from src.services.platform import service_health_service
 import uuid
 import time
@@ -202,12 +203,166 @@ class RegistryService:
         self.storage = storage
         self._lock = asyncio.Lock()
 
+    def _health_index_by_service_id(self) -> Dict[str, Dict[str, Any]]:
+        rows = self.storage.get_data_manager().system.registry.read_service_target_health_rows()
+        if not isinstance(rows, list):
+            return {}
+
+        index: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            payload = row.model_dump(by_alias=True) if isinstance(row, ServiceTargetHealth) else row
+            if not isinstance(payload, dict):
+                continue
+            service_id = str(payload.get("serviceId") or "").strip()
+            target_url = str(payload.get("targetUrl") or "").strip()
+            if not service_id or not target_url:
+                continue
+
+            bucket = index.setdefault(
+                service_id,
+                {
+                    "overallStatus": "unknown",
+                    "lastCheckedAt": 0,
+                    "targets": {},
+                },
+            )
+            status = str(payload.get("status") or "unknown")
+            row_last_checked = int(payload.get("lastCheckedAt") or 0)
+            bucket["targets"][target_url] = {
+                "status": status,
+                "weight": int(payload.get("weight") or 100),
+                "region": payload.get("region"),
+                "httpStatus": payload.get("httpStatus"),
+                "latencyMs": payload.get("latencyMs"),
+                "consecutiveSuccesses": int(payload.get("consecutiveSuccesses") or 0),
+                "consecutiveFailures": int(payload.get("consecutiveFailures") or 0),
+                "probeUrl": payload.get("probeUrl"),
+                "lastCheckedAt": row_last_checked or None,
+                "lastHealthyAt": payload.get("lastHealthyAt"),
+                "error": payload.get("error"),
+            }
+            if row_last_checked > int(bucket.get("lastCheckedAt") or 0):
+                bucket["lastCheckedAt"] = row_last_checked
+
+            overall_status = str(payload.get("overallStatus") or "").strip()
+            if overall_status:
+                bucket["overallStatus"] = overall_status
+
+        for bucket in index.values():
+            targets = bucket.get("targets") if isinstance(bucket.get("targets"), dict) else {}
+            healthy_count = 0
+            for target in targets.values():
+                if str((target or {}).get("status") or "").lower() == "healthy":
+                    healthy_count += 1
+            total_targets = len(targets)
+            bucket["healthyTargets"] = healthy_count
+            bucket["totalTargets"] = total_targets
+            if not bucket.get("overallStatus") or str(bucket.get("overallStatus")).lower() == "unknown":
+                if total_targets <= 0:
+                    bucket["overallStatus"] = "unknown"
+                elif healthy_count == total_targets:
+                    bucket["overallStatus"] = "healthy"
+                elif healthy_count > 0:
+                    bucket["overallStatus"] = "degraded"
+                else:
+                    bucket["overallStatus"] = "unhealthy"
+        return index
+
     def _load_service_registry_rows(self) -> List[Dict[str, Any]]:
         raw_rows = self.storage.get_data_manager().system.registry.read_service_registry_rows()
-        return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+        health_index = self._health_index_by_service_id()
+        rows: List[Dict[str, Any]] = []
+        if not isinstance(raw_rows, list):
+            return rows
+        for row in raw_rows:
+            if isinstance(row, ServiceRegistryRow):
+                payload = row.model_dump(by_alias=True, mode="json")
+            elif isinstance(row, dict):
+                payload = dict(row)
+            else:
+                continue
+            if not isinstance(payload.get("pricing"), dict):
+                payload["pricing"] = {
+                    "amount": str(payload.get("pricingAmount") or "0"),
+                    "currency": str(payload.get("pricingCurrency") or "USDC"),
+                }
+            if not isinstance(payload.get("constraints"), dict):
+                payload["constraints"] = {
+                    "timeoutMs": int(payload.get("timeoutMs") or 15000),
+                    "maxQps": int(payload.get("maxQps") or 100),
+                    "maxRequestBytes": int(payload.get("maxRequestBytes") or 262144),
+                    "maxResponseBytes": int(payload.get("maxResponseBytes") or 262144),
+                }
+            service_id = str(payload.get("serviceId") or "").strip()
+            health = health_index.get(service_id) if service_id else None
+            if isinstance(health, dict):
+                payload["serviceHealth"] = {
+                    "overallStatus": str(health.get("overallStatus") or "unknown"),
+                    "healthyTargets": int(health.get("healthyTargets") or 0),
+                    "totalTargets": int(health.get("totalTargets") or 0),
+                    "lastCheckedAt": health.get("lastCheckedAt") or None,
+                    "targets": dict(health.get("targets") or {}),
+                }
+
+                existing_invoke = payload.get("invoke") if isinstance(payload.get("invoke"), dict) else {}
+                existing_targets = existing_invoke.get("targets") if isinstance(existing_invoke.get("targets"), list) else []
+                if not existing_targets:
+                    targets: List[Dict[str, Any]] = []
+                    for target_url, target_payload in (health.get("targets") or {}).items():
+                        if not isinstance(target_payload, dict):
+                            continue
+                        targets.append(
+                            {
+                                "url": str(target_url),
+                                "weight": int(target_payload.get("weight") or 100),
+                                "region": target_payload.get("region"),
+                            }
+                        )
+                    payload["invoke"] = {
+                        "method": "POST",
+                        "targets": targets,
+                        "timeoutMs": int(payload["constraints"].get("timeoutMs") or settings.gateway_default_timeout_ms),
+                        "request": {"contentType": JSON_CONTENT_TYPE, "schema": {}},
+                        "response": {"contentType": JSON_CONTENT_TYPE, "schema": {}},
+                    }
+            rows.append(payload)
+        return rows
 
     def _save_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self.storage.get_data_manager().system.registry.write_service_registry_rows(rows)
+        repo = self.storage.get_data_manager().system.registry
+        try:
+            # Non-SQL repositories (tests/local memory) should persist full service payload.
+            repo.write_service_registry_rows(rows)
+            return
+        except Exception:
+            pass
+
+        typed_rows: List[ServiceRegistryRow] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
+            constraints = row.get("constraints") if isinstance(row.get("constraints"), dict) else {}
+            typed_rows.append(
+                ServiceRegistryRow(
+                    serviceId=str(row.get("serviceId") or "").strip(),
+                    ownerAddress=str(row.get("ownerAddress") or "").lower(),
+                    serviceName=str(row.get("serviceName") or ""),
+                    summary=str(row.get("summary") or ""),
+                    endpoint=str(row.get("endpoint") or row.get("url") or "") or None,
+                    status=str(row.get("status") or "active"),
+                    isActive=bool(row.get("isActive", True)),
+                    pricingAmount=str(pricing.get("amount") or 0),
+                    pricingCurrency=str(pricing.get("currency") or "USDC"),
+                    timeoutMs=int(constraints.get("timeoutMs") or row.get("timeoutMs") or 15000),
+                    maxQps=int(constraints.get("maxQps") or row.get("maxQps") or 100),
+                    maxRequestBytes=int(constraints.get("maxRequestBytes") or row.get("maxRequestBytes") or 262144),
+                    maxResponseBytes=int(constraints.get("maxResponseBytes") or row.get("maxResponseBytes") or 262144),
+                    createdAt=int(row.get("createdAt") or 0),
+                    updatedAt=int(row.get("updatedAt") or 0),
+                )
+            )
+        repo.write_service_registry_rows(typed_rows)
 
     def _load_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
         return list(self.storage.get_data_manager().system.registry.read_service_target_health_history_rows())

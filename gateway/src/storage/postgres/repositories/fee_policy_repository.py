@@ -38,7 +38,7 @@ class FeePolicyRepository:
             updated_by=updated_by,
         )
 
-    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, Any], updated_by: str, updated_at: int) -> None:
+    def set_platform_fee_policy(self, default_rate: float, owner_rates: Dict[str, float], updated_by: str, updated_at: int) -> None:
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """

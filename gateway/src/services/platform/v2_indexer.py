@@ -13,6 +13,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.audit import AuditLogEntry
 from src.domain.finance import BalanceLedger
+from src.domain.storage_entities import DepositIntentRow
 from src.storage import BaseStorage
 
 lock = Lock()
@@ -53,11 +54,24 @@ def _now() -> int:
 
 def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
     raw_rows = storage.get_data_manager().system.gateway_state.read_deposit_intents()
-    return [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    if not isinstance(raw_rows, list):
+        return []
+    rows: List[Dict[str, Any]] = []
+    for row in raw_rows:
+        if isinstance(row, DepositIntentRow):
+            rows.append(row.model_dump(by_alias=True, mode="json"))
+        elif isinstance(row, dict):
+            rows.append(row)
+    return rows
 
 
 def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
-    storage.get_data_manager().system.gateway_state.write_deposit_intents(rows)
+    typed_rows = [DepositIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+    repo = storage.get_data_manager().system.gateway_state
+    try:
+        repo.write_deposit_intents(typed_rows)
+    except Exception:
+        repo.write_deposit_intents(rows)
 
 
 def _load_balance_ledger(storage: BaseStorage) -> BalanceLedger:
@@ -498,7 +512,10 @@ def _apply_confirmed_balance_to_ledger(
             _mark_intent_failed(intent, "DEPOSIT_CONFIRM_APPLY_FAILED", now)
             return {"result": "failed"}
 
-        intent.update(confirmed if isinstance(confirmed, dict) else {})
+        if isinstance(confirmed, DepositIntentRow):
+            intent.update(confirmed.model_dump(by_alias=True, mode="json"))
+        elif isinstance(confirmed, dict):
+            intent.update(confirmed)
         intent["status"] = "CONFIRMED"
         return {"result": "ok", "next_balance": float(intent.get("availableAfter") or buyers.get(owner_wallet, 0.0) or 0.0)}
 

@@ -10,6 +10,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_lock import RedisLockManager
 from src.domain.finance import BalanceLedger
+from src.domain.storage_entities import WithdrawalIntentRow
 from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
@@ -68,7 +69,13 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
 
     def _normalize_withdrawal_rows(self) -> List[Dict[str, Any]]:
         raw_rows = self.storage.get_data_manager().system.gateway_state.read_withdrawal_intents()
-        rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+        rows: List[Dict[str, Any]] = []
+        if isinstance(raw_rows, list):
+            for row in raw_rows:
+                if isinstance(row, WithdrawalIntentRow):
+                    rows.append(row.model_dump(by_alias=True, mode="json"))
+                elif isinstance(row, dict):
+                    rows.append(row)
         for row in rows:
             status = str(row.get("status") or "").upper()
             if not status or status == "PENDING":
@@ -78,7 +85,13 @@ class SellerWithdrawService(BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWi
         return rows
 
     def _save_withdrawal_rows(self, rows: List[Dict[str, Any]]) -> None:
-        self.storage.get_data_manager().system.gateway_state.write_withdrawal_intents(rows, int(time.time()))
+        repo = self.storage.get_data_manager().system.gateway_state
+        try:
+            # Preserve full dict payload for in-memory/non-SQL repositories.
+            repo.write_withdrawal_intents(rows, int(time.time()))
+        except Exception:
+            typed_rows = [WithdrawalIntentRow.model_validate(row) for row in rows if isinstance(row, dict)]
+            repo.write_withdrawal_intents(typed_rows, int(time.time()))
 
     def _load_balance_ledger(self) -> BalanceLedger:
         return self.storage.get_data_manager().finance.balance.read_balance_ledger()
