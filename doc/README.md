@@ -18,6 +18,7 @@
 - **AI 反向代理与路由**: [API_Gateway_Reverse_Proxy.md](./02_Architecture/API_Gateway_Reverse_Proxy.md)
 - **网关日志追踪系统**: [Gateway_Application_Logging.md](./02_Architecture/Gateway_Application_Logging.md)
 - **资金生产安全基线**: [Financial_Production_Security.md](./02_Architecture/Financial_Production_Security.md)
+- **全资金链路风控设计（充值/扣费/退款/提现）**: [Gateway_Financial_Risk_Control_Design.md](./02_Architecture/Gateway_Financial_Risk_Control_Design.md)
 - **存储方案升级（Demo -> Production）**: [Storage_Strategy_Upgrade.md](./02_Architecture/Storage_Strategy_Upgrade.md)
 - **生产升级 TODO（存储与资金安全）**: [Production_Upgrade_TODO.md](./02_Architecture/Production_Upgrade_TODO.md)
 - **生产升级 Issue 草案（可直接开单）**: [Production_Upgrade_Issue_Seeds.md](./02_Architecture/Production_Upgrade_Issue_Seeds.md)
