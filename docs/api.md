@@ -214,7 +214,13 @@
 ### 3.7 索引器状态探针 (Indexer Health & Counters)
 - **Path**: `GET /api/v1/indexer/status`
 - **Desc**: 返回充值索引器实时健康度，包含当前监听合约地址、最近一轮处理计数、最后处理时间与最近错误，便于快速定位“链上已成功但余额未更新”问题。
-- **Auth**: Public endpoint. No wallet challenge and no platform session required.
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **Authorization**:
+  - Owner must be included in `INDEXER_ADMIN_WALLETS`.
+  - If `INDEXER_ADMIN_WALLETS` is empty, backend falls back to `PLATFORM_FEE_ADMIN_WALLETS`.
+- **Error Surface**:
+  - API only returns standardized error code strings in `lastError` fields.
+  - Internal exception details are logged server-side and are not exposed in API payload.
 - **Returns (200 OK)**:
   ```json
   {
@@ -249,6 +255,10 @@
     }
   }
   ```
+- **Standard Error Codes** (`lastError`):
+  - top-level: `INDEXER_LOOP_FAILED`
+  - backfill: `INDEXER_BACKFILL_SCAN_FAILED`
+  - reconciliation: `INDEXER_RECONCILIATION_FAILED`
 
 ### 3.8 平台手续费策略管理 (Admin Fee Policy)
 

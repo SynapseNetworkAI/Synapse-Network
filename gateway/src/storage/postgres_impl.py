@@ -9,7 +9,6 @@ from .base import (
     SynapseUnitOfWork,
     SystemDomain,
 )
-from .normalizers import normalize_service_row
 from .postgres.database_manager import DatabaseManager
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
@@ -18,7 +17,6 @@ from .postgres.repositories.fee_policy_repository import FeePolicyRepository
 from .postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from .postgres.repositories.gateway_state_repository import GatewayStateRepository
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
-from .postgres.repositories.legacy_collection_repository import LegacyCollectionRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.audit import AuditLogEntry
 from src.domain.storage_entities import BuyerChargeResult, DepositIntentRow, UsageLogRow
@@ -84,6 +82,7 @@ class PostgresStorage(BaseStorage):
 
         self.dsn = dsn.strip()
         self._db = DatabaseManager(self._connect)
+        self._ensure_runtime_state_table()
         if ensure_schema:
             self._validate_schema_contract()
 
@@ -100,9 +99,6 @@ class PostgresStorage(BaseStorage):
             self._db, q6, _BALANCE_UPSERT_SQL, _BALANCE_FOR_UPDATE_SQL,
             _AUDIT_INSERT_SQL, _RISK_RESTRICTED_SESSION_STATUSES,
         )
-        self._legacy_collection_repo = LegacyCollectionRepository(
-            self._db, normalize_service_row, audit,
-        )
         self._data_manager = SynapseDataManager(
             uow=SynapseUnitOfWork(db=self._db),
             finance=FinanceDomain(balance=balance, atomic=finance_atomic, fee_policy=fee_policy),
@@ -114,6 +110,24 @@ class PostgresStorage(BaseStorage):
             ),
             audit=AuditDomain(logs=audit),
         )
+
+    def _ensure_runtime_state_table(self) -> None:
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS synapse_runtime_state (
+                    state_key TEXT PRIMARY KEY,
+                    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_synapse_runtime_state_updated_at
+                ON synapse_runtime_state (updated_at DESC)
+                """
+            )
 
     def _validate_schema_contract(self) -> None:
         with self._db.readonly_cursor() as cur:
@@ -195,15 +209,6 @@ class PostgresStorage(BaseStorage):
             platform_fee_total=platform_fee_total,
             usage_row=usage_row,
         )
-
-    def get_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
-        return self._legacy_collection_repo.get_collection(collection_name)
-
-    def save_collection(self, collection_name: str, data: Union[List[Any], Dict[str, Any]]) -> None:
-        self._legacy_collection_repo.save_collection(collection_name, data)
-
-    def append_to_collection(self, collection_name: str, item: Any) -> None:
-        self._legacy_collection_repo.append_to_collection(collection_name, item)
 
     def read_audit_rows(self, owner_wallet: Optional[str] = None, limit: int = 200) -> List[AuditLogEntry]:
         return self._data_manager.audit.logs.read_audit_rows(owner_wallet=owner_wallet, limit=limit)

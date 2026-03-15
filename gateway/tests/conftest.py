@@ -27,7 +27,7 @@ from src.domain.audit import AuditLogEntry  # noqa: E402
 from src.domain.gateway import RouterConfigRow  # noqa: E402
 from src.domain.idempotency import IdempotencyRow, RateLimitRow  # noqa: E402
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory  # noqa: E402
-from src.domain.storage_entities import DepositIntentRow  # noqa: E402
+from src.domain.storage_entities import AuthSessionRow, DepositIntentRow  # noqa: E402
 
 
 class InMemoryStorage(BaseStorage):
@@ -269,6 +269,45 @@ class InMemoryStorage(BaseStorage):
             "status": str(status),
         }
         self.save_collection("auth_sessions", rows)
+
+    def read_auth_session(self, wallet: str) -> Union[AuthSessionRow, None]:
+        rows = self.get_collection("auth_sessions")
+        if not isinstance(rows, dict):
+            return None
+        payload = rows.get(str(wallet or "").lower())
+        if not isinstance(payload, dict):
+            return None
+        return AuthSessionRow(
+            walletAddress=str(wallet or "").lower(),
+            registeredAt=int(payload.get("registered_at") or 0),
+            lastLogin=int(payload.get("last_login") or 0),
+            status=str(payload.get("status") or ""),
+            updatedAt=str(payload.get("updated_at") or ""),
+        )
+
+    def save_auth_session(self, row: AuthSessionRow) -> None:
+        self.upsert_auth_session(
+            wallet=row.wallet_address,
+            registered_at=int(row.registered_at),
+            last_login=int(row.last_login),
+            status=str(row.status or "active"),
+        )
+
+    def read_runtime_state(self, state_key: str) -> Dict[str, Any]:
+        raw = self.get_collection("runtime_state")
+        if not isinstance(raw, dict):
+            return {}
+        payload = raw.get(str(state_key or ""))
+        return dict(payload) if isinstance(payload, dict) else {}
+
+    def write_runtime_state(self, state_key: str, payload: Dict[str, Any]) -> None:
+        key = str(state_key or "").strip()
+        if not key:
+            return
+        raw = self.get_collection("runtime_state")
+        current = dict(raw) if isinstance(raw, dict) else {}
+        current[key] = dict(payload or {})
+        self.save_collection("runtime_state", current)
 
     def get_platform_fee_policy(self) -> FeePolicyEntity:
         raw = self.get_collection("platform_fee_policy")

@@ -111,19 +111,10 @@ def append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
 
 def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
     manager = storage.get_data_manager().system.credential_auth
-    if hasattr(manager, "read_auth_session"):
-        session = manager.read_auth_session(normalize_wallet(wallet))
-        if session is not None:
-            status = str(session.status or "").strip().lower()
-            return status in RISK_RESTRICTED_STATUSES
-
-    sessions = storage.get_collection("auth_sessions")
-    if not isinstance(sessions, dict):
+    session = manager.read_auth_session(normalize_wallet(wallet))
+    if session is None:
         return False
-    payload = sessions.get(normalize_wallet(wallet))
-    if not isinstance(payload, dict):
-        return False
-    status = str(payload.get("status") or "").strip().lower()
+    status = str(session.status or "").strip().lower()
     return status in RISK_RESTRICTED_STATUSES
 
 

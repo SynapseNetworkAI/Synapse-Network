@@ -370,6 +370,13 @@ class Settings:
         for addr in os.getenv("PLATFORM_FEE_ADMIN_WALLETS", "").split(",")
         if addr.strip()
     }
+    # Comma-separated admin wallet allow-list for indexer status endpoint.
+    # If empty, falls back to PLATFORM_FEE_ADMIN_WALLETS.
+    indexer_admin_wallets: set[str] = {
+        addr.strip().lower()
+        for addr in os.getenv("INDEXER_ADMIN_WALLETS", "").split(",")
+        if addr.strip()
+    } or set(platform_fee_admin_wallets)
 
     # DeepSeek API key used by service manifest parse-curl endpoint.
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "").strip()

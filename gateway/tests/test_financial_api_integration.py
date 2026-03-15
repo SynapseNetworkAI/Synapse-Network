@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 import asyncio
+from copy import deepcopy
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
@@ -17,6 +18,7 @@ if str(SRC_ROOT) not in sys.path:
 from src import app as app_module  # noqa: E402
 from src.api.routers import balance as balance_router  # noqa: E402
 from src.core import config as cfg  # noqa: E402
+from src.services.platform import v2_indexer as v2_indexer_service  # noqa: E402
 from conftest import InMemoryStorage  # noqa: E402
 
 
@@ -258,3 +260,46 @@ def test_admin_deposit_replay_api(monkeypatch):
             cfg.settings.platform_fee_admin_wallets = old_admin_wallets
             cfg.settings.runtime_storage_dir = old_runtime_dir
             app_module.run_v2_deposit_indexer = old_indexer
+
+
+def test_indexer_status_requires_admin_and_sanitizes_errors(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
+    with TemporaryDirectory() as tmp:
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_indexer = app_module.run_v2_deposit_indexer
+        old_indexer_admin_wallets = set(cfg.settings.indexer_admin_wallets)
+        old_platform_fee_admin_wallets = set(cfg.settings.platform_fee_admin_wallets)
+        old_status = deepcopy(v2_indexer_service.INDEXER_STATUS)
+        cfg.settings.runtime_storage_dir = tmp
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                owner, token = _issue_session(client)
+                other_owner, _other_token = _issue_session(client)
+
+                cfg.settings.indexer_admin_wallets = {other_owner}
+                cfg.settings.platform_fee_admin_wallets = set()
+
+                forbidden = client.get("/api/v1/indexer/status", headers=_auth_headers(token, owner))
+                assert forbidden.status_code == 403
+                assert forbidden.json()["detail"]["code"] == "FORBIDDEN"
+
+                cfg.settings.indexer_admin_wallets = {owner}
+                v2_indexer_service.INDEXER_STATUS["lastError"] = "relation \"synapse_collections\" does not exist"
+                v2_indexer_service.INDEXER_STATUS["backfill"]["lastError"] = "stacktrace leaked"
+                v2_indexer_service.INDEXER_STATUS["reconciliation"]["lastError"] = "trace leaked"
+
+                ok = client.get("/api/v1/indexer/status", headers=_auth_headers(token, owner))
+                assert ok.status_code == 200
+                indexer = ok.json()["indexer"]
+                assert indexer["lastError"] == "INDEXER_LOOP_FAILED"
+                assert indexer["backfill"]["lastError"] == "INDEXER_BACKFILL_SCAN_FAILED"
+                assert indexer["reconciliation"]["lastError"] == "INDEXER_RECONCILIATION_FAILED"
+        finally:
+            cfg.settings.indexer_admin_wallets = old_indexer_admin_wallets
+            cfg.settings.platform_fee_admin_wallets = old_platform_fee_admin_wallets
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            app_module.run_v2_deposit_indexer = old_indexer
+            v2_indexer_service.INDEXER_STATUS.clear()
+            v2_indexer_service.INDEXER_STATUS.update(old_status)

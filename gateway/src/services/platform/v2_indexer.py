@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+import logging
 from threading import Lock
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -19,6 +20,11 @@ from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 lock = Lock()
 w3 = Web3(Web3.HTTPProvider(settings.rpc_url))
+logger = logging.getLogger(__name__)
+
+_INDEXER_LOOP_ERROR_CODE = "INDEXER_LOOP_FAILED"
+_BACKFILL_ERROR_CODE = "INDEXER_BACKFILL_SCAN_FAILED"
+_RECONCILIATION_ERROR_CODE = "INDEXER_RECONCILIATION_FAILED"
 
 INDEXER_STATUS: Dict[str, Any] = {
     "running": False,
@@ -50,17 +56,46 @@ def _set_status(**kwargs: Any) -> None:
         INDEXER_STATUS.update(kwargs)
 
 
+def _to_public_error_code(value: Any, default_code: str) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.replace("_", "").isalnum() and text.upper() == text:
+        return text
+    return default_code
+
+
+def _public_status_snapshot() -> Dict[str, Any]:
+    snapshot = dict(INDEXER_STATUS)
+    backfill = dict(snapshot.get("backfill") or {})
+    reconciliation = dict(snapshot.get("reconciliation") or {})
+
+    snapshot["lastError"] = _to_public_error_code(snapshot.get("lastError"), _INDEXER_LOOP_ERROR_CODE)
+    backfill["lastError"] = _to_public_error_code(backfill.get("lastError"), _BACKFILL_ERROR_CODE)
+    reconciliation["lastError"] = _to_public_error_code(
+        reconciliation.get("lastError"),
+        _RECONCILIATION_ERROR_CODE,
+    )
+
+    snapshot["backfill"] = backfill
+    snapshot["reconciliation"] = reconciliation
+    return snapshot
+
+
 def get_indexer_status() -> Dict[str, Any]:
     with lock:
+        snapshot = _public_status_snapshot()
         return {
-            "running": bool(INDEXER_STATUS.get("running")),
-            "listenerAddress": str(INDEXER_STATUS.get("listenerAddress") or ""),
-            "lastCounters": dict(INDEXER_STATUS.get("lastCounters") or {"credited": 0, "failed": 0, "pending": 0}),
-            "lastProcessedAt": INDEXER_STATUS.get("lastProcessedAt"),
-            "lastError": INDEXER_STATUS.get("lastError"),
+            "running": bool(snapshot.get("running")),
+            "listenerAddress": str(snapshot.get("listenerAddress") or ""),
+            "lastCounters": dict(snapshot.get("lastCounters") or {"credited": 0, "failed": 0, "pending": 0}),
+            "lastProcessedAt": snapshot.get("lastProcessedAt"),
+            "lastError": snapshot.get("lastError"),
             "pollIntervalSec": settings.v2_indexer_poll_interval_sec,
-            "backfill": dict(INDEXER_STATUS.get("backfill") or {}),
-            "reconciliation": dict(INDEXER_STATUS.get("reconciliation") or {}),
+            "backfill": dict(snapshot.get("backfill") or {}),
+            "reconciliation": dict(snapshot.get("reconciliation") or {}),
         }
 
 TRANSFER_TOPIC = Web3.to_hex(Web3.keccak(text="Transfer(address,address,uint256)")).lower()
@@ -112,7 +147,7 @@ def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) ->
 
 
 def _load_backfill_state(storage: BaseStorage) -> Dict[str, Any]:
-    raw = storage.get_collection("deposit_backfill_state")
+    raw = storage.get_data_manager().system.gateway_state.read_runtime_state("deposit_backfill_state")
     if isinstance(raw, dict):
         return dict(raw)
     return {}
@@ -121,7 +156,7 @@ def _load_backfill_state(storage: BaseStorage) -> Dict[str, Any]:
 def _save_backfill_state(storage: BaseStorage, state: Dict[str, Any]) -> None:
     payload = dict(state)
     payload["updatedAt"] = now_dt_str()
-    storage.save_collection("deposit_backfill_state", payload)
+    storage.get_data_manager().system.gateway_state.write_runtime_state("deposit_backfill_state", payload)
 
 
 def _append_audit_log(storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
@@ -805,14 +840,14 @@ def run_reconciliation_check_once(storage: BaseStorage) -> Dict[str, Any]:
     delta = round(abs(chain_vault - ledger_obligation), 6)
     alert = bool(delta > float(settings.v2_reconciliation_alert_delta_usdc))
 
-    alert_state = storage.get_collection("deposit_reconciliation_state")
+    alert_state = storage.get_data_manager().system.gateway_state.read_runtime_state("deposit_reconciliation_state")
     state = dict(alert_state) if isinstance(alert_state, dict) else {}
     last_alert_at = int(state.get("lastAlertAt") or 0)
     should_emit_alert = alert and (now - last_alert_at >= 300)
 
     if should_emit_alert:
         state["lastAlertAt"] = now
-        storage.save_collection("deposit_reconciliation_state", state)
+        storage.get_data_manager().system.gateway_state.write_runtime_state("deposit_reconciliation_state", state)
         _append_audit_log(
             storage,
             "V2_DEPOSIT_RECONCILIATION_ALERT",
@@ -966,14 +1001,15 @@ async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage
             if settings.v2_backfill_enabled:
                 try:
                     run_backfill_scan_once(storage)
-                except Exception as backfill_err:
+                except Exception:
+                    logger.exception("V2 backfill scan failed")
                     _set_status(
                         backfill={
                             "enabled": True,
                             "lastScannedBlock": None,
                             "lastScanAt": _now(),
                             "lastRecovered": 0,
-                            "lastError": str(backfill_err),
+                            "lastError": _BACKFILL_ERROR_CODE,
                         }
                     )
             process_pending_deposit_intents_once(storage)
@@ -983,7 +1019,8 @@ async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage
                 try:
                     run_reconciliation_check_once(storage)
                     last_reconciliation_at = now
-                except Exception as reconcile_err:
+                except Exception:
+                    logger.exception("V2 reconciliation check failed")
                     _set_status(
                         reconciliation={
                             "enabled": True,
@@ -992,11 +1029,12 @@ async def run_v2_deposit_indexer(stop_event: asyncio.Event, storage: BaseStorage
                             "ledgerObligationUsdc": 0.0,
                             "deltaUsdc": 0.0,
                             "alert": False,
-                            "lastError": str(reconcile_err),
+                            "lastError": _RECONCILIATION_ERROR_CODE,
                         }
                     )
-        except Exception as e:
-            _set_status(lastError=str(e), lastProcessedAt=_now())
+        except Exception:
+            logger.exception("V2 indexer loop failed")
+            _set_status(lastError=_INDEXER_LOOP_ERROR_CODE, lastProcessedAt=_now())
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=settings.v2_indexer_poll_interval_sec)
         except asyncio.TimeoutError:

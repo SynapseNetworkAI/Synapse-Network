@@ -67,6 +67,25 @@ def _ensure_fee_policy_admin(owner_wallet: str) -> str:
     return owner
 
 
+def _ensure_indexer_admin(owner_wallet: str) -> str:
+    owner = normalize_wallet(owner_wallet)
+    admins = set(settings.indexer_admin_wallets)
+    if not admins:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "INDEXER_ADMIN_NOT_CONFIGURED",
+                "message": "INDEXER_ADMIN_WALLETS (or PLATFORM_FEE_ADMIN_WALLETS) must be configured",
+            },
+        )
+    if owner not in admins:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "Only indexer admins can access this endpoint"},
+        )
+    return owner
+
+
 def _clamp_rate(value: Any, fallback: Optional[float] = None) -> float:
     if value is None:
         if fallback is None:
@@ -322,8 +341,14 @@ async def complete_provider_withdrawal(
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
-@router.get("/v1/indexer/status")
-async def get_v2_indexer_status():
+@router.get(
+    "/v1/indexer/status",
+    responses={403: {"description": "Forbidden or indexer admin not configured"}},
+)
+async def get_v2_indexer_status(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+):
+    _ = _ensure_indexer_admin(owner_wallet)
     return {
         "status": "success",
         "indexer": get_indexer_status(),

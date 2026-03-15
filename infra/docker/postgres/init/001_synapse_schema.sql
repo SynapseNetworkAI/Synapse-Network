@@ -172,6 +172,15 @@ CREATE TABLE IF NOT EXISTS synapse_processed_deposit_events (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS synapse_runtime_state (
+    state_key TEXT PRIMARY KEY,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_runtime_state_updated_at
+ON synapse_runtime_state (updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS synapse_service_registry (
     service_id TEXT PRIMARY KEY,
     record_id TEXT,
