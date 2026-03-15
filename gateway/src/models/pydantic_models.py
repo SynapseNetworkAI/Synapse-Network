@@ -71,6 +71,20 @@ class DepositConfirmRequest(BaseModel):
     confirmations: int = Field(default=1, ge=1, le=1000000)
 
 
+class AdminDepositReplayRequest(BaseModel):
+    txHash: str = Field(..., min_length=66, max_length=66)
+
+    @validator("txHash")
+    def validate_tx_hash(cls, value: str) -> str:
+        normalized = str(value).strip()
+        if not normalized.startswith("0x"):
+            raise ValueError(TX_HASH_PREFIX_ERROR)
+        hex_part = normalized[2:]
+        if len(hex_part) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in hex_part):
+            raise ValueError(TX_HASH_FORMAT_ERROR)
+        return normalized.lower()
+
+
 class RefundIntentRequest(BaseModel):
     amountUsdc: float = Field(default=10, ge=10)
     reason: Optional[str] = Field(default=None, max_length=256)

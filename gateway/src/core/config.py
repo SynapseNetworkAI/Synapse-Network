@@ -43,6 +43,31 @@ def _load_router_address_from_contract_config() -> str:
         return ""
 
 
+def _load_usdc_address_from_contract_config() -> str:
+    """Fallback: read USDC token address from frontend contract config."""
+    try:
+        config_path = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "..",
+                "..",
+                "frontend",
+                "src",
+                "contract-config.json",
+            )
+        )
+        if not os.path.exists(config_path):
+            return ""
+        with open(config_path, "r", encoding="utf-8") as file:
+            payload = json.load(file)
+        value = payload.get("MockUSDC") or payload.get("USDC") or ""
+        return str(value).strip()
+    except Exception:
+        return ""
+
+
 def _default_runtime_storage_dir() -> str:
     # Shared runtime storage root for all JSON persistence artifacts.
     return os.path.abspath(
@@ -275,6 +300,20 @@ class Settings:
     v2_indexer_poll_interval_sec: float = _env_float("V2_INDEXER_POLL_INTERVAL_SEC", 2.0)
     # Reserved block batch size for indexer scaling upgrades.
     v2_indexer_block_batch: int = _env_int("V2_INDEXER_BLOCK_BATCH", 100)
+    # Enable block-range backfill scanner for missed onchain deposits.
+    v2_backfill_enabled: bool = _env_bool("V2_BACKFILL_ENABLED", True)
+    # Confirmed block batch size scanned per backfill round.
+    v2_backfill_block_batch: int = max(1, _env_int("V2_BACKFILL_BLOCK_BATCH", 200))
+    # Optional fixed start block for backfill cursor bootstrap; 0 means auto bootstrap.
+    v2_backfill_start_block: int = max(0, _env_int("V2_BACKFILL_START_BLOCK", 0))
+    # Reconciliation monitor switch for chain-vs-ledger consistency checks.
+    v2_reconciliation_enabled: bool = _env_bool("V2_RECONCILIATION_ENABLED", True)
+    # Minimum interval between reconciliation checks.
+    v2_reconciliation_interval_sec: float = max(2.0, _env_float("V2_RECONCILIATION_INTERVAL_SEC", 30.0))
+    # Alert threshold in USDC for chain-vs-ledger absolute delta.
+    v2_reconciliation_alert_delta_usdc: float = max(0.0, _env_float("V2_RECONCILIATION_ALERT_DELTA_USDC", 1.0))
+    # Token contract used for onchain vault balance reconciliation.
+    usdc_token_address: str = os.getenv("USDC_TOKEN_ADDRESS", "").strip() or _load_usdc_address_from_contract_config() or ""
     # Optional signer key for legacy or maintenance chain operations.
     private_key: str = os.getenv("PRIVATE_KEY", "")
     # Optional contract address used by compatibility paths.

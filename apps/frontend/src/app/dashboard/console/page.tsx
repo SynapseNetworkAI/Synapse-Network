@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useDisconnect, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
@@ -26,6 +26,44 @@ const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 const vaultABI = parseAbi([
   "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external"
 ]);
+
+const DEPOSIT_INTENT_RETRY_QUEUE_KEY = "synapse_deposit_intent_retry_queue";
+
+type PendingDepositIntentRetry = {
+  id: string;
+  address: string;
+  txHash: string;
+  amountUsdc: number;
+  attempts: number;
+  nextRetryAt: number;
+  lastError?: string;
+  createdAt: number;
+};
+
+function loadDepositIntentRetryQueue(): PendingDepositIntentRetry[] {
+  if (globalThis.window === undefined) return [];
+  try {
+    const raw = localStorage.getItem(DEPOSIT_INTENT_RETRY_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row): row is PendingDepositIntentRetry => {
+      return !!row && typeof row === "object" && typeof row.txHash === "string" && typeof row.address === "string";
+    });
+  } catch {
+    return [];
+  }
+}
+
+function saveDepositIntentRetryQueue(rows: PendingDepositIntentRetry[]): void {
+  if (globalThis.window === undefined) return;
+  localStorage.setItem(DEPOSIT_INTENT_RETRY_QUEUE_KEY, JSON.stringify(rows));
+}
+
+function toSafeErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err.trim()) return err;
+  return fallback;
+}
 
 function shortAddress(addr?: string): string {
   if (!addr) return "-";
@@ -88,6 +126,7 @@ export default function DeveloperConsole() {
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
   const [indexerStatus, setIndexerStatus] = useState<IndexerStatus | null>(null);
+  const depositRetryInFlightRef = useRef(false);
 
   const handleAddFundsClick = useCallback(async () => {
     if (!isConnected && openConnectModal) {
@@ -111,6 +150,85 @@ export default function DeveloperConsole() {
       // Ignore
     }
   }, [address]);
+
+  const upsertDepositIntentRetry = useCallback((txHash: string, amountUsdc: number, err: unknown) => {
+    if (!address || globalThis.window === undefined) return;
+    const normalizedHash = String(txHash || "").trim().toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return;
+
+    const queue = loadDepositIntentRetryQueue();
+    const now = Date.now();
+    const existing = queue.find(
+      (row) => row.address.toLowerCase() === address.toLowerCase() && row.txHash.toLowerCase() === normalizedHash
+    );
+    const message = toSafeErrorMessage(err, "intent submit failed");
+
+    if (existing) {
+      existing.lastError = message;
+      existing.nextRetryAt = Math.min(existing.nextRetryAt, now + 3000);
+    } else {
+      queue.push({
+        id: `intent-retry-${normalizedHash.slice(2, 10)}-${now}`,
+        address,
+        txHash: normalizedHash,
+        amountUsdc,
+        attempts: 0,
+        nextRetryAt: now + 3000,
+        lastError: message,
+        createdAt: now,
+      });
+    }
+
+    saveDepositIntentRetryQueue(queue);
+    toast.error("On-chain deposit succeeded but sync to gateway failed. Auto-retry queue enabled.");
+  }, [address]);
+
+  const flushDepositIntentRetryQueue = useCallback(async () => {
+    if (!address || globalThis.window === undefined) return;
+    if (depositRetryInFlightRef.current) return;
+
+    const queue = loadDepositIntentRetryQueue();
+    if (!queue.length) return;
+
+    const now = Date.now();
+    const owner = address.toLowerCase();
+    let changed = false;
+
+    depositRetryInFlightRef.current = true;
+    try {
+      for (const item of queue) {
+        if (item.address.toLowerCase() !== owner) continue;
+        if (item.nextRetryAt > now) continue;
+
+        try {
+          await createDepositIntent(address, {
+            txHash: item.txHash,
+            amountUsdc: Number(item.amountUsdc),
+          });
+
+          item.nextRetryAt = -1;
+          item.lastError = "";
+          changed = true;
+          toast.success(`Deposit sync recovered: ${item.txHash.slice(0, 10)}...`);
+          loadBalance();
+          refetchWalletBalance();
+        } catch (err) {
+          item.attempts += 1;
+          const backoffMs = Math.min(60000, Math.max(3000, 3000 * 2 ** Math.min(item.attempts, 5)));
+          item.nextRetryAt = Date.now() + backoffMs;
+          item.lastError = toSafeErrorMessage(err, "retry failed");
+          changed = true;
+        }
+      }
+    } finally {
+      depositRetryInFlightRef.current = false;
+    }
+
+    if (changed) {
+      const next = queue.filter((row) => row.nextRetryAt !== -1);
+      saveDepositIntentRetryQueue(next);
+    }
+  }, [address, loadBalance, refetchWalletBalance]);
 
   const loadKeys = useCallback(async () => {
     if (!address) return;
@@ -167,6 +285,15 @@ export default function DeveloperConsole() {
   }, [address, isSessionAuthenticated]);
 
   useEffect(() => {
+    if (!address || !isSessionAuthenticated) return;
+    void flushDepositIntentRetryQueue();
+    const id = setInterval(() => {
+      void flushDepositIntentRetryQueue();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [address, isSessionAuthenticated, flushDepositIntentRetryQueue]);
+
+  useEffect(() => {
     if (isConfirmed && hash && address) {
       toast.success(
         <div className="flex flex-col">
@@ -189,11 +316,14 @@ export default function DeveloperConsole() {
           if (attempts >= 5) clearInterval(pollId);
         }, 2000);
         loadBalance(); // Immediate first try
-      }).catch((err) => console.error("Intent failed", err));
+      }).catch((err) => {
+        console.error("Intent failed", err);
+        upsertDepositIntentRetry(hash, Number(topUpAmount), err);
+      });
 
       refetchWalletBalance();
     }
-  }, [isConfirmed, hash, address, topUpAmount, loadBalance, refetchWalletBalance]);
+  }, [isConfirmed, hash, address, topUpAmount, loadBalance, refetchWalletBalance, upsertDepositIntentRetry]);
 
   useEffect(() => {
     if (isMintConfirmed) {
@@ -309,7 +439,7 @@ export default function DeveloperConsole() {
         });
         localStorage.setItem("synapse_failed_deposits", JSON.stringify(stored));
         // Force mutate an event so useFundsData can catch it if it's open (optional)
-        window.dispatchEvent(new Event("synapse_failed_deposits_updated"));
+        globalThis.dispatchEvent(new Event("synapse_failed_deposits_updated"));
       } catch (e) {
         console.error("Failed to log shadow ledger:", e);
       }
