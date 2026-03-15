@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
-from src.services.repository_access import audit_repo
+from src.storage.repository_provider import audit_repo
 
 logger = logging.getLogger(__name__)
 

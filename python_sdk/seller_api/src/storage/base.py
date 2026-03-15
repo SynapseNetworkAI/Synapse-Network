@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
+from .repository_provider import StorageRepositoryProvider
+
 class BaseStorage(ABC):
+    @abstractmethod
+    def get_repository_provider(self) -> StorageRepositoryProvider:
+        pass
+
     @abstractmethod
     def get_collection(self, collection_name: str) -> Union[List[Any], Dict[str, Any]]:
         pass

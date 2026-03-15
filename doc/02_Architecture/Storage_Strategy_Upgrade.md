@@ -216,7 +216,8 @@ Phase 3（日志爆发后）：
   - `src/storage/postgres/repositories/legacy_collection_repository.py`
 3. 门面层：
   - `src/storage/postgres_impl.py` 仅保留连接管理、原子事务入口与 legacy collection 兼容入口，不再承载 gateway/balance/audit/registry/credential/fee/idempotency 的 read/write passthrough。
-  - 路由与服务层通过 `src/services/repository_access.py` 直接获取对应 repository 实例（Postgres 下优先使用 `_xxx_repo`，其他存储实现降级到适配器）。
+  - `src/storage/repository_provider.py` 定义显式、类型化的 `StorageRepositoryProvider`（gateway_state / balance / audit / service_registry / credential_auth / fee_policy / idempotency）。
+  - 路由与服务层只通过 provider helper 获取 repository，不再读取 storage 私有属性，也不再使用 getattr/Any 适配壳。
   - 历史壳层 `src/storage/finance_repository.py` / `src/storage/registry_repository.py` / `src/storage/credential_repository.py` 已移除。
 
 ### 9.5 Schema 生命周期策略（已执行）

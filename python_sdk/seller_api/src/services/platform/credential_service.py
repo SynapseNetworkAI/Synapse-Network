@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.models.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
-from src.services.repository_access import audit_repo, credential_auth_repo
+from src.storage.repository_provider import audit_repo, credential_auth_repo
 from src.storage import BaseStorage
 
 write_lock = asyncio.Lock()

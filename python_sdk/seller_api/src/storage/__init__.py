@@ -1,6 +1,16 @@
 from fastapi import Request
 from .base import BaseStorage
 from .postgres_impl import PostgresStorage
+from .repository_provider import (
+    StorageRepositoryProvider,
+    audit_repo,
+    balance_repo,
+    credential_auth_repo,
+    fee_policy_repo,
+    gateway_state_repo,
+    idempotency_repo,
+    service_registry_repo,
+)
 
 
 def create_storage(settings: object) -> BaseStorage:
@@ -18,6 +28,14 @@ def get_storage(request: Request) -> BaseStorage:
 __all__ = [
     "BaseStorage",
     "PostgresStorage",
+    "StorageRepositoryProvider",
+    "gateway_state_repo",
+    "balance_repo",
+    "audit_repo",
+    "service_registry_repo",
+    "credential_auth_repo",
+    "fee_policy_repo",
+    "idempotency_repo",
     "create_storage",
     "get_storage",
 ]

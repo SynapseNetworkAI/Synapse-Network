@@ -11,7 +11,7 @@ from web3.exceptions import TransactionNotFound
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
-from src.services.repository_access import audit_repo, balance_repo, gateway_state_repo
+from src.storage.repository_provider import audit_repo, balance_repo, gateway_state_repo
 from src.storage import BaseStorage
 
 lock = Lock()
