@@ -94,4 +94,61 @@
 6. **关键资金路径必须覆盖异常分支**：充值、扣费、退款、结算、对账相关逻辑，除了主流程，还必须覆盖失败/超时/重放/并发冲突等分支。
 7. **禁止过时测试滞留**：当代码或文档已更新导致旧测试语义失真，必须在同次迭代中清理或重写，避免“绿测但假安全”。
 
+
+
+
 > 执行口令：后端每一次改动，都要留下可自动回归的证据链（Doc Diff + Code Diff + Test Diff）。
+
+## 🛡️ 11. PostgreSQL 资金安全基线（买家充值/扣费强制版）
+针对买家充值（Deposit）与扣费（Deduction）链路，以下为不可降级的生产级标准。任何实现如果不满足以下条款，视为不可上线。
+
+### 11.1 幂等与防重放（Idempotency + Replay Protection）
+1. **充值幂等主键**：优先使用 `tx_hash`，次选 `request_id`。同一 `tx_hash` 只能入账一次。
+2. **数据库物理兜底**：必须建立唯一约束（UNIQUE Constraint / Unique Index），例如：
+	- `UNIQUE (tx_hash)` 或 `UNIQUE (owner_address, request_id)`。
+3. **代码逻辑兜底**：在应用层捕获 `IntegrityError`，返回“已处理/重复请求”语义，不得再次入账。
+4. **返回策略**：重复请求不报 500，返回稳定业务结果（已存在的流水/已处理状态）。
+
+### 11.2 并发与竞态（Concurrency + Race Conditions）
+1. **禁止内存读改写余额**：严禁 `balance = get(); balance += x; save(balance)` 这种并发不安全模式。
+2. **必须使用数据库并发控制**（二选一或组合）：
+	- 行级锁：`SELECT ... FOR UPDATE`。
+	- 原子条件更新：`UPDATE ... SET balance = balance +/- :amount WHERE ... AND balance >= :amount`。
+3. **扣费必须防超扣**：原子更新后必须检查 `affected rows == 1`，否则返回余额不足或并发冲突。
+4. **跨实例一致性**：Redis 仅作加速与幂等缓存，最终一致性和正确性以 PostgreSQL 事务为准。
+
+### 11.3 ACID 事务（BEGIN / COMMIT / ROLLBACK）
+1. **资金三件套同事务提交**：
+	- 买家余额变动；
+	- 平台手续费池/对手方余额变动；
+	- 资金流水与审计日志写入。
+2. **任何一步失败必须回滚**：网络抖动、约束冲突、外键失败等异常都必须触发 `ROLLBACK`。
+3. **异常处理规范**：
+	- `try` 中只做业务步骤；
+	- `except` 中统一回滚并记录审计错误；
+	- 对外返回最小披露错误，不泄露数据库内部结构。
+
+### 11.4 严格输入校验（Strict Validation）
+1. **金额必须为正数**：充值/扣费金额必须满足 `amount > 0`。
+2. **金额精度禁止 float**：法币/代币金额必须使用 `Decimal`（或数据库 `NUMERIC`），禁止 float 参与记账。
+3. **单位转换必须可审计**：人类金额（USDC）与链上最小单位（wei/6decimals）转换需固定规则并保留原始值。
+4. **关键字段白名单校验**：`tx_hash`、`request_id`、`owner`、状态枚举、分页参数全部做长度与格式校验。
+
+### 11.5 不可篡改审计流水（Immutable Audit Trail）
+1. **每次资金变动必须落一条审计流水**，至少包含：
+	- `owner`、`action_type`、`request_id`、`tx_hash`（如有）；
+	- `before_balance`、`delta_amount`、`after_balance`；
+	- `currency`、`timestamp`、`status`、`error_code`（失败时）。
+2. **审计日志不可被业务接口修改或删除**：仅允许追加（append-only）。
+3. **对账可追溯**：必须支持按 `request_id / tx_hash / owner / time range` 检索。
+
+### 11.6 实施与交付硬性要求（Code Review Gate）
+1. 所有买家充值/扣费 PR 必须同时包含：
+	- 代码变更（事务 + 锁 + 幂等 + Decimal）；
+	- 数据库约束变更（唯一索引/必要索引）；
+	- 单元测试与并发回归测试；
+	- 文档更新（API 字段、错误码、状态机、对账说明）。
+2. 无事务、无唯一索引、无审计流水任一缺失，一律拒绝合并。
+3. 当“性能优化”与“资金一致性”冲突时，永远优先一致性和可审计性。
+
+> 执行口令：买家充值/扣费代码必须满足「唯一索引 + 行级锁/原子更新 + ACID 事务 + Decimal + Append-Only 审计」五件套，否则不得上线。
