@@ -32,6 +32,8 @@
 - `src/storage/admin_audit/`: 管理员审计存储
 - `src/storage/admin_approval/`: 审批单存储
 - `src/storage/analytics/`: 统计查询与分析读库
+- `scripts/ops/`: 启动、停止、重启、状态检查脚本
+- `docs/`: `gateway-admin` 自己的运维与使用文档
 
 第一期已初始化：
 
@@ -52,8 +54,19 @@ cd admin/gateway-admin
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn src.app:app --reload --port 8300
+sh scripts/ops/start.sh
 ```
+
+常用运维命令：
+
+```bash
+sh scripts/ops/start.sh
+sh scripts/ops/stop.sh
+sh scripts/ops/restart.sh
+sh scripts/ops/status.sh
+```
+
+运维说明见 `docs/运维手册.md`。
 
 本地 PostgreSQL 缺省连接：
 
