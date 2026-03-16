@@ -4,6 +4,16 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEVELOPMENT_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:4000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:4000",
+)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -18,7 +28,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8300, alias="ADMIN_GATEWAY_PORT")
     debug: bool = Field(default=True, alias="ADMIN_GATEWAY_DEBUG")
     allowed_origins: str = Field(
-        default="http://localhost:3000",
+        default="http://localhost:3000,http://localhost:4000",
         alias="ADMIN_GATEWAY_ALLOWED_ORIGINS",
     )
     token_prefix: str = Field(default="adm_demo_", alias="ADMIN_GATEWAY_TOKEN_PREFIX")
@@ -61,7 +71,12 @@ class Settings(BaseSettings):
     use_inmemory_store: bool = Field(default=False, alias="ADMIN_GATEWAY_USE_INMEMORY_STORE")
 
     def cors_origins(self) -> list[str]:
-        return [item.strip() for item in self.allowed_origins.split(",") if item.strip()]
+        origins = [item.strip() for item in self.allowed_origins.split(",") if item.strip()]
+        if self.environment.lower() == "development":
+            for origin in DEVELOPMENT_CORS_ORIGINS:
+                if origin not in origins:
+                    origins.append(origin)
+        return origins
 
 
 @lru_cache(maxsize=1)

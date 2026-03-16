@@ -1,8 +1,30 @@
 from fastapi.testclient import TestClient
 from src.app import app
+from src.api import deps
+from src.core.security import hash_password
 
 client = TestClient(app)
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
+
+
+def _seed_test_passwords() -> None:
+    store = deps.get_store()
+    for email in (
+        "ops@synapse.network",
+        "audit@synapse.network",
+        "finance@synapse.network",
+        "finance-review@synapse.network",
+        "risk@synapse.network",
+        "risk-review@synapse.network",
+        "readonly@synapse.network",
+        "super@synapse.network",
+    ):
+        user = store.identity.get_user_by_email(email)
+        if user is not None:
+            store.identity.update_password_hash(user.admin_id, hash_password(PLACEHOLDER_PASSWORD))
+
+
+_seed_test_passwords()
 
 
 def test_health() -> None:
@@ -24,6 +46,300 @@ def test_admin_auth_login() -> None:
     body = response.json()
     assert body["success"] is True
     assert body["data"]["accessToken"].startswith("adm_demo_")
+
+
+def test_admin_auth_login_rejects_wrong_password() -> None:
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "ops@synapse.network",
+            "password": "wrong-password",
+            "otpCode": "123456",
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_admin_users_catalog_and_create_user() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "super@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    roles_response = client.get(
+        "/api/admin/v1/users/roles",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert roles_response.status_code == 200
+    role_items = roles_response.json()["data"]["items"]
+    assert any(item["roleKey"] == "super_admin" for item in role_items)
+
+    create_response = client.post(
+        "/api/admin/v1/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "email": "new-ops@synapse.network",
+            "displayName": "New Ops",
+            "roleKey": "platform_ops_admin",
+            "password": PLACEHOLDER_PASSWORD,
+            "requireMfa": False,
+            "status": "active",
+        },
+    )
+    assert create_response.status_code == 200
+    created_admin = create_response.json()["data"]["admin"]
+    assert created_admin["email"] == "new-ops@synapse.network"
+    assert created_admin["roleKeys"] == ["platform_ops_admin"]
+
+    list_response = client.get(
+        "/api/admin/v1/users",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert list_response.status_code == 200
+    emails = [item["email"] for item in list_response.json()["data"]["items"]]
+    assert "new-ops@synapse.network" in emails
+
+
+def test_admin_users_update_and_disable_user() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "super@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    create_response = client.post(
+        "/api/admin/v1/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "email": "crud-user@synapse.network",
+            "displayName": "CRUD User",
+            "roleKey": "platform_ops_admin",
+            "password": PLACEHOLDER_PASSWORD,
+            "requireMfa": False,
+            "status": "active",
+        },
+    )
+    assert create_response.status_code == 200
+    admin_id = create_response.json()["data"]["admin"]["adminId"]
+
+    update_response = client.patch(
+        f"/api/admin/v1/users/{admin_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "displayName": "Updated CRUD User",
+            "roleKey": "finance_admin",
+            "password": "",
+            "requireMfa": True,
+            "status": "active",
+        },
+    )
+    assert update_response.status_code == 200
+    updated_admin = update_response.json()["data"]["admin"]
+    assert updated_admin["displayName"] == "Updated CRUD User"
+    assert updated_admin["roleKeys"] == ["finance_admin"]
+    assert updated_admin["requireMfa"] is True
+
+    delete_response = client.delete(
+        f"/api/admin/v1/users/{admin_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json()["data"]["status"] == "disabled"
+
+    filtered_response = client.get(
+        "/api/admin/v1/users?status=disabled&search=crud-user&roleKey=finance_admin",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert filtered_response.status_code == 200
+    filtered_items = filtered_response.json()["data"]["items"]
+    assert len(filtered_items) == 1
+    assert filtered_items[0]["adminId"] == admin_id
+
+
+def test_admin_roles_crud_flow() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "super@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    permissions_response = client.get(
+        "/api/admin/v1/users/permissions",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert permissions_response.status_code == 200
+    permission_keys = [item["permissionKey"] for item in permissions_response.json()["data"]["items"]]
+    assert "dashboard:read" in permission_keys
+
+    create_response = client.post(
+        "/api/admin/v1/users/roles",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "roleKey": "ops_shift_manager",
+            "roleName": "Ops Shift Manager",
+            "description": "Shift-level control plane operator",
+            "status": "active",
+            "permissions": ["dashboard:read", "execution:read"],
+        },
+    )
+    assert create_response.status_code == 200
+    created_role = create_response.json()["data"]["role"]
+    assert created_role["roleKey"] == "ops_shift_manager"
+    assert created_role["permissions"] == ["dashboard:read", "execution:read"]
+
+    update_response = client.patch(
+        "/api/admin/v1/users/roles/ops_shift_manager",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "roleName": "Ops Shift Lead",
+            "description": "Lead for operations shift",
+            "status": "active",
+            "permissions": ["dashboard:read", "execution:read", "audit:read"],
+        },
+    )
+    assert update_response.status_code == 200
+    updated_role = update_response.json()["data"]["role"]
+    assert updated_role["roleName"] == "Ops Shift Lead"
+    assert "audit:read" in updated_role["permissions"]
+
+    delete_response = client.delete(
+        "/api/admin/v1/users/roles/ops_shift_manager",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json()["data"]["status"] == "disabled"
+
+
+def test_admin_menu_config_crud_and_publish_flow() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "super@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    list_response = client.get(
+        "/api/admin/v1/config/menu-items",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert list_response.status_code == 200
+    assert any(item["itemId"] == "dashboard" for item in list_response.json()["data"]["items"])
+
+    create_response = client.post(
+        "/api/admin/v1/config/menu-items",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "itemId": "ops-copilot",
+            "sectionId": "ops-controls",
+            "sectionLabel": "业务控制",
+            "sectionDescription": "审批、资金、风控和系统运维的受控操作入口。",
+            "label": "运行副驾",
+            "href": "/ops-copilot",
+            "description": "值班辅助和运行手册入口。",
+            "requiredRoles": ["super_admin"],
+            "requiredPermissions": ["dashboard:read"],
+            "sortOrder": 65,
+        },
+    )
+    assert create_response.status_code == 200
+    assert any(item["itemId"] == "ops-copilot" for item in create_response.json()["data"]["items"])
+    assert create_response.json()["data"]["meta"]["isDirty"] is True
+
+    update_response = client.patch(
+        "/api/admin/v1/config/menu-items/ops-copilot",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "sectionId": "ops-controls",
+            "sectionLabel": "业务控制",
+            "sectionDescription": "审批、资金、风控和系统运维的受控操作入口。",
+            "label": "运行副驾中心",
+            "href": "/ops-copilot",
+            "description": "值班辅助和运行手册入口。",
+            "requiredRoles": ["super_admin", "platform_ops_admin"],
+            "requiredPermissions": ["dashboard:read"],
+            "sortOrder": 66,
+        },
+    )
+    assert update_response.status_code == 200
+    assert any(item["label"] == "运行副驾中心" for item in update_response.json()["data"]["items"])
+
+    publish_response = client.post(
+        "/api/admin/v1/config/menu-items/publish",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert publish_response.status_code == 200
+    assert publish_response.json()["data"]["meta"]["isDirty"] is False
+
+    published_response = client.get(
+        "/api/admin/v1/config/menu-items?stage=published",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert published_response.status_code == 200
+    assert any(item["itemId"] == "ops-copilot" for item in published_response.json()["data"]["items"])
+
+    delete_response = client.delete(
+        "/api/admin/v1/config/menu-items/ops-copilot",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert delete_response.status_code == 200
+    assert all(item["itemId"] != "ops-copilot" for item in delete_response.json()["data"]["items"])
+
+
+def test_published_menu_config_is_available_to_regular_admins() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "finance@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    response = client.get(
+        "/api/admin/v1/config/menu-items?stage=published",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["meta"]["publishedVersion"] >= 1
+
+
+def test_draft_menu_config_requires_control_plane_role() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "finance@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    response = client.get(
+        "/api/admin/v1/config/menu-items",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
 def test_dashboard_requires_auth() -> None:

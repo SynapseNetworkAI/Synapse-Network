@@ -148,6 +148,14 @@ npx hardhat run scripts/e2e_sync_payment.js --network localhost
 
 ### 3.2 提交充值 intent（等待 Indexer 入账）
 
+前端控制台当前具备一层补偿机制：
+
+- 浏览器在发送 `depositWithPermit` 交易后，会立刻把 `txHash + amountUsdc` 写入本地待恢复队列。
+- 如果用户在 receipt 确认前刷新页面，重新进入控制台并恢复钱包 session 后，前端会自动重新检查该交易 receipt。
+- 一旦发现链上已经成功确认，前端会自动补提 `deposit intent`；如果此时网关 session 失效，则会把该笔交易转入本地 retry queue，等用户重新鉴权后继续同步。
+
+所以开发联调时，不要只盯着当前页面内存态；是否已经把待恢复 tx 写入本地队列，同样是充值成功链路的一部分。
+
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/balance/deposit/intent \
   -H "Content-Type: application/json" \

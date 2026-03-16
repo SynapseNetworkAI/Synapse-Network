@@ -11,6 +11,8 @@ from src.domain import (
     AdminExecutionAttempt,
     AdminExecutionJob,
     AdminMfaFactor,
+    AdminMenuConfigItem,
+    AdminMenuConfigSnapshot,
     AdminPermission,
     AdminRole,
     AdminRolePermission,
@@ -48,6 +50,24 @@ APPROVAL_DECIDE = "approval:decide"
 AUDIT_READ = "audit:read"
 EXECUTION_READ = "execution:read"
 EXECUTION_RETRY = "execution:retry"
+IDENTITY_ACCESS_LABEL = "身份与权限"
+IDENTITY_ACCESS_DESCRIPTION = "后台用户、角色模板、菜单树与权限矩阵。"
+OPS_CONTROLS_LABEL = "业务控制"
+OPS_CONTROLS_DESCRIPTION = "审批、资金、风控和系统运维的受控操作入口。"
+
+
+class InMemoryAdminConfigRepository:
+    def __init__(self, menu_snapshot: AdminMenuConfigSnapshot | None = None) -> None:
+        self._menu_snapshot = menu_snapshot
+
+    def get_menu_config(self, config_key: str) -> AdminMenuConfigSnapshot | None:
+        if self._menu_snapshot is None or self._menu_snapshot.config_key != config_key:
+            return None
+        return self._menu_snapshot
+
+    def save_menu_config(self, snapshot: AdminMenuConfigSnapshot) -> AdminMenuConfigSnapshot:
+        self._menu_snapshot = snapshot
+        return snapshot
 
 
 class InMemoryAdminIdentityRepository:
@@ -65,6 +85,32 @@ class InMemoryAdminIdentityRepository:
             if user.email.lower() == normalized:
                 return user
         return None
+
+    def list_users(self, status: str | None = None, limit: int = 100) -> list[AdminUser]:
+        items = sorted(
+            self._users.values(),
+            key=lambda user: (user.updated_at or _utcnow(), user.admin_id),
+            reverse=True,
+        )
+        if status:
+            items = [user for user in items if user.status.value == status]
+        return items[:limit]
+
+    def create_user(self, user: AdminUser) -> AdminUser:
+        return self._store_user(user)
+
+    def update_user(self, user: AdminUser) -> AdminUser:
+        return self._store_user(user)
+
+    def _store_user(self, user: AdminUser) -> AdminUser:
+        self._users[user.admin_id] = user
+        return user
+
+    def update_password_hash(self, admin_id: str, password_hash: str) -> None:
+        user = self._users.get(admin_id)
+        if user is None:
+            return
+        self._users[admin_id] = replace(user, password_hash=password_hash, updated_at=_utcnow())
 
     def list_mfa_factors(self, admin_id: str) -> list[AdminMfaFactor]:
         return [factor for factor in self._factors if factor.admin_id == admin_id]
@@ -109,14 +155,51 @@ class InMemoryAdminAuthorizationRepository:
     def list_roles(self) -> list[AdminRole]:
         return list(self._roles.values())
 
+    def get_role(self, role_key: str) -> AdminRole | None:
+        return self._roles.get(role_key)
+
+    def create_role(self, role: AdminRole) -> AdminRole:
+        return self._store_role(role)
+
+    def update_role(self, role: AdminRole) -> AdminRole:
+        return self._store_role(role)
+
+    def _store_role(self, role: AdminRole) -> AdminRole:
+        self._roles[role.role_key] = role
+        return role
+
     def list_permissions(self) -> list[AdminPermission]:
         return list(self._permissions.values())
 
     def list_role_permissions(self, role_key: str) -> list[AdminRolePermission]:
         return [mapping for mapping in self._role_permissions if mapping.role_key == role_key]
 
+    def replace_role_permissions(self, role_key: str, permissions: list[AdminRolePermission]) -> list[AdminRolePermission]:
+        self._role_permissions = [mapping for mapping in self._role_permissions if mapping.role_key != role_key]
+        self._role_permissions.extend(permissions)
+        return permissions
+
     def list_role_bindings(self, admin_id: str) -> list[AdminUserRoleBinding]:
         return [binding for binding in self._role_bindings if binding.admin_id == admin_id]
+
+    def create_role_binding(self, binding: AdminUserRoleBinding) -> AdminUserRoleBinding:
+        self._role_bindings.append(binding)
+        return binding
+
+    def replace_role_bindings(
+        self,
+        admin_id: str,
+        bindings: list[AdminUserRoleBinding],
+    ) -> list[AdminUserRoleBinding]:
+        updated_bindings: list[AdminUserRoleBinding] = []
+        for binding in self._role_bindings:
+            if binding.admin_id == admin_id and binding.status == RoleBindingStatus.ACTIVE:
+                updated_bindings.append(replace(binding, status=RoleBindingStatus.REVOKED, updated_at=_utcnow()))
+            else:
+                updated_bindings.append(binding)
+        updated_bindings.extend(bindings)
+        self._role_bindings = updated_bindings
+        return bindings
 
 
 class InMemoryAdminApprovalRepository:
@@ -305,6 +388,7 @@ class InMemoryAdminStore:
     authorization: InMemoryAdminAuthorizationRepository
     approval: InMemoryAdminApprovalRepository
     audit: InMemoryAdminAuditRepository
+    config: InMemoryAdminConfigRepository
 
     @classmethod
     def seed_demo(cls) -> "InMemoryAdminStore":
@@ -385,6 +469,30 @@ class InMemoryAdminStore:
             AdminUserRoleBinding("bind_compliance_auditor", "adm_compliance_auditor", "compliance_auditor", status=RoleBindingStatus.ACTIVE),
             AdminUserRoleBinding("bind_readonly_analyst", "adm_readonly_analyst", "readonly_analyst", status=RoleBindingStatus.ACTIVE),
         ]
+        menu_items = (
+            AdminMenuConfigItem("dashboard", "overview", "控制总览", "稳定读模型、控制台总览与核心运营信号。", "控制台", "/dashboard", "总览 finance、activity、operations 3 个稳定读模型。", required_permissions=(DASHBOARD_READ,), sort_order=10),
+            AdminMenuConfigItem("users", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "后台用户", "/users", "创建管理员、分配角色、查看权限模板与启用状态。", required_roles=("super_admin", "platform_ops_admin"), sort_order=20),
+            AdminMenuConfigItem("role-permissions", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "角色权限", "/role-permissions", "查看角色权限矩阵、模块权限边界与 reviewer 分工。", required_roles=("super_admin", "platform_ops_admin"), sort_order=30),
+            AdminMenuConfigItem("menu-config", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "菜单配置", "/menu-config", "菜单树、路由、可见性和权限依赖的配置视图。", required_roles=("super_admin", "platform_ops_admin"), sort_order=40),
+            AdminMenuConfigItem("execution", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "执行队列", "/execution", "查看 execution jobs、失败重试与网关执行结果。", required_permissions=(EXECUTION_READ,), sort_order=50),
+            AdminMenuConfigItem("approvals", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "审批中心", "/approvals", "高风险动作审批流、reviewer 决策与执行前守门。", required_permissions=(APPROVAL_READ,), sort_order=60),
+            AdminMenuConfigItem("finance", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "资金运营", "/finance", "充值异常、退款与提现控制面，聚焦受控动作。", required_permissions=(DASHBOARD_READ,), sort_order=70),
+            AdminMenuConfigItem("risk", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "风控工作台", "/risk", "风险规则、工单分流、黑白名单与风险标签处置。", required_permissions=(DASHBOARD_READ,), sort_order=80),
+            AdminMenuConfigItem("system", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "系统运维", "/system", "gateway、indexer、reconciliation 与运行时参数快照。", required_permissions=(DASHBOARD_READ,), sort_order=90),
+            AdminMenuConfigItem("audit", "audit-ledger", "审计合规", "操作日志、审计回放与高风险动作追踪。", "操作日志", "/audit", "管理员操作日志、审批链路和失败告警审计检索。", required_permissions=(AUDIT_READ,), sort_order=100),
+        )
+        menu_snapshot = AdminMenuConfigSnapshot(
+            config_key="admin_menu_config",
+            draft_items=menu_items,
+            published_items=menu_items,
+            draft_version=1,
+            published_version=1,
+            created_at=now,
+            updated_at=now,
+            updated_by="system_seed",
+            published_at=now,
+            published_by="system_seed",
+        )
         approvals = {
             "APR-20260316-001": AdminApproval(
                 approval_id="APR-20260316-001",
@@ -530,4 +638,5 @@ class InMemoryAdminStore:
             authorization=InMemoryAdminAuthorizationRepository(roles, permissions, role_permissions, role_bindings),
             approval=InMemoryAdminApprovalRepository(approvals, steps, {}, jobs, attempts),
             audit=InMemoryAdminAuditRepository(actions, []),
+            config=InMemoryAdminConfigRepository(menu_snapshot),
         )

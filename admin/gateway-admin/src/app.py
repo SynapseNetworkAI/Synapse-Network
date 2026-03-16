@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.routers import admin_auth, approval, audit, dashboard, execution
+from src.api.routers import admin_auth, admin_config, admin_users, approval, audit, dashboard, execution
 from src.api import deps
 from src.core.config import get_settings
 from src.core.errors import AppError
@@ -53,6 +53,8 @@ def create_app() -> FastAPI:
 	)
 
 	app.include_router(admin_auth.router)
+	app.include_router(admin_config.router)
+	app.include_router(admin_users.router)
 	app.include_router(dashboard.router)
 	app.include_router(approval.router)
 	app.include_router(audit.router)

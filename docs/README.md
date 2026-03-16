@@ -27,6 +27,7 @@
 所有围绕以太坊与 USDC 构建的金库、账本与对账体系：
 - **链下计费与中心化账本设计**: [Offchain_Billing.md](./03_Smart_Contract_Payment/Offchain_Billing.md)
 - **金库与一键充值 (Permit机制)**: [Vault_Deposit_Architecture.md](./03_Smart_Contract_Payment/Vault_Deposit_Architecture.md)
+- **买家充值端到端数据流说明**: [Buyer_Deposit_End_to_End_Dataflow.md](./03_Smart_Contract_Payment/Buyer_Deposit_End_to_End_Dataflow.md)
 - **Gateway 数据库设计**: [Gateway_V2_Data_Model.md](./03_Smart_Contract_Payment/Gateway_V2_Data_Model.md)
 - **卖家结算与平台抽水闭环**: [Settlement_and_Deduction_Logic.md](./03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md)
 - **退款流程体系**: [Buyer_Refund_Process.md](./03_Smart_Contract_Payment/Buyer_Refund_Process.md)

@@ -15,6 +15,7 @@ from src.core.config import get_settings  # noqa: E402
 get_settings.cache_clear()
 deps.get_store.cache_clear()
 deps.get_auth_service.cache_clear()
+deps.get_admin_config_service.cache_clear()
 deps.get_approval_service.cache_clear()
 deps.get_gateway_dashboard_projection_repository.cache_clear()
 deps.get_dashboard_service.cache_clear()
