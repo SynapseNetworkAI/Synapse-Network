@@ -59,6 +59,13 @@ uvicorn src.app:app --reload --port 8300
 
 ```bash
 ADMIN_DATABASE_DSN=postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin
+GATEWAY_READONLY_DSN=postgresql://synapse_gateway_ro:12345678@localhost:5432/synapse_gateway
+GATEWAY_INTERNAL_BASE_URL=http://localhost:8000
+GATEWAY_INTERNAL_ADMIN_WALLET=0xYourGatewayAdminWallet
+GATEWAY_INTERNAL_JWT_SECRET=replace-this-with-a-32-byte-minimum-jwt-secret
+EXECUTION_WORKER_ENABLED=true
+EXECUTION_WORKER_POLL_INTERVAL_SEC=5
+EXECUTION_WORKER_BATCH_SIZE=10
 ```
 
 说明：
@@ -66,6 +73,10 @@ ADMIN_DATABASE_DSN=postgresql://synapse_admin_app:12345678@localhost:5432/synaps
 - `docker-compose` 现在会在首次初始化时自动创建 `synapse_gateway` 和 `synapse_gateway_admin` 两个数据库。
 - 如果本地 `postgres_data` volume 已经存在，需要先删除 volume 再重新初始化，新的建库脚本才会生效。
 - Admin schema 与 seed 会在容器首次初始化时自动导入，无需再手工在图形客户端里点 `Create Database`。
+- Dashboard 的 gateway 指标通过 `synapse_gateway_ro` 查询 gateway 侧 3 个稳定只读投影视图：`synapse_admin_dashboard_finance_projection`、`synapse_admin_dashboard_activity_trend_projection`、`synapse_admin_dashboard_operations_projection`。
+- 兼容接口 `overview` / `system-status` 继续通过聚合视图 `synapse_admin_dashboard_projection` 暴露旧摘要字段。
+- Execution retry 现在不再只是把 job 重新入队，而是会使用内部管理员钱包 JWT 调用 gateway 管理命令，例如 `deposit_repair -> /api/v1/admin/deposits/replay`、`refund_approve -> /api/v1/admin/refunds/{refundId}/complete`、`withdrawal_approve -> /api/v1/admin/providers/withdrawals/{withdrawalId}/complete`，并把成功/失败结果回写到 execution job、attempt 和 approval 状态。
+- gateway-admin 现在会在服务启动后自动拉起 execution worker，周期性扫描 `PENDING` execution jobs 并执行，不再依赖手动 retry 才能推进。
 
 第一期建议优先实现：
 
@@ -80,5 +91,6 @@ ADMIN_DATABASE_DSN=postgresql://synapse_admin_app:12345678@localhost:5432/synaps
 
 - 不建议直接复用 `gateway/src/domain` 作为内部强依赖。
 - 建议通过内部 DTO、契约和适配层与 `gateway/` 交互。
+- `gateway 只读投影表` 的意思是：由 gateway 真相表和运行态状态派生出来、专门给后台读取的读模型。当前第一版物理实现是 SQL view，不是新的可写资金表。
 - 第一版接口契约见 `../../docs/admin/Admin_API_Contract_Phase1.md`。
 - 第一版数据库设计见 `../../docs/admin/Admin_Database_Design.md`。

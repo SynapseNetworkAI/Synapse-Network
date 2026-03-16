@@ -3,6 +3,7 @@ type SummaryCardsProps = {
     pendingApprovals: number;
     depositExceptions: number;
     auditAlerts: number;
+    vaultLedgerDelta: string;
   };
 };
 
@@ -23,10 +24,15 @@ export function SummaryCards({ metrics }: Readonly<SummaryCardsProps>) {
       value: String(metrics.auditAlerts),
       hint: "单个管理员在 10 分钟内连续触发敏感配置查看",
     },
+    {
+      label: "账本对账差额",
+      value: `${metrics.vaultLedgerDelta} USDC`,
+      hint: "该值来自 gateway 兼容聚合视图，超出阈值时应立即升级排查",
+    },
   ];
 
   return (
-    <section className="card-grid">
+    <section className="card-grid card-grid--four">
       {dashboardCards.map((card) => (
         <article key={card.label} className="metric-card">
           <p className="metric-card__label">{card.label}</p>

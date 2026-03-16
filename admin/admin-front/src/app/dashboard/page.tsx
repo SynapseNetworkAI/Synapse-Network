@@ -7,13 +7,32 @@ import { AdminShell } from "@/components/admin-shell";
 import { AdminStatus } from "@/components/admin-status";
 import { SummaryCards } from "@/features/dashboard/summary-cards";
 import { clearAdminSession, readAdminProfile, readAdminToken } from "@/lib/admin-session";
-import { getCurrentAdmin, getDashboardOverview, getSystemStatus, type AdminProfile, type DashboardOverview, type SystemStatus } from "@/services/admin-api";
+import {
+  getActivityTrends,
+  getCurrentAdmin,
+  getDashboardOverview,
+  getFinanceOverview,
+  getOperationsOverview,
+  getSystemStatus,
+  type ActivityTrendSeries,
+  type AdminProfile,
+  type DashboardOverview,
+  type FinanceOverview,
+  type OperationsOverview,
+  type SystemStatus,
+} from "@/services/admin-api";
+import { ActivityTrendPanel } from "../../features/dashboard/activity-trend-panel";
+import { FinanceOverviewPanel } from "../../features/dashboard/finance-overview-panel";
+import { OperationsOverviewPanel } from "../../features/dashboard/operations-overview-panel";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminProfile | null>(null);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [financeOverview, setFinanceOverview] = useState<FinanceOverview | null>(null);
+  const [activityTrends, setActivityTrends] = useState<ActivityTrendSeries | null>(null);
+  const [operationsOverview, setOperationsOverview] = useState<OperationsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,10 +51,13 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const [profile, dashboardOverview, status] = await Promise.all([
+        const [profile, dashboardOverview, status, finance, trends, operations] = await Promise.all([
           getCurrentAdmin(accessToken),
           getDashboardOverview(accessToken),
           getSystemStatus(accessToken),
+          getFinanceOverview(accessToken),
+          getActivityTrends(accessToken),
+          getOperationsOverview(accessToken),
         ]);
         if (cancelled) {
           return;
@@ -43,6 +65,9 @@ export default function DashboardPage() {
         setAdmin(profile);
         setOverview(dashboardOverview);
         setSystemStatus(status);
+        setFinanceOverview(finance);
+        setActivityTrends(trends);
+        setOperationsOverview(operations);
       } catch (loadError) {
         if (cancelled) {
           return;
@@ -59,7 +84,7 @@ export default function DashboardPage() {
     };
   }, [router]);
 
-  if (!admin || !overview) {
+  if (!admin || !overview || !financeOverview || !activityTrends || !operationsOverview) {
     return <main className="state-screen">正在连接 gateway-admin 控制面...</main>;
   }
 
@@ -72,22 +97,11 @@ export default function DashboardPage() {
       <AdminStatus admin={admin} status={systemStatus} />
       {error ? <section className="panel"><p className="form-message form-message--error">{error}</p></section> : null}
       <SummaryCards metrics={overview.metrics} />
-      <section className="panel panel--split">
-        <article>
-          <p className="panel__eyebrow">Finance Ops</p>
-          <h3 className="panel__title">充值异常处理</h3>
-          <p className="panel__text">
-            当前已接入 `gateway-admin` 的总览指标，下一步直接挂接充值异常列表和回放任务入口。
-          </p>
-        </article>
-        <article>
-          <p className="panel__eyebrow">Risk & Audit</p>
-          <h3 className="panel__title">敏感动作留痕</h3>
-          <p className="panel__text">
-            `gateway-admin` 现在已统一返回 requestId 与错误模型，后续审计检索可直接按请求链路查询。
-          </p>
-        </article>
-      </section>
+      <div className="dashboard-stack">
+        <FinanceOverviewPanel overview={financeOverview} />
+        <ActivityTrendPanel trends={activityTrends} />
+        <OperationsOverviewPanel overview={operationsOverview} />
+      </div>
     </AdminShell>
   );
 }

@@ -152,6 +152,12 @@
 
 用途：管理首页总览。
 
+数据来源约束：
+
+- `pendingApprovals` 来自 admin 控制面审批库
+- `depositExceptions`、`auditAlerts`、`vaultLedgerDelta` 来自 gateway 只读投影视图 `synapse_admin_dashboard_projection`
+- 这里说的“gateway 只读投影表”指的是由 gateway 真相表与运行态状态派生出来、仅供后台读取的读模型；当前第一版以 SQL view 实现，而不是新的资金真相表
+
 响应：
 
 ```json
@@ -180,6 +186,11 @@
 
 用途：读取控制面与交易面的关键状态摘要。
 
+数据来源约束：
+
+- `gatewayAdmin`、`approvalQueueDepth` 来自 admin 控制面
+- `gateway`、`lastReconciliationAt` 来自 gateway 只读投影视图 `synapse_admin_dashboard_projection`
+
 响应：
 
 ```json
@@ -190,6 +201,99 @@
     "gateway": "healthy",
     "approvalQueueDepth": 12,
     "lastReconciliationAt": "2026-03-16T08:00:00Z"
+  },
+  "requestId": "req_demo"
+}
+```
+
+### `GET /api/admin/v1/dashboard/finance-overview`
+
+用途：读取稳定财务读模型快照，服务于后台资金总览卡片与对账状态展示。
+
+数据来源约束：
+
+- 来自 gateway 只读投影视图 `synapse_admin_dashboard_finance_projection`
+- 该视图只允许由 gateway 真相表和持久化运行态派生，不允许拼接 admin 本地写模型
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "todayChargeUsdc": "1280.40",
+    "todayDepositUsdc": "1640.00",
+    "todayRefundUsdc": "42.25",
+    "todayWithdrawalUsdc": "310.50",
+    "buyerLiabilityUsdc": "8450.10",
+    "sellerPayableUsdc": "3920.45",
+    "platformFeeBalanceUsdc": "128.75",
+    "vaultLedgerDeltaUsdc": "0.50",
+    "pendingDepositCount": 2,
+    "pendingWithdrawalCount": 1,
+    "projectedAt": "2026-03-16T08:05:00Z"
+  },
+  "requestId": "req_demo"
+}
+```
+
+### `GET /api/admin/v1/dashboard/activity-trends`
+
+用途：读取 7 日稳定趋势读模型，供前端趋势表和后续告警/报表复用。
+
+数据来源约束：
+
+- 来自 gateway 只读投影视图 `synapse_admin_dashboard_activity_trend_projection`
+- 每日桶聚合只包含持久化的充值、扣费、退款、提现与净流入数值
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "points": [
+      {
+        "bucketDate": "2026-03-16",
+        "depositUsdc": "1640.00",
+        "chargeUsdc": "1280.40",
+        "refundUsdc": "42.25",
+        "withdrawalUsdc": "310.50",
+        "netFlowUsdc": "1287.25"
+      }
+    ]
+  },
+  "requestId": "req_demo"
+}
+```
+
+### `GET /api/admin/v1/dashboard/operations-overview`
+
+用途：读取稳定运维读模型，暴露 indexer、backfill、reconciliation 与失败计数摘要。
+
+数据来源约束：
+
+- 来自 gateway 只读投影视图 `synapse_admin_dashboard_operations_projection`
+- 只允许使用已持久化的 runtime state 和日志，不允许暴露仅存在于进程内存中的瞬时字段
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "gatewayStatus": "degraded",
+    "indexerLastProcessedAt": "2026-03-16T08:03:00Z",
+    "backfillLastScanAt": "2026-03-16T07:58:00Z",
+    "backfillLastScannedBlock": 19450321,
+    "recentGatewayFailures": 1,
+    "failedDepositCount": 2,
+    "recentAuditAlerts": 1,
+    "lastReconciliationAt": "2026-03-16T08:00:00Z",
+    "reconciliationAlert": true,
+    "reconciliationDeltaUsdc": "0.50",
+    "reconciliationLastError": "vault_delta_detected",
+    "projectedAt": "2026-03-16T08:05:00Z"
   },
   "requestId": "req_demo"
 }

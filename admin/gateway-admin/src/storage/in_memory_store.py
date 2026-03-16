@@ -1,7 +1,6 @@
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from itertools import count
 
 from src.domain import (
     AdminActionAudit,
@@ -22,10 +21,13 @@ from src.domain import (
 from src.domain.enums import (
     AdminSessionStatus,
     AdminUserStatus,
+    ApprovalDecision,
     ApprovalLevel,
     ApprovalStatus,
     AuditExportStatus,
     AuditResultStatus,
+    ExecutionAttemptStatus,
+    ExecutionJobStatus,
     MfaFactorStatus,
     MfaFactorType,
     PermissionRiskLevel,
@@ -44,6 +46,8 @@ APPROVAL_READ = "approval:read"
 APPROVAL_SUBMIT = "approval:submit"
 APPROVAL_DECIDE = "approval:decide"
 AUDIT_READ = "audit:read"
+EXECUTION_READ = "execution:read"
+EXECUTION_RETRY = "execution:retry"
 
 
 class InMemoryAdminIdentityRepository:
@@ -141,6 +145,22 @@ class InMemoryAdminApprovalRepository:
     def count_pending_approvals(self) -> int:
         return len([item for item in self._approvals.values() if item.status != ApprovalStatus.EXECUTED])
 
+    def count_approvals(self, statuses: list[str] | None = None, approval_type: str | None = None) -> int:
+        items = list(self._approvals.values())
+        if statuses:
+            items = [item for item in items if item.status.value in statuses]
+        if approval_type:
+            items = [item for item in items if item.approval_type == approval_type]
+        return len(items)
+
+    def sum_approval_amount(self, statuses: list[str] | None = None, approval_type: str | None = None) -> Decimal:
+        items = list(self._approvals.values())
+        if statuses:
+            items = [item for item in items if item.status.value in statuses]
+        if approval_type:
+            items = [item for item in items if item.approval_type == approval_type]
+        return sum((item.amount_usdc for item in items), Decimal("0"))
+
     def get_approval(self, approval_id: str) -> AdminApproval | None:
         return self._approvals.get(approval_id)
 
@@ -172,12 +192,68 @@ class InMemoryAdminApprovalRepository:
         return event
 
     def enqueue_execution_job(self, job: AdminExecutionJob) -> AdminExecutionJob:
+        return self._save_execution_job(job)
+
+    def list_execution_jobs(
+        self,
+        status: str | None = None,
+        target_system: str | None = None,
+        approval_id: str | None = None,
+        limit: int = 20,
+    ) -> list[AdminExecutionJob]:
+        items = sorted(self._jobs.values(), key=lambda item: item.created_at or _utcnow(), reverse=True)
+        if status:
+            items = [item for item in items if item.status.value == status]
+        if target_system:
+            items = [item for item in items if item.target_system == target_system]
+        if approval_id:
+            items = [item for item in items if item.approval_id == approval_id]
+        return items[:limit]
+
+    def get_execution_job(self, job_id: str) -> AdminExecutionJob | None:
+        return self._jobs.get(job_id)
+
+    def claim_execution_job(
+        self,
+        job_id: str,
+        from_statuses: list[str],
+        claimed_job: AdminExecutionJob,
+    ) -> AdminExecutionJob | None:
+        current = self._jobs.get(job_id)
+        if current is None or current.status.value not in from_statuses:
+            return None
+        return self._save_execution_job(claimed_job)
+
+    def update_execution_job(self, job: AdminExecutionJob) -> AdminExecutionJob:
+        return self._save_execution_job(job)
+
+    def _save_execution_job(self, job: AdminExecutionJob) -> AdminExecutionJob:
         self._jobs[job.job_id] = job
         return job
+
+    def list_execution_attempts(self, job_id: str) -> list[AdminExecutionAttempt]:
+        return sorted(self._attempts.get(job_id, []), key=lambda item: item.attempt_no, reverse=True)
 
     def append_execution_attempt(self, attempt: AdminExecutionAttempt) -> AdminExecutionAttempt:
         self._attempts.setdefault(attempt.job_id, []).append(attempt)
         return attempt
+
+    def update_execution_attempt(self, attempt: AdminExecutionAttempt) -> AdminExecutionAttempt:
+        attempts = self._attempts.setdefault(attempt.job_id, [])
+        for index, current in enumerate(attempts):
+            if current.attempt_id == attempt.attempt_id or current.attempt_no == attempt.attempt_no:
+                attempts[index] = attempt
+                break
+        else:
+            attempts.append(attempt)
+        return attempt
+
+    def latest_activity_at(self) -> datetime | None:
+        timestamps = [
+            *(item.updated_at for item in self._approvals.values() if item.updated_at is not None),
+            *(item.updated_at for item in self._jobs.values() if item.updated_at is not None),
+        ]
+        return max(timestamps) if timestamps else None
 
 
 class InMemoryAdminAuditRepository:
@@ -188,6 +264,35 @@ class InMemoryAdminAuditRepository:
     def append_action(self, audit: AdminActionAudit) -> AdminActionAudit:
         self._actions.append(audit)
         return audit
+
+    def list_actions(
+        self,
+        action_type: str | None = None,
+        result_status: str | None = None,
+        operator_id: str | None = None,
+        approval_id: str | None = None,
+        job_id: str | None = None,
+        limit: int = 50,
+    ) -> list[AdminActionAudit]:
+        items = sorted(self._actions, key=lambda item: item.created_at or _utcnow(), reverse=True)
+        if action_type:
+            items = [item for item in items if item.action_type == action_type]
+        if result_status:
+            items = [item for item in items if item.result_status.value == result_status]
+        if operator_id:
+            items = [item for item in items if item.operator_id == operator_id]
+        if approval_id:
+            items = [item for item in items if item.approval_id == approval_id]
+        if job_id:
+            items = [item for item in items if item.job_id == job_id]
+        return items[:limit]
+
+    def count_alerts(self) -> int:
+        return len([item for item in self._actions if item.result_status in {AuditResultStatus.FAILURE, AuditResultStatus.DENIED}])
+
+    def latest_activity_at(self) -> datetime | None:
+        timestamps = [item.created_at for item in self._actions if item.created_at is not None]
+        return max(timestamps) if timestamps else None
 
     def record_export(self, audit_export: AdminAuditExport) -> AdminAuditExport:
         self._exports.append(audit_export)
@@ -220,6 +325,8 @@ class InMemoryAdminStore:
             APPROVAL_SUBMIT: AdminPermission(APPROVAL_SUBMIT, "approval", "submit", PermissionRiskLevel.HIGH),
             APPROVAL_DECIDE: AdminPermission(APPROVAL_DECIDE, "approval", "decide", PermissionRiskLevel.CRITICAL),
             AUDIT_READ: AdminPermission(AUDIT_READ, "audit", "read", PermissionRiskLevel.HIGH),
+            EXECUTION_READ: AdminPermission(EXECUTION_READ, "execution", "read", PermissionRiskLevel.MEDIUM),
+            EXECUTION_RETRY: AdminPermission(EXECUTION_RETRY, "execution", "retry", PermissionRiskLevel.HIGH),
         }
         role_permissions = [
             AdminRolePermission("super_admin", DASHBOARD_READ),
@@ -227,20 +334,28 @@ class InMemoryAdminStore:
             AdminRolePermission("super_admin", APPROVAL_SUBMIT),
             AdminRolePermission("super_admin", APPROVAL_DECIDE),
             AdminRolePermission("super_admin", AUDIT_READ),
+            AdminRolePermission("super_admin", EXECUTION_READ),
+            AdminRolePermission("super_admin", EXECUTION_RETRY),
             AdminRolePermission("platform_ops_admin", DASHBOARD_READ),
             AdminRolePermission("platform_ops_admin", APPROVAL_READ),
+            AdminRolePermission("platform_ops_admin", EXECUTION_READ),
+            AdminRolePermission("platform_ops_admin", EXECUTION_RETRY),
             AdminRolePermission("finance_admin", DASHBOARD_READ),
             AdminRolePermission("finance_admin", APPROVAL_READ),
             AdminRolePermission("finance_admin", APPROVAL_SUBMIT),
             AdminRolePermission("finance_reviewer", DASHBOARD_READ),
             AdminRolePermission("finance_reviewer", APPROVAL_READ),
             AdminRolePermission("finance_reviewer", APPROVAL_DECIDE),
+            AdminRolePermission("finance_reviewer", EXECUTION_READ),
+            AdminRolePermission("finance_reviewer", EXECUTION_RETRY),
             AdminRolePermission("risk_admin", DASHBOARD_READ),
             AdminRolePermission("risk_admin", APPROVAL_READ),
             AdminRolePermission("risk_admin", APPROVAL_SUBMIT),
             AdminRolePermission("risk_reviewer", DASHBOARD_READ),
             AdminRolePermission("risk_reviewer", APPROVAL_READ),
             AdminRolePermission("risk_reviewer", APPROVAL_DECIDE),
+            AdminRolePermission("risk_reviewer", EXECUTION_READ),
+            AdminRolePermission("risk_reviewer", EXECUTION_RETRY),
             AdminRolePermission("compliance_auditor", DASHBOARD_READ),
             AdminRolePermission("compliance_auditor", APPROVAL_READ),
             AdminRolePermission("compliance_auditor", AUDIT_READ),
@@ -302,6 +417,22 @@ class InMemoryAdminStore:
                 approved_at=now - timedelta(minutes=10),
                 updated_at=now - timedelta(minutes=10),
             ),
+            "APR-20260316-003": AdminApproval(
+                approval_id="APR-20260316-003",
+                approval_type="deposit_repair",
+                approval_level=ApprovalLevel.L2,
+                status=ApprovalStatus.FAILED,
+                requester_id="adm_platform_ops_admin",
+                resource_type="deposit_intent",
+                resource_id="dep_003",
+                reason="replay deposit ledger repair",
+                amount_usdc=Decimal("42.50"),
+                risk_level=RiskLevel.YELLOW,
+                tx_hash="0xdep003",
+                created_at=now - timedelta(minutes=20),
+                submitted_at=now - timedelta(minutes=20),
+                updated_at=now - timedelta(minutes=5),
+            ),
         }
         steps = {
             "APR-20260316-001": [AdminApprovalStep("step_apr_1", "APR-20260316-001", 1, required_permission=APPROVAL_DECIDE, created_at=now - timedelta(hours=1))],
@@ -315,10 +446,88 @@ class InMemoryAdminStore:
                     created_at=now - timedelta(minutes=30),
                 )
             ],
+            "APR-20260316-003": [
+                AdminApprovalStep(
+                    "step_apr_3",
+                    "APR-20260316-003",
+                    1,
+                    required_permission=APPROVAL_DECIDE,
+                    approver_id="adm_finance_reviewer",
+                    decision=ApprovalDecision.APPROVE,
+                    created_at=now - timedelta(minutes=20),
+                    decided_at=now - timedelta(minutes=18),
+                )
+            ],
         }
+        jobs = {
+            "job_apr_2": AdminExecutionJob(
+                job_id="job_apr_2",
+                approval_id="APR-20260316-002",
+                execution_type="risk_rule_change",
+                target_system="gateway",
+                idempotency_key="approval:APR-20260316-002",
+                status=ExecutionJobStatus.PENDING,
+                queued_by="adm_risk_reviewer",
+                created_at=now - timedelta(minutes=10),
+                updated_at=now - timedelta(minutes=10),
+            ),
+            "job_apr_3": AdminExecutionJob(
+                job_id="job_apr_3",
+                approval_id="APR-20260316-003",
+                execution_type="deposit_repair",
+                target_system="gateway",
+                idempotency_key="approval:APR-20260316-003",
+                status=ExecutionJobStatus.FAILED,
+                queued_by="adm_finance_reviewer",
+                error_code="LEDGER_RETRY_REQUIRED",
+                error_message="Gateway execution failed and requires retry",
+                retry_count=1,
+                created_at=now - timedelta(minutes=19),
+                updated_at=now - timedelta(minutes=5),
+            ),
+        }
+        attempts = {
+            "job_apr_3": [
+                AdminExecutionAttempt(
+                    job_id="job_apr_3",
+                    attempt_no=1,
+                    status=ExecutionAttemptStatus.FAILED,
+                    error_code="LEDGER_RETRY_REQUIRED",
+                    error_summary="Gateway returned retriable execution failure",
+                    started_at=now - timedelta(minutes=8),
+                    finished_at=now - timedelta(minutes=7),
+                )
+            ]
+        }
+        actions = [
+            AdminActionAudit(
+                action_type="approval.submit",
+                result_status=AuditResultStatus.SUCCESS,
+                operator_id="adm_finance_admin",
+                operator_email="finance@synapse.network",
+                operator_role="finance_admin",
+                approval_id="APR-20260316-001",
+                resource_type="refund_intent",
+                resource_id="ref_001",
+                created_at=now - timedelta(hours=1),
+            ),
+            AdminActionAudit(
+                action_type="execution.job.failed",
+                result_status=AuditResultStatus.FAILURE,
+                operator_id="adm_finance_reviewer",
+                operator_email="finance-review@synapse.network",
+                operator_role="finance_reviewer",
+                approval_id="APR-20260316-003",
+                job_id="job_apr_3",
+                resource_type="deposit_intent",
+                resource_id="dep_003",
+                error_code="LEDGER_RETRY_REQUIRED",
+                created_at=now - timedelta(minutes=5),
+            ),
+        ]
         return cls(
             identity=InMemoryAdminIdentityRepository(users, factors, {}),
             authorization=InMemoryAdminAuthorizationRepository(roles, permissions, role_permissions, role_bindings),
-            approval=InMemoryAdminApprovalRepository(approvals, steps, {}, {}, {}),
-            audit=InMemoryAdminAuditRepository([], []),
+            approval=InMemoryAdminApprovalRepository(approvals, steps, {}, jobs, attempts),
+            audit=InMemoryAdminAuditRepository(actions, []),
         )

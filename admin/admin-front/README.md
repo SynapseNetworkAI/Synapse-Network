@@ -38,7 +38,7 @@
 当前已接入第一版 `gateway-admin` 接口：
 
 - 登录页调用 `/api/admin/v1/auth/login`
-- Dashboard 调用 `/api/admin/v1/auth/me`、`/api/admin/v1/dashboard/overview`、`/api/admin/v1/dashboard/system-status`
+- Dashboard 调用 `/api/admin/v1/auth/me`、`/api/admin/v1/dashboard/overview`、`/api/admin/v1/dashboard/system-status`，以及 3 个稳定读模型接口：`/finance-overview`、`/activity-trends`、`/operations-overview`
 - 审批页调用 `/api/admin/v1/approvals`
 
 本地开发默认请求 `http://localhost:8300`，可通过环境变量 `NEXT_PUBLIC_ADMIN_API_BASE_URL` 覆盖。

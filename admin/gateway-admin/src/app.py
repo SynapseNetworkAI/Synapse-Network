@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.routers import admin_auth, approval, dashboard
+from src.api.routers import admin_auth, approval, audit, dashboard, execution
+from src.api import deps
 from src.core.config import get_settings
 from src.core.errors import AppError
 from src.core.middleware import RequestContextMiddleware
@@ -16,7 +18,20 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 	app.state.settings = settings
-	yield
+	worker_task = None
+	worker_stop_event = asyncio.Event()
+	if settings.execution_worker_enabled:
+		worker = deps.get_execution_worker()
+		worker_task = asyncio.create_task(worker.run(worker_stop_event))
+		app.state.execution_worker = worker
+		app.state.execution_worker_task = worker_task
+		app.state.execution_worker_stop_event = worker_stop_event
+	try:
+		yield
+	finally:
+		worker_stop_event.set()
+		if worker_task is not None:
+			await worker_task
 
 
 def create_app() -> FastAPI:
@@ -40,6 +55,8 @@ def create_app() -> FastAPI:
 	app.include_router(admin_auth.router)
 	app.include_router(dashboard.router)
 	app.include_router(approval.router)
+	app.include_router(audit.router)
+	app.include_router(execution.router)
 
 	@app.exception_handler(AppError)
 	async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:

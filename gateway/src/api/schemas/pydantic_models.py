@@ -122,6 +122,10 @@ class RefundCompleteRequest(BaseModel):
         return normalized.lower()
 
 
+class AdminRefundCompleteRequest(RefundCompleteRequest):
+    ownerAddress: str = Field(..., min_length=1, max_length=64)
+
+
 class ProviderWithdrawIntentRequest(BaseModel):
     amountUsdc: Optional[float] = Field(default=None, gt=0)
 
@@ -140,6 +144,10 @@ class ProviderWithdrawCompleteRequest(BaseModel):
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized.lower()
+
+
+class AdminProviderWithdrawCompleteRequest(ProviderWithdrawCompleteRequest):
+    ownerAddress: str = Field(..., min_length=1, max_length=64)
 
 
 class RouterConfigRequest(BaseModel):
