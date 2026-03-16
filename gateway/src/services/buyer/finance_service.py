@@ -19,6 +19,14 @@ REFUND_MANUAL_REVIEW_THRESHOLD_USDC = 500.0
 REFUND_AUTO_TYPE = "SYSTEM_FAILURE"
 REFUND_MANUAL_TYPE = "MANUAL_APPEAL"
 REFUND_ACTIVE_STATUSES = {"PENDING", "PENDING_MANUAL_REVIEW"}
+DEPOSIT_ATTEMPT_STAGES = {
+    "SIGN_REQUESTED",
+    "TX_BROADCASTED",
+    "RECEIPT_FAILED",
+    "RECEIPT_CONFIRMED",
+    "INTENT_REGISTERED",
+}
+INVALID_TX_HASH_MESSAGE = "txHash must be a 66-char 0x-prefixed hash."
 
 
 class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
@@ -110,26 +118,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         except Exception:
             repo.write_refund_intents(rows, int(updated_at))
 
-    async def record_deposit_attempt(
-        self,
-        *,
-        payload: Dict[str, Any],
-        owner_wallet: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        owner = normalize_wallet(owner_wallet)
-        attempt_id = str(payload.get("attemptId") or "").strip()
-        if not attempt_id:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "code": "INVALID_ATTEMPT_ID",
-                    "message": "attemptId is required.",
-                },
-            )
-
+    def _parse_deposit_attempt_amount(self, raw_amount: Any) -> Decimal:
         try:
-            amount_usdc = Decimal(str(payload.get("amountUsdc") or "0")).quantize(
+            amount_usdc = Decimal(str(raw_amount or "0")).quantize(
                 Decimal("0.000001"), rounding=ROUND_HALF_UP
             )
         except Exception:
@@ -148,15 +139,11 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     "message": "amountUsdc must be greater than 0.",
                 },
             )
+        return amount_usdc
 
-        stage = str(payload.get("stage") or "").strip().upper()
-        if stage not in {
-            "SIGN_REQUESTED",
-            "TX_BROADCASTED",
-            "RECEIPT_FAILED",
-            "RECEIPT_CONFIRMED",
-            "INTENT_REGISTERED",
-        }:
+    def _parse_deposit_attempt_stage(self, raw_stage: Any) -> str:
+        stage = str(raw_stage or "").strip().upper()
+        if stage not in DEPOSIT_ATTEMPT_STAGES:
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -164,43 +151,97 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     "message": "Unsupported deposit attempt stage.",
                 },
             )
+        return stage
 
-        tx_hash = str(payload.get("txHash") or "").strip().lower()
-        if tx_hash:
-            if not tx_hash.startswith("0x") or len(tx_hash) != 66:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "code": "INVALID_TX_HASH",
-                        "message": "txHash must be a 66-char 0x-prefixed hash.",
-                    },
-                )
+    def _parse_deposit_attempt_tx_hash(self, raw_tx_hash: Any) -> Optional[str]:
+        tx_hash = str(raw_tx_hash or "").strip().lower()
+        if not tx_hash:
+            return None
+        return self._normalize_tx_hash_or_raise(tx_hash)
 
-        if not hasattr(self.storage, "record_deposit_attempt"):
-            raise RuntimeError("DEPOSIT_ATTEMPTS_REQUIRE_POSTGRES_STORAGE")
-
-        now_text = now_dt_str()
-        saved = getattr(self.storage, "record_deposit_attempt")(
-            DepositAttemptRow(
-                attemptId=attempt_id,
-                ownerAddress=owner,
-                clientRequestId=str(payload.get("clientRequestId") or "").strip() or None,
-                txHash=tx_hash or None,
-                amountUsdc=amount_usdc,
-                stage=stage,
-                failureReason=str(payload.get("failureReason") or "").strip() or None,
-                requestId=str((request_meta or {}).get("requestId") or "").strip() or None,
-                clientIp=str((request_meta or {}).get("clientIp") or "").strip() or None,
-                userAgent=str((request_meta or {}).get("userAgent") or "").strip() or None,
-                createdAt=now_text,
-                updatedAt=now_text,
+    def _require_deposit_attempt_id(self, payload: Dict[str, Any]) -> str:
+        attempt_id = str(payload.get("attemptId") or "").strip()
+        if not attempt_id:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_ATTEMPT_ID",
+                    "message": "attemptId is required.",
+                },
             )
+        return attempt_id
+
+    def _request_meta_value(
+        self, request_meta: Optional[Dict[str, Any]], key: str
+    ) -> Optional[str]:
+        value = str((request_meta or {}).get(key) or "").strip()
+        return value or None
+
+    def _build_deposit_attempt_row(
+        self,
+        *,
+        payload: Dict[str, Any],
+        owner: str,
+        attempt_id: str,
+        amount_usdc: Decimal,
+        stage: str,
+        tx_hash: Optional[str],
+        request_meta: Optional[Dict[str, Any]],
+    ) -> DepositAttemptRow:
+        now_text = now_dt_str()
+        return DepositAttemptRow(
+            attemptId=attempt_id,
+            ownerAddress=owner,
+            clientRequestId=str(payload.get("clientRequestId") or "").strip() or None,
+            txHash=tx_hash,
+            amountUsdc=amount_usdc,
+            stage=stage,
+            failureReason=str(payload.get("failureReason") or "").strip() or None,
+            requestId=self._request_meta_value(request_meta, "requestId"),
+            clientIp=self._request_meta_value(request_meta, "clientIp"),
+            userAgent=self._request_meta_value(request_meta, "userAgent"),
+            createdAt=now_text,
+            updatedAt=now_text,
         )
+
+    def _serialize_deposit_attempt_row(self, saved: Any) -> Dict[str, Any]:
         if isinstance(saved, DepositAttemptRow):
             return saved.model_dump(by_alias=True, mode="json")
         if isinstance(saved, dict):
             return saved
         return {}
+
+    def _require_deposit_attempt_storage(self) -> Any:
+        storage_hook = getattr(self.storage, "record_deposit_attempt", None)
+        if storage_hook is None:
+            raise RuntimeError("DEPOSIT_ATTEMPTS_REQUIRE_POSTGRES_STORAGE")
+        return storage_hook
+
+    async def record_deposit_attempt(
+        self,
+        *,
+        payload: Dict[str, Any],
+        owner_wallet: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        owner = normalize_wallet(owner_wallet)
+        attempt_id = self._require_deposit_attempt_id(payload)
+        amount_usdc = self._parse_deposit_attempt_amount(payload.get("amountUsdc"))
+        stage = self._parse_deposit_attempt_stage(payload.get("stage"))
+        tx_hash = self._parse_deposit_attempt_tx_hash(payload.get("txHash"))
+
+        saved = self._require_deposit_attempt_storage()(
+            self._build_deposit_attempt_row(
+                payload=payload,
+                owner=owner,
+                attempt_id=attempt_id,
+                amount_usdc=amount_usdc,
+                stage=stage,
+                tx_hash=tx_hash,
+                request_meta=request_meta,
+            )
+        )
+        return self._serialize_deposit_attempt_row(saved)
 
     def _load_usage_log_rows(self) -> List[Dict[str, Any]]:
         rows = (
@@ -494,7 +535,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 status_code=400,
                 detail={
                     "code": "INVALID_TX_HASH",
-                    "message": "txHash must be a 66-char 0x-prefixed hash.",
+                    "message": INVALID_TX_HASH_MESSAGE,
                 },
             )
         return normalized
@@ -1140,15 +1181,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
             await self._enforce_owner_write_rate_limit(owner, "deposit_intent")
 
-            tx_hash = str(intent.get("txHash") or "").strip()
-            if not tx_hash.startswith("0x") or len(tx_hash) != 66:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "code": "INVALID_TX_HASH",
-                        "message": "txHash must be a 66-char 0x-prefixed hash.",
-                    },
-                )
+            tx_hash = self._normalize_tx_hash_or_raise(str(intent.get("txHash") or ""))
 
             try:
                 amount_usdc = Decimal(str(intent.get("amountUsdc") or "0")).quantize(
@@ -1174,7 +1207,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             intents = self._load_deposit_intents()
             request_payload = {
                 "ownerAddress": owner,
-                "txHash": tx_hash.lower(),
+                "txHash": tx_hash,
                 "amountUsdc": float(amount_usdc),
             }
             request_hash = self._request_hash(request_payload)

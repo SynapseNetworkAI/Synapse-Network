@@ -122,6 +122,19 @@ def test_validate_schema_contract_accepts_latest_synapse_balances_columns() -> N
             ("user_agent",),
             ("detail_json",),
             ("created_at",),
+        ], [
+            ("attempt_id",),
+            ("owner_address",),
+            ("client_request_id",),
+            ("tx_hash",),
+            ("amount_usdc",),
+            ("stage",),
+            ("failure_reason",),
+            ("request_id",),
+            ("client_ip",),
+            ("user_agent",),
+            ("created_at",),
+            ("updated_at",),
         ]]
     )  # type: ignore[attr-defined]
 
@@ -209,6 +222,19 @@ def test_validate_schema_contract_rejects_missing_trace_id() -> None:
             ("error_code",),
             ("message",),
             ("created_at",),
+        ], [
+            ("attempt_id",),
+            ("owner_address",),
+            ("client_request_id",),
+            ("tx_hash",),
+            ("amount_usdc",),
+            ("stage",),
+            ("failure_reason",),
+            ("request_id",),
+            ("client_ip",),
+            ("user_agent",),
+            ("created_at",),
+            ("updated_at",),
         ]]
     )  # type: ignore[attr-defined]
 
@@ -257,6 +283,19 @@ def test_validate_schema_contract_rejects_missing_invoke_config() -> None:
             ("max_qps",),
             ("max_request_bytes",),
             ("max_response_bytes",),
+            ("created_at",),
+            ("updated_at",),
+        ], [
+            ("attempt_id",),
+            ("owner_address",),
+            ("client_request_id",),
+            ("tx_hash",),
+            ("amount_usdc",),
+            ("stage",),
+            ("failure_reason",),
+            ("request_id",),
+            ("client_ip",),
+            ("user_agent",),
             ("created_at",),
             ("updated_at",),
         ]]

@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from src.storage.postgres.repositories.audit_log_repository import AuditLogRepository
 from src.storage.postgres.repositories.balance_repository import BalanceRepository
 from src.storage.postgres.repositories.credential_auth_repository import CredentialAuthRepository
+from src.storage.postgres.repositories.deposit_attempt_repository import DepositAttemptRepository
 from src.storage.postgres.repositories.fee_policy_repository import FeePolicyRepository
 from src.storage.postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from src.storage.postgres.repositories.gateway_state_repository import GatewayStateRepository
@@ -16,7 +17,7 @@ from src.storage.postgres.repositories.idempotency_repository import Idempotency
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.gateway import RouterConfigRow
-from src.domain.finance import DepositIntentRow, RefundIntentRow, UsageLogRow, WithdrawalIntentRow
+from src.domain.finance import DepositAttemptRow, DepositIntentRow, RefundIntentRow, UsageLogRow, WithdrawalIntentRow
 
 
 class FakeCursor:
@@ -562,6 +563,54 @@ def test_gateway_state_repository_skips_invalid_deposit_intents() -> None:
     executed = [sql for cur in db.tx_cursors for sql, _ in cur.executed]
     inserts = [sql for sql in executed if "INSERT INTO synapse_deposit_intents" in sql]
     assert len(inserts) == 1
+
+
+def test_deposit_attempt_repository_upserts_stage_rows() -> None:
+    db = FakeDB()
+    db.connect_plan.append({
+        "fetchone": [
+            (
+                1,
+                "attempt-1",
+                "0xabc",
+                "client-1",
+                "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                Decimal("10.000000"),
+                "TX_BROADCASTED",
+                None,
+                "req-1",
+                "127.0.0.1",
+                "pytest",
+                "2026-03-16 10:00:00",
+                "2026-03-16 10:00:01",
+            )
+        ]
+    })
+    repo = DepositAttemptRepository(db, _q6)
+
+    saved = repo.upsert_attempt(
+        DepositAttemptRow(
+            attemptId="attempt-1",
+            ownerAddress="0xABC",
+            clientRequestId="client-1",
+            txHash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            amountUsdc=Decimal("10"),
+            stage="TX_BROADCASTED",
+            requestId="req-1",
+            clientIp="127.0.0.1",
+            userAgent="pytest",
+            createdAt="2026-03-16 10:00:00",
+            updatedAt="2026-03-16 10:00:01",
+        )
+    )
+
+    assert saved.id == 1
+    assert saved.attempt_id == "attempt-1"
+    assert saved.stage == "TX_BROADCASTED"
+
+    executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_deposit_attempts" in executed_sql
+    assert "ON CONFLICT (attempt_id, stage)" in executed_sql
 
 
 def test_finance_atomic_repository_reserve_and_complete() -> None:

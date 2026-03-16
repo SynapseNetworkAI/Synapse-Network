@@ -54,6 +54,8 @@ export type DepositAttemptRecord = {
   updatedAt?: string | number;
 };
 
+type TimestampLike = string | number | undefined;
+
 export type BuyerRefundIntent = {
   refundId: string;
   signature: string;
@@ -229,8 +231,8 @@ export async function recordDepositAttempt(
     requestId: typeof attempt.requestId === "string" ? attempt.requestId : undefined,
     clientIp: typeof attempt.clientIp === "string" ? attempt.clientIp : undefined,
     userAgent: typeof attempt.userAgent === "string" ? attempt.userAgent : undefined,
-    createdAt: (attempt.createdAt as string | number | undefined) ?? undefined,
-    updatedAt: (attempt.updatedAt as string | number | undefined) ?? undefined,
+    createdAt: (attempt.createdAt as TimestampLike) ?? undefined,
+    updatedAt: (attempt.updatedAt as TimestampLike) ?? undefined,
   };
 }
 
