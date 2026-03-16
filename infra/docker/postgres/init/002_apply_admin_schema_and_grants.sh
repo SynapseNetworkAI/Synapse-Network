@@ -34,22 +34,17 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO :"ro_user";
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO :"app_user";
 GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO :"ro_user";
 
-DO $do$
-DECLARE
-    type_name text;
-BEGIN
-    FOR type_name IN
-        SELECT t.typname
-        FROM pg_type t
-        JOIN pg_namespace n ON n.oid = t.typnamespace
-        WHERE n.nspname = 'public'
-          AND t.typtype IN ('d', 'e')
-    LOOP
-        EXECUTE format('GRANT USAGE ON TYPE public.%I TO %I', type_name, :'app_user');
-        EXECUTE format('GRANT USAGE ON TYPE public.%I TO %I', type_name, :'ro_user');
-    END LOOP;
-END
-$do$;
+SELECT format('GRANT USAGE ON TYPE public.%I TO %I', t.typname, :'app_user')
+FROM pg_type t
+JOIN pg_namespace n ON n.oid = t.typnamespace
+WHERE n.nspname = 'public'
+    AND t.typtype IN ('d', 'e') \gexec
+
+SELECT format('GRANT USAGE ON TYPE public.%I TO %I', t.typname, :'ro_user')
+FROM pg_type t
+JOIN pg_namespace n ON n.oid = t.typnamespace
+WHERE n.nspname = 'public'
+    AND t.typtype IN ('d', 'e') \gexec
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
 GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO :"app_user";
@@ -67,11 +62,11 @@ SQL
 
 run_psql \
     --dbname "${admin_db}" \
-    --file /docker-entrypoint-initdb.d/admin-migrations/001_admin_control_plane_schema.sql
+    --file /admin-migrations/001_admin_control_plane_schema.sql
 
 run_psql \
     --dbname "${admin_db}" \
-    --file /docker-entrypoint-initdb.d/admin-migrations/002_admin_seed_data.sql
+    --file /admin-migrations/002_admin_seed_data.sql
 
 run_psql \
     --dbname postgres \

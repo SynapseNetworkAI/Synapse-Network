@@ -21,7 +21,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
-      - ../admin/gateway-admin/migrations:/docker-entrypoint-initdb.d/admin-migrations:ro
+      - ../admin/gateway-admin/migrations:/admin-migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U synapse -d synapse_gateway"]
       interval: 5s
