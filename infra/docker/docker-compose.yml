@@ -8,9 +8,20 @@ services:
       - POSTGRES_DB=synapse_gateway
       - POSTGRES_USER=synapse
       - POSTGRES_PASSWORD=12345678
+      - SYNAPSE_GATEWAY_DB=synapse_gateway
+      - SYNAPSE_GATEWAY_APP_USER=synapse_gateway_app
+      - SYNAPSE_GATEWAY_APP_PASSWORD=12345678
+      - SYNAPSE_GATEWAY_READONLY_USER=synapse_gateway_ro
+      - SYNAPSE_GATEWAY_READONLY_PASSWORD=12345678
+      - SYNAPSE_ADMIN_DB=synapse_gateway_admin
+      - SYNAPSE_ADMIN_APP_USER=synapse_admin_app
+      - SYNAPSE_ADMIN_APP_PASSWORD=12345678
+      - SYNAPSE_ADMIN_READONLY_USER=synapse_admin_ro
+      - SYNAPSE_ADMIN_READONLY_PASSWORD=12345678
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ../admin/gateway-admin/migrations:/docker-entrypoint-initdb.d/admin-migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U synapse -d synapse_gateway"]
       interval: 5s
@@ -59,3 +70,4 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  redis-data:
