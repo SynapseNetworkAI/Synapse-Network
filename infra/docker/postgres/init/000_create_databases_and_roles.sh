@@ -34,63 +34,75 @@ WHERE NOT EXISTS (
     SELECT 1 FROM pg_database WHERE datname = :'admin_db'
 ) \gexec
 
-DO $do$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'gateway_app_user') THEN
-        EXECUTE format(
-            'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'gateway_app_user',
-            :'gateway_app_password'
-        );
-    ELSE
-        EXECUTE format(
-            'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'gateway_app_user',
-            :'gateway_app_password'
-        );
-    END IF;
+SELECT format(
+    'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'gateway_app_user',
+    :'gateway_app_password'
+)
+WHERE NOT EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'gateway_app_user'
+) \gexec
 
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'gateway_ro_user') THEN
-        EXECUTE format(
-            'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'gateway_ro_user',
-            :'gateway_ro_password'
-        );
-    ELSE
-        EXECUTE format(
-            'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'gateway_ro_user',
-            :'gateway_ro_password'
-        );
-    END IF;
+SELECT format(
+    'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'gateway_app_user',
+    :'gateway_app_password'
+)
+WHERE EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'gateway_app_user'
+) \gexec
 
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'admin_app_user') THEN
-        EXECUTE format(
-            'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'admin_app_user',
-            :'admin_app_password'
-        );
-    ELSE
-        EXECUTE format(
-            'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'admin_app_user',
-            :'admin_app_password'
-        );
-    END IF;
+SELECT format(
+    'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'gateway_ro_user',
+    :'gateway_ro_password'
+)
+WHERE NOT EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'gateway_ro_user'
+) \gexec
 
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'admin_ro_user') THEN
-        EXECUTE format(
-            'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'admin_ro_user',
-            :'admin_ro_password'
-        );
-    ELSE
-        EXECUTE format(
-            'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
-            :'admin_ro_user',
-            :'admin_ro_password'
-        );
-    END IF;
-END
-$do$;
+SELECT format(
+    'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'gateway_ro_user',
+    :'gateway_ro_password'
+)
+WHERE EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'gateway_ro_user'
+) \gexec
+
+SELECT format(
+    'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'admin_app_user',
+    :'admin_app_password'
+)
+WHERE NOT EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'admin_app_user'
+) \gexec
+
+SELECT format(
+    'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'admin_app_user',
+    :'admin_app_password'
+)
+WHERE EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'admin_app_user'
+) \gexec
+
+SELECT format(
+    'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'admin_ro_user',
+    :'admin_ro_password'
+)
+WHERE NOT EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'admin_ro_user'
+) \gexec
+
+SELECT format(
+    'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+    :'admin_ro_user',
+    :'admin_ro_password'
+)
+WHERE EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = :'admin_ro_user'
+) \gexec
 SQL
