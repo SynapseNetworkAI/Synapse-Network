@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.domain.finance import BalanceLedger
-from src.domain.finance import DepositIntentRow, RefundIntentRow, UsageLogRow
+from src.domain.finance import DepositAttemptRow, DepositIntentRow, RefundIntentRow, UsageLogRow
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
@@ -109,6 +109,98 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             repo.write_refund_intents(typed_rows, int(updated_at))
         except Exception:
             repo.write_refund_intents(rows, int(updated_at))
+
+    async def record_deposit_attempt(
+        self,
+        *,
+        payload: Dict[str, Any],
+        owner_wallet: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        owner = normalize_wallet(owner_wallet)
+        attempt_id = str(payload.get("attemptId") or "").strip()
+        if not attempt_id:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_ATTEMPT_ID",
+                    "message": "attemptId is required.",
+                },
+            )
+
+        try:
+            amount_usdc = Decimal(str(payload.get("amountUsdc") or "0")).quantize(
+                Decimal("0.000001"), rounding=ROUND_HALF_UP
+            )
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc must be a valid decimal number.",
+                },
+            )
+        if amount_usdc <= Decimal("0"):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc must be greater than 0.",
+                },
+            )
+
+        stage = str(payload.get("stage") or "").strip().upper()
+        if stage not in {
+            "SIGN_REQUESTED",
+            "TX_BROADCASTED",
+            "RECEIPT_FAILED",
+            "RECEIPT_CONFIRMED",
+            "INTENT_REGISTERED",
+        }:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_ATTEMPT_STAGE",
+                    "message": "Unsupported deposit attempt stage.",
+                },
+            )
+
+        tx_hash = str(payload.get("txHash") or "").strip().lower()
+        if tx_hash:
+            if not tx_hash.startswith("0x") or len(tx_hash) != 66:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INVALID_TX_HASH",
+                        "message": "txHash must be a 66-char 0x-prefixed hash.",
+                    },
+                )
+
+        if not hasattr(self.storage, "record_deposit_attempt"):
+            raise RuntimeError("DEPOSIT_ATTEMPTS_REQUIRE_POSTGRES_STORAGE")
+
+        now_text = now_dt_str()
+        saved = getattr(self.storage, "record_deposit_attempt")(
+            DepositAttemptRow(
+                attemptId=attempt_id,
+                ownerAddress=owner,
+                clientRequestId=str(payload.get("clientRequestId") or "").strip() or None,
+                txHash=tx_hash or None,
+                amountUsdc=amount_usdc,
+                stage=stage,
+                failureReason=str(payload.get("failureReason") or "").strip() or None,
+                requestId=str((request_meta or {}).get("requestId") or "").strip() or None,
+                clientIp=str((request_meta or {}).get("clientIp") or "").strip() or None,
+                userAgent=str((request_meta or {}).get("userAgent") or "").strip() or None,
+                createdAt=now_text,
+                updatedAt=now_text,
+            )
+        )
+        if isinstance(saved, DepositAttemptRow):
+            return saved.model_dump(by_alias=True, mode="json")
+        if isinstance(saved, dict):
+            return saved
+        return {}
 
     def _load_usage_log_rows(self) -> List[Dict[str, Any]]:
         rows = (

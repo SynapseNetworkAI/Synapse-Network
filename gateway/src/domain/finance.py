@@ -79,6 +79,30 @@ class DepositIntentRow(BaseModel):
     updated_at: str = Field(default="", alias="updatedAt")
 
 
+class DepositAttemptRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[int] = None
+    attempt_id: str = Field(alias="attemptId")
+    owner_address: str = Field(alias="ownerAddress")
+    client_request_id: Optional[str] = Field(default=None, alias="clientRequestId")
+    tx_hash: Optional[str] = Field(default=None, alias="txHash")
+    amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
+    stage: Literal[
+        "SIGN_REQUESTED",
+        "TX_BROADCASTED",
+        "RECEIPT_FAILED",
+        "RECEIPT_CONFIRMED",
+        "INTENT_REGISTERED",
+    ]
+    failure_reason: Optional[str] = Field(default=None, alias="failureReason")
+    request_id: Optional[str] = Field(default=None, alias="requestId")
+    client_ip: Optional[str] = Field(default=None, alias="clientIp")
+    user_agent: Optional[str] = Field(default=None, alias="userAgent")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
+
+
 class RefundIntentRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

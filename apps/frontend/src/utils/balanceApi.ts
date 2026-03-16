@@ -31,6 +31,29 @@ export type DepositIntentRecord = {
   confirmedAt?: number;
 };
 
+export type DepositAttemptStage =
+  | "SIGN_REQUESTED"
+  | "TX_BROADCASTED"
+  | "RECEIPT_FAILED"
+  | "RECEIPT_CONFIRMED"
+  | "INTENT_REGISTERED";
+
+export type DepositAttemptRecord = {
+  id?: number;
+  attemptId: string;
+  ownerAddress?: string;
+  clientRequestId?: string;
+  txHash?: string;
+  amountUsdc: number;
+  stage: DepositAttemptStage;
+  failureReason?: string;
+  requestId?: string;
+  clientIp?: string;
+  userAgent?: string;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+};
+
 export type BuyerRefundIntent = {
   refundId: string;
   signature: string;
@@ -148,6 +171,66 @@ export async function createDepositIntent(
     creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: String((deposit as any).state || deposit.status || "pending"),
+  };
+}
+
+export async function recordDepositAttempt(
+  userAddress: string,
+  payload: {
+    attemptId: string;
+    amountUsdc: number;
+    stage: DepositAttemptStage;
+    clientRequestId?: string;
+    txHash?: string;
+    failureReason?: string;
+  }
+): Promise<DepositAttemptRecord> {
+  if (!payload.attemptId.trim()) {
+    throw new Error("attemptId is required.");
+  }
+  if (!Number.isFinite(payload.amountUsdc) || payload.amountUsdc <= 0) {
+    throw new Error("amountUsdc must be a positive number.");
+  }
+  if (payload.txHash) {
+    const normalizedTx = String(payload.txHash).trim().toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
+      throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+    }
+  }
+
+  const response = await fetch(`${API_BASE}/balance/deposit/attempts`, {
+    method: "POST",
+    headers: buildAuthedHeaders(userAddress),
+    body: JSON.stringify({
+      ...payload,
+      txHash: payload.txHash ? payload.txHash.trim().toLowerCase() : undefined,
+      failureReason: payload.failureReason?.trim() || undefined,
+      clientRequestId: payload.clientRequestId?.trim() || undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Failed to record deposit attempt"));
+  }
+
+  const data = (await response.json()) as {
+    attempt?: Partial<DepositAttemptRecord>;
+  };
+  const attempt = data.attempt ?? {};
+  return {
+    id: typeof attempt.id === "number" ? attempt.id : undefined,
+    attemptId: String(attempt.attemptId || payload.attemptId),
+    ownerAddress: typeof attempt.ownerAddress === "string" ? attempt.ownerAddress : undefined,
+    clientRequestId: typeof attempt.clientRequestId === "string" ? attempt.clientRequestId : undefined,
+    txHash: typeof attempt.txHash === "string" ? attempt.txHash : payload.txHash,
+    amountUsdc: Number(attempt.amountUsdc ?? payload.amountUsdc),
+    stage: String(attempt.stage || payload.stage) as DepositAttemptStage,
+    failureReason: typeof attempt.failureReason === "string" ? attempt.failureReason : payload.failureReason,
+    requestId: typeof attempt.requestId === "string" ? attempt.requestId : undefined,
+    clientIp: typeof attempt.clientIp === "string" ? attempt.clientIp : undefined,
+    userAgent: typeof attempt.userAgent === "string" ? attempt.userAgent : undefined,
+    createdAt: (attempt.createdAt as string | number | undefined) ?? undefined,
+    updatedAt: (attempt.updatedAt as string | number | undefined) ?? undefined,
   };
 }
 

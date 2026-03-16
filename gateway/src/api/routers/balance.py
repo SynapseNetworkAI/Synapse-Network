@@ -6,6 +6,7 @@ from src.api.schemas.pydantic_models import (
     AdminProviderWithdrawCompleteRequest,
     AdminRefundCompleteRequest,
     DepositIntentRequest,
+    DepositAttemptRequest,
     DepositConfirmRequest,
     AdminDepositReplayRequest,
     RefundIntentRequest,
@@ -168,6 +169,24 @@ async def register_deposit_intent(
         "status": "success",
         "tx_hash": str(stored_intent.get("txHash", "mock-tx-hash")),
         "intent": stored_intent,
+    }
+
+
+@router.post("/v1/balance/deposit/attempts")
+async def record_deposit_attempt(
+    payload: DepositAttemptRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    saved_attempt = await service.record_deposit_attempt(
+        payload.model_dump(),
+        owner_wallet,
+        _extract_request_meta(request),
+    )
+    return {
+        "status": "success",
+        "attempt": saved_attempt,
     }
 
 
