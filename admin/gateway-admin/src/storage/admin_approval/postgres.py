@@ -2,6 +2,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 
+from psycopg.types.json import Jsonb
+
 from src.domain import (
     AdminApproval,
     AdminApprovalEvent,
@@ -250,7 +252,7 @@ class PostgresAdminApprovalRepository:
                     approval.risk_level.value,
                     approval.amount_usdc,
                     approval.reason,
-                    approval.payload,
+                    Jsonb(approval.payload),
                     approval.request_id,
                     approval.trace_id,
                     approval.submitted_at,
@@ -325,7 +327,7 @@ class PostgresAdminApprovalRepository:
                     step.assigned_at,
                     step.decided_at,
                     step.due_at,
-                    step.metadata,
+                    Jsonb(step.metadata),
                     step.created_at,
                 ),
             )
@@ -353,7 +355,7 @@ class PostgresAdminApprovalRepository:
                     event.comment,
                     event.request_id,
                     event.trace_id,
-                    event.detail,
+                    Jsonb(event.detail),
                     event.created_at,
                 ),
             )
@@ -386,8 +388,8 @@ class PostgresAdminApprovalRepository:
                     job.status.value,
                     job.idempotency_key,
                     job.handler_name,
-                    job.request_payload,
-                    job.result_payload,
+                    Jsonb(job.request_payload),
+                    Jsonb(job.result_payload),
                     job.error_code,
                     job.error_message,
                     job.queued_by,
@@ -465,8 +467,8 @@ class PostgresAdminApprovalRepository:
                 (
                     claimed_job.status.value,
                     claimed_job.handler_name,
-                    claimed_job.request_payload,
-                    claimed_job.result_payload,
+                    Jsonb(claimed_job.request_payload),
+                    Jsonb(claimed_job.result_payload),
                     claimed_job.error_code,
                     claimed_job.error_message,
                     claimed_job.queued_by,
@@ -505,8 +507,8 @@ class PostgresAdminApprovalRepository:
                 (
                     job.status.value,
                     job.handler_name,
-                    job.request_payload,
-                    job.result_payload,
+                    Jsonb(job.request_payload),
+                    Jsonb(job.result_payload),
                     job.error_code,
                     job.error_message,
                     job.queued_by,

@@ -39,13 +39,53 @@
 
 1. 可运行 FastAPI 入口 `src/app.py`
 2. `admin_auth` 路由
-3. `dashboard` 路由
+3. `admin_users` 路由
+4. `admin_config` 路由
+5. `dashboard` 路由
 4. `approval` 路由
+5. `audit` 路由
+6. `execution` 路由
 5. 基础 schema / service / adapter 分层
 6. 第一版 API contract 文档
 8. 第一版 PostgreSQL migration：`migrations/001_admin_control_plane_schema.sql`
 9. 第一版 domain / storage skeleton：`src/domain/`、`src/storage/`
 
+当前已落地的后台用户能力：
+
+- `GET /api/admin/v1/users`: 读取后台用户目录
+- `GET /api/admin/v1/users/roles`: 读取角色模板与权限矩阵
+- `POST /api/admin/v1/users`: 创建后台用户并绑定角色
+
+当前已落地的配置中心能力：
+
+- `GET /api/admin/v1/config/menu-items?stage=draft|published`: 读取菜单配置的 draft / published 视图
+- `POST /api/admin/v1/config/menu-items`: 新增菜单项到 draft
+- `PATCH /api/admin/v1/config/menu-items/{itemId}`: 编辑 draft 菜单项
+- `DELETE /api/admin/v1/config/menu-items/{itemId}`: 从 draft 删除菜单项
+- `POST /api/admin/v1/config/menu-items/publish`: 将当前 draft 发布为全局生效菜单版本
+
+`/menu-config` 切到真实 draft / publish 流程，指的是：
+
+- 菜单配置不再保存在前端浏览器本地，而是存入 `gateway-admin` 的 `admin_config_documents` 持久化表
+- 后端同时维护 `draft` 与 `published` 两个 stage 的菜单快照，二者都带版本号与更新时间
+- `/menu-config` 页面上的 CRUD 操作只修改 `draft`，不会直接影响线上后台导航
+- `publish` 动作会把当前 `draft` 原子性写成新的 `published` 快照，作为全局生效版本
+- `AdminShell` 与普通后台页面只读取 `published`，因此线上导航只会在显式发布后切换
+- 该流程天然支持“先改草稿、再统一发布”的控制面治理方式，也为后续接入审批、回滚、变更审计预留边界
+
+当前菜单配置中心的权限约束：
+
+- `super_admin` 可以创建、编辑、删除 draft，并执行 publish
+- `platform_ops_admin` 可以读取 draft，用于运营侧复核当前待发布配置
+- 普通后台管理员只能读取 published 版本，不允许访问 draft
+- create / update / delete / publish 都会写入管理员审计日志
+
+当前权限模型说明：
+
+- 后台用户管理接口目前只允许 `super_admin` 创建用户
+- `super_admin` 与 `platform_ops_admin` 可以读取用户目录和角色模板
+- 前端菜单树会根据管理员的 `role + permissions` 自动裁剪可见模块
+- 菜单配置以服务端 draft / published 双态持久化，`AdminShell` 读取 published 版本，`/menu-config` 管理 draft 版本
 启动方式：
 
 ```bash
@@ -67,6 +107,16 @@ sh scripts/ops/status.sh
 ```
 
 运维说明见 `docs/运维手册.md`。
+
+Bootstrap 管理员首次初始化密码：
+
+```bash
+cd admin/gateway-admin
+.venv/bin/python scripts/set_bootstrap_password.py \
+	--dsn 'postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin' \
+	--email 'super@synapse.network' \
+	--password 'ReplaceWithStrongInitPassword'
+```
 
 本地 PostgreSQL 缺省连接：
 
@@ -90,6 +140,7 @@ EXECUTION_WORKER_BATCH_SIZE=10
 - 兼容接口 `overview` / `system-status` 继续通过聚合视图 `synapse_admin_dashboard_projection` 暴露旧摘要字段。
 - Execution retry 现在不再只是把 job 重新入队，而是会使用内部管理员钱包 JWT 调用 gateway 管理命令，例如 `deposit_repair -> /api/v1/admin/deposits/replay`、`refund_approve -> /api/v1/admin/refunds/{refundId}/complete`、`withdrawal_approve -> /api/v1/admin/providers/withdrawals/{withdrawalId}/complete`，并把成功/失败结果回写到 execution job、attempt 和 approval 状态。
 - gateway-admin 现在会在服务启动后自动拉起 execution worker，周期性扫描 `PENDING` execution jobs 并执行，不再依赖手动 retry 才能推进。
+- 新增菜单配置中心后，持久化数据库需要执行 `migrations/003_admin_config_center_schema.sql`，否则 `/api/admin/v1/config/menu-items` 无法在 PostgreSQL 模式下工作。
 
 第一期建议优先实现：
 

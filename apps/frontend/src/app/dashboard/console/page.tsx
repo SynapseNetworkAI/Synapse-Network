@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAccount, useDisconnect, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
-import { parseUnits, parseSignature, parseAbi } from "viem";
+import { useAccount, useBalance, useChainId, useDisconnect, usePublicClient, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { BaseError, ContractFunctionRevertedError, parseAbi, parseSignature, parseUnits, type Hex } from "viem";
 import contractConfig from "@/contract-config.json";
 import { getV2Balance, createDepositIntent } from "@/utils/balanceApi";
 import {
@@ -20,7 +20,6 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { listServiceRegistry } from "@/utils/serviceApi";
 import RoleWarningModal from "@/components/RoleWarningModal";
 
-const ROUTER_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 
 const vaultABI = parseAbi([
@@ -28,6 +27,7 @@ const vaultABI = parseAbi([
 ]);
 
 const DEPOSIT_INTENT_RETRY_QUEUE_KEY = "synapse_deposit_intent_retry_queue";
+const PENDING_DEPOSIT_TX_QUEUE_KEY = "synapse_pending_deposit_tx_queue";
 
 type PendingDepositIntentRetry = {
   id: string;
@@ -37,6 +37,14 @@ type PendingDepositIntentRetry = {
   attempts: number;
   nextRetryAt: number;
   lastError?: string;
+  createdAt: number;
+};
+
+type PendingDepositTx = {
+  id: string;
+  address: string;
+  txHash: string;
+  amountUsdc: number;
   createdAt: number;
 };
 
@@ -59,6 +67,25 @@ function saveDepositIntentRetryQueue(rows: PendingDepositIntentRetry[]): void {
   localStorage.setItem(DEPOSIT_INTENT_RETRY_QUEUE_KEY, JSON.stringify(rows));
 }
 
+function loadPendingDepositTxQueue(): PendingDepositTx[] {
+  if (globalThis.window === undefined) return [];
+  try {
+    const raw = localStorage.getItem(PENDING_DEPOSIT_TX_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row): row is PendingDepositTx => {
+      return !!row && typeof row === "object" && typeof row.txHash === "string" && typeof row.address === "string";
+    });
+  } catch {
+    return [];
+  }
+}
+
+function savePendingDepositTxQueue(rows: PendingDepositTx[]): void {
+  if (globalThis.window === undefined) return;
+  localStorage.setItem(PENDING_DEPOSIT_TX_QUEUE_KEY, JSON.stringify(rows));
+}
+
 function toSafeErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === "string" && err.trim()) return err;
@@ -71,17 +98,82 @@ function shortAddress(addr?: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+function toSortableTimestamp(value: string | number | undefined): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function buildDepositFailureMessage(err: unknown): string {
+  const baseError = err instanceof BaseError ? err : undefined;
+  const revertError = baseError?.walk((error) => error instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | undefined;
+  const rawMessage = toSafeErrorMessage(err, "Deposit transaction failed");
+  const messageParts = [
+    revertError?.reason,
+    revertError?.data?.errorName,
+    baseError?.shortMessage,
+    baseError?.details,
+    rawMessage,
+  ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+  const normalizedMessage = messageParts.join(" | ").toLowerCase();
+
+  if (normalizedMessage.includes("user rejected") || normalizedMessage.includes("rejected")) {
+    return "Deposit was cancelled in wallet by the user. No funds were charged.";
+  }
+
+  if (
+    normalizedMessage.includes("insufficient funds")
+    || normalizedMessage.includes("intrinsic gas too low")
+    || normalizedMessage.includes("gas required exceeds allowance")
+    || normalizedMessage.includes("exceeds the balance of the account")
+    || normalizedMessage.includes("out of gas")
+  ) {
+    return "Deposit failed because the wallet does not have enough native token to pay gas.";
+  }
+
+  if (normalizedMessage.includes("insufficient balance") || normalizedMessage.includes("erc20") || normalizedMessage.includes("transfer amount exceeds")) {
+    return "Deposit failed because the wallet does not have enough USDC for this transfer.";
+  }
+
+  if (revertError?.data?.errorName) {
+    return `Deposit was rejected by the vault contract (${revertError.data.errorName}). No funds were credited to the platform.`;
+  }
+
+  if (revertError?.reason) {
+    return `Deposit was rejected by the vault contract: ${revertError.reason}. No funds were credited to the platform.`;
+  }
+
+  if (normalizedMessage.includes("custom error")) {
+    return "Deposit was rejected by the vault contract with a custom on-chain error. No funds were credited to the platform.";
+  }
+
+  if (normalizedMessage.includes("reverted") || normalizedMessage.includes("execution reverted")) {
+    return "Deposit failed on-chain because the vault contract rejected this transaction. No funds were credited to the platform.";
+  }
+
+  if (normalizedMessage.includes("nonce too low") || normalizedMessage.includes("replacement transaction underpriced")) {
+    return "Deposit failed because the wallet transaction nonce is out of date. Please retry from the wallet.";
+  }
+
+  return rawMessage;
+}
+
 export default function DeveloperConsole() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { openConnectModal } = useConnectModal();
   const chainId = useChainId();
+  const publicClient = usePublicClient();
   
   // --- 1. Top-up Balance State ---
   const [balanceUsdc, setBalanceUsdc] = useState<number | null>(null);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("10");
+  const [topUpError, setTopUpError] = useState<string>("");
 
   const { data: usdcNonce } = useReadContract({
     address: contractConfig.MockUSDC as `0x${string}`,
@@ -111,7 +203,12 @@ export default function DeveloperConsole() {
   const { data: hash, writeContractAsync, isPending } = useWriteContract();
   const { data: mintHash, writeContractAsync: writeMintAsync, isPending: isMinting } = useWriteContract();
   
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const {
+    isLoading: isConfirming,
+    isSuccess: isConfirmed,
+    isError: isDepositFailed,
+    error: depositReceiptError,
+  } = useWaitForTransactionReceipt({ hash });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { isLoading: isMintingTx, isSuccess: isMintConfirmed } = useWaitForTransactionReceipt({ hash: mintHash });
 
@@ -126,6 +223,7 @@ export default function DeveloperConsole() {
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
   const depositRetryInFlightRef = useRef(false);
+  const pendingDepositSyncInFlightRef = useRef(false);
 
   const handleAddFundsClick = useCallback(async () => {
     if (!isConnected && openConnectModal) {
@@ -136,6 +234,7 @@ export default function DeveloperConsole() {
       const success = await authorize();
       if (!success) return; // Stop if authorization was cancelled or failed
     }
+    setTopUpError("");
     setTopUpStep("input");
     setIsTopUpOpen(true);
   }, [isConnected, openConnectModal, isSessionAuthenticated, authorize]);
@@ -181,6 +280,94 @@ export default function DeveloperConsole() {
     saveDepositIntentRetryQueue(queue);
     toast.error("On-chain deposit succeeded but sync to gateway failed. Auto-retry queue enabled.");
   }, [address]);
+
+  const upsertPendingDepositTx = useCallback((txHash: string, amountUsdc: number) => {
+    if (!address || globalThis.window === undefined) return;
+    const normalizedHash = String(txHash || "").trim().toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return;
+
+    const queue = loadPendingDepositTxQueue();
+    const existing = queue.find(
+      (row) => row.address.toLowerCase() === address.toLowerCase() && row.txHash.toLowerCase() === normalizedHash
+    );
+
+    if (!existing) {
+      queue.push({
+        id: `pending-deposit-${normalizedHash.slice(2, 10)}-${Date.now()}`,
+        address,
+        txHash: normalizedHash,
+        amountUsdc,
+        createdAt: Date.now(),
+      });
+      savePendingDepositTxQueue(queue);
+    }
+  }, [address]);
+
+  const removePendingDepositTx = useCallback((txHash: string) => {
+    if (!address || globalThis.window === undefined) return;
+    const normalizedHash = String(txHash || "").trim().toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return;
+
+    const next = loadPendingDepositTxQueue().filter(
+      (row) => !(row.address.toLowerCase() === address.toLowerCase() && row.txHash.toLowerCase() === normalizedHash)
+    );
+    savePendingDepositTxQueue(next);
+  }, [address]);
+
+  const flushPendingDepositTxQueue = useCallback(async () => {
+    if (!address || !isSessionAuthenticated || !publicClient || globalThis.window === undefined) return;
+    if (pendingDepositSyncInFlightRef.current) return;
+
+    const queue = loadPendingDepositTxQueue();
+    if (!queue.length) return;
+
+    const owner = address.toLowerCase();
+    let changed = false;
+
+    pendingDepositSyncInFlightRef.current = true;
+    try {
+      for (const item of queue) {
+        if (item.address.toLowerCase() !== owner) continue;
+
+        try {
+          const receipt = await publicClient.getTransactionReceipt({ hash: item.txHash as Hex });
+          if (receipt.status === "reverted") {
+            removePendingDepositTx(item.txHash);
+            changed = true;
+            toast.error(`Deposit transaction reverted: ${item.txHash.slice(0, 10)}...`);
+            continue;
+          }
+
+          await createDepositIntent(address, {
+            txHash: item.txHash,
+            amountUsdc: Number(item.amountUsdc),
+          });
+
+          removePendingDepositTx(item.txHash);
+          changed = true;
+          toast.success(`Recovered deposit sync: ${item.txHash.slice(0, 10)}...`);
+          loadBalance();
+          refetchWalletBalance();
+        } catch (err) {
+          const message = toSafeErrorMessage(err, "pending deposit still waiting").toLowerCase();
+          if (message.includes("transactionreceiptnotfound") || message.includes("not found")) {
+            continue;
+          }
+
+          removePendingDepositTx(item.txHash);
+          upsertDepositIntentRetry(item.txHash, Number(item.amountUsdc), err);
+          changed = true;
+        }
+      }
+    } finally {
+      pendingDepositSyncInFlightRef.current = false;
+    }
+
+    if (changed) {
+      const next = loadPendingDepositTxQueue();
+      savePendingDepositTxQueue(next);
+    }
+  }, [address, isSessionAuthenticated, loadBalance, publicClient, refetchWalletBalance, removePendingDepositTx, upsertDepositIntentRetry]);
 
   const flushDepositIntentRetryQueue = useCallback(async () => {
     if (!address || globalThis.window === undefined) return;
@@ -234,7 +421,9 @@ export default function DeveloperConsole() {
     try {
       const rows = await listAgentCredentials(address);
       console.log("LOADED KEYS API RESP:", rows);
-      const activeRows = rows.filter((k) => k.status === "active").sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const activeRows = rows
+        .filter((k) => k.status === "active")
+        .sort((a, b) => toSortableTimestamp(b.createdAt) - toSortableTimestamp(a.createdAt));
       setKeys(activeRows);
       if (activeRows.length > 0 && !selectedTokenPrefix) {
         setSelectedTokenPrefix(activeRows[0].tokenPrefix || "");
@@ -261,15 +450,19 @@ export default function DeveloperConsole() {
 
   useEffect(() => {
     if (!address || !isSessionAuthenticated) return;
+    void flushPendingDepositTxQueue();
     void flushDepositIntentRetryQueue();
     const id = setInterval(() => {
+      void flushPendingDepositTxQueue();
       void flushDepositIntentRetryQueue();
     }, 5000);
     return () => clearInterval(id);
-  }, [address, isSessionAuthenticated, flushDepositIntentRetryQueue]);
+  }, [address, isSessionAuthenticated, flushDepositIntentRetryQueue, flushPendingDepositTxQueue]);
 
   useEffect(() => {
     if (isConfirmed && hash && address) {
+      removePendingDepositTx(hash);
+      setTopUpError("");
       toast.success(
         <div className="flex flex-col">
           <span>Deposit successful!</span>
@@ -298,7 +491,20 @@ export default function DeveloperConsole() {
 
       refetchWalletBalance();
     }
-  }, [isConfirmed, hash, address, topUpAmount, loadBalance, refetchWalletBalance, upsertDepositIntentRetry]);
+  }, [isConfirmed, hash, address, topUpAmount, loadBalance, refetchWalletBalance, removePendingDepositTx, upsertDepositIntentRetry]);
+
+  useEffect(() => {
+    if (!isDepositFailed || !hash) {
+      return;
+    }
+
+    removePendingDepositTx(hash);
+    setTopUpStep("input");
+
+    const failureMessage = buildDepositFailureMessage(depositReceiptError);
+    setTopUpError(failureMessage);
+    toast.error(failureMessage, { duration: 5000 });
+  }, [isDepositFailed, hash, depositReceiptError, removePendingDepositTx]);
 
   useEffect(() => {
     if (isMintConfirmed) {
@@ -347,13 +553,19 @@ export default function DeveloperConsole() {
     const amountUsdc = Number(topUpAmount);
     if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) return toast.error("Invalid amount");
 
+    setTopUpError("");
+
     if (walletUsdcBalance < amountUsdc) {
-      toast.error(`Insufficient wallet USDC. Need ${amountUsdc.toFixed(2)} USDC, wallet has ${walletUsdcBalance.toFixed(2)} USDC.`);
+      const failureMessage = `Insufficient wallet USDC. Need ${amountUsdc.toFixed(2)} USDC, wallet has ${walletUsdcBalance.toFixed(2)} USDC.`;
+      setTopUpError(failureMessage);
+      toast.error(failureMessage);
       return;
     }
 
     if (ethBalance < 0.001) {
-      toast.error("Insufficient ETH for transaction gas (needs ~0.001 ETH). Please fund your wallet.");
+      const failureMessage = "Insufficient ETH for transaction gas (needs ~0.001 ETH). Please fund your wallet.";
+      setTopUpError(failureMessage);
+      toast.error(failureMessage);
     }
 
     setTopUpStep("signing_permit");
@@ -379,12 +591,13 @@ export default function DeveloperConsole() {
       const { v, r, s } = parseSignature(signature);
 
       setTopUpStep("executing_tx");
-      await writeContractAsync({
+      const submittedHash = await writeContractAsync({
         address: VAULT_ADDRESS,
         abi: vaultABI,
         functionName: "depositWithPermit",
         args: [amountBigInt, deadline, Number(v), r, s],
       });
+      upsertPendingDepositTx(submittedHash, amountUsdc);
     } catch (err: unknown) {
       setTopUpStep("input");
       const msg = err instanceof Error ? err.message : String(err);
@@ -392,13 +605,17 @@ export default function DeveloperConsole() {
       let failureReason = "Unknown Error";
       if (msg.includes("User rejected") || msg.toLowerCase().includes("rejected")) {
         failureReason = "User rejected";
+        setTopUpError("Deposit was cancelled in wallet. No funds were charged.");
         toast("Sign/Transaction cancelled by user", { icon: "ℹ️" });
       } else if (msg.includes("Insufficient Balance") || msg.includes("insufficient funds") || msg.includes("gas required exceeds allowance")) {
         failureReason = "Insufficient Gas/Funds";
+        setTopUpError("USDC or ETH 余额不足，请检查钱包");
         toast.error("USDC or ETH 余额不足，请检查钱包", { duration: 5000 });
       } else {
         failureReason = msg.substring(0, 100);
-        toast.error("Failed to top up: " + msg);
+        const failureMessage = buildDepositFailureMessage(err);
+        setTopUpError(failureMessage);
+        toast.error("Failed to top up: " + failureMessage);
       }
 
       // Record to Shadow Ledger
@@ -700,6 +917,12 @@ print(response.content){"\n"}
                 </div>
               </div>
             </label>
+
+            {topUpError ? (
+              <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {topUpError}
+              </div>
+            ) : null}
 
             <div className="mb-5 p-4 border border-cyan-900/50 bg-cyan-950/30 rounded-xl">
               <p className="text-xs font-semibold tracking-wider text-cyan-300 uppercase">Transaction Summary</p>

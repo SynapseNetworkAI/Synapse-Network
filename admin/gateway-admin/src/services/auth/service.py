@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from src.core.config import get_settings
 from src.core.errors import AuthenticationError, BadRequestError
+from src.core.security import verify_password
 from src.domain import AdminActionAudit, AdminSession
 from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuditResultStatus, MfaFactorStatus, RoleBindingStatus
 from src.storage.base import AdminStore
@@ -29,11 +30,13 @@ class AdminAuthService:
         self._settings = get_settings()
         self._store = store
 
-    def login(self, email: str, otp_code: str) -> tuple[str, AdminIdentity]:
-        if not email.strip() or not otp_code.strip():
-            raise BadRequestError("email and otpCode are required")
+    def login(self, email: str, password: str, otp_code: str) -> tuple[str, AdminIdentity]:
+        if not email.strip() or not password.strip() or not otp_code.strip():
+            raise BadRequestError("email, password and otpCode are required")
         user = self._store.identity.get_user_by_email(email)
         if user is None or user.status != AdminUserStatus.ACTIVE:
+            raise AuthenticationError("Invalid admin credentials")
+        if not verify_password(password, user.password_hash):
             raise AuthenticationError("Invalid admin credentials")
         if user.require_mfa:
             active_factors = [

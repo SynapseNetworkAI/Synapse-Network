@@ -1,21 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { AdminShell } from "@/components/admin-shell";
 import { AdminStatus } from "@/components/admin-status";
 import { SummaryCards } from "@/features/dashboard/summary-cards";
-import { clearAdminSession, readAdminProfile, readAdminToken } from "@/lib/admin-session";
+import { useAdminSession } from "@/lib/use-admin-session";
 import {
   getActivityTrends,
-  getCurrentAdmin,
   getDashboardOverview,
   getFinanceOverview,
   getOperationsOverview,
   getSystemStatus,
   type ActivityTrendSeries,
-  type AdminProfile,
   type DashboardOverview,
   type FinanceOverview,
   type OperationsOverview,
@@ -26,8 +23,7 @@ import { FinanceOverviewPanel } from "../../features/dashboard/finance-overview-
 import { OperationsOverviewPanel } from "../../features/dashboard/operations-overview-panel";
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [admin, setAdmin] = useState<AdminProfile | null>(null);
+  const { admin, token, loading } = useAdminSession();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [financeOverview, setFinanceOverview] = useState<FinanceOverview | null>(null);
@@ -36,33 +32,25 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = readAdminToken();
-    const cachedProfile = readAdminProfile();
-    if (!token) {
-      router.replace("/login");
+    if (!token || !admin) {
       return;
     }
-    const accessToken = token;
-    if (cachedProfile) {
-      setAdmin(cachedProfile);
-    }
+    const activeToken = token;
 
     let cancelled = false;
 
     async function load() {
       try {
-        const [profile, dashboardOverview, status, finance, trends, operations] = await Promise.all([
-          getCurrentAdmin(accessToken),
-          getDashboardOverview(accessToken),
-          getSystemStatus(accessToken),
-          getFinanceOverview(accessToken),
-          getActivityTrends(accessToken),
-          getOperationsOverview(accessToken),
+        const [dashboardOverview, status, finance, trends, operations] = await Promise.all([
+          getDashboardOverview(activeToken),
+          getSystemStatus(activeToken),
+          getFinanceOverview(activeToken),
+          getActivityTrends(activeToken),
+          getOperationsOverview(activeToken),
         ]);
         if (cancelled) {
           return;
         }
-        setAdmin(profile);
         setOverview(dashboardOverview);
         setSystemStatus(status);
         setFinanceOverview(finance);
@@ -72,9 +60,7 @@ export default function DashboardPage() {
         if (cancelled) {
           return;
         }
-        clearAdminSession();
         setError(loadError instanceof Error ? loadError.message : "加载控制台失败");
-        router.replace("/login");
       }
     }
 
@@ -82,14 +68,15 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [admin, token]);
 
-  if (!admin || !overview || !financeOverview || !activityTrends || !operationsOverview) {
+  if (loading || !admin || !overview || !financeOverview || !activityTrends || !operationsOverview) {
     return <main className="state-screen">正在连接 gateway-admin 控制面...</main>;
   }
 
   return (
     <AdminShell
+      admin={admin}
       eyebrow="Operations Overview"
       title="管理员控制台"
       description="把审批、财务异常排查、审计告警汇聚到单一入口，后续通过 gateway-admin 聚合只读指标与受控动作。"

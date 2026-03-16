@@ -16,7 +16,7 @@ def login(
     request_id: Annotated[str, Depends(get_request_id)],
     auth_service: Annotated[AdminAuthService, Depends(get_auth_service)],
 ):
-    token, admin = auth_service.login(payload.email, payload.otp_code)
+    token, admin = auth_service.login(payload.email, payload.password, payload.otp_code)
     return ApiResponse(
         data=LoginResponse(
             access_token=token,

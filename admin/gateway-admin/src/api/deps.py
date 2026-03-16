@@ -6,6 +6,8 @@ from fastapi import Depends, Header, Request
 from src.core.config import get_settings
 from src.core.errors import AuthenticationError, AuthorizationError
 from src.services.approval.service import ApprovalService
+from src.services.admin_config.service import AdminConfigService
+from src.services.admin_user.service import AdminUserService
 from src.services.adapters import (
     GatewayExecutionAdapter,
     HttpGatewayExecutionAdapter,
@@ -38,6 +40,16 @@ def get_store() -> AdminStore:
 @lru_cache(maxsize=1)
 def get_auth_service() -> AdminAuthService:
     return AdminAuthService(get_store())
+
+
+@lru_cache(maxsize=1)
+def get_admin_user_service() -> AdminUserService:
+    return AdminUserService(get_store())
+
+
+@lru_cache(maxsize=1)
+def get_admin_config_service() -> AdminConfigService:
+    return AdminConfigService(get_store())
 
 
 @lru_cache(maxsize=1)

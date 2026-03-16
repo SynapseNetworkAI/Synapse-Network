@@ -315,6 +315,42 @@ Dashboard 数据边界要求：
 - 告警列表
 - 运行时参数快照
 
+### 5.8 当前前端落地状态
+
+当前仓库里的 `admin/admin-front` 已按模块树方式落地第一版控制面：
+
+- 左侧导航已改为可配置菜单树，配置文件在 `admin/admin-front/src/lib/navigation.ts`
+- 左侧导航实际渲染优先读取 `gateway-admin` 已发布菜单配置，静态 `navigation.ts` 只作为 fallback 和默认种子
+- 菜单可见性基于当前管理员的 `role + permissions` 动态裁剪
+- `Toolbar + Table + Drawer` 已抽成前端共享 CRUD 基础组件，后续配置型页面不需要重复手写工作台骨架
+- 当前页面路由包括：`/dashboard`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`
+- 整体视觉已切换为与 Gateway Console 对齐的 dark mode control plane：黑色背景、深灰面板、细金属边框、绿色激活态、无玻璃阴影
+- 左侧导航已升级为二级 accordion 菜单树，活动项使用绿色左边界高亮，适合值班与高密度模块切换
+- `users` 页面已经接入后台用户目录、角色模板和创建后台用户能力
+- `users` 页面已重构为标准 CRUD 工作台：顶部搜索/角色筛选 + 主体数据表格 + 右侧 Drawer 表单，编辑与删除（软禁用）已通过 `gateway-admin` 打通
+- `role-permissions` 页面已使用共享 CRUD 基础组件承载角色模板与权限矩阵
+- `menu-config` 页面已升级为真实配置中心工作台：编辑的是 draft，发布后写入全局 published 菜单配置
+- `audit` 页面已经接入管理员操作日志查询
+- `execution` 页面已经接入 execution jobs 查询和失败任务重试
+- `finance`、`risk`、`system` 页面已作为模块入口页承接后续受控动作与只读查询
+
+#### `/menu-config` 的真实 draft / publish 流程
+
+这里的“切到真实 draft / publish 流程”不是单纯把按钮文案改成发布，而是把菜单配置从前端本地状态提升为受控的后端配置中心：
+
+- `draft` 是服务端草稿快照，供 `super_admin` 在配置工作台里持续编辑
+- `published` 是线上全局生效快照，供 `AdminShell` 和普通后台管理员读取
+- `/menu-config` 页面的 Toolbar + Table + Drawer 工作台只针对 `draft` 做 CRUD，保证变更先集中收敛到待发布版本
+- 只有显式执行 publish 时，当前 `draft` 才会被复制为新的 `published`，从而切换全站导航
+- 前端界面展示 `draftVersion`、`publishedVersion`、`isDirty`，让配置人员知道当前是否存在未发布变更
+- 后端为每次 create / update / delete / publish 记录管理员审计事件，保证配置变更可追溯
+
+这套设计的目标是把“编辑过程”和“生效过程”拆开：
+
+- 避免运营人员在调整菜单树时立刻影响所有后台值班同学
+- 让菜单树具备团队共享、服务端持久化、可审计的发布流程
+- 为后续扩展配置审批、版本回滚、批量发布提供稳定边界
+
 ## 6. 后台后端功能清单
 
 `admin/gateway-admin` 建议至少包含这些模块。
@@ -380,6 +416,34 @@ Dashboard 数据边界要求：
 
 - 调用 `gateway` 内部受控 API
 - 例如单笔 replay、读取 indexer 状态、只读查询资金数据
+
+### 6.10 当前后端落地状态
+
+当前仓库里的 `admin/gateway-admin` 已经实际落地并可被 `admin-front` 调用的模块：
+
+- `admin_auth`: 登录、登出、当前管理员信息
+- `admin_config`: 菜单配置 draft / published 读取、CRUD 与发布
+- `admin_users`: 用户目录、角色权限模板、创建后台用户
+- `admin_dashboard`: `overview`、`system-status`、`finance-overview`、`activity-trends`、`operations-overview`
+- `admin_approval`: 审批单读取、创建、审批决策
+- `admin_audit`: 管理员操作日志查询
+- `execution-jobs`: 执行任务查询与 retry
+
+`admin_config` 当前的核心设计：
+
+- 持久化表为 `admin_config_documents`
+- 当前落地的配置文档类型为菜单配置 `menu-items`
+- 存储模型维护 `draft` 与 `published` 两个 stage，而不是直接覆盖单份配置
+- 权限上区分“草稿治理”和“线上读取”：只有控制面角色能读 draft，只有 `super_admin` 能发布
+- 前端 `use-admin-navigation` hook 读取 published，静态 `navigation.ts` 仅作为 fallback 与默认种子
+
+当前还没有完全落成独立 router 的模块包括：
+
+- `admin_finance`
+- `admin_risk`
+- `admin_system`
+
+这一阶段前端已经为这些模块预留了独立页面，后续可以继续把受控动作和查询接口往对应 router 收拢，而不是继续堆进单页脚本。
 
 ### 6.10 `storage/`
 

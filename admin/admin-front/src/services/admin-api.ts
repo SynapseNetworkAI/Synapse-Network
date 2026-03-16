@@ -106,8 +106,174 @@ export type ApprovalListResponse = {
   nextCursor: string | null;
 };
 
+export type AuditActionItem = {
+  auditId: number | null;
+  actionType: string;
+  resultStatus: string;
+  operatorId: string | null;
+  operatorEmail: string | null;
+  operatorRole: string | null;
+  approvalId: string | null;
+  jobId: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  errorCode: string | null;
+  createdAt: string | null;
+};
+
+export type AuditActionListResponse = {
+  items: AuditActionItem[];
+  nextCursor: string | null;
+};
+
+export type ExecutionAttemptItem = {
+  attemptNo: number;
+  status: string;
+  errorCode: string | null;
+  errorSummary: string | null;
+  finishedAt: string | null;
+};
+
+export type ExecutionJobItem = {
+  jobId: string;
+  approvalId: string;
+  executionType: string;
+  targetSystem: string;
+  status: string;
+  idempotencyKey: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  retryCount: number;
+  maxRetryCount: number;
+  queuedBy: string | null;
+  updatedAt: string | null;
+  attempts: ExecutionAttemptItem[];
+};
+
+export type ExecutionJobListResponse = {
+  items: ExecutionJobItem[];
+  nextCursor: string | null;
+};
+
+export type ExecutionRetryResult = {
+  jobId: string;
+  status: string;
+  retryCount: number;
+};
+
+export type AdminUserItem = {
+  adminId: string;
+  email: string;
+  displayName: string;
+  status: string;
+  authSource: string;
+  requireMfa: boolean;
+  lastLoginAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  roleKeys: string[];
+  permissions: string[];
+};
+
+export type AdminUserListResponse = {
+  items: AdminUserItem[];
+  nextCursor: string | null;
+};
+
+export type AdminRoleCatalogItem = {
+  roleKey: string;
+  roleName: string;
+  description: string | null;
+  status: string;
+  permissions: string[];
+};
+
+export type AdminPermissionCatalogItem = {
+  permissionKey: string;
+  resourceDomain: string;
+  action: string;
+  riskLevel: string;
+  description: string | null;
+};
+
+export type AdminRoleCatalogResponse = {
+  items: AdminRoleCatalogItem[];
+};
+
+export type AdminPermissionCatalogResponse = {
+  items: AdminPermissionCatalogItem[];
+};
+
+export type CreateAdminUserResponse = {
+  admin: AdminUserItem;
+};
+
+export type UpdateAdminUserResponse = {
+  admin: AdminUserItem;
+};
+
+export type DeleteAdminUserResponse = {
+  adminId: string;
+  status: string;
+};
+
+export type CreateAdminRoleResponse = {
+  role: AdminRoleCatalogItem;
+};
+
+export type UpdateAdminRoleResponse = {
+  role: AdminRoleCatalogItem;
+};
+
+export type DeleteAdminRoleResponse = {
+  roleKey: string;
+  status: string;
+};
+
+export type AdminMenuConfigItem = {
+  itemId: string;
+  sectionId: string;
+  sectionLabel: string;
+  sectionDescription: string;
+  label: string;
+  href: string;
+  description: string;
+  requiredRoles: string[];
+  requiredPermissions: string[];
+  sortOrder: number;
+};
+
+export type AdminMenuConfigMeta = {
+  draftVersion: number;
+  publishedVersion: number;
+  isDirty: boolean;
+  updatedAt: string | null;
+  publishedAt: string | null;
+  updatedBy: string | null;
+  publishedBy: string | null;
+};
+
+export type AdminMenuConfigResponse = {
+  items: AdminMenuConfigItem[];
+  meta: AdminMenuConfigMeta;
+};
+
 const ADMIN_API_BASE_URL =
   process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8300";
+
+function buildPath(path: string, params?: Record<string, string | number | undefined>): string {
+  if (!params) {
+    return path;
+  }
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
+}
 
 function buildHeaders(token?: string, init?: HeadersInit): HeadersInit {
   return {
@@ -175,6 +341,221 @@ export async function getOperationsOverview(token: string): Promise<OperationsOv
   return request<OperationsOverview>("/api/admin/v1/dashboard/operations-overview", undefined, token);
 }
 
-export async function listApprovals(token: string): Promise<ApprovalListResponse> {
-  return request<ApprovalListResponse>("/api/admin/v1/approvals", undefined, token);
+export async function listApprovals(
+  token: string,
+  params?: { status?: string; approvalType?: string; limit?: number },
+): Promise<ApprovalListResponse> {
+  return request<ApprovalListResponse>(buildPath("/api/admin/v1/approvals", params), undefined, token);
+}
+
+export async function listAuditActions(
+  token: string,
+  params?: { resultStatus?: string; actionType?: string; operatorId?: string; limit?: number },
+): Promise<AuditActionListResponse> {
+  return request<AuditActionListResponse>(buildPath("/api/admin/v1/audit/actions", params), undefined, token);
+}
+
+export async function listExecutionJobs(
+  token: string,
+  params?: { status?: string; approvalId?: string; targetSystem?: string; limit?: number },
+): Promise<ExecutionJobListResponse> {
+  return request<ExecutionJobListResponse>(buildPath("/api/admin/v1/execution-jobs", params), undefined, token);
+}
+
+export async function retryExecutionJob(token: string, jobId: string): Promise<ExecutionRetryResult> {
+  return request<ExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, { method: "POST" }, token);
+}
+
+export async function listAdminUsers(
+  token: string,
+  params?: { status?: string; search?: string; roleKey?: string; limit?: number },
+): Promise<AdminUserListResponse> {
+  return request<AdminUserListResponse>(buildPath("/api/admin/v1/users", params), undefined, token);
+}
+
+export async function listAdminRoles(token: string): Promise<AdminRoleCatalogResponse> {
+  return request<AdminRoleCatalogResponse>("/api/admin/v1/users/roles", undefined, token);
+}
+
+export async function listAdminPermissions(token: string): Promise<AdminPermissionCatalogResponse> {
+  return request<AdminPermissionCatalogResponse>("/api/admin/v1/users/permissions", undefined, token);
+}
+
+export async function createAdminUser(
+  token: string,
+  input: {
+    email: string;
+    displayName: string;
+    roleKey: string;
+    password: string;
+    requireMfa: boolean;
+    status?: string;
+  },
+): Promise<CreateAdminUserResponse> {
+  return request<CreateAdminUserResponse>(
+    "/api/admin/v1/users",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+}
+
+export async function updateAdminUser(
+  token: string,
+  adminId: string,
+  input: {
+    displayName: string;
+    roleKey: string;
+    password?: string;
+    requireMfa: boolean;
+    status: string;
+  },
+): Promise<UpdateAdminUserResponse> {
+  return request<UpdateAdminUserResponse>(
+    `/api/admin/v1/users/${adminId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+}
+
+export async function deleteAdminUser(token: string, adminId: string): Promise<DeleteAdminUserResponse> {
+  return request<DeleteAdminUserResponse>(
+    `/api/admin/v1/users/${adminId}`,
+    {
+      method: "DELETE",
+    },
+    token,
+  );
+}
+
+export async function createAdminRole(
+  token: string,
+  input: {
+    roleKey: string;
+    roleName: string;
+    description?: string;
+    status: string;
+    permissions: string[];
+  },
+): Promise<CreateAdminRoleResponse> {
+  return request<CreateAdminRoleResponse>(
+    "/api/admin/v1/users/roles",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+}
+
+export async function updateAdminRole(
+  token: string,
+  roleKey: string,
+  input: {
+    roleName: string;
+    description?: string;
+    status: string;
+    permissions: string[];
+  },
+): Promise<UpdateAdminRoleResponse> {
+  return request<UpdateAdminRoleResponse>(
+    `/api/admin/v1/users/roles/${roleKey}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+}
+
+export async function deleteAdminRole(token: string, roleKey: string): Promise<DeleteAdminRoleResponse> {
+  return request<DeleteAdminRoleResponse>(
+    `/api/admin/v1/users/roles/${roleKey}`,
+    {
+      method: "DELETE",
+    },
+    token,
+  );
+}
+
+export async function getAdminMenuConfig(
+  token: string,
+  params?: { stage?: "draft" | "published" },
+): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>(buildPath("/api/admin/v1/config/menu-items", params), undefined, token);
+}
+
+export async function createAdminMenuItem(
+  token: string,
+  input: {
+    itemId: string;
+    sectionId: string;
+    sectionLabel: string;
+    sectionDescription: string;
+    label: string;
+    href: string;
+    description: string;
+    requiredRoles: string[];
+    requiredPermissions: string[];
+    sortOrder?: number;
+  },
+): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>(
+    "/api/admin/v1/config/menu-items",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+}
+
+export async function updateAdminMenuItem(
+  token: string,
+  itemId: string,
+  input: {
+    sectionId: string;
+    sectionLabel: string;
+    sectionDescription: string;
+    label: string;
+    href: string;
+    description: string;
+    requiredRoles: string[];
+    requiredPermissions: string[];
+    sortOrder?: number;
+  },
+): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>(
+    `/api/admin/v1/config/menu-items/${itemId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+}
+
+export async function deleteAdminMenuItem(token: string, itemId: string): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>(
+    `/api/admin/v1/config/menu-items/${itemId}`,
+    {
+      method: "DELETE",
+    },
+    token,
+  );
+}
+
+export async function publishAdminMenuConfig(token: string): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>(
+    "/api/admin/v1/config/menu-items/publish",
+    {
+      method: "POST",
+    },
+    token,
+  );
 }

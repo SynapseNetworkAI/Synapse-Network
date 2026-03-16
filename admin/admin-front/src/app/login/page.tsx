@@ -9,9 +9,9 @@ import { loginAdmin } from "@/services/admin-api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("ops@synapse.network");
+  const [email, setEmail] = useState("super@synapse.network");
   const [otpCode, setOtpCode] = useState("123456");
-  const [password, setPassword] = useState("phase1-placeholder");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -48,8 +48,8 @@ export default function LoginPage() {
           <Link href="/dashboard" className="button button--primary">
             进入控制台样例
           </Link>
-          <Link href="/approvals" className="button button--secondary">
-            查看审批中心
+          <Link href="/users" className="button button--secondary">
+            查看后台模块树
           </Link>
         </div>
       </section>
@@ -70,10 +70,10 @@ export default function LoginPage() {
             />
           </label>
           <label>
-            <span>占位密码</span>
+            <span>初始密码</span>
             <input
               type="password"
-              placeholder="phase1-placeholder"
+              placeholder="Init@StrongPassword"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />

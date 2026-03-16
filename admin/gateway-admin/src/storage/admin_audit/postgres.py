@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from psycopg.types.json import Jsonb
+
 from src.domain import AdminActionAudit, AdminAuditExport
 from src.domain.enums import AuditExportStatus, AuditResultStatus
 
@@ -93,9 +95,9 @@ class PostgresAdminAuditRepository:
                     audit.error_code,
                     audit.client_ip,
                     audit.user_agent,
-                    audit.before,
-                    audit.after,
-                    audit.detail,
+                    Jsonb(audit.before),
+                    Jsonb(audit.after),
+                    Jsonb(audit.detail),
                     audit.created_at,
                 ),
             )
@@ -171,7 +173,7 @@ class PostgresAdminAuditRepository:
                     audit_export.export_id,
                     audit_export.operator_id,
                     audit_export.export_scope,
-                    audit_export.filters,
+                    Jsonb(audit_export.filters),
                     audit_export.row_count,
                     audit_export.contains_sensitive_data,
                     audit_export.status.value,

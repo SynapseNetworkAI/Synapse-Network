@@ -82,6 +82,82 @@ class PostgresAdminIdentityRepository:
             row = cur.fetchone()
         return _map_user(row) if row else None
 
+    def list_users(self, status: str | None = None, limit: int = 100) -> Sequence[AdminUser]:
+        query = "SELECT * FROM admin_users"
+        params: list[object] = []
+        if status:
+            query += " WHERE status = %s"
+            params.append(status)
+        query += " ORDER BY updated_at DESC, created_at DESC LIMIT %s"
+        params.append(limit)
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [_map_user(row) for row in rows]
+
+    def create_user(self, user: AdminUser) -> AdminUser:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO admin_users (
+                    admin_id, email, display_name, status, auth_source, sso_subject,
+                    password_hash, require_mfa, last_login_at, created_at, updated_at, disabled_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
+                RETURNING *
+                """,
+                (
+                    user.admin_id,
+                    user.email,
+                    user.display_name,
+                    user.status.value,
+                    user.auth_source.value,
+                    user.sso_subject,
+                    user.password_hash,
+                    user.require_mfa,
+                    user.last_login_at,
+                    user.created_at,
+                    user.updated_at,
+                    user.disabled_at,
+                ),
+            )
+            row = cur.fetchone()
+        return _map_user(row)
+
+    def update_user(self, user: AdminUser) -> AdminUser:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE admin_users
+                SET display_name = %s,
+                    status = %s,
+                    password_hash = %s,
+                    require_mfa = %s,
+                    updated_at = COALESCE(%s, NOW()),
+                    disabled_at = %s
+                WHERE admin_id = %s
+                RETURNING *
+                """,
+                (
+                    user.display_name,
+                    user.status.value,
+                    user.password_hash,
+                    user.require_mfa,
+                    user.updated_at,
+                    user.disabled_at,
+                    user.admin_id,
+                ),
+            )
+            row = cur.fetchone()
+        return _map_user(row)
+
+    def update_password_hash(self, admin_id: str, password_hash: str) -> None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE admin_users SET password_hash = %s, updated_at = NOW() WHERE admin_id = %s",
+                (password_hash, admin_id),
+            )
+
     def list_mfa_factors(self, admin_id: str) -> Sequence[AdminMfaFactor]:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(

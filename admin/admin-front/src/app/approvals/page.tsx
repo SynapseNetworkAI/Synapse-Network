@@ -1,51 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ApprovalQueue } from "@/features/approval/approval-queue";
-import { clearAdminSession, readAdminProfile, readAdminToken } from "@/lib/admin-session";
-import { getCurrentAdmin, listApprovals, type AdminProfile, type ApprovalItem } from "@/services/admin-api";
+import { useAdminSession } from "@/lib/use-admin-session";
+import { listApprovals, type ApprovalItem } from "@/services/admin-api";
 
 export default function ApprovalsPage() {
-  const router = useRouter();
-  const [admin, setAdmin] = useState<AdminProfile | null>(null);
+  const { admin, token, loading } = useAdminSession();
   const [items, setItems] = useState<ApprovalItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = readAdminToken();
-    const cachedProfile = readAdminProfile();
     if (!token) {
-      router.replace("/login");
       return;
     }
-    const accessToken = token;
-    if (cachedProfile) {
-      setAdmin(cachedProfile);
-    }
+    const activeToken = token;
 
     let cancelled = false;
 
     async function load() {
       try {
-        const [profile, approvals] = await Promise.all([
-          getCurrentAdmin(accessToken),
-          listApprovals(accessToken),
-        ]);
+        const approvals = await listApprovals(activeToken);
         if (cancelled) {
           return;
         }
-        setAdmin(profile);
         setItems(approvals.items);
       } catch (loadError) {
         if (cancelled) {
           return;
         }
-        clearAdminSession();
         setError(loadError instanceof Error ? loadError.message : "加载审批列表失败");
-        router.replace("/login");
       }
     }
 
@@ -53,14 +39,15 @@ export default function ApprovalsPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [token]);
 
-  if (!admin) {
+  if (loading || !admin) {
     return <main className="state-screen">正在读取审批队列...</main>;
   }
 
   return (
     <AdminShell
+      admin={admin}
       eyebrow="Approval Workflow"
       title="审批中心"
       description="高风险财务和配置动作必须经过多级审批，执行人和审批人保持职责分离。"
