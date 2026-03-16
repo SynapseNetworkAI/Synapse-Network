@@ -14,6 +14,43 @@ class IdempotencyRepository:
     def __init__(self, db: DatabaseManager):
         self._db = db
 
+    @staticmethod
+    def _normalize_idempotency_row(row: Any) -> IdempotencyKeyRow | None:
+        if isinstance(row, IdempotencyKeyRow):
+            return row
+        if isinstance(row, IdempotencyRow):
+            return IdempotencyKeyRow(
+                id=row.id,
+                scope=row.scope,
+                ownerAddress=row.owner_address,
+                idempotencyKey=row.idempotency_key,
+                requestHash=row.request_hash,
+                responseCode=str((row.response or {}).get("code") or "") or None,
+                responseDigest=str((row.response or {}).get("digest") or "") or None,
+                createdAt=row.created_at,
+                expiresAt=row.expires_at,
+            )
+        if isinstance(row, dict):
+            return IdempotencyKeyRow.model_validate(row)
+        return None
+
+    @staticmethod
+    def _normalize_rate_limit_row(row: Any) -> FinanceRateLimitRow | None:
+        if isinstance(row, FinanceRateLimitRow):
+            return row
+        if isinstance(row, RateLimitRow):
+            return FinanceRateLimitRow(
+                id=row.id,
+                ownerAddress=row.owner_address,
+                action=row.action,
+                windowStart=row.window_start,
+                count=row.count,
+                updatedAt=row.updated_at,
+            )
+        if isinstance(row, dict):
+            return FinanceRateLimitRow.model_validate(row)
+        return None
+
     def read_idempotency_rows(self) -> List[IdempotencyKeyRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
@@ -77,30 +114,15 @@ class IdempotencyRepository:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_idempotency_keys")
             for row in rows:
-                if isinstance(row, IdempotencyRow):
-                    row = IdempotencyKeyRow(
-                        id=row.id,
-                        scope=row.scope,
-                        ownerAddress=row.owner_address,
-                        idempotencyKey=row.idempotency_key,
-                        requestHash=row.request_hash,
-                        responseCode=str((row.response or {}).get("code") or "")
-                        or None,
-                        responseDigest=str((row.response or {}).get("digest") or "")
-                        or None,
-                        createdAt=row.created_at,
-                        expiresAt=row.expires_at,
-                    )
-                elif isinstance(row, dict):
-                    row = IdempotencyKeyRow.model_validate(row)
-                if not isinstance(row, IdempotencyKeyRow):
+                entity = self._normalize_idempotency_row(row)
+                if entity is None:
                     continue
-                row_id = row.id.strip() or f"idem-{int(time.time() * 1000)}"
+                row_id = entity.id.strip() or f"idem-{int(time.time() * 1000)}"
                 if (
-                    not row.owner_address
-                    or not row.scope
-                    or not row.idempotency_key
-                    or not row.request_hash
+                    not entity.owner_address
+                    or not entity.scope
+                    or not entity.idempotency_key
+                    or not entity.request_hash
                 ):
                     continue
                 cur.execute(
@@ -112,14 +134,14 @@ class IdempotencyRepository:
                     """,
                     (
                         row_id,
-                        row.scope,
-                        row.owner_address.lower(),
-                        row.idempotency_key,
-                        row.request_hash,
-                        row.response_code,
-                        row.response_digest,
-                        to_dt_str(row.created_at or updated_at, now_dt_str()),
-                        int(row.expires_at or int(time.time())),
+                        entity.scope,
+                        entity.owner_address.lower(),
+                        entity.idempotency_key,
+                        entity.request_hash,
+                        entity.response_code,
+                        entity.response_digest,
+                        to_dt_str(entity.created_at or updated_at, now_dt_str()),
+                        int(entity.expires_at or int(time.time())),
                     ),
                 )
 
@@ -145,30 +167,20 @@ class IdempotencyRepository:
         with self._db.tx_cursor() as cur:
             cur.execute("DELETE FROM synapse_finance_rate_limit")
             for row in rows:
-                if isinstance(row, RateLimitRow):
-                    row = FinanceRateLimitRow(
-                        id=row.id,
-                        ownerAddress=row.owner_address,
-                        action=row.action,
-                        windowStart=row.window_start,
-                        count=row.count,
-                        updatedAt=row.updated_at,
-                    )
-                elif isinstance(row, dict):
-                    row = FinanceRateLimitRow.model_validate(row)
-                if not isinstance(row, FinanceRateLimitRow):
+                entity = self._normalize_rate_limit_row(row)
+                if entity is None:
                     continue
-                if not row.owner_address or not row.action:
+                if not entity.owner_address or not entity.action:
                     continue
-                row_id = row.id or f"rl-{int(time.time() * 1000)}"
+                row_id = entity.id or f"rl-{int(time.time() * 1000)}"
                 cur.execute(
                     "INSERT INTO synapse_finance_rate_limit (id, owner_address, action, window_start, count, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
                     (
                         row_id,
-                        row.owner_address.lower(),
-                        row.action,
-                        int(row.window_start or updated_at),
-                        int(row.count or 0),
-                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
+                        entity.owner_address.lower(),
+                        entity.action,
+                        int(entity.window_start or updated_at),
+                        int(entity.count or 0),
+                        to_dt_str(entity.updated_at or updated_at, now_dt_str()),
                     ),
                 )

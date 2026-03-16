@@ -27,7 +27,13 @@ except Exception:  # pragma: no cover - optional dependency at import time
     psycopg = None
 
 _AUDIT_INSERT_SQL = (
-    "INSERT INTO synapse_audit_log (collection_name, payload) VALUES (%s, %s::jsonb)"
+    "INSERT INTO synapse_audit_log ("
+    "action_type, business_type, risk_level, owner_address, actor, request_id, trace_id, tx_hash, "
+    "counterparty_address, direction, status, risk_reason_code, ledger_id, client_ip, user_agent, "
+    "amount_delta, before_balance, after_balance, result_status, error_code, message"
+    ") VALUES ("
+    "%s, %s::synapse_business_type, %s::synapse_risk_level, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
+    ")"
 )
 _BALANCE_FOR_UPDATE_SQL = (
     "SELECT available_balance, pending_balance, frozen_balance "
@@ -61,6 +67,81 @@ _BALANCE_REQUIRED_COLUMNS = {
     "updated_at",
 }
 
+_AUDIT_LOG_REQUIRED_COLUMNS = {
+    "action_type",
+    "business_type",
+    "risk_level",
+    "owner_address",
+    "actor",
+    "request_id",
+    "trace_id",
+    "tx_hash",
+    "counterparty_address",
+    "direction",
+    "status",
+    "risk_reason_code",
+    "ledger_id",
+    "client_ip",
+    "user_agent",
+    "amount_delta",
+    "before_balance",
+    "after_balance",
+    "result_status",
+    "error_code",
+    "message",
+    "created_at",
+}
+
+_SYSTEM_AUDIT_REQUIRED_COLUMNS = {
+    "action_type",
+    "owner_address",
+    "actor",
+    "request_id",
+    "trace_id",
+    "resource_type",
+    "resource_id",
+    "result_status",
+    "error_code",
+    "ip_address",
+    "user_agent",
+    "detail_json",
+    "created_at",
+}
+
+_RUNTIME_STATE_REQUIRED_COLUMNS = {
+    "state_key",
+    "payload",
+    "updated_at",
+}
+
+_SERVICE_REGISTRY_REQUIRED_COLUMNS = {
+    "service_id",
+    "record_id",
+    "owner_address",
+    "service_name",
+    "service_role",
+    "service_address",
+    "summary",
+    "endpoint",
+    "status",
+    "is_active",
+    "pricing_amount",
+    "tags_json",
+    "auth_json",
+    "health_check_json",
+    "forwarding_json",
+    "metering_json",
+    "invoke_config",
+    "pricing_currency",
+    "schema_version",
+    "timeout_ms",
+    "max_qps",
+    "max_request_bytes",
+    "max_response_bytes",
+    "created_at",
+    "updated_at",
+}
+
 
 def _d(value: Any) -> Decimal:
     try:
@@ -84,7 +165,6 @@ class PostgresStorage(BaseStorage):
 
         self.dsn = dsn.strip()
         self._db = DatabaseManager(self._connect)
-        self._ensure_runtime_state_table()
         if ensure_schema:
             self._validate_schema_contract()
 
@@ -119,42 +199,40 @@ class PostgresStorage(BaseStorage):
             audit=AuditDomain(logs=audit),
         )
 
-    def _ensure_runtime_state_table(self) -> None:
-        with self._db.tx_cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS synapse_runtime_state (
-                    state_key TEXT PRIMARY KEY,
-                    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-                """
-            )
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_synapse_runtime_state_updated_at
-                ON synapse_runtime_state (updated_at DESC)
-                """
-            )
-
     def _validate_schema_contract(self) -> None:
+        self._validate_required_columns("synapse_balances", _BALANCE_REQUIRED_COLUMNS)
+        self._validate_required_columns(
+            "synapse_runtime_state", _RUNTIME_STATE_REQUIRED_COLUMNS
+        )
+        self._validate_required_columns(
+            "synapse_service_registry", _SERVICE_REGISTRY_REQUIRED_COLUMNS
+        )
+        self._validate_required_columns("synapse_audit_log", _AUDIT_LOG_REQUIRED_COLUMNS)
+        self._validate_required_columns(
+            "synapse_system_activity_log", _SYSTEM_AUDIT_REQUIRED_COLUMNS
+        )
+
+    def _validate_required_columns(
+        self, table_name: str, required_columns: set[str]
+    ) -> None:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_name = 'synapse_balances'
-                """
+                WHERE table_name = %s
+                """,
+                (table_name,),
             )
             rows = cur.fetchall()
 
         actual = {str(row[0]).strip().lower() for row in rows if row and row[0]}
-        missing = sorted(_BALANCE_REQUIRED_COLUMNS - actual)
+        missing = sorted(required_columns - actual)
         if missing:
             raise RuntimeError(
-                "PostgreSQL schema mismatch: synapse_balances is missing required columns "
+                f"PostgreSQL schema mismatch: {table_name} is missing required columns "
                 f"{', '.join(missing)}. "
-                "Please initialize DB with docker-compose/postgres/init/001_synapse_schema.sql."
+                "Drop and recreate the database using docker-compose/postgres/init/001_synapse_schema.sql."
             )
 
     def _connect(self):

@@ -24,10 +24,11 @@ from src.storage.base import (  # noqa: E402
 )
 from src.domain.finance import BalanceLedger, FeePolicyEntity  # noqa: E402
 from src.domain.audit import AuditLogEntry  # noqa: E402
+from src.domain.auth import AuthSessionRow  # noqa: E402
+from src.domain.finance import DepositIntentRow  # noqa: E402
 from src.domain.gateway import RouterConfigRow  # noqa: E402
 from src.domain.idempotency import IdempotencyRow, RateLimitRow  # noqa: E402
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory  # noqa: E402
-from src.domain.storage_entities import AuthSessionRow, DepositIntentRow  # noqa: E402
 
 
 class InMemoryStorage(BaseStorage):

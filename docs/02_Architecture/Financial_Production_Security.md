@@ -194,6 +194,36 @@ Router daily limit definition:
 4. Error handling remains safe-surface:
    - API payload exposes standardized error codes only
    - detailed stack traces stay in server logs
+5. Deposit consistency no longer relies on full-table snapshot rewrite:
+   - `synapse_deposit_intents` must be written by row-level upsert / atomic mutation only, never `DELETE + INSERT` the full table
+   - this prevents concurrent deposit registrations from being erased by indexer/backfill flushes
+6. The consistency contract for `3 x 10 USDC = 30 USDC` is:
+   - register phase: each on-chain `txHash` creates exactly one deposit intent and moves buyer amount into `pending_balance` atomically
+   - confirm phase: each confirmed intent moves the exact same amount from `pending_balance -> available_balance` atomically
+   - checkpoint phase: `deposit_backfill_state` / `deposit_reconciliation_state` only store scanner progress and alert state; they are not the source of fund truth
+   - reconciliation phase: `chain vault balance` must equal `buyer available + buyer pending` within configured delta, otherwise emit reconciliation alert and run replay/backfill recovery
+7. PostgreSQL schema contract is bootstrap-only, not runtime-self-healed:
+   - repositories and domain rows assume the final `001_synapse_schema.sql` shape for `synapse_audit_log`, `synapse_system_activity_log`, `synapse_runtime_state`, and `synapse_service_registry`
+   - startup code must validate schema presence only; it must not execute `ALTER TABLE` / `CREATE TABLE IF NOT EXISTS` as a compatibility patch path
+   - when schema changes, update `domain + repositories + bootstrap SQL + tests` in the same iteration and recreate the database instead of carrying legacy fallback branches
+8. Atomic deposit confirmation and indexer replay must have single-writer semantics for balances:
+   - if `confirm_deposit_intent_atomic()` has already moved buyer funds from `pending_balance -> available_balance` inside PostgreSQL, indexer/backfill code must not persist an older in-memory `BalanceLedger` snapshot afterward
+9. Long-running platform schedulers must live under `gateway/src/services/platform/tasks/`:
+   - concrete task implementations (such as deposit indexer) should be拆分为 `chain / processing / backfill / reconciliation / runner` 等模块，避免单文件堆积 1000+ 行
+   - `gateway/src/services/platform/v2_indexer.py` 仅保留兼容导出层，避免影响现有调用方
+10. 运维日志必须覆盖充值索引关键动作:
+   - 启动/停止日志要包含 listener 地址与轮询周期
+   - backfill 日志要明确 `start_block / end_block / scanned / candidate_txs / recovered`
+   - 入账日志要明确 `owner / tx_hash / event_key / amount_usdc / balance_after`
+   - reconciliation 日志要明确 `chain_vault / ledger_obligation / delta / alert`
+   - replay/backfill may update intent state and processed event keys, but must not overwrite fresh atomic balance mutations with stale cache snapshots
+9. Confirmed deposit repair must be idempotent:
+   - if a historical bug leaves an intent in `CONFIRMED` while buyer funds are still sitting in `pending_balance`, the atomic confirm path must repair `pending_balance -> available_balance` instead of short-circuiting forever
+   - indexer periodic scan may re-enter `confirm_deposit_intent_atomic()` for `CONFIRMED` intents as a repair path, but it must not write any stale in-memory balance snapshot afterward
+10. Block scan progress must be persisted in PostgreSQL, not memory only:
+   - `deposit_backfill_state.lastScannedBlock` is the durable backfill cursor and is written into `synapse_runtime_state`
+   - after service restart, `v2_indexer` must resume from `lastScannedBlock + 1`; if no cursor exists yet, it uses `V2_BACKFILL_START_BLOCK`, otherwise falls back to the latest confirmed window derived from `V2_BACKFILL_BLOCK_BATCH`
+   - `get_indexer_status()` may expose the in-memory status snapshot, but the source of truth for restart recovery is still the database runtime state
 
 ## 3. Configuration Contract
 

@@ -15,7 +15,10 @@ from src.api.schemas.pydantic_models import (
 from src.services.platform.balance_service import BalanceService
 from src.services.seller.provider_analytics_service import ProviderAnalyticsService
 from src.services.platform import credential_service
-from src.services.platform.v2_indexer import get_indexer_status, replay_deposit_tx
+from src.services.platform.tasks.deposit_indexer import (
+    get_indexer_status,
+    replay_deposit_tx,
+)
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.finance import UsageLogRow

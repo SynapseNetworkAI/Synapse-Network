@@ -846,7 +846,6 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         intent: Dict[str, Any],
         intents: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        now = int(time.time())
         next_intent = dict(intent)
         next_intent["ownerAddress"] = owner
         next_intent["buyerAddress"] = owner
@@ -1127,6 +1126,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 "DEPOSIT_INTENT_REGISTERED",
                 owner,
                 {
+                    "businessType": "deposit",
                     "depositIntentId": next_intent.get("id"),
                     "txHash": next_intent.get("txHash"),
                     "amountUsdc": next_intent.get("amountUsdc"),

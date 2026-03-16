@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict
 
 from src.domain.finance import FeePolicyEntity
+from src.domain.system import PlatformFeePolicyDefaultRow, PlatformFeePolicyOwnerRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -28,15 +29,23 @@ class FeePolicyRepository:
         updated_at = None
         updated_by = None
         if default_row is not None:
-            default_rate = float(self._q6(default_row[0]))
-            updated_at = (
-                to_dt_str(default_row[1]) if default_row[1] is not None else None
+            default_entity = PlatformFeePolicyDefaultRow(
+                singletonId=1,
+                defaultRate=self._q6(default_row[0]),
+                updatedAt=to_dt_str(default_row[1]) if default_row[1] is not None else None,
+                updatedBy=default_row[2],
             )
-            updated_by = default_row[2]
+            default_rate = float(self._q6(default_row[0]))
+            updated_at = default_entity.updated_at
+            updated_by = default_entity.updated_by
 
         owner_rates: Dict[str, float] = {}
         for owner, fee_rate in owner_rows:
-            owner_rates[str(owner)] = float(self._q6(fee_rate))
+            owner_entity = PlatformFeePolicyOwnerRow(
+                ownerAddress=str(owner),
+                feeRate=self._q6(fee_rate),
+            )
+            owner_rates[str(owner_entity.owner_address)] = float(owner_entity.fee_rate)
 
         return FeePolicyEntity(
             default_rate=default_rate,
@@ -52,6 +61,12 @@ class FeePolicyRepository:
         updated_by: str,
         updated_at: str | int,
     ) -> None:
+        default_entity = PlatformFeePolicyDefaultRow(
+            singletonId=1,
+            defaultRate=self._q6(default_rate),
+            updatedAt=to_dt_str(updated_at, now_dt_str()),
+            updatedBy=str(updated_by or ""),
+        )
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
@@ -61,17 +76,20 @@ class FeePolicyRepository:
                 DO UPDATE SET default_rate = EXCLUDED.default_rate, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
                 """,
                 (
-                    str(self._q6(default_rate)),
-                    to_dt_str(updated_at, now_dt_str()),
-                    str(updated_by or ""),
+                    str(default_entity.default_rate),
+                    default_entity.updated_at,
+                    default_entity.updated_by,
                 ),
             )
             cur.execute("DELETE FROM synapse_platform_fee_policy_owner")
             for owner, fee_rate in (owner_rates or {}).items():
-                wallet = str(owner or "").strip().lower()
-                if not wallet:
+                owner_entity = PlatformFeePolicyOwnerRow(
+                    ownerAddress=str(owner or "").strip().lower(),
+                    feeRate=self._q6(fee_rate),
+                )
+                if not owner_entity.owner_address:
                     continue
                 cur.execute(
                     "INSERT INTO synapse_platform_fee_policy_owner (owner_address, fee_rate) VALUES (%s, %s)",
-                    (wallet, str(self._q6(fee_rate))),
+                    (owner_entity.owner_address, str(owner_entity.fee_rate)),
                 )

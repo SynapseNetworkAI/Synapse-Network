@@ -16,7 +16,7 @@ from src.storage.postgres.repositories.idempotency_repository import Idempotency
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.gateway import RouterConfigRow
-from src.domain.storage_entities import DepositIntentRow, RefundIntentRow, UsageLogRow, WithdrawalIntentRow
+from src.domain.finance import DepositIntentRow, RefundIntentRow, UsageLogRow, WithdrawalIntentRow
 
 
 class FakeCursor:
@@ -227,7 +227,16 @@ def test_audit_log_repository_append_replace_and_read() -> None:
             ]],
         }
     )
-    repo = AuditLogRepository(db, "INSERT INTO synapse_audit_log (collection_name, payload) VALUES (%s, %s::jsonb)")
+    repo = AuditLogRepository(
+        db,
+        "INSERT INTO synapse_audit_log ("
+        "action_type, business_type, risk_level, owner_address, actor, request_id, trace_id, tx_hash, "
+        "counterparty_address, direction, status, risk_reason_code, ledger_id, client_ip, user_agent, "
+        "amount_delta, before_balance, after_balance, result_status, error_code, message"
+        ") VALUES ("
+        "%s, %s::synapse_business_type, %s::synapse_risk_level, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
+        ")",
+    )
 
     from src.domain.audit import AuditLogEntry
     repo.append_audit_row(
@@ -307,11 +316,6 @@ def test_balance_repository_read_and_write() -> None:
 
 def test_service_registry_repository_read_and_write() -> None:
     db = FakeDB()
-    db.readonly_plan.append(
-        {
-            "fetchone": [(10,)],
-        }
-    )
     db.readonly_plan.append(
         {
             "fetchall": [[(
@@ -415,49 +419,6 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "DELETE FROM synapse_service_target_health_history" in all_sql
 
 
-def test_service_registry_repository_legacy_schema_compatibility() -> None:
-    db = FakeDB()
-    db.readonly_plan.append({"fetchone": [(0,)]})
-    db.readonly_plan.append(
-        {
-            "fetchall": [
-                [
-                    (
-                        "svc-legacy",
-                        "0xabc",
-                        "Legacy API",
-                        "legacy summary",
-                        "https://legacy.example.com/invoke",
-                        "active",
-                        True,
-                        Decimal("0.005"),
-                        "USD",
-                        18000,
-                        50,
-                        4096,
-                        8192,
-                        100,
-                        120,
-                    )
-                ]
-            ]
-        }
-    )
-    repo = ServiceRegistryRepository(db)
-    rows = repo.read_service_registry_rows()
-
-    assert rows[0].service_id == "svc-legacy"
-    assert rows[0].service_name == "Legacy API"
-    assert rows[0].pricing_currency == "USD"
-    assert rows[0].invoke == {}
-
-    repo.write_service_registry_rows(rows)
-    sql = "\n".join(stmt for stmt, _ in db.tx_cursors[-1].executed)
-    assert "INSERT INTO synapse_service_registry" in sql
-    assert "service_name" in sql
-    assert "invoke_config" not in sql
-
-
 def test_credential_auth_repository_read_write_and_roles() -> None:
     db = FakeDB()
     db.readonly_plan.append(
@@ -550,7 +511,13 @@ def test_gateway_state_repository_read_and_write() -> None:
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
 
     repo.write_deposit_intents([
-        DepositIntentRow(id="dep-2", ownerAddress="0xA", txHash="0xT", createdAt="2026-03-15 14:26:00", updatedAt="2026-03-15 14:26:01")
+        DepositIntentRow(
+            id="dep-2",
+            ownerAddress="0xA",
+            txHash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            createdAt="2026-03-15 14:26:00",
+            updatedAt="2026-03-15 14:26:01",
+        )
     ])
     repo.write_refund_intents([
         RefundIntentRow(id="ref-2", ownerAddress="0xA", amountUsdc=1, createdAt="2026-03-15 14:26:00", updatedAt="2026-03-15 14:26:01")
@@ -567,12 +534,34 @@ def test_gateway_state_repository_read_and_write() -> None:
     repo.write_processed_deposit_event_keys(["ek-2"], updated_at="2026-03-15 14:26:03")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "DELETE FROM synapse_deposit_intents" in tx_sql
+    assert "DELETE FROM synapse_deposit_intents" not in tx_sql
+    assert "ON CONFLICT (tx_hash)" in tx_sql
     assert "DELETE FROM synapse_refund_intents" in tx_sql
     assert "DELETE FROM synapse_withdrawal_intents" in tx_sql
     assert "DELETE FROM synapse_router_config" in tx_sql
     assert "DELETE FROM synapse_usage_log" in tx_sql
     assert "DELETE FROM synapse_processed_deposit_events" in tx_sql
+
+
+def test_gateway_state_repository_skips_invalid_deposit_intents() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+
+    repo.write_deposit_intents([
+        {"id": "dep-bad", "ownerAddress": "0xabc", "txHash": "", "amountUsdc": "1"},
+        DepositIntentRow(
+            id="dep-good",
+            ownerAddress="0xabc",
+            txHash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            amountUsdc=Decimal("1"),
+            createdAt="2026-03-15 14:26:00",
+            updatedAt="2026-03-15 14:26:01",
+        ),
+    ])
+
+    executed = [sql for cur in db.tx_cursors for sql, _ in cur.executed]
+    inserts = [sql for sql in executed if "INSERT INTO synapse_deposit_intents" in sql]
+    assert len(inserts) == 1
 
 
 def test_finance_atomic_repository_reserve_and_complete() -> None:
@@ -600,34 +589,3 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
     assert ok is True
     second_conn_sql = "\n".join(sql for sql, _ in db.connections[1].cursor_obj.executed)
     assert "INSERT INTO synapse_withdraw_tx_dedup" in second_conn_sql
-
-
-    class FakeAuditRepo:
-        def __init__(self):
-            self.append_calls: List[Any] = []
-            self.replace_calls: List[Any] = []
-
-        def append_to_audit_collection(self, item: Any) -> None:
-            self.append_calls.append(item)
-
-        def replace_audit_collection(self, rows: List[Dict[str, Any]]) -> None:
-            self.replace_calls.append(rows)
-
-    db = FakeDB()
-    db.readonly_plan.append({"fetchone": [None]})
-    db.readonly_plan.append({"fetchone": [({"services": [{"serviceId": "svc-1"}]},)]})
-    audit_repo = FakeAuditRepo()
-    repo = LegacyCollectionRepository(db, lambda row: row, audit_repo)
-
-    assert repo.get_collection("missing_list") == []
-    assert repo.get_collection("service_registry") == [{"serviceId": "svc-1"}]
-
-    repo.save_collection("service_registry", [{"serviceId": "svc-2"}])
-    repo.save_collection("audit_log", [{"event": "x"}])
-    repo.append_to_collection("audit_log", {"event": "y"})
-
-    assert audit_repo.replace_calls == [[{"event": "x"}]]
-    assert audit_repo.append_calls == [{"event": "y"}]
-
-    tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "INSERT INTO synapse_collections" in tx_sql
