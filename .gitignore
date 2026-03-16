@@ -24,6 +24,7 @@ gateway/.env.prod
 .local_env.pids
 temp_check.js
 test_agents.js
+admin/gateway-admin/run/
 
 # Buyer sdk local build artifacts
 sdk/python/agentpay_buyer_sdk.egg-info/
