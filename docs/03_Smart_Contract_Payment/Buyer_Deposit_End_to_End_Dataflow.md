@@ -139,6 +139,97 @@ sequenceDiagram
 - 平台账本此时还没有变化
 - 如果这一步链上直接 revert，后端不会写 `synapse_deposit_intents`
 
+### 5.2.1 为什么不是一广播 `depositWithPermit` 就立刻写后端
+
+当前实现故意把“链上尝试”与“平台资金意图”分开。
+
+原因不是做不到，而是两者语义不同：
+
+- `depositWithPermit` 广播成功，只能证明“钱包把一笔交易发出去了”
+- `synapse_deposit_intents` 则代表“平台准备把这笔链上充值纳入待确认资金链路”
+
+如果在广播成功后立刻写后端，会带来一个好处和三个明显代价。
+
+#### 方案 A：当前方案，receipt 成功后再登记 `deposit intent`
+
+优点：
+
+- `synapse_deposit_intents` 语义很干净，基本都是“有机会成为真实入账”的记录
+- 后端不会因为用户取消、钱包拒签、gas 不足、合约 revert 而堆积大量无效 intent
+- `pending_balance` 的增长更贴近真实资金路径，不会过早制造“平台已经接单”的错觉
+- indexer 处理集合更小，主要聚焦真正已上链成功、只差确认推进的记录
+
+缺点：
+
+- 平台后端看不到所有用户尝试，只能看到“receipt 成功后进入平台流程”的那部分
+- 如果想分析“有多少次用户点了充值但最终失败”，现在主要靠前端本地 shadow ledger 和钱包侧错误信息，不是中心化真相
+
+#### 方案 B：广播成功后立刻写后端
+
+优点：
+
+- 可以更完整地统计用户发起了多少次充值尝试
+- 运维后台更容易看到漏斗：发起交易、receipt 失败、receipt 成功、intent 确认、最终入账
+- 更适合做产品分析，比如“用户在哪一步流失最多”
+
+缺点：
+
+- 会把 `synapse_deposit_intents` 从“资金待确认桥接表”污染成“前端尝试日志 + 资金桥接表”的混合物
+- 用户取消、nonce 冲突、gas 不足、链上 revert 也会进入同一主表，导致状态机复杂度明显上升
+- 后端必须新增一批中间状态，例如 `BROADCASTED`、`WALLET_REJECTED`、`REVERTED`、`RECEIPT_TIMEOUT`，否则同一张表无法正确表达生命周期
+- 如果广播后根本拿不到最终 receipt，系统会长期保留很多“半死不活”的尝试记录，增加清理、补偿、告警噪音
+- 最关键的是，资金账本和产品埋点被耦合了，后续任何报表和排障都要先区分“这是资金意图”还是“只是一次失败尝试”
+
+### 5.2.2 当前架构为什么更偏向方案 A
+
+Synapse 当前把 `synapse_deposit_intents` 视为资金系统主表，而不是行为分析表。
+
+这张表后面直接连接：
+
+- `synapse_balances.pending_balance`
+- indexer 确认推进
+- `BUYER_DEPOSIT_CONFIRMED`
+- `V2_DEPOSIT_CONFIRMED`
+
+所以它更适合承载“已经值得进入资金系统”的记录，而不是承载所有失败尝试。
+
+换句话说，当前设计是在做一层硬隔离：
+
+- 前端尝试态：留在钱包、前端本地恢复队列、前端失败日志
+- 后端资金态：从 `deposit intent` 开始进入正式账本流程
+
+这样做的核心收益是账本语义稳定，排障时不会把“支付尝试”误当成“待入账资金”。
+
+### 5.2.3 如果未来要统计“用户发起了多少次充值尝试”，正确做法是什么
+
+如果业务上确实要看“尝试支付次数”，更推荐新增一张独立的 append-only 表，例如：
+
+- `synapse_payment_attempts`
+- 或 `synapse_deposit_attempts`
+
+这张表只负责记录行为漏斗，不直接驱动账本：
+
+- `attempt_id`
+- `owner_address`
+- `amount_usdc`
+- `client_request_id`
+- `tx_hash`（如果已拿到）
+- `stage`：`SIGN_REQUESTED` / `TX_BROADCASTED` / `RECEIPT_FAILED` / `RECEIPT_CONFIRMED` / `INTENT_REGISTERED`
+- `failure_reason`
+- `created_at`
+
+这样会比把尝试态直接塞进 `synapse_deposit_intents` 更干净，因为：
+
+- 行为分析和资金真相分层清楚
+- 可以统计所有失败尝试
+- 不会污染 `pending_balance` 和 deposit status 状态机
+- 后续做风控、转化分析、漏斗分析也更自然
+
+一句话总结：
+
+- 如果目标是“资金正确入账”，当前方案更稳
+- 如果目标是“统计完整尝试漏斗”，应该加独立 attempts 表，而不是直接把广播态写进 `synapse_deposit_intents`
+
 ## 5.3 前端等待 receipt
 
 前端通过 `useWaitForTransactionReceipt({ hash })` 等待链上结果。

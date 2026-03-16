@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, validator
-from typing import Optional
+from typing import Literal, Optional
 
 TX_HASH_PREFIX_ERROR = "txHash must start with 0x"
 TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
@@ -70,6 +70,35 @@ class DepositIntentRequest(BaseModel):
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
         return normalized
+
+
+class DepositAttemptRequest(BaseModel):
+    attemptId: str = Field(..., min_length=1, max_length=128)
+    amountUsdc: float = Field(..., gt=0)
+    stage: Literal[
+        "SIGN_REQUESTED",
+        "TX_BROADCASTED",
+        "RECEIPT_FAILED",
+        "RECEIPT_CONFIRMED",
+        "INTENT_REGISTERED",
+    ]
+    clientRequestId: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    txHash: Optional[str] = Field(default=None, min_length=66, max_length=66)
+    failureReason: Optional[str] = Field(default=None, max_length=512)
+
+    @validator("txHash")
+    def validate_optional_tx_hash(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if not normalized.startswith("0x"):
+            raise ValueError(TX_HASH_PREFIX_ERROR)
+        hex_part = normalized[2:]
+        if len(hex_part) != 64 or any(
+            ch not in "0123456789abcdefABCDEF" for ch in hex_part
+        ):
+            raise ValueError(TX_HASH_FORMAT_ERROR)
+        return normalized.lower()
 
 
 class DepositConfirmRequest(BaseModel):

@@ -66,6 +66,18 @@ class BalanceService(
             request_meta=request_meta,
         )
 
+    async def record_deposit_attempt(
+        self,
+        payload: Dict[str, Any],
+        owner_wallet: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return await self.buyer_finance_service.record_deposit_attempt(
+            payload=payload,
+            owner_wallet=owner_wallet,
+            request_meta=request_meta,
+        )
+
     async def list_deposit_intents(self, owner_wallet: str) -> list:
         return await self.buyer_finance_service.list_deposit_intents(owner_wallet)
 

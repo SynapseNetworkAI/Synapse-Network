@@ -13,13 +13,14 @@ from .postgres.database_manager import DatabaseManager
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
+from .postgres.repositories.deposit_attempt_repository import DepositAttemptRepository
 from .postgres.repositories.fee_policy_repository import FeePolicyRepository
 from .postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from .postgres.repositories.gateway_state_repository import GatewayStateRepository
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.audit import AuditLogEntry
-from src.domain.finance import BuyerChargeResult, DepositIntentRow, UsageLogRow
+from src.domain.finance import BuyerChargeResult, DepositAttemptRow, DepositIntentRow, UsageLogRow
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -142,6 +143,21 @@ _SERVICE_REGISTRY_REQUIRED_COLUMNS = {
     "updated_at",
 }
 
+_DEPOSIT_ATTEMPTS_REQUIRED_COLUMNS = {
+    "attempt_id",
+    "owner_address",
+    "client_request_id",
+    "tx_hash",
+    "amount_usdc",
+    "stage",
+    "failure_reason",
+    "request_id",
+    "client_ip",
+    "user_agent",
+    "created_at",
+    "updated_at",
+}
+
 
 def _d(value: Any) -> Decimal:
     try:
@@ -177,6 +193,7 @@ class PostgresStorage(BaseStorage):
         service_registry = ServiceRegistryRepository(self._db)
         credential_auth = CredentialAuthRepository(self._db, q6)
         gateway_state = GatewayStateRepository(self._db, q6)
+        deposit_attempts = DepositAttemptRepository(self._db, q6)
         finance_atomic = FinanceAtomicRepository(
             self._db,
             q6,
@@ -185,6 +202,7 @@ class PostgresStorage(BaseStorage):
             _AUDIT_INSERT_SQL,
             _RISK_RESTRICTED_SESSION_STATUSES,
         )
+        self._deposit_attempts = deposit_attempts
         self._data_manager = SynapseDataManager(
             uow=SynapseUnitOfWork(db=self._db),
             finance=FinanceDomain(
@@ -210,6 +228,9 @@ class PostgresStorage(BaseStorage):
         self._validate_required_columns("synapse_audit_log", _AUDIT_LOG_REQUIRED_COLUMNS)
         self._validate_required_columns(
             "synapse_system_activity_log", _SYSTEM_AUDIT_REQUIRED_COLUMNS
+        )
+        self._validate_required_columns(
+            "synapse_deposit_attempts", _DEPOSIT_ATTEMPTS_REQUIRED_COLUMNS
         )
 
     def _validate_required_columns(
@@ -292,6 +313,12 @@ class PostgresStorage(BaseStorage):
         return self._data_manager.finance.atomic.confirm_deposit_intent_atomic(
             owner_wallet, deposit_intent_id, event_key, confirmations
         )
+
+    def record_deposit_attempt(
+        self,
+        attempt_row: DepositAttemptRow,
+    ) -> DepositAttemptRow:
+        return self._deposit_attempts.upsert_attempt(attempt_row)
 
     def charge_buyer_and_record_usage_atomic(
         self,

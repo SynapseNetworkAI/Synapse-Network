@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useBalance, useChainId, useDisconnect, usePublicClient, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { BaseError, ContractFunctionRevertedError, parseAbi, parseSignature, parseUnits, type Hex } from "viem";
 import contractConfig from "@/contract-config.json";
-import { getV2Balance, createDepositIntent } from "@/utils/balanceApi";
+import { createDepositIntent, getV2Balance, recordDepositAttempt, type DepositAttemptStage } from "@/utils/balanceApi";
 import {
   issueAgentCredential,
   listAgentCredentials,
@@ -31,6 +31,7 @@ const PENDING_DEPOSIT_TX_QUEUE_KEY = "synapse_pending_deposit_tx_queue";
 
 type PendingDepositIntentRetry = {
   id: string;
+  attemptId?: string;
   address: string;
   txHash: string;
   amountUsdc: number;
@@ -42,6 +43,7 @@ type PendingDepositIntentRetry = {
 
 type PendingDepositTx = {
   id: string;
+  attemptId?: string;
   address: string;
   txHash: string;
   amountUsdc: number;
@@ -84,6 +86,13 @@ function loadPendingDepositTxQueue(): PendingDepositTx[] {
 function savePendingDepositTxQueue(rows: PendingDepositTx[]): void {
   if (globalThis.window === undefined) return;
   localStorage.setItem(PENDING_DEPOSIT_TX_QUEUE_KEY, JSON.stringify(rows));
+}
+
+function createDepositAttemptId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `dep_attempt_${crypto.randomUUID().replaceAll("-", "")}`;
+  }
+  return `dep_attempt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function toSafeErrorMessage(err: unknown, fallback: string): string {
@@ -224,6 +233,7 @@ export default function DeveloperConsole() {
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
   const depositRetryInFlightRef = useRef(false);
   const pendingDepositSyncInFlightRef = useRef(false);
+  const currentDepositAttemptIdRef = useRef<string | null>(null);
 
   const handleAddFundsClick = useCallback(async () => {
     if (!isConnected && openConnectModal) {
@@ -249,7 +259,32 @@ export default function DeveloperConsole() {
     }
   }, [address]);
 
-  const upsertDepositIntentRetry = useCallback((txHash: string, amountUsdc: number, err: unknown) => {
+  const recordAttemptStage = useCallback(async (
+    stage: DepositAttemptStage,
+    amountUsdc: number,
+    options?: {
+      attemptId?: string;
+      txHash?: string;
+      failureReason?: string;
+    }
+  ) => {
+    if (!address || !isSessionAuthenticated) return;
+    const attemptId = options?.attemptId || currentDepositAttemptIdRef.current;
+    if (!attemptId) return;
+    try {
+      await recordDepositAttempt(address, {
+        attemptId,
+        amountUsdc,
+        stage,
+        txHash: options?.txHash,
+        failureReason: options?.failureReason,
+      });
+    } catch (error) {
+      console.error("Failed to record deposit attempt stage", stage, error);
+    }
+  }, [address, isSessionAuthenticated]);
+
+  const upsertDepositIntentRetry = useCallback((txHash: string, amountUsdc: number, err: unknown, attemptId?: string) => {
     if (!address || globalThis.window === undefined) return;
     const normalizedHash = String(txHash || "").trim().toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return;
@@ -267,6 +302,7 @@ export default function DeveloperConsole() {
     } else {
       queue.push({
         id: `intent-retry-${normalizedHash.slice(2, 10)}-${now}`,
+        attemptId,
         address,
         txHash: normalizedHash,
         amountUsdc,
@@ -281,7 +317,7 @@ export default function DeveloperConsole() {
     toast.error("On-chain deposit succeeded but sync to gateway failed. Auto-retry queue enabled.");
   }, [address]);
 
-  const upsertPendingDepositTx = useCallback((txHash: string, amountUsdc: number) => {
+  const upsertPendingDepositTx = useCallback((txHash: string, amountUsdc: number, attemptId?: string) => {
     if (!address || globalThis.window === undefined) return;
     const normalizedHash = String(txHash || "").trim().toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return;
@@ -294,6 +330,7 @@ export default function DeveloperConsole() {
     if (!existing) {
       queue.push({
         id: `pending-deposit-${normalizedHash.slice(2, 10)}-${Date.now()}`,
+        attemptId,
         address,
         txHash: normalizedHash,
         amountUsdc,
@@ -301,6 +338,15 @@ export default function DeveloperConsole() {
       });
       savePendingDepositTxQueue(queue);
     }
+  }, [address]);
+
+  const findPendingDepositTx = useCallback((txHash: string): PendingDepositTx | undefined => {
+    if (!address || globalThis.window === undefined) return undefined;
+    const normalizedHash = String(txHash || "").trim().toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return undefined;
+    return loadPendingDepositTxQueue().find(
+      (row) => row.address.toLowerCase() === address.toLowerCase() && row.txHash.toLowerCase() === normalizedHash
+    );
   }, [address]);
 
   const removePendingDepositTx = useCallback((txHash: string) => {
@@ -332,15 +378,30 @@ export default function DeveloperConsole() {
         try {
           const receipt = await publicClient.getTransactionReceipt({ hash: item.txHash as Hex });
           if (receipt.status === "reverted") {
+            await recordAttemptStage("RECEIPT_FAILED", Number(item.amountUsdc), {
+              attemptId: item.attemptId,
+              txHash: item.txHash,
+              failureReason: "Deposit transaction reverted during recovery.",
+            });
             removePendingDepositTx(item.txHash);
             changed = true;
             toast.error(`Deposit transaction reverted: ${item.txHash.slice(0, 10)}...`);
             continue;
           }
 
+          await recordAttemptStage("RECEIPT_CONFIRMED", Number(item.amountUsdc), {
+            attemptId: item.attemptId,
+            txHash: item.txHash,
+          });
+
           await createDepositIntent(address, {
             txHash: item.txHash,
             amountUsdc: Number(item.amountUsdc),
+          });
+
+          await recordAttemptStage("INTENT_REGISTERED", Number(item.amountUsdc), {
+            attemptId: item.attemptId,
+            txHash: item.txHash,
           });
 
           removePendingDepositTx(item.txHash);
@@ -355,7 +416,7 @@ export default function DeveloperConsole() {
           }
 
           removePendingDepositTx(item.txHash);
-          upsertDepositIntentRetry(item.txHash, Number(item.amountUsdc), err);
+          upsertDepositIntentRetry(item.txHash, Number(item.amountUsdc), err, item.attemptId);
           changed = true;
         }
       }
@@ -367,7 +428,7 @@ export default function DeveloperConsole() {
       const next = loadPendingDepositTxQueue();
       savePendingDepositTxQueue(next);
     }
-  }, [address, isSessionAuthenticated, loadBalance, publicClient, refetchWalletBalance, removePendingDepositTx, upsertDepositIntentRetry]);
+  }, [address, isSessionAuthenticated, loadBalance, publicClient, recordAttemptStage, refetchWalletBalance, removePendingDepositTx, upsertDepositIntentRetry]);
 
   const flushDepositIntentRetryQueue = useCallback(async () => {
     if (!address || globalThis.window === undefined) return;
@@ -392,6 +453,11 @@ export default function DeveloperConsole() {
             amountUsdc: Number(item.amountUsdc),
           });
 
+          await recordAttemptStage("INTENT_REGISTERED", Number(item.amountUsdc), {
+            attemptId: item.attemptId,
+            txHash: item.txHash,
+          });
+
           item.nextRetryAt = -1;
           item.lastError = "";
           changed = true;
@@ -414,7 +480,7 @@ export default function DeveloperConsole() {
       const next = queue.filter((row) => row.nextRetryAt !== -1);
       saveDepositIntentRetryQueue(next);
     }
-  }, [address, loadBalance, refetchWalletBalance]);
+  }, [address, loadBalance, recordAttemptStage, refetchWalletBalance]);
 
   const loadKeys = useCallback(async () => {
     if (!address) return;
@@ -461,8 +527,13 @@ export default function DeveloperConsole() {
 
   useEffect(() => {
     if (isConfirmed && hash && address) {
+      const pendingAttempt = findPendingDepositTx(hash);
       removePendingDepositTx(hash);
       setTopUpError("");
+      void recordAttemptStage("RECEIPT_CONFIRMED", Number(topUpAmount), {
+        attemptId: pendingAttempt?.attemptId,
+        txHash: hash,
+      });
       toast.success(
         <div className="flex flex-col">
           <span>Deposit successful!</span>
@@ -476,6 +547,10 @@ export default function DeveloperConsole() {
         txHash: hash,
         amountUsdc: Number(topUpAmount)
       }).then(() => {
+        void recordAttemptStage("INTENT_REGISTERED", Number(topUpAmount), {
+          attemptId: pendingAttempt?.attemptId,
+          txHash: hash,
+        });
         // Since backend indexer checks intents every 2 seconds, poll to update UI balance
         let attempts = 0;
         const pollId = setInterval(() => {
@@ -486,12 +561,13 @@ export default function DeveloperConsole() {
         loadBalance(); // Immediate first try
       }).catch((err) => {
         console.error("Intent failed", err);
-        upsertDepositIntentRetry(hash, Number(topUpAmount), err);
+        upsertDepositIntentRetry(hash, Number(topUpAmount), err, pendingAttempt?.attemptId);
       });
 
       refetchWalletBalance();
+      currentDepositAttemptIdRef.current = null;
     }
-  }, [isConfirmed, hash, address, topUpAmount, loadBalance, refetchWalletBalance, removePendingDepositTx, upsertDepositIntentRetry]);
+  }, [isConfirmed, hash, address, topUpAmount, findPendingDepositTx, loadBalance, recordAttemptStage, refetchWalletBalance, removePendingDepositTx, upsertDepositIntentRetry]);
 
   useEffect(() => {
     if (!isDepositFailed || !hash) {
@@ -503,8 +579,15 @@ export default function DeveloperConsole() {
 
     const failureMessage = buildDepositFailureMessage(depositReceiptError);
     setTopUpError(failureMessage);
+    const pendingAttempt = findPendingDepositTx(hash);
+    void recordAttemptStage("RECEIPT_FAILED", Number(topUpAmount), {
+      attemptId: pendingAttempt?.attemptId,
+      txHash: hash,
+      failureReason: failureMessage,
+    });
     toast.error(failureMessage, { duration: 5000 });
-  }, [isDepositFailed, hash, depositReceiptError, removePendingDepositTx]);
+    currentDepositAttemptIdRef.current = null;
+  }, [isDepositFailed, hash, depositReceiptError, findPendingDepositTx, recordAttemptStage, removePendingDepositTx, topUpAmount]);
 
   useEffect(() => {
     if (isMintConfirmed) {
@@ -530,11 +613,19 @@ export default function DeveloperConsole() {
     }
     try {
       await writeMintAsync({
+    const attemptId = createDepositAttemptId();
+    currentDepositAttemptIdRef.current = attemptId;
+    await recordAttemptStage("SIGN_REQUESTED", amountUsdc, { attemptId });
         address: contractConfig.MockUSDC as `0x${string}`,
         abi: parseAbi(["function mint(address,uint256)"]),
         functionName: "mint",
         args: [address, parseUnits("100", 18)],
       });
+      await recordAttemptStage("SIGN_REQUESTED", amountUsdc, {
+        attemptId,
+        failureReason: failureMessage,
+      });
+      currentDepositAttemptIdRef.current = null;
       toast.success("Transaction sent. Requesting 100 Mock USDC...");
     } catch (err: unknown) {
       if ((err as Error)?.message?.includes("User rejected") || (err as Error)?.message?.toLowerCase().includes("rejected")) {
@@ -542,6 +633,12 @@ export default function DeveloperConsole() {
       } else {
         toast.error("Failed to mint USDC: " + String(err));
       }
+      await recordAttemptStage("SIGN_REQUESTED", amountUsdc, {
+        attemptId,
+        failureReason: failureMessage,
+      });
+      currentDepositAttemptIdRef.current = null;
+      return;
     }
   };
 
@@ -597,7 +694,11 @@ export default function DeveloperConsole() {
         functionName: "depositWithPermit",
         args: [amountBigInt, deadline, Number(v), r, s],
       });
-      upsertPendingDepositTx(submittedHash, amountUsdc);
+      upsertPendingDepositTx(submittedHash, amountUsdc, attemptId);
+      await recordAttemptStage("TX_BROADCASTED", amountUsdc, {
+        attemptId,
+        txHash: submittedHash,
+      });
     } catch (err: unknown) {
       setTopUpStep("input");
       const msg = err instanceof Error ? err.message : String(err);
@@ -617,6 +718,11 @@ export default function DeveloperConsole() {
         setTopUpError(failureMessage);
         toast.error("Failed to top up: " + failureMessage);
       }
+      await recordAttemptStage("SIGN_REQUESTED", amountUsdc, {
+        attemptId,
+        failureReason,
+      });
+      currentDepositAttemptIdRef.current = null;
 
       // Record to Shadow Ledger
       try {
