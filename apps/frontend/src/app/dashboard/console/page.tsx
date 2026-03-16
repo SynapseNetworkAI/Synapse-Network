@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useDisconnect, useReadContract, useWriteContract, useSignTypedData, useChainId, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { parseUnits, parseSignature, parseAbi } from "viem";
 import contractConfig from "@/contract-config.json";
-import { getV2Balance, createDepositIntent, getV2IndexerStatus, type IndexerStatus } from "@/utils/balanceApi";
+import { getV2Balance, createDepositIntent } from "@/utils/balanceApi";
 import {
   issueAgentCredential,
   listAgentCredentials,
@@ -28,10 +28,6 @@ const vaultABI = parseAbi([
 ]);
 
 const DEPOSIT_INTENT_RETRY_QUEUE_KEY = "synapse_deposit_intent_retry_queue";
-const INDEXER_ADMIN_WALLETS = String(process.env.NEXT_PUBLIC_INDEXER_ADMIN_WALLETS || "")
-  .split(",")
-  .map((row) => row.trim().toLowerCase())
-  .filter(Boolean);
 
 type PendingDepositIntentRetry = {
   id: string;
@@ -129,12 +125,6 @@ export default function DeveloperConsole() {
   const [latestIssued, setLatestIssued] = useState<AgentCredentialIssueResponse | null>(null);
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
   const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
-  const [indexerStatus, setIndexerStatus] = useState<IndexerStatus | null>(null);
-  const canPollIndexerStatus = useMemo(() => {
-    if (!address || !isSessionAuthenticated) return false;
-    if (INDEXER_ADMIN_WALLETS.length === 0) return false;
-    return INDEXER_ADMIN_WALLETS.includes(address.toLowerCase());
-  }, [address, isSessionAuthenticated]);
   const depositRetryInFlightRef = useRef(false);
 
   const handleAddFundsClick = useCallback(async () => {
@@ -268,30 +258,6 @@ export default function DeveloperConsole() {
     setLatestIssued(null);
     setSelectedTokenPrefix("");
   }, [isConnected, address, isSessionAuthenticated]);
-
-  useEffect(() => {
-    if (!canPollIndexerStatus || !address) {
-      setIndexerStatus(null);
-      return;
-    }
-
-    let cancelled = false;
-    const loadIndexer = async () => {
-      try {
-        const s = await getV2IndexerStatus(address);
-        if (!cancelled) setIndexerStatus(s);
-      } catch {
-        if (!cancelled) setIndexerStatus(null);
-      }
-    };
-
-    void loadIndexer();
-    const id = setInterval(loadIndexer, 3000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [address, canPollIndexerStatus]);
 
   useEffect(() => {
     if (!address || !isSessionAuthenticated) return;
@@ -536,9 +502,6 @@ export default function DeveloperConsole() {
   };
 
   const selectedKeyToDisplay = latestIssued ? latestIssued.token : (selectedTokenPrefix ? `${selectedTokenPrefix}...` : "agt_xxxxxxxxxx");
-  const indexerTooltip = indexerStatus
-    ? `listener: ${indexerStatus.listenerAddress}\nlast sync: ${indexerStatus.lastProcessedAt ? new Date(indexerStatus.lastProcessedAt * 1000).toLocaleTimeString() : "n/a"}${indexerStatus.lastError ? `\nerror: ${indexerStatus.lastError}` : ""}`
-    : "Indexer status unavailable";
 
   return (
     <div className="max-w-5xl p-6 mx-auto space-y-6">
@@ -554,13 +517,7 @@ export default function DeveloperConsole() {
             One-stop workspace to manage balance, API keys, and integration settings.
           </p>
         </div>
-        <div
-          className={`px-3 py-2 rounded-lg border text-xs ${indexerStatus?.running ? "border-green-700 bg-green-900/20 text-green-300" : "border-yellow-700 bg-yellow-900/20 text-yellow-300"}`}
-          title={indexerTooltip}
-        >
-          <p className="font-semibold">Indexer {indexerStatus?.running ? "Online" : "Offline"}</p>
-        </div>
-              </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* LEFT COLUMN: Balance + API Keys */}
