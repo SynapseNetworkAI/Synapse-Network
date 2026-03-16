@@ -17,6 +17,7 @@
   - `POST /api/v1/services/{id}/ping`
   - `POST /api/v1/services/parse-curl`
   - `GET /api/v1/balance`
+  - `POST /api/v1/balance/deposit/attempts`
   - `POST /api/v1/balance/deposit/intent`
   - `GET /api/v1/balance/deposit/intents`
   - `POST /api/v1/refund`
@@ -143,6 +144,32 @@
     "buyerAddress": "0x..."
   }
   ```
+
+### 3.1.1 充值尝试漏斗记录 (Deposit Attempt Funnel Tracking)
+- **Path**: `POST /api/v1/balance/deposit/attempts`
+- **Desc**: 记录同一笔买家充值尝试的阶段性事件，不直接驱动账本，不修改 `pending_balance` / `available_balance`。该接口只负责把前端行为漏斗持久化到 PostgreSQL 的 `synapse_deposit_attempts`。
+- **Auth**: Requires valid platform session token (`Authorization: Bearer <token>`) and owner context (`X-User-Address`)。
+- **PostgreSQL Hardening**:
+  - Table is `synapse_deposit_attempts`.
+  - Unique key is `(attempt_id, stage)` so refresh / retry / duplicated client submits remain idempotent per stage.
+  - `ON CONFLICT` only updates metadata (`tx_hash`, `failure_reason`, `updated_at`, request context), and does not touch financial ledger tables.
+- **Body**:
+  ```json
+  {
+    "attemptId": "dep_attempt_7f5d...",
+    "amountUsdc": 10,
+    "stage": "TX_BROADCASTED",
+    "txHash": "0x...",
+    "failureReason": "optional",
+    "clientRequestId": "optional"
+  }
+  ```
+- **Supported Stages**:
+  - `SIGN_REQUESTED`
+  - `TX_BROADCASTED`
+  - `RECEIPT_FAILED`
+  - `RECEIPT_CONFIRMED`
+  - `INTENT_REGISTERED`
 
 ### 3.2 余额查询对账 (Query Heat-Wallet Balance)
 - **Path**: `GET /api/v1/balance`

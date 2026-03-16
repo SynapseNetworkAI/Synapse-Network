@@ -613,19 +613,11 @@ export default function DeveloperConsole() {
     }
     try {
       await writeMintAsync({
-    const attemptId = createDepositAttemptId();
-    currentDepositAttemptIdRef.current = attemptId;
-    await recordAttemptStage("SIGN_REQUESTED", amountUsdc, { attemptId });
         address: contractConfig.MockUSDC as `0x${string}`,
         abi: parseAbi(["function mint(address,uint256)"]),
         functionName: "mint",
         args: [address, parseUnits("100", 18)],
       });
-      await recordAttemptStage("SIGN_REQUESTED", amountUsdc, {
-        attemptId,
-        failureReason: failureMessage,
-      });
-      currentDepositAttemptIdRef.current = null;
       toast.success("Transaction sent. Requesting 100 Mock USDC...");
     } catch (err: unknown) {
       if ((err as Error)?.message?.includes("User rejected") || (err as Error)?.message?.toLowerCase().includes("rejected")) {
@@ -633,12 +625,6 @@ export default function DeveloperConsole() {
       } else {
         toast.error("Failed to mint USDC: " + String(err));
       }
-      await recordAttemptStage("SIGN_REQUESTED", amountUsdc, {
-        attemptId,
-        failureReason: failureMessage,
-      });
-      currentDepositAttemptIdRef.current = null;
-      return;
     }
   };
 
@@ -649,8 +635,11 @@ export default function DeveloperConsole() {
     }
     const amountUsdc = Number(topUpAmount);
     if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) return toast.error("Invalid amount");
+    const attemptId = createDepositAttemptId();
+    currentDepositAttemptIdRef.current = attemptId;
 
     setTopUpError("");
+    await recordAttemptStage("SIGN_REQUESTED", amountUsdc, { attemptId });
 
     if (walletUsdcBalance < amountUsdc) {
       const failureMessage = `Insufficient wallet USDC. Need ${amountUsdc.toFixed(2)} USDC, wallet has ${walletUsdcBalance.toFixed(2)} USDC.`;

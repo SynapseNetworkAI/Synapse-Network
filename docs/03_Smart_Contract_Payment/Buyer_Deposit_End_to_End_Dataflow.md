@@ -59,6 +59,7 @@ Synapse 的充值不是“链上成功就直接到账前端余额”，而是一
 
 ### 3.3 后端网关
 
+- 充值尝试记录接口：`POST /api/v1/balance/deposit/attempts`
 - 充值登记接口：`POST /api/v1/balance/deposit/intent`
 - 查询充值意图接口：`GET /api/v1/balance/deposit/intents`
 - 查询余额接口：`GET /api/v1/balance`
@@ -82,16 +83,20 @@ sequenceDiagram
     participant I as Deposit Indexer
 
     U->>F: 输入充值金额
+    F->>G: POST /balance/deposit/attempts (SIGN_REQUESTED)
     F->>U: 签名 Permit
     U->>C: depositWithPermit(amount, permit)
     C-->>U: txHash
+    F->>G: POST /balance/deposit/attempts (TX_BROADCASTED)
     F->>F: 保存 pending tx 到 localStorage
     F->>G: POST /balance/deposit/intent
+    G->>DB: 写 synapse_deposit_attempts(stage=...)
     G->>DB: 写 synapse_deposit_dedup
     G->>DB: 写 synapse_balances.pending_balance += amount
     G->>DB: 写 synapse_deposit_intents(status=PENDING_CONFIRMATION)
     G->>DB: 写 synapse_audit_log(action=DEPOSIT_INTENT_REGISTERED)
     I->>C: 查询 receipt 和 deposit event
+    F->>G: POST /balance/deposit/attempts (RECEIPT_CONFIRMED / INTENT_REGISTERED)
     I->>DB: 更新 synapse_deposit_intents.status=CONFIRMED
     I->>DB: synapse_balances.pending_balance -= amount
     I->>DB: synapse_balances.available_balance += amount
@@ -132,6 +137,7 @@ sequenceDiagram
 1. `signTypedDataAsync(...)` 生成 ERC-2612 Permit 签名
 2. `writeContractAsync(...)` 调用 `depositWithPermit`
 3. 交易一旦成功广播，立刻把 `txHash + amountUsdc` 写入本地 `synapse_pending_deposit_tx_queue`
+4. 同时把本次尝试的阶段事件写入 `synapse_deposit_attempts`
 
 这一阶段的关键点：
 
@@ -200,12 +206,9 @@ Synapse 当前把 `synapse_deposit_intents` 视为资金系统主表，而不是
 
 这样做的核心收益是账本语义稳定，排障时不会把“支付尝试”误当成“待入账资金”。
 
-### 5.2.3 如果未来要统计“用户发起了多少次充值尝试”，正确做法是什么
+### 5.2.3 当前已落地的 `synapse_deposit_attempts` 设计
 
-如果业务上确实要看“尝试支付次数”，更推荐新增一张独立的 append-only 表，例如：
-
-- `synapse_payment_attempts`
-- 或 `synapse_deposit_attempts`
+当前已经落地独立的 PostgreSQL 表 `synapse_deposit_attempts`。
 
 这张表只负责记录行为漏斗，不直接驱动账本：
 
@@ -217,6 +220,17 @@ Synapse 当前把 `synapse_deposit_intents` 视为资金系统主表，而不是
 - `stage`：`SIGN_REQUESTED` / `TX_BROADCASTED` / `RECEIPT_FAILED` / `RECEIPT_CONFIRMED` / `INTENT_REGISTERED`
 - `failure_reason`
 - `created_at`
+- `updated_at`
+
+当前前端会上报这些阶段：
+
+- `SIGN_REQUESTED`
+- `TX_BROADCASTED`
+- `RECEIPT_FAILED`
+- `RECEIPT_CONFIRMED`
+- `INTENT_REGISTERED`
+
+并且数据库用 `(attempt_id, stage)` 做唯一键，这样页面刷新、重试、恢复补提时，同一阶段不会无限重复插入。
 
 这样会比把尝试态直接塞进 `synapse_deposit_intents` 更干净，因为：
 
@@ -291,6 +305,43 @@ Synapse 当前把 `synapse_deposit_intents` 视为资金系统主表，而不是
 ---
 
 ## 7. PostgreSQL 写表顺序
+
+## 7.0 行为漏斗表：`synapse_deposit_attempts`
+
+表：`synapse_deposit_attempts`
+
+用途：记录一次充值尝试在前端和网关之间经过了哪些阶段。
+
+关键字段：
+
+- `attempt_id`
+- `owner_address`
+- `client_request_id`
+- `tx_hash`
+- `amount_usdc`
+- `stage`
+- `failure_reason`
+- `request_id`
+- `client_ip`
+- `user_agent`
+- `created_at`
+- `updated_at`
+
+关键约束：
+
+- `UNIQUE (attempt_id, stage)`
+
+它的定位不是账本表，而是支付漏斗表。
+
+所以它不会：
+
+- 修改 `synapse_balances`
+- 驱动 `pending_balance`
+- 替代 `synapse_deposit_intents`
+
+它只负责回答一个问题：
+
+- 用户这次充值到底走到了哪一步，失败在哪一步
 
 ## 7.1 第一步：写 `synapse_deposit_dedup`
 

@@ -163,6 +163,50 @@ async def test_deposit_starts_pending_then_confirms_to_available(balance_service
 
 
 @pytest.mark.asyncio
+async def test_record_deposit_attempt_uses_storage_hook(balance_service):
+    called = {"ok": False}
+
+    def _record_deposit_attempt(row):
+        called["ok"] = True
+        payload = row.model_dump(by_alias=True, mode="json")
+        payload["id"] = 7
+        return payload
+
+    setattr(balance_service.storage, "record_deposit_attempt", _record_deposit_attempt)
+
+    result = await balance_service.record_deposit_attempt(
+        {
+            "attemptId": "attempt-1",
+            "amountUsdc": 10,
+            "stage": "SIGN_REQUESTED",
+        },
+        "0xowner",
+        {"requestId": "req-1", "clientIp": "127.0.0.1", "userAgent": "pytest"},
+    )
+
+    assert called["ok"] is True
+    assert result["id"] == 7
+    assert result["attemptId"] == "attempt-1"
+    assert result["stage"] == "SIGN_REQUESTED"
+
+
+@pytest.mark.asyncio
+async def test_record_deposit_attempt_rejects_invalid_stage(balance_service):
+    with pytest.raises(HTTPException) as exc:
+        await balance_service.record_deposit_attempt(
+            {
+                "attemptId": "attempt-2",
+                "amountUsdc": 10,
+                "stage": "BROADCASTED",
+            },
+            "0xowner",
+            {},
+        )
+    assert exc.value.status_code == 400
+    assert exc.value.detail["code"] == "INVALID_ATTEMPT_STAGE"
+
+
+@pytest.mark.asyncio
 async def test_owner_scope_isolation_for_refunds(balance_service):
     _set_buyer_balance(balance_service, "0xowner1", 100)
     _set_buyer_balance(balance_service, "0xowner2", 100)
