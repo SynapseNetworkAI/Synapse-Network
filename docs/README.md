@@ -34,6 +34,13 @@
 
 ## 4. Agent 网络与协议 (`04_Agent_Network/`)
 如何让两台互不认识的 AI 能够自主沟通、互相发现并完成 USDC 计价的交易：
+- **Agent First 总设计**: [agent_design.md](./agent_design.md)
+- **Agent Runtime 产品蓝图索引**: [agent/agent_design.md](./agent/agent_design.md)
+- **Agent Runtime 产品架构**: [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
+- **Discovery / Quote / Invoke API 设计**: [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
+- **Service Manifest 字段标准**: [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
+- **Credential / Budget 风控模型**: [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
+- **Dashboard 信息架构与 Onboarding**: [agent/05_Dashboard_IA_and_Onboarding.md](./agent/05_Dashboard_IA_and_Onboarding.md)
 - **Agent API 异常与计费协议**: [API_Billing_Deduction_Protocol.md](./04_Agent_Network/API_Billing_Deduction_Protocol.md)
 - **零代码语义级服务发现系统**: [AI_Service_Discovery.md](./04_Agent_Network/AI_Service_Discovery.md)
 - **买家钱包与 Agent 的子拓扑**: [Buyer_Wallet_Topology.md](./04_Agent_Network/Buyer_Wallet_Topology.md)
@@ -50,6 +57,7 @@
 ## 6. 使用与开发者指南 (`06_Developer_Guides/`)
 方便二次开发甚至快速 Demo 跑通的操作手册：
 - **后端 Python 网关启动指南 (Dev)**: [Backend_Python_Dev_Guide.md](./06_Developer_Guides/Backend_Python_Dev_Guide.md)
+- **Gateway 环境变量配置说明**: [Gateway_Environment_Configuration.md](./06_Developer_Guides/Gateway_Environment_Configuration.md)
 - **后端单元测试与压测指南**: [Backend_Unit_Testing_Guide.md](./06_Developer_Guides/Backend_Unit_Testing_Guide.md)
 - **V2 充值索引设计与补账运维手册**: [V2_Deposit_Indexer_Runbook.md](./06_Developer_Guides/V2_Deposit_Indexer_Runbook.md)
 - **买家 Python SDK 示例**: [Buyer_SDK_Quickstart.md](./06_Developer_Guides/Buyer_SDK_Quickstart.md)
