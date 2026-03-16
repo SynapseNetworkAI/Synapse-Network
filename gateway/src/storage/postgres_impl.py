@@ -10,6 +10,7 @@ from .base import (
     SystemDomain,
 )
 from .postgres.database_manager import DatabaseManager
+from .postgres.schema_contracts import POSTGRES_TABLE_SCHEMA_CONTRACTS, TableSchemaContract
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
@@ -58,106 +59,6 @@ DO UPDATE SET
     frozen_balance = EXCLUDED.frozen_balance,
     updated_at = EXCLUDED.updated_at
 """
-
-_BALANCE_REQUIRED_COLUMNS = {
-    "owner_address",
-    "account_type",
-    "available_balance",
-    "pending_balance",
-    "frozen_balance",
-    "updated_at",
-}
-
-_AUDIT_LOG_REQUIRED_COLUMNS = {
-    "action_type",
-    "business_type",
-    "risk_level",
-    "owner_address",
-    "actor",
-    "request_id",
-    "trace_id",
-    "tx_hash",
-    "counterparty_address",
-    "direction",
-    "status",
-    "risk_reason_code",
-    "ledger_id",
-    "client_ip",
-    "user_agent",
-    "amount_delta",
-    "before_balance",
-    "after_balance",
-    "result_status",
-    "error_code",
-    "message",
-    "created_at",
-}
-
-_SYSTEM_AUDIT_REQUIRED_COLUMNS = {
-    "action_type",
-    "owner_address",
-    "actor",
-    "request_id",
-    "trace_id",
-    "resource_type",
-    "resource_id",
-    "result_status",
-    "error_code",
-    "ip_address",
-    "user_agent",
-    "detail_json",
-    "created_at",
-}
-
-_RUNTIME_STATE_REQUIRED_COLUMNS = {
-    "state_key",
-    "payload",
-    "updated_at",
-}
-
-_SERVICE_REGISTRY_REQUIRED_COLUMNS = {
-    "service_id",
-    "record_id",
-    "owner_address",
-    "service_name",
-    "service_role",
-    "service_address",
-    "summary",
-    "endpoint",
-    "status",
-    "is_active",
-    "pricing_amount",
-    "tags_json",
-    "auth_json",
-    "health_check_json",
-    "forwarding_json",
-    "metering_json",
-    "invoke_config",
-    "pricing_currency",
-    "schema_version",
-    "timeout_ms",
-    "max_qps",
-    "max_request_bytes",
-    "max_response_bytes",
-    "created_at",
-    "updated_at",
-}
-
-_DEPOSIT_ATTEMPTS_REQUIRED_COLUMNS = {
-    "attempt_id",
-    "owner_address",
-    "client_request_id",
-    "tx_hash",
-    "amount_usdc",
-    "stage",
-    "failure_reason",
-    "request_id",
-    "client_ip",
-    "user_agent",
-    "created_at",
-    "updated_at",
-}
-
 
 def _d(value: Any) -> Decimal:
     try:
@@ -218,20 +119,84 @@ class PostgresStorage(BaseStorage):
         )
 
     def _validate_schema_contract(self) -> None:
-        self._validate_required_columns("synapse_balances", _BALANCE_REQUIRED_COLUMNS)
-        self._validate_required_columns(
-            "synapse_runtime_state", _RUNTIME_STATE_REQUIRED_COLUMNS
-        )
-        self._validate_required_columns(
-            "synapse_service_registry", _SERVICE_REGISTRY_REQUIRED_COLUMNS
-        )
-        self._validate_required_columns("synapse_audit_log", _AUDIT_LOG_REQUIRED_COLUMNS)
-        self._validate_required_columns(
-            "synapse_system_activity_log", _SYSTEM_AUDIT_REQUIRED_COLUMNS
-        )
-        self._validate_required_columns(
-            "synapse_deposit_attempts", _DEPOSIT_ATTEMPTS_REQUIRED_COLUMNS
-        )
+        for contract in POSTGRES_TABLE_SCHEMA_CONTRACTS:
+            self._validate_table_schema_contract(contract)
+
+    def _validate_table_schema_contract(self, contract: TableSchemaContract) -> None:
+        self._validate_required_columns(contract.table_name, set(contract.required_columns))
+        self._validate_required_indexes(contract.table_name, set(contract.required_indexes))
+        self._validate_required_constraints(contract)
+
+    def _read_table_indexes(self, table_name: str) -> set[str]:
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = %s
+                """,
+                (table_name,),
+            )
+            rows = cur.fetchall()
+        return {str(row[0]).strip().lower() for row in rows if row and row[0]}
+
+    def _read_table_constraint_definitions(self, table_name: str) -> List[str]:
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT pg_get_constraintdef(c.oid)
+                FROM pg_constraint c
+                INNER JOIN pg_class t ON t.oid = c.conrelid
+                INNER JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE n.nspname = current_schema()
+                  AND t.relname = %s
+                """,
+                (table_name,),
+            )
+            rows = cur.fetchall()
+        return [str(row[0]).strip() for row in rows if row and row[0]]
+
+    def _normalize_schema_text(self, value: str) -> str:
+        return " ".join(str(value).strip().lower().split())
+
+    def _validate_required_indexes(
+        self, table_name: str, required_indexes: set[str]
+    ) -> None:
+        if not required_indexes:
+            return
+        actual = self._read_table_indexes(table_name)
+        missing = sorted(index_name for index_name in required_indexes if index_name.lower() not in actual)
+        if missing:
+            raise RuntimeError(
+                f"PostgreSQL schema mismatch: {table_name} is missing required indexes "
+                f"{', '.join(missing)}. Reapply the bootstrap SQL in infra/docker/postgres/init/."
+            )
+
+    def _validate_required_constraints(self, contract: TableSchemaContract) -> None:
+        if not contract.required_constraints:
+            return
+        actual_definitions = [
+            self._normalize_schema_text(value)
+            for value in self._read_table_constraint_definitions(contract.table_name)
+        ]
+        missing = []
+        for required_constraint in contract.required_constraints:
+            fragments = [
+                self._normalize_schema_text(fragment)
+                for fragment in required_constraint.required_fragments
+            ]
+            matched = any(
+                all(fragment in definition for fragment in fragments)
+                for definition in actual_definitions
+            )
+            if not matched:
+                missing.append(required_constraint.description)
+        if missing:
+            raise RuntimeError(
+                f"PostgreSQL schema mismatch: {contract.table_name} is missing required constraints "
+                f"{', '.join(missing)}. Reapply the bootstrap SQL in infra/docker/postgres/init/."
+            )
 
     def _validate_required_columns(
         self, table_name: str, required_columns: set[str]
@@ -253,7 +218,7 @@ class PostgresStorage(BaseStorage):
             raise RuntimeError(
                 f"PostgreSQL schema mismatch: {table_name} is missing required columns "
                 f"{', '.join(missing)}. "
-                "Drop and recreate the database using docker-compose/postgres/init/001_synapse_schema.sql."
+                "Reapply the bootstrap SQL in infra/docker/postgres/init/."
             )
 
     def _connect(self):

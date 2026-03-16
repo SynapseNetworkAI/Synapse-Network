@@ -94,15 +94,15 @@ cd admin/gateway-admin
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-sh scripts/ops/start.sh
+sh scripts/ops/start-local.sh
 ```
 
 常用运维命令：
 
 ```bash
-sh scripts/ops/start.sh
+sh scripts/ops/start-local.sh
 sh scripts/ops/stop.sh
-sh scripts/ops/restart.sh
+sh scripts/ops/restart.sh local
 sh scripts/ops/status.sh
 ```
 
