@@ -258,9 +258,19 @@
 - 链上 vault 余额
 - 平台账本义务
 - reconciliation 差额
+- Dashboard 在实现上应拆成 3 个稳定读模型：finance、activity_trend、operations
+- `overview` 与 `system-status` 可以保留，但只作为兼容聚合层，不再承担长期主语义
+- operations 读模型只能使用已持久化的 runtime state / logs，不能把 indexer 进程内内存态直接暴露给后台前端
 - 失败交易数
 - 待审核工单数
 - 高风险账户数
+
+Dashboard 数据边界要求：
+
+- admin 后台不能长期直接把 gateway 真相表散查后自行拼装 dashboard 语义
+- 应由 gateway 提供稳定的只读投影层给后台消费
+- 本仓库当前第一版落地对象为 `synapse_admin_dashboard_projection`
+- 它口头上常被叫“投影表”，但当前实现是 SQL view；重点是读模型边界，而不是物理上必须是一张表
 
 ### 5.3 配置中心
 
@@ -328,6 +338,7 @@
 
 - 总览指标
 - 趋势图数据
+- gateway 只读投影查询
 - 告警聚合
 
 ### 6.4 `api/routers/admin_finance.py`

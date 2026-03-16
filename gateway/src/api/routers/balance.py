@@ -3,6 +3,8 @@ from typing import Dict, Any, Annotated, Optional
 
 from src.api.deps import get_balance_service, get_provider_analytics_service
 from src.api.schemas.pydantic_models import (
+    AdminProviderWithdrawCompleteRequest,
+    AdminRefundCompleteRequest,
     DepositIntentRequest,
     DepositConfirmRequest,
     AdminDepositReplayRequest,
@@ -251,6 +253,47 @@ async def complete_refund(
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
+@router.post(
+    "/v1/admin/refunds/{refund_id}/complete",
+    responses={403: {"description": "Forbidden or fee admin not configured"}},
+)
+async def complete_refund_as_admin(
+    refund_id: str,
+    payload: AdminRefundCompleteRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    target_owner = normalize_wallet(payload.ownerAddress)
+    request_meta = _extract_request_meta(request)
+    request_meta["review"] = {
+        "decision": str(payload.reviewDecision or "APPROVE").strip().upper(),
+        "reviewerAddress": str(payload.reviewerAddress or admin_wallet).strip().lower(),
+        "reviewerNote": str(payload.reviewerNote or "").strip(),
+        "requestedBy": admin_wallet,
+    }
+    request_meta["adminExecution"] = {
+        "requestedBy": admin_wallet,
+        "targetOwner": target_owner,
+        "resourceId": refund_id,
+    }
+    result = await service.complete_refund_intent(
+        owner_wallet=target_owner,
+        refund_id=refund_id,
+        tx_hash=payload.txHash,
+        request_meta=request_meta,
+    )
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "ownerAddress": target_owner,
+        "refundId": result.get("refundId"),
+        "refundStatus": result.get("status"),
+        "txHash": result.get("txHash"),
+    }
+
+
 @router.get("/v1/router/config")
 async def get_router_config(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
@@ -384,6 +427,41 @@ async def complete_provider_withdrawal(
         request_meta=_extract_request_meta(request),
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
+
+
+@router.post(
+    "/v1/admin/providers/withdrawals/{withdrawal_id}/complete",
+    responses={403: {"description": "Forbidden or fee admin not configured"}},
+)
+async def complete_provider_withdrawal_as_admin(
+    withdrawal_id: str,
+    payload: AdminProviderWithdrawCompleteRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    target_owner = normalize_wallet(payload.ownerAddress)
+    request_meta = _extract_request_meta(request)
+    request_meta["adminExecution"] = {
+        "requestedBy": admin_wallet,
+        "targetOwner": target_owner,
+        "resourceId": withdrawal_id,
+    }
+    result = await service.complete_provider_withdrawal(
+        owner_wallet=target_owner,
+        withdrawal_id=withdrawal_id,
+        tx_hash=payload.txHash,
+        request_meta=request_meta,
+    )
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "ownerAddress": target_owner,
+        "withdrawalId": result.get("withdrawalId"),
+        "withdrawalStatus": result.get("status"),
+        "txHash": result.get("txHash"),
+    }
 
 
 @router.get(

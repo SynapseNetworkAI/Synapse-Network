@@ -72,10 +72,15 @@
 ## 5. 网络与连接建议
 
 - gateway 服务只持有 `synapse_gateway_app` 的连接串
-- admin 服务只持有 `synapse_admin_app` 的连接串
+- admin 服务持有 `synapse_admin_app` 的连接串，以及一条专门用于 gateway 只读投影查询的 `synapse_gateway_ro` 连接串
 - BI / 审计工具只持有 `*_ro` 账号
 - migration job 单独注入 `*_migrator` 账号，不与业务 Pod/容器复用
 - 对生产环境启用 IP allowlist、TLS、连接数上限、statement timeout、idle timeout
+
+补充约束：
+
+- admin 直连 gateway 时，只允许读取 gateway 暴露的只读投影对象，例如 `synapse_admin_dashboard_finance_projection`、`synapse_admin_dashboard_activity_trend_projection`、`synapse_admin_dashboard_operations_projection` 以及兼容视图 `synapse_admin_dashboard_projection`
+- 不应让 admin 业务逻辑直接依赖 gateway 真相表字段来拼装 dashboard 语义
 
 ## 6. 备份与恢复建议
 

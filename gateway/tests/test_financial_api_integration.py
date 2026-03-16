@@ -262,6 +262,97 @@ def test_admin_deposit_replay_api(monkeypatch):
             app_module.run_v2_deposit_indexer = old_indexer
 
 
+def test_admin_refund_complete_api(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
+    with TemporaryDirectory() as tmp:
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_indexer = app_module.run_v2_deposit_indexer
+        old_admin_wallets = set(cfg.settings.platform_fee_admin_wallets)
+        cfg.settings.runtime_storage_dir = tmp
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                owner, token = _issue_session(client)
+                cfg.settings.platform_fee_admin_wallets = {owner}
+
+                async def _fake_complete_refund(self, owner_wallet, refund_id, tx_hash, request_meta=None):
+                    await asyncio.sleep(0)
+                    _ = self
+                    assert owner_wallet == "0xbuyerrefund"
+                    assert refund_id == "ref_123"
+                    assert request_meta is not None
+                    assert request_meta.get("review", {}).get("requestedBy") == owner
+                    return {"refundId": refund_id, "status": "COMPLETED", "txHash": tx_hash}
+
+                monkeypatch.setattr(balance_router.BalanceService, "complete_refund_intent", _fake_complete_refund)
+
+                response = client.post(
+                    "/api/v1/admin/refunds/ref_123/complete",
+                    headers=_auth_headers(token, owner),
+                    json={
+                        "ownerAddress": "0xbuyerrefund",
+                        "txHash": "0x" + "2" * 64,
+                        "reviewDecision": "APPROVE",
+                    },
+                )
+                assert response.status_code == 200
+                payload = response.json()
+                assert payload.get("status") == "success"
+                assert payload.get("requestedBy") == owner
+                assert payload.get("ownerAddress") == "0xbuyerrefund"
+                assert payload.get("refundId") == "ref_123"
+        finally:
+            cfg.settings.platform_fee_admin_wallets = old_admin_wallets
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            app_module.run_v2_deposit_indexer = old_indexer
+
+
+def test_admin_provider_withdraw_complete_api(monkeypatch):
+    _use_inmemory_storage(monkeypatch)
+    with TemporaryDirectory() as tmp:
+        old_runtime_dir = cfg.settings.runtime_storage_dir
+        old_indexer = app_module.run_v2_deposit_indexer
+        old_admin_wallets = set(cfg.settings.platform_fee_admin_wallets)
+        cfg.settings.runtime_storage_dir = tmp
+        app_module.run_v2_deposit_indexer = _noop_indexer
+        try:
+            app = app_module.create_app()
+            with TestClient(app) as client:
+                owner, token = _issue_session(client)
+                cfg.settings.platform_fee_admin_wallets = {owner}
+
+                async def _fake_complete_withdraw(self, owner_wallet, withdrawal_id, tx_hash, request_meta=None):
+                    await asyncio.sleep(0)
+                    _ = self
+                    assert owner_wallet == "0xsellerwithdraw"
+                    assert withdrawal_id == "wd_123"
+                    assert request_meta is not None
+                    assert request_meta.get("adminExecution", {}).get("requestedBy") == owner
+                    return {"withdrawalId": withdrawal_id, "status": "COMPLETED", "txHash": tx_hash}
+
+                monkeypatch.setattr(balance_router.BalanceService, "complete_provider_withdrawal", _fake_complete_withdraw)
+
+                response = client.post(
+                    "/api/v1/admin/providers/withdrawals/wd_123/complete",
+                    headers=_auth_headers(token, owner),
+                    json={
+                        "ownerAddress": "0xsellerwithdraw",
+                        "txHash": "0x" + "3" * 64,
+                    },
+                )
+                assert response.status_code == 200
+                payload = response.json()
+                assert payload.get("status") == "success"
+                assert payload.get("requestedBy") == owner
+                assert payload.get("ownerAddress") == "0xsellerwithdraw"
+                assert payload.get("withdrawalId") == "wd_123"
+        finally:
+            cfg.settings.platform_fee_admin_wallets = old_admin_wallets
+            cfg.settings.runtime_storage_dir = old_runtime_dir
+            app_module.run_v2_deposit_indexer = old_indexer
+
+
 def test_indexer_status_requires_admin_and_sanitizes_errors(monkeypatch):
     _use_inmemory_storage(monkeypatch)
     with TemporaryDirectory() as tmp:

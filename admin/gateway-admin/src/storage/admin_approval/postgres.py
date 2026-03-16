@@ -1,4 +1,6 @@
 from collections.abc import Sequence
+from datetime import datetime
+from decimal import Decimal
 
 from src.domain import (
     AdminApproval,
@@ -8,6 +10,8 @@ from src.domain import (
     AdminExecutionJob,
 )
 from src.domain.enums import ApprovalDecision, ApprovalLevel, ApprovalStatus, ExecutionAttemptStatus, ExecutionJobStatus, RiskLevel
+
+APPROVAL_TYPE_FILTER = "approval_type = %s"
 
 
 def _connect(dsn: str):
@@ -140,7 +144,7 @@ class PostgresAdminApprovalRepository:
             clauses.append("status = %s")
             params.append(status)
         if approval_type:
-            clauses.append("approval_type = %s")
+            clauses.append(APPROVAL_TYPE_FILTER)
             params.append(approval_type)
         where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         sql = f"SELECT * FROM admin_approvals {where_clause} ORDER BY created_at DESC LIMIT %s"
@@ -155,6 +159,47 @@ class PostgresAdminApprovalRepository:
             cur.execute("SELECT COUNT(*) AS total FROM admin_approvals WHERE status <> 'EXECUTED'")
             row = cur.fetchone()
         return int(row["total"])
+
+    def count_approvals(
+        self,
+        statuses: Sequence[str] | None = None,
+        approval_type: str | None = None,
+    ) -> int:
+        clauses: list[str] = []
+        params: list[object] = []
+        if statuses:
+            clauses.append("status = ANY(%s)")
+            params.append(list(statuses))
+        if approval_type:
+            clauses.append(APPROVAL_TYPE_FILTER)
+            params.append(approval_type)
+        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) AS total FROM admin_approvals {where_clause}", params)
+            row = cur.fetchone()
+        return int(row["total"])
+
+    def sum_approval_amount(
+        self,
+        statuses: Sequence[str] | None = None,
+        approval_type: str | None = None,
+    ) -> Decimal:
+        clauses: list[str] = []
+        params: list[object] = []
+        if statuses:
+            clauses.append("status = ANY(%s)")
+            params.append(list(statuses))
+        if approval_type:
+            clauses.append(APPROVAL_TYPE_FILTER)
+            params.append(approval_type)
+        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                f"SELECT COALESCE(SUM(amount_usdc), 0) AS total_amount FROM admin_approvals {where_clause}",
+                params,
+            )
+            row = cur.fetchone()
+        return row["total_amount"] if row else Decimal("0")
 
     def get_approval(self, approval_id: str) -> AdminApproval | None:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
@@ -357,6 +402,134 @@ class PostgresAdminApprovalRepository:
             row = cur.fetchone()
         return _map_job(row)
 
+    def list_execution_jobs(
+        self,
+        status: str | None = None,
+        target_system: str | None = None,
+        approval_id: str | None = None,
+        limit: int = 20,
+    ) -> Sequence[AdminExecutionJob]:
+        clauses: list[str] = []
+        params: list[object] = []
+        if status:
+            clauses.append("status = %s")
+            params.append(status)
+        if target_system:
+            clauses.append("target_system = %s")
+            params.append(target_system)
+        if approval_id:
+            clauses.append("approval_id = %s")
+            params.append(approval_id)
+        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(limit)
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                f"SELECT * FROM admin_execution_jobs {where_clause} ORDER BY created_at DESC LIMIT %s",
+                params,
+            )
+            rows = cur.fetchall()
+        return [_map_job(row) for row in rows]
+
+    def get_execution_job(self, job_id: str) -> AdminExecutionJob | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM admin_execution_jobs WHERE job_id = %s", (job_id,))
+            row = cur.fetchone()
+        return _map_job(row) if row else None
+
+    def claim_execution_job(
+        self,
+        job_id: str,
+        from_statuses: Sequence[str],
+        claimed_job: AdminExecutionJob,
+    ) -> AdminExecutionJob | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE admin_execution_jobs
+                SET status = %s,
+                    handler_name = %s,
+                    request_payload_json = %s,
+                    result_payload_json = %s,
+                    error_code = %s,
+                    error_message = %s,
+                    queued_by = %s,
+                    started_at = %s,
+                    finished_at = %s,
+                    retry_count = %s,
+                    max_retry_count = %s,
+                    updated_at = COALESCE(%s, NOW())
+                WHERE job_id = %s
+                  AND status = ANY(%s)
+                RETURNING *
+                """,
+                (
+                    claimed_job.status.value,
+                    claimed_job.handler_name,
+                    claimed_job.request_payload,
+                    claimed_job.result_payload,
+                    claimed_job.error_code,
+                    claimed_job.error_message,
+                    claimed_job.queued_by,
+                    claimed_job.started_at,
+                    claimed_job.finished_at,
+                    claimed_job.retry_count,
+                    claimed_job.max_retry_count,
+                    claimed_job.updated_at,
+                    job_id,
+                    list(from_statuses),
+                ),
+            )
+            row = cur.fetchone()
+        return _map_job(row) if row else None
+
+    def update_execution_job(self, job: AdminExecutionJob) -> AdminExecutionJob:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE admin_execution_jobs
+                SET status = %s,
+                    handler_name = %s,
+                    request_payload_json = %s,
+                    result_payload_json = %s,
+                    error_code = %s,
+                    error_message = %s,
+                    queued_by = %s,
+                    started_at = %s,
+                    finished_at = %s,
+                    retry_count = %s,
+                    max_retry_count = %s,
+                    updated_at = COALESCE(%s, NOW())
+                WHERE job_id = %s
+                RETURNING *
+                """,
+                (
+                    job.status.value,
+                    job.handler_name,
+                    job.request_payload,
+                    job.result_payload,
+                    job.error_code,
+                    job.error_message,
+                    job.queued_by,
+                    job.started_at,
+                    job.finished_at,
+                    job.retry_count,
+                    job.max_retry_count,
+                    job.updated_at,
+                    job.job_id,
+                ),
+            )
+            row = cur.fetchone()
+        return _map_job(row)
+
+    def list_execution_attempts(self, job_id: str) -> Sequence[AdminExecutionAttempt]:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM admin_execution_attempts WHERE job_id = %s ORDER BY attempt_no DESC",
+                (job_id,),
+            )
+            rows = cur.fetchall()
+        return [_map_attempt(row) for row in rows]
+
     def append_execution_attempt(self, attempt: AdminExecutionAttempt) -> AdminExecutionAttempt:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
@@ -383,3 +556,48 @@ class PostgresAdminApprovalRepository:
             )
             row = cur.fetchone()
         return _map_attempt(row)
+
+    def update_execution_attempt(self, attempt: AdminExecutionAttempt) -> AdminExecutionAttempt:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE admin_execution_attempts
+                SET status = %s,
+                    request_id = %s,
+                    trace_id = %s,
+                    started_at = %s,
+                    finished_at = %s,
+                    error_code = %s,
+                    error_summary = %s,
+                    response_digest = %s
+                WHERE job_id = %s AND attempt_no = %s
+                RETURNING *
+                """,
+                (
+                    attempt.status.value,
+                    attempt.request_id,
+                    attempt.trace_id,
+                    attempt.started_at,
+                    attempt.finished_at,
+                    attempt.error_code,
+                    attempt.error_summary,
+                    attempt.response_digest,
+                    attempt.job_id,
+                    attempt.attempt_no,
+                ),
+            )
+            row = cur.fetchone()
+        return _map_attempt(row)
+
+    def latest_activity_at(self) -> datetime | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT GREATEST(
+                    COALESCE((SELECT MAX(updated_at) FROM admin_approvals), TIMESTAMPTZ 'epoch'),
+                    COALESCE((SELECT MAX(updated_at) FROM admin_execution_jobs), TIMESTAMPTZ 'epoch')
+                ) AS latest_activity_at
+                """
+            )
+            row = cur.fetchone()
+        return row["latest_activity_at"] if row else None

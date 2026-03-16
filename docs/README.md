@@ -56,6 +56,9 @@
 - **本地节点与区块链浏览器的搭建**: [Local_Blockchain_Setup.md](./06_Developer_Guides/Local_Blockchain_Setup.md)
 - **资金安全应急处置手册**: [Financial_Security_Incident_Runbook.md](./06_Developer_Guides/Financial_Security_Incident_Runbook.md)
 
+## 6.1 资金审批与补偿专题
+- **充值 / 退款审批流程**: [充值退款审批流程.md](./充值退款审批流程.md)
+
 ## 7. 管理后台设计 (`admin/`)
 该模块聚焦平台管理员控制面，与交易网关文档隔离维护：
 - **管理后台总设计**: [Platform_Admin_Backoffice_Architecture.md](./admin/Platform_Admin_Backoffice_Architecture.md)

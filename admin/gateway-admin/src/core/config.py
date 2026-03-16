@@ -26,6 +26,38 @@ class Settings(BaseSettings):
         default="postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin",
         alias="ADMIN_DATABASE_DSN",
     )
+    gateway_readonly_dsn: str = Field(
+        default="postgresql://synapse_gateway_ro:12345678@localhost:5432/synapse_gateway",
+        alias="GATEWAY_READONLY_DSN",
+    )
+    gateway_internal_base_url: str = Field(
+        default="http://localhost:8000",
+        alias="GATEWAY_INTERNAL_BASE_URL",
+    )
+    gateway_internal_admin_wallet: str = Field(
+        default="",
+        alias="GATEWAY_INTERNAL_ADMIN_WALLET",
+    )
+    gateway_internal_jwt_secret: str = Field(
+        default="replace-this-with-a-32-byte-minimum-jwt-secret",
+        alias="GATEWAY_INTERNAL_JWT_SECRET",
+    )
+    gateway_internal_timeout_sec: float = Field(
+        default=10.0,
+        alias="GATEWAY_INTERNAL_TIMEOUT_SEC",
+    )
+    execution_worker_enabled: bool = Field(
+        default=True,
+        alias="EXECUTION_WORKER_ENABLED",
+    )
+    execution_worker_poll_interval_sec: float = Field(
+        default=5.0,
+        alias="EXECUTION_WORKER_POLL_INTERVAL_SEC",
+    )
+    execution_worker_batch_size: int = Field(
+        default=10,
+        alias="EXECUTION_WORKER_BATCH_SIZE",
+    )
     use_inmemory_store: bool = Field(default=False, alias="ADMIN_GATEWAY_USE_INMEMORY_STORE")
 
     def cors_origins(self) -> list[str]:

@@ -46,7 +46,49 @@ export type SystemStatus = {
   gatewayAdmin: string;
   gateway: string;
   approvalQueueDepth: number;
-  lastReconciliationAt: string;
+  lastReconciliationAt: string | null;
+};
+
+export type FinanceOverview = {
+  todayChargeUsdc: string;
+  todayDepositUsdc: string;
+  todayRefundUsdc: string;
+  todayWithdrawalUsdc: string;
+  buyerLiabilityUsdc: string;
+  sellerPayableUsdc: string;
+  platformFeeBalanceUsdc: string;
+  vaultLedgerDeltaUsdc: string;
+  pendingDepositCount: number;
+  pendingWithdrawalCount: number;
+  projectedAt: string | null;
+};
+
+export type ActivityTrendPoint = {
+  bucketDate: string;
+  depositUsdc: string;
+  chargeUsdc: string;
+  refundUsdc: string;
+  withdrawalUsdc: string;
+  netFlowUsdc: string;
+};
+
+export type ActivityTrendSeries = {
+  points: ActivityTrendPoint[];
+};
+
+export type OperationsOverview = {
+  gatewayStatus: string;
+  indexerLastProcessedAt: string | null;
+  backfillLastScanAt: string | null;
+  backfillLastScannedBlock: number | null;
+  recentGatewayFailures: number;
+  failedDepositCount: number;
+  recentAuditAlerts: number;
+  lastReconciliationAt: string | null;
+  reconciliationAlert: boolean;
+  reconciliationDeltaUsdc: string;
+  reconciliationLastError: string | null;
+  projectedAt: string | null;
 };
 
 export type ApprovalItem = {
@@ -119,6 +161,18 @@ export async function getDashboardOverview(token: string): Promise<DashboardOver
 
 export async function getSystemStatus(token: string): Promise<SystemStatus> {
   return request<SystemStatus>("/api/admin/v1/dashboard/system-status", undefined, token);
+}
+
+export async function getFinanceOverview(token: string): Promise<FinanceOverview> {
+  return request<FinanceOverview>("/api/admin/v1/dashboard/finance-overview", undefined, token);
+}
+
+export async function getActivityTrends(token: string): Promise<ActivityTrendSeries> {
+  return request<ActivityTrendSeries>("/api/admin/v1/dashboard/activity-trends", undefined, token);
+}
+
+export async function getOperationsOverview(token: string): Promise<OperationsOverview> {
+  return request<OperationsOverview>("/api/admin/v1/dashboard/operations-overview", undefined, token);
 }
 
 export async function listApprovals(token: string): Promise<ApprovalListResponse> {

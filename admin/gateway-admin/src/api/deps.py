@@ -5,10 +5,21 @@ from fastapi import Depends, Header, Request
 
 from src.core.config import get_settings
 from src.core.errors import AuthenticationError, AuthorizationError
-from src.services.adapters.gateway_client import GatewayAdapter
 from src.services.approval.service import ApprovalService
+from src.services.adapters import (
+    GatewayExecutionAdapter,
+    HttpGatewayExecutionAdapter,
+    InMemoryGatewayExecutionAdapter,
+)
+from src.services.audit.service import AuditService
 from src.services.auth.service import AdminAuthService, AdminIdentity
 from src.services.dashboard.service import DashboardService
+from src.services.execution import ExecutionService, ExecutionWorker
+from src.storage.analytics import (
+    GatewayDashboardProjectionRepository,
+    InMemoryGatewayDashboardProjectionRepository,
+    PostgresGatewayDashboardProjectionRepository,
+)
 from src.storage import InMemoryAdminStore, PostgresAdminStore
 from src.storage.base import AdminStore
 
@@ -35,13 +46,49 @@ def get_approval_service() -> ApprovalService:
 
 
 @lru_cache(maxsize=1)
-def get_gateway_adapter() -> GatewayAdapter:
-    return GatewayAdapter()
+def get_gateway_dashboard_projection_repository() -> GatewayDashboardProjectionRepository:
+    settings = get_settings()
+    if settings.use_inmemory_store:
+        return InMemoryGatewayDashboardProjectionRepository.seed_demo()
+    return PostgresGatewayDashboardProjectionRepository(settings.gateway_readonly_dsn)
 
 
 @lru_cache(maxsize=1)
 def get_dashboard_service() -> DashboardService:
-    return DashboardService(get_gateway_adapter(), get_approval_service())
+    return DashboardService(get_store(), get_gateway_dashboard_projection_repository())
+
+
+@lru_cache(maxsize=1)
+def get_audit_service() -> AuditService:
+    return AuditService(get_store())
+
+
+@lru_cache(maxsize=1)
+def get_execution_service() -> ExecutionService:
+    return ExecutionService(get_store(), get_gateway_execution_adapter())
+
+
+@lru_cache(maxsize=1)
+def get_execution_worker() -> ExecutionWorker:
+    settings = get_settings()
+    return ExecutionWorker(
+        get_execution_service(),
+        poll_interval_sec=settings.execution_worker_poll_interval_sec,
+        batch_size=settings.execution_worker_batch_size,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_gateway_execution_adapter() -> GatewayExecutionAdapter:
+    settings = get_settings()
+    if settings.use_inmemory_store:
+        return InMemoryGatewayExecutionAdapter()
+    return HttpGatewayExecutionAdapter(
+        base_url=settings.gateway_internal_base_url,
+        admin_wallet=settings.gateway_internal_admin_wallet,
+        jwt_secret=settings.gateway_internal_jwt_secret,
+        timeout_sec=settings.gateway_internal_timeout_sec,
+    )
 
 
 def get_request_id(request: Request, request_id: RequestIdHeader = None) -> str:
