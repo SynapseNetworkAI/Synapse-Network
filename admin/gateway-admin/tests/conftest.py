@@ -1,6 +1,19 @@
+import os
 from pathlib import Path
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+os.environ.setdefault("ADMIN_GATEWAY_USE_INMEMORY_STORE", "true")
+
+from src.api import deps  # noqa: E402
+from src.core.config import get_settings  # noqa: E402
+
+get_settings.cache_clear()
+deps.get_store.cache_clear()
+deps.get_auth_service.cache_clear()
+deps.get_approval_service.cache_clear()
+deps.get_gateway_adapter.cache_clear()
+deps.get_dashboard_service.cache_clear()

@@ -1,69 +1,190 @@
-from collections.abc import Iterable
-from copy import deepcopy
+from dataclasses import replace
+from datetime import datetime, timezone
+from decimal import Decimal
+from uuid import uuid4
 
+from src.domain import AdminActionAudit, AdminApproval, AdminApprovalEvent, AdminApprovalStep, AdminExecutionJob
+from src.domain.enums import ApprovalDecision, ApprovalLevel, ApprovalStatus, AuditResultStatus, ExecutionJobStatus, RiskLevel, RoleBindingStatus
+from src.services.auth.service import AdminIdentity
+from src.storage.base import AdminStore
 
 class ApprovalService:
-    def __init__(self) -> None:
-        self._items = [
-            {
-                "approvalId": "APR-20260316-001",
-                "approvalType": "refund_approve",
-                "status": "UNDER_REVIEW",
-                "approvalLevel": "L2",
-                "requesterRole": "finance_admin",
-                "amountUsdc": "150.00",
-                "createdAt": "2026-03-16T08:00:00Z",
-            },
-            {
-                "approvalId": "APR-20260316-002",
-                "approvalType": "risk_rule_change",
-                "status": "APPROVED_PENDING_EXECUTION",
-                "approvalLevel": "L3",
-                "requesterRole": "risk_admin",
-                "amountUsdc": "0.00",
-                "createdAt": "2026-03-16T08:30:00Z",
-            },
-        ]
-        self._sequence = 3
+    def __init__(self, store: AdminStore) -> None:
+        self._store = store
 
     def list_items(self, status: str | None = None, approval_type: str | None = None, limit: int = 20) -> dict:
-        items: Iterable[dict] = self._items
-        if status:
-            items = [item for item in items if item["status"] == status]
-        if approval_type:
-            items = [item for item in items if item["approvalType"] == approval_type]
-        sliced = list(items)[:limit]
-        return {"items": deepcopy(sliced), "nextCursor": None}
+        approvals = self._store.approval.list_approvals(status=status, approval_type=approval_type, limit=limit)
+        items = [self._to_summary_item(approval) for approval in approvals]
+        return {"items": items, "nextCursor": None}
 
     def pending_count(self) -> int:
-        return len([item for item in self._items if item["status"] != "EXECUTED"])
+        return self._store.approval.count_pending_approvals()
 
-    def create_item(self, payload: dict, requester_role: str) -> dict:
-        approval_id = f"APR-20260316-{self._sequence:03d}"
-        self._sequence += 1
-        item = {
-            "approvalId": approval_id,
-            "approvalType": payload["approvalType"],
-            "status": "SUBMITTED",
-            "approvalLevel": payload["approvalLevel"],
-            "requesterRole": requester_role,
-            "amountUsdc": payload["amountUsdc"],
-            "createdAt": "2026-03-16T09:00:00Z",
-            "resourceType": payload["resourceType"],
-            "resourceId": payload["resourceId"],
-            "reason": payload["reason"],
-            "payload": payload["payload"],
-        }
-        self._items.insert(0, item)
-        return deepcopy(item)
-
-    def decide(self, approval_id: str, decision: str) -> dict:
-        normalized = decision.strip().upper()
-        for item in self._items:
-            if item["approvalId"] != approval_id:
-                continue
-            item["status"] = (
-                "APPROVED_PENDING_EXECUTION" if normalized == "APPROVE" else "REJECTED"
+    def create_item(self, payload: dict, requester: AdminIdentity) -> dict:
+        now = datetime.now(timezone.utc)
+        approval_id = f"APR-{now.strftime('%Y%m%d')}-{uuid4().hex[:6].upper()}"
+        approval = AdminApproval(
+            approval_id=approval_id,
+            approval_type=payload["approvalType"],
+            approval_level=ApprovalLevel(payload["approvalLevel"]),
+            status=ApprovalStatus.SUBMITTED,
+            requester_id=requester.admin_id,
+            resource_type=payload["resourceType"],
+            resource_id=payload["resourceId"],
+            owner_address=payload["payload"].get("ownerAddress"),
+            tx_hash=payload["payload"].get("txHash"),
+            event_key=payload["payload"].get("eventKey"),
+            risk_level=RiskLevel.YELLOW if payload["approvalType"] in {"deposit_repair", "refund_approve", "withdrawal_approve"} else RiskLevel.GREEN,
+            amount_usdc=Decimal(payload["amountUsdc"]),
+            reason=payload["reason"],
+            payload=payload["payload"],
+            submitted_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        self._store.approval.create_approval(approval)
+        self._store.approval.upsert_approval_step(
+            AdminApprovalStep(
+                step_id=uuid4().hex,
+                approval_id=approval.approval_id,
+                step_no=1,
+                required_permission="approval:decide",
+                created_at=now,
             )
-            return {"approvalId": approval_id, "status": item["status"]}
-        raise ValueError(f"Approval {approval_id} not found")
+        )
+        self._store.approval.append_approval_event(
+            AdminApprovalEvent(
+                approval_id=approval.approval_id,
+                event_type="SUBMITTED",
+                operator_id=requester.admin_id,
+                operator_role=requester.role,
+                from_status=ApprovalStatus.DRAFT,
+                to_status=ApprovalStatus.SUBMITTED,
+                detail=payload["payload"],
+                created_at=now,
+            )
+        )
+        self._store.audit.append_action(
+            AdminActionAudit(
+                action_type="approval.submit",
+                result_status=AuditResultStatus.SUCCESS,
+                operator_id=requester.admin_id,
+                operator_email=requester.email,
+                operator_role=requester.role,
+                approval_id=approval.approval_id,
+                resource_type=approval.resource_type,
+                resource_id=approval.resource_id,
+                after={"status": approval.status.value, "approvalLevel": approval.approval_level.value},
+                detail=approval.payload,
+                created_at=now,
+            )
+        )
+        return self._to_summary_item(approval, requester.role) | {
+            "resourceType": approval.resource_type,
+            "resourceId": approval.resource_id,
+            "reason": approval.reason,
+            "payload": approval.payload,
+        }
+
+    def decide(self, approval_id: str, decision: str, reviewer: AdminIdentity, comment: str = "") -> dict:
+        approval = self._store.approval.get_approval(approval_id)
+        if approval is None:
+            raise ValueError(f"Approval {approval_id} not found")
+        normalized = ApprovalDecision(decision.strip().upper())
+        now = datetime.now(timezone.utc)
+        steps = self._store.approval.list_approval_steps(approval_id)
+        current_step = next((step for step in steps if step.decision is None), None)
+        if current_step is None:
+            current_step = AdminApprovalStep(
+                step_id=uuid4().hex,
+                approval_id=approval_id,
+                step_no=max([step.step_no for step in steps], default=0) + 1,
+                required_permission="approval:decide",
+                created_at=now,
+            )
+        decided_step = replace(
+            current_step,
+            approver_id=reviewer.admin_id,
+            decision=normalized,
+            decision_comment=comment,
+            decided_at=now,
+            assigned_at=current_step.assigned_at or now,
+        )
+        self._store.approval.upsert_approval_step(decided_step)
+        next_status = (
+            ApprovalStatus.APPROVED_PENDING_EXECUTION
+            if normalized == ApprovalDecision.APPROVE
+            else ApprovalStatus.REJECTED
+        )
+        updated_approval = replace(
+            approval,
+            status=next_status,
+            current_approver_id=None,
+            approved_at=now if next_status == ApprovalStatus.APPROVED_PENDING_EXECUTION else approval.approved_at,
+            rejected_at=now if next_status == ApprovalStatus.REJECTED else approval.rejected_at,
+            updated_at=now,
+        )
+        self._store.approval.update_approval(updated_approval)
+        self._store.approval.append_approval_event(
+            AdminApprovalEvent(
+                approval_id=approval_id,
+                event_type="APPROVED" if next_status == ApprovalStatus.APPROVED_PENDING_EXECUTION else "REJECTED",
+                operator_id=reviewer.admin_id,
+                operator_role=reviewer.role,
+                from_status=approval.status,
+                to_status=next_status,
+                comment=comment,
+                created_at=now,
+            )
+        )
+        if next_status == ApprovalStatus.APPROVED_PENDING_EXECUTION:
+            self._store.approval.enqueue_execution_job(
+                AdminExecutionJob(
+                    job_id=uuid4().hex,
+                    approval_id=approval_id,
+                    execution_type=updated_approval.approval_type,
+                    target_system="gateway",
+                    idempotency_key=f"approval:{approval_id}",
+                    status=ExecutionJobStatus.PENDING,
+                    queued_by=reviewer.admin_id,
+                    request_payload=updated_approval.payload,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        self._store.audit.append_action(
+            AdminActionAudit(
+                action_type="approval.decide",
+                result_status=AuditResultStatus.SUCCESS,
+                operator_id=reviewer.admin_id,
+                operator_email=reviewer.email,
+                operator_role=reviewer.role,
+                approval_id=approval_id,
+                resource_type=approval.resource_type,
+                resource_id=approval.resource_id,
+                before={"status": approval.status.value},
+                after={"status": next_status.value},
+                detail={"decision": normalized.value, "comment": comment},
+                created_at=now,
+            )
+        )
+        return {"approvalId": approval_id, "status": next_status.value}
+
+    def _to_summary_item(self, approval: AdminApproval, requester_role: str | None = None) -> dict:
+        return {
+            "approvalId": approval.approval_id,
+            "approvalType": approval.approval_type,
+            "status": approval.status.value,
+            "approvalLevel": approval.approval_level.value,
+            "requesterRole": requester_role or self._get_primary_role(approval.requester_id),
+            "amountUsdc": f"{approval.amount_usdc:.2f}",
+            "createdAt": approval.created_at.isoformat().replace("+00:00", "Z") if approval.created_at else None,
+        }
+
+    def _get_primary_role(self, admin_id: str) -> str:
+        bindings = [
+            binding
+            for binding in self._store.authorization.list_role_bindings(admin_id)
+            if binding.status == RoleBindingStatus.ACTIVE
+        ]
+        return bindings[0].role_key if bindings else "platform_ops_admin"

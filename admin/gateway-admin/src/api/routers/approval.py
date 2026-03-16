@@ -45,10 +45,7 @@ def create_approval(
     request_id: Annotated[str, Depends(get_request_id)],
     approval_service: Annotated[ApprovalService, Depends(get_approval_service)],
 ):
-    created = approval_service.create_item(
-        payload.model_dump(by_alias=True),
-        requester_role=admin.role,
-    )
+    created = approval_service.create_item(payload.model_dump(by_alias=True), requester=admin)
     return ApiResponse(data=created, request_id=request_id)
 
 
@@ -66,7 +63,12 @@ def decide_approval(
 ):
     _ = admin
     try:
-        result = approval_service.decide(approval_id=approval_id, decision=payload.decision)
+        result = approval_service.decide(
+            approval_id=approval_id,
+            decision=payload.decision,
+            reviewer=admin,
+            comment=payload.comment,
+        )
     except ValueError as exc:
         raise ResourceNotFoundError(str(exc)) from exc
     return ApiResponse(data=ApprovalDecisionResult(**result), request_id=request_id)

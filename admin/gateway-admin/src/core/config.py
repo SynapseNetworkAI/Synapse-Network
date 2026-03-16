@@ -22,6 +22,11 @@ class Settings(BaseSettings):
         alias="ADMIN_GATEWAY_ALLOWED_ORIGINS",
     )
     token_prefix: str = Field(default="adm_demo_", alias="ADMIN_GATEWAY_TOKEN_PREFIX")
+    admin_database_dsn: str = Field(
+        default="postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin",
+        alias="ADMIN_DATABASE_DSN",
+    )
+    use_inmemory_store: bool = Field(default=False, alias="ADMIN_GATEWAY_USE_INMEMORY_STORE")
 
     def cors_origins(self) -> list[str]:
         return [item.strip() for item in self.allowed_origins.split(",") if item.strip()]

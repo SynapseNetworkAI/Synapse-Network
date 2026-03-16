@@ -41,16 +41,31 @@
 4. `approval` 路由
 5. 基础 schema / service / adapter 分层
 6. 第一版 API contract 文档
+8. 第一版 PostgreSQL migration：`migrations/001_admin_control_plane_schema.sql`
+9. 第一版 domain / storage skeleton：`src/domain/`、`src/storage/`
 
 启动方式：
 
 ```bash
+docker-compose -f docker-compose/docker-compose.yml up -d postgres
 cd admin/gateway-admin
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn src.app:app --reload --port 8300
 ```
+
+本地 PostgreSQL 缺省连接：
+
+```bash
+ADMIN_DATABASE_DSN=postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin
+```
+
+说明：
+
+- `docker-compose` 现在会在首次初始化时自动创建 `synapse_gateway` 和 `synapse_gateway_admin` 两个数据库。
+- 如果本地 `postgres_data` volume 已经存在，需要先删除 volume 再重新初始化，新的建库脚本才会生效。
+- Admin schema 与 seed 会在容器首次初始化时自动导入，无需再手工在图形客户端里点 `Create Database`。
 
 第一期建议优先实现：
 
@@ -66,3 +81,4 @@ uvicorn src.app:app --reload --port 8300
 - 不建议直接复用 `gateway/src/domain` 作为内部强依赖。
 - 建议通过内部 DTO、契约和适配层与 `gateway/` 交互。
 - 第一版接口契约见 `../../docs/admin/Admin_API_Contract_Phase1.md`。
+- 第一版数据库设计见 `../../docs/admin/Admin_Database_Design.md`。

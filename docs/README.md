@@ -59,6 +59,8 @@
 ## 7. 管理后台设计 (`admin/`)
 该模块聚焦平台管理员控制面，与交易网关文档隔离维护：
 - **管理后台总设计**: [Platform_Admin_Backoffice_Architecture.md](./admin/Platform_Admin_Backoffice_Architecture.md)
+- **管理后台数据库设计**: [Admin_Database_Design.md](./admin/Admin_Database_Design.md)
+- **管理后台 PostgreSQL 部署与账号权限设计**: [Admin_PostgreSQL_Deployment_Design.md](./admin/Admin_PostgreSQL_Deployment_Design.md)
 - **管理后台文档索引**: [README.md](./admin/README.md)
 
 ---
