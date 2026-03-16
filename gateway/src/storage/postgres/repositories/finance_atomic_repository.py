@@ -4,6 +4,7 @@ import time
 from decimal import Decimal
 from typing import Any, Callable, Optional
 
+from src.domain.audit import AuditLogRow
 from src.domain.finance import (
     BalanceMutationResult,
     BuyerChargeResult,
@@ -40,6 +41,35 @@ class FinanceAtomicRepository:
         self._balance_for_update_sql = balance_for_update_sql
         self._audit_insert_sql = audit_insert_sql
         self._restricted_session_statuses = restricted_session_statuses
+
+    @staticmethod
+    def _audit_insert_params(row: AuditLogRow) -> tuple[Any, ...]:
+        return (
+            row.action_type,
+            row.business_type,
+            row.risk_level,
+            row.owner_address,
+            row.actor,
+            row.request_id,
+            row.trace_id,
+            row.tx_hash,
+            row.counterparty_address,
+            row.direction,
+            row.status,
+            row.risk_reason_code,
+            row.ledger_id,
+            row.client_ip,
+            row.user_agent,
+            str(row.amount_delta) if row.amount_delta is not None else None,
+            str(row.before_balance) if row.before_balance is not None else None,
+            str(row.after_balance) if row.after_balance is not None else None,
+            row.result_status,
+            row.error_code,
+            row.message,
+        )
+
+    def _append_finance_audit_row(self, cur: Any, row: AuditLogRow) -> None:
+        cur.execute(self._audit_insert_sql, self._audit_insert_params(row))
 
     def _load_locked_balance_triplet(
         self, cur: Any, owner: str, account_type: str, now: int
@@ -93,6 +123,7 @@ class FinanceAtomicRepository:
         cur: Any,
         *,
         action: str,
+        business_type: str,
         owner: str,
         request_id: str,
         amount: Decimal,
@@ -101,22 +132,19 @@ class FinanceAtomicRepository:
         result_status: str,
         message: str,
     ) -> None:
-        cur.execute(
-            """
-            INSERT INTO synapse_audit_log (
-                action_type, business_type, risk_level, owner_address, request_id,
-                amount_delta, result_status, error_code, message
-            ) VALUES (%s, 'withdraw', %s::synapse_risk_level, %s, %s, %s, %s, %s, %s)
-            """,
-            (
-                action,
-                risk_level,
-                owner,
-                request_id,
-                str(amount),
-                result_status,
-                risk_reason_code,
-                message,
+        self._append_finance_audit_row(
+            cur,
+            AuditLogRow(
+                actionType=action,
+                businessType=business_type,
+                riskLevel=risk_level,
+                ownerAddress=owner,
+                requestId=request_id,
+                amountDelta=amount,
+                resultStatus=result_status,
+                errorCode=risk_reason_code,
+                message=message,
+                status=result_status,
             ),
         )
 
@@ -192,6 +220,7 @@ class FinanceAtomicRepository:
                         self._append_withdrawal_audit(
                             cur,
                             action="PROVIDER_WITHDRAW_REJECTED",
+                            business_type="withdraw",
                             owner=owner,
                             request_id=request_id,
                             amount=amount,
@@ -280,6 +309,7 @@ class FinanceAtomicRepository:
                     self._append_withdrawal_audit(
                         cur,
                         action="PROVIDER_WITHDRAW_INTENT_CREATED",
+                        business_type="withdraw",
                         owner=owner,
                         request_id=request_id,
                         amount=amount,
@@ -477,14 +507,57 @@ class FinanceAtomicRepository:
                     updatedAt=to_dt_str(hit[9], now_text) or now_text,
                 )
 
-                if row.status.upper() == "CONFIRMED":
-                    return row
-                if row.status.upper() not in {"PENDING_CONFIRMATION", "PENDING"}:
-                    raise RuntimeError("DEPOSIT_STATUS_INVALID")
-
                 available_balance, pending_balance, frozen_balance = (
                     self._load_locked_balance_triplet(cur, owner, "buyer", now)
                 )
+
+                if row.status.upper() == "CONFIRMED":
+                    if pending_balance >= row.amount_usdc:
+                        next_available = self._q6(available_balance + row.amount_usdc)
+                        next_pending = self._q6(pending_balance - row.amount_usdc)
+                        cur.execute(
+                            self._balance_upsert_sql,
+                            (
+                                owner,
+                                "buyer",
+                                str(next_available),
+                                str(next_pending),
+                                str(frozen_balance),
+                                now_text,
+                            ),
+                        )
+                        cur.execute(
+                            "UPDATE synapse_deposit_intents SET updated_at = %s WHERE id = %s AND owner_address = %s",
+                            (now_text, row.id, owner),
+                        )
+                        self._append_withdrawal_audit(
+                            cur,
+                            action="BUYER_DEPOSIT_CONFIRMED_REPAIRED",
+                            business_type="deposit",
+                            owner=owner,
+                            request_id=row.request_id or event_key,
+                            amount=row.amount_usdc,
+                            risk_level="yellow",
+                            risk_reason_code="DEPOSIT_CONFIRM_REPAIR",
+                            result_status="CONFIRMED",
+                            message="repair_pending_to_available",
+                        )
+                        conn.commit()
+                        return DepositIntentRow(
+                            id=row.id,
+                            ownerAddress=row.owner_address,
+                            txHash=row.tx_hash,
+                            requestId=row.request_id,
+                            buyerAddress=row.buyer_address,
+                            amountUsdc=row.amount_usdc,
+                            idempotencyKey=row.idempotency_key,
+                            status="CONFIRMED",
+                            createdAt=row.created_at,
+                            updatedAt=now_text,
+                        )
+                    return row
+                if row.status.upper() not in {"PENDING_CONFIRMATION", "PENDING"}:
+                    raise RuntimeError("DEPOSIT_STATUS_INVALID")
                 if pending_balance < row.amount_usdc:
                     raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
 
@@ -510,6 +583,7 @@ class FinanceAtomicRepository:
                 self._append_withdrawal_audit(
                     cur,
                     action="BUYER_DEPOSIT_CONFIRMED",
+                    business_type="deposit",
                     owner=owner,
                     request_id=row.request_id or event_key,
                     amount=row.amount_usdc,
@@ -664,21 +738,19 @@ class FinanceAtomicRepository:
                     ),
                 )
 
-                cur.execute(
-                    """
-                    INSERT INTO synapse_audit_log (
-                        action_type, business_type, risk_level, owner_address,
-                        amount_delta, before_balance, after_balance, result_status, message
-                    ) VALUES (%s, 'charge', 'green', %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        "BUYER_CHARGE_ATOMIC",
-                        owner,
-                        str(-self._q6(total_charge)),
-                        str(before_buyer),
-                        str(buyer_after),
-                        "SUCCEEDED",
-                        f"seller={seller}",
+                self._append_finance_audit_row(
+                    cur,
+                    AuditLogRow(
+                        actionType="BUYER_CHARGE_ATOMIC",
+                        businessType="charge",
+                        riskLevel="green",
+                        ownerAddress=owner,
+                        amountDelta=-self._q6(total_charge),
+                        beforeBalance=before_buyer,
+                        afterBalance=buyer_after,
+                        resultStatus="SUCCEEDED",
+                        status="SUCCEEDED",
+                        message=f"seller={seller}",
                     ),
                 )
 

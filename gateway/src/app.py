@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
@@ -16,7 +16,7 @@ from src.api.routers import (
     forwarding,
 )
 from src.storage import create_storage
-from src.services.platform.v2_indexer import run_v2_deposit_indexer
+from src.services.platform.tasks.deposit_indexer import run_v2_deposit_indexer
 from src.services.platform.service_health_service import run_service_health_monitor
 
 setup_logger()
@@ -56,10 +56,9 @@ async def lifespan(app: FastAPI):
         app.state.v2_indexer_stop_event.set()
     if hasattr(app.state, "v2_indexer_task"):
         app.state.v2_indexer_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await app.state.v2_indexer_task
-        except asyncio.CancelledError:
-            logger.info("V2 indexer task cancelled during shutdown")
+        logger.info("V2 indexer task cancelled during shutdown")
     if hasattr(app.state, "service_health_stop_event"):
         app.state.service_health_stop_event.set()
     if (
@@ -67,10 +66,9 @@ async def lifespan(app: FastAPI):
         and app.state.service_health_task is not None
     ):
         app.state.service_health_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await app.state.service_health_task
-        except asyncio.CancelledError:
-            logger.info("Service health task cancelled during shutdown")
+        logger.info("Service health task cancelled during shutdown")
 
 
 def create_app() -> FastAPI:

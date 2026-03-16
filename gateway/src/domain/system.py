@@ -29,6 +29,14 @@ class ProcessedDepositEventRow(BaseModel):
     updated_at: str = Field(default="", alias="updatedAt")
 
 
+class RuntimeStateRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    state_key: str = Field(alias="stateKey")
+    payload: dict = Field(default_factory=dict)
+    updated_at: str = Field(default="", alias="updatedAt")
+
+
 class PlatformFeePolicyDefaultRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

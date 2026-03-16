@@ -30,7 +30,15 @@ CREATE TABLE IF NOT EXISTS synapse_audit_log (
     owner_address TEXT NOT NULL,
     actor TEXT,
     request_id TEXT,
+    trace_id TEXT,
     tx_hash TEXT,
+    counterparty_address TEXT,
+    direction TEXT,
+    status TEXT,
+    risk_reason_code TEXT,
+    ledger_id TEXT,
+    client_ip TEXT,
+    user_agent TEXT,
     amount_delta NUMERIC(36, 6),
     before_balance NUMERIC(36, 6),
     after_balance NUMERIC(36, 6),
@@ -45,6 +53,12 @@ ON synapse_audit_log (created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_audit_log_owner
 ON synapse_audit_log (lower(owner_address), created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_audit_log_request_id
+ON synapse_audit_log (request_id);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_audit_log_tx_hash
+ON synapse_audit_log (tx_hash);
 
 -- Physical dedup guard for deposit idempotency (tx_hash replay protection).
 CREATE TABLE IF NOT EXISTS synapse_deposit_dedup (
@@ -221,25 +235,6 @@ CREATE TABLE IF NOT EXISTS synapse_service_registry (
     CHECK (jsonb_typeof(invoke_config) = 'object')
 );
 
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS record_id TEXT;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS schema_version BIGINT;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS service_role TEXT;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS service_address TEXT;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS tags_json JSONB NOT NULL DEFAULT '[]'::jsonb;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS auth_json JSONB NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS health_check_json JSONB NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS forwarding_json JSONB NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS metering_json JSONB NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE synapse_service_registry ADD COLUMN IF NOT EXISTS invoke_config JSONB NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE synapse_service_registry ALTER COLUMN status SET DEFAULT 'active';
-ALTER TABLE synapse_service_registry ALTER COLUMN pricing_amount SET DEFAULT 0;
-ALTER TABLE synapse_service_registry ALTER COLUMN pricing_currency SET DEFAULT 'USDC';
-ALTER TABLE synapse_service_registry ALTER COLUMN schema_version SET DEFAULT 2;
-ALTER TABLE synapse_service_registry ALTER COLUMN timeout_ms SET DEFAULT 3000;
-ALTER TABLE synapse_service_registry ALTER COLUMN max_qps SET DEFAULT 50;
-ALTER TABLE synapse_service_registry ALTER COLUMN max_request_bytes SET DEFAULT 4096;
-ALTER TABLE synapse_service_registry ALTER COLUMN max_response_bytes SET DEFAULT 2048;
-
 CREATE INDEX IF NOT EXISTS idx_synapse_service_registry_owner
 ON synapse_service_registry (lower(owner_address), updated_at DESC);
 
@@ -370,7 +365,15 @@ COMMENT ON COLUMN synapse_audit_log.risk_level IS '风控风险等级枚举';
 COMMENT ON COLUMN synapse_audit_log.owner_address IS '资金归属钱包地址';
 COMMENT ON COLUMN synapse_audit_log.actor IS '触发动作的执行者';
 COMMENT ON COLUMN synapse_audit_log.request_id IS '请求追踪ID';
+COMMENT ON COLUMN synapse_audit_log.trace_id IS '链路追踪ID';
 COMMENT ON COLUMN synapse_audit_log.tx_hash IS '链上交易哈希';
+COMMENT ON COLUMN synapse_audit_log.counterparty_address IS '对手方钱包地址';
+COMMENT ON COLUMN synapse_audit_log.direction IS '资金方向(credit/debit)';
+COMMENT ON COLUMN synapse_audit_log.status IS '业务状态';
+COMMENT ON COLUMN synapse_audit_log.risk_reason_code IS '风控命中原因码';
+COMMENT ON COLUMN synapse_audit_log.ledger_id IS '账本流水ID';
+COMMENT ON COLUMN synapse_audit_log.client_ip IS '客户端IP';
+COMMENT ON COLUMN synapse_audit_log.user_agent IS '客户端User-Agent';
 COMMENT ON COLUMN synapse_audit_log.amount_delta IS '本次资金变动值';
 COMMENT ON COLUMN synapse_audit_log.before_balance IS '变动前余额';
 COMMENT ON COLUMN synapse_audit_log.after_balance IS '变动后余额';
@@ -567,25 +570,6 @@ COMMENT ON COLUMN synapse_finance_rate_limit.window_start IS '窗口起始时间
 COMMENT ON COLUMN synapse_finance_rate_limit.count IS '窗口内请求计数';
 COMMENT ON COLUMN synapse_finance_rate_limit.updated_at IS '更新时间（yyyy-MM-dd HH:mm:ss）';
 
--- Merged from 002_audit_dual_log_upgrade.sql
--- Keep synapse_audit_log as finance/risk audit source of truth,
--- and add a dedicated system activity log table for non-financial operations.
-ALTER TABLE IF EXISTS synapse_audit_log
-    ADD COLUMN IF NOT EXISTS counterparty_address TEXT,
-    ADD COLUMN IF NOT EXISTS direction TEXT,
-    ADD COLUMN IF NOT EXISTS status TEXT,
-    ADD COLUMN IF NOT EXISTS risk_reason_code TEXT,
-    ADD COLUMN IF NOT EXISTS ledger_id TEXT,
-    ADD COLUMN IF NOT EXISTS trace_id TEXT,
-    ADD COLUMN IF NOT EXISTS client_ip TEXT,
-    ADD COLUMN IF NOT EXISTS user_agent TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_synapse_audit_log_request_id
-ON synapse_audit_log (request_id);
-
-CREATE INDEX IF NOT EXISTS idx_synapse_audit_log_tx_hash
-ON synapse_audit_log (tx_hash);
-
 CREATE TABLE IF NOT EXISTS synapse_system_activity_log (
     id BIGSERIAL PRIMARY KEY,
     action_type TEXT NOT NULL,
@@ -614,3 +598,17 @@ ON synapse_system_activity_log (action_type, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_system_activity_request_id
 ON synapse_system_activity_log (request_id);
+
+COMMENT ON COLUMN synapse_system_activity_log.action_type IS '系统动作类型';
+COMMENT ON COLUMN synapse_system_activity_log.owner_address IS '归属钱包地址';
+COMMENT ON COLUMN synapse_system_activity_log.actor IS '触发动作的执行者';
+COMMENT ON COLUMN synapse_system_activity_log.request_id IS '请求追踪ID';
+COMMENT ON COLUMN synapse_system_activity_log.trace_id IS '链路追踪ID';
+COMMENT ON COLUMN synapse_system_activity_log.resource_type IS '资源类型';
+COMMENT ON COLUMN synapse_system_activity_log.resource_id IS '资源ID';
+COMMENT ON COLUMN synapse_system_activity_log.result_status IS '执行结果状态';
+COMMENT ON COLUMN synapse_system_activity_log.error_code IS '错误码';
+COMMENT ON COLUMN synapse_system_activity_log.ip_address IS '客户端IP';
+COMMENT ON COLUMN synapse_system_activity_log.user_agent IS '客户端User-Agent';
+COMMENT ON COLUMN synapse_system_activity_log.detail_json IS '系统审计详情JSON';
+COMMENT ON COLUMN synapse_system_activity_log.created_at IS '记录创建时间';

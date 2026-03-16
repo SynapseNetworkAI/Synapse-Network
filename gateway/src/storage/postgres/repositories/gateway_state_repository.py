@@ -10,7 +10,7 @@ from src.domain.finance import (
     UsageLogRow,
     WithdrawalIntentRow,
 )
-from src.domain.system import ProcessedDepositEventRow
+from src.domain.system import ProcessedDepositEventRow, RuntimeStateRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -48,20 +48,44 @@ class GatewayStateRepository:
             for row_id, owner, tx_hash, request_id, buyer_address, amount_usdc, idempotency_key, status, created_at, updated_at in rows
         ]
 
-    def write_deposit_intents(self, rows: List[DepositIntentRow]) -> None:
+    def _normalize_deposit_intent_row(
+        self, row: DepositIntentRow | dict[str, Any]
+    ) -> DepositIntentRow | None:
+        entity = row
+        if isinstance(row, dict):
+            try:
+                entity = DepositIntentRow.model_validate(row)
+            except Exception:
+                return None
+        if not isinstance(entity, DepositIntentRow):
+            return None
+
+        row_id = str(entity.id or "").strip()
+        owner = str(entity.owner_address or "").strip().lower()
+        tx_hash = str(entity.tx_hash or "").strip().lower()
+        if not row_id or not owner:
+            return None
+        if not (tx_hash.startswith("0x") and len(tx_hash) == 66):
+            return None
+        return entity
+
+    def write_deposit_intents(
+        self, rows: List[DepositIntentRow | dict[str, Any]]
+    ) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_deposit_intents")
             for row in rows:
+                entity = self._normalize_deposit_intent_row(row)
+                if entity is None:
+                    continue
                 cur.execute(
                     """
                     INSERT INTO synapse_deposit_intents (
                         id, owner_address, tx_hash, request_id, buyer_address, amount_usdc,
                         idempotency_key, status, created_at, updated_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id)
+                    ON CONFLICT (tx_hash)
                     DO UPDATE SET
                         owner_address = EXCLUDED.owner_address,
-                        tx_hash = EXCLUDED.tx_hash,
                         request_id = EXCLUDED.request_id,
                         buyer_address = EXCLUDED.buyer_address,
                         amount_usdc = EXCLUDED.amount_usdc,
@@ -71,16 +95,16 @@ class GatewayStateRepository:
                         updated_at = EXCLUDED.updated_at
                     """,
                     (
-                        row.id,
-                        row.owner_address.lower(),
-                        row.tx_hash.lower(),
-                        row.request_id,
-                        row.buyer_address.lower() if row.buyer_address else None,
-                        str(self._q6(row.amount_usdc)),
-                        row.idempotency_key,
-                        row.status,
-                        to_dt_str(row.created_at, now_dt_str()),
-                        to_dt_str(row.updated_at, now_dt_str()),
+                        entity.id,
+                        entity.owner_address.lower(),
+                        entity.tx_hash.lower(),
+                        entity.request_id,
+                        entity.buyer_address.lower() if entity.buyer_address else None,
+                        str(self._q6(entity.amount_usdc)),
+                        entity.idempotency_key,
+                        entity.status,
+                        to_dt_str(entity.created_at, now_dt_str()),
+                        to_dt_str(entity.updated_at, now_dt_str()),
                     ),
                 )
 
@@ -417,25 +441,39 @@ class GatewayStateRepository:
                 )
 
     def read_runtime_state(self, state_key: str) -> dict[str, Any]:
+        entity = self.read_runtime_state_row(state_key)
+        return entity.payload if entity is not None else {}
+
+    def read_runtime_state_row(self, state_key: str) -> RuntimeStateRow | None:
         key = str(state_key or "").strip()
         if not key:
-            return {}
+            return None
         with self._db.readonly_cursor() as cur:
             cur.execute(
-                "SELECT payload FROM synapse_runtime_state WHERE state_key = %s",
+                "SELECT state_key, payload, updated_at FROM synapse_runtime_state WHERE state_key = %s",
                 (key,),
             )
             row = cur.fetchone()
         if not row:
-            return {}
-        payload = row[0]
-        return dict(payload) if isinstance(payload, dict) else {}
+            return None
+        payload = row[1]
+        return RuntimeStateRow(
+            stateKey=str(row[0] or key),
+            payload=dict(payload) if isinstance(payload, dict) else {},
+            updatedAt=to_dt_str(row[2], "") or "",
+        )
 
     def write_runtime_state(self, state_key: str, payload: dict[str, Any]) -> None:
-        key = str(state_key or "").strip()
-        if not key:
+        entity = RuntimeStateRow(
+            stateKey=str(state_key or "").strip(),
+            payload=dict(payload or {}),
+            updatedAt=now_dt_str(),
+        )
+        self.write_runtime_state_row(entity)
+
+    def write_runtime_state_row(self, row: RuntimeStateRow) -> None:
+        if not row.state_key:
             return
-        body = dict(payload or {})
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
@@ -444,5 +482,5 @@ class GatewayStateRepository:
                 ON CONFLICT (state_key)
                 DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()
                 """,
-                (key, json.dumps(body, ensure_ascii=False)),
+                (row.state_key, json.dumps(row.payload, ensure_ascii=False)),
             )
