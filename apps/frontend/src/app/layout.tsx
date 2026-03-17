@@ -19,7 +19,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "Synapse Network",
-  description: "AI-to-AI Payment Infrastructure",
+  description: "The API settlement gateway for AI agents: owner-funded USDC vaults, agent runtime payments, and millisecond settlement.",
 };
 
 export default function RootLayout({
