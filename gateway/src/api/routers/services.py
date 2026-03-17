@@ -3,9 +3,9 @@ from typing import Optional, Dict, Any, List, Annotated
 from uuid import uuid4
 from src.api.deps import get_registry_service
 from src.api.schemas.pydantic_models import AgentDiscoverySearchRequest
-from src.services.seller.registry_service import RegistryService
+from src.services.provider.registry_service import RegistryService
 from src.services.platform import credential_service
-from src.services.seller.manifest_parser_service import parse_manifest_from_curl
+from src.services.provider.manifest_parser_service import parse_manifest_from_curl
 from src.core.config import settings
 from src.domain.service_contract import AgentDiscoveryQueryRecord
 from pydantic import BaseModel, Field
@@ -138,7 +138,7 @@ class InvokeMethod(BaseModel):
 
 class RegisterServiceRequest(BaseModel):
     serviceName: str
-    role: str = "Provider / Seller"
+    role: str = "Provider"
     address: Optional[str] = None
     pricing: ServicePricing | str
     summary: str = ""

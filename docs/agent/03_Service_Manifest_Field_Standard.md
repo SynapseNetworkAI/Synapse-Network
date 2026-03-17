@@ -73,6 +73,22 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
 - `region`
 - `compliance_tags`
 
+### 2.6 平台内部运行扩展字段（Implementation Extension）
+
+这些字段主要给 Gateway 控制面、健康检查、路由与计费使用，不属于 Agent 做服务选择时必须消费的最小公开契约。
+
+- `health_check`
+- `routing_targets`
+- `forwarding_policy`
+- `metering_policy`
+- `rate_limit_policy`
+
+说明：
+
+- 这组字段可以作为 Seller 提交 Manifest 时的内部扩展 block 存在。
+- Discovery / Quote / Invoke 对 Agent 的公开结果，默认不直接暴露这些内部执行细节。
+- 它们服务的是 Gateway 如何探活、如何转发、如何限流、如何计费，而不是 Agent 如何理解能力。
+
 ## 3. 推荐 JSON 结构
 
 ```json
@@ -110,6 +126,30 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
     "async_supported": false,
     "max_payload_bytes": 4000000
   },
+  "gateway_extensions": {
+    "health_check": {
+      "method": "GET",
+      "path": "/health",
+      "interval_sec": 30,
+      "timeout_ms": 3000,
+      "success_codes": [200]
+    },
+    "routing_targets": [
+      {
+        "url": "https://seller.example.com/invoke",
+        "weight": 100,
+        "region": "ap-southeast-1"
+      }
+    ],
+    "forwarding_policy": {
+      "request_id_header": "X-Synapse-Request-Id"
+    },
+    "metering_policy": {
+      "billing_unit": "per_call",
+      "bill_on_error": false,
+      "billable_status_classes": [2]
+    }
+  },
   "quality": {
     "availability_slo": 0.995,
     "p95_latency_ms": 820,
@@ -123,6 +163,7 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
 - 上面这份 JSON 是**公开给 Agent Runtime 消费的 Manifest 结构**。
 - 卖家钱包地址、结算账户、分账规则这类字段，应该保留在平台内部 Seller Profile / Settlement Profile 中，由 Gateway 在扣费和结算时使用。
 - 对买家 Agent 来说，真正重要的是 `service_id`、`description_for_model`、`input_schema`、`output_schema`、`price_model`、`endpoint_url` 和运行约束。
+- 对平台 Gateway 来说，`gateway_extensions` 则补充了探活、转发、多 target 路由和计费策略这些内部执行信息。
 
 ## 4. Manifest 校验规则
 
@@ -134,6 +175,8 @@ Gateway 在卖家提交 Manifest 时，必须校验：
 4. `price_model` 必须命中白名单
 5. `endpoint_url` 必须可健康检查
 6. `timeout_ms`、`max_payload_bytes` 必须在平台限制内
+7. 若声明 `gateway_extensions.routing_targets`，则每个 target 都必须通过 URL 白名单与健康检查约束
+8. 若声明 `gateway_extensions.metering_policy`，则计费规则必须和平台的结算模型兼容
 
 补充原则：
 

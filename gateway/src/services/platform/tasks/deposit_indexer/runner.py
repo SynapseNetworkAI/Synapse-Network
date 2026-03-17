@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.domain.finance import BalanceLedger
 from src.storage import BaseStorage
 
 from .backfill import run_backfill_scan_once
@@ -56,7 +57,7 @@ def _process_replay_event(
     *,
     intents: list[Dict[str, Any]],
     processed_keys: set[str],
-    buyers: Dict[str, float],
+    ledger: BalanceLedger,
     normalized_tx: str,
     event: Dict[str, Any],
     summary: Dict[str, Any],
@@ -87,7 +88,7 @@ def _process_replay_event(
     else:
         changed_intent = False
 
-    outcome = _process_single_intent(storage, target_intent, processed_keys, buyers, now)
+    outcome = _process_single_intent(storage, target_intent, processed_keys, ledger, now)
     if changed_intent:
         outcome["changedIntent"] = True
     return outcome
@@ -122,7 +123,6 @@ def replay_deposit_tx(
         intents = _load_deposit_intents(storage)
         processed_keys = set(_load_processed_deposit_event_keys(storage))
         ledger = _load_balance_ledger(storage)
-        buyers = ledger.buyers
 
         changed_intents = False
         changed_ledger = False
@@ -133,7 +133,7 @@ def replay_deposit_tx(
                 storage,
                 intents=intents,
                 processed_keys=processed_keys,
-                buyers=buyers,
+                ledger=ledger,
                 normalized_tx=normalized_tx,
                 event=event,
                 summary=summary,
@@ -188,16 +188,13 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]
 
         processed_keys = set(_load_processed_deposit_event_keys(storage))
         ledger = _load_balance_ledger(storage)
-        buyers = ledger.buyers
 
         changed_intents = False
         changed_ledger = False
         changed_processed = False
 
         for intent in intents:
-            outcome = _process_single_intent(
-                storage, intent, processed_keys, buyers, now
-            )
+            outcome = _process_single_intent(storage, intent, processed_keys, ledger, now)
 
             changed_intents, changed_ledger, changed_processed = _apply_outcome_flags(
                 outcome,

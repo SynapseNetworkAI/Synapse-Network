@@ -5,7 +5,8 @@ from src.domain.execution import PreparedWithdrawTicket
 from src.domain.finance import BalanceLedger, RefundIntentRow, UsageLogRow
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
 from src.services.buyer.finance_service import BuyerFinanceService
-from src.services.seller.withdraw_service import SellerWithdrawService
+from src.services.platform.finance_service import PlatformFinanceService
+from src.services.provider.withdraw_service import ProviderWithdrawService
 
 
 class DummyLock:
@@ -119,7 +120,7 @@ def _configure_buyer_service(service: BuyerFinanceService) -> None:
     service._enforce_owner_write_rate_limit = _async_none
 
 
-def _configure_withdraw_service(service: SellerWithdrawService) -> None:
+def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
     service._get_redis_client = _async_none
     service._check_idempotency_redis = _async_none
     service._start_idempotency_redis = _async_true
@@ -146,7 +147,7 @@ def _configure_withdraw_service(service: SellerWithdrawService) -> None:
     )
 
 
-def test_buyer_finance_deposit_flow_uses_typed_rows() -> None:
+def test_consumer_finance_deposit_flow_uses_typed_rows() -> None:
     storage = FakeStorage()
     service = BuyerFinanceService(storage, DummyLockManager())
     _configure_buyer_service(service)
@@ -175,9 +176,9 @@ def test_buyer_finance_deposit_flow_uses_typed_rows() -> None:
     assert storage.gateway_state.deposit_rows[0].event_key == "evt-1"
 
 
-def test_buyer_finance_refund_flow_uses_typed_rows() -> None:
+def test_consumer_finance_refund_flow_uses_typed_rows() -> None:
     storage = FakeStorage()
-    storage.balance.ledger.buyers["0xabc"] = 100.0
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 100.0
     storage.gateway_state.usage_rows = [
         UsageLogRow(
             id="usage-1",
@@ -218,10 +219,10 @@ def test_buyer_finance_refund_flow_uses_typed_rows() -> None:
     assert storage.gateway_state.refund_rows[0].tx_hash == "0x" + "2" * 64
 
 
-def test_seller_withdraw_flow_uses_typed_rows() -> None:
+def test_provider_withdraw_flow_uses_typed_rows() -> None:
     storage = FakeStorage()
-    storage.balance.ledger.sellers["0xdef"] = 50.0
-    service = SellerWithdrawService(storage, DummyLockManager())
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = 50.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
 
     created = asyncio.run(
@@ -244,3 +245,31 @@ def test_seller_withdraw_flow_uses_typed_rows() -> None:
     )
     assert completed["status"] == "COMPLETED"
     assert storage.gateway_state.withdraw_rows[0].tx_hash == "0x" + "3" * 64
+
+
+def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
+    storage = FakeStorage()
+    consumer_wallet = storage.balance.ledger.ensure_consumer_wallet("0xabc")
+    provider_wallet = storage.balance.ledger.ensure_provider_wallet("0xabc")
+    consumer_wallet.available_balance = 12.5
+    consumer_wallet.pending_balance = 1.25
+    consumer_wallet.frozen_balance = 0.75
+    provider_wallet.available_balance = 9.5
+    provider_wallet.pending_balance = 2.0
+    storage.balance.ledger.platform.fee_accrued = 0.4
+    storage.balance.ledger.updated_at = "2026-03-17 12:00:00"
+
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    balance = asyncio.run(service.get_balance("0xabc"))
+
+    assert balance == {
+        "ownerAddress": "0xabc",
+        "consumerAvailableBalance": 12.5,
+        "consumerPendingBalance": 1.25,
+        "consumerFrozenBalance": 0.75,
+        "providerReceivableBalance": 9.5,
+        "providerLockedBalance": 2.0,
+        "platformFeeAccrued": 0.4,
+        "updatedAt": "2026-03-17 12:00:00",
+    }

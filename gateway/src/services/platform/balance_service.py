@@ -9,7 +9,7 @@ from src.services.balance_mixins import (
 )
 from src.services.buyer.finance_service import BuyerFinanceService
 from src.services.platform.finance_service import PlatformFinanceService
-from src.services.seller.withdraw_service import SellerWithdrawService
+from src.services.provider.withdraw_service import ProviderWithdrawService
 
 
 class BalanceService(
@@ -35,7 +35,7 @@ class BalanceService(
             mutation_lock=self._mutation_lock,
             guard_delegate=self,
         )
-        self.seller_withdraw_service = SellerWithdrawService(
+        self.seller_withdraw_service = ProviderWithdrawService(
             storage=storage,
             mutation_lock=self._mutation_lock,
             signing_delegate=self,

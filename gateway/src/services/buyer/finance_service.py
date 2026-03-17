@@ -254,9 +254,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
-        ledger.buyers.setdefault(owner, round(float(ledger.buyers.get(owner, 0.0)), 6))
-        ledger.buyers_locked[owner] = round(
-            float(ledger.buyers_locked.get(owner, 0.0)) + float(amount_usdc), 6
+        consumer_wallet = ledger.ensure_consumer_wallet(owner)
+        consumer_wallet.pending_balance = round(
+            float(consumer_wallet.pending_balance or 0.0) + float(amount_usdc), 6
         )
         self._save_balance_ledger(ledger)
 
@@ -264,20 +264,21 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         self, owner: str, amount_usdc: Decimal
     ) -> DepositBalanceMove:
         ledger = self._load_balance_ledger()
-        available_before = round(float(ledger.buyers.get(owner, 0.0)), 6)
-        pending_before = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
+        consumer_wallet = ledger.ensure_consumer_wallet(owner)
+        available_before = round(float(consumer_wallet.available_balance or 0.0), 6)
+        pending_before = round(float(consumer_wallet.pending_balance or 0.0), 6)
         amount = round(float(amount_usdc), 6)
         if pending_before + 1e-9 < amount:
             raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
 
-        ledger.buyers[owner] = round(available_before + amount, 6)
-        ledger.buyers_locked[owner] = round(max(0.0, pending_before - amount), 6)
+        consumer_wallet.available_balance = round(available_before + amount, 6)
+        consumer_wallet.pending_balance = round(max(0.0, pending_before - amount), 6)
         self._save_balance_ledger(ledger)
         return DepositBalanceMove(
             available_before=available_before,
-            available_after=round(float(ledger.buyers[owner]), 6),
+            available_after=round(float(consumer_wallet.available_balance or 0.0), 6),
             pending_before=pending_before,
-            pending_after=round(float(ledger.buyers_locked[owner]), 6),
+            pending_after=round(float(consumer_wallet.pending_balance or 0.0), 6),
         )
 
     def _parse_refund_amount_usdc(
@@ -573,7 +574,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _consume_locked_refund_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
-        locked = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
+        consumer_wallet = ledger.ensure_consumer_wallet(owner)
+        locked = round(float(consumer_wallet.pending_balance or 0.0), 6)
         if locked + 1e-9 < amount_usdc:
             raise HTTPException(
                 status_code=409,
@@ -582,12 +584,13 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     "message": "Locked buyer balance is insufficient for this refund intent.",
                 },
             )
-        ledger.buyers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
+        consumer_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
     def _reserve_buyer_refund_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
-        available_balance = round(float(ledger.buyers.get(owner, 0.0)), 6)
+        consumer_wallet = ledger.ensure_consumer_wallet(owner)
+        available_balance = round(float(consumer_wallet.available_balance or 0.0), 6)
         if amount_usdc > available_balance:
             raise HTTPException(
                 status_code=400,
@@ -596,11 +599,11 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     "message": "amountUsdc exceeds buyer available balance.",
                 },
             )
-        ledger.buyers[owner] = round(
-            float(ledger.buyers.get(owner, 0.0)) - amount_usdc, 6
+        consumer_wallet.available_balance = round(
+            float(consumer_wallet.available_balance or 0.0) - amount_usdc, 6
         )
-        ledger.buyers_locked[owner] = round(
-            float(ledger.buyers_locked.get(owner, 0.0)) + amount_usdc, 6
+        consumer_wallet.pending_balance = round(
+            float(consumer_wallet.pending_balance or 0.0) + amount_usdc, 6
         )
         self._save_balance_ledger(ledger)
 
@@ -743,7 +746,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         self, owner: str, amount_usdc: float
     ) -> None:
         ledger = self._load_balance_ledger()
-        locked = round(float(ledger.buyers_locked.get(owner, 0.0)), 6)
+        consumer_wallet = ledger.ensure_consumer_wallet(owner)
+        locked = round(float(consumer_wallet.pending_balance or 0.0), 6)
         if locked + 1e-9 < amount_usdc:
             raise HTTPException(
                 status_code=409,
@@ -752,9 +756,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     "message": "Locked buyer balance is insufficient for refund rejection release.",
                 },
             )
-        ledger.buyers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
-        ledger.buyers[owner] = round(
-            float(ledger.buyers.get(owner, 0.0)) + amount_usdc, 6
+        consumer_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
+        consumer_wallet.available_balance = round(
+            float(consumer_wallet.available_balance or 0.0) + amount_usdc, 6
         )
         self._save_balance_ledger(ledger)
 
@@ -1271,7 +1275,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             await self._enforce_owner_write_rate_limit(owner, "refund_intent")
 
             ledger = self._load_balance_ledger()
-            available_balance = round(float(ledger.buyers.get(owner, 0.0)), 6)
+            available_balance = ledger.consumer_available_balance(owner)
             context = self._parse_refund_create_context(
                 payload, owner, available_balance
             )

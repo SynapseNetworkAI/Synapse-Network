@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.domain.finance import BalanceLedger
 from src.storage import BaseStorage
 
 from .chain import (
@@ -70,7 +71,7 @@ def _process_backfill_event(
     *,
     intents: list[Dict[str, Any]],
     processed_keys: set[str],
-    buyers: Dict[str, float],
+    ledger: BalanceLedger,
     tx_hash: str,
     event: Dict[str, Any],
     now: int,
@@ -102,7 +103,7 @@ def _process_backfill_event(
     else:
         changed_intent = False
 
-    outcome = _process_single_intent(storage, target_intent, processed_keys, buyers, now)
+    outcome = _process_single_intent(storage, target_intent, processed_keys, ledger, now)
     if changed_intent:
         outcome["changedIntent"] = True
     return outcome
@@ -158,7 +159,6 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
         intents = _load_deposit_intents(storage)
         processed_keys = set(_load_processed_deposit_event_keys(storage))
         ledger = _load_balance_ledger(storage)
-        buyers = ledger.buyers
 
         changed_intents = False
         changed_ledger = False
@@ -180,7 +180,7 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
                     storage,
                     intents=intents,
                     processed_keys=processed_keys,
-                    buyers=buyers,
+                    ledger=ledger,
                     tx_hash=tx_hash,
                     event=event,
                     now=now,

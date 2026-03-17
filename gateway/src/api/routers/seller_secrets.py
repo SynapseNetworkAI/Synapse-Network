@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Header
 
 from src.api.schemas.pydantic_models import CredentialIssueRequest
 from src.services.platform import credential_service
-from src.services.seller import seller_secret_service
+from src.services.provider import provider_secret_service
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
@@ -23,7 +23,9 @@ async def list_seller_secrets(
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
     return {
         "status": "success",
-        "secrets": seller_secret_service.list_seller_secrets_by_owner(storage, owner),
+        "secrets": provider_secret_service.list_provider_secrets_by_owner(
+            storage, owner
+        ),
     }
 
 
@@ -35,7 +37,7 @@ async def issue_seller_secret(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await seller_secret_service.issue_seller_secret_for_owner(
+    return await provider_secret_service.issue_provider_secret_for_owner(
         storage, owner, req
     )
 
@@ -48,6 +50,6 @@ async def revoke_seller_secret(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await seller_secret_service.revoke_seller_secret_for_owner(
+    return await provider_secret_service.revoke_provider_secret_for_owner(
         storage, owner, secret_id
     )

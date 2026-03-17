@@ -1,142 +1,236 @@
-# 网关离链计费与凭票退款结算设计 (Gateway Off-chain Billing & Refund Design)
+# Off-chain Billing Architecture
 
-本文档详细说明了 Synapse Network 在引入 `SynapseCore.sol` (V2 架构) 后，Python 后端网关如何完成**“离链高频切账”**以及**“凭票清算（赛博银票 EIP-712）”**的完整实现方案。
+> 这份文档定义 Synapse 资金系统的 canonical target-state 设计。旧的单桶账本与双边角色命名已废弃，后续后端重构以本文为准。
 
-这套方案完全摒弃了老旧的 Web3 逐笔上链模式，真正做到了：**只有存钱和取钱时用户需要在链上按确认（付极少的 Gas），中间成千上万次的极快 API 调用体验极度丝滑（和 Web2 一样快，和 Web2 一样免费）**。
+## 1. 设计目标
 
-## 1. 核心数据结构 (离链账本 DB)
+Synapse 的计费系统必须同时满足：
 
-在 Python 后端网关（Gateway）中，系统主要维护以下三个核心状态集合（可持久化在 Redis / JSON / DB 中）：
+1. Agent Runtime 调用低延迟
+2. Owner 资金归属清晰
+3. Provider 收益独立可提现
+4. Platform 审计与对账可追溯
 
-### 1.1 Service Registry (服务目录)
-记录 Seller 注册的 AI 服务与**单次调用定价**。
-* `service_id`: 服务全局唯一标识 (如 `SVC_DEMO`)
-* `seller_address`: 拥有该服务的卖家钱包地址
-* `price_per_call`: 该 API 单次调用的定价 (例如 0.005 USDC)
-* `target_url`: 卖家真实的物理 API 地址
+因此，计费系统不再以历史单桶余额对象作为主模型，而是改用：
 
-### 1.2 Agent Credentials (访问密钥)
-记录买家授权生成的访问凭证，映射到具体钱包。
-* `credential_id`: HTTP Header 中携带的 X-Agent-Credential (Bearer 令牌)
-* `buyer_address`: 此令牌关联的买家链上地址
-* `expires_at`: 令牌过期时间
+1. `Owner`
+2. `Agent`
+3. `Provider role`
+4. `ledger buckets`
+5. `budget and settlement events`
 
-### 1.3 Balance Ledger (离链财务大账)
-这是整个离链结算的核心表：
-* `buyerBalances`: 记录买家在 Vault 中充值但尚未消耗的可用余额的映射。
-* `sellerReceivables`: 记录卖家提供服务赚取但尚未上链提现的余额。
-* `platformFeeAccrued`: 网关扣费时截留到系统里的待提现平台手续费池。
+## 2. 角色与职责
 
----
+### 2.1 Owner
 
-## 2. 网关秒级扣费逻辑 (核心主链路)
+Owner 是根身份，负责：
 
-当买家携带 `X-Agent-Credential` 和请求体打向网关入口 `http://网关/api/v1/gateway/generate` 时，Python 中间件执行以下极速鉴权与切账：
+1. 向 Vault 入金
+2. 创建 Agent
+3. 签发 Credential
+4. 管理服务
+5. 查看消费与收益
 
-### Step 1: 身份与余额前置校验
-1. 解析并验证 `Credential`，提取对应的 `buyer_address`。
-2. 根据请求附带的 `X-Service-Id` 从 `Service Registry` 读取出当前调用的单价 `price_per_call`。
-3. 检查离链账本：`buyerBalances[buyer_address] >= price_per_call`。若余额不足，直接阻断业务并返回 `HTTP 402 Payment Required`。
+### 2.2 Agent
 
-### Step 2: 透明流量转发 (Reverse Proxy)
-网关作为反向代理，将用户的 Prompt 和载荷透传至 Seller 真实的服务器 (`target_url`) 并等待结果返回。
+Agent 是运行时执行身份，负责：
 
-### Step 3: 毫秒级记账分润 (Accounting)
-若 Seller API 成功返回结果 (如 HTTP 200)，Python 网关立刻对账本对象进行**内存级切账**：
-1. **买家扣减**: `buyerBalances[buyer_address] -= price_per_call`
-2. **平台抽成计算**: `platform_cut = price_per_call * 0.01` (例如 1% 平台过路费)
-3. **卖家进账**: `sellerReceivables[seller_address] += (price_per_call - platform_cut)`
-4. **抽水入池**: `platformFeeAccrued += platform_cut`
+1. Discovery
+2. Quote
+3. Invoke
+4. 消耗 Owner 预算
 
-*(注：上述四大步骤全在 Python 内存或数据库层以 UPDATE/加减法形式完成，不发送任何区块链网络交易，0 chain Gas！)*
+### 2.3 Provider
 
-### Step 4: 返回结果
-将 Seller 提供的数据透传回给买家客户端，本次微支付周期落幕。
+Provider 不是独立账户，而是 Owner 的供给侧业务角色。
 
----
+### 2.4 Platform
 
-## 3. 买家退款与赛博银票签发机制 (出金流)
+Platform 负责：
 
-当买家不想再使用，且其离线账本表中还剩余一定 USDC（比如 15 U 此前已经全部充进了 `SynapseCore.sol`）时，出金（Refund）流程遵循“由平台发票，用户自己提现”策略：
+1. 报价
+2. 风控
+3. 扣费
+4. 分账
+5. 审计
+6. 结算
 
-### Step 1: 用户在前端发起退款请求
-前端调用网关专用接口: `POST /api/v1/refund`
+## 3. 资金桶模型
 
-### Step 2: Python 网关结算出票账本
-1. 查出用户可用全额: `refundable_amount = buyerBalances[buyer_address]`
-2. 为防止双花及重放攻击，将网关数据库中该用户的余额**清零锁定**: `buyerBalances[buyer_address] = 0`。
+同一个 Owner 下至少要拆出这些 bucket：
 
-### Step 3: 后端开出“赛博银票” (EIP-712 Signature)
-后端调用密码学库（如 `eth-account`），利用最高管理者的热钱包私钥 (`platformSigner`的私钥)：
-* 构造智能合约兼容的 Domain 结构 (匹配名称 `"SynapseCore"`, 版本 `"2"`, 还有对应的 `chainId` 及合约地址)。
-* 拼装提款消息: 确认提款人 (`owner` = `buyer_address`)，金额 (`amount` = `refundable_amount`)，手续费 (`fee` = 0，退款豁免)，防重放 Nonce（通过 RPC 向智能合约查此人的 nonce），以及过期时间 `deadline`。
-* 组合以上要素并本地签署后产生 `v, r, s` (转化为十六进制 signature，附加其余数据打包 HTTP 返回给前端)。
+1. `consumer_available`
+2. `consumer_pending`
+3. `consumer_locked`
+4. `provider_receivable`
+5. `provider_locked`
+6. `platform_fee`
 
-### Step 4: 前端拿着签名“金库取现” (智能合约闭环)
-收到 HTTP 回包后，前端使用 wagmi 直接调用 MetaMask。
-* 直接将 `amount`, `fee`, `nonce`, `deadline`, `signature` 参数一把传给链上金库 `SynapseCore.withdraw`。
-* 智能合约 ecrecover 验证确认是平台签发后，顺手提取 fee 到平台池（若 fee>0），剩余金额直接原路打给用户。**所需 Gas 由提款用户自行支付。**
+它们回答的是不同问题：
 
-*(卖家提取营收 `Seller Claim` 的流程与理发大同小异，只是出账对象变为 `sellerReceivables` 且大概率会附带大于 0 的提币手续费做平台抽水的变现转移)。*
+1. `consumer_available`: Agent Runtime 当前可消费的资金
+2. `consumer_pending`: 已登记但未最终确认的入金
+3. `consumer_locked`: refund / risk / review 占用中的消费侧资金
+4. `provider_receivable`: Provider 已赚到但未提现的收益
+5. `provider_locked`: provider withdrawal 占用中的收益
+6. `platform_fee`: 平台累计抽成
 
----
+## 4. 计费主链路
 
-## 4. 关键 Python 签名实现参考 (EIP-712)
+### 4.1 入金阶段
 
-Python 网关中执行签署的伪代码参考实现（FastAPI 中）：
+1. Owner 向 Vault 入金
+2. Platform 创建 deposit intent
+3. Indexer 确认链上事件
+4. 金额进入 `consumer_available`
 
-```python
-from eth_account.messages import encode_typed_data
-from eth_account import Account
-import time
+### 4.2 调用阶段
 
-def sign_withdraw_ticket(user_address: str, amount_wei: int, fee_wei: int, nonce: int, vault_contract_address: str, chain_id: int, signer_private_key: str):
-    """
-    为前端生成可以向智能合约 SynapseCore 请求取款的授权签名
-    """
-    domain = {
-        "name": "SynapseCore",
-        "version": "2",
-        "chainId": chain_id, 
-        "verifyingContract": vault_contract_address
-    }
+1. Agent 发起 Discovery / Quote / Invoke
+2. Platform 检查 Credential + Budget + Owner 资金
+3. 调用成功后执行分账
 
-    message = {
-        "user": user_address,
-        "amount": amount_wei,
-        "fee": fee_wei,
-        "nonce": nonce,
-        "deadline": int(time.time()) + 3600 # 银票有效期默认1小时
-    }
+### 4.3 分账阶段
 
-    types = {
-        "EIP712Domain": [
-            {"name": "name", "type": "string"},
-            {"name": "version", "type": "string"},
-            {"name": "chainId", "type": "uint256"},
-            {"name": "verifyingContract", "type": "address"}
-        ],
-        "Withdraw": [
-            {"name": "user", "type": "address"},
-            {"name": "amount", "type": "uint256"},
-            {"name": "fee", "type": "uint256"},
-            {"name": "nonce", "type": "uint256"},
-            {"name": "deadline", "type": "uint256"}
-        ]
-    }
+设：
 
-    signer_acct = Account.from_key(signer_private_key)
-    
-    # EIP-712 打包
-    signable_msg = encode_typed_data(domain_data=domain, message_types=types, message_data=message)
-    signed_message = signer_acct.sign_message(signable_msg)
+- `unit_price = P`
+- `platform_fee = F`
+- `provider_net = N`
 
-    # 返回组装好准备上链的数据集
-    return {
-        "amount": amount_wei,
-        "fee": fee_wei,
-        "nonce": nonce,
-        "deadline": message["deadline"],
-        "signature": signed_message.signature.hex()
-    }
-```
+则：
+
+- `N = P - F`
+
+一次成功调用后：
+
+1. `consumer_available -= P`
+2. `provider_receivable += N`
+3. `platform_fee += F`
+
+## 5. 预算与余额的边界
+
+预算不是余额，余额也不是凭据。
+
+### 5.1 Budget
+
+Budget 控制：
+
+1. 这个 Agent 能不能花
+2. 一次最多花多少
+3. 每天最多花多少
+
+### 5.2 Balance
+
+Balance 控制：
+
+1. Owner 账户里是否真有足够资金
+2. 调用成功后如何分账
+
+### 5.3 Credential
+
+Credential 控制：
+
+1. 谁在跑
+2. 允许调用什么
+3. 风控命中后是否拦截
+
+## 6. Refund 与 Provider Withdrawal 必须分离
+
+这条是未来代码重构的硬约束。
+
+### 6.1 Refund
+
+Refund 只作用于：
+
+1. `consumer_available`
+2. `consumer_locked`
+
+路径：
+
+1. `consumer_available -> consumer_locked`
+2. 链上完成后 `consumer_locked -> owner wallet`
+
+### 6.2 Provider Withdrawal
+
+Provider Withdrawal 只作用于：
+
+1. `provider_receivable`
+2. `provider_locked`
+
+路径：
+
+1. `provider_receivable -> provider_locked`
+2. 链上完成后 `provider_locked -> owner wallet`
+
+### 6.3 结论
+
+同一个 `ownerAddress` 可以同时发起：
+
+1. refund
+2. provider withdrawal
+
+只要它们操作的是不同 bucket，就不会冲突。
+
+## 7. 审计事件模型
+
+所有资金变化都要落成事件，而不是只改最终余额。
+
+至少包括：
+
+1. `vault_deposit_registered`
+2. `vault_deposit_confirmed`
+3. `budget_reserved`
+4. `usage_charged`
+5. `provider_earning_accrued`
+6. `platform_fee_captured`
+7. `refund_intent_created`
+8. `refund_completed`
+9. `provider_withdraw_intent_created`
+10. `provider_withdraw_completed`
+
+## 8. 对账不变量
+
+目标不变量：
+
+$$
+consumer\_available + consumer\_pending + consumer\_locked + provider\_receivable + provider\_locked + platform\_fee = vault\_obligation
+$$
+
+如果引入外部坏账、人工调整、争议冻结，则必须通过独立 adjustment event 进入账本，而不能直接改余额。
+
+## 9. API 设计影响
+
+后续代码重构时，API 应该遵循：
+
+1. `GET /balance` 返回的是 owner-scoped finance summary
+2. Refund API 明确声明自己只处理 consumer bucket
+3. Provider withdrawal API 明确声明自己只处理 provider bucket
+4. Agent-facing API 不暴露 provider settlement internals
+
+## 10. 数据模型方向
+
+建议后续代码重构时，逐步收敛到以下对象：
+
+1. `owner_accounts`
+2. `agent_profiles`
+3. `agent_credentials`
+4. `budget_policies`
+5. `service_manifests`
+6. `service_quotes`
+7. `invocations`
+8. `ledger_accounts`
+9. `ledger_entries`
+10. `audit_events`
+
+## 11. 结论
+
+Off-chain Billing 的 canonical 设计不是：
+
+1. 一个单一消费余额
+2. 一个单一供给应收
+3. 一个模糊平台池
+
+而是：
+
+**一个 Owner 身份下的多资金桶账本系统，由 Agent Runtime 消费，由 Provider role 赚取收益，由 Platform 负责风控、扣费、审计和清算。**

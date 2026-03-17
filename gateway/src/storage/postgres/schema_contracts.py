@@ -36,10 +36,10 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
-        table_name="synapse_seller_profiles",
-        required_columns=frozenset({"seller_id", "owner_wallet", "display_name", "status", "created_at", "updated_at"}),
+        table_name="synapse_provider_profiles",
+        required_columns=frozenset({"provider_id", "owner_id", "display_name", "status", "created_at", "updated_at"}),
         required_constraints=(
-            _constraint("primary key on seller_id", PRIMARY_KEY_FRAGMENT, "seller_id"),
+            _constraint("primary key on provider_id", PRIMARY_KEY_FRAGMENT, "provider_id"),
         ),
     ),
     TableSchemaContract(
@@ -67,7 +67,7 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
     ),
     TableSchemaContract(
         table_name="synapse_service_manifests",
-        required_columns=frozenset({"service_id", "seller_id", "service_name", "manifest_version", "status", "description_for_model", "task_category", "capabilities_json", "input_schema", "output_schema", "examples_json", "limitations_json", "price_model", "base_price_usdc", "quote_required", "settlement_currency", "created_at", "updated_at"}),
+        required_columns=frozenset({"service_id", "owner_id", "provider_id", "service_name", "manifest_version", "status", "description_for_model", "task_category", "capabilities_json", "input_schema", "output_schema", "examples_json", "limitations_json", "price_model", "base_price_usdc", "quote_required", "settlement_currency", "created_at", "updated_at"}),
         required_indexes=frozenset({"idx_synapse_service_manifests_status"}),
         required_constraints=(
             _constraint("primary key on service_id", PRIMARY_KEY_FRAGMENT, "service_id"),

@@ -48,15 +48,11 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
         return {
             "ownerAddress": normalized_owner,
-            "buyerBalance": round(
-                float(balance_data.buyers.get(normalized_owner, 0.0)), 6
-            ),
-            "sellerReceivable": round(
-                float(balance_data.sellers.get(normalized_owner, 0.0)), 6
-            ),
-            "sellerLocked": round(
-                float(balance_data.sellers_locked.get(normalized_owner, 0.0)), 6
-            ),
+            "consumerAvailableBalance": balance_data.consumer_available_balance(normalized_owner),
+            "consumerPendingBalance": balance_data.consumer_pending_balance(normalized_owner),
+            "consumerFrozenBalance": balance_data.consumer_frozen_balance(normalized_owner),
+            "providerReceivableBalance": balance_data.provider_receivable_balance(normalized_owner),
+            "providerLockedBalance": balance_data.provider_locked_balance(normalized_owner),
             "platformFeeAccrued": round(balance_data.platform.fee_accrued, 6),
             "updatedAt": balance_data.updated_at,
         }

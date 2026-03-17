@@ -19,9 +19,7 @@ from .shared import _now, _set_status, get_web3, logger
 
 def _sum_ledger_obligation_usdc(ledger: BalanceLedger) -> float:
     """统计买家可用+待确认资金总额，作为平台应付义务。"""
-    available = sum(float(value) for value in ledger.buyers.values())
-    pending = sum(float(value) for value in ledger.buyers_locked.values())
-    return round(available + pending, 6)
+    return ledger.total_consumer_obligation()
 
 
 def _read_chain_vault_balance_usdc() -> float:

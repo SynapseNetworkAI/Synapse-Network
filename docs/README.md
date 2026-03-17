@@ -1,82 +1,110 @@
-# Synapse Network 文档总览
+# Synapse Network 文档索引
 
-该目录经过重新整理，用于存放 `Synapse Network` 项目的核心架构设计、产品规划、智能合约与网关细节以及相关的开发者指南。我们根据功能的业务域（Domain）进行了规范化重构：
+这个目录已经切到 build-for-agent 主线，阅读顺序和维护方式也要跟着切。
 
-## 1. 产品愿景与商业设计 (`01_Product_Vision/`)
-该模块记录了平台的核心概念、解决的痛点、如何盈利以及团队的长期战略：
-- **产品核心思想**: [Product_Thinking.md](./01_Product_Vision/Product_Thinking.md)
-- **商业计划书**: [Business_Plan.md](./01_Product_Vision/Business_Plan.md)
-- **收费与商业模式**: [Monetization_Model.md](./01_Product_Vision/Monetization_Model.md)
-- **投资与路演资料**: [Pitch_Deck_Material.md](./01_Product_Vision/Pitch_Deck_Material.md)
-- **项目路线图**: [ROADMAP.md](./01_Product_Vision/ROADMAP.md) / [MVP.md](./01_Product_Vision/MVP.md)
+不要再把 `docs/` 当成历史草稿堆栈。现在的目标是：
 
-## 2. 核心架构设计 (`02_Architecture/`)
-该模块涵盖了系统宏观运转机制，平台级别的基础选型：
-- **A2A 全局核心架构**: [Core_Architecture.md](./02_Architecture/Core_Architecture.md)
-- **高频微支付终极架构 (高并发下 0 Gas)**: [High_Frequency_MicroPayment_V2.md](./02_Architecture/High_Frequency_MicroPayment_V2.md)
-- **FastAPI 网关同步支付设计**: [FastAPI_Synchronous_Payment.md](./02_Architecture/FastAPI_Synchronous_Payment.md)
-- **AI 反向代理与路由**: [API_Gateway_Reverse_Proxy.md](./02_Architecture/API_Gateway_Reverse_Proxy.md)
-- **网关日志追踪系统**: [Gateway_Application_Logging.md](./02_Architecture/Gateway_Application_Logging.md)
-- **资金生产安全基线**: [Financial_Production_Security.md](./02_Architecture/Financial_Production_Security.md)
-- **全资金链路风控设计（充值/扣费/退款/提现）**: [Gateway_Financial_Risk_Control_Design.md](./02_Architecture/Gateway_Financial_Risk_Control_Design.md)
-- **存储方案升级（Demo -> Production）**: [Storage_Strategy_Upgrade.md](./02_Architecture/Storage_Strategy_Upgrade.md)
-- **生产升级 TODO（存储与资金安全）**: [Production_Upgrade_TODO.md](./02_Architecture/Production_Upgrade_TODO.md)
-- **生产升级 Issue 草案（可直接开单）**: [Production_Upgrade_Issue_Seeds.md](./02_Architecture/Production_Upgrade_Issue_Seeds.md)
+1. 先找到当前 canonical 文档。
+2. 再按业务域查前端、后端、数据库、运维和管理后台资料。
+3. 历史方案一律只在 `archive/` 中查，不参与当前设计决策。
 
-## 3. 智能合约与支付结算 (`03_Smart_Contract_Payment/`)
-所有围绕以太坊与 USDC 构建的金库、账本与对账体系：
-- **链下计费与中心化账本设计**: [Offchain_Billing.md](./03_Smart_Contract_Payment/Offchain_Billing.md)
-- **金库与一键充值 (Permit机制)**: [Vault_Deposit_Architecture.md](./03_Smart_Contract_Payment/Vault_Deposit_Architecture.md)
-- **买家充值端到端数据流说明**: [Buyer_Deposit_End_to_End_Dataflow.md](./03_Smart_Contract_Payment/Buyer_Deposit_End_to_End_Dataflow.md)
-- **Gateway 数据库设计**: [Gateway_V2_Data_Model.md](./03_Smart_Contract_Payment/Gateway_V2_Data_Model.md)
-- **Gateway 数据库设计（Build For Agent）**: [Gateway_Database_Design.md](./Gateway_Database_Design.md)
-- **Agent Runtime 数据模型**: [Agent_Runtime_Data_Model.md](./03_Smart_Contract_Payment/Agent_Runtime_Data_Model.md)
-- **卖家结算与平台抽水闭环**: [Settlement_and_Deduction_Logic.md](./03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md)
-- **退款流程体系**: [Buyer_Refund_Process.md](./03_Smart_Contract_Payment/Buyer_Refund_Process.md)
+## 1. 先读这些 canonical 文档
 
-## 4. Agent 网络与协议 (`04_Agent_Network/`)
-如何让两台互不认识的 AI 能够自主沟通、互相发现并完成 USDC 计价的交易：
-- **Agent First 总设计**: [agent_design.md](./agent_design.md)
-- **Agent Runtime 产品蓝图索引**: [agent/agent_design.md](./agent/agent_design.md)
-- **Agent Runtime 产品架构**: [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
-- **Discovery / Quote / Invoke API 设计**: [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
-- **Service Manifest 字段标准**: [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
-- **Credential / Budget 风控模型**: [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
-- **Dashboard 信息架构与 Onboarding**: [agent/05_Dashboard_IA_and_Onboarding.md](./agent/05_Dashboard_IA_and_Onboarding.md)
-- **Build For Agent 数据库重构**: [agent/06_Build_For_Agent_Database_Rebuild.md](./agent/06_Build_For_Agent_Database_Rebuild.md)
-- **Agent API 异常与计费协议**: [API_Billing_Deduction_Protocol.md](./04_Agent_Network/API_Billing_Deduction_Protocol.md)
-- **零代码语义级服务发现系统**: [AI_Service_Discovery.md](./04_Agent_Network/AI_Service_Discovery.md)
-- **买家钱包与 Agent 的子拓扑**: [Buyer_Wallet_Topology.md](./04_Agent_Network/Buyer_Wallet_Topology.md)
-- **卖家服务挂载 (Service Manifest) 设计**: [Service_Manifest_Registration.md](./04_Agent_Network/Service_Manifest_Registration.md)  
-- **调用凭据授权控制 (API Key)**: [Credential_and_RateLimit.md](./04_Agent_Network/Credential_and_RateLimit.md)
+### 产品与总原则
+- [agent.md](./agent.md): 项目原则、工程红线、Agent First 产品准则。
+- [01_Product_Vision/Design.md](./01_Product_Vision/Design.md): 视觉与交互基线。
+- [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md): Owner / Agent / Provider / Platform 身份边界。
+- [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md): Agent Runtime 主架构、核心对象、五层边界。
 
-## 5. 前端产品设计 (`05_Frontend_UX/`)
-关于网站页面构建、Next.js 状态隔离以及 UX 用户体验打磨：
-- **统一 DashBoard 与入驻引导**: [Dashboard_Onboarding.md](./05_Frontend_UX/Dashboard_Onboarding.md)
-- **前后端页面统一架构**: [Unified_Page_Architecture.md](./05_Frontend_UX/Unified_Page_Architecture.md)
-- **充提资金流优化**: [Deposit_Flow_Optimization.md](./05_Frontend_UX/Deposit_Flow_Optimization.md)
-- **卖家 Workspace 设置**: [Seller_Workspace.md](./05_Frontend_UX/Seller_Workspace.md)
+### Agent Runtime 协议
+- [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md): Discovery / Quote / Invoke 三段式协议。
+- [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md): Service Manifest 字段标准。
+- [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md): Credential、Budget、Risk 模型。
+- [api.md](./api.md): 当前 API 合约总表。
 
-## 6. 使用与开发者指南 (`06_Developer_Guides/`)
-方便二次开发甚至快速 Demo 跑通的操作手册：
-- **后端 Python 网关启动指南 (Dev)**: [Backend_Python_Dev_Guide.md](./06_Developer_Guides/Backend_Python_Dev_Guide.md)
-- **Gateway 环境变量配置说明**: [Gateway_Environment_Configuration.md](./06_Developer_Guides/Gateway_Environment_Configuration.md)
-- **后端单元测试与压测指南**: [Backend_Unit_Testing_Guide.md](./06_Developer_Guides/Backend_Unit_Testing_Guide.md)
-- **V2 充值索引设计与补账运维手册**: [V2_Deposit_Indexer_Runbook.md](./06_Developer_Guides/V2_Deposit_Indexer_Runbook.md)
-- **买家 Python SDK 示例**: [Buyer_SDK_Quickstart.md](./06_Developer_Guides/Buyer_SDK_Quickstart.md)
-- **前端 Web 综合使用手册**: [Website_User_Guide.md](./06_Developer_Guides/Website_User_Guide.md)
-- **本地节点与区块链浏览器的搭建**: [Local_Blockchain_Setup.md](./06_Developer_Guides/Local_Blockchain_Setup.md)
-- **资金安全应急处置手册**: [Financial_Security_Incident_Runbook.md](./06_Developer_Guides/Financial_Security_Incident_Runbook.md)
+### 数据库与资金真相层
+- [agent/06_Build_For_Agent_Database_Rebuild.md](./agent/06_Build_For_Agent_Database_Rebuild.md): 为什么必须从钱包/API Key 模型切到 Agent Runtime 模型。
+- [03_Smart_Contract_Payment/Agent_Runtime_Data_Model.md](./03_Smart_Contract_Payment/Agent_Runtime_Data_Model.md): Agent Runtime 目标数据模型。
+- [03_Smart_Contract_Payment/Owner_Vault_Deposit_End_to_End_Dataflow.md](./03_Smart_Contract_Payment/Owner_Vault_Deposit_End_to_End_Dataflow.md): 当前 Owner 向 Vault 入金的真实执行链路。
+- [03_Smart_Contract_Payment/Owner_Consumer_Refund_Process.md](./03_Smart_Contract_Payment/Owner_Consumer_Refund_Process.md): 当前 Owner 消费侧退款链路与多资金桶边界。
+- [Gateway_Database_Design.md](./Gateway_Database_Design.md): 当前 build-for-agent 数据库总览摘要。
 
-## 6.1 资金审批与补偿专题
-- **充值 / 退款审批流程**: [充值退款审批流程.md](./充值退款审批流程.md)
+## 2. 按功能分类阅读
 
-## 7. 管理后台设计 (`admin/`)
-该模块聚焦平台管理员控制面，与交易网关文档隔离维护：
-- **管理后台总设计**: [Platform_Admin_Backoffice_Architecture.md](./admin/Platform_Admin_Backoffice_Architecture.md)
-- **管理后台数据库设计**: [Admin_Database_Design.md](./admin/Admin_Database_Design.md)
-- **管理后台 PostgreSQL 部署与账号权限设计**: [Admin_PostgreSQL_Deployment_Design.md](./admin/Admin_PostgreSQL_Deployment_Design.md)
-- **管理后台文档索引**: [README.md](./admin/README.md)
+### 业务核心
+- `01_Product_Vision/`: 商业模型、路线图、MVP、愿景文档。
+- `agent/`: build-for-agent 的产品、协议、Runtime、Dashboard IA 核心设计。
 
----
-> “打造人类历史上第一个零摩擦的纯硅基服务结算网络。” —— **Synapse Network** 
+### 后端文档
+- `02_Architecture/`: 网关、支付、风控、日志、部署、生产安全架构。
+- `04_Synapse_Network/`: 仅保留后端实现补充说明和历史兼容备注，不能覆盖 `agent/` 与 `api.md` 的 canonical 设计。
+- [Buyer_Error_Codes.md](./Buyer_Error_Codes.md): 当前对外 Runtime 错误码文档；文件名是历史遗留，文档语义已切到 agent-first Runtime。
+
+### 数据库文档
+- `03_Smart_Contract_Payment/`: 合约、账本、充值、提现、结算、数据模型。
+- [Gateway_Database_Design.md](./Gateway_Database_Design.md): 面向当前 schema 的摘要入口。
+
+### 前端文档
+- `05_Frontend_UX/`: 前端 IA、充值退款体验、Dashboard、页面架构。
+- `feature_designs/frontend_product/`: 更细的前端专题设计，如认证、Provider Console、Homepage。
+
+### 运维与开发指南
+- `06_Developer_Guides/`: 本地开发、测试、环境变量、索引器 Runbook、控制台使用说明。
+- [06_Developer_Guides/README.md](./06_Developer_Guides/README.md): 开发与运维入口索引。
+- 新的推荐阅读顺序：
+	1. [06_Developer_Guides/Backend_Python_Dev_Guide.md](./06_Developer_Guides/Backend_Python_Dev_Guide.md)
+	2. [06_Developer_Guides/Gateway_Environment_Configuration.md](./06_Developer_Guides/Gateway_Environment_Configuration.md)
+	3. [06_Developer_Guides/Backend_Unit_Testing_Guide.md](./06_Developer_Guides/Backend_Unit_Testing_Guide.md)
+	4. [06_Developer_Guides/Agent_SDK_Quickstart.md](./06_Developer_Guides/Agent_SDK_Quickstart.md)
+	5. [06_Developer_Guides/V2_Deposit_Indexer_Runbook.md](./06_Developer_Guides/V2_Deposit_Indexer_Runbook.md)
+	6. [06_Developer_Guides/Website_User_Guide.md](./06_Developer_Guides/Website_User_Guide.md)
+- `02_Architecture/` 中以下文档也属于运维主线：
+	- `GitHub_Workflows_CICD_and_Production_Operations.md`
+	- `Financial_Security_Incident_Runbook.md`
+	- `Phase5_Liquidity_Alert_SOP_Implementation.md`
+	- `Production_Upgrade_TODO.md`
+	- `Production_Upgrade_Issue_Seeds.md`
+
+### 管理后台文档
+- `admin/`: 管理后台架构、数据库、RBAC、审计、审批、部署。
+- `feature_designs/backend_admin/`: 后台专题补充设计。
+
+## 3. 已归档的历史文档
+
+以下历史文档已经从主阅读面移走，不再作为当前设计依据：
+
+- `archive/pre_agent/`: 钱包中心、买家中心、旧发现模型等历史文档。
+- `archive/historical_schema/`: V2 过渡期数据库方案。
+- `archive/historical_architecture/`: 已被 Agent Runtime 主架构替代的旧总览文档。
+
+归档文档可以保留历史上下文，但不能覆盖当前 canonical 设计。
+
+## 4. 文档维护规则
+
+1. 涉及 Runtime、数据库、API、前端 IA 的新增设计，优先补到对应业务域，不要再把新文档堆到根目录。
+2. 如新设计已经覆盖旧文档，先更新 README 中的 canonical 指向，再将旧文档移入 `archive/`。
+3. 对外行为变化必须同步更新 `api.md`、相关专题文档和对应测试说明。
+4. 如果一个主题在 `agent/` 已有 canonical 版本，其他目录的文档只能做补充实现说明，不能重新定义同一套协议。
+5. `docs/plan/` 只放执行计划、重构计划、收敛计划，不放长期 canonical 设计。
+
+## 5. 当前这轮收敛结果
+
+本轮已经把以下明显过时主题移入归档：
+
+- 钱包中心旧拓扑与旧 SDK 角色化文档
+- 旧的 AI Service Discovery 草案
+- V2 过渡期数据库方案
+- 已被 Agent Runtime 架构替代的旧总览架构文档
+
+当前 `docs/` 的主阅读顺序应该是：
+
+1. `agent.md`
+2. `agent/00_Platform_Role_Identity_Model.md`
+3. `agent/01` → `agent/02` → `agent/04` → `agent/06`
+4. `api.md`
+5. `03_Smart_Contract_Payment/Agent_Runtime_Data_Model.md`
+6. `02_Architecture/README.md`
+7. `06_Developer_Guides/README.md`
+8. 对应业务域的前端、后端、运维补充文档
+
+> Synapse 当前不是“给人手工逛 API 的平台”，而是面向 Agent Runtime 的发现、报价、调用、记账和清算基础设施。文档结构也必须服务这个目标。

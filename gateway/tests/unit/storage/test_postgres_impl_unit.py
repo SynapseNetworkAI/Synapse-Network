@@ -9,12 +9,12 @@ from types import SimpleNamespace
 from src.storage.postgres_impl import PostgresStorage
 from src.storage.postgres.schema_contracts import POSTGRES_TABLE_SCHEMA_CONTRACTS
 from src.domain.finance import (
-    ChargeBuyerUsageCommand,
+    ChargeConsumerUsageCommand,
     CompleteWithdrawTxCommand,
     DepositIntentConfirmCommand,
     DepositIntentRegisterCommand,
     DepositIntentRow,
-    ReserveSellerWithdrawCommand,
+    ReserveProviderWithdrawCommand,
     UsageLogRow,
     WithdrawalAtomicRequestCommand,
 )
@@ -234,11 +234,11 @@ def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:
             captured["complete_tx"] = command
             return True
 
-        def charge_buyer_and_record_usage_atomic(self, command):
+        def charge_consumer_and_record_usage_atomic(self, command):
             captured["charge"] = command
-            return SimpleNamespace(buyer_balance_after=7.5)
+            return SimpleNamespace(consumer_available_balance_after=7.5)
 
-        def reserve_seller_withdraw_atomic(self, command):
+        def reserve_provider_withdraw_atomic(self, command):
             captured["reserve"] = command
             return SimpleNamespace(before_balance=10.0, after_balance=8.0)
 
@@ -248,7 +248,7 @@ def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:
     )
 
     withdraw_command = WithdrawalAtomicRequestCommand(
-        seller_address="0xabc",
+        provider_address="0xabc",
         amount_usdc=Decimal("12.000000"),
         request_id="req-1",
         idempotency_key="idem-1",
@@ -282,21 +282,21 @@ def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:
         tx_hash="0x" + "3" * 64,
         kind="provider_withdraw",
     )
-    charge_command = ChargeBuyerUsageCommand(
+    charge_command = ChargeConsumerUsageCommand(
         owner_wallet="0xabc",
-        seller_wallet="0xdef",
+        provider_wallet="0xdef",
         total_charge=Decimal("1.250000"),
-        seller_net=Decimal("1.000000"),
+        provider_net=Decimal("1.000000"),
         platform_fee_total=Decimal("0.250000"),
         usage_row=UsageLogRow(
             id="usage-1",
             ts=1,
-            buyerAddress="0xabc",
-            sellerAddress="0xdef",
+            consumerAddress="0xabc",
+            providerAddress="0xdef",
             totalCharge=Decimal("1.250000"),
         ),
     )
-    reserve_command = ReserveSellerWithdrawCommand(
+    reserve_command = ReserveProviderWithdrawCommand(
         owner_wallet="0xabc",
         amount_usdc=Decimal("2.000000"),
     )
@@ -305,8 +305,8 @@ def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:
     assert storage.register_deposit_intent_atomic(register_command) == deposit_row
     confirmed = storage.confirm_deposit_intent_atomic(confirm_command)
     assert storage.complete_withdraw_tx_atomic(complete_tx_command) is True
-    charged = storage.charge_buyer_and_record_usage_atomic(charge_command)
-    reserved = storage.reserve_seller_withdraw_atomic(reserve_command)
+    charged = storage.charge_consumer_and_record_usage_atomic(charge_command)
+    reserved = storage.reserve_provider_withdraw_atomic(reserve_command)
 
     assert captured["withdraw"] == withdraw_command
     assert captured["register"] == register_command
@@ -315,5 +315,5 @@ def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:
     assert captured["charge"] == charge_command
     assert captured["reserve"] == reserve_command
     assert confirmed.status == "CONFIRMED"
-    assert abs(charged.buyer_balance_after - 7.5) < 1e-9
+    assert abs(charged.consumer_available_balance_after - 7.5) < 1e-9
     assert abs(reserved.after_balance - 8.0) < 1e-9

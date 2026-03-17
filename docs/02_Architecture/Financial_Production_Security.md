@@ -1,276 +1,123 @@
-# Financial Production Security Baseline (资金生产安全基线)
+# Build-for-Agent Financial Production Security Baseline
 
 ## 1. Scope
 
-This document defines production-grade security controls for Synapse financial paths:
+本基线定义 Synapse 生产环境中与资金强相关的控制面：
 
-1. `/api/v1/balance*`
-2. `/api/v1/refund` and `/api/v1/refunds`
-3. `/api/v1/usage/logs`
-4. `/api/v1/router/config`
-5. `/api/v1/finance/audit-logs`
+1. Owner 入金与余额查询
+2. Agent 消费与调用结算
+3. 消费侧退款
+4. Provider 收益累计与提现
+5. 审计查询、运行时状态、风控与人工审核
 
-## 2. Completed Controls
+## 2. 不可突破底线
 
-### 2.1 Authentication and Owner Isolation
+1. 默认拒绝，所有金融接口都必须绑定有效 session。
+2. owner scope 必须从服务端身份上下文推导，禁止相信客户端自报。
+3. 所有资金变动都必须原子化、可回滚、可审计。
+4. 高频性能不能以牺牲资金一致性为代价。
+5. 提现和退款属于出金动作，必须受风控与审核控制。
 
-1. Financial APIs are session-required by default.
-2. Owner scope is enforced from token subject context.
-3. Cross-owner read/write is blocked by server-side filtering and owner-bound persistence.
+## 3. 已完成或必须保持的生产控制
 
-### 2.2 Idempotency and Replay Protection
+### 3.1 Authentication and Owner Isolation
 
-1. `POST /api/v1/balance/deposit/intent` and `POST /api/v1/refund` require `X-Idempotency-Key`.
-2. Idempotency key reuse with different payload returns `409`.
-3. Duplicate deposit `txHash` within replay window returns `409`.
-4. Idempotency key cache has both TTL and max-row pruning to prevent unbounded growth.
+1. 金融接口默认要求有效 session。
+2. 所有 owner-scoped 读写都由 token subject 绑定。
+3. 跨 owner 数据读取和写入必须被服务端过滤与拒绝。
 
-### 2.3 Input Validation and Guardrails
+### 3.2 Idempotency and Replay Protection
 
-1. Strict Pydantic request models for deposit, refund, and router config.
-2. Numeric boundaries:
-   - deposit amount must be `> 0`
-   - refund amount must be `>= 10`
-   - router daily limit must be within `[0, 10_000]`
-3. List endpoints enforce bounded query limits.
+1. 入金登记、退款申请、提现申请都必须要求幂等键。
+2. 相同幂等键但不同请求体必须返回冲突。
+3. 同一链上 `tx_hash` 只能被登记一次。
+4. 幂等存储必须具备 TTL 与容量治理，防止无限膨胀。
 
-Router daily limit definition:
+### 3.3 Atomic Mutation Controls
 
-1. `dailyLimitUsdc` is the maximum USDC spend an owner can route in one day.
-2. `0` means spend is blocked for the day.
+1. 余额变动禁止走内存快照回写模式。
+2. 关键扣减路径必须使用行级锁或等价原子条件更新。
+3. 一次成功调用的记账事务至少包含：
+   - 消费侧余额变动
+   - Provider 收益累积
+   - 平台费累积
+   - ledger entry
+   - audit event
+4. 任一步失败都必须整体回滚。
 
-### 2.4 Auditability
+### 3.4 Auditability
 
-1. Financial mutations append audit events to `audit_log`.
-2. Audit details now include request context metadata:
-   - `requestId` (from `X-Request-Id`)
-   - `clientIp`
-   - `userAgent`
-3. Added owner-scoped financial audit API: `GET /api/v1/finance/audit-logs`.
-4. Audit persistence now follows **one protocol + two physical tables**:
-   - finance domain -> `synapse_audit_log`
-   - system domain -> `synapse_system_activity_log`
-5. Credential/service/session operations are written as system-domain audits to avoid polluting financial risk signals.
+1. 所有关键资金动作必须附带 `request_id`、actor、owner、amount、result、timestamp。
+2. 审计日志必须 append-only。
+3. 金融审计与系统行为日志要按 domain 分流，避免污染风险口径。
 
-### 2.5 Third-Round Runtime Hardening
+### 3.5 Runtime State Isolation
 
-1. Owner-scoped write rate limit for finance mutation actions (per minute).
-2. Current mutation actions covered:
-   - `deposit_intent`
-   - `refund_intent`
-   - `router_config`
-3. Rate-limit hits are audited as `FINANCE_RATE_LIMIT_HIT`.
+1. 运行时 checkpoint 必须写入 typed state store。
+2. checkpoint 只能记录扫描进度、对账状态、告警状态，不能直接充当资金真相源。
+3. 余额与 intent 不能再依赖整表 delete + rewrite 风格的兼容通道。
 
-### 2.6 Fourth-Round Distributed Controls
+## 4. 资金链路安全要求
 
-1. Finance idempotency store now uses Redis as primary backend when `REDIS_URL` is configured.
-2. Finance write rate-limit now uses Redis distributed counters when `REDIS_URL` is configured.
-3. Primary runtime persistence remains PostgreSQL when Redis is unavailable.
-4. Added anomaly audit actions:
-   - `DEPOSIT_REPLAY_DETECTED`
-   - `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`
+### 4.1 Owner Deposit
 
-### 2.7 Fifth-Round Atomic Controls and Integration Tests
+1. 入金先记 `consumer_pending`，确认后转 `consumer_available`。
+2. `tx_hash` 去重必须同时有应用层检查和数据库唯一约束。
+3. 充值确认、修复、回放都必须保持幂等。
 
-1. Redis Lua scripts are used for atomic idempotency-claim and finance write-rate counters.
-2. API integration tests now cover full auth/session flow (challenge -> sign -> verify -> protected finance APIs).
-3. CI now executes both unit-style financial security tests and API integration tests.
+### 4.2 Agent Charge and Settlement
 
-### 2.8 Sixth-Round Financial Mutation Locking
+1. 调用前必须完成 credential、budget、quote、rate limit、consumer balance 校验。
+2. 调用成功后，一次事务内完成 capture 和多桶入账。
+3. 调用失败只允许释放预占，不允许留下悬空扣费。
+4. 若消费侧或 Provider 侧账户处于冻结或限制状态，必须阻断高风险路径。
 
-1. Financial mutation paths now use Redis-first distributed locks (`finance:mutation-lock:*`) to prevent cross-instance race conditions.
-2. Locking scope is owner+action level (deposit/refund/router-config/provider-withdraw), reducing contention while preserving consistency.
-3. When Redis is temporarily unavailable, process-local lock fallback is used to preserve availability without dropping safety checks.
-4. Provider withdrawal completion now rejects txHash replay across different withdrawal intents for the same owner.
+### 4.3 Consumer Refund
 
-### 2.9 API Behavior (Contract)
+1. 退款必须关联原始调用或原始入金事实。
+2. 退款金额不能超过可退余额上限。
+3. 默认只能退回 owner 原地址或等价受控回款地址。
+4. 大额或异常拆分退款必须进入人工审核。
 
-1. `POST /api/v1/balance/deposit/intent`
-   - requires `X-Idempotency-Key`
-   - enforces owner write rate limit for `deposit_intent`
-2. `POST /api/v1/refund`
-   - requires `X-Idempotency-Key`
-   - enforces owner write rate limit for `refund_intent`
-   - `amountUsdc >= 10`
-3. `POST /api/v1/router/config`
-   - enforces owner write rate limit for `router_config`
-   - `dailyLimitUsdc` in `[0, 10000]`
-4. `GET /api/v1/finance/audit-logs`
-   - returns owner-scoped finance actions only
-   - supports `limit` in `1..500`
+### 4.4 Owner-as-Provider Withdrawal
 
-### 2.10 Seventh-Round Domain Service Decomposition
+1. 同一个 Owner 作为 Provider 发起提现时，只能动用供给侧收益桶。
+2. 提现前必须检查：
+   - `provider_receivable` 是否足够
+   - 近 24h 累计提现额度
+   - 账户年龄和净收入沉淀
+   - 地址风险、设备风险、行为突变
+   - 金库流动性等级
+3. 风控决策必须输出 `green / yellow / red`：
+   - `green`：自动签发出金票据
+   - `yellow`：转入 `provider_locked`，进入人工审核
+   - `red`：拒绝、审计、告警、限制观察
+4. 人工审核必须记录 reviewer、decision、reason、evidence。
 
-1. Financial service orchestration is split into explicit domains:
-   - `BuyerFinanceService` (`src/services/buyer/finance_service.py`): deposit intent + refund intent paths.
-   - `PlatformFinanceService` (`src/services/platform/finance_service.py`): owner-scoped balance read + router config paths.
-   - `SellerWithdrawService` (`src/services/seller/withdraw_service.py`): provider withdrawal intent/completion paths.
-2. `BalanceService` is now a thin orchestrator that delegates domain flows while retaining existing API contract.
-3. Both domain services share the same Redis-first mutation lock manager and financial guard mixins, preserving cross-instance safety and idempotency guarantees.
-4. Withdrawal signing hooks remain patchable via orchestrator delegation, keeping testability and operational override capability intact.
+## 5. 分布式控制
 
-### 2.11 Eighth-Round Physical Service Isolation (Buyer / Platform / Seller)
+1. 金融写操作必须具备跨实例互斥机制。
+2. Redis 可用于分布式锁、幂等与速率计数，但 PostgreSQL 事务仍是最终一致性锚点。
+3. Redis 短时故障时，可切到进程内降级锁，但不得取消安全检查。
 
-1. Services are physically isolated by domain folders under `src/services/`:
-   - `buyer/`: forwarding flow and buyer-side charging entry (`forwarding_service`, `forwarding_billing`, `forwarding_upstream`, `forwarding_validation`, `finance_service`).
-   - `platform/`: platform orchestration and infrastructure service set (`balance_service`, `finance_service`, `credential_service`, `service_health_service`, `v2_indexer`).
-   - `seller/`: seller onboarding, analytics, secret and withdrawal service set (`registry_service`, `manifest_parser_service`, `provider_analytics_service`, `secret_service`, `withdraw_service`).
-2. API contracts are unchanged; only service-layer implementation paths are refactored for stronger maintainability and ownership boundaries.
-3. Dependency direction follows domain boundaries:
-   - buyer modules depend on platform primitives only when required (e.g., credential checks, health status).
-   - seller modules depend on platform primitives only when required (e.g., health probes, shared credential helpers).
-   - platform modules do not depend on buyer/seller business internals beyond explicit orchestration seams.
-4. Unit and integration suites are updated to import domain paths directly, eliminating implicit root-level coupling.
+## 6. 运行配置要求
 
-### 2.12 Ninth-Round Balance Stratification and Withdrawal State Machine
+关键配置必须覆盖：
 
-1. PostgreSQL balance schema now uses stratified columns per account type (`available_balance`, `pending_balance`, `frozen_balance`) instead of a single amount bucket model.
-2. Finance domain enum types are introduced at schema level:
-   - `synapse_business_type`: `deposit|charge|refund|withdraw|freeze|unfreeze`
-   - `synapse_risk_level`: `green|yellow|red`
-   - `synapse_withdraw_status`: `REQUESTED|APPROVED_AUTO|PENDING_MANUAL_REVIEW|REJECTED|COMPLETED`
-3. Provider withdrawal path now emits risk-aligned statuses:
-   - auto-approved intents: `APPROVED_AUTO`
-   - high-amount intents requiring manual review: `PENDING_MANUAL_REVIEW`
-4. Legacy `PENDING` withdrawal rows are normalized to `REQUESTED` in repository compatibility layer.
-5. Provider withdrawal intent creation is now executed in one PostgreSQL transaction with row-level lock:
-   - lock seller balance row via `SELECT ... FOR UPDATE`
-   - calculate rolling withdrawal amount in configured time window
-   - calculate historical net income from successful usage settlements
-   - evaluate high-risk seller tag (DB risk flag + env override)
-   - apply red/yellow/green decision and write balance + withdrawal row + audit row atomically
-6. Risk decision outcomes:
-   - `red`: status persisted as `REJECTED`, API returns `403` + reason code
-   - `yellow`: move `available -> frozen`, status `PENDING_MANUAL_REVIEW`
-   - `green`: move `available -> pending`, status `APPROVED_AUTO`, sign and return EIP-712 ticket
+1. 幂等 TTL 与容量上限
+2. replay window
+3. 金融写速率限制
+4. 提现自动放行阈值
+5. 提现 24h 窗口阈值
+6. 风险地址名单与人工审核阈值
+7. JWT / AUTH secret 强度
 
-### 2.13 Tenth-Round Deposit/Charge Transaction Hardening
+## 7. 文档契约
 
-1. Deposit registration now follows `PENDING_CONFIRMATION -> CONFIRMED`:
-   - register intent: insert intent with DB-level txHash dedup and move buyer amount into `pending_balance`
-   - confirm intent: move buyer `pending_balance -> available_balance` atomically and persist `CONFIRMED`
-2. Deposit replay handling is dual-layer:
-   - app layer replay window check (`txHash + owner`)
-   - DB physical uniqueness (`synapse_deposit_dedup.tx_hash`) with integrity-error fallback to stable existing result
-3. Charge settlement remains one atomic transaction:
-   - debit buyer available
-   - credit seller available
-   - credit platform fee pool
-   - persist usage ledger row + audit
-4. Charge risk pre-check is enforced before balance mutation:
-   - if buyer/seller `frozen_balance > 0` and account status is `restricted/suspended/blocked`, block with `403`
+1. 任何涉及资金接口、状态机、字段语义、风控口径的变化，都必须同步修改本文件。
+2. 代码、数据库 bootstrap、测试、文档必须同批更新。
+3. 如果实现仍残留历史命名，也不得再让该命名主导架构叙事。
 
-### 2.14 Eleventh-Round Refund Risk-Control Hardening
+## 8. 结论
 
-1. Refund creation now enforces strict origin traceability:
-   - request must provide at least one of `originRequestId` or `originTxHash`
-   - optional destination address must equal owner wallet (route-back only)
-2. Refund amount is bounded by origin-settlement remaining capacity:
-   - scan successful usage rows (`status in succeeded/success/completed/accepted`) for matching origin
-   - compute `remaining = refundable_total - already_refunded_non_rejected`
-   - reject when requested amount exceeds remaining
-3. Refund intents now run a built-in risk classifier:
-   - `green`: default `PENDING`
-   - `yellow`: large amount (`>= 500 USDC`) or `MANUAL_APPEAL`, status `PENDING_MANUAL_REVIEW`
-   - `red`: abnormal split pattern over same origin in 24h window, status `PENDING_MANUAL_REVIEW` + risk reason code
-4. One-active-refund guard is upgraded to owner-level active statuses set:
-   - active statuses include `PENDING` and `PENDING_MANUAL_REVIEW`
-5. Manual-review completion contract:
-   - `APPROVE`: allow completion and consume locked buyer funds
-   - `REJECT`: release locked funds back to available and persist `REJECTED`
-   - require reviewer metadata (`reviewerAddress`, optional `reviewerNote`) for manual-review rows
-6. Auditing is expanded with refund risk and review attributes:
-   - create logs include origin keys, risk level/reason, and remaining ceiling snapshot
-   - complete/reject logs include reviewer decision metadata
-
-### 2.15 Twelfth-Round Runtime State Typing and Legacy Channel Removal
-
-1. Legacy collection passthrough channel (`get_collection/save_collection/append_to_collection`) is removed from production storage facade.
-2. Indexer/backfill/reconciliation runtime checkpoints are moved to typed PostgreSQL state table:
-   - `synapse_runtime_state(state_key, payload, updated_at)`
-3. `GatewayStateRepository` becomes the single persistence entry for runtime scheduler state keys such as:
-   - `deposit_backfill_state`
-   - `deposit_reconciliation_state`
-4. Error handling remains safe-surface:
-   - API payload exposes standardized error codes only
-   - detailed stack traces stay in server logs
-5. Deposit consistency no longer relies on full-table snapshot rewrite:
-   - `synapse_deposit_intents` must be written by row-level upsert / atomic mutation only, never `DELETE + INSERT` the full table
-   - this prevents concurrent deposit registrations from being erased by indexer/backfill flushes
-6. The consistency contract for `3 x 10 USDC = 30 USDC` is:
-   - register phase: each on-chain `txHash` creates exactly one deposit intent and moves buyer amount into `pending_balance` atomically
-   - confirm phase: each confirmed intent moves the exact same amount from `pending_balance -> available_balance` atomically
-   - checkpoint phase: `deposit_backfill_state` / `deposit_reconciliation_state` only store scanner progress and alert state; they are not the source of fund truth
-   - reconciliation phase: `chain vault balance` must equal `buyer available + buyer pending` within configured delta, otherwise emit reconciliation alert and run replay/backfill recovery
-7. PostgreSQL schema contract is bootstrap-only, not runtime-self-healed:
-   - repositories and domain rows assume the final `001_synapse_schema.sql` shape for `synapse_audit_log`, `synapse_system_activity_log`, `synapse_runtime_state`, and `synapse_service_registry`
-   - startup code must validate schema presence only; it must not execute `ALTER TABLE` / `CREATE TABLE IF NOT EXISTS` as a compatibility patch path
-   - when schema changes, update `domain + repositories + bootstrap SQL + tests` in the same iteration and recreate the database instead of carrying legacy fallback branches
-8. Atomic deposit confirmation and indexer replay must have single-writer semantics for balances:
-   - if `confirm_deposit_intent_atomic()` has already moved buyer funds from `pending_balance -> available_balance` inside PostgreSQL, indexer/backfill code must not persist an older in-memory `BalanceLedger` snapshot afterward
-9. Long-running platform schedulers must live under `gateway/src/services/platform/tasks/`:
-   - concrete task implementations (such as deposit indexer) should be拆分为 `chain / processing / backfill / reconciliation / runner` 等模块，避免单文件堆积 1000+ 行
-   - `gateway/src/services/platform/v2_indexer.py` 仅保留兼容导出层，避免影响现有调用方
-10. 运维日志必须覆盖充值索引关键动作:
-   - 启动/停止日志要包含 listener 地址与轮询周期
-   - backfill 日志要明确 `start_block / end_block / scanned / candidate_txs / recovered`
-   - 入账日志要明确 `owner / tx_hash / event_key / amount_usdc / balance_after`
-   - reconciliation 日志要明确 `chain_vault / ledger_obligation / delta / alert`
-   - replay/backfill may update intent state and processed event keys, but must not overwrite fresh atomic balance mutations with stale cache snapshots
-9. Confirmed deposit repair must be idempotent:
-   - if a historical bug leaves an intent in `CONFIRMED` while buyer funds are still sitting in `pending_balance`, the atomic confirm path must repair `pending_balance -> available_balance` instead of short-circuiting forever
-   - indexer periodic scan may re-enter `confirm_deposit_intent_atomic()` for `CONFIRMED` intents as a repair path, but it must not write any stale in-memory balance snapshot afterward
-10. Block scan progress must be persisted in PostgreSQL, not memory only:
-   - `deposit_backfill_state.lastScannedBlock` is the durable backfill cursor and is written into `synapse_runtime_state`
-   - after service restart, `v2_indexer` must resume from `lastScannedBlock + 1`; if no cursor exists yet, it uses `V2_BACKFILL_START_BLOCK`, otherwise falls back to the latest confirmed window derived from `V2_BACKFILL_BLOCK_BATCH`
-   - `get_indexer_status()` may expose the in-memory status snapshot, but the source of truth for restart recovery is still the database runtime state
-
-## 3. Configuration Contract
-
-Key runtime knobs in `gateway/src/core/config.py`:
-
-1. `FINANCE_IDEMPOTENCY_TTL_SEC`
-2. `FINANCE_IDEMPOTENCY_MAX_ROWS`
-3. `FINANCE_REPLAY_WINDOW_SEC`
-4. `FINANCE_WRITE_RATE_LIMIT_PER_MIN`
-5. `JWT_SECRET` / `AUTH_SECRET` should be 32+ bytes for HS256 production safety.
-6. `WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC`
-7. `WITHDRAWAL_AUTO_24H_LIMIT_USDC`
-8. `WITHDRAWAL_WINDOW_HOURS`
-9. `WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES`
-
-Default examples live in `gateway/.env.example`.
-
-## 4. Remaining Work (Production TODO)
-
-### 4.1 Stronger Distributed Guarantees
-
-1. Add Postgres-backed durable idempotency records for long-term reconciliation.
-2. Add crash-safe transaction boundaries for multi-step financial mutations.
-3. Add cross-region cache consistency strategy for multi-dc deployments.
-
-### 4.2 Security Verification and Tests
-
-1. Financial security tests are added for replay, owner isolation, concurrency, and idempotency consistency.
-2. API integration tests are added for real auth/session + protected finance endpoints.
-3. CI blocking workflow is added on push/PR for the financial test suite.
-4. Next: expand to storage-mode matrix tests (Redis on/off, failure injection).
-
-### 4.3 Operational Controls
-
-1. Alert rule baseline is defined for:
-   - repeated `FINANCE_RATE_LIMIT_HIT`
-   - replay rejection spikes (`DEPOSIT_REPLAY_DETECTED`)
-   - idempotency mismatch spikes (`IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`)
-2. Incident runbook is published at `doc/06_Developer_Guides/Financial_Security_Incident_Runbook.md`.
-3. Next: connect alerts to production monitoring stack (Prometheus/Grafana or cloud APM).
-
-### 4.4 Token and Session Hardening
-
-1. Add token revocation path for compromised sessions.
-2. Add optional short-lifetime session mode for high-risk operations.
-3. Add stronger anti-automation controls on auth challenge endpoints when exposed publicly.
-
-## 5. Non-Negotiable Rule
-
-If release speed conflicts with fund safety, fund safety wins.
+Synapse 的金融生产安全，不是单点 API 校验集合，而是 `Owner funding -> Agent charge -> Provider accrual -> Withdrawal review -> Onchain release` 的整条事实链安全。任何一个环节允许“快但不准”，整条链都会失真。
