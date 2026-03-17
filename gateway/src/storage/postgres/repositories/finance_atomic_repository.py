@@ -7,20 +7,23 @@ from typing import Any, Callable, Optional
 from uuid import uuid4
 
 from src.domain.audit import AuditLogRow
+from src.domain.execution import (
+    CompleteWithdrawTxCommand,
+    DepositIntentConfirmCommand,
+    DepositIntentRegisterCommand,
+    PreparedWithdrawTicket,
+    ReserveSellerWithdrawCommand,
+    WithdrawalAtomicRequestCommand,
+    WithdrawalDecision,
+)
 from src.domain.finance import (
     BalanceMutationResult,
     BuyerChargeResult,
     ChargeBuyerUsageCommand,
-    CompleteWithdrawTxCommand,
-    DepositIntentConfirmCommand,
-    DepositIntentRegisterCommand,
-    DepositIntentRow,
-    PreparedWithdrawTicket,
-    ReserveSellerWithdrawCommand,
     UsageLogRow,
-    WithdrawalAtomicRequestCommand,
-    WithdrawalDecision,
 )
+from src.domain.ledger import DepositIntentRow
+from src.domain.runtime_state import DepositMetadataState
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -219,13 +222,16 @@ class FinanceAtomicRepository:
             (state_key, json.dumps(payload), updated_at),
         )
 
-    def _load_deposit_runtime_meta(self, cur: Any, deposit_id: str) -> dict[str, Any]:
+    def _load_deposit_runtime_meta(
+        self, cur: Any, deposit_id: str
+    ) -> DepositMetadataState:
         cur.execute(
             "SELECT payload FROM synapse_runtime_state WHERE state_key = %s",
             (self._deposit_state_key(deposit_id),),
         )
         row = cur.fetchone()
-        return self._payload_dict(row[0]) if row is not None else {}
+        payload = self._payload_dict(row[0]) if row is not None else {}
+        return DepositMetadataState.model_validate(payload)
 
     def _build_deposit_intent_row(
         self,
@@ -274,15 +280,17 @@ class FinanceAtomicRepository:
                 (self._deposit_state_key(str(hit[0])),),
             )
             meta_hit = lookup_cur.fetchone()
-        meta = self._payload_dict(meta_hit[0]) if meta_hit is not None else {}
+        meta = DepositMetadataState.model_validate(
+            self._payload_dict(meta_hit[0]) if meta_hit is not None else {}
+        )
         return DepositIntentRow(
             id=str(hit[0]),
             ownerAddress=str(hit[1]),
             txHash=str(hit[2]),
             requestId=hit[3],
-            buyerAddress=meta.get("buyerAddress"),
+            buyerAddress=meta.buyer_address,
             amountUsdc=self._q6(hit[4]),
-            idempotencyKey=meta.get("idempotencyKey"),
+            idempotencyKey=meta.idempotency_key,
             status=str(hit[5]),
             createdAt=to_dt_str(hit[6], now_text) or now_text,
             updatedAt=to_dt_str(hit[7], now_text) or now_text,
@@ -321,10 +329,10 @@ class FinanceAtomicRepository:
         self._upsert_runtime_state(
             cur,
             self._deposit_state_key(row.id),
-            {
-                "buyerAddress": row.buyer_address,
-                "idempotencyKey": row.idempotency_key,
-            },
+                DepositMetadataState(
+                    buyerAddress=row.buyer_address,
+                    idempotencyKey=row.idempotency_key,
+                ).model_dump(by_alias=True, mode="json"),
             row.updated_at,
         )
 
@@ -716,9 +724,9 @@ class FinanceAtomicRepository:
                     ownerAddress=str(hit[1]),
                     txHash=str(hit[2]),
                     requestId=hit[3],
-                    buyerAddress=meta.get("buyerAddress"),
+                    buyerAddress=meta.buyer_address,
                     amountUsdc=self._q6(hit[4]),
-                    idempotencyKey=meta.get("idempotencyKey"),
+                    idempotencyKey=meta.idempotency_key,
                     status=str(hit[5]),
                     createdAt=to_dt_str(hit[6], now_text) or now_text,
                     updatedAt=to_dt_str(hit[7], now_text) or now_text,

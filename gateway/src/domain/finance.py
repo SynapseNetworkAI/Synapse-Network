@@ -6,6 +6,17 @@ from typing import Any, Callable, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .execution import (
+    CompleteWithdrawTxCommand,
+    DepositIntentConfirmCommand,
+    DepositIntentRegisterCommand,
+    PreparedWithdrawTicket,
+    ReserveSellerWithdrawCommand,
+    WithdrawalAtomicRequestCommand,
+    WithdrawalDecision,
+)
+from .ledger import DepositIntentRow, WithdrawalIntentRow
+
 
 """Finance domain entities — BalanceLedger & FeePolicyEntity.
 
@@ -62,27 +73,6 @@ class BalanceRow(BaseModel):
     available_balance: Decimal = Field(default=Decimal("0"), alias="availableBalance")
     pending_balance: Decimal = Field(default=Decimal("0"), alias="pendingBalance")
     frozen_balance: Decimal = Field(default=Decimal("0"), alias="frozenBalance")
-    updated_at: str = Field(default="", alias="updatedAt")
-
-
-class DepositIntentRow(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    id: str
-    owner_address: str = Field(alias="ownerAddress")
-    tx_hash: str = Field(alias="txHash")
-    request_id: Optional[str] = Field(default=None, alias="requestId")
-    buyer_address: Optional[str] = Field(default=None, alias="buyerAddress")
-    amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
-    idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
-    status: str = "PENDING_CONFIRMATION"
-    event_key: Optional[str] = Field(default=None, alias="eventKey")
-    confirmations: Optional[int] = None
-    credited_amount_usdc: Optional[Decimal] = Field(
-        default=None, alias="creditedAmountUsdc"
-    )
-    confirmed_at: Optional[int] = Field(default=None, alias="confirmedAt")
-    created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 
 
@@ -144,37 +134,6 @@ class RefundIntentRow(BaseModel):
     updated_at: str = Field(default="", alias="updatedAt")
 
 
-class WithdrawalIntentRow(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    id: str
-    owner_address: str = Field(alias="ownerAddress")
-    tx_hash: Optional[str] = Field(default=None, alias="txHash")
-    status: Literal[
-        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED"
-    ] = "REQUESTED"
-    request_id: Optional[str] = Field(default=None, alias="requestId")
-    idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
-    amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
-    amount_wei: Optional[str] = Field(default=None, alias="amountWei")
-    fee_wei: Optional[str] = Field(default=None, alias="feeWei")
-    nonce: Optional[int] = None
-    deadline: Optional[int] = None
-    signature: Optional[str] = None
-    chain_id: Optional[int] = Field(default=None, alias="chainId")
-    contract_address: Optional[str] = Field(default=None, alias="contractAddress")
-    signer_address: Optional[str] = Field(default=None, alias="signerAddress")
-    business_type: Optional[str] = Field(default=None, alias="businessType")
-    risk_level: Optional[str] = Field(default=None, alias="riskLevel")
-    request_meta: Dict[str, Any] = Field(default_factory=dict, alias="requestMeta")
-    message: Optional[str] = None
-    ticket: Dict[str, Any] = Field(default_factory=dict)
-    completed_at: Optional[int] = Field(default=None, alias="completedAt")
-    complete_meta: Dict[str, Any] = Field(default_factory=dict, alias="completeMeta")
-    created_at: str = Field(default="", alias="createdAt")
-    updated_at: str = Field(default="", alias="updatedAt")
-
-
 class UsageLogRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -197,18 +156,6 @@ class UsageLogRow(BaseModel):
     risk_level: Literal["green", "yellow", "red"] = Field(
         default="green", alias="riskLevel"
     )
-
-
-class WithdrawalDecision(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    decision: Literal["green", "yellow", "red"]
-    withdrawal_id: str = Field(alias="withdrawalId")
-    status: str
-    amount_usdc: Optional[float] = Field(default=None, alias="amountUsdc")
-    risk_reason_code: Optional[str] = Field(default=None, alias="riskReasonCode")
-    ticket: Dict[str, Any] = Field(default_factory=dict)
-    message: str = ""
 
 
 class BuyerChargeResult(BaseModel):
@@ -279,19 +226,6 @@ class WithdrawCreateContext:
 
 
 @dataclass(frozen=True)
-class PreparedWithdrawTicket:
-    requires_manual_review: bool
-    amount_wei: int
-    fee_wei: int
-    nonce: int
-    chain_id: int
-    deadline: int
-    signature: str
-    signer_address: str
-    ticket: Dict[str, Any]
-
-
-@dataclass(frozen=True)
 class AtomicWithdrawalResult:
     decision: str
     withdrawal_id: str
@@ -304,43 +238,6 @@ class AtomicWithdrawalResult:
 
 
 @dataclass(frozen=True)
-class DepositIntentRegisterCommand:
-    owner_wallet: str
-    tx_hash: str
-    request_id: str
-    intent_row: DepositIntentRow
-
-
-@dataclass(frozen=True)
-class DepositIntentConfirmCommand:
-    owner_wallet: str
-    deposit_intent_id: str
-    event_key: str
-    confirmations: int
-
-
-@dataclass(frozen=True)
-class WithdrawalAtomicRequestCommand:
-    seller_address: str
-    amount_usdc: Decimal
-    request_id: str
-    idempotency_key: str
-    request_meta: Optional[Dict[str, Any]]
-    single_limit_usdc: Decimal
-    rolling_24h_limit_usdc: Decimal
-    window_seconds: int
-    high_risk_override: bool
-    sign_ticket_factory: Optional[Callable[[Decimal], PreparedWithdrawTicket]] = None
-
-
-@dataclass(frozen=True)
-class CompleteWithdrawTxCommand:
-    owner_wallet: str
-    tx_hash: str
-    kind: str
-
-
-@dataclass(frozen=True)
 class ChargeBuyerUsageCommand:
     owner_wallet: str
     seller_wallet: str
@@ -350,7 +247,3 @@ class ChargeBuyerUsageCommand:
     usage_row: UsageLogRow
 
 
-@dataclass(frozen=True)
-class ReserveSellerWithdrawCommand:
-    owner_wallet: str
-    amount_usdc: Decimal

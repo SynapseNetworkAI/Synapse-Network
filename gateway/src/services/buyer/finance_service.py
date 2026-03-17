@@ -8,21 +8,23 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
+from src.domain.execution import (
+    CompleteWithdrawTxCommand,
+    DepositIntentConfirmCommand,
+    DepositIntentRegisterCommand,
+)
 from src.domain.finance import BalanceLedger
 from src.domain.finance import (
-    CompleteWithdrawTxCommand,
     DepositAttemptRow,
     DepositBalanceMove,
-    DepositIntentConfirmCommand,
     DepositIntentDraft,
-    DepositIntentRegisterCommand,
-    DepositIntentRow,
     RefundCreateContext,
     RefundIntentRow,
     RefundOriginRef,
     RefundReviewContext,
     UsageLogRow,
 )
+from src.domain.ledger import DepositIntentRow
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
@@ -84,15 +86,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _load_deposit_intents(self) -> List[DepositIntentRow]:
         rows = self.storage.get_data_manager().system.gateway_state.read_deposit_intents()
-        if not isinstance(rows, list):
-            return []
-        result: List[DepositIntentRow] = []
-        for row in rows:
-            if isinstance(row, DepositIntentRow):
-                result.append(row)
-            elif isinstance(row, dict):
-                result.append(DepositIntentRow.model_validate(row))
-        return result
+        return rows if isinstance(rows, list) else []
 
     def _save_deposit_intents(self, rows: List[DepositIntentRow]) -> None:
         self.storage.get_data_manager().system.gateway_state.write_deposit_intents(rows)
@@ -985,8 +979,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             )
             if isinstance(saved, DepositIntentRow):
                 return saved
-            if isinstance(saved, dict) and saved:
-                return DepositIntentRow.model_validate(saved)
+            raise RuntimeError("DEPOSIT_REGISTER_RESULT_INVALID")
         self._reserve_pending_deposit_amount(owner, draft.amount_usdc)
         intents.append(next_intent)
         self._save_deposit_intents(intents)
@@ -1051,8 +1044,6 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             raise
         if isinstance(result, DepositIntentRow):
             return result
-        if isinstance(result, dict):
-            return DepositIntentRow.model_validate(result)
         raise RuntimeError("DEPOSIT_CONFIRM_RESULT_INVALID")
 
     def _parse_deposit_intent_draft(

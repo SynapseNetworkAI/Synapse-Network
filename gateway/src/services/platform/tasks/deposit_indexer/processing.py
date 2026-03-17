@@ -4,11 +4,9 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
-from src.domain.finance import (
-    BalanceLedger,
-    DepositIntentConfirmCommand,
-    DepositIntentRow,
-)
+from src.domain.execution import DepositIntentConfirmCommand
+from src.domain.finance import BalanceLedger
+from src.domain.ledger import DepositIntentRow
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 

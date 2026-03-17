@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
+from .ledger import DepositIntentRow
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -73,3 +75,71 @@ class BudgetEventRecord(BaseModel):
     remaining_lifetime_usdc: Optional[Decimal] = Field(default=None, alias="remainingLifetimeUsdc")
     remaining_daily_usdc: Optional[Decimal] = Field(default=None, alias="remainingDailyUsdc")
     created_at: str = Field(default="", alias="createdAt")
+
+
+class WithdrawalDecision(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    decision: Literal["green", "yellow", "red"]
+    withdrawal_id: str = Field(alias="withdrawalId")
+    status: str
+    amount_usdc: Optional[float] = Field(default=None, alias="amountUsdc")
+    risk_reason_code: Optional[str] = Field(default=None, alias="riskReasonCode")
+    ticket: dict[str, Any] = Field(default_factory=dict)
+    message: str = ""
+
+
+@dataclass(frozen=True)
+class PreparedWithdrawTicket:
+    requires_manual_review: bool
+    amount_wei: int
+    fee_wei: int
+    nonce: int
+    chain_id: int
+    deadline: int
+    signature: str
+    signer_address: str
+    ticket: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class DepositIntentRegisterCommand:
+    owner_wallet: str
+    tx_hash: str
+    request_id: str
+    intent_row: DepositIntentRow
+
+
+@dataclass(frozen=True)
+class DepositIntentConfirmCommand:
+    owner_wallet: str
+    deposit_intent_id: str
+    event_key: str
+    confirmations: int
+
+
+@dataclass(frozen=True)
+class WithdrawalAtomicRequestCommand:
+    seller_address: str
+    amount_usdc: Decimal
+    request_id: str
+    idempotency_key: str
+    request_meta: Optional[dict[str, Any]]
+    single_limit_usdc: Decimal
+    rolling_24h_limit_usdc: Decimal
+    window_seconds: int
+    high_risk_override: bool
+    sign_ticket_factory: Optional[Callable[[Decimal], PreparedWithdrawTicket]] = None
+
+
+@dataclass(frozen=True)
+class CompleteWithdrawTxCommand:
+    owner_wallet: str
+    tx_hash: str
+    kind: str
+
+
+@dataclass(frozen=True)
+class ReserveSellerWithdrawCommand:
+    owner_wallet: str
+    amount_usdc: Decimal

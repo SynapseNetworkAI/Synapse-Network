@@ -21,20 +21,22 @@ from .postgres.repositories.gateway_state_repository import GatewayStateReposito
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.audit import AuditLogEntry
+from src.domain.execution import (
+    CompleteWithdrawTxCommand,
+    DepositIntentConfirmCommand,
+    DepositIntentRegisterCommand,
+    ReserveSellerWithdrawCommand,
+    WithdrawalAtomicRequestCommand,
+    WithdrawalDecision,
+)
 from src.domain.finance import (
     BalanceMutationResult,
     BuyerChargeResult,
     ChargeBuyerUsageCommand,
-    CompleteWithdrawTxCommand,
     DepositAttemptRow,
-    DepositIntentConfirmCommand,
-    DepositIntentRegisterCommand,
-    DepositIntentRow,
-    ReserveSellerWithdrawCommand,
     UsageLogRow,
-    WithdrawalAtomicRequestCommand,
-    WithdrawalDecision,
 )
+from src.domain.ledger import DepositIntentRow
 
 try:
     import psycopg  # type: ignore[import-not-found]
