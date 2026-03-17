@@ -14,10 +14,20 @@ export type I18nMessages = {
   };
   home: {
     heroEyebrow: string;
+    heroTitleLead: string;
+    heroTitleAccent: string;
     heroTitle: string;
     heroSubtitle: string;
     heroTagline: string;
     heroMechanism: string;
+    heroCommandLabel: string;
+    heroCommandBody: string;
+    heroCommandPrimary: string;
+    heroCommandSecondary: string;
+    liveStatsLabel: string;
+    totalCallsLabel: string;
+    registeredServicesLabel: string;
+    connectedAgentsLabel: string;
     agentWorkspaceBtn: string;
     providerWorkspaceBtn: string;
     heroProofItems: string[];

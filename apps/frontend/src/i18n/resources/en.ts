@@ -16,11 +16,21 @@ const en: I18nMessages = {
   },
   home: {
     heroEyebrow: "Agent Commerce Infrastructure",
+    heroTitleLead: "Fund once. Agents discover and",
+    heroTitleAccent: "pay for APIs.",
     heroTitle: "Fund once. Agents discover and pay for APIs.",
     heroSubtitle:
       "Synapse gives agents runtime identity, budgeted payments, and instant settlement for every API call.",
-    heroTagline: "Agents can talk. Now they can transact.",
+    heroTagline: "Agents can talk. But now, they can trade.",
     heroMechanism: "On-chain collateral. Off-chain charging. Zero gas per API call.",
+    heroCommandLabel: "Payment rail",
+    heroCommandBody: "Owner-funded vault. Budgeted runtime. Per-call settlement.",
+    heroCommandPrimary: "Start with Discovery",
+    heroCommandSecondary: "Open Marketplace",
+    liveStatsLabel: "Live network stats",
+    totalCallsLabel: "API calls",
+    registeredServicesLabel: "registered services",
+    connectedAgentsLabel: "connected agents",
     agentWorkspaceBtn: "Start with Discovery",
     providerWorkspaceBtn: "Open Provider Workspace",
     heroProofItems: [

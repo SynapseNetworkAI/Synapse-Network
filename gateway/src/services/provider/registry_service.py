@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from decimal import Decimal
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
@@ -644,6 +645,71 @@ def _bind_forwarding_service_id(
     return service_payload.model_copy(update={"forwarding": next_forwarding})
 
 
+SETTLED_USAGE_STATUSES = {"accepted", "succeeded"}
+
+
+def _normalized_usage_row(raw: Any) -> Dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if hasattr(raw, "model_dump"):
+        try:
+            return raw.model_dump(by_alias=True, mode="json")
+        except Exception:
+            return {}
+    return {}
+
+
+def _usage_status(row: Dict[str, Any]) -> str:
+    return str(row.get("status") or "").strip().lower()
+
+
+def _usage_business_type(row: Dict[str, Any]) -> str:
+    return str(row.get("businessType") or row.get("business_type") or "charge").strip().lower()
+
+
+def _usage_request_id(row: Dict[str, Any]) -> str:
+    return str(row.get("requestId") or row.get("request_id") or row.get("id") or "").strip()
+
+
+def _usage_ts(row: Dict[str, Any]) -> int:
+    try:
+        return int(row.get("ts") or 0)
+    except Exception:
+        return 0
+
+
+def _usage_consumer(row: Dict[str, Any]) -> str:
+    return str(row.get("consumerAddress") or row.get("buyerAddress") or "").strip().lower()
+
+
+def _settled_usage_metrics(raw_rows: Any) -> tuple[Dict[str, Dict[str, Any]], Dict[str, int]]:
+    dedup_by_request_id: Dict[str, Dict[str, Any]] = {}
+    status_counts: Counter[str] = Counter()
+
+    if not isinstance(raw_rows, list):
+        return dedup_by_request_id, dict(status_counts)
+
+    for raw in raw_rows:
+        row = _normalized_usage_row(raw)
+        if not row or _usage_business_type(row) != "charge":
+            continue
+
+        status = _usage_status(row)
+        status_counts[status or "unknown"] += 1
+        if status not in SETTLED_USAGE_STATUSES:
+            continue
+
+        request_id = _usage_request_id(row)
+        if not request_id:
+            continue
+
+        current = dedup_by_request_id.get(request_id)
+        if current is None or _usage_ts(row) >= _usage_ts(current):
+            dedup_by_request_id[request_id] = row
+
+    return dedup_by_request_id, dict(status_counts)
+
+
 class RegistryService:
     def __init__(self, storage: BaseStorage):
         self.storage = storage
@@ -855,6 +921,33 @@ class RegistryService:
             row.model_dump(by_alias=True, exclude_none=True)
             for row in public_services
         ]
+
+    async def public_network_stats(self) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        public_services = await self.discover_public_services()
+        raw_usage_rows = self.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
+        dedup_by_request_id, status_counts = _settled_usage_metrics(raw_usage_rows)
+        connected_agents = {
+            _usage_consumer(row)
+            for row in dedup_by_request_id.values()
+            if _usage_consumer(row)
+        }
+
+        runtime_ready_count = len(
+            [
+                service
+                for service in public_services
+                if str(service.health.overall_status or "unknown").lower() in {"healthy", "degraded"}
+            ]
+        )
+
+        return {
+            "registeredServices": len(public_services),
+            "runtimeReadyServices": runtime_ready_count,
+            "totalCalls": len(dedup_by_request_id),
+            "connectedAgents": len(connected_agents),
+            "statusBreakdown": dict(status_counts),
+        }
 
     async def search_agent_discovery(
         self,
