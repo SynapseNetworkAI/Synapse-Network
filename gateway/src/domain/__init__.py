@@ -53,6 +53,11 @@ from .ledger import (
     WithdrawalIntentRow,
     VaultWithdrawalRecord,
 )
+from .operation_metadata import (
+    OperationContextMetadata,
+    ReviewActionMetadata,
+    WithdrawalTicketMetadata,
+)
 from .runtime_state import (
     AuthSessionState,
     BackfillState,
@@ -157,11 +162,13 @@ __all__ = [
     "QuoteInputPreviewRecord",
     "QuoteRequestDraftRecord",
     "OwnerAccountRecord",
+    "OperationContextMetadata",
     "ProcessedDepositEventRow",
     "ProviderProfileRecord",
     "ProviderWalletRecord",
     "RateLimitRow",
     "ReconciliationState",
+    "ReviewActionMetadata",
     "ReserveProviderWithdrawCommand",
     "RefundCreateContext",
     "RefundIntentRow",
@@ -212,5 +219,6 @@ __all__ = [
     "WithdrawCreateContext",
     "WithdrawalDecision",
     "WithdrawalIntentRow",
+    "WithdrawalTicketMetadata",
     "WithdrawTxDedupRow",
 ]

@@ -52,10 +52,10 @@ class InMemoryGatewayStateRepo:
     def __init__(self) -> None:
         self.usage_rows: list[UsageLogRow] = []
 
-    def read_usage_log_rows(self):
+    def read_invocation_billing_rows(self):
         return list(self.usage_rows)
 
-    def write_usage_log_rows(self, rows):
+    def write_invocation_billing_rows(self, rows):
         assert all(isinstance(row, UsageLogRow) for row in rows)
         self.usage_rows = list(rows)
 

@@ -27,6 +27,7 @@ from src.domain.finance import (
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
+from src.domain.operation_metadata import OperationContextMetadata
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
@@ -93,8 +94,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _save_deposit_intents(self, rows: List[DepositIntentRow]) -> None:
         self.storage.get_data_manager().system.gateway_state.write_deposit_intents(rows)
 
-    def _load_refund_intents(self) -> List[RefundIntentRow]:
-        rows = self.storage.get_data_manager().system.gateway_state.read_refund_intents()
+    def _load_refund_rows(self) -> List[RefundIntentRow]:
+        rows = self.storage.get_data_manager().system.gateway_state.read_consumer_refund_rows()
         if not isinstance(rows, list):
             return []
         result: List[RefundIntentRow] = []
@@ -105,8 +106,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 result.append(RefundIntentRow.model_validate(row))
         return result
 
-    def _save_refund_intents(self, rows: List[RefundIntentRow], updated_at: int) -> None:
-        self.storage.get_data_manager().system.gateway_state.write_refund_intents(
+    def _save_refund_rows(self, rows: List[RefundIntentRow], updated_at: int) -> None:
+        self.storage.get_data_manager().system.gateway_state.write_consumer_refund_rows(
             rows, int(updated_at)
         )
 
@@ -235,9 +236,9 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         )
         return self._serialize_deposit_attempt_row(saved)
 
-    def _load_usage_log_rows(self) -> List[UsageLogRow]:
+    def _load_invocation_billing_rows(self) -> List[UsageLogRow]:
         rows = (
-            self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
+            self.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
         )
         if not isinstance(rows, list):
             return []
@@ -427,7 +428,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _sum_refundable_usage_total(
         self, *, owner: str, origin: RefundOriginRef
     ) -> float:
-        usage_rows = self._load_usage_log_rows()
+        usage_rows = self._load_invocation_billing_rows()
         refundable_total = 0.0
         for usage in usage_rows:
             if normalize_wallet(str(usage.buyer_address or "")) != owner:
@@ -767,21 +768,16 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _parse_refund_review_context(
         self, request_meta: Optional[Dict[str, Any]]
     ) -> RefundReviewContext:
-        review_ctx = (
-            request_meta.get("review")
-            if isinstance(request_meta, dict)
-            and isinstance(request_meta.get("review"), dict)
-            else {}
-        )
+        review_ctx = OperationContextMetadata.model_validate(request_meta or {}).review
         reviewer_address = (
-            normalize_wallet(str(review_ctx.get("reviewerAddress") or ""))
-            if review_ctx.get("reviewerAddress")
+            normalize_wallet(str(review_ctx.reviewer_address or ""))
+            if review_ctx.reviewer_address
             else ""
         )
         return RefundReviewContext(
-            decision=str(review_ctx.get("decision") or "APPROVE").strip().upper(),
+            decision=str(review_ctx.decision or "APPROVE").strip().upper(),
             reviewer_address=reviewer_address,
-            reviewer_note=str(review_ctx.get("reviewerNote") or "").strip(),
+            reviewer_note=str(review_ctx.reviewer_note or "").strip(),
         )
 
     def _reject_refund_manual_review(
@@ -804,7 +800,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         target.reviewed_at = now
         target.updated_at = now
         target.complete_meta = request_meta or {}
-        self._save_refund_intents(rows, now)
+        self._save_refund_rows(rows, now)
         self._append_financial_audit(
             "REFUND_INTENT_REJECTED",
             owner,
@@ -886,7 +882,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         target.completed_at = now
         target.updated_at = now
         target.complete_meta = request_meta or {}
-        self._save_refund_intents(rows, now)
+        self._save_refund_rows(rows, now)
 
         self._append_financial_audit(
             "REFUND_INTENT_COMPLETED",
@@ -1328,7 +1324,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 if idem_hit is not None:
                     return idem_hit
 
-            rows = self._load_refund_intents()
+            rows = self._load_refund_rows()
             limits = self._validate_refund_origin_limit_or_raise(
                 owner=owner,
                 origin=origin,
@@ -1385,7 +1381,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 requestMeta=request_meta or {},
             )
             rows.append(refund_row)
-            self._save_refund_intents(rows, now)
+            self._save_refund_rows(rows, now)
 
             response = {
                 "refundId": refund_id,
@@ -1428,7 +1424,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def list_refunds(self, owner_wallet: str) -> List[Dict[str, Any]]:
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        rows = self._load_refund_intents()
+        rows = self._load_refund_rows()
         filtered = [
             row
             for row in rows
@@ -1447,7 +1443,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_complete"):
             await self._enforce_owner_write_rate_limit(owner, "refund_complete")
-            rows = self._load_refund_intents()
+            rows = self._load_refund_rows()
             target = self._find_refund_by_id(rows, owner, refund_id)
             if target is None:
                 raise HTTPException(

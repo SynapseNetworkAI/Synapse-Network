@@ -611,10 +611,10 @@ def test_gateway_state_repository_read_and_write() -> None:
         "dep-1", "0xabc", "0xtx", "req-1", {"buyerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("1.0"), "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
     )]]})
     db.readonly_plan.append({"fetchall": [[(
-        "ref-1", "0xabc", "0xtx2", "REQUESTED", "req-2", Decimal("0.5"), "sig-r", 9, 999, "2026-03-15 14:24:02", "2026-03-15 14:24:03", {"flowStatus": "PENDING", "consumerAddress": "0xabc", "idempotencyKey": "idem-2", "originRequestId": "req-1"}
+        "ref-1", "0xabc", "0xtx2", "REQUESTED", "req-2", Decimal("0.5"), "sig-r", 9, 999, "2026-03-15 14:24:02", "2026-03-15 14:24:03", {"flowStatus": "PENDING", "consumerAddress": "0xabc", "idempotencyKey": "idem-2", "originRequestId": "req-1", "requestMeta": {"requestId": "req-2", "traceId": "trace-refund-1"}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "ok", "reviewedAt": 1711111111, "completeMeta": {"requestId": "req-complete-ref-1"}}
     )]]})
     db.readonly_plan.append({"fetchall": [[(
-        "wd-1", "0xabc", "0xtx3", "SIGNED", "req-3", Decimal("2.0"), "sig", 1, 0, "2026-03-15 14:24:04", "2026-03-15 14:24:05", {"flowStatus": "APPROVED_AUTO", "idempotencyKey": "idem-3", "amountWei": "2000000", "feeWei": "0", "chainId": 31337, "contractAddress": "0xcontract", "signerAddress": "0xsigner"}
+        "wd-1", "0xabc", "0xtx3", "SIGNED", "req-3", Decimal("2.0"), "sig", 1, 0, "2026-03-15 14:24:04", "2026-03-15 14:24:05", {"flowStatus": "APPROVED_AUTO", "idempotencyKey": "idem-3", "amountWei": "2000000", "feeWei": "0", "chainId": 31337, "contractAddress": "0xcontract", "signerAddress": "0xsigner", "businessType": "withdraw", "riskLevel": "yellow", "riskReasonCode": "LARGE_WITHDRAWAL_REQUIRES_REVIEW", "requestMeta": {"requestId": "req-3", "review": {"decision": "APPROVE", "reviewerAddress": "0xreviewer"}}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "approved", "reviewedAt": 1711112222, "ticket": {"amount": "2000000", "fee": "0", "nonce": 1, "deadline": 0, "signature": "sig", "chainId": 31337, "contractAddress": "0xcontract"}, "completeMeta": {"requestId": "req-complete-wd-1"}}
     )]]})
     db.readonly_plan.append({"fetchall": [[("0xabc", Decimal("100"), "2026-03-15 14:24:06", "2026-03-15 14:24:07")]]})
     db.readonly_plan.append({"fetchall": [[(
@@ -625,16 +625,21 @@ def test_gateway_state_repository_read_and_write() -> None:
 
     deposit_rows = repo.read_deposit_intents()
     assert len(deposit_rows) == 1 and deposit_rows[0].id == "dep-1"
-    refund_rows = repo.read_refund_intents()
+    refund_rows = repo.read_consumer_refund_rows()
     assert len(refund_rows) == 1 and refund_rows[0].id == "ref-1"
     assert refund_rows[0].origin_request_id == "req-1"
-    withdraw_rows = repo.read_withdrawal_intents()
+    assert refund_rows[0].request_meta.trace_id == "trace-refund-1"
+    assert refund_rows[0].review_decision == "APPROVE"
+    withdraw_rows = repo.read_provider_withdrawal_rows()
     assert len(withdraw_rows) == 1 and withdraw_rows[0].id == "wd-1"
     assert withdraw_rows[0].status == "APPROVED_AUTO"
+    assert withdraw_rows[0].risk_reason_code == "LARGE_WITHDRAWAL_REQUIRES_REVIEW"
+    assert withdraw_rows[0].ticket.contract_address == "0xcontract"
+    assert withdraw_rows[0].request_meta.review.reviewer_address == "0xreviewer"
     router_rows = repo.read_router_config_rows()
     assert router_rows[0].owner_address == "0xabc"
     assert abs(router_rows[0].daily_limit_usdc - 100.0) < 1e-9
-    usage_rows = repo.read_usage_log_rows()
+    usage_rows = repo.read_invocation_billing_rows()
     assert len(usage_rows) == 1 and usage_rows[0].id == "usage-1"
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
 
@@ -783,16 +788,16 @@ def test_gateway_state_repository_write_paths() -> None:
             updatedAt="2026-03-15 14:26:01",
         )
     ])
-    repo.write_refund_intents([
-        RefundIntentRow(id="ref-2", ownerAddress="0xA", amountUsdc=1, createdAt="2026-03-15 14:26:00", updatedAt="2026-03-15 14:26:01")
+    repo.write_consumer_refund_rows([
+        RefundIntentRow(id="ref-2", ownerAddress="0xA", amountUsdc=1, requestMeta={"requestId": "req-ref-2", "review": {"decision": "APPROVE", "reviewerAddress": "0xrev"}}, reviewDecision="APPROVE", reviewerAddress="0xrev", reviewerNote="clear", reviewedAt=1711113333, completeMeta={"requestId": "req-ref-2-complete"}, createdAt="2026-03-15 14:26:00", updatedAt="2026-03-15 14:26:01")
     ], updated_at="2026-03-15 14:26:00")
-    repo.write_withdrawal_intents([
-        WithdrawalIntentRow(id="wd-2", ownerAddress="0xA", amountUsdc=2, createdAt="2026-03-15 14:26:01", updatedAt="2026-03-15 14:26:02")
+    repo.write_provider_withdrawal_rows([
+        WithdrawalIntentRow(id="wd-2", ownerAddress="0xA", amountUsdc=2, riskLevel="yellow", riskReasonCode="MANUAL_REVIEW", requestMeta={"requestId": "req-wd-2", "review": {"decision": "APPROVE", "reviewerAddress": "0xrev-w"}}, reviewDecision="APPROVE", reviewerAddress="0xrev-w", reviewerNote="ok", reviewedAt=1711114444, ticket={"amount": "2000000", "fee": "0", "nonce": 1, "deadline": 999, "signature": "sig-wd-2", "chainId": 31337, "contractAddress": "0xrouter"}, completeMeta={"requestId": "req-wd-2-complete"}, createdAt="2026-03-15 14:26:01", updatedAt="2026-03-15 14:26:02")
     ], updated_at="2026-03-15 14:26:01")
     repo.write_router_config_rows([
         RouterConfigRow(ownerAddress="0xA", dailyLimitUsdc=10, createdAt="2026-03-15 14:26:02", updatedAt="2026-03-15 14:26:03")
     ], updated_at="2026-03-15 14:26:02")
-    repo.write_usage_log_rows([
+    repo.write_invocation_billing_rows([
         UsageLogRow(id="usage-2", ts=124, buyerAddress="0xA", sellerAddress="0xB", totalCharge=1, businessType="charge", riskLevel="green")
     ])
     repo.write_processed_deposit_event_keys(["ek-2"], updated_at="2026-03-15 14:26:03")
@@ -805,6 +810,8 @@ def test_gateway_state_repository_write_paths() -> None:
     assert "INSERT INTO synapse_vault_withdrawals" in tx_sql
     assert "vault_withdrawal_meta::ref-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "vault_withdrawal_meta::wd-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
+    assert "MANUAL_REVIEW" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
+    assert "sig-wd-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_router_config" in tx_sql
     assert "invocation_billing::usage-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_processed_deposit_events" in tx_sql

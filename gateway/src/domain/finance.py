@@ -17,6 +17,7 @@ from .execution import (
     WithdrawalDecision,
 )
 from .ledger import DepositIntentRow, WithdrawalIntentRow
+from .operation_metadata import OperationContextMetadata
 
 
 """Finance domain entities — BalanceLedger & FeePolicyEntity.
@@ -289,13 +290,17 @@ class RefundIntentRow(BaseModel):
     risk_level: Optional[str] = Field(default=None, alias="riskLevel")
     risk_reason_code: Optional[str] = Field(default=None, alias="riskReasonCode")
     message: Optional[str] = None
-    request_meta: Dict[str, Any] = Field(default_factory=dict, alias="requestMeta")
+    request_meta: OperationContextMetadata = Field(
+        default_factory=OperationContextMetadata, alias="requestMeta"
+    )
     review_decision: Optional[str] = Field(default=None, alias="reviewDecision")
     reviewer_address: Optional[str] = Field(default=None, alias="reviewerAddress")
     reviewer_note: Optional[str] = Field(default=None, alias="reviewerNote")
     reviewed_at: Optional[int] = Field(default=None, alias="reviewedAt")
     completed_at: Optional[int] = Field(default=None, alias="completedAt")
-    complete_meta: Dict[str, Any] = Field(default_factory=dict, alias="completeMeta")
+    complete_meta: OperationContextMetadata = Field(
+        default_factory=OperationContextMetadata, alias="completeMeta"
+    )
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 

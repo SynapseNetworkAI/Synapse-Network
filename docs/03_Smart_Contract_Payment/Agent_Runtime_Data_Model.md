@@ -321,4 +321,4 @@
 
 ## 11. 结论
 
-这份模型的核心变化不是“多加几张表”，而是彻底把数据库视角从 `wallet + api_key + usage_log`，切换成 `agent + service + quote + invocation + budget + ledger`。
+这份模型的核心变化不是“多加几张表”，而是彻底把数据库视角从 `wallet + api_key + legacy call shadow rows`，切换成 `agent + service + quote + invocation + budget + ledger`。

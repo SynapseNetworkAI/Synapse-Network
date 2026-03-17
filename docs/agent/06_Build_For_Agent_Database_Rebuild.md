@@ -18,7 +18,7 @@
 1. Agent 先 discover，再 quote，再 invoke
 2. 一个 Agent 有独立预算、速率和 service scope
 3. Quote 先预占预算，再 capture / release
-4. Invocation 是第一等真相对象，不只是 `usage_log` 一行
+4. Invocation 是第一等真相对象，不只是历史兼容调用影子行
 5. Service 面向 Agent 公开，Seller 结算信息只留在平台内部
 
 所以这次不是“在旧表上打补丁”，而是**换视角重建真相层**。
@@ -48,7 +48,7 @@
    问题：它只是“凭据桶”，没有 `AgentProfile`、`BudgetPolicy`、`service scope` 这些 Agent Runtime 核心实体。
    新方案：拆成 `synapse_agent_profiles`、`synapse_agent_credentials`、`synapse_budget_policies`。
 
-3. `synapse_usage_log`
+3. 历史调用影子表
    问题：它只能记录“调用发生了”，无法表达 Quote、预算预占、调用重试、结果回执、结算完成这些生命周期。
    新方案：拆成 `synapse_service_quotes`、`synapse_invocations`、`synapse_budget_events`、`synapse_ledger_entries`。
 
@@ -60,8 +60,8 @@
    问题：只有钱包级日限额，太粗。
    新方案：预算和限流统一进入 `synapse_budget_policies`。
 
-6. `synapse_deposit_intents` / `synapse_refund_intents` / `synapse_withdrawal_intents`
-   问题：这三张表是资金侧意图表，不是 Agent Runtime 结构；语义也太偏历史流程。
+6. 历史 deposit / refund / withdrawal intent 表
+   问题：这些表是资金侧意图表，不是 Agent Runtime 结构；语义也太偏历史流程。
    新方案：重构为 `synapse_vault_deposits` 和 `synapse_vault_withdrawals`，只保留 Owner 资金池入金/出金真相。
 
 7. `synapse_wallet_roles` / `synapse_auth_sessions`
@@ -162,12 +162,12 @@
 | --- | --- | --- |
 | `synapse_service_registry` | 删除重构 | `synapse_service_manifests` + `synapse_service_endpoints` + `synapse_service_health_snapshots` + `synapse_service_search_index` |
 | `synapse_credentials` | 删除重构 | `synapse_agent_profiles` + `synapse_agent_credentials` + `synapse_budget_policies` |
-| `synapse_usage_log` | 删除重构 | `synapse_service_quotes` + `synapse_invocations` + `synapse_budget_events` + `synapse_ledger_entries` |
+| 历史调用影子表 | 删除重构 | `synapse_service_quotes` + `synapse_invocations` + `synapse_budget_events` + `synapse_ledger_entries` |
 | `synapse_balances` | 删除重构 | `synapse_ledger_accounts` + `synapse_account_balances` |
 | `synapse_router_config` | 删除重构 | `synapse_budget_policies` |
 | `synapse_deposit_intents` | 删除重构 | `synapse_vault_deposits` |
-| `synapse_refund_intents` | 删除 | 并入 `synapse_vault_withdrawals` 或独立退款域 |
-| `synapse_withdrawal_intents` | 删除重构 | `synapse_vault_withdrawals` |
+| 历史退款意图表 | 删除 | 并入 `synapse_vault_withdrawals` 或独立退款域 |
+| 历史提现意图表 | 删除重构 | `synapse_vault_withdrawals` |
 | `synapse_audit_log` | 重命名并重构 | `synapse_audit_events` |
 | `synapse_idempotency_keys` | 复用 | `synapse_idempotency_keys` |
 | `synapse_runtime_state` | 复用 | `synapse_runtime_state` |

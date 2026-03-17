@@ -5,6 +5,8 @@ from typing import Any, Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from .operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
+
 
 class LedgerAccountRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -84,12 +86,23 @@ class WithdrawalIntentRow(BaseModel):
     contract_address: Optional[str] = Field(default=None, alias="contractAddress")
     signer_address: Optional[str] = Field(default=None, alias="signerAddress")
     business_type: Optional[str] = Field(default=None, alias="businessType")
+    evidence_summary: Optional[str] = Field(default=None, alias="evidenceSummary")
     risk_level: Optional[str] = Field(default=None, alias="riskLevel")
-    request_meta: dict[str, Any] = Field(default_factory=dict, alias="requestMeta")
+    risk_reason_code: Optional[str] = Field(default=None, alias="riskReasonCode")
     message: Optional[str] = None
-    ticket: dict[str, Any] = Field(default_factory=dict)
+    request_meta: OperationContextMetadata = Field(
+        default_factory=OperationContextMetadata, alias="requestMeta"
+    )
+    review_decision: Optional[str] = Field(default=None, alias="reviewDecision")
+    reviewer_address: Optional[str] = Field(default=None, alias="reviewerAddress")
+    reviewer_note: Optional[str] = Field(default=None, alias="reviewerNote")
+    reviewed_at: Optional[int] = Field(default=None, alias="reviewedAt")
+    ticket: WithdrawalTicketMetadata = Field(default_factory=WithdrawalTicketMetadata)
+    message: Optional[str] = None
     completed_at: Optional[int] = Field(default=None, alias="completedAt")
-    complete_meta: dict[str, Any] = Field(default_factory=dict, alias="completeMeta")
+    complete_meta: OperationContextMetadata = Field(
+        default_factory=OperationContextMetadata, alias="completeMeta"
+    )
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 

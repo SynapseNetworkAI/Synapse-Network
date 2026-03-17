@@ -33,16 +33,16 @@
 
 ### 2.2 `gateway` 持续拥有的交易真相表
 
-这部分表继续由交易网关维护，`gateway-admin` 不直接写主真相：
+这部分真相继续由交易网关维护，`gateway-admin` 不直接写主真相：
 
-- `synapse_balances`
-- `synapse_deposit_intents`
-- `synapse_refund_intents`
-- `synapse_withdrawal_intents`
-- `synapse_audit_log`
+- `synapse_account_balances`
+- `synapse_vault_deposits`
+- `synapse_vault_withdrawals`
+- `synapse_invocations`
+- `synapse_ledger_entries`
+- `synapse_audit_events`
 - `synapse_runtime_state`
 - `synapse_processed_deposit_events`
-- `synapse_system_activity_log`
 
 后台补账、退款、提现放行等动作，必须走：
 

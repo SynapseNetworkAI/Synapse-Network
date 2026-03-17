@@ -356,25 +356,21 @@ async def get_usage_logs(
     storage: Annotated[BaseStorage, Depends(get_storage)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
-    raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
-    rows = (
-        [
-            row.model_dump(by_alias=True, mode="json")
-            if isinstance(row, UsageLogRow)
-            else row
-            for row in raw_rows
-            if isinstance(row, (UsageLogRow, dict))
-        ]
-        if isinstance(raw_rows, list)
-        else []
-    )
+    raw_rows = storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
+    rows = []
+    if isinstance(raw_rows, list):
+        for row in raw_rows:
+            if isinstance(row, UsageLogRow):
+                rows.append(row)
+            elif isinstance(row, dict):
+                rows.append(UsageLogRow.model_validate(row))
     owner = owner_wallet.lower()
     filtered = []
     for row in rows:
-        buyer = str(row.get("buyer") or row.get("buyerAddress") or "").lower()
-        seller = str(row.get("seller") or row.get("sellerAddress") or "").lower()
+        buyer = str(row.consumer_address or row.buyer_address or "").lower()
+        seller = str(row.provider_address or row.seller_address or "").lower()
         if buyer == owner or seller == owner:
-            filtered.append(row)
+            filtered.append(row.model_dump(by_alias=True, mode="json"))
 
     return {
         "status": "success",

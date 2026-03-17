@@ -1,40 +1,123 @@
 name: Financial Security CI
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+	push:
+		branches:
+			- main
+	pull_request:
+		branches:
+			- main
+	schedule:
+		- cron: '23 2 * * *'
+	workflow_dispatch:
+
+permissions:
+	contents: read
+
+concurrency:
+	group: financial-security-${{ github.ref }}
+	cancel-in-progress: true
 
 jobs:
-  financial-security-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: gateway
+	# 资金安全专项流水线：验证数据库初始化、只读投影、存储策略和关键资金路径测试。
+	financial-security-tests:
+		runs-on: ubuntu-latest
+		services:
+			# 临时 PostgreSQL，模拟 CI 中的真实账本/投影数据库环境。
+			postgres:
+				image: postgres:16
+				env:
+					POSTGRES_USER: postgres
+					POSTGRES_PASSWORD: postgres
+					POSTGRES_DB: postgres
+				ports:
+					- 5432:5432
+				options: >-
+					--health-cmd "pg_isready -U postgres -d postgres"
+					--health-interval 5s
+					--health-timeout 5s
+					--health-retries 20
+			# 临时 Redis，覆盖 gateway 在缓存/队列依赖下的关键行为。
+			redis:
+				image: redis:7.2
+				ports:
+					- 6379:6379
+				options: >-
+					--health-cmd "redis-cli ping"
+					--health-interval 5s
+					--health-timeout 5s
+					--health-retries 20
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+		steps:
+			- name: Checkout
+				uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+			- name: Set up Python
+				uses: actions/setup-python@v5
+				with:
+					python-version: '3.11'
+					cache: 'pip'
+					cache-dependency-path: gateway/requirements.txt
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+			- name: Install system dependencies
+				run: |
+					sudo apt-get update
+					sudo apt-get install -y postgresql-client redis-tools ripgrep
 
-      - name: Enforce PostgreSQL-only storage policy
-        run: |
-          bash ../scripts/ci/check_postgres_only_storage.sh
+			# 安装 gateway 运行和测试所需依赖。
+			- name: Install gateway dependencies
+				working-directory: gateway
+				run: |
+					python -m pip install --upgrade pip
+					pip install -r requirements.txt
 
-      - name: Run financial security test suite
-        env:
-          PYTHONPATH: .
-        run: |
-          pytest -q tests/test_financial_*.py
+			# 防止仓库回退到旧的 JSON 文件存储实现，确保账本只走 PostgreSQL。
+			- name: Enforce PostgreSQL-only storage policy
+				run: bash scripts/ci/check_postgres_only_storage.sh
+
+			# 初始化数据库、schema、projection views 和只读权限，模拟真实部署前置条件。
+			- name: Bootstrap PostgreSQL schema for CI
+				env:
+					PGHOST: 127.0.0.1
+					PGPORT: '5432'
+					POSTGRES_USER: postgres
+					POSTGRES_PASSWORD: postgres
+				run: bash scripts/ci/bootstrap_postgres_for_ci.sh
+
+			# 验证只读账号确实可以读取管理后台依赖的聚合投影视图。
+			- name: Smoke check read-only projection access
+				env:
+					PGPASSWORD: '12345678'
+				run: |
+					psql -h 127.0.0.1 -U synapse_gateway_ro -d synapse_gateway -v ON_ERROR_STOP=1 -c "select gateway_status, vault_ledger_delta_usdc from synapse_admin_dashboard_projection;"
+
+			# 跑资金主路径测试，覆盖 finance、forwarding、credential 和 PostgreSQL repository 行为。
+			- name: Run financial security suite
+				working-directory: gateway
+				env:
+					ENVIRONMENT: ci
+					PYTHONPATH: .
+					STORAGE_BACKEND: postgres
+					POSTGRES_DSN: postgresql://synapse_gateway_app:12345678@127.0.0.1:5432/synapse_gateway
+					POSTGRES_PASSWORD: '12345678'
+					REDIS_URL: redis://127.0.0.1:6379/0
+					JWT_SECRET: ci-financial-security-jwt-secret-32-bytes-min
+					AUTH_SECRET: ci-financial-security-auth-secret-32-bytes-min
+					RPC_URL: http://127.0.0.1:8545
+				run: |
+					mkdir -p ../artifacts
+					pytest -q \
+						tests/unit/test_finance_runtime_service_unit.py \
+						tests/unit/test_forwarding_runtime_service_unit.py \
+						tests/unit/test_credential_runtime_service_unit.py \
+						tests/unit/storage/test_postgres_impl_unit.py \
+						tests/unit/storage/test_postgres_repositories_unit.py \
+						--junitxml ../artifacts/financial-security-junit.xml
+
+			# 即使失败也上传测试报告，便于直接在 Actions 中排查回归原因。
+			- name: Upload financial security test results
+				if: always()
+				uses: actions/upload-artifact@v4
+				with:
+					name: financial-security-test-results
+					path: artifacts/financial-security-junit.xml

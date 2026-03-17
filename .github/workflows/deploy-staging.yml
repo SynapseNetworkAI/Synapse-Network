@@ -1,0 +1,85 @@
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Git ref to deploy on the remote staging host
+        required: true
+        default: main
+      remote_stack_dir:
+        description: Absolute path to the checked-out repo or deploy stack on the remote host
+        required: true
+        default: /srv/synapse/Synapse-Network
+      compose_file:
+        description: Compose file to use on the remote host
+        required: true
+        default: docker-compose/docker-compose.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  # 预发布环境部署：面向验证 main 最新版本是否可在接近生产的环境中稳定运行。
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      # 部署前先校验最基本的 SSH 凭据是否齐全，避免运行到一半才失败。
+      - name: Validate required staging secrets
+        env:
+          STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          STAGING_DEPLOY_USER: ${{ secrets.STAGING_DEPLOY_USER }}
+          STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+        run: |
+          missing=0
+          for name in STAGING_DEPLOY_HOST STAGING_DEPLOY_USER STAGING_DEPLOY_SSH_KEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "missing required secret: $name" >&2
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+      # 通过 SSH 到远端主机执行 git 更新和 compose 拉起，适合当前仓库的第一版部署模式。
+      - name: Deploy to staging host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_DEPLOY_HOST }}
+          username: ${{ secrets.STAGING_DEPLOY_USER }}
+          key: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ inputs.remote_stack_dir }}"
+            git fetch --all --tags
+            git checkout "${{ inputs.target_ref }}"
+            if git show-ref --verify --quiet "refs/remotes/origin/${{ inputs.target_ref }}"; then
+              git reset --hard "origin/${{ inputs.target_ref }}"
+            fi
+            docker compose -f "${{ inputs.compose_file }}" pull || true
+            docker compose -f "${{ inputs.compose_file }}" up -d --remove-orphans
+            docker image prune -f
+
+          # 部署后做基础健康检查，确认主要入口已恢复服务。
+      - name: Run staging smoke checks
+        env:
+          STAGING_GATEWAY_HEALTHCHECK_URL: ${{ vars.STAGING_GATEWAY_HEALTHCHECK_URL }}
+          STAGING_ADMIN_GATEWAY_HEALTHCHECK_URL: ${{ vars.STAGING_ADMIN_GATEWAY_HEALTHCHECK_URL }}
+          STAGING_ADMIN_FRONT_URL: ${{ vars.STAGING_ADMIN_FRONT_URL }}
+        run: |
+          set -euo pipefail
+          for url in \
+            "$STAGING_GATEWAY_HEALTHCHECK_URL" \
+            "$STAGING_ADMIN_GATEWAY_HEALTHCHECK_URL" \
+            "$STAGING_ADMIN_FRONT_URL"; do
+            if [[ -n "$url" ]]; then
+              curl --fail --silent --show-error --location --max-time 15 "$url" >/dev/null
+            fi
+          done

@@ -341,7 +341,7 @@ class GatewayStateRepository:
                     updated_at,
                 )
 
-    def read_refund_intents(self) -> List[RefundIntentRow]:
+    def read_consumer_refund_rows(self) -> List[RefundIntentRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
@@ -423,7 +423,7 @@ class GatewayStateRepository:
             )
         return projected
 
-    def write_refund_intents(
+    def write_consumer_refund_rows(
         self, rows: List[RefundIntentRow], updated_at: str | int
     ) -> None:
         with self._db.tx_cursor() as cur:
@@ -501,7 +501,7 @@ class GatewayStateRepository:
                     row_updated_at,
                 )
 
-    def read_withdrawal_intents(self) -> List[WithdrawalIntentRow]:
+    def read_provider_withdrawal_rows(self) -> List[WithdrawalIntentRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
@@ -565,13 +565,26 @@ class GatewayStateRepository:
                     chainId=metadata.chain_id,
                     contractAddress=metadata.contract_address,
                     signerAddress=metadata.signer_address,
+                    businessType=metadata.business_type,
+                    evidenceSummary=metadata.evidence_summary,
+                    riskLevel=metadata.risk_level,
+                    riskReasonCode=metadata.risk_reason_code,
+                    message=metadata.message,
+                    requestMeta=metadata.request_meta,
+                    reviewDecision=metadata.review_decision,
+                    reviewerAddress=metadata.reviewer_address,
+                    reviewerNote=metadata.reviewer_note,
+                    reviewedAt=metadata.reviewed_at,
+                    ticket=metadata.ticket,
+                    completedAt=metadata.completed_at,
+                    completeMeta=metadata.complete_meta,
                     createdAt=to_dt_str(created_at, "") or "",
                     updatedAt=to_dt_str(updated_at, "") or "",
                 )
             )
         return projected
 
-    def write_withdrawal_intents(
+    def write_provider_withdrawal_rows(
         self, rows: List[WithdrawalIntentRow], updated_at: str | int
     ) -> None:
         with self._db.tx_cursor() as cur:
@@ -627,8 +640,21 @@ class GatewayStateRepository:
                         chainId=row.chain_id,
                         contractAddress=row.contract_address,
                         signerAddress=row.signer_address,
+                        businessType=row.business_type or "withdraw",
+                        evidenceSummary=row.evidence_summary,
                         flowStatus=row.status,
                         requestId=row.request_id,
+                        riskLevel=row.risk_level,
+                        riskReasonCode=row.risk_reason_code,
+                        message=row.message,
+                        requestMeta=row.request_meta,
+                        reviewDecision=row.review_decision,
+                        reviewerAddress=row.reviewer_address,
+                        reviewerNote=row.reviewer_note,
+                        reviewedAt=row.reviewed_at,
+                        ticket=row.ticket,
+                        completedAt=row.completed_at,
+                        completeMeta=row.complete_meta,
                     ).model_dump(by_alias=True, mode="json"),
                     row_updated_at,
                 )
@@ -668,7 +694,7 @@ class GatewayStateRepository:
                     ),
                 )
 
-    def read_usage_log_rows(self) -> List[UsageLogRow]:
+    def read_invocation_billing_rows(self) -> List[UsageLogRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
@@ -691,7 +717,7 @@ class GatewayStateRepository:
             rows = cur.fetchall()
         return [self._project_usage_log_row(*row) for row in rows]
 
-    def write_usage_log_rows(self, rows: List[UsageLogRow]) -> None:
+    def write_invocation_billing_rows(self, rows: List[UsageLogRow]) -> None:
         with self._db.tx_cursor() as cur:
             for row in rows:
                 invocation_id = str(row.id or "").strip()

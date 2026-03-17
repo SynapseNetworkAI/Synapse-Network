@@ -11,33 +11,30 @@ class ProviderAnalyticsService:
     def __init__(self, storage: BaseStorage):
         self.storage = storage
 
-    def _load_usage_rows(self) -> List[Dict[str, Any]]:
+    def _load_invocation_billings(self) -> List[UsageLogRow]:
         raw_rows = (
-            self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
+            self.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
         )
         if not isinstance(raw_rows, list):
             return []
-        rows: List[Dict[str, Any]] = []
+        rows: List[UsageLogRow] = []
         for row in raw_rows:
             if isinstance(row, UsageLogRow):
-                payload = row.model_dump(by_alias=True, mode="json")
-                payload.setdefault("seller", payload.get("sellerAddress"))
-                payload.setdefault("buyer", payload.get("buyerAddress"))
-                rows.append(payload)
-            elif isinstance(row, dict):
                 rows.append(row)
+            elif isinstance(row, dict):
+                rows.append(UsageLogRow.model_validate(row))
         return rows
 
     def _load_seller_receivable(self, owner_wallet: str) -> float:
         ledger = self.storage.get_data_manager().finance.balance.read_balance_ledger()
         return ledger.provider_receivable_balance(owner_wallet)
 
-    def _seller_rows(self, owner_wallet: str) -> List[Dict[str, Any]]:
-        rows = self._load_usage_rows()
+    def _seller_rows(self, owner_wallet: str) -> List[UsageLogRow]:
+        rows = self._load_invocation_billings()
         return [
             row
             for row in rows
-            if normalize_wallet(str(row.get("seller") or "")) == owner_wallet
+            if normalize_wallet(str(row.provider_address or row.seller_address or "")) == owner_wallet
         ]
 
     def _row_created_at(self, row: Dict[str, Any]) -> int:
