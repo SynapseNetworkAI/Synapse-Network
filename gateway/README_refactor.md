@@ -39,3 +39,11 @@ Deposit and withdrawal orchestration now treats `src/domain/ledger.py` plus `src
 - `DepositIntentRegisterCommand`, `DepositIntentConfirmCommand`, `WithdrawalAtomicRequestCommand`, `PreparedWithdrawTicket`, `WithdrawalDecision`, `CompleteWithdrawTxCommand`, and `ReserveSellerWithdrawCommand` live in `execution.py` and are the only typed execution commands/results used by atomic repositories and deposit/withdraw flows.
 - `finance.py` remains a compatibility export surface for unchanged callers, but new internal finance code should import deposit/withdraw runtime objects from `ledger.py` and `execution.py` directly.
 - Gateway state repository no longer accepts raw `dict` deposit rows; JSON payloads remain only at runtime-state serialization boundaries.
+
+## Buyer Quote and Invoke Runtime Baseline
+
+The buyer forwarding pipeline now treats `src/domain/execution.py` plus `src/domain/service_contract.py` as the canonical internal model boundary for paid service execution.
+
+- `generate_response_v2()` builds and carries a typed `ServiceQuoteRecord` and `InvocationRecord` through validation, charging, upstream forwarding, usage logging, and audit logging.
+- `forwarding_upstream.call_upstream()` now accepts typed `InvocationRecord` plus `ServiceDefinitionRecord` and returns a typed `InvocationResultRecord` instead of raw `dict` transport.
+- Buyer receipt remains a response-boundary JSON object, but now includes `quoteId` and `invocationId` derived from the typed execution records for end-to-end traceability.

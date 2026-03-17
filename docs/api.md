@@ -550,7 +550,7 @@
   - 扣费风控前置：当买家或卖家满足 `frozen_balance > 0` 且账户状态为 `restricted/suspended/blocked` 时，直接阻断交易并返回 `403`。
   - 原子性：买家扣减、卖家入账、平台手续费累加、usage 流水写入必须在同一个 DB 事务提交。
 - **Buyer Receipt (Public API)**:
-  - 公开返回仅包含 `requestId`、`serviceId`、`totalCharge`、`buyerBalanceAfter`、`serviceUnitPrice`。
+  - 公开返回仅包含 `requestId`、`quoteId`、`invocationId`、`serviceId`、`totalCharge`、`buyerBalanceAfter`、`serviceUnitPrice`。
   - 不返回卖家净收入与平台抽成拆分（如 `feeRate/platformFee/platformFeeTotal/sellerNet/routingTax`）。
 - **Response Example**:
   ```json
@@ -562,6 +562,8 @@
       "code": "DELIVERED",
       "receipt": {
         "requestId": "fb7f6d64-78a1-4a13-96f5-7faf2cd0a801",
+        "quoteId": "quote-7e625f0ea96f4c9387a0e73c7c8cf2a3",
+        "invocationId": "inv-c0d90a9482c44a0f88cff5d63dd3a55a",
         "serviceId": "SVC_F8_5800A9_0648",
         "totalCharge": 1.0001,
         "buyerBalanceAfter": 107.9998,

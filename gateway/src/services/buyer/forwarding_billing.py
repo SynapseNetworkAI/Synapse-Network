@@ -60,6 +60,8 @@ def resolve_gateway_routing_tax() -> float:
 
 def build_buyer_receipt(
     request_id: str,
+    quote_id: str,
+    invocation_id: str,
     service_id: str,
     unit_price: float,
     total_charge: float,
@@ -68,6 +70,8 @@ def build_buyer_receipt(
     """Build buyer-visible receipt fields without leaking internal settlement splits."""
     return {
         "requestId": request_id,
+        "quoteId": quote_id,
+        "invocationId": invocation_id,
         "serviceId": service_id,
         "totalCharge": total_charge,
         "buyerBalanceAfter": buyer_balance_after,
@@ -111,7 +115,7 @@ def pricing_breakdown(
     )
 
 
-def append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
+def append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
     """Append one usage event into usage_log collection with safe list normalization."""
     raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
     rows = list(raw_rows) if isinstance(raw_rows, list) else []

@@ -1,11 +1,16 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
 from typing import Any, Dict, Optional, Tuple
+from uuid import uuid4
 
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.api.schemas.pydantic_models import InferenceRequest
+from src.domain.execution import InvocationRecord, InvocationResultRecord, ServiceQuoteRecord
+from src.domain.finance import UsageLogRow
 from src.domain.identity import RuntimeCredentialRecord
 from src.domain.service_contract import ServiceConstraintRecord, ServiceDefinitionRecord
 from src.services.platform import credential_service
@@ -13,6 +18,7 @@ from src.services.buyer import forwarding_billing
 from src.services.buyer import forwarding_upstream
 from src.services.buyer import forwarding_validation
 from src.storage import BaseStorage
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 # Shared best-effort runtime caches. Redis is preferred in production; memory fallback keeps dev mode usable.
 _redis_client = None
@@ -21,6 +27,8 @@ _memory_window_counters: Dict[str, Tuple[float, int]] = {}
 
 def _build_buyer_receipt(
     request_id: str,
+    quote_id: str,
+    invocation_id: str,
     service_id: str,
     unit_price: float,
     total_charge: float,
@@ -28,12 +36,18 @@ def _build_buyer_receipt(
 ) -> Dict[str, Any]:
     """Build buyer-facing receipt fields only, hiding internal settlement split details."""
     return forwarding_billing.build_buyer_receipt(
-        request_id, service_id, unit_price, total_charge, buyer_balance_after
+        request_id,
+        quote_id,
+        invocation_id,
+        service_id,
+        unit_price,
+        total_charge,
+        buyer_balance_after,
     )
 
 
 def _build_buyer_success_response(
-    receipt: Dict[str, Any], upstream_result: Any
+    receipt: Dict[str, Any], upstream_result: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Return the canonical generate success envelope consumed by buyer SDKs."""
     return forwarding_billing.build_buyer_success_response(receipt, upstream_result)
@@ -51,7 +65,7 @@ def _pricing_breakdown(
     return forwarding_billing.pricing_breakdown(storage, seller_wallet, unit_price)
 
 
-def _append_usage_log(storage: BaseStorage, row: Dict[str, Any]) -> None:
+def _append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
     """Persist one usage row into usage_log for operational visibility and billing traceability."""
     forwarding_billing.append_usage_log(storage, row)
 
@@ -103,10 +117,105 @@ def _select_weighted_target_url(invoke: Any) -> str:
 
 
 async def _call_upstream(
-    service: ServiceDefinitionRecord, prompt: str, request_id: str
-) -> Any:
+    service: ServiceDefinitionRecord,
+    invocation: InvocationRecord,
+    request_payload: Dict[str, Any],
+) -> InvocationResultRecord:
     """Forward prompt to seller upstream and enforce payload size + timeout limits."""
-    return await forwarding_upstream.call_upstream(service, prompt, request_id)
+    return await forwarding_upstream.call_upstream(service, invocation, request_payload)
+
+
+def _request_payload(prompt: str) -> Dict[str, Any]:
+    return {"text": prompt}
+
+
+def _payload_digest(payload: Dict[str, Any]) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _quote_expiration_seconds(service: ServiceDefinitionRecord) -> int:
+    timeout_seconds = max(30, int(service.constraints.timeout_ms or 0) // 1000)
+    return min(timeout_seconds, 300)
+
+
+def _build_service_quote(
+    service: ServiceDefinitionRecord,
+    credential: RuntimeCredentialRecord,
+    request_payload: Dict[str, Any],
+    unit_price: float,
+) -> ServiceQuoteRecord:
+    created_at = now_dt_str()
+    return ServiceQuoteRecord(
+        quoteId=f"quote-{uuid4().hex}",
+        serviceId=service.service_id,
+        credentialId=credential.credential.credential_id,
+        agentId=credential.agent.agent_id,
+        quotedPriceUsdc=round(unit_price, 6),
+        priceModel="fixed",
+        status="OPEN",
+        requestFingerprint=_payload_digest(
+            {
+                "serviceId": service.service_id,
+                "credentialId": credential.credential.credential_id,
+                "payload": request_payload,
+            }
+        ),
+        responseMode="sync",
+        invokeConstraints={
+            "body": service.invoke.request.schema.body,
+        },
+        expiresAt=to_dt_str(
+            credential_service.now_ts() + _quote_expiration_seconds(service),
+            created_at,
+        )
+        or created_at,
+        createdAt=created_at,
+    )
+
+
+def _build_invocation_record(
+    service: ServiceDefinitionRecord,
+    credential: RuntimeCredentialRecord,
+    quote: ServiceQuoteRecord,
+    request_id: str,
+    request_payload: Dict[str, Any],
+) -> InvocationRecord:
+    created_at = now_dt_str()
+    endpoint_id = None
+    if service.primary_endpoint is not None:
+        endpoint_id = service.primary_endpoint.endpoint_id
+    return InvocationRecord(
+        invocationId=f"inv-{uuid4().hex}",
+        quoteId=quote.quote_id,
+        serviceId=service.service_id,
+        endpointId=endpoint_id,
+        credentialId=credential.credential.credential_id,
+        agentId=credential.agent.agent_id,
+        idempotencyKey=request_id,
+        requestDigest=_payload_digest(request_payload),
+        responseMode=quote.response_mode,
+        status="PENDING",
+        createdAt=created_at,
+        updatedAt=created_at,
+    )
+
+
+def _invocation_failure_status(error_code: Optional[str]) -> str:
+    retryable_codes = {
+        "SERVICE_UNAVAILABLE",
+        "UPSTREAM_ERROR",
+        "RESPONSE_PAYLOAD_TOO_LARGE",
+    }
+    return "FAILED_RETRYABLE" if error_code in retryable_codes else "FAILED_FINAL"
+
+
+def _invocation_error_action(error_code: Optional[str]) -> Optional[str]:
+    if error_code in {"SERVICE_UNAVAILABLE", "UPSTREAM_ERROR"}:
+        return "retry"
+    if error_code:
+        return "fix_request"
+    return None
 
 
 def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
@@ -380,12 +489,14 @@ async def generate_response_v2(
 
     service = _find_active_service(storage, service_id)
     constraints = _effective_service_constraints(service)
-    await _check_service_qps_limit(service_id, int(constraints["maxQps"]))
+    await _check_service_qps_limit(service_id, int(constraints.max_qps))
     unit_price = _parse_service_price_usdc(service)
+    request_payload = _request_payload(prompt)
+    quote = _build_service_quote(service, credential, request_payload, unit_price)
 
     owner_wallet = credential_service.credential_owner_wallet(credential)
     seller_wallet = normalize_wallet(
-        str(service.get("address") or service.get("ownerAddress") or "")
+        str(service.address or service.owner_address or "")
     )
     (
         fee_rate,
@@ -405,6 +516,16 @@ async def generate_response_v2(
         "seller_net": seller_net,
         "total_charge": total_charge,
     }
+    invocation = _build_invocation_record(
+        service, credential, quote, request_id, request_payload
+    )
+    running_invocation = invocation.model_copy(
+        update={
+            "status": "RUNNING",
+            "started_at": now_dt_str(),
+            "updated_at": now_dt_str(),
+        }
+    )
 
     buyer_after, updated_credential = await forwarding_billing.charge_and_mark_usage(
         storage,
@@ -417,7 +538,9 @@ async def generate_response_v2(
     )
 
     try:
-        upstream_result = await _call_upstream(service, prompt, request_id)
+        invocation_result = await _call_upstream(
+            service, running_invocation, request_payload
+        )
     except HTTPException as exc:
         await forwarding_billing.rollback_charge(
             storage,
@@ -436,6 +559,31 @@ async def generate_response_v2(
             service_id,
             settlement,
             error_code=exc.detail.get("code") if isinstance(exc.detail, dict) else None,
+        )
+        error_code = exc.detail.get("code") if isinstance(exc.detail, dict) else None
+        failed_invocation = running_invocation.model_copy(
+            update={
+                "status": _invocation_failure_status(error_code),
+                "error_code": error_code,
+                "error_action": _invocation_error_action(error_code),
+                "finished_at": now_dt_str(),
+                "updated_at": now_dt_str(),
+            }
+        )
+        credential_service.append_audit_log(
+            storage,
+            "V2_USAGE_CHARGE_FAILED",
+            owner_wallet,
+            {
+                "requestId": request_id,
+                "quoteId": quote.quote_id,
+                "invocationId": failed_invocation.invocation_id,
+                "serviceId": service_id,
+                "credentialId": credential.credential.credential_id,
+                "resultStatus": "failed",
+                "errorCode": error_code,
+                "businessType": "charge",
+            },
         )
         raise
     except Exception as exc:
@@ -457,6 +605,30 @@ async def generate_response_v2(
             settlement,
             error_message=str(exc),
         )
+        failed_invocation = running_invocation.model_copy(
+            update={
+                "status": "FAILED_RETRYABLE",
+                "error_code": "UPSTREAM_ERROR",
+                "error_action": "retry",
+                "finished_at": now_dt_str(),
+                "updated_at": now_dt_str(),
+            }
+        )
+        credential_service.append_audit_log(
+            storage,
+            "V2_USAGE_CHARGE_FAILED",
+            owner_wallet,
+            {
+                "requestId": request_id,
+                "quoteId": quote.quote_id,
+                "invocationId": failed_invocation.invocation_id,
+                "serviceId": service_id,
+                "credentialId": credential.credential.credential_id,
+                "resultStatus": "failed",
+                "errorCode": "UPSTREAM_ERROR",
+                "businessType": "charge",
+            },
+        )
         raise HTTPException(
             status_code=502,
             detail={
@@ -467,23 +639,33 @@ async def generate_response_v2(
 
     await _record_credit_window_spend(credential, total_charge)
 
+    succeeded_invocation = running_invocation.model_copy(
+        update={
+            "status": "SUCCEEDED",
+            "charged_usdc": round(total_charge, 6),
+            "result": invocation_result,
+            "finished_at": now_dt_str(),
+            "updated_at": now_dt_str(),
+        }
+    )
+
     _append_usage_log(
         storage,
-        {
-            "request_id": request_id,
-            "buyer": owner_wallet,
-            "seller": seller_wallet,
-            "service_id": service_id,
-            "status": "succeeded",
-            "unit_price": unit_price,
-            "fee_rate": fee_rate,
-            "protocol_fee": protocol_fee,
-            "routing_tax": routing_tax,
-            "platform_fee_total": platform_fee_total,
-            "seller_net": seller_net,
-            "total_charge": total_charge,
-            "created_at": credential_service.now_ts(),
-        },
+        UsageLogRow(
+            id=succeeded_invocation.invocation_id,
+            ts=credential_service.now_ts(),
+            requestId=request_id,
+            serviceId=service_id,
+            buyerAddress=owner_wallet,
+            sellerAddress=seller_wallet,
+            status="succeeded",
+            unitPrice=round(unit_price, 6),
+            protocolFee=round(protocol_fee, 6),
+            routingTax=round(routing_tax, 6),
+            totalCharge=round(total_charge, 6),
+            businessType="charge",
+            riskLevel="green",
+        ),
     )
 
     credential_service.append_audit_log(
@@ -492,6 +674,8 @@ async def generate_response_v2(
         owner_wallet,
         {
             "requestId": request_id,
+            "quoteId": quote.quote_id,
+            "invocationId": succeeded_invocation.invocation_id,
             "serviceId": service_id,
             "unitPrice": unit_price,
             "feeRate": fee_rate,
@@ -502,14 +686,18 @@ async def generate_response_v2(
             "totalCharge": total_charge,
             "buyerBalanceAfter": buyer_after,
             "credentialId": credential.credential.credential_id,
+            "resultStatus": "success",
+            "businessType": "charge",
         },
     )
 
     receipt = _build_buyer_receipt(
         request_id=request_id,
+        quote_id=quote.quote_id,
+        invocation_id=succeeded_invocation.invocation_id,
         service_id=service_id,
         unit_price=unit_price,
         total_charge=total_charge,
         buyer_balance_after=buyer_after,
     )
-    return _build_buyer_success_response(receipt, upstream_result)
+    return _build_buyer_success_response(receipt, succeeded_invocation.result.payload)
