@@ -8,6 +8,7 @@ gateway_ro_user="${SYNAPSE_GATEWAY_READONLY_USER:-synapse_gateway_ro}"
 admin_db="${SYNAPSE_ADMIN_DB:-synapse_gateway_admin}"
 admin_app_user="${SYNAPSE_ADMIN_APP_USER:-synapse_admin_app}"
 admin_ro_user="${SYNAPSE_ADMIN_READONLY_USER:-synapse_admin_ro}"
+admin_schema_file="/docker-entrypoint-initdb.d/synapse_gateway_admin.sql"
 admin_seed_file="/admin-migrations/002_admin_seed_data.sql"
 
 run_psql() {
