@@ -203,32 +203,6 @@ def load_refund_intents() -> List[Dict[str, Any]]:
 def save_refund_intents(rows: List[Dict[str, Any]]) -> None:
     _write_json_atomic(settings.refund_intents_path, rows)
 
-
-
-def load_wallet_roles() -> Dict[str, str]:
-    raw = _read_json(settings.wallet_roles_path, {})
-    if not isinstance(raw, dict):
-        return {}
-    # Keep only normalized string mappings to prevent runtime key/type issues.
-    return {str(k): str(v) for k, v in raw.items()}
-
-def save_wallet_roles(roles: Dict[str, str]) -> None:
-    _write_json_atomic(settings.wallet_roles_path, roles)
-
-def enforce_wallet_role(wallet: str, required_role: str) -> None:
-    norm_wallet = normalize_wallet(wallet)
-    roles = load_wallet_roles()
-    current_role = roles.get(norm_wallet)
-    
-    if current_role and current_role != required_role:
-        raise ValueError(f"Hard Isolation Error: Wallet {norm_wallet} is already registered as {current_role}. Cannot act as {required_role}.")
-        
-    if not current_role:
-        roles[norm_wallet] = required_role
-        save_wallet_roles(roles)
-
-
-
 def load_provider_secrets() -> List[Dict[str, Any]]:
     data = _read_json(settings.provider_secrets_path, [])
     return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []

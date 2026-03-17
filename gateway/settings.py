@@ -47,5 +47,4 @@ SERVICE_PRICES = settings.service_prices
 ERROR_RESPONSES = settings.error_responses
 SERVICE_REGISTRY_RESPONSES = settings.service_registry_responses
 AUTH_RESPONSES = settings.auth_responses
-WALLET_ROLES_PATH = settings.wallet_roles_path
 PROVIDER_SECRETS_PATH = settings.provider_secrets_path

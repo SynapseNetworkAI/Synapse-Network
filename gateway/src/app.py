@@ -10,7 +10,6 @@ from src.api.routers import (
     auth,
     services,
     balance,
-    wallet,
     buyer_credentials,
     seller_secrets,
     forwarding,
@@ -89,7 +88,6 @@ def create_app() -> FastAPI:
 
     # 包含所有分离的路由
     app.include_router(auth.router, prefix="/api", tags=["auth"])
-    app.include_router(wallet.router, prefix="/api", tags=["wallet"])
     app.include_router(services.router, prefix="/api", tags=["services"])
     app.include_router(balance.router, prefix="/api", tags=["balance"])
     app.include_router(

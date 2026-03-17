@@ -594,10 +594,6 @@ class Settings:
     router_config_path: str = os.getenv(
         "ROUTER_CONFIG_PATH", _runtime_path("router_config.json")
     )
-    # Runtime JSON path: wallet role mapping.
-    wallet_roles_path: str = os.getenv(
-        "WALLET_ROLES_PATH", _runtime_path("wallet_roles.json")
-    )
     # Runtime JSON path: provider secrets.
     provider_secrets_path: str = os.getenv(
         "PROVIDER_SECRETS_PATH", _runtime_path("provider_secrets.json")
