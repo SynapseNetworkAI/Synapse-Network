@@ -5,17 +5,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useEffect } from "react";
 import { 
-  Terminal, 
-  Search, 
-  BarChart2, 
-  Server, 
   ShieldAlert, 
-  Home,
-  Key,
-  GitBranch,
-  Rows4,
-  Wallet,
-  Activity
+  LayoutGrid,
+  PieChart,
+  Activity,
+  Users,
+  Briefcase,
+  Compass,
+  Box,
+  AreaChart,
+  Clock
 } from "lucide-react";
 
 export default function DashboardSidebar() {
@@ -28,17 +27,14 @@ export default function DashboardSidebar() {
   useEffect(() => {
     const allRoutes = [
       "/dashboard/overview",
+      "/dashboard/billing",
+      "/dashboard/usage",
+      "/dashboard/buyer",
       "/dashboard/console",
       "/dashboard/discover",
-      "/dashboard/usage",
-      "/dashboard/billing",
       `${providerRoot}/sell`,
-      `${providerRoot}/secrets`,
-      `${providerRoot}/nodes`,
-      `${providerRoot}/health`,
-      `${providerRoot}/settlements`,
       `${providerRoot}/usage`,
-      `${providerRoot}/billing`,
+      `${providerRoot}/settlements`,
     ];
 
     const warmup = () => {
@@ -63,93 +59,94 @@ export default function DashboardSidebar() {
     const candidates = Array.isArray(paths) ? paths : [paths];
     const active = candidates.some((path) => (exact ? pathname === path : pathname.startsWith(path)));
     if (active) {
-      return "flex items-center px-4 py-2 mt-1 text-sm font-bold text-green-400 bg-green-900/20 border-l-4 border-green-500 rounded-r shadow-[0_0_12px_rgba(34,197,94,0.1)] transition-all";
+      return "flex items-center px-4 py-[10px] mx-2 mt-1 text-[13px] font-semibold text-amber-200 bg-white/[0.04] border-l-2 border-amber-400 rounded-lg shadow-[0_0_12px_rgba(251,191,36,0.08)] transition-all";
     }
-    return "flex items-center px-4 py-2 mt-1 text-sm font-medium text-gray-500 border-l-4 border-transparent hover:text-green-400 hover:bg-[#051505] transition-all";
+    return "flex items-center px-4 py-[10px] mx-2 mt-1 text-[13px] font-medium text-gray-400 border-l-2 border-transparent hover:text-white hover:bg-white/[0.02] rounded-lg transition-all";
+  };
+
+  const getBadgeClasses = (active: boolean) => {
+    return active 
+      ? "ml-auto bg-amber-400/10 text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-mono flex items-center justify-center min-w-[20px]"
+      : "ml-auto bg-white/5 text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-mono flex items-center justify-center min-w-[20px]";
   };
 
   return (
-    <aside className="w-64 bg-[#050505] border-r border-green-900/50 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)] pb-12">
-
-      {/* OWNER CONTROL PLANE */}
-      <div className="mb-8">
-        <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-[#00E599]/40 uppercase">
-          Owner Hub
+    <aside className="w-[260px] bg-[#0a0a0c] border-r border-white/5 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)] pb-12 font-sans tracking-tight">
+      
+      {/* CONTROL PLANE */}
+      <div className="mb-6">
+        <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-gray-500 uppercase">
+          Control Plane
         </h3>
-        <nav className="flex flex-col">
-          <Link href="/dashboard/overview" className={getLinkClasses(["/dashboard/overview", "/dashboard/buyer"], true)}>
-            <Home className="w-4 h-4 mr-3" />
-            Control Plane
+        <nav className="flex flex-col gap-0.5">
+          <Link href="/dashboard/overview" className={getLinkClasses(["/dashboard/overview"], true)}>
+            <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
+            Overview
           </Link>
-          <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing", `${providerRoot}/billing`], false)}>
-            <Wallet className="w-4 h-4 mr-3" />
-            Finance & Refunds
+          <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing"], false)}>
+            <PieChart className="w-4 h-4 mr-3 opacity-80" />
+            Finance
+          </Link>
+          <Link href="/dashboard/usage" className={getLinkClasses(["/dashboard/usage"], false)}>
+            <Activity className="w-4 h-4 mr-3 opacity-80" />
+            Audit Log
           </Link>
         </nav>
       </div>
 
       {/* AGENT WORKSPACE */}
-      <div className="mb-8">
-        <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-[#00E599]/70 uppercase">
+      <div className="mb-6">
+        <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-gray-500 uppercase">
           Agent Workspace
         </h3>
-        <nav className="flex flex-col">
+        <nav className="flex flex-col gap-0.5">
+          <Link href="/dashboard/buyer" className={getLinkClasses("/dashboard/buyer", false)}>
+            <Users className="w-4 h-4 mr-3 opacity-80" />
+            Agents
+            <span className={getBadgeClasses(pathname.startsWith("/dashboard/buyer"))}>3</span>
+          </Link>
           <Link href="/dashboard/console" className={getLinkClasses("/dashboard/console", false)}>
-            <Terminal className="w-4 h-4 mr-3" />
-            Credentials
+            <Briefcase className="w-4 h-4 mr-3 opacity-80" />
+            API Keys
+            <span className={getBadgeClasses(pathname.startsWith("/dashboard/console"))}>5</span>
           </Link>
           <Link href="/dashboard/discover" className={getLinkClasses("/dashboard/discover", false)}>
-            <Search className="w-4 h-4 mr-3" />
+            <Compass className="w-4 h-4 mr-3 opacity-80" />
             Discovery
-          </Link>
-          <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
-            <Activity className="w-4 h-4 mr-3" />
-            Invoke Logs
           </Link>
         </nav>
       </div>
 
       {/* PROVIDER WORKSPACE */}
-      <div className="mb-8">
-        <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-blue-500/70 uppercase">
+      <div className="mb-6">
+        <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-gray-500 uppercase">
           Provider Workspace
         </h3>
-        <nav className="flex flex-col">
-          <Link href={`${providerRoot}/sell`} className={getLinkClasses(["/dashboard/sell", `${providerRoot}/sell`], false)}>
-            <Server className="w-4 h-4 mr-3" />
-            My Services
+        <nav className="flex flex-col gap-0.5">
+          <Link href={`${providerRoot}/sell`} className={getLinkClasses([`${providerRoot}/sell`], false)}>
+            <Box className="w-4 h-4 mr-3 opacity-80" />
+            Services
+            <span className={getBadgeClasses(pathname.startsWith(`${providerRoot}/sell`))}>2</span>
           </Link>
-          <Link href={`${providerRoot}/secrets`} className={getLinkClasses(["/dashboard/secrets", `${providerRoot}/secrets`], false)}>
-            <Key className="w-4 h-4 mr-3" />
-            Access Keys
+          <Link href={`${providerRoot}/usage`} className={getLinkClasses([`${providerRoot}/usage`], false)}>
+            <AreaChart className="w-4 h-4 mr-3 opacity-80" />
+            Earnings
           </Link>
-          <Link href={`${providerRoot}/nodes`} className={getLinkClasses(["/dashboard/provider/nodes", `${providerRoot}/nodes`], false)}>
-            <GitBranch className="w-4 h-4 mr-3" />
-            API Nodes
-          </Link>
-          <Link href={`${providerRoot}/health`} className={getLinkClasses(["/dashboard/provider/health", `${providerRoot}/health`], false)}>
-            <Terminal className="w-4 h-4 mr-3" />
-            Health Console
-          </Link>
-          <Link href={`${providerRoot}/settlements`} className={getLinkClasses(["/dashboard/provider/settlements", `${providerRoot}/settlements`], false)}>
-            <Rows4 className="w-4 h-4 mr-3" />
-            Settlements
-          </Link>
-          <Link href={`${providerRoot}/usage`} className={getLinkClasses(["/dashboard/usage", `${providerRoot}/usage`], false)}>
-            <BarChart2 className="w-4 h-4 mr-3" />
-            Revenue Analytics
+          <Link href={`${providerRoot}/settlements`} className={getLinkClasses([`${providerRoot}/settlements`], false)}>
+            <Clock className="w-4 h-4 mr-3 opacity-80" />
+            Withdrawals
           </Link>
         </nav>
       </div>
 
       {(isAdminAddress) && (
-        <div className="mb-8 mt-auto">
-          <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-red-700/60 uppercase">
-            🔽 Admin Space (平台)
+        <div className="mb-6 mt-auto">
+          <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-red-500/60 uppercase">
+            Admin Space (平台)
           </h3>
-          <nav className="flex flex-col">
+          <nav className="flex flex-col gap-0.5">
             <Link href="/dashboard/admin" className={getLinkClasses("/dashboard/admin", true)}>
-              <ShieldAlert className="w-4 h-4 mr-3" />
+              <ShieldAlert className="w-4 h-4 mr-3 opacity-80" />
               Global Dashboard
             </Link>
           </nav>

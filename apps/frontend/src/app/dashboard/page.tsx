@@ -16,7 +16,7 @@ export default function DashboardIndex() {
     } else if (role === "ADMIN") {
       router.replace("/dashboard/admin");
     } else {
-      router.replace("/dashboard/buyer");
+      router.replace("/dashboard/overview");
     }
   }, [router]);
 

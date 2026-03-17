@@ -4,10 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setAppRole } from "@/utils/roleStore";
 import { ArrowRight } from "lucide-react";
-import { useAccount, useDisconnect } from "wagmi";
-import { getWalletRole } from "@/utils/serviceApi";
+import { useAccount } from "wagmi";
 import { fetchPublicNetworkStats, type PublicNetworkStats } from "@/utils/networkStatsApi";
-import RoleWarningModal from "@/components/RoleWarningModal";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 const HOMEPAGE_STATS_POLL_MS = 12000;
@@ -77,32 +75,12 @@ function AnimatedCounter({ value }: Readonly<{ value: number }>) {
 
 export default function Home() {
   const router = useRouter();
-  const { address } = useAccount();
-  const { disconnect } = useDisconnect();
+  useAccount();
   const { t } = useLanguage();
 
-  const [isWarningOpen, setIsWarningOpen] = useState(false);
-  const [pendingRoute, setPendingRoute] = useState<{ role: "CONSUMER" | "PROVIDER" | "ADMIN"; path: string; targetRoleStr: string } | null>(null);
   const [networkStats, setNetworkStats] = useState<PublicNetworkStats>(EMPTY_NETWORK_STATS);
 
-  const handleEnterRole = async (role: "CONSUMER" | "PROVIDER" | "ADMIN", path: string) => {
-    if (!address) {
-      setAppRole(role);
-      router.push(path);
-      return;
-    }
-
-    const walletRole = await getWalletRole(address);
-    if (walletRole !== "UNKNOWN" && walletRole !== role) {
-      setPendingRoute({
-        role,
-        path,
-        targetRoleStr: role === "CONSUMER" ? t("home.agentWorkspaceBtn") : t("home.providerWorkspaceBtn"),
-      });
-      setIsWarningOpen(true);
-      return;
-    }
-
+  const handleEnterRole = (role: "CONSUMER" | "PROVIDER" | "ADMIN", path: string) => {
     setAppRole(role);
     router.push(path);
   };
@@ -161,15 +139,6 @@ export default function Home() {
 
   return (
     <div className="relative overflow-hidden bg-black text-white selection:bg-white selection:text-black">
-      <RoleWarningModal
-        isOpen={isWarningOpen}
-        onDisconnect={() => {
-          disconnect();
-          setIsWarningOpen(false);
-        }}
-        targetRole={pendingRoute?.targetRoleStr || t("home.agentWorkspaceBtn")}
-      />
-
       <main className="relative">
         <section className="relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-black" />
@@ -194,6 +163,7 @@ export default function Home() {
             <div className="mx-auto max-w-5xl text-center">
               <h1 className="mx-auto text-center text-[clamp(2rem,4.5vw,3.75rem)] font-extrabold leading-tight tracking-tight text-white lg:leading-none">
                 {t("home.heroTitlePart1")}
+                <br className="hidden md:block" />
                 <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
                   {t("home.heroTitlePart2")}
                 </span>
@@ -204,35 +174,35 @@ export default function Home() {
               </h1>
               
               <div className="mx-auto mt-8 max-w-3xl flex flex-col gap-2">
-                <p className="text-xl font-medium tracking-tight text-zinc-300 md:text-2xl">
+                <p className="text-xl font-medium tracking-tight text-white md:text-2xl">
                   {t("home.heroTagline")}
                 </p>
-                <p className="text-base leading-relaxed text-zinc-500 md:text-lg">
+                <p className="text-sm leading-relaxed text-zinc-500 md:text-base">
                   {t("home.heroSubtitle")}
                 </p>
               </div>
 
               <div className="mx-auto mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <button
-                  onClick={() => handleEnterRole("CONSUMER", "/dashboard/discover")}
+                  onClick={() => handleEnterRole("CONSUMER", "/dashboard/overview")}
                   className="group relative inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
                 >
                   Launch Console
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
-                <a
-                  href="#"
+                <button
+                  onClick={() => router.push("/dashboard/console")}
                   className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/50 px-8 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-all hover:bg-zinc-800 hover:text-zinc-200"
                 >
                   Read Documentation
-                </a>
+                </button>
               </div>
 
               <div className="mx-auto mt-16 grid max-w-5xl gap-6 sm:grid-cols-3">
                 {heroStats.map((item) => (
                   <article
                     key={item.label}
-                    className="relative flex flex-col items-center rounded-2xl border border-white/10 bg-zinc-900/50 px-6 py-8 text-center backdrop-blur-md"
+                    className="relative flex cursor-default flex-col items-center rounded-2xl border border-white/10 bg-zinc-900/50 px-6 py-8 text-center backdrop-blur-md transition-colors duration-500 hover:border-green-500/30"
                   >
                     <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
                       {item.label}

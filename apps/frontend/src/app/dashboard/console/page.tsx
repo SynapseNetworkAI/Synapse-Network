@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAccount, useBalance, useChainId, useDisconnect, usePublicClient, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useChainId, usePublicClient, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { BaseError, ContractFunctionRevertedError, parseAbi, parseSignature, parseUnits, type Hex } from "viem";
 import contractConfig from "@/contract-config.json";
 import { createDepositIntent, getV2Balance, recordDepositAttempt, type DepositAttemptStage } from "@/utils/balanceApi";
@@ -17,8 +17,6 @@ import { Copy, Plus, Key, TerminalSquare, AlertCircle, RefreshCw, Wallet, Trash2
 
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { listServiceRegistry } from "@/utils/serviceApi";
-import RoleWarningModal from "@/components/RoleWarningModal";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 
@@ -172,7 +170,6 @@ function buildDepositFailureMessage(err: unknown): string {
 
 export default function DeveloperConsole() {
   const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { openConnectModal } = useConnectModal();
   const chainId = useChainId();
@@ -230,7 +227,6 @@ export default function DeveloperConsole() {
   const [newKeyExpirationDays, setNewKeyExpirationDays] = useState("30");
   const [latestIssued, setLatestIssued] = useState<AgentCredentialIssueResponse | null>(null);
   const [selectedTokenPrefix, setSelectedTokenPrefix] = useState<string>("");
-  const [isRoleWarningOpen, setIsRoleWarningOpen] = useState(false);
   const depositRetryInFlightRef = useRef(false);
   const pendingDepositSyncInFlightRef = useRef(false);
   const currentDepositAttemptIdRef = useRef<string | null>(null);
@@ -746,28 +742,12 @@ export default function DeveloperConsole() {
   };
 
   const handleCreateKeyAttempt = async () => {
-    if (!address) {
-      toast.error("Please connect your wallet first.");
-      return;
-    }
-    try {
-      const providerServices = await listServiceRegistry(address, address);
-      if (providerServices && providerServices.length > 0) {
-        setIsRoleWarningOpen(true);
-        return;
-      }
-      await executeCreateKey();
-    } catch (e) {
-      console.warn("Could not check provider status:", e);
-      // Fallback
-      await executeCreateKey();
-    }
+    await executeCreateKey();
   };
 
   const executeCreateKey = async () => {
     if (!address) return;
     try {
-      setIsRoleWarningOpen(false);
       const nowSec = Math.floor(Date.now() / 1000);
       const expirationDays = Number(newKeyExpirationDays);
       const expiration = Number.isFinite(expirationDays) && expirationDays > 0
@@ -1162,17 +1142,6 @@ print(response.content){"\n"}
           </div>
         </div>
       )}
-
-      <RoleWarningModal
-        isOpen={isRoleWarningOpen}
-        onDisconnect={() => {
-          disconnect();
-          setIsRoleWarningOpen(false);
-          setIsKeyModalOpen(false);
-        }}
-        targetRole="Seller"
-      />
-      
     </div>
   );
 }
