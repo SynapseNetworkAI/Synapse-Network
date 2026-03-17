@@ -29,3 +29,12 @@ Service registration, discovery, forwarding, and health probing now use `src/dom
 - `ServiceDefinitionRecord` is the canonical object passed between repository, seller service, buyer forwarding, and platform health modules.
 - `dict` payloads are only allowed at request/response boundaries or database JSON serialization boundaries.
 - Legacy `ServiceRegistryRow` remains only for compatibility surfaces that have not yet been removed, and should not be reintroduced into service orchestration paths.
+
+## Finance Deposit and Withdrawal Model Baseline
+
+Deposit and withdrawal orchestration now treats `src/domain/ledger.py` plus `src/domain/execution.py` as the canonical internal model boundary.
+
+- `DepositIntentRow` and `WithdrawalIntentRow` live in `ledger.py` and are the only typed rows passed between gateway state storage and finance services.
+- `DepositIntentRegisterCommand`, `DepositIntentConfirmCommand`, `WithdrawalAtomicRequestCommand`, `PreparedWithdrawTicket`, `WithdrawalDecision`, `CompleteWithdrawTxCommand`, and `ReserveSellerWithdrawCommand` live in `execution.py` and are the only typed execution commands/results used by atomic repositories and deposit/withdraw flows.
+- `finance.py` remains a compatibility export surface for unchanged callers, but new internal finance code should import deposit/withdraw runtime objects from `ledger.py` and `execution.py` directly.
+- Gateway state repository no longer accepts raw `dict` deposit rows; JSON payloads remain only at runtime-state serialization boundaries.

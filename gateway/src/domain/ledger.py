@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,6 +15,57 @@ class LedgerAccountRecord(BaseModel):
     seller_id: Optional[str] = Field(default=None, alias="sellerId")
     currency: str = "USDC"
     status: Literal["active", "paused", "closed"] = "active"
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
+
+class DepositIntentRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    owner_address: str = Field(alias="ownerAddress")
+    tx_hash: str = Field(alias="txHash")
+    request_id: Optional[str] = Field(default=None, alias="requestId")
+    buyer_address: Optional[str] = Field(default=None, alias="buyerAddress")
+    amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
+    idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
+    status: str = "PENDING_CONFIRMATION"
+    event_key: Optional[str] = Field(default=None, alias="eventKey")
+    confirmations: Optional[int] = None
+    credited_amount_usdc: Optional[Decimal] = Field(
+        default=None, alias="creditedAmountUsdc"
+    )
+    confirmed_at: Optional[int] = Field(default=None, alias="confirmedAt")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
+
+
+class WithdrawalIntentRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    owner_address: str = Field(alias="ownerAddress")
+    tx_hash: Optional[str] = Field(default=None, alias="txHash")
+    status: Literal[
+        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED"
+    ] = "REQUESTED"
+    request_id: Optional[str] = Field(default=None, alias="requestId")
+    idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
+    amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
+    amount_wei: Optional[str] = Field(default=None, alias="amountWei")
+    fee_wei: Optional[str] = Field(default=None, alias="feeWei")
+    nonce: Optional[int] = None
+    deadline: Optional[int] = None
+    signature: Optional[str] = None
+    chain_id: Optional[int] = Field(default=None, alias="chainId")
+    contract_address: Optional[str] = Field(default=None, alias="contractAddress")
+    signer_address: Optional[str] = Field(default=None, alias="signerAddress")
+    business_type: Optional[str] = Field(default=None, alias="businessType")
+    risk_level: Optional[str] = Field(default=None, alias="riskLevel")
+    request_meta: dict[str, Any] = Field(default_factory=dict, alias="requestMeta")
+    message: Optional[str] = None
+    ticket: dict[str, Any] = Field(default_factory=dict)
+    completed_at: Optional[int] = Field(default=None, alias="completedAt")
+    complete_meta: dict[str, Any] = Field(default_factory=dict, alias="completeMeta")
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 

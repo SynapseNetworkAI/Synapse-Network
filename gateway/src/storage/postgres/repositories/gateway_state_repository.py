@@ -4,12 +4,12 @@ import json
 from typing import Any, Callable, List
 
 from src.domain.gateway import RouterConfigRow
+from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
 from src.domain.finance import (
-    DepositIntentRow,
     RefundIntentRow,
     UsageLogRow,
-    WithdrawalIntentRow,
 )
+from src.domain.runtime_state import DepositMetadataState
 from src.domain.system import ProcessedDepositEventRow, RuntimeStateRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -97,9 +97,13 @@ class GatewayStateRepository:
                 ownerAddress=str(owner),
                 txHash=str(tx_hash),
                 requestId=request_id,
-                buyerAddress=self._payload_dict(meta_payload).get("buyerAddress"),
+                buyerAddress=DepositMetadataState.model_validate(
+                    self._payload_dict(meta_payload)
+                ).buyer_address,
                 amountUsdc=self._q6(amount_usdc),
-                idempotencyKey=self._payload_dict(meta_payload).get("idempotencyKey"),
+                idempotencyKey=DepositMetadataState.model_validate(
+                    self._payload_dict(meta_payload)
+                ).idempotency_key,
                 status=str(status),
                 createdAt=to_dt_str(created_at, "") or "",
                 updatedAt=to_dt_str(updated_at, "") or "",
@@ -107,17 +111,8 @@ class GatewayStateRepository:
             for row_id, owner, tx_hash, request_id, meta_payload, amount_usdc, status, created_at, updated_at in rows
         ]
 
-    def _normalize_deposit_intent_row(
-        self, row: DepositIntentRow | dict[str, Any]
-    ) -> DepositIntentRow | None:
+    def _normalize_deposit_intent_row(self, row: DepositIntentRow) -> DepositIntentRow | None:
         entity = row
-        if isinstance(row, dict):
-            try:
-                entity = DepositIntentRow.model_validate(row)
-            except Exception:
-                return None
-        if not isinstance(entity, DepositIntentRow):
-            return None
 
         row_id = str(entity.id or "").strip()
         owner = str(entity.owner_address or "").strip().lower()
@@ -129,7 +124,7 @@ class GatewayStateRepository:
         return entity
 
     def write_deposit_intents(
-        self, rows: List[DepositIntentRow | dict[str, Any]]
+        self, rows: List[DepositIntentRow]
     ) -> None:
         with self._db.tx_cursor() as cur:
             for row in rows:
@@ -170,12 +165,12 @@ class GatewayStateRepository:
                 self._upsert_runtime_state(
                     cur,
                     self._deposit_state_key(entity.id),
-                    {
-                        "buyerAddress": entity.buyer_address.lower()
+                    DepositMetadataState(
+                        buyerAddress=entity.buyer_address.lower()
                         if entity.buyer_address
                         else None,
-                        "idempotencyKey": entity.idempotency_key,
-                    },
+                        idempotencyKey=entity.idempotency_key,
+                    ).model_dump(by_alias=True, mode="json"),
                     updated_at,
                 )
 

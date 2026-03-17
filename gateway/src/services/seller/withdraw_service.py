@@ -9,16 +9,18 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_lock import RedisLockManager
-from src.domain.finance import BalanceLedger
-from src.domain.finance import (
+from src.domain.execution import (
     CompleteWithdrawTxCommand,
     PreparedWithdrawTicket,
     ReserveSellerWithdrawCommand,
-    WithdrawCreateContext,
     WithdrawalAtomicRequestCommand,
     WithdrawalDecision,
-    WithdrawalIntentRow,
 )
+from src.domain.finance import BalanceLedger
+from src.domain.finance import (
+    WithdrawCreateContext,
+)
+from src.domain.ledger import WithdrawalIntentRow
 from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
@@ -95,8 +97,6 @@ class SellerWithdrawService(
             for row in raw_rows:
                 if isinstance(row, WithdrawalIntentRow):
                     rows.append(row)
-                elif isinstance(row, dict):
-                    rows.append(WithdrawalIntentRow.model_validate(row))
         for row in rows:
             status = str(row.status or "").upper()
             if not status or status == "PENDING":

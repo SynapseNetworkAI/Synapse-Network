@@ -15,21 +15,24 @@ from src.storage.postgres.repositories.finance_atomic_repository import FinanceA
 from src.storage.postgres.repositories.gateway_state_repository import GatewayStateRepository
 from src.storage.postgres.repositories.idempotency_repository import IdempotencyRepository
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
+from src.domain.execution import (
+    CompleteWithdrawTxCommand,
+    DepositIntentConfirmCommand,
+    DepositIntentRegisterCommand,
+    PreparedWithdrawTicket,
+    ReserveSellerWithdrawCommand,
+    WithdrawalAtomicRequestCommand,
+)
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.gateway import RouterConfigRow
 from src.domain.finance import (
     ChargeBuyerUsageCommand,
-    CompleteWithdrawTxCommand,
     DepositAttemptRow,
-    DepositIntentRow,
-    PreparedWithdrawTicket,
-    ReserveSellerWithdrawCommand,
     RefundIntentRow,
     UsageLogRow,
-    WithdrawalAtomicRequestCommand,
-    WithdrawalIntentRow,
 )
+from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
 
 
 class FakeCursor:
@@ -655,7 +658,12 @@ def test_gateway_state_repository_skips_invalid_deposit_intents() -> None:
     repo = GatewayStateRepository(db, _q6)
 
     repo.write_deposit_intents([
-        {"id": "dep-bad", "ownerAddress": "0xabc", "txHash": "", "amountUsdc": "1"},
+        DepositIntentRow(
+            id="dep-bad",
+            ownerAddress="0xabc",
+            txHash="",
+            amountUsdc=Decimal("1"),
+        ),
         DepositIntentRow(
             id="dep-good",
             ownerAddress="0xabc",

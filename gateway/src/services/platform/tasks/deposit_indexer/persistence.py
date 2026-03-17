@@ -5,37 +5,24 @@ from uuid import uuid4
 
 from src.core.common import normalize_wallet
 from src.domain.audit import AuditLogEntry
-from src.domain.finance import BalanceLedger, DepositIntentRow
+from src.domain.finance import BalanceLedger
+from src.domain.ledger import DepositIntentRow
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str
 
 from .shared import _now
 
 
-def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
-    """从存储层读取充值意图，并统一转换成 dict 结构。"""
+def _load_deposit_intents(storage: BaseStorage) -> List[DepositIntentRow]:
+    """从存储层读取充值意图，并统一转换成 typed row。"""
     raw_rows = storage.get_data_manager().system.gateway_state.read_deposit_intents()
-    if not isinstance(raw_rows, list):
-        return []
-    rows: List[Dict[str, Any]] = []
-    for row in raw_rows:
-        if isinstance(row, DepositIntentRow):
-            rows.append(row.model_dump(by_alias=True, mode="json"))
-        elif isinstance(row, dict):
-            rows.append(row)
-    return rows
+    return raw_rows if isinstance(raw_rows, list) else []
 
 
-def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
-    """把充值意图刷回存储层，优先走类型化行模型。"""
-    typed_rows = [
-        DepositIntentRow.model_validate(row) for row in rows if isinstance(row, dict)
-    ]
+def _save_deposit_intents(storage: BaseStorage, rows: List[DepositIntentRow]) -> None:
+    """把充值意图刷回存储层。"""
     repo = storage.get_data_manager().system.gateway_state
-    try:
-        repo.write_deposit_intents(typed_rows)
-    except Exception:
-        repo.write_deposit_intents(rows)
+    repo.write_deposit_intents(rows)
 
 
 def _load_balance_ledger(storage: BaseStorage) -> BalanceLedger:
