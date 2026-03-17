@@ -12,6 +12,8 @@ class InvokeConstraintRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     body: dict[str, Any] = Field(default_factory=dict)
+    timeout_ms: int = Field(default=0, alias="timeoutMs")
+    max_payload_bytes: int = Field(default=0, alias="maxPayloadBytes")
 
 
 class ServiceQuoteRecord(BaseModel):
