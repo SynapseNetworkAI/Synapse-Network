@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from typing import Optional, Dict, Any, List, Annotated
+from uuid import uuid4
 from src.api.deps import get_registry_service
+from src.api.schemas.pydantic_models import AgentDiscoverySearchRequest
 from src.services.seller.registry_service import RegistryService
 from src.services.platform import credential_service
 from src.services.seller.manifest_parser_service import parse_manifest_from_curl
 from src.core.config import settings
+from src.domain.service_contract import AgentDiscoveryQueryRecord
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -178,6 +181,27 @@ async def discover_services(
         "status": "success",
         "services": public_services,
         "count": len(public_services),
+    }
+
+
+@router.post("/v1/agent/discovery/search")
+async def search_agent_discovery(
+    payload: AgentDiscoverySearchRequest,
+    request: Request,
+    service: RegistryService = Depends(get_registry_service),
+):
+    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
+    query = AgentDiscoveryQueryRecord.model_validate(payload.model_dump(by_alias=True))
+    results = await service.search_agent_discovery(
+        query, public_gateway_url=gateway_url
+    )
+    request_id = str(request.headers.get("X-Request-Id") or "").strip() or f"disc_{uuid4().hex}"
+    return {
+        "requestId": request_id,
+        "results": [
+            row.model_dump(by_alias=True, exclude_none=True) for row in results
+        ],
+        "count": len(results),
     }
 
 

@@ -427,6 +427,7 @@
 - **Desc**: 允许任何 Buyer 终端查询整个平台挂卷的“卖家功能单意图”和配置列表，可带入大语言模型自动作为 Function Calling 工具箱使用。支持按 `?intent=` 意图匹配词反向搜索。
 - **Auth**: Public endpoint. No wallet challenge and no platform session required.
 - **Routing Contract**: 对外返回的 `invoke.targets[].url` 为平台网关地址（`/api/v1/gateway/generate`），不暴露卖家真实上游地址。
+- **Quote Template Contract**: 每个 discovery item 额外返回 `quoteTemplate`，它是可直接提交给 `POST /api/v1/agent/quotes` 的 typed 输入草稿，不需要 Agent 自己再手搓字段。
 - **Health Contract**:
   - 只返回 `isActive=true` 且 `serviceHealth.healthyTargets >= 1` 的服务。
   - `status` 字段表示实时可用性（`healthy | degraded | unhealthy | unknown`），不是卖家配置态（`active/inactive`）。
@@ -455,6 +456,21 @@
               "region": null
             }
           ]
+        },
+        "quoteTemplate": {
+          "serviceId": "SVC_F8_5800A9_0648",
+          "inputPreview": {
+            "contentType": "application/json",
+            "payloadSchema": {
+              "body": {
+                "required": ["text"]
+              }
+            },
+            "sample": {
+              "body": {}
+            }
+          },
+          "responseMode": "sync"
         }
       }
     ],
@@ -690,7 +706,7 @@
 - Service 选择不再依靠卖家密钥视角，而是由 Discovery / Quote / Invoke 三段式完成。
 - 卖家结算地址、平台拆账、内部路由策略不进入 Agent-facing API。
 
-### 5.1 Agent Runtime Quote / Invocation Contract
+### 5.1 Agent Runtime Discovery / Quote / Invocation Contract
 
 当前网关已经打通一条可持久化的 Runtime 三段式闭环：`Discovery -> Quote -> Invocation/Receipt`。
 
@@ -698,6 +714,98 @@
 - **Request Id Header**：`X-Request-Id: <client_request_id>`，可选；若未提供，网关会生成平台 requestId。
 - **Runtime Scope**：`quote` 和 `invocation` 都强绑定到当前 `credentialId`，不同凭据之间不能串用。
 - **Persistence**：平台会持久化 `ServiceQuoteRecord` 到 `synapse_service_quotes`，持久化 `InvocationRecord` 到 `synapse_invocations`。
+
+#### `POST /api/v1/agent/discovery/search`
+
+用于返回 Agent 真正可执行的 discovery 结果，不是营销卡片，而是下一跳就能喂给 quote 的 runtime 对象。
+
+请求体：
+
+```json
+{
+  "query": "echo",
+  "tags": ["utility"],
+  "maxPriceUsdc": 2,
+  "requiresStructuredOutput": false,
+  "region": "ap-southeast-1",
+  "limit": 10,
+  "sort": "best_match"
+}
+```
+
+成功响应：
+
+```json
+{
+  "requestId": "disc_01j...",
+  "results": [
+    {
+      "serviceId": "svc.echo",
+      "serviceName": "Echo Service",
+      "pricing": {
+        "amount": "1.2",
+        "currency": "USDC"
+      },
+      "summary": "Echoes buyer prompt",
+      "tags": ["utility"],
+      "status": "healthy",
+      "health": {
+        "overallStatus": "healthy",
+        "healthyTargets": 1,
+        "totalTargets": 1,
+        "lastCheckedAt": 1773417000000
+      },
+      "invoke": {
+        "method": "POST",
+        "targets": [
+          {
+            "url": "https://gateway.test/api/v1/gateway/generate",
+            "weight": 100,
+            "region": null
+          }
+        ],
+        "timeoutMs": 15000,
+        "request": {
+          "contentType": "application/json",
+          "schema": {
+            "body": {
+              "required": ["text"]
+            }
+          }
+        },
+        "response": {
+          "contentType": "application/json",
+          "schema": {
+            "body": {}
+          }
+        }
+      },
+      "quoteTemplate": {
+        "serviceId": "svc.echo",
+        "inputPreview": {
+          "contentType": "application/json",
+          "payloadSchema": {
+            "body": {
+              "required": ["text"]
+            }
+          },
+          "sample": {
+            "body": {}
+          }
+        },
+        "responseMode": "sync"
+      }
+    }
+  ],
+  "count": 1
+}
+```
+
+字段说明：
+
+- `quoteTemplate`：Discovery 直接下发的 quote 输入草稿，Agent 可以只补 `inputPreview.sample.body` 的摘要信息后直接调 quote。
+- `invoke`：仍然只暴露平台网关入口，不暴露真实卖家 target。
+- `sort` 当前支持 `best_match`、`lowest_price`、`fastest`、`highest_reliability`。
 
 #### `POST /api/v1/agent/quotes`
 
@@ -709,7 +817,17 @@
 {
   "serviceId": "svc.echo",
   "inputPreview": {
-    "textLength": 17
+    "contentType": "application/json",
+    "payloadSchema": {
+      "body": {
+        "required": ["text"]
+      }
+    },
+    "sample": {
+      "body": {
+        "textLength": 17
+      }
+    }
   },
   "responseMode": "sync"
 }
@@ -762,7 +880,9 @@
   "quoteId": "quote_123",
   "idempotencyKey": "task-1-step-1",
   "payload": {
-    "text": "hello typed world"
+    "body": {
+      "text": "hello typed world"
+    }
   },
   "responseMode": "sync"
 }

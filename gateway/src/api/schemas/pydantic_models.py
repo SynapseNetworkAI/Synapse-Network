@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field, validator
 from typing import Any, Dict, Literal, Optional
 
+from src.domain.service_contract import (
+    QuoteInputPreviewRecord,
+    RuntimePayloadRecord,
+)
+
 TX_HASH_PREFIX_ERROR = "txHash must start with 0x"
 TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
 
@@ -55,16 +60,26 @@ class InferenceRequest(BaseModel):
     serviceId: Optional[str] = None
 
 
+class AgentDiscoverySearchRequest(BaseModel):
+    query: Optional[str] = Field(default=None, max_length=256)
+    tags: list[str] = Field(default_factory=list)
+    maxPriceUsdc: Optional[float] = Field(default=None, gt=0)
+    requiresStructuredOutput: bool = False
+    region: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    limit: int = Field(default=10, ge=1, le=50)
+    sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
+
+
 class AgentQuoteRequest(BaseModel):
     serviceId: str = Field(..., min_length=1, max_length=128)
-    inputPreview: Dict[str, Any] = Field(default_factory=dict)
+    inputPreview: QuoteInputPreviewRecord = Field(default_factory=QuoteInputPreviewRecord)
     responseMode: Literal["sync", "async", "stream"] = "sync"
 
 
 class AgentInvocationRequest(BaseModel):
     quoteId: str = Field(..., min_length=1, max_length=128)
     idempotencyKey: str = Field(..., min_length=1, max_length=128)
-    payload: Dict[str, Any] = Field(default_factory=dict)
+    payload: RuntimePayloadRecord = Field(default_factory=RuntimePayloadRecord)
     responseMode: Literal["sync", "async", "stream"] = "sync"
 
 
