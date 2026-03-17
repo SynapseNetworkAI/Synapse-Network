@@ -21,3 +21,11 @@
 - `src/storage/credential_repository.py`: credential/secrets collections and audit query capability probing.
 
 This repository layer keeps FastAPI services focused on invariants (owner scope, idempotency, and settlement rules) and makes persistence behavior testable in isolation.
+
+## Service Runtime Model Baseline
+
+Service registration, discovery, forwarding, and health probing now use `src/domain/service_contract.py` as the only internal runtime model.
+
+- `ServiceDefinitionRecord` is the canonical object passed between repository, seller service, buyer forwarding, and platform health modules.
+- `dict` payloads are only allowed at request/response boundaries or database JSON serialization boundaries.
+- Legacy `ServiceRegistryRow` remains only for compatibility surfaces that have not yet been removed, and should not be reintroduced into service orchestration paths.

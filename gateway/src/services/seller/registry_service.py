@@ -2,7 +2,20 @@ from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
-from src.domain.registry import ServiceRegistryRow
+from src.domain.service_contract import (
+    ServiceConstraintRecord,
+    ServiceDefinitionRecord,
+    ServiceForwardingRecord,
+    ServiceHealthCheckRecord,
+    ServiceHealthTargetRecord,
+    ServiceInvokeConfigRecord,
+    ServiceInvokeTargetRecord,
+    ServiceMeteringRecord,
+    ServiceRequestSpecRecord,
+    ServiceResponseSpecRecord,
+    ServiceRetryPolicyRecord,
+    ServiceRuntimeHealthRecord,
+)
 from src.services.platform import service_health_service
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 import uuid
@@ -30,28 +43,14 @@ def _generate_service_id(owner_wallet: str) -> str:
 
 
 def _build_public_invoke(
-    svc: Dict[str, Any], public_gateway_url: Optional[str]
+    svc: ServiceDefinitionRecord, public_gateway_url: Optional[str]
 ) -> Dict[str, Any]:
-    invoke = svc.get("invoke") if isinstance(svc.get("invoke"), dict) else {}
-    timeout_ms = int(invoke.get("timeoutMs") or settings.gateway_default_timeout_ms)
-    method = str(invoke.get("method") or "POST").upper()
-    request_spec = (
-        invoke.get("request")
-        if isinstance(invoke.get("request"), dict)
-        else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
-    )
-    response_spec = (
-        invoke.get("response")
-        if isinstance(invoke.get("response"), dict)
-        else {"contentType": JSON_CONTENT_TYPE, "schema": {}}
-    )
-
     gateway_url = str(public_gateway_url or "").strip()
     if not gateway_url:
         gateway_url = "/api/v1/gateway/generate"
 
     return {
-        "method": method,
+        "method": str(svc.invoke.method or "POST").upper(),
         "targets": [
             {
                 "url": gateway_url,
@@ -59,222 +58,425 @@ def _build_public_invoke(
                 "region": None,
             }
         ],
-        "timeoutMs": timeout_ms,
-        "request": request_spec,
-        "response": response_spec,
+        "timeoutMs": int(svc.invoke.timeout_ms or settings.gateway_default_timeout_ms),
+        "request": svc.invoke.request.model_dump(by_alias=True),
+        "response": svc.invoke.response.model_dump(by_alias=True),
     }
 
 
-def _normalize_service_payload(
-    req_data: Dict[str, Any], owner_wallet: str
-) -> Dict[str, Any]:
-    def _as_int(raw: Any, fallback: int) -> int:
-        try:
-            return int(raw)
-        except Exception:
-            return int(fallback)
+def _as_int(raw: Any, fallback: int) -> int:
+    try:
+        return int(raw)
+    except Exception:
+        return int(fallback)
 
-    def _require_range(name: str, value: int, lower: int, upper: int) -> int:
-        if value < lower or value > upper:
-            raise ValueError(f"{name} must be in [{lower}, {upper}]")
-        return value
 
-    invoke = req_data.get("invoke") if isinstance(req_data.get("invoke"), dict) else {}
+def _require_range(name: str, value: int, lower: int, upper: int) -> int:
+    if value < lower or value > upper:
+        raise ValueError(f"{name} must be in [{lower}, {upper}]")
+    return value
+
+
+def _dict_payload(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _list_payload(value: Any) -> List[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _validated_invoke_payload(req_data: Dict[str, Any]) -> Dict[str, Any]:
+    invoke = _dict_payload(req_data.get("invoke"))
     if not invoke:
         raise ValueError("invoke is required")
     invoke_method = str(invoke.get("method") or "POST").upper()
     if invoke_method != "POST":
         raise ValueError("invoke.method must be POST")
-    request_spec = (
-        invoke.get("request") if isinstance(invoke.get("request"), dict) else {}
-    )
-    request_content_type = (
-        str(request_spec.get("contentType") or JSON_CONTENT_TYPE).strip().lower()
-    )
+    request_spec = _dict_payload(invoke.get("request"))
+    request_content_type = str(
+        request_spec.get("contentType") or JSON_CONTENT_TYPE
+    ).strip().lower()
     if request_content_type != JSON_CONTENT_TYPE:
         raise ValueError("invoke.request.contentType must be application/json")
-    targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
+    return invoke
+
+
+def _normalized_invoke_targets(invoke: Dict[str, Any]) -> List[ServiceInvokeTargetRecord]:
+    targets = _list_payload(invoke.get("targets"))
     if not targets:
         raise ValueError("invoke.targets must contain at least one target")
-    normalized_targets = []
-    for row in targets:
-        if not isinstance(row, dict):
-            continue
-        url = str(row.get("url") or "").strip()
-        if not url:
-            continue
-        normalized_targets.append(
-            {
-                "url": url,
-                "weight": int(row.get("weight") or 100),
-                "region": row.get("region"),
-            }
+
+    normalized_targets = [
+        ServiceInvokeTargetRecord(
+            url=str(row.get("url") or "").strip(),
+            weight=int(row.get("weight") or 100),
+            region=row.get("region"),
         )
+        for row in targets
+        if isinstance(row, dict) and str(row.get("url") or "").strip()
+    ]
     if not normalized_targets:
         raise ValueError("invoke.targets must contain valid URLs")
-    health_check = (
-        req_data.get("healthCheck")
-        if isinstance(req_data.get("healthCheck"), dict)
-        else {}
-    )
+    return normalized_targets
+
+
+def _normalized_health_check(req_data: Dict[str, Any]) -> Dict[str, Any]:
+    health_check = _dict_payload(req_data.get("healthCheck"))
     if not health_check:
         raise ValueError("healthCheck is required")
     health_path = str(health_check.get("path") or "").strip()
     if not health_path:
         raise ValueError("healthCheck.path is required")
-    if not health_path.startswith("/"):
-        health_path = f"/{health_path}"
-    constraints = (
-        req_data.get("constraints")
-        if isinstance(req_data.get("constraints"), dict)
-        else {}
-    )
-    timeout_ms = _require_range(
-        "constraints.timeoutMs",
-        _as_int(
-            constraints.get("timeoutMs")
-            or constraints.get("timeout_ms")
-            or settings.gateway_default_timeout_ms,
-            settings.gateway_default_timeout_ms,
-        ),
-        settings.gateway_min_timeout_ms,
-        settings.gateway_max_timeout_ms,
-    )
-    max_request_bytes = _require_range(
-        "constraints.maxRequestBytes",
-        _as_int(
-            constraints.get("maxRequestBytes")
-            or constraints.get("max_request_bytes")
-            or settings.gateway_default_request_bytes,
-            settings.gateway_default_request_bytes,
-        ),
-        settings.gateway_min_request_bytes,
-        settings.gateway_max_request_bytes,
-    )
-    max_response_bytes = _require_range(
-        "constraints.maxResponseBytes",
-        _as_int(
-            constraints.get("maxResponseBytes")
-            or constraints.get("max_response_bytes")
-            or settings.gateway_default_response_bytes,
-            settings.gateway_default_response_bytes,
-        ),
-        settings.gateway_min_response_bytes,
-        settings.gateway_max_response_bytes,
-    )
-    max_qps = _require_range(
-        "constraints.maxQps",
-        _as_int(
-            constraints.get("maxQps")
-            or constraints.get("max_qps")
-            or settings.gateway_default_service_qps,
-            settings.gateway_default_service_qps,
-        ),
-        settings.gateway_min_service_qps,
-        settings.gateway_max_service_qps,
-    )
-    pricing_value = req_data.get("pricing")
-    pricing_amount = "0"
-    pricing_currency = "USDC"
-    if isinstance(pricing_value, dict):
-        pricing_amount = str(pricing_value.get("amount") or "0")
-        pricing_currency = str(pricing_value.get("currency") or "USDC")
-    elif pricing_value is not None:
-        pricing_amount = str(pricing_value)
-    endpoint = str(normalized_targets[0].get("url") or "").strip()
-    service_name = str(
-        req_data.get("serviceName") or req_data.get("service_name") or ""
-    ).strip()
-    tags = (
-        req_data.get("tags")
-        if isinstance(req_data.get("tags"), list)
-        else req_data.get("intent")
-        if isinstance(req_data.get("intent"), list)
-        else []
+    return {**health_check, "path": health_path if health_path.startswith("/") else f"/{health_path}"}
+
+
+def _bounded_constraint(
+    constraints: Dict[str, Any],
+    key: str,
+    snake_key: str,
+    fallback: int,
+    lower: int,
+    upper: int,
+) -> int:
+    return _require_range(
+        f"constraints.{key}",
+        _as_int(constraints.get(key) or constraints.get(snake_key) or fallback, fallback),
+        lower,
+        upper,
     )
 
-    normalized = {
-        **req_data,
-        "schemaVersion": 2,
+
+def _normalized_constraints(req_data: Dict[str, Any]) -> ServiceConstraintRecord:
+    constraints = _dict_payload(req_data.get("constraints"))
+    return ServiceConstraintRecord(
+        timeoutMs=_bounded_constraint(
+            constraints,
+            "timeoutMs",
+            "timeout_ms",
+            settings.gateway_default_timeout_ms,
+            settings.gateway_min_timeout_ms,
+            settings.gateway_max_timeout_ms,
+        ),
+        maxRequestBytes=_bounded_constraint(
+            constraints,
+            "maxRequestBytes",
+            "max_request_bytes",
+            settings.gateway_default_request_bytes,
+            settings.gateway_min_request_bytes,
+            settings.gateway_max_request_bytes,
+        ),
+        maxResponseBytes=_bounded_constraint(
+            constraints,
+            "maxResponseBytes",
+            "max_response_bytes",
+            settings.gateway_default_response_bytes,
+            settings.gateway_min_response_bytes,
+            settings.gateway_max_response_bytes,
+        ),
+        maxQps=_bounded_constraint(
+            constraints,
+            "maxQps",
+            "max_qps",
+            settings.gateway_default_service_qps,
+            settings.gateway_min_service_qps,
+            settings.gateway_max_service_qps,
+        ),
+    )
+
+
+def _resolved_pricing(req_data: Dict[str, Any]) -> tuple[str, str]:
+    pricing_value = req_data.get("pricing")
+    pricing_amount = req_data.get("pricingAmount") or "0"
+    pricing_currency = str(req_data.get("pricingCurrency") or "USDC")
+    if isinstance(pricing_value, dict):
+        return (
+            str(pricing_value.get("amount") or "0"),
+            str(pricing_value.get("currency") or "USDC"),
+        )
+    if pricing_value is not None:
+        return str(pricing_value), pricing_currency
+    return str(pricing_amount), pricing_currency
+
+
+def _resolved_service_name(req_data: Dict[str, Any]) -> str:
+    return str(req_data.get("serviceName") or req_data.get("service_name") or "").strip()
+
+
+def _resolved_tags(req_data: Dict[str, Any]) -> List[str]:
+    tags_value = req_data.get("tags")
+    if isinstance(tags_value, list):
+        source = tags_value
+    else:
+        intent_value = req_data.get("intent")
+        source = intent_value if isinstance(intent_value, list) else []
+    return [str(tag) for tag in source if isinstance(tag, (str, int, float))]
+
+
+def _default_forwarding_payload(req_data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "requestIdHeader": "X-Synapse-Request-Id",
+        "passThroughHeaders": ["X-Trace-Id", "X-Client-Version"],
+        "injectHeaders": {
+            "X-Synapse-Service-Id": str(req_data.get("serviceId") or "")
+        },
+        "retryPolicy": ServiceRetryPolicyRecord(
+            maxAttempts=2,
+            backoffMs=200,
+            retryOnStatus=[429, 500, 502, 503, 504],
+        ).model_dump(by_alias=True),
+    }
+
+
+def _default_metering_payload() -> Dict[str, Any]:
+    return {
+        "billingUnit": "per_call",
+        "billOnError": False,
+        "billableStatusClasses": [2],
+        "requestIdRequired": True,
+        "responseSizeMetering": True,
+    }
+
+
+def _normalized_invoke_config(
+    invoke: Dict[str, Any],
+    constraints: ServiceConstraintRecord,
+    targets: List[ServiceInvokeTargetRecord],
+) -> ServiceInvokeConfigRecord:
+    request_spec = _dict_payload(invoke.get("request"))
+    response_spec = _dict_payload(invoke.get("response"))
+    return ServiceInvokeConfigRecord(
+        method=str(invoke.get("method") or "POST").upper(),
+        targets=targets,
+        timeoutMs=int(invoke.get("timeoutMs") or constraints.timeout_ms),
+        request=ServiceRequestSpecRecord.model_validate(
+            request_spec or {"contentType": JSON_CONTENT_TYPE, "schema": {}}
+        ),
+        response=ServiceResponseSpecRecord.model_validate(
+            response_spec or {"contentType": JSON_CONTENT_TYPE, "schema": {}}
+        ),
+        headersTemplate=dict(invoke.get("headersTemplate") or {}),
+        examples=list(invoke.get("examples") or []),
+    )
+
+
+def _service_definition_payload(
+    req_data: Dict[str, Any],
+    owner_wallet: str,
+    service_name: str,
+    tags: List[str],
+    pricing_amount: str,
+    pricing_currency: str,
+    constraints: ServiceConstraintRecord,
+    health_check: Dict[str, Any],
+    invoke: Dict[str, Any],
+    normalized_targets: List[ServiceInvokeTargetRecord],
+) -> Dict[str, Any]:
+    forwarding_payload = _dict_payload(req_data.get("forwarding"))
+    metering_payload = _dict_payload(req_data.get("metering"))
+    auth_payload = _dict_payload(req_data.get("auth"))
+    return {
+        "id": str(req_data.get("id") or "") or None,
+        "serviceId": str(req_data.get("serviceId") or "").strip() or None,
+        "schemaVersion": int(req_data.get("schemaVersion") or 2),
         "ownerAddress": owner_wallet,
-        "name": service_name,
         "serviceName": service_name,
-        "summary": str(
-            req_data.get("summary") or req_data.get("description") or ""
-        ).strip(),
+        "summary": str(req_data.get("summary") or req_data.get("description") or "").strip(),
         "tags": tags,
-        "pricing": pricing_amount,
+        "pricingAmount": pricing_amount,
         "pricingCurrency": pricing_currency,
-        "endpoint": endpoint,
         "role": str(req_data.get("role") or "Provider / Seller"),
         "address": str(req_data.get("address") or owner_wallet),
-        "status": str(
-            req_data.get("status")
-            or ("active" if req_data.get("isActive", True) else "inactive")
-        ),
+        "status": str(req_data.get("status") or ("active" if req_data.get("isActive", True) else "inactive")),
         "isActive": bool(req_data.get("isActive", True)),
-        "healthCheck": {
-            **health_check,
-            "path": health_path,
-        },
-        "constraints": {
-            "timeoutMs": timeout_ms,
-            "maxResponseBytes": max_response_bytes,
-            "maxRequestBytes": max_request_bytes,
-            "maxQps": max_qps,
-        },
-        "forwarding": req_data.get("forwarding")
-        if isinstance(req_data.get("forwarding"), dict)
-        else {
-            "requestIdHeader": "X-Synapse-Request-Id",
-            "passThroughHeaders": ["X-Trace-Id", "X-Client-Version"],
-            "injectHeaders": {
-                "X-Synapse-Service-Id": str(req_data.get("serviceId") or "")
-            },
-            "retryPolicy": {
-                "maxAttempts": 2,
-                "backoffMs": 200,
-                "retryOnStatus": [429, 500, 502, 503, 504],
-            },
-        },
-        "metering": req_data.get("metering")
-        if isinstance(req_data.get("metering"), dict)
-        else {
-            "billingUnit": "per_call",
-            "billOnError": False,
-            "billableStatusClasses": [2],
-            "requestIdRequired": True,
-            "responseSizeMetering": True,
-        },
-        "invoke": {
-            **invoke,
-            "url": endpoint,
-            "targets": normalized_targets,
-        },
+        "constraints": constraints,
+        "auth": auth_payload,
+        "healthCheck": ServiceHealthCheckRecord.model_validate(health_check),
+        "forwarding": ServiceForwardingRecord.model_validate(
+            forwarding_payload or _default_forwarding_payload(req_data)
+        ),
+        "metering": ServiceMeteringRecord.model_validate(
+            metering_payload or _default_metering_payload()
+        ),
+        "invoke": _normalized_invoke_config(invoke, constraints, normalized_targets),
+        "createdAt": to_dt_str(req_data.get("createdAt"), "") or "",
+        "updatedAt": to_dt_str(req_data.get("updatedAt"), "") or "",
     }
-    return normalized
 
 
-def _bind_forwarding_service_id(service_payload: Dict[str, Any]) -> Dict[str, Any]:
-    service_id = str(service_payload.get("serviceId") or "").strip()
-    forwarding = (
-        service_payload.get("forwarding")
-        if isinstance(service_payload.get("forwarding"), dict)
-        else {}
+def _normalize_service_payload(
+    req_data: Dict[str, Any], owner_wallet: str
+) -> ServiceDefinitionRecord:
+    invoke = _validated_invoke_payload(req_data)
+    normalized_targets = _normalized_invoke_targets(invoke)
+    health_check = _normalized_health_check(req_data)
+    constraints = _normalized_constraints(req_data)
+    pricing_amount, pricing_currency = _resolved_pricing(req_data)
+    service_name = _resolved_service_name(req_data)
+    tags = _resolved_tags(req_data)
+
+    return ServiceDefinitionRecord.model_validate(
+        _service_definition_payload(
+            req_data,
+            owner_wallet,
+            service_name,
+            tags,
+            pricing_amount,
+            pricing_currency,
+            constraints,
+            health_check,
+            invoke,
+            normalized_targets,
+        )
     )
-    inject_headers = (
-        forwarding.get("injectHeaders")
-        if isinstance(forwarding.get("injectHeaders"), dict)
-        else {}
+
+
+def _target_health_record(payload: Dict[str, Any], target_url: str) -> ServiceHealthTargetRecord:
+    row_last_checked = int(payload.get("lastCheckedAt") or 0)
+    return ServiceHealthTargetRecord(
+        targetUrl=target_url,
+        status=str(payload.get("status") or "unknown"),
+        weight=int(payload.get("weight") or 100),
+        region=payload.get("region"),
+        httpStatus=payload.get("httpStatus"),
+        latencyMs=payload.get("latencyMs"),
+        consecutiveSuccesses=int(payload.get("consecutiveSuccesses") or 0),
+        consecutiveFailures=int(payload.get("consecutiveFailures") or 0),
+        probeUrl=payload.get("probeUrl"),
+        lastCheckedAt=row_last_checked or None,
+        lastHealthyAt=payload.get("lastHealthyAt"),
+        error=payload.get("error"),
     )
+
+
+def _merge_health_row(
+    index: Dict[str, ServiceRuntimeHealthRecord], payload: Dict[str, Any]
+) -> None:
+    service_id = str(payload.get("serviceId") or "").strip()
+    target_url = str(payload.get("targetUrl") or "").strip()
+    if not service_id or not target_url:
+        return
+
+    bucket = index.setdefault(service_id, ServiceRuntimeHealthRecord())
+    next_target = _target_health_record(payload, target_url)
+    bucket.targets = [
+        target for target in bucket.targets if target.target_url != target_url
+    ] + [next_target]
+    if int(next_target.last_checked_at or 0) > int(bucket.last_checked_at or 0):
+        bucket.last_checked_at = next_target.last_checked_at
+    overall_status = str(payload.get("overallStatus") or "").strip()
+    if overall_status:
+        bucket.overall_status = overall_status
+
+
+def _finalize_health_bucket(bucket: ServiceRuntimeHealthRecord) -> None:
+    healthy_count = len(
+        [target for target in bucket.targets if str(target.status or "").lower() == "healthy"]
+    )
+    total_targets = len(bucket.targets)
+    bucket.healthy_targets = healthy_count
+    bucket.total_targets = total_targets
+    if bucket.overall_status and str(bucket.overall_status).lower() != "unknown":
+        return
+    if total_targets <= 0:
+        bucket.overall_status = "unknown"
+    elif healthy_count == total_targets:
+        bucket.overall_status = "healthy"
+    elif healthy_count > 0:
+        bucket.overall_status = "degraded"
+    else:
+        bucket.overall_status = "unhealthy"
+
+
+def _searchable_service_text(service: ServiceDefinitionRecord) -> str:
+    return " ".join(
+        [
+            str(service.service_name or "").lower(),
+            str(service.summary or "").lower(),
+            " ".join(str(tag).lower() for tag in service.tags),
+        ]
+    )
+
+
+def _service_matches_intent(service: ServiceDefinitionRecord, intent: str) -> bool:
+    return intent.lower() in _searchable_service_text(service)
+
+
+def _find_owned_service(
+    rows: List[ServiceDefinitionRecord], service_record_id: str, owner_wallet: str
+) -> ServiceDefinitionRecord | None:
+    return next(
+        (
+            row
+            for row in rows
+            if row.service_id == service_record_id and row.owner_address == owner_wallet
+        ),
+        None,
+    )
+
+
+def _history_window_hours(hours: Optional[int], days: Optional[int]) -> tuple[int, int]:
+    retention_hours = max(1, int(settings.service_health_history_retention_hours))
+    if hours is not None:
+        requested_hours = int(hours)
+    elif days is not None:
+        requested_hours = int(days) * 24
+    else:
+        requested_hours = retention_hours
+    return retention_hours, max(1, min(requested_hours, retention_hours))
+
+
+def _history_entries_by_target(
+    history: List[ServiceTargetHealthHistory], service_record_id: str, cutoff_ms: int
+) -> Dict[str, List[Dict[str, Any]]]:
+    per_target: Dict[str, List[Dict[str, Any]]] = {}
+    for row in history:
+        if str(row.service_id or "") != service_record_id:
+            continue
+        checked_at = int(row.checked_at or 0)
+        if checked_at < cutoff_ms:
+            continue
+        target_url = str(row.target_url or "").strip()
+        if not target_url:
+            continue
+        per_target.setdefault(target_url, []).append(row.model_dump(by_alias=True))
+    return per_target
+
+
+def _serialized_history_targets(
+    per_target: Dict[str, List[Dict[str, Any]]], normalized_limit: int
+) -> List[Dict[str, Any]]:
+    targets = []
+    for target_url, entries in per_target.items():
+        sorted_entries = sorted(
+            entries, key=lambda item: int(item.get("checkedAt") or 0), reverse=True
+        )
+        latest = sorted_entries[0] if sorted_entries else None
+        targets.append(
+            {
+                "targetUrl": target_url,
+                "latestStatus": str((latest or {}).get("status") or "unknown"),
+                "history": sorted_entries[:normalized_limit],
+            }
+        )
+    targets.sort(key=lambda item: item["targetUrl"])
+    return targets
+
+
+def _bind_forwarding_service_id(
+    service_payload: ServiceDefinitionRecord,
+) -> ServiceDefinitionRecord:
+    service_id = str(service_payload.service_id or "").strip()
     if not service_id:
         return service_payload
-    forwarding["injectHeaders"] = {
-        **inject_headers,
-        "X-Synapse-Service-Id": service_id,
-    }
-    service_payload["forwarding"] = forwarding
-    return service_payload
+    next_forwarding = service_payload.forwarding.model_copy(
+        update={
+            "inject_headers": {
+                **service_payload.forwarding.inject_headers,
+                "X-Synapse-Service-Id": service_id,
+            }
+        }
+    )
+    return service_payload.model_copy(update={"forwarding": next_forwarding})
 
 
 class RegistryService:
@@ -282,12 +484,12 @@ class RegistryService:
         self.storage = storage
         self._lock = asyncio.Lock()
 
-    def _health_index_by_service_id(self) -> Dict[str, Dict[str, Any]]:
+    def _health_index_by_service_id(self) -> Dict[str, ServiceRuntimeHealthRecord]:
         rows = self.storage.get_data_manager().system.registry.read_service_target_health_rows()
         if not isinstance(rows, list):
             return {}
 
-        index: Dict[str, Dict[str, Any]] = {}
+        index: Dict[str, ServiceRuntimeHealthRecord] = {}
         for row in rows:
             payload = (
                 row.model_dump(by_alias=True)
@@ -296,206 +498,54 @@ class RegistryService:
             )
             if not isinstance(payload, dict):
                 continue
-            service_id = str(payload.get("serviceId") or "").strip()
-            target_url = str(payload.get("targetUrl") or "").strip()
-            if not service_id or not target_url:
-                continue
-
-            bucket = index.setdefault(
-                service_id,
-                {
-                    "overallStatus": "unknown",
-                    "lastCheckedAt": 0,
-                    "targets": {},
-                },
-            )
-            status = str(payload.get("status") or "unknown")
-            row_last_checked = int(payload.get("lastCheckedAt") or 0)
-            bucket["targets"][target_url] = {
-                "status": status,
-                "weight": int(payload.get("weight") or 100),
-                "region": payload.get("region"),
-                "httpStatus": payload.get("httpStatus"),
-                "latencyMs": payload.get("latencyMs"),
-                "consecutiveSuccesses": int(payload.get("consecutiveSuccesses") or 0),
-                "consecutiveFailures": int(payload.get("consecutiveFailures") or 0),
-                "probeUrl": payload.get("probeUrl"),
-                "lastCheckedAt": row_last_checked or None,
-                "lastHealthyAt": payload.get("lastHealthyAt"),
-                "error": payload.get("error"),
-            }
-            if row_last_checked > int(bucket.get("lastCheckedAt") or 0):
-                bucket["lastCheckedAt"] = row_last_checked
-
-            overall_status = str(payload.get("overallStatus") or "").strip()
-            if overall_status:
-                bucket["overallStatus"] = overall_status
+            _merge_health_row(index, payload)
 
         for bucket in index.values():
-            targets = (
-                bucket.get("targets") if isinstance(bucket.get("targets"), dict) else {}
-            )
-            healthy_count = 0
-            for target in targets.values():
-                if str((target or {}).get("status") or "").lower() == "healthy":
-                    healthy_count += 1
-            total_targets = len(targets)
-            bucket["healthyTargets"] = healthy_count
-            bucket["totalTargets"] = total_targets
-            if (
-                not bucket.get("overallStatus")
-                or str(bucket.get("overallStatus")).lower() == "unknown"
-            ):
-                if total_targets <= 0:
-                    bucket["overallStatus"] = "unknown"
-                elif healthy_count == total_targets:
-                    bucket["overallStatus"] = "healthy"
-                elif healthy_count > 0:
-                    bucket["overallStatus"] = "degraded"
-                else:
-                    bucket["overallStatus"] = "unhealthy"
+            _finalize_health_bucket(bucket)
         return index
 
-    def _load_service_registry_rows(self) -> List[Dict[str, Any]]:
+    def _load_service_registry_rows(self) -> List[ServiceDefinitionRecord]:
         raw_rows = (
             self.storage.get_data_manager().system.registry.read_service_registry_rows()
         )
         health_index = self._health_index_by_service_id()
-        rows: List[Dict[str, Any]] = []
+        rows: List[ServiceDefinitionRecord] = []
         if not isinstance(raw_rows, list):
             return rows
         for row in raw_rows:
-            if isinstance(row, ServiceRegistryRow):
-                payload = row.model_dump(by_alias=True, mode="json")
-            elif isinstance(row, dict):
-                payload = dict(row)
-            else:
+            if not isinstance(row, ServiceDefinitionRecord):
                 continue
-            if not isinstance(payload.get("pricing"), dict):
-                payload["pricing"] = {
-                    "amount": str(payload.get("pricingAmount") or "0"),
-                    "currency": str(payload.get("pricingCurrency") or "USDC"),
-                }
-            if not isinstance(payload.get("constraints"), dict):
-                payload["constraints"] = {
-                    "timeoutMs": int(payload.get("timeoutMs") or 15000),
-                    "maxQps": int(payload.get("maxQps") or 100),
-                    "maxRequestBytes": int(payload.get("maxRequestBytes") or 262144),
-                    "maxResponseBytes": int(payload.get("maxResponseBytes") or 262144),
-                }
-            service_id = str(payload.get("serviceId") or "").strip()
+            payload = row
+            service_id = str(payload.service_id or "").strip()
             health = health_index.get(service_id) if service_id else None
-            if isinstance(health, dict):
-                payload["serviceHealth"] = {
-                    "overallStatus": str(health.get("overallStatus") or "unknown"),
-                    "healthyTargets": int(health.get("healthyTargets") or 0),
-                    "totalTargets": int(health.get("totalTargets") or 0),
-                    "lastCheckedAt": health.get("lastCheckedAt") or None,
-                    "targets": dict(health.get("targets") or {}),
-                }
-
-                existing_invoke = (
-                    payload.get("invoke")
-                    if isinstance(payload.get("invoke"), dict)
-                    else {}
-                )
-                existing_targets = (
-                    existing_invoke.get("targets")
-                    if isinstance(existing_invoke.get("targets"), list)
-                    else []
-                )
-                if not existing_targets:
-                    targets: List[Dict[str, Any]] = []
-                    for target_url, target_payload in (
-                        health.get("targets") or {}
-                    ).items():
-                        if not isinstance(target_payload, dict):
-                            continue
-                        targets.append(
-                            {
-                                "url": str(target_url),
-                                "weight": int(target_payload.get("weight") or 100),
-                                "region": target_payload.get("region"),
-                            }
-                        )
-                    payload["invoke"] = {
-                        "method": "POST",
-                        "targets": targets,
-                        "timeoutMs": int(
-                            payload["constraints"].get("timeoutMs")
-                            or settings.gateway_default_timeout_ms
-                        ),
-                        "request": {"contentType": JSON_CONTENT_TYPE, "schema": {}},
-                        "response": {"contentType": JSON_CONTENT_TYPE, "schema": {}},
-                    }
+            if isinstance(health, ServiceRuntimeHealthRecord):
+                payload = payload.model_copy(update={"runtime_health": health})
+                if not payload.invoke.targets:
+                    payload = payload.model_copy(
+                        update={
+                            "invoke": payload.invoke.model_copy(
+                                update={
+                                    "targets": [
+                                        ServiceInvokeTargetRecord(
+                                            url=target.target_url,
+                                            weight=target.weight,
+                                            region=target.region,
+                                        )
+                                        for target in health.targets
+                                    ],
+                                    "timeout_ms": int(
+                                        payload.constraints.timeout_ms
+                                        or settings.gateway_default_timeout_ms
+                                    ),
+                                }
+                            )
+                        }
+                    )
             rows.append(payload)
         return rows
 
-    def _save_service_registry_rows(self, rows: List[Dict[str, Any]]) -> None:
-        repo = self.storage.get_data_manager().system.registry
-        try:
-            # Non-SQL repositories (tests/local memory) should persist full service payload.
-            repo.write_service_registry_rows(rows)
-            return
-        except Exception:
-            pass
-
-        typed_rows: List[ServiceRegistryRow] = []
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
-            constraints = (
-                row.get("constraints")
-                if isinstance(row.get("constraints"), dict)
-                else {}
-            )
-            typed_rows.append(
-                ServiceRegistryRow(
-                    serviceId=str(row.get("serviceId") or "").strip(),
-                    ownerAddress=str(row.get("ownerAddress") or "").lower(),
-                    serviceName=str(row.get("serviceName") or ""),
-                    summary=str(row.get("summary") or ""),
-                    endpoint=str(row.get("endpoint") or row.get("url") or "") or None,
-                    status=str(row.get("status") or "active"),
-                    isActive=bool(row.get("isActive", True)),
-                    pricingAmount=str(pricing.get("amount") or 0),
-                    pricingCurrency=str(pricing.get("currency") or "USDC"),
-                    timeoutMs=int(
-                        constraints.get("timeoutMs") or row.get("timeoutMs") or 15000
-                    ),
-                    maxQps=int(constraints.get("maxQps") or row.get("maxQps") or 100),
-                    maxRequestBytes=int(
-                        constraints.get("maxRequestBytes")
-                        or row.get("maxRequestBytes")
-                        or 262144
-                    ),
-                    maxResponseBytes=int(
-                        constraints.get("maxResponseBytes")
-                        or row.get("maxResponseBytes")
-                        or 262144
-                    ),
-                    id=str(row.get("id") or "") or None,
-                    schemaVersion=int(row.get("schemaVersion"))
-                    if row.get("schemaVersion") is not None
-                    else None,
-                    role=str(row.get("role") or "") or None,
-                    address=str(row.get("address") or "") or None,
-                    tags=[
-                        str(tag)
-                        for tag in (row.get("tags") or [])
-                        if isinstance(tag, (str, int, float))
-                    ],
-                    auth=dict(row.get("auth") or {}),
-                    healthCheck=dict(row.get("healthCheck") or {}),
-                    forwarding=dict(row.get("forwarding") or {}),
-                    metering=dict(row.get("metering") or {}),
-                    invoke=dict(row.get("invoke") or {}),
-                    createdAt=to_dt_str(row.get("createdAt"), "") or "",
-                    updatedAt=to_dt_str(row.get("updatedAt"), "") or "",
-                )
-            )
-        repo.write_service_registry_rows(typed_rows)
+    def _save_service_registry_rows(self, rows: List[ServiceDefinitionRecord]) -> None:
+        self.storage.get_data_manager().system.registry.write_service_registry_rows(rows)
 
     def _load_service_target_health_history_rows(
         self,
@@ -513,18 +563,25 @@ class RegistryService:
         async with self._lock:
             rows = self._load_service_registry_rows()
             new_svc = _normalize_service_payload(req_data, owner_wallet)
-            if not new_svc.get("serviceId"):
-                new_svc["serviceId"] = _generate_service_id(owner_wallet)
+            if not new_svc.service_id:
+                new_svc = new_svc.model_copy(
+                    update={"service_id": _generate_service_id(owner_wallet)}
+                )
             new_svc = _bind_forwarding_service_id(new_svc)
-            new_svc["id"] = str(new_svc.get("id") or uuid.uuid4())
-            new_svc["createdAt"] = now_dt_str()
-            new_svc["updatedAt"] = new_svc["createdAt"]
+            created_at = now_dt_str()
+            new_svc = new_svc.model_copy(
+                update={
+                    "id": str(new_svc.id or uuid.uuid4()),
+                    "created_at": created_at,
+                    "updated_at": created_at,
+                }
+            )
             new_svc = await service_health_service.probe_service_health(new_svc)
 
             rows.append(new_svc)
             self._save_service_registry_rows(rows)
             service_health_service.sync_service_target_health_table(self.storage, rows)
-            return new_svc
+            return new_svc.model_dump(by_alias=True, mode="json")
 
     async def update_service(
         self, service_record_id: str, req_data: Dict[str, Any], owner_wallet: str
@@ -536,8 +593,8 @@ class RegistryService:
             rows = self._load_service_registry_rows()
             for i, svc in enumerate(rows):
                 if (
-                    svc.get("serviceId") == service_record_id
-                    and svc.get("ownerAddress") == owner_wallet
+                    svc.service_id == service_record_id
+                    and svc.owner_address == owner_wallet
                 ):
                     blocked = {
                         "id",
@@ -547,21 +604,28 @@ class RegistryService:
                         "schemaVersion",
                     }
                     safe_patch = {k: v for k, v in req_data.items() if k not in blocked}
-                    updated = {**svc, **safe_patch}
-                    updated = _normalize_service_payload(updated, owner_wallet)
-                    updated["id"] = svc.get("id")
-                    updated["serviceId"] = svc.get("serviceId")
+                    updated_payload = {
+                        **svc.model_dump(by_alias=True, mode="json"),
+                        **safe_patch,
+                    }
+                    updated = _normalize_service_payload(updated_payload, owner_wallet)
+                    updated = updated.model_copy(
+                        update={
+                            "id": svc.id,
+                            "service_id": svc.service_id,
+                            "created_at": svc.created_at,
+                            "owner_address": owner_wallet,
+                            "updated_at": now_dt_str(),
+                        }
+                    )
                     updated = _bind_forwarding_service_id(updated)
-                    updated["createdAt"] = svc.get("createdAt")
-                    updated["ownerAddress"] = owner_wallet
-                    updated["updatedAt"] = now_dt_str()
                     updated = await service_health_service.probe_service_health(updated)
                     rows[i] = updated
                     self._save_service_registry_rows(rows)
                     service_health_service.sync_service_target_health_table(
                         self.storage, rows
                     )
-                    return updated
+                    return updated.model_dump(by_alias=True, mode="json")
             return None
 
     async def delete_service(self, service_record_id: str, owner_wallet: str) -> bool:
@@ -572,8 +636,8 @@ class RegistryService:
                 r
                 for r in rows
                 if not (
-                    r.get("serviceId") == service_record_id
-                    and r.get("ownerAddress") == owner_wallet
+                    r.service_id == service_record_id
+                    and r.owner_address == owner_wallet
                 )
             ]
             if len(rows) == original_len:
@@ -586,11 +650,12 @@ class RegistryService:
     async def has_owner_service(
         self, service_record_id: str, owner_wallet: str
     ) -> bool:
+        await asyncio.sleep(0)
         rows = self._load_service_registry_rows()
         for svc in rows:
             if (
-                svc.get("serviceId") == service_record_id
-                and svc.get("ownerAddress") == owner_wallet
+                svc.service_id == service_record_id
+                and svc.owner_address == owner_wallet
             ):
                 return True
         return False
@@ -598,35 +663,29 @@ class RegistryService:
     async def discover_services(
         self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None
     ) -> List[Dict[str, Any]]:
+        await asyncio.sleep(0)
         rows = self._load_service_registry_rows()
         available_services = [
             row for row in rows if service_health_service.is_service_discoverable(row)
         ]
 
         if intent:
-            intent_lower = intent.lower()
-            matched_services = []
-            for svc in available_services:
-                searchable_text = " ".join(
-                    [
-                        str(svc.get("serviceName", "")).lower(),
-                        str(svc.get("summary", "")).lower(),
-                        " ".join(str(t).lower() for t in svc.get("tags", [])),
-                    ]
-                )
-                if intent_lower in searchable_text:
-                    matched_services.append(svc)
-            available_services = matched_services
+            available_services = [
+                svc for svc in available_services if _service_matches_intent(svc, intent)
+            ]
 
         # Filter out sensitive info just in case
         public_services = []
         for svc in available_services:
             public_svc = {
-                "serviceId": svc.get("serviceId"),
-                "serviceName": svc.get("serviceName"),
-                "pricing": svc.get("pricing"),
-                "summary": svc.get("summary"),
-                "tags": svc.get("tags"),
+                "serviceId": svc.service_id,
+                "serviceName": svc.service_name,
+                "pricing": {
+                    "amount": str(svc.pricing_amount),
+                    "currency": svc.pricing_currency,
+                },
+                "summary": svc.summary,
+                "tags": svc.tags,
                 "status": service_health_service.public_discover_status(svc),
                 "health": service_health_service.public_health_summary(svc),
                 "invoke": _build_public_invoke(svc, public_gateway_url),
@@ -636,53 +695,43 @@ class RegistryService:
         return public_services
 
     async def list_owner_services(self, owner_wallet: str) -> List[Dict[str, Any]]:
+        await asyncio.sleep(0)
         rows = self._load_service_registry_rows()
         owner_rows: List[Dict[str, Any]] = []
         for svc in rows:
-            if svc.get("ownerAddress") != owner_wallet:
+            if svc.owner_address != owner_wallet:
                 continue
-            enriched = dict(svc)
+            enriched = svc.model_dump(by_alias=True, mode="json")
+            enriched["pricing"] = {
+                "amount": str(svc.pricing_amount),
+                "currency": svc.pricing_currency,
+            }
             enriched["status"] = service_health_service.public_discover_status(svc)
             enriched["health"] = service_health_service.public_health_summary(svc)
-            enriched["runtimeAvailable"] = (
-                service_health_service.is_service_discoverable(svc)
-            )
+            enriched["runtimeAvailable"] = service_health_service.is_service_discoverable(svc)
             owner_rows.append(enriched)
         return owner_rows
 
     async def health_status(
         self, intent: Optional[str] = None, include_inactive: bool = False
     ) -> List[Dict[str, Any]]:
+        await asyncio.sleep(0)
         rows = self._load_service_registry_rows()
         scoped = []
         for row in rows:
-            if not isinstance(row, dict):
-                continue
-            if not include_inactive and not bool(row.get("isActive", False)):
+            if not include_inactive and not bool(row.is_active):
                 continue
             scoped.append(row)
 
         if intent:
-            intent_lower = intent.lower()
-            filtered = []
-            for svc in scoped:
-                searchable_text = " ".join(
-                    [
-                        str(svc.get("serviceName", "")).lower(),
-                        str(svc.get("summary", "")).lower(),
-                        " ".join(str(t).lower() for t in svc.get("tags", [])),
-                    ]
-                )
-                if intent_lower in searchable_text:
-                    filtered.append(svc)
-            scoped = filtered
+            scoped = [svc for svc in scoped if _service_matches_intent(svc, intent)]
 
         return [
             {
-                "serviceId": svc.get("serviceId"),
-                "serviceName": svc.get("serviceName"),
-                "isActive": bool(svc.get("isActive", False)),
-                "status": str(svc.get("status") or "unknown"),
+                "serviceId": svc.service_id,
+                "serviceName": svc.service_name,
+                "isActive": bool(svc.is_active),
+                "status": str(svc.status or "unknown"),
                 "health": service_health_service.public_health_summary(svc),
             }
             for svc in scoped
@@ -696,16 +745,9 @@ class RegistryService:
         hours: Optional[int] = None,
         days: Optional[int] = None,
     ) -> Dict[str, Any]:
+        await asyncio.sleep(0)
         rows = self._load_service_registry_rows()
-        service_row = None
-        for row in rows:
-            if (
-                isinstance(row, dict)
-                and row.get("serviceId") == service_record_id
-                and row.get("ownerAddress") == owner_wallet
-            ):
-                service_row = row
-                break
+        service_row = _find_owned_service(rows, service_record_id, owner_wallet)
         if service_row is None:
             raise ValueError("SERVICE_NOT_FOUND_OR_FORBIDDEN")
 
@@ -713,48 +755,14 @@ class RegistryService:
         if not isinstance(history, list):
             history = []
 
-        retention_hours = max(1, int(settings.service_health_history_retention_hours))
-        if hours is not None:
-            requested_hours = int(hours)
-        elif days is not None:
-            requested_hours = int(days) * 24
-        else:
-            requested_hours = retention_hours
-        window_hours = max(1, min(requested_hours, retention_hours))
+        retention_hours, window_hours = _history_window_hours(hours, days)
         cutoff_ms = int(time.time() * 1000) - (window_hours * 60 * 60 * 1000)
-
-        per_target: Dict[str, List[Dict[str, Any]]] = {}
-        for row in history:
-            if str(row.service_id or "") != service_record_id:
-                continue
-            checked_at = int(row.checked_at or 0)
-            if checked_at < cutoff_ms:
-                continue
-            target_url = str(row.target_url or "").strip()
-            if not target_url:
-                continue
-            bucket = per_target.setdefault(target_url, [])
-            bucket.append(row.model_dump(by_alias=True))
-
         normalized_limit = max(1, min(int(limit_per_target), 2000))
-        targets = []
-        for target_url, entries in per_target.items():
-            sorted_entries = sorted(
-                entries, key=lambda item: int(item.get("checkedAt") or 0), reverse=True
-            )
-            latest = sorted_entries[0] if sorted_entries else None
-            targets.append(
-                {
-                    "targetUrl": target_url,
-                    "latestStatus": str((latest or {}).get("status") or "unknown"),
-                    "history": sorted_entries[:normalized_limit],
-                }
-            )
-
-        targets.sort(key=lambda item: item["targetUrl"])
+        per_target = _history_entries_by_target(history, service_record_id, cutoff_ms)
+        targets = _serialized_history_targets(per_target, normalized_limit)
         return {
             "serviceId": service_record_id,
-            "serviceName": service_row.get("serviceName"),
+            "serviceName": service_row.service_name,
             "windowHours": window_hours,
             "retentionHours": retention_hours,
             "windowDays": max(1, int(math.ceil(window_hours / 24))),
