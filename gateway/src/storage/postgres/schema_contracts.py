@@ -96,6 +96,21 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
+        table_name="synapse_service_quotes",
+        required_columns=frozenset({"quote_id", "service_id", "credential_id", "agent_id", "quoted_price_usdc", "price_model", "status", "request_fingerprint", "response_mode", "invoke_constraints", "expires_at", "created_at"}),
+        required_constraints=(
+            _constraint("primary key on quote_id", PRIMARY_KEY_FRAGMENT, "quote_id"),
+        ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_invocations",
+        required_columns=frozenset({"invocation_id", "quote_id", "service_id", "endpoint_id", "credential_id", "agent_id", "idempotency_key", "request_digest", "response_mode", "status", "charged_usdc", "error_code", "error_action", "upstream_status", "result_digest", "result_json", "started_at", "finished_at", "created_at", "updated_at"}),
+        required_constraints=(
+            _constraint("primary key on invocation_id", PRIMARY_KEY_FRAGMENT, "invocation_id"),
+            _constraint("unique credential idempotency key", "unique", "credential_id", "idempotency_key"),
+        ),
+    ),
+    TableSchemaContract(
         table_name="synapse_audit_events",
         required_columns=frozenset({"event_id", "event_type", "business_type", "owner_id", "agent_id", "credential_id", "service_id", "quote_id", "invocation_id", "amount_delta", "result_status", "error_code", "detail_json", "created_at"}),
         required_indexes=frozenset({"idx_synapse_audit_events_owner_created"}),

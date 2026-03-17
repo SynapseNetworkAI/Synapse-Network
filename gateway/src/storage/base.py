@@ -34,6 +34,7 @@ class SystemDomain:
     idempotency: Any
     registry: Any
     credential_auth: Any
+    execution: Any = None
 
 
 @dataclass(frozen=True)

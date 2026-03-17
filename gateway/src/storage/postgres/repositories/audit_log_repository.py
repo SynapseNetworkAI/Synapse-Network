@@ -41,6 +41,11 @@ class AuditLogRepository:
         return SystemAuditLogRow(
             actionType=entry.action,
             ownerAddress=entry.owner_address,
+            agentId=self._str_detail(details, "agentId"),
+            credentialId=self._str_detail(details, "credentialId"),
+            serviceId=self._str_detail(details, "serviceId"),
+            quoteId=self._str_detail(details, "quoteId"),
+            invocationId=self._str_detail(details, "invocationId"),
             actor=self._str_detail(details, "actor"),
             requestId=self._str_detail(details, "requestId"),
             traceId=self._str_detail(details, "traceId"),
@@ -58,6 +63,11 @@ class AuditLogRepository:
         return AuditLogRow(
             actionType=entry.action,
             ownerAddress=entry.owner_address,
+            agentId=self._str_detail(details, "agentId"),
+            credentialId=self._str_detail(details, "credentialId"),
+            serviceId=self._str_detail(details, "serviceId"),
+            quoteId=self._str_detail(details, "quoteId"),
+            invocationId=self._str_detail(details, "invocationId"),
             message=self._str_detail(details, "message"),
             requestId=self._str_detail(details, "requestId"),
             traceId=self._str_detail(details, "traceId"),
@@ -103,20 +113,31 @@ class AuditLogRepository:
             "afterBalance": str(row.after_balance) if row.after_balance is not None else None,
             "message": row.message,
             "ownerAddress": row.owner_address,
+            "agentId": row.agent_id,
+            "credentialId": row.credential_id,
+            "serviceId": row.service_id,
+            "quoteId": row.quote_id,
+            "invocationId": row.invocation_id,
         }
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO synapse_audit_events (
                     event_id, event_type, business_type, owner_id,
+                    agent_id, credential_id, service_id, quote_id, invocation_id,
                     amount_delta, result_status, error_code, detail_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                 """,
                 (
                     self._event_id("audit"),
                     row.action_type,
                     row.business_type,
                     row.owner_address,
+                    row.agent_id,
+                    row.credential_id,
+                    row.service_id,
+                    row.quote_id,
+                    row.invocation_id,
                     str(row.amount_delta) if row.amount_delta is not None else None,
                     row.result_status,
                     row.error_code,
@@ -137,19 +158,30 @@ class AuditLogRepository:
         detail_json.setdefault("clientIp", row.ip_address)
         detail_json.setdefault("userAgent", row.user_agent)
         detail_json.setdefault("ownerAddress", row.owner_address)
+        detail_json.setdefault("agentId", row.agent_id)
+        detail_json.setdefault("credentialId", row.credential_id)
+        detail_json.setdefault("serviceId", row.service_id)
+        detail_json.setdefault("quoteId", row.quote_id)
+        detail_json.setdefault("invocationId", row.invocation_id)
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO synapse_audit_events (
                     event_id, event_type, business_type, owner_id,
+                    agent_id, credential_id, service_id, quote_id, invocation_id,
                     result_status, error_code, detail_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                 """,
                 (
                     self._event_id("system"),
                     row.action_type,
                     "system",
                     row.owner_address,
+                    row.agent_id,
+                    row.credential_id,
+                    row.service_id,
+                    row.quote_id,
+                    row.invocation_id,
                     row.result_status,
                     row.error_code,
                     json.dumps(detail_json),

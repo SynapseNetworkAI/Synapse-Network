@@ -38,6 +38,11 @@ class AuditLogRow(BaseModel):
         default="green", alias="riskLevel"
     )
     owner_address: str = Field(default="", alias="ownerAddress")
+    agent_id: Optional[str] = Field(default=None, alias="agentId")
+    credential_id: Optional[str] = Field(default=None, alias="credentialId")
+    service_id: Optional[str] = Field(default=None, alias="serviceId")
+    quote_id: Optional[str] = Field(default=None, alias="quoteId")
+    invocation_id: Optional[str] = Field(default=None, alias="invocationId")
     actor: Optional[str] = None
     request_id: Optional[str] = Field(default=None, alias="requestId")
     trace_id: Optional[str] = Field(default=None, alias="traceId")
@@ -66,6 +71,11 @@ class SystemAuditLogRow(BaseModel):
     id: Optional[int] = None
     action_type: str = Field(default="", alias="actionType")
     owner_address: str = Field(default="", alias="ownerAddress")
+    agent_id: Optional[str] = Field(default=None, alias="agentId")
+    credential_id: Optional[str] = Field(default=None, alias="credentialId")
+    service_id: Optional[str] = Field(default=None, alias="serviceId")
+    quote_id: Optional[str] = Field(default=None, alias="quoteId")
+    invocation_id: Optional[str] = Field(default=None, alias="invocationId")
     actor: Optional[str] = None
     request_id: Optional[str] = Field(default=None, alias="requestId")
     trace_id: Optional[str] = Field(default=None, alias="traceId")
