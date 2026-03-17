@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -20,17 +20,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_HEALTH_PATH = "/health"
 _last_health_history_prune_ms = 0
-
-
-def _coerce_service_definition(value: Any) -> ServiceDefinitionRecord | None:
-    if isinstance(value, ServiceDefinitionRecord):
-        return value
-    if isinstance(value, dict):
-        try:
-            return ServiceDefinitionRecord.model_validate(value)
-        except Exception:
-            return None
-    return None
 
 
 def _runtime_health(service: ServiceDefinitionRecord) -> ServiceRuntimeHealthRecord:
@@ -140,7 +129,7 @@ def _service_health_row(
     service: ServiceDefinitionRecord,
     target: ServiceInvokeTargetRecord,
     target_health: Dict[str, ServiceHealthTargetRecord],
-) -> Optional[Dict[str, Any]]:
+) -> Optional[ServiceTargetHealth]:
     service_id = str(service.service_id or "").strip()
     if not service_id:
         return None
@@ -149,29 +138,29 @@ def _service_health_row(
         return None
 
     row = target_health.get(target_url) or {}
-    return {
-        "serviceId": service_id,
-        "ownerAddress": str(service.owner_address or "").strip(),
-        "targetUrl": target_url,
-        "weight": int(target.weight or 100),
-        "region": target.region,
-        "status": str(getattr(row, "status", None) or "unknown"),
-        "overallStatus": public_discover_status(service),
-        "httpStatus": getattr(row, "http_status", None),
-        "latencyMs": getattr(row, "latency_ms", None),
-        "consecutiveSuccesses": int(getattr(row, "consecutive_successes", 0) or 0),
-        "consecutiveFailures": int(getattr(row, "consecutive_failures", 0) or 0),
-        "probeUrl": getattr(row, "probe_url", None),
-        "lastCheckedAt": getattr(row, "last_checked_at", None),
-        "lastHealthyAt": getattr(row, "last_healthy_at", None),
-        "error": getattr(row, "error", None),
-    }
+    return ServiceTargetHealth(
+        serviceId=service_id,
+        ownerAddress=str(service.owner_address or "").strip(),
+        targetUrl=target_url,
+        weight=int(target.weight or 100),
+        region=target.region,
+        status=str(getattr(row, "status", None) or "unknown"),
+        overallStatus=public_discover_status(service),
+        httpStatus=getattr(row, "http_status", None),
+        latencyMs=getattr(row, "latency_ms", None),
+        consecutiveSuccesses=int(getattr(row, "consecutive_successes", 0) or 0),
+        consecutiveFailures=int(getattr(row, "consecutive_failures", 0) or 0),
+        probeUrl=getattr(row, "probe_url", None),
+        lastCheckedAt=getattr(row, "last_checked_at", None),
+        lastHealthyAt=getattr(row, "last_healthy_at", None),
+        error=getattr(row, "error", None),
+    )
 
 
 def _build_service_target_health_rows(
     services: List[ServiceDefinitionRecord],
-) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
+) -> List[ServiceTargetHealth]:
+    rows: List[ServiceTargetHealth] = []
     for service in services:
         target_health = _target_health_map(service)
         for target in _service_targets(service):
@@ -179,11 +168,6 @@ def _build_service_target_health_rows(
             if next_row is not None:
                 rows.append(next_row)
     return rows
-
-
-def _health_row_payload(row: Any) -> Dict[str, Any] | None:
-    payload = row.model_dump(by_alias=True) if isinstance(row, ServiceTargetHealth) else row
-    return payload if isinstance(payload, dict) else None
 
 
 def _empty_persisted_health_bucket() -> Dict[str, Any]:
@@ -238,22 +222,22 @@ def _persisted_target_records(persisted: Dict[str, Any]) -> List[ServiceHealthTa
 
 
 def _merge_persisted_health_payload(
-    index: Dict[str, Dict[str, Any]], payload: Dict[str, Any]
+    index: Dict[str, Dict[str, Any]], row: ServiceTargetHealth
 ) -> None:
-    service_id = str(payload.get("serviceId") or "").strip()
-    target_url = str(payload.get("targetUrl") or "").strip()
+    service_id = str(row.service_id or "").strip()
+    target_url = str(row.target_url or "").strip()
     if not service_id or not target_url:
         return
 
     bucket = index.setdefault(service_id, _empty_persisted_health_bucket())
-    row_last_checked = int(payload.get("lastCheckedAt") or 0)
-    bucket["targets"][target_url] = _target_health_payload(payload)
+    row_last_checked = int(row.last_checked_at or 0)
+    bucket["targets"][target_url] = _target_health_payload(row.model_dump(by_alias=True))
     bucket["totalTargets"] = int(bucket.get("totalTargets") or 0) + 1
-    if str(payload.get("status") or "").lower() == "healthy":
+    if str(row.status or "").lower() == "healthy":
         bucket["healthyTargets"] = int(bucket.get("healthyTargets") or 0) + 1
     if row_last_checked > int(bucket.get("lastCheckedAt") or 0):
         bucket["lastCheckedAt"] = row_last_checked
-    overall_status = str(payload.get("overallStatus") or "").strip()
+    overall_status = str(row.overall_status or "").strip()
     if overall_status:
         bucket["overallStatus"] = overall_status
 
@@ -285,10 +269,9 @@ def _load_persisted_target_health(storage: BaseStorage) -> Dict[str, Dict[str, A
 
     index: Dict[str, Dict[str, Any]] = {}
     for row in rows:
-        payload = _health_row_payload(row)
-        if payload is None:
+        if not isinstance(row, ServiceTargetHealth):
             continue
-        _merge_persisted_health_payload(index, payload)
+        _merge_persisted_health_payload(index, row)
 
     return index
 
@@ -325,14 +308,8 @@ def sync_service_target_health_table(
         else:
             services = []
     rows = _build_service_target_health_rows(services)
-    typed_rows = [
-        ServiceTargetHealth.model_validate(row) for row in rows if isinstance(row, dict)
-    ]
     repo = storage.get_data_manager().system.registry
-    try:
-        repo.write_service_target_health_rows(typed_rows)
-    except Exception:
-        repo.write_service_target_health_rows(rows)
+    repo.write_service_target_health_rows(rows)
     return len(rows)
 
 
@@ -358,12 +335,14 @@ def _history_row_from_target(
     }
 
 
-def build_probe_history_rows(service: ServiceDefinitionRecord) -> List[Dict[str, Any]]:
+def build_probe_history_rows(
+    service: ServiceDefinitionRecord,
+) -> List[ServiceTargetHealthHistory]:
     service_id = str(service.service_id or "").strip()
     if not service_id:
         return []
 
-    rows: List[Dict[str, Any]] = []
+    rows: List[ServiceTargetHealthHistory] = []
     target_health = _target_health_map(service)
     for target in _service_targets(service):
         target_url = str(target.url or "").strip()
@@ -372,26 +351,25 @@ def build_probe_history_rows(service: ServiceDefinitionRecord) -> List[Dict[str,
         status_row = target_health.get(target_url)
         if not isinstance(status_row, ServiceHealthTargetRecord):
             continue
-        rows.append(_history_row_from_target(service, target_url, status_row))
+        rows.append(
+            ServiceTargetHealthHistory.model_validate(
+                _history_row_from_target(service, target_url, status_row)
+            )
+        )
     return rows
 
 
-def append_health_history_rows(storage: BaseStorage, rows: List[Dict[str, Any]]) -> int:
+def append_health_history_rows(
+    storage: BaseStorage, rows: List[ServiceTargetHealthHistory]
+) -> int:
     if not rows:
         return 0
-    existing: list = list(
+    existing: list[ServiceTargetHealthHistory] = list(
         storage.get_data_manager().system.registry.read_service_target_health_history_rows()
     )
-    existing.extend(
-        ServiceTargetHealthHistory.model_validate(row)
-        for row in rows
-        if isinstance(row, dict)
-    )
+    existing.extend(rows)
     repo = storage.get_data_manager().system.registry
-    try:
-        repo.write_service_target_health_history_rows(existing)
-    except Exception:
-        repo.write_service_target_health_history_rows(rows)
+    repo.write_service_target_health_history_rows(existing)
     return len(rows)
 
 
@@ -412,15 +390,11 @@ def _current_valid_service_ids(storage: BaseStorage) -> set[str]:
     }
 
 
-def _history_row_kept(row: Any, valid_ids: set[str], cutoff_ms: int) -> bool:
-    if isinstance(row, ServiceTargetHealthHistory):
-        service_id = str(row.service_id or "").strip()
-        checked_at = int(row.checked_at or 0)
-    elif isinstance(row, dict):
-        service_id = str(row.get("serviceId") or "").strip()
-        checked_at = int(row.get("checkedAt") or 0)
-    else:
-        return False
+def _history_row_kept(
+    row: ServiceTargetHealthHistory, valid_ids: set[str], cutoff_ms: int
+) -> bool:
+    service_id = str(row.service_id or "").strip()
+    checked_at = int(row.checked_at or 0)
     if not service_id or service_id not in valid_ids:
         return False
     return checked_at >= cutoff_ms
@@ -445,7 +419,7 @@ def _should_prune_history(now_ms: int) -> bool:
 def prune_health_history(
     storage: BaseStorage, valid_service_ids: Optional[set[str]] = None
 ) -> Dict[str, int]:
-    existing: list = list(
+    existing: list[ServiceTargetHealthHistory] = list(
         storage.get_data_manager().system.registry.read_service_target_health_history_rows()
     )
 
@@ -462,12 +436,7 @@ def prune_health_history(
     after = len(filtered)
     if after != before:
         repo = storage.get_data_manager().system.registry
-        try:
-            repo.write_service_target_health_history_rows(filtered)
-        except Exception:
-            repo.write_service_target_health_history_rows(
-                [row for row in filtered if isinstance(row, dict)]
-            )
+        repo.write_service_target_health_history_rows(filtered)
     return {"before": before, "after": after, "removed": max(0, before - after)}
 
 
