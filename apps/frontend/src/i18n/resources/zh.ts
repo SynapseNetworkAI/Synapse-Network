@@ -16,6 +16,10 @@ const zh: I18nMessages = {
   },
   home: {
     heroEyebrow: "Agent 商业基础设施",
+    heroTitlePart1: "一次入金。",
+    heroTitlePart2: "Agents",
+    heroTitlePart3: " 自主发现 APIs 并",
+    heroTitlePart4: "支付",
     heroTitleLead: "一次入金，让 Agent 自主发现并",
     heroTitleAccent: "支付 API。",
     heroTitle: "一次入金，让 Agent 自主发现并支付 API。",

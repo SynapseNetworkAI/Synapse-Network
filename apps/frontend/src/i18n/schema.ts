@@ -14,6 +14,10 @@ export type I18nMessages = {
   };
   home: {
     heroEyebrow: string;
+    heroTitlePart1: string;
+    heroTitlePart2: string;
+    heroTitlePart3: string;
+    heroTitlePart4: string;
     heroTitleLead: string;
     heroTitleAccent: string;
     heroTitle: string;

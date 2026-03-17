@@ -19,6 +19,22 @@ const EMPTY_NETWORK_STATS: PublicNetworkStats = {
   runtimeReadyServices: 0,
 };
 
+const AGENT_NETWORK_NODES = [
+  "agent-network-node-a",
+  "agent-network-node-b",
+  "agent-network-node-c",
+  "agent-network-node-d",
+  "agent-network-node-e",
+  "agent-network-node-f",
+];
+
+const AGENT_NETWORK_FLOWS = [
+  "agent-network-flow-a",
+  "agent-network-flow-b",
+  "agent-network-flow-c",
+  "agent-network-flow-d",
+];
+
 function easeOutQuart(progress: number): number {
   return 1 - (1 - progress) ** 4;
 }
@@ -144,7 +160,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="relative overflow-hidden bg-[#050505] text-white selection:bg-white selection:text-black">
+    <div className="relative overflow-hidden bg-black text-white selection:bg-white selection:text-black">
       <RoleWarningModal
         isOpen={isWarningOpen}
         onDisconnect={() => {
@@ -156,12 +172,10 @@ export default function Home() {
 
       <main className="relative">
         <section className="relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(127,247,190,0.12),transparent_18%),radial-gradient(circle_at_50%_26%,rgba(255,255,255,0.05),transparent_26%),linear-gradient(180deg,#040404_0%,#050505_54%,#080808_100%)]" />
-          <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:136px_136px] [mask-image:radial-gradient(circle_at_center,black,transparent_80%)]" />
-          <div className="pointer-events-none absolute inset-x-0 top-[17%] h-px bg-gradient-to-r from-transparent via-white/18 to-transparent opacity-70" />
-          <div className="pointer-events-none absolute left-1/2 top-[17%] h-52 w-52 -translate-x-1/2 rounded-full bg-[#7ff7be]/10 blur-3xl" />
-          <div className="pointer-events-none absolute left-1/2 top-[15%] h-[28rem] w-[28rem] -translate-x-1/2 rounded-full border border-white/[0.05] opacity-70" />
-          <div className="pointer-events-none absolute left-1/2 top-[15%] h-[34rem] w-[34rem] -translate-x-1/2 rounded-full border border-white/[0.03] opacity-60" />
+          <div className="pointer-events-none absolute inset-0 bg-black" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.02] [background-image:linear-gradient(rgba(255,255,255,1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,1)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:radial-gradient(circle_at_center,black,transparent_80%)]" />
+          <div className="pointer-events-none absolute left-1/2 top-[20%] h-[30rem] w-[50rem] -translate-x-1/2 rounded-full bg-emerald-900/20 blur-3xl opacity-50" />
+          
           <div className="ambient-signal ambient-signal-left" />
           <div className="ambient-signal ambient-signal-right" />
           <div className="ambient-orb ambient-orb-left" />
@@ -169,53 +183,74 @@ export default function Home() {
           <div className="hero-trace hero-trace-left" />
           <div className="hero-trace hero-trace-right" />
           <div className="hero-trace hero-trace-center" />
+          {AGENT_NETWORK_FLOWS.map((className) => (
+            <div key={className} className={`agent-network-flow ${className}`} />
+          ))}
+          {AGENT_NETWORK_NODES.map((className) => (
+            <div key={className} className={`agent-network-node ${className}`} />
+          ))}
 
           <div className="relative mx-auto flex min-h-[calc(100svh-76px)] max-w-6xl flex-col justify-center px-6 py-24 sm:py-28">
-            <div className="mx-auto max-w-4xl text-center">
-              <h1 className="mx-auto max-w-[15.5ch] text-[clamp(3.1rem,6.8vw,6rem)] font-[840] leading-[0.92] tracking-[-0.07em] text-white">
-                <span className="block 2xl:inline">{t("home.heroTitleLead")}</span>{" "}
-                <span className="block 2xl:inline bg-gradient-to-r from-white via-white to-[#7ff7be] bg-clip-text text-transparent [text-shadow:0_0_26px_rgba(127,247,190,0.12)]">
-                  {t("home.heroTitleAccent")}
+            <div className="mx-auto max-w-5xl text-center">
+              <h1 className="mx-auto text-center text-[clamp(2rem,4.5vw,3.75rem)] font-extrabold leading-tight tracking-tight text-white lg:leading-none">
+                {t("home.heroTitlePart1")}
+                <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                  {t("home.heroTitlePart2")}
+                </span>
+                {t("home.heroTitlePart3")}
+                <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                  {t("home.heroTitlePart4")}
                 </span>
               </h1>
-              <p className="mx-auto mt-8 max-w-3xl text-base leading-8 text-[#9a9aa2] sm:text-lg">
-                {t("home.heroSubtitle")}
-              </p>
-              <p className="mx-auto mt-7 max-w-2xl text-lg font-medium tracking-[-0.03em] text-white/84 sm:text-[1.4rem]">
-                {t("home.heroTagline")}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section id="features" className="relative mx-auto max-w-7xl px-6 py-24 sm:py-28">
-          <div className="mx-auto max-w-5xl py-6 sm:py-10">
-            <div className="mx-auto max-w-5xl">
-              <div className="mx-auto max-w-3xl text-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/34">
-                  {t("home.liveStatsLabel")}
+              
+              <div className="mx-auto mt-8 max-w-3xl flex flex-col gap-2">
+                <p className="text-xl font-medium tracking-tight text-zinc-300 md:text-2xl">
+                  {t("home.heroTagline")}
+                </p>
+                <p className="text-base leading-relaxed text-zinc-500 md:text-lg">
+                  {t("home.heroSubtitle")}
                 </p>
               </div>
 
-              <div className="mx-auto mt-6 grid w-full max-w-5xl gap-3 sm:grid-cols-3">
+              <div className="mx-auto mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                <button
+                  onClick={() => handleEnterRole("CONSUMER", "/dashboard/discover")}
+                  className="group relative inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                >
+                  Launch Console
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </button>
+                <a
+                  href="#"
+                  className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/50 px-8 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-all hover:bg-zinc-800 hover:text-zinc-200"
+                >
+                  Read Documentation
+                </a>
+              </div>
+
+              <div className="mx-auto mt-16 grid max-w-5xl gap-6 sm:grid-cols-3">
                 {heroStats.map((item) => (
                   <article
                     key={item.label}
-                    className="rounded-[1.6rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.016))] px-5 py-5 text-center shadow-[0_24px_80px_rgba(0,0,0,0.12)]"
+                    className="relative flex flex-col items-center rounded-2xl border border-white/10 bg-zinc-900/50 px-6 py-8 text-center backdrop-blur-md"
                   >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/36">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
                       {item.label}
                     </p>
-                    <p className="mt-3 font-mono text-[2.15rem] font-bold tracking-[-0.05em] text-white sm:text-[2.45rem]">
+                    <p className="mt-4 font-mono text-4xl font-bold tracking-tight text-white sm:text-5xl">
                       <AnimatedCounter value={item.value} />
                     </p>
                   </article>
                 ))}
               </div>
             </div>
+          </div>
+        </section>
 
+        <section id="features" className="relative mx-auto max-w-7xl px-6 py-24 sm:py-28">
+          <div className="mx-auto max-w-5xl py-6 sm:py-10">
             <div className="mx-auto max-w-4xl text-center">
-              <p className="mt-18 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7ff7be] sm:mt-20">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7ff7be]">
                 {t("home.capabilitiesEyebrow")}
               </p>
               <h2 className="mt-4 text-4xl font-[760] tracking-[-0.05em] text-white md:text-5xl lg:text-[3.7rem] lg:leading-[1.02]">

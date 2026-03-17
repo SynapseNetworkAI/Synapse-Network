@@ -20,20 +20,22 @@ Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探�
 - Language: EN / ZH
 
 2. Hero
-- 首屏只保留：Logo/Nav、巨型 Headline、Subheadline、Trade 标语、弱环境信号层
+- 首屏只保留：Logo/Nav、巨型 Headline、Subheadline、Trade 标语、三项实时网络计数、弱环境信号层
 - 主叙事标题拆成两段：`Fund once. Agents discover and` + `pay for APIs.`
 - `pay` 必须成为字重、节奏和视觉重心
+- 桌面端标题优先保证单行成立，尺寸显著收敛，避免巨型字压垮留白
 - 副标题：强调 runtime identity、budgeted payments、instant settlement
 - 标语：`Agents can talk. But now, they can trade.`
-- 首屏不再放 CTA、标签条、命令条或数据卡，必须为标题留出足够呼吸感
+- 首屏不再放 CTA、标签条、命令条或解释型模块，必须为标题留出足够呼吸感
+- 首屏底部允许保留 3 项轻量实时计数：`API calls / registered services / connected agents`
+- 这 3 个数字必须更像 live signal rail，而不是 dashboard cards
+- 实时数据默认无边框、无厚重底板，主要依靠字号、节奏、间距与微弱光感建立动态信号感
 - 首屏目标不是解释完产品，而是用留白和排版建立基础设施级可信度
-- 背景动效：只允许极弱的 signal beam / orb 漂移，不允许 flashy 粒子、地图、炫光扫屏
-- 可借鉴广播网络/全球连线的张力，但只能抽象成极弱曲线信号，不允许直接上地图大图层
+- 背景动效：只允许极弱的 signal beam / orb / node / flow 漂移，不允许 flashy 粒子、地图、炫光扫屏
+- 可借鉴广播网络/全球连线的张力，但只能抽象成极弱曲线信号、稀疏节点、低频脉冲，不允许直接上地图大图层
 - 导航质感：悬浮玻璃胶囊 + 更细的高光边界 + 柔和状态脉冲，接近 keynote 而不是 debug toolbar
 
 3. Capability Strip
-- 在 capability 说明之前，先插入一层 `Live Network Stats`，承接 `API calls / registered services / connected agents`
-- 动态数字下移到第二屏，作为网络活信号，而不是首屏主角
 - 第二屏不再讲 Owner / Agent / Provider 角色关系
 - 改成 3 条协议能力声明：Discover / Pay / Invoke
 - 每条只保留一个能力词和一句解释，不再做角色教育
@@ -117,9 +119,10 @@ Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探�
 - `connectedAgents`
 
 展示策略：
-- 首页仍显示 `API calls / registered services / connected agents`，但位置下移到首屏之后
+- 首页显示 `API calls / registered services / connected agents`，并与三句核心文案置于同一英雄区
 - 数字在客户端做短时 count-up，形成动态变化感
 - 轮询节奏保持低频，避免首页变成 noisy dashboard
+- 视觉形式保持轻量，不使用厚重 dashboard 卡片语言
 
 失败降级：
 - stats 接口失败时，回退到 discoverServices 的服务数
