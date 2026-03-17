@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import json
 from contextlib import contextmanager
 from types import SimpleNamespace
+from typing import Optional
 
 import pytest
 from fastapi.testclient import TestClient
@@ -217,8 +220,8 @@ class AgentDiscoverySearchResponse(BaseModel):
 
 class BudgetCheckResponse(BaseModel):
     allowed: bool
-    remainingBudgetUsdc: float | None = None
-    remainingDailyLimitUsdc: float | None = None
+    remainingBudgetUsdc: Optional[float] = None
+    remainingDailyLimitUsdc: Optional[float] = None
 
 
 class InvokeConstraintsResponse(BaseModel):
@@ -247,9 +250,9 @@ class InvocationReceiptResponse(BaseModel):
 class AgentInvocationResponse(BaseModel):
     invocationId: str
     status: str
-    chargedUsdc: float | None = None
+    chargedUsdc: Optional[float] = None
     result: dict = Field(default_factory=dict)
-    receipt: InvocationReceiptResponse | None = None
+    receipt: Optional[InvocationReceiptResponse] = None
 
 
 @contextmanager
@@ -380,10 +383,7 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
         "timeout": 15.0,
     }
 
-    assert len(storage.gateway_state.usage_rows) == 1
-    assert isinstance(storage.gateway_state.usage_rows[0], UsageLogRow)
-    assert storage.gateway_state.usage_rows[0].id == receipt["invocationId"]
-    assert storage.gateway_state.usage_rows[0].request_id == "req-typed-001"
+    assert storage.gateway_state.usage_rows == []
 
     assert storage.balance.ledger.consumer_available_balance("0xabc") == pytest.approx(8.75)
     assert storage.balance.ledger.provider_receivable_balance("0xdef") == pytest.approx(1.08)

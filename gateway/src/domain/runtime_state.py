@@ -111,6 +111,57 @@ class DepositMetadataState(BaseModel):
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
 
 
+class InvocationBillingState(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    owner_address: str = Field(default="", alias="ownerAddress")
+    provider_address: str = Field(default="", alias="providerAddress")
+    request_id: Optional[str] = Field(default=None, alias="requestId")
+    origin_request_id: Optional[str] = Field(default=None, alias="originRequestId")
+    origin_tx_hash: Optional[str] = Field(default=None, alias="originTxHash")
+    unit_price: Decimal = Field(default=Decimal("0"), alias="unitPrice")
+    protocol_fee: Decimal = Field(default=Decimal("0"), alias="protocolFee")
+    routing_tax: Decimal = Field(default=Decimal("0"), alias="routingTax")
+    total_charge: Decimal = Field(default=Decimal("0"), alias="totalCharge")
+    business_type: str = Field(default="charge", alias="businessType")
+    risk_level: str = Field(default="green", alias="riskLevel")
+
+
+class VaultWithdrawalMetadataState(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    flow_status: str = Field(default="REQUESTED", alias="flowStatus")
+    business_type: str = Field(default="withdraw", alias="businessType")
+    request_id: Optional[str] = Field(default=None, alias="requestId")
+    idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
+    consumer_address: Optional[str] = Field(default=None, alias="consumerAddress")
+    provider_address: Optional[str] = Field(default=None, alias="providerAddress")
+    amount_wei: Optional[str] = Field(default=None, alias="amountWei")
+    fee_wei: Optional[str] = Field(default=None, alias="feeWei")
+    chain_id: Optional[int] = Field(default=None, alias="chainId")
+    contract_address: Optional[str] = Field(default=None, alias="contractAddress")
+    signer_address: Optional[str] = Field(default=None, alias="signerAddress")
+    risk_level: Optional[str] = Field(default=None, alias="riskLevel")
+    risk_reason_code: Optional[str] = Field(default=None, alias="riskReasonCode")
+    gas_payer: Optional[str] = Field(default=None, alias="gasPayer")
+    gas_model: Optional[str] = Field(default=None, alias="gasModel")
+    reason: Optional[str] = None
+    refund_type: Optional[str] = Field(default=None, alias="refundType")
+    destination_address: Optional[str] = Field(default=None, alias="destinationAddress")
+    evidence_summary: Optional[str] = Field(default=None, alias="evidenceSummary")
+    origin_request_id: Optional[str] = Field(default=None, alias="originRequestId")
+    origin_tx_hash: Optional[str] = Field(default=None, alias="originTxHash")
+    message: Optional[str] = None
+    request_meta: dict[str, Any] = Field(default_factory=dict, alias="requestMeta")
+    review_decision: Optional[str] = Field(default=None, alias="reviewDecision")
+    reviewer_address: Optional[str] = Field(default=None, alias="reviewerAddress")
+    reviewer_note: Optional[str] = Field(default=None, alias="reviewerNote")
+    reviewed_at: Optional[int] = Field(default=None, alias="reviewedAt")
+    completed_at: Optional[int] = Field(default=None, alias="completedAt")
+    complete_meta: dict[str, Any] = Field(default_factory=dict, alias="completeMeta")
+    ticket: dict[str, Any] = Field(default_factory=dict)
+
+
 class RouterPolicyState(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

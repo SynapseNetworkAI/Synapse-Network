@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import time
 from decimal import Decimal
@@ -23,7 +24,11 @@ from src.domain.finance import (
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
-from src.domain.runtime_state import DepositMetadataState
+from src.domain.runtime_state import (
+    DepositMetadataState,
+    InvocationBillingState,
+    VaultWithdrawalMetadataState,
+)
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -35,6 +40,25 @@ except Exception:  # pragma: no cover
 
 
 _INTEGRITY_ERRORS = (psycopg.IntegrityError,) if psycopg is not None else (Exception,)
+_WITHDRAWAL_BLOCKED_MESSAGE = "Withdrawal blocked by risk policy."
+
+
+@dataclass(frozen=True)
+class VaultWithdrawalUpsertSpec:
+    withdrawal_id: str
+    owner_wallet: str
+    amount_usdc: Decimal
+    flow_status: str
+    request_id: Optional[str]
+    updated_at: str
+    idempotency_key: Optional[str]
+    provider_wallet: Optional[str] = None
+    tx_hash: Optional[str] = None
+    prepared_ticket: Optional[PreparedWithdrawTicket] = None
+    risk_level: Optional[str] = None
+    risk_reason_code: Optional[str] = None
+    message: Optional[str] = None
+    request_meta: Optional[dict[str, Any]] = None
 
 
 class FinanceAtomicRepository:
@@ -197,6 +221,295 @@ class FinanceAtomicRepository:
     @staticmethod
     def _deposit_state_key(deposit_id: str) -> str:
         return f"vault_deposit_meta::{deposit_id}"
+
+    @staticmethod
+    def _invocation_billing_state_key(invocation_id: str) -> str:
+        return f"invocation_billing::{invocation_id}"
+
+    @staticmethod
+    def _vault_withdrawal_state_key(withdrawal_id: str) -> str:
+        return f"vault_withdrawal_meta::{withdrawal_id}"
+
+    @staticmethod
+    def _vault_status_from_flow_status(flow_status: str, has_signature: bool = False) -> str:
+        normalized = str(flow_status or "").strip().upper()
+        if normalized in {"REJECTED", "FAILED"}:
+            return "FAILED"
+        if has_signature or normalized in {"SIGNED", "APPROVED_AUTO", "BROADCASTED", "CONFIRMED"}:
+            return "SIGNED"
+        return "REQUESTED"
+
+    def _append_ledger_entry(
+        self,
+        cur: Any,
+        *,
+        entry_id: str,
+        reference_type: str,
+        reference_id: str,
+        business_type: str,
+        debit_account_id: str,
+        credit_account_id: str,
+        amount_usdc: Decimal,
+        request_id: Optional[str],
+        trace_id: Optional[str] = None,
+        status: str = "posted",
+    ) -> None:
+        if self._q6(amount_usdc) <= Decimal("0"):
+            return
+        cur.execute(
+            """
+            INSERT INTO synapse_ledger_entries (
+                entry_id, reference_type, reference_id, business_type,
+                debit_account_id, credit_account_id, amount_usdc,
+                status, request_id, trace_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (entry_id)
+            DO UPDATE SET
+                amount_usdc = EXCLUDED.amount_usdc,
+                status = EXCLUDED.status,
+                request_id = EXCLUDED.request_id,
+                trace_id = EXCLUDED.trace_id
+            """,
+            (
+                entry_id,
+                reference_type,
+                reference_id,
+                business_type,
+                debit_account_id,
+                credit_account_id,
+                str(self._q6(amount_usdc)),
+                status,
+                request_id,
+                trace_id,
+            ),
+        )
+
+    def _build_vault_withdrawal_metadata(
+        self, spec: VaultWithdrawalUpsertSpec, provider_address: Optional[str]
+    ) -> VaultWithdrawalMetadataState:
+        prepared_ticket = spec.prepared_ticket
+        return VaultWithdrawalMetadataState(
+            flowStatus=spec.flow_status,
+            businessType="withdraw" if spec.provider_wallet else "refund",
+            requestId=spec.request_id,
+            idempotencyKey=spec.idempotency_key,
+            consumerAddress=None if spec.provider_wallet else spec.owner_wallet,
+            providerAddress=provider_address,
+            amountWei=str(prepared_ticket.amount_wei) if prepared_ticket else None,
+            feeWei=str(prepared_ticket.fee_wei) if prepared_ticket else None,
+            chainId=prepared_ticket.chain_id if prepared_ticket else None,
+            contractAddress=(prepared_ticket.ticket or {}).get("contractAddress")
+            if prepared_ticket
+            else None,
+            signerAddress=prepared_ticket.signer_address if prepared_ticket else None,
+            riskLevel=spec.risk_level,
+            riskReasonCode=spec.risk_reason_code,
+            message=spec.message,
+            requestMeta=spec.request_meta or {},
+            ticket=(prepared_ticket.ticket if prepared_ticket else {}),
+        )
+
+    def _upsert_vault_withdrawal(self, cur: Any, spec: VaultWithdrawalUpsertSpec) -> None:
+        owner_id = self._ensure_owner_account(cur, spec.owner_wallet, spec.updated_at)
+        provider_id = None
+        source_account_id = self._ensure_ledger_account(
+            cur,
+            spec.owner_wallet,
+            "provider" if spec.provider_wallet else "consumer",
+            spec.updated_at,
+        )
+        withdrawal_kind = (
+            "provider_withdrawal" if spec.provider_wallet else "consumer_refund"
+        )
+        provider_address = (
+            str(spec.provider_wallet or "").lower() if spec.provider_wallet else None
+        )
+        if provider_address:
+            provider_id = self._ensure_provider_profile(
+                cur, provider_address, spec.updated_at
+            )
+        prepared_ticket = spec.prepared_ticket
+        has_signature = isinstance(prepared_ticket, PreparedWithdrawTicket) and bool(
+            prepared_ticket.signature
+        )
+        cur.execute(
+            """
+            INSERT INTO synapse_vault_withdrawals (
+                withdrawal_id, owner_id, provider_id, source_account_id, withdrawal_kind,
+                tx_hash, amount_usdc, status, request_id, signature, nonce, deadline,
+                created_at, updated_at
+            ) VALUES (%s, %s, %s, %s, %s::synapse_withdrawal_kind, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (withdrawal_id)
+            DO UPDATE SET
+                owner_id = EXCLUDED.owner_id,
+                provider_id = EXCLUDED.provider_id,
+                source_account_id = EXCLUDED.source_account_id,
+                tx_hash = EXCLUDED.tx_hash,
+                amount_usdc = EXCLUDED.amount_usdc,
+                status = EXCLUDED.status,
+                request_id = EXCLUDED.request_id,
+                signature = EXCLUDED.signature,
+                nonce = EXCLUDED.nonce,
+                deadline = EXCLUDED.deadline,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (
+                spec.withdrawal_id,
+                owner_id,
+                provider_id,
+                source_account_id,
+                withdrawal_kind,
+                spec.tx_hash,
+                str(self._q6(spec.amount_usdc)),
+                self._vault_status_from_flow_status(spec.flow_status, has_signature),
+                spec.request_id,
+                prepared_ticket.signature if prepared_ticket else None,
+                prepared_ticket.nonce if prepared_ticket else None,
+                prepared_ticket.deadline if prepared_ticket else None,
+                spec.updated_at,
+                spec.updated_at,
+            ),
+        )
+        self._upsert_runtime_state(
+            cur,
+            self._vault_withdrawal_state_key(spec.withdrawal_id),
+            self._build_vault_withdrawal_metadata(
+                spec, provider_address
+            ).model_dump(by_alias=True, mode="json"),
+            spec.updated_at,
+        )
+
+    def _load_available_balance(
+        self, cur: Any, wallet: str, account_type: str, now: int
+    ) -> Decimal:
+        hit = self._load_locked_balance_triplet(cur, wallet, account_type, now)
+        return self._q6(hit[0])
+
+    def _set_available_balance(
+        self,
+        cur: Any,
+        wallet: str,
+        account_type: str,
+        available_value: Decimal,
+        now: int,
+        now_text: str,
+    ) -> None:
+        _, current_pending, current_frozen = self._load_locked_balance_triplet(
+            cur, wallet, account_type, now
+        )
+        self._upsert_balance_triplet(
+            cur,
+            wallet,
+            account_type,
+            self._q6(available_value),
+            self._q6(current_pending),
+            self._q6(current_frozen),
+            now_text,
+        )
+
+    def _record_charge_facts(
+        self,
+        cur: Any,
+        command: ChargeConsumerUsageCommand,
+        row: UsageLogRow,
+        owner: str,
+        provider: str,
+        now_text: str,
+    ) -> None:
+        consumer_account_id = self._account_identity(owner, "consumer")[0]
+        provider_account_id = self._account_identity(provider, "provider")[0]
+        platform_account_id = self._account_identity("__platform__", "platform_fee")[0]
+        if command.invocation is not None:
+            cur.execute(
+                """
+                UPDATE synapse_invocations
+                SET charged_usdc = %s, updated_at = %s
+                WHERE invocation_id = %s
+                """,
+                (
+                    str(self._q6(command.total_charge)),
+                    now_text,
+                    command.invocation.invocation_id,
+                ),
+            )
+        self._upsert_runtime_state(
+            cur,
+            self._invocation_billing_state_key(row.id),
+            InvocationBillingState(
+                ownerAddress=row.consumer_address or owner,
+                providerAddress=row.provider_address or provider,
+                requestId=row.request_id,
+                originRequestId=row.origin_request_id,
+                originTxHash=row.origin_tx_hash,
+                unitPrice=row.unit_price or Decimal("0"),
+                protocolFee=row.protocol_fee or Decimal("0"),
+                routingTax=row.routing_tax or Decimal("0"),
+                totalCharge=row.total_charge or Decimal("0"),
+                businessType=row.business_type,
+                riskLevel=row.risk_level,
+            ).model_dump(by_alias=True, mode="json"),
+            now_text,
+        )
+        self._append_ledger_entry(
+            cur,
+            entry_id=f"ledger-charge-provider::{row.id}",
+            reference_type="invocation",
+            reference_id=row.id,
+            business_type="charge",
+            debit_account_id=consumer_account_id,
+            credit_account_id=provider_account_id,
+            amount_usdc=self._q6(command.provider_net),
+            request_id=row.request_id,
+        )
+        self._append_ledger_entry(
+            cur,
+            entry_id=f"ledger-charge-platform::{row.id}",
+            reference_type="invocation",
+            reference_id=row.id,
+            business_type="charge",
+            debit_account_id=consumer_account_id,
+            credit_account_id=platform_account_id,
+            amount_usdc=self._q6(command.platform_fee_total),
+            request_id=row.request_id,
+        )
+
+    def _assert_charge_not_restricted(
+        self, cur: Any, owner: str, provider: str, now: int
+    ) -> None:
+        if self._is_account_restricted_for_charge(cur, owner, "consumer", now):
+            raise RuntimeError("BUYER_RESTRICTED_RISK_BLOCK")
+        if self._is_account_restricted_for_charge(cur, provider, "provider", now):
+            raise RuntimeError("SELLER_RESTRICTED_RISK_BLOCK")
+
+    def _build_charge_usage_row(
+        self,
+        command: ChargeConsumerUsageCommand,
+        invocation_id: str,
+        owner: str,
+        provider: str,
+        now: int,
+    ) -> UsageLogRow:
+        return UsageLogRow(
+            id=invocation_id,
+            ts=int(command.usage_row.ts or now),
+            requestId=command.request_id or command.usage_row.request_id,
+            serviceId=(
+                command.invocation.service_id
+                if command.invocation is not None
+                else command.usage_row.service_id
+            ),
+            consumerAddress=(command.usage_row.consumer_address or owner),
+            providerAddress=(command.usage_row.provider_address or provider),
+            status=command.usage_row.status or "accepted",
+            unitPrice=self._q6(command.unit_price or command.usage_row.unit_price or 0),
+            protocolFee=self._q6(command.protocol_fee or command.usage_row.protocol_fee or 0),
+            routingTax=self._q6(command.routing_tax or command.usage_row.routing_tax or 0),
+            totalCharge=self._q6(command.total_charge),
+            businessType=command.usage_row.business_type,
+            riskLevel=command.usage_row.risk_level,
+            originRequestId=command.usage_row.origin_request_id,
+            originTxHash=command.usage_row.origin_tx_hash,
+        )
 
     @staticmethod
     def _payload_dict(value: Any) -> dict[str, Any]:
@@ -384,23 +697,25 @@ class FinanceAtomicRepository:
         cur.execute(
             """
             SELECT COALESCE(SUM(amount_usdc), 0)
-            FROM synapse_withdrawal_intents
-            WHERE owner_address = %s
+                        FROM synapse_vault_withdrawals
+                        WHERE owner_id = %s
+                            AND withdrawal_kind = 'provider_withdrawal'
               AND created_at >= %s
-              AND status <> 'REJECTED'
+                            AND status <> 'FAILED'
             """,
-            (owner, to_dt_str(window_start, now_dt_str())),
+                        (self._owner_id(owner), to_dt_str(window_start, now_dt_str())),
         )
         rolling_24h = self._q6((cur.fetchone() or [0])[0])
 
         cur.execute(
             """
-            SELECT COALESCE(SUM(COALESCE(unit_price, 0) - COALESCE(protocol_fee, 0)), 0)
-            FROM synapse_usage_log
-            WHERE lower(seller_address) = %s
-              AND lower(status) IN ('accepted', 'succeeded', 'success', 'completed')
+                        SELECT COALESCE(SUM(amount_usdc), 0)
+                        FROM synapse_ledger_entries
+                        WHERE credit_account_id = %s
+                            AND business_type = 'charge'
+                            AND status = 'posted'
             """,
-            (owner,),
+                        (self._account_identity(owner, "provider")[0],),
         )
         historical_net_income = self._q6((cur.fetchone() or [0])[0])
 
@@ -483,21 +798,21 @@ class FinanceAtomicRepository:
                     withdrawal_id = f"wd-{now}-{owner[-8:]}"
 
                     if red_reason:
-                        cur.execute(
-                            """
-                            INSERT INTO synapse_withdrawal_intents (
-                                id, owner_address, tx_hash, status, request_id, idempotency_key,
-                                amount_usdc, created_at, updated_at
-                            ) VALUES (%s, %s, NULL, 'REJECTED', %s, %s, %s, %s, %s)
-                            """,
-                            (
-                                withdrawal_id,
-                                owner,
-                                command.request_id,
-                                command.idempotency_key,
-                                str(amount),
-                                now_text,
-                                now_text,
+                        self._upsert_vault_withdrawal(
+                            cur,
+                            VaultWithdrawalUpsertSpec(
+                                withdrawal_id=withdrawal_id,
+                                owner_wallet=owner,
+                                provider_wallet=owner,
+                                amount_usdc=amount,
+                                flow_status="REJECTED",
+                                request_id=command.request_id,
+                                updated_at=now_text,
+                                idempotency_key=command.idempotency_key,
+                                risk_level="red",
+                                risk_reason_code=red_reason,
+                                message=_WITHDRAWAL_BLOCKED_MESSAGE,
+                                request_meta=command.request_meta,
                             ),
                         )
                         self._append_withdrawal_audit(
@@ -510,7 +825,7 @@ class FinanceAtomicRepository:
                             risk_level="red",
                             risk_reason_code=red_reason,
                             result_status="REJECTED",
-                            message="Withdrawal blocked by risk policy.",
+                            message=_WITHDRAWAL_BLOCKED_MESSAGE,
                         )
                         conn.commit()
                         return WithdrawalDecision(
@@ -518,7 +833,7 @@ class FinanceAtomicRepository:
                             withdrawalId=withdrawal_id,
                             status="REJECTED",
                             riskReasonCode=red_reason,
-                            message="Withdrawal blocked by risk policy.",
+                            message=_WITHDRAWAL_BLOCKED_MESSAGE,
                         )
 
                     is_yellow = amount >= self._q6(command.single_limit_usdc) or (
@@ -563,30 +878,21 @@ class FinanceAtomicRepository:
                         message = ""
                         risk_level = "green"
 
-                    cur.execute(
-                        """
-                        INSERT INTO synapse_withdrawal_intents (
-                            id, owner_address, tx_hash, status, request_id, idempotency_key,
-                            amount_usdc, created_at, updated_at
-                        ) VALUES (%s, %s, NULL, %s::synapse_withdraw_status, %s, %s, %s, %s, %s)
-                        ON CONFLICT (id)
-                        DO UPDATE SET
-                            owner_address = EXCLUDED.owner_address,
-                            status = EXCLUDED.status,
-                            request_id = EXCLUDED.request_id,
-                            idempotency_key = EXCLUDED.idempotency_key,
-                            amount_usdc = EXCLUDED.amount_usdc,
-                            updated_at = EXCLUDED.updated_at
-                        """,
-                        (
-                            withdrawal_id,
-                            owner,
-                            status,
-                            command.request_id,
-                            command.idempotency_key,
-                            str(amount),
-                            now_text,
-                            now_text,
+                    self._upsert_vault_withdrawal(
+                        cur,
+                        VaultWithdrawalUpsertSpec(
+                            withdrawal_id=withdrawal_id,
+                            owner_wallet=owner,
+                            provider_wallet=owner,
+                            amount_usdc=amount,
+                            flow_status=status,
+                            request_id=command.request_id,
+                            updated_at=now_text,
+                            idempotency_key=command.idempotency_key,
+                            prepared_ticket=prepared_ticket if not is_yellow else None,
+                            risk_level=risk_level,
+                            message=message,
+                            request_meta=command.request_meta,
                         ),
                     )
 
@@ -837,119 +1143,52 @@ class FinanceAtomicRepository:
         owner = str(command.owner_wallet or "").strip().lower()
         provider = str(command.provider_wallet or "").strip().lower()
 
-        def _load_balance(
-            cur: Any, wallet: str, account_type: str, column_name: str
-        ) -> Decimal:
-            hit = self._load_locked_balance_triplet(cur, wallet, account_type, now)
-            idx = {"available_balance": 0, "pending_balance": 1, "frozen_balance": 2}[
-                column_name
-            ]
-            return self._q6(hit[idx])
-
-        def _set_available(
-            cur: Any, wallet: str, account_type: str, available_value: Decimal
-        ) -> None:
-            current_pending = _load_balance(
-                cur, wallet, account_type, "pending_balance"
-            )
-            current_frozen = _load_balance(cur, wallet, account_type, "frozen_balance")
-            self._upsert_balance_triplet(
-                cur,
-                wallet,
-                account_type,
-                self._q6(available_value),
-                self._q6(current_pending),
-                self._q6(current_frozen),
-                now_text,
-            )
-
         with self._db.connect() as conn:
             with conn.cursor() as cur:
-                if self._is_account_restricted_for_charge(cur, owner, "consumer", now):
-                    raise RuntimeError("BUYER_RESTRICTED_RISK_BLOCK")
-                if self._is_account_restricted_for_charge(cur, provider, "provider", now):
-                    raise RuntimeError("SELLER_RESTRICTED_RISK_BLOCK")
+                self._assert_charge_not_restricted(cur, owner, provider, now)
 
-                before_consumer = _load_balance(cur, owner, "consumer", "available_balance")
+                before_consumer = self._load_available_balance(
+                    cur, owner, "consumer", now
+                )
                 if before_consumer < self._q6(command.total_charge):
                     raise RuntimeError("INSUFFICIENT_BALANCE")
 
-                provider_before = _load_balance(
-                    cur, provider, "provider", "available_balance"
+                provider_before = self._load_available_balance(
+                    cur, provider, "provider", now
                 )
-                platform_before = _load_balance(
-                    cur, "__platform__", "platform_fee", "available_balance"
+                platform_before = self._load_available_balance(
+                    cur, "__platform__", "platform_fee", now
                 )
                 consumer_after = self._q6(before_consumer - self._q6(command.total_charge))
                 provider_after = self._q6(provider_before + self._q6(command.provider_net))
                 platform_after = self._q6(
                     platform_before + self._q6(command.platform_fee_total)
                 )
-
-                _set_available(cur, owner, "consumer", consumer_after)
-                _set_available(cur, provider, "provider", provider_after)
-                _set_available(cur, "__platform__", "platform_fee", platform_after)
-
-                row = UsageLogRow(
-                    id=command.usage_row.id,
-                    ts=int(command.usage_row.ts or now),
-                    requestId=command.usage_row.request_id,
-                    serviceId=command.usage_row.service_id,
-                    consumerAddress=(command.usage_row.consumer_address or owner),
-                    providerAddress=(command.usage_row.provider_address or provider),
-                    status=command.usage_row.status or "accepted",
-                    unitPrice=command.usage_row.unit_price,
-                    protocolFee=command.usage_row.protocol_fee,
-                    routingTax=command.usage_row.routing_tax,
-                    totalCharge=command.usage_row.total_charge or self._q6(command.total_charge),
-                    businessType=command.usage_row.business_type,
-                    riskLevel=command.usage_row.risk_level,
+                invocation_id = (
+                    str(command.invocation.invocation_id or "").strip()
+                    if command.invocation is not None
+                    else str(command.usage_row.id or "").strip()
                 )
-                cur.execute(
-                    """
-                    INSERT INTO synapse_usage_log (
-                        id, ts, request_id, service_id, buyer_address, seller_address,
-                        status, unit_price, protocol_fee, routing_tax, total_charge,
-                        business_type, risk_level
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level)
-                    ON CONFLICT (id)
-                    DO UPDATE SET
-                        ts = EXCLUDED.ts,
-                        request_id = EXCLUDED.request_id,
-                        service_id = EXCLUDED.service_id,
-                        buyer_address = EXCLUDED.buyer_address,
-                        seller_address = EXCLUDED.seller_address,
-                        status = EXCLUDED.status,
-                        unit_price = EXCLUDED.unit_price,
-                        protocol_fee = EXCLUDED.protocol_fee,
-                        routing_tax = EXCLUDED.routing_tax,
-                        total_charge = EXCLUDED.total_charge,
-                        business_type = EXCLUDED.business_type,
-                        risk_level = EXCLUDED.risk_level
-                    """,
-                    (
-                        row.id,
-                        int(row.ts),
-                        row.request_id,
-                        row.service_id,
-                        row.consumer_address,
-                        row.provider_address,
-                        row.status,
-                        str(self._q6(row.unit_price))
-                        if row.unit_price is not None
-                        else None,
-                        str(self._q6(row.protocol_fee))
-                        if row.protocol_fee is not None
-                        else None,
-                        str(self._q6(row.routing_tax))
-                        if row.routing_tax is not None
-                        else None,
-                        str(self._q6(row.total_charge))
-                        if row.total_charge is not None
-                        else None,
-                        row.business_type,
-                        row.risk_level,
-                    ),
+                self._set_available_balance(
+                    cur, owner, "consumer", consumer_after, now, now_text
+                )
+                self._set_available_balance(
+                    cur, provider, "provider", provider_after, now, now_text
+                )
+                self._set_available_balance(
+                    cur,
+                    "__platform__",
+                    "platform_fee",
+                    platform_after,
+                    now,
+                    now_text,
+                )
+
+                row = self._build_charge_usage_row(
+                    command, invocation_id, owner, provider, now
+                )
+                self._record_charge_facts(
+                    cur, command, row, owner, provider, now_text
                 )
 
                 self._append_finance_audit_row(
@@ -964,7 +1203,8 @@ class FinanceAtomicRepository:
                         afterBalance=consumer_after,
                         resultStatus="SUCCEEDED",
                         status="SUCCEEDED",
-                        message=f"provider={provider}",
+                        requestId=row.request_id,
+                        message=f"provider={provider}; invocation={row.id}",
                     ),
                 )
 

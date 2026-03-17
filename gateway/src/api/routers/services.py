@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
-from typing import Optional, Dict, Any, List, Annotated
+from typing import Optional, Dict, Any, List, Annotated, Union
 from uuid import uuid4
 from src.api.deps import get_registry_service
 from src.api.schemas.pydantic_models import AgentDiscoverySearchRequest
@@ -140,7 +142,7 @@ class RegisterServiceRequest(BaseModel):
     serviceName: str
     role: str = "Provider"
     address: Optional[str] = None
-    pricing: ServicePricing | str
+    pricing: Union[ServicePricing, str]
     summary: str = ""
     tags: List[str] = Field(default_factory=list)
     status: str = "active"
