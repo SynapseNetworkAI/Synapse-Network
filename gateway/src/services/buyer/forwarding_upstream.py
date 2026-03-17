@@ -1,4 +1,5 @@
 from typing import Any, Dict, Tuple
+import hashlib
 import json
 import random
 
@@ -6,6 +7,7 @@ import httpx
 from fastapi import HTTPException
 
 from src.core.config import settings
+from src.domain.execution import InvocationRecord, InvocationResultRecord
 from src.domain.service_contract import ServiceDefinitionRecord, ServiceInvokeConfigRecord
 from src.services.platform import service_health_service
 from src.services.buyer.forwarding_validation import (
@@ -41,9 +43,9 @@ def _parse_target_weight(raw_weight: Any) -> int:
 def normalized_weighted_targets(
     invoke: ServiceInvokeConfigRecord,
     allowed_target_urls: set[str] | None = None,
-) -> Tuple[list[Dict[str, Any]], list[int]]:
+) -> Tuple[list[str], list[int]]:
     """Normalize upstream targets and validate routing weights for weighted random selection."""
-    normalized_targets: list[Dict[str, Any]] = []
+    normalized_targets: list[str] = []
     normalized_weights: list[int] = []
 
     for item in invoke.targets:
@@ -53,7 +55,7 @@ def normalized_weighted_targets(
         if allowed_target_urls is not None and url not in allowed_target_urls:
             continue
         weight = _parse_target_weight(item.weight)
-        normalized_targets.append(item.model_dump(by_alias=True, mode="json"))
+        normalized_targets.append(url)
         normalized_weights.append(weight)
 
     if not normalized_targets:
@@ -82,14 +84,29 @@ def select_weighted_target_url(
     targets, weights = normalized_weighted_targets(
         invoke, allowed_target_urls=allowed_target_urls
     )
-    selected = random.choices(targets, weights=weights, k=1)[0]
-    return str(selected.get("url") or "").strip()
+    return str(random.choices(targets, weights=weights, k=1)[0] or "").strip()
 
 
-async def call_upstream(service: ServiceDefinitionRecord, prompt: str, request_id: str) -> Any:
+def _response_payload(raw_payload: Any) -> dict[str, Any]:
+    if isinstance(raw_payload, dict) and "quote" in raw_payload:
+        raw_payload = raw_payload.get("quote")
+    if isinstance(raw_payload, dict):
+        return dict(raw_payload)
+    return {"result": raw_payload}
+
+
+def _payload_digest(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+async def call_upstream(
+    service: ServiceDefinitionRecord,
+    invocation: InvocationRecord,
+    request_payload: dict[str, Any],
+) -> InvocationResultRecord:
     """Forward validated payload to seller upstream and enforce request/response size guards."""
     constraints = effective_service_constraints(service)
-    request_payload = {"text": prompt}
     validate_invoke_request_contract(service, request_payload)
     request_bytes = len(json.dumps(request_payload, ensure_ascii=False).encode("utf-8"))
     if request_bytes > constraints.max_request_bytes:
@@ -111,7 +128,11 @@ async def call_upstream(service: ServiceDefinitionRecord, prompt: str, request_i
 
     timeout_sec = float(constraints.timeout_ms) / 1000.0
     async with httpx.AsyncClient(timeout=timeout_sec) as client:
-        headers = {"X-Request-Id": request_id}
+        request_id_header = str(service.forwarding.request_id_header or "X-Request-Id").strip() or "X-Request-Id"
+        headers = {request_id_header: invocation.idempotency_key}
+        for key, value in service.invoke.headers_template.items():
+            if isinstance(key, str) and key.strip() and isinstance(value, str):
+                headers[key] = value
         response = await client.post(
             upstream_url, json=request_payload, headers=headers
         )
@@ -130,6 +151,5 @@ async def call_upstream(service: ServiceDefinitionRecord, prompt: str, request_i
 
         response.raise_for_status()
         data = response.json()
-        if isinstance(data, dict) and "quote" in data:
-            return data.get("quote")
-        return data
+        payload = _response_payload(data)
+        return InvocationResultRecord(digest=_payload_digest(payload), payload=payload)
