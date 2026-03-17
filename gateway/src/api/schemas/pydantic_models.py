@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, validator
-from typing import Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 TX_HASH_PREFIX_ERROR = "txHash must start with 0x"
 TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
@@ -53,6 +53,19 @@ class CredentialQuotaUpdateRequest(BaseModel):
 class InferenceRequest(BaseModel):
     prompt: str
     serviceId: Optional[str] = None
+
+
+class AgentQuoteRequest(BaseModel):
+    serviceId: str = Field(..., min_length=1, max_length=128)
+    inputPreview: Dict[str, Any] = Field(default_factory=dict)
+    responseMode: Literal["sync", "async", "stream"] = "sync"
+
+
+class AgentInvocationRequest(BaseModel):
+    quoteId: str = Field(..., min_length=1, max_length=128)
+    idempotencyKey: str = Field(..., min_length=1, max_length=128)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    responseMode: Literal["sync", "async", "stream"] = "sync"
 
 
 class DepositIntentRequest(BaseModel):

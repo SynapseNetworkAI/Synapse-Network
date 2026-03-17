@@ -4,7 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.api.schemas.pydantic_models import InferenceRequest
+from src.api.schemas.pydantic_models import (
+    AgentInvocationRequest,
+    AgentQuoteRequest,
+    InferenceRequest,
+)
+from src.domain.execution import InvocationRecord, ServiceQuoteRecord
 from src.domain.finance import BalanceLedger, FeePolicyEntity, UsageLogRow
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.buyer import forwarding_billing, forwarding_service, forwarding_upstream
@@ -70,6 +75,35 @@ class InMemoryAuditRepo:
         self.rows.append(row)
 
 
+class InMemoryExecutionRepo:
+    def __init__(self) -> None:
+        self.quotes: dict[str, ServiceQuoteRecord] = {}
+        self.invocations: dict[str, InvocationRecord] = {}
+
+    def upsert_quote(self, quote: ServiceQuoteRecord) -> None:
+        self.quotes[quote.quote_id] = quote.model_copy(deep=True)
+
+    def read_quote(self, quote_id: str):
+        quote = self.quotes.get(quote_id)
+        return quote.model_copy(deep=True) if quote is not None else None
+
+    def upsert_invocation(self, invocation: InvocationRecord) -> None:
+        self.invocations[invocation.invocation_id] = invocation.model_copy(deep=True)
+
+    def read_invocation(self, invocation_id: str):
+        invocation = self.invocations.get(invocation_id)
+        return invocation.model_copy(deep=True) if invocation is not None else None
+
+    def read_invocation_by_idempotency(self, credential_id: str, idempotency_key: str):
+        for invocation in self.invocations.values():
+            if (
+                invocation.credential_id == credential_id
+                and invocation.idempotency_key == idempotency_key
+            ):
+                return invocation.model_copy(deep=True)
+        return None
+
+
 class FakeStorage:
     def __init__(self, service: ServiceDefinitionRecord, credential_row) -> None:
         self.balance = InMemoryBalanceRepo()
@@ -78,12 +112,14 @@ class FakeStorage:
         self.registry = InMemoryRegistryRepo(service)
         self.credential_auth = InMemoryCredentialAuthRepo(credential_row)
         self.audit = InMemoryAuditRepo()
+        self.execution = InMemoryExecutionRepo()
         self.data_manager = SimpleNamespace(
             finance=SimpleNamespace(balance=self.balance, fee_policy=self.fee_policy),
             system=SimpleNamespace(
                 gateway_state=self.gateway_state,
                 registry=self.registry,
                 credential_auth=self.credential_auth,
+                execution=self.execution,
             ),
             audit=SimpleNamespace(logs=self.audit),
         )
@@ -252,3 +288,83 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.audit.rows[0].details["quoteId"] == receipt["quoteId"]
     assert storage.audit.rows[0].details["invocationId"] == receipt["invocationId"]
     assert storage.audit.rows[0].details["resultStatus"] == "success"
+    assert storage.execution.read_quote(receipt["quoteId"]).status == "CONSUMED"
+    assert storage.execution.read_invocation(receipt["invocationId"]).status == "SUCCEEDED"
+
+
+def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.buyers["0xabc"] = 10.0
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(
+        forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
+    )
+
+    quote_response = asyncio.run(
+        forwarding_service.create_quote_v1(
+            storage,
+            AgentQuoteRequest(
+                serviceId="svc.echo",
+                inputPreview={"textLength": 17},
+                responseMode="sync",
+            ),
+            raw_token,
+            "req-quote-001",
+        )
+    )
+    quote_id = quote_response["quoteId"]
+    assert quote_response["budgetCheck"]["allowed"] is True
+    assert storage.execution.read_quote(quote_id).status == "OPEN"
+
+    invocation_response = asyncio.run(
+        forwarding_service.create_invocation_v1(
+            storage,
+            AgentInvocationRequest(
+                quoteId=quote_id,
+                idempotencyKey="task-1-step-1",
+                payload={"text": "hello typed world"},
+                responseMode="sync",
+            ),
+            raw_token,
+            "req-invoke-001",
+        )
+    )
+    invocation_id = invocation_response["invocationId"]
+    assert invocation_response["status"] == "SUCCEEDED"
+    assert invocation_response["chargedUsdc"] == pytest.approx(1.25)
+
+    receipt_response = forwarding_service.get_invocation_receipt_v1(
+        storage, invocation_id, raw_token
+    )
+    assert receipt_response["invocationId"] == invocation_id
+    assert receipt_response["status"] == "SUCCEEDED"
+    assert receipt_response["result"]["echo"] == "hello typed world"
+
+    persisted_quote = storage.execution.read_quote(quote_id)
+    persisted_invocation = storage.execution.read_invocation(invocation_id)
+    assert persisted_quote.status == "CONSUMED"
+    assert persisted_invocation.quote_id == quote_id
+    assert persisted_invocation.idempotency_key == "task-1-step-1"
+
+    replay_response = asyncio.run(
+        forwarding_service.create_invocation_v1(
+            storage,
+            AgentInvocationRequest(
+                quoteId=quote_id,
+                idempotencyKey="task-1-step-1",
+                payload={"text": "hello typed world"},
+                responseMode="sync",
+            ),
+            raw_token,
+            "req-invoke-002",
+        )
+    )
+    assert replay_response["invocationId"] == invocation_id

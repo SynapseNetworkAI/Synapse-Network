@@ -47,3 +47,5 @@ The buyer forwarding pipeline now treats `src/domain/execution.py` plus `src/dom
 - `generate_response_v2()` builds and carries a typed `ServiceQuoteRecord` and `InvocationRecord` through validation, charging, upstream forwarding, usage logging, and audit logging.
 - `forwarding_upstream.call_upstream()` now accepts typed `InvocationRecord` plus `ServiceDefinitionRecord` and returns a typed `InvocationResultRecord` instead of raw `dict` transport.
 - Buyer receipt remains a response-boundary JSON object, but now includes `quoteId` and `invocationId` derived from the typed execution records for end-to-end traceability.
+- `ExecutionRepository` is now the persistence boundary for runtime execution state, storing typed quote records in `synapse_service_quotes` and typed invocation records in `synapse_invocations`.
+- Legacy `POST /api/v1/gateway/generate` and the agent-facing `POST /api/v1/agent/quotes`, `POST /api/v1/agent/invocations`, and `GET /api/v1/agent/invocations/{invocation_id}` now share the same typed quote/invocation execution pipeline instead of drifting into separate dict-based implementations.

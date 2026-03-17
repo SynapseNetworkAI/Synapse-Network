@@ -689,3 +689,140 @@
 - 凭据不再只是一个“调用次数 + RPM”的 key 桶，而是绑定到 `Agent Profile` 和 `Budget Policy` 的 Runtime 身份。
 - Service 选择不再依靠卖家密钥视角，而是由 Discovery / Quote / Invoke 三段式完成。
 - 卖家结算地址、平台拆账、内部路由策略不进入 Agent-facing API。
+
+### 5.1 Agent Runtime Quote / Invocation Contract
+
+当前网关已经打通一条可持久化的 Runtime 三段式闭环：`Discovery -> Quote -> Invocation/Receipt`。
+
+- **Credential Header**：`X-Credential: <agent_credential_token>`
+- **Request Id Header**：`X-Request-Id: <client_request_id>`，可选；若未提供，网关会生成平台 requestId。
+- **Runtime Scope**：`quote` 和 `invocation` 都强绑定到当前 `credentialId`，不同凭据之间不能串用。
+- **Persistence**：平台会持久化 `ServiceQuoteRecord` 到 `synapse_service_quotes`，持久化 `InvocationRecord` 到 `synapse_invocations`。
+
+#### `POST /api/v1/agent/quotes`
+
+用于在真正调用前锁定一次 Agent-facing 的报价与调用约束。
+
+请求体：
+
+```json
+{
+  "serviceId": "svc.echo",
+  "inputPreview": {
+    "textLength": 17
+  },
+  "responseMode": "sync"
+}
+```
+
+成功响应：
+
+```json
+{
+  "requestId": "req-quote-001",
+  "quoteId": "quote_123",
+  "serviceId": "svc.echo",
+  "priceUsdc": 1.25,
+  "priceModel": "fixed",
+  "budgetCheck": {
+    "allowed": true,
+    "remainingBudgetUsdc": 18.75,
+    "remainingDailyLimitUsdc": 8.75
+  },
+  "expiresAt": "2026-03-17 12:34:56",
+  "idempotencyScope": "quoteId",
+  "invokeConstraints": {
+    "body": {
+      "text": {
+        "type": "string",
+        "required": true
+      }
+    },
+    "timeoutMs": 8000,
+    "maxPayloadBytes": 32768
+  }
+}
+```
+
+字段说明：
+
+- `quoteId`：后续创建 invocation 的唯一报价标识。
+- `budgetCheck.allowed`：只表示预算是否允许当前报价，不代表已经扣费。
+- `expiresAt`：报价过期时间；过期后 invocation 会返回 `QUOTE_EXPIRED`。
+- `invokeConstraints`：给 Agent 的真实调用约束，必须与目标 service manifest 对齐。
+
+#### `POST /api/v1/agent/invocations`
+
+用于消费一个有效 quote，并落地一次可审计 invocation。该接口对 `credentialId + idempotencyKey` 做幂等保护。
+
+请求体：
+
+```json
+{
+  "quoteId": "quote_123",
+  "idempotencyKey": "task-1-step-1",
+  "payload": {
+    "text": "hello typed world"
+  },
+  "responseMode": "sync"
+}
+```
+
+成功响应：
+
+```json
+{
+  "invocationId": "inv_123",
+  "status": "SUCCEEDED",
+  "chargedUsdc": 1.25,
+  "result": {
+    "echo": "hello typed world"
+  },
+  "receipt": {
+    "quoteId": "quote_123",
+    "invocationId": "inv_123"
+  }
+}
+```
+
+失败响应语义：
+
+- `QUOTE_NOT_FOUND`：报价不存在。
+- `QUOTE_CREDENTIAL_MISMATCH`：报价不属于当前 credential。
+- `QUOTE_EXPIRED`：报价已过期，平台会将 quote 状态标记为 `EXPIRED`。
+- `QUOTE_NOT_INVOKABLE`：报价状态不是 `OPEN` 或 `CONSUMED`。
+- `IDEMPOTENCY_CONFLICT`：同一 `idempotencyKey` 对应了不同的 payload 或不同的 quote。
+- `CREDENTIAL_RPM_EXCEEDED` / `SERVICE_QPS_EXCEEDED`：运行时限流命中。
+- `BUDGET_EXHAUSTED` / `DAILY_LIMIT_EXCEEDED` / `PER_INVOCATION_CAP_EXCEEDED`：预算边界阻止执行。
+
+幂等规则：
+
+- 如果同一 `credentialId + idempotencyKey + quoteId + payloadDigest` 重复提交，平台返回首次 invocation 的结果，不重复扣费。
+- 如果 `idempotencyKey` 相同但 `quoteId` 或 `payload` 不同，平台返回 `409 IDEMPOTENCY_CONFLICT`。
+
+#### `GET /api/v1/agent/invocations/{invocation_id}`
+
+用于查询一次 invocation 的最终或中间态回执。
+
+成功响应示例：
+
+```json
+{
+  "invocationId": "inv_123",
+  "status": "SUCCEEDED",
+  "chargedUsdc": 1.25,
+  "result": {
+    "echo": "hello typed world"
+  },
+  "receipt": {
+    "quoteId": "quote_123",
+    "invocationId": "inv_123"
+  }
+}
+```
+
+说明：
+
+- 查询接口也会校验 `invocation.credentialId == current_credentialId`，否则返回 `INVOCATION_FORBIDDEN`。
+- `status` 当前覆盖 `PENDING`、`RUNNING`、`SUCCEEDED`、`FAILED_RETRYABLE`、`FAILED_FINAL`。
+- `FAILED_RETRYABLE` / `FAILED_FINAL` 响应会返回 `error.code`、`error.retryable`、`error.action`，供 Agent Runtime 做自动重试或停止决策。

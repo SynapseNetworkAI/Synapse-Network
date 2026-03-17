@@ -15,6 +15,7 @@ from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from .postgres.repositories.deposit_attempt_repository import DepositAttemptRepository
+from .postgres.repositories.execution_repository import ExecutionRepository
 from .postgres.repositories.fee_policy_repository import FeePolicyRepository
 from .postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from .postgres.repositories.gateway_state_repository import GatewayStateRepository
@@ -104,6 +105,7 @@ class PostgresStorage(BaseStorage):
         audit = AuditLogRepository(self._db, _AUDIT_INSERT_SQL)
         balance = BalanceRepository(self._db, q6, _BALANCE_UPSERT_SQL)
         service_registry = ServiceRegistryRepository(self._db)
+        execution = ExecutionRepository(self._db)
         credential_auth = CredentialAuthRepository(self._db, q6)
         gateway_state = GatewayStateRepository(self._db, q6)
         deposit_attempts = DepositAttemptRepository(self._db, q6)
@@ -126,6 +128,7 @@ class PostgresStorage(BaseStorage):
                 idempotency=idempotency,
                 registry=service_registry,
                 credential_auth=credential_auth,
+                execution=execution,
             ),
             audit=AuditDomain(logs=audit),
         )

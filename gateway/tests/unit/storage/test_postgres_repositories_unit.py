@@ -10,6 +10,7 @@ from src.storage.postgres.repositories.audit_log_repository import AuditLogRepos
 from src.storage.postgres.repositories.balance_repository import BalanceRepository
 from src.storage.postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from src.storage.postgres.repositories.deposit_attempt_repository import DepositAttemptRepository
+from src.storage.postgres.repositories.execution_repository import ExecutionRepository
 from src.storage.postgres.repositories.fee_policy_repository import FeePolicyRepository
 from src.storage.postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from src.storage.postgres.repositories.gateway_state_repository import GatewayStateRepository
@@ -19,8 +20,10 @@ from src.domain.execution import (
     CompleteWithdrawTxCommand,
     DepositIntentConfirmCommand,
     DepositIntentRegisterCommand,
+    InvocationRecord,
     PreparedWithdrawTicket,
     ReserveSellerWithdrawCommand,
+    ServiceQuoteRecord,
     WithdrawalAtomicRequestCommand,
 )
 from src.domain.service_contract import ServiceDefinitionRecord
@@ -617,6 +620,142 @@ def test_gateway_state_repository_read_and_write() -> None:
     usage_rows = repo.read_usage_log_rows()
     assert len(usage_rows) == 1 and usage_rows[0].id == "usage-1"
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
+
+
+def test_execution_repository_read_and_write() -> None:
+    db = FakeDB()
+    db.readonly_plan.append(
+        {
+            "fetchone": [(
+                "quote-1",
+                "svc-1",
+                "cred-1",
+                "agent-1",
+                Decimal("1.250000"),
+                "fixed",
+                "OPEN",
+                "fp-1",
+                "sync",
+                {"body": {"text": {"type": "string"}}, "timeoutMs": 15000},
+                "2026-03-17 10:00:00",
+                "2026-03-17 09:55:00",
+            )],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchone": [(
+                "inv-1",
+                "quote-1",
+                "svc-1",
+                None,
+                "cred-1",
+                "agent-1",
+                "idem-1",
+                "req-digest-1",
+                "sync",
+                "SUCCEEDED",
+                Decimal("1.300000"),
+                None,
+                None,
+                200,
+                "digest-1",
+                {"ok": True},
+                "2026-03-17 09:56:00",
+                "2026-03-17 09:56:01",
+                "2026-03-17 09:55:30",
+                "2026-03-17 09:56:01",
+            )],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchone": [(
+                "inv-1",
+                "quote-1",
+                "svc-1",
+                None,
+                "cred-1",
+                "agent-1",
+                "idem-1",
+                "req-digest-1",
+                "sync",
+                "SUCCEEDED",
+                Decimal("1.300000"),
+                None,
+                None,
+                200,
+                "digest-1",
+                {"ok": True},
+                "2026-03-17 09:56:00",
+                "2026-03-17 09:56:01",
+                "2026-03-17 09:55:30",
+                "2026-03-17 09:56:01",
+            )],
+        }
+    )
+    repo = ExecutionRepository(db)
+
+    quote = repo.read_quote("quote-1")
+    assert quote is not None
+    assert quote.quote_id == "quote-1"
+    assert quote.invoke_constraints.body["text"]["type"] == "string"
+
+    invocation = repo.read_invocation("inv-1")
+    assert invocation is not None
+    assert invocation.invocation_id == "inv-1"
+    assert invocation.result.payload == {"ok": True}
+
+    replay = repo.read_invocation_by_idempotency("cred-1", "idem-1")
+    assert replay is not None
+    assert replay.request_digest == "req-digest-1"
+
+    repo.upsert_quote(
+        ServiceQuoteRecord.model_validate(
+            {
+                "quoteId": "quote-2",
+                "serviceId": "svc-2",
+                "credentialId": "cred-2",
+                "agentId": "agent-2",
+                "quotedPriceUsdc": "0.500000",
+                "priceModel": "fixed",
+                "status": "OPEN",
+                "requestFingerprint": "fp-2",
+                "responseMode": "sync",
+                "invokeConstraints": {"body": {"text": {"type": "string"}}},
+                "expiresAt": "2026-03-17 10:10:00",
+                "createdAt": "2026-03-17 10:00:00",
+            }
+        )
+    )
+    repo.upsert_invocation(
+        InvocationRecord.model_validate(
+            {
+                "invocationId": "inv-2",
+                "quoteId": "quote-2",
+                "serviceId": "svc-2",
+                "credentialId": "cred-2",
+                "agentId": "agent-2",
+                "idempotencyKey": "idem-2",
+                "requestDigest": "req-digest-2",
+                "responseMode": "sync",
+                "status": "RUNNING",
+                "chargedUsdc": "0.000000",
+                "result": {"digest": None, "payload": {}},
+                "createdAt": "2026-03-17 10:00:01",
+                "updatedAt": "2026-03-17 10:00:02",
+            }
+        )
+    )
+
+    all_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert "INSERT INTO synapse_service_quotes" in all_sql
+    assert "INSERT INTO synapse_invocations" in all_sql
+
+
+def test_gateway_state_repository_write_paths() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
 
     repo.write_deposit_intents([
         DepositIntentRow(
