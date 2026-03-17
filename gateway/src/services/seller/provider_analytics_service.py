@@ -30,7 +30,7 @@ class ProviderAnalyticsService:
 
     def _load_seller_receivable(self, owner_wallet: str) -> float:
         ledger = self.storage.get_data_manager().finance.balance.read_balance_ledger()
-        return round(float(ledger.sellers.get(owner_wallet, 0.0)), 6)
+        return ledger.provider_receivable_balance(owner_wallet)
 
     def _seller_rows(self, owner_wallet: str) -> List[Dict[str, Any]]:
         rows = self._load_usage_rows()

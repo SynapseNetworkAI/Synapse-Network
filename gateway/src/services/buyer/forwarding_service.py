@@ -29,32 +29,32 @@ _redis_client = None
 _memory_window_counters: Dict[str, Tuple[float, int]] = {}
 
 
-def _build_buyer_receipt(
+def _build_consumer_receipt(
     request_id: str,
     quote_id: str,
     invocation_id: str,
     service_id: str,
     unit_price: float,
     total_charge: float,
-    buyer_balance_after: float,
+    consumer_balance_after: float,
 ) -> Dict[str, Any]:
-    """Build buyer-facing receipt fields only, hiding internal settlement split details."""
-    return forwarding_billing.build_buyer_receipt(
+    """Build consumer-facing receipt fields only, hiding internal settlement split details."""
+    return forwarding_billing.build_consumer_receipt(
         request_id,
         quote_id,
         invocation_id,
         service_id,
         unit_price,
         total_charge,
-        buyer_balance_after,
+        consumer_balance_after,
     )
 
 
-def _build_buyer_success_response(
+def _build_consumer_success_response(
     receipt: Dict[str, Any], upstream_result: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Return the canonical generate success envelope consumed by buyer SDKs."""
-    return forwarding_billing.build_buyer_success_response(receipt, upstream_result)
+    """Return the canonical generate success envelope consumed by consumer SDKs."""
+    return forwarding_billing.build_consumer_success_response(receipt, upstream_result)
 
 
 def _effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceConstraintRecord:
@@ -63,10 +63,10 @@ def _effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceC
 
 
 def _pricing_breakdown(
-    storage: BaseStorage, seller_wallet: str, unit_price: float
+    storage: BaseStorage, provider_wallet: str, unit_price: float
 ) -> Tuple[float, float, float, float, float, float]:
     """Compute fee-rate decomposition for charging, reconciliation, and audits."""
-    return forwarding_billing.pricing_breakdown(storage, seller_wallet, unit_price)
+    return forwarding_billing.pricing_breakdown(storage, provider_wallet, unit_price)
 
 
 def _append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
@@ -283,23 +283,24 @@ def _service_wallet(service: ServiceDefinitionRecord) -> str:
 
 
 def _charge_amount_from_unit_price(
-    storage: BaseStorage, seller_wallet: str, unit_price: float
+    storage: BaseStorage, provider_wallet: str, unit_price: float
 ) -> tuple[dict[str, float], float]:
     (
         fee_rate,
         protocol_fee,
         routing_tax,
         platform_fee_total,
-        seller_net,
+        provider_net,
         total_charge,
-    ) = _pricing_breakdown(storage, seller_wallet, unit_price)
+    ) = _pricing_breakdown(storage, provider_wallet, unit_price)
     settlement = {
         "unit_price": unit_price,
         "fee_rate": fee_rate,
         "protocol_fee": protocol_fee,
         "routing_tax": routing_tax,
         "platform_fee_total": platform_fee_total,
-        "seller_net": seller_net,
+        "provider_net": provider_net,
+        "seller_net": provider_net,
         "total_charge": total_charge,
     }
     return settlement, total_charge
@@ -469,10 +470,10 @@ async def _execute_invocation_pipeline(
     constraints = _effective_service_constraints(service)
     await _check_service_qps_limit(service.service_id, int(constraints.max_qps))
 
-    seller_wallet = _service_wallet(service)
+    provider_wallet = _service_wallet(service)
     unit_price = round(float(quote.quoted_price_usdc), 6)
     settlement, total_charge = _charge_amount_from_unit_price(
-        storage, seller_wallet, unit_price
+        storage, provider_wallet, unit_price
     )
     budget_check = await _budget_check(credential, total_charge)
     _raise_for_budget_check(budget_check)
@@ -501,13 +502,13 @@ async def _execute_invocation_pipeline(
     _persist_quote(storage, _quote_with_status(quote, "CONSUMED"))
     _persist_invocation(storage, invocation)
 
-    buyer_after, updated_credential = await forwarding_billing.charge_and_mark_usage(
+    consumer_after, updated_credential = await forwarding_billing.charge_and_mark_usage(
         storage,
         credential_service.credential_owner_wallet(credential),
-        seller_wallet,
+        provider_wallet,
         total_charge,
         settlement["platform_fee_total"],
-        settlement["seller_net"],
+        settlement["provider_net"],
         str(credential.credential.credential_id),
     )
 
@@ -530,10 +531,10 @@ async def _execute_invocation_pipeline(
         await forwarding_billing.rollback_charge(
             storage,
             owner_wallet,
-            seller_wallet,
+            provider_wallet,
             total_charge,
             settlement["platform_fee_total"],
-            settlement["seller_net"],
+            settlement["provider_net"],
             updated_credential,
         )
         error_code = exc.detail.get("code") if isinstance(exc.detail, dict) else None
@@ -541,7 +542,7 @@ async def _execute_invocation_pipeline(
             storage,
             trace_request_id,
             owner_wallet,
-            seller_wallet,
+            provider_wallet,
             service.service_id,
             settlement,
             error_code=error_code,
@@ -577,17 +578,17 @@ async def _execute_invocation_pipeline(
         await forwarding_billing.rollback_charge(
             storage,
             owner_wallet,
-            seller_wallet,
+            provider_wallet,
             total_charge,
             settlement["platform_fee_total"],
-            settlement["seller_net"],
+            settlement["provider_net"],
             updated_credential,
         )
         _log_upstream_failure(
             storage,
             trace_request_id,
             owner_wallet,
-            seller_wallet,
+            provider_wallet,
             service.service_id,
             settlement,
             error_message=str(exc),
@@ -647,7 +648,7 @@ async def _execute_invocation_pipeline(
             requestId=trace_request_id,
             serviceId=service.service_id,
             buyerAddress=owner_wallet,
-            sellerAddress=seller_wallet,
+            providerAddress=provider_wallet,
             status="succeeded",
             unitPrice=round(unit_price, 6),
             protocolFee=round(settlement["protocol_fee"], 6),
@@ -673,14 +674,14 @@ async def _execute_invocation_pipeline(
             "platformFee": settlement["protocol_fee"],
             "routingTax": settlement["routing_tax"],
             "platformFeeTotal": settlement["platform_fee_total"],
-            "sellerNet": settlement["seller_net"],
+            "providerNetAmount": settlement["provider_net"],
             "totalCharge": total_charge,
-            "buyerBalanceAfter": buyer_after,
+            "consumerAvailableBalanceAfter": consumer_after,
             "resultStatus": "success",
             "businessType": "charge",
         },
     )
-    return succeeded_invocation, buyer_after, settlement
+    return succeeded_invocation, consumer_after, settlement
 
 
 def _invocation_failure_status(error_code: Optional[str]) -> str:
@@ -921,7 +922,7 @@ def _log_upstream_failure(
     storage: BaseStorage,
     request_id: str,
     owner_wallet: str,
-    seller_wallet: str,
+    provider_wallet: str,
     service_id: str,
     settlement: Dict[str, float],
     error_code: Optional[str] = None,
@@ -930,8 +931,8 @@ def _log_upstream_failure(
     """Write one failed_upstream usage event with either error code or raw message."""
     row: Dict[str, Any] = {
         "request_id": request_id,
-        "buyer": owner_wallet,
-        "seller": seller_wallet,
+        "consumer": owner_wallet,
+        "provider": provider_wallet,
         "service_id": service_id,
         "status": "failed_upstream",
         "unit_price": settlement["unit_price"],
@@ -939,7 +940,7 @@ def _log_upstream_failure(
         "protocol_fee": settlement["protocol_fee"],
         "routing_tax": settlement["routing_tax"],
         "platform_fee_total": settlement["platform_fee_total"],
-        "seller_net": settlement["seller_net"],
+        "provider_net": settlement["provider_net"],
         "total_charge": settlement["total_charge"],
         "created_at": credential_service.now_ts(),
     }
@@ -969,7 +970,7 @@ async def generate_response_v2(
     request_payload = _request_payload(prompt)
     quote = _build_service_quote(service, credential, request_payload, unit_price)
     _persist_quote(storage, quote)
-    succeeded_invocation, buyer_after, settlement = await _execute_invocation_pipeline(
+    succeeded_invocation, consumer_after, settlement = await _execute_invocation_pipeline(
         storage,
         credential,
         service,
@@ -979,16 +980,22 @@ async def generate_response_v2(
         request_id,
     )
 
-    receipt = _build_buyer_receipt(
+    receipt = _build_consumer_receipt(
         request_id=request_id,
         quote_id=quote.quote_id,
         invocation_id=succeeded_invocation.invocation_id,
         service_id=service_id,
         unit_price=settlement["unit_price"],
         total_charge=settlement["total_charge"],
-        buyer_balance_after=buyer_after,
+        consumer_balance_after=consumer_after,
     )
-    return _build_buyer_success_response(receipt, succeeded_invocation.result.payload)
+    return _build_consumer_success_response(
+        receipt, succeeded_invocation.result.payload
+    )
+
+
+_build_buyer_receipt = _build_consumer_receipt
+_build_buyer_success_response = _build_consumer_success_response
 
 
 async def create_quote_v1(

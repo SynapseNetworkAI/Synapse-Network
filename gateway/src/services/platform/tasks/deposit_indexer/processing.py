@@ -152,7 +152,7 @@ def _apply_confirmed_balance_to_ledger(
     owner_wallet: str,
     event_key: str,
     confirmations: int,
-    buyers: Dict[str, float],
+    ledger: BalanceLedger,
     amount_usdc: float,
     now: int,
 ) -> Dict[str, Any]:
@@ -179,12 +179,13 @@ def _apply_confirmed_balance_to_ledger(
         fresh_ledger = _load_balance_ledger(storage)
         return {
             "result": "ok",
-            "next_balance": float(fresh_ledger.buyers.get(owner_wallet, 0.0) or 0.0),
+            "next_balance": fresh_ledger.consumer_available_balance(owner_wallet),
             "changedLedger": False,
         }
 
-    next_balance = round(float(buyers.get(owner_wallet, 0.0)) + amount_usdc, 6)
-    buyers[owner_wallet] = next_balance
+    consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
+    next_balance = round(float(consumer_wallet.available_balance or 0.0) + amount_usdc, 6)
+    consumer_wallet.available_balance = next_balance
     intent["status"] = "CONFIRMED"
     intent["creditedAmountUsdc"] = amount_usdc
     return {"result": "ok", "next_balance": next_balance}
@@ -197,7 +198,7 @@ def _apply_confirmed_deposit(
     context: Dict[str, Any],
     tx_state: Dict[str, Any],
     processed_keys: set[str],
-    buyers: Dict[str, float],
+    ledger: BalanceLedger,
     now: int,
 ) -> Dict[str, Any]:
     """把链上已确认的 deposit 应用到系统账本和审计。"""
@@ -223,7 +224,7 @@ def _apply_confirmed_deposit(
         owner_wallet=owner_wallet,
         event_key=event_key,
         confirmations=int(tx_receipt.get("confirmations") or 0),
-        buyers=buyers,
+        ledger=ledger,
         amount_usdc=amount_usdc,
         now=now,
     )
@@ -272,7 +273,7 @@ def _process_single_intent(
     storage: BaseStorage,
     intent: Dict[str, Any],
     processed_keys: set[str],
-    buyers: Dict[str, float],
+    ledger: BalanceLedger,
     now: int,
 ) -> Dict[str, Any]:
     """处理单条充值 intent 的状态推进。"""
@@ -305,7 +306,7 @@ def _process_single_intent(
         context=context,
         tx_state=tx_state,
         processed_keys=processed_keys,
-        buyers=buyers,
+        ledger=ledger,
         now=now,
     )
 

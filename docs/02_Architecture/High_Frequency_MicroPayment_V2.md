@@ -1,127 +1,147 @@
-# 顶配高频小额调用结算架构 V2（USDC 专属赛博金库）
+# Build-for-Agent High Frequency Micropayment V2
 
-> **目标**：在保留现有安全边界的前提下，让 Agent 高频、小金额调用具备更低延迟、更低链上成本、更高吞吐。全盘采取“低频上链充值金库 + 高频离链网关扣费 + 周期上链结算”，并融合 **ERC-2612 Permit 签名免 Gas 技术**，打造极致丝滑的单笔（一键）入金体验。
+> 目标：让 `Owner 入金 -> Agent 自主付费调用 -> Provider 收益沉淀 -> Owner 以 Provider 角色提现` 成为一条统一、低摩擦、可审计的资金与执行主路径。
 
-兄弟，咱们这套架构是目前 Web3 支付基建最优雅的杀器，绝不是什么草台班子！为了大马之行一剑封喉，全选最硬核也最合理的解法。
+## 1. 一句话架构
 
-## 1. 核心设计总览：赛博账本与金库分离
+Synapse 的核心范式是：
 
-咱们的商业命门在于：**账本中心化，资金去中心化。** 绝不能用私人钱包去收款！
+1. `Owner` 把 USDC 充进链上 Vault。
+2. `Platform Gateway` 在链下维护 append-only 账本与预算边界。
+3. `Agent` 在预算内自主完成 Discovery / Quote / Invoke。
+4. `Provider` 交付服务结果并累积 receivable。
+5. `Owner` 在 Provider 工作区里发起收益提现，平台对提现做风控和审核。
 
-- **资金进金库**：买家的所有存钱（Deposit），只流向公开透明的 `Vault (金库智能合约)`，平台（你）不直接碰钱。这叫“资金锁定（TVL）”，是获取 a16z 投资人青眼的核心。
-- **改数字不动钱（高频离链）**：AI 高频调用的每一笔微支付，只在 Python 网关数据库做离线减法。合约里的纯 USDC 分文未动。
-- **单一货币本位**：**只支持 USDC**。这是美国监管透明的华尔街正规军标配。干掉所有无意义的多币种换算碎片问题，系统极度干净。
+这套设计不追求“每次调用都上链付款”，而追求：
 
----
+1. 高频调用不碰链。
+2. 资金托管在链上。
+3. 账务结论在 PostgreSQL 账本中原子落地。
+4. 提现和退款统一走受控出金通道。
 
-## 2. 交互体验巅峰：结合 "Option B" (ERC-2612 Permit)
+## 2. 角色与资金边界
 
-传统 Web3 交互极其恶心：用户得先发送交易授权 (Approve)，然后付 Gas，再等待打包确认，最后点击充值 (Deposit) 再付一次 Gas。
-**我们现在直接上终极黑科技：ERC-2612 Permit (签名免 Gas 授权)。**
+### 2.1 Owner
 
-### 2.1 一键充值的极客流
-把 `Approve` 和 `Deposit` 合并成一次点击：
-1. **纯签名（不花钱跑链）**：买家在前端输入 500 USDC，点击“充值”。弹出的 MetaMask 不是在发交易，而是在请求离线签名 (Sign Message)。买家签署同意书：“我允许这个金库合约最多划走 500 USDC”。
-2. **带着签名去充钱（上链）**：前端拿到这张“手写条（签名证据）”，和充值金额合并，发送至我们智能合约的 `depositWithPermit` 接口。
-3. **极度丝滑入账**：仅花一次 Gas，一次点击过账。买家体验犹如 Web2，转化率拉满。
+Owner 是根租户身份，负责：
 
-### 2.2 Permit 存款链上逻辑简述
-智能合约代码极其干练：
-1. 调用 `USDC.permit(...)` 将买家给的签名进行验证，并立刻在其合约内部生成 Allowance。
-2. 紧接着在同一笔交易内调用 `USDC.transferFrom(...)` 将资金从买家安全划入金库。
-3. **放出大喇叭（Emit Event）**：转账成功时直接广播 `DepositInfo(buyer, amount)` 事件。这是后端的发令枪！
+1. 连接钱包并建立 session。
+2. 向 Vault 入金。
+3. 创建 Agent Profile 与 Credential。
+4. 配置 Budget Policy。
+5. 进入 Provider Workspace 运营服务和申请收益提现。
 
----
+### 2.2 Agent
 
-## 3. Python 后端的“顺风耳”（Indexer 监听网络）
+Agent 是运行时主体，负责：
 
-区块链不会主动去请求 HTTP 接口，必须要自己“听”。
-- 我们在后端跑一个轻量的 **Indexer 脚本（中继器/监听器）**。
-- 它时刻通过 RPC 节点盯着智能合约的一举一动。
-- 一旦监听到合约刚放出的 `DepositInfo` 事件，立马触发入账核算。
-- **数据库安全防重放入账**：记录该笔的 `TransactionHash` 到数据库防撞车（防重放攻击 Anti-Replay）；确认此前未处理过该 TxHash 后，立刻为其对应的账号 `Total_Budget`（总计储值卡额度）加上充值的数值！
+1. 发现服务。
+2. 请求报价。
+3. 发起调用。
+4. 消耗 Owner 授权给它的预算。
 
----
+### 2.3 Provider
 
-## 4. 离链网关：AI 的专属纯后财务管家
+Provider 不是独立账户体系，而是 Owner 的供给侧业务角色，负责：
 
-日常花销限制、API 调用扣钱的所有操作逻辑全在 Python Gateway 系统闭环完成。
+1. 注册 Service Manifest。
+2. 声明定价、输入输出契约、健康探测路径。
+3. 交付真实服务结果。
+4. 查看累计收益并申请提现。
 
-### 4.1 额度控制设计（历史累加制）
-给老板留审计流水，永远不从 0 算起。
-1. **总额度**：AI 疯狂调用消耗已花费 `Spent`，直到触及 `Total_Budget` 时网关熔断。老板后台补充额度后立刻恢复。
-2. **日限额（Daily Limit）**：防抽风极速阻断。比如 1 秒内发 10 个请求？没问题，Python 网关毫秒级累加 `Today_Spent`，超了瞬间切断。半夜定时脚本归零，不用出半毛钱 Gas。
+### 2.4 Platform
 
-### 4.2 离链账本 (Balance Ledger)
-网关数据库内部维护流动的切账循环：
-- `buyerBalance`：买家可用余额（随充值膨胀，随调用变小）。
-- `sellerReceivable`：卖家待提现资金池（比如抽走单笔的 99% 落进来）。
-- `platformFeeAccrued`：平台静静躺赢的抽水（那 1% 的平台营收）。
+Platform 是系统执行层，负责：
 
----
+1. 鉴权与 owner binding。
+2. 预算校验、限流、预扣费、回滚。
+3. Provider 路由、健康探测、防绕过认证。
+4. append-only 账本、审计、风控、清算。
 
-## 5. 高频离链扣费流程（极速闭环）
+## 3. 账本模型
 
-1. 用户请求 Seller API，携带 `Authorization` 与 `X-Agent-Credential`。
-2. 中心化网关校验拦截：
-   - Token 没过期且一切额度合规通过。
-   - `buyerBalance` 依然买得起这笔调用的单价。
-3. 放行请求到业务接口。
-4. 调用成功后，固化扣费记录：离线完成极其细微的加减账结算和归属拆分！完全屏蔽了传统重复上链的成本。
+目标态账本不再用“账户情绪角色”记账，而用 `owner + bucket + business event` 记账。
 
----
+统一资金桶：
 
-## 6. 终极一问：平台的钱，什么时候真拿进兜里？
+1. `consumer_available`
+2. `consumer_pending`
+3. `consumer_frozen`
+4. `provider_receivable`
+5. `provider_locked`
+6. `platform_fee`
 
-不要搬运资金，只做最顶级的“账本管理员”。既然账已经定死了归属：
+统一业务事件：
 
-- **沉淀资金池叙事（TVL）**：钱只要没被提走，都在合约里待着，这都是将来吸引投资人和打出名气的核心“总锁仓量”。
-- **针对平台抽成定期取（方案 B 优先）**：作为 CTO（合约 Owner），定期点一下 `withdrawPlatformFees(amount)`，把积累了一万多笔单次 0.01 抽成的零钱，直接聚合为一大笔转进你硬件冷钱包里的安全账户。
-- **卖家一键结款**：卖家自己走前端发起附带我们网关准许签名的提现要求，金库按我们后端算好的对账单给他们实打实发 U。
+1. `deposit_registered`
+2. `deposit_confirmed`
+3. `invoke_reserved`
+4. `invoke_captured`
+5. `refund_requested`
+6. `refund_completed`
+7. `provider_earning_accrued`
+8. `provider_withdraw_requested`
+9. `provider_withdraw_reviewed`
+10. `provider_withdraw_completed`
 
----
+## 4. 主流程
 
-## 7. 出入金与资金出口设计（资金流转闭环）
+### 4.1 Owner 入金
 
-在咱们的架构里，钱一旦进了智能合约，想让它出来（无论是平台提取利润、卖家提现，还是买家退款），都必须遵循**“凭票取现（Signature Verification）”**的铁律。既要确保绝对安全（纯靠密码学防黑客），又要明确**提款的 Gas 费由提取方（用户）承担**，平台实现零手续费磨损。
+1. Owner 在前端完成 Permit 或等价签名授权。
+2. Vault 合约接收 USDC，链上发出 Deposit 事件。
+3. Gateway Indexer 识别唯一 `tx_hash`，把金额先记入 `consumer_pending`。
+4. 达到确认阈值后，再把金额从 `consumer_pending -> consumer_available`。
 
-### 7.1 入金全流程（Buyer Deposit）
-**核心：一键授权 + 离线计费**
-1. **买家前端的一键充值**：基于 `ERC-2612 Permit`，买家在前端签名并支付单次 Gas 费（将授权与转账合并），USDC 被安全锁入金库合约（Vault）。
-2. **中心化账本加额度**：后台 Python Indexer 监听到链上的 `DepositInfo` 发令枪后，立刻为该用户的离线账本 `buyerBalance` 增加对应余额。这笔 USDC 原封不动地留在金库里作为 TVL（总锁仓量）。
+### 4.2 Agent 自主付费调用
 
-### 7.2 买家退款与卖家提现（资金流出：赛博银票）
-无论是买家想退回剩余没花完的 USDC（Refund），还是卖家赚了对应的 USDC 想要变现（Claim），底层逻辑都是相同的：“平台开银票，用户自己上链取钱并付 Gas”。
+1. Agent 带着 `Agent Credential` 发起 Discovery / Quote / Invoke。
+2. Gateway 基于 owner scope、credential 状态、budget policy、service policy 做校验。
+3. 平台先做预算预占或价格确认，再执行上游调用。
+4. 调用成功后，一次事务内完成：
+   - `consumer_available` 扣减
+   - `provider_receivable` 增加
+   - `platform_fee` 增加
+   - invocation / ledger / audit 一次性落库
+5. 调用失败则释放预占，不允许留下半笔账。
 
-**基于 EIP-712 验签的提现流：**
-1. **后端“开银票”（链下，极速出票）**：
-   - 用户在系统前端点击【提取 X USDC】。
-   - Python 网关校验数据库，确认该用户可用账本里确实有 X 余额。
-   - **核心签发**：后端使用平台的高权限私钥（Owner Private Key），并结合提现人的地址、提取金额、唯一的序号（Nonce），生成一段**不可伪造的加密签名（Signature）**。
-   - 后端随即将数据库里的那部分余额清零/冻结，并把签名 HTTP 返回给前端。
-2. **用户拿着银票上链取钱（链上，用户付 Gas）**：
-   - 网页前端拿到签名，唤起用户的 MetaMask 钱包。
-   - 用户**自己发起一笔上链交易并支付 Gas**，调用智能合约的 `withdraw(amount, nonce, signature)` 方法。
-   - **智能合约验证 (Code is Law)**：合约内置密码学算法现场验证 `signature`。验证签名是否出自平台 Boss？金额对不对？买家地址对不对？编号是否用过？
-   - 验证通过后，合约自动执行 `USDC.transfer(user, amount)`，把纯正的 USDC 退回提现方钱包。
+### 4.3 Provider 收益沉淀
 
-**优势**：买家看公开代码极其放心（签发即一定吐钱），无扯皮空间；平台方一分钱 Gas 都不用掏。
+1. Provider 真实交付后，收益先沉淀到 `provider_receivable`。
+2. 这笔钱仍然处于平台账本控制下，不会立即链上转出。
+3. Provider Workspace 展示的是 receivable、withdrawable、locked、review status，而不是一条裸余额。
 
-### 7.3 平台如何取款（结算手续费）
-在每一次 API 调用中，平台都在进行抽水分润（累加 `platformFeeAccrued`）。提取这些利润建议有两套路线：
+### 4.4 Owner 以 Provider 角色提现
 
-1. **“顺手牵羊”搭便车法（极度推荐，0 Gas）**：
-   - 当卖家发起提现（Claim）时，比如需提取 100 U。
-   - 合约底层可以写成分账逻辑：“验证平台签名后，给卖家转 99 U，顺便给平台（Owner 冷钱包）转 1 U”。
-   - **神级好处**：平台将这笔利润提取的 Gas 费不费吹灰之力地分摊给了提现的用户，实现真正的“绝对躺赚”。
-2. **最高管理员集中收割（管理员后门）**：
-   - 合约保留 `withdrawPlatformFees(uint256 amount) onlyOwner` 的高级特权函数。
-   - 老板定期切到自己的管理员钱包，发起调用，一把将日积月累的安全抽水全提入自己的硬件冷钱包（通常由自己出少量 Gas）。
-   - **代码隔离**：为了证明不作恶（Don't be evil），合约里需通过内部算术状态变量，确保 Owner 只能拿走“利润记录池”部分的钱，绝对无法触碰普通用户的“本金”。
+1. 同一个 Owner 进入 Provider Workspace 发起提现。
+2. 平台只允许从 `provider_receivable` 或 `provider_locked` 相关桶出金，不触碰消费侧桶。
+3. 风控引擎根据金额、频率、账户年龄、净收入沉淀、地址风险、流动性状态给出 `green / yellow / red` 决策。
+4. `green` 走自动签发，`yellow` 进入人工审核，`red` 直接拒绝并告警。
 
----
+## 5. 为什么同一个 Owner 可以同时消费和供给
 
-## 一句话总结打法路线图 🚀
+因为平台看的是账本桶，不是“这个钱包此刻像不像调用方”。
 
-我们的终极核心护城河是：**单币本位（USDC） + "极客免 Gas 的 Permit 签发一键充值" + "毫秒级的高频离线扣款记账" + "按需凭票取现清算"**。
-这套范式杜绝了一切人为扯皮，纯靠密码学和数学维持信任。它彻底打通了重度交互中对开发者与消费者双方最大的痛点，这才是大马黑客酒会上最闪亮的 Web3 金融红蓝对抗级 Infra 级架构！
+同一个 Owner 可以同时拥有：
+
+1. Agent / Consumer Workspace
+2. Provider Workspace
+3. 多个 Agent Runtime
+
+只要三件事是分离的，就不会打架：
+
+1. `owner scope` 一致
+2. `ledger bucket` 分离
+3. `business action` 明确
+
+## 6. 核心工程铁律
+
+1. 合约只做 Vault，不做高频预算和并发控制。
+2. 高频结算必须在后端事务中完成，不能靠内存快照拼装。
+3. 任何资金变动都必须伴随 ledger entry + audit event。
+4. 幂等键、唯一索引、行级锁、风控状态必须同时存在。
+5. Provider 提现不是“余额导出”，而是受风控和流动性约束的出金动作。
+
+## 7. 设计结论
+
+build-for-agent 的北极星不是“让人类点更多按钮”，而是让 Agent 在 Owner 授权边界内完成首次自主付费调用，同时让 Provider 收益、退款、审计、提现全部回到同一套 Owner-rooted 账务体系。

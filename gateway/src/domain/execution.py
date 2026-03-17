@@ -122,7 +122,7 @@ class DepositIntentConfirmCommand:
 
 @dataclass(frozen=True)
 class WithdrawalAtomicRequestCommand:
-    seller_address: str
+    provider_address: str
     amount_usdc: Decimal
     request_id: str
     idempotency_key: str
@@ -133,6 +133,10 @@ class WithdrawalAtomicRequestCommand:
     high_risk_override: bool
     sign_ticket_factory: Optional[Callable[[Decimal], PreparedWithdrawTicket]] = None
 
+    @property
+    def seller_address(self) -> str:
+        return self.provider_address
+
 
 @dataclass(frozen=True)
 class CompleteWithdrawTxCommand:
@@ -142,6 +146,6 @@ class CompleteWithdrawTxCommand:
 
 
 @dataclass(frozen=True)
-class ReserveSellerWithdrawCommand:
+class ReserveProviderWithdrawCommand:
     owner_wallet: str
     amount_usdc: Decimal

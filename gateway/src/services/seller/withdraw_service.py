@@ -12,7 +12,7 @@ from src.core.redis_lock import RedisLockManager
 from src.domain.execution import (
     CompleteWithdrawTxCommand,
     PreparedWithdrawTicket,
-    ReserveSellerWithdrawCommand,
+    ReserveProviderWithdrawCommand,
     WithdrawalAtomicRequestCommand,
     WithdrawalDecision,
 )
@@ -37,13 +37,13 @@ ACTIVE_WITHDRAWAL_STATUSES = {
     "PENDING_MANUAL_REVIEW",
     "PENDING",
 }
-INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds seller receivable."
+INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds provider receivable."
 
 
-class SellerWithdrawService(
+class ProviderWithdrawService(
     BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin
 ):
-    """Seller-side withdrawal domain service."""
+    """Provider-side withdrawal domain service."""
 
     def __init__(
         self,
@@ -152,8 +152,8 @@ class SellerWithdrawService(
                 raise HTTPException(
                     status_code=400,
                     detail={
-                        "code": "INSUFFICIENT_SELLER_RECEIVABLE",
-                        "message": "No seller receivable available for withdrawal.",
+                        "code": "INSUFFICIENT_PROVIDER_RECEIVABLE",
+                        "message": "No provider receivable available for withdrawal.",
                     },
                 )
             return round(available, 6)
@@ -180,7 +180,7 @@ class SellerWithdrawService(
             raise HTTPException(
                 status_code=400,
                 detail={
-                    "code": "INSUFFICIENT_SELLER_RECEIVABLE",
+                    "code": "INSUFFICIENT_PROVIDER_RECEIVABLE",
                     "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
                 },
             )
@@ -289,31 +289,40 @@ class SellerWithdrawService(
 
     def _consume_locked_withdraw_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
-        locked = round(float(ledger.sellers_locked.get(owner, 0.0)), 6)
+        provider_wallet = ledger.ensure_provider_wallet(owner)
+        locked = round(float(provider_wallet.pending_balance or 0.0), 6)
         if locked + 1e-9 < amount_usdc:
             raise HTTPException(
                 status_code=409,
                 detail={
                     "code": "WITHDRAWAL_LOCK_INCONSISTENT",
-                    "message": "Locked seller receivable is insufficient for this withdrawal intent.",
+                    "message": "Locked provider receivable is insufficient for this withdrawal intent.",
                 },
             )
-        ledger.sellers_locked[owner] = round(max(0.0, locked - amount_usdc), 6)
+        provider_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
     def _reserve_withdraw_amount(
         self, owner: str, amount_usdc: float, ledger: BalanceLedger
     ) -> None:
-        ledger.sellers[owner] = round(
-            float(ledger.sellers.get(owner, 0.0)) - amount_usdc, 6
+        provider_wallet = ledger.ensure_provider_wallet(owner)
+        provider_wallet.available_balance = round(
+            float(provider_wallet.available_balance or 0.0) - amount_usdc, 6
         )
-        ledger.sellers_locked[owner] = round(
-            float(ledger.sellers_locked.get(owner, 0.0)) + amount_usdc, 6
+        provider_wallet.pending_balance = round(
+            float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6
         )
-        if hasattr(self.storage, "reserve_seller_withdraw_atomic"):
+        if hasattr(self.storage, "reserve_provider_withdraw_atomic") or hasattr(
+            self.storage, "reserve_seller_withdraw_atomic"
+        ):
             try:
-                getattr(self.storage, "reserve_seller_withdraw_atomic")(
-                    ReserveSellerWithdrawCommand(
+                reserve_atomic = getattr(
+                    self.storage,
+                    "reserve_provider_withdraw_atomic",
+                    getattr(self.storage, "reserve_seller_withdraw_atomic"),
+                )
+                reserve_atomic(
+                    ReserveProviderWithdrawCommand(
                         owner_wallet=owner,
                         amount_usdc=Decimal(str(amount_usdc)).quantize(
                             Decimal("0.000001"), rounding=ROUND_HALF_UP
@@ -321,11 +330,11 @@ class SellerWithdrawService(
                     )
                 )
             except RuntimeError as exc:
-                if str(exc) == "INSUFFICIENT_SELLER_RECEIVABLE":
+                if str(exc) == "INSUFFICIENT_PROVIDER_RECEIVABLE":
                     raise HTTPException(
                         status_code=400,
                         detail={
-                            "code": "INSUFFICIENT_SELLER_RECEIVABLE",
+                            "code": "INSUFFICIENT_PROVIDER_RECEIVABLE",
                             "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
                         },
                     )
@@ -410,14 +419,14 @@ class SellerWithdrawService(
         if not hasattr(self.storage, "process_withdrawal_request_atomic"):
             raise RuntimeError("WITHDRAWAL_ATOMIC_NOT_SUPPORTED")
 
-        owner = normalize_wallet(command.seller_address)
+        owner = normalize_wallet(command.provider_address)
         high_risk_override = owner in settings.withdrawal_high_risk_seller_addresses
         window_seconds = command.window_seconds
 
         try:
             return getattr(self.storage, "process_withdrawal_request_atomic")(
                 WithdrawalAtomicRequestCommand(
-                    seller_address=owner,
+                    provider_address=owner,
                     amount_usdc=command.amount_usdc,
                     request_id=command.request_id,
                     idempotency_key=command.idempotency_key,
@@ -433,11 +442,11 @@ class SellerWithdrawService(
             )
         except RuntimeError as exc:
             code = str(exc)
-            if code == "INSUFFICIENT_SELLER_RECEIVABLE":
+            if code == "INSUFFICIENT_PROVIDER_RECEIVABLE":
                 raise HTTPException(
                     status_code=400,
                     detail={
-                        "code": "INSUFFICIENT_SELLER_RECEIVABLE",
+                        "code": "INSUFFICIENT_PROVIDER_RECEIVABLE",
                         "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
                     },
                 )
@@ -465,7 +474,7 @@ class SellerWithdrawService(
         request_id = str((request_meta or {}).get("requestId") or str(uuid4()))
         atomic_result = self.process_withdrawal_request(
             WithdrawalAtomicRequestCommand(
-                seller_address=owner,
+                provider_address=owner,
                 amount_usdc=Decimal(str(amount_usdc)).quantize(
                     Decimal("0.000001"), rounding=ROUND_HALF_UP
                 ),
@@ -627,7 +636,7 @@ class SellerWithdrawService(
             )
 
             ledger = self._load_balance_ledger()
-            available_receivable = round(float(ledger.sellers.get(owner, 0.0)), 6)
+            available_receivable = ledger.provider_receivable_balance(owner)
             context = self._build_withdraw_create_context(
                 owner=owner,
                 payload=payload,
@@ -796,3 +805,6 @@ class SellerWithdrawService(
                 "status": "COMPLETED",
                 "txHash": normalized_tx_hash,
             }
+
+
+SellerWithdrawService = ProviderWithdrawService

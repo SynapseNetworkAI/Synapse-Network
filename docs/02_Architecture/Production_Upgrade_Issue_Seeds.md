@@ -27,7 +27,7 @@
 - Title: [Prod Task] Enforce atomic transaction for debit-credit-ledger write path
 - Suggested Labels: production, billing, transaction, p0
 - Description:
-  - Ensure buyer debit, seller credit, and ledger entry execute in one DB transaction.
+  - Ensure consumer debit, provider receivable credit, and ledger entry execute in one DB transaction.
   - Any failure in sub-step must rollback full transaction.
 - Acceptance Criteria:
   - Single transaction boundary implemented and code-reviewed.

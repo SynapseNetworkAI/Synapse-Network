@@ -16,7 +16,7 @@ from src.api.schemas.pydantic_models import (
     ProviderWithdrawCompleteRequest,
 )
 from src.services.platform.balance_service import BalanceService
-from src.services.seller.provider_analytics_service import ProviderAnalyticsService
+from src.services.provider.provider_analytics_service import ProviderAnalyticsService
 from src.services.platform import credential_service
 from src.services.platform.tasks.deposit_indexer import (
     get_indexer_status,

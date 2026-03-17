@@ -26,7 +26,7 @@ from src.domain.service_contract import (
 from src import app as gateway_app
 from src.services.buyer import forwarding_billing, forwarding_service, forwarding_upstream
 from src.services.platform import credential_service
-from src.services.seller.registry_service import RegistryService
+from src.services.provider.registry_service import RegistryService
 
 
 class InMemoryBalanceRepo:
@@ -336,7 +336,7 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
 ) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
-    storage.balance.ledger.buyers["0xabc"] = 10.0
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
     monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
@@ -366,7 +366,7 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert receipt["serviceId"] == "svc.echo"
     assert receipt["serviceUnitPrice"] == pytest.approx(1.2)
     assert receipt["totalCharge"] == pytest.approx(1.25)
-    assert receipt["buyerBalanceAfter"] == pytest.approx(8.75)
+    assert receipt["consumerAvailableBalanceAfter"] == pytest.approx(8.75)
 
     assert response["payload"]["data"]["result"] == {
         "answer": "pong",
@@ -385,8 +385,8 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.gateway_state.usage_rows[0].id == receipt["invocationId"]
     assert storage.gateway_state.usage_rows[0].request_id == "req-typed-001"
 
-    assert storage.balance.ledger.buyers["0xabc"] == pytest.approx(8.75)
-    assert storage.balance.ledger.sellers["0xdef"] == pytest.approx(1.08)
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == pytest.approx(8.75)
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == pytest.approx(1.08)
     assert storage.balance.ledger.platform.fee_accrued == pytest.approx(0.17)
 
     assert len(storage.audit.rows) == 1
@@ -401,7 +401,7 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
 def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
-    storage.balance.ledger.buyers["0xabc"] = 10.0
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
     monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
@@ -483,7 +483,7 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
 def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
-    storage.balance.ledger.buyers["0xabc"] = 10.0
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
     registry_service = RegistryService(storage)
 
     monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
@@ -543,7 +543,7 @@ def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypa
 def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
-    storage.balance.ledger.buyers["0xabc"] = 10.0
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
     monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)

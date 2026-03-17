@@ -9,7 +9,7 @@ from src.core.common import normalize_wallet
 from src.domain.identity import RuntimeCredentialRecord
 from src.domain.runtime_state import AuthSessionState, WalletRoleState
 from src.services.platform import credential_service
-from src.services.seller import secret_service
+from src.services.provider import secret_service
 
 
 class InMemoryCredentialAuthRepository:
@@ -113,11 +113,11 @@ def test_buyer_credential_service_uses_runtime_models() -> None:
     assert len(storage.audit_logs.rows) == 3
 
 
-def test_seller_secret_service_uses_runtime_models() -> None:
+def test_provider_secret_service_uses_runtime_models() -> None:
     storage = FakeStorage()
 
     issued = asyncio.run(
-        secret_service.issue_seller_secret_for_owner(
+        secret_service.issue_provider_secret_for_owner(
             storage,
             "0xDEF",
             CredentialIssueRequest(
@@ -133,20 +133,20 @@ def test_seller_secret_service_uses_runtime_models() -> None:
     assert issued["status"] == "success"
     assert issued["secret"]["ownerAddress"] == "0xDEF"
 
-    rows = secret_service.load_seller_secret_rows(storage)
+    rows = secret_service.load_provider_secret_rows(storage)
     assert len(rows) == 1
     assert isinstance(rows[0], RuntimeCredentialRecord)
     assert rows[0].metadata.credential_type == "seller"
 
-    visible = secret_service.list_seller_secrets_by_owner(storage, "0xdef")
+    visible = secret_service.list_provider_secrets_by_owner(storage, "0xdef")
     assert len(visible) == 1
     assert visible[0]["name"] == "Seller Key"
     assert visible[0]["rpm"] == 12
 
     deleted = asyncio.run(
-        secret_service.revoke_seller_secret_for_owner(
+        secret_service.revoke_provider_secret_for_owner(
             storage, "0xdef", rows[0].credential.credential_id
         )
     )
     assert deleted["status"] == "success"
-    assert secret_service.list_seller_secrets_by_owner(storage, "0xdef") == []
+    assert secret_service.list_provider_secrets_by_owner(storage, "0xdef") == []

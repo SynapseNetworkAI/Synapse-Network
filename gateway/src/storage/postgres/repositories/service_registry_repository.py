@@ -82,8 +82,8 @@ class ServiceRegistryRepository:
         return f"owner:{str(wallet or '').lower()}"
 
     @staticmethod
-    def _seller_id(wallet: str) -> str:
-        return f"seller:{str(wallet or '').lower()}"
+    def _provider_id(wallet: str) -> str:
+        return f"provider:{str(wallet or '').lower()}"
 
     @staticmethod
     def _endpoint_id(service_id: str, endpoint_url: str, index: int) -> str:
@@ -108,10 +108,10 @@ class ServiceRegistryRepository:
             return None
         return round(max(0, int(successes or 0)) / total, 6)
 
-    def _ensure_owner_and_seller(self, cur: Any, owner_wallet: str, display_name: str | None) -> str:
+    def _ensure_owner_and_provider(self, cur: Any, owner_wallet: str, display_name: str | None) -> tuple[str, str]:
         wallet = str(owner_wallet or "").lower()
         owner_id = self._owner_id(wallet)
-        seller_id = self._seller_id(wallet)
+        provider_id = self._provider_id(wallet)
         cur.execute(
             """
             INSERT INTO synapse_owner_accounts (
@@ -124,24 +124,24 @@ class ServiceRegistryRepository:
         )
         cur.execute(
             """
-            INSERT INTO synapse_seller_profiles (
-                seller_id, owner_wallet, display_name, status, created_at, updated_at
+            INSERT INTO synapse_provider_profiles (
+                provider_id, owner_id, display_name, status, created_at, updated_at
             ) VALUES (%s, %s, %s, 'active', %s, %s)
-            ON CONFLICT (seller_id)
+            ON CONFLICT (provider_id)
             DO UPDATE SET
-                owner_wallet = EXCLUDED.owner_wallet,
+                owner_id = EXCLUDED.owner_id,
                 display_name = EXCLUDED.display_name,
                 updated_at = EXCLUDED.updated_at
             """,
             (
-                seller_id,
-                wallet,
+                provider_id,
+                owner_id,
                 (display_name or wallet).strip() or wallet,
                 now_dt_str(),
                 now_dt_str(),
             ),
         )
-        return seller_id
+        return owner_id, provider_id
 
     def _upsert_runtime_state(self, cur: Any, state_key: str, payload: dict[str, Any], updated_at: str | None = None) -> None:
         cur.execute(
@@ -317,18 +317,24 @@ class ServiceRegistryRepository:
         return (to_dt_str(row.created_at, now_dt_str()), to_dt_str(row.updated_at, now_dt_str()))
 
     def _insert_service_manifest(
-        self, cur: Any, row: ServiceDefinitionRecord, seller_id: str, created_at: str, updated_at: str
+        self,
+        cur: Any,
+        row: ServiceDefinitionRecord,
+        owner_id: str,
+        provider_id: str,
+        created_at: str,
+        updated_at: str,
     ) -> None:
         cur.execute(
             """
             INSERT INTO synapse_service_manifests (
-                service_id, seller_id, service_name, manifest_version, status,
+                service_id, owner_id, provider_id, service_name, manifest_version, status,
                 description_for_model, task_category, capabilities_json,
                 input_schema, output_schema, examples_json, limitations_json,
                 price_model, base_price_usdc, quote_required,
                 settlement_currency, created_at, updated_at
             ) VALUES (
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 %s, %s, %s::jsonb,
                 '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb,
                 'fixed', %s, TRUE,
@@ -337,7 +343,8 @@ class ServiceRegistryRepository:
             """,
             (
                 row.service_id,
-                seller_id,
+                owner_id,
+                provider_id,
                 row.service_name,
                 str(row.schema_version or 1),
                 row.status or ("active" if row.is_active else "paused"),
@@ -428,9 +435,13 @@ class ServiceRegistryRepository:
         )
 
     def _persist_service_row(self, cur: Any, row: ServiceDefinitionRecord) -> None:
-        seller_id = self._ensure_owner_and_seller(cur, row.owner_address, row.service_name)
+        owner_id, provider_id = self._ensure_owner_and_provider(
+            cur, row.owner_address, row.service_name
+        )
         created_at, updated_at = self._manifest_timestamps(row)
-        self._insert_service_manifest(cur, row, seller_id, created_at, updated_at)
+        self._insert_service_manifest(
+            cur, row, owner_id, provider_id, created_at, updated_at
+        )
         self._insert_service_endpoints(cur, row, created_at, updated_at)
         self._insert_search_index(cur, row, updated_at)
         self._upsert_runtime_state(
@@ -521,7 +532,7 @@ class ServiceRegistryRepository:
                 """
                 SELECT
                     sm.service_id,
-                    sp.owner_wallet,
+                    oa.owner_wallet,
                     sm.service_name,
                     sm.description_for_model,
                     ep.endpoint_url,
@@ -538,7 +549,7 @@ class ServiceRegistryRepository:
                     ep.max_payload_bytes,
                     ep.endpoint_id
                 FROM synapse_service_manifests AS sm
-                INNER JOIN synapse_seller_profiles AS sp ON sp.seller_id = sm.seller_id
+                INNER JOIN synapse_owner_accounts AS oa ON oa.owner_id = sm.owner_id
                 LEFT JOIN LATERAL (
                     SELECT endpoint_id, endpoint_url, timeout_ms, status, max_payload_bytes
                     FROM synapse_service_endpoints
@@ -573,7 +584,7 @@ class ServiceRegistryRepository:
                 """
                 SELECT
                     sh.service_id,
-                    sp.owner_wallet,
+                    oa.owner_wallet,
                     ep.endpoint_url,
                     rs.payload,
                     sh.health_score,
@@ -583,7 +594,7 @@ class ServiceRegistryRepository:
                     sh.error_code
                 FROM synapse_service_health_snapshots AS sh
                 INNER JOIN synapse_service_manifests AS sm ON sm.service_id = sh.service_id
-                INNER JOIN synapse_seller_profiles AS sp ON sp.seller_id = sm.seller_id
+                INNER JOIN synapse_owner_accounts AS oa ON oa.owner_id = sm.owner_id
                 INNER JOIN synapse_service_endpoints AS ep ON ep.endpoint_id = sh.endpoint_id
                 LEFT JOIN synapse_runtime_state AS rs
                     ON rs.state_key = CONCAT('service_health_meta::', sh.service_id, '::', ep.endpoint_url)

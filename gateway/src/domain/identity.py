@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from src.domain.runtime_state import CredentialMetadataState
 
@@ -19,28 +19,27 @@ class OwnerAccountRecord(BaseModel):
     updated_at: str = Field(default="", alias="updatedAt")
 
 
-class SellerProfileRecord(BaseModel):
+class ProviderProfileRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    seller_id: str = Field(alias="sellerId")
+    provider_id: str = Field(
+        validation_alias=AliasChoices("providerId", "sellerId"),
+        serialization_alias="providerId",
+    )
+    owner_id: str = Field(alias="ownerId")
     owner_wallet: str = Field(alias="ownerWallet")
     display_name: str = Field(alias="displayName")
     status: Literal["active", "paused", "archived"] = "active"
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 
+    @property
+    def seller_id(self) -> str:
+        return self.provider_id
 
-class PayoutAccountRecord(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    payout_account_id: str = Field(alias="payoutAccountId")
-    seller_id: str = Field(alias="sellerId")
-    payout_address: str = Field(alias="payoutAddress")
-    chain_id: int = Field(alias="chainId")
-    settlement_currency: str = Field(default="USDC", alias="settlementCurrency")
-    status: Literal["active", "paused", "archived"] = "active"
-    created_at: str = Field(default="", alias="createdAt")
-    updated_at: str = Field(default="", alias="updatedAt")
+    @seller_id.setter
+    def seller_id(self, value: str) -> None:
+        self.provider_id = value
 
 
 class AgentProfileRecord(BaseModel):

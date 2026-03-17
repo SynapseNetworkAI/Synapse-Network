@@ -26,14 +26,14 @@ from src.domain.execution import (
     CompleteWithdrawTxCommand,
     DepositIntentConfirmCommand,
     DepositIntentRegisterCommand,
-    ReserveSellerWithdrawCommand,
+    ReserveProviderWithdrawCommand,
     WithdrawalAtomicRequestCommand,
     WithdrawalDecision,
 )
 from src.domain.finance import (
     BalanceMutationResult,
     BuyerChargeResult,
-    ChargeBuyerUsageCommand,
+    ChargeConsumerUsageCommand,
     DepositAttemptRow,
     UsageLogRow,
 )
@@ -270,18 +270,29 @@ class PostgresStorage(BaseStorage):
     ) -> DepositAttemptRow:
         return self._deposit_attempts.upsert_attempt(attempt_row)
 
-    def charge_buyer_and_record_usage_atomic(
+    def charge_consumer_and_record_usage_atomic(
         self,
-        command: ChargeBuyerUsageCommand,
+        command: ChargeConsumerUsageCommand,
     ) -> BuyerChargeResult:
-        return self._data_manager.finance.atomic.charge_buyer_and_record_usage_atomic(
+        return self._data_manager.finance.atomic.charge_consumer_and_record_usage_atomic(
             command
         )
 
-    def reserve_seller_withdraw_atomic(
-        self, command: ReserveSellerWithdrawCommand
+    def charge_buyer_and_record_usage_atomic(
+        self,
+        command: ChargeConsumerUsageCommand,
+    ) -> BuyerChargeResult:
+        return self.charge_consumer_and_record_usage_atomic(command)
+
+    def reserve_provider_withdraw_atomic(
+        self, command: ReserveProviderWithdrawCommand
     ) -> BalanceMutationResult:
-        return self._data_manager.finance.atomic.reserve_seller_withdraw_atomic(command)
+        return self._data_manager.finance.atomic.reserve_provider_withdraw_atomic(command)
+
+    def reserve_seller_withdraw_atomic(
+        self, command: ReserveProviderWithdrawCommand
+    ) -> BalanceMutationResult:
+        return self.reserve_provider_withdraw_atomic(command)
 
     def read_audit_rows(
         self, owner_wallet: Optional[str] = None, limit: int = 200

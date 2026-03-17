@@ -22,7 +22,7 @@ from src.domain.execution import (
     DepositIntentRegisterCommand,
     InvocationRecord,
     PreparedWithdrawTicket,
-    ReserveSellerWithdrawCommand,
+    ReserveProviderWithdrawCommand,
     ServiceQuoteRecord,
     WithdrawalAtomicRequestCommand,
 )
@@ -30,7 +30,7 @@ from src.domain.service_contract import ServiceDefinitionRecord
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.gateway import RouterConfigRow
 from src.domain.finance import (
-    ChargeBuyerUsageCommand,
+    ChargeConsumerUsageCommand,
     DepositAttemptRow,
     RefundIntentRow,
     UsageLogRow,
@@ -293,8 +293,8 @@ def test_balance_repository_read_and_write() -> None:
         {
             "fetchall": [
                 [
-                    ("0xbuyer", "owner_vault", Decimal("10"), Decimal("1"), Decimal("2"), 100),
-                    ("0xseller", "seller_receivable", Decimal("20"), Decimal("3"), Decimal("4"), 110),
+                    ("0xbuyer", "consumer_wallet", Decimal("10"), Decimal("1"), Decimal("2"), 100),
+                    ("0xseller", "provider_wallet", Decimal("20"), Decimal("3"), Decimal("4"), 110),
                     ("__platform__", "platform_revenue", Decimal("0.5"), Decimal("0"), Decimal("0"), 120),
                 ]
             ]
@@ -303,20 +303,35 @@ def test_balance_repository_read_and_write() -> None:
     repo = BalanceRepository(db, _q6, "UPSERT")
 
     ledger = repo.read_balance_ledger()
-    assert abs(ledger.buyers["0xbuyer"] - 10.0) < 1e-9
-    assert abs(ledger.sellers["0xseller"] - 20.0) < 1e-9
+    assert abs(ledger.consumer_available_balance("0xbuyer") - 10.0) < 1e-9
+    assert abs(ledger.provider_receivable_balance("0xseller") - 20.0) < 1e-9
     assert abs(ledger.platform.fee_accrued - 0.5) < 1e-9
     assert ledger.updated_at == "1970-01-01 00:02:00"
 
-    from src.domain.finance import BalanceLedger, PlatformFees
+    from src.domain.finance import (
+        BalanceLedger,
+        ConsumerWalletRecord,
+        PlatformFees,
+        ProviderWalletRecord,
+    )
     repo.write_balance_ledger(
         BalanceLedger(
-            buyers={"0xB": 1},
-            buyers_locked={"0xB": 2},
-            buyers_frozen={"0xB": 3},
-            sellers={"0xS": 4},
-            sellers_locked={"0xS": 5},
-            sellers_frozen={"0xS": 6},
+            consumerWallets=[
+                ConsumerWalletRecord(
+                    ownerAddress="0xB",
+                    availableBalance=1,
+                    pendingBalance=2,
+                    frozenBalance=3,
+                )
+            ],
+            providerWallets=[
+                ProviderWalletRecord(
+                    ownerAddress="0xS",
+                    availableBalance=4,
+                    pendingBalance=5,
+                    frozenBalance=6,
+                )
+            ],
             platform=PlatformFees(fee_accrued=7),
             updated_at="2026-03-15 14:24:30",
         )
@@ -325,8 +340,8 @@ def test_balance_repository_read_and_write() -> None:
     assert "UPDATE synapse_account_balances AS ab" in ops[0][0]
     upserts = [params for sql, params in ops if sql == "UPSERT"]
     assert len(upserts) == 3
-    assert any(params[0] == "owner_vault::0xb" for params in upserts)
-    assert any(params[0] == "seller_receivable::0xs" for params in upserts)
+    assert any(params[0] == "consumer_wallet::0xb" for params in upserts)
+    assert any(params[0] == "provider_wallet::0xs" for params in upserts)
     assert any(params[0] == "platform_revenue::main" for params in upserts)
 
 
@@ -879,8 +894,8 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
         ("restricted", "suspended", "blocked"),
     )
 
-    result = repo.reserve_seller_withdraw_atomic(
-        ReserveSellerWithdrawCommand(
+    result = repo.reserve_provider_withdraw_atomic(
+        ReserveProviderWithdrawCommand(
             owner_wallet="0xabc",
             amount_usdc=Decimal("2"),
         )
@@ -896,7 +911,7 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
         CompleteWithdrawTxCommand(
             owner_wallet="0xabc",
             tx_hash="0xtx",
-            kind="seller",
+            kind="provider",
         )
     )
     assert ok is True
@@ -934,18 +949,18 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
         ("restricted", "suspended", "blocked"),
     )
 
-    result = repo.charge_buyer_and_record_usage_atomic(
-        ChargeBuyerUsageCommand(
+    result = repo.charge_consumer_and_record_usage_atomic(
+        ChargeConsumerUsageCommand(
             owner_wallet="0xbuyer",
-            seller_wallet="0xseller",
+            provider_wallet="0xseller",
             total_charge=Decimal("1.110000"),
-            seller_net=Decimal("1.000000"),
+            provider_net=Decimal("1.000000"),
             platform_fee_total=Decimal("0.110000"),
             usage_row=UsageLogRow(
                 id="usage-1",
                 ts=123,
-                buyerAddress="0xbuyer",
-                sellerAddress="0xseller",
+                consumerAddress="0xbuyer",
+                providerAddress="0xseller",
                 status="accepted",
                 totalCharge=Decimal("1.110000"),
                 businessType="charge",
@@ -954,7 +969,7 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
         )
     )
 
-    assert abs(result.buyer_balance_after - 8.89) < 1e-9
+    assert abs(result.consumer_available_balance_after - 8.89) < 1e-9
     executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
     assert "INSERT INTO synapse_usage_log" in executed_sql
     assert "UPSERT" in executed_sql
@@ -983,7 +998,7 @@ def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:
 
     result = repo.process_withdrawal_request_atomic(
         WithdrawalAtomicRequestCommand(
-            seller_address="0xabc",
+            provider_address="0xabc",
             amount_usdc=Decimal("12.000000"),
             request_id="req-1",
             idempotency_key="idem-1",

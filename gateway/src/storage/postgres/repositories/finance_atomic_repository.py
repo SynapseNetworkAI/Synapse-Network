@@ -12,14 +12,14 @@ from src.domain.execution import (
     DepositIntentConfirmCommand,
     DepositIntentRegisterCommand,
     PreparedWithdrawTicket,
-    ReserveSellerWithdrawCommand,
+    ReserveProviderWithdrawCommand,
     WithdrawalAtomicRequestCommand,
     WithdrawalDecision,
 )
 from src.domain.finance import (
     BalanceMutationResult,
     BuyerChargeResult,
-    ChargeBuyerUsageCommand,
+    ChargeConsumerUsageCommand,
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
@@ -59,17 +59,17 @@ class FinanceAtomicRepository:
         return f"owner:{str(wallet or '').lower()}"
 
     @staticmethod
-    def _seller_id(wallet: str) -> str:
-        return f"seller:{str(wallet or '').lower()}"
+    def _provider_id(wallet: str) -> str:
+        return f"provider:{str(wallet or '').lower()}"
 
     @staticmethod
     def _account_identity(wallet: str, account_type: str) -> tuple[str, str]:
         normalized_wallet = str(wallet or "").lower()
         normalized_type = str(account_type or "").lower()
-        if normalized_type == "buyer":
-            return f"owner_vault::{normalized_wallet}", "owner_vault"
-        if normalized_type == "seller":
-            return f"seller_receivable::{normalized_wallet}", "seller_receivable"
+        if normalized_type == "consumer":
+            return f"consumer_wallet::{normalized_wallet}", "consumer_wallet"
+        if normalized_type == "provider":
+            return f"provider_wallet::{normalized_wallet}", "provider_wallet"
         return "platform_revenue::main", "platform_revenue"
 
     def _ensure_owner_account(self, cur: Any, wallet: str, updated_at: str) -> str:
@@ -87,32 +87,32 @@ class FinanceAtomicRepository:
         )
         return owner_id
 
-    def _ensure_seller_profile(self, cur: Any, wallet: str, updated_at: str) -> str:
+    def _ensure_provider_profile(self, cur: Any, wallet: str, updated_at: str) -> str:
         normalized_wallet = str(wallet or "").lower()
-        self._ensure_owner_account(cur, normalized_wallet, updated_at)
-        seller_id = self._seller_id(normalized_wallet)
+        owner_id = self._ensure_owner_account(cur, normalized_wallet, updated_at)
+        provider_id = self._provider_id(normalized_wallet)
         cur.execute(
             """
-            INSERT INTO synapse_seller_profiles (
-                seller_id, owner_wallet, display_name, status, created_at, updated_at
+            INSERT INTO synapse_provider_profiles (
+                provider_id, owner_id, display_name, status, created_at, updated_at
             ) VALUES (%s, %s, %s, 'active', %s, %s)
-            ON CONFLICT (seller_id)
-            DO UPDATE SET owner_wallet = EXCLUDED.owner_wallet, updated_at = EXCLUDED.updated_at
+            ON CONFLICT (provider_id)
+            DO UPDATE SET owner_id = EXCLUDED.owner_id, updated_at = EXCLUDED.updated_at
             """,
-            (seller_id, normalized_wallet, normalized_wallet, updated_at, updated_at),
+            (provider_id, owner_id, normalized_wallet, updated_at, updated_at),
         )
-        return seller_id
+        return provider_id
 
     def _ensure_ledger_account(
         self, cur: Any, wallet: str, account_type: str, updated_at: str
     ) -> str:
         account_id, account_kind = self._account_identity(wallet, account_type)
-        if account_kind == "owner_vault":
+        if account_kind == "consumer_wallet":
             owner_id = self._ensure_owner_account(cur, wallet, updated_at)
             cur.execute(
                 """
                 INSERT INTO synapse_ledger_accounts (
-                    account_id, account_kind, owner_id, seller_id, currency, status, created_at, updated_at
+                    account_id, account_kind, owner_id, provider_id, currency, status, created_at, updated_at
                 ) VALUES (%s, %s, %s, NULL, 'USDC', 'active', %s, %s)
                 ON CONFLICT (account_id)
                 DO UPDATE SET owner_id = EXCLUDED.owner_id, updated_at = EXCLUDED.updated_at
@@ -120,23 +120,24 @@ class FinanceAtomicRepository:
                 (account_id, account_kind, owner_id, updated_at, updated_at),
             )
             return account_id
-        if account_kind == "seller_receivable":
-            seller_id = self._ensure_seller_profile(cur, wallet, updated_at)
+        if account_kind == "provider_wallet":
+            owner_id = self._ensure_owner_account(cur, wallet, updated_at)
+            provider_id = self._ensure_provider_profile(cur, wallet, updated_at)
             cur.execute(
                 """
                 INSERT INTO synapse_ledger_accounts (
-                    account_id, account_kind, owner_id, seller_id, currency, status, created_at, updated_at
-                ) VALUES (%s, %s, NULL, %s, 'USDC', 'active', %s, %s)
+                    account_id, account_kind, owner_id, provider_id, currency, status, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, 'USDC', 'active', %s, %s)
                 ON CONFLICT (account_id)
-                DO UPDATE SET seller_id = EXCLUDED.seller_id, updated_at = EXCLUDED.updated_at
+                DO UPDATE SET owner_id = EXCLUDED.owner_id, provider_id = EXCLUDED.provider_id, updated_at = EXCLUDED.updated_at
                 """,
-                (account_id, account_kind, seller_id, updated_at, updated_at),
+                (account_id, account_kind, owner_id, provider_id, updated_at, updated_at),
             )
             return account_id
         cur.execute(
             """
             INSERT INTO synapse_ledger_accounts (
-                account_id, account_kind, owner_id, seller_id, currency, status, created_at, updated_at
+                account_id, account_kind, owner_id, provider_id, currency, status, created_at, updated_at
             ) VALUES (%s, %s, NULL, NULL, 'USDC', 'active', %s, %s)
             ON CONFLICT (account_id)
             DO UPDATE SET updated_at = EXCLUDED.updated_at
@@ -249,7 +250,7 @@ class FinanceAtomicRepository:
             ownerAddress=owner,
             txHash=tx,
             requestId=request_id or intent_row.request_id,
-            buyerAddress=intent_row.buyer_address,
+            consumerAddress=intent_row.consumer_address,
             amountUsdc=amount_usdc,
             idempotencyKey=intent_row.idempotency_key,
             status=intent_row.status or "PENDING_CONFIRMATION",
@@ -288,7 +289,7 @@ class FinanceAtomicRepository:
             ownerAddress=str(hit[1]),
             txHash=str(hit[2]),
             requestId=hit[3],
-            buyerAddress=meta.buyer_address,
+            consumerAddress=meta.buyer_address,
             amountUsdc=self._q6(hit[4]),
             idempotencyKey=meta.idempotency_key,
             status=str(hit[5]),
@@ -330,7 +331,7 @@ class FinanceAtomicRepository:
             cur,
             self._deposit_state_key(row.id),
                 DepositMetadataState(
-                    buyerAddress=row.buyer_address,
+                    consumerAddress=row.consumer_address,
                     idempotencyKey=row.idempotency_key,
                 ).model_dump(by_alias=True, mode="json"),
             row.updated_at,
@@ -453,7 +454,7 @@ class FinanceAtomicRepository:
         self,
         command: WithdrawalAtomicRequestCommand,
     ) -> WithdrawalDecision:
-        owner = str(command.seller_address or "").strip().lower()
+        owner = str(command.provider_address or "").strip().lower()
         now = int(time.time())
         now_text = to_dt_str(now, now_dt_str())
         amount = self._q6(command.amount_usdc)
@@ -465,10 +466,10 @@ class FinanceAtomicRepository:
             try:
                 with conn.cursor() as cur:
                     available_balance, pending_balance, frozen_balance = (
-                        self._load_locked_balance_triplet(cur, owner, "seller", now)
+                        self._load_locked_balance_triplet(cur, owner, "provider", now)
                     )
                     if available_balance < amount:
-                        raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
+                        raise RuntimeError("INSUFFICIENT_PROVIDER_RECEIVABLE")
 
                     rolling_24h, historical_net_income, high_risk_from_db = (
                         self._compute_withdrawal_risk_metrics(
@@ -529,7 +530,7 @@ class FinanceAtomicRepository:
                         self._upsert_balance_triplet(
                             cur,
                             owner,
-                            "seller",
+                            "provider",
                             next_available,
                             pending_balance,
                             self._q6(frozen_balance + amount),
@@ -543,7 +544,7 @@ class FinanceAtomicRepository:
                         self._upsert_balance_triplet(
                             cur,
                             owner,
-                            "seller",
+                            "provider",
                             next_available,
                             self._q6(pending_balance + amount),
                             frozen_balance,
@@ -673,12 +674,12 @@ class FinanceAtomicRepository:
                     raise RuntimeError("DEPOSIT_ALREADY_PROCESSED")
 
                 available_balance, pending_balance, frozen_balance = (
-                    self._load_locked_balance_triplet(cur, owner, "buyer", now)
+                    self._load_locked_balance_triplet(cur, owner, "consumer", now)
                 )
                 self._upsert_balance_triplet(
                     cur,
                     owner,
-                    "buyer",
+                    "consumer",
                     available_balance,
                     self._q6(pending_balance + amount_usdc),
                     frozen_balance,
@@ -724,7 +725,7 @@ class FinanceAtomicRepository:
                     ownerAddress=str(hit[1]),
                     txHash=str(hit[2]),
                     requestId=hit[3],
-                    buyerAddress=meta.buyer_address,
+                    consumerAddress=meta.buyer_address,
                     amountUsdc=self._q6(hit[4]),
                     idempotencyKey=meta.idempotency_key,
                     status=str(hit[5]),
@@ -733,7 +734,7 @@ class FinanceAtomicRepository:
                 )
 
                 available_balance, pending_balance, frozen_balance = (
-                    self._load_locked_balance_triplet(cur, owner, "buyer", now)
+                    self._load_locked_balance_triplet(cur, owner, "consumer", now)
                 )
 
                 if row.status.upper() == "CONFIRMED":
@@ -743,7 +744,7 @@ class FinanceAtomicRepository:
                         self._upsert_balance_triplet(
                             cur,
                             owner,
-                            "buyer",
+                            "consumer",
                             next_available,
                             next_pending,
                             frozen_balance,
@@ -771,7 +772,7 @@ class FinanceAtomicRepository:
                             ownerAddress=row.owner_address,
                             txHash=row.tx_hash,
                             requestId=row.request_id,
-                            buyerAddress=row.buyer_address,
+                            consumerAddress=row.consumer_address,
                             amountUsdc=row.amount_usdc,
                             idempotencyKey=row.idempotency_key,
                             status="CONFIRMED",
@@ -789,7 +790,7 @@ class FinanceAtomicRepository:
                 self._upsert_balance_triplet(
                     cur,
                     owner,
-                    "buyer",
+                    "consumer",
                     next_available,
                     next_pending,
                     frozen_balance,
@@ -819,7 +820,7 @@ class FinanceAtomicRepository:
             ownerAddress=row.owner_address,
             txHash=row.tx_hash,
             requestId=row.request_id,
-            buyerAddress=row.buyer_address,
+            consumerAddress=row.consumer_address,
             amountUsdc=row.amount_usdc,
             idempotencyKey=row.idempotency_key,
             status="CONFIRMED",
@@ -827,14 +828,14 @@ class FinanceAtomicRepository:
             updatedAt=now_text,
         )
 
-    def charge_buyer_and_record_usage_atomic(
+    def charge_consumer_and_record_usage_atomic(
         self,
-        command: ChargeBuyerUsageCommand,
+        command: ChargeConsumerUsageCommand,
     ) -> BuyerChargeResult:
         now = int(time.time())
         now_text = to_dt_str(now, now_dt_str())
         owner = str(command.owner_wallet or "").strip().lower()
-        seller = str(command.seller_wallet or "").strip().lower()
+        provider = str(command.provider_wallet or "").strip().lower()
 
         def _load_balance(
             cur: Any, wallet: str, account_type: str, column_name: str
@@ -864,29 +865,29 @@ class FinanceAtomicRepository:
 
         with self._db.connect() as conn:
             with conn.cursor() as cur:
-                if self._is_account_restricted_for_charge(cur, owner, "buyer", now):
+                if self._is_account_restricted_for_charge(cur, owner, "consumer", now):
                     raise RuntimeError("BUYER_RESTRICTED_RISK_BLOCK")
-                if self._is_account_restricted_for_charge(cur, seller, "seller", now):
+                if self._is_account_restricted_for_charge(cur, provider, "provider", now):
                     raise RuntimeError("SELLER_RESTRICTED_RISK_BLOCK")
 
-                before_buyer = _load_balance(cur, owner, "buyer", "available_balance")
-                if before_buyer < self._q6(command.total_charge):
+                before_consumer = _load_balance(cur, owner, "consumer", "available_balance")
+                if before_consumer < self._q6(command.total_charge):
                     raise RuntimeError("INSUFFICIENT_BALANCE")
 
-                seller_before = _load_balance(
-                    cur, seller, "seller", "available_balance"
+                provider_before = _load_balance(
+                    cur, provider, "provider", "available_balance"
                 )
                 platform_before = _load_balance(
                     cur, "__platform__", "platform_fee", "available_balance"
                 )
-                buyer_after = self._q6(before_buyer - self._q6(command.total_charge))
-                seller_after = self._q6(seller_before + self._q6(command.seller_net))
+                consumer_after = self._q6(before_consumer - self._q6(command.total_charge))
+                provider_after = self._q6(provider_before + self._q6(command.provider_net))
                 platform_after = self._q6(
                     platform_before + self._q6(command.platform_fee_total)
                 )
 
-                _set_available(cur, owner, "buyer", buyer_after)
-                _set_available(cur, seller, "seller", seller_after)
+                _set_available(cur, owner, "consumer", consumer_after)
+                _set_available(cur, provider, "provider", provider_after)
                 _set_available(cur, "__platform__", "platform_fee", platform_after)
 
                 row = UsageLogRow(
@@ -894,8 +895,8 @@ class FinanceAtomicRepository:
                     ts=int(command.usage_row.ts or now),
                     requestId=command.usage_row.request_id,
                     serviceId=command.usage_row.service_id,
-                    buyerAddress=(command.usage_row.buyer_address or owner),
-                    sellerAddress=(command.usage_row.seller_address or seller),
+                    consumerAddress=(command.usage_row.consumer_address or owner),
+                    providerAddress=(command.usage_row.provider_address or provider),
                     status=command.usage_row.status or "accepted",
                     unitPrice=command.usage_row.unit_price,
                     protocolFee=command.usage_row.protocol_fee,
@@ -931,8 +932,8 @@ class FinanceAtomicRepository:
                         int(row.ts),
                         row.request_id,
                         row.service_id,
-                        row.buyer_address,
-                        row.seller_address,
+                        row.consumer_address,
+                        row.provider_address,
                         row.status,
                         str(self._q6(row.unit_price))
                         if row.unit_price is not None
@@ -959,19 +960,27 @@ class FinanceAtomicRepository:
                         riskLevel="green",
                         ownerAddress=owner,
                         amountDelta=-self._q6(command.total_charge),
-                        beforeBalance=before_buyer,
-                        afterBalance=buyer_after,
+                        beforeBalance=before_consumer,
+                        afterBalance=consumer_after,
                         resultStatus="SUCCEEDED",
                         status="SUCCEEDED",
-                        message=f"seller={seller}",
+                        message=f"provider={provider}",
                     ),
                 )
 
             conn.commit()
-        return BuyerChargeResult(buyerBalanceAfter=float(buyer_after))
+        return BuyerChargeResult(
+            consumerAvailableBalanceAfter=float(consumer_after)
+        )
 
-    def reserve_seller_withdraw_atomic(
-        self, command: ReserveSellerWithdrawCommand
+    def charge_buyer_and_record_usage_atomic(
+        self,
+        command: ChargeConsumerUsageCommand,
+    ) -> BuyerChargeResult:
+        return self.charge_consumer_and_record_usage_atomic(command)
+
+    def reserve_provider_withdraw_atomic(
+        self, command: ReserveProviderWithdrawCommand
     ) -> BalanceMutationResult:
         owner = str(command.owner_wallet or "").strip().lower()
         now = int(time.time())
@@ -980,17 +989,17 @@ class FinanceAtomicRepository:
         with self._db.connect() as conn:
             with conn.cursor() as cur:
                 before_available, before_pending, before_frozen = (
-                    self._load_locked_balance_triplet(cur, owner, "seller", now)
+                    self._load_locked_balance_triplet(cur, owner, "provider", now)
                 )
                 if before_available < self._q6(command.amount_usdc):
-                    raise RuntimeError("INSUFFICIENT_SELLER_RECEIVABLE")
+                    raise RuntimeError("INSUFFICIENT_PROVIDER_RECEIVABLE")
                 after_available = self._q6(before_available - self._q6(command.amount_usdc))
                 after_pending = self._q6(before_pending + self._q6(command.amount_usdc))
 
                 self._upsert_balance_triplet(
                     cur,
                     owner,
-                    "seller",
+                    "provider",
                     after_available,
                     after_pending,
                     before_frozen,
@@ -1001,6 +1010,11 @@ class FinanceAtomicRepository:
         return BalanceMutationResult(
             beforeBalance=float(before_available), afterBalance=float(after_available)
         )
+
+    def reserve_seller_withdraw_atomic(
+        self, command: ReserveProviderWithdrawCommand
+    ) -> BalanceMutationResult:
+        return self.reserve_provider_withdraw_atomic(command)
 
     def complete_withdraw_tx_atomic(
         self, command: CompleteWithdrawTxCommand

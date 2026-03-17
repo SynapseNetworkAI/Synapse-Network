@@ -4,14 +4,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from .execution import (
     CompleteWithdrawTxCommand,
     DepositIntentConfirmCommand,
     DepositIntentRegisterCommand,
     PreparedWithdrawTicket,
-    ReserveSellerWithdrawCommand,
+    ReserveProviderWithdrawCommand,
     WithdrawalAtomicRequestCommand,
     WithdrawalDecision,
 )
@@ -33,23 +33,184 @@ class PlatformFees(BaseModel):
     fee_accrued: float = Field(default=0.0, alias="feeAccrued")
 
 
-class BalanceLedger(BaseModel):
-    """买家/卖家/平台全局余额账本（由 ledger_accounts + account_balances 聚合）。"""
+class ConsumerWalletRecord(BaseModel):
+    """Owner-scoped consumer wallet aggregate inside the balance ledger."""
 
     model_config = ConfigDict(populate_by_name=True)
 
-    buyers: Dict[str, float] = Field(default_factory=dict)
-    buyers_locked: Dict[str, float] = Field(default_factory=dict, alias="buyersLocked")
-    buyers_frozen: Dict[str, float] = Field(default_factory=dict, alias="buyersFrozen")
-    sellers: Dict[str, float] = Field(default_factory=dict)
-    sellers_locked: Dict[str, float] = Field(
-        default_factory=dict, alias="sellersLocked"
+    owner_address: str = Field(
+        default="",
+        validation_alias=AliasChoices("ownerAddress", "consumerAddress", "buyerAddress"),
+        serialization_alias="ownerAddress",
     )
-    sellers_frozen: Dict[str, float] = Field(
-        default_factory=dict, alias="sellersFrozen"
+    available_balance: float = Field(default=0.0, alias="availableBalance")
+    pending_balance: float = Field(default=0.0, alias="pendingBalance")
+    frozen_balance: float = Field(default=0.0, alias="frozenBalance")
+    updated_at: str = Field(default="", alias="updatedAt")
+
+
+class ProviderWalletRecord(BaseModel):
+    """Owner/provider-scoped receivable wallet aggregate inside the balance ledger."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    owner_address: str = Field(default="", alias="ownerAddress")
+    provider_id: Optional[str] = Field(default=None, alias="providerId")
+    available_balance: float = Field(default=0.0, alias="availableBalance")
+    pending_balance: float = Field(default=0.0, alias="pendingBalance")
+    frozen_balance: float = Field(default=0.0, alias="frozenBalance")
+    updated_at: str = Field(default="", alias="updatedAt")
+
+
+class BalanceLedger(BaseModel):
+    """Owner 消费侧 / Provider 供给侧 / 平台费池余额聚合。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    consumer_wallets: List[ConsumerWalletRecord] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("consumerWallets", "consumer_wallets"),
+        serialization_alias="consumerWallets",
+    )
+    provider_wallets: List[ProviderWalletRecord] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("providerWallets", "provider_wallets"),
+        serialization_alias="providerWallets",
     )
     platform: PlatformFees = Field(default_factory=PlatformFees)
     updated_at: str = Field(default="", alias="updatedAt")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade_legacy_balance_maps(cls, raw: Any) -> Any:
+        if not isinstance(raw, dict):
+            return raw
+
+        payload = dict(raw)
+        payload.setdefault(
+            "consumerWallets",
+            cls._consumer_wallets_from_legacy_maps(
+                payload.pop("consumerAvailable", payload.pop("buyers", {})),
+                payload.pop("consumerPending", payload.pop("buyersLocked", {})),
+                payload.pop("consumerFrozen", payload.pop("buyersFrozen", {})),
+            ),
+        )
+        payload.setdefault(
+            "providerWallets",
+            cls._provider_wallets_from_legacy_maps(
+                payload.pop("providerReceivable", payload.pop("sellers", {})),
+                payload.pop("providerLocked", payload.pop("sellersLocked", {})),
+                payload.pop("providerFrozen", payload.pop("sellersFrozen", {})),
+            ),
+        )
+        return payload
+
+    @staticmethod
+    def _normalize_owner(owner_address: str) -> str:
+        return str(owner_address or "").strip().lower()
+
+    @classmethod
+    def _consumer_wallets_from_legacy_maps(
+        cls,
+        available_map: Dict[str, float],
+        pending_map: Dict[str, float],
+        frozen_map: Dict[str, float],
+    ) -> List[ConsumerWalletRecord]:
+        owners = {cls._normalize_owner(owner) for owner in available_map}
+        owners |= {cls._normalize_owner(owner) for owner in pending_map}
+        owners |= {cls._normalize_owner(owner) for owner in frozen_map}
+        return [
+            ConsumerWalletRecord(
+                ownerAddress=owner,
+                availableBalance=float(available_map.get(owner, 0.0) or 0.0),
+                pendingBalance=float(pending_map.get(owner, 0.0) or 0.0),
+                frozenBalance=float(frozen_map.get(owner, 0.0) or 0.0),
+            )
+            for owner in sorted(owner for owner in owners if owner)
+        ]
+
+    @classmethod
+    def _provider_wallets_from_legacy_maps(
+        cls,
+        available_map: Dict[str, float],
+        pending_map: Dict[str, float],
+        frozen_map: Dict[str, float],
+    ) -> List[ProviderWalletRecord]:
+        owners = {cls._normalize_owner(owner) for owner in available_map}
+        owners |= {cls._normalize_owner(owner) for owner in pending_map}
+        owners |= {cls._normalize_owner(owner) for owner in frozen_map}
+        return [
+            ProviderWalletRecord(
+                ownerAddress=owner,
+                availableBalance=float(available_map.get(owner, 0.0) or 0.0),
+                pendingBalance=float(pending_map.get(owner, 0.0) or 0.0),
+                frozenBalance=float(frozen_map.get(owner, 0.0) or 0.0),
+            )
+            for owner in sorted(owner for owner in owners if owner)
+        ]
+
+    def consumer_wallet(self, owner_address: str) -> Optional[ConsumerWalletRecord]:
+        owner = self._normalize_owner(owner_address)
+        for wallet in self.consumer_wallets:
+            if self._normalize_owner(wallet.owner_address) == owner:
+                return wallet
+        return None
+
+    def ensure_consumer_wallet(self, owner_address: str) -> ConsumerWalletRecord:
+        owner = self._normalize_owner(owner_address)
+        found = self.consumer_wallet(owner)
+        if found is not None:
+            return found
+        wallet = ConsumerWalletRecord(ownerAddress=owner)
+        self.consumer_wallets.append(wallet)
+        return wallet
+
+    def provider_wallet(self, owner_address: str) -> Optional[ProviderWalletRecord]:
+        owner = self._normalize_owner(owner_address)
+        for wallet in self.provider_wallets:
+            if self._normalize_owner(wallet.owner_address) == owner:
+                return wallet
+        return None
+
+    def ensure_provider_wallet(self, owner_address: str) -> ProviderWalletRecord:
+        owner = self._normalize_owner(owner_address)
+        found = self.provider_wallet(owner)
+        if found is not None:
+            return found
+        wallet = ProviderWalletRecord(ownerAddress=owner)
+        self.provider_wallets.append(wallet)
+        return wallet
+
+    def consumer_available_balance(self, owner_address: str) -> float:
+        wallet = self.consumer_wallet(owner_address)
+        return round(float(wallet.available_balance or 0.0), 6) if wallet else 0.0
+
+    def consumer_pending_balance(self, owner_address: str) -> float:
+        wallet = self.consumer_wallet(owner_address)
+        return round(float(wallet.pending_balance or 0.0), 6) if wallet else 0.0
+
+    def consumer_frozen_balance(self, owner_address: str) -> float:
+        wallet = self.consumer_wallet(owner_address)
+        return round(float(wallet.frozen_balance or 0.0), 6) if wallet else 0.0
+
+    def provider_receivable_balance(self, owner_address: str) -> float:
+        wallet = self.provider_wallet(owner_address)
+        return round(float(wallet.available_balance or 0.0), 6) if wallet else 0.0
+
+    def provider_locked_balance(self, owner_address: str) -> float:
+        wallet = self.provider_wallet(owner_address)
+        return round(float(wallet.pending_balance or 0.0), 6) if wallet else 0.0
+
+    def provider_frozen_balance(self, owner_address: str) -> float:
+        wallet = self.provider_wallet(owner_address)
+        return round(float(wallet.frozen_balance or 0.0), 6) if wallet else 0.0
+
+    def total_consumer_obligation(self) -> float:
+        return round(
+            sum(float(wallet.available_balance or 0.0) for wallet in self.consumer_wallets)
+            + sum(float(wallet.pending_balance or 0.0) for wallet in self.consumer_wallets),
+            6,
+        )
 
 
 class FeePolicyEntity(BaseModel):
@@ -67,8 +228,8 @@ class BalanceRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     owner_address: str = Field(default="", alias="ownerAddress")
-    account_type: Literal["buyer", "seller", "platform_fee"] = Field(
-        default="buyer", alias="accountType"
+    account_type: Literal["consumer_wallet", "provider_wallet", "platform_fee"] = Field(
+        default="consumer_wallet", alias="accountType"
     )
     available_balance: Decimal = Field(default=Decimal("0"), alias="availableBalance")
     pending_balance: Decimal = Field(default=Decimal("0"), alias="pendingBalance")
@@ -108,7 +269,11 @@ class RefundIntentRow(BaseModel):
     tx_hash: Optional[str] = Field(default=None, alias="txHash")
     status: str = "REQUESTED"
     request_id: Optional[str] = Field(default=None, alias="requestId")
-    buyer_address: Optional[str] = Field(default=None, alias="buyerAddress")
+    consumer_address: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("consumerAddress", "buyerAddress"),
+        serialization_alias="consumerAddress",
+    )
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
     reason: Optional[str] = None
@@ -133,6 +298,14 @@ class RefundIntentRow(BaseModel):
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 
+    @property
+    def buyer_address(self) -> Optional[str]:
+        return self.consumer_address
+
+    @buyer_address.setter
+    def buyer_address(self, value: Optional[str]) -> None:
+        self.consumer_address = value
+
 
 class UsageLogRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -143,8 +316,16 @@ class UsageLogRow(BaseModel):
     origin_request_id: Optional[str] = Field(default=None, alias="originRequestId")
     origin_tx_hash: Optional[str] = Field(default=None, alias="originTxHash")
     service_id: Optional[str] = Field(default=None, alias="serviceId")
-    buyer_address: Optional[str] = Field(default=None, alias="buyerAddress")
-    seller_address: Optional[str] = Field(default=None, alias="sellerAddress")
+    consumer_address: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("consumerAddress", "buyerAddress"),
+        serialization_alias="consumerAddress",
+    )
+    provider_address: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("providerAddress", "sellerAddress"),
+        serialization_alias="providerAddress",
+    )
     status: Optional[str] = None
     unit_price: Optional[Decimal] = Field(default=None, alias="unitPrice")
     protocol_fee: Optional[Decimal] = Field(default=None, alias="protocolFee")
@@ -157,11 +338,44 @@ class UsageLogRow(BaseModel):
         default="green", alias="riskLevel"
     )
 
+    @property
+    def buyer_address(self) -> Optional[str]:
+        return self.consumer_address
 
-class BuyerChargeResult(BaseModel):
+    @buyer_address.setter
+    def buyer_address(self, value: Optional[str]) -> None:
+        self.consumer_address = value
+
+    @property
+    def seller_address(self) -> Optional[str]:
+        return self.provider_address
+
+    @seller_address.setter
+    def seller_address(self, value: Optional[str]) -> None:
+        self.provider_address = value
+
+
+class ConsumerChargeResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    buyer_balance_after: float = Field(alias="buyerBalanceAfter")
+    consumer_available_balance_after: float = Field(
+        validation_alias=AliasChoices(
+            "consumerAvailableBalanceAfter", "buyerBalanceAfter"
+        ),
+        serialization_alias="consumerAvailableBalanceAfter",
+    )
+
+    @property
+    def buyer_balance_after(self) -> float:
+        return self.consumer_available_balance_after
+
+    @buyer_balance_after.setter
+    def buyer_balance_after(self, value: float) -> None:
+        self.consumer_available_balance_after = value
+
+
+BuyerChargeResult = ConsumerChargeResult
+UsageChargeResult = ConsumerChargeResult
 
 
 class BalanceMutationResult(BaseModel):
@@ -238,12 +452,20 @@ class AtomicWithdrawalResult:
 
 
 @dataclass(frozen=True)
-class ChargeBuyerUsageCommand:
+class ChargeConsumerUsageCommand:
     owner_wallet: str
-    seller_wallet: str
+    provider_wallet: str
     total_charge: Decimal
-    seller_net: Decimal
+    provider_net: Decimal
     platform_fee_total: Decimal
     usage_row: UsageLogRow
+
+    @property
+    def seller_wallet(self) -> str:
+        return self.provider_wallet
+
+    @property
+    def seller_net(self) -> Decimal:
+        return self.provider_net
 
 

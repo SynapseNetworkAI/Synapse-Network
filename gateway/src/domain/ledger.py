@@ -3,20 +3,32 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class LedgerAccountRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     account_id: str = Field(alias="accountId")
-    account_kind: Literal["owner_vault", "seller_receivable", "platform_revenue", "budget_hold"] = Field(alias="accountKind")
+    account_kind: Literal["consumer_wallet", "provider_wallet", "platform_revenue", "budget_hold"] = Field(alias="accountKind")
     owner_id: Optional[str] = Field(default=None, alias="ownerId")
-    seller_id: Optional[str] = Field(default=None, alias="sellerId")
+    provider_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("providerId", "sellerId"),
+        serialization_alias="providerId",
+    )
     currency: str = "USDC"
     status: Literal["active", "paused", "closed"] = "active"
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
+
+    @property
+    def seller_id(self) -> Optional[str]:
+        return self.provider_id
+
+    @seller_id.setter
+    def seller_id(self, value: Optional[str]) -> None:
+        self.provider_id = value
 
 class DepositIntentRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -25,7 +37,11 @@ class DepositIntentRow(BaseModel):
     owner_address: str = Field(alias="ownerAddress")
     tx_hash: str = Field(alias="txHash")
     request_id: Optional[str] = Field(default=None, alias="requestId")
-    buyer_address: Optional[str] = Field(default=None, alias="buyerAddress")
+    consumer_address: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("consumerAddress", "buyerAddress"),
+        serialization_alias="consumerAddress",
+    )
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
     status: str = "PENDING_CONFIRMATION"
@@ -37,6 +53,14 @@ class DepositIntentRow(BaseModel):
     confirmed_at: Optional[int] = Field(default=None, alias="confirmedAt")
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
+
+    @property
+    def buyer_address(self) -> Optional[str]:
+        return self.consumer_address
+
+    @buyer_address.setter
+    def buyer_address(self, value: Optional[str]) -> None:
+        self.consumer_address = value
 
 
 class WithdrawalIntentRow(BaseModel):
@@ -135,7 +159,31 @@ class PlatformRevenueRecord(BaseModel):
 class BalanceLedgerRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    buyer_accounts: dict[str, AccountBalanceRecord] = Field(default_factory=dict, alias="buyerAccounts")
-    seller_accounts: dict[str, AccountBalanceRecord] = Field(default_factory=dict, alias="sellerAccounts")
+    consumer_wallet_accounts: dict[str, AccountBalanceRecord] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices("consumerWalletAccounts", "buyerAccounts"),
+        serialization_alias="consumerWalletAccounts",
+    )
+    provider_wallet_accounts: dict[str, AccountBalanceRecord] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices("providerWalletAccounts", "sellerAccounts"),
+        serialization_alias="providerWalletAccounts",
+    )
     platform_revenue: PlatformRevenueRecord = Field(default_factory=PlatformRevenueRecord, alias="platformRevenue")
     updated_at: str = Field(default="", alias="updatedAt")
+
+    @property
+    def buyer_accounts(self) -> dict[str, AccountBalanceRecord]:
+        return self.consumer_wallet_accounts
+
+    @buyer_accounts.setter
+    def buyer_accounts(self, value: dict[str, AccountBalanceRecord]) -> None:
+        self.consumer_wallet_accounts = value
+
+    @property
+    def seller_accounts(self) -> dict[str, AccountBalanceRecord]:
+        return self.provider_wallet_accounts
+
+    @seller_accounts.setter
+    def seller_accounts(self, value: dict[str, AccountBalanceRecord]) -> None:
+        self.provider_wallet_accounts = value
