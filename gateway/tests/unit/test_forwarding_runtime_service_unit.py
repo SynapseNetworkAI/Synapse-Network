@@ -1,11 +1,15 @@
 import asyncio
 import json
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
+from pydantic import BaseModel, Field
 
 from src.api.schemas.pydantic_models import (
     AgentInvocationRequest,
+    AgentDiscoverySearchRequest,
     AgentQuoteRequest,
     InferenceRequest,
 )
@@ -14,10 +18,12 @@ from src.domain.finance import BalanceLedger, FeePolicyEntity, UsageLogRow
 from src.domain.registry import ServiceTargetHealth
 from src.domain.service_contract import (
     AgentDiscoveryQueryRecord,
+    PublicServiceDiscoveryRecord,
     QuoteInputPreviewRecord,
     RuntimePayloadRecord,
     ServiceDefinitionRecord,
 )
+from src import app as gateway_app
 from src.services.buyer import forwarding_billing, forwarding_service, forwarding_upstream
 from src.services.platform import credential_service
 from src.services.seller.registry_service import RegistryService
@@ -198,6 +204,77 @@ async def _async_none():
     return None
 
 
+async def _background_loop_until_stopped(stop_event, storage) -> None:
+    _ = storage
+    await stop_event.wait()
+
+
+class AgentDiscoverySearchResponse(BaseModel):
+    requestId: str
+    results: list[PublicServiceDiscoveryRecord]
+    count: int
+
+
+class BudgetCheckResponse(BaseModel):
+    allowed: bool
+    remainingBudgetUsdc: float | None = None
+    remainingDailyLimitUsdc: float | None = None
+
+
+class InvokeConstraintsResponse(BaseModel):
+    body: dict = Field(default_factory=dict)
+    timeoutMs: int
+    maxPayloadBytes: int
+
+
+class AgentQuoteResponse(BaseModel):
+    requestId: str
+    quoteId: str
+    serviceId: str
+    priceUsdc: float
+    priceModel: str
+    budgetCheck: BudgetCheckResponse
+    expiresAt: str
+    idempotencyScope: str
+    invokeConstraints: InvokeConstraintsResponse
+
+
+class InvocationReceiptResponse(BaseModel):
+    quoteId: str
+    invocationId: str
+
+
+class AgentInvocationResponse(BaseModel):
+    invocationId: str
+    status: str
+    chargedUsdc: float | None = None
+    result: dict = Field(default_factory=dict)
+    receipt: InvocationReceiptResponse | None = None
+
+
+@contextmanager
+def _http_runtime_client(monkeypatch, storage: FakeStorage):
+    monkeypatch.setattr(gateway_app, "create_storage", lambda settings: storage)
+    monkeypatch.setattr(
+        gateway_app,
+        "run_v2_deposit_indexer",
+        _background_loop_until_stopped,
+    )
+    monkeypatch.setattr(
+        gateway_app.settings,
+        "service_health_monitor_enabled",
+        False,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        gateway_app,
+        "run_service_health_monitor",
+        _background_loop_until_stopped,
+    )
+    with TestClient(gateway_app.create_app(), base_url="https://gateway.test") as client:
+        yield client
+
+
 def _runtime_credential(raw_token: str):
     return credential_service.build_runtime_credential_record(
         credential_service.CredentialRuntimeSeed(
@@ -353,6 +430,8 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
     )
     quote_id = quote_response["quoteId"]
     assert quote_response["budgetCheck"]["allowed"] is True
+    assert quote_response["invokeConstraints"]["timeoutMs"] == 15000
+    assert quote_response["invokeConstraints"]["maxPayloadBytes"] == 4096
     assert storage.execution.read_quote(quote_id).status == "OPEN"
 
     invocation_response = asyncio.run(
@@ -459,3 +538,91 @@ def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypa
     assert quote_response["serviceId"] == discovery_result.service_id
     assert invocation_response["status"] == "SUCCEEDED"
     assert invocation_response["result"]["echo"] == "hello typed world"
+
+
+def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.buyers["0xabc"] = 10.0
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(
+        forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
+    )
+
+    with _http_runtime_client(monkeypatch, storage) as client:
+        discovery_request = AgentDiscoverySearchRequest(query="echo", limit=5)
+        discovery_http = client.post(
+            "/api/v1/agent/discovery/search",
+            json=discovery_request.model_dump(by_alias=True),
+            headers={"X-Request-Id": "req-http-disc-001"},
+        )
+
+        assert discovery_http.status_code == 200
+        discovery_response = AgentDiscoverySearchResponse.model_validate(
+            discovery_http.json()
+        )
+        assert discovery_response.requestId == "req-http-disc-001"
+        assert discovery_response.count == 1
+
+        discovery_result = discovery_response.results[0]
+        quote_request = AgentQuoteRequest(
+            serviceId=discovery_result.quote_template.service_id,
+            inputPreview=discovery_result.quote_template.input_preview,
+            responseMode=discovery_result.quote_template.response_mode,
+        )
+        quote_http = client.post(
+            "/api/v1/agent/quotes",
+            json=quote_request.model_dump(by_alias=True),
+            headers={
+                "X-Credential": raw_token,
+                "X-Request-Id": "req-http-quote-001",
+            },
+        )
+
+        assert quote_http.status_code == 200
+        quote_response = AgentQuoteResponse.model_validate(quote_http.json())
+        assert quote_response.requestId == "req-http-quote-001"
+        assert quote_response.serviceId == "svc.echo"
+        assert quote_response.budgetCheck.allowed is True
+        assert quote_response.invokeConstraints.timeoutMs == 15000
+        assert quote_response.invokeConstraints.maxPayloadBytes == 4096
+
+        invocation_request = AgentInvocationRequest(
+            quoteId=quote_response.quoteId,
+            idempotencyKey="task-http-step-1",
+            payload=RuntimePayloadRecord(body={"text": "hello typed world"}),
+            responseMode="sync",
+        )
+        invocation_http = client.post(
+            "/api/v1/agent/invocations",
+            json=invocation_request.model_dump(by_alias=True),
+            headers={
+                "X-Credential": raw_token,
+                "X-Request-Id": "req-http-invoke-001",
+            },
+        )
+
+        assert invocation_http.status_code == 200
+        invocation_response = AgentInvocationResponse.model_validate(
+            invocation_http.json()
+        )
+        assert invocation_response.status == "SUCCEEDED"
+        assert invocation_response.receipt is not None
+        assert invocation_response.receipt.quoteId == quote_response.quoteId
+        assert invocation_response.result["echo"] == "hello typed world"
+
+    persisted_quote = storage.execution.read_quote(quote_response.quoteId)
+    persisted_invocation = storage.execution.read_invocation(
+        invocation_response.invocationId
+    )
+    assert persisted_quote is not None
+    assert persisted_quote.status == "CONSUMED"
+    assert persisted_invocation is not None
+    assert persisted_invocation.status == "SUCCEEDED"
