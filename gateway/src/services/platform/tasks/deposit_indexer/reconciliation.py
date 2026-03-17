@@ -14,7 +14,7 @@ from .persistence import (
     _load_runtime_state,
     _save_runtime_state,
 )
-from .shared import _now, _set_status, logger, w3
+from .shared import _now, _set_status, get_web3, logger
 
 
 def _sum_ledger_obligation_usdc(ledger: BalanceLedger) -> float:
@@ -41,6 +41,7 @@ def _read_chain_vault_balance_usdc() -> float:
             "type": "function",
         }
     ]
+    w3 = get_web3()
     contract = w3.eth.contract(address=w3.to_checksum_address(token), abi=abi)
     raw_balance = int(
         contract.functions.balanceOf(w3.to_checksum_address(router)).call()

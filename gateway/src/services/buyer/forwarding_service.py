@@ -193,7 +193,7 @@ def _build_service_quote(
         ),
         responseMode=response_mode,
         invokeConstraints={
-            "body": service.invoke.request.schema.body,
+            "body": service.invoke.request.schema_document.body,
             "timeoutMs": int(service.constraints.timeout_ms or 0),
             "maxPayloadBytes": int(service.constraints.max_request_bytes or 0),
         },

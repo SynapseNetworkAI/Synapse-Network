@@ -87,7 +87,7 @@ def _quote_preview_sample(service: ServiceDefinitionRecord) -> RuntimePayloadRec
 def _quote_input_preview(service: ServiceDefinitionRecord) -> QuoteInputPreviewRecord:
     return QuoteInputPreviewRecord(
         contentType=str(service.invoke.request.content_type or JSON_CONTENT_TYPE),
-        payloadSchema=service.invoke.request.schema.model_copy(deep=True),
+        payloadSchema=service.invoke.request.schema_document.model_copy(deep=True),
         sample=_quote_preview_sample(service),
     )
 
@@ -478,7 +478,7 @@ def _service_matches_region(service: ServiceDefinitionRecord, region: Optional[s
 
 
 def _service_supports_structured_output(service: ServiceDefinitionRecord) -> bool:
-    return bool(service.invoke.response.schema.body)
+    return bool(service.invoke.response.schema_document.body)
 
 
 def _service_max_price_allows(

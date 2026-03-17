@@ -1,7 +1,6 @@
 import secrets
 import time
 from eth_account.messages import encode_defunct
-from web3 import Web3
 from typing import Optional
 from cachetools import TTLCache
 
@@ -9,6 +8,12 @@ from .common import normalize_wallet
 from .config import settings
 from loguru import logger
 import jwt
+
+
+def _web3_class():
+    from web3 import Web3
+
+    return Web3
 
 # Cache for pending auth challenges - simple in-memory cache
 # Format: {wallet_address: challenge_string}
@@ -59,7 +64,8 @@ def verify_auth_signature(
         signable_message = encode_defunct(text=message)
 
         # 3. Recover signer address
-        w3 = Web3()
+        web3_class = _web3_class()
+        w3 = web3_class()
         recovered_address = w3.eth.account.recover_message(
             signable_message, signature=signature
         )

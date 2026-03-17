@@ -92,14 +92,14 @@ class ServiceRequestSpecRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     content_type: str = Field(default=JSON_CONTENT_TYPE, alias="contentType")
-    schema: SchemaDocument = Field(default_factory=SchemaDocument)
+    schema_document: SchemaDocument = Field(default_factory=SchemaDocument, alias="schema")
 
 
 class ServiceResponseSpecRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     content_type: str = Field(default=JSON_CONTENT_TYPE, alias="contentType")
-    schema: SchemaDocument = Field(default_factory=SchemaDocument)
+    schema_document: SchemaDocument = Field(default_factory=SchemaDocument, alias="schema")
 
 
 class ServiceInvokeTargetRecord(BaseModel):

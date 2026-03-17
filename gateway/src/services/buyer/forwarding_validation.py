@@ -224,7 +224,7 @@ def validate_invoke_request_contract(service: ServiceDefinitionRecord, payload: 
             },
         )
 
-    schema = dict(service.invoke.request.schema.body)
+    schema = dict(service.invoke.request.schema_document.body)
     required = schema.get("required") if isinstance(schema.get("required"), list) else []
     missing_fields = [
         str(field)
