@@ -33,9 +33,10 @@
 ### 1.3 Public or Runtime APIs
 
 1. `GET /api/v1/services/discover`
-2. `POST /api/v1/services/quote`
-3. `POST /api/v1/gateway/generate`
-4. `GET /api/v1/indexer/status`
+2. `GET /api/v1/services/network-stats`
+3. `POST /api/v1/services/quote`
+4. `POST /api/v1/gateway/generate`
+5. `GET /api/v1/indexer/status`
 
 ## 2. Identity Semantics
 
@@ -109,6 +110,18 @@
 1. 返回 service、schema、price、health、routing contract
 2. 不暴露 Provider 内部结算字段
 3. 只返回当前健康可路由服务
+
+### 4.1.1 `GET /api/v1/services/network-stats`
+
+用途：给首页与公开营销页提供最小公共网络摘要。
+
+要求：
+
+1. 只返回聚合后的公共计数，不返回 wallet、request 级明细。
+2. 至少包含 `registeredServices`、`runtimeReadyServices`、`totalCalls`、`connectedAgents`。
+3. `totalCalls` 必须基于已接受/已成功的 charge 记录做 `requestId` 去重。
+4. `connectedAgents` 只统计至少完成过一次已接受/已成功调用的 consumer 去重数量。
+5. 该接口服务首页的 live counters，不得扩张成泄露结算面的公开分析接口。
 
 ### 4.2 `POST /api/v1/services/quote`
 

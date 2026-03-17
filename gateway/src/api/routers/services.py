@@ -186,6 +186,17 @@ async def discover_services(
     }
 
 
+@router.get("/v1/services/network-stats")
+async def public_network_stats(
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+):
+    stats = await service.public_network_stats()
+    return {
+        "status": "success",
+        **stats,
+    }
+
+
 @router.post("/v1/agent/discovery/search")
 async def search_agent_discovery(
     payload: AgentDiscoverySearchRequest,
