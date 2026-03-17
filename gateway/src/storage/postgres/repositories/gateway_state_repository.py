@@ -21,13 +21,72 @@ class GatewayStateRepository:
         self._db = db
         self._q6 = quantize6
 
+    @staticmethod
+    def _owner_id(wallet: str) -> str:
+        return f"owner:{str(wallet or '').lower()}"
+
+    @staticmethod
+    def _deposit_state_key(deposit_id: str) -> str:
+        return f"vault_deposit_meta::{deposit_id}"
+
+    @staticmethod
+    def _payload_dict(value: Any) -> dict[str, Any]:
+        if isinstance(value, dict):
+            return dict(value)
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except Exception:
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
+    def _upsert_runtime_state(
+        self, cur: Any, state_key: str, payload: dict[str, Any], updated_at: str
+    ) -> None:
+        cur.execute(
+            """
+            INSERT INTO synapse_runtime_state (state_key, payload, updated_at)
+            VALUES (%s, %s::jsonb, %s)
+            ON CONFLICT (state_key)
+            DO UPDATE SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at
+            """,
+            (state_key, json.dumps(payload), updated_at),
+        )
+
+    def _ensure_owner_account(self, cur: Any, wallet: str, updated_at: str) -> str:
+        normalized_wallet = str(wallet or "").lower()
+        owner_id = self._owner_id(normalized_wallet)
+        cur.execute(
+            """
+            INSERT INTO synapse_owner_accounts (
+                owner_id, owner_wallet, status, default_currency, created_at, updated_at
+            ) VALUES (%s, %s, 'active', 'USDC', %s, %s)
+            ON CONFLICT (owner_id)
+            DO UPDATE SET owner_wallet = EXCLUDED.owner_wallet, updated_at = EXCLUDED.updated_at
+            """,
+            (owner_id, normalized_wallet, updated_at, updated_at),
+        )
+        return owner_id
+
     def read_deposit_intents(self) -> List[DepositIntentRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
-                SELECT id, owner_address, tx_hash, request_id, buyer_address, amount_usdc,
-                       idempotency_key, status, created_at, updated_at
-                FROM synapse_deposit_intents
+                SELECT
+                    vd.deposit_id,
+                    oa.owner_wallet,
+                    vd.tx_hash,
+                    vd.request_id,
+                    rs.payload,
+                    vd.amount_usdc,
+                    vd.status,
+                    vd.created_at,
+                    vd.updated_at
+                FROM synapse_vault_deposits AS vd
+                INNER JOIN synapse_owner_accounts AS oa ON oa.owner_id = vd.owner_id
+                LEFT JOIN synapse_runtime_state AS rs
+                    ON rs.state_key = CONCAT('vault_deposit_meta::', vd.deposit_id)
                 ORDER BY created_at ASC
                 """
             )
@@ -38,14 +97,14 @@ class GatewayStateRepository:
                 ownerAddress=str(owner),
                 txHash=str(tx_hash),
                 requestId=request_id,
-                buyerAddress=buyer_address,
+                buyerAddress=self._payload_dict(meta_payload).get("buyerAddress"),
                 amountUsdc=self._q6(amount_usdc),
-                idempotencyKey=idempotency_key,
+                idempotencyKey=self._payload_dict(meta_payload).get("idempotencyKey"),
                 status=str(status),
                 createdAt=to_dt_str(created_at, "") or "",
                 updatedAt=to_dt_str(updated_at, "") or "",
             )
-            for row_id, owner, tx_hash, request_id, buyer_address, amount_usdc, idempotency_key, status, created_at, updated_at in rows
+            for row_id, owner, tx_hash, request_id, meta_payload, amount_usdc, status, created_at, updated_at in rows
         ]
 
     def _normalize_deposit_intent_row(
@@ -77,35 +136,47 @@ class GatewayStateRepository:
                 entity = self._normalize_deposit_intent_row(row)
                 if entity is None:
                     continue
+                updated_at = to_dt_str(entity.updated_at, now_dt_str())
+                owner_id = self._ensure_owner_account(
+                    cur,
+                    entity.owner_address.lower(),
+                    updated_at,
+                )
                 cur.execute(
                     """
-                    INSERT INTO synapse_deposit_intents (
-                        id, owner_address, tx_hash, request_id, buyer_address, amount_usdc,
-                        idempotency_key, status, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO synapse_vault_deposits (
+                        deposit_id, owner_id, tx_hash, amount_usdc, status,
+                        block_number, request_id, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, NULL, %s, %s, %s)
                     ON CONFLICT (tx_hash)
                     DO UPDATE SET
-                        owner_address = EXCLUDED.owner_address,
+                        owner_id = EXCLUDED.owner_id,
                         request_id = EXCLUDED.request_id,
-                        buyer_address = EXCLUDED.buyer_address,
                         amount_usdc = EXCLUDED.amount_usdc,
-                        idempotency_key = EXCLUDED.idempotency_key,
                         status = EXCLUDED.status,
-                        created_at = EXCLUDED.created_at,
                         updated_at = EXCLUDED.updated_at
                     """,
                     (
                         entity.id,
-                        entity.owner_address.lower(),
+                        owner_id,
                         entity.tx_hash.lower(),
                         entity.request_id,
-                        entity.buyer_address.lower() if entity.buyer_address else None,
                         str(self._q6(entity.amount_usdc)),
-                        entity.idempotency_key,
                         entity.status,
                         to_dt_str(entity.created_at, now_dt_str()),
-                        to_dt_str(entity.updated_at, now_dt_str()),
+                        updated_at,
                     ),
+                )
+                self._upsert_runtime_state(
+                    cur,
+                    self._deposit_state_key(entity.id),
+                    {
+                        "buyerAddress": entity.buyer_address.lower()
+                        if entity.buyer_address
+                        else None,
+                        "idempotencyKey": entity.idempotency_key,
+                    },
+                    updated_at,
                 )
 
     def read_refund_intents(self) -> List[RefundIntentRow]:

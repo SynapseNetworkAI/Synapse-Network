@@ -4,6 +4,10 @@
 **模块**: 服务注册中心 (Service Registry) & 发现机制 (Service Discovery)
 **核心目标**: 为无界面的 AI Agent 提供“机器可读”的 API 交易超市，实现“注册 ➡️ 发现 ➡️ 调用”的极速闭环。
 
+> 状态更新（2026-03-17）：本文档的核心方向仍然有效，但底层数据模型已升级到 build-for-agent 版本。
+>
+> Discovery 面向 Agent 只暴露 Service Contract，不暴露 `seller_wallet`、结算地址或平台内部拆账细节。底层存储不再使用单表 `synapse_service_registry` 作为唯一真相，而是拆为 `synapse_service_manifests`、`synapse_service_endpoints`、`synapse_service_health_snapshots`、`synapse_service_search_index`。
+
 ---
 
 ## 1. 架构背景与痛点
@@ -29,7 +33,6 @@
 ```json
 {
   "service_id": "srv_kl_weather_001",
-  "seller_wallet": "0x9999...9999",
   "service_name": "吉隆坡实时天气API",
   "price_usdc": 0.05,
   "description": "提供马来西亚吉隆坡的实时温度、湿度和降雨概率。适合用于出行规划。", // 【核心】给买家大模型的 Prompt 提示词！
@@ -47,6 +50,11 @@
 }
 ```
 
+说明：
+
+- `seller_wallet` 属于平台内部 Seller Profile / Payout Profile，不属于 Agent-facing Discovery 协议。
+- Agent 只需要知道 `service_id`、能力、价格、输入输出和运行约束。
+
 ### 第二步：买家发现 (AI 逛超市 Discovery)
 
 买家 AI 接收到 Master（用户）的自然语言任务指令（如：“我要去吉隆坡，帮我查查今天会不会下雨”）后，首要动作是向 Synapse Network 的“赛博黄页”进行服务查阅。
@@ -56,6 +64,12 @@
   - V1 阶段：基于关键字与标签（Tags/Description）匹配。
   - V2 阶段：基于向量数据库（Vector DB）的语义检索映射。
 - **平台返回值**: 抹除敏感信息后的可用服务列表。
+
+- **底层存储**:
+  - `synapse_service_manifests`: 公开 Manifest
+  - `synapse_service_endpoints`: 路由目标
+  - `synapse_service_health_snapshots`: 健康快照
+  - `synapse_service_search_index`: 检索索引
 
 **发现接口响应 (Discovery Response):**
 

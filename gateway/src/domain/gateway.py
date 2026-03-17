@@ -7,12 +7,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 """Gateway domain entities — RouterConfigRow.
 
-网关路由配置实体，对应 synapse_router_config 关系表（非 JSONB payload 模式）。
+网关路由配置实体。当前存储实现仍可映射兼容表或 runtime_state，领域对象保持稳定。
 """
 
 
 class RouterConfigRow(BaseModel):
-    """单条路由日限额配置（对应 synapse_router_config 行）。"""
+    """单条路由日限额配置领域实体。"""
 
     model_config = ConfigDict(populate_by_name=True)
 

@@ -8,9 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 """Audit domain entity — AuditLogEntry.
 
-审计日志采用统一事件协议，按 domain 路由到不同物理表：
-1. finance -> synapse_audit_log
-2. system -> synapse_system_activity_log
+审计日志采用统一事件协议，finance/system 均落入 synapse_audit_events，
+通过 business_type 与 detail_json 区分资金事件和系统事件。
 """
 
 

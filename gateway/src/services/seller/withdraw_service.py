@@ -10,7 +10,15 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_lock import RedisLockManager
 from src.domain.finance import BalanceLedger
-from src.domain.finance import WithdrawalIntentRow
+from src.domain.finance import (
+    CompleteWithdrawTxCommand,
+    PreparedWithdrawTicket,
+    ReserveSellerWithdrawCommand,
+    WithdrawCreateContext,
+    WithdrawalAtomicRequestCommand,
+    WithdrawalDecision,
+    WithdrawalIntentRow,
+)
 from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
@@ -69,42 +77,38 @@ class SellerWithdrawService(
             return self._signing_delegate._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
         return super()._sign_withdraw_ticket(typed_data, private_key)
 
-    def _normalize_rows(self, raw: Any) -> List[Dict[str, Any]]:
-        if isinstance(raw, list):
-            return [item for item in raw if isinstance(item, dict)]
-        if isinstance(raw, dict) and isinstance(raw.get("rows"), list):
-            return [item for item in raw["rows"] if isinstance(item, dict)]
-        return []
+    @staticmethod
+    def _withdraw_owner(row: WithdrawalIntentRow) -> str:
+        return normalize_wallet(str(row.owner_address or ""))
 
-    def _normalize_withdrawal_rows(self) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _withdraw_created_at(row: WithdrawalIntentRow) -> int:
+        try:
+            return int(row.created_at or 0)
+        except Exception:
+            return 0
+
+    def _normalize_withdrawal_rows(self) -> List[WithdrawalIntentRow]:
         raw_rows = self.storage.get_data_manager().system.gateway_state.read_withdrawal_intents()
-        rows: List[Dict[str, Any]] = []
+        rows: List[WithdrawalIntentRow] = []
         if isinstance(raw_rows, list):
             for row in raw_rows:
                 if isinstance(row, WithdrawalIntentRow):
-                    rows.append(row.model_dump(by_alias=True, mode="json"))
-                elif isinstance(row, dict):
                     rows.append(row)
+                elif isinstance(row, dict):
+                    rows.append(WithdrawalIntentRow.model_validate(row))
         for row in rows:
-            status = str(row.get("status") or "").upper()
+            status = str(row.status or "").upper()
             if not status or status == "PENDING":
-                row["status"] = "REQUESTED"
+                row.status = "REQUESTED"
             else:
-                row["status"] = status
+                row.status = status
         return rows
 
-    def _save_withdrawal_rows(self, rows: List[Dict[str, Any]]) -> None:
-        repo = self.storage.get_data_manager().system.gateway_state
-        try:
-            # Preserve full dict payload for in-memory/non-SQL repositories.
-            repo.write_withdrawal_intents(rows, int(time.time()))
-        except Exception:
-            typed_rows = [
-                WithdrawalIntentRow.model_validate(row)
-                for row in rows
-                if isinstance(row, dict)
-            ]
-            repo.write_withdrawal_intents(typed_rows, int(time.time()))
+    def _save_withdrawal_rows(self, rows: List[WithdrawalIntentRow]) -> None:
+        self.storage.get_data_manager().system.gateway_state.write_withdrawal_intents(
+            rows, int(time.time())
+        )
 
     def _load_balance_ledger(self) -> BalanceLedger:
         return self.storage.get_data_manager().finance.balance.read_balance_ledger()
@@ -114,27 +118,27 @@ class SellerWithdrawService(
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
     def _get_pending_withdrawal(
-        self, rows: List[Dict[str, Any]], owner_wallet: str
-    ) -> Optional[Dict[str, Any]]:
+        self, rows: List[WithdrawalIntentRow], owner_wallet: str
+    ) -> Optional[WithdrawalIntentRow]:
         owner = normalize_wallet(owner_wallet)
         for row in rows:
-            if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
+            if self._withdraw_owner(row) != owner:
                 continue
-            if str(row.get("status") or "").upper() in ACTIVE_WITHDRAWAL_STATUSES:
+            if str(row.status or "").upper() in ACTIVE_WITHDRAWAL_STATUSES:
                 return row
         return None
 
     def _find_withdrawal_by_id(
-        self, rows: List[Dict[str, Any]], owner_wallet: str, withdrawal_id: str
-    ) -> Optional[Dict[str, Any]]:
+        self, rows: List[WithdrawalIntentRow], owner_wallet: str, withdrawal_id: str
+    ) -> Optional[WithdrawalIntentRow]:
         owner = normalize_wallet(owner_wallet)
         target = str(withdrawal_id or "").strip()
         if not target:
             return None
         for row in rows:
-            if str(row.get("id") or "") != target:
+            if str(row.id or "") != target:
                 continue
-            if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
+            if self._withdraw_owner(row) != owner:
                 continue
             return row
         return None
@@ -191,13 +195,32 @@ class SellerWithdrawService(
         except Exception:
             return raw
 
-    def _build_pending_withdraw_response(self, row: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_withdraw_create_context(
+        self,
+        *,
+        owner: str,
+        payload: Dict[str, Any],
+        available_receivable: float,
+    ) -> WithdrawCreateContext:
+        amount_usdc = self._parse_withdraw_amount_usdc(payload, available_receivable)
+        request_hash = self._request_hash(
+            {
+                "ownerAddress": owner,
+                "amountUsdc": self._requested_withdraw_amount_for_hash(payload),
+            }
+        )
+        return WithdrawCreateContext(
+            amount_usdc=amount_usdc,
+            request_hash=request_hash,
+        )
+
+    def _build_pending_withdraw_response(self, row: WithdrawalIntentRow) -> Dict[str, Any]:
         return {
-            "withdrawalId": str(row.get("id") or ""),
-            "status": str(row.get("status") or "REQUESTED"),
-            "amountUsdc": round(float(row.get("amountUsdc") or 0.0), 6),
-            "ticket": row.get("ticket") if isinstance(row.get("ticket"), dict) else {},
-            "message": str(row.get("message") or ""),
+            "withdrawalId": str(row.id or ""),
+            "status": str(row.status or "REQUESTED"),
+            "amountUsdc": round(float(row.amount_usdc or 0.0), 6),
+            "ticket": dict(row.ticket or {}),
+            "message": str(row.message or ""),
         }
 
     def _normalize_tx_hash_or_raise(self, tx_hash: str) -> str:
@@ -213,11 +236,11 @@ class SellerWithdrawService(
         return normalized
 
     def _assert_withdrawal_completable(
-        self, target: Dict[str, Any], tx_hash: str
+        self, target: WithdrawalIntentRow, tx_hash: str
     ) -> Optional[Dict[str, Any]]:
-        status = str(target.get("status") or "").upper()
+        status = str(target.status or "").upper()
         if status == "COMPLETED":
-            existing_tx = str(target.get("txHash") or "")
+            existing_tx = str(target.tx_hash or "")
             if existing_tx and existing_tx != tx_hash:
                 raise HTTPException(
                     status_code=409,
@@ -227,7 +250,7 @@ class SellerWithdrawService(
                     },
                 )
             return {
-                "withdrawalId": str(target.get("id") or ""),
+                "withdrawalId": str(target.id or ""),
                 "status": "COMPLETED",
                 "txHash": existing_tx,
             }
@@ -243,18 +266,18 @@ class SellerWithdrawService(
 
     def _assert_no_withdraw_tx_replay(
         self,
-        rows: List[Dict[str, Any]],
+        rows: List[WithdrawalIntentRow],
         owner_wallet: str,
         tx_hash: str,
         current_withdrawal_id: str,
     ) -> None:
         owner = normalize_wallet(owner_wallet)
         for row in rows:
-            if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
+            if self._withdraw_owner(row) != owner:
                 continue
-            if str(row.get("id") or "") == current_withdrawal_id:
+            if str(row.id or "") == current_withdrawal_id:
                 continue
-            if str(row.get("txHash") or "").strip().lower() != tx_hash:
+            if str(row.tx_hash or "").strip().lower() != tx_hash:
                 continue
             raise HTTPException(
                 status_code=409,
@@ -290,10 +313,12 @@ class SellerWithdrawService(
         if hasattr(self.storage, "reserve_seller_withdraw_atomic"):
             try:
                 getattr(self.storage, "reserve_seller_withdraw_atomic")(
-                    owner_wallet=owner,
-                    amount_usdc=Decimal(str(amount_usdc)).quantize(
-                        Decimal("0.000001"), rounding=ROUND_HALF_UP
-                    ),
+                    ReserveSellerWithdrawCommand(
+                        owner_wallet=owner,
+                        amount_usdc=Decimal(str(amount_usdc)).quantize(
+                            Decimal("0.000001"), rounding=ROUND_HALF_UP
+                        ),
+                    )
                 )
             except RuntimeError as exc:
                 if str(exc) == "INSUFFICIENT_SELLER_RECEIVABLE":
@@ -313,22 +338,22 @@ class SellerWithdrawService(
         *,
         owner: str,
         amount_usdc: float,
-    ) -> Dict[str, Any]:
+    ) -> PreparedWithdrawTicket:
         requires_manual_review = amount_usdc >= WITHDRAW_AUTO_APPROVAL_LIMIT_USDC
         amount_wei = int(round(amount_usdc * float(10**USDC_DECIMALS)))
 
         if requires_manual_review:
-            return {
-                "requiresManualReview": True,
-                "amountWei": amount_wei,
-                "feeWei": 0,
-                "nonce": 0,
-                "chainId": 0,
-                "deadline": 0,
-                "signature": "",
-                "signerAddress": "",
-                "ticket": {},
-            }
+            return PreparedWithdrawTicket(
+                requires_manual_review=True,
+                amount_wei=amount_wei,
+                fee_wei=0,
+                nonce=0,
+                chain_id=0,
+                deadline=0,
+                signature="",
+                signer_address="",
+                ticket={},
+            )
 
         private_key = self._require_withdraw_signer()
         nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)
@@ -352,16 +377,16 @@ class SellerWithdrawService(
         except Exception:
             signer_address = ""
 
-        return {
-            "requiresManualReview": False,
-            "amountWei": amount_wei,
-            "feeWei": fee_wei,
-            "nonce": nonce,
-            "chainId": chain_id,
-            "deadline": deadline,
-            "signature": signature,
-            "signerAddress": signer_address,
-            "ticket": {
+        return PreparedWithdrawTicket(
+            requires_manual_review=False,
+            amount_wei=amount_wei,
+            fee_wei=fee_wei,
+            nonce=nonce,
+            chain_id=chain_id,
+            deadline=deadline,
+            signature=signature,
+            signer_address=signer_address,
+            ticket={
                 "amount": str(amount_wei),
                 "fee": str(fee_wei),
                 "nonce": nonce,
@@ -370,52 +395,41 @@ class SellerWithdrawService(
                 "chainId": chain_id,
                 "contractAddress": normalize_wallet(settings.router_address),
             },
-        }
+        )
 
     def _build_atomic_signing_ticket(
         self, owner: str, amount_usdc: Decimal
-    ) -> Dict[str, Any]:
-        payload = self._prepare_withdraw_ticket(
+    ) -> PreparedWithdrawTicket:
+        return self._prepare_withdraw_ticket(
             owner=owner, amount_usdc=float(amount_usdc)
         )
-        if bool(payload.get("requiresManualReview")):
-            return {}
-        return payload.get("ticket") if isinstance(payload.get("ticket"), dict) else {}
 
     def process_withdrawal_request(
-        self,
-        *,
-        seller_address: str,
-        amount_usdc: Decimal,
-        request_id: str,
-        idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        self, command: WithdrawalAtomicRequestCommand
+    ) -> WithdrawalDecision:
         if not hasattr(self.storage, "process_withdrawal_request_atomic"):
             raise RuntimeError("WITHDRAWAL_ATOMIC_NOT_SUPPORTED")
 
-        owner = normalize_wallet(seller_address)
+        owner = normalize_wallet(command.seller_address)
         high_risk_override = owner in settings.withdrawal_high_risk_seller_addresses
-        window_seconds = max(1, int(settings.withdrawal_window_hours)) * 3600
+        window_seconds = command.window_seconds
 
         try:
             return getattr(self.storage, "process_withdrawal_request_atomic")(
-                seller_address=owner,
-                amount_usdc=amount_usdc,
-                request_id=request_id,
-                idempotency_key=idempotency_key,
-                request_meta=request_meta,
-                single_limit_usdc=Decimal(
-                    str(settings.withdrawal_auto_single_limit_usdc)
-                ),
-                rolling_24h_limit_usdc=Decimal(
-                    str(settings.withdrawal_auto_24h_limit_usdc)
-                ),
-                window_seconds=window_seconds,
-                high_risk_override=high_risk_override,
-                sign_ticket_factory=lambda value: self._build_atomic_signing_ticket(
-                    owner, value
-                ),
+                WithdrawalAtomicRequestCommand(
+                    seller_address=owner,
+                    amount_usdc=command.amount_usdc,
+                    request_id=command.request_id,
+                    idempotency_key=command.idempotency_key,
+                    request_meta=command.request_meta,
+                    single_limit_usdc=command.single_limit_usdc,
+                    rolling_24h_limit_usdc=command.rolling_24h_limit_usdc,
+                    window_seconds=window_seconds,
+                    high_risk_override=bool(high_risk_override or command.high_risk_override),
+                    sign_ticket_factory=lambda value: self._build_atomic_signing_ticket(
+                        owner, value
+                    ),
+                )
             )
         except RuntimeError as exc:
             code = str(exc)
@@ -450,24 +464,30 @@ class SellerWithdrawService(
     ) -> Dict[str, Any]:
         request_id = str((request_meta or {}).get("requestId") or str(uuid4()))
         atomic_result = self.process_withdrawal_request(
-            seller_address=owner,
-            amount_usdc=Decimal(str(amount_usdc)).quantize(
-                Decimal("0.000001"), rounding=ROUND_HALF_UP
-            ),
-            request_id=request_id,
-            idempotency_key=idempotency_key,
-            request_meta=request_meta,
+            WithdrawalAtomicRequestCommand(
+                seller_address=owner,
+                amount_usdc=Decimal(str(amount_usdc)).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
+                request_id=request_id,
+                idempotency_key=idempotency_key,
+                request_meta=request_meta,
+                single_limit_usdc=Decimal(
+                    str(settings.withdrawal_auto_single_limit_usdc)
+                ),
+                rolling_24h_limit_usdc=Decimal(
+                    str(settings.withdrawal_auto_24h_limit_usdc)
+                ),
+                window_seconds=max(1, int(settings.withdrawal_window_hours)) * 3600,
+                high_risk_override=False,
+            )
         )
         response = {
-            "withdrawalId": str(atomic_result.get("withdrawalId") or ""),
-            "status": str(atomic_result.get("status") or "REQUESTED"),
-            "amountUsdc": round(
-                float(atomic_result.get("amountUsdc") or amount_usdc), 6
-            ),
-            "ticket": atomic_result.get("ticket")
-            if isinstance(atomic_result.get("ticket"), dict)
-            else {},
-            "message": str(atomic_result.get("message") or ""),
+            "withdrawalId": atomic_result.withdrawal_id,
+            "status": atomic_result.status,
+            "amountUsdc": atomic_result.amount_usdc,
+            "ticket": dict(atomic_result.ticket),
+            "message": atomic_result.message,
         }
         await self._finish_provider_withdraw_idempotency(
             owner=owner,
@@ -477,18 +497,14 @@ class SellerWithdrawService(
             redis_client=redis_client,
             idem_rows=idem_rows,
         )
-        if str(atomic_result.get("decision") or "").lower() == "red":
+        if atomic_result.decision.lower() == "red":
             raise HTTPException(
                 status_code=403,
                 detail={
-                    "code": str(
-                        atomic_result.get("riskReasonCode")
-                        or "WITHDRAWAL_BLOCKED_BY_RISK_POLICY"
-                    ),
-                    "message": str(
-                        atomic_result.get("message")
-                        or "Withdrawal blocked by risk policy."
-                    ),
+                    "code": atomic_result.risk_reason_code
+                    or "WITHDRAWAL_BLOCKED_BY_RISK_POLICY",
+                    "message": atomic_result.message
+                    or "Withdrawal blocked by risk policy.",
                 },
             )
 
@@ -500,7 +516,7 @@ class SellerWithdrawService(
                 "amountUsdc": response["amountUsdc"],
                 "status": response["status"],
                 "idempotencyKey": idempotency_key,
-                "requestId": request_id,
+                "requestId": atomic_result.request_id,
                 "requestMeta": request_meta or {},
             },
         )
@@ -509,7 +525,7 @@ class SellerWithdrawService(
     async def _resolve_pending_withdrawal_response(
         self,
         *,
-        rows: List[Dict[str, Any]],
+        rows: List[WithdrawalIntentRow],
         owner: str,
         amount_usdc: float,
         idempotency_key: str,
@@ -522,8 +538,8 @@ class SellerWithdrawService(
             return None
 
         if (
-            normalize_wallet(str(pending.get("ownerAddress") or "")) == owner
-            and round(float(pending.get("amountUsdc") or 0.0), 6) == amount_usdc
+            self._withdraw_owner(pending) == owner
+            and round(float(pending.amount_usdc or 0.0), 6) == amount_usdc
         ):
             response = self._build_pending_withdraw_response(pending)
             await self._finish_provider_withdraw_idempotency(
@@ -551,57 +567,47 @@ class SellerWithdrawService(
         amount_usdc: float,
         idempotency_key: str,
         request_meta: Optional[Dict[str, Any]],
-        ticket_payload: Dict[str, Any],
-    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
-        requires_manual_review = bool(ticket_payload.get("requiresManualReview"))
-        amount_wei = int(ticket_payload.get("amountWei") or 0)
-        fee_wei = int(ticket_payload.get("feeWei") or 0)
-        nonce = int(ticket_payload.get("nonce") or 0)
-        chain_id = int(ticket_payload.get("chainId") or 0)
-        deadline = int(ticket_payload.get("deadline") or 0)
-        signature = str(ticket_payload.get("signature") or "")
-        signer_address = str(ticket_payload.get("signerAddress") or "")
-        ticket = (
-            ticket_payload.get("ticket")
-            if isinstance(ticket_payload.get("ticket"), dict)
-            else {}
-        )
-
+        ticket_payload: PreparedWithdrawTicket,
+    ) -> tuple[WithdrawalIntentRow, Dict[str, Any]]:
         now = int(time.time())
         withdrawal_id = str(uuid4())
-        status = "PENDING_MANUAL_REVIEW" if requires_manual_review else "APPROVED_AUTO"
+        status = (
+            "PENDING_MANUAL_REVIEW"
+            if ticket_payload.requires_manual_review
+            else "APPROVED_AUTO"
+        )
         message = (
             "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
-            if requires_manual_review
+            if ticket_payload.requires_manual_review
             else ""
         )
-        row = {
-            "id": withdrawal_id,
-            "ownerAddress": owner,
-            "amountUsdc": amount_usdc,
-            "amountWei": str(amount_wei),
-            "feeWei": str(fee_wei),
-            "nonce": nonce,
-            "deadline": deadline,
-            "signature": signature,
-            "chainId": chain_id,
-            "contractAddress": normalize_wallet(settings.router_address),
-            "signerAddress": signer_address,
-            "status": status,
-            "businessType": "withdraw",
-            "riskLevel": "yellow" if requires_manual_review else "green",
-            "idempotencyKey": idempotency_key,
-            "createdAt": now,
-            "updatedAt": now,
-            "requestMeta": request_meta or {},
-            "message": message,
-            "ticket": ticket,
-        }
+        row = WithdrawalIntentRow(
+            id=withdrawal_id,
+            ownerAddress=owner,
+            amountUsdc=Decimal(str(amount_usdc)),
+            amountWei=str(ticket_payload.amount_wei),
+            feeWei=str(ticket_payload.fee_wei),
+            nonce=ticket_payload.nonce,
+            deadline=ticket_payload.deadline,
+            signature=ticket_payload.signature,
+            chainId=ticket_payload.chain_id,
+            contractAddress=normalize_wallet(settings.router_address),
+            signerAddress=ticket_payload.signer_address,
+            status=status,
+            businessType="withdraw",
+            riskLevel="yellow" if ticket_payload.requires_manual_review else "green",
+            idempotencyKey=idempotency_key,
+            createdAt=str(now),
+            updatedAt=str(now),
+            requestMeta=request_meta or {},
+            message=message,
+            ticket=dict(ticket_payload.ticket),
+        )
         response = {
             "withdrawalId": withdrawal_id,
             "status": status,
             "amountUsdc": amount_usdc,
-            "ticket": ticket,
+            "ticket": dict(ticket_payload.ticket),
             "message": message,
         }
         return row, response
@@ -620,12 +626,14 @@ class SellerWithdrawService(
                 owner, "provider_withdraw_intent"
             )
 
-            request_hash = self._request_hash(
-                {
-                    "ownerAddress": owner,
-                    "amountUsdc": self._requested_withdraw_amount_for_hash(payload),
-                }
+            ledger = self._load_balance_ledger()
+            available_receivable = round(float(ledger.sellers.get(owner, 0.0)), 6)
+            context = self._build_withdraw_create_context(
+                owner=owner,
+                payload=payload,
+                available_receivable=available_receivable,
             )
+
             (
                 existing_response,
                 redis_client,
@@ -633,24 +641,18 @@ class SellerWithdrawService(
             ) = await self._begin_provider_withdraw_idempotency(
                 owner=owner,
                 idempotency_key=idempotency_key,
-                request_hash=request_hash,
+                request_hash=context.request_hash,
             )
             if existing_response is not None:
                 return existing_response
-
-            ledger = self._load_balance_ledger()
-            available_receivable = round(float(ledger.sellers.get(owner, 0.0)), 6)
-            amount_usdc = self._parse_withdraw_amount_usdc(
-                payload, available_receivable
-            )
 
             rows = self._normalize_withdrawal_rows()
             pending_response = await self._resolve_pending_withdrawal_response(
                 rows=rows,
                 owner=owner,
-                amount_usdc=amount_usdc,
+                amount_usdc=context.amount_usdc,
                 idempotency_key=idempotency_key,
-                request_hash=request_hash,
+                request_hash=context.request_hash,
                 redis_client=redis_client,
                 idem_rows=idem_rows,
             )
@@ -660,21 +662,21 @@ class SellerWithdrawService(
             if hasattr(self.storage, "process_withdrawal_request_atomic"):
                 return await self._create_provider_withdraw_intent_atomic(
                     owner=owner,
-                    amount_usdc=amount_usdc,
+                    amount_usdc=context.amount_usdc,
                     idempotency_key=idempotency_key,
-                    request_hash=request_hash,
+                    request_hash=context.request_hash,
                     request_meta=request_meta,
                     redis_client=redis_client,
                     idem_rows=idem_rows,
                 )
 
             ticket_payload = self._prepare_withdraw_ticket(
-                owner=owner, amount_usdc=amount_usdc
+                owner=owner, amount_usdc=context.amount_usdc
             )
-            self._reserve_withdraw_amount(owner, amount_usdc, ledger)
+            self._reserve_withdraw_amount(owner, context.amount_usdc, ledger)
             row, response = self._build_withdraw_row_and_response(
                 owner=owner,
-                amount_usdc=amount_usdc,
+                amount_usdc=context.amount_usdc,
                 idempotency_key=idempotency_key,
                 request_meta=request_meta,
                 ticket_payload=ticket_payload,
@@ -684,7 +686,7 @@ class SellerWithdrawService(
             await self._finish_provider_withdraw_idempotency(
                 owner=owner,
                 idempotency_key=idempotency_key,
-                request_hash=request_hash,
+                request_hash=context.request_hash,
                 response=response,
                 redis_client=redis_client,
                 idem_rows=idem_rows,
@@ -695,10 +697,10 @@ class SellerWithdrawService(
                 owner,
                 {
                     "withdrawalId": response["withdrawalId"],
-                    "amountUsdc": amount_usdc,
+                    "amountUsdc": context.amount_usdc,
                     "status": response["status"],
-                    "nonce": row.get("nonce"),
-                    "deadline": row.get("deadline"),
+                    "nonce": row.nonce,
+                    "deadline": row.deadline,
                     "idempotencyKey": idempotency_key,
                     "requestMeta": request_meta or {},
                 },
@@ -714,10 +716,10 @@ class SellerWithdrawService(
         filtered = [
             row
             for row in rows
-            if normalize_wallet(str(row.get("ownerAddress") or "")) == owner
+            if self._withdraw_owner(row) == owner
         ]
-        filtered.sort(key=lambda row: int(row.get("createdAt") or 0), reverse=True)
-        return filtered
+        filtered.sort(key=self._withdraw_created_at, reverse=True)
+        return [row.model_dump(by_alias=True, mode="json") for row in filtered]
 
     async def complete_provider_withdrawal(
         self,
@@ -746,9 +748,11 @@ class SellerWithdrawService(
             if hasattr(self.storage, "complete_withdraw_tx_atomic"):
                 bound = bool(
                     getattr(self.storage, "complete_withdraw_tx_atomic")(
-                        owner_wallet=owner,
-                        tx_hash=normalized_tx_hash,
-                        kind="provider_withdraw",
+                        CompleteWithdrawTxCommand(
+                            owner_wallet=owner,
+                            tx_hash=normalized_tx_hash,
+                            kind="provider_withdraw",
+                        )
                     )
                 )
                 if not bound:
@@ -760,35 +764,35 @@ class SellerWithdrawService(
                         },
                     )
             self._assert_no_withdraw_tx_replay(
-                rows, owner, normalized_tx_hash, str(target.get("id") or "")
+                rows, owner, normalized_tx_hash, str(target.id or "")
             )
             completed = self._assert_withdrawal_completable(target, normalized_tx_hash)
             if completed is not None:
                 return completed
 
-            amount_usdc = round(float(target.get("amountUsdc") or 0.0), 6)
+            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
             self._consume_locked_withdraw_amount(owner, amount_usdc)
 
             now = int(time.time())
-            target["status"] = "COMPLETED"
-            target["txHash"] = normalized_tx_hash
-            target["completedAt"] = now
-            target["updatedAt"] = now
-            target["completeMeta"] = request_meta or {}
+            target.status = "COMPLETED"
+            target.tx_hash = normalized_tx_hash
+            target.completed_at = now
+            target.updated_at = str(now)
+            target.complete_meta = request_meta or {}
             self._save_withdrawal_rows(rows)
 
             self._append_financial_audit(
                 "PROVIDER_WITHDRAW_COMPLETED",
                 owner,
                 {
-                    "withdrawalId": str(target.get("id") or ""),
+                    "withdrawalId": str(target.id or ""),
                     "txHash": normalized_tx_hash,
                     "amountUsdc": amount_usdc,
                     "requestMeta": request_meta or {},
                 },
             )
             return {
-                "withdrawalId": str(target.get("id") or ""),
+                "withdrawalId": str(target.id or ""),
                 "status": "COMPLETED",
                 "txHash": normalized_tx_hash,
             }

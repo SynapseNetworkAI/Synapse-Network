@@ -14,6 +14,12 @@
 4. 风控前置，能在 Quote 阶段拦就不要拖到 Invoke
 5. 错误码稳定，便于 Agent 编排重试与降级
 
+补充边界：
+
+- Discovery / Quote / Invoke 是 **service-facing / agent-facing protocol**。
+- 这三类 API 默认不暴露卖家钱包、平台分账明细、内部路由节点、内部账本主键。
+- Agent 只需要知道“调用什么服务、花多少钱、是否允许调用、返回什么结果”。
+
 ## 2. Discovery API
 
 ### 2.1 Endpoint
@@ -53,7 +59,7 @@
       "p95_latency_ms": 820,
       "success_rate_24h": 0.992,
       "output_mode": "json_schema",
-      "seller_reputation": 4.8,
+      "service_reliability_tier": "A",
       "manifest_version": "1.0.0"
     }
   ]
@@ -65,6 +71,7 @@
 - 返回结果必须已经带上 Agent 决策所需核心字段
 - 不允许把关键字段藏在长文本介绍里
 - `sort` 至少支持 `best_match`、`lowest_price`、`fastest`、`highest_reliability`
+- 排序和展示应该以 service 健康度、价格、能力为中心，而不是暴露卖家身份细节
 
 ## 3. Quote API
 
@@ -148,8 +155,6 @@
   "invocation_id": "inv_01J...",
   "status": "SUCCEEDED",
   "charged_usdc": "0.008",
-  "seller_payout_usdc": "0.0072",
-  "platform_fee_usdc": "0.0008",
   "result": {
     "merchant_name": "ABC CO LTD",
     "invoice_total": "1820.50",
@@ -158,6 +163,11 @@
   "receipt_id": "rcpt_01J..."
 }
 ```
+
+说明：
+
+- `seller_payout_usdc`、`platform_fee_usdc` 属于平台内部结算与财务拆账字段，不应该成为 Agent-facing 成功响应的默认字段。
+- 如果 Owner 需要看平台费用和卖家分账，应在 Billing / Audit 查询接口中获取，而不是塞进每次 Invoke 响应。
 
 ### 4.4 Failure Response
 
@@ -193,6 +203,7 @@
 - Invoke 以 `idempotency_key + credential_id` 做业务幂等
 - 每次 Invoke 必须落审计事件、账本事件、调用结果事件
 - `charged_usdc` 为 0 的失败调用，也要有可检索审计记录
+- 审计里可以保留卖家、分账、路由细节；公开响应只返回 Agent 编排所需最小字段
 
 ## 7. V1 交付标准
 

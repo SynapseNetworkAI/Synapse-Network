@@ -1,5 +1,9 @@
 # Provider Service Keys, 限流与统计设计（P1）
 
+> 状态更新（2026-03-17）：本文档描述的是历史上的 `buyer credentials / provider secrets` 双钥匙方案，不再是 build-for-agent 的最终模型。
+>
+> 新模型不再以“Buyer Credential + Seller Secret”作为 Runtime 核心抽象，而是切换到 `Agent Profile + Agent Credential + Budget Policy + Service Manifest`。新的数据库重构见 [docs/agent/06_Build_For_Agent_Database_Rebuild.md](../agent/06_Build_For_Agent_Database_Rebuild.md)。
+
 ## 1. 目标
 打破原有绑定具体“Agent”的维度，采用 **“Seller 钱包地址 -> 多个 Service Keys (Provider API Secrets) -> 授权调用所有注册服务”** 的顶层架构。
 面向高频调用场景，补齐以下三项核心能力：

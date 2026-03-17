@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.api.schemas.pydantic_models import InferenceRequest
+from src.domain.identity import RuntimeCredentialRecord
 from src.services.platform import credential_service
 from src.services.buyer import forwarding_billing
 from src.services.buyer import forwarding_upstream
@@ -274,17 +275,19 @@ async def _check_service_qps_limit(service_id: str, max_qps: int) -> None:
         )
 
 
-async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) -> None:
+async def _check_credit_limit(
+    credential: RuntimeCredentialRecord, charge_amount: float
+) -> None:
     """Validate current credential spend window against configured credit limit."""
-    credit_limit = credential.get("creditLimit")
+    credit_limit = credential_service.credential_credit_limit(credential)
     if credit_limit is None:
         return
 
     reset_interval = credential_service.resolve_reset_interval(
-        str(credential.get("resetInterval") or "daily")
+        str(credential.metadata.reset_interval or "daily")
     )
     win_key, _ = _window_key_and_ttl(reset_interval, credential_service.now_ts())
-    spent = await _get_window_spend(str(credential.get("id")), win_key)
+    spent = await _get_window_spend(str(credential.credential.credential_id), win_key)
     if float(spent) + float(charge_amount) <= float(credit_limit) + 1e-9:
         return
 
@@ -302,18 +305,20 @@ async def _check_credit_limit(credential: Dict[str, Any], charge_amount: float) 
 
 
 async def _record_credit_window_spend(
-    credential: Dict[str, Any], charge_amount: float
+    credential: RuntimeCredentialRecord, charge_amount: float
 ) -> None:
     """Record successful charge into credential credit window counters."""
-    credit_limit = credential.get("creditLimit")
+    credit_limit = credential_service.credential_credit_limit(credential)
     if credit_limit is None:
         return
 
     reset_interval = credential_service.resolve_reset_interval(
-        str(credential.get("resetInterval") or "daily")
+        str(credential.metadata.reset_interval or "daily")
     )
     win_key, ttl_sec = _window_key_and_ttl(reset_interval, credential_service.now_ts())
-    await _add_window_spend(str(credential.get("id")), win_key, ttl_sec, charge_amount)
+    await _add_window_spend(
+        str(credential.credential.credential_id), win_key, ttl_sec, charge_amount
+    )
 
 
 def _log_upstream_failure(
@@ -363,14 +368,17 @@ async def generate_response_v2(
     request_id = _resolve_request_id(x_request_id)
 
     credential = credential_service.resolve_active_credential(storage, token)
-    await _check_rpm_limit(str(credential.get("id")), int(credential.get("rpm") or 0))
+    await _check_rpm_limit(
+        str(credential.credential.credential_id),
+        int(credential.policy.rpm_limit if credential.policy is not None else 0),
+    )
 
     service = _find_active_service(storage, service_id)
     constraints = _effective_service_constraints(service)
     await _check_service_qps_limit(service_id, int(constraints["maxQps"]))
     unit_price = _parse_service_price_usdc(service)
 
-    owner_wallet = normalize_wallet(str(credential.get("ownerAddress") or ""))
+    owner_wallet = credential_service.credential_owner_wallet(credential)
     seller_wallet = normalize_wallet(
         str(service.get("address") or service.get("ownerAddress") or "")
     )
@@ -400,7 +408,7 @@ async def generate_response_v2(
         total_charge,
         platform_fee_total,
         seller_net,
-        str(credential.get("id")),
+        str(credential.credential.credential_id),
     )
 
     try:
@@ -488,7 +496,7 @@ async def generate_response_v2(
             "sellerNet": seller_net,
             "totalCharge": total_charge,
             "buyerBalanceAfter": buyer_after,
-            "credentialId": credential.get("id"),
+            "credentialId": credential.credential.credential_id,
         },
     )
 

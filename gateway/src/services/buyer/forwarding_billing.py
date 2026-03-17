@@ -6,8 +6,10 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.finance import UsageLogRow
+from src.domain.identity import RuntimeCredentialRecord
 from src.services.platform import credential_service
 from src.storage import BaseStorage
+from src.domain.finance import ChargeBuyerUsageCommand
 
 
 RISK_RESTRICTED_STATUSES = {"restricted", "suspended", "blocked"}
@@ -173,7 +175,7 @@ async def charge_and_mark_usage(
     platform_fee_total: float,
     seller_net: float,
     credential_id: str,
-) -> Tuple[float, Optional[Dict[str, Any]]]:
+) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
     """Atomically charge buyer, credit seller/platform, and increment credential usage."""
     now = credential_service.now_ts()
 
@@ -211,7 +213,7 @@ def _charge_and_mark_usage_atomic(
     seller_net: float,
     credential_id: str,
     now: int,
-) -> Tuple[float, Optional[Dict[str, Any]]]:
+) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
     buyer_after = 0.0
     updated_credential = None
 
@@ -227,18 +229,20 @@ def _charge_and_mark_usage_atomic(
     )
     try:
         result = getattr(storage, "charge_buyer_and_record_usage_atomic")(
-            owner_wallet=owner_wallet,
-            seller_wallet=seller_wallet,
-            total_charge=Decimal(str(total_charge)).quantize(
-                Decimal("0.000001"), rounding=ROUND_HALF_UP
-            ),
-            seller_net=Decimal(str(seller_net)).quantize(
-                Decimal("0.000001"), rounding=ROUND_HALF_UP
-            ),
-            platform_fee_total=Decimal(str(platform_fee_total)).quantize(
-                Decimal("0.000001"), rounding=ROUND_HALF_UP
-            ),
-            usage_row=usage_row,
+            ChargeBuyerUsageCommand(
+                owner_wallet=owner_wallet,
+                seller_wallet=seller_wallet,
+                total_charge=Decimal(str(total_charge)).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
+                seller_net=Decimal(str(seller_net)).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
+                platform_fee_total=Decimal(str(platform_fee_total)).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
+                usage_row=usage_row,
+            )
         )
         if isinstance(result, dict):
             buyer_after = float(result.get("buyerBalanceAfter") or 0.0)
@@ -260,15 +264,16 @@ def _charge_and_mark_usage_atomic(
             )
         raise
 
-    rows, extras = credential_service.load_credential_rows(storage)
-    idx = next(
-        (i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1
-    )
+    rows = credential_service.load_credential_rows(storage)
+    idx = credential_service.find_runtime_credential_index(rows, credential_id)
     if idx >= 0:
-        rows[idx]["callsUsed"] = int(rows[idx].get("callsUsed") or 0) + 1
-        rows[idx]["updatedAt"] = now
-        updated_credential = rows[idx]
-        credential_service.save_credential_rows(storage, rows, extras)
+        updated_credential = credential_service.clone_runtime_credential(
+            rows[idx],
+            calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
+            updated_at=now,
+        )
+        rows[idx] = updated_credential
+        credential_service.save_credential_rows(storage, rows)
     return buyer_after, updated_credential
 
 
@@ -281,9 +286,9 @@ async def _charge_and_mark_usage_fallback(
     platform_fee_total: float,
     seller_net: float,
     credential_id: str,
-) -> Tuple[float, Optional[Dict[str, Any]]]:
+) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
     buyer_after = 0.0
-    updated_credential = None
+    updated_credential: Optional[RuntimeCredentialRecord] = None
     now = credential_service.now_ts()
     async with credential_service.write_lock:
         ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
@@ -309,15 +314,16 @@ async def _charge_and_mark_usage_fallback(
         ledger.updated_at = now
         storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
-        rows, extras = credential_service.load_credential_rows(storage)
-        idx = next(
-            (i for i, row in enumerate(rows) if str(row.get("id")) == credential_id), -1
-        )
+        rows = credential_service.load_credential_rows(storage)
+        idx = credential_service.find_runtime_credential_index(rows, credential_id)
         if idx >= 0:
-            rows[idx]["callsUsed"] = int(rows[idx].get("callsUsed") or 0) + 1
-            rows[idx]["updatedAt"] = now
-            updated_credential = rows[idx]
-            credential_service.save_credential_rows(storage, rows, extras)
+            updated_credential = credential_service.clone_runtime_credential(
+                rows[idx],
+                calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
+                updated_at=now,
+            )
+            rows[idx] = updated_credential
+            credential_service.save_credential_rows(storage, rows)
 
     return buyer_after, updated_credential
 
@@ -329,7 +335,7 @@ async def rollback_charge(
     total_charge: float,
     platform_fee_total: float,
     seller_net: float,
-    updated_credential: Optional[Dict[str, Any]],
+    updated_credential: Optional[RuntimeCredentialRecord],
 ) -> None:
     """Rollback buyer/seller/platform ledger and credential usage when upstream fails."""
     async with credential_service.write_lock:
@@ -350,16 +356,14 @@ async def rollback_charge(
         if not updated_credential:
             return
 
-        rows, extras = credential_service.load_credential_rows(storage)
-        idx = next(
-            (
-                i
-                for i, row in enumerate(rows)
-                if str(row.get("id")) == str(updated_credential.get("id"))
-            ),
-            -1,
+        rows = credential_service.load_credential_rows(storage)
+        idx = credential_service.find_runtime_credential_index(
+            rows, updated_credential.credential.credential_id
         )
         if idx >= 0:
-            rows[idx]["callsUsed"] = max(0, int(rows[idx].get("callsUsed") or 0) - 1)
-            rows[idx]["updatedAt"] = credential_service.now_ts()
-            credential_service.save_credential_rows(storage, rows, extras)
+            rows[idx] = credential_service.clone_runtime_credential(
+                rows[idx],
+                calls_used=max(0, int(rows[idx].metadata.calls_used or 0) - 1),
+                updated_at=credential_service.now_ts(),
+            )
+            credential_service.save_credential_rows(storage, rows)

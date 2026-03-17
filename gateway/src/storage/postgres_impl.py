@@ -21,7 +21,20 @@ from .postgres.repositories.gateway_state_repository import GatewayStateReposito
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.audit import AuditLogEntry
-from src.domain.finance import BuyerChargeResult, DepositAttemptRow, DepositIntentRow, UsageLogRow
+from src.domain.finance import (
+    BalanceMutationResult,
+    BuyerChargeResult,
+    ChargeBuyerUsageCommand,
+    CompleteWithdrawTxCommand,
+    DepositAttemptRow,
+    DepositIntentConfirmCommand,
+    DepositIntentRegisterCommand,
+    DepositIntentRow,
+    ReserveSellerWithdrawCommand,
+    UsageLogRow,
+    WithdrawalAtomicRequestCommand,
+    WithdrawalDecision,
+)
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -29,30 +42,27 @@ except Exception:  # pragma: no cover - optional dependency at import time
     psycopg = None
 
 _AUDIT_INSERT_SQL = (
-    "INSERT INTO synapse_audit_log ("
-    "action_type, business_type, risk_level, owner_address, actor, request_id, trace_id, tx_hash, "
-    "counterparty_address, direction, status, risk_reason_code, ledger_id, client_ip, user_agent, "
-    "amount_delta, before_balance, after_balance, result_status, error_code, message"
+    "INSERT INTO synapse_audit_events ("
+    "event_id, event_type, business_type, owner_id, amount_delta, result_status, error_code, detail_json"
     ") VALUES ("
-    "%s, %s::synapse_business_type, %s::synapse_risk_level, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
+    "%s, %s, %s, %s, %s, %s, %s, %s::jsonb"
     ")"
 )
 _BALANCE_FOR_UPDATE_SQL = (
     "SELECT available_balance, pending_balance, frozen_balance "
-    "FROM synapse_balances WHERE owner_address = %s AND account_type = %s FOR UPDATE"
+    "FROM synapse_account_balances WHERE account_id = %s FOR UPDATE"
 )
 _RISK_RESTRICTED_SESSION_STATUSES = ("restricted", "suspended", "blocked")
 
 _BALANCE_UPSERT_SQL = """
-INSERT INTO synapse_balances (
-    owner_address,
-    account_type,
+INSERT INTO synapse_account_balances (
+    account_id,
     available_balance,
     pending_balance,
     frozen_balance,
     updated_at
-) VALUES (%s, %s, %s, %s, %s, %s)
-ON CONFLICT (owner_address, account_type)
+) VALUES (%s, %s, %s, %s, %s)
+ON CONFLICT (account_id)
 DO UPDATE SET
     available_balance = EXCLUDED.available_balance,
     pending_balance = EXCLUDED.pending_balance,
@@ -232,52 +242,22 @@ class PostgresStorage(BaseStorage):
 
     def process_withdrawal_request_atomic(
         self,
-        *,
-        seller_address: str,
-        amount_usdc: Decimal,
-        request_id: str,
-        idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]],
-        single_limit_usdc: Decimal,
-        rolling_24h_limit_usdc: Decimal,
-        window_seconds: int,
-        high_risk_override: bool,
-        sign_ticket_factory: Optional[Callable[[Decimal], Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
-        return self._data_manager.finance.atomic.process_withdrawal_request_atomic(
-            seller_address=seller_address,
-            amount_usdc=amount_usdc,
-            request_id=request_id,
-            idempotency_key=idempotency_key,
-            request_meta=request_meta,
-            single_limit_usdc=single_limit_usdc,
-            rolling_24h_limit_usdc=rolling_24h_limit_usdc,
-            window_seconds=window_seconds,
-            high_risk_override=high_risk_override,
-            sign_ticket_factory=sign_ticket_factory,
-        )
+        command: WithdrawalAtomicRequestCommand,
+    ) -> WithdrawalDecision:
+        return self._data_manager.finance.atomic.process_withdrawal_request_atomic(command)
 
     def register_deposit_intent_atomic(
-        self,
-        owner_wallet: str,
-        tx_hash: str,
-        request_id: str,
-        intent_row: DepositIntentRow,
+        self, command: DepositIntentRegisterCommand,
     ) -> DepositIntentRow:
-        return self._data_manager.finance.atomic.register_deposit_intent_atomic(
-            owner_wallet, tx_hash, request_id, intent_row
-        )
+        return self._data_manager.finance.atomic.register_deposit_intent_atomic(command)
 
     def confirm_deposit_intent_atomic(
-        self,
-        owner_wallet: str,
-        deposit_intent_id: str,
-        event_key: str,
-        confirmations: int,
+        self, command: DepositIntentConfirmCommand,
     ) -> DepositIntentRow:
-        return self._data_manager.finance.atomic.confirm_deposit_intent_atomic(
-            owner_wallet, deposit_intent_id, event_key, confirmations
-        )
+        return self._data_manager.finance.atomic.confirm_deposit_intent_atomic(command)
+
+    def complete_withdraw_tx_atomic(self, command: CompleteWithdrawTxCommand) -> bool:
+        return self._data_manager.finance.atomic.complete_withdraw_tx_atomic(command)
 
     def record_deposit_attempt(
         self,
@@ -287,22 +267,16 @@ class PostgresStorage(BaseStorage):
 
     def charge_buyer_and_record_usage_atomic(
         self,
-        *,
-        owner_wallet: str,
-        seller_wallet: str,
-        total_charge: Decimal,
-        seller_net: Decimal,
-        platform_fee_total: Decimal,
-        usage_row: UsageLogRow,
+        command: ChargeBuyerUsageCommand,
     ) -> BuyerChargeResult:
         return self._data_manager.finance.atomic.charge_buyer_and_record_usage_atomic(
-            owner_wallet=owner_wallet,
-            seller_wallet=seller_wallet,
-            total_charge=total_charge,
-            seller_net=seller_net,
-            platform_fee_total=platform_fee_total,
-            usage_row=usage_row,
+            command
         )
+
+    def reserve_seller_withdraw_atomic(
+        self, command: ReserveSellerWithdrawCommand
+    ) -> BalanceMutationResult:
+        return self._data_manager.finance.atomic.reserve_seller_withdraw_atomic(command)
 
     def read_audit_rows(
         self, owner_wallet: Optional[str] = None, limit: int = 200

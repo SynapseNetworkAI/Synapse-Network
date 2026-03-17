@@ -4,7 +4,9 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from pydantic import BaseModel
 
 from src.core.common import normalize_wallet
+from src.domain.runtime_state import WalletRoleState
 from src.storage import BaseStorage, get_storage
+from src.utils.datetime_utils import now_dt_str
 
 router = APIRouter()
 
@@ -27,12 +29,14 @@ async def get_wallet_role(
 ):
     """获取用户的身份角色(buyer或seller)"""
     wallet = normalize_wallet(address)
-    role = storage.get_data_manager().system.credential_auth.get_wallet_role(wallet)
+    role_state = storage.get_data_manager().system.credential_auth.read_wallet_role(
+        wallet
+    )
 
-    if not role:
+    if not role_state or not role_state.role:
         raise HTTPException(status_code=404, detail="Role not found")
 
-    return {"role": role}
+    return {"role": role_state.role}
 
 
 @router.post(
@@ -53,8 +57,12 @@ async def bind_wallet_role(
     # 统一转换成前端所需的常量宏
     bound_role = "CONSUMER" if req.role in ["buyer", "CONSUMER"] else "PROVIDER"
 
-    storage.get_data_manager().system.credential_auth.set_wallet_role(
-        wallet, bound_role
+    storage.get_data_manager().system.credential_auth.upsert_wallet_role(
+        WalletRoleState(
+            walletAddress=wallet,
+            role=bound_role,
+            updatedAt=now_dt_str(),
+        )
     )
 
     return {"status": "success", "role": bound_role}

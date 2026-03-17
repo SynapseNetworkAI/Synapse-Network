@@ -26,11 +26,16 @@ Dashboard 不是交易主战场，它是 Owner 的控制台。
 4. **Invocations**
    查看调用记录、报价、耗时、结果状态、错误码。
 5. **Billing**
-   看账本、充值、扣费、卖家结算、平台费用。
+   看账本、充值、扣费、平台费用与服务维度消费分布。
 6. **Risk & Audit**
    看预算告警、限流告警、异常调用、审计轨迹。
 7. **Developer**
    拿 SDK、API 文档、Quickstart、Webhook / MCP 集成说明。
+
+补充边界：
+
+- Dashboard 是 Owner 控制面，不是 Agent-facing 协议本身。
+- 即使在 Dashboard 中，也应该优先展示 service 维度的消费和调用结果，而不是把卖家内部结算身份暴露成主 UI 结构。
 
 ## 3. 首次 Onboarding 五步流
 
@@ -60,6 +65,12 @@ Owner 的首次体验必须压缩成 5 步：
 - credential 当前预算还剩多少
 - 下一步怎么把这条链路接进自己的 Agent
 
+默认不需要展示：
+
+- 卖家钱包地址
+- 平台内部拆账比例
+- 内部账本流水主键
+
 目标是让 Owner 立刻理解：
 
 “不是我在手工点 API，而是我的 Agent 已经能自动消费了。”
@@ -75,6 +86,11 @@ Discovery 页面不要做成电商商品瀑布流。
 - 右侧是 Manifest 预览、价格、成功率、示例输出
 
 页面目标不是刺激人类冲动消费，而是帮助 Owner 理解 Agent 为什么会选这个服务。
+
+补充要求：
+
+- Discovery 页默认展示 service 信息，不展示 `seller_wallet` 这类内部结算字段。
+- 如果后续需要展示卖家品牌，也应以 Seller Profile 的展示层字段呈现，而不是暴露结算地址。
 
 ## 6. Agents 页面必须一眼看到什么
 

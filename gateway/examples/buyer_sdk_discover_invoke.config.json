@@ -1,6 +1,6 @@
 {
   "api_base": "http://127.0.0.1:8000",
-  "agent_credential_token": "agt_8e86d655a64076ab06ddaf1eab11932adc28e0a1961f0f3a",
+  "agent_credential_token": "agt_93768bb9e0b5508a591e418258255dba27db7b3705c964f0",
   "intent": "名人名言",
   "prompt": "请给我一句名人名言"
 }

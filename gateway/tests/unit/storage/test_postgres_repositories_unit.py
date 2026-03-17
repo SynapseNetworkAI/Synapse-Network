@@ -17,7 +17,18 @@ from src.storage.postgres.repositories.idempotency_repository import Idempotency
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.gateway import RouterConfigRow
-from src.domain.finance import DepositAttemptRow, DepositIntentRow, RefundIntentRow, UsageLogRow, WithdrawalIntentRow
+from src.domain.finance import (
+    ChargeBuyerUsageCommand,
+    CompleteWithdrawTxCommand,
+    DepositAttemptRow,
+    DepositIntentRow,
+    PreparedWithdrawTicket,
+    ReserveSellerWithdrawCommand,
+    RefundIntentRow,
+    UsageLogRow,
+    WithdrawalAtomicRequestCommand,
+    WithdrawalIntentRow,
+)
 
 
 class FakeCursor:
@@ -179,28 +190,30 @@ def test_audit_log_repository_append_replace_and_read() -> None:
         {
             "fetchall": [[
                 (
-                    1,
+                    "audit-1",
                     "FINANCE_RATE_LIMIT_HIT",
                     "charge",
-                    "yellow",
                     "0xabc",
-                    "system",
-                    "req-1",
-                    "0xtx1",
-                    "trace-1",
-                    "0xdef",
-                    "debit",
-                    "REJECTED",
-                    "RATE_LIMIT",
-                    "ledger-1",
-                    "127.0.0.1",
-                    "pytest",
                     Decimal("0.100000"),
-                    Decimal("1.000000"),
-                    Decimal("0.900000"),
                     "rejected",
                     "RATE_LIMIT",
-                    "blocked",
+                    {
+                        "domain": "finance",
+                        "riskLevel": "yellow",
+                        "requestId": "req-1",
+                        "traceId": "trace-1",
+                        "txHash": "0xtx1",
+                        "counterpartyAddress": "0xdef",
+                        "direction": "debit",
+                        "status": "REJECTED",
+                        "riskReasonCode": "RATE_LIMIT",
+                        "ledgerId": "ledger-1",
+                        "clientIp": "127.0.0.1",
+                        "userAgent": "pytest",
+                        "beforeBalance": "1.000000",
+                        "afterBalance": "0.900000",
+                        "message": "blocked",
+                    },
                     100,
                 )
             ]],
@@ -210,19 +223,21 @@ def test_audit_log_repository_append_replace_and_read() -> None:
         {
             "fetchall": [[
                 (
-                    9,
+                    "system-9",
                     "SELLER_SECRET_ISSUED",
                     "0xabc",
-                    "owner",
-                    "req-2",
-                    "trace-2",
-                    "credential",
-                    "cred-1",
                     "success",
                     None,
-                    "127.0.0.2",
-                    "pytest",
-                    {"secretId": "cred-1"},
+                    {
+                        "actor": "owner",
+                        "requestId": "req-2",
+                        "traceId": "trace-2",
+                        "resourceType": "credential",
+                        "resourceId": "cred-1",
+                        "clientIp": "127.0.0.2",
+                        "userAgent": "pytest",
+                        "secretId": "cred-1",
+                    },
                     200,
                 )
             ]],
@@ -230,13 +245,7 @@ def test_audit_log_repository_append_replace_and_read() -> None:
     )
     repo = AuditLogRepository(
         db,
-        "INSERT INTO synapse_audit_log ("
-        "action_type, business_type, risk_level, owner_address, actor, request_id, trace_id, tx_hash, "
-        "counterparty_address, direction, status, risk_reason_code, ledger_id, client_ip, user_agent, "
-        "amount_delta, before_balance, after_balance, result_status, error_code, message"
-        ") VALUES ("
-        "%s, %s::synapse_business_type, %s::synapse_risk_level, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
-        ")",
+        "unused",
     )
 
     from src.domain.audit import AuditLogEntry
@@ -257,8 +266,7 @@ def test_audit_log_repository_append_replace_and_read() -> None:
     )
 
     combined_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "INSERT INTO synapse_audit_log" in combined_sql
-    assert "INSERT INTO synapse_system_activity_log" in combined_sql
+    assert combined_sql.count("INSERT INTO synapse_audit_events") == 2
 
     rows = repo.read_audit_rows(owner_wallet="0xabc", limit=10)
     assert len(rows) == 1
@@ -278,9 +286,9 @@ def test_balance_repository_read_and_write() -> None:
         {
             "fetchall": [
                 [
-                    ("0xbuyer", "buyer", Decimal("10"), Decimal("1"), Decimal("2"), 100),
-                    ("0xseller", "seller", Decimal("20"), Decimal("3"), Decimal("4"), 110),
-                    ("__platform__", "platform_fee", Decimal("0.5"), Decimal("0"), Decimal("0"), 120),
+                    ("0xbuyer", "owner_vault", Decimal("10"), Decimal("1"), Decimal("2"), 100),
+                    ("0xseller", "seller_receivable", Decimal("20"), Decimal("3"), Decimal("4"), 110),
+                    ("__platform__", "platform_revenue", Decimal("0.5"), Decimal("0"), Decimal("0"), 120),
                 ]
             ]
         }
@@ -307,12 +315,12 @@ def test_balance_repository_read_and_write() -> None:
         )
     )
     ops = db.tx_cursors[-1].executed
-    assert ops[0] == ("DELETE FROM synapse_balances", None)
+    assert "UPDATE synapse_account_balances AS ab" in ops[0][0]
     upserts = [params for sql, params in ops if sql == "UPSERT"]
     assert len(upserts) == 3
-    assert any(params[0] == "0xb" and params[1] == "buyer" for params in upserts)
-    assert any(params[0] == "0xs" and params[1] == "seller" for params in upserts)
-    assert any(params[0] == "__platform__" and params[1] == "platform_fee" for params in upserts)
+    assert any(params[0] == "owner_vault::0xb" for params in upserts)
+    assert any(params[0] == "seller_receivable::0xs" for params in upserts)
+    assert any(params[0] == "platform_revenue::main" for params in upserts)
 
 
 def test_service_registry_repository_read_and_write() -> None:
@@ -330,37 +338,37 @@ def test_service_registry_repository_read_and_write() -> None:
                 Decimal("0.005"),
                 "USDC",
                 3000,
-                50,
-                4096,
-                8192,
-                100,
-                120,
-                "rec-1",
-                2,
-                "provider",
-                "0xabc",
                 ["quotes", "top3"],
-                {"type": "service_key", "headerName": "X-Credential"},
-                {"path": "/health", "method": "GET"},
-                {"requestIdHeader": "X-Synapse-Request-Id"},
-                {"billingUnit": "per_call", "billOnError": False},
-                {"method": "POST", "targets": [{"url": "https://a", "weight": 100}]},
+                "2026-03-15 14:24:00",
+                "2026-03-15 14:24:01",
+                {
+                    "id": "rec-1",
+                    "schemaVersion": 2,
+                    "role": "provider",
+                    "address": "0xabc",
+                    "maxQps": 50,
+                    "maxRequestBytes": 4096,
+                    "maxResponseBytes": 8192,
+                    "auth": {"type": "service_key", "headerName": "X-Credential"},
+                    "healthCheck": {"path": "/health", "method": "GET"},
+                    "forwarding": {"requestIdHeader": "X-Synapse-Request-Id"},
+                    "metering": {"billingUnit": "per_call", "billOnError": False},
+                    "invoke": {"method": "POST", "targets": [{"url": "https://a", "weight": 100}]},
+                },
+                "active",
+                4096,
+                "svc-1:ep:0:abcdef0123",
             )]],
         }
     )
     db.readonly_plan.append(
         {
-            "fetchall": [[("svc-1", "0xabc", "https://a", 100, "ap", "up", "green", 200, 12, 3, 1, "https://a/health", 10, 9, None)]],
+            "fetchall": [[("svc-1", "0xabc", "https://a", {"weight": 100, "region": "ap", "status": "up", "overallStatus": "green", "httpStatus": 200, "consecutiveSuccesses": 3, "consecutiveFailures": 1, "probeUrl": "https://a/health", "lastCheckedAt": 10, "lastHealthyAt": 9}, 95, 12, 0.99, 10, None)]],
         }
     )
     db.readonly_plan.append(
         {
-            "fetchall": [[("svc-1", "0xabc", "https://a", "up", 200, 12, "https://a/health", 3, 1, 11, 9, None)]],
-        }
-    )
-    db.readonly_plan.append(
-        {
-            "fetchone": [(1,)],
+            "fetchall": [[("service_health_history::svc-1", {"rows": [{"serviceId": "svc-1", "ownerAddress": "0xabc", "targetUrl": "https://a", "status": "up", "httpStatus": 200, "latencyMs": 12, "probeUrl": "https://a/health", "consecutiveSuccesses": 3, "consecutiveFailures": 1, "checkedAt": 11, "lastHealthyAt": 9}]})]],
         }
     )
     repo = ServiceRegistryRepository(db)
@@ -413,11 +421,10 @@ def test_service_registry_repository_read_and_write() -> None:
     ])
 
     all_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "DELETE FROM synapse_service_registry" in all_sql
-    assert "record_id" in all_sql
-    assert "invoke_config" in all_sql
-    assert "DELETE FROM synapse_service_target_health" in all_sql
-    assert "DELETE FROM synapse_service_target_health_history" in all_sql
+    assert "DELETE FROM synapse_service_manifests" in all_sql
+    assert "DELETE FROM synapse_service_health_snapshots" in all_sql
+    assert "INSERT INTO synapse_service_search_index" in all_sql
+    assert "INSERT INTO synapse_runtime_state" in all_sql
 
 
 def test_credential_auth_repository_read_write_and_roles() -> None:
@@ -425,65 +432,156 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     db.readonly_plan.append(
         {
             "fetchall": [[(
-                "cred-1",
-                "seller",
+                "owner:0xabc",
                 "0xabc",
-                "cred-name",
+                "active",
+                "USDC",
+                "2026-03-15 14:23:00",
+                "2026-03-15 14:23:01",
+                "agent:seller:0xabc",
+                "seller-runtime",
+                "seller runtime credential holder",
+                "active",
+                "seller",
+                "2026-03-15 14:23:00",
+                "2026-03-15 14:23:01",
+                "cred-1",
                 "hash-1",
                 "sk_live",
                 "active",
-                100,
-                1,
-                10,
-                Decimal("1.250000"),
-                "daily",
-                0,
-                0,
                 "2026-03-15 14:24:00",
-                "2026-03-15 14:24:05",
                 None,
+                None,
+                "2026-03-15 14:24:05",
+                "policy:cred-1",
+                Decimal("1.250000"),
+                Decimal("1.250000"),
+                Decimal("1.250000"),
+                10,
+                10,
+                ["tag-a"],
+                ["svc-1"],
+                [],
+                {
+                    "credentialType": "seller",
+                    "ownerAddress": "0xabc",
+                    "name": "cred-name",
+                    "maxCalls": 100,
+                    "callsUsed": 1,
+                    "resetInterval": "daily",
+                    "expiration": 0,
+                    "createdAt": "2026-03-15 14:24:00",
+                    "updatedAt": "2026-03-15 14:24:05",
+                },
+                "2026-03-15 14:24:05",
             )]],
         }
     )
     db.readonly_plan.append(
         {
-            "fetchone": [("admin",)],
+            "fetchone": [({"role": "admin"},)],
+        }
+    )
+    db.readonly_plan.append(
+        {
+            "fetchone": [({
+                "walletAddress": "0xabc",
+                "registeredAt": 100,
+                "lastLogin": 200,
+                "status": "active",
+                "updatedAt": "2026-03-15 14:24:06",
+            },)],
         }
     )
     repo = CredentialAuthRepository(db, _q6)
 
+    from src.domain.identity import RuntimeCredentialRecord
+    from src.domain.runtime_state import AuthSessionState
+
     creds = repo.read_credential_rows("seller")
     assert len(creds) == 1
-    assert creds[0].id == "cred-1"
-    assert creds[0].owner_address == "0xabc"
-    assert creds[0].created_at == "2026-03-15 14:24:00"
+    assert isinstance(creds[0], RuntimeCredentialRecord)
+    assert creds[0].credential.credential_id == "cred-1"
+    assert creds[0].owner.owner_wallet == "0xabc"
+    assert creds[0].metadata.name == "cred-name"
+    assert creds[0].policy.lifetime_cap_usdc == Decimal("1.250000")
 
-    role = repo.get_wallet_role("0xABC")
-    assert role == "admin"
+    role = repo.read_wallet_role("0xABC")
+    assert role is not None and role.role == "admin"
+
+    session = repo.read_auth_session("0xABC")
+    assert isinstance(session, AuthSessionState)
+    assert session.last_login == 200
 
     repo.write_credential_rows(
         "seller",
-        [{
-            "id": "cred-2",
-            "ownerAddress": "0xDEF",
-            "creditLimit": 1.25,
-            "createdAt": "2026-03-15 14:25:00",
-            "updatedAt": "2026-03-15 14:25:01",
-        }],
+        [
+            RuntimeCredentialRecord.model_validate(
+                {
+                    "owner": {
+                        "ownerId": "owner:0xdef",
+                        "ownerWallet": "0xdef",
+                        "createdAt": "2026-03-15 14:25:00",
+                        "updatedAt": "2026-03-15 14:25:01",
+                    },
+                    "agent": {
+                        "agentId": "agent:seller:0xdef",
+                        "ownerId": "owner:0xdef",
+                        "name": "seller-runtime",
+                        "purpose": "seller runtime credential holder",
+                        "runtimeLabel": "seller",
+                        "createdAt": "2026-03-15 14:25:00",
+                        "updatedAt": "2026-03-15 14:25:01",
+                    },
+                    "credential": {
+                        "credentialId": "cred-2",
+                        "agentId": "agent:seller:0xdef",
+                        "secretHash": "hash-2",
+                        "secretPrefix": "sk_test",
+                        "status": "active",
+                        "issuedAt": "2026-03-15 14:25:00",
+                        "lastUsedAt": "2026-03-15 14:25:01",
+                    },
+                    "policy": {
+                        "policyId": "policy:cred-2",
+                        "credentialId": "cred-2",
+                        "lifetimeCapUsdc": "1.250000",
+                        "dailyCapUsdc": "1.250000",
+                        "perInvocationCapUsdc": "1.250000",
+                        "rpmLimit": 12,
+                        "qpsLimit": 12,
+                        "createdAt": "2026-03-15 14:25:00",
+                        "updatedAt": "2026-03-15 14:25:01",
+                    },
+                    "metadata": {
+                        "credentialType": "seller",
+                        "ownerAddress": "0xdef",
+                        "name": "cred-two",
+                        "maxCalls": 100,
+                        "callsUsed": 0,
+                        "resetInterval": "daily",
+                        "createdAt": "2026-03-15 14:25:00",
+                        "updatedAt": "2026-03-15 14:25:01",
+                    },
+                }
+            )
+        ],
     )
     repo.set_wallet_role("0xABC", "operator")
     repo.upsert_auth_session("0xABC", 100, 200, "active")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "DELETE FROM synapse_credentials WHERE credential_type = %s" in tx_sql
-    assert "INSERT INTO synapse_wallet_roles" in tx_sql
-    assert "INSERT INTO synapse_auth_sessions" in tx_sql
+    assert "DELETE FROM synapse_budget_policies AS bp" in tx_sql
+    assert "DELETE FROM synapse_agent_credentials AS ac" in tx_sql
+    assert tx_sql.count("INSERT INTO synapse_runtime_state") >= 3
+    assert "INSERT INTO synapse_agent_credentials" in tx_sql
+    assert "INSERT INTO synapse_budget_policies" in tx_sql
 
 
 def test_gateway_state_repository_read_and_write() -> None:
     db = FakeDB()
     db.readonly_plan.append({"fetchall": [[(
-        "dep-1", "0xabc", "0xtx", "req-1", "0xabc", Decimal("1.0"), "idem-1", "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
+        "dep-1", "0xabc", "0xtx", "req-1", {"buyerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("1.0"), "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
     )]]})
     db.readonly_plan.append({"fetchall": [[(
         "ref-1", "0xabc", "0xtx2", "PENDING", "req-2", "0xabc", Decimal("0.5"), "idem-2", "2026-03-15 14:24:02", "2026-03-15 14:24:03"
@@ -536,6 +634,8 @@ def test_gateway_state_repository_read_and_write() -> None:
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
     assert "DELETE FROM synapse_deposit_intents" not in tx_sql
+    assert "INSERT INTO synapse_vault_deposits" in tx_sql
+    assert "vault_deposit_meta::dep-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "ON CONFLICT (tx_hash)" in tx_sql
     assert "DELETE FROM synapse_refund_intents" in tx_sql
     assert "DELETE FROM synapse_withdrawal_intents" in tx_sql
@@ -561,7 +661,7 @@ def test_gateway_state_repository_skips_invalid_deposit_intents() -> None:
     ])
 
     executed = [sql for cur in db.tx_cursors for sql, _ in cur.executed]
-    inserts = [sql for sql in executed if "INSERT INTO synapse_deposit_intents" in sql]
+    inserts = [sql for sql in executed if "INSERT INTO synapse_vault_deposits" in sql]
     assert len(inserts) == 1
 
 
@@ -626,7 +726,12 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
         ("restricted", "suspended", "blocked"),
     )
 
-    result = repo.reserve_seller_withdraw_atomic("0xabc", Decimal("2"))
+    result = repo.reserve_seller_withdraw_atomic(
+        ReserveSellerWithdrawCommand(
+            owner_wallet="0xabc",
+            amount_usdc=Decimal("2"),
+        )
+    )
     assert abs(result.before_balance - 10.0) < 1e-9
     assert abs(result.after_balance - 8.0) < 1e-9
 
@@ -634,7 +739,133 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
     assert "BAL_FOR_UPDATE" in first_conn_sql
     assert "UPSERT" in first_conn_sql
 
-    ok = repo.complete_withdraw_tx_atomic("0xabc", "0xtx", "seller")
+    ok = repo.complete_withdraw_tx_atomic(
+        CompleteWithdrawTxCommand(
+            owner_wallet="0xabc",
+            tx_hash="0xtx",
+            kind="seller",
+        )
+    )
     assert ok is True
     second_conn_sql = "\n".join(sql for sql, _ in db.connections[1].cursor_obj.executed)
     assert "INSERT INTO synapse_withdraw_tx_dedup" in second_conn_sql
+
+
+def test_finance_atomic_repository_processes_typed_charge_command() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("10"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    result = repo.charge_buyer_and_record_usage_atomic(
+        ChargeBuyerUsageCommand(
+            owner_wallet="0xbuyer",
+            seller_wallet="0xseller",
+            total_charge=Decimal("1.110000"),
+            seller_net=Decimal("1.000000"),
+            platform_fee_total=Decimal("0.110000"),
+            usage_row=UsageLogRow(
+                id="usage-1",
+                ts=123,
+                buyerAddress="0xbuyer",
+                sellerAddress="0xseller",
+                status="accepted",
+                totalCharge=Decimal("1.110000"),
+                businessType="charge",
+                riskLevel="green",
+            ),
+        )
+    )
+
+    assert abs(result.buyer_balance_after - 8.89) < 1e-9
+    executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_usage_log" in executed_sql
+    assert "UPSERT" in executed_sql
+
+
+def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("50"), Decimal("0"), Decimal("0")),
+                (Decimal("0"),),
+                (Decimal("100"),),
+                None,
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    result = repo.process_withdrawal_request_atomic(
+        WithdrawalAtomicRequestCommand(
+            seller_address="0xabc",
+            amount_usdc=Decimal("12.000000"),
+            request_id="req-1",
+            idempotency_key="idem-1",
+            request_meta={"requestId": "req-1"},
+            single_limit_usdc=Decimal("100"),
+            rolling_24h_limit_usdc=Decimal("500"),
+            window_seconds=86400,
+            high_risk_override=False,
+            sign_ticket_factory=lambda amount: PreparedWithdrawTicket(
+                requires_manual_review=False,
+                amount_wei=int(amount * Decimal("1000000")),
+                fee_wei=0,
+                nonce=7,
+                chain_id=31337,
+                deadline=9999999999,
+                signature="sig-1",
+                signer_address="0xsigner",
+                ticket={
+                    "amount": str(int(amount * Decimal("1000000"))),
+                    "fee": "0",
+                    "nonce": 7,
+                    "deadline": 9999999999,
+                    "signature": "sig-1",
+                    "chainId": 31337,
+                    "contractAddress": "0xrouter",
+                },
+            ),
+        )
+    )
+
+    assert result.decision == "green"
+    assert result.status == "APPROVED_AUTO"
+    assert abs(result.amount_usdc - 12.0) < 1e-9
+    assert result.ticket["signature"] == "sig-1"
+
+    executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_withdrawal_intents" in executed_sql
+    assert "UPSERT" in executed_sql
