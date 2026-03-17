@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, Literal, Optional
 
 from src.domain.service_contract import (
@@ -87,7 +87,8 @@ class DepositIntentRequest(BaseModel):
     txHash: str = Field(..., min_length=66, max_length=66)
     amountUsdc: float = Field(..., gt=0)
 
-    @validator("txHash")
+    @field_validator("txHash")
+    @classmethod
     def validate_tx_hash(cls, value: str) -> str:
         normalized = str(value).strip()
         if not normalized.startswith("0x"):
@@ -114,7 +115,8 @@ class DepositAttemptRequest(BaseModel):
     txHash: Optional[str] = Field(default=None, min_length=66, max_length=66)
     failureReason: Optional[str] = Field(default=None, max_length=512)
 
-    @validator("txHash")
+    @field_validator("txHash")
+    @classmethod
     def validate_optional_tx_hash(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return None
@@ -137,7 +139,8 @@ class DepositConfirmRequest(BaseModel):
 class AdminDepositReplayRequest(BaseModel):
     txHash: str = Field(..., min_length=66, max_length=66)
 
-    @validator("txHash")
+    @field_validator("txHash")
+    @classmethod
     def validate_tx_hash(cls, value: str) -> str:
         normalized = str(value).strip()
         if not normalized.startswith("0x"):
@@ -166,7 +169,8 @@ class RefundCompleteRequest(BaseModel):
     reviewDecision: Optional[str] = Field(default=None, max_length=16)
     reviewerNote: Optional[str] = Field(default=None, max_length=512)
 
-    @validator("txHash")
+    @field_validator("txHash")
+    @classmethod
     def validate_tx_hash(cls, value: str) -> str:
         normalized = str(value).strip()
         if not normalized.startswith("0x"):
@@ -190,7 +194,8 @@ class ProviderWithdrawIntentRequest(BaseModel):
 class ProviderWithdrawCompleteRequest(BaseModel):
     txHash: str = Field(..., min_length=66, max_length=66)
 
-    @validator("txHash")
+    @field_validator("txHash")
+    @classmethod
     def validate_tx_hash(cls, value: str) -> str:
         normalized = str(value).strip()
         if not normalized.startswith("0x"):

@@ -5,10 +5,14 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 
-try:
-    from web3 import Web3  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover
-    Web3 = None  # type: ignore[assignment]
+
+def _web3_class():
+    try:
+        from web3 import Web3  # type: ignore[import-not-found]
+
+        return Web3
+    except Exception:  # pragma: no cover
+        return None
 
 try:
     from eth_account import Account  # type: ignore[import-not-found]
@@ -59,7 +63,8 @@ class BalanceWithdrawSigningMixin:
         return private_key
 
     def _withdraw_contract(self):
-        if Web3 is None:
+        web3_class = _web3_class()
+        if web3_class is None:
             raise HTTPException(
                 status_code=500,
                 detail={
@@ -80,11 +85,11 @@ class BalanceWithdrawSigningMixin:
                 },
             )
         try:
-            provider = Web3(Web3.HTTPProvider(settings.rpc_url))
+            provider = web3_class(web3_class.HTTPProvider(settings.rpc_url))
             if not provider.is_connected():
                 raise RuntimeError("rpc disconnected")
             contract = provider.eth.contract(
-                address=Web3.to_checksum_address(contract_address),
+                address=web3_class.to_checksum_address(contract_address),
                 abi=[
                     {
                         "inputs": [
@@ -122,12 +127,13 @@ class BalanceWithdrawSigningMixin:
         chain_id: int,
         verifying_contract: str,
     ) -> Dict[str, Any]:
+        web3_class = _web3_class()
         checksum_owner = (
-            Web3.to_checksum_address(owner_wallet) if Web3 is not None else owner_wallet
+            web3_class.to_checksum_address(owner_wallet) if web3_class is not None else owner_wallet
         )
         checksum_contract = (
-            Web3.to_checksum_address(verifying_contract)
-            if Web3 is not None
+            web3_class.to_checksum_address(verifying_contract)
+            if web3_class is not None
             else verifying_contract
         )
         return {
@@ -189,8 +195,9 @@ class BalanceWithdrawSigningMixin:
         return str(signed.signature.hex())
 
     def _resolve_withdraw_nonce_and_chain(self, owner: str) -> tuple[int, int]:
+        web3_class = _web3_class()
         provider, contract = self._withdraw_contract()
-        owner_for_chain = Web3.to_checksum_address(owner) if Web3 is not None else owner
+        owner_for_chain = web3_class.to_checksum_address(owner) if web3_class is not None else owner
         try:
             nonce = int(contract.functions.userNonces(owner_for_chain).call())
             chain_id = int(provider.eth.chain_id)

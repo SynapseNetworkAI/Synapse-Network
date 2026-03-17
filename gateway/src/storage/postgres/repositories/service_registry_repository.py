@@ -158,7 +158,7 @@ class ServiceRegistryRepository:
     def _serialize_request_spec(row: ServiceRequestSpecRecord) -> dict[str, Any]:
         return {
             "contentType": row.content_type,
-            "schema": dict(row.schema.body),
+            "schema": dict(row.schema_document.body),
         }
 
     @classmethod
@@ -170,7 +170,7 @@ class ServiceRegistryRepository:
             "request": cls._serialize_request_spec(row.request),
             "response": {
                 "contentType": row.response.content_type,
-                "schema": dict(row.response.schema.body),
+                "schema": dict(row.response.schema_document.body),
             },
             "headersTemplate": dict(row.headers_template),
             "examples": list(row.examples),

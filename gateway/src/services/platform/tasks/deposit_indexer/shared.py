@@ -5,18 +5,17 @@ import time
 from threading import Lock
 from typing import Any, Dict, Optional
 
-from web3 import Web3
-
 from src.core.common import normalize_wallet
 from src.core.config import settings
 
 lock = Lock()
-w3 = Web3(Web3.HTTPProvider(settings.rpc_url))
 logger = logging.getLogger("src.services.platform.tasks.deposit_indexer")
 
 _INDEXER_LOOP_ERROR_CODE = "INDEXER_LOOP_FAILED"
 _BACKFILL_ERROR_CODE = "INDEXER_BACKFILL_SCAN_FAILED"
 _RECONCILIATION_ERROR_CODE = "INDEXER_RECONCILIATION_FAILED"
+_WEB3_INSTANCE: Any = None
+_TRANSFER_TOPIC: Optional[str] = None
 
 INDEXER_STATUS: Dict[str, Any] = {
     "running": False,
@@ -42,10 +41,31 @@ INDEXER_STATUS: Dict[str, Any] = {
     },
 }
 
-TRANSFER_TOPIC = Web3.to_hex(
-    Web3.keccak(text="Transfer(address,address,uint256)")
-).lower()
 TOKEN_DECIMALS_CACHE: Dict[str, int] = {}
+
+
+def get_web3_class():
+    from web3 import Web3
+
+    return Web3
+
+
+def get_web3():
+    global _WEB3_INSTANCE
+    if _WEB3_INSTANCE is None:
+        web3_class = get_web3_class()
+        _WEB3_INSTANCE = web3_class(web3_class.HTTPProvider(settings.rpc_url))
+    return _WEB3_INSTANCE
+
+
+def get_transfer_topic() -> str:
+    global _TRANSFER_TOPIC
+    if _TRANSFER_TOPIC is None:
+        web3_class = get_web3_class()
+        _TRANSFER_TOPIC = web3_class.to_hex(
+            web3_class.keccak(text="Transfer(address,address,uint256)")
+        ).lower()
+    return _TRANSFER_TOPIC
 
 
 def _set_status(**kwargs: Any) -> None:

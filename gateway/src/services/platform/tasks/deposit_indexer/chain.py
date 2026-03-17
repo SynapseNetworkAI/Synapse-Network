@@ -4,13 +4,10 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from web3 import Web3
-from web3.exceptions import TransactionNotFound
-
 from src.core.common import normalize_wallet
 from src.core.config import settings
 
-from .shared import TOKEN_DECIMALS_CACHE, TRANSFER_TOPIC, w3
+from .shared import TOKEN_DECIMALS_CACHE, get_transfer_topic, get_web3, get_web3_class
 
 
 def _normalize_tx_hash(value: str) -> str:
@@ -23,10 +20,11 @@ def _normalize_tx_hash(value: str) -> str:
 
 def _topic_to_address(topic: Any) -> str:
     """把 event topic 末 20 字节解码为地址。"""
-    topic_hex = Web3.to_hex(topic).lower()
+    web3_class = get_web3_class()
+    topic_hex = web3_class.to_hex(topic).lower()
     if len(topic_hex) < 42:
         return ""
-    return Web3.to_checksum_address("0x" + topic_hex[-40:]).lower()
+    return web3_class.to_checksum_address("0x" + topic_hex[-40:]).lower()
 
 
 def _make_event_row(
@@ -110,6 +108,7 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
     try:
         with open(abi_path, "r", encoding="utf-8") as file:
             router_abi = json.load(file)
+        w3 = get_web3()
         contract = w3.eth.contract(
             address=w3.to_checksum_address(settings.router_address), abi=router_abi
         )
@@ -133,13 +132,15 @@ def _decode_erc20_transfer_to_router(tx_receipt: Any) -> List[Dict[str, Any]]:
 
     events: List[Dict[str, Any]] = []
     tx_hash = tx_receipt["transactionHash"].hex().lower()
+    web3_class = get_web3_class()
+    transfer_topic = get_transfer_topic()
 
     for log in tx_receipt.get("logs", []):
         topics = log.get("topics") or []
         if len(topics) < 3:
             continue
-        topic0 = Web3.to_hex(topics[0]).lower()
-        if topic0 != TRANSFER_TOPIC:
+        topic0 = web3_class.to_hex(topics[0]).lower()
+        if topic0 != transfer_topic:
             continue
 
         from_addr = _topic_to_address(topics[1])
@@ -183,6 +184,7 @@ def _resolve_token_decimals(token_address: str) -> int:
         return cached
 
     try:
+        w3 = get_web3()
         abi = [
             {
                 "constant": True,
@@ -231,6 +233,7 @@ def _pick_matching_event(
 
 def _confirmations_for_receipt(tx_receipt: Any) -> int:
     """根据 receipt.blockNumber 计算当前确认数。"""
+    w3 = get_web3()
     latest_block = int(w3.eth.block_number)
     block_number = int(tx_receipt.get("blockNumber") or 0)
     if block_number <= 0:
@@ -241,6 +244,9 @@ def _confirmations_for_receipt(tx_receipt: Any) -> int:
 def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[Dict[str, Any]]:
     """读取 receipt；未确认返回 None，失败交易返回 failed 标记。"""
     try:
+        from web3.exceptions import TransactionNotFound
+
+        w3 = get_web3()
         tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     except TransactionNotFound:
         return None
@@ -272,6 +278,7 @@ def _resolve_matched_event(
 
 def _confirmed_head_block() -> int:
     """返回满足确认数门槛后的安全扫描上界。"""
+    w3 = get_web3()
     latest = int(w3.eth.block_number or 0)
     confirmations = max(1, int(settings.v2_deposit_confirmations))
     return max(0, latest - confirmations + 1)
@@ -321,6 +328,7 @@ def _collect_router_candidate_tx_hashes(start_block: int, end_block: int) -> Lis
     if not router:
         return []
 
+    w3 = get_web3()
     dedup: set[str] = set()
     for block_number in range(int(start_block), int(end_block) + 1):
         try:
