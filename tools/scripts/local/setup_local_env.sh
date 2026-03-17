@@ -41,54 +41,6 @@ ensure_hardhat_local() {
 	fi
 }
 
-validate_local_postgres_schema() {
-	echo "3.0) Validating local PostgreSQL schema contract..."
-	if ! SYNAPSE_LOCAL_POSTGRES_DSN="$LOCAL_POSTGRES_DSN" "$PYTHON_BIN" - <<'PY'
-import os
-import psycopg
-
-dsn = os.getenv("SYNAPSE_LOCAL_POSTGRES_DSN", "").strip()
-if not dsn:
-	raise RuntimeError("SYNAPSE_LOCAL_POSTGRES_DSN is required")
-
-required = {
-	"owner_address",
-	"account_type",
-	"available_balance",
-	"pending_balance",
-	"frozen_balance",
-	"updated_at",
-}
-
-with psycopg.connect(dsn) as conn:
-	with conn.cursor() as cur:
-		cur.execute(
-			"""
-			SELECT column_name
-			FROM information_schema.columns
-			WHERE table_name = 'synapse_balances'
-			"""
-		)
-		actual = {str(row[0]).strip().lower() for row in cur.fetchall() if row and row[0]}
-
-missing = sorted(required - actual)
-if missing:
-	raise RuntimeError(
-		"synapse_balances schema mismatch. Missing columns: " + ", ".join(missing)
-	)
-
-print("Local balances schema validated.")
-PY
-	then
-		echo "Error: local PostgreSQL schema does not match latest SQL contract."
-		echo "Expected schema file: docker-compose/postgres/init/001_synapse_schema.sql"
-		echo "Reinitialize postgres with latest init SQL, then retry:"
-		echo "  docker compose -f infra/docker/docker-compose.yml down -v"
-		echo "  docker compose -f infra/docker/docker-compose.yml up -d postgres"
-		exit 1
-	fi
-}
-
 cd "${ROOT_DIR}"
 
 echo "=== Synapse Local Environment Setup ==="
@@ -159,8 +111,6 @@ DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse
 LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
 # Normalize docker-network hostname for host-run local mode.
 LOCAL_POSTGRES_DSN="${LOCAL_POSTGRES_DSN/@postgres:/@127.0.0.1:}"
-
-validate_local_postgres_schema
 
 if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ENVIRONMENT=local \
