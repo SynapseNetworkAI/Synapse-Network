@@ -3,46 +3,35 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
-import { useEffect, useState } from "react";
-import { getAppRole, AppRole } from "@/utils/roleStore";
+import { useEffect } from "react";
 import { 
   Terminal, 
   Search, 
   BarChart2, 
   Server, 
-  DollarSign, 
   ShieldAlert, 
   Home,
   Key,
   GitBranch,
-  Rows4
+  Rows4,
+  Wallet,
+  Activity
 } from "lucide-react";
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { address } = useAccount();
-  const [role, setRole] = useState<AppRole | undefined>(undefined);
 
   const providerRoot = "/provider";
 
   useEffect(() => {
-    setRole(getAppRole());
-  }, []);
-
-  useEffect(() => {
-    if (!role) {
-      return;
-    }
-
-    const consumerRoutes = [
-      "/dashboard/buyer",
+    const allRoutes = [
+      "/dashboard/overview",
       "/dashboard/console",
       "/dashboard/discover",
       "/dashboard/usage",
       "/dashboard/billing",
-    ];
-    const providerRoutes = [
       `${providerRoot}/sell`,
       `${providerRoot}/secrets`,
       `${providerRoot}/nodes`,
@@ -51,19 +40,9 @@ export default function DashboardSidebar() {
       `${providerRoot}/usage`,
       `${providerRoot}/billing`,
     ];
-    const adminRoutes = ["/dashboard/admin"];
-
-    let routeCandidates: string[] = [];
-    if (role === "CONSUMER") {
-      routeCandidates = consumerRoutes;
-    } else if (role === "PROVIDER") {
-      routeCandidates = providerRoutes;
-    } else if (role === "ADMIN") {
-      routeCandidates = adminRoutes;
-    }
 
     const warmup = () => {
-      for (const route of routeCandidates) {
+      for (const route of allRoutes) {
         router.prefetch(route);
       }
     };
@@ -75,7 +54,7 @@ export default function DashboardSidebar() {
 
     const timeoutId = globalThis.setTimeout(warmup, 200);
     return () => globalThis.clearTimeout(timeoutId);
-  }, [providerRoot, role, router]);
+  }, [router, providerRoot]);
 
   // Admin address logic
   const isAdminAddress = address?.toLowerCase() === "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".toLowerCase();
@@ -89,84 +68,82 @@ export default function DashboardSidebar() {
     return "flex items-center px-4 py-2 mt-1 text-sm font-medium text-gray-500 border-l-4 border-transparent hover:text-green-400 hover:bg-[#051505] transition-all";
   };
 
-  // Prevent flash of wrong menus by returning minimal skeleton or null before role loaded
-  if (role === undefined) {
-    return <aside className="w-64 bg-[#050505] border-r border-green-900/50 min-h-[calc(100vh-73px)]" />;
-  }
-
   return (
-    <aside className="w-64 bg-[#050505] border-r border-green-900/50 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)]">
+    <aside className="w-64 bg-[#050505] border-r border-green-900/50 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)] pb-12">
 
-      {role === 'CONSUMER' && (
-        <div className="mb-8">
-          <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-green-700/60 uppercase">
-            🔽 Consumer Space (买家)
-          </h3>
-          <nav className="flex flex-col">
-            <Link href="/dashboard/buyer" className={getLinkClasses("/dashboard/buyer", true)}>
-              <Home className="w-4 h-4 mr-3" />
-              Buyer Overview
-            </Link>
-            <Link href="/dashboard/console" className={getLinkClasses("/dashboard/console", false)}>
-              <Terminal className="w-4 h-4 mr-3" />
-              Developer Console
-            </Link>
-            <Link href="/dashboard/discover" className={getLinkClasses("/dashboard/discover", false)}>
-              <Search className="w-4 h-4 mr-3" />
-              Discover Services
-            </Link>
-            <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
-              <BarChart2 className="w-4 h-4 mr-3" />
-              Usage Analytics
-            </Link>
-            <Link href="/dashboard/billing" className={getLinkClasses("/dashboard/billing", false)}>
-              <DollarSign className="w-4 h-4 mr-3" />
-              Treasury Ledger
-            </Link>
-          </nav>
-        </div>
-      )}
+      {/* OWNER CONTROL PLANE */}
+      <div className="mb-8">
+        <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-[#00E599]/40 uppercase">
+          Owner Hub
+        </h3>
+        <nav className="flex flex-col">
+          <Link href="/dashboard/overview" className={getLinkClasses(["/dashboard/overview", "/dashboard/buyer"], true)}>
+            <Home className="w-4 h-4 mr-3" />
+            Control Plane
+          </Link>
+          <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing", `${providerRoot}/billing`], false)}>
+            <Wallet className="w-4 h-4 mr-3" />
+            Finance & Refunds
+          </Link>
+        </nav>
+      </div>
 
-      {role === 'PROVIDER' && (
-        <div className="mb-8">
-          <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-blue-700/60 uppercase">
-            🔽 Provider Space (卖家)
-          </h3>
-          <nav className="flex flex-col">
-            <Link href={`${providerRoot}/sell`} className={getLinkClasses(["/dashboard/sell", `${providerRoot}/sell`], false)}>
-              <Server className="w-4 h-4 mr-3" />
-              My Services
-            </Link>
-            <Link href={`${providerRoot}/secrets`} className={getLinkClasses(["/dashboard/secrets", `${providerRoot}/secrets`], false)}>
-              <Key className="w-4 h-4 mr-3" />
-              Access Keys
-            </Link>
-            <Link href={`${providerRoot}/nodes`} className={getLinkClasses(["/dashboard/provider/nodes", `${providerRoot}/nodes`], false)}>
-              <GitBranch className="w-4 h-4 mr-3" />
-              API Services
-            </Link>
-            <Link href={`${providerRoot}/health`} className={getLinkClasses(["/dashboard/provider/health", `${providerRoot}/health`], false)}>
-              <Terminal className="w-4 h-4 mr-3" />
-              Health Console
-            </Link>
-            <Link href={`${providerRoot}/settlements`} className={getLinkClasses(["/dashboard/provider/settlements", `${providerRoot}/settlements`], false)}>
-              <Rows4 className="w-4 h-4 mr-3" />
-              Settlements
-            </Link>
-            <Link href={`${providerRoot}/usage`} className={getLinkClasses(["/dashboard/usage", `${providerRoot}/usage`], false)}>
-              <BarChart2 className="w-4 h-4 mr-3" />
-              Revenue Analytics
-            </Link>
-            <Link href={`${providerRoot}/billing`} className={getLinkClasses(["/dashboard/billing", `${providerRoot}/billing`], false)}>
-              <DollarSign className="w-4 h-4 mr-3" />
-              Treasury Ledger
-            </Link>
-          </nav>
-        </div>
-      )}
+      {/* AGENT WORKSPACE */}
+      <div className="mb-8">
+        <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-[#00E599]/70 uppercase">
+          Agent Workspace
+        </h3>
+        <nav className="flex flex-col">
+          <Link href="/dashboard/console" className={getLinkClasses("/dashboard/console", false)}>
+            <Terminal className="w-4 h-4 mr-3" />
+            Credentials
+          </Link>
+          <Link href="/dashboard/discover" className={getLinkClasses("/dashboard/discover", false)}>
+            <Search className="w-4 h-4 mr-3" />
+            Discovery
+          </Link>
+          <Link href="/dashboard/usage" className={getLinkClasses("/dashboard/usage", false)}>
+            <Activity className="w-4 h-4 mr-3" />
+            Invoke Logs
+          </Link>
+        </nav>
+      </div>
 
-      {(role === 'ADMIN' || isAdminAddress) && (
-        <div className="mb-8">
+      {/* PROVIDER WORKSPACE */}
+      <div className="mb-8">
+        <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-blue-500/70 uppercase">
+          Provider Workspace
+        </h3>
+        <nav className="flex flex-col">
+          <Link href={`${providerRoot}/sell`} className={getLinkClasses(["/dashboard/sell", `${providerRoot}/sell`], false)}>
+            <Server className="w-4 h-4 mr-3" />
+            My Services
+          </Link>
+          <Link href={`${providerRoot}/secrets`} className={getLinkClasses(["/dashboard/secrets", `${providerRoot}/secrets`], false)}>
+            <Key className="w-4 h-4 mr-3" />
+            Access Keys
+          </Link>
+          <Link href={`${providerRoot}/nodes`} className={getLinkClasses(["/dashboard/provider/nodes", `${providerRoot}/nodes`], false)}>
+            <GitBranch className="w-4 h-4 mr-3" />
+            API Nodes
+          </Link>
+          <Link href={`${providerRoot}/health`} className={getLinkClasses(["/dashboard/provider/health", `${providerRoot}/health`], false)}>
+            <Terminal className="w-4 h-4 mr-3" />
+            Health Console
+          </Link>
+          <Link href={`${providerRoot}/settlements`} className={getLinkClasses(["/dashboard/provider/settlements", `${providerRoot}/settlements`], false)}>
+            <Rows4 className="w-4 h-4 mr-3" />
+            Settlements
+          </Link>
+          <Link href={`${providerRoot}/usage`} className={getLinkClasses(["/dashboard/usage", `${providerRoot}/usage`], false)}>
+            <BarChart2 className="w-4 h-4 mr-3" />
+            Revenue Analytics
+          </Link>
+        </nav>
+      </div>
+
+      {(isAdminAddress) && (
+        <div className="mb-8 mt-auto">
           <h3 className="px-6 mb-2 text-xs font-semibold tracking-widest text-red-700/60 uppercase">
             🔽 Admin Space (平台)
           </h3>
