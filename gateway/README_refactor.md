@@ -29,6 +29,7 @@ Service registration, discovery, forwarding, and health probing now use `src/dom
 - `ServiceDefinitionRecord` is the canonical object passed between repository, seller service, buyer forwarding, and platform health modules.
 - `dict` payloads are only allowed at request/response boundaries or database JSON serialization boundaries.
 - Legacy `ServiceRegistryRow` remains only for compatibility surfaces that have not yet been removed, and should not be reintroduced into service orchestration paths.
+- `ServiceRegistryRepository`, `RegistryService`, and `service_health_service` now exchange typed `ServiceDefinitionRecord`, `ServiceTargetHealth`, and `ServiceTargetHealthHistory` objects internally; `dict` fallback paths have been removed from these runtime flows.
 
 ## Finance Deposit and Withdrawal Model Baseline
 

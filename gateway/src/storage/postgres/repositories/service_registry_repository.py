@@ -303,16 +303,6 @@ class ServiceRegistryRepository:
         )
 
     @staticmethod
-    def _coerce_service_rows(rows: List[ServiceDefinitionRecord]) -> List[ServiceDefinitionRecord]:
-        typed_rows: List[ServiceDefinitionRecord] = []
-        for row in rows:
-            if isinstance(row, ServiceDefinitionRecord):
-                typed_rows.append(row)
-            elif isinstance(row, dict):
-                typed_rows.append(ServiceDefinitionRecord.model_validate(row))
-        return typed_rows
-
-    @staticmethod
     def _reset_service_tables(cur: Any) -> None:
         cur.execute("DELETE FROM synapse_service_health_snapshots")
         cur.execute("DELETE FROM synapse_service_endpoints")
@@ -572,11 +562,9 @@ class ServiceRegistryRepository:
         return result
 
     def write_service_registry_rows(self, rows: List[ServiceDefinitionRecord]) -> None:
-        typed_rows = self._coerce_service_rows(rows)
-
         with self._db.tx_cursor() as cur:
             self._reset_service_tables(cur)
-            for row in typed_rows:
+            for row in rows:
                 self._persist_service_row(cur, row)
 
     def read_service_target_health_rows(self) -> List[ServiceTargetHealth]:
@@ -723,9 +711,7 @@ class ServiceRegistryRepository:
     def write_service_target_health_history_rows(self, rows: List[ServiceTargetHealthHistory]) -> None:
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for row in rows:
-            payload = row.model_dump(by_alias=True, mode="json") if isinstance(row, ServiceTargetHealthHistory) else row
-            if not isinstance(payload, dict):
-                continue
+            payload = row.model_dump(by_alias=True, mode="json")
             service_id = str(payload.get("serviceId") or "").strip()
             if not service_id:
                 continue

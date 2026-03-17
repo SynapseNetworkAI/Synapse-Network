@@ -491,14 +491,9 @@ class RegistryService:
 
         index: Dict[str, ServiceRuntimeHealthRecord] = {}
         for row in rows:
-            payload = (
-                row.model_dump(by_alias=True)
-                if isinstance(row, ServiceTargetHealth)
-                else row
-            )
-            if not isinstance(payload, dict):
+            if not isinstance(row, ServiceTargetHealth):
                 continue
-            _merge_health_row(index, payload)
+            _merge_health_row(index, row.model_dump(by_alias=True))
 
         for bucket in index.values():
             _finalize_health_bucket(bucket)
