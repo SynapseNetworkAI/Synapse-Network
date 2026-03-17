@@ -3,10 +3,10 @@ import { AlertTriangle, ShieldAlert } from "lucide-react";
 interface RoleWarningModalProps {
   isOpen: boolean;
   onDisconnect: () => void;
-  targetRole: "Buyer" | "Seller";
+  targetRole: string;
 }
 
-export default function RoleWarningModal({ isOpen, onDisconnect, targetRole }: RoleWarningModalProps) {
+export default function RoleWarningModal({ isOpen, onDisconnect, targetRole }: Readonly<RoleWarningModalProps>) {
   if (!isOpen) return null;
 
   return (
@@ -22,18 +22,18 @@ export default function RoleWarningModal({ isOpen, onDisconnect, targetRole }: R
             <p className="flex items-start">
               <AlertTriangle className="w-5 h-5 mr-no-shrink mr-2 text-red-500 flex-shrink-0 mt-0.5" />
               <span>
-                系统检测到您正试图在同一个钱包地址上混合使用 <strong>Buyer (API消费者)</strong> 和 <strong>Seller (API提供方)</strong> 职能。
+                系统检测到您正试图在同一个钱包地址上混合进入 <strong>Agent Workspace</strong> 与 <strong>Provider Workspace</strong>。
               </span>
             </p>
           </div>
           
           <ul className="list-disc pl-5 space-y-2 text-sm text-gray-400">
-            <li><strong>架构限制：</strong>在底层智能合约中，充值资金（Vault）和收益（Revenue）对同一地址不做区分。如果混合角色使用，页面账单与可提现金额将发生严重显示错乱。</li>
-            <li><strong>安全强制：</strong>为防止账户串流，平台禁止 {targetRole} 空间被曾用于其他角色的钱包访问。</li>
+            <li><strong>当前限制：</strong>本地工作区仍然对消费侧资金视图与供给侧收益视图做钱包隔离，避免旧账单口径出现串流和误读。</li>
+            <li><strong>安全强制：</strong>为防止资金桶混淆，平台禁止已经绑定另一侧工作区的钱包直接进入 {targetRole}。</li>
           </ul>
 
           <p className="text-sm font-semibold text-gray-300 mt-4 text-red-400">
-            强制行动：您的钱包将被断开连接。请使用干净独立的钱包重新连接。
+            强制行动：当前钱包将被断开。请切换到独立钱包后重新进入目标工作区。
           </p>
         </div>
 
@@ -42,7 +42,7 @@ export default function RoleWarningModal({ isOpen, onDisconnect, targetRole }: R
             onClick={onDisconnect}
             className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-500 transition-colors"
           >
-            Disconnect & Switch
+            Disconnect And Switch
           </button>
         </div>
       </div>

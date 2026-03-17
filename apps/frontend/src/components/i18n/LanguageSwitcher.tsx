@@ -6,14 +6,14 @@ type LanguageSwitcherProps = {
   className?: string;
 };
 
-export default function LanguageSwitcher({ className }: LanguageSwitcherProps) {
+export default function LanguageSwitcher({ className }: Readonly<LanguageSwitcherProps>) {
   const { lang, setLang, supportedLanguages } = useLanguage();
 
   return (
     <select
       value={lang}
       onChange={(event) => setLang(event.target.value as typeof lang)}
-      className={className || "bg-transparent border border-[#3a3a3a] text-xs text-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-white"}
+      className={className || "appearance-none bg-transparent border border-[#3a3a3a] text-xs text-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-white"}
       aria-label="Language"
     >
       {supportedLanguages.map((item) => (

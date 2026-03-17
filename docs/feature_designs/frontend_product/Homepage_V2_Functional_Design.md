@@ -5,6 +5,7 @@
 Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探索、可扩展的首页入口层：
 
 - 一屏建立产品认知（是什么、解决什么问题）
+- 第一屏必须极简，只负责打入一个世界观，不承担角色教育和流程解释
 - 提供清晰导航入口（Marketplace / Blog / About / Language）
 - 提供可消费的服务发现能力（Registered Services）
 - 支持中英文切换，形成全局 i18n 基础设施
@@ -13,25 +14,42 @@ Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探�
 
 1. 顶部导航（Global Navbar）
 - Brand: Synapse Network
+- Brand lockup: precision monogram + wordmark, not hacker text effect
 - Status: Gateway Node
 - Links: API Marketplace / Blog / About
 - Language: EN / ZH
 
 2. Hero
-- 主叙事标题（Settlement Layer）
-- 副标题（Stripe for AI Agents）
-- CTA（Buyer Access / Provider Console）
+- 首屏只保留：Logo/Nav、Headline、Subheadline、Primary CTA、弱环境信号层
+- 主叙事标题：Fund once. Agents discover and pay for APIs.
+- 副标题：强调 runtime identity、budgeted payments、instant settlement
+- CTA：Start with Discovery
+- 首屏不再额外堆叠 tagline、机制提示或滚动提示
+- 背景动效：只允许极弱的 signal beam / orb 漂移，不允许 flashy 粒子、地图、炫光扫屏
+- 导航质感：悬浮玻璃胶囊 + 更细的高光边界 + 柔和状态脉冲，接近 keynote 而不是 debug toolbar
 
-3. Problem / Solution
-- 机器支付断层问题
-- Synapse 解决方案
+3. Capability Strip
+- 第二屏不再讲 Owner / Agent / Provider 角色关系
+- 改成 3 条协议能力声明：Discover / Pay / Invoke
+- 每条只保留一个能力词和一句解释，不再做角色教育
+- 整体更像协议能力说明，而不是 SaaS feature 卡片墙
 
-4. Registered Services
-- 服务名
-- serviceId
-- endpoint
-- pricing
-- role
+4. Machine Commerce Flow
+- Fund Vault
+- Issue Agent Credentials
+- Discover + Invoke Paid APIs
+- Settle + Withdraw
+- 第二屏不使用普通等宽功能卡墙，而是采用 narrative rail / editorial split layout
+- 左右交错讲流程，旁侧插入能力注释，让页面像讲一条基础设施链路，而不是卖 7 个 feature
+
+5. Registered Services
+- 首页不再承担 registry preview 的证明职责，首页保持为 hero + capability strip + closing CTA 的极简结构
+- 完整服务浏览统一承接到独立 `API Marketplace` 页面
+- Marketplace 页面负责展示全量注册服务，并提供 search、tag filter、active/all 切换与复制 serviceId/endpoint 的操作
+- 视觉形态采用 machine-readable registry terminal，而不是 marketing card grid
+- Marketplace registry 允许极弱 live feed 动效：仅限 row 错峰信号起伏，不允许赛博扫屏、闪烁地图或高频粒子
+- 当 registry 轮询发现某条 service 的 `updatedAt / health / runtime status / pricing / endpoint / summary` 发生变化时，允许对该条目触发一次性 entering highlight，模拟真实索引流的“新变更进入”反馈
+- Marketplace 必须提供稳定的 machine-readable JSON export 入口，建议暴露为独立 URL，并继承当前页面过滤参数（`status / tag / q`），方便 agent 与开发者直接消费注册表
 
 ## 3. 导航交互规范
 
@@ -42,6 +60,7 @@ Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探�
 - Hover Follow：鼠标划过时滑块跟随目标项
 - Return to Active：移出后回归 active 项
 - Press Feedback：点击时 0.98 轻微按压反馈
+- 品牌器件感：logo 使用微型精密 monogram，状态胶囊和语言切换器都要像统一工业件，而不是散装按钮
 
 动效标准：
 - 滑块主过渡：150ms + cubic-bezier(0.22, 1, 0.36, 1)
@@ -97,8 +116,10 @@ Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探�
 
 - frontend/src/components/Navbar.tsx
 - frontend/src/app/page.tsx
+- frontend/src/app/marketplace/page.tsx
 - frontend/src/app/blog/page.tsx
 - frontend/src/app/about/page.tsx
+- frontend/src/components/ServiceRegistryFeed.tsx
 - frontend/src/components/i18n/LanguageProvider.tsx
 - frontend/src/components/i18n/LanguageSwitcher.tsx
 - frontend/src/i18n/config.ts
@@ -109,7 +130,6 @@ Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探�
 
 ## 8. 后续功能迭代建议
 
-1. Marketplace 增加搜索与 tag 过滤
-2. Service 卡片增加复制 serviceId / endpoint
-3. 增加 machine-readable 服务目录导出（JSON feed）
-4. 将导航液态滑块抽象为可复用组件
+1. 增加 machine-readable 服务目录导出（JSON feed）
+2. 支持更多 registry 过滤维度（runtime status / auth type / protocol）
+3. 将导航液态滑块抽象为可复用组件
