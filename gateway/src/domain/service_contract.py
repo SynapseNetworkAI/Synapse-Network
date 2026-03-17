@@ -12,6 +12,122 @@ class SchemaDocument(BaseModel):
     body: dict[str, Any] = Field(default_factory=dict)
 
 
+class ServiceConstraintRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    timeout_ms: int = Field(default=15000, alias="timeoutMs")
+    max_qps: int = Field(default=100, alias="maxQps")
+    max_request_bytes: int = Field(default=4194304, alias="maxRequestBytes")
+    max_response_bytes: int = Field(default=4194304, alias="maxResponseBytes")
+
+
+class ServiceRequestSpecRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    content_type: str = Field(default="application/json", alias="contentType")
+    schema: SchemaDocument = Field(default_factory=SchemaDocument)
+
+
+class ServiceResponseSpecRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    content_type: str = Field(default="application/json", alias="contentType")
+    schema: SchemaDocument = Field(default_factory=SchemaDocument)
+
+
+class ServiceInvokeTargetRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    url: str
+    weight: int = 100
+    region: Optional[str] = None
+
+
+class ServiceInvokeConfigRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    method: Literal["POST", "GET", "PUT", "PATCH", "DELETE"] = "POST"
+    targets: list[ServiceInvokeTargetRecord] = Field(default_factory=list)
+    timeout_ms: int = Field(default=15000, alias="timeoutMs")
+    request: ServiceRequestSpecRecord = Field(default_factory=ServiceRequestSpecRecord)
+    response: ServiceResponseSpecRecord = Field(default_factory=ServiceResponseSpecRecord)
+    headers_template: dict[str, str] = Field(default_factory=dict, alias="headersTemplate")
+    examples: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ServiceAuthRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    auth_type: str = Field(default="", alias="type")
+    header_name: Optional[str] = Field(default=None, alias="headerName")
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ServiceHealthCheckRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    path: str = "/health"
+    method: str = "GET"
+    timeout_ms: Optional[int] = Field(default=None, alias="timeoutMs")
+    success_codes: list[int] = Field(default_factory=list, alias="successCodes")
+    healthy_threshold: Optional[int] = Field(default=None, alias="healthyThreshold")
+    unhealthy_threshold: Optional[int] = Field(default=None, alias="unhealthyThreshold")
+
+
+class ServiceRetryPolicyRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    max_attempts: int = Field(default=2, alias="maxAttempts")
+    backoff_ms: int = Field(default=200, alias="backoffMs")
+    retry_on_status: list[int] = Field(default_factory=list, alias="retryOnStatus")
+
+
+class ServiceForwardingRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    request_id_header: str = Field(default="X-Synapse-Request-Id", alias="requestIdHeader")
+    pass_through_headers: list[str] = Field(default_factory=list, alias="passThroughHeaders")
+    inject_headers: dict[str, str] = Field(default_factory=dict, alias="injectHeaders")
+    retry_policy: ServiceRetryPolicyRecord = Field(default_factory=ServiceRetryPolicyRecord, alias="retryPolicy")
+
+
+class ServiceMeteringRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    billing_unit: str = Field(default="per_call", alias="billingUnit")
+    bill_on_error: bool = Field(default=False, alias="billOnError")
+    billable_status_classes: list[int] = Field(default_factory=list, alias="billableStatusClasses")
+    request_id_required: bool = Field(default=True, alias="requestIdRequired")
+    response_size_metering: bool = Field(default=True, alias="responseSizeMetering")
+
+
+class ServiceHealthTargetRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    target_url: str = Field(alias="targetUrl")
+    status: str = "unknown"
+    weight: int = 100
+    region: Optional[str] = None
+    http_status: Optional[int] = Field(default=None, alias="httpStatus")
+    latency_ms: Optional[int] = Field(default=None, alias="latencyMs")
+    consecutive_successes: int = Field(default=0, alias="consecutiveSuccesses")
+    consecutive_failures: int = Field(default=0, alias="consecutiveFailures")
+    probe_url: Optional[str] = Field(default=None, alias="probeUrl")
+    last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
+    last_healthy_at: Optional[int] = Field(default=None, alias="lastHealthyAt")
+    error: Optional[str] = None
+
+
+class ServiceRuntimeHealthRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    overall_status: str = Field(default="unknown", alias="overallStatus")
+    healthy_targets: int = Field(default=0, alias="healthyTargets")
+    total_targets: int = Field(default=0, alias="totalTargets")
+    last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
+    targets: list[ServiceHealthTargetRecord] = Field(default_factory=list)
+
+
 class ServiceCapability(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -112,3 +228,40 @@ class ServiceCatalogRecord(BaseModel):
     manifest: ServiceManifestRecord
     primary_endpoint: Optional[ServiceEndpointRecord] = Field(default=None, alias="primaryEndpoint")
     search_index: Optional[ServiceSearchIndexRecord] = Field(default=None, alias="searchIndex")
+
+
+class ServiceDefinitionRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    service_id: str = Field(alias="serviceId")
+    owner_address: str = Field(alias="ownerAddress")
+    service_name: str = Field(default="", alias="serviceName")
+    summary: str = ""
+    status: str = "active"
+    is_active: bool = Field(default=True, alias="isActive")
+    pricing_amount: Decimal = Field(default=Decimal("0"), alias="pricingAmount")
+    pricing_currency: str = Field(default="USDC", alias="pricingCurrency")
+    constraints: ServiceConstraintRecord = Field(default_factory=ServiceConstraintRecord)
+    id: Optional[str] = None
+    schema_version: Optional[int] = Field(default=None, alias="schemaVersion")
+    role: Optional[str] = None
+    address: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+    auth: ServiceAuthRecord = Field(default_factory=ServiceAuthRecord)
+    health_check: ServiceHealthCheckRecord = Field(default_factory=ServiceHealthCheckRecord, alias="healthCheck")
+    forwarding: ServiceForwardingRecord = Field(default_factory=ServiceForwardingRecord)
+    metering: ServiceMeteringRecord = Field(default_factory=ServiceMeteringRecord)
+    invoke: ServiceInvokeConfigRecord = Field(default_factory=ServiceInvokeConfigRecord)
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
+    primary_endpoint: Optional[ServiceEndpointRecord] = Field(default=None, alias="primaryEndpoint")
+    search_index: Optional[ServiceSearchIndexRecord] = Field(default=None, alias="searchIndex")
+    runtime_health: Optional[ServiceRuntimeHealthRecord] = Field(default=None, alias="serviceHealth")
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        if self.primary_endpoint is not None and self.primary_endpoint.endpoint_url:
+            return self.primary_endpoint.endpoint_url
+        if self.invoke.targets:
+            return self.invoke.targets[0].url
+        return None

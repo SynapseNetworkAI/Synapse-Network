@@ -5,7 +5,20 @@ import json
 from collections import defaultdict
 from typing import Any, List
 
-from src.domain.registry import ServiceRegistryRow
+from src.domain.service_contract import (
+    ServiceAuthRecord,
+    ServiceConstraintRecord,
+    ServiceDefinitionRecord,
+    ServiceEndpointRecord,
+    ServiceForwardingRecord,
+    ServiceHealthCheckRecord,
+    ServiceInvokeConfigRecord,
+    ServiceInvokeTargetRecord,
+    ServiceMeteringRecord,
+    ServiceRequestSpecRecord,
+    ServiceResponseSpecRecord,
+    ServiceSearchIndexRecord,
+)
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -141,7 +154,303 @@ class ServiceRegistryRepository:
             (state_key, json.dumps(payload), to_dt_str(updated_at, now_dt_str())),
         )
 
-    def _build_service_registry_row(self, row: tuple[object, ...]) -> ServiceRegistryRow | None:
+    @staticmethod
+    def _serialize_request_spec(row: ServiceRequestSpecRecord) -> dict[str, Any]:
+        return {
+            "contentType": row.content_type,
+            "schema": dict(row.schema.body),
+        }
+
+    @classmethod
+    def _serialize_invoke(cls, row: ServiceInvokeConfigRecord) -> dict[str, Any]:
+        return {
+            "method": row.method,
+            "targets": [target.model_dump(by_alias=True, mode="json") for target in row.targets],
+            "timeoutMs": row.timeout_ms,
+            "request": cls._serialize_request_spec(row.request),
+            "response": {
+                "contentType": row.response.content_type,
+                "schema": dict(row.response.schema.body),
+            },
+            "headersTemplate": dict(row.headers_template),
+            "examples": list(row.examples),
+        }
+
+    @staticmethod
+    def _invoke_from_payload(
+        payload: dict[str, Any],
+        default_timeout_ms: int,
+        fallback_endpoint: str | None,
+    ) -> ServiceInvokeConfigRecord:
+        targets_payload = payload.get("targets") if isinstance(payload.get("targets"), list) else []
+        targets = [
+            ServiceInvokeTargetRecord.model_validate(target)
+            for target in targets_payload
+            if isinstance(target, dict) and str(target.get("url") or "").strip()
+        ]
+        if not targets and fallback_endpoint:
+            targets = [ServiceInvokeTargetRecord(url=fallback_endpoint, weight=100, region=None)]
+        request_payload = payload.get("request") if isinstance(payload.get("request"), dict) else {}
+        response_payload = payload.get("response") if isinstance(payload.get("response"), dict) else {}
+        return ServiceInvokeConfigRecord(
+            method=str(payload.get("method") or "POST").upper(),
+            targets=targets,
+            timeoutMs=int(payload.get("timeoutMs") or default_timeout_ms),
+            request=ServiceRequestSpecRecord(
+                contentType=str(request_payload.get("contentType") or "application/json"),
+                schema={"body": dict(request_payload.get("schema") or {})},
+            ),
+            response=ServiceResponseSpecRecord(
+                contentType=str(response_payload.get("contentType") or "application/json"),
+                schema={"body": dict(response_payload.get("schema") or {})},
+            ),
+            headersTemplate=dict(payload.get("headersTemplate") or {}),
+            examples=list(payload.get("examples") or []),
+        )
+
+    @classmethod
+    def _service_meta_payload(
+        cls,
+        row: ServiceDefinitionRecord,
+        created_at: str,
+        updated_at: str,
+    ) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "schemaVersion": row.schema_version,
+            "role": row.role,
+            "address": row.address,
+            "auth": row.auth.model_dump(by_alias=True, mode="json", exclude_none=True),
+            "healthCheck": row.health_check.model_dump(by_alias=True, mode="json", exclude_none=True),
+            "forwarding": row.forwarding.model_dump(by_alias=True, mode="json", exclude_none=True),
+            "metering": row.metering.model_dump(by_alias=True, mode="json", exclude_none=True),
+            "invoke": cls._serialize_invoke(row.invoke),
+            "maxQps": row.constraints.max_qps,
+            "maxRequestBytes": row.constraints.max_request_bytes,
+            "maxResponseBytes": row.constraints.max_response_bytes,
+            "createdAt": created_at,
+            "updatedAt": updated_at,
+        }
+
+    @staticmethod
+    def _created_updated_text(
+        metadata: dict[str, Any], created_at: object, updated_at: object
+    ) -> tuple[str, str]:
+        return (
+            to_dt_str(metadata.get("createdAt") or created_at, "") or "",
+            to_dt_str(metadata.get("updatedAt") or updated_at, "") or "",
+        )
+
+    def _primary_endpoint_record(
+        self,
+        service_id: object,
+        endpoint: object,
+        endpoint_id: object,
+        timeout_ms: object,
+        max_payload_bytes: object,
+        endpoint_status: object,
+        created_at_text: str,
+        updated_at_text: str,
+    ) -> ServiceEndpointRecord | None:
+        endpoint_url = str(endpoint or "").strip()
+        if not endpoint_url:
+            return None
+        return ServiceEndpointRecord(
+            endpointId=str(endpoint_id or self._endpoint_id(str(service_id), endpoint_url, 0)),
+            serviceId=str(service_id),
+            endpointUrl=endpoint_url,
+            timeoutMs=int(timeout_ms or 15000),
+            maxPayloadBytes=int(max_payload_bytes or 4194304),
+            isPrimary=True,
+            status=str(endpoint_status or "active"),
+            createdAt=created_at_text,
+            updatedAt=updated_at_text,
+        )
+
+    @staticmethod
+    def _constraints_from_row(
+        metadata: dict[str, Any], timeout_ms: object, max_payload_bytes: object
+    ) -> ServiceConstraintRecord:
+        return ServiceConstraintRecord(
+            timeoutMs=int(timeout_ms or 15000),
+            maxQps=int(metadata.get("maxQps") or 100),
+            maxRequestBytes=int(metadata.get("maxRequestBytes") or max_payload_bytes or 4194304),
+            maxResponseBytes=int(metadata.get("maxResponseBytes") or max_payload_bytes or 4194304),
+        )
+
+    def _search_index_record(
+        self,
+        service_id: object,
+        service_name: object,
+        summary: object,
+        tags_json: object,
+        updated_at_text: str,
+    ) -> ServiceSearchIndexRecord:
+        tags = self._normalize_json_list(tags_json)
+        return ServiceSearchIndexRecord(
+            serviceId=str(service_id),
+            tags=tags,
+            searchText=" ".join(
+                value
+                for value in [
+                    str(service_name or ""),
+                    str(summary or ""),
+                    " ".join(tags),
+                ]
+                if value
+            ).strip(),
+            updatedAt=updated_at_text,
+        )
+
+    @staticmethod
+    def _coerce_service_rows(rows: List[ServiceDefinitionRecord]) -> List[ServiceDefinitionRecord]:
+        typed_rows: List[ServiceDefinitionRecord] = []
+        for row in rows:
+            if isinstance(row, ServiceDefinitionRecord):
+                typed_rows.append(row)
+            elif isinstance(row, dict):
+                typed_rows.append(ServiceDefinitionRecord.model_validate(row))
+        return typed_rows
+
+    @staticmethod
+    def _reset_service_tables(cur: Any) -> None:
+        cur.execute("DELETE FROM synapse_service_health_snapshots")
+        cur.execute("DELETE FROM synapse_service_endpoints")
+        cur.execute("DELETE FROM synapse_service_search_index")
+        cur.execute("DELETE FROM synapse_service_manifests")
+        cur.execute(
+            "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_meta::%' OR state_key LIKE 'service_health_meta::%' OR state_key LIKE 'service_health_history::%'"
+        )
+
+    @staticmethod
+    def _manifest_timestamps(row: ServiceDefinitionRecord) -> tuple[str, str]:
+        return (to_dt_str(row.created_at, now_dt_str()), to_dt_str(row.updated_at, now_dt_str()))
+
+    def _insert_service_manifest(
+        self, cur: Any, row: ServiceDefinitionRecord, seller_id: str, created_at: str, updated_at: str
+    ) -> None:
+        cur.execute(
+            """
+            INSERT INTO synapse_service_manifests (
+                service_id, seller_id, service_name, manifest_version, status,
+                description_for_model, task_category, capabilities_json,
+                input_schema, output_schema, examples_json, limitations_json,
+                price_model, base_price_usdc, quote_required,
+                settlement_currency, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s::jsonb,
+                '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb,
+                'fixed', %s, TRUE,
+                %s, %s, %s
+            )
+            """,
+            (
+                row.service_id,
+                seller_id,
+                row.service_name,
+                str(row.schema_version or 1),
+                row.status or ("active" if row.is_active else "paused"),
+                row.summary or row.service_name,
+                row.role,
+                json.dumps(row.tags or []),
+                str(row.pricing_amount or 0),
+                row.pricing_currency or "USDC",
+                created_at,
+                updated_at,
+            ),
+        )
+
+    @staticmethod
+    def _endpoint_targets(row: ServiceDefinitionRecord) -> list[ServiceInvokeTargetRecord]:
+        endpoint_targets = list(row.invoke.targets)
+        if not endpoint_targets and row.endpoint:
+            return [ServiceInvokeTargetRecord(url=row.endpoint, weight=100, region=None)]
+        return endpoint_targets
+
+    def _insert_service_endpoints(
+        self, cur: Any, row: ServiceDefinitionRecord, created_at: str, updated_at: str
+    ) -> None:
+        for index, target in enumerate(self._endpoint_targets(row)):
+            endpoint_url = str(target.url or "").strip()
+            if not endpoint_url:
+                continue
+            cur.execute(
+                """
+                INSERT INTO synapse_service_endpoints (
+                    endpoint_id, service_id, endpoint_url, auth_mode, timeout_ms,
+                    max_payload_bytes, streaming_supported, async_supported,
+                    callback_supported, region, weight, is_primary, status,
+                    created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, 'gateway_forward', %s,
+                    %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s
+                )
+                """,
+                (
+                    self._endpoint_id(row.service_id, endpoint_url, index),
+                    row.service_id,
+                    endpoint_url,
+                    int(row.constraints.timeout_ms or 15000),
+                    int(row.constraints.max_request_bytes or 4194304),
+                    False,
+                    False,
+                    False,
+                    target.region,
+                    int(target.weight or 100),
+                    index == 0,
+                    "active" if row.is_active else "paused",
+                    created_at,
+                    updated_at,
+                ),
+            )
+
+    @staticmethod
+    def _search_text(row: ServiceDefinitionRecord) -> str:
+        return " ".join(
+            value
+            for value in [
+                str(row.service_name or ""),
+                str(row.summary or ""),
+                " ".join(str(tag) for tag in row.tags or []),
+            ]
+            if value
+        ).strip()
+
+    def _insert_search_index(
+        self, cur: Any, row: ServiceDefinitionRecord, updated_at: str
+    ) -> None:
+        cur.execute(
+            """
+            INSERT INTO synapse_service_search_index (
+                service_id, tags_json, search_text, embedding_ref,
+                reliability_tier, health_score, p95_latency_ms, success_rate_24h, updated_at
+            ) VALUES (%s, %s::jsonb, %s, NULL, NULL, NULL, NULL, NULL, %s)
+            """,
+            (
+                row.service_id,
+                json.dumps(row.tags or []),
+                self._search_text(row),
+                updated_at,
+            ),
+        )
+
+    def _persist_service_row(self, cur: Any, row: ServiceDefinitionRecord) -> None:
+        seller_id = self._ensure_owner_and_seller(cur, row.owner_address, row.service_name)
+        created_at, updated_at = self._manifest_timestamps(row)
+        self._insert_service_manifest(cur, row, seller_id, created_at, updated_at)
+        self._insert_service_endpoints(cur, row, created_at, updated_at)
+        self._insert_search_index(cur, row, updated_at)
+        self._upsert_runtime_state(
+            cur,
+            self._service_meta_state_key(row.service_id),
+            self._service_meta_payload(row, created_at, updated_at),
+            updated_at,
+        )
+
+    def _build_service_definition(self, row: tuple[object, ...]) -> ServiceDefinitionRecord | None:
         if len(row) != 17:
             return None
 
@@ -166,35 +475,57 @@ class ServiceRegistryRepository:
         ) = row
 
         metadata = self._payload_dict(metadata_payload)
-        return ServiceRegistryRow(
+        created_at_text, updated_at_text = self._created_updated_text(metadata, created_at, updated_at)
+        primary_endpoint = self._primary_endpoint_record(
+            service_id,
+            endpoint,
+            endpoint_id,
+            timeout_ms,
+            max_payload_bytes,
+            endpoint_status,
+            created_at_text,
+            updated_at_text,
+        )
+        constraints = self._constraints_from_row(metadata, timeout_ms, max_payload_bytes)
+        endpoint_url = str(endpoint or "").strip()
+        invoke = self._invoke_from_payload(
+            self._normalize_json_object(metadata.get("invoke")),
+            constraints.timeout_ms,
+            endpoint_url or None,
+        )
+        return ServiceDefinitionRecord(
             serviceId=str(service_id),
             ownerAddress=str(owner_address).lower(),
             serviceName=str(service_name or ""),
-            summary=summary,
-            endpoint=endpoint,
+            summary=str(summary or ""),
             status=str(status or "active"),
             isActive=bool(is_active and str(endpoint_status or "active") == "active"),
             pricingAmount=pricing_amount,
             pricingCurrency=str(pricing_currency or "USDC"),
-            timeoutMs=timeout_ms,
-            maxQps=metadata.get("maxQps"),
-            maxRequestBytes=metadata.get("maxRequestBytes") or max_payload_bytes,
-            maxResponseBytes=metadata.get("maxResponseBytes") or max_payload_bytes,
+            constraints=constraints,
             id=str(metadata.get("id") or endpoint_id or "") or None,
             schemaVersion=metadata.get("schemaVersion"),
             role=str(metadata.get("role") or "") or None,
             address=str(metadata.get("address") or "") or None,
             tags=self._normalize_json_list(tags_json),
-            auth=self._normalize_json_object(metadata.get("auth")),
-            healthCheck=self._normalize_json_object(metadata.get("healthCheck")),
-            forwarding=self._normalize_json_object(metadata.get("forwarding")),
-            metering=self._normalize_json_object(metadata.get("metering")),
-            invoke=self._normalize_json_object(metadata.get("invoke")),
-            createdAt=to_dt_str(metadata.get("createdAt") or created_at, "") or "",
-            updatedAt=to_dt_str(metadata.get("updatedAt") or updated_at, "") or "",
+            auth=ServiceAuthRecord.model_validate(self._normalize_json_object(metadata.get("auth"))),
+            healthCheck=ServiceHealthCheckRecord.model_validate(self._normalize_json_object(metadata.get("healthCheck"))),
+            forwarding=ServiceForwardingRecord.model_validate(self._normalize_json_object(metadata.get("forwarding"))),
+            metering=ServiceMeteringRecord.model_validate(self._normalize_json_object(metadata.get("metering"))),
+            invoke=invoke,
+            createdAt=created_at_text,
+            updatedAt=updated_at_text,
+            primaryEndpoint=primary_endpoint,
+            searchIndex=self._search_index_record(
+                service_id,
+                service_name,
+                summary,
+                tags_json,
+                updated_at_text,
+            ),
         )
 
-    def read_service_registry_rows(self) -> List[ServiceRegistryRow]:
+    def read_service_registry_rows(self) -> List[ServiceDefinitionRecord]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
@@ -233,155 +564,20 @@ class ServiceRegistryRepository:
             )
             rows = cur.fetchall()
 
-        result: List[ServiceRegistryRow] = []
+        result: List[ServiceDefinitionRecord] = []
         for row in rows:
-            entity = self._build_service_registry_row(row)
+            entity = self._build_service_definition(row)
             if entity is not None:
                 result.append(entity)
         return result
 
-    def write_service_registry_rows(self, rows: List[ServiceRegistryRow]) -> None:
-        typed_rows: List[ServiceRegistryRow] = []
-        for row in rows:
-            if isinstance(row, ServiceRegistryRow):
-                typed_rows.append(row)
-            elif isinstance(row, dict):
-                typed_rows.append(ServiceRegistryRow.model_validate(row))
+    def write_service_registry_rows(self, rows: List[ServiceDefinitionRecord]) -> None:
+        typed_rows = self._coerce_service_rows(rows)
 
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_service_health_snapshots")
-            cur.execute("DELETE FROM synapse_service_endpoints")
-            cur.execute("DELETE FROM synapse_service_search_index")
-            cur.execute("DELETE FROM synapse_service_manifests")
-            cur.execute(
-                "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_meta::%' OR state_key LIKE 'service_health_meta::%' OR state_key LIKE 'service_health_history::%'"
-            )
+            self._reset_service_tables(cur)
             for row in typed_rows:
-                seller_id = self._ensure_owner_and_seller(cur, row.owner_address, row.service_name)
-                created_at = to_dt_str(row.created_at, now_dt_str())
-                updated_at = to_dt_str(row.updated_at, now_dt_str())
-                cur.execute(
-                    """
-                    INSERT INTO synapse_service_manifests (
-                        service_id, seller_id, service_name, manifest_version, status,
-                        description_for_model, task_category, capabilities_json,
-                        input_schema, output_schema, examples_json, limitations_json,
-                        price_model, base_price_usdc, quote_required,
-                        settlement_currency, created_at, updated_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s,
-                        %s, %s, %s::jsonb,
-                        '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb,
-                        'fixed', %s, TRUE,
-                        %s, %s, %s
-                    )
-                    """,
-                    (
-                        row.service_id,
-                        seller_id,
-                        row.service_name,
-                        str(row.schema_version or 1),
-                        row.status or ("active" if row.is_active else "paused"),
-                        row.summary or row.service_name,
-                        row.role,
-                        json.dumps(row.tags or []),
-                        str(row.pricing_amount or 0),
-                        row.pricing_currency or "USDC",
-                        created_at,
-                        updated_at,
-                    ),
-                )
-
-                invoke = dict(row.invoke or {})
-                targets = invoke.get("targets") if isinstance(invoke.get("targets"), list) else []
-                endpoint_targets = [
-                    target
-                    for target in targets
-                    if isinstance(target, dict) and str(target.get("url") or "").strip()
-                ]
-                if not endpoint_targets and row.endpoint:
-                    endpoint_targets = [{"url": row.endpoint, "weight": 100}]
-
-                for index, target in enumerate(endpoint_targets):
-                    endpoint_url = str(target.get("url") or "").strip()
-                    if not endpoint_url:
-                        continue
-                    cur.execute(
-                        """
-                        INSERT INTO synapse_service_endpoints (
-                            endpoint_id, service_id, endpoint_url, auth_mode, timeout_ms,
-                            max_payload_bytes, streaming_supported, async_supported,
-                            callback_supported, region, weight, is_primary, status,
-                            created_at, updated_at
-                        ) VALUES (
-                            %s, %s, %s, 'gateway_forward', %s,
-                            %s, %s, %s,
-                            %s, %s, %s, %s, %s,
-                            %s, %s
-                        )
-                        """,
-                        (
-                            self._endpoint_id(row.service_id, endpoint_url, index),
-                            row.service_id,
-                            endpoint_url,
-                            int(row.timeout_ms or 15000),
-                            int(row.max_request_bytes or 4194304),
-                            bool(invoke.get("streamingSupported", False)),
-                            bool(invoke.get("asyncSupported", False)),
-                            bool(invoke.get("callbackSupported", False)),
-                            target.get("region"),
-                            int(target.get("weight") or 100),
-                            index == 0,
-                            "active" if row.is_active else "paused",
-                            created_at,
-                            updated_at,
-                        ),
-                    )
-
-                cur.execute(
-                    """
-                    INSERT INTO synapse_service_search_index (
-                        service_id, tags_json, search_text, embedding_ref,
-                        reliability_tier, health_score, p95_latency_ms, success_rate_24h, updated_at
-                    ) VALUES (%s, %s::jsonb, %s, NULL, NULL, NULL, NULL, NULL, %s)
-                    """,
-                    (
-                        row.service_id,
-                        json.dumps(row.tags or []),
-                        " ".join(
-                            value
-                            for value in [
-                                str(row.service_name or ""),
-                                str(row.summary or ""),
-                                " ".join(str(tag) for tag in row.tags or []),
-                            ]
-                            if value
-                        ).strip(),
-                        updated_at,
-                    ),
-                )
-
-                self._upsert_runtime_state(
-                    cur,
-                    self._service_meta_state_key(row.service_id),
-                    {
-                        "id": row.id,
-                        "schemaVersion": row.schema_version,
-                        "role": row.role,
-                        "address": row.address,
-                        "auth": row.auth or {},
-                        "healthCheck": row.health_check or {},
-                        "forwarding": row.forwarding or {},
-                        "metering": row.metering or {},
-                        "invoke": row.invoke or {},
-                        "maxQps": row.max_qps,
-                        "maxRequestBytes": row.max_request_bytes,
-                        "maxResponseBytes": row.max_response_bytes,
-                        "createdAt": created_at,
-                        "updatedAt": updated_at,
-                    },
-                    updated_at,
-                )
+                self._persist_service_row(cur, row)
 
     def read_service_target_health_rows(self) -> List[ServiceTargetHealth]:
         with self._db.readonly_cursor() as cur:

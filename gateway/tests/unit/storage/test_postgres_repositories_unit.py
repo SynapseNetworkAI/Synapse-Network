@@ -15,6 +15,7 @@ from src.storage.postgres.repositories.finance_atomic_repository import FinanceA
 from src.storage.postgres.repositories.gateway_state_repository import GatewayStateRepository
 from src.storage.postgres.repositories.idempotency_repository import IdempotencyRepository
 from src.storage.postgres.repositories.service_registry_repository import ServiceRegistryRepository
+from src.domain.service_contract import ServiceDefinitionRecord
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.gateway import RouterConfigRow
 from src.domain.finance import (
@@ -376,8 +377,9 @@ def test_service_registry_repository_read_and_write() -> None:
     services = repo.read_service_registry_rows()
     assert services[0].service_id == "svc-1"
     assert services[0].id == "rec-1"
-    assert services[0].health_check["path"] == "/health"
-    assert services[0].invoke["method"] == "POST"
+    assert services[0].health_check.path == "/health"
+    assert services[0].invoke.method == "POST"
+    assert services[0].invoke.targets[0].url == "https://a"
 
     target_rows = repo.read_service_target_health_rows()
     assert target_rows[0].consecutive_successes == 3
@@ -386,32 +388,36 @@ def test_service_registry_repository_read_and_write() -> None:
     assert history_rows[0].checked_at == 11
 
     repo.write_service_registry_rows([
-        {
-            "serviceId": "svc-2",
-            "ownerAddress": "0xDEF",
-            "serviceName": "svc-two",
-            "summary": "demo",
-            "status": "active",
-            "isActive": True,
-            "pricingAmount": "0.010000",
-            "pricingCurrency": "USDC",
-            "timeoutMs": 3000,
-            "maxQps": 50,
-            "maxRequestBytes": 4096,
-            "maxResponseBytes": 8192,
-            "id": "rec-2",
-            "schemaVersion": 2,
-            "role": "provider",
-            "address": "0xdef",
-            "tags": ["a"],
-            "auth": {"type": "service_key"},
-            "healthCheck": {"path": "/health", "method": "GET"},
-            "forwarding": {"requestIdHeader": "X-Synapse-Request-Id"},
-            "metering": {"billingUnit": "per_call"},
-            "invoke": {"method": "POST", "targets": [{"url": "https://b"}]},
-            "createdAt": "2026-03-15 14:24:00",
-            "updatedAt": "2026-03-15 14:24:01",
-        }
+        ServiceDefinitionRecord.model_validate(
+            {
+                "serviceId": "svc-2",
+                "ownerAddress": "0xDEF",
+                "serviceName": "svc-two",
+                "summary": "demo",
+                "status": "active",
+                "isActive": True,
+                "pricingAmount": "0.010000",
+                "pricingCurrency": "USDC",
+                "constraints": {
+                    "timeoutMs": 3000,
+                    "maxQps": 50,
+                    "maxRequestBytes": 4096,
+                    "maxResponseBytes": 8192,
+                },
+                "id": "rec-2",
+                "schemaVersion": 2,
+                "role": "provider",
+                "address": "0xdef",
+                "tags": ["a"],
+                "auth": {"type": "service_key"},
+                "healthCheck": {"path": "/health", "method": "GET"},
+                "forwarding": {"requestIdHeader": "X-Synapse-Request-Id"},
+                "metering": {"billingUnit": "per_call"},
+                "invoke": {"method": "POST", "targets": [{"url": "https://b"}]},
+                "createdAt": "2026-03-15 14:24:00",
+                "updatedAt": "2026-03-15 14:24:01",
+            }
+        )
     ])
     repo.write_service_target_health_rows([
         ServiceTargetHealth(serviceId="svc-2", ownerAddress="0xDEF", targetUrl="https://b")

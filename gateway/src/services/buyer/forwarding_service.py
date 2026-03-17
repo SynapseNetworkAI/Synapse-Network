@@ -7,6 +7,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.api.schemas.pydantic_models import InferenceRequest
 from src.domain.identity import RuntimeCredentialRecord
+from src.domain.service_contract import ServiceConstraintRecord, ServiceDefinitionRecord
 from src.services.platform import credential_service
 from src.services.buyer import forwarding_billing
 from src.services.buyer import forwarding_upstream
@@ -38,7 +39,7 @@ def _build_buyer_success_response(
     return forwarding_billing.build_buyer_success_response(receipt, upstream_result)
 
 
-def _effective_service_constraints(service: Dict[str, Any]) -> Dict[str, int]:
+def _effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceConstraintRecord:
     """Resolve service constraints after applying platform min/max guardrails."""
     return forwarding_validation.effective_service_constraints(service)
 
@@ -77,29 +78,33 @@ def _resolve_request_id(client_request_id: Optional[str]) -> str:
     return forwarding_validation.resolve_request_id(client_request_id)
 
 
-def _find_active_service(storage: BaseStorage, service_id: str) -> Dict[str, Any]:
+def _find_active_service(
+    storage: BaseStorage, service_id: str
+) -> ServiceDefinitionRecord:
     """Fetch an active service row by serviceId or raise gateway-safe error codes."""
     return forwarding_validation.find_active_service(storage, service_id)
 
 
-def _parse_service_price_usdc(service_row: Dict[str, Any]) -> float:
+def _parse_service_price_usdc(service_row: ServiceDefinitionRecord) -> float:
     """Parse service USDC unit price with strict positivity constraints."""
     return forwarding_validation.parse_service_price_usdc(service_row)
 
 
 def _validate_invoke_request_contract(
-    service: Dict[str, Any], payload: Dict[str, Any]
+    service: ServiceDefinitionRecord, payload: Dict[str, Any]
 ) -> None:
     """Enforce invoke contract requirements for method/content-type/required fields."""
     forwarding_validation.validate_invoke_request_contract(service, payload)
 
 
-def _select_weighted_target_url(invoke: Dict[str, Any]) -> str:
+def _select_weighted_target_url(invoke: Any) -> str:
     """Select one upstream target by weighted-random routing configuration."""
     return forwarding_upstream.select_weighted_target_url(invoke)
 
 
-async def _call_upstream(service: Dict[str, Any], prompt: str, request_id: str) -> Any:
+async def _call_upstream(
+    service: ServiceDefinitionRecord, prompt: str, request_id: str
+) -> Any:
     """Forward prompt to seller upstream and enforce payload size + timeout limits."""
     return await forwarding_upstream.call_upstream(service, prompt, request_id)
 
