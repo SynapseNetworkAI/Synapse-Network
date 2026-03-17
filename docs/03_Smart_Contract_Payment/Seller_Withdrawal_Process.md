@@ -29,7 +29,8 @@
 2. 校验同 owner 当前不存在其他 `PENDING` 提现单。
 3. 从 `balance_ledger.sellers[owner]` 扣减并锁定到 `balance_ledger.sellersLocked[owner]`。
 4. 读取链上 `userNonces(owner)`，拼装 EIP-712 Withdraw 结构并签名。
-5. 写入 `provider_withdrawal_intents`，状态 `PENDING`。
+5. 写入 `synapse_vault_withdrawals`，`withdrawal_kind = provider_withdrawal`。
+6. 同步写入 `synapse_runtime_state` 中的 `vault_withdrawal_meta::{withdrawal_id}` sidecar，保存签名票据、风险判定、review 元数据。
 
 ### Step 2: 卖家钱包发链上提现（卖家付 Gas）
 
@@ -48,13 +49,13 @@
 `POST /api/v1/providers/withdrawals/{withdrawalId}/complete`
 
 - 请求体：`{ txHash }`
-- 网关更新提现单状态为 `COMPLETED`。
+- 网关更新 `synapse_vault_withdrawals` 主记录与 `vault_withdrawal_meta::{withdrawal_id}` sidecar 状态为 `COMPLETED`。
 - 原子释放锁仓：`sellersLocked[owner] -= amountUsdc`。
-- 写入审计日志（withdrawalId、txHash、amount、owner、时间）。
+- 写入 `synapse_audit_events` 与必要的 `synapse_ledger_entries`（withdrawalId、txHash、amount、owner、时间）。
 
 ## 3. 状态机
 
-- `PENDING`：票据已签发，离链应收已锁仓，等待链上提现。
+- `PENDING`：票据已签发，`synapse_vault_withdrawals.status` 处于 `REQUESTED/SIGNED`，离链应收已锁仓，等待链上提现。
 - `COMPLETED`：链上提现成功并完成回执，锁仓已释放。
 
 当前版本禁止同 owner 同时存在多个 `PENDING` 提现单，避免并发双提风险。

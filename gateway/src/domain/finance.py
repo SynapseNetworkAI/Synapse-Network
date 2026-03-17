@@ -10,6 +10,7 @@ from .execution import (
     CompleteWithdrawTxCommand,
     DepositIntentConfirmCommand,
     DepositIntentRegisterCommand,
+    InvocationRecord,
     PreparedWithdrawTicket,
     ReserveProviderWithdrawCommand,
     WithdrawalAtomicRequestCommand,
@@ -459,6 +460,11 @@ class ChargeConsumerUsageCommand:
     provider_net: Decimal
     platform_fee_total: Decimal
     usage_row: UsageLogRow
+    request_id: str = ""
+    unit_price: Decimal = Decimal("0")
+    protocol_fee: Decimal = Decimal("0")
+    routing_tax: Decimal = Decimal("0")
+    invocation: Optional[InvocationRecord] = None
 
     @property
     def seller_wallet(self) -> str:

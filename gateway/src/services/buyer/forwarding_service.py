@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -510,6 +512,26 @@ async def _execute_invocation_pipeline(
         settlement["platform_fee_total"],
         settlement["provider_net"],
         str(credential.credential.credential_id),
+        request_id=trace_request_id,
+        unit_price=unit_price,
+        protocol_fee=settlement["protocol_fee"],
+        routing_tax=settlement["routing_tax"],
+        usage_row=UsageLogRow(
+            id=invocation.invocation_id,
+            ts=credential_service.now_ts(),
+            requestId=trace_request_id,
+            serviceId=service.service_id,
+            buyerAddress=credential_service.credential_owner_wallet(credential),
+            providerAddress=provider_wallet,
+            status="accepted",
+            unitPrice=round(unit_price, 6),
+            protocolFee=round(settlement["protocol_fee"], 6),
+            routingTax=round(settlement["routing_tax"], 6),
+            totalCharge=round(total_charge, 6),
+            businessType="charge",
+            riskLevel="green",
+        ),
+        invocation=invocation,
     )
 
     running_invocation = invocation.model_copy(
@@ -639,25 +661,6 @@ async def _execute_invocation_pipeline(
         }
     )
     _persist_invocation(storage, succeeded_invocation)
-
-    _append_usage_log(
-        storage,
-        UsageLogRow(
-            id=succeeded_invocation.invocation_id,
-            ts=credential_service.now_ts(),
-            requestId=trace_request_id,
-            serviceId=service.service_id,
-            buyerAddress=owner_wallet,
-            providerAddress=provider_wallet,
-            status="succeeded",
-            unitPrice=round(unit_price, 6),
-            protocolFee=round(settlement["protocol_fee"], 6),
-            routingTax=round(settlement["routing_tax"], 6),
-            totalCharge=round(total_charge, 6),
-            businessType="charge",
-            riskLevel="green",
-        ),
-    )
     credential_service.append_audit_log(
         storage,
         "V2_USAGE_CHARGED",

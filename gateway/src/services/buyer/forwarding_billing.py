@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -5,6 +8,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.domain.execution import InvocationRecord
 from src.domain.finance import UsageLogRow
 from src.domain.identity import RuntimeCredentialRecord
 from src.services.platform import credential_service
@@ -13,6 +17,16 @@ from src.domain.finance import ChargeConsumerUsageCommand
 
 
 RISK_RESTRICTED_STATUSES = {"restricted", "suspended", "blocked"}
+
+
+@dataclass(frozen=True)
+class ChargeUsageAtomicContext:
+    request_id: str = ""
+    unit_price: float = 0.0
+    protocol_fee: float = 0.0
+    routing_tax: float = 0.0
+    usage_row: Optional[UsageLogRow] = None
+    invocation: Optional[InvocationRecord] = None
 
 
 def sanitize_fee_rate(raw: Any, fallback: float) -> float:
@@ -183,6 +197,12 @@ async def charge_and_mark_usage(
     platform_fee_total: float,
     seller_net: float,
     credential_id: str,
+    request_id: str = "",
+    unit_price: float = 0.0,
+    protocol_fee: float = 0.0,
+    routing_tax: float = 0.0,
+    usage_row: Optional[UsageLogRow] = None,
+    invocation: Optional[InvocationRecord] = None,
 ) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
     """Atomically charge buyer, credit seller/platform, and increment credential usage."""
     now = credential_service.now_ts()
@@ -200,6 +220,14 @@ async def charge_and_mark_usage(
             platform_fee_total=platform_fee_total,
             seller_net=seller_net,
             credential_id=credential_id,
+            context=ChargeUsageAtomicContext(
+                request_id=request_id,
+                unit_price=unit_price,
+                protocol_fee=protocol_fee,
+                routing_tax=routing_tax,
+                usage_row=usage_row,
+                invocation=invocation,
+            ),
             now=now,
         )
     return await _charge_and_mark_usage_fallback(
@@ -222,17 +250,32 @@ def _charge_and_mark_usage_atomic(
     platform_fee_total: float,
     seller_net: float,
     credential_id: str,
+    context: ChargeUsageAtomicContext,
     now: int,
 ) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
     consumer_after = 0.0
     updated_credential = None
 
-    usage_row = UsageLogRow(
-        id=f"usage-{now}-{credential_id}",
+    normalized_usage_row = context.usage_row or UsageLogRow(
+        id=(
+            context.invocation.invocation_id
+            if context.invocation is not None
+            else f"usage-{now}-{credential_id}"
+        ),
         ts=now,
+        requestId=context.request_id or None,
         buyerAddress=owner_wallet,
         providerAddress=seller_wallet,
         status="accepted",
+        unitPrice=Decimal(str(context.unit_price)).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        ),
+        protocolFee=Decimal(str(context.protocol_fee)).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        ),
+        routingTax=Decimal(str(context.routing_tax)).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        ),
         totalCharge=Decimal(str(total_charge)).quantize(
             Decimal("0.000001"), rounding=ROUND_HALF_UP
         ),
@@ -256,7 +299,18 @@ def _charge_and_mark_usage_atomic(
                 platform_fee_total=Decimal(str(platform_fee_total)).quantize(
                     Decimal("0.000001"), rounding=ROUND_HALF_UP
                 ),
-                usage_row=usage_row,
+                request_id=context.request_id,
+                unit_price=Decimal(str(context.unit_price)).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
+                protocol_fee=Decimal(str(context.protocol_fee)).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
+                routing_tax=Decimal(str(context.routing_tax)).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                ),
+                invocation=context.invocation,
+                usage_row=normalized_usage_row,
             )
         )
         if isinstance(result, dict):

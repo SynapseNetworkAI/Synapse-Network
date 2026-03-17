@@ -93,6 +93,12 @@
 - `synapse_ledger_entries`
 - `synapse_audit_events`
 
+补充约束：
+
+- charge 不再以 `synapse_usage_log` 为主真相。
+- consumer/provider 计费明细通过 `synapse_invocations + synapse_ledger_entries + synapse_audit_events` 落库。
+- 兼容查询需要的补充字段，统一进 `synapse_runtime_state` 的 `invocation_billing::{invocation_id}` typed sidecar。
+
 ### 4.4 Deposit / Withdraw
 
 写：
@@ -101,6 +107,12 @@
 - `synapse_vault_withdrawals`
 - `synapse_ledger_entries`
 - `synapse_account_balances`
+
+补充约束：
+
+- refund 与 provider withdraw 统一收敛到 `synapse_vault_withdrawals`，通过 `withdrawal_kind` 区分 `consumer_refund` / `provider_withdrawal`。
+- 流程态、review 信息、链上票据等非主表字段，统一进 `synapse_runtime_state` 的 `vault_withdrawal_meta::{withdrawal_id}` typed sidecar。
+- `synapse_refund_intents`、`synapse_withdrawal_intents` 只允许作为历史兼容概念，不再承担 source-of-truth 责任。
 
 ## 5. Admin Projection
 

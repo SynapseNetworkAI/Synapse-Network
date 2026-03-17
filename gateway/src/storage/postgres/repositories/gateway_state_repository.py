@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from typing import Any, Callable, List
 
@@ -9,7 +10,11 @@ from src.domain.finance import (
     RefundIntentRow,
     UsageLogRow,
 )
-from src.domain.runtime_state import DepositMetadataState
+from src.domain.runtime_state import (
+    DepositMetadataState,
+    InvocationBillingState,
+    VaultWithdrawalMetadataState,
+)
 from src.domain.system import ProcessedDepositEventRow, RuntimeStateRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -28,6 +33,18 @@ class GatewayStateRepository:
     @staticmethod
     def _deposit_state_key(deposit_id: str) -> str:
         return f"vault_deposit_meta::{deposit_id}"
+
+    @staticmethod
+    def _invocation_billing_state_key(invocation_id: str) -> str:
+        return f"invocation_billing::{invocation_id}"
+
+    @staticmethod
+    def _vault_withdrawal_state_key(withdrawal_id: str) -> str:
+        return f"vault_withdrawal_meta::{withdrawal_id}"
+
+    @staticmethod
+    def _provider_id(wallet: str) -> str:
+        return f"provider:{str(wallet or '').lower()}"
 
     @staticmethod
     def _payload_dict(value: Any) -> dict[str, Any]:
@@ -54,6 +71,94 @@ class GatewayStateRepository:
             (state_key, json.dumps(payload), updated_at),
         )
 
+    def _read_runtime_state_payload(self, state_key: str) -> dict[str, Any]:
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                "SELECT payload FROM synapse_runtime_state WHERE state_key = %s",
+                (state_key,),
+            )
+            row = cur.fetchone()
+        return self._payload_dict(row[0]) if row is not None else {}
+
+    @staticmethod
+    def _epoch_seconds(value: Any) -> int:
+        normalized = to_dt_str(value, "") or ""
+        if not normalized:
+            return 0
+        try:
+            return int(
+                datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S")
+                .replace(tzinfo=timezone.utc)
+                .timestamp()
+            )
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _normalized_total_charge(
+        metadata: InvocationBillingState, charged_usdc: Any
+    ) -> Any:
+        if metadata.total_charge is not None:
+            return metadata.total_charge
+        return charged_usdc
+
+    def _project_usage_log_row(
+        self,
+        invocation_id: Any,
+        idempotency_key: Any,
+        service_id: Any,
+        status: Any,
+        charged_usdc: Any,
+        created_at: Any,
+        payload: Any,
+    ) -> UsageLogRow:
+        metadata = InvocationBillingState.model_validate(self._payload_dict(payload))
+        total_charge = self._normalized_total_charge(metadata, charged_usdc)
+        return UsageLogRow(
+            id=str(invocation_id),
+            ts=self._epoch_seconds(created_at),
+            requestId=str(metadata.request_id or idempotency_key or ""),
+            serviceId=service_id,
+            buyerAddress=metadata.owner_address,
+            sellerAddress=metadata.provider_address,
+            status=str(status or "pending").lower(),
+            unitPrice=self._q6(metadata.unit_price)
+            if metadata.unit_price is not None
+            else None,
+            protocolFee=self._q6(metadata.protocol_fee)
+            if metadata.protocol_fee is not None
+            else None,
+            routingTax=self._q6(metadata.routing_tax)
+            if metadata.routing_tax is not None
+            else None,
+            totalCharge=self._q6(total_charge) if total_charge is not None else None,
+            businessType=str(metadata.business_type or "charge"),
+            riskLevel=str(metadata.risk_level or "green"),
+            originRequestId=metadata.origin_request_id,
+            originTxHash=metadata.origin_tx_hash,
+        )
+
+    @staticmethod
+    def _billing_amount_or_zero(value: Any) -> Any:
+        return value if value is not None else 0
+
+    def _build_invocation_billing_state(
+        self, row: UsageLogRow
+    ) -> InvocationBillingState:
+        return InvocationBillingState(
+            requestId=row.request_id,
+            ownerAddress=row.buyer_address.lower() if row.buyer_address else "",
+            providerAddress=row.seller_address.lower() if row.seller_address else "",
+            unitPrice=self._billing_amount_or_zero(row.unit_price),
+            protocolFee=self._billing_amount_or_zero(row.protocol_fee),
+            routingTax=self._billing_amount_or_zero(row.routing_tax),
+            totalCharge=self._billing_amount_or_zero(row.total_charge),
+            businessType=row.business_type,
+            riskLevel=row.risk_level,
+            originRequestId=row.origin_request_id,
+            originTxHash=row.origin_tx_hash,
+        )
+
     def _ensure_owner_account(self, cur: Any, wallet: str, updated_at: str) -> str:
         normalized_wallet = str(wallet or "").lower()
         owner_id = self._owner_id(normalized_wallet)
@@ -68,6 +173,68 @@ class GatewayStateRepository:
             (owner_id, normalized_wallet, updated_at, updated_at),
         )
         return owner_id
+
+    def _ensure_provider_profile(self, cur: Any, wallet: str, updated_at: str) -> str:
+        normalized_wallet = str(wallet or "").lower()
+        owner_id = self._ensure_owner_account(cur, normalized_wallet, updated_at)
+        provider_id = self._provider_id(normalized_wallet)
+        cur.execute(
+            """
+            INSERT INTO synapse_provider_profiles (
+                provider_id, owner_id, display_name, status, created_at, updated_at
+            ) VALUES (%s, %s, %s, 'active', %s, %s)
+            ON CONFLICT (provider_id)
+            DO UPDATE SET owner_id = EXCLUDED.owner_id, updated_at = EXCLUDED.updated_at
+            """,
+            (provider_id, owner_id, normalized_wallet, updated_at, updated_at),
+        )
+        return provider_id
+
+    def _ensure_ledger_account(
+        self, cur: Any, wallet: str, account_kind: str, updated_at: str
+    ) -> str:
+        normalized_wallet = str(wallet or "").lower()
+        if account_kind == "consumer_wallet":
+            owner_id = self._ensure_owner_account(cur, normalized_wallet, updated_at)
+            account_id = f"consumer_wallet::{normalized_wallet}"
+            cur.execute(
+                """
+                INSERT INTO synapse_ledger_accounts (
+                    account_id, account_kind, owner_id, provider_id, currency, status, created_at, updated_at
+                ) VALUES (%s, %s, %s, NULL, 'USDC', 'active', %s, %s)
+                ON CONFLICT (account_id)
+                DO UPDATE SET owner_id = EXCLUDED.owner_id, updated_at = EXCLUDED.updated_at
+                """,
+                (account_id, account_kind, owner_id, updated_at, updated_at),
+            )
+            return account_id
+        if account_kind == "provider_wallet":
+            owner_id = self._ensure_owner_account(cur, normalized_wallet, updated_at)
+            provider_id = self._ensure_provider_profile(cur, normalized_wallet, updated_at)
+            account_id = f"provider_wallet::{normalized_wallet}"
+            cur.execute(
+                """
+                INSERT INTO synapse_ledger_accounts (
+                    account_id, account_kind, owner_id, provider_id, currency, status, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, 'USDC', 'active', %s, %s)
+                ON CONFLICT (account_id)
+                DO UPDATE SET owner_id = EXCLUDED.owner_id, provider_id = EXCLUDED.provider_id, updated_at = EXCLUDED.updated_at
+                """,
+                (account_id, account_kind, owner_id, provider_id, updated_at, updated_at),
+            )
+            return account_id
+        account_id = "platform_revenue::main"
+        cur.execute(
+            """
+            INSERT INTO synapse_ledger_accounts (
+                account_id, account_kind, owner_id, provider_id, currency, status, created_at, updated_at
+            ) VALUES (%s, %s, NULL, NULL, 'USDC', 'active', %s, %s)
+            ON CONFLICT (account_id)
+            DO UPDATE SET updated_at = EXCLUDED.updated_at
+            """,
+            (account_id, account_kind, updated_at, updated_at),
+        )
+        return account_id
 
     def read_deposit_intents(self) -> List[DepositIntentRow]:
         with self._db.readonly_cursor() as cur:
@@ -178,171 +345,292 @@ class GatewayStateRepository:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
-                SELECT id, owner_address, tx_hash, status, request_id, buyer_address,
-                       amount_usdc, idempotency_key, created_at, updated_at
-                FROM synapse_refund_intents
+                SELECT
+                    vw.withdrawal_id,
+                    owner.owner_wallet,
+                    vw.tx_hash,
+                    vw.status,
+                    vw.request_id,
+                    vw.amount_usdc,
+                    vw.signature,
+                    vw.nonce,
+                    vw.deadline,
+                    vw.created_at,
+                    vw.updated_at,
+                    rs.payload
+                FROM synapse_vault_withdrawals vw
+                JOIN synapse_ledger_accounts account
+                  ON account.account_id = vw.source_account_id
+                JOIN synapse_owners owner
+                  ON owner.owner_id = account.owner_id
+                LEFT JOIN synapse_runtime_state rs
+                  ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+                WHERE vw.withdrawal_kind = 'consumer_refund'
                 ORDER BY created_at ASC
                 """
             )
             rows = cur.fetchall()
-        return [
-            RefundIntentRow(
-                id=str(row_id),
-                ownerAddress=str(owner),
-                txHash=tx_hash,
-                status=str(status),
-                requestId=request_id,
-                buyerAddress=buyer_address,
-                amountUsdc=self._q6(amount_usdc),
-                idempotencyKey=idempotency_key,
-                createdAt=to_dt_str(created_at, "") or "",
-                updatedAt=to_dt_str(updated_at, "") or "",
+        projected: List[RefundIntentRow] = []
+        for (
+            row_id,
+            owner,
+            tx_hash,
+            status,
+            request_id,
+            amount_usdc,
+            signature,
+            nonce,
+            deadline,
+            created_at,
+            updated_at,
+            payload,
+        ) in rows:
+            metadata = VaultWithdrawalMetadataState.model_validate(
+                self._payload_dict(payload)
             )
-            for row_id, owner, tx_hash, status, request_id, buyer_address, amount_usdc, idempotency_key, created_at, updated_at in rows
-        ]
+            projected.append(
+                RefundIntentRow(
+                    id=str(row_id),
+                    ownerAddress=str(owner),
+                    txHash=tx_hash,
+                    status=str(metadata.flow_status or status or "pending"),
+                    requestId=str(request_id or metadata.request_id or ""),
+                    buyerAddress=str(metadata.consumer_address or owner or ""),
+                    amountUsdc=self._q6(amount_usdc),
+                    idempotencyKey=metadata.idempotency_key,
+                    reason=metadata.reason,
+                    signature=signature,
+                    gasPayer=metadata.gas_payer,
+                    gasModel=metadata.gas_model,
+                    originRequestId=metadata.origin_request_id,
+                    originTxHash=metadata.origin_tx_hash,
+                    refundType=metadata.refund_type,
+                    destinationAddress=metadata.destination_address,
+                    evidenceSummary=metadata.evidence_summary,
+                    riskLevel=metadata.risk_level,
+                    riskReasonCode=metadata.risk_reason_code,
+                    message=metadata.message,
+                    requestMeta=metadata.request_meta,
+                    reviewDecision=metadata.review_decision,
+                    reviewerAddress=metadata.reviewer_address,
+                    reviewerNote=metadata.reviewer_note,
+                    reviewedAt=metadata.reviewed_at,
+                    completedAt=metadata.completed_at,
+                    completeMeta=metadata.complete_meta,
+                    createdAt=to_dt_str(created_at, "") or "",
+                    updatedAt=to_dt_str(updated_at, "") or "",
+                )
+            )
+        return projected
 
     def write_refund_intents(
         self, rows: List[RefundIntentRow], updated_at: str | int
     ) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_refund_intents")
             for row in rows:
+                row_updated_at = to_dt_str(row.updated_at or updated_at, now_dt_str())
+                consumer_wallet = str(
+                    row.buyer_address or row.owner_address or ""
+                ).lower()
+                source_account_id = self._ensure_ledger_account(
+                    cur,
+                    consumer_wallet,
+                    "consumer_wallet",
+                    row_updated_at,
+                )
                 cur.execute(
                     """
-                    INSERT INTO synapse_refund_intents (
-                        id, owner_address, tx_hash, status, request_id, buyer_address,
-                        amount_usdc, idempotency_key, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id)
+                    INSERT INTO synapse_vault_withdrawals (
+                        withdrawal_id, withdrawal_kind, source_account_id, request_id,
+                        amount_usdc, status, tx_hash, signature, nonce, deadline,
+                        created_at, updated_at
+                    ) VALUES (%s, 'consumer_refund', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (withdrawal_id)
                     DO UPDATE SET
-                        owner_address = EXCLUDED.owner_address,
-                        tx_hash = EXCLUDED.tx_hash,
-                        status = EXCLUDED.status,
+                        source_account_id = EXCLUDED.source_account_id,
                         request_id = EXCLUDED.request_id,
-                        buyer_address = EXCLUDED.buyer_address,
                         amount_usdc = EXCLUDED.amount_usdc,
-                        idempotency_key = EXCLUDED.idempotency_key,
-                        created_at = EXCLUDED.created_at,
+                        status = EXCLUDED.status,
+                        tx_hash = EXCLUDED.tx_hash,
+                        signature = EXCLUDED.signature,
+                        nonce = EXCLUDED.nonce,
+                        deadline = EXCLUDED.deadline,
                         updated_at = EXCLUDED.updated_at
                     """,
                     (
                         row.id,
-                        row.owner_address.lower(),
-                        row.tx_hash.lower() if row.tx_hash else None,
-                        row.status,
+                        source_account_id,
                         row.request_id,
-                        row.buyer_address.lower() if row.buyer_address else None,
                         str(self._q6(row.amount_usdc)),
-                        row.idempotency_key,
+                        row.status,
+                        row.tx_hash.lower() if row.tx_hash else None,
+                        None,
+                        None,
+                        None,
                         to_dt_str(row.created_at or updated_at, now_dt_str()),
-                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
+                        row_updated_at,
                     ),
+                )
+                self._upsert_runtime_state(
+                    cur,
+                    self._vault_withdrawal_state_key(row.id),
+                    VaultWithdrawalMetadataState(
+                        consumerAddress=consumer_wallet,
+                        requestId=row.request_id,
+                        idempotencyKey=row.idempotency_key,
+                        flowStatus=row.status,
+                        reason=row.reason,
+                        gasPayer=row.gas_payer,
+                        gasModel=row.gas_model,
+                        originRequestId=row.origin_request_id,
+                        originTxHash=row.origin_tx_hash,
+                        refundType=row.refund_type,
+                        destinationAddress=row.destination_address,
+                        evidenceSummary=row.evidence_summary,
+                        riskLevel=row.risk_level,
+                        riskReasonCode=row.risk_reason_code,
+                        message=row.message,
+                        requestMeta=row.request_meta,
+                        reviewDecision=row.review_decision,
+                        reviewerAddress=row.reviewer_address,
+                        reviewerNote=row.reviewer_note,
+                        reviewedAt=row.reviewed_at,
+                        completedAt=row.completed_at,
+                        completeMeta=row.complete_meta,
+                    ).model_dump(by_alias=True, mode="json"),
+                    row_updated_at,
                 )
 
     def read_withdrawal_intents(self) -> List[WithdrawalIntentRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
-                SELECT id, owner_address, tx_hash, status, request_id, idempotency_key,
-                       amount_usdc, amount_wei, fee_wei, nonce, deadline, signature,
-                       chain_id, contract_address, signer_address, created_at, updated_at
-                FROM synapse_withdrawal_intents
+                SELECT
+                    vw.withdrawal_id,
+                    owner.owner_wallet,
+                    vw.tx_hash,
+                    vw.status,
+                    vw.request_id,
+                    vw.amount_usdc,
+                    vw.signature,
+                    vw.nonce,
+                    vw.deadline,
+                    vw.created_at,
+                    vw.updated_at,
+                    rs.payload
+                FROM synapse_vault_withdrawals vw
+                JOIN synapse_ledger_accounts account
+                  ON account.account_id = vw.source_account_id
+                JOIN synapse_owners owner
+                  ON owner.owner_id = account.owner_id
+                LEFT JOIN synapse_runtime_state rs
+                  ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+                WHERE vw.withdrawal_kind = 'provider_withdrawal'
                 ORDER BY created_at ASC
                 """
             )
             rows = cur.fetchall()
-        return [
-            WithdrawalIntentRow(
-                id=str(row_id),
-                ownerAddress=str(owner),
-                txHash=tx_hash,
-                status=str(status),
-                requestId=request_id,
-                idempotencyKey=idempotency_key,
-                amountUsdc=self._q6(amount_usdc),
-                amountWei=amount_wei,
-                feeWei=fee_wei,
-                nonce=nonce,
-                deadline=deadline,
-                signature=signature,
-                chainId=chain_id,
-                contractAddress=contract_address,
-                signerAddress=signer_address,
-                createdAt=to_dt_str(created_at, "") or "",
-                updatedAt=to_dt_str(updated_at, "") or "",
+        projected: List[WithdrawalIntentRow] = []
+        for (
+            row_id,
+            owner,
+            tx_hash,
+            status,
+            request_id,
+            amount_usdc,
+            signature,
+            nonce,
+            deadline,
+            created_at,
+            updated_at,
+            payload,
+        ) in rows:
+            metadata = VaultWithdrawalMetadataState.model_validate(
+                self._payload_dict(payload)
             )
-            for (
-                row_id,
-                owner,
-                tx_hash,
-                status,
-                request_id,
-                idempotency_key,
-                amount_usdc,
-                amount_wei,
-                fee_wei,
-                nonce,
-                deadline,
-                signature,
-                chain_id,
-                contract_address,
-                signer_address,
-                created_at,
-                updated_at,
-            ) in rows
-        ]
+            projected.append(
+                WithdrawalIntentRow(
+                    id=str(row_id),
+                    ownerAddress=str(owner),
+                    txHash=tx_hash,
+                    status=str(metadata.flow_status or status or "pending"),
+                    requestId=str(request_id or metadata.request_id or ""),
+                    idempotencyKey=metadata.idempotency_key,
+                    amountUsdc=self._q6(amount_usdc),
+                    amountWei=metadata.amount_wei,
+                    feeWei=metadata.fee_wei,
+                    nonce=nonce,
+                    deadline=deadline,
+                    signature=signature,
+                    chainId=metadata.chain_id,
+                    contractAddress=metadata.contract_address,
+                    signerAddress=metadata.signer_address,
+                    createdAt=to_dt_str(created_at, "") or "",
+                    updatedAt=to_dt_str(updated_at, "") or "",
+                )
+            )
+        return projected
 
     def write_withdrawal_intents(
         self, rows: List[WithdrawalIntentRow], updated_at: str | int
     ) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_withdrawal_intents")
             for row in rows:
+                row_updated_at = to_dt_str(row.updated_at or updated_at, now_dt_str())
+                owner_wallet = str(row.owner_address or "").lower()
+                source_account_id = self._ensure_ledger_account(
+                    cur,
+                    owner_wallet,
+                    "provider_wallet",
+                    row_updated_at,
+                )
                 cur.execute(
                     """
-                    INSERT INTO synapse_withdrawal_intents (
-                        id, owner_address, tx_hash, status, request_id, idempotency_key,
-                        amount_usdc, amount_wei, fee_wei, nonce, deadline, signature,
-                        chain_id, contract_address, signer_address, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s::synapse_withdraw_status, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id)
+                    INSERT INTO synapse_vault_withdrawals (
+                        withdrawal_id, withdrawal_kind, source_account_id, request_id,
+                        amount_usdc, status, tx_hash, signature, nonce, deadline,
+                        created_at, updated_at
+                    ) VALUES (%s, 'provider_withdrawal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (withdrawal_id)
                     DO UPDATE SET
-                        owner_address = EXCLUDED.owner_address,
-                        tx_hash = EXCLUDED.tx_hash,
-                        status = EXCLUDED.status,
+                        source_account_id = EXCLUDED.source_account_id,
                         request_id = EXCLUDED.request_id,
-                        idempotency_key = EXCLUDED.idempotency_key,
                         amount_usdc = EXCLUDED.amount_usdc,
-                        amount_wei = EXCLUDED.amount_wei,
-                        fee_wei = EXCLUDED.fee_wei,
+                        status = EXCLUDED.status,
+                        tx_hash = EXCLUDED.tx_hash,
+                        signature = EXCLUDED.signature,
                         nonce = EXCLUDED.nonce,
                         deadline = EXCLUDED.deadline,
-                        signature = EXCLUDED.signature,
-                        chain_id = EXCLUDED.chain_id,
-                        contract_address = EXCLUDED.contract_address,
-                        signer_address = EXCLUDED.signer_address,
-                        created_at = EXCLUDED.created_at,
                         updated_at = EXCLUDED.updated_at
                     """,
                     (
                         row.id,
-                        row.owner_address.lower(),
-                        row.tx_hash.lower() if row.tx_hash else None,
-                        row.status,
+                        source_account_id,
                         row.request_id,
-                        row.idempotency_key,
                         str(self._q6(row.amount_usdc)),
-                        row.amount_wei,
-                        row.fee_wei,
+                        row.status,
+                        row.tx_hash.lower() if row.tx_hash else None,
+                        row.signature,
                         row.nonce,
                         row.deadline,
-                        row.signature,
-                        row.chain_id,
-                        row.contract_address,
-                        row.signer_address,
                         to_dt_str(row.created_at or updated_at, now_dt_str()),
-                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
+                        row_updated_at,
                     ),
+                )
+                self._upsert_runtime_state(
+                    cur,
+                    self._vault_withdrawal_state_key(row.id),
+                    VaultWithdrawalMetadataState(
+                        idempotencyKey=row.idempotency_key,
+                        amountWei=row.amount_wei,
+                        feeWei=row.fee_wei,
+                        chainId=row.chain_id,
+                        contractAddress=row.contract_address,
+                        signerAddress=row.signer_address,
+                        flowStatus=row.status,
+                        requestId=row.request_id,
+                    ).model_dump(by_alias=True, mode="json"),
+                    row_updated_at,
                 )
 
     def read_router_config_rows(self) -> List[RouterConfigRow]:
@@ -384,100 +672,38 @@ class GatewayStateRepository:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
-                SELECT id, ts, request_id, service_id, buyer_address, seller_address,
-                       status, unit_price, protocol_fee, routing_tax, total_charge,
-                       business_type, risk_level
-                FROM synapse_usage_log
-                ORDER BY ts DESC
+                SELECT
+                    inv.invocation_id,
+                    inv.idempotency_key,
+                    inv.service_id,
+                    inv.status,
+                    inv.charged_usdc,
+                    inv.created_at,
+                    rs.payload
+                FROM synapse_invocations inv
+                LEFT JOIN synapse_runtime_state rs
+                  ON rs.state_key = CONCAT('invocation_billing::', inv.invocation_id)
+                WHERE inv.charged_usdc IS NOT NULL
+                   OR rs.state_key IS NOT NULL
+                ORDER BY inv.created_at DESC
                 """
             )
             rows = cur.fetchall()
-        return [
-            UsageLogRow(
-                id=str(row_id),
-                ts=int(ts),
-                requestId=request_id,
-                serviceId=service_id,
-                buyerAddress=buyer,
-                sellerAddress=seller,
-                status=status,
-                unitPrice=self._q6(unit_price) if unit_price is not None else None,
-                protocolFee=self._q6(protocol_fee)
-                if protocol_fee is not None
-                else None,
-                routingTax=self._q6(routing_tax) if routing_tax is not None else None,
-                totalCharge=self._q6(total_charge)
-                if total_charge is not None
-                else None,
-                businessType=str(business_type or "charge"),
-                riskLevel=str(risk_level or "green"),
-            )
-            for (
-                row_id,
-                ts,
-                request_id,
-                service_id,
-                buyer,
-                seller,
-                status,
-                unit_price,
-                protocol_fee,
-                routing_tax,
-                total_charge,
-                business_type,
-                risk_level,
-            ) in rows
-        ]
+        return [self._project_usage_log_row(*row) for row in rows]
 
     def write_usage_log_rows(self, rows: List[UsageLogRow]) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_usage_log")
             for row in rows:
-                cur.execute(
-                    """
-                    INSERT INTO synapse_usage_log (
-                        id, ts, request_id, service_id, buyer_address, seller_address,
-                        status, unit_price, protocol_fee, routing_tax, total_charge,
-                        business_type, risk_level
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::synapse_business_type, %s::synapse_risk_level)
-                    ON CONFLICT (id)
-                    DO UPDATE SET
-                        ts = EXCLUDED.ts,
-                        request_id = EXCLUDED.request_id,
-                        service_id = EXCLUDED.service_id,
-                        buyer_address = EXCLUDED.buyer_address,
-                        seller_address = EXCLUDED.seller_address,
-                        status = EXCLUDED.status,
-                        unit_price = EXCLUDED.unit_price,
-                        protocol_fee = EXCLUDED.protocol_fee,
-                        routing_tax = EXCLUDED.routing_tax,
-                        total_charge = EXCLUDED.total_charge,
-                        business_type = EXCLUDED.business_type,
-                        risk_level = EXCLUDED.risk_level
-                    """,
-                    (
-                        row.id,
-                        int(row.ts),
-                        row.request_id,
-                        row.service_id,
-                        row.buyer_address.lower() if row.buyer_address else None,
-                        row.seller_address.lower() if row.seller_address else None,
-                        row.status,
-                        str(self._q6(row.unit_price))
-                        if row.unit_price is not None
-                        else None,
-                        str(self._q6(row.protocol_fee))
-                        if row.protocol_fee is not None
-                        else None,
-                        str(self._q6(row.routing_tax))
-                        if row.routing_tax is not None
-                        else None,
-                        str(self._q6(row.total_charge))
-                        if row.total_charge is not None
-                        else None,
-                        row.business_type,
-                        row.risk_level,
+                invocation_id = str(row.id or "").strip()
+                if not invocation_id:
+                    continue
+                self._upsert_runtime_state(
+                    cur,
+                    self._invocation_billing_state_key(invocation_id),
+                    self._build_invocation_billing_state(row).model_dump(
+                        by_alias=True, mode="json"
                     ),
+                    now_dt_str(),
                 )
 
     def read_processed_deposit_event_keys(self) -> List[str]:

@@ -611,14 +611,14 @@ def test_gateway_state_repository_read_and_write() -> None:
         "dep-1", "0xabc", "0xtx", "req-1", {"buyerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("1.0"), "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
     )]]})
     db.readonly_plan.append({"fetchall": [[(
-        "ref-1", "0xabc", "0xtx2", "PENDING", "req-2", "0xabc", Decimal("0.5"), "idem-2", "2026-03-15 14:24:02", "2026-03-15 14:24:03"
+        "ref-1", "0xabc", "0xtx2", "REQUESTED", "req-2", Decimal("0.5"), "sig-r", 9, 999, "2026-03-15 14:24:02", "2026-03-15 14:24:03", {"flowStatus": "PENDING", "consumerAddress": "0xabc", "idempotencyKey": "idem-2", "originRequestId": "req-1"}
     )]]})
     db.readonly_plan.append({"fetchall": [[(
-        "wd-1", "0xabc", "0xtx3", "REQUESTED", "req-3", "idem-3", Decimal("2.0"), "2000000", "0", 1, 0, "sig", 31337, "0xcontract", "0xsigner", "2026-03-15 14:24:04", "2026-03-15 14:24:05"
+        "wd-1", "0xabc", "0xtx3", "SIGNED", "req-3", Decimal("2.0"), "sig", 1, 0, "2026-03-15 14:24:04", "2026-03-15 14:24:05", {"flowStatus": "APPROVED_AUTO", "idempotencyKey": "idem-3", "amountWei": "2000000", "feeWei": "0", "chainId": 31337, "contractAddress": "0xcontract", "signerAddress": "0xsigner"}
     )]]})
     db.readonly_plan.append({"fetchall": [[("0xabc", Decimal("100"), "2026-03-15 14:24:06", "2026-03-15 14:24:07")]]})
     db.readonly_plan.append({"fetchall": [[(
-        "usage-1", 123, "req-u", "svc-1", "0xb", "0xs", "ok", Decimal("1"), Decimal("0.1"), Decimal("0.01"), Decimal("1.11"), "charge", "green"
+        "usage-1", "req-u", "svc-1", "SUCCEEDED", Decimal("1.11"), "2026-03-15 14:24:08", {"ownerAddress": "0xb", "providerAddress": "0xs", "requestId": "req-u", "unitPrice": "1", "protocolFee": "0.1", "routingTax": "0.01", "totalCharge": "1.11", "businessType": "charge", "riskLevel": "green"}
     )]]})
     db.readonly_plan.append({"fetchall": [[("ek-1",)]]})
     repo = GatewayStateRepository(db, _q6)
@@ -627,8 +627,10 @@ def test_gateway_state_repository_read_and_write() -> None:
     assert len(deposit_rows) == 1 and deposit_rows[0].id == "dep-1"
     refund_rows = repo.read_refund_intents()
     assert len(refund_rows) == 1 and refund_rows[0].id == "ref-1"
+    assert refund_rows[0].origin_request_id == "req-1"
     withdraw_rows = repo.read_withdrawal_intents()
     assert len(withdraw_rows) == 1 and withdraw_rows[0].id == "wd-1"
+    assert withdraw_rows[0].status == "APPROVED_AUTO"
     router_rows = repo.read_router_config_rows()
     assert router_rows[0].owner_address == "0xabc"
     assert abs(router_rows[0].daily_limit_usdc - 100.0) < 1e-9
@@ -800,10 +802,11 @@ def test_gateway_state_repository_write_paths() -> None:
     assert "INSERT INTO synapse_vault_deposits" in tx_sql
     assert "vault_deposit_meta::dep-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "ON CONFLICT (tx_hash)" in tx_sql
-    assert "DELETE FROM synapse_refund_intents" in tx_sql
-    assert "DELETE FROM synapse_withdrawal_intents" in tx_sql
+    assert "INSERT INTO synapse_vault_withdrawals" in tx_sql
+    assert "vault_withdrawal_meta::ref-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
+    assert "vault_withdrawal_meta::wd-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_router_config" in tx_sql
-    assert "DELETE FROM synapse_usage_log" in tx_sql
+    assert "invocation_billing::usage-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_processed_deposit_events" in tx_sql
 
 
@@ -971,7 +974,8 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
 
     assert abs(result.consumer_available_balance_after - 8.89) < 1e-9
     executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
-    assert "INSERT INTO synapse_usage_log" in executed_sql
+    assert "INSERT INTO synapse_ledger_entries" in executed_sql
+    assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "UPSERT" in executed_sql
 
 
@@ -1035,5 +1039,6 @@ def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:
     assert result.ticket["signature"] == "sig-1"
 
     executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
-    assert "INSERT INTO synapse_withdrawal_intents" in executed_sql
+    assert "INSERT INTO synapse_vault_withdrawals" in executed_sql
+    assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "UPSERT" in executed_sql

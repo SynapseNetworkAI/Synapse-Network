@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from decimal import Decimal
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
@@ -645,7 +647,13 @@ def _bind_forwarding_service_id(
 class RegistryService:
     def __init__(self, storage: BaseStorage):
         self.storage = storage
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+
+    def _registry_lock(self) -> asyncio.Lock:
+        if self._lock is None:
+            asyncio.get_running_loop()
+            self._lock = asyncio.Lock()
+        return self._lock
 
     def _health_index_by_service_id(self) -> Dict[str, ServiceRuntimeHealthRecord]:
         rows = self.storage.get_data_manager().system.registry.read_service_target_health_rows()
@@ -718,7 +726,7 @@ class RegistryService:
         """
         [网关防弹层] 注册新的 AI Service
         """
-        async with self._lock:
+        async with self._registry_lock():
             rows = self._load_service_registry_rows()
             new_svc = _normalize_service_payload(req_data, owner_wallet)
             if not new_svc.service_id:
@@ -747,7 +755,7 @@ class RegistryService:
         """
         [网关防弹层] 更新现有的 AI Service
         """
-        async with self._lock:
+        async with self._registry_lock():
             rows = self._load_service_registry_rows()
             for i, svc in enumerate(rows):
                 if (
@@ -787,7 +795,7 @@ class RegistryService:
             return None
 
     async def delete_service(self, service_record_id: str, owner_wallet: str) -> bool:
-        async with self._lock:
+        async with self._registry_lock():
             rows = self._load_service_registry_rows()
             original_len = len(rows)
             rows = [
