@@ -6,10 +6,77 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+JSON_CONTENT_TYPE = "application/json"
+
+
 class SchemaDocument(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     body: dict[str, Any] = Field(default_factory=dict)
+
+
+class RuntimePayloadRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    body: dict[str, Any] = Field(default_factory=dict)
+
+
+class PublicPricingRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    amount: str = "0"
+    currency: str = "USDC"
+
+
+class PublicHealthSummaryRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    overall_status: str = Field(default="unknown", alias="overallStatus")
+    healthy_targets: int = Field(default=0, alias="healthyTargets")
+    total_targets: int = Field(default=0, alias="totalTargets")
+    last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
+
+
+class QuoteInputPreviewRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    content_type: str = Field(default=JSON_CONTENT_TYPE, alias="contentType")
+    payload_schema: SchemaDocument = Field(default_factory=SchemaDocument, alias="payloadSchema")
+    sample: RuntimePayloadRecord = Field(default_factory=RuntimePayloadRecord)
+
+
+class QuoteRequestDraftRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    service_id: str = Field(alias="serviceId")
+    input_preview: QuoteInputPreviewRecord = Field(default_factory=QuoteInputPreviewRecord, alias="inputPreview")
+    response_mode: Literal["sync", "async", "stream"] = Field(default="sync", alias="responseMode")
+
+
+class AgentDiscoveryQueryRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    query: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+    max_price_usdc: Optional[Decimal] = Field(default=None, alias="maxPriceUsdc")
+    requires_structured_output: bool = Field(default=False, alias="requiresStructuredOutput")
+    region: Optional[str] = None
+    limit: int = 10
+    sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
+
+
+class PublicServiceDiscoveryRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    service_id: str = Field(alias="serviceId")
+    service_name: str = Field(alias="serviceName")
+    pricing: PublicPricingRecord = Field(default_factory=PublicPricingRecord)
+    summary: str = ""
+    tags: list[str] = Field(default_factory=list)
+    status: str = "unknown"
+    health: PublicHealthSummaryRecord = Field(default_factory=PublicHealthSummaryRecord)
+    invoke: "ServiceInvokeConfigRecord" = Field(default_factory=lambda: ServiceInvokeConfigRecord())
+    quote_template: QuoteRequestDraftRecord = Field(alias="quoteTemplate")
 
 
 class ServiceConstraintRecord(BaseModel):
@@ -24,14 +91,14 @@ class ServiceConstraintRecord(BaseModel):
 class ServiceRequestSpecRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    content_type: str = Field(default="application/json", alias="contentType")
+    content_type: str = Field(default=JSON_CONTENT_TYPE, alias="contentType")
     schema: SchemaDocument = Field(default_factory=SchemaDocument)
 
 
 class ServiceResponseSpecRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    content_type: str = Field(default="application/json", alias="contentType")
+    content_type: str = Field(default=JSON_CONTENT_TYPE, alias="contentType")
     schema: SchemaDocument = Field(default_factory=SchemaDocument)
 
 

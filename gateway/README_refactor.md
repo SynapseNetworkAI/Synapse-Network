@@ -49,3 +49,11 @@ The buyer forwarding pipeline now treats `src/domain/execution.py` plus `src/dom
 - Buyer receipt remains a response-boundary JSON object, but now includes `quoteId` and `invocationId` derived from the typed execution records for end-to-end traceability.
 - `ExecutionRepository` is now the persistence boundary for runtime execution state, storing typed quote records in `synapse_service_quotes` and typed invocation records in `synapse_invocations`.
 - Legacy `POST /api/v1/gateway/generate` and the agent-facing `POST /api/v1/agent/quotes`, `POST /api/v1/agent/invocations`, and `GET /api/v1/agent/invocations/{invocation_id}` now share the same typed quote/invocation execution pipeline instead of drifting into separate dict-based implementations.
+
+## Agent Discovery Runtime Baseline
+
+Agent-facing discovery now uses canonical runtime objects from `src/domain/service_contract.py` instead of assembling ad hoc public dict payloads in the service layer.
+
+- `RegistryService.search_agent_discovery()` returns typed `PublicServiceDiscoveryRecord` results with a typed `QuoteRequestDraftRecord` under `quoteTemplate`.
+- Discovery, quote, and invocation now share `QuoteInputPreviewRecord` and `RuntimePayloadRecord` wrappers, so the handoff between phases no longer depends on raw `dict` contracts inside the runtime.
+- Legacy `GET /api/v1/services/discover` is still supported, but it now serializes from the same typed discovery record used by the new `POST /api/v1/agent/discovery/search` path.

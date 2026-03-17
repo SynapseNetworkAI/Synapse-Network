@@ -11,9 +11,16 @@ from src.api.schemas.pydantic_models import (
 )
 from src.domain.execution import InvocationRecord, ServiceQuoteRecord
 from src.domain.finance import BalanceLedger, FeePolicyEntity, UsageLogRow
-from src.domain.service_contract import ServiceDefinitionRecord
+from src.domain.registry import ServiceTargetHealth
+from src.domain.service_contract import (
+    AgentDiscoveryQueryRecord,
+    QuoteInputPreviewRecord,
+    RuntimePayloadRecord,
+    ServiceDefinitionRecord,
+)
 from src.services.buyer import forwarding_billing, forwarding_service, forwarding_upstream
 from src.services.platform import credential_service
+from src.services.seller.registry_service import RegistryService
 
 
 class InMemoryBalanceRepo:
@@ -46,10 +53,32 @@ class InMemoryGatewayStateRepo:
 
 class InMemoryRegistryRepo:
     def __init__(self, service: ServiceDefinitionRecord) -> None:
+        self._service = service
         self._rows = [service]
 
     def read_service_registry_rows(self):
         return list(self._rows)
+
+    def read_service_target_health_rows(self):
+        return [
+            ServiceTargetHealth(
+                serviceId=self._service.service_id,
+                ownerAddress=self._service.owner_address,
+                targetUrl=self._service.invoke.targets[0].url,
+                weight=100,
+                region=self._service.invoke.targets[0].region,
+                status="healthy",
+                overallStatus="healthy",
+                httpStatus=200,
+                latencyMs=40,
+                consecutiveSuccesses=3,
+                consecutiveFailures=0,
+                probeUrl=f"{self._service.invoke.targets[0].url}/health",
+                lastCheckedAt=credential_service.now_ts() * 1000,
+                lastHealthyAt=credential_service.now_ts() * 1000,
+                error=None,
+            )
+        ]
 
 
 class InMemoryCredentialAuthRepo:
@@ -313,7 +342,9 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
             storage,
             AgentQuoteRequest(
                 serviceId="svc.echo",
-                inputPreview={"textLength": 17},
+                inputPreview=QuoteInputPreviewRecord(
+                    sample=RuntimePayloadRecord(body={"textLength": 17})
+                ),
                 responseMode="sync",
             ),
             raw_token,
@@ -330,7 +361,7 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
             AgentInvocationRequest(
                 quoteId=quote_id,
                 idempotencyKey="task-1-step-1",
-                payload={"text": "hello typed world"},
+                payload=RuntimePayloadRecord(body={"text": "hello typed world"}),
                 responseMode="sync",
             ),
             raw_token,
@@ -360,7 +391,7 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
             AgentInvocationRequest(
                 quoteId=quote_id,
                 idempotencyKey="task-1-step-1",
-                payload={"text": "hello typed world"},
+                payload=RuntimePayloadRecord(body={"text": "hello typed world"}),
                 responseMode="sync",
             ),
             raw_token,
@@ -368,3 +399,63 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
         )
     )
     assert replay_response["invocationId"] == invocation_id
+
+
+def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.buyers["0xabc"] = 10.0
+    registry_service = RegistryService(storage)
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(
+        forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
+    )
+
+    discovery_results = asyncio.run(
+        registry_service.search_agent_discovery(
+            AgentDiscoveryQueryRecord(query="echo", limit=5),
+            public_gateway_url="https://gateway.test/api/v1/gateway/generate",
+        )
+    )
+
+    assert len(discovery_results) == 1
+    discovery_result = discovery_results[0]
+    assert discovery_result.invoke.targets[0].url == "https://gateway.test/api/v1/gateway/generate"
+    assert discovery_result.quote_template.service_id == "svc.echo"
+
+    quote_response = asyncio.run(
+        forwarding_service.create_quote_v1(
+            storage,
+            AgentQuoteRequest(
+                serviceId=discovery_result.quote_template.service_id,
+                inputPreview=discovery_result.quote_template.input_preview,
+                responseMode=discovery_result.quote_template.response_mode,
+            ),
+            raw_token,
+            "req-disc-quote-001",
+        )
+    )
+    invocation_response = asyncio.run(
+        forwarding_service.create_invocation_v1(
+            storage,
+            AgentInvocationRequest(
+                quoteId=quote_response["quoteId"],
+                idempotencyKey="task-disc-step-1",
+                payload=RuntimePayloadRecord(body={"text": "hello typed world"}),
+                responseMode="sync",
+            ),
+            raw_token,
+            "req-disc-invoke-001",
+        )
+    )
+
+    assert quote_response["serviceId"] == discovery_result.service_id
+    assert invocation_response["status"] == "SUCCEEDED"
+    assert invocation_response["result"]["echo"] == "hello typed world"

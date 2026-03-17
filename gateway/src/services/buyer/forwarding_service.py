@@ -1005,7 +1005,7 @@ async def create_quote_v1(
     quote = _build_service_quote(
         service,
         credential,
-        {"inputPreview": request.inputPreview},
+        {"inputPreview": request.inputPreview.model_dump(by_alias=True)},
         unit_price,
         response_mode=request.responseMode,
     )
@@ -1046,7 +1046,8 @@ async def create_invocation_v1(
         )
 
     service = _find_active_service(storage, quote.service_id)
-    _validate_invoke_request_contract(service, request.payload)
+    invoke_payload = request.payload.body
+    _validate_invoke_request_contract(service, invoke_payload)
 
     trace_request_id = _resolve_request_id(x_request_id or request.idempotencyKey)
     invocation, _, _ = await _execute_invocation_pipeline(
@@ -1054,7 +1055,7 @@ async def create_invocation_v1(
         credential,
         service,
         quote,
-        request.payload,
+        invoke_payload,
         request.idempotencyKey,
         trace_request_id,
     )

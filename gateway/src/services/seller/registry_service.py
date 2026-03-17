@@ -1,8 +1,16 @@
+from decimal import Decimal
 from typing import Dict, Any, List, Optional
 from src.storage.base import BaseStorage
 from src.core.config import settings
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.domain.service_contract import (
+    AgentDiscoveryQueryRecord,
+    PublicHealthSummaryRecord,
+    PublicPricingRecord,
+    PublicServiceDiscoveryRecord,
+    QuoteInputPreviewRecord,
+    QuoteRequestDraftRecord,
+    RuntimePayloadRecord,
     ServiceConstraintRecord,
     ServiceDefinitionRecord,
     ServiceForwardingRecord,
@@ -44,24 +52,71 @@ def _generate_service_id(owner_wallet: str) -> str:
 
 def _build_public_invoke(
     svc: ServiceDefinitionRecord, public_gateway_url: Optional[str]
-) -> Dict[str, Any]:
+) -> ServiceInvokeConfigRecord:
     gateway_url = str(public_gateway_url or "").strip()
     if not gateway_url:
         gateway_url = "/api/v1/gateway/generate"
 
-    return {
-        "method": str(svc.invoke.method or "POST").upper(),
-        "targets": [
-            {
-                "url": gateway_url,
-                "weight": 100,
-                "region": None,
-            }
-        ],
-        "timeoutMs": int(svc.invoke.timeout_ms or settings.gateway_default_timeout_ms),
-        "request": svc.invoke.request.model_dump(by_alias=True),
-        "response": svc.invoke.response.model_dump(by_alias=True),
-    }
+    return ServiceInvokeConfigRecord(
+        method=str(svc.invoke.method or "POST").upper(),
+        targets=[ServiceInvokeTargetRecord(url=gateway_url, weight=100, region=None)],
+        timeoutMs=int(svc.invoke.timeout_ms or settings.gateway_default_timeout_ms),
+        request=svc.invoke.request.model_copy(deep=True),
+        response=svc.invoke.response.model_copy(deep=True),
+    )
+
+
+def _public_health_summary_record(
+    svc: ServiceDefinitionRecord,
+) -> PublicHealthSummaryRecord:
+    return PublicHealthSummaryRecord.model_validate(
+        service_health_service.public_health_summary(svc)
+    )
+
+
+def _quote_preview_sample(service: ServiceDefinitionRecord) -> RuntimePayloadRecord:
+    for example in service.invoke.examples:
+        if not isinstance(example, dict):
+            continue
+        input_payload = example.get("input") or example.get("request") or {}
+        if isinstance(input_payload, dict):
+            return RuntimePayloadRecord(body=dict(input_payload))
+    return RuntimePayloadRecord()
+
+
+def _quote_input_preview(service: ServiceDefinitionRecord) -> QuoteInputPreviewRecord:
+    return QuoteInputPreviewRecord(
+        contentType=str(service.invoke.request.content_type or JSON_CONTENT_TYPE),
+        payloadSchema=service.invoke.request.schema.model_copy(deep=True),
+        sample=_quote_preview_sample(service),
+    )
+
+
+def _quote_request_draft(service: ServiceDefinitionRecord) -> QuoteRequestDraftRecord:
+    return QuoteRequestDraftRecord(
+        serviceId=service.service_id,
+        inputPreview=_quote_input_preview(service),
+        responseMode="sync",
+    )
+
+
+def _public_service_discovery_record(
+    svc: ServiceDefinitionRecord, public_gateway_url: Optional[str]
+) -> PublicServiceDiscoveryRecord:
+    return PublicServiceDiscoveryRecord(
+        serviceId=svc.service_id,
+        serviceName=svc.service_name,
+        pricing=PublicPricingRecord(
+            amount=str(svc.pricing_amount),
+            currency=svc.pricing_currency,
+        ),
+        summary=svc.summary,
+        tags=list(svc.tags),
+        status=service_health_service.public_discover_status(svc),
+        health=_public_health_summary_record(svc),
+        invoke=_build_public_invoke(svc, public_gateway_url),
+        quoteTemplate=_quote_request_draft(svc),
+    )
 
 
 def _as_int(raw: Any, fallback: int) -> int:
@@ -401,6 +456,114 @@ def _service_matches_intent(service: ServiceDefinitionRecord, intent: str) -> bo
     return intent.lower() in _searchable_service_text(service)
 
 
+def _service_matches_tags(service: ServiceDefinitionRecord, tags: List[str]) -> bool:
+    if not tags:
+        return True
+    service_tags = {str(tag).lower() for tag in service.tags}
+    return all(str(tag).lower() in service_tags for tag in tags)
+
+
+def _service_matches_region(service: ServiceDefinitionRecord, region: Optional[str]) -> bool:
+    normalized_region = str(region or "").strip().lower()
+    if not normalized_region:
+        return True
+    target_regions = {
+        str(target.region or "").strip().lower()
+        for target in service.invoke.targets
+        if str(target.region or "").strip()
+    }
+    if service.primary_endpoint is not None and str(service.primary_endpoint.region or "").strip():
+        target_regions.add(str(service.primary_endpoint.region or "").strip().lower())
+    return normalized_region in target_regions
+
+
+def _service_supports_structured_output(service: ServiceDefinitionRecord) -> bool:
+    return bool(service.invoke.response.schema.body)
+
+
+def _service_max_price_allows(
+    service: ServiceDefinitionRecord, max_price_usdc: Optional[Decimal]
+) -> bool:
+    if max_price_usdc is None:
+        return True
+    return Decimal(str(service.pricing_amount)) <= Decimal(str(max_price_usdc))
+
+
+def _query_match_score(service: ServiceDefinitionRecord, query: Optional[str]) -> int:
+    normalized_query = str(query or "").strip().lower()
+    if not normalized_query:
+        return 0
+    haystack = _searchable_service_text(service)
+    tokens = [token for token in normalized_query.split() if token]
+    if not tokens:
+        return 0
+    return sum(1 for token in tokens if token in haystack)
+
+
+def _service_health_score(service: ServiceDefinitionRecord) -> int:
+    if service.search_index is not None and service.search_index.health_score is not None:
+        return int(service.search_index.health_score)
+    summary = _public_health_summary_record(service)
+    total_targets = max(1, int(summary.total_targets or 0))
+    return int((int(summary.healthy_targets or 0) / total_targets) * 100)
+
+
+def _service_latency_ms(service: ServiceDefinitionRecord) -> int:
+    if service.search_index is not None and service.search_index.p95_latency_ms is not None:
+        return int(service.search_index.p95_latency_ms)
+    return int(service.invoke.timeout_ms or settings.gateway_default_timeout_ms)
+
+
+def _service_success_rate(service: ServiceDefinitionRecord) -> Decimal:
+    if service.search_index is not None and service.search_index.success_rate_24h is not None:
+        return Decimal(str(service.search_index.success_rate_24h))
+    score = _service_health_score(service)
+    return Decimal(score) / Decimal(100)
+
+
+def _sorted_discovery_services(
+    services: List[ServiceDefinitionRecord],
+    query: AgentDiscoveryQueryRecord,
+) -> List[ServiceDefinitionRecord]:
+    sort_key = str(query.sort or "best_match")
+    if sort_key == "lowest_price":
+        return sorted(
+            services,
+            key=lambda svc: (
+                Decimal(str(svc.pricing_amount)),
+                -_service_health_score(svc),
+                _service_latency_ms(svc),
+            ),
+        )
+    if sort_key == "fastest":
+        return sorted(
+            services,
+            key=lambda svc: (
+                _service_latency_ms(svc),
+                -_service_health_score(svc),
+                Decimal(str(svc.pricing_amount)),
+            ),
+        )
+    if sort_key == "highest_reliability":
+        return sorted(
+            services,
+            key=lambda svc: (
+                -_service_success_rate(svc),
+                -_service_health_score(svc),
+                _service_latency_ms(svc),
+            ),
+        )
+    return sorted(
+        services,
+        key=lambda svc: (
+            -_query_match_score(svc, query.query),
+            -_service_health_score(svc),
+            Decimal(str(svc.pricing_amount)),
+            _service_latency_ms(svc),
+        ),
+    )
+
+
 def _find_owned_service(
     rows: List[ServiceDefinitionRecord], service_record_id: str, owner_wallet: str
 ) -> ServiceDefinitionRecord | None:
@@ -655,9 +818,9 @@ class RegistryService:
                 return True
         return False
 
-    async def discover_services(
+    async def discover_public_services(
         self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> List[PublicServiceDiscoveryRecord]:
         await asyncio.sleep(0)
         rows = self._load_service_registry_rows()
         available_services = [
@@ -669,25 +832,52 @@ class RegistryService:
                 svc for svc in available_services if _service_matches_intent(svc, intent)
             ]
 
-        # Filter out sensitive info just in case
-        public_services = []
-        for svc in available_services:
-            public_svc = {
-                "serviceId": svc.service_id,
-                "serviceName": svc.service_name,
-                "pricing": {
-                    "amount": str(svc.pricing_amount),
-                    "currency": svc.pricing_currency,
-                },
-                "summary": svc.summary,
-                "tags": svc.tags,
-                "status": service_health_service.public_discover_status(svc),
-                "health": service_health_service.public_health_summary(svc),
-                "invoke": _build_public_invoke(svc, public_gateway_url),
-            }
-            public_services.append(public_svc)
+        return [
+            _public_service_discovery_record(svc, public_gateway_url)
+            for svc in available_services
+        ]
 
-        return public_services
+    async def discover_services(
+        self, intent: Optional[str] = None, public_gateway_url: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        public_services = await self.discover_public_services(
+            intent=intent, public_gateway_url=public_gateway_url
+        )
+        return [
+            row.model_dump(by_alias=True, exclude_none=True)
+            for row in public_services
+        ]
+
+    async def search_agent_discovery(
+        self,
+        query: AgentDiscoveryQueryRecord,
+        public_gateway_url: Optional[str] = None,
+    ) -> List[PublicServiceDiscoveryRecord]:
+        await asyncio.sleep(0)
+        rows = self._load_service_registry_rows()
+        available_services = [
+            row for row in rows if service_health_service.is_service_discoverable(row)
+        ]
+
+        scoped_services = [
+            svc
+            for svc in available_services
+            if (not query.query or _service_matches_intent(svc, str(query.query)))
+            and _service_matches_tags(svc, query.tags)
+            and _service_matches_region(svc, query.region)
+            and _service_max_price_allows(svc, query.max_price_usdc)
+            and (
+                not bool(query.requires_structured_output)
+                or _service_supports_structured_output(svc)
+            )
+        ]
+
+        ordered = _sorted_discovery_services(scoped_services, query)
+        limited = ordered[: max(1, int(query.limit or 10))]
+        return [
+            _public_service_discovery_record(svc, public_gateway_url)
+            for svc in limited
+        ]
 
     async def list_owner_services(self, owner_wallet: str) -> List[Dict[str, Any]]:
         await asyncio.sleep(0)
