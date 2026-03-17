@@ -1,4 +1,444 @@
 -- Synapse Gateway PostgreSQL bootstrap schema
+-- Canonical rebuild schema for the build-for-agent runtime.
+-- This file replaces the old split bootstrap model:
+--   001_synapse_schema.sql
+--   004_synapse_deposit_attempts.sql
+--   010_agent_runtime_rebuild.sql
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_budget_event_kind') THEN
+        CREATE TYPE synapse_budget_event_kind AS ENUM ('reserve', 'capture', 'release', 'adjust');
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_quote_status') THEN
+        CREATE TYPE synapse_quote_status AS ENUM ('OPEN', 'EXPIRED', 'CONSUMED', 'CANCELLED');
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'synapse_invocation_status') THEN
+        CREATE TYPE synapse_invocation_status AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED_RETRYABLE', 'FAILED_FINAL', 'SETTLED');
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS synapse_owner_accounts (
+    owner_id TEXT PRIMARY KEY,
+    owner_wallet TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'active',
+    default_currency TEXT NOT NULL DEFAULT 'USDC',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'suspended', 'closed'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_seller_profiles (
+    seller_id TEXT PRIMARY KEY,
+    owner_wallet TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'paused', 'archived'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_payout_accounts (
+    payout_account_id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL REFERENCES synapse_seller_profiles (seller_id) ON DELETE CASCADE,
+    payout_address TEXT NOT NULL,
+    chain_id BIGINT NOT NULL,
+    settlement_currency TEXT NOT NULL DEFAULT 'USDC',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (seller_id, payout_address, chain_id),
+    CHECK (status IN ('active', 'paused', 'archived'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_agent_profiles (
+    agent_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    purpose TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    runtime_label TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'paused', 'revoked'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_agent_credentials (
+    credential_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES synapse_agent_profiles (agent_id) ON DELETE CASCADE,
+    secret_hash TEXT NOT NULL UNIQUE,
+    secret_prefix TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    last_used_at TIMESTAMPTZ,
+    CHECK (status IN ('active', 'revoked', 'expired'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_budget_policies (
+    policy_id TEXT PRIMARY KEY,
+    credential_id TEXT NOT NULL UNIQUE REFERENCES synapse_agent_credentials (credential_id) ON DELETE CASCADE,
+    lifetime_cap_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    daily_cap_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    per_invocation_cap_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    rpm_limit INTEGER NOT NULL DEFAULT 60,
+    qps_limit INTEGER NOT NULL DEFAULT 5,
+    allowed_service_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    allowed_service_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    blocked_service_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (lifetime_cap_usdc >= 0),
+    CHECK (daily_cap_usdc >= 0),
+    CHECK (per_invocation_cap_usdc >= 0),
+    CHECK (rpm_limit >= 0),
+    CHECK (qps_limit >= 0),
+    CHECK (jsonb_typeof(allowed_service_tags) = 'array'),
+    CHECK (jsonb_typeof(allowed_service_ids) = 'array'),
+    CHECK (jsonb_typeof(blocked_service_ids) = 'array')
+);
+
+CREATE TABLE IF NOT EXISTS synapse_service_manifests (
+    service_id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL REFERENCES synapse_seller_profiles (seller_id) ON DELETE RESTRICT,
+    service_name TEXT NOT NULL,
+    manifest_version TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    description_for_model TEXT NOT NULL,
+    task_category TEXT,
+    capabilities_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    input_schema JSONB NOT NULL DEFAULT '{}'::jsonb,
+    output_schema JSONB NOT NULL DEFAULT '{}'::jsonb,
+    examples_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    limitations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    price_model TEXT NOT NULL,
+    base_price_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    quote_required BOOLEAN NOT NULL DEFAULT TRUE,
+    settlement_currency TEXT NOT NULL DEFAULT 'USDC',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('draft', 'active', 'paused', 'archived')),
+    CHECK (price_model IN ('fixed', 'tiered', 'quote')),
+    CHECK (base_price_usdc >= 0),
+    CHECK (jsonb_typeof(capabilities_json) = 'array'),
+    CHECK (jsonb_typeof(input_schema) = 'object'),
+    CHECK (jsonb_typeof(output_schema) = 'object'),
+    CHECK (jsonb_typeof(examples_json) = 'array'),
+    CHECK (jsonb_typeof(limitations_json) = 'array')
+);
+
+CREATE TABLE IF NOT EXISTS synapse_service_endpoints (
+    endpoint_id TEXT PRIMARY KEY,
+    service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
+    endpoint_url TEXT NOT NULL,
+    auth_mode TEXT NOT NULL DEFAULT 'gateway_forward',
+    timeout_ms INTEGER NOT NULL DEFAULT 15000,
+    max_payload_bytes INTEGER NOT NULL DEFAULT 4194304,
+    streaming_supported BOOLEAN NOT NULL DEFAULT FALSE,
+    async_supported BOOLEAN NOT NULL DEFAULT FALSE,
+    callback_supported BOOLEAN NOT NULL DEFAULT FALSE,
+    region TEXT,
+    weight INTEGER NOT NULL DEFAULT 100,
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (timeout_ms BETWEEN 300 AND 60000),
+    CHECK (max_payload_bytes BETWEEN 256 AND 33554432),
+    CHECK (weight BETWEEN 1 AND 1000),
+    CHECK (status IN ('active', 'paused', 'archived'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_service_health_snapshots (
+    service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
+    endpoint_id TEXT NOT NULL REFERENCES synapse_service_endpoints (endpoint_id) ON DELETE CASCADE,
+    health_score INTEGER NOT NULL DEFAULT 100,
+    p95_latency_ms INTEGER,
+    success_rate_24h NUMERIC(8, 6),
+    last_checked_at TIMESTAMPTZ,
+    error_code TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (service_id, endpoint_id),
+    CHECK (health_score BETWEEN 0 AND 100)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_service_search_index (
+    service_id TEXT PRIMARY KEY REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
+    tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    search_text TEXT NOT NULL,
+    embedding_ref TEXT,
+    reliability_tier TEXT,
+    health_score INTEGER,
+    p95_latency_ms INTEGER,
+    success_rate_24h NUMERIC(8, 6),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (jsonb_typeof(tags_json) = 'array')
+);
+
+CREATE TABLE IF NOT EXISTS synapse_service_quotes (
+    quote_id TEXT PRIMARY KEY,
+    service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE RESTRICT,
+    credential_id TEXT NOT NULL REFERENCES synapse_agent_credentials (credential_id) ON DELETE RESTRICT,
+    agent_id TEXT NOT NULL REFERENCES synapse_agent_profiles (agent_id) ON DELETE RESTRICT,
+    quoted_price_usdc NUMERIC(36, 6) NOT NULL,
+    price_model TEXT NOT NULL,
+    status synapse_quote_status NOT NULL DEFAULT 'OPEN',
+    request_fingerprint TEXT NOT NULL,
+    response_mode TEXT NOT NULL DEFAULT 'sync',
+    invoke_constraints JSONB NOT NULL DEFAULT '{}'::jsonb,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (quoted_price_usdc > 0),
+    CHECK (price_model IN ('fixed', 'tiered', 'quote')),
+    CHECK (response_mode IN ('sync', 'async', 'stream')),
+    CHECK (jsonb_typeof(invoke_constraints) = 'object')
+);
+
+CREATE TABLE IF NOT EXISTS synapse_invocations (
+    invocation_id TEXT PRIMARY KEY,
+    quote_id TEXT NOT NULL REFERENCES synapse_service_quotes (quote_id) ON DELETE RESTRICT,
+    service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE RESTRICT,
+    endpoint_id TEXT REFERENCES synapse_service_endpoints (endpoint_id) ON DELETE SET NULL,
+    credential_id TEXT NOT NULL REFERENCES synapse_agent_credentials (credential_id) ON DELETE RESTRICT,
+    agent_id TEXT NOT NULL REFERENCES synapse_agent_profiles (agent_id) ON DELETE RESTRICT,
+    idempotency_key TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    response_mode TEXT NOT NULL DEFAULT 'sync',
+    status synapse_invocation_status NOT NULL DEFAULT 'PENDING',
+    charged_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    error_code TEXT,
+    error_action TEXT,
+    upstream_status INTEGER,
+    result_digest TEXT,
+    result_json JSONB,
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (credential_id, idempotency_key),
+    CHECK (response_mode IN ('sync', 'async', 'stream')),
+    CHECK (charged_usdc >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_budget_events (
+    event_id TEXT PRIMARY KEY,
+    policy_id TEXT NOT NULL REFERENCES synapse_budget_policies (policy_id) ON DELETE RESTRICT,
+    credential_id TEXT NOT NULL REFERENCES synapse_agent_credentials (credential_id) ON DELETE RESTRICT,
+    quote_id TEXT REFERENCES synapse_service_quotes (quote_id) ON DELETE SET NULL,
+    invocation_id TEXT REFERENCES synapse_invocations (invocation_id) ON DELETE SET NULL,
+    event_kind synapse_budget_event_kind NOT NULL,
+    amount_usdc NUMERIC(36, 6) NOT NULL,
+    remaining_lifetime_usdc NUMERIC(36, 6),
+    remaining_daily_usdc NUMERIC(36, 6),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (amount_usdc > 0)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_ledger_accounts (
+    account_id TEXT PRIMARY KEY,
+    account_kind TEXT NOT NULL,
+    owner_id TEXT REFERENCES synapse_owner_accounts (owner_id) ON DELETE SET NULL,
+    seller_id TEXT REFERENCES synapse_seller_profiles (seller_id) ON DELETE SET NULL,
+    currency TEXT NOT NULL DEFAULT 'USDC',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (account_kind IN ('owner_vault', 'seller_receivable', 'platform_revenue', 'budget_hold')),
+    CHECK (status IN ('active', 'paused', 'closed'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_account_balances (
+    account_id TEXT PRIMARY KEY REFERENCES synapse_ledger_accounts (account_id) ON DELETE CASCADE,
+    available_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    pending_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    frozen_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (available_balance >= 0),
+    CHECK (pending_balance >= 0),
+    CHECK (frozen_balance >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_ledger_entries (
+    entry_id TEXT PRIMARY KEY,
+    reference_type TEXT NOT NULL,
+    reference_id TEXT NOT NULL,
+    business_type TEXT NOT NULL,
+    debit_account_id TEXT NOT NULL REFERENCES synapse_ledger_accounts (account_id) ON DELETE RESTRICT,
+    credit_account_id TEXT NOT NULL REFERENCES synapse_ledger_accounts (account_id) ON DELETE RESTRICT,
+    amount_usdc NUMERIC(36, 6) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'posted',
+    request_id TEXT,
+    trace_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (amount_usdc > 0),
+    CHECK (status IN ('pending', 'posted', 'reversed')),
+    UNIQUE (reference_type, reference_id, debit_account_id, credit_account_id)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_vault_deposits (
+    deposit_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE RESTRICT,
+    tx_hash TEXT NOT NULL UNIQUE,
+    amount_usdc NUMERIC(36, 6) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING_CONFIRMATION',
+    block_number BIGINT,
+    request_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (amount_usdc > 0),
+    CHECK (status IN ('PENDING_CONFIRMATION', 'CONFIRMED', 'FAILED'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_vault_withdrawals (
+    withdrawal_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE RESTRICT,
+    tx_hash TEXT UNIQUE,
+    amount_usdc NUMERIC(36, 6) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'REQUESTED',
+    request_id TEXT,
+    signature TEXT,
+    nonce BIGINT,
+    deadline BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (amount_usdc > 0),
+    CHECK (status IN ('REQUESTED', 'SIGNED', 'BROADCASTED', 'CONFIRMED', 'FAILED'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_audit_events (
+    event_id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    business_type TEXT NOT NULL,
+    owner_id TEXT,
+    agent_id TEXT,
+    credential_id TEXT,
+    service_id TEXT,
+    quote_id TEXT,
+    invocation_id TEXT,
+    amount_delta NUMERIC(36, 6),
+    result_status TEXT,
+    error_code TEXT,
+    detail_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (jsonb_typeof(detail_json) = 'object')
+);
+
+CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    response_code TEXT,
+    response_digest TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at BIGINT NOT NULL,
+    UNIQUE (scope, owner_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_runtime_state (
+    state_key TEXT PRIMARY KEY,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS synapse_deposit_attempts (
+    id BIGSERIAL PRIMARY KEY,
+    attempt_id TEXT NOT NULL,
+    owner_id TEXT,
+    owner_address TEXT,
+    client_request_id TEXT,
+    tx_hash TEXT,
+    amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    stage TEXT NOT NULL,
+    failure_reason TEXT,
+    request_id TEXT,
+    client_ip TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (amount_usdc > 0),
+    CHECK (stage IN (
+        'SIGN_REQUESTED',
+        'TX_BROADCASTED',
+        'RECEIPT_FAILED',
+        'RECEIPT_CONFIRMED',
+        'INTENT_REGISTERED'
+    )),
+    UNIQUE (attempt_id, stage)
+);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_agent_credentials_agent
+ON synapse_agent_credentials (agent_id, issued_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_budget_policies_credential
+ON synapse_budget_policies (credential_id);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_manifests_status
+ON synapse_service_manifests (status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_search_index_tags_gin
+ON synapse_service_search_index USING GIN (tags_json);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_quotes_lookup
+ON synapse_service_quotes (credential_id, status, expires_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_invocations_service_created
+ON synapse_invocations (service_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_budget_events_credential_created
+ON synapse_budget_events (credential_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_ledger_entries_reference
+ON synapse_ledger_entries (reference_type, reference_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_vault_deposits_owner_created
+ON synapse_vault_deposits (owner_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_vault_withdrawals_owner_created
+ON synapse_vault_withdrawals (owner_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_audit_events_owner_created
+ON synapse_audit_events (owner_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_idempotency_keys_expires
+ON synapse_idempotency_keys (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_runtime_state_updated_at
+ON synapse_runtime_state (updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_deposit_attempts_owner
+ON synapse_deposit_attempts (lower(COALESCE(owner_address, '')), created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_deposit_attempts_tx_hash
+ON synapse_deposit_attempts (tx_hash, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_deposit_attempts_stage
+ON synapse_deposit_attempts (stage, created_at DESC);
+
+COMMENT ON COLUMN synapse_deposit_attempts.id IS '充值尝试主键ID';
+COMMENT ON COLUMN synapse_deposit_attempts.attempt_id IS '前端单次充值尝试ID，用于串联各阶段';
+COMMENT ON COLUMN synapse_deposit_attempts.owner_id IS '尝试归属Owner ID';
+COMMENT ON COLUMN synapse_deposit_attempts.owner_address IS '历史钱包地址兼容观测字段';
+COMMENT ON COLUMN synapse_deposit_attempts.client_request_id IS '前端请求关联ID';
+COMMENT ON COLUMN synapse_deposit_attempts.tx_hash IS '链上交易哈希（若已广播）';
+COMMENT ON COLUMN synapse_deposit_attempts.amount_usdc IS '尝试充值金额(USDC)';
+COMMENT ON COLUMN synapse_deposit_attempts.stage IS '尝试阶段';
+COMMENT ON COLUMN synapse_deposit_attempts.failure_reason IS '失败原因（若该阶段失败）';
+COMMENT ON COLUMN synapse_deposit_attempts.request_id IS '网关请求追踪ID';
+COMMENT ON COLUMN synapse_deposit_attempts.client_ip IS '客户端IP';
+COMMENT ON COLUMN synapse_deposit_attempts.user_agent IS '客户端User-Agent';
+COMMENT ON COLUMN synapse_deposit_attempts.created_at IS '创建时间';
+COMMENT ON COLUMN synapse_deposit_attempts.updated_at IS '更新时间';-- Synapse Gateway PostgreSQL bootstrap schema
 -- Executed automatically on first container initialization via docker-entrypoint-initdb.d
 
 DO $$

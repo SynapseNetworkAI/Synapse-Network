@@ -29,6 +29,8 @@
 - **金库与一键充值 (Permit机制)**: [Vault_Deposit_Architecture.md](./03_Smart_Contract_Payment/Vault_Deposit_Architecture.md)
 - **买家充值端到端数据流说明**: [Buyer_Deposit_End_to_End_Dataflow.md](./03_Smart_Contract_Payment/Buyer_Deposit_End_to_End_Dataflow.md)
 - **Gateway 数据库设计**: [Gateway_V2_Data_Model.md](./03_Smart_Contract_Payment/Gateway_V2_Data_Model.md)
+- **Gateway 数据库设计（Build For Agent）**: [Gateway_Database_Design.md](./Gateway_Database_Design.md)
+- **Agent Runtime 数据模型**: [Agent_Runtime_Data_Model.md](./03_Smart_Contract_Payment/Agent_Runtime_Data_Model.md)
 - **卖家结算与平台抽水闭环**: [Settlement_and_Deduction_Logic.md](./03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md)
 - **退款流程体系**: [Buyer_Refund_Process.md](./03_Smart_Contract_Payment/Buyer_Refund_Process.md)
 
@@ -41,6 +43,7 @@
 - **Service Manifest 字段标准**: [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
 - **Credential / Budget 风控模型**: [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
 - **Dashboard 信息架构与 Onboarding**: [agent/05_Dashboard_IA_and_Onboarding.md](./agent/05_Dashboard_IA_and_Onboarding.md)
+- **Build For Agent 数据库重构**: [agent/06_Build_For_Agent_Database_Rebuild.md](./agent/06_Build_For_Agent_Database_Rebuild.md)
 - **Agent API 异常与计费协议**: [API_Billing_Deduction_Protocol.md](./04_Agent_Network/API_Billing_Deduction_Protocol.md)
 - **零代码语义级服务发现系统**: [AI_Service_Discovery.md](./04_Agent_Network/AI_Service_Discovery.md)
 - **买家钱包与 Agent 的子拓扑**: [Buyer_Wallet_Topology.md](./04_Agent_Network/Buyer_Wallet_Topology.md)

@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
-from src.domain.finance import BalanceLedger, DepositIntentRow
+from src.domain.finance import (
+    BalanceLedger,
+    DepositIntentConfirmCommand,
+    DepositIntentRow,
+)
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -59,13 +63,15 @@ def _repair_confirmed_intent_if_needed(
 
     try:
         confirmed = getattr(storage, "confirm_deposit_intent_atomic")(
-            owner_wallet=str(intent_fields["owner_wallet"]),
-            deposit_intent_id=str(intent.get("id") or ""),
-            event_key=str(
-                intent.get("eventKey")
-                or f"{intent_fields['tx_hash']}:confirmed_repair"
-            ),
-            confirmations=int(intent.get("confirmations") or 0),
+            DepositIntentConfirmCommand(
+                owner_wallet=str(intent_fields["owner_wallet"]),
+                deposit_intent_id=str(intent.get("id") or ""),
+                event_key=str(
+                    intent.get("eventKey")
+                    or f"{intent_fields['tx_hash']}:confirmed_repair"
+                ),
+                confirmations=int(intent.get("confirmations") or 0),
+            )
         )
     except RuntimeError:
         return {"result": "skip"}
@@ -156,10 +162,12 @@ def _apply_confirmed_balance_to_ledger(
     if hasattr(storage, "confirm_deposit_intent_atomic"):
         try:
             confirmed = getattr(storage, "confirm_deposit_intent_atomic")(
-                owner_wallet=owner_wallet,
-                deposit_intent_id=str(intent.get("id") or ""),
-                event_key=event_key,
-                confirmations=confirmations,
+                DepositIntentConfirmCommand(
+                    owner_wallet=owner_wallet,
+                    deposit_intent_id=str(intent.get("id") or ""),
+                    event_key=event_key,
+                    confirmations=confirmations,
+                )
             )
         except RuntimeError:
             _mark_intent_failed(intent, "DEPOSIT_CONFIRM_APPLY_FAILED", now)

@@ -14,6 +14,11 @@ Credential 不是通行证，而是带预算和风控边界的运行时支付身
 
 ## 2. 对象结构
 
+补充边界原则：
+
+- Credential / Budget 文档同时覆盖 Agent-facing 使用面和平台内部控制面，但两者字段不应混用。
+- Agent 持有的是运行时凭据 secret 和最小必要上下文；Owner 与 Gateway 才能看到完整预算策略、账本和控制字段。
+
 ### 2.1 AgentProfile
 
 - `agent_id`
@@ -31,6 +36,16 @@ Credential 不是通行证，而是带预算和风控边界的运行时支付身
 - `status`
 - `expires_at`
 - `allowed_scopes`
+
+建议拆成两层视图：
+
+- **Agent-facing credential view**：`credential_id`、secret、本凭据可用范围、过期时间
+- **Platform-internal credential record**：`owner_wallet`、吊销状态、创建人、风控标签、审计元数据
+
+说明：
+
+- `owner_wallet` 是平台控制面和审计面需要的绑定信息，不是 Seller 或其他外部服务需要知道的字段。
+- 对外发给 Agent SDK 的 credential 载荷，应保持最小披露。
 
 ### 2.3 BudgetPolicy
 
@@ -99,6 +114,11 @@ Gateway 每次调用必须按这个顺序检查：
 1. Dashboard 告警
 2. 风控规则引擎
 3. 审计与运维排障
+
+补充要求：
+
+- 风险事件可以包含内部对象关联键和账本映射，但这些信息不进入 Agent-facing API 响应。
+- Agent-facing 错误只返回可执行动作，不返回内部风控命中规则细节。
 
 ## 6. 错误动作映射
 

@@ -23,6 +23,9 @@
 5. [05_Dashboard_IA_and_Onboarding.md](./05_Dashboard_IA_and_Onboarding.md)
   Dashboard 信息架构、首次 onboarding 流程、激活目标与页面核心模块。
 
+6. [06_Build_For_Agent_Database_Rebuild.md](./06_Build_For_Agent_Database_Rebuild.md)
+  旧 schema 哪些可复用、哪些必须删除重写、全新 Agent Runtime 数据库结构与表映射。
+
 ## 北极星与拆分原则
 
 所有专题文档都服务同一个问题：

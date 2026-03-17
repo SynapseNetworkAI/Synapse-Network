@@ -1,7 +1,7 @@
+import logging
 import time
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Depends, Header
-from loguru import logger
 
 from src.api.schemas.pydantic_models import (
     ChallengeResponse,
@@ -12,8 +12,12 @@ from src.api.schemas.pydantic_models import (
 from src.core.auth import create_auth_challenge, verify_auth_signature
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.domain.runtime_state import AuthSessionState
 from src.storage import get_storage, BaseStorage
 from src.services.platform import credential_service
+from src.utils.datetime_utils import now_dt_str
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -74,11 +78,14 @@ async def verify_signature(
         wallet = normalize_wallet(request.wallet_address)
 
         now = int(time.time())
-        storage.get_data_manager().system.credential_auth.upsert_auth_session(
-            wallet=wallet,
-            registered_at=now,
-            last_login=now,
-            status="active",
+        storage.get_data_manager().system.credential_auth.save_auth_session(
+            AuthSessionState(
+                walletAddress=wallet,
+                registeredAt=now,
+                lastLogin=now,
+                status="active",
+                updatedAt=now_dt_str(),
+            )
         )
 
         return TokenResponse(
@@ -111,11 +118,14 @@ async def logout(
     try:
         owner = credential_service.require_owner_wallet(authorization, x_user_address)
         now = int(time.time())
-        storage.get_data_manager().system.credential_auth.upsert_auth_session(
-            wallet=owner,
-            registered_at=now,
-            last_login=now,
-            status="inactive",
+        storage.get_data_manager().system.credential_auth.save_auth_session(
+            AuthSessionState(
+                walletAddress=owner,
+                registeredAt=now,
+                lastLogin=now,
+                status="inactive",
+                updatedAt=now_dt_str(),
+            )
         )
         return BaseResponse(success=True)
     except HTTPException:

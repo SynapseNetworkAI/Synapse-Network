@@ -8,10 +8,16 @@ gateway_ro_user="${SYNAPSE_GATEWAY_READONLY_USER:-synapse_gateway_ro}"
 admin_db="${SYNAPSE_ADMIN_DB:-synapse_gateway_admin}"
 admin_app_user="${SYNAPSE_ADMIN_APP_USER:-synapse_admin_app}"
 admin_ro_user="${SYNAPSE_ADMIN_READONLY_USER:-synapse_admin_ro}"
+admin_seed_file="/admin-migrations/002_admin_seed_data.sql"
 
 run_psql() {
     PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" "$@"
 }
+
+if [[ ! -f "${admin_schema_file}" ]]; then
+    echo "missing admin schema bootstrap: ${admin_schema_file}" >&2
+    exit 1
+fi
 
 grant_schema_access() {
     local db_name="$1"
@@ -62,11 +68,13 @@ SQL
 
 run_psql \
     --dbname "${admin_db}" \
-    --file /admin-migrations/001_admin_control_plane_schema.sql
+    --file "${admin_schema_file}"
 
-run_psql \
-    --dbname "${admin_db}" \
-    --file /admin-migrations/002_admin_seed_data.sql
+if [[ -f "${admin_seed_file}" ]]; then
+    run_psql \
+        --dbname "${admin_db}" \
+        --file "${admin_seed_file}"
+fi
 
 run_psql \
     --dbname postgres \

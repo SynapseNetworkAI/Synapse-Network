@@ -29,6 +29,11 @@ run_psql \
     --set=admin_app_password="${admin_app_password}" \
     --set=admin_ro_user="${admin_ro_user}" \
     --set=admin_ro_password="${admin_ro_password}" <<'SQL'
+SELECT format('CREATE DATABASE %I', :'gateway_db')
+WHERE NOT EXISTS (
+    SELECT 1 FROM pg_database WHERE datname = :'gateway_db'
+) \gexec
+
 SELECT format('CREATE DATABASE %I', :'admin_db')
 WHERE NOT EXISTS (
     SELECT 1 FROM pg_database WHERE datname = :'admin_db'

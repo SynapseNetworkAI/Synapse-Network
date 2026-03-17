@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import List, Optional
+from typing import Any, List, Optional
+from uuid import uuid4
 
 from src.domain.audit import AuditLogEntry
 from src.domain.audit import AuditLogRow, SystemAuditLogRow
@@ -18,6 +19,22 @@ class AuditLogRepository:
     def _str_detail(details: dict, key: str) -> Optional[str]:
         value = details.get(key)
         return value if isinstance(value, str) else None
+
+    @staticmethod
+    def _payload_dict(value: Any) -> dict[str, Any]:
+        if isinstance(value, dict):
+            return dict(value)
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except Exception:
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
+    @staticmethod
+    def _event_id(prefix: str) -> str:
+        return f"{prefix}-{uuid4().hex}"
 
     def _build_system_row(self, entry: AuditLogEntry) -> SystemAuditLogRow:
         details = entry.details if isinstance(entry.details, dict) else {}
@@ -68,69 +85,74 @@ class AuditLogRepository:
         self.append_audit_log(self._build_finance_row(entry))
 
     def append_audit_log(self, row: AuditLogRow) -> None:
+        detail_json = {
+            "domain": "finance",
+            "riskLevel": row.risk_level,
+            "actor": row.actor,
+            "requestId": row.request_id,
+            "traceId": row.trace_id,
+            "txHash": row.tx_hash,
+            "counterpartyAddress": row.counterparty_address,
+            "direction": row.direction,
+            "status": row.status,
+            "riskReasonCode": row.risk_reason_code,
+            "ledgerId": row.ledger_id,
+            "clientIp": row.client_ip,
+            "userAgent": row.user_agent,
+            "beforeBalance": str(row.before_balance) if row.before_balance is not None else None,
+            "afterBalance": str(row.after_balance) if row.after_balance is not None else None,
+            "message": row.message,
+            "ownerAddress": row.owner_address,
+        }
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO synapse_audit_log (
-                    action_type, business_type, risk_level, owner_address, actor,
-                    request_id, trace_id, tx_hash, counterparty_address, direction, status,
-                    risk_reason_code, ledger_id, client_ip, user_agent,
-                    amount_delta, before_balance, after_balance, result_status, error_code, message
-                ) VALUES (
-                    %s, %s::synapse_business_type, %s::synapse_risk_level, %s, %s,
-                    %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s
-                )
+                INSERT INTO synapse_audit_events (
+                    event_id, event_type, business_type, owner_id,
+                    amount_delta, result_status, error_code, detail_json
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                 """,
                 (
+                    self._event_id("audit"),
                     row.action_type,
                     row.business_type,
-                    row.risk_level,
                     row.owner_address,
-                    row.actor,
-                    row.request_id,
-                    row.trace_id,
-                    row.tx_hash,
-                    row.counterparty_address,
-                    row.direction,
-                    row.status,
-                    row.risk_reason_code,
-                    row.ledger_id,
-                    row.client_ip,
-                    row.user_agent,
                     str(row.amount_delta) if row.amount_delta is not None else None,
-                    str(row.before_balance) if row.before_balance is not None else None,
-                    str(row.after_balance) if row.after_balance is not None else None,
                     row.result_status,
                     row.error_code,
-                    row.message,
+                    json.dumps(detail_json),
                 ),
             )
 
     def append_system_audit_log(self, row: SystemAuditLogRow) -> None:
+        detail_json = dict(row.detail_json or {})
+        detail_json.setdefault("domain", "system")
+        detail_json.setdefault("actor", row.actor)
+        detail_json.setdefault("requestId", row.request_id)
+        detail_json.setdefault("traceId", row.trace_id)
+        detail_json.setdefault("resourceType", row.resource_type)
+        detail_json.setdefault("resourceId", row.resource_id)
+        detail_json.setdefault("resultStatus", row.result_status)
+        detail_json.setdefault("errorCode", row.error_code)
+        detail_json.setdefault("clientIp", row.ip_address)
+        detail_json.setdefault("userAgent", row.user_agent)
+        detail_json.setdefault("ownerAddress", row.owner_address)
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO synapse_system_activity_log (
-                    action_type, owner_address, actor, request_id, trace_id,
-                    resource_type, resource_id, result_status, error_code,
-                    ip_address, user_agent, detail_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                INSERT INTO synapse_audit_events (
+                    event_id, event_type, business_type, owner_id,
+                    result_status, error_code, detail_json
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
                 """,
                 (
+                    self._event_id("system"),
                     row.action_type,
+                    "system",
                     row.owner_address,
-                    row.actor,
-                    row.request_id,
-                    row.trace_id,
-                    row.resource_type,
-                    row.resource_id,
                     row.result_status,
                     row.error_code,
-                    row.ip_address,
-                    row.user_agent,
-                    json.dumps(row.detail_json or {}),
+                    json.dumps(detail_json),
                 ),
             )
 
@@ -140,7 +162,7 @@ class AuditLogRepository:
 
     def replace_audit_collection(self, rows: List[AuditLogEntry]) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_audit_log")
+            cur.execute("DELETE FROM synapse_audit_events WHERE business_type <> 'system'")
         for row in rows:
             if isinstance(row, AuditLogEntry):
                 self.append_audit_row(row)
@@ -149,19 +171,17 @@ class AuditLogRepository:
         self, owner_wallet: Optional[str] = None, limit: int = 200
     ) -> List[AuditLogEntry]:
         sql = (
-            "SELECT id, action_type, business_type, risk_level, owner_address, actor, request_id, tx_hash, "
-            "trace_id, counterparty_address, direction, status, risk_reason_code, ledger_id, client_ip, user_agent, "
-            "amount_delta, before_balance, after_balance, result_status, error_code, message, "
+            "SELECT event_id, event_type, business_type, owner_id, amount_delta, result_status, error_code, detail_json, "
             "extract(epoch from created_at)::bigint "
-            "FROM synapse_audit_log"
+            "FROM synapse_audit_events WHERE business_type <> 'system'"
         )
         params: List[object] = []
 
         if owner_wallet:
-            sql += " WHERE lower(owner_address) = lower(%s)"
+            sql += " AND lower(owner_id) = lower(%s)"
             params.append(owner_wallet)
 
-        sql += " ORDER BY id DESC LIMIT %s"
+        sql += " ORDER BY created_at DESC LIMIT %s"
         params.append(max(1, min(limit, 1000)))
 
         with self._db.readonly_cursor() as cur:
@@ -173,52 +193,21 @@ class AuditLogRepository:
             row_id,
             action_type,
             business_type,
-            risk_level,
             owner_address,
-            actor,
-            request_id,
-            tx_hash,
-            trace_id,
-            counterparty_address,
-            direction,
-            status,
-            risk_reason_code,
-            ledger_id,
-            client_ip,
-            user_agent,
             amount_delta,
-            before_balance,
-            after_balance,
             result_status,
             error_code,
-            message,
+            detail_json,
             created_at,
         ) in rows:
-            details = {
-                "businessType": str(business_type or "charge"),
-                "riskLevel": str(risk_level or "green"),
-                "actor": actor,
-                "requestId": request_id,
-                "traceId": trace_id,
-                "txHash": tx_hash,
-                "counterpartyAddress": counterparty_address,
-                "direction": direction,
-                "status": status,
-                "riskReasonCode": risk_reason_code,
-                "ledgerId": ledger_id,
-                "clientIp": client_ip,
-                "userAgent": user_agent,
-                "deltaAmount": float(amount_delta) if amount_delta is not None else 0.0,
-                "beforeBalance": float(before_balance)
-                if before_balance is not None
-                else None,
-                "afterBalance": float(after_balance)
-                if after_balance is not None
-                else None,
-                "resultStatus": result_status,
-                "errorCode": error_code,
-                "message": message,
-            }
+            details = self._payload_dict(detail_json)
+            details.setdefault("businessType", str(business_type or "charge"))
+            details.setdefault("ownerAddress", str(owner_address or ""))
+            details.setdefault(
+                "deltaAmount", float(amount_delta) if amount_delta is not None else 0.0
+            )
+            details.setdefault("resultStatus", result_status)
+            details.setdefault("errorCode", error_code)
             result.append(
                 AuditLogEntry(
                     id=str(row_id or ""),
@@ -235,18 +224,17 @@ class AuditLogRepository:
         self, owner_wallet: Optional[str] = None, limit: int = 200
     ) -> List[AuditLogEntry]:
         sql = (
-            "SELECT id, action_type, owner_address, actor, request_id, trace_id, "
-            "resource_type, resource_id, result_status, error_code, ip_address, user_agent, detail_json, "
+            "SELECT event_id, event_type, owner_id, result_status, error_code, detail_json, "
             "extract(epoch from created_at)::bigint "
-            "FROM synapse_system_activity_log"
+            "FROM synapse_audit_events WHERE business_type = 'system'"
         )
         params: List[object] = []
 
         if owner_wallet:
-            sql += " WHERE lower(owner_address) = lower(%s)"
+            sql += " AND lower(owner_id) = lower(%s)"
             params.append(owner_wallet)
 
-        sql += " ORDER BY id DESC LIMIT %s"
+        sql += " ORDER BY created_at DESC LIMIT %s"
         params.append(max(1, min(limit, 1000)))
 
         with self._db.readonly_cursor() as cur:
@@ -258,28 +246,16 @@ class AuditLogRepository:
             row_id,
             action_type,
             owner_address,
-            actor,
-            request_id,
-            trace_id,
-            resource_type,
-            resource_id,
             result_status,
             error_code,
-            ip_address,
-            user_agent,
             detail_json,
             created_at,
         ) in rows:
-            details = detail_json if isinstance(detail_json, dict) else {}
-            details.setdefault("actor", actor)
-            details.setdefault("requestId", request_id)
-            details.setdefault("traceId", trace_id)
-            details.setdefault("resourceType", resource_type)
-            details.setdefault("resourceId", resource_id)
+            details = self._payload_dict(detail_json)
+            details.setdefault("domain", "system")
             details.setdefault("resultStatus", result_status)
             details.setdefault("errorCode", error_code)
-            details.setdefault("clientIp", ip_address)
-            details.setdefault("userAgent", user_agent)
+            details.setdefault("ownerAddress", str(owner_address or ""))
             result.append(
                 AuditLogEntry(
                     id=str(row_id or ""),

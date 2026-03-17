@@ -1,5 +1,9 @@
 # Gateway 数据库设计
 
+> 状态更新（2026-03-17）：本文档描述的是 **当前/历史 Gateway V2 schema**，用于解释现状，不再是 build-for-agent 的目标模型。
+>
+> 新的 Agent Runtime 数据模型请看 [Agent_Runtime_Data_Model.md](./Agent_Runtime_Data_Model.md)，数据库重构决策请看 [docs/agent/06_Build_For_Agent_Database_Rebuild.md](../agent/06_Build_For_Agent_Database_Rebuild.md)。
+
 本文档以当前真实 schema 为准，来源于 [infra/docker/postgres/init/001_synapse_schema.sql](../../infra/docker/postgres/init/001_synapse_schema.sql) 与 [infra/docker/postgres/init/003_gateway_admin_projection_views.sql](../../infra/docker/postgres/init/003_gateway_admin_projection_views.sql)。目标不是描述“理想模型”，而是解释 gateway 现在实际落库的表、字段、约束与职责边界。
 
 ## 1. 设计目标

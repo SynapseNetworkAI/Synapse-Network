@@ -656,25 +656,34 @@
 
 ## 5. 凭据签发与生命周期 (Credentials Lifecycle)
 
-- **Buyer 凭据签发**: `POST /api/v1/credentials/buyer/issue`
-- **Buyer 凭据列表**: `GET /api/v1/credentials/buyer/list`
-- **Buyer 凭据撤销**: `POST /api/v1/credentials/buyer/{credential_id}/revoke`
-- **Buyer 凭据限额更新**: `PATCH /api/v1/credentials/buyer/{credential_id}/quota`
-- **Buyer 审计日志**: `GET /api/v1/credentials/buyer/audit-logs`
+> 状态更新（2026-03-17）：以下历史的 buyer/seller credential API 将被 build-for-agent 模型替代。
 
-- **Seller Secret 签发**: `POST /api/v1/secrets/seller/issue`
-- **Seller Secret 列表**: `GET /api/v1/secrets/seller/list`
-- **Seller Secret 撤销**: `DELETE /api/v1/secrets/seller/{secret_id}`
+新的 Agent Runtime API 以以下对象为核心：
 
-创建凭据请求体（当前版本）：
-- `name` (optional)
-- `expiresInSec` (optional)
-- `maxCalls` (optional)
-- `rpm` (optional)
-- `creditLimit` (optional)
-- `resetInterval` (optional)
-- `expiration` (optional)
+- `Owner Account`
+- `Agent Profile`
+- `Agent Credential`
+- `Budget Policy`
+- `Service Manifest`
+- `Service Quote`
+- `Invocation`
 
-说明：凭据不再绑定 `serviceId`，服务选择在调用阶段通过 `X-Service-Id`/请求体 `serviceId` 决定。Buyer 与 Seller 凭据在 API 路径与存储层均已隔离。
+建议的 Agent-first API 面：
 
-> 这一组 API 将主钱包的高额安全和实际高频、暴露给多物理机的子实例解耦，完美支撑了“大额充值不暴露主密钥”的重要愿景。
+- **Create Agent**: `POST /api/v1/agents`
+- **List Agents**: `GET /api/v1/agents`
+- **Issue Agent Credential**: `POST /api/v1/agent-credentials/issue`
+- **Revoke Agent Credential**: `POST /api/v1/agent-credentials/{credential_id}/revoke`
+- **Update Budget Policy**: `PATCH /api/v1/agent-credentials/{credential_id}/budget-policy`
+- **Discovery Search**: `POST /api/v1/agent/discovery/search`
+- **Create Quote**: `POST /api/v1/agent/quotes`
+- **Create Invocation**: `POST /api/v1/agent/invocations`
+- **Get Invocation Receipt**: `GET /api/v1/agent/invocations/{invocation_id}`
+- **Register Service Manifest**: `POST /api/v1/services`
+- **Update Service Manifest**: `PATCH /api/v1/services/{service_id}`
+
+说明：
+
+- 凭据不再只是一个“调用次数 + RPM”的 key 桶，而是绑定到 `Agent Profile` 和 `Budget Policy` 的 Runtime 身份。
+- Service 选择不再依靠卖家密钥视角，而是由 Discovery / Quote / Invoke 三段式完成。
+- 卖家结算地址、平台拆账、内部路由策略不进入 Agent-facing API。

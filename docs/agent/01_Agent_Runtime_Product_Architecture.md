@@ -52,6 +52,12 @@ Synapse Runtime 建议拆成五层：
 
 ## 4. 控制链路与执行链路
 
+补充边界原则：
+
+- 控制链路可以看到 Owner、Credential、预算、审计等控制面对象。
+- 执行链路只暴露 Agent 调用服务所必需的信息，不暴露卖家结算资料、平台路由策略、内部账本主键。
+- Settlement Plane 只服务平台内部清算和对账，不直接进入 Agent-facing 协议。
+
 ### 4.1 控制链路
 
 `Owner -> Dashboard -> Gateway Control API -> Credential/Budget Store`
@@ -90,11 +96,17 @@ V1 至少需要这些对象：
 - `LedgerEntry`
 - `AuditEvent`
 
+建议继续拆成两种视图：
+
+- **Agent-facing objects**：`ServiceManifest`、`ServiceQuote`、`InvocationRequest`、`InvocationReceipt`
+- **Platform-internal objects**：`OwnerAccount`、`LedgerEntry`、`AuditEvent`、Settlement 相关对象
+
 要求：
 
 - 每个对象职责单一
 - 不把服务信息、凭据、预算、调用结果糊成一个响应
 - 账本对象与调用对象分离，避免后续对账混乱
+- 公开服务契约与内部结算对象分离，避免 Agent 误依赖平台内部字段
 
 ## 6. Runtime 状态机
 
