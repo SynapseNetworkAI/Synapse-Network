@@ -533,9 +533,6 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     assert creds[0].metadata.name == "cred-name"
     assert creds[0].policy.lifetime_cap_usdc == Decimal("1.250000")
 
-    role = repo.read_wallet_role("0xABC")
-    assert role is not None and role.role == "admin"
-
     session = repo.read_auth_session("0xABC")
     assert isinstance(session, AuthSessionState)
     assert session.last_login == 200
@@ -594,7 +591,6 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
             )
         ],
     )
-    repo.set_wallet_role("0xABC", "operator")
     repo.upsert_auth_session("0xABC", 100, 200, "active")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)

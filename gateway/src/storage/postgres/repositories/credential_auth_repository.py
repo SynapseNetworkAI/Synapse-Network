@@ -47,10 +47,6 @@ class CredentialAuthRepository:
         return f"credential_meta::{str(credential_type or '').lower()}::{credential_id}"
 
     @staticmethod
-    def _wallet_role_state_key(wallet: str) -> str:
-        return f"wallet_role::{str(wallet or '').lower()}"
-
-    @staticmethod
     def _auth_session_state_key(wallet: str) -> str:
         return f"auth_session::{str(wallet or '').lower()}"
 
@@ -512,39 +508,6 @@ class CredentialAuthRepository:
             self._delete_runtime_credentials(cur, normalized_type)
             for row in normalized_rows:
                 self._insert_credential_row(cur, row)
-
-    def read_wallet_role(self, wallet: str) -> Optional[WalletRoleState]:
-        with self._db.readonly_cursor() as cur:
-            cur.execute(
-                "SELECT payload FROM synapse_runtime_state WHERE state_key = %s",
-                (self._wallet_role_state_key(wallet),),
-            )
-            row = cur.fetchone()
-        if row is None:
-            return None
-        return self._parse_state_model(
-            row[0],
-            WalletRoleState,
-            fallback={"walletAddress": str(wallet or "").lower(), "role": ""},
-        )
-
-    def set_wallet_role(self, wallet: str, role: str) -> None:
-        self.upsert_wallet_role(
-            WalletRoleState(
-                walletAddress=str(wallet or "").lower(),
-                role=str(role or ""),
-                updatedAt=now_dt_str(),
-            )
-        )
-
-    def upsert_wallet_role(self, row: WalletRoleState) -> None:
-        with self._db.tx_cursor() as cur:
-            self._upsert_runtime_state(
-                cur,
-                self._wallet_role_state_key(row.wallet_address),
-                row.model_copy(update={"wallet_address": str(row.wallet_address or "").lower()}),
-                row.updated_at,
-            )
 
     def upsert_auth_session(
         self, wallet: str, registered_at: int, last_login: int, status: str

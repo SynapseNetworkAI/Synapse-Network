@@ -451,46 +451,6 @@ export async function discoverServices(intent?: string): Promise<ServiceRegistry
   return payload.services.map(normalizeServiceRecord);
 }
 
-
-export async function getWalletRole(userAddress: string): Promise<string | null> {
-  try {
-    const res = await fetch(`${getGatewayBaseUrl()}/api/v1/wallet/role/${userAddress}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    if (!res.ok) {
-      console.warn("Failed to get wallet role");
-      return null;
-    }
-    const data = await res.json();
-    return data.role;
-  } catch (err) {
-    console.error("Error fetching wallet role", err);
-    return null;
-  }
-}
-export async function bindWalletRole(userAddress: string, role: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${getGatewayBaseUrl()}/api/v1/wallet/role/${userAddress}/bind`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ role })
-    });
-    if (!res.ok) {
-      console.warn("Failed to bind wallet role");
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error("Error binding wallet role", err);
-    return false;
-  }
-}
-
 export async function testServicePing(serviceId: string, userAddress: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/${serviceId}/ping`, {
     method: "POST",

@@ -15,7 +15,6 @@ from src.services.provider import secret_service
 class InMemoryCredentialAuthRepository:
     def __init__(self) -> None:
         self._credential_rows = {"buyer": [], "seller": []}
-        self._wallet_roles: dict[str, WalletRoleState] = {}
         self._auth_sessions: dict[str, AuthSessionState] = {}
 
     def read_credential_rows(self, credential_type: str):
@@ -23,12 +22,6 @@ class InMemoryCredentialAuthRepository:
 
     def write_credential_rows(self, credential_type: str, rows):
         self._credential_rows[credential_type] = list(rows)
-
-    def read_wallet_role(self, wallet: str):
-        return self._wallet_roles.get(normalize_wallet(wallet))
-
-    def upsert_wallet_role(self, row: WalletRoleState):
-        self._wallet_roles[normalize_wallet(row.wallet_address)] = row
 
     def read_auth_session(self, wallet: str):
         return self._auth_sessions.get(normalize_wallet(wallet))
