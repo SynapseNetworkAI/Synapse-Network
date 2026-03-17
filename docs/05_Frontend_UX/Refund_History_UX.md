@@ -21,12 +21,12 @@
 我们需要在 `frontend/src/app/dashboard/billing/page.tsx` 中新增一个独立的板块或者 Tab：**Withdrawal & Refunds (提现与退款明细)**。
 
 ### 1.1 数据结构映射 (Data Mapping)
-前端将通过 GET `/api/v1/refunds/history` 类似接口拉取状态机中的流水。
-展示的数据来源即后端的 `refund_intents.json` (或将要迁移的 DB 表)：
-* `tx_hash` (链上交易哈希)
-* `amount` (金额 USDC)
-* `status` (当前状态：PENDING 或 COMPLETED)
-* `created_at` (申请时间)
+前端将通过 GET `/api/v1/refunds` 这类只读接口拉取退款状态机中的流水。
+展示数据来源应当是 Gateway 的 consumer refund projection，也就是 `synapse_vault_withdrawals + vault_withdrawal_meta::{withdrawal_id}` sidecar，而不是旧 JSON 文件或旧意图表：
+* `txHash` (链上交易哈希)
+* `amountUsdc` (金额 USDC)
+* `status` (当前状态：PENDING_MANUAL_REVIEW / REJECTED / COMPLETED 等)
+* `createdAt` (申请时间)
 
 ### 1.2 信息展示形式 (Data Table)
 建议使用一个现代化的赛博风格 Data Table（深色底，边框细致）。
@@ -56,7 +56,7 @@
 
 ### `GET /api/v1/refunds`
 * **鉴权**: 必须带有 `Depends(require_auth)` 且认证通过获得 `wallet_address`。
-* **业务逻辑**: 读取 `load_refund_intents()`，清洗并过滤出 `intent["buyer_address"] == wallet` 的所有记录。
+* **业务逻辑**: 读取 consumer refund rows，清洗并过滤出 `intent["consumerAddress"] == wallet` 或 `intent["ownerAddress"] == wallet` 的所有记录。
 * **返回格式**: 按时间倒序排序 (DESC)。
 ```json
 {

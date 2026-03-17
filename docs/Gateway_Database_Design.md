@@ -6,7 +6,7 @@
 
 ## 1. 设计目标
 
-新的 Gateway 数据库不再围绕 `wallet + api_key + usage_log` 展开，而是围绕下面 6 类真相对象展开：
+新的 Gateway 数据库不再围绕 `wallet + api_key + legacy invocation shadow rows` 展开，而是围绕下面 6 类真相对象展开：
 
 1. Owner 资金池
 2. Agent Runtime 身份
@@ -64,7 +64,7 @@
 1. Agent-facing 协议只暴露 Service、Quote、Invocation、Credential 最小视图。
 2. 卖家结算地址、拆账策略、内部账本键留在平台内部表。
 3. Quote 必须先落库，预算必须先 reserve，再 capture / release。
-4. Invocation 是第一等真相对象，不再退化成 `usage_log`。
+4. Invocation 是第一等真相对象，不再退化成历史兼容计费影子行。
 5. Ledger 必须是双分录，余额快照只做高频读加速。
 
 ## 4. 关键链路
@@ -95,7 +95,7 @@
 
 补充约束：
 
-- charge 不再以 `synapse_usage_log` 为主真相。
+- charge 不再以任何 wallet-era 调用日志表为主真相。
 - consumer/provider 计费明细通过 `synapse_invocations + synapse_ledger_entries + synapse_audit_events` 落库。
 - 兼容查询需要的补充字段，统一进 `synapse_runtime_state` 的 `invocation_billing::{invocation_id}` typed sidecar。
 
@@ -112,7 +112,7 @@
 
 - refund 与 provider withdraw 统一收敛到 `synapse_vault_withdrawals`，通过 `withdrawal_kind` 区分 `consumer_refund` / `provider_withdrawal`。
 - 流程态、review 信息、链上票据等非主表字段，统一进 `synapse_runtime_state` 的 `vault_withdrawal_meta::{withdrawal_id}` typed sidecar。
-- `synapse_refund_intents`、`synapse_withdrawal_intents` 只允许作为历史兼容概念，不再承担 source-of-truth 责任。
+- refund / provider withdraw 不再依赖旧意图表，统一由 `synapse_vault_withdrawals + runtime state sidecar` 承担真相与流程态。
 
 ## 5. Admin Projection
 
@@ -131,16 +131,7 @@
 
 ## 6. 已废弃的旧主表
 
-这些表不再是重建后的主真相层：
-
-- `synapse_service_registry`
-- `synapse_credentials`
-- `synapse_usage_log`
-- `synapse_balances`
-- `synapse_router_config`
-- `synapse_deposit_intents`
-- `synapse_refund_intents`
-- `synapse_withdrawal_intents`
+这些 wallet-era 主表与影子表不再是重建后的主真相层，当前只允许作为历史迁移背景存在；运行时真相统一落在 service quotes、invocations、ledger、vault withdrawals、runtime state 这些目标态表上。
 
 ## 7. 重建顺序
 

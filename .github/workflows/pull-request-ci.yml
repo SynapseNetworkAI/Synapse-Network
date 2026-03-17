@@ -1,0 +1,178 @@
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 先识别本次 PR 实际改动了哪些区域，后续 job 按需执行，避免每次全仓全量跑。
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      gateway: ${{ steps.filter.outputs.gateway }}
+      admin_gateway: ${{ steps.filter.outputs.admin_gateway }}
+      admin_front: ${{ steps.filter.outputs.admin_front }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      docs: ${{ steps.filter.outputs.docs }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 根据目录粒度输出 true/false，给后续测试、构建、文档检查做条件判断。
+      - name: Detect changed areas
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            gateway:
+              - 'gateway/**'
+              - 'infra/docker/postgres/**'
+              - 'docker-compose/postgres/**'
+            admin_gateway:
+              - 'admin/gateway-admin/**'
+            admin_front:
+              - 'admin/admin-front/**'
+            contracts:
+              - 'contracts/**'
+              - 'scripts/**'
+              - 'hardhat.config.js'
+              - 'package.json'
+              - 'package-lock.json'
+            docs:
+              - 'docs/**'
+              - 'README.md'
+              - 'admin/gateway-admin/docs/**'
+            ci:
+              - '.github/workflows/**'
+              - 'scripts/ci/**'
+
+  # 验证支付网关 Python 单元测试，阻止 gateway 基础逻辑回归进入 main。
+  gateway-unit-tests:
+    needs: changes
+    if: needs.changes.outputs.gateway == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: gateway/requirements.txt
+
+      - name: Install gateway dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 这里只跑 unit tests，保持 PR 反馈足够快。
+      - name: Run gateway unit tests
+        env:
+          PYTHONPATH: .
+        run: pytest -q tests/unit
+
+  # 验证管理后台后端接口、配置中心、读模型等服务端逻辑未被破坏。
+  admin-gateway-tests:
+    needs: changes
+    if: needs.changes.outputs.admin_gateway == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin/gateway-admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: admin/gateway-admin/requirements.txt
+
+      - name: Install admin dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run gateway-admin tests
+        run: python -m pytest -q
+
+  # 验证管理后台前端依赖、编译链和页面构建在 CI 中可稳定通过。
+  admin-front-build:
+    needs: changes
+    if: needs.changes.outputs.admin_front == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin/admin-front
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/admin-front/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build admin frontend
+        run: npm run build
+
+  # 验证 Solidity 合约和 Hardhat 工具链仍然可以正常编译。
+  contracts-compile:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install contract toolchain dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+  # 保证 docs 中的相对链接不失效，避免文档导航和运维说明断链。
+  docs-link-check:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check markdown relative links
+        run: python scripts/ci/check_markdown_relative_links.py

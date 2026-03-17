@@ -72,8 +72,8 @@ def _pricing_breakdown(
 
 
 def _append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
-    """Persist one usage row into usage_log for operational visibility and billing traceability."""
-    forwarding_billing.append_usage_log(storage, row)
+    """Persist one invocation billing row for operational visibility and settlement traceability."""
+    forwarding_billing.append_invocation_billing(storage, row)
 
 
 def _validate_service_id(

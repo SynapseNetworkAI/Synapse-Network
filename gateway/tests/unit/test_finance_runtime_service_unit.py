@@ -48,23 +48,23 @@ class InMemoryGatewayStateRepo:
         assert all(isinstance(row, DepositIntentRow) for row in rows)
         self.deposit_rows = list(rows)
 
-    def read_refund_intents(self):
+    def read_consumer_refund_rows(self):
         return list(self.refund_rows)
 
-    def write_refund_intents(self, rows, updated_at):
+    def write_consumer_refund_rows(self, rows, updated_at):
         _ = updated_at
         assert all(isinstance(row, RefundIntentRow) for row in rows)
         self.refund_rows = list(rows)
 
-    def read_withdrawal_intents(self):
+    def read_provider_withdrawal_rows(self):
         return list(self.withdraw_rows)
 
-    def write_withdrawal_intents(self, rows, updated_at):
+    def write_provider_withdrawal_rows(self, rows, updated_at):
         _ = updated_at
         assert all(isinstance(row, WithdrawalIntentRow) for row in rows)
         self.withdraw_rows = list(rows)
 
-    def read_usage_log_rows(self):
+    def read_invocation_billing_rows(self):
         return list(self.usage_rows)
 
 

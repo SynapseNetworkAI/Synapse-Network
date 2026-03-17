@@ -133,15 +133,15 @@ build_buyer_receipt = build_consumer_receipt
 build_buyer_success_response = build_consumer_success_response
 
 
-def append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
-    """Append one usage event into usage_log collection with safe list normalization."""
-    raw_rows = storage.get_data_manager().system.gateway_state.read_usage_log_rows()
+def append_invocation_billing(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
+    """Append one invocation billing event into the typed billing projection."""
+    raw_rows = storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
     rows = list(raw_rows) if isinstance(raw_rows, list) else []
     typed_row = UsageLogRow.model_validate(row)
     rows.append(typed_row)
     repo = storage.get_data_manager().system.gateway_state
     try:
-        repo.write_usage_log_rows(rows)
+        repo.write_invocation_billing_rows(rows)
     except Exception:
         fallback_rows = [
             item.model_dump(by_alias=True, mode="json")
@@ -149,7 +149,11 @@ def append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) ->
             else item
             for item in rows
         ]
-        repo.write_usage_log_rows(fallback_rows)
+        repo.write_invocation_billing_rows(fallback_rows)
+
+
+def append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
+    append_invocation_billing(storage, row)
 
 
 def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:

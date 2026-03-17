@@ -5,6 +5,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
+
 
 class RuntimeStateRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -152,14 +154,18 @@ class VaultWithdrawalMetadataState(BaseModel):
     origin_request_id: Optional[str] = Field(default=None, alias="originRequestId")
     origin_tx_hash: Optional[str] = Field(default=None, alias="originTxHash")
     message: Optional[str] = None
-    request_meta: dict[str, Any] = Field(default_factory=dict, alias="requestMeta")
+    request_meta: OperationContextMetadata = Field(
+        default_factory=OperationContextMetadata, alias="requestMeta"
+    )
     review_decision: Optional[str] = Field(default=None, alias="reviewDecision")
     reviewer_address: Optional[str] = Field(default=None, alias="reviewerAddress")
     reviewer_note: Optional[str] = Field(default=None, alias="reviewerNote")
     reviewed_at: Optional[int] = Field(default=None, alias="reviewedAt")
     completed_at: Optional[int] = Field(default=None, alias="completedAt")
-    complete_meta: dict[str, Any] = Field(default_factory=dict, alias="completeMeta")
-    ticket: dict[str, Any] = Field(default_factory=dict)
+    complete_meta: OperationContextMetadata = Field(
+        default_factory=OperationContextMetadata, alias="completeMeta"
+    )
+    ticket: WithdrawalTicketMetadata = Field(default_factory=WithdrawalTicketMetadata)
 
 
 class RouterPolicyState(BaseModel):

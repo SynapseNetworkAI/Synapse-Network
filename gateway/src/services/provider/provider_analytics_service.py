@@ -11,52 +11,43 @@ class ProviderAnalyticsService:
     def __init__(self, storage: BaseStorage):
         self.storage = storage
 
-    def _load_usage_rows(self) -> List[Dict[str, Any]]:
+    def _load_invocation_billings(self) -> List[UsageLogRow]:
         raw_rows = (
-            self.storage.get_data_manager().system.gateway_state.read_usage_log_rows()
+            self.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
         )
         if not isinstance(raw_rows, list):
             return []
-        rows: List[Dict[str, Any]] = []
+        rows: List[UsageLogRow] = []
         for row in raw_rows:
             if isinstance(row, UsageLogRow):
-                payload = row.model_dump(by_alias=True, mode="json")
-                payload.setdefault(
-                    "provider", payload.get("providerAddress") or payload.get("sellerAddress")
-                )
-                payload.setdefault(
-                    "consumer", payload.get("consumerAddress") or payload.get("buyerAddress")
-                )
-                rows.append(payload)
-            elif isinstance(row, dict):
                 rows.append(row)
+            elif isinstance(row, dict):
+                rows.append(UsageLogRow.model_validate(row))
         return rows
 
     def _load_provider_receivable(self, owner_wallet: str) -> float:
         ledger = self.storage.get_data_manager().finance.balance.read_balance_ledger()
         return ledger.provider_receivable_balance(owner_wallet)
 
-    def _provider_rows(self, owner_wallet: str) -> List[Dict[str, Any]]:
-        rows = self._load_usage_rows()
+    def _provider_rows(self, owner_wallet: str) -> List[UsageLogRow]:
+        rows = self._load_invocation_billings()
         return [
             row
             for row in rows
-            if normalize_wallet(
-                str(row.get("provider") or row.get("seller") or "")
-            )
+            if normalize_wallet(str(row.provider_address or row.seller_address or ""))
             == owner_wallet
         ]
 
-    def _row_created_at(self, row: Dict[str, Any]) -> int:
-        return int(row.get("created_at") or row.get("createdAt") or 0)
+    def _row_created_at(self, row: UsageLogRow) -> int:
+        return int(row.ts or 0)
 
-    def _row_request_id(self, row: Dict[str, Any]) -> str:
-        return str(row.get("request_id") or row.get("requestId") or "").strip()
+    def _row_request_id(self, row: UsageLogRow) -> str:
+        return str(row.request_id or "").strip()
 
     def _deduplicate_by_request_id(
-        self, rows: List[Dict[str, Any]]
-    ) -> tuple[Dict[str, Dict[str, Any]], int]:
-        dedup: Dict[str, Dict[str, Any]] = {}
+        self, rows: List[UsageLogRow]
+    ) -> tuple[Dict[str, UsageLogRow], int]:
+        dedup: Dict[str, UsageLogRow] = {}
         duplicate_dropped = 0
         for row in rows:
             request_id = self._row_request_id(row)
@@ -73,58 +64,42 @@ class ProviderAnalyticsService:
         return dedup, duplicate_dropped
 
     def _settled_rows(
-        self, dedup_rows: Dict[str, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, dedup_rows: Dict[str, UsageLogRow]
+    ) -> List[UsageLogRow]:
         settled = [
             row
             for row in dedup_rows.values()
-            if str(row.get("status") or "").lower() == "succeeded"
+            if str(row.status or "").lower() == "succeeded"
         ]
         settled.sort(key=self._row_created_at, reverse=True)
         return settled
 
-    def _sum_metric(self, rows: List[Dict[str, Any]], *keys: str) -> float:
+    def _metric_value(self, row: UsageLogRow, *field_names: str) -> float:
+        for field_name in field_names:
+            value = getattr(row, field_name, None)
+            if value is not None:
+                return float(value)
+        return 0.0
+
+    def _sum_metric(self, rows: List[UsageLogRow], *field_names: str) -> float:
         total = 0.0
         for row in rows:
-            value = None
-            for key in keys:
-                if key in row:
-                    value = row.get(key)
-                    break
-            total += float(value or 0.0)
+            total += self._metric_value(row, *field_names)
         return round(total, 6)
 
     def _to_recent_calls(
-        self, settled: List[Dict[str, Any]], limit: int
+        self, settled: List[UsageLogRow], limit: int
     ) -> List[Dict[str, Any]]:
         return [
             {
                 "requestId": self._row_request_id(row),
-                "serviceId": str(row.get("service_id") or row.get("serviceId") or ""),
-                "status": str(row.get("status") or "unknown"),
-                "unitPrice": round(
-                    float(row.get("unit_price") or row.get("unitPrice") or 0.0), 6
-                ),
-                "protocolFee": round(
-                    float(
-                        row.get("protocol_fee")
-                        or row.get("platform_fee")
-                        or row.get("platformFee")
-                        or 0.0
-                    ),
-                    6,
-                ),
-                "routingTax": round(
-                    float(row.get("routing_tax") or row.get("routingTax") or 0.0), 6
-                ),
+                "serviceId": str(row.service_id or ""),
+                "status": str(row.status or "unknown"),
+                "unitPrice": round(float(row.unit_price or 0.0), 6),
+                "protocolFee": round(float(row.protocol_fee or 0.0), 6),
+                "routingTax": round(float(row.routing_tax or 0.0), 6),
                 "providerNet": round(
-                    float(
-                        row.get("provider_net")
-                        or row.get("providerNet")
-                        or row.get("seller_net")
-                        or row.get("sellerNet")
-                        or 0.0
-                    ),
+                    max(float((row.total_charge or 0.0) - (row.protocol_fee or 0.0)), 0.0),
                     6,
                 ),
                 "createdAt": self._row_created_at(row),
@@ -141,13 +116,15 @@ class ProviderAnalyticsService:
         dedup, duplicate_dropped = self._deduplicate_by_request_id(provider_rows)
         settled = self._settled_rows(dedup)
 
-        total_earned = self._sum_metric(settled, "unit_price", "unitPrice")
-        total_protocol_fee = self._sum_metric(
-            settled, "protocol_fee", "platform_fee", "platformFee"
-        )
-        total_routing_tax = self._sum_metric(settled, "routing_tax", "routingTax")
-        provider_net_total = self._sum_metric(
-            settled, "provider_net", "providerNet", "seller_net", "sellerNet"
+        total_earned = self._sum_metric(settled, "unit_price")
+        total_protocol_fee = self._sum_metric(settled, "protocol_fee")
+        total_routing_tax = self._sum_metric(settled, "routing_tax")
+        provider_net_total = round(
+            sum(
+                max(float((row.total_charge or 0.0) - (row.protocol_fee or 0.0)), 0.0)
+                for row in settled
+            ),
+            6,
         )
         provider_receivable = self._load_provider_receivable(owner)
         recent_calls = self._to_recent_calls(settled, limit)

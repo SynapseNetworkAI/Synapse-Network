@@ -1,33 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[guard] Enforcing PostgreSQL-only storage policy"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$repo_root"
 
-cd "$(git rev-parse --show-toplevel)"
+echo "[guard] enforcing PostgreSQL-only storage policy"
 
 violations=0
 
 check_pattern() {
-  local pattern="$1"
-  local scope="$2"
-  local label="$3"
+    local pattern="$1"
+    local scope="$2"
+    local label="$3"
 
-  if rg -n --no-heading "$pattern" $scope; then
-    echo "[guard] Violation: found $label"
-    violations=1
-  fi
+    if rg -n --no-heading "$pattern" $scope; then
+        echo "[guard] violation: found ${label}"
+        violations=1
+    fi
 }
 
-# Runtime code must not reintroduce removed JSON backend or deprecated data_dir settings.
-check_pattern "JsonStorage|json_impl" "gateway/src" "removed JSON storage symbols"
-check_pattern "\bdata_dir\b" "gateway/src" "deprecated data_dir usage in runtime code"
-
-# Environment templates must never default back to json backend.
-check_pattern "^\s*STORAGE_BACKEND\s*=\s*json\s*$" "gateway/.env*.example" "json storage backend in environment templates"
+check_pattern "JsonStorage|json_impl" "gateway/src" "removed JSON storage symbols in gateway runtime"
+check_pattern "\bdata_dir\b" "gateway/src" "deprecated data_dir usage in gateway runtime"
+check_pattern "get_collection|save_collection|append_to_collection" "gateway/src" "removed collection passthrough storage API"
+check_pattern "^\s*STORAGE_BACKEND\s*=\s*json\s*$" "gateway/.env* admin/gateway-admin/.env*" "json storage backend in env files"
 
 if [[ "$violations" -ne 0 ]]; then
-  echo "[guard] PostgreSQL-only guard failed"
-  exit 1
+    echo "[guard] PostgreSQL-only storage guard failed"
+    exit 1
 fi
 
-echo "[guard] PostgreSQL-only guard passed"
+echo "[guard] PostgreSQL-only storage guard passed"

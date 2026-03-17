@@ -1,0 +1,85 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Git ref or tag to deploy on the remote production host
+        required: true
+        default: main
+      remote_stack_dir:
+        description: Absolute path to the checked-out repo or deploy stack on the remote host
+        required: true
+        default: /srv/synapse/Synapse-Network
+      compose_file:
+        description: Compose file to use on the remote host
+        required: true
+        default: docker-compose/docker-compose.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # 生产环境部署：必须依赖 environment 审批与串行控制，避免并发发布冲突。
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # 先校验生产 SSH 凭据是否存在，缺失时立即失败，避免误发版。
+      - name: Validate required production secrets
+        env:
+          PROD_DEPLOY_HOST: ${{ secrets.PROD_DEPLOY_HOST }}
+          PROD_DEPLOY_USER: ${{ secrets.PROD_DEPLOY_USER }}
+          PROD_DEPLOY_SSH_KEY: ${{ secrets.PROD_DEPLOY_SSH_KEY }}
+        run: |
+          missing=0
+          for name in PROD_DEPLOY_HOST PROD_DEPLOY_USER PROD_DEPLOY_SSH_KEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "missing required secret: $name" >&2
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+      # 通过 SSH 在生产机上执行代码切换和 compose 发布，是当前第一版可落地的部署路径。
+      - name: Deploy to production host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_DEPLOY_HOST }}
+          username: ${{ secrets.PROD_DEPLOY_USER }}
+          key: ${{ secrets.PROD_DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ inputs.remote_stack_dir }}"
+            git fetch --all --tags
+            git checkout "${{ inputs.target_ref }}"
+            if git show-ref --verify --quiet "refs/remotes/origin/${{ inputs.target_ref }}"; then
+              git reset --hard "origin/${{ inputs.target_ref }}"
+            fi
+            docker compose -f "${{ inputs.compose_file }}" pull || true
+            docker compose -f "${{ inputs.compose_file }}" up -d --remove-orphans
+            docker image prune -f
+
+          # 发布后立即做对外健康检查，尽快发现网关、后台或前端是否不可用。
+      - name: Run production smoke checks
+        env:
+          PROD_GATEWAY_HEALTHCHECK_URL: ${{ vars.PROD_GATEWAY_HEALTHCHECK_URL }}
+          PROD_ADMIN_GATEWAY_HEALTHCHECK_URL: ${{ vars.PROD_ADMIN_GATEWAY_HEALTHCHECK_URL }}
+          PROD_ADMIN_FRONT_URL: ${{ vars.PROD_ADMIN_FRONT_URL }}
+        run: |
+          set -euo pipefail
+          for url in \
+            "$PROD_GATEWAY_HEALTHCHECK_URL" \
+            "$PROD_ADMIN_GATEWAY_HEALTHCHECK_URL" \
+            "$PROD_ADMIN_FRONT_URL"; do
+            if [[ -n "$url" ]]; then
+              curl --fail --silent --show-error --location --max-time 20 "$url" >/dev/null
+            fi
+          done

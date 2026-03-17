@@ -91,7 +91,7 @@ class ProviderWithdrawService(
             return 0
 
     def _normalize_withdrawal_rows(self) -> List[WithdrawalIntentRow]:
-        raw_rows = self.storage.get_data_manager().system.gateway_state.read_withdrawal_intents()
+        raw_rows = self.storage.get_data_manager().system.gateway_state.read_provider_withdrawal_rows()
         rows: List[WithdrawalIntentRow] = []
         if isinstance(raw_rows, list):
             for row in raw_rows:
@@ -106,7 +106,7 @@ class ProviderWithdrawService(
         return rows
 
     def _save_withdrawal_rows(self, rows: List[WithdrawalIntentRow]) -> None:
-        self.storage.get_data_manager().system.gateway_state.write_withdrawal_intents(
+        self.storage.get_data_manager().system.gateway_state.write_provider_withdrawal_rows(
             rows, int(time.time())
         )
 
@@ -219,7 +219,7 @@ class ProviderWithdrawService(
             "withdrawalId": str(row.id or ""),
             "status": str(row.status or "REQUESTED"),
             "amountUsdc": round(float(row.amount_usdc or 0.0), 6),
-            "ticket": dict(row.ticket or {}),
+            "ticket": row.ticket.model_dump(by_alias=True, mode="json", exclude_none=True),
             "message": str(row.message or ""),
         }
 
