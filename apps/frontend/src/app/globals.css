@@ -115,6 +115,34 @@ body {
   }
 }
 
+@keyframes networkNodePulse {
+  0%,
+  100% {
+    opacity: 0.26;
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(127, 247, 190, 0);
+  }
+
+  50% {
+    opacity: 0.64;
+    transform: scale(1.18);
+    box-shadow: 0 0 18px rgba(127, 247, 190, 0.18);
+  }
+}
+
+@keyframes networkFlowDrift {
+  0%,
+  100% {
+    opacity: 0.08;
+    transform: translate3d(0, 0, 0) scaleX(1);
+  }
+
+  50% {
+    opacity: 0.18;
+    transform: translate3d(0, -8px, 0) scaleX(1.03);
+  }
+}
+
 @keyframes registrySweep {
   0% {
     transform: translate3d(-18%, 0, 0);
@@ -297,6 +325,101 @@ body {
   animation: heroTraceCenter 9s ease-in-out infinite;
 }
 
+.agent-network-node {
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+  height: 8px;
+  width: 8px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(127, 247, 190, 0.56) 48%, transparent 76%);
+  animation: networkNodePulse 7.8s ease-in-out infinite;
+}
+
+.agent-network-node-a {
+  left: 12%;
+  top: 24%;
+}
+
+.agent-network-node-b {
+  left: 24%;
+  top: 16%;
+  animation-delay: 1.2s;
+}
+
+.agent-network-node-c {
+  left: 72%;
+  top: 19%;
+  animation-delay: 2.4s;
+}
+
+.agent-network-node-d {
+  right: 14%;
+  top: 28%;
+  animation-delay: 3.1s;
+}
+
+.agent-network-node-e {
+  left: 18%;
+  bottom: 24%;
+  animation-delay: 4s;
+}
+
+.agent-network-node-f {
+  right: 18%;
+  bottom: 22%;
+  animation-delay: 5.1s;
+}
+
+.agent-network-flow {
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 9999px;
+  filter: blur(0.3px);
+  animation: networkFlowDrift 13s ease-in-out infinite;
+}
+
+.agent-network-flow-a {
+  left: 6%;
+  top: 18%;
+  height: 240px;
+  width: min(38vw, 520px);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.agent-network-flow-b {
+  right: 7%;
+  top: 20%;
+  height: 250px;
+  width: min(36vw, 500px);
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+  animation-delay: 2.6s;
+}
+
+.agent-network-flow-c {
+  left: 28%;
+  top: 12%;
+  height: 160px;
+  width: min(30vw, 420px);
+  border-bottom-color: transparent;
+  opacity: 0.1;
+  animation-delay: 1.4s;
+}
+
+.agent-network-flow-d {
+  left: 18%;
+  bottom: 18%;
+  height: 150px;
+  width: min(64vw, 860px);
+  border-top-color: transparent;
+  opacity: 0.07;
+  animation-delay: 4.2s;
+}
+
 .registry-command-bar {
   position: relative;
   overflow: hidden;
@@ -351,6 +474,8 @@ body {
   .ambient-signal-right,
   .ambient-orb,
   .hero-trace,
+  .agent-network-node,
+  .agent-network-flow,
   .registry-command-bar::after,
   .registry-feed-row,
   .registry-feed-dot,
