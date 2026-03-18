@@ -167,75 +167,75 @@ export default function AgentsPage() {
 
   if (isLoading && credentials.length === 0) {
     credentialsContent = [1, 2, 3].map((i) => (
-      <div key={i} className="h-64 rounded-2xl bg-white/[0.02] border border-white/5 animate-pulse" />
+      <article key={i} aria-hidden="true" className="h-64 rounded-2xl bg-white/[0.02] border border-white/5 animate-pulse" />
     ));
   } else if (credentials.length === 0) {
     credentialsContent = (
-      <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4 bg-white/[0.01] border border-dashed border-white/10 rounded-3xl">
-        <div className="p-4 rounded-full bg-white/[0.03]">
+      <section className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4 bg-white/[0.01] border border-dashed border-white/10 rounded-3xl">
+        <span className="p-4 rounded-full bg-white/[0.03]" aria-hidden="true">
           <Bot className="w-10 h-10 text-gray-600" />
-        </div>
-        <div>
+        </span>
+        <header>
           <h3 className="text-lg font-bold text-white">No Agents Found</h3>
           <p className="text-sm text-gray-500 max-w-xs mx-auto">Create your first agent profile to start using Synapse Network services.</p>
-        </div>
+        </header>
         <button 
           onClick={() => void handleOpenCreateModal()}
           className="px-6 py-2 bg-white text-black rounded-full text-xs font-bold hover:bg-gray-200 transition-colors"
         >
           Get Started
         </button>
-      </div>
+      </section>
     );
   } else {
     credentialsContent = credentials.map((agent) => (
-      <div key={agent.id} className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] hover:border-blue-500/30 transition-all relative overflow-hidden">
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-xl ${agent.status === 'active' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-gray-500/10 border border-gray-500/20'}`}>
+      <article key={agent.id} className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] hover:border-blue-500/30 transition-all relative overflow-hidden">
+        <header className="flex items-start justify-between mb-6">
+          <section className="flex items-center gap-3">
+            <span className={`p-3 rounded-xl ${agent.status === 'active' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-gray-500/10 border border-gray-500/20'}`} aria-hidden="true">
               <Bot className={`w-5 h-5 ${agent.status === 'active' ? 'text-blue-400' : 'text-gray-500'}`} />
-            </div>
-            <div>
+            </span>
+            <section>
               <h3 className="font-bold text-white">{agent.name}</h3>
               <p className="text-xs text-gray-500 font-mono">{agent.id.slice(0, 8)}...</p>
-            </div>
-          </div>
-          <div className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${agent.status === 'active' ? 'bg-blue-500/10 text-blue-400' : 'bg-gray-500/10 text-gray-500'}`}>
+            </section>
+          </section>
+          <p className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${agent.status === 'active' ? 'bg-blue-500/10 text-blue-400' : 'bg-gray-500/10 text-gray-500'}`}>
             {agent.status}
-          </div>
-        </div>
+          </p>
+        </header>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        <section className="space-y-4">
+          <dl className="grid grid-cols-2 gap-3">
             <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Daily Budget</p>
-              <p className="text-sm font-bold text-emerald-400">${(agent.creditLimit ?? 0).toFixed(2)}</p>
+              <dt className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Daily Budget</dt>
+              <dd className="text-sm font-bold text-emerald-400">${(agent.creditLimit ?? 0).toFixed(2)}</dd>
             </div>
             <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Calls</p>
-              <p className="text-sm font-bold text-white">{agent.callsUsed} / {agent.maxCalls}</p>
+              <dt className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Calls</dt>
+              <dd className="text-sm font-bold text-white">{agent.callsUsed} / {agent.maxCalls}</dd>
             </div>
-          </div>
+          </dl>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
+          <section>
+            <header className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Usage</span>
               <span className="text-[10px] text-gray-500">{Math.round((agent.callsUsed / agent.maxCalls) * 100)}%</span>
-            </div>
-            <div className="h-2 bg-white/[0.03] rounded-full overflow-hidden">
-              <div 
+            </header>
+            <span className="block h-2 bg-white/[0.03] rounded-full overflow-hidden" aria-hidden="true">
+              <span 
                 className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
                 style={{ width: `${(agent.callsUsed / agent.maxCalls) * 100}%` }}
               />
-            </div>
-          </div>
+            </span>
+          </section>
 
-          <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Created</p>
-              <p className="text-xs text-gray-400">{agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : "Pending"}</p>
-            </div>
-            <div className="flex items-center gap-2">
+          <footer className="pt-4 border-t border-white/5 flex items-center justify-between">
+            <p>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 block">Created</span>
+              <span className="text-xs text-gray-400">{agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : "Pending"}</span>
+            </p>
+            <menu className="flex items-center gap-2">
               <button 
                 onClick={() => copyToClipboard(agent.tokenPrefix ?? agent.id, agent.id)}
                 className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
@@ -250,20 +250,20 @@ export default function AgentsPage() {
               >
                 <Trash2 className="w-4 h-4 text-red-400 group-hover/btn:text-red-300" />
               </button>
-            </div>
-          </div>
-        </div>
-      </div>
+            </menu>
+          </footer>
+        </section>
+      </article>
     ));
   }
 
   const issuedCredential = newCredential;
 
   return (
-    <div className="p-8 space-y-10 max-w-[1400px] mx-auto">
+    <main className="p-8 space-y-10 max-w-[1400px] mx-auto">
       {/* QUICK START GUIDE */}
       {shouldShowQuickStart && (
-        <div className="mb-10">
+        <section className="mb-10" aria-label="Quick start guide">
           <QuickStartGuide 
             onDepositComplete={() => {
               fetchCredentials();
@@ -272,19 +272,19 @@ export default function AgentsPage() {
               void handleOpenCreateModal();
             }}
           />
-        </div>
+        </section>
       )}
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <section>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Bot className="w-6 h-6 text-blue-400" />
             Agent Profiles
           </h1>
           <p className="text-sm text-gray-500 mt-1">Manage runtime identities, credentials, and budget policies for your agents.</p>
-        </div>
+        </section>
         
-        <div className="flex items-center gap-3">
+        <menu className="flex items-center gap-3">
           <button 
             onClick={handleRefresh}
             disabled={isRefreshing}
@@ -299,36 +299,37 @@ export default function AgentsPage() {
             <Plus className="w-4 h-4" />
             Create New Agent
           </button>
-        </div>
-      </div>
+        </menu>
+      </header>
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm">
+        <aside role="alert" className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm">
           <AlertCircle className="w-5 h-5" />
           {error}
-        </div>
+        </aside>
       )}
 
       {/* AGENT CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-label="Agent profiles list">
         {credentialsContent}
-      </div>
+      </section>
 
       {/* CREATE MODAL */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+        <dialog open className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" aria-labelledby="create-agent-title">
+          <section className="w-full max-w-md bg-[#0a0a0c] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+            <header className="p-6 border-b border-white/5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span id="create-agent-title" className="sr-only">Create Agent Profile</span>
                 <Plus className="w-5 h-5 text-blue-400" />
                 Create Agent Profile
               </h2>
               <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-500 hover:text-white">
                 <XCircle className="w-5 h-5" />
               </button>
-            </div>
+            </header>
             <form onSubmit={handleCreateCredential} className="p-6 space-y-6">
-              <div className="space-y-2">
+              <p className="space-y-2 block">
                 <label htmlFor="agent-name" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Agent Name</label>
                 <input
                   id="agent-name"
@@ -339,8 +340,8 @@ export default function AgentsPage() {
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50"
                   required
                 />
-              </div>
-              <div className="space-y-2">
+              </p>
+              <p className="space-y-2 block">
                 <label htmlFor="bound-owner" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Bound Owner</label>
                 <input
                   id="bound-owner"
@@ -349,9 +350,9 @@ export default function AgentsPage() {
                   value={ownerAddress || "Wallet session required"}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono text-blue-300 break-all"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              </p>
+              <section className="grid grid-cols-2 gap-4">
+                <p className="space-y-2 block">
                   <label htmlFor="daily-budget" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Daily Budget (USDC)</label>
                   <input
                     id="daily-budget"
@@ -362,8 +363,8 @@ export default function AgentsPage() {
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50"
                     required
                   />
-                </div>
-                <div className="space-y-2">
+                </p>
+                <p className="space-y-2 block">
                   <label htmlFor="max-calls" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Max Calls</label>
                   <input
                     id="max-calls"
@@ -373,14 +374,14 @@ export default function AgentsPage() {
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50"
                     required
                   />
-                </div>
-              </div>
-              <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-3">
+                </p>
+              </section>
+              <aside className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-blue-400 mt-0.5" />
                 <p className="text-[11px] text-gray-400 leading-relaxed">
                   Creating an agent will issue a unique credential bound to the active owner wallet session. You can revoke access or update budget policies at any time.
                 </p>
-              </div>
+              </aside>
               <button
                 type="submit"
                 disabled={isLoading}
@@ -389,50 +390,50 @@ export default function AgentsPage() {
                 {isLoading ? "Creating..." : "Issue Credential"}
               </button>
             </form>
-          </div>
-        </div>
+          </section>
+        </dialog>
       )}
 
       {/* SUCCESS MODAL (New Credential) */}
       {issuedCredential && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-          <div className="w-full max-w-lg bg-[#0a0a0c] border border-emerald-500/20 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.1)] overflow-hidden">
-            <div className="p-8 text-center space-y-6">
-              <div className="mx-auto p-4 rounded-full bg-emerald-500/10 border border-emerald-500/20 w-fit">
+        <dialog open className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" aria-labelledby="issued-agent-title">
+          <section className="w-full max-w-lg bg-[#0a0a0c] border border-emerald-500/20 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.1)] overflow-hidden">
+            <section className="p-8 text-center space-y-6">
+              <span className="mx-auto p-4 rounded-full bg-emerald-500/10 border border-emerald-500/20 w-fit block" aria-hidden="true">
                 <ShieldCheck className="w-10 h-10 text-emerald-400" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white">Agent Credential Issued</h2>
+              </span>
+              <header>
+                <h2 id="issued-agent-title" className="text-2xl font-bold text-white">Agent Credential Issued</h2>
                 <p className="text-sm text-gray-500 mt-2">Copy this token now. For security, it will not be shown again.</p>
-              </div>
+              </header>
               
-              <div className="relative group">
-                <div className="p-4 rounded-2xl bg-black border border-white/10 font-mono text-sm text-emerald-400 break-all text-left pr-12">
+              <section className="relative group">
+                <code className="block p-4 rounded-2xl bg-black border border-white/10 font-mono text-sm text-emerald-400 break-all text-left pr-12">
                   {issuedCredential.token}
-                </div>
+                </code>
                 <button 
                   onClick={() => copyToClipboard(issuedCredential.token, 'new-token')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
                 >
                   {copiedId === 'new-token' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
-              </div>
+              </section>
 
-              <div className="grid grid-cols-2 gap-4 text-left">
+              <dl className="grid grid-cols-2 gap-4 text-left">
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Agent Name</span>
-                  <span className="text-sm font-bold text-white">{issuedCredential.name}</span>
+                  <dt className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Agent Name</dt>
+                  <dd className="text-sm font-bold text-white">{issuedCredential.name}</dd>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Daily Budget</span>
-                  <span className="text-sm font-bold text-emerald-400">${(issuedCredential.creditLimit ?? 0).toFixed(2)}</span>
+                  <dt className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Daily Budget</dt>
+                  <dd className="text-sm font-bold text-emerald-400">${(issuedCredential.creditLimit ?? 0).toFixed(2)}</dd>
                 </div>
-              </div>
+              </dl>
 
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-left">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Bound Owner</span>
-                <span className="text-sm font-mono text-blue-300 break-all">{issuedCredential.ownerAddress}</span>
-              </div>
+              <dl className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-left">
+                <dt className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Bound Owner</dt>
+                <dd className="text-sm font-mono text-blue-300 break-all">{issuedCredential.ownerAddress}</dd>
+              </dl>
 
               <button 
                 onClick={() => setNewCredential(null)}
@@ -440,11 +441,11 @@ export default function AgentsPage() {
               >
                 I&apos;ve Saved the Token
               </button>
-            </div>
-          </div>
-        </div>
+            </section>
+          </section>
+        </dialog>
       )}
-    </div>
+    </main>
   );
 }
 
