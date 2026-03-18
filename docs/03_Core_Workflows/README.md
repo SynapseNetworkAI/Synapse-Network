@@ -1,6 +1,6 @@
 # Core Workflows
 
-本目录定义 Synapse Network 当前最重要的五条业务链路。
+本目录定义 Synapse Network 当前最重要的五条业务链路，以及少量直接服务这些链路的架构取舍专题。
 
 这些文档的写法遵守两个原则：
 
@@ -23,6 +23,8 @@
 	再看 Provider 如何注册服务、绑定收款账户并把能力挂到网络里。
 5. `05_Withdrawal_and_Risk_Gates.md`
 	最后看 Provider 如何提现，以及为什么必须经过风险三段阀门和 EIP-712 票据。
+6. `06_Deposit_Entry_Architecture_Comparison.md`
+	当需要决定 Owner 入金入口到底走 `permit + depositWithPermit` 还是 `ERC20 transfer(vault)` 时，读这篇对比专题。
 
 ## 总体关系图
 

@@ -38,6 +38,9 @@ class DepositIntentRow(BaseModel):
     )
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
+    client_request_id: Optional[str] = Field(default=None, alias="clientRequestId")
+    client_ip: Optional[str] = Field(default=None, alias="clientIp")
+    user_agent: Optional[str] = Field(default=None, alias="userAgent")
     status: str = "PENDING_CONFIRMATION"
     event_key: Optional[str] = Field(default=None, alias="eventKey")
     confirmations: Optional[int] = None

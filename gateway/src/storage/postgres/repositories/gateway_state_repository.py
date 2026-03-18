@@ -315,24 +315,40 @@ class GatewayStateRepository:
                 cur.execute(
                     """
                     INSERT INTO synapse_vault_deposits (
-                        deposit_id, owner_id, tx_hash, amount_usdc, status,
-                        block_number, request_id, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, NULL, %s, %s, %s)
+                        deposit_id, owner_id, owner_address, target_account_id, tx_hash,
+                        amount_usdc, status, block_number, request_id, client_request_id,
+                        client_ip, user_agent, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (tx_hash)
                     DO UPDATE SET
                         owner_id = EXCLUDED.owner_id,
+                        owner_address = EXCLUDED.owner_address,
+                        target_account_id = EXCLUDED.target_account_id,
                         request_id = EXCLUDED.request_id,
                         amount_usdc = EXCLUDED.amount_usdc,
                         status = EXCLUDED.status,
+                        client_request_id = EXCLUDED.client_request_id,
+                        client_ip = EXCLUDED.client_ip,
+                        user_agent = EXCLUDED.user_agent,
                         updated_at = EXCLUDED.updated_at
                     """,
                     (
                         entity.id,
                         owner_id,
+                        entity.owner_address.lower(),
+                        self._ensure_ledger_account(
+                            cur,
+                            entity.owner_address.lower(),
+                            "consumer_wallet",
+                            updated_at,
+                        ),
                         entity.tx_hash.lower(),
-                        entity.request_id,
                         str(self._q6(entity.amount_usdc)),
                         entity.status,
+                        entity.request_id,
+                        entity.client_request_id,
+                        entity.client_ip,
+                        entity.user_agent,
                         to_dt_str(entity.created_at, now_dt_str()),
                         updated_at,
                     ),
@@ -369,8 +385,8 @@ class GatewayStateRepository:
                 FROM synapse_vault_withdrawals vw
                 JOIN synapse_ledger_accounts account
                   ON account.account_id = vw.source_account_id
-                JOIN synapse_owners owner
-                  ON owner.owner_id = account.owner_id
+                                JOIN synapse_owner_accounts owner
+                                    ON owner.owner_id = account.owner_id
                 LEFT JOIN synapse_runtime_state rs
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
                 WHERE vw.withdrawal_kind = 'consumer_refund'
@@ -446,15 +462,17 @@ class GatewayStateRepository:
                     "consumer_wallet",
                     row_updated_at,
                 )
+                owner_id = self._owner_id(consumer_wallet)
                 cur.execute(
                     """
                     INSERT INTO synapse_vault_withdrawals (
-                        withdrawal_id, withdrawal_kind, source_account_id, request_id,
-                        amount_usdc, status, tx_hash, signature, nonce, deadline,
-                        created_at, updated_at
-                    ) VALUES (%s, 'consumer_refund', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        withdrawal_id, owner_id, provider_id, withdrawal_kind,
+                        source_account_id, request_id, amount_usdc, status, tx_hash,
+                        signature, nonce, deadline, created_at, updated_at
+                    ) VALUES (%s, %s, NULL, 'consumer_refund', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (withdrawal_id)
                     DO UPDATE SET
+                        owner_id = EXCLUDED.owner_id,
                         source_account_id = EXCLUDED.source_account_id,
                         request_id = EXCLUDED.request_id,
                         amount_usdc = EXCLUDED.amount_usdc,
@@ -467,6 +485,7 @@ class GatewayStateRepository:
                     """,
                     (
                         row.id,
+                        owner_id,
                         source_account_id,
                         row.request_id,
                         str(self._q6(row.amount_usdc)),
@@ -529,8 +548,8 @@ class GatewayStateRepository:
                 FROM synapse_vault_withdrawals vw
                 JOIN synapse_ledger_accounts account
                   ON account.account_id = vw.source_account_id
-                JOIN synapse_owners owner
-                  ON owner.owner_id = account.owner_id
+                                JOIN synapse_owner_accounts owner
+                                    ON owner.owner_id = account.owner_id
                 LEFT JOIN synapse_runtime_state rs
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
                 WHERE vw.withdrawal_kind = 'provider_withdrawal'
@@ -605,15 +624,19 @@ class GatewayStateRepository:
                     "provider_wallet",
                     row_updated_at,
                 )
+                owner_id = self._owner_id(owner_wallet)
+                provider_id = self._provider_id(owner_wallet)
                 cur.execute(
                     """
                     INSERT INTO synapse_vault_withdrawals (
-                        withdrawal_id, withdrawal_kind, source_account_id, request_id,
-                        amount_usdc, status, tx_hash, signature, nonce, deadline,
-                        created_at, updated_at
-                    ) VALUES (%s, 'provider_withdrawal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        withdrawal_id, owner_id, provider_id, withdrawal_kind,
+                        source_account_id, request_id, amount_usdc, status, tx_hash,
+                        signature, nonce, deadline, created_at, updated_at
+                    ) VALUES (%s, %s, %s, 'provider_withdrawal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (withdrawal_id)
                     DO UPDATE SET
+                        owner_id = EXCLUDED.owner_id,
+                        provider_id = EXCLUDED.provider_id,
                         source_account_id = EXCLUDED.source_account_id,
                         request_id = EXCLUDED.request_id,
                         amount_usdc = EXCLUDED.amount_usdc,
@@ -626,6 +649,8 @@ class GatewayStateRepository:
                     """,
                     (
                         row.id,
+                        owner_id,
+                        provider_id,
                         source_account_id,
                         row.request_id,
                         str(self._q6(row.amount_usdc)),

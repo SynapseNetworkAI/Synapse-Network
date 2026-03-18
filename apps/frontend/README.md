@@ -9,6 +9,9 @@ yarn install
 yarn dev
 ```
 
+Package management for `apps/frontend` is standardized on Yarn.
+Do not use `npm install` or `npm ci` in this app, and do not regenerate `package-lock.json`.
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 ## Environment Variables

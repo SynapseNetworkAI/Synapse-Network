@@ -13,13 +13,22 @@ from src.utils.datetime_utils import now_dt_str
 from .shared import _now
 
 
-def _load_deposit_intents(storage: BaseStorage) -> List[DepositIntentRow]:
-    """从存储层读取充值意图，并统一转换成 typed row。"""
+def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
+    """从存储层读取充值意图，并统一转换成 indexer 可变 dict。"""
     raw_rows = storage.get_data_manager().system.gateway_state.read_deposit_intents()
-    return raw_rows if isinstance(raw_rows, list) else []
+    if not isinstance(raw_rows, list):
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+    for row in raw_rows:
+        if isinstance(row, DepositIntentRow):
+            normalized.append(row.model_dump(by_alias=True, mode="json"))
+        elif isinstance(row, dict):
+            normalized.append(dict(row))
+    return normalized
 
 
-def _save_deposit_intents(storage: BaseStorage, rows: List[DepositIntentRow]) -> None:
+def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
     """把充值意图刷回存储层。"""
     repo = storage.get_data_manager().system.gateway_state
     repo.write_deposit_intents(rows)

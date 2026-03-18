@@ -70,6 +70,7 @@ Deposit intent 的最低语义：
 2. 要求唯一 `txHash`
 3. 先进入待确认
 4. 确认后再转可消费余额
+5. replay 命中时返回已有 intent，不把重复提交暴露成 409 冲突
 
 ### 4.3 Provider Withdrawal Intent
 

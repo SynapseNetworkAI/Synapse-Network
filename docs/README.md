@@ -78,9 +78,10 @@
 ### 5.2 看 Owner 资金与 Agent Runtime 主链路
 
 1. [03_Core_Workflows/01_Deposit_and_Idempotency.md](./03_Core_Workflows/01_Deposit_and_Idempotency.md)
-2. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
-3. [03_Core_Workflows/03_Billing_Settlement_and_Audit.md](./03_Core_Workflows/03_Billing_Settlement_and_Audit.md)
-4. [03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](./03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
+2. [03_Core_Workflows/06_Deposit_Entry_Architecture_Comparison.md](./03_Core_Workflows/06_Deposit_Entry_Architecture_Comparison.md)
+3. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
+4. [03_Core_Workflows/03_Billing_Settlement_and_Audit.md](./03_Core_Workflows/03_Billing_Settlement_and_Audit.md)
+5. [03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](./03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
 
 ### 5.3 看 Provider 注册、转发、收益、提现
 

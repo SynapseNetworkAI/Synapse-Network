@@ -266,9 +266,11 @@ class BalanceRedisGuardMixin:
                 "FINANCE_RATE_LIMIT_HIT",
                 owner,
                 {
+                    "businessType": "anomaly",
                     "action": action,
                     "limitPerMin": max_per_min,
                     "windowBucket": window_bucket,
+                    "rateLimitBucket": str(window_bucket),
                     "backend": "redis",
                 },
             )
@@ -320,9 +322,11 @@ class BalanceRedisGuardMixin:
                 "FINANCE_RATE_LIMIT_HIT",
                 owner,
                 {
+                    "businessType": "anomaly",
                     "action": action,
                     "limitPerMin": max_per_min,
                     "windowStart": int(matched.window_start or now),
+                    "rateLimitBucket": str(int(matched.window_start or now) // 60),
                     "backend": "storage-fallback",
                 },
             )
@@ -413,34 +417,62 @@ class BalanceRedisGuardMixin:
         )
         self._save_idempotency_rows(rows)
 
+    @staticmethod
+    def _row_value(row: Any, alias: str) -> Any:
+        if isinstance(row, dict):
+            return row.get(alias)
+        if hasattr(row, "model_dump"):
+            try:
+                return row.model_dump(by_alias=True, mode="json").get(alias)
+            except Exception:
+                return None
+        return None
+
+    @staticmethod
+    def _serialize_row(row: Any) -> Optional[Dict[str, Any]]:
+        if isinstance(row, dict):
+            return dict(row)
+        if hasattr(row, "model_dump"):
+            try:
+                payload = row.model_dump(by_alias=True, mode="json")
+                return payload if isinstance(payload, dict) else None
+            except Exception:
+                return None
+        return None
+
     def _validate_unique_recent_deposit(
-        self, rows: List[Dict[str, Any]], owner_wallet: str, tx_hash: str
-    ) -> None:
+        self, rows: List[Any], owner_wallet: str, tx_hash: str
+    ) -> Optional[Dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         now = int(time.time())
         replay_window = max(60, int(settings.finance_replay_window_sec))
         for row in rows:
             row_owner = normalize_wallet(
-                str(row.get("ownerAddress") or "")
+                str(self._row_value(row, "ownerAddress") or "")
             )
             if row_owner != owner:
                 continue
-            if str(row.get("txHash") or "").strip().lower() != tx_hash.strip().lower():
+            if str(self._row_value(row, "txHash") or "").strip().lower() != tx_hash.strip().lower():
                 continue
-            created_at = self._parse_created_at_epoch(row.get("createdAt"))
+            created_at = self._parse_created_at_epoch(
+                self._row_value(row, "createdAt")
+            )
             if created_at and (now - created_at) <= replay_window:
+                existing = self._serialize_row(row)
+                if existing is None:
+                    continue
                 self._append_financial_audit(
-                    "DEPOSIT_REPLAY_DETECTED",
+                    "DEPOSIT_REPLAY_RETURNED_EXISTING",
                     owner,
-                    {"txHash": tx_hash, "replayWindowSec": replay_window},
-                )
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "DEPOSIT_REPLAY_DETECTED",
-                        "message": "Duplicate deposit txHash detected in replay-protection window.",
+                    {
+                        "txHash": tx_hash,
+                        "replayWindowSec": replay_window,
+                        "depositIntentId": existing.get("id"),
+                        "status": existing.get("status"),
                     },
                 )
+                return existing
+        return None
 
     async def _begin_provider_withdraw_idempotency(
         self,

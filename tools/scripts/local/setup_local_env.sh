@@ -36,7 +36,7 @@ ensure_hardhat_local() {
 		echo "Installing local contract toolchain dependencies..."
 		(
 			cd "${ROOT_DIR}"
-			npm install
+			yarn install
 		)
 	fi
 }
@@ -81,7 +81,7 @@ fi
 ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore)")
 PROVIDER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
-echo "3) Starting gateway/provider_fastapi.py in background (local profile)..."
+echo "3) Starting gateway/gateway_fastapi.py in background (local profile)..."
 cd "${ROOT_DIR}/gateway"
 
 if [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
@@ -120,7 +120,7 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" provider_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
+	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
@@ -128,7 +128,7 @@ else
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" provider_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
+	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
 fi
 PROVIDER_PID=$!
 sleep 3
@@ -152,10 +152,10 @@ if [[ -n "$EXISTING_FRONTEND_PID" ]]; then
 else
 	if [[ ! -d "${ROOT_DIR}/apps/frontend/node_modules" ]]; then
 		echo "apps/frontend/node_modules not found. Installing npm dependencies..."
-		npm install
+		yarn install
 	fi
 
-	npm run dev > "${ROOT_DIR}/apps/frontend/frontend_dev.log" 2>&1 &
+	yarn dev > "${ROOT_DIR}/apps/frontend/frontend_dev.log" 2>&1 &
 	FRONTEND_PID=$!
 	FRONTEND_OWNED_BY_SCRIPT=1
 	sleep 5
