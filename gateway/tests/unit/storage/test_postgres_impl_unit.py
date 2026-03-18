@@ -207,6 +207,22 @@ def test_validate_schema_contract_rejects_missing_deposit_attempt_unique_constra
         assert "unique attempt stage per attempt_id" in str(exc)
 
 
+def test_validate_schema_contract_rejects_missing_finance_rate_limit_index() -> None:
+    storage = object.__new__(PostgresStorage)
+    storage._db = _FakeDB(
+        _schema_rows(
+            missing_index=("synapse_finance_rate_limit", "idx_synapse_finance_rate_limit_owner_action")
+        )
+    )  # type: ignore[attr-defined]
+
+    try:
+        storage._validate_schema_contract()
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "synapse_finance_rate_limit" in str(exc)
+        assert "idx_synapse_finance_rate_limit_owner_action" in str(exc)
+
+
 def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:
     captured = {}
 

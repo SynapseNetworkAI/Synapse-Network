@@ -278,8 +278,16 @@ class GatewayStateRepository:
             for row_id, owner, tx_hash, request_id, meta_payload, amount_usdc, status, created_at, updated_at in rows
         ]
 
-    def _normalize_deposit_intent_row(self, row: DepositIntentRow) -> DepositIntentRow | None:
-        entity = row
+    def _normalize_deposit_intent_row(self, row: Any) -> DepositIntentRow | None:
+        if isinstance(row, DepositIntentRow):
+            entity = row
+        elif isinstance(row, dict):
+            try:
+                entity = DepositIntentRow.model_validate(row)
+            except Exception:
+                return None
+        else:
+            return None
 
         row_id = str(entity.id or "").strip()
         owner = str(entity.owner_address or "").strip().lower()
