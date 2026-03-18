@@ -1,30 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAccount, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { parseAbi, parseUnits, type Hex } from "viem";
 import {
-  AlertCircle,
   Bot,
   CheckCircle2,
   ChevronRight,
   Copy,
   KeyRound,
-  Lock,
-  RefreshCw,
   Rocket,
   Wallet,
-  Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import contractConfig from "@/contract-config.json";
-import { createDepositIntent } from "@/utils/balanceApi";
-
-const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
-
-const vaultABI = parseAbi([
-  "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external",
-]);
+import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
+import { useVaultDeposit } from "@/hooks/useVaultDeposit";
 
 type RunwayStep = "deposit" | "agent" | "credential" | "invoke";
 type RunwayState = "LOCKED" | "READY" | "DONE" | "BLOCKED";
@@ -202,39 +190,33 @@ export default function ActivationRunway({
   onDepositComplete,
   onCopyLatestCredential,
 }: Readonly<ActivationRunwayProps>) {
-  const { address: userAddress } = useAccount();
   const hasBalance = Number(ownerBalance) > 0;
   const hasCredential = Boolean(latestCredentialPrefix);
   const [activeStep, setActiveStep] = useState<RunwayStep>("deposit");
   const [copiedCredential, setCopiedCredential] = useState(false);
-  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
-  const [depositAmount, setDepositAmount] = useState("10");
-  const [depositError, setDepositError] = useState("");
-  const [depositStep, setDepositStep] = useState<"input" | "signing" | "executing">("input");
-
-  const { data: usdcNonce } = useReadContract({
-    address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi(["function nonces(address) view returns (uint256)"]),
-    functionName: "nonces",
-    args: userAddress ? [userAddress] : undefined,
-    query: { enabled: !!userAddress },
+  const {
+    isOpen: isDepositModalOpen,
+    openModal: openDepositModal,
+    closeModal: closeDepositModal,
+    depositAmount,
+    setDepositAmount,
+    depositError,
+    depositStep,
+    handleDeposit,
+    isPending,
+    isConfirming,
+    walletUsdcBalance,
+    vaultAddress,
+    walletAddress,
+    shortAddress,
+  } = useVaultDeposit({
+    initialAmount: "10",
+    onDepositSynced: async () => {
+      setActiveStep("agent");
+      onDepositComplete?.();
+      toast.success("Deposit confirmed. You can create the first runtime now.");
+    },
   });
-
-  const { data: walletUsdcBalanceRaw, refetch: refetchWalletBalance } = useReadContract({
-    address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
-    functionName: "balanceOf",
-    args: userAddress ? [userAddress] : undefined,
-    query: { enabled: !!userAddress },
-  });
-
-  const walletUsdcBalance = userAddress && walletUsdcBalanceRaw !== undefined
-    ? Number(walletUsdcBalanceRaw) / 1e18
-    : 0;
-
-  const { signTypedDataAsync } = useSignTypedData();
-  const { data: hash, writeContractAsync, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
   useEffect(() => {
     if (!isConnected || !hasSession) {
@@ -255,101 +237,6 @@ export default function ActivationRunway({
     }
     setActiveStep("invoke");
   }, [hasActiveAgent, hasSession, isConnected, latestCredentialPrefix, ownerBalance]);
-
-  const handleDeposit = useCallback(async () => {
-    if (!userAddress || !signTypedDataAsync) {
-      return;
-    }
-
-    try {
-      setDepositError("");
-      setDepositStep("signing");
-
-      const amountUsdc = Number(depositAmount);
-      if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) {
-        setDepositError("Please enter a valid deposit amount");
-        setDepositStep("input");
-        return;
-      }
-
-      if (amountUsdc > walletUsdcBalance) {
-        setDepositError("Insufficient USDC balance in wallet");
-        setDepositStep("input");
-        return;
-      }
-
-      const amount = parseUnits(depositAmount, 18);
-      const deadline = Math.floor(Date.now() / 1000) + 3600;
-      const nonce = usdcNonce ?? BigInt(0);
-
-      const signature = await signTypedDataAsync({
-        account: userAddress,
-        domain: {
-          name: "MockUSDC",
-          version: "1",
-          chainId: 1,
-          verifyingContract: contractConfig.MockUSDC as `0x${string}`,
-        },
-        types: {
-          Permit: [
-            { name: "owner", type: "address" },
-            { name: "spender", type: "address" },
-            { name: "value", type: "uint256" },
-            { name: "nonce", type: "uint256" },
-            { name: "deadline", type: "uint256" },
-          ],
-        },
-        primaryType: "Permit",
-        message: {
-          owner: userAddress,
-          spender: VAULT_ADDRESS,
-          value: amount.toString(),
-          nonce: nonce.toString(),
-          deadline,
-        },
-      });
-
-      setDepositStep("executing");
-
-      const v = Number.parseInt(signature.slice(130, 132), 16);
-      const r: Hex = `0x${signature.slice(2, 66)}`;
-      const s: Hex = `0x${signature.slice(66, 130)}`;
-
-      await writeContractAsync({
-        address: VAULT_ADDRESS,
-        abi: vaultABI,
-        functionName: "depositWithPermit",
-        args: [amount, BigInt(deadline), v, r, s],
-      });
-
-      toast.success("Deposit initiated. Waiting for confirmation...");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Deposit failed";
-      setDepositError(message);
-      setDepositStep("input");
-      toast.error(message);
-    }
-  }, [depositAmount, signTypedDataAsync, usdcNonce, userAddress, walletUsdcBalance, writeContractAsync]);
-
-  useEffect(() => {
-    if (!isConfirmed || !hash) {
-      return;
-    }
-
-    setDepositStep("input");
-    setIsDepositModalOpen(false);
-    setActiveStep("agent");
-    onDepositComplete?.();
-    toast.success("Deposit confirmed. You can create the first runtime now.");
-    refetchWalletBalance();
-
-    if (userAddress) {
-      createDepositIntent(userAddress, {
-        txHash: hash,
-        amountUsdc: Number(depositAmount),
-      }).catch(console.error);
-    }
-  }, [depositAmount, hash, isConfirmed, onDepositComplete, refetchWalletBalance, userAddress]);
 
   const handleCopyCredential = useCallback(() => {
     if (!latestIssuedToken) {
@@ -377,7 +264,7 @@ export default function ActivationRunway({
 
   const handleCardAction = useCallback((card: RunwayCard) => {
     if (card.step === "deposit") {
-      setIsDepositModalOpen(true);
+      openDepositModal();
       return;
     }
     if (card.step === "agent") {
@@ -393,7 +280,7 @@ export default function ActivationRunway({
       return;
     }
     onRunExample();
-  }, [handleCopyCredential, latestIssuedToken, onAgentCreated, onRunExample]);
+  }, [handleCopyCredential, latestIssuedToken, onAgentCreated, onRunExample, openDepositModal]);
 
   return (
     <section id="activation-runway" className="space-y-6" aria-label="Activation runway">
@@ -462,82 +349,21 @@ export default function ActivationRunway({
         })}
       </div>
 
-      {isDepositModalOpen && (
-        <dialog open className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" aria-labelledby="deposit-modal-title">
-          <section className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0c] shadow-2xl">
-            <header className="flex items-center justify-between border-b border-white/5 p-6">
-              <h3 id="deposit-modal-title" className="text-lg font-bold text-white">Deposit USDC</h3>
-              <button type="button" onClick={() => setIsDepositModalOpen(false)} className="text-gray-500 transition hover:text-white">
-                <Lock className="h-5 w-5" />
-              </button>
-            </header>
-
-            <section className="space-y-6 p-6">
-              <label htmlFor="runway-deposit-amount" className="block space-y-2">
-                <span className="text-xs font-bold uppercase tracking-[0.22em] text-gray-500">Amount (USDC)</span>
-                <input
-                  id="runway-deposit-amount"
-                  type="number"
-                  step="0.01"
-                  value={depositAmount}
-                  onChange={(event) => setDepositAmount(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-blue-500/50"
-                  placeholder="10.00"
-                  disabled={depositStep !== "input"}
-                />
-                <span className="text-xs text-gray-500">Wallet balance: {walletUsdcBalance.toFixed(2)} USDC</span>
-              </label>
-
-              {depositError && (
-                <aside className="flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300" role="alert">
-                  <AlertCircle className="h-5 w-5" />
-                  {depositError}
-                </aside>
-              )}
-
-              {depositStep !== "input" && (
-                <section className="space-y-3" aria-label="Deposit progress">
-                  <article className={`flex items-center gap-3 rounded-2xl border p-3 ${depositStep === "signing" ? "border-blue-500/40 bg-blue-500/10 text-blue-300" : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"}`}>
-                    {depositStep === "signing" ? <RefreshCw className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-                    <div className="text-sm">
-                      <p className="font-semibold">Step 1: Sign Permit</p>
-                      <p className="text-xs opacity-80">{depositStep === "signing" ? "Waiting for wallet signature..." : "Signed"}</p>
-                    </div>
-                  </article>
-
-                  <article className={`flex items-center gap-3 rounded-2xl border p-3 ${depositStep === "executing" ? "border-blue-500/40 bg-blue-500/10 text-blue-300" : "border-white/10 bg-white/5 text-gray-500"}`}>
-                    {depositStep === "executing" ? <RefreshCw className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
-                    <div className="text-sm">
-                      <p className="font-semibold">Step 2: Execute Deposit</p>
-                      <p className="text-xs opacity-80">{depositStep === "executing" ? "Confirming on-chain..." : "Waiting for permit signature"}</p>
-                    </div>
-                  </article>
-                </section>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsDepositModalOpen(false)}
-                  disabled={depositStep !== "input"}
-                  className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeposit()}
-                  disabled={depositStep !== "input" || isPending || isConfirming}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-full bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {(isPending || isConfirming) && <RefreshCw className="h-4 w-4 animate-spin" />}
-                  Deposit Now
-                </button>
-              </div>
-            </section>
-          </section>
-        </dialog>
-      )}
+      <DepositUsdcModal
+        isOpen={isDepositModalOpen}
+        amount={depositAmount}
+        onAmountChange={setDepositAmount}
+        error={depositError}
+        step={depositStep}
+        isPending={isPending}
+        isConfirming={isConfirming}
+        walletAddress={walletAddress}
+        vaultAddress={vaultAddress}
+        walletUsdcBalance={walletUsdcBalance}
+        shortAddress={shortAddress}
+        onClose={closeDepositModal}
+        onConfirm={handleDeposit}
+      />
     </section>
   );
 }

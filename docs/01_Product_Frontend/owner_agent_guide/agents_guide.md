@@ -5,6 +5,17 @@
 > Current Components: `ActivationStatusStrip.tsx`, `ActivationRunway.tsx`, `FirstInvocationPanel.tsx`  
 > Identity Context: Owner Control Plane / Agent Workspace
 
+## 0. Canonical Status
+
+This file is now the only maintained product guide for the Agents page.
+
+`docs/01_Product_Frontend/agents.md` has been retired and deleted because its historical design is no longer part of the active frontend direction.
+
+The current funding path also changed:
+
+1. `Deposit USDC` on Agents now reuses the same Vault Deposit flow as Developer Console
+2. permit signing, transaction submission, receipt recovery, and deposit-intent retry are no longer maintained as a separate Agents-only implementation
+
 ## 1. Product Role
 
 Agents page is not just a credential list page.

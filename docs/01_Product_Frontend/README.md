@@ -25,6 +25,20 @@
 3. `03_Admin_Control_Plane_Architecture.md`
 4. `04_Frontend_Design_System_Application.md`
 
+## 迁移说明
+
+`docs/01_Product_Frontend/agents.md` 已正式退役，不再作为 Agents 页的设计真理源。
+
+当前唯一有效的 Agents 页面说明迁移到：
+
+1. `docs/01_Product_Frontend/owner_agent_guide/agents_guide.md`
+
+清理原则：
+
+1. 历史上未继续采用的 Agents 旧方案直接删除，不保留并行设计入口
+2. 后续 Agents 页面改动只更新 owner guide，不再恢复旧 `agents.md`
+3. 充值能力与 `apps/frontend/src/app/dashboard/console/page.tsx` 使用同一套 Vault Deposit 流程，避免控制台与 Agents 页出现双轨实现
+
 ## 模块边界
 
 本目录不承担：
