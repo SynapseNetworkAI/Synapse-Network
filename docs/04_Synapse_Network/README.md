@@ -38,7 +38,20 @@
 2. Provider 注册服务时，哪些字段是 canonical，哪些是 Gateway 扩展字段。
 3. Gateway 内部的扣费、回滚、费率策略、Provider 控制面如何实现。
 
-## 3. 目录约束
+## 3. 迁移说明索引
+
+本目录里的以下文档继续保留，但都已经降级为实现补充层，不再承担 canonical 定义职责：
+
+1. `API_Billing_Deduction_Protocol.md`
+	canonical 替代：`docs/agent/02_Discovery_Quote_Invoke_API_Design.md`、`docs/api.md`、`docs/agent/04_Credential_Budget_Risk_Model.md`、`docs/03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md`
+2. `Service_Manifest_Registration.md`
+	canonical 替代：`docs/agent/03_Service_Manifest_Field_Standard.md`、`docs/api.md`
+3. `Credential_and_RateLimit.md`
+	canonical 替代：`docs/agent/04_Credential_Budget_Risk_Model.md`、`docs/agent/06_Build_For_Agent_Database_Rebuild.md`、`docs/api.md`
+4. `平台费率动态计算.md`
+	canonical 替代：`docs/api.md`、`docs/03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md`、`docs/Gateway_Database_Design.md`
+
+## 4. 目录约束
 
 1. 本目录不能重新定义 Discovery / Quote / Invoke 主协议。
 2. 本目录不能重新定义 Agent Credential / Budget 主模型。

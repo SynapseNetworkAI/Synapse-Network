@@ -190,7 +190,24 @@
 4. `docs/plan/` 只放收敛计划、执行计划，不放长期 canonical 设计。
 5. 如果旧文档已失效，先修正 README 和子目录入口，再决定归档或删除。
 
-## 7. 当前维护基准
+## 7. 迁移说明索引
+
+下面这些入口保留是为了兼容旧搜索路径或历史阅读习惯，但它们已经不再是 canonical 事实源：
+
+1. `04_Synapse_Network/README.md`
+	迁移目标：所有 Runtime 协议、Manifest、Credential、Budget 主定义，统一迁移到 `agent/` 与 `api.md`；本目录只保留 Gateway / Provider 控制面的实现补充。
+2. `06_Developer_Guides/Buyer_SDK_Quickstart.md`
+	迁移目标：统一迁移到 `06_Developer_Guides/Agent_SDK_Quickstart.md`、`api.md`、`agent/02_Discovery_Quote_Invoke_API_Design.md`、`agent/04_Credential_Budget_Risk_Model.md`。
+3. `04_Synapse_Network/API_Billing_Deduction_Protocol.md`
+	迁移目标：协议与账本主定义迁移到 `agent/02_Discovery_Quote_Invoke_API_Design.md`、`agent/04_Credential_Budget_Risk_Model.md`、`03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md`。
+4. `04_Synapse_Network/Service_Manifest_Registration.md`
+	迁移目标：Manifest 主字段标准迁移到 `agent/03_Service_Manifest_Field_Standard.md`，接口契约迁移到 `api.md`。
+5. `04_Synapse_Network/Credential_and_RateLimit.md`
+	迁移目标：Runtime 凭据和预算主模型迁移到 `agent/04_Credential_Budget_Risk_Model.md` 与 `agent/06_Build_For_Agent_Database_Rebuild.md`。
+6. `04_Synapse_Network/平台费率动态计算.md`
+	迁移目标：对外字段与结算链路迁移到 `api.md`、`03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md`、`Gateway_Database_Design.md`。
+
+## 8. 当前维护基准
 
 Synapse 当前已经不是“给人类手工管理 API key 的平台”，而是：
 

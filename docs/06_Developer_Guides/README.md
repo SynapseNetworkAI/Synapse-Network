@@ -42,6 +42,14 @@
 3. `Provider`：Owner 的供给侧业务角色。
 4. `Platform Gateway`：统一鉴权、代理转发、记账、日志、审计执行层。
 
+## 迁移说明索引
+
+本目录当前只有一个历史兼容入口仍被保留：
+
+1. `Buyer_SDK_Quickstart.md`
+	canonical 替代：`Agent_SDK_Quickstart.md`、`../api.md`、`../agent/02_Discovery_Quote_Invoke_API_Design.md`、`../agent/04_Credential_Budget_Risk_Model.md`
+	保留原因：兼容旧搜索路径和旧 Buyer 术语入口，避免把旧主语义继续带回 Runtime 文档体系。
+
 ## 维护规则
 
 1. 本目录写“怎么开发、怎么测试、怎么部署、怎么排障”，不重新定义产品协议。
