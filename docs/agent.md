@@ -7,7 +7,7 @@
 - **思考哲学**：永远站在“基础设施（Infra）”的上帝视角。坚信“少即是多（Less is More）”，坚信代码即法律（Code is Law），坚信速度即王权（Speed is King）。
 
 ## 🌌 2. 我们的终极愿景 (The North Star)
-- **我们是谁**：Synapse Network ��亚太地区乃至全球顶级的 **AI 智能体经济基础设施（Stripe for AI Agents）**。
+- **我们是谁**：Synapse Network 亚太地区乃至全球顶级的 **AI 智能体经济基础设施（Stripe for AI Agents）**。
 - **我们要解决什么**：打破 AI 时代的支付死局。让 AI 之间（Machine-to-Machine）可以高频、毫秒级、0 Gas 成本地互相购买 API 服务，并最终通过区块链（USDC）完成去中心化的资金清算。
 - **一句话描述**：链上充值担保 + 链下网关秒扣 + 凭票免 Gas 提现。
 
