@@ -172,6 +172,15 @@ $$
 4. 结算策略
 5. 风控命中上下文
 
+### 9.1 Audit Noise Guardrails
+
+对于高频异常事件，审计必须保留可追溯性，但不能无限制洪泛：
+
+1. `DEPOSIT_INTENT_REGISTERED` 这类带 `txHash` 的事件，不应对同一 `owner + txHash` 重复追加相同注册审计。
+2. `FINANCE_RATE_LIMIT_HIT` 这类限流异常，应该按 `owner + action + minute bucket` 做降噪，而不是每次 429 都落一行。
+3. 限流与重放等异常审计必须显式标记为 `business_type = anomaly`，禁止伪装成 `charge` 污染正常资金视图。
+4. `detail_json` 不能只保留通用骨架字段；像 `action`、`backend`、`rateLimitBucket` 这类 anomaly 归因字段必须原样落库，否则后续分钟桶去重与排障会失真。
+
 ## 10. Refund 与 Withdrawal 边界
 
 这份文档只覆盖 invocation 结算主链路，但必须明确两件事：

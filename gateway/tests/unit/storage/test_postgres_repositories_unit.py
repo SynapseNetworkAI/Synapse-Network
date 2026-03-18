@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import time
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
 
@@ -36,6 +37,8 @@ from src.domain.finance import (
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
+from src.services.balance_mixins.redis_guard import BalanceRedisGuardMixin
+from src.services.platform.tasks.deposit_indexer.persistence import _load_deposit_intents
 
 
 class FakeCursor:
@@ -233,22 +236,29 @@ def test_idempotency_repository_rate_limit_rows_use_owner_mapping() -> None:
 def test_audit_log_repository_append_replace_and_read() -> None:
     db = FakeDB()
     db.readonly_plan.append(
+        {"fetchone": [None]}
+    )
+    db.readonly_plan.append(
         {
             "fetchall": [[
                 (
                     "audit-1",
                     "FINANCE_RATE_LIMIT_HIT",
-                    "charge",
-                    "0xabc",
+                    "anomaly",
+                    "owner:0xabc",
                     Decimal("0.100000"),
                     "rejected",
                     "RATE_LIMIT",
                     {
                         "domain": "finance",
+                        "businessType": "anomaly",
                         "riskLevel": "yellow",
                         "requestId": "req-1",
                         "traceId": "trace-1",
                         "txHash": "0xtx1",
+                        "action": "deposit_intent",
+                        "backend": "redis",
+                        "rateLimitBucket": "28500005",
                         "counterpartyAddress": "0xdef",
                         "direction": "debit",
                         "status": "REJECTED",
@@ -271,7 +281,7 @@ def test_audit_log_repository_append_replace_and_read() -> None:
                 (
                     "system-9",
                     "PROVIDER_SECRET_ISSUED",
-                    "0xabc",
+                    "owner:0xabc",
                     "success",
                     None,
                     {
@@ -299,7 +309,14 @@ def test_audit_log_repository_append_replace_and_read() -> None:
         AuditLogEntry(
             action="FINANCE_RATE_LIMIT_HIT",
             ownerAddress="0xabc",
-            details={"businessType": "charge", "riskLevel": "yellow", "requestId": "req-1"},
+            details={
+                "businessType": "anomaly",
+                "riskLevel": "yellow",
+                "requestId": "req-1",
+                "action": "deposit_intent",
+                "backend": "redis",
+                "rateLimitBucket": "28500005",
+            },
         )
     )
     repo.append_audit_row(
@@ -313,17 +330,80 @@ def test_audit_log_repository_append_replace_and_read() -> None:
 
     combined_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
     assert combined_sql.count("INSERT INTO synapse_audit_events") == 2
+    first_params = db.tx_cursors[0].executed[0][1]
+    second_params = db.tx_cursors[1].executed[0][1]
+    assert first_params[3] == "owner:0xabc"
+    assert first_params[2] == "anomaly"
+    assert second_params[3] == "owner:0xabc"
+    assert '"action": "deposit_intent"' in first_params[12]
+    assert '"backend": "redis"' in first_params[12]
+    assert '"rateLimitBucket": "28500005"' in first_params[12]
 
     rows = repo.read_audit_rows(owner_wallet="0xabc", limit=10)
     assert len(rows) == 1
     assert rows[0].domain == "finance"
+    assert rows[0].owner_address == "0xabc"
     assert rows[0].details["requestId"] == "req-1"
     assert rows[0].details["riskReasonCode"] == "RATE_LIMIT"
+    assert rows[0].details["action"] == "deposit_intent"
+    assert rows[0].details["backend"] == "redis"
+    assert rows[0].details["rateLimitBucket"] == "28500005"
+    dedupe_query_params = db.readonly_cursors[0].executed[0][1]
+    assert dedupe_query_params[:2] == ("FINANCE_RATE_LIMIT_HIT", "owner:0xabc")
+    finance_query_params = db.readonly_cursors[1].executed[0][1]
+    assert finance_query_params[:2] == ["owner:0xabc", "0xabc"]
 
     system_rows = repo.read_system_audit_rows(owner_wallet="0xabc", limit=10)
     assert len(system_rows) == 1
     assert system_rows[0].domain == "system"
     assert system_rows[0].details["resourceType"] == "credential"
+    system_query_params = db.readonly_cursors[2].executed[0][1]
+    assert system_query_params[:2] == ["owner:0xabc", "0xabc"]
+
+
+def test_audit_log_repository_skips_duplicate_deposit_intent_registered_by_tx_hash() -> None:
+    db = FakeDB()
+    db.readonly_plan.append({"fetchone": [None]})
+    db.readonly_plan.append({"fetchone": [(1,)]})
+    repo = AuditLogRepository(db, "unused")
+
+    from src.domain.audit import AuditLogEntry
+
+    payload = AuditLogEntry(
+        action="DEPOSIT_INTENT_REGISTERED",
+        ownerAddress="0xabc",
+        details={"businessType": "deposit", "txHash": "0x" + "1" * 64},
+    )
+    repo.append_audit_row(payload)
+    repo.append_audit_row(payload)
+
+    combined_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert combined_sql.count("INSERT INTO synapse_audit_events") == 1
+
+
+def test_audit_log_repository_skips_duplicate_rate_limit_hits_in_same_bucket() -> None:
+    db = FakeDB()
+    db.readonly_plan.append({"fetchone": [None]})
+    db.readonly_plan.append({"fetchone": [(1,)]})
+    repo = AuditLogRepository(db, "unused")
+
+    from src.domain.audit import AuditLogEntry
+
+    payload = AuditLogEntry(
+        action="FINANCE_RATE_LIMIT_HIT",
+        ownerAddress="0xabc",
+        details={
+            "businessType": "anomaly",
+            "action": "deposit_intent",
+            "backend": "redis",
+            "rateLimitBucket": "28500005",
+        },
+    )
+    repo.append_audit_row(payload)
+    repo.append_audit_row(payload)
+
+    combined_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert combined_sql.count("INSERT INTO synapse_audit_events") == 1
 
 
 def test_balance_repository_read_and_write() -> None:
@@ -683,7 +763,7 @@ def test_execution_repository_read_and_write() -> None:
                 "svc-1",
                 "cred-1",
                 "agent-1",
-                Decimal("1.250000"),
+                Decimal("1.300000"),
                 "fixed",
                 "OPEN",
                 "fp-1",
@@ -835,9 +915,12 @@ def test_gateway_state_repository_write_paths() -> None:
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
     assert "DELETE FROM synapse_deposit_intents" not in tx_sql
     assert "INSERT INTO synapse_vault_deposits" in tx_sql
+    assert "owner_address, target_account_id, tx_hash" in tx_sql
+    assert "client_request_id,\n                        client_ip, user_agent" in tx_sql
     assert "vault_deposit_meta::dep-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "ON CONFLICT (tx_hash)" in tx_sql
     assert "INSERT INTO synapse_vault_withdrawals" in tx_sql
+    assert "withdrawal_id, owner_id, provider_id, withdrawal_kind" in tx_sql
     assert "vault_withdrawal_meta::ref-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "vault_withdrawal_meta::wd-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "MANUAL_REVIEW" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
@@ -891,6 +974,97 @@ def test_gateway_state_repository_accepts_dict_deposit_intents() -> None:
 
     executed = [sql for cur in db.tx_cursors for sql, _ in cur.executed]
     assert any("INSERT INTO synapse_vault_deposits" in sql for sql in executed)
+
+
+def test_gateway_state_repository_reads_withdrawals_from_owner_accounts() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+
+    db.readonly_plan.append({"fetchall": []})
+    repo.read_consumer_refund_rows()
+
+    read_sql = "\n".join(sql for cur in db.readonly_cursors for sql, _ in cur.executed)
+    assert "JOIN synapse_owner_accounts owner" in read_sql
+    assert "JOIN synapse_owners owner" not in read_sql
+
+
+def test_balance_redis_guard_accepts_typed_deposit_rows_for_replay_check() -> None:
+    class _Guard(BalanceRedisGuardMixin):
+        def __init__(self):
+            self.audit_calls = []
+
+        def _append_financial_audit(self, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
+            self.audit_calls.append((action, owner_wallet, details))
+
+        def _parse_created_at_epoch(self, value: Any) -> int:
+            return int(time.time())
+
+    guard = _Guard()
+
+    existing = guard._validate_unique_recent_deposit(
+        [
+            DepositIntentRow(
+                id="dep-typed",
+                ownerAddress="0xabc",
+                txHash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                amountUsdc=Decimal("1"),
+                status="PENDING_CONFIRMATION",
+                createdAt="2024-03-22 12:00:00",
+            )
+        ],
+        "0xabc",
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    )
+
+    assert existing is not None
+    assert existing["id"] == "dep-typed"
+    assert existing["status"] == "PENDING_CONFIRMATION"
+    assert guard.audit_calls == [
+        (
+            "DEPOSIT_REPLAY_RETURNED_EXISTING",
+            "0xabc",
+            {
+                "txHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "replayWindowSec": 900,
+                "depositIntentId": "dep-typed",
+                "status": "PENDING_CONFIRMATION",
+            },
+        )
+    ]
+
+
+def test_deposit_indexer_load_intents_returns_mutable_dicts() -> None:
+    class _GatewayState:
+        @staticmethod
+        def read_deposit_intents() -> List[Any]:
+            return [
+                DepositIntentRow(
+                    id="dep-typed",
+                    ownerAddress="0xabc",
+                    txHash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                    amountUsdc=Decimal("2.5"),
+                    status="PENDING_CONFIRMATION",
+                    createdAt="2026-03-18 11:00:00",
+                    updatedAt="2026-03-18 11:00:01",
+                )
+            ]
+
+    class _System:
+        gateway_state = _GatewayState()
+
+    class _DataManager:
+        system = _System()
+
+    class _Storage:
+        @staticmethod
+        def get_data_manager() -> Any:
+            return _DataManager()
+
+    rows = _load_deposit_intents(_Storage())
+    assert isinstance(rows, list)
+    assert isinstance(rows[0], dict)
+    assert rows[0]["ownerAddress"] == "0xabc"
+    assert rows[0]["status"] == "PENDING_CONFIRMATION"
 
 
 def test_deposit_attempt_repository_upserts_stage_rows() -> None:
@@ -1034,6 +1208,61 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
     assert "INSERT INTO synapse_ledger_entries" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "UPSERT" in executed_sql
+
+
+def test_finance_atomic_repository_confirm_deposit_writes_canonical_audit_evidence() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (
+                    "dep-1",
+                    "0xabc",
+                    "0x1111111111111111111111111111111111111111111111111111111111111111",
+                    "req-1",
+                    Decimal("12.500000"),
+                    "PENDING_CONFIRMATION",
+                    "2026-03-18 08:22:39",
+                    "2026-03-18 08:22:39",
+                ),
+                ({"consumerAddress": "0xabc", "idempotencyKey": "idem-1"},),
+                (Decimal("1.000000"), Decimal("12.500000"), Decimal("0.000000")),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    confirmed = repo.confirm_deposit_intent_atomic(
+        DepositIntentConfirmCommand(
+            owner_wallet="0xabc",
+            deposit_intent_id="dep-1",
+            event_key="evt-confirm-1",
+            confirmations=12,
+        )
+    )
+
+    assert confirmed.status == "CONFIRMED"
+    executed = db.connections[0].cursor_obj.executed
+    _, audit_params = next(
+        (sql, params)
+        for sql, params in executed
+        if "INSERT INTO synapse_audit_events" in sql
+    )
+    assert audit_params[3] == "owner:0xabc"
+    assert audit_params[4] == "12.500000"
+    detail_json = audit_params[7]
+    assert '"txHash": "0x1111111111111111111111111111111111111111111111111111111111111111"' in detail_json
+    assert '"beforeBalance": "1.000000"' in detail_json
+    assert '"afterBalance": "13.500000"' in detail_json
+    assert '"ledgerId": "dep-1"' in detail_json
+    assert '"traceId": "evt-confirm-1"' in detail_json
 
 
 def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:

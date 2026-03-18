@@ -14,6 +14,8 @@ from src.api.schemas.pydantic_models import (
     RouterConfigRequest,
     ProviderWithdrawIntentRequest,
     ProviderWithdrawCompleteRequest,
+    TX_HASH_FORMAT_ERROR,
+    TX_HASH_PREFIX_ERROR,
 )
 from src.services.platform.balance_service import BalanceService
 from src.services.provider.provider_analytics_service import ProviderAnalyticsService
@@ -47,6 +49,22 @@ def _extract_request_meta(request: Request) -> Dict[str, Any]:
         "clientIp": client_host,
         "userAgent": request.headers.get("User-Agent") or "",
     }
+
+
+def _normalize_tx_hash_or_400(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if not normalized.startswith("0x"):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_TX_HASH", "message": TX_HASH_PREFIX_ERROR},
+        )
+    hex_part = normalized[2:]
+    if len(hex_part) != 64 or any(ch not in "0123456789abcdef" for ch in hex_part):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_TX_HASH", "message": TX_HASH_FORMAT_ERROR},
+        )
+    return normalized
 
 
 def _ensure_fee_policy_admin(owner_wallet: str) -> str:
@@ -198,6 +216,24 @@ async def list_deposit_intents(
 ):
     intents = await service.list_deposit_intents(owner_wallet)
     return {"status": "success", "intents": intents[:limit]}
+
+
+@router.get(
+    "/v1/balance/deposit/sync",
+    responses={400: {"description": "Invalid txHash"}},
+)
+async def get_deposit_sync_status(
+    tx_hash: Annotated[
+        str, Query(alias="txHash", min_length=66, max_length=66)
+    ],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    sync_status = await service.get_deposit_sync_status(
+        owner_wallet,
+        _normalize_tx_hash_or_400(tx_hash),
+    )
+    return {"status": "success", "sync": sync_status}
 
 
 @router.post("/v1/balance/deposit/intents/{deposit_intent_id}/confirm")
