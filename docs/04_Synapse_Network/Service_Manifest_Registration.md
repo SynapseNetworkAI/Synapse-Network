@@ -4,6 +4,16 @@
 >
 > 本文件只保留 Provider 注册输入如何映射到 canonical Manifest 与 Gateway 内部扩展字段的实现补充，不再定义第二套协议。
 
+## 迁移说明
+
+本文过去承载过部分服务注册协议说明，现已由以下 canonical 文档接管：
+
+1. Service Manifest 字段标准：`docs/agent/03_Service_Manifest_Field_Standard.md`
+2. 对外注册/读取相关接口契约：`docs/api.md`
+3. Runtime 身份与凭据边界：`docs/agent/04_Credential_Budget_Risk_Model.md`
+
+本文当前只保留一层实现映射说明：Provider 后台录入字段如何落到 canonical Manifest，以及哪些字段只属于 Gateway 内部扩展。
+
 ## 1. 本文档的边界
 
 先看 canonical：

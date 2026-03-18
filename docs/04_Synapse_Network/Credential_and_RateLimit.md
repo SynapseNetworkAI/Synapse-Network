@@ -4,6 +4,16 @@
 >
 > 当前 Runtime 主模型以 `docs/agent/04_Credential_Budget_Risk_Model.md` 和 `docs/agent/06_Build_For_Agent_Database_Rebuild.md` 为准；本文只保留 Provider 控制面的历史兼容说明。
 
+## 迁移说明
+
+本文过去容易被误读成 Runtime credential 设计文档，现已被以下 canonical 文档替代：
+
+1. Agent Credential / Budget Policy 主模型：`docs/agent/04_Credential_Budget_Risk_Model.md`
+2. Runtime 数据模型与凭据持久化边界：`docs/agent/06_Build_For_Agent_Database_Rebuild.md`
+3. 对外鉴权与错误码契约：`docs/api.md`
+
+本文剩余保留价值只有一项：说明 Provider 控制面如果仍保留 `provider secret / service key`，它应该如何与 Agent Runtime 主凭据彻底隔离。
+
 ## 1. 为什么还保留本文档
 
 因为平台当前仍可能存在 Provider 侧的 `provider secret / service key` 控制面实现，而这套东西和 Agent Runtime 的 `Agent Credential` 不是同一个对象。
