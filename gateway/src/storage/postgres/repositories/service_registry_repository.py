@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from collections import defaultdict
 from typing import Any, List
 
@@ -64,6 +65,30 @@ class ServiceRegistryRepository:
                 return {}
             return parsed if isinstance(parsed, dict) else {}
         return {}
+
+    @staticmethod
+    def _epoch_ms(value: Any) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            normalized = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+            return int(normalized.astimezone(timezone.utc).timestamp() * 1000)
+        if isinstance(value, (int, float)):
+            epoch = float(value)
+            if epoch <= 0:
+                return None
+            if epoch < 1_000_000_000_000:
+                epoch *= 1000
+            return int(epoch)
+
+        normalized = to_dt_str(value)
+        if not normalized:
+            return None
+        try:
+            parsed = datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+        return int(parsed.timestamp() * 1000)
 
     @staticmethod
     def _service_meta_state_key(service_id: str) -> str:
@@ -605,6 +630,8 @@ class ServiceRegistryRepository:
         result: List[ServiceTargetHealth] = []
         for service_id, owner, target_url, payload_raw, health_score, latency_ms, _, last_checked_at, error_code in rows:
             payload = self._payload_dict(payload_raw)
+            normalized_last_checked_at = self._epoch_ms(payload.get("lastCheckedAt")) or self._epoch_ms(last_checked_at)
+            normalized_last_healthy_at = self._epoch_ms(payload.get("lastHealthyAt")) or self._epoch_ms(last_checked_at)
             result.append(
                 ServiceTargetHealth(
                     serviceId=service_id,
@@ -619,8 +646,8 @@ class ServiceRegistryRepository:
                     consecutiveSuccesses=int(payload.get("consecutiveSuccesses") or 0),
                     consecutiveFailures=int(payload.get("consecutiveFailures") or 0),
                     probeUrl=payload.get("probeUrl"),
-                    lastCheckedAt=int(payload.get("lastCheckedAt") or 0) or None,
-                    lastHealthyAt=payload.get("lastHealthyAt") or last_checked_at,
+                    lastCheckedAt=normalized_last_checked_at,
+                    lastHealthyAt=normalized_last_healthy_at,
                     error=payload.get("error") or error_code,
                 )
             )
@@ -659,7 +686,7 @@ class ServiceRegistryRepository:
                         endpoint_id,
                         row.service_id,
                         row.target_url,
-                        int(row.latency_ms or 15000),
+                        int(row.timeout_ms or 15000),
                         row.region,
                         int(row.weight or 100),
                         now_dt_str(),

@@ -10,6 +10,117 @@
 2. 再进入六个官方模块，按产品、架构、流程、数据库、运维、参考分层阅读。
 3. 专题设计、后台文档、产品愿景保留为补充层，不再承担 Runtime canonical 定义职责。
 
+### 1.1 docs/ 文件地图（Agent File Map）
+
+下面这份目录树按当前仓库实际文件生成，供 Agent 快速定位文档，不需要再手工猜目录。
+
+```text
+docs/
+├── 01_Product_Frontend/
+│   ├── 01_Product_Positioning_and_Role_Model.md
+│   ├── 02_Gateway_Console_Information_Architecture.md
+│   ├── 03_Admin_Control_Plane_Architecture.md
+│   ├── 04_Frontend_Design_System_Application.md
+│   ├── README.md
+│   ├── agents.md
+│   └── owner_agent_guide/
+│       └── agents_guide.md
+├── 01_Product_Vision/
+│   ├── Business_Plan.md
+│   ├── Future_Plans.md
+│   ├── MVP.md
+│   ├── Monetization_Model.md
+│   ├── Pitch_Deck_Material.md
+│   ├── Product_Thinking.md
+│   ├── README.md
+│   ├── ROADMAP.md
+│   └── slogan.md
+├── 02_System_Architecture/
+│   ├── 01_System_Topology_and_Request_Routing.md
+│   ├── 02_Gateway_Runtime_Architecture.md
+│   ├── 03_Identity_Authentication_and_Risk_Control.md
+│   ├── 04_Domain_Model_and_Bounded_Contexts.md
+│   └── README.md
+├── 03_Core_Workflows/
+│   ├── 01_Deposit_and_Idempotency.md
+│   ├── 02_Discovery_and_Gateway_Call.md
+│   ├── 03_Billing_Settlement_and_Audit.md
+│   ├── 04_Provider_Registration_and_Agreement.md
+│   ├── 05_Withdrawal_and_Risk_Gates.md
+│   ├── 06_Deposit_Entry_Architecture_Comparison.md
+│   └── README.md
+├── 04_Database_Design/
+│   ├── 01_SQL_Schema_Overview.md
+│   ├── 02_Core_Tables_and_Relationships.md
+│   ├── 03_Balance_Ledger_and_Reservation_Model.md
+│   ├── 04_Concurrency_Idempotency_and_Consistency.md
+│   └── README.md
+├── 05_DevOps_Deployment/
+│   ├── 01_Local_Environment_and_Runtime_Setup.md
+│   ├── 02_CI_CD_and_Release_Gates.md
+│   ├── 03_Observability_Logging_and_Indexer_Operations.md
+│   ├── 04_Financial_Incident_Response_and_Production_Operations.md
+│   └── README.md
+├── 06_Reference/
+│   ├── 01_API_Contract_Index.md
+│   ├── 02_Error_Code_and_Runtime_Response_Contract.md
+│   ├── 03_Service_Manifest_and_Runtime_Object_Reference.md
+│   ├── 04_Development_Testing_and_Integration_Reference.md
+│   └── README.md
+├── admin/
+│   ├── Admin_API_Contract_Phase1.md
+│   ├── Admin_Approval_Workflow.md
+│   ├── Admin_Audit_and_Compliance.md
+│   ├── Admin_Database_Design.md
+│   ├── Admin_Finance_Operations_Runbook.md
+│   ├── Admin_PostgreSQL_Deployment_Design.md
+│   ├── Admin_RBAC_Design.md
+│   ├── Platform_Admin_Backoffice_Architecture.md
+│   └── README.md
+├── agent/
+│   ├── 00_Platform_Role_Identity_Model.md
+│   ├── 01_Agent_Runtime_Product_Architecture.md
+│   ├── 02_Discovery_Quote_Invoke_API_Design.md
+│   ├── 03_Service_Manifest_Field_Standard.md
+│   ├── 04_Credential_Budget_Risk_Model.md
+│   ├── 05_Dashboard_IA_and_Onboarding.md
+│   ├── 06_Build_For_Agent_Database_Rebuild.md
+│   └── agent_design.md
+├── feature_designs/
+│   ├── README.md
+│   ├── backend_admin/
+│   │   └── Deposit_Reconciliation_Backoffice_Requirements.md
+│   ├── frontend_product/
+│   │   ├── Homepage_V2_Functional_Design.md
+│   │   ├── Provider_Console_IA_V3.md
+│   │   ├── Security-Key-Management.md
+│   │   └── Wallet_Auth_Challenge_Session_Design.md
+│   ├── 战略.md
+│   └── 路演准备.md
+├── plan/
+│   ├── 2026-03-17_Docs_Information_Architecture_Consolidation_Plan.md
+│   └── sql/
+│       └── 2026-03-17_owner_provider_target_state_schema_cutover.sql
+├── 竞品调研/
+│   └── EigenFlux.md
+├── agents.md
+├── api.md
+├── Design.md
+├── Gateway_Database_Design.md
+├── Gateway_Error_Codes.md
+├── README.md
+├── soul.png
+└── 充值退款审批流程.md
+```
+
+建议 Agent 读取顺序：
+
+1. 先读 `agent.md`、`Design.md`、`agent/` 下 canonical 文档。
+2. 需要产品与 IA 时进入 `01_Product_Frontend/`。
+3. 需要 Runtime 协议与主流程时进入 `02_System_Architecture/`、`03_Core_Workflows/`、`06_Reference/`。
+4. 需要数据库真相时进入 `04_Database_Design/` 与 `Gateway_Database_Design.md`。
+5. 需要补充专题和历史方案时再读 `feature_designs/`、`admin/`、`plan/`。
+
 ## 2. Canonical Source of Truth
 
 ### 2.1 项目原则与设计基线
@@ -69,7 +180,7 @@
 
 ### 5.1 新同学入门
 
-1. [agent.md](./agent.md)
+1. [agents.md](./agents.md)
 2. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
 3. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
 4. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
