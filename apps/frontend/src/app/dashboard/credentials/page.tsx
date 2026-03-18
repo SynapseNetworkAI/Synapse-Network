@@ -27,7 +27,7 @@ function CredentialsContent() {
   const { address: userAddress } = useAccount();
   const { isSessionAuthenticated } = useAuth();
   const [serviceFilter, setServiceFilter] = useState("");
-  const [services, setServices] = useState<Array<{ serviceId: string; name: string; pricing?: string }>>([]);
+  const [services, setServices] = useState<Array<{ serviceId: string; name: string; pricing?: string | undefined }>>([]);
 
   const [expiresInSec, setExpiresInSec] = useState("3600");
   const [expiresAtLocal, setExpiresAtLocal] = useState("");
@@ -65,7 +65,7 @@ function CredentialsContent() {
         serviceRows.map((row) => ({
           serviceId: row.id || row.serviceId,
           name: row.serviceName || row.name,
-          pricing: row.pricing
+          pricing: typeof row.pricing === 'string' ? row.pricing : undefined
         }))
       );
       setCredentials(credentialRows);

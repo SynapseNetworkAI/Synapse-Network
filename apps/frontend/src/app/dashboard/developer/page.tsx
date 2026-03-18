@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Terminal, Code, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers } from "lucide-react";
+import { Terminal, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers } from "lucide-react";
 
 export default function DeveloperPage() {
   const [copied, setCopied] = React.useState<string | null>(null);
