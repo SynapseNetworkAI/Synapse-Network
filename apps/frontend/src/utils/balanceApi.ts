@@ -2,6 +2,7 @@ import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 const API_BASE = `${getGatewayBaseUrl()}/api/v1`;
+const depositIntentInflight = new Map<string, Promise<DepositIntentRecord>>();
 
 function buildIdempotencyKey(prefix: string): string {
   const now = Date.now().toString(36);
@@ -10,6 +11,36 @@ function buildIdempotencyKey(prefix: string): string {
       ? crypto.randomUUID().replaceAll("-", "")
       : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
   return `${prefix}_${now}_${random}`.slice(0, 120);
+}
+
+function buildDepositIntentIdempotencyKey(txHash: string): string {
+  const normalizedTx = String(txHash || "").trim().toLowerCase();
+  return `deposit_tx_${normalizedTx.replace(/^0x/, "")}`.slice(0, 120);
+}
+
+async function readErrorPayload(response: Response): Promise<{ code?: string; message?: string }> {
+  try {
+    const text = await response.text();
+    if (!text) return {};
+    const parsed = JSON.parse(text) as { detail?: { code?: string; message?: string } | string; message?: string };
+    if (parsed.detail && typeof parsed.detail === "object") {
+      return {
+        code: typeof parsed.detail.code === "string" ? parsed.detail.code : undefined,
+        message: typeof parsed.detail.message === "string" ? parsed.detail.message : undefined,
+      };
+    }
+    let message: string | undefined;
+    if (typeof parsed.message === "string") {
+      message = parsed.message;
+    } else if (typeof parsed.detail === "string") {
+      message = parsed.detail;
+    }
+    return {
+      message,
+    };
+  } catch {
+    return {};
+  }
 }
 
 export type BalanceSummary = {
@@ -29,6 +60,24 @@ export type DepositIntentRecord = {
   createdAt?: string | number;
   updatedAt?: string | number;
   confirmedAt?: number;
+};
+
+export type DepositSyncStatus = {
+  txHash: string;
+  found: boolean;
+  synced: boolean;
+  status: string;
+  confirmed: boolean;
+  canRefreshBalance: boolean;
+  depositIntentId?: string;
+  ownerAddress?: string;
+  amountUsdc?: number;
+  creditedAmountUsdc?: number;
+  confirmations?: number;
+  eventKey?: string;
+  confirmedAt?: number;
+  updatedAt?: string | number;
+  source?: string;
 };
 
 export type DepositAttemptStage =
@@ -112,14 +161,16 @@ export async function getV2Balance(userAddress: string): Promise<BalanceSummary>
   const payload = (await response.json()) as {
     balance?: Partial<BalanceSummary> & {
       ownerBalance?: number;
+      consumerAvailableBalance?: number;
       providerReceivable?: number;
+      providerReceivableBalance?: number;
       platform?: { feeAccrued?: number };
     };
   };
   const feeFromMap = Number(payload.balance?.platform?.feeAccrued ?? 0);
   return {
-    ownerBalance: Number(payload.balance?.ownerBalance ?? 0),
-    providerReceivable: Number(payload.balance?.providerReceivable ?? 0),
+    ownerBalance: Number(payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance ?? 0),
+    providerReceivable: Number(payload.balance?.providerReceivable ?? payload.balance?.providerReceivableBalance ?? 0),
     platformFeeAccrued: Number(payload.balance?.platformFeeAccrued ?? feeFromMap),
   };
 }
@@ -136,39 +187,72 @@ export async function createDepositIntent(
     throw new Error("amountUsdc must be a positive number.");
   }
 
-  const headers = {
-    ...buildAuthedHeaders(userAddress),
-    "X-Idempotency-Key": buildIdempotencyKey("deposit"),
-  };
-
-  const response = await fetch(`${API_BASE}/balance/deposit/intent`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      ...payload,
-      txHash: normalizedTx,
-      ownerAddress: userAddress,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to submit deposit intent"));
+  const requestKey = `${userAddress.toLowerCase()}::${normalizedTx}`;
+  const inflight = depositIntentInflight.get(requestKey);
+  if (inflight) {
+    return inflight;
   }
 
-  const data = (await response.json()) as {
-    deposit?: Partial<DepositIntentRecord>;
-    intent?: Partial<DepositIntentRecord>;
-    tx_hash?: string;
-  };
+  const requestPromise = (async (): Promise<DepositIntentRecord> => {
+    const headers = {
+      ...buildAuthedHeaders(userAddress),
+      "X-Idempotency-Key": buildDepositIntentIdempotencyKey(normalizedTx),
+    };
 
-  const deposit = data.deposit ?? data.intent ?? {};
-  return {
-    txHash: String(deposit.txHash || data.tx_hash || payload.txHash),
-    amountUsdc: Number(deposit.amountUsdc ?? payload.amountUsdc),
-    creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    status: String((deposit as any).state || deposit.status || "pending"),
-  };
+    const response = await fetch(`${API_BASE}/balance/deposit/intent`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        ...payload,
+        txHash: normalizedTx,
+        ownerAddress: userAddress,
+      }),
+    });
+
+    if (response.status === 409) {
+      const errorPayload = await readErrorPayload(response);
+      if (errorPayload.code === "DEPOSIT_REPLAY_DETECTED") {
+        const existing = (await listDepositIntents(userAddress, 100)).find(
+          (row) => String(row.txHash || "").trim().toLowerCase() === normalizedTx,
+        );
+        if (existing) {
+          return existing;
+        }
+      }
+      throw new Error(normalizeAuthApiError(errorPayload.message || "Failed to submit deposit intent", response.status));
+    }
+
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response, "Failed to submit deposit intent"));
+    }
+
+    const data = (await response.json()) as {
+      deposit?: Partial<DepositIntentRecord>;
+      intent?: Partial<DepositIntentRecord>;
+      tx_hash?: string;
+    };
+
+    const deposit = data.deposit ?? data.intent ?? {};
+    return {
+      id: typeof deposit.id === "string" ? deposit.id : undefined,
+      ownerAddress: typeof deposit.ownerAddress === "string" ? deposit.ownerAddress : userAddress,
+      txHash: String(deposit.txHash || data.tx_hash || payload.txHash),
+      amountUsdc: Number(deposit.amountUsdc ?? payload.amountUsdc),
+      creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
+      status: String((deposit as { state?: string }).state || deposit.status || "pending"),
+      failureReason: typeof deposit.failureReason === "string" ? deposit.failureReason : undefined,
+      createdAt: typeof deposit.createdAt === "string" || typeof deposit.createdAt === "number" ? deposit.createdAt : undefined,
+      updatedAt: typeof deposit.updatedAt === "string" || typeof deposit.updatedAt === "number" ? deposit.updatedAt : undefined,
+      confirmedAt: typeof deposit.confirmedAt === "number" ? deposit.confirmedAt : undefined,
+    };
+  })();
+
+  depositIntentInflight.set(requestKey, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    depositIntentInflight.delete(requestKey);
+  }
 }
 
 export async function recordDepositAttempt(
@@ -257,6 +341,54 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
     updatedAt: (row.updatedAt as string | number | undefined) ?? undefined,
     confirmedAt: Number(row.confirmedAt ?? 0) || undefined,
   }));
+}
+
+export async function getDepositSyncStatus(
+  userAddress: string,
+  txHash: string,
+): Promise<DepositSyncStatus> {
+  const normalizedTx = String(txHash || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
+    throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+  }
+
+  const response = await fetch(
+    `${API_BASE}/balance/deposit/sync?txHash=${encodeURIComponent(normalizedTx)}`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Failed to fetch deposit sync status"));
+  }
+
+  const payload = (await response.json()) as {
+    sync?: Partial<DepositSyncStatus>;
+  };
+  const sync = payload.sync ?? {};
+  return {
+    txHash: typeof sync.txHash === "string" ? sync.txHash : normalizedTx,
+    found: Boolean(sync.found),
+    synced: Boolean(sync.synced),
+    status: typeof sync.status === "string" ? sync.status : "NOT_REGISTERED",
+    confirmed: Boolean(sync.confirmed),
+    canRefreshBalance: Boolean(sync.canRefreshBalance),
+    depositIntentId: typeof sync.depositIntentId === "string" ? sync.depositIntentId : undefined,
+    ownerAddress: typeof sync.ownerAddress === "string" ? sync.ownerAddress : undefined,
+    amountUsdc: Number(sync.amountUsdc ?? 0) || undefined,
+    creditedAmountUsdc: Number(sync.creditedAmountUsdc ?? 0) || undefined,
+    confirmations: Number(sync.confirmations ?? 0) || undefined,
+    eventKey: typeof sync.eventKey === "string" ? sync.eventKey : undefined,
+    confirmedAt: typeof sync.confirmedAt === "number" ? sync.confirmedAt : undefined,
+    updatedAt:
+      typeof sync.updatedAt === "string" || typeof sync.updatedAt === "number"
+        ? sync.updatedAt
+        : undefined,
+    source: typeof sync.source === "string" ? sync.source : undefined,
+  };
 }
 
 export async function requestV2Refund(userAddress: string, amountUsdc: number): Promise<OwnerRefundIntent> {

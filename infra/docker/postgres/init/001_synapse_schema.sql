@@ -31,6 +31,7 @@ BEGIN
 END $$;
 
 CREATE TABLE IF NOT EXISTS synapse_owner_accounts (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     owner_id TEXT PRIMARY KEY,
     owner_wallet TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'active',
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS synapse_owner_accounts (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_provider_profiles (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     provider_id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL UNIQUE REFERENCES synapse_owner_accounts (owner_id) ON DELETE CASCADE,
     display_name TEXT NOT NULL,
@@ -51,6 +53,7 @@ CREATE TABLE IF NOT EXISTS synapse_provider_profiles (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_provider_payout_accounts (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     payout_account_id TEXT PRIMARY KEY,
     provider_id TEXT NOT NULL REFERENCES synapse_provider_profiles (provider_id) ON DELETE CASCADE,
     payout_address TEXT NOT NULL,
@@ -64,6 +67,7 @@ CREATE TABLE IF NOT EXISTS synapse_provider_payout_accounts (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_agent_profiles (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     agent_id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE CASCADE,
     name TEXT NOT NULL,
@@ -76,6 +80,7 @@ CREATE TABLE IF NOT EXISTS synapse_agent_profiles (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_agent_credentials (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     credential_id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL REFERENCES synapse_agent_profiles (agent_id) ON DELETE CASCADE,
     secret_hash TEXT NOT NULL UNIQUE,
@@ -89,6 +94,7 @@ CREATE TABLE IF NOT EXISTS synapse_agent_credentials (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_budget_policies (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     policy_id TEXT PRIMARY KEY,
     credential_id TEXT NOT NULL UNIQUE REFERENCES synapse_agent_credentials (credential_id) ON DELETE CASCADE,
     lifetime_cap_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
@@ -112,6 +118,7 @@ CREATE TABLE IF NOT EXISTS synapse_budget_policies (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_service_manifests (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     service_id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE RESTRICT,
     provider_id TEXT NOT NULL REFERENCES synapse_provider_profiles (provider_id) ON DELETE RESTRICT,
@@ -142,6 +149,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_manifests (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_service_endpoints (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     endpoint_id TEXT PRIMARY KEY,
     service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
     endpoint_url TEXT NOT NULL,
@@ -164,6 +172,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_endpoints (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_service_health_snapshots (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
     endpoint_id TEXT NOT NULL REFERENCES synapse_service_endpoints (endpoint_id) ON DELETE CASCADE,
     health_score INTEGER NOT NULL DEFAULT 100,
@@ -177,6 +186,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_health_snapshots (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_service_search_index (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     service_id TEXT PRIMARY KEY REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
     tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     search_text TEXT NOT NULL,
@@ -190,6 +200,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_search_index (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_service_quotes (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     quote_id TEXT PRIMARY KEY,
     service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE RESTRICT,
     credential_id TEXT NOT NULL REFERENCES synapse_agent_credentials (credential_id) ON DELETE RESTRICT,
@@ -209,6 +220,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_quotes (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_invocations (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     invocation_id TEXT PRIMARY KEY,
     quote_id TEXT NOT NULL REFERENCES synapse_service_quotes (quote_id) ON DELETE RESTRICT,
     service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE RESTRICT,
@@ -235,6 +247,7 @@ CREATE TABLE IF NOT EXISTS synapse_invocations (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_budget_events (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     event_id TEXT PRIMARY KEY,
     policy_id TEXT NOT NULL REFERENCES synapse_budget_policies (policy_id) ON DELETE RESTRICT,
     credential_id TEXT NOT NULL REFERENCES synapse_agent_credentials (credential_id) ON DELETE RESTRICT,
@@ -249,6 +262,7 @@ CREATE TABLE IF NOT EXISTS synapse_budget_events (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_ledger_accounts (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     account_id TEXT PRIMARY KEY,
     account_kind TEXT NOT NULL,
     owner_id TEXT REFERENCES synapse_owner_accounts (owner_id) ON DELETE SET NULL,
@@ -268,6 +282,7 @@ CREATE TABLE IF NOT EXISTS synapse_ledger_accounts (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_account_balances (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     account_id TEXT PRIMARY KEY REFERENCES synapse_ledger_accounts (account_id) ON DELETE CASCADE,
     available_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
     pending_balance NUMERIC(36, 6) NOT NULL DEFAULT 0,
@@ -279,6 +294,7 @@ CREATE TABLE IF NOT EXISTS synapse_account_balances (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_ledger_entries (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     entry_id TEXT PRIMARY KEY,
     reference_type TEXT NOT NULL,
     reference_id TEXT NOT NULL,
@@ -296,14 +312,19 @@ CREATE TABLE IF NOT EXISTS synapse_ledger_entries (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_vault_deposits (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     deposit_id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE RESTRICT,
+    owner_address TEXT NOT NULL,
     target_account_id TEXT NOT NULL REFERENCES synapse_ledger_accounts (account_id) ON DELETE RESTRICT,
     tx_hash TEXT NOT NULL UNIQUE,
     amount_usdc NUMERIC(36, 6) NOT NULL,
     status TEXT NOT NULL DEFAULT 'PENDING_CONFIRMATION',
     block_number BIGINT,
     request_id TEXT,
+    client_request_id TEXT,
+    client_ip TEXT,
+    user_agent TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (amount_usdc > 0),
@@ -311,6 +332,7 @@ CREATE TABLE IF NOT EXISTS synapse_vault_deposits (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_vault_withdrawals (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     withdrawal_id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE RESTRICT,
     provider_id TEXT REFERENCES synapse_provider_profiles (provider_id) ON DELETE SET NULL,
@@ -335,6 +357,7 @@ CREATE TABLE IF NOT EXISTS synapse_vault_withdrawals (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_audit_events (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     event_id TEXT PRIMARY KEY,
     event_type TEXT NOT NULL,
     business_type TEXT NOT NULL,
@@ -354,6 +377,7 @@ CREATE TABLE IF NOT EXISTS synapse_audit_events (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
+    row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     id TEXT PRIMARY KEY,
     scope TEXT NOT NULL,
     owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE CASCADE,
@@ -367,6 +391,7 @@ CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
+    row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE CASCADE,
     action TEXT NOT NULL,
@@ -378,12 +403,14 @@ CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
 );
 
 CREATE TABLE IF NOT EXISTS synapse_runtime_state (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     state_key TEXT PRIMARY KEY,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS synapse_processed_deposit_events (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     dedup_key TEXT PRIMARY KEY,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -406,6 +433,54 @@ CREATE TABLE IF NOT EXISTS synapse_deposit_attempts (
     CHECK (amount_usdc > 0),
     CHECK (stage IN ('SIGN_REQUESTED', 'TX_BROADCASTED', 'RECEIPT_FAILED', 'RECEIPT_CONFIRMED', 'INTENT_REGISTERED')),
     UNIQUE (attempt_id, stage)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_platform_fee_policy_default (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    singleton_id INTEGER NOT NULL UNIQUE,
+    default_rate NUMERIC(12, 6) NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by TEXT NOT NULL,
+    CHECK (default_rate >= 0),
+    CHECK (singleton_id = 1)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_platform_fee_policy_owner (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_address TEXT NOT NULL UNIQUE,
+    fee_rate NUMERIC(12, 6) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (fee_rate >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_provider_risk_flags (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_address TEXT NOT NULL UNIQUE,
+    is_high_risk BOOLEAN NOT NULL DEFAULT FALSE,
+    risk_reason_code TEXT,
+    risk_level TEXT NOT NULL DEFAULT 'green',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (risk_level IN ('green', 'yellow', 'red'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_withdraw_tx_dedup (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_address TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (owner_address, tx_hash, kind)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_router_config (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_address TEXT NOT NULL UNIQUE,
+    daily_limit_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (daily_limit_usdc >= 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_synapse_provider_profiles_owner
@@ -476,3 +551,18 @@ ON synapse_deposit_attempts (tx_hash, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_deposit_attempts_stage
 ON synapse_deposit_attempts (stage, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_vault_deposits_owner_address_created
+ON synapse_vault_deposits (owner_address, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_platform_fee_policy_owner_address
+ON synapse_platform_fee_policy_owner (owner_address);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_provider_risk_flags_high_risk
+ON synapse_provider_risk_flags (is_high_risk, owner_address);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_withdraw_tx_dedup_lookup
+ON synapse_withdraw_tx_dedup (owner_address, tx_hash, kind);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_router_config_updated_at
+ON synapse_router_config (updated_at DESC);

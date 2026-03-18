@@ -170,7 +170,7 @@ Must contain four cards:
 Each card should show:
 
 1. state: `LOCKED | READY | DONE | BLOCKED`
-2. one-sentence description
+2. help tooltip on `?` hover/focus; hide when pointer leaves
 3. current value summary
 4. action button
 5. dependency hint
@@ -180,15 +180,26 @@ Example:
 1. Fund Owner Vault
   - summary: `0.00 USDC available`
   - CTA: `Deposit USDC`
+  - unauthenticated click behavior: open wallet connect modal first, then continue to session sign-in / deposit flow
+  - tooltip: explain that wallet USDC moves into Synapse Vault as spendable runtime credit
 2. Create Agent Runtime
   - summary: `No active agent`
   - CTA: `Create Agent`
+  - tooltip: explain runtime identity, budget, and call limits
 3. Issue Credential
   - summary: `Token not issued yet` or `Token prefix: ag_xxxx`
   - CTA: `Copy Credential` or `Rotate Credential`
+  - tooltip: explain one-time credential copy and secure storage
 4. Run First Paid Invocation
   - summary: `No successful invocation yet`
   - CTA: `Run Example`
+  - tooltip: explain this proves the first autonomous paid call path end-to-end
+
+Card body should stay compact:
+
+1. remove long explanatory paragraphs from the card body
+2. keep durable information in summary + hint
+3. move narrative explanation into tooltip only
 
 ### 5.3 First Invocation Panel
 

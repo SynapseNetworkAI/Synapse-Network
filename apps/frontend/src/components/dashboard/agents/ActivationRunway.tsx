@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Copy,
+  HelpCircle,
   KeyRound,
   Rocket,
   Wallet,
@@ -13,6 +14,8 @@ import {
 import toast from "react-hot-toast";
 import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
 import { useVaultDeposit } from "@/hooks/useVaultDeposit";
+import { useAuth } from "@/components/WalletAuthGuard";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 
 type RunwayStep = "deposit" | "agent" | "credential" | "invoke";
 type RunwayState = "LOCKED" | "READY" | "DONE" | "BLOCKED";
@@ -34,13 +37,13 @@ type ActivationRunwayProps = {
 type RunwayCard = {
   step: RunwayStep;
   title: string;
-  description: string;
   state: RunwayState;
   summary: string;
   hint: string;
   actionLabel: string;
   disabled?: boolean;
   icon: typeof Wallet;
+  tooltip?: string;
 };
 
 type RunwayAvailability = {
@@ -78,101 +81,103 @@ function getDepositState(availability: RunwayAvailability): RunwayState {
 
 function getDepositHint(availability: RunwayAvailability): string {
   if (!availability.isConnected) {
-    return "Connect wallet first.";
+    return "Connect your wallet to begin.";
   }
   if (!availability.hasSession) {
-    return "Sign in to authorize deposits.";
+    return "Sign in with your wallet to authenticate.";
   }
-  return `Wallet balance: ${availability.walletUsdcBalance.toFixed(2)} USDC`;
+  if (availability.hasBalance) {
+    return `Current balance: ${availability.ownerBalance} USDC. Ready to create agents.`;
+  }
+  return `Wallet balance: ${availability.walletUsdcBalance.toFixed(2)} USDC. Transfer to vault to fund agents.`;
 }
 
 function getAgentState(availability: RunwayAvailability): RunwayState {
-  if (!(availability.isConnected && availability.hasSession)) {
-    return "LOCKED";
+  if (availability.hasActiveAgent) {
+    return "DONE";
   }
-  if (!availability.hasBalance) {
-    return "BLOCKED";
+  if (availability.hasBalance) {
+    return "READY";
   }
-  return availability.hasActiveAgent ? "DONE" : "READY";
+  return "LOCKED";
 }
 
 function getCredentialState(availability: RunwayAvailability): RunwayState {
-  if (!(availability.isConnected && availability.hasSession)) {
-    return "LOCKED";
-  }
-  if (!availability.hasActiveAgent) {
-    return "LOCKED";
-  }
-  return availability.hasCredential ? "DONE" : "READY";
-}
-
-function getCredentialActionLabel(availability: RunwayAvailability): string {
-  if (availability.latestIssuedToken) {
-    return "Copy Latest Token";
-  }
   if (availability.hasCredential) {
-    return "Credential Active";
+    return "DONE";
   }
-  return "Issue Credential";
+  if (availability.hasActiveAgent) {
+    return "READY";
+  }
+  return "LOCKED";
 }
 
 function getInvokeState(availability: RunwayAvailability): RunwayState {
-  if (!(availability.isConnected && availability.hasSession)) {
-    return "LOCKED";
+  if (availability.hasSuccessfulInvocation) {
+    return "DONE";
   }
-  if (!availability.hasActiveAgent) {
-    return "LOCKED";
+  if (availability.hasCredential) {
+    return "READY";
   }
-  if (!availability.hasBalance) {
-    return "BLOCKED";
-  }
-  return availability.hasSuccessfulInvocation ? "DONE" : "READY";
+  return "LOCKED";
 }
 
 function buildRunwayCards(availability: RunwayAvailability): RunwayCard[] {
+  const depositState = getDepositState(availability);
+  const depositHint = getDepositHint(availability);
+  const agentState = getAgentState(availability);
+  const credentialState = getCredentialState(availability);
+  const invokeState = getInvokeState(availability);
+
   return [
     {
       step: "deposit",
       title: "Fund Owner Vault",
-      description: "Move wallet USDC into Synapse credit so the runtime can settle paid calls.",
-      state: getDepositState(availability),
-      summary: `${availability.ownerBalance} USDC spendable`,
-      hint: getDepositHint(availability),
-      actionLabel: availability.hasBalance ? "Add More Funds" : "Deposit USDC",
+      state: depositState,
+      summary: `${availability.ownerBalance} USDC available`,
+      hint: depositHint,
+      actionLabel: "Deposit USDC",
       icon: Wallet,
+      tooltip: "Move USDC from your wallet into the Synapse Vault so your runtime has spendable credit for paid agent calls.",
     },
     {
       step: "agent",
       title: "Create Agent Runtime",
-      description: "Issue a runtime identity with budget and call guards bound to the current owner.",
-      state: getAgentState(availability),
-      summary: availability.hasActiveAgent ? "At least one active agent exists" : "No active agent yet",
-      hint: availability.hasBalance ? "Creation opens the credential issuance modal." : "Funding is required before issuing runtime credentials.",
-      actionLabel: availability.hasActiveAgent ? "Create Another Agent" : "Create Agent",
-      disabled: !(availability.isConnected && availability.hasSession && availability.hasBalance),
+      state: agentState,
+      summary: availability.hasActiveAgent ? "Agent created" : "No active agent yet",
+      hint: availability.hasBalance
+        ? "Funding is ready. Create your first agent runtime."
+        : "Fund the vault first to create an agent.",
+      actionLabel: "Create Agent",
+      disabled: !availability.hasBalance,
       icon: Bot,
+      tooltip: "Create the runtime identity that owns budget, call limits, and service discovery for your autonomous agent.",
     },
     {
       step: "credential",
       title: "Capture Credential",
-      description: "Store the one-time secret somewhere your runtime can access it when calling Synapse.",
-      state: getCredentialState(availability),
-      summary: availability.latestCredentialPrefix ? `Token prefix: ${availability.latestCredentialPrefix}` : "No credential visible yet",
-      hint: availability.latestIssuedToken ? "Copy the full credential now. It will not be shown again." : "Existing cards only show the token prefix for safety.",
-      actionLabel: getCredentialActionLabel(availability),
-      disabled: !availability.latestIssuedToken && availability.hasCredential,
+      state: credentialState,
+      summary: availability.hasCredential ? `Token: ${availability.latestCredentialPrefix}...` : "No credential visible yet",
+      hint: availability.hasCredential
+        ? "Copy and save the token in your application code."
+        : "Create an agent first to generate a credential.",
+      actionLabel: "Copy Credential",
+      disabled: !availability.hasCredential,
       icon: KeyRound,
+      tooltip: "Generate the one-time runtime credential your agent uses to authenticate paid calls. Copy it once and store it securely.",
     },
     {
       step: "invoke",
       title: "Run First Paid Invocation",
-      description: "Use the credential to discover a service, settle payment, and verify a real gateway response.",
-      state: getInvokeState(availability),
-      summary: availability.hasSuccessfulInvocation ? "At least one paid invocation succeeded" : "No successful invocation recorded",
-      hint: availability.hasSuccessfulInvocation ? "Use the panel below to repeat against another service." : "Paste the saved credential into the sandbox and run the example.",
-      actionLabel: availability.hasSuccessfulInvocation ? "Run Again" : "Run Example",
-      disabled: !(availability.isConnected && availability.hasSession && availability.hasActiveAgent && availability.hasBalance),
+      state: invokeState,
+      summary: availability.hasSuccessfulInvocation ? "First invocation completed" : "No successful invocation yet",
+      hint: availability.hasCredential
+        ? "Scroll down to the sandbox and run an example invocation."
+        : "Complete the previous steps first.",
+      actionLabel: "Run Example",
+      disabled: !availability.hasCredential,
       icon: Rocket,
+      tooltip: "Use the credential to discover a service, settle payment, and prove the runtime can complete its first autonomous paid call.",
     },
   ];
 }
@@ -190,10 +195,14 @@ export default function ActivationRunway({
   onDepositComplete,
   onCopyLatestCredential,
 }: Readonly<ActivationRunwayProps>) {
-  const hasBalance = Number(ownerBalance) > 0;
-  const hasCredential = Boolean(latestCredentialPrefix);
+  const { isSessionAuthenticated, authorize } = useAuth();
+  const { openConnectModal } = useConnectModal();
   const [activeStep, setActiveStep] = useState<RunwayStep>("deposit");
   const [copiedCredential, setCopiedCredential] = useState(false);
+
+  const hasBalance = Number(ownerBalance) > 0;
+  const hasCredential = Boolean(latestCredentialPrefix);
+
   const {
     isOpen: isDepositModalOpen,
     openModal: openDepositModal,
@@ -262,8 +271,20 @@ export default function ActivationRunway({
     latestIssuedToken,
   });
 
-  const handleCardAction = useCallback((card: RunwayCard) => {
+  const handleCardAction = useCallback(async (card: RunwayCard) => {
     if (card.step === "deposit") {
+      // Check authentication before opening deposit modal
+      if (!isConnected) {
+        openConnectModal?.();
+        return;
+      }
+      if (!isSessionAuthenticated) {
+        const ok = await authorize();
+        if (!ok) {
+          toast.error("Please sign in to deposit funds.");
+          return;
+        }
+      }
       openDepositModal();
       return;
     }
@@ -280,7 +301,7 @@ export default function ActivationRunway({
       return;
     }
     onRunExample();
-  }, [handleCopyCredential, latestIssuedToken, onAgentCreated, onRunExample, openDepositModal]);
+  }, [handleCopyCredential, latestIssuedToken, onAgentCreated, onRunExample, isConnected, isSessionAuthenticated, authorize, openConnectModal, openDepositModal]);
 
   return (
     <section id="activation-runway" className="space-y-6" aria-label="Activation runway">
@@ -304,6 +325,7 @@ export default function ActivationRunway({
         {cards.map((card) => {
           const Icon = card.icon;
           const isActive = activeStep === card.step;
+
           return (
             <article
               key={card.step}
@@ -313,20 +335,38 @@ export default function ActivationRunway({
                 <span className="rounded-2xl border border-current/15 bg-black/10 p-3" aria-hidden="true">
                   <Icon className="h-5 w-5" />
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveStep(card.step)}
-                  className="text-[10px] font-bold uppercase tracking-[0.24em] text-current/80"
-                >
-                  {card.state}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(card.step)}
+                    className="text-[10px] font-bold uppercase tracking-[0.24em] text-current/80"
+                  >
+                    {card.state}
+                  </button>
+                  {card.tooltip && (
+                    <div className="group/tooltip relative">
+                      <button
+                        type="button"
+                        className="text-current/60 hover:text-current transition"
+                        aria-label={`Help: ${card.title}`}
+                        aria-describedby={`${card.step}-tooltip`}
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                      <div
+                        id={`${card.step}-tooltip`}
+                        role="tooltip"
+                        className="pointer-events-none absolute right-0 top-6 z-20 w-64 translate-y-1 rounded-lg border border-white/20 bg-black/95 p-3 text-xs leading-5 text-gray-300 opacity-0 shadow-lg transition-all duration-150 group-hover/tooltip:translate-y-0 group-hover/tooltip:opacity-100 group-focus-within/tooltip:translate-y-0 group-focus-within/tooltip:opacity-100"
+                      >
+                        {card.tooltip}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="mt-5 space-y-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{card.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-gray-300">{card.description}</p>
-                </div>
+                <h3 className="text-lg font-semibold text-white">{card.title}</h3>
 
                 <dl className="rounded-2xl border border-white/8 bg-black/10 p-4">
                   <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Current Summary</dt>
@@ -351,6 +391,8 @@ export default function ActivationRunway({
 
       <DepositUsdcModal
         isOpen={isDepositModalOpen}
+        title="Fund Owner Vault"
+        description="Transfer USDC from your wallet into the Synapse Vault. This becomes your credit balance for agent operations."
         amount={depositAmount}
         onAmountChange={setDepositAmount}
         error={depositError}
