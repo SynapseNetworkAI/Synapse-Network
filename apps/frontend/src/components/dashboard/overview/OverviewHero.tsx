@@ -1,24 +1,45 @@
 import Link from "next/link";
+import { ArrowRight, Zap, Shield } from "lucide-react";
 
 export default function OverviewHero() {
   return (
-    <div className="max-w-3xl">
-      <p className="text-xs tracking-widest text-green-300 uppercase">Overview</p>
-      <h2 className="mt-2 text-3xl font-black leading-tight text-white md:text-4xl">
-        Synapse Network：让 Agent 安全调用 API，并自动完成扣费与结算
-      </h2>
-      <p className="mt-4 text-sm leading-7 text-gray-400">
-        买家充值后可用凭据发起高频调用；卖家接入 API 后按调用量获得收益；平台按费率自动抽取服务费。
-      </p>
+    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.03] to-transparent p-8 md:p-12">
+      <div className="relative z-10 max-w-3xl">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 mb-6">
+          <Zap className="w-3 h-3 text-blue-400" />
+          <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">The Agentic Economy</span>
+        </div>
+        
+        <h2 className="text-4xl md:text-5xl font-black leading-tight text-white tracking-tight mb-6">
+          Synapse Network: <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">Financial Layer</span> for Autonomous Agents
+        </h2>
+        
+        <p className="text-lg text-gray-400 leading-relaxed mb-8">
+          The first M2M (Machine-to-Machine) infrastructure designed for the agentic era. 
+          Enable your agents to discover, invoke, and pay for services autonomously with real-time settlement.
+        </p>
 
-      <div className="flex flex-wrap gap-2 mt-5">
-        <Link href="/dashboard/credentials" className="px-4 py-2 text-sm font-semibold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400">
-          我是买家：充值并开始调用
-        </Link>
-        <Link href="/dashboard/sell" className="px-4 py-2 text-sm font-semibold text-white transition-colors border border-gray-700 rounded-lg hover:bg-gray-900">
-          我是卖家：接入服务并开始赚钱
-        </Link>
+        <div className="flex flex-wrap gap-4">
+          <Link 
+            href="/dashboard/agents" 
+            className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-black bg-white rounded-xl hover:bg-gray-200 transition-all active:scale-95"
+          >
+            Start as Consumer
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+          <Link 
+            href="/dashboard/console" 
+            className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-white bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all active:scale-95"
+          >
+            Become a Provider
+            <Shield className="w-4 h-4 text-emerald-400" />
+          </Link>
+        </div>
       </div>
+      
+      {/* Decorative background elements */}
+      <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-blue-500/10 rounded-full blur-[100px]" />
+      <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-[100px]" />
     </div>
   );
 }
