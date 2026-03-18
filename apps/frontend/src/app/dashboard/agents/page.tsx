@@ -21,6 +21,7 @@ import {
   type AgentCredentialRecord,
   type AgentCredentialIssueResponse
 } from "@/utils/agentCredentialApi";
+import QuickStartGuide from "@/components/dashboard/agents/QuickStartGuide";
 
 export default function AgentsPage() {
   const { address: userAddress, isConnected } = useAccount();
@@ -40,6 +41,7 @@ export default function AgentsPage() {
   const [agentName, setAgentName] = useState("");
   const [dailyBudget, setDailyBudget] = useState("10.00");
   const [maxCalls, setMaxCalls] = useState("1000");
+  const [showQuickStart, setShowQuickStart] = useState(false);
 
   const fetchCredentials = useCallback(async () => {
     if (!userAddress || !isSessionAuthenticated) return;
@@ -109,8 +111,28 @@ export default function AgentsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Show quick start if no credentials exist
+  useEffect(() => {
+    if (isConnected && userAddress && isSessionAuthenticated && credentials.length === 0 && !isLoading) {
+      setShowQuickStart(true);
+    }
+  }, [isConnected, userAddress, isSessionAuthenticated, credentials.length, isLoading]);
+
   return (
     <div className="p-8 space-y-10 max-w-[1400px] mx-auto">
+      {/* QUICK START GUIDE */}
+      {showQuickStart && (
+        <div className="mb-10">
+          <QuickStartGuide 
+            onDepositComplete={() => {
+              fetchCredentials();
+            }}
+            onAgentCreated={() => {
+              setIsCreateModalOpen(true);
+            }}
+          />
+        </div>
+      )}
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
