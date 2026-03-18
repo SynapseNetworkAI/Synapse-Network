@@ -191,6 +191,9 @@
 1. service ownership 绑定当前 owner scope
 2. Provider 只是业务角色，不是独立账户体系
 3. manifest 字段必须对齐 `docs/agent/03_Service_Manifest_Field_Standard.md`
+4. `serviceId` 是机器路由主键；Build Service Manifest 页面中的 `Agent Tool Name` 会直接映射到它
+5. `serviceId` 必须全局唯一；重复注册返回 `422 SERVICE_REGISTRATION_INVALID`
+6. 当前实现没有独立的服务注册人工审核流；请求校验通过且健康探测完成后，服务立即写入 owner registry。公共 discover 是否可见仍取决于 `status=active` 且运行健康
 
 ## 6. Audit and Admin APIs
 

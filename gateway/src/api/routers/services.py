@@ -10,7 +10,7 @@ from src.services.platform import credential_service
 from src.services.provider.manifest_parser_service import parse_manifest_from_curl
 from src.core.config import settings
 from src.domain.service_contract import AgentDiscoveryQueryRecord
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 router = APIRouter()
 
@@ -139,6 +139,8 @@ class InvokeMethod(BaseModel):
 
 
 class RegisterServiceRequest(BaseModel):
+    serviceId: Optional[str] = None
+    agentToolName: Optional[str] = None
     serviceName: str
     role: str = "Provider"
     address: Optional[str] = None
@@ -153,6 +155,22 @@ class RegisterServiceRequest(BaseModel):
     metering: MeteringSpec = Field(default_factory=MeteringSpec)
     invoke: InvokeMethod
     isActive: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def bind_service_id_from_agent_tool_name(cls, raw: Any) -> Any:
+        if not isinstance(raw, dict):
+            return raw
+
+        payload = dict(raw)
+        service_id = str(payload.get("serviceId") or "").strip()
+        agent_tool_name = str(payload.get("agentToolName") or "").strip()
+        if not service_id and agent_tool_name:
+            payload["serviceId"] = agent_tool_name
+            return payload
+        if service_id and agent_tool_name and service_id != agent_tool_name:
+            raise ValueError("serviceId must match agentToolName when both are provided")
+        return payload
 
 
 class ParseCurlRequest(BaseModel):

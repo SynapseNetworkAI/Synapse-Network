@@ -231,6 +231,17 @@ const normalizeHealthCheckPath = (raw: string): string => {
   return value.startsWith("/") ? value : `/${value}`;
 };
 
+const isValidCurlCommand = (raw: string): boolean => {
+  const normalized = raw.replaceAll(/\\\r?\n/g, " ").trim();
+  if (!normalized) {
+    return false;
+  }
+  if (!/^curl(\s|$)/i.test(normalized)) {
+    return false;
+  }
+  return /(https?:\/\/[^\s'"\\]+)|(['"]https?:\/\/[^'"\\]+['"])/i.test(normalized);
+};
+
 // Extracted from api_gateway_reverse_proxy_design.md
 interface ServiceManifest {
   service_name: string;
@@ -429,6 +440,8 @@ export default function DeployManifestPage() {
     return collectOverrideChanges(parsedPreview, manifest);
   }, [parsedPreview, manifest]);
 
+  const aiCurlLooksValid = useMemo(() => isValidCurlCommand(aiCurl), [aiCurl]);
+
   const parsedClusterTargets = useMemo(() => {
     const fromInput = endpointTargetsInput
       .split(/\r?\n/)
@@ -446,6 +459,9 @@ export default function DeployManifestPage() {
   const autofillAIMagic = async () => {
     setIsAiGenerating(true);
     try {
+      if (!aiCurlLooksValid) {
+        throw new Error("Raw cURL Command must start with curl and include a valid http(s) URL.");
+      }
       if (!address) {
         throw new Error("Wallet not connected. Please connect wallet and sign in first.");
       }
@@ -518,6 +534,7 @@ export default function DeployManifestPage() {
     setIsDeploying(true);
     try {
       const normalizedTargets = parsedClusterTargets.filter((value) => /^https?:\/\//i.test(value));
+      const serviceId = manifest.agent_tool_name.trim();
 
       if (normalizedTargets.length === 0) {
         toast.error("At least one valid cluster endpoint URL is required.");
@@ -529,6 +546,7 @@ export default function DeployManifestPage() {
       const defaultBillableStatusClasses = [2] as const;
 
       const payload = {
+        serviceId,
         serviceName: manifest.service_name.trim(),
         createdAt: nowDateTimeString(),
         updatedAt: nowDateTimeString(),
@@ -562,7 +580,7 @@ export default function DeployManifestPage() {
           requestIdHeader: "X-Synapse-Request-Id",
           passThroughHeaders: ["X-Trace-Id", "X-Client-Version"],
           injectHeaders: {
-            "X-Synapse-Service-Id": manifest.agent_tool_name.trim(),
+            "X-Synapse-Service-Id": serviceId,
           },
           retryPolicy: {
             maxAttempts: 2,
@@ -1066,20 +1084,31 @@ export default function DeployManifestPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Raw cURL Command</label>
+                  <label htmlFor="ai-curl-command" className="block text-sm font-medium text-gray-300 mb-1">Raw cURL Command</label>
                   <textarea 
+                    id="ai-curl-command"
                     className="w-full px-4 py-3 bg-black border border-gray-700 rounded-lg text-green-400 font-mono text-xs focus:outline-none focus:border-green-500 h-[400px]"
                     placeholder="curl -X POST ..."
                     value={aiCurl}
                     onChange={(e) => setAICurl(e.target.value)}
                   />
+                  {aiCurl.trim() && !aiCurlLooksValid ? (
+                    <p className="mt-2 text-xs text-yellow-300">
+                      Raw cURL Command must start with <span className="font-mono text-yellow-200">curl</span> and include a full <span className="font-mono text-yellow-200">http(s)://</span> URL.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Paste a real cURL command only. Natural language notes will not be parsed.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col">
-                  <label className="block text-sm font-medium text-gray-300 mb-1 flex justify-between">
+                  <label htmlFor="ai-response-json" className="block text-sm font-medium text-gray-300 mb-1 flex justify-between">
                      <span>Expected / Generated JSON Response</span>
                   </label>
                   <textarea 
+                    id="ai-response-json"
                     className="w-full flex-1 px-4 py-3 bg-[#050505] border border-gray-700 rounded-lg text-blue-400 font-mono text-xs focus:outline-none focus:border-green-500 h-[400px]"
                     placeholder='{"status": "success"}'
                     value={aiResponse}
@@ -1104,13 +1133,20 @@ export default function DeployManifestPage() {
                     </p>
                   )}
                 </div>
-                <button 
-                  onClick={autofillAIMagic}
-                  disabled={isAiGenerating || !aiCurl}
-                    className="px-8 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-bold flex items-center justify-center disabled:opacity-50 min-w-[120px]"
+                <div className="flex flex-col items-end gap-2">
+                  <button 
+                    onClick={autofillAIMagic}
+                    disabled={isAiGenerating || !aiCurlLooksValid}
+                    className="px-8 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors font-bold flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
                   >
                     {isAiGenerating ? <span className="animate-pulse">Generating...</span> : "Generate JSON"}
                   </button>
+                  {!aiCurlLooksValid && aiCurl.trim() ? (
+                    <p className="text-[11px] text-yellow-300">
+                      Enter a valid cURL command to enable Generate JSON.
+                    </p>
+                  ) : null}
+                </div>
                   <button 
                     onClick={confirmAndInject}
                     disabled={!parsedPreview || isAiGenerating || overrideChanges.length === 0}

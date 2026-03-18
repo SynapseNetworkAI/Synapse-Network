@@ -645,6 +645,18 @@ def _bind_forwarding_service_id(
     return service_payload.model_copy(update={"forwarding": next_forwarding})
 
 
+def _ensure_unique_service_id(
+    rows: List[ServiceDefinitionRecord], service_id: str
+) -> None:
+    normalized_service_id = str(service_id or "").strip()
+    if not normalized_service_id:
+        return
+
+    for row in rows:
+        if str(row.service_id or "").strip() == normalized_service_id:
+            raise ValueError(f"serviceId '{normalized_service_id}' already exists")
+
+
 SETTLED_USAGE_STATUSES = {"accepted", "succeeded"}
 
 
@@ -799,6 +811,7 @@ class RegistryService:
                 new_svc = new_svc.model_copy(
                     update={"service_id": _generate_service_id(owner_wallet)}
                 )
+            _ensure_unique_service_id(rows, str(new_svc.service_id or ""))
             new_svc = _bind_forwarding_service_id(new_svc)
             created_at = now_dt_str()
             new_svc = new_svc.model_copy(
