@@ -31,7 +31,7 @@
 
 ### 业务核心
 - `docs/agent.md`
-- `docs/01_Product_Vision/Design.md`
+- `docs/Design.md`
 - `docs/agent/01_Agent_Runtime_Product_Architecture.md`
 - `docs/agent/05_Dashboard_IA_and_Onboarding.md`
 
@@ -66,9 +66,9 @@
 
 ## 4. 本轮已执行的收敛动作
 
-### 4.1 已归档文档
+### 4.1 已移出主阅读路径的历史主题
 
-归档到 `docs/archive/pre_agent/`：
+以下文档或主题已被判定为历史语义，不再出现在当前 canonical 入口和主 README 阅读路径中：
 
 - `wallet.md`
 - `soul.md`
@@ -77,23 +77,19 @@
 - `04_Synapse_Network/legacy_consumer_wallet_topology.md`
 - `04_Synapse_Network/Credential_Design_Optimization.md`
 - `04_Synapse_Network/Synapse_Client_README.md`
-
-归档到 `docs/archive/historical_schema/`：
-
 - `03_Smart_Contract_Payment/Gateway_V2_Data_Model.md`
 - `03_Smart_Contract_Payment/Gateway_V2_Plan.md`
-
-归档到 `docs/archive/historical_architecture/`：
-
 - `02_Architecture/Core_Architecture.md`
 - `02_Architecture/Storage_Strategy_Upgrade.md`
+
+说明：当前仓库不再使用独立归档目录作为主维护结构。这些历史主题的收敛方式，是通过 `docs/README.md` 和各子目录 `README.md` 将其移出主导航，并把当前 canonical 文档重新指向 `docs/agent/`、`docs/api.md`、`docs/Design.md` 与数据库/资金文档。
 
 ### 4.2 已更新文档入口
 
 - 重写了 `docs/README.md`，现在它明确了：
 	- canonical 文档集合
 	- 业务域分类
-	- 归档文档策略
+	- 历史主题移出主阅读路径的策略
 	- 新文档维护规则
 
 ### 4.3 已完成的 `04_Synapse_Network/` 收敛
@@ -132,7 +128,8 @@
 - `feature_designs/backend_admin/`
 
 ### 历史文档
-- `archive/`
+- `docs/plan/` 中的收敛计划与迁移说明
+- 各业务目录 README 中标注为 historical / compatibility 的文档
 
 ## 6. 下一轮继续收敛的任务
 
@@ -143,11 +140,11 @@
 ### 中优先级
 1. 为前端新增一份 build-for-agent 的 Runtime Playground / Discovery / Quote / Invoke IA 文档。
 2. 给数据库和 schema 补一份“文档与 SQL 一致性检查”说明。
-3. 给 `docs/admin/` 和 `06_Developer_Guides/` 增加各自 README，降低查找成本。
+3. 继续补齐仍缺失目录的 README 或主题索引，降低查找成本。
 
 ### 低优先级
 1. 继续清理中文 / 英文命名不统一的问题。
-2. 为 `archive/` 下每一批历史文档补迁移说明，注明被什么 canonical 文档替代。
+2. 为仍保留的历史兼容文档补迁移说明，注明被什么 canonical 文档替代。
 
 ## 7. 执行规则
 
