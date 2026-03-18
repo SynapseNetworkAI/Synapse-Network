@@ -160,9 +160,9 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
   }, [isConfirmed, hash, userAddress, depositAmount, onDepositComplete, refetchWalletBalance]);
 
   return (
-    <div className="space-y-6">
+    <section className="space-y-6" aria-label="Agent quick start">
       {/* PROGRESS STEPPER */}
-      <div className="grid grid-cols-4 gap-4">
+      <ol className="grid grid-cols-4 gap-4">
         {STEPS.map((item, idx) => {
           const Icon = item.icon;
           const isActive = currentStep === item.step;
@@ -185,45 +185,46 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
           }
 
           return (
-            <div key={item.step} className="relative">
+            <li key={item.step} className="relative list-none">
               <button
                 onClick={() => setCurrentStep(item.step)}
+                aria-current={isActive ? "step" : undefined}
                 className={`w-full p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${buttonClassName}`}
               >
-                <div className={`p-2 rounded-lg ${iconClassName}`}>
+                <span className={`p-2 rounded-lg ${iconClassName}`} aria-hidden="true">
                   <Icon className={`w-5 h-5 ${iconColorClassName}`} />
-                </div>
+                </span>
                 <span className={`text-xs font-bold ${labelClassName}`}>
                   {item.label}
                 </span>
               </button>
 
               {idx < 3 && (
-                <div className="absolute top-1/2 -right-2 w-4 h-0.5 bg-white/10 -translate-y-1/2" />
+                <span className="absolute top-1/2 -right-2 w-4 h-0.5 bg-white/10 -translate-y-1/2" aria-hidden="true" />
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
 
       {/* STEP CONTENT */}
-      <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+      <section className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4" aria-live="polite">
         {currentStep === "deposit" && (
           <>
-            <div className="flex items-start gap-3">
+            <header className="flex items-start gap-3">
               <Zap className="w-5 h-5 text-blue-400 mt-0.5" />
-              <div>
+              <section>
                 <h3 className="font-bold text-white">Step 1: Deposit USDC</h3>
                 <p className="text-sm text-gray-400 mt-1">
                   Transfer USDC from your wallet to the Synapse Vault. This is your credit balance for agent operations.
                 </p>
-              </div>
-            </div>
+              </section>
+            </header>
 
-            <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-2">
-              <p className="text-xs font-bold text-gray-400 uppercase">Current Wallet Balance</p>
-              <p className="text-lg font-bold text-white">{walletUsdcBalance.toFixed(2)} USDC</p>
-            </div>
+            <dl className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-2">
+              <dt className="text-xs font-bold text-gray-400 uppercase">Current Wallet Balance</dt>
+              <dd className="text-lg font-bold text-white">{walletUsdcBalance.toFixed(2)} USDC</dd>
+            </dl>
 
             <button
               onClick={() => setIsDepositModalOpen(true)}
@@ -238,30 +239,30 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
         {currentStep === "agent" && (
           <>
-            <div className="flex items-start gap-3">
+            <header className="flex items-start gap-3">
               <Lock className="w-5 h-5 text-emerald-400 mt-0.5" />
-              <div>
+              <section>
                 <h3 className="font-bold text-white">Step 2: Create Your First Agent</h3>
                 <p className="text-sm text-gray-400 mt-1">
                   An agent is a runtime identity that can discover and invoke services autonomously within your budget constraints.
                 </p>
-              </div>
-            </div>
+              </section>
+            </header>
 
-            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 space-y-3">
+            <dl className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-400 uppercase">Agent Name</span>
-                <span className="text-sm text-gray-300">ResearchBot-01</span>
+                <dt className="text-xs font-bold text-gray-400 uppercase">Agent Name</dt>
+                <dd className="text-sm text-gray-300">ResearchBot-01</dd>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-400 uppercase">Daily Budget</span>
-                <span className="text-sm text-emerald-400 font-bold">$10.00 USDC</span>
+                <dt className="text-xs font-bold text-gray-400 uppercase">Daily Budget</dt>
+                <dd className="text-sm text-emerald-400 font-bold">$10.00 USDC</dd>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-400 uppercase">Max Calls/Day</span>
-                <span className="text-sm text-gray-300">1000</span>
+                <dt className="text-xs font-bold text-gray-400 uppercase">Max Calls/Day</dt>
+                <dd className="text-sm text-gray-300">1000</dd>
               </div>
-            </div>
+            </dl>
 
             <button
               onClick={() => {
@@ -279,32 +280,32 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
         {currentStep === "service" && (
           <>
-            <div className="flex items-start gap-3">
+            <header className="flex items-start gap-3">
               <Rocket className="w-5 h-5 text-amber-400 mt-0.5" />
-              <div>
+              <section>
                 <h3 className="font-bold text-white">Step 3: Discover & Access Services</h3>
                 <p className="text-sm text-gray-400 mt-1">
                   Browse the service marketplace, get quotes, and invoke APIs. Your agent will handle payments automatically.
                 </p>
-              </div>
-            </div>
+              </section>
+            </header>
 
-            <div className="space-y-3">
-              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                <div>
+            <section className="space-y-3" aria-label="Example services">
+              <article className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                <header>
                   <p className="font-bold text-white text-sm">Data Aggregation API</p>
                   <p className="text-xs text-gray-500">$0.01 per call</p>
-                </div>
+                </header>
                 <ChevronRight className="w-4 h-4 text-gray-500" />
-              </div>
-              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                <div>
+              </article>
+              <article className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                <header>
                   <p className="font-bold text-white text-sm">ML Model Inference</p>
                   <p className="text-xs text-gray-500">$0.05 per call</p>
-                </div>
+                </header>
                 <ChevronRight className="w-4 h-4 text-gray-500" />
-              </div>
-            </div>
+              </article>
+            </section>
 
             <button
               onClick={() => setCurrentStep("complete")}
@@ -319,46 +320,46 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
         {currentStep === "complete" && (
           <>
-            <div className="text-center space-y-4">
-              <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+            <section className="text-center space-y-4">
+              <span className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center" aria-hidden="true">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-              </div>
-              <div>
+              </span>
+              <header>
                 <h3 className="font-bold text-white text-lg">You&apos;re All Set!</h3>
                 <p className="text-sm text-gray-400 mt-2">
                   Your agent is ready to discover services and make autonomous API calls. Start exploring the marketplace.
                 </p>
-              </div>
-            </div>
+              </header>
+            </section>
 
-            <div className="grid grid-cols-2 gap-3">
+            <menu className="grid grid-cols-2 gap-3">
               <button className="py-3 bg-white/5 border border-white/10 text-white rounded-xl font-bold hover:bg-white/10 transition-colors">
                 View Agents
               </button>
               <button className="py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-400 transition-colors">
                 Go to Marketplace
               </button>
-            </div>
+            </menu>
           </>
         )}
-      </div>
+      </section>
 
       {/* DEPOSIT MODAL */}
       {isDepositModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">Deposit USDC</h2>
+        <dialog open className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" aria-labelledby="deposit-modal-title">
+          <section className="w-full max-w-md bg-[#0a0a0c] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+            <header className="p-6 border-b border-white/5 flex items-center justify-between">
+              <h2 id="deposit-modal-title" className="text-lg font-bold text-white">Deposit USDC</h2>
               <button
                 onClick={() => setIsDepositModalOpen(false)}
                 className="text-gray-500 hover:text-white"
               >
                 ✕
               </button>
-            </div>
+            </header>
 
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
+            <section className="p-6 space-y-6">
+              <p className="space-y-2 block">
                 <label htmlFor="deposit-amount" className="text-xs font-bold text-gray-500 uppercase">Amount (USDC)</label>
                 <input
                   id="deposit-amount"
@@ -373,37 +374,37 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
                 <p className="text-xs text-gray-500">
                   Available: {walletUsdcBalance.toFixed(2)} USDC
                 </p>
-              </div>
+              </p>
 
               {depositError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm">
+                <aside className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm" role="alert">
                   <AlertCircle className="w-5 h-5" />
                   {depositError}
-                </div>
+                </aside>
               )}
 
               {/* Progress Steps */}
               {depositStep !== "input" && (
-                <div className="space-y-3">
-                  <div className={`p-3 border rounded-xl flex items-center gap-3 ${depositStep === "signing" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"}`}>
+                <section className="space-y-3" aria-label="Deposit progress">
+                  <article className={`p-3 border rounded-xl flex items-center gap-3 ${depositStep === "signing" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"}`}>
                     {depositStep === "signing" ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                    <div className="text-sm">
+                    <section className="text-sm">
                       <p className="font-bold">Step 1: Sign Permit</p>
                       <p className="text-xs opacity-80">{depositStep === "signing" ? "Waiting for wallet signature..." : "✅ Signed"}</p>
-                    </div>
-                  </div>
+                    </section>
+                  </article>
 
-                  <div className={`p-3 border rounded-xl flex items-center gap-3 ${depositStep === "executing" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-gray-800 bg-gray-800/30 text-gray-500"}`}>
+                  <article className={`p-3 border rounded-xl flex items-center gap-3 ${depositStep === "executing" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-gray-800 bg-gray-800/30 text-gray-500"}`}>
                     {depositStep === "executing" ? <RefreshCw className="w-5 h-5 animate-spin" /> : <AlertCircle className="w-5 h-5" />}
-                    <div className="text-sm">
+                    <section className="text-sm">
                       <p className="font-bold">Step 2: Execute Deposit</p>
                       <p className="text-xs opacity-80">{depositStep === "executing" ? "Confirming on-chain..." : "Waiting for step 1"}</p>
-                    </div>
-                  </div>
-                </div>
+                    </section>
+                  </article>
+                </section>
               )}
 
-              <div className="flex gap-3">
+              <menu className="flex gap-3">
                 <button
                   onClick={() => setIsDepositModalOpen(false)}
                   disabled={depositStep !== "input"}
@@ -419,11 +420,11 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
                   {(isPending || isConfirming) && <RefreshCw className="w-4 h-4 animate-spin" />}
                   {depositStep !== "input" || isConfirming ? "Processing..." : "Deposit"}
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
+              </menu>
+            </section>
+          </section>
+        </dialog>
       )}
-    </div>
+    </section>
   );
 }
