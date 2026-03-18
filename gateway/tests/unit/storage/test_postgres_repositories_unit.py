@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import time
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
 
@@ -571,6 +572,43 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "DELETE FROM synapse_service_health_snapshots" in all_sql
     assert "INSERT INTO synapse_service_search_index" in all_sql
     assert "INSERT INTO synapse_runtime_state" in all_sql
+
+
+def test_service_registry_repository_normalizes_datetime_health_timestamps() -> None:
+    db = FakeDB()
+    last_checked_at = datetime(2026, 3, 18, 14, 36, 37, tzinfo=timezone.utc)
+    last_healthy_at = datetime(2026, 3, 18, 14, 35, 0, tzinfo=timezone.utc)
+    db.readonly_plan.append(
+        {
+            "fetchall": [[(
+                "svc-1",
+                "0xabc",
+                "https://a",
+                {
+                    "weight": 100,
+                    "region": "ap",
+                    "status": "healthy",
+                    "overallStatus": "healthy",
+                    "httpStatus": 200,
+                    "consecutiveSuccesses": 3,
+                    "consecutiveFailures": 0,
+                    "probeUrl": "https://a/health",
+                    "lastHealthyAt": last_healthy_at,
+                },
+                95,
+                12,
+                0.99,
+                last_checked_at,
+                None,
+            )]],
+        }
+    )
+    repo = ServiceRegistryRepository(db)
+
+    target_rows = repo.read_service_target_health_rows()
+
+    assert target_rows[0].last_checked_at == int(last_checked_at.timestamp() * 1000)
+    assert target_rows[0].last_healthy_at == int(last_healthy_at.timestamp() * 1000)
 
 
 def test_credential_auth_repository_read_write_and_roles() -> None:

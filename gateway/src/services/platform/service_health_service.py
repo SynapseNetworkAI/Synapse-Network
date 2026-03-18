@@ -140,6 +140,7 @@ def _service_health_row(
         return None
 
     row = target_health.get(target_url) or {}
+    constraint_timeout_ms = int(getattr(service.constraints, "timeout_ms", None) or 15000)
     return ServiceTargetHealth(
         serviceId=service_id,
         ownerAddress=str(service.owner_address or "").strip(),
@@ -155,6 +156,7 @@ def _service_health_row(
         probeUrl=getattr(row, "probe_url", None),
         lastCheckedAt=getattr(row, "last_checked_at", None),
         lastHealthyAt=getattr(row, "last_healthy_at", None),
+        timeoutMs=max(300, min(60000, constraint_timeout_ms)),
         error=getattr(row, "error", None),
     )
 

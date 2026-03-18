@@ -34,7 +34,8 @@ const DESCRIPTION_MAX = 240;
 const TIMEOUT_MIN = 300;
 const TIMEOUT_MAX = 60000;
 const PAYLOAD_MIN = 256;
-const PAYLOAD_MAX = 33554432;
+const REQUEST_BYTES_MAX = 262144;
+const RESPONSE_BYTES_MAX = 1048576;
 const WEIGHT_MIN = 1;
 const WEIGHT_MAX = 1000;
 const MAX_QPS_MIN = 1;
@@ -92,7 +93,8 @@ type ManifestDraft = {
     endpointUrl: string;
     authMode: string;
     timeoutMs: number;
-    maxPayloadBytes: number;
+    maxRequestBytes: number;
+    maxResponseBytes: number;
   };
   quality: {
     availabilitySlo: string;
@@ -228,7 +230,8 @@ const createDefaultDraft = (): ManifestDraft => ({
     endpointUrl: "",
     authMode: "gateway_forward",
     timeoutMs: 15000,
-    maxPayloadBytes: 4194304,
+    maxRequestBytes: 4096,
+    maxResponseBytes: 4096,
   },
   quality: {
     availabilitySlo: "0.995",
@@ -503,21 +506,28 @@ const applyRuntimeRecord = (draft: ManifestDraft, runtime: Record<string, unknow
   const authMode = readString(runtime.auth_mode);
   const timeoutMs = readNumber(runtime.timeout_ms);
   const maxPayloadBytes = readNumber(runtime.max_payload_bytes);
+  const maxRequestBytes = readNumber(runtime.max_request_bytes);
+  const maxResponseBytes = readNumber(runtime.max_response_bytes);
 
   if (endpointUrl) draft.runtime.endpointUrl = endpointUrl;
   if (authMode) draft.runtime.authMode = authMode;
   if (timeoutMs !== null) draft.runtime.timeoutMs = timeoutMs;
-  if (maxPayloadBytes !== null) draft.runtime.maxPayloadBytes = maxPayloadBytes;
+  if (maxRequestBytes !== null) draft.runtime.maxRequestBytes = maxRequestBytes;
+  else if (maxPayloadBytes !== null) draft.runtime.maxRequestBytes = Math.min(maxPayloadBytes, REQUEST_BYTES_MAX);
+  if (maxResponseBytes !== null) draft.runtime.maxResponseBytes = maxResponseBytes;
+  else if (maxPayloadBytes !== null) draft.runtime.maxResponseBytes = Math.min(maxPayloadBytes, RESPONSE_BYTES_MAX);
 };
 
 const applyConstraintRecord = (draft: ManifestDraft, constraints: Record<string, unknown>): void => {
   const timeoutMs = readNumber(constraints.timeout_ms);
   const maxQps = readNumber(constraints.max_qps);
   const maxRequestBytes = readNumber(constraints.max_request_bytes);
+  const maxResponseBytes = readNumber(constraints.max_response_bytes);
 
   if (timeoutMs !== null) draft.runtime.timeoutMs = timeoutMs;
   if (maxQps !== null) draft.gatewayExtensions.rateLimitPolicy.maxQps = maxQps;
-  if (maxRequestBytes !== null) draft.runtime.maxPayloadBytes = maxRequestBytes;
+  if (maxRequestBytes !== null) draft.runtime.maxRequestBytes = maxRequestBytes;
+  if (maxResponseBytes !== null) draft.runtime.maxResponseBytes = maxResponseBytes;
 };
 
 const applyRuntimeOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
@@ -640,8 +650,11 @@ const collectRuntimeErrors = (
   if (draft.runtime.timeoutMs < TIMEOUT_MIN || draft.runtime.timeoutMs > TIMEOUT_MAX) {
     errors.timeoutMs = `Timeout must be in [${TIMEOUT_MIN}, ${TIMEOUT_MAX}] ms.`;
   }
-  if (draft.runtime.maxPayloadBytes < PAYLOAD_MIN || draft.runtime.maxPayloadBytes > PAYLOAD_MAX) {
-    errors.maxPayloadBytes = `Max Payload Bytes must be in [${PAYLOAD_MIN}, ${PAYLOAD_MAX}].`;
+  if (draft.runtime.maxRequestBytes < PAYLOAD_MIN || draft.runtime.maxRequestBytes > REQUEST_BYTES_MAX) {
+    errors.maxRequestBytes = `Max Request Bytes must be in [${PAYLOAD_MIN}, ${REQUEST_BYTES_MAX}].`;
+  }
+  if (draft.runtime.maxResponseBytes < PAYLOAD_MIN || draft.runtime.maxResponseBytes > RESPONSE_BYTES_MAX) {
+    errors.maxResponseBytes = `Max Response Bytes must be in [${PAYLOAD_MIN}, ${RESPONSE_BYTES_MAX}].`;
   }
   if (!normalizeHealthPath(draft.gatewayExtensions.healthCheck.path).startsWith("/")) {
     errors.healthPath = "Health Check Path must start with /.";
@@ -1146,7 +1159,8 @@ export default function DeployManifestPage() {
         endpoint_url: draft.runtime.endpointUrl.trim(),
         auth_mode: draft.runtime.authMode.trim() || "gateway_forward",
         timeout_ms: draft.runtime.timeoutMs,
-        max_payload_bytes: draft.runtime.maxPayloadBytes,
+        max_request_bytes: draft.runtime.maxRequestBytes,
+        max_response_bytes: draft.runtime.maxResponseBytes,
       },
       gateway_extensions: {
         health_check: {
@@ -1206,8 +1220,8 @@ export default function DeployManifestPage() {
       },
       constraints: {
         timeoutMs: draft.runtime.timeoutMs,
-        maxRequestBytes: draft.runtime.maxPayloadBytes,
-        maxResponseBytes: draft.runtime.maxPayloadBytes,
+        maxRequestBytes: draft.runtime.maxRequestBytes,
+        maxResponseBytes: draft.runtime.maxResponseBytes,
         maxQps: draft.gatewayExtensions.rateLimitPolicy.maxQps,
       },
       forwarding: {
@@ -1649,11 +1663,18 @@ export default function DeployManifestPage() {
                   hint={`Allowed range ${TIMEOUT_MIN}-${TIMEOUT_MAX}.`}
                 />
                 <NumberField
-                  label="Max Payload Bytes"
-                  value={draft.runtime.maxPayloadBytes}
-                  onChange={(value) => updateRuntime("maxPayloadBytes", value)}
-                  error={fieldErrors.maxPayloadBytes}
-                  hint={`Allowed range ${PAYLOAD_MIN}-${PAYLOAD_MAX}.`}
+                  label="Max Request Bytes"
+                  value={draft.runtime.maxRequestBytes}
+                  onChange={(value) => updateRuntime("maxRequestBytes", value)}
+                  error={fieldErrors.maxRequestBytes}
+                  hint={`Allowed range ${PAYLOAD_MIN}-${REQUEST_BYTES_MAX}.`}
+                />
+                <NumberField
+                  label="Max Response Bytes"
+                  value={draft.runtime.maxResponseBytes}
+                  onChange={(value) => updateRuntime("maxResponseBytes", value)}
+                  error={fieldErrors.maxResponseBytes}
+                  hint={`Allowed range ${PAYLOAD_MIN}-${RESPONSE_BYTES_MAX}.`}
                 />
               </div>
             </SectionCard>
