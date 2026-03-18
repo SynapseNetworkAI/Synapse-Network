@@ -62,7 +62,7 @@
 ## 3. 设计原则
 
 1. Agent-facing 协议只暴露 Service、Quote、Invocation、Credential 最小视图。
-2. 卖家结算地址、拆账策略、内部账本键留在平台内部表。
+2. Provider 结算地址、拆账策略、内部账本键留在平台内部表。
 3. Quote 必须先落库，预算必须先 reserve，再 capture / release。
 4. Invocation 是第一等真相对象，不再退化成历史兼容计费影子行。
 5. Ledger 必须是双分录，余额快照只做高频读加速。

@@ -3,7 +3,7 @@
 为了避免“设计基调”和“功能方案”混杂，前端产品文档阅读顺序统一如下：
 
 1. 设计基调与美学原则（先看）
-- `doc/01_Product_Vision/Design.md`
+- `docs/Design.md`
 
 2. 首页功能设计与实现约束（后看）
 - `doc/feature_designs/frontend_product/Homepage_V2_Functional_Design.md`

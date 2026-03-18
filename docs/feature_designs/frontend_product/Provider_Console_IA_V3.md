@@ -67,4 +67,4 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 
 - 文档与代码同批更新。
 - 新路由上线时，侧边导航必须同步。
-- Homepage 风格基线继续遵循 `doc/01_Product_Vision/Design.md` 的 95/5 色彩策略。
+- Homepage 风格基线继续遵循 `docs/Design.md` 的 95/5 色彩策略。
