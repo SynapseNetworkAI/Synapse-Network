@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { 
   Bot, 
   Plus, 
-  Key, 
   ShieldCheck, 
   Trash2, 
   RefreshCw, 
@@ -25,7 +26,8 @@ import QuickStartGuide from "@/components/dashboard/agents/QuickStartGuide";
 
 export default function AgentsPage() {
   const { address: userAddress, isConnected } = useAccount();
-  const { isSessionAuthenticated } = useAuth();
+  const { isSessionAuthenticated, authorize } = useAuth();
+  const { openConnectModal } = useConnectModal();
   
   const [credentials, setCredentials] = useState<AgentCredentialRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +44,7 @@ export default function AgentsPage() {
   const [dailyBudget, setDailyBudget] = useState("10.00");
   const [maxCalls, setMaxCalls] = useState("1000");
   const [showQuickStart, setShowQuickStart] = useState(false);
+  const ownerAddress = userAddress?.toLowerCase() ?? "";
 
   const fetchCredentials = useCallback(async () => {
     if (!userAddress || !isSessionAuthenticated) return;
@@ -70,20 +73,57 @@ export default function AgentsPage() {
     fetchCredentials();
   };
 
+  const ensureOwnerReady = useCallback(async (): Promise<string | null> => {
+    if (!isConnected) {
+      openConnectModal?.();
+      setError("Please connect your wallet before creating an agent.");
+      return null;
+    }
+
+    if (!userAddress) {
+      setError("Wallet address unavailable. Please reconnect your wallet and try again.");
+      return null;
+    }
+
+    if (!isSessionAuthenticated) {
+      const ok = await authorize();
+      if (!ok) {
+        setError("Please sign in with your wallet before creating an agent.");
+        return null;
+      }
+    }
+
+    return userAddress.toLowerCase();
+  }, [authorize, isConnected, isSessionAuthenticated, openConnectModal, userAddress]);
+
+  const handleOpenCreateModal = useCallback(async () => {
+    setError(null);
+    const boundOwner = await ensureOwnerReady();
+    if (!boundOwner) return;
+    setIsCreateModalOpen(true);
+  }, [ensureOwnerReady]);
+
   const handleCreateCredential = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userAddress) return;
+    const boundOwner = await ensureOwnerReady();
+    if (!boundOwner) return;
 
     try {
+      setError(null);
       setIsLoading(true);
-      const result = await issueAgentCredential(userAddress, {
+      const result = await issueAgentCredential(boundOwner, {
         name: agentName || "Unnamed Agent",
-        creditLimit: parseFloat(dailyBudget),
-        maxCalls: parseInt(maxCalls),
+        ownerAddress: boundOwner,
+        creditLimit: Number.parseFloat(dailyBudget),
+        maxCalls: Number.parseInt(maxCalls, 10),
         resetInterval: "daily"
       });
       setNewCredential(result);
       setIsCreateModalOpen(false);
+      setAgentName("");
+      setDailyBudget("10.00");
+      setMaxCalls("1000");
+      toast.success(`Agent created for owner ${boundOwner.slice(0, 6)}...${boundOwner.slice(-4)}`);
       fetchCredentials();
     } catch (err) {
       console.error("Failed to create credential:", err);
@@ -118,6 +158,102 @@ export default function AgentsPage() {
     }
   }, [isConnected, userAddress, isSessionAuthenticated, credentials.length, isLoading]);
 
+  let credentialsContent: React.ReactNode;
+
+  if (isLoading && credentials.length === 0) {
+    credentialsContent = [1, 2, 3].map((i) => (
+      <div key={i} className="h-64 rounded-2xl bg-white/[0.02] border border-white/5 animate-pulse" />
+    ));
+  } else if (credentials.length === 0) {
+    credentialsContent = (
+      <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4 bg-white/[0.01] border border-dashed border-white/10 rounded-3xl">
+        <div className="p-4 rounded-full bg-white/[0.03]">
+          <Bot className="w-10 h-10 text-gray-600" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-white">No Agents Found</h3>
+          <p className="text-sm text-gray-500 max-w-xs mx-auto">Create your first agent profile to start using Synapse Network services.</p>
+        </div>
+        <button 
+          onClick={() => void handleOpenCreateModal()}
+          className="px-6 py-2 bg-white text-black rounded-full text-xs font-bold hover:bg-gray-200 transition-colors"
+        >
+          Get Started
+        </button>
+      </div>
+    );
+  } else {
+    credentialsContent = credentials.map((agent) => (
+      <div key={agent.id} className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] hover:border-blue-500/30 transition-all relative overflow-hidden">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-xl ${agent.status === 'active' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-gray-500/10 border border-gray-500/20'}`}>
+              <Bot className={`w-5 h-5 ${agent.status === 'active' ? 'text-blue-400' : 'text-gray-500'}`} />
+            </div>
+            <div>
+              <h3 className="font-bold text-white">{agent.name}</h3>
+              <p className="text-xs text-gray-500 font-mono">{agent.id.slice(0, 8)}...</p>
+            </div>
+          </div>
+          <div className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${agent.status === 'active' ? 'bg-blue-500/10 text-blue-400' : 'bg-gray-500/10 text-gray-500'}`}>
+            {agent.status}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Daily Budget</p>
+              <p className="text-sm font-bold text-emerald-400">${(agent.creditLimit ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Calls</p>
+              <p className="text-sm font-bold text-white">{agent.callsUsed} / {agent.maxCalls}</p>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Usage</span>
+              <span className="text-[10px] text-gray-500">{Math.round((agent.callsUsed / agent.maxCalls) * 100)}%</span>
+            </div>
+            <div className="h-2 bg-white/[0.03] rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
+                style={{ width: `${(agent.callsUsed / agent.maxCalls) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Created</p>
+              <p className="text-xs text-gray-400">{agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : "Pending"}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => copyToClipboard(agent.tokenPrefix ?? agent.id, agent.id)}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                title="Copy token prefix"
+              >
+                {copiedId === agent.id ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+              </button>
+              <button 
+                onClick={() => handleRevoke(agent.id)}
+                className="p-2 rounded-lg bg-red-500/5 hover:bg-red-500/10 transition-colors group/btn"
+                title="Revoke agent"
+              >
+                <Trash2 className="w-4 h-4 text-red-400 group-hover/btn:text-red-300" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    ));
+  }
+
+  const issuedCredential = newCredential;
+
   return (
     <div className="p-8 space-y-10 max-w-[1400px] mx-auto">
       {/* QUICK START GUIDE */}
@@ -128,7 +264,7 @@ export default function AgentsPage() {
               fetchCredentials();
             }}
             onAgentCreated={() => {
-              setIsCreateModalOpen(true);
+              void handleOpenCreateModal();
             }}
           />
         </div>
@@ -152,7 +288,7 @@ export default function AgentsPage() {
             <RefreshCw className={`w-4 h-4 text-gray-400 ${isRefreshing ? "animate-spin" : ""}`} />
           </button>
           <button 
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => void handleOpenCreateModal()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold hover:bg-blue-400 transition-colors shadow-lg shadow-blue-500/20"
           >
             <Plus className="w-4 h-4" />
@@ -170,95 +306,7 @@ export default function AgentsPage() {
 
       {/* AGENT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading && credentials.length === 0 ? (
-          [1, 2, 3].map(i => (
-            <div key={i} className="h-64 rounded-2xl bg-white/[0.02] border border-white/5 animate-pulse" />
-          ))
-        ) : credentials.length === 0 ? (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4 bg-white/[0.01] border border-dashed border-white/10 rounded-3xl">
-            <div className="p-4 rounded-full bg-white/[0.03]">
-              <Bot className="w-10 h-10 text-gray-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white">No Agents Found</h3>
-              <p className="text-sm text-gray-500 max-w-xs mx-auto">Create your first agent profile to start using Synapse Network services.</p>
-            </div>
-            <button 
-              onClick={() => setIsCreateModalOpen(true)}
-              className="px-6 py-2 bg-white text-black rounded-full text-xs font-bold hover:bg-gray-200 transition-colors"
-            >
-              Get Started
-            </button>
-          </div>
-        ) : (
-          credentials.map((agent) => (
-            <div key={agent.id} className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] hover:border-blue-500/30 transition-all relative overflow-hidden">
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-xl ${agent.status === 'active' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-gray-500/10 border border-gray-500/20'}`}>
-                    <Bot className={`w-5 h-5 ${agent.status === 'active' ? 'text-blue-400' : 'text-gray-500'}`} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{agent.name || "Unnamed Agent"}</h3>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <div className={`w-1.5 h-1.5 rounded-full ${agent.status === 'active' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]' : 'bg-gray-600'}`} />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{agent.status}</span>
-                    </div>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => handleRevoke(agent.id)}
-                  className="p-2 rounded-lg hover:bg-red-500/10 text-gray-600 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Daily Budget</span>
-                    <span className="text-sm font-mono text-emerald-400">${agent.creditLimit?.toFixed(2) || "0.00"}</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                    <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Usage</span>
-                    <span className="text-sm font-mono text-white">{((agent.callsUsed / agent.maxCalls) * 100).toFixed(1)}%</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                    <span>Call Quota</span>
-                    <span className="text-gray-400">{agent.callsUsed} / {agent.maxCalls}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 transition-all duration-500" 
-                      style={{ width: `${Math.min(100, (agent.callsUsed / agent.maxCalls) * 100)}%` }} 
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Key className="w-3.5 h-3.5 text-gray-600" />
-                    <span className="text-[10px] font-mono text-gray-500">Prefix: {agent.tokenPrefix}...</span>
-                  </div>
-                  <button 
-                    onClick={() => copyToClipboard(agent.id, agent.id)}
-                    className="text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest flex items-center gap-1"
-                  >
-                    {copiedId === agent.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    ID
-                  </button>
-                </div>
-              </div>
-              
-              {/* Decorative background */}
-              <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-colors" />
-            </div>
-          ))
-        )}
+        {credentialsContent}
       </div>
 
       {/* CREATE MODAL */}
@@ -276,9 +324,10 @@ export default function AgentsPage() {
             </div>
             <form onSubmit={handleCreateCredential} className="p-6 space-y-6">
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Agent Name</label>
-                <input 
-                  type="text" 
+                <label htmlFor="agent-name" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Agent Name</label>
+                <input
+                  id="agent-name"
+                  type="text"
                   value={agentName}
                   onChange={(e) => setAgentName(e.target.value)}
                   placeholder="e.g. ResearchBot-01"
@@ -286,11 +335,22 @@ export default function AgentsPage() {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <label htmlFor="bound-owner" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Bound Owner</label>
+                <input
+                  id="bound-owner"
+                  type="text"
+                  readOnly
+                  value={ownerAddress || "Wallet session required"}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono text-blue-300 break-all"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Daily Budget (USDC)</label>
-                  <input 
-                    type="number" 
+                  <label htmlFor="daily-budget" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Daily Budget (USDC)</label>
+                  <input
+                    id="daily-budget"
+                    type="number"
                     step="0.01"
                     value={dailyBudget}
                     onChange={(e) => setDailyBudget(e.target.value)}
@@ -299,9 +359,10 @@ export default function AgentsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Max Calls</label>
-                  <input 
-                    type="number" 
+                  <label htmlFor="max-calls" className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Max Calls</label>
+                  <input
+                    id="max-calls"
+                    type="number"
                     value={maxCalls}
                     onChange={(e) => setMaxCalls(e.target.value)}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500/50"
@@ -312,10 +373,10 @@ export default function AgentsPage() {
               <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-blue-400 mt-0.5" />
                 <p className="text-[11px] text-gray-400 leading-relaxed">
-                  Creating an agent will issue a unique credential. You can revoke access or update budget policies at any time.
+                  Creating an agent will issue a unique credential bound to the active owner wallet session. You can revoke access or update budget policies at any time.
                 </p>
               </div>
-              <button 
+              <button
                 type="submit"
                 disabled={isLoading}
                 className="w-full py-4 bg-blue-500 text-white rounded-xl font-bold text-sm hover:bg-blue-400 transition-all active:scale-[0.98] disabled:opacity-50"
@@ -328,7 +389,7 @@ export default function AgentsPage() {
       )}
 
       {/* SUCCESS MODAL (New Credential) */}
-      {newCredential && (
+      {issuedCredential && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-lg bg-[#0a0a0c] border border-emerald-500/20 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.1)] overflow-hidden">
             <div className="p-8 text-center space-y-6">
@@ -342,11 +403,11 @@ export default function AgentsPage() {
               
               <div className="relative group">
                 <div className="p-4 rounded-2xl bg-black border border-white/10 font-mono text-sm text-emerald-400 break-all text-left pr-12">
-                  {newCredential.token}
+                  {issuedCredential.token}
                 </div>
                 <button 
-                  onClick={() => copyToClipboard(newCredential.token, 'new-token')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hov                  classNamolors"
+                  onClick={() => copyToClipboard(issuedCredential.token, 'new-token')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
                 >
                   {copiedId === 'new-token' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -355,12 +416,17 @@ export default function AgentsPage() {
               <div className="grid grid-cols-2 gap-4 text-left">
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Agent Name</span>
-                  <span className="text-sm font-bold text-white">{newCredential.name}</span>
+                  <span className="text-sm font-bold text-white">{issuedCredential.name}</span>
                 </div>
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Daily Budget</span>
-                  <span className="text-sm font-bold text-emerald-400">${newCredential.creditLimit?.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-emerald-400">${(issuedCredential.creditLimit ?? 0).toFixed(2)}</span>
                 </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-left">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Bound Owner</span>
+                <span className="text-sm font-mono text-blue-300 break-all">{issuedCredential.ownerAddress}</span>
               </div>
 
               <button 
@@ -377,7 +443,7 @@ export default function AgentsPage() {
   );
 }
 
-function XCircle({ className }: { className?: string }) {
+function XCircle({ className }: Readonly<{ className?: string }>) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

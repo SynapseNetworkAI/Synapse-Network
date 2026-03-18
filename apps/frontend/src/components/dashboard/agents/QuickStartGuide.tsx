@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
-import { useAccount, useBalance, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { parseAbi, parseUnits, type Hex } from "viem";
-import { ChevronRight, Zap, Lock, Rocket, CheckCircle2, RefreshCw, AlertCircle, Copy, Check } from "lucide-react";
+import { ChevronRight, Zap, Lock, Rocket, CheckCircle2, RefreshCw, AlertCircle } from "lucide-react";
 import contractConfig from "@/contract-config.json";
-import { createDepositIntent, recordDepositAttempt } from "@/utils/balanceApi";
+import { createDepositIntent } from "@/utils/balanceApi";
 import toast from "react-hot-toast";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
@@ -19,14 +19,22 @@ interface QuickStartGuideProps {
   onAgentCreated?: () => void;
 }
 
-export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: QuickStartGuideProps) {
+type QuickStartStep = "deposit" | "agent" | "service" | "complete";
+
+const STEPS: Array<{ step: QuickStartStep; label: string; icon: typeof Zap }> = [
+  { step: "deposit", label: "Deposit", icon: Zap },
+  { step: "agent", label: "Create Agent", icon: Lock },
+  { step: "service", label: "Discover Services", icon: Rocket },
+  { step: "complete", label: "Start Using", icon: CheckCircle2 }
+];
+
+export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: Readonly<QuickStartGuideProps>) {
   const { address: userAddress, isConnected } = useAccount();
-  const [currentStep, setCurrentStep] = useState<"deposit" | "agent" | "service" | "complete">("deposit");
+  const [currentStep, setCurrentStep] = useState<QuickStartStep>("deposit");
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("10");
   const [depositError, setDepositError] = useState<string>("");
   const [depositStep, setDepositStep] = useState<"input" | "signing" | "executing">("input");
-  const [copiedTx, setCopiedTx] = useState(false);
 
   // Deposit flow state
   const { data: usdcNonce } = useReadContract({
@@ -75,7 +83,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: Q
 
       const amount = parseUnits(depositAmount, 18);
       const deadline = Math.floor(Date.now() / 1000) + 3600;
-      const nonce = usdcNonce || 0n;
+      const nonce = usdcNonce ?? BigInt(0);
 
       const domain = {
         name: "MockUSDC",
@@ -112,11 +120,9 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: Q
 
       setDepositStep("executing");
 
-      const [v, r, s] = [
-        parseInt(signature.slice(130, 132), 16),
-        `0x${signature.slice(2, 66)}` as Hex,
-        `0x${signature.slice(66, 130)}` as Hex,
-      ];
+      const v = Number.parseInt(signature.slice(130, 132), 16);
+      const r: Hex = `0x${signature.slice(2, 66)}`;
+      const s: Hex = `0x${signature.slice(66, 130)}`;
 
       await writeContractAsync({
         address: VAULT_ADDRESS,
@@ -157,52 +163,37 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: Q
     <div className="space-y-6">
       {/* PROGRESS STEPPER */}
       <div className="grid grid-cols-4 gap-4">
-        {[
-          { step: "deposit", label: "Deposit", icon: Zap },
-          { step: "agent", label: "Create Agent", icon: Lock },
-          { step: "service", label: "Discover Services", icon: Rocket },
-          { step: "complete", label: "Start Using", icon: CheckCircle2 }
-        ].map((item, idx) => {
+        {STEPS.map((item, idx) => {
           const Icon = item.icon;
           const isActive = currentStep === item.step;
           const isCompleted = ["deposit", "agent"].includes(item.step) && currentStep !== item.step;
+          let buttonClassName = "border-white/10 bg-white/[0.02]";
+          let iconClassName = "bg-white/5";
+          let iconColorClassName = "text-gray-500";
+          let labelClassName = "text-gray-500";
+
+          if (isActive) {
+            buttonClassName = "border-blue-500 bg-blue-500/10";
+            iconClassName = "bg-blue-500/20";
+            iconColorClassName = "text-blue-400";
+            labelClassName = "text-blue-400";
+          } else if (isCompleted) {
+            buttonClassName = "border-emerald-500 bg-emerald-500/10";
+            iconClassName = "bg-emerald-500/20";
+            iconColorClassName = "text-emerald-400";
+            labelClassName = "text-emerald-400";
+          }
 
           return (
             <div key={item.step} className="relative">
               <button
-                onClick={() => setCurrentStep(item.step as any)}
-                className={`w-full p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
-                  isActive
-                    ? "border-blue-500 bg-blue-500/10"
-                    : isCompleted
-                    ? "border-emerald-500 bg-emerald-500/10"
-                    : "border-white/10 bg-white/[0.02]"
-                }`}
+                onClick={() => setCurrentStep(item.step)}
+                className={`w-full p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${buttonClassName}`}
               >
-                <div
-                  className={`p-2 rounded-lg ${
-                    isActive
-                      ? "bg-blue-500/20"
-                      : isCompleted
-                      ? "bg-emerald-500/20"
-                      : "bg-white/5"
-                  }`}
-                >
-                  <Icon
-                    className={`w-5 h-5 ${
-                      isActive
-                        ? "text-blue-400"
-                        : isCompleted
-                        ? "text-emerald-400"
-                        : "text-gray-500"
-                    }`}
-                  />
+                <div className={`p-2 rounded-lg ${iconClassName}`}>
+                  <Icon className={`w-5 h-5 ${iconColorClassName}`} />
                 </div>
-                <span
-                  className={`text-xs font-bold ${
-                    isActive ? "text-blue-400" : isCompleted ? "text-emerald-400" : "text-gray-500"
-                  }`}
-                >
+                <span className={`text-xs font-bold ${labelClassName}`}>
                   {item.label}
                 </span>
               </button>
@@ -368,8 +359,9 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: Q
 
             <div className="p-6 space-y-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase">Amount (USDC)</label>
+                <label htmlFor="deposit-amount" className="text-xs font-bold text-gray-500 uppercase">Amount (USDC)</label>
                 <input
+                  id="deposit-amount"
                   type="number"
                   step="0.01"
                   value={depositAmount}

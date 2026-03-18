@@ -63,6 +63,7 @@ async function parseError(response: Response, fallback: string): Promise<string>
 export async function issueAgentCredential(
   userAddress: string,
   payload: {
+    ownerAddress?: string;
     name?: string;
     expiresInSec?: number;
     maxCalls?: number;
