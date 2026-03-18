@@ -8,16 +8,11 @@ import {
   Plus, 
   Key, 
   ShieldCheck, 
-  Activity, 
-  MoreVertical, 
   Trash2, 
   RefreshCw, 
   Copy, 
   Check,
-  AlertCircle,
-  Clock,
-  Zap,
-  ShieldAlert
+  AlertCircle
 } from "lucide-react";
 import { 
   listAgentCredentials, 
@@ -329,7 +324,7 @@ export default function AgentsPage() {
                 </div>
                 <button 
                   onClick={() => copyToClipboard(newCredential.token, 'new-token')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hov                  classNamolors"
                 >
                   {copiedId === 'new-token' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -350,7 +345,7 @@ export default function AgentsPage() {
                 onClick={() => setNewCredential(null)}
                 className="w-full py-4 bg-white text-black rounded-xl font-bold text-sm hover:bg-gray-200 transition-all"
               >
-                I've Saved the Token
+                I&apos;ve Saved the Token
               </button>
             </div>
           </div>

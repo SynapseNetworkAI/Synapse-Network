@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useAccount } from "wagmi";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useAuth } from "@/components/WalletAuthGuard";

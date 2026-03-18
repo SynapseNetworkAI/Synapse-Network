@@ -18,9 +18,11 @@ import {
 
 const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string }).SynapseCore as `0x${string}` | undefined;
 
-function formatTimestamp(seconds?: number): string {
+function formatTimestamp(seconds?: number | string): string {
   if (!seconds) return "-";
-  return new Date(seconds * 1000).toLocaleString();
+  const numSeconds = typeof seconds === 'string' ? parseInt(seconds, 10) : seconds;
+  if (isNaN(numSeconds)) return "-";
+  return new Date(numSeconds * 1000).toLocaleString();
 }
 
 function normalizeSignature(signature: string): `0x${string}` {

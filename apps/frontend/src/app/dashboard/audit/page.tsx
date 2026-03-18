@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, ShieldCheck, ShieldAlert, Activity, Search, Filter, ArrowRight, Bell, Zap } from "lucide-react";
+import { AlertTriangle, ShieldCheck, ShieldAlert, Activity, Bell, Zap, History } from "lucide-react";
 
 export default function RiskAuditPage() {
   const alerts = [
