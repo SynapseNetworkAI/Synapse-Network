@@ -4,6 +4,17 @@
 >
 > 当前主协议以 `docs/agent/02_Discovery_Quote_Invoke_API_Design.md` 和 `docs/api.md` 为准；本文只解释 Gateway 在“HTTP 交付结果如何映射到结算动作”上的实现补充。
 
+## 迁移说明
+
+本文过去承担过部分“调用协议 + 扣费协议”解释职责，现已拆分并被以下 canonical 文档替代：
+
+1. Agent Runtime 调用主协议：`docs/agent/02_Discovery_Quote_Invoke_API_Design.md`
+2. 对外 API 返回、错误码与字段语义：`docs/api.md`
+3. Budget / Reserve / Capture / Release 主模型：`docs/agent/04_Credential_Budget_Risk_Model.md`
+4. 资金结算与扣费链路：`docs/03_Smart_Contract_Payment/Settlement_and_Deduction_Logic.md`
+
+本文剩余价值只在于说明 Gateway 内部如何把 canonical 协议落到 HTTP 转发、交付判断和结算动作映射上。
+
 ## 1. 本文档的边界
 
 本文只回答三个实现问题：
