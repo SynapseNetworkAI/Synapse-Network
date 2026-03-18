@@ -43,11 +43,15 @@ export default function AgentsPage() {
   const [agentName, setAgentName] = useState("");
   const [dailyBudget, setDailyBudget] = useState("10.00");
   const [maxCalls, setMaxCalls] = useState("1000");
-  const [showQuickStart, setShowQuickStart] = useState(false);
   const ownerAddress = userAddress?.toLowerCase() ?? "";
 
   const fetchCredentials = useCallback(async () => {
-    if (!userAddress || !isSessionAuthenticated) return;
+    if (!userAddress || !isSessionAuthenticated) {
+      setCredentials([]);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
     
     try {
       setError(null);
@@ -64,8 +68,14 @@ export default function AgentsPage() {
 
   useEffect(() => {
     if (isConnected && userAddress && isSessionAuthenticated) {
+      setIsLoading(true);
       fetchCredentials();
+      return;
     }
+
+    setCredentials([]);
+    setIsLoading(false);
+    setIsRefreshing(false);
   }, [isConnected, userAddress, isSessionAuthenticated, fetchCredentials]);
 
   const handleRefresh = () => {
@@ -151,12 +161,7 @@ export default function AgentsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Show quick start if no credentials exist
-  useEffect(() => {
-    if (isConnected && userAddress && isSessionAuthenticated && credentials.length === 0 && !isLoading) {
-      setShowQuickStart(true);
-    }
-  }, [isConnected, userAddress, isSessionAuthenticated, credentials.length, isLoading]);
+  const shouldShowQuickStart = credentials.length === 0 && !isLoading;
 
   let credentialsContent: React.ReactNode;
 
@@ -257,7 +262,7 @@ export default function AgentsPage() {
   return (
     <div className="p-8 space-y-10 max-w-[1400px] mx-auto">
       {/* QUICK START GUIDE */}
-      {showQuickStart && (
+      {shouldShowQuickStart && (
         <div className="mb-10">
           <QuickStartGuide 
             onDepositComplete={() => {
