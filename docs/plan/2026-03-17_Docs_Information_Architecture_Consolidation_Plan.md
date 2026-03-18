@@ -2,6 +2,8 @@
 
 日期：2026-03-17
 
+> 状态更新：Phase 1 至 Phase 5 已完成。旧 `02_Architecture/`、`03_Smart_Contract_Payment/`、`04_Synapse_Network/`、`05_Frontend_UX/`、`06_Developer_Guides/` 技术目录已退役，官方主阅读路径已切换到 `01_Product_Frontend/` 至 `06_Reference/` 六模块。
+
 ## 1. 目标
 
 把 `docs/` 从“历史设计堆积目录”收敛成一套围绕 build-for-agent 主线的可维护知识库。
@@ -40,25 +42,20 @@
 - `docs/agent/03_Service_Manifest_Field_Standard.md`
 - `docs/agent/04_Credential_Budget_Risk_Model.md`
 - `docs/api.md`
-- `docs/02_Architecture/High_Frequency_MicroPayment_V2.md`
-- `docs/02_Architecture/Financial_Production_Security.md`
-- `docs/02_Architecture/Gateway_Financial_Risk_Control_Design.md`
+- `docs/02_System_Architecture/`
 
 ### 数据库与资金真相层
 - `docs/agent/06_Build_For_Agent_Database_Rebuild.md`
-- `docs/03_Smart_Contract_Payment/Agent_Runtime_Data_Model.md`
+- `docs/04_Database_Design/`
 - `docs/Gateway_Database_Design.md`
 - `infra/docker/postgres/init/001_synapse_schema.sql`
 
 ### 前端
-- `docs/05_Frontend_UX/*`
+- `docs/01_Product_Frontend/`
 - `docs/feature_designs/frontend_product/*`
 
 ### 运维
-- `docs/06_Developer_Guides/*`
-- `docs/02_Architecture/GitHub_Workflows_CICD_and_Production_Operations.md`
-- `docs/02_Architecture/Financial_Security_Incident_Runbook.md`
-- `docs/02_Architecture/Phase5_Liquidity_Alert_SOP_Implementation.md`
+- `docs/05_DevOps_Deployment/`
 
 ### 管理后台
 - `docs/admin/*`
@@ -92,11 +89,13 @@
 	- 历史主题移出主阅读路径的策略
 	- 新文档维护规则
 
-### 4.3 已完成的 `04_Synapse_Network/` 收敛
+### 4.3 已完成的旧目录退役
 
-- `Service_Manifest_Registration.md` 中仍有价值的 Provider 注册映射 / Gateway 扩展字段，已并入 `docs/agent/03_Service_Manifest_Field_Standard.md`。
-- `API_Billing_Deduction_Protocol.md`、`Credential_and_RateLimit.md`、`平台费率动态计算.md` 已降级为实现补充说明，不再定义 canonical 协议。
-- `04_Synapse_Network/README.md` 已新增，明确本目录只保留补充说明和历史兼容备注。
+- `02_Architecture/` 的当前有效内容已并入 `docs/02_System_Architecture/` 与 `docs/05_DevOps_Deployment/`。
+- `03_Smart_Contract_Payment/` 的当前有效内容已并入 `docs/03_Core_Workflows/` 与 `docs/04_Database_Design/`。
+- `04_Synapse_Network/` 的当前有效内容已并入 `docs/02_System_Architecture/`、`docs/03_Core_Workflows/` 与 `docs/06_Reference/`。
+- `05_Frontend_UX/` 的当前有效内容已并入 `docs/01_Product_Frontend/`。
+- `06_Developer_Guides/` 的当前有效内容已并入 `docs/05_DevOps_Deployment/` 与 `docs/06_Reference/`。
 
 ## 5. 当前目录分类规则
 
@@ -106,22 +105,21 @@
 - `agent.md`
 
 ### 后端
-- `02_Architecture/`
-- `04_Synapse_Network/`
+- `02_System_Architecture/`
+- `06_Reference/`
 - `api.md`
 - `Gateway_Error_Codes.md`
 
 ### 数据库
-- `03_Smart_Contract_Payment/`
+- `04_Database_Design/`
 - `Gateway_Database_Design.md`
 
 ### 前端
-- `05_Frontend_UX/`
+- `01_Product_Frontend/`
 - `feature_designs/frontend_product/`
 
 ### 运维
-- `06_Developer_Guides/`
-- `02_Architecture/` 中的部署、应急、SOP 类文档
+- `05_DevOps_Deployment/`
 
 ### 管理后台
 - `admin/`
@@ -134,8 +132,8 @@
 ## 6. 下一轮继续收敛的任务
 
 ### 高优先级
-1. 为 `03_Smart_Contract_Payment/Owner_Vault_Deposit_End_to_End_Dataflow.md` 做术语升级，把 Owner / Agent / Vault 边界写清楚。
-2. 继续检查 `04_Synapse_Network/` 是否还有纯历史残留需要归档，避免补充说明重新长成第二套协议。
+1. 继续校验根级真理源与六个官方模块之间的链接一致性。
+2. 为后续代码演进建立 docs-code-test 三方同步检查清单。
 
 ### 中优先级
 1. 为前端新增一份 build-for-agent 的 Runtime Playground / Discovery / Quote / Invoke IA 文档。

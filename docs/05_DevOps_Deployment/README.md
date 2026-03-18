@@ -11,15 +11,15 @@
 
 ## 真理源
 
-本目录以以下来源为准：
+本目录的约束来源：
 
 1. `docs/agent.md`
 2. `docs/api.md`
-3. `docs/02_Architecture/GitHub_Workflows_CICD_and_Production_Operations.md`
-4. `docs/02_Architecture/Gateway_Application_Logging.md`
-5. `docs/02_Architecture/Financial_Security_Incident_Runbook.md`
-6. `docs/06_Developer_Guides/Gateway_Environment_Configuration.md`
-7. `docs/06_Developer_Guides/V2_Deposit_Indexer_Runbook.md`
+3. `docs/Gateway_Database_Design.md`
+4. `docs/04_Database_Design/`
+5. `docs/admin/`
+
+说明：本模块已吸收旧运维与开发指南中的当前有效内容，退役目录不再作为主引用源。
 
 ## 阅读顺序
 
