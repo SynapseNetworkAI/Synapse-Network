@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from "react";
 import { useAccount } from "wagmi";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -10,7 +11,8 @@ import AnalyticsCards from "@/components/dashboard/overview/AnalyticsCards";
 import EventStreamTable from "@/components/dashboard/overview/EventStreamTable";
 import CapabilityCards from "@/components/dashboard/overview/CapabilityCards";
 import FeeTransparencyPanel from "@/components/dashboard/overview/FeeTransparencyPanel";
-import { RefreshCw, Activity, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu } from "lucide-react";
+import { RefreshCw, Activity, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu, History, Wallet, Terminal } from "lucide-react";
+import Link from "next/link";
 
 export default function OverviewPage() {
   const { isConnected } = useAccount();
@@ -62,6 +64,29 @@ export default function OverviewPage() {
         {/* HERO SECTION */}
         <section>
           <OverviewHero />
+        </section>
+
+        {/* QUICK NAVIGATION */}
+        <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {[
+            { name: "Agents", icon: <Bot className="w-4 h-4" />, href: "/dashboard/agents", color: "text-blue-400" },
+            { name: "Discovery", icon: <Cpu className="w-4 h-4" />, href: "/dashboard/discovery", color: "text-purple-400" },
+            { name: "Invocations", icon: <History className="w-4 h-4" />, href: "/dashboard/invocations", color: "text-emerald-400" },
+            { name: "Billing", icon: <Wallet className="w-4 h-4" />, href: "/dashboard/billing", color: "text-amber-400" },
+            { name: "Risk & Audit", icon: <ShieldCheck className="w-4 h-4" />, href: "/dashboard/audit", color: "text-red-400" },
+            { name: "Developer", icon: <Terminal className="w-4 h-4" />, href: "/dashboard/developer", color: "text-gray-400" },
+          ].map((item) => (
+            <Link 
+              key={item.name} 
+              href={item.href}
+              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
+            >
+              <div className={`p-3 rounded-xl bg-white/[0.03] mb-3 group-hover:scale-110 transition-transform ${item.color}`}>
+                {item.icon}
+              </div>
+              <span className="text-xs font-bold text-gray-400 group-hover:text-white transition-colors">{item.name}</span>
+            </Link>
+          ))}
         </section>
 
         {/* WORKFLOW SECTION */}
