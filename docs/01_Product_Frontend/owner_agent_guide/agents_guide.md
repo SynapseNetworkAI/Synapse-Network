@@ -1,8 +1,8 @@
 # Agents Page Product Guide
 
-> Status: Implemented v2 with onboarding guide, planning v3 activation runway  
+> Status: Implemented v3 activation slice with status strip, activation runway, and first invocation panel  
 > Path: `apps/frontend/src/app/dashboard/agents/page.tsx`  
-> Current Components: `QuickStartGuide.tsx`  
+> Current Components: `ActivationStatusStrip.tsx`, `ActivationRunway.tsx`, `FirstInvocationPanel.tsx`  
 > Identity Context: Owner Control Plane / Agent Workspace
 
 ## 1. Product Role
@@ -27,12 +27,13 @@ The true success metric is:
 The current production page already includes these implemented capabilities:
 
 1. unauthenticated and authenticated users now see the same page structure
-2. quick start onboarding is shown when no agent credentials exist
-3. deposit step is embedded in `QuickStartGuide.tsx`
+2. top-level `ActivationStatusStrip` explains wallet, session, spendable balance, active agents, last invocation, and next CTA
+3. `ActivationRunway` makes fund -> create -> capture credential -> run invocation an explicit four-stage workflow
 4. create agent flow validates wallet connection and session before issuing a credential
 5. create modal shows bound owner address
 6. newly issued credential is shown once and only once in a success modal
-7. existing agents render as cards with budget, calls, usage bar, created date, copy token prefix, and revoke action
+7. `FirstInvocationPanel` shows discovery / quote / invoke snippets plus a real paid sandbox invocation path
+8. existing agents render as cards with budget, calls, usage bar, created date, copy token prefix, and revoke action
 
 ### 2.1 What the current page still does not solve well enough
 
@@ -44,13 +45,15 @@ Right now the page helps users finish:
 
 1. deposit
 2. create agent
+3. paste and persist the one-time credential for a selected service
+4. run a real paid example against a discovered public service
 
-But it does not yet fully teach or operationalize:
+But it does not yet fully solve:
 
-1. how to use the credential for service discovery
-2. how to request a quote
-3. how to invoke a service through the gateway
-4. how to verify that the first paid invocation succeeded
+1. recent invocation preview in the agent workspace layer
+2. richer quote detail beyond catalog price preview
+3. credential lifecycle rotation beyond one-time token capture
+4. deeper workspace analytics after the first activation event
 
 That is the gap v3 must close.
 
