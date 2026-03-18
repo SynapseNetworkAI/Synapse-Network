@@ -187,8 +187,47 @@ def test_idempotency_repository_read_and_write_rows() -> None:
     )
     ops = db.tx_cursors[-1].executed
     assert ops[0][0] == "DELETE FROM synapse_idempotency_keys"
+    owner_insert_params = [params for sql, params in ops if "INSERT INTO synapse_owner_accounts" in sql][0]
+    assert owner_insert_params[0] == "owner:0xdef"
+    assert owner_insert_params[1] == "0xdef"
     insert_params = [params for sql, params in ops if "INSERT INTO synapse_idempotency_keys" in sql][0]
-    assert insert_params[2] == "0xdef"
+    assert insert_params[2] == "owner:0xdef"
+
+
+def test_idempotency_repository_rate_limit_rows_use_owner_mapping() -> None:
+    db = FakeDB()
+    db.readonly_plan.append(
+        {
+            "fetchall": [[("rl-1", "0xabc", "deposit_intent", 1710000000, 2, "2026-03-18 10:00:00")]],
+        }
+    )
+    repo = IdempotencyRepository(db)
+
+    rows = repo.read_rate_limit_rows()
+    assert len(rows) == 1
+    assert rows[0].owner_address == "0xabc"
+    assert rows[0].action == "deposit_intent"
+    assert rows[0].count == 2
+
+    repo.write_rate_limit_rows(
+        [
+            {
+                "id": "rl-2",
+                "ownerAddress": "0xDEF",
+                "action": "deposit_intent",
+                "windowStart": 1710000300,
+                "count": 1,
+            }
+        ],
+        updated_at=1710000300,
+    )
+
+    ops = db.tx_cursors[-1].executed
+    assert ops[0][0] == "DELETE FROM synapse_finance_rate_limit"
+    owner_insert_params = [params for sql, params in ops if "INSERT INTO synapse_owner_accounts" in sql][0]
+    assert owner_insert_params[0] == "owner:0xdef"
+    insert_params = [params for sql, params in ops if "INSERT INTO synapse_finance_rate_limit" in sql][0]
+    assert insert_params[1] == "owner:0xdef"
 
 
 def test_audit_log_repository_append_replace_and_read() -> None:
@@ -832,6 +871,26 @@ def test_gateway_state_repository_skips_invalid_deposit_intents() -> None:
     executed = [sql for cur in db.tx_cursors for sql, _ in cur.executed]
     inserts = [sql for sql in executed if "INSERT INTO synapse_vault_deposits" in sql]
     assert len(inserts) == 1
+
+
+def test_gateway_state_repository_accepts_dict_deposit_intents() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+
+    repo.write_deposit_intents([
+        {
+            "id": "dep-dict",
+            "ownerAddress": "0xabc",
+            "txHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "amountUsdc": "2.5",
+            "status": "PENDING",
+            "createdAt": "2026-03-18 11:00:00",
+            "updatedAt": "2026-03-18 11:00:01",
+        }
+    ])
+
+    executed = [sql for cur in db.tx_cursors for sql, _ in cur.executed]
+    assert any("INSERT INTO synapse_vault_deposits" in sql for sql in executed)
 
 
 def test_deposit_attempt_repository_upserts_stage_rows() -> None:

@@ -127,11 +127,28 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
+        table_name="synapse_finance_rate_limit",
+        required_columns=frozenset({"id", "owner_id", "action", "window_start", "count", "updated_at"}),
+        required_indexes=frozenset({"idx_synapse_finance_rate_limit_owner_action"}),
+        required_constraints=(
+            _constraint("primary key on finance rate limit id", PRIMARY_KEY_FRAGMENT, "id"),
+            _constraint("unique owner action window row", "unique", "owner_id", "action"),
+        ),
+    ),
+    TableSchemaContract(
         table_name="synapse_runtime_state",
         required_columns=frozenset({"state_key", "payload", "updated_at"}),
         required_indexes=frozenset({"idx_synapse_runtime_state_updated_at"}),
         required_constraints=(
             _constraint("primary key on state_key", PRIMARY_KEY_FRAGMENT, "state_key"),
+        ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_processed_deposit_events",
+        required_columns=frozenset({"dedup_key", "updated_at"}),
+        required_indexes=frozenset({"idx_synapse_processed_deposit_events_updated_at"}),
+        required_constraints=(
+            _constraint("primary key on dedup_key", PRIMARY_KEY_FRAGMENT, "dedup_key"),
         ),
     ),
     TableSchemaContract(

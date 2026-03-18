@@ -54,7 +54,9 @@
 - `synapse_ledger_entries`
 - `synapse_audit_events`
 - `synapse_idempotency_keys`
+- `synapse_finance_rate_limit`
 - `synapse_runtime_state`
+- `synapse_processed_deposit_events`
 - `synapse_deposit_attempts`
 - `synapse_vault_deposits`
 - `synapse_vault_withdrawals`
@@ -66,6 +68,8 @@
 3. Quote 必须先落库，预算必须先 reserve，再 capture / release。
 4. Invocation 是第一等真相对象，不再退化成历史兼容计费影子行。
 5. Ledger 必须是双分录，余额快照只做高频读加速。
+6. `synapse_idempotency_keys` 与 `synapse_finance_rate_limit` 必须通过 `owner_id` 绑定 `synapse_owner_accounts`，运行时读取再投影回 `owner_wallet`。
+7. `synapse_processed_deposit_events` 是充值索引器的去重真相表，必须随 bootstrap schema 一起初始化，不能依赖运行时隐式创建。
 
 ## 4. 关键链路
 

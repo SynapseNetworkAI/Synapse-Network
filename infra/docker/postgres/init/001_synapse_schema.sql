@@ -366,9 +366,25 @@ CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
     UNIQUE (scope, owner_id, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS synapse_finance_rate_limit (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    window_start BIGINT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (count >= 0),
+    UNIQUE (owner_id, action)
+);
+
 CREATE TABLE IF NOT EXISTS synapse_runtime_state (
     state_key TEXT PRIMARY KEY,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS synapse_processed_deposit_events (
+    dedup_key TEXT PRIMARY KEY,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -443,8 +459,14 @@ ON synapse_audit_events (provider_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_synapse_idempotency_keys_expires
 ON synapse_idempotency_keys (expires_at);
 
+CREATE INDEX IF NOT EXISTS idx_synapse_finance_rate_limit_owner_action
+ON synapse_finance_rate_limit (owner_id, action);
+
 CREATE INDEX IF NOT EXISTS idx_synapse_runtime_state_updated_at
 ON synapse_runtime_state (updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_processed_deposit_events_updated_at
+ON synapse_processed_deposit_events (updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_deposit_attempts_owner
 ON synapse_deposit_attempts (lower(COALESCE(owner_address, '')), created_at DESC);
