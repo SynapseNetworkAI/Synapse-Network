@@ -7,7 +7,7 @@ from src.services.balance_mixins import (
     BalanceRedisGuardMixin,
     BalanceWithdrawSigningMixin,
 )
-from src.services.buyer.finance_service import BuyerFinanceService
+from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.finance_service import PlatformFinanceService
 from src.services.provider.withdraw_service import ProviderWithdrawService
 
@@ -25,7 +25,7 @@ class BalanceService(
             acquire_timeout_sec=5.0,
             poll_interval_sec=0.03,
         )
-        self.buyer_finance_service = BuyerFinanceService(
+        self.owner_finance_service = OwnerFinanceService(
             storage=storage,
             mutation_lock=self._mutation_lock,
             guard_delegate=self,
@@ -35,7 +35,7 @@ class BalanceService(
             mutation_lock=self._mutation_lock,
             guard_delegate=self,
         )
-        self.seller_withdraw_service = ProviderWithdrawService(
+        self.provider_withdraw_service = ProviderWithdrawService(
             storage=storage,
             mutation_lock=self._mutation_lock,
             signing_delegate=self,
@@ -59,7 +59,7 @@ class BalanceService(
         idempotency_key: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return await self.buyer_finance_service.register_deposit_intent(
+        return await self.owner_finance_service.register_deposit_intent(
             intent=intent,
             owner_wallet=owner_wallet,
             idempotency_key=idempotency_key,
@@ -72,14 +72,14 @@ class BalanceService(
         owner_wallet: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return await self.buyer_finance_service.record_deposit_attempt(
+        return await self.owner_finance_service.record_deposit_attempt(
             payload=payload,
             owner_wallet=owner_wallet,
             request_meta=request_meta,
         )
 
     async def list_deposit_intents(self, owner_wallet: str) -> list:
-        return await self.buyer_finance_service.list_deposit_intents(owner_wallet)
+        return await self.owner_finance_service.list_deposit_intents(owner_wallet)
 
     async def confirm_deposit_intent(
         self,
@@ -90,7 +90,7 @@ class BalanceService(
         confirmations: int,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return await self.buyer_finance_service.confirm_deposit_intent(
+        return await self.owner_finance_service.confirm_deposit_intent(
             owner_wallet=owner_wallet,
             deposit_intent_id=deposit_intent_id,
             event_key=event_key,
@@ -105,7 +105,7 @@ class BalanceService(
         idempotency_key: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return await self.buyer_finance_service.process_refund_intent(
+        return await self.owner_finance_service.process_refund_intent(
             payload=payload,
             owner_wallet=owner_wallet,
             idempotency_key=idempotency_key,
@@ -113,7 +113,7 @@ class BalanceService(
         )
 
     async def list_refunds(self, owner_wallet: str) -> List[Dict[str, Any]]:
-        return await self.buyer_finance_service.list_refunds(owner_wallet)
+        return await self.owner_finance_service.list_refunds(owner_wallet)
 
     async def complete_refund_intent(
         self,
@@ -122,7 +122,7 @@ class BalanceService(
         tx_hash: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return await self.buyer_finance_service.complete_refund_intent(
+        return await self.owner_finance_service.complete_refund_intent(
             owner_wallet=owner_wallet,
             refund_id=refund_id,
             tx_hash=tx_hash,
@@ -136,7 +136,7 @@ class BalanceService(
         idempotency_key: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return await self.seller_withdraw_service.create_provider_withdraw_intent(
+        return await self.provider_withdraw_service.create_provider_withdraw_intent(
             payload=payload,
             owner_wallet=owner_wallet,
             idempotency_key=idempotency_key,
@@ -146,7 +146,7 @@ class BalanceService(
     async def list_provider_withdrawals(
         self, owner_wallet: str
     ) -> List[Dict[str, Any]]:
-        return await self.seller_withdraw_service.list_provider_withdrawals(
+        return await self.provider_withdraw_service.list_provider_withdrawals(
             owner_wallet
         )
 
@@ -157,7 +157,7 @@ class BalanceService(
         tx_hash: str,
         request_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return await self.seller_withdraw_service.complete_provider_withdrawal(
+        return await self.provider_withdraw_service.complete_provider_withdrawal(
             owner_wallet=owner_wallet,
             withdrawal_id=withdrawal_id,
             tx_hash=tx_hash,

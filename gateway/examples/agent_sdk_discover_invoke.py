@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Tuple
 
 import requests
 
-CONFIG_PATH = Path(__file__).with_name("buyer_sdk_discover_invoke.config.json")
+CONFIG_PATH = Path(__file__).with_name("agent_sdk_discover_invoke.config.json")
 CONTENT_TYPE_JSON = "application/json"
 
 

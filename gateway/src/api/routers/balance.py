@@ -367,9 +367,9 @@ async def get_usage_logs(
     owner = owner_wallet.lower()
     filtered = []
     for row in rows:
-        buyer = str(row.consumer_address or row.buyer_address or "").lower()
-        seller = str(row.provider_address or row.seller_address or "").lower()
-        if buyer == owner or seller == owner:
+        owner_address = str(row.consumer_address or "").lower()
+        provider_address = str(row.provider_address or "").lower()
+        if owner_address == owner or provider_address == owner:
             filtered.append(row.model_dump(by_alias=True, mode="json"))
 
     return {

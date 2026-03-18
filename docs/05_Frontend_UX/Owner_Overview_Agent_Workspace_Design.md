@@ -30,7 +30,7 @@
 
 ### 3. 主线目标引导 (Next Outcome)
 *   左/下方用大标题提示："**The page should push you toward first autonomous paid invocation.**"
-*   说明文档：“Synapse is the settlement layer for AI agents. Fund runtime spend, inspect service supply... without splitting yourself into fake buyer and seller accounts.”
+*   说明文档：“Synapse is the settlement layer for AI agents. Fund runtime spend, inspect service supply... without splitting yourself into fake consumer and provider personas.”
 
 ---
 

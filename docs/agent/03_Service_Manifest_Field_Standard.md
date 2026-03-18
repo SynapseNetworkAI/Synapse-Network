@@ -1,6 +1,6 @@
 # Service Manifest 字段标准
 
-> 目标：定义卖家挂载服务时必须提交的结构化 Manifest，让 Agent 与 Gateway 都能可靠消费。
+> 目标：定义 Provider 挂载服务时必须提交的结构化 Manifest，让 Agent 与 Gateway 都能可靠消费。
 
 ## 1. 设计原则
 
@@ -10,7 +10,7 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
 
 1. Agent 能理解何时调用
 2. Gateway 能理解如何计费和路由
-3. Seller 能声明 SLA 和能力边界
+3. Provider 能声明 SLA 和能力边界
 
 ## 2. 字段分层
 
@@ -19,21 +19,21 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
 - `service_id`
 - `service_name`
 - `service_slug`
-- `seller_id`
+- `provider_id`
 - `manifest_version`
 - `status`
 
 ### 2.1.1 平台内部结算字段（不暴露给 Agent）
 
-- `seller_wallet`
+- `provider_wallet`
 - `settlement_account_id`
 - `payout_policy_id`
 
 说明：
 
-- `seller_wallet` 是平台内部结算和卖家归属映射字段，不是 Agent Runtime 做服务选择所必需的信息。
-- 对 Discovery / Quote / Invoke 的公开返回，默认不暴露 `seller_wallet`。
-- Agent 只需要知道 `service_id`、能力、价格、输入输出、运行约束，不需要知道卖家的链上收款地址。
+- `provider_wallet` 是平台内部结算和 Provider 归属映射字段，不是 Agent Runtime 做服务选择所必需的信息。
+- 对 Discovery / Quote / Invoke 的公开返回，默认不暴露 `provider_wallet`。
+- Agent 只需要知道 `service_id`、能力、价格、输入输出、运行约束，不需要知道 Provider 的链上收款地址。
 
 ### 2.2 Agent 理解字段
 
@@ -85,7 +85,7 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
 
 说明：
 
-- 这组字段可以作为 Seller 提交 Manifest 时的内部扩展 block 存在。
+- 这组字段可以作为 Provider 提交 Manifest 时的内部扩展 block 存在。
 - Discovery / Quote / Invoke 对 Agent 的公开结果，默认不直接暴露这些内部执行细节。
 - 它们服务的是 Gateway 如何探活、如何转发、如何限流、如何计费，而不是 Agent 如何理解能力。
 
@@ -120,7 +120,7 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
     "settlement_currency": "USDC"
   },
   "runtime": {
-    "endpoint_url": "https://seller.example.com/invoke",
+    "endpoint_url": "https://provider.example.com/invoke",
     "timeout_ms": 15000,
     "streaming_supported": false,
     "async_supported": false,
@@ -136,7 +136,7 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
     },
     "routing_targets": [
       {
-        "url": "https://seller.example.com/invoke",
+        "url": "https://provider.example.com/invoke",
         "weight": 100,
         "region": "ap-southeast-1"
       }
@@ -161,13 +161,13 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
 说明：
 
 - 上面这份 JSON 是**公开给 Agent Runtime 消费的 Manifest 结构**。
-- 卖家钱包地址、结算账户、分账规则这类字段，应该保留在平台内部 Seller Profile / Settlement Profile 中，由 Gateway 在扣费和结算时使用。
-- 对买家 Agent 来说，真正重要的是 `service_id`、`description_for_model`、`input_schema`、`output_schema`、`price_model`、`endpoint_url` 和运行约束。
+- Provider 钱包地址、结算账户、分账规则这类字段，应该保留在平台内部 Provider Profile / Settlement Profile 中，由 Gateway 在扣费和结算时使用。
+- 对 Owner 侧 Agent 来说，真正重要的是 `service_id`、`description_for_model`、`input_schema`、`output_schema`、`price_model`、`endpoint_url` 和运行约束。
 - 对平台 Gateway 来说，`gateway_extensions` 则补充了探活、转发、多 target 路由和计费策略这些内部执行信息。
 
 ## 4. Manifest 校验规则
 
-Gateway 在卖家提交 Manifest 时，必须校验：
+Gateway 在 Provider 提交 Manifest 时，必须校验：
 
 1. `service_id` 全局唯一
 2. `description_for_model` 不得为空
@@ -180,7 +180,7 @@ Gateway 在卖家提交 Manifest 时，必须校验：
 
 补充原则：
 
-- Seller 的链上身份和收款信息在平台内部完成绑定，不进入面向 Agent 的公开契约。
+- Provider 的链上身份和收款信息在平台内部完成绑定，不进入面向 Agent 的公开契约。
 - 公开 Manifest 只保留“调用所需信息”，不泄露与调用无关的卖家结算信息。
 
 ## 5. V1 最小必填集
@@ -202,8 +202,8 @@ V1 先强制这些字段：
 
 ## 6. 设计结论
 
-Manifest 不是卖家自由发挥的介绍页，而是平台的结构化合同。
+Manifest 不是 Provider 自由发挥的介绍页，而是平台的结构化合同。
 
 谁想让 Agent 自动调用，谁就必须把能力、价格、输入输出、运行约束说清楚。
 
-同时要记住：**Manifest 是 Service Contract，不是 Seller Profile。**
+同时要记住：**Manifest 是 Service Contract，不是 Provider Profile。**

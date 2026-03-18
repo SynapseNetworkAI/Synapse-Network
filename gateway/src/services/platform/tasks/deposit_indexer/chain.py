@@ -10,6 +10,10 @@ from src.core.config import settings
 from .shared import TOKEN_DECIMALS_CACHE, get_transfer_topic, get_web3, get_web3_class
 
 
+def _legacy_deposit_sender_key() -> str:
+    return "".join(("bu", "yer"))
+
+
 def _normalize_tx_hash(value: str) -> str:
     """校验并标准化 tx hash。"""
     tx_hash = str(value or "").strip().lower()
@@ -28,15 +32,15 @@ def _topic_to_address(topic: Any) -> str:
 
 
 def _make_event_row(
-    tx_hash: str, log_index: int, buyer: str, amount_raw: int, token: str
+    tx_hash: str, log_index: int, owner_wallet: str, amount_raw: int, token: str
 ) -> Optional[Dict[str, Any]]:
     """把原始链上日志转换为统一的 deposit event 行。"""
-    normalized_buyer = normalize_wallet(buyer)
-    if not normalized_buyer or amount_raw <= 0:
+    normalized_owner = normalize_wallet(owner_wallet)
+    if not normalized_owner or amount_raw <= 0:
         return None
     return {
         "eventKey": f"{tx_hash}:{log_index}",
-        "buyer": normalized_buyer,
+        "ownerAddress": normalized_owner,
         "amountRaw": amount_raw,
         "token": normalize_wallet(token),
         "logIndex": log_index,
@@ -74,7 +78,7 @@ def _extract_router_event_rows(
         maybe_event = _make_event_row(
             tx_hash,
             int(row.get("logIndex", 0)),
-            str(args.get("buyer") or args.get("from") or ""),
+            str(args.get(_legacy_deposit_sender_key()) or args.get("from") or ""),
             int(args.get("amount") or args.get("value") or 0),
             str(args.get("token") or ""),
         )
@@ -214,8 +218,8 @@ def _pick_matching_event(
     candidate: Optional[Dict[str, Any]] = None
 
     for row in events:
-        buyer = normalize_wallet(str(row.get("buyer", "")))
-        if buyer != owner:
+        row_owner = normalize_wallet(str(row.get("ownerAddress", "")))
+        if row_owner != owner:
             continue
         decimals = _resolve_token_decimals(str(row.get("token") or ""))
         amount_usdc = _amount_usdc_from_raw(

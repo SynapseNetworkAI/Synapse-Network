@@ -16,7 +16,7 @@
 
 ### 2.1 HTTP 语义优先
 
-Synapse 不要求 Seller 把所有业务结果包成 `{ "code": 0 }` 风格的特供 JSON。
+Synapse 不要求 Provider 把所有业务结果包成 `{ "code": 0 }` 风格的特供 JSON。
 
 当前结算判断仍以 HTTP 原生语义为主：
 
@@ -26,13 +26,13 @@ Synapse 不要求 Seller 把所有业务结果包成 `{ "code": 0 }` 风格的�
 
 这样做的原因很简单：
 
-1. 不增加 Seller 接入摩擦。
+1. 不增加 Provider 接入摩擦。
 2. 不破坏 HTTP 原生错误传达。
 3. 兼容流式输出和非统一响应体。
 
 ### 2.2 计费动作是 Reserve -> Capture / Release
 
-在 build-for-agent Runtime 下，预算和资金动作已经从旧 Buyer API Key 叙事切到 Quote / Invocation 语义，但核心结算动作仍可理解为三步：
+在 build-for-agent Runtime 下，预算和资金动作已经从旧消费侧 API Key 叙事切到 Quote / Invocation 语义，但核心结算动作仍可理解为三步：
 
 1. `reserve`：在 Quote 或执行前预占预算与余额空间。
 2. `capture`：当上游完成有效交付时，正式扣减并写入账本与审计。
@@ -44,8 +44,8 @@ Synapse 不要求 Seller 把所有业务结果包成 `{ "code": 0 }` 风格的�
 
 | 场景 | Gateway 观察到的现象 | 结算动作 |
 | --- | --- | --- |
-| Upstream success | Seller 返回 `2xx` 或可确认的成功流式完成 | `capture` |
-| Upstream rejection | Seller 返回 `4xx/5xx` | `release` |
+| Upstream success | Provider 返回 `2xx` 或可确认的成功流式完成 | `capture` |
+| Upstream rejection | Provider 返回 `4xx/5xx` | `release` |
 | Upstream unavailable | 连接失败、DNS 失败、网关超时 | `release` |
 | Client aborted before completion | 平台确认未形成成功交付 | `release` |
 
@@ -66,7 +66,7 @@ Synapse 不要求 Seller 把所有业务结果包成 `{ "code": 0 }` 风格的�
 下面这些内容仍然只算设计方向，不应当作当前网关已发布能力：
 
 1. 基于响应头的动态按量计费。
-2. Seller 主动通过 header 回传最终 charge amount。
+2. Provider 主动通过 header 回传最终 charge amount。
 3. 更细粒度的 token-level metering 作为对外稳定 contract。
 
 如果这些能力后续真的落地，必须先同步更新代码、`docs/api.md` 和错误码总表，再回写这里。

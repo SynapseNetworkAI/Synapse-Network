@@ -64,7 +64,7 @@ def _process_replay_event(
     now: int,
 ) -> Dict[str, Any]:
     """处理管理员 replay 流中的单个链上事件。"""
-    owner_wallet = normalize_wallet(str(event.get("buyer") or ""))
+    owner_wallet = normalize_wallet(str(event.get("ownerAddress") or ""))
     if not owner_wallet:
         return {"result": "skip"}
 

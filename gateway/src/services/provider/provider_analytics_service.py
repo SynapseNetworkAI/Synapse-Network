@@ -34,8 +34,7 @@ class ProviderAnalyticsService:
         return [
             row
             for row in rows
-            if normalize_wallet(str(row.provider_address or row.seller_address or ""))
-            == owner_wallet
+            if normalize_wallet(str(row.provider_address or "")) == owner_wallet
         ]
 
     def _row_created_at(self, row: UsageLogRow) -> int:
@@ -137,8 +136,6 @@ class ProviderAnalyticsService:
             "totalRoutingTax": total_routing_tax,
             "providerNetEarned": provider_net_total,
             "providerReceivable": provider_receivable,
-            "sellerNetEarned": provider_net_total,
-            "sellerReceivable": provider_receivable,
             "duplicateRowsDropped": duplicate_dropped,
             "idempotencyKey": "request_id",
             "recentCalls": recent_calls,

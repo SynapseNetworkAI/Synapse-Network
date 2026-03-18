@@ -166,7 +166,7 @@
 
 说明：
 
-- `seller_payout_usdc`、`platform_fee_usdc` 属于平台内部结算与财务拆账字段，不应该成为 Agent-facing 成功响应的默认字段。
+- `provider_payout_usdc`、`platform_fee_usdc` 属于平台内部结算与财务拆账字段，不应该成为 Agent-facing 成功响应的默认字段。
 - 如果 Owner 需要看平台费用和卖家分账，应在 Billing / Audit 查询接口中获取，而不是塞进每次 Invoke 响应。
 
 ### 4.4 Failure Response
@@ -191,7 +191,7 @@
 为了避免和当前实现混淆，这里明确拆成两层：
 
 1. **Current implemented baseline**
-  当前对外可依赖的错误码，以 `docs/api.md` 和 `docs/Buyer_Error_Codes.md` 中已经对齐到代码实现的集合为准。
+  当前对外可依赖的错误码，以 `docs/api.md` 和 `docs/Gateway_Error_Codes.md` 中已经对齐到代码实现的集合为准。
 2. **Future-state target taxonomy**
   下面列出的目标态错误码分层，用于约束后续 Runtime 演进方向，不代表当前网关都已经支持。
 
@@ -212,7 +212,7 @@
 
 - 这批错误码是当前 V1 Runtime 的真实 contract，优先级高于目标态枚举。
 - Agent 的自动重试、降级、终止逻辑，应该只依赖这批已发布错误码与 `docs/api.md` 当前语义。
-- 如果未来新增错误码，必须先在代码、`docs/api.md`、`docs/Buyer_Error_Codes.md` 三处同步，再把这里的 future-state 项目提升为 current baseline。
+- 如果未来新增错误码，必须先在代码、`docs/api.md`、`docs/Gateway_Error_Codes.md` 三处同步，再把这里的 future-state 项目提升为 current baseline。
 
 ### 5.2 Future-state target taxonomy
 
@@ -225,11 +225,11 @@
 3. **Quote Layer**
   `QUOTE_EXPIRED` `PRICE_CHANGED` `QUOTE_NOT_FOUND`
 4. **Execution Layer**
-  `UPSTREAM_TIMEOUT` `UPSTREAM_5XX` `INVALID_SELLER_RESPONSE` `IDEMPOTENCY_CONFLICT`
+  `UPSTREAM_TIMEOUT` `UPSTREAM_5XX` `INVALID_PROVIDER_RESPONSE` `IDEMPOTENCY_CONFLICT`
 
 未来态补充说明：
 
-- `RATE_LIMITED`、`SCOPE_DENIED`、`PRICE_CHANGED`、`UPSTREAM_TIMEOUT`、`UPSTREAM_5XX`、`INVALID_SELLER_RESPONSE` 当前仍应视为目标态占位符。
+- `RATE_LIMITED`、`SCOPE_DENIED`、`PRICE_CHANGED`、`UPSTREAM_TIMEOUT`、`UPSTREAM_5XX`、`INVALID_PROVIDER_RESPONSE` 当前仍应视为目标态占位符。
 - 这些错误码只有在网关实现、测试、API 文档和错误码总表全部同步后，才能升级为对外稳定 contract。
 
 ## 6. 幂等与审计要求

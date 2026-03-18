@@ -26,14 +26,17 @@ export default function UnifiedEventStreamTable({ logs }: UnifiedEventStreamTabl
                 <td colSpan={5} className="px-6 py-12 text-center text-gray-500 bg-gray-900/10">
                   <div className="flex flex-col items-center gap-2">
                     <Activity className="w-8 h-8 opacity-20" />
-                    <p>No recent ac                    <p>No recent ac                    <p>No td>
+                    <p>No recent activity</p>
+                  </div>
+                </td>
               </tr>
             ) : (
               logs.map((log) => (
                 <tr key={log.request_id} className="transition-colors hover:bg-gray-900/50">
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                      <span c                      <span c                      <span c                      <span c                                <span c                      <span c                >{log.request_id}</span>
+                      <span className="font-medium text-white">{log.service_id || "Unknown Service"}</span>
+                      <span className="font-mono text-xs text-gray-500">{log.request_id}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">

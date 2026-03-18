@@ -42,7 +42,7 @@ def sanitize_fee_rate(raw: Any, fallback: float) -> float:
     return value
 
 
-def resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float:
+def resolve_platform_fee_rate(storage: BaseStorage, provider_wallet: str) -> float:
     """Resolve effective fee rate using owner override > runtime default > global config."""
     fallback = sanitize_fee_rate(settings.platform_fee_rate, 0.10)
     policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
@@ -55,7 +55,7 @@ def resolve_platform_fee_rate(storage: BaseStorage, seller_wallet: str) -> float
         policy_default = fallback
     else:
         policy_default = sanitize_fee_rate(policy.default_rate, fallback)
-    owner_key = normalize_wallet(str(seller_wallet or ""))
+    owner_key = normalize_wallet(str(provider_wallet or ""))
     if owner_key and owner_key in policy.owner_rates:
         return sanitize_fee_rate(policy.owner_rates.get(owner_key), policy_default)
     return policy_default
@@ -110,10 +110,10 @@ def build_consumer_success_response(
 
 
 def pricing_breakdown(
-    storage: BaseStorage, seller_wallet: str, unit_price: float
+    storage: BaseStorage, provider_wallet: str, unit_price: float
 ) -> Tuple[float, float, float, float, float, float]:
     """Compute fee decomposition used by charging, logging, and audit records."""
-    fee_rate = resolve_platform_fee_rate(storage, seller_wallet)
+    fee_rate = resolve_platform_fee_rate(storage, provider_wallet)
     protocol_fee = round(unit_price * fee_rate, 6)
     routing_tax = resolve_gateway_routing_tax()
     platform_fee_total = round(protocol_fee + routing_tax, 6)
@@ -127,10 +127,6 @@ def pricing_breakdown(
         provider_net,
         total_charge,
     )
-
-
-build_buyer_receipt = build_consumer_receipt
-build_buyer_success_response = build_consumer_success_response
 
 
 def append_invocation_billing(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
@@ -166,29 +162,29 @@ def _wallet_is_restricted(storage: BaseStorage, wallet: str) -> bool:
 
 
 def _assert_not_risk_restricted_for_charge(
-    storage: BaseStorage, buyer_wallet: str, seller_wallet: str
+    storage: BaseStorage, consumer_wallet: str, provider_wallet: str
 ) -> None:
     ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
-    buyer = normalize_wallet(buyer_wallet)
-    seller = normalize_wallet(seller_wallet)
-    buyer_frozen = ledger.consumer_frozen_balance(buyer)
-    seller_frozen = ledger.provider_frozen_balance(seller)
+    consumer = normalize_wallet(consumer_wallet)
+    provider = normalize_wallet(provider_wallet)
+    consumer_frozen = ledger.consumer_frozen_balance(consumer)
+    provider_frozen = ledger.provider_frozen_balance(provider)
 
-    if buyer_frozen > 0 and _wallet_is_restricted(storage, buyer):
+    if consumer_frozen > 0 and _wallet_is_restricted(storage, consumer):
         raise HTTPException(
             status_code=403,
             detail={
-                "code": "BUYER_RESTRICTED_RISK_BLOCK",
-                "message": "Buyer account is risk-restricted and cannot be charged.",
+                "code": "CONSUMER_RESTRICTED_RISK_BLOCK",
+                "message": "Consumer account is risk-restricted and cannot be charged.",
             },
         )
-    if seller_frozen > 0 and _wallet_is_restricted(storage, seller):
+    if provider_frozen > 0 and _wallet_is_restricted(storage, provider):
         raise HTTPException(
             status_code=403,
             detail={
-                "code": "SELLER_RESTRICTED_RISK_BLOCK",
-                "message": "Seller account is risk-restricted and cannot settle charges.",
+                "code": "PROVIDER_RESTRICTED_RISK_BLOCK",
+                "message": "Provider account is risk-restricted and cannot settle charges.",
             },
         )
 
@@ -196,10 +192,10 @@ def _assert_not_risk_restricted_for_charge(
 async def charge_and_mark_usage(
     storage: BaseStorage,
     owner_wallet: str,
-    seller_wallet: str,
+    provider_wallet: str,
     total_charge: float,
     platform_fee_total: float,
-    seller_net: float,
+    provider_net: float,
     credential_id: str,
     request_id: str = "",
     unit_price: float = 0.0,
@@ -208,21 +204,19 @@ async def charge_and_mark_usage(
     usage_row: Optional[UsageLogRow] = None,
     invocation: Optional[InvocationRecord] = None,
 ) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
-    """Atomically charge buyer, credit seller/platform, and increment credential usage."""
+    """Atomically charge consumer, credit provider/platform, and increment credential usage."""
     now = credential_service.now_ts()
 
-    _assert_not_risk_restricted_for_charge(storage, owner_wallet, seller_wallet)
+    _assert_not_risk_restricted_for_charge(storage, owner_wallet, provider_wallet)
 
-    if hasattr(storage, "charge_consumer_and_record_usage_atomic") or hasattr(
-        storage, "charge_buyer_and_record_usage_atomic"
-    ):
+    if hasattr(storage, "charge_consumer_and_record_usage_atomic"):
         return _charge_and_mark_usage_atomic(
             storage=storage,
             owner_wallet=owner_wallet,
-            seller_wallet=seller_wallet,
+            provider_wallet=provider_wallet,
             total_charge=total_charge,
             platform_fee_total=platform_fee_total,
-            seller_net=seller_net,
+            provider_net=provider_net,
             credential_id=credential_id,
             context=ChargeUsageAtomicContext(
                 request_id=request_id,
@@ -237,10 +231,10 @@ async def charge_and_mark_usage(
     return await _charge_and_mark_usage_fallback(
         storage=storage,
         owner_wallet=owner_wallet,
-        seller_wallet=seller_wallet,
+        provider_wallet=provider_wallet,
         total_charge=total_charge,
         platform_fee_total=platform_fee_total,
-        seller_net=seller_net,
+        provider_net=provider_net,
         credential_id=credential_id,
     )
 
@@ -249,10 +243,10 @@ def _charge_and_mark_usage_atomic(
     *,
     storage: BaseStorage,
     owner_wallet: str,
-    seller_wallet: str,
+    provider_wallet: str,
     total_charge: float,
     platform_fee_total: float,
-    seller_net: float,
+    provider_net: float,
     credential_id: str,
     context: ChargeUsageAtomicContext,
     now: int,
@@ -268,8 +262,8 @@ def _charge_and_mark_usage_atomic(
         ),
         ts=now,
         requestId=context.request_id or None,
-        buyerAddress=owner_wallet,
-        providerAddress=seller_wallet,
+        consumerAddress=owner_wallet,
+        providerAddress=provider_wallet,
         status="accepted",
         unitPrice=Decimal(str(context.unit_price)).quantize(
             Decimal("0.000001"), rounding=ROUND_HALF_UP
@@ -285,19 +279,14 @@ def _charge_and_mark_usage_atomic(
         ),
     )
     try:
-        charge_atomic = getattr(
-            storage,
-            "charge_consumer_and_record_usage_atomic",
-            getattr(storage, "charge_buyer_and_record_usage_atomic"),
-        )
-        result = charge_atomic(
+        result = storage.charge_consumer_and_record_usage_atomic(
             ChargeConsumerUsageCommand(
                 owner_wallet=owner_wallet,
-                provider_wallet=seller_wallet,
+                provider_wallet=provider_wallet,
                 total_charge=Decimal(str(total_charge)).quantize(
                     Decimal("0.000001"), rounding=ROUND_HALF_UP
                 ),
-                provider_net=Decimal(str(seller_net)).quantize(
+                provider_net=Decimal(str(provider_net)).quantize(
                     Decimal("0.000001"), rounding=ROUND_HALF_UP
                 ),
                 platform_fee_total=Decimal(str(platform_fee_total)).quantize(
@@ -318,18 +307,10 @@ def _charge_and_mark_usage_atomic(
             )
         )
         if isinstance(result, dict):
-            consumer_after = float(
-                result.get("consumerAvailableBalanceAfter")
-                or result.get("buyerBalanceAfter")
-                or 0.0
-            )
+            consumer_after = float(result.get("consumerAvailableBalanceAfter") or 0.0)
         else:
             consumer_after = float(
-                getattr(
-                    result,
-                    "consumer_available_balance_after",
-                    result.buyer_balance_after,
-                )
+                getattr(result, "consumer_available_balance_after", 0.0)
             )
     except RuntimeError as exc:
         if str(exc) == "INSUFFICIENT_BALANCE":
@@ -340,7 +321,7 @@ def _charge_and_mark_usage_atomic(
                     "message": "consumer balance is insufficient, please deposit first",
                 },
             )
-        if str(exc) in {"BUYER_RESTRICTED_RISK_BLOCK", "SELLER_RESTRICTED_RISK_BLOCK"}:
+        if str(exc) in {"CONSUMER_RESTRICTED_RISK_BLOCK", "PROVIDER_RESTRICTED_RISK_BLOCK"}:
             raise HTTPException(
                 status_code=403,
                 detail={"code": str(exc), "message": "Charge blocked by risk policy."},
@@ -364,10 +345,10 @@ async def _charge_and_mark_usage_fallback(
     *,
     storage: BaseStorage,
     owner_wallet: str,
-    seller_wallet: str,
+    provider_wallet: str,
     total_charge: float,
     platform_fee_total: float,
-    seller_net: float,
+    provider_net: float,
     credential_id: str,
 ) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
     consumer_after = 0.0
@@ -388,10 +369,10 @@ async def _charge_and_mark_usage_fallback(
 
         consumer_after = round(consumer_balance - total_charge, 6)
         consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
-        provider_wallet = ledger.ensure_provider_wallet(seller_wallet)
+        provider_wallet_row = ledger.ensure_provider_wallet(provider_wallet)
         consumer_wallet.available_balance = consumer_after
-        provider_wallet.available_balance = round(
-            float(provider_wallet.available_balance or 0.0) + seller_net, 6
+        provider_wallet_row.available_balance = round(
+            float(provider_wallet_row.available_balance or 0.0) + provider_net, 6
         )
         ledger.platform.fee_accrued = round(
             ledger.platform.fee_accrued + platform_fee_total, 6
@@ -416,23 +397,23 @@ async def _charge_and_mark_usage_fallback(
 async def rollback_charge(
     storage: BaseStorage,
     owner_wallet: str,
-    seller_wallet: str,
+    provider_wallet: str,
     total_charge: float,
     platform_fee_total: float,
-    seller_net: float,
+    provider_net: float,
     updated_credential: Optional[RuntimeCredentialRecord],
 ) -> None:
-    """Rollback buyer/seller/platform ledger and credential usage when upstream fails."""
+    """Rollback consumer/provider/platform ledger and credential usage when upstream fails."""
     async with credential_service.write_lock:
         ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
         consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
-        provider_wallet = ledger.ensure_provider_wallet(seller_wallet)
+        provider_wallet_row = ledger.ensure_provider_wallet(provider_wallet)
         consumer_wallet.available_balance = round(
             float(consumer_wallet.available_balance or 0.0) + total_charge, 6
         )
-        provider_wallet.available_balance = round(
-            float(provider_wallet.available_balance or 0.0) - seller_net, 6
+        provider_wallet_row.available_balance = round(
+            float(provider_wallet_row.available_balance or 0.0) - provider_net, 6
         )
         ledger.platform.fee_accrued = round(
             ledger.platform.fee_accrued - platform_fee_total, 6

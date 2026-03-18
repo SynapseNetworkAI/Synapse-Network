@@ -6,7 +6,7 @@ def test_synapse():
     # 1. 配置参数：由于你在本地，我们需要指定网关，否则代码会默认去连线上的正式服
     # 你这里必须填入你在前端获取的完整 API Key，前缀应该是 agt_ 加上 32位 字符
     api_key = os.getenv("SYNAPSE_API_KEY", "agt_0YJu_WOgq5sZ0YaiHP37dK21j3z9cq_eqfB3yxZ0jXA") 
-    gateway_url = "http://127.0.0.1:8000"  # 你本地跑的 Provider Server 端口
+    gateway_url = "http://127.0.0.1:8000"  # 你本地跑的 Provider Gateway 端口
 
     print(f"初始化客户端... \nGateway: {gateway_url}")
     client = SynapseClient(api_key=api_key, gateway_url=gateway_url)
@@ -17,7 +17,7 @@ def test_synapse():
     try:
         discovery = client.discover_services(intent=intent_keyword)
         if not discovery.services:
-            print(f"目前网络内没有匹配 [{intent_keyword}]的存活服务节点，请检查 gateway/seller_fastapi.py。")
+            print(f"目前网络内没有匹配 [{intent_keyword}] 的存活服务节点，请检查 gateway/provider_fastapi.py。")
             return
             
         for s in discovery.services:

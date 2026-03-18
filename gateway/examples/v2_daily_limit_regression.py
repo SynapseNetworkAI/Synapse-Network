@@ -11,7 +11,7 @@ from eth_account.messages import encode_defunct
 from web3 import Web3
 
 DEFAULT_DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-DEFAULT_BUYER_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+DEFAULT_OWNER_PAYMENT_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 CONTENT_TYPE_JSON = "application/json"
 
 
@@ -88,7 +88,7 @@ def pick_target_service(api_base: str) -> tuple[str, float]:
 
 def issue_credential(api_base: str, token: str, owner_address: str) -> str:
     response = requests.post(
-        f"{api_base}/api/v1/credentials/issue",
+        f"{api_base}/api/v1/credentials/agent/issue",
         headers=build_auth_headers(token, owner_address),
         json={
             "expiresInSec": 3600,
@@ -121,8 +121,8 @@ def build_payment_tx(
     service_id: str,
     deposit_amount_usdc: float,
     deployer_private_key: str,
-    buyer_private_key: str,
-    seller_address: Optional[str] = None,
+    owner_payment_private_key: str,
+    provider_address: Optional[str] = None,
 ) -> str:
     contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
     router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
@@ -137,8 +137,8 @@ def build_payment_tx(
     token_address = Web3.to_checksum_address(contract_config["MockUSDC"])
 
     deployer = web3.eth.account.from_key(deployer_private_key)
-    buyer = web3.eth.account.from_key(buyer_private_key)
-    seller_checksum = Web3.to_checksum_address(seller_address or deployer.address)
+    payer = web3.eth.account.from_key(owner_payment_private_key)
+    provider_checksum = Web3.to_checksum_address(provider_address or deployer.address)
 
     usdc_contract = web3.eth.contract(address=token_address, abi=usdc_abi)
     router_contract = web3.eth.contract(address=router_address, abi=router_abi)
@@ -146,7 +146,7 @@ def build_payment_tx(
     amount_wei = web3.to_wei(str(deposit_amount_usdc), "ether")
 
     mint_nonce = web3.eth.get_transaction_count(deployer.address)
-    mint_tx = usdc_contract.functions.mint(buyer.address, amount_wei).build_transaction(
+    mint_tx = usdc_contract.functions.mint(payer.address, amount_wei).build_transaction(
         {
             "from": deployer.address,
             "nonce": mint_nonce,
@@ -159,36 +159,36 @@ def build_payment_tx(
     mint_hash = web3.eth.send_raw_transaction(mint_signed.raw_transaction)
     web3.eth.wait_for_transaction_receipt(mint_hash)
 
-    approve_nonce = web3.eth.get_transaction_count(buyer.address)
+    approve_nonce = web3.eth.get_transaction_count(payer.address)
     approve_tx = usdc_contract.functions.approve(router_address, amount_wei).build_transaction(
         {
-            "from": buyer.address,
+            "from": payer.address,
             "nonce": approve_nonce,
             "chainId": chain_id,
             "gas": 250000,
             "gasPrice": web3.eth.gas_price,
         }
     )
-    approve_signed = buyer.sign_transaction(approve_tx)
+    approve_signed = payer.sign_transaction(approve_tx)
     approve_hash = web3.eth.send_raw_transaction(approve_signed.raw_transaction)
     web3.eth.wait_for_transaction_receipt(approve_hash)
 
-    pay_nonce = web3.eth.get_transaction_count(buyer.address)
+    pay_nonce = web3.eth.get_transaction_count(payer.address)
     pay_tx = router_contract.functions.payForService(
         token_address,
-        seller_checksum,
+        provider_checksum,
         amount_wei,
         service_id,
     ).build_transaction(
         {
-            "from": buyer.address,
+            "from": payer.address,
             "nonce": pay_nonce,
             "chainId": chain_id,
             "gas": 500000,
             "gasPrice": web3.eth.gas_price,
         }
     )
-    pay_signed = buyer.sign_transaction(pay_tx)
+    pay_signed = payer.sign_transaction(pay_tx)
     pay_hash = web3.eth.send_raw_transaction(pay_signed.raw_transaction)
     web3.eth.wait_for_transaction_receipt(pay_hash)
 
@@ -266,7 +266,10 @@ def main() -> None:
 
     owner_private_key = os.getenv("OWNER_PRIVATE_KEY", DEFAULT_DEPLOYER_PRIVATE_KEY)
     deployer_private_key = os.getenv("DEPLOYER_PRIVATE_KEY", DEFAULT_DEPLOYER_PRIVATE_KEY)
-    buyer_private_key = os.getenv("BUYER_PRIVATE_KEY", owner_private_key or DEFAULT_BUYER_PRIVATE_KEY)
+    owner_payment_private_key = os.getenv(
+        "OWNER_PAYMENT_PRIVATE_KEY",
+        owner_private_key or DEFAULT_OWNER_PAYMENT_PRIVATE_KEY,
+    )
     prompt = os.getenv("PROMPT", "daily limit regression check")
 
     print("[1/7] Authenticate owner...")
@@ -290,7 +293,7 @@ def main() -> None:
         service_id=service_id,
         deposit_amount_usdc=deposit_amount,
         deployer_private_key=deployer_private_key,
-        buyer_private_key=buyer_private_key,
+        owner_payment_private_key=owner_payment_private_key,
     )
     print(f"      tx_hash={tx_hash}")
 

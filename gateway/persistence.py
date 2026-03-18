@@ -61,8 +61,8 @@ def save_agent_credentials(rows: List[Dict[str, Any]]) -> None:
 
 def load_balance_ledger() -> Dict[str, Any]:
     default_payload: Dict[str, Any] = {
-        "buyers": {},
-        "sellers": {},
+        "consumerWallets": [],
+        "providerWallets": [],
         "platform": {"feeAccrued": 0.0},
         "dailySpend": {},
         "updatedAt": int(time.time()),
@@ -71,14 +71,14 @@ def load_balance_ledger() -> Dict[str, Any]:
     if not isinstance(data, dict):
         return default_payload
 
-    data.setdefault("buyers", {})
-    data.setdefault("sellers", {})
+    data.setdefault("consumerWallets", [])
+    data.setdefault("providerWallets", [])
     data.setdefault("platform", {"feeAccrued": 0.0})
     data.setdefault("dailySpend", {})
-    if not isinstance(data.get("buyers"), dict):
-        data["buyers"] = {}
-    if not isinstance(data.get("sellers"), dict):
-        data["sellers"] = {}
+    if not isinstance(data.get("consumerWallets"), list):
+        data["consumerWallets"] = []
+    if not isinstance(data.get("providerWallets"), list):
+        data["providerWallets"] = []
     if not isinstance(data.get("platform"), dict):
         data["platform"] = {"feeAccrued": 0.0}
     if not isinstance(data.get("dailySpend"), dict):

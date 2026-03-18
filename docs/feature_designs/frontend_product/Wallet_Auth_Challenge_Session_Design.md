@@ -134,7 +134,7 @@ UX fallback:
 |---|---|---|---|
 | Initial wallet sign-in | Yes | Not yet | Challenge is the login proof step |
 | Re-login after session expires | Yes | Not yet | Need fresh wallet proof |
-| Register / update / delete seller service | No (if session valid) | Yes | Platform write operation, owner-isolated by session subject |
+| Register / update / delete provider service | No (if session valid) | Yes | Platform write operation, owner-isolated by session subject |
 | Rotate service key / ping own service | No (if session valid) | Yes | Sensitive provider operation |
 | Parse cURL and autofill manifest (provider workspace) | No (if session valid) | Yes | Workspace-scoped mutation helper |
 | List own services | No (if session valid) | Yes | Tenant-isolated read |
@@ -201,8 +201,8 @@ Note: challenge is not required for each business request after session issuance
 5. `POST /api/v1/services/{service_record_id}/rotate-key`
 6. `POST /api/v1/services/{service_record_id}/ping`
 7. `POST /api/v1/services/parse-curl`
-8. `/api/v1/secrets/seller/*`
-9. `/api/v1/credentials/buyer/*`
+8. `/api/v1/secrets/provider/*`
+9. `/api/v1/credentials/agent/*`
 10. `GET /api/v1/balance`
 11. `POST /api/v1/balance/deposit/intent`
 12. `GET /api/v1/balance/deposit/intents`

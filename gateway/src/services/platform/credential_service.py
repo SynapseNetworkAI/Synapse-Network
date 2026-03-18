@@ -149,13 +149,13 @@ def save_runtime_credentials(
 
 
 def load_credential_rows(storage: BaseStorage) -> List[RuntimeCredentialRecord]:
-    return load_runtime_credentials(storage, "buyer")
+    return load_runtime_credentials(storage, "agent")
 
 
 def save_credential_rows(
     storage: BaseStorage, rows: List[RuntimeCredentialRecord]
 ) -> None:
-    save_runtime_credentials(storage, "buyer", rows)
+    save_runtime_credentials(storage, "agent", rows)
 
 
 def credential_name(record: RuntimeCredentialRecord) -> str:
@@ -490,7 +490,7 @@ def read_audit_log(
 
 
 def resolve_active_credential(
-    storage: BaseStorage, token: str, credential_type: str = "buyer"
+    storage: BaseStorage, token: str, credential_type: str = "agent"
 ) -> RuntimeCredentialRecord:
     rows = load_runtime_credentials(storage, credential_type)
     token_hash_value = hash_token(token)
@@ -674,7 +674,7 @@ async def issue_credential_for_owner(
     plain_token = issue_token()
     record = build_runtime_credential_record(
         CredentialRuntimeSeed(
-            credential_type="buyer",
+            credential_type="agent",
             owner_wallet=owner_wallet,
             credential_id=str(uuid4()),
             display_name=(req.name or "My Secret Key").strip(),

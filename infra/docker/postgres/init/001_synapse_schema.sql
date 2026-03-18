@@ -1,6 +1,6 @@
 -- Synapse Gateway PostgreSQL bootstrap schema
 -- Pure target-state schema for the Owner / Agent / Provider / Platform model.
--- This file intentionally deletes the old Buyer / Seller bootstrap design.
+-- This file intentionally deletes the old legacy role bootstrap design.
 
 DO $$
 BEGIN

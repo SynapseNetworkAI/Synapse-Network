@@ -178,7 +178,7 @@ export default function SellDashboard() {
               <div className="text-sm font-mono font-bold text-[#22c55e]">{isConnected ? providerStats.totalRoutingTax.toFixed(4) : "0.0000"} USDC</div>
             </div>
             <div className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505]">
-              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">Seller Net (Lifetime)</div>
+              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">Provider Net (Lifetime)</div>
               <div className="text-sm font-mono font-bold text-[#ffffff]">{isConnected ? providerStats.netEarned.toFixed(4) : "0.0000"} USDC</div>
             </div>
           </div>

@@ -9,7 +9,7 @@
 当前数据库的核心视角还是：
 
 - `owner_address`
-- `seller_address`
+- `provider_address`
 - `API key`
 - `deposit / usage / withdraw`
 
@@ -19,7 +19,7 @@
 2. 一个 Agent 有独立预算、速率和 service scope
 3. Quote 先预占预算，再 capture / release
 4. Invocation 是第一等真相对象，不只是历史兼容调用影子行
-5. Service 面向 Agent 公开，Seller 结算信息只留在平台内部
+5. Service 面向 Agent 公开，Provider 结算信息只留在平台内部
 
 所以这次不是“在旧表上打补丁”，而是**换视角重建真相层**。
 
@@ -73,8 +73,8 @@
 当前 schema 缺失但 Agent Runtime 必须拥有的对象：
 
 - `synapse_owner_accounts`
-- `synapse_seller_profiles`
-- `synapse_payout_accounts`
+- `synapse_provider_profiles`
+- `synapse_provider_payout_accounts`
 - `synapse_agent_profiles`
 - `synapse_agent_credentials`
 - `synapse_budget_policies`
@@ -97,10 +97,10 @@
 ### 3.1 Tenant Layer
 
 - `synapse_owner_accounts`
-- `synapse_seller_profiles`
-- `synapse_payout_accounts`
+- `synapse_provider_profiles`
+- `synapse_provider_payout_accounts`
 
-作用：定义控制面主体、卖家主体和平台内部结算归属。
+作用：定义控制面主体、Provider 主体和平台内部结算归属。
 
 ### 3.2 Agent Identity Layer
 
@@ -185,7 +185,7 @@
 
 Agent 不需要读：
 
-- `seller_wallet`
+- `provider_wallet`
 - `payout_account`
 - 平台内部路由策略主键
 
@@ -223,7 +223,7 @@ Agent 不需要读：
 
 1. 不做历史兼容表映射，不在旧表上继续堆字段。
 2. 公开协议围绕 `Service / Quote / Invocation / Agent Credential` 设计。
-3. 卖家钱包、分账、结算账户留在平台内部表，不进 Agent-facing 协议。
+3. Provider 钱包、分账、结算账户留在平台内部表，不进 Agent-facing 协议。
 4. 数据库命名必须服务 Runtime 真相，而不是服务历史页面路径。
 5. 所有金额字段继续使用 `NUMERIC`，所有关键写操作继续强事务。
 

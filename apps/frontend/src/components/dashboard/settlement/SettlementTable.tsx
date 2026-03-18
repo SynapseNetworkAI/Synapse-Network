@@ -6,7 +6,7 @@ type SettlementTableProps = {
   rows: SettlementEvent[];
 };
 
-export default function SettlementTable({ loading, rows }: SettlementTableProps) {
+export default function SettlementTable({ loading, rows }: Readonly<SettlementTableProps>) {
   return (
     <div className="overflow-hidden border border-gray-800 rounded-xl bg-black/40">
       <div className="overflow-x-auto">
@@ -15,9 +15,9 @@ export default function SettlementTable({ loading, rows }: SettlementTableProps)
             <tr>
               <th className="px-4 py-3">Service ID</th>
               <th className="px-4 py-3">status</th>
-              <th className="px-4 py-3 text-right">seller_gross</th>
+              <th className="px-4 py-3 text-right">provider_gross</th>
               <th className="px-4 py-3 text-right">platform_fee</th>
-              <th className="px-4 py-3 text-right">seller_net</th>
+              <th className="px-4 py-3 text-right">provider_net</th>
               <th className="px-4 py-3">request_id (tx)</th>
             </tr>
           </thead>
@@ -43,7 +43,7 @@ export default function SettlementTable({ loading, rows }: SettlementTableProps)
                   </td>
                   <td className="px-4 py-3 font-mono text-right text-white">{row.gross.toFixed(4)}</td>
                   <td className="px-4 py-3 font-mono text-right text-yellow-300">{row.platform_fee.toFixed(4)}</td>
-                  <td className="px-4 py-3 font-mono text-right text-green-300">{row.seller_net.toFixed(4)}</td>
+                  <td className="px-4 py-3 font-mono text-right text-green-300">{row.provider_net.toFixed(4)}</td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">{`${row.txHash.slice(0, 8)}...${row.txHash.slice(-6)}`}</td>
                 </tr>
               ))

@@ -109,7 +109,7 @@ class ServiceHealthHistoryState(BaseModel):
 class DepositMetadataState(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    buyer_address: Optional[str] = Field(default=None, alias="buyerAddress")
+    consumer_address: Optional[str] = Field(default=None, alias="consumerAddress")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
 
 

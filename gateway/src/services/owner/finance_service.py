@@ -47,8 +47,8 @@ DEPOSIT_ATTEMPT_STAGES = {
 INVALID_TX_HASH_MESSAGE = "txHash must be a 66-char 0x-prefixed hash."
 
 
-class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
-    """Buyer-side funding/refund domain service (deposit + refund)."""
+class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
+    """Owner-side funding/refund domain service (deposit + refund)."""
 
     def __init__(
         self,
@@ -74,7 +74,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     @staticmethod
     def _deposit_owner(row: DepositIntentRow) -> str:
-        return normalize_wallet(str(row.owner_address or row.buyer_address or ""))
+        return normalize_wallet(str(row.owner_address or ""))
 
     @staticmethod
     def _refund_owner(row: RefundIntentRow) -> str:
@@ -247,12 +247,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             if isinstance(row, UsageLogRow):
                 result.append(row)
             elif isinstance(row, dict):
-                payload = dict(row)
-                if "buyer" in payload and "buyerAddress" not in payload:
-                    payload["buyerAddress"] = payload["buyer"]
-                if "seller" in payload and "sellerAddress" not in payload:
-                    payload["sellerAddress"] = payload["seller"]
-                result.append(UsageLogRow.model_validate(payload))
+                result.append(UsageLogRow.model_validate(row))
         return result
 
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
@@ -311,8 +306,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             raise HTTPException(
                 status_code=400,
                 detail={
-                    "code": "INSUFFICIENT_BUYER_BALANCE",
-                    "message": "amountUsdc exceeds buyer available balance.",
+                    "code": "INSUFFICIENT_OWNER_BALANCE",
+                    "message": "amountUsdc exceeds owner available balance.",
                 },
             )
         return amount
@@ -349,8 +344,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "signature": str(row.signature or ""),
             "amountRefunded": round(float(row.amount_usdc or 0.0), 6),
             "status": str(row.status or "PENDING"),
-            "gasPayer": str(row.gas_payer or "BUYER"),
-            "gasModel": str(row.gas_model or "BUYER_PAYS_ONCHAIN"),
+            "gasPayer": str(row.gas_payer or "OWNER"),
+            "gasModel": str(row.gas_model or "OWNER_PAYS_ONCHAIN"),
             "riskLevel": str(row.risk_level or "green"),
             "riskReasonCode": str(row.risk_reason_code or ""),
             "message": str(row.message or ""),
@@ -431,7 +426,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         usage_rows = self._load_invocation_billing_rows()
         refundable_total = 0.0
         for usage in usage_rows:
-            if normalize_wallet(str(usage.buyer_address or "")) != owner:
+            if normalize_wallet(str(usage.consumer_address or "")) != owner:
                 continue
             status = str(usage.status or "").strip().lower()
             if status not in {"succeeded", "success", "completed", "accepted"}:
@@ -584,13 +579,13 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 status_code=409,
                 detail={
                     "code": "REFUND_LOCK_INCONSISTENT",
-                    "message": "Locked buyer balance is insufficient for this refund intent.",
+                    "message": "Locked owner balance is insufficient for this refund intent.",
                 },
             )
         consumer_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
-    def _reserve_buyer_refund_amount(self, owner: str, amount_usdc: float) -> None:
+    def _reserve_owner_refund_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()
         consumer_wallet = ledger.ensure_consumer_wallet(owner)
         available_balance = round(float(consumer_wallet.available_balance or 0.0), 6)
@@ -598,8 +593,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             raise HTTPException(
                 status_code=400,
                 detail={
-                    "code": "INSUFFICIENT_BUYER_BALANCE",
-                    "message": "amountUsdc exceeds buyer available balance.",
+                    "code": "INSUFFICIENT_OWNER_BALANCE",
+                    "message": "amountUsdc exceeds owner available balance.",
                 },
             )
         consumer_wallet.available_balance = round(
@@ -756,7 +751,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 status_code=409,
                 detail={
                     "code": "REFUND_LOCK_INCONSISTENT",
-                    "message": "Locked buyer balance is insufficient for refund rejection release.",
+                    "message": "Locked owner balance is insufficient for refund rejection release.",
                 },
             )
         consumer_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
@@ -961,7 +956,6 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         next_intent = DepositIntentRow(
             id=draft.intent_id,
             ownerAddress=owner,
-            buyerAddress=owner,
             txHash=draft.tx_hash,
             amountUsdc=draft.amount_usdc,
             idempotencyKey=idempotency_key,
@@ -1356,7 +1350,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 abnormal_split=abnormal_split,
             )
 
-            self._reserve_buyer_refund_amount(owner, amount_usdc)
+            self._reserve_owner_refund_amount(owner, amount_usdc)
 
             refund_row = RefundIntentRow(
                 id=refund_id,
@@ -1365,8 +1359,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 reason=reason,
                 status=risk["status"],
                 signature=signature,
-                gasPayer="BUYER",
-                gasModel="BUYER_PAYS_ONCHAIN",
+                gasPayer="OWNER",
+                gasModel="OWNER_PAYS_ONCHAIN",
                 originRequestId=origin.request_id,
                 originTxHash=origin.tx_hash,
                 refundType=refund_type,
@@ -1388,8 +1382,8 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 "signature": signature,
                 "amountRefunded": round(amount_usdc, 6),
                 "status": risk["status"],
-                "gasPayer": "BUYER",
-                "gasModel": "BUYER_PAYS_ONCHAIN",
+                "gasPayer": "OWNER",
+                "gasModel": "OWNER_PAYS_ONCHAIN",
                 "riskLevel": risk["riskLevel"],
                 "riskReasonCode": risk["riskReasonCode"],
                 "message": risk["message"],
@@ -1461,7 +1455,7 @@ class BuyerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                         CompleteWithdrawTxCommand(
                             owner_wallet=owner,
                             tx_hash=normalized_tx_hash,
-                            kind="buyer_refund",
+                            kind="owner_refund",
                         )
                     )
                 )

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from src.domain.execution import PreparedWithdrawTicket
 from src.domain.finance import BalanceLedger, RefundIntentRow, UsageLogRow
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
-from src.services.buyer.finance_service import BuyerFinanceService
+from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.finance_service import PlatformFinanceService
 from src.services.provider.withdraw_service import ProviderWithdrawService
 
@@ -112,7 +112,7 @@ async def _async_true(*args, **kwargs):
     return True
 
 
-def _configure_buyer_service(service: BuyerFinanceService) -> None:
+def _configure_owner_service(service: OwnerFinanceService) -> None:
     service._get_redis_client = _async_none
     service._check_idempotency_redis = _async_none
     service._start_idempotency_redis = _async_true
@@ -149,8 +149,8 @@ def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
 
 def test_consumer_finance_deposit_flow_uses_typed_rows() -> None:
     storage = FakeStorage()
-    service = BuyerFinanceService(storage, DummyLockManager())
-    _configure_buyer_service(service)
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
 
     registered = asyncio.run(
         service.register_deposit_intent(
@@ -183,15 +183,15 @@ def test_consumer_finance_refund_flow_uses_typed_rows() -> None:
         UsageLogRow(
             id="usage-1",
             ts=1710000000,
-            buyerAddress="0xabc",
+            consumerAddress="0xabc",
             status="succeeded",
             originRequestId="req-1",
             originTxHash="",
             totalCharge="30.0",
         )
     ]
-    service = BuyerFinanceService(storage, DummyLockManager())
-    _configure_buyer_service(service)
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
 
     created = asyncio.run(
         service.process_refund_intent(

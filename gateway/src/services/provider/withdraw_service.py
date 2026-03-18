@@ -312,16 +312,9 @@ class ProviderWithdrawService(
         provider_wallet.pending_balance = round(
             float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6
         )
-        if hasattr(self.storage, "reserve_provider_withdraw_atomic") or hasattr(
-            self.storage, "reserve_seller_withdraw_atomic"
-        ):
+        if hasattr(self.storage, "reserve_provider_withdraw_atomic"):
             try:
-                reserve_atomic = getattr(
-                    self.storage,
-                    "reserve_provider_withdraw_atomic",
-                    getattr(self.storage, "reserve_seller_withdraw_atomic"),
-                )
-                reserve_atomic(
+                self.storage.reserve_provider_withdraw_atomic(
                     ReserveProviderWithdrawCommand(
                         owner_wallet=owner,
                         amount_usdc=Decimal(str(amount_usdc)).quantize(
@@ -420,7 +413,7 @@ class ProviderWithdrawService(
             raise RuntimeError("WITHDRAWAL_ATOMIC_NOT_SUPPORTED")
 
         owner = normalize_wallet(command.provider_address)
-        high_risk_override = owner in settings.withdrawal_high_risk_seller_addresses
+        high_risk_override = owner in settings.withdrawal_high_risk_provider_addresses
         window_seconds = command.window_seconds
 
         try:
@@ -805,6 +798,3 @@ class ProviderWithdrawService(
                 "status": "COMPLETED",
                 "txHash": normalized_tx_hash,
             }
-
-
-SellerWithdrawService = ProviderWithdrawService

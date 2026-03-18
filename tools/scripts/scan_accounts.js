@@ -13,11 +13,11 @@ async function main() {
             address: signers[0].address // Typically the deployer/owner
         },
         {
-            name: "buyerAgent",
+            name: "ownerAgent",
             address: signers[1].address
         },
         {
-            name: "sellerAgent",
+            name: "providerAgent",
             address: signers[2].address
         }
     ];

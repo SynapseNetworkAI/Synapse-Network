@@ -16,7 +16,7 @@ class BaseResponse(BaseModel):
 
 
 class ChallengeRequest(BaseModel):
-    wallet_address: str = Field(..., description="Wallet address of the buyer")
+    wallet_address: str = Field(..., description="Wallet address of the owner")
 
 
 class ChallengeResponse(BaseResponse):

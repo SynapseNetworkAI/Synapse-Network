@@ -14,7 +14,7 @@ Synapse 不是给人类手工逛 API 的市场，而是一条 Agent 自动发现
 | Agent Runtime | 发现服务、选择服务、执行调用、消耗预算 | 不该接触主钱包私钥 |
 | Gateway | 鉴权、风控、报价、路由、记账、审计 | 不该承担链上资产托管 |
 | Contract Vault | 资产托管、充值、提现清算 | 不该做高频预算和调用限流 |
-| Seller | 提交 Manifest、维护服务健康、接收入账 | 不该要求买家对每个服务单独申请 key |
+| Provider | 提交 Manifest、维护服务健康、接收入账 | 不该要求 Owner 对每个服务单独申请 key |
 
 ## 2. Runtime 五层架构
 
@@ -71,7 +71,7 @@ Synapse Runtime 建议拆成五层：
 
 ### 4.2 执行链路
 
-`Agent Runtime -> Discovery API -> Quote API -> Invoke API -> Seller Endpoint`
+`Agent Runtime -> Discovery API -> Quote API -> Invoke API -> Provider Endpoint`
 
 用途：
 

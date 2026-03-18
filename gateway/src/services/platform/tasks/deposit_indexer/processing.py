@@ -370,9 +370,7 @@ def _find_intent_by_tx_owner(
         return None
     for row in intents:
         if (
-            normalize_wallet(
-                str(row.get("ownerAddress") or row.get("buyerAddress") or "")
-            )
+            normalize_wallet(str(row.get("ownerAddress") or ""))
             != owner
         ):
             continue
@@ -390,7 +388,7 @@ def _build_recovery_intent(
     return {
         "id": str(uuid4()),
         "ownerAddress": normalize_wallet(owner_wallet),
-        "buyerAddress": normalize_wallet(owner_wallet),
+        "consumerAddress": normalize_wallet(owner_wallet),
         "txHash": _normalize_tx_hash(tx_hash),
         "amountUsdc": round(float(amount_usdc), 6),
         "creditedAmountUsdc": 0.0,

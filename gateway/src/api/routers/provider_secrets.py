@@ -14,8 +14,8 @@ UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
 StorageDep = Annotated[BaseStorage, Depends(get_storage)]
 
 
-@router.get("/v1/secrets/seller/list")
-async def list_seller_secrets(
+@router.get("/v1/secrets/provider/list")
+async def list_provider_secrets(
     storage: StorageDep,
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
@@ -29,8 +29,8 @@ async def list_seller_secrets(
     }
 
 
-@router.post("/v1/secrets/seller/issue")
-async def issue_seller_secret(
+@router.post("/v1/secrets/provider/issue")
+async def issue_provider_secret(
     req: CredentialIssueRequest,
     storage: StorageDep,
     authorization: AuthorizationHeader = None,
@@ -42,8 +42,8 @@ async def issue_seller_secret(
     )
 
 
-@router.delete("/v1/secrets/seller/{secret_id}")
-async def revoke_seller_secret(
+@router.delete("/v1/secrets/provider/{secret_id}")
+async def revoke_provider_secret(
     secret_id: str,
     storage: StorageDep,
     authorization: AuthorizationHeader = None,

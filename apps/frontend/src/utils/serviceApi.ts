@@ -523,7 +523,7 @@ export type ProviderSecret = {
 };
 
 export async function listApiSecrets(userAddress: string): Promise<ProviderSecret[]> {
-  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/seller/list`, {
+  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/provider/list`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
   });
@@ -544,7 +544,7 @@ export async function createApiSecret(
   expiration: number | null = null,
   rpm: number | null = null,
 ): Promise<ProviderSecret> {
-  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/seller/issue`, {
+  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/provider/issue`, {
     method: "POST",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify({ name, creditLimit, resetInterval, expiration, rpm }),
@@ -562,7 +562,7 @@ export async function createApiSecret(
 }
 
 export async function deleteApiSecret(secretId: string, userAddress: string): Promise<void> {
-  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/seller/${secretId}`, {
+  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/provider/${secretId}`, {
     method: "DELETE",
     headers: buildAuthedHeaders(userAddress, false),
   });

@@ -26,9 +26,9 @@
 1. `WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC`
 2. `WITHDRAWAL_AUTO_24H_LIMIT_USDC`
 3. `WITHDRAWAL_WINDOW_HOURS`
-4. `WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES`
+4. `WITHDRAWAL_HIGH_RISK_PROVIDER_ADDRESSES`
 
-说明：`WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES` 仍是历史实现变量名，当前业务语义应理解为 Provider withdrawal 风控名单配置。
+说明：高风险 Provider withdrawal 地址名单环境变量用于控制提现风控名单配置。
 
 ### 2.3 Indexer and Reconciliation
 

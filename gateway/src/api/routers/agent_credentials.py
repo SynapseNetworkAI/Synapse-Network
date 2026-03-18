@@ -17,8 +17,8 @@ StorageDep = Annotated[BaseStorage, Depends(get_storage)]
 AuditLimitQuery = Annotated[int, Query(ge=1, le=500)]
 
 
-@router.post("/v1/credentials/buyer/issue")
-async def issue_buyer_credential(
+@router.post("/v1/credentials/agent/issue")
+async def issue_agent_credential(
     req: CredentialIssueRequest,
     storage: StorageDep,
     authorization: AuthorizationHeader = None,
@@ -28,8 +28,8 @@ async def issue_buyer_credential(
     return await credential_service.issue_credential_for_owner(storage, owner, req)
 
 
-@router.get("/v1/credentials/buyer/list")
-async def list_buyer_credentials(
+@router.get("/v1/credentials/agent/list")
+async def list_agent_credentials(
     storage: StorageDep,
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
@@ -41,8 +41,8 @@ async def list_buyer_credentials(
     }
 
 
-@router.post("/v1/credentials/buyer/{credential_id}/revoke")
-async def revoke_buyer_credential(
+@router.post("/v1/credentials/agent/{credential_id}/revoke")
+async def revoke_agent_credential(
     credential_id: str,
     storage: StorageDep,
     authorization: AuthorizationHeader = None,
@@ -54,8 +54,8 @@ async def revoke_buyer_credential(
     )
 
 
-@router.patch("/v1/credentials/buyer/{credential_id}/quota")
-async def update_buyer_credential_quota(
+@router.patch("/v1/credentials/agent/{credential_id}/quota")
+async def update_agent_credential_quota(
     credential_id: str,
     req: CredentialQuotaUpdateRequest,
     storage: StorageDep,
@@ -68,8 +68,8 @@ async def update_buyer_credential_quota(
     )
 
 
-@router.get("/v1/credentials/buyer/audit-logs")
-async def get_buyer_audit_logs(
+@router.get("/v1/credentials/agent/audit-logs")
+async def get_agent_audit_logs(
     storage: StorageDep,
     limit: AuditLimitQuery = 100,
     authorization: AuthorizationHeader = None,

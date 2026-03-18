@@ -14,7 +14,7 @@ export type SettlementEvent = {
   status: DeductionStatus;
   gross: number;
   platform_fee: number;
-  seller_net: number;
+  provider_net: number;
   txHash: string;
   blockNumber: number;
 };
@@ -23,12 +23,12 @@ export function useSettlementData() {
   const { address: userAddress } = useAccount();
   const [loading, setLoading] = useState(false);
   const [walletUsdc, setWalletUsdc] = useState(0);
-  const [sellerRows, setSellerRows] = useState<SettlementEvent[]>([]);
+  const [providerRows, setProviderRows] = useState<SettlementEvent[]>([]);
 
   useEffect(() => {
     if (!userAddress) {
       setWalletUsdc(0);
-      setSellerRows([]);
+      setProviderRows([]);
       return;
     }
 
@@ -41,7 +41,7 @@ export function useSettlementData() {
         const usdc = new ethers.Contract(contractConfig.MockUSDC, MockUSDCABI, provider);
         const router = new ethers.Contract(contractConfig.SynapseCore, SynapseCoreABI, provider);
 
-        const sellerAddresses = new Set<string>([
+        const providerAddresses = new Set<string>([
           userAddress.toLowerCase(),
         ]);
 
@@ -53,19 +53,19 @@ export function useSettlementData() {
           const usageRows = await listUsageLogs(userAddress, 300);
           const usageEvents = (usageRows
             .map((item, index) => {
-              const seller = (item.seller || "").toLowerCase();
-              if (!sellerAddresses.has(seller)) return null;
+              const provider = (item.providerAddress || "").toLowerCase();
+              if (!providerAddresses.has(provider)) return null;
 
               const gross = item.unit_price ?? 0;
               const platformFee = item.platform_fee ?? 0;
-              const sellerNet = item.seller_net ?? Math.max(0, gross - platformFee);
+              const providerNet = item.provider_net ?? Math.max(0, gross - platformFee);
 
               return {
                 serviceId: item.service_id || "unknown",
                 status: item.status,
                 gross,
                 platform_fee: platformFee,
-                seller_net: sellerNet,
+                provider_net: providerNet,
                 txHash: item.tx_hash || item.request_id,
                 blockNumber: item.block_number ?? item.created_at ?? index,
               } satisfies SettlementEvent;
@@ -75,7 +75,7 @@ export function useSettlementData() {
 
           if (!cancelled) {
             setWalletUsdc(usdcNum);
-            setSellerRows(usageEvents);
+            setProviderRows(usageEvents);
           }
           return;
         } catch {
@@ -85,8 +85,8 @@ export function useSettlementData() {
         const events = (logs
           .map((log) => {
             if (!("args" in log) || !log.args || log.args.length < 6) return null;
-            const seller = String(log.args[1]).toLowerCase();
-            if (!sellerAddresses.has(seller)) return null;
+            const provider = String(log.args[1]).toLowerCase();
+            if (!providerAddresses.has(provider)) return null;
 
             const gross = Number.parseFloat(ethers.formatUnits(ethers.toBigInt(log.args[3]), 18));
             const platformFee = Number.parseFloat(ethers.formatUnits(ethers.toBigInt(log.args[4]), 18));
@@ -95,7 +95,7 @@ export function useSettlementData() {
               status: "succeeded",
               gross,
               platform_fee: platformFee,
-              seller_net: Math.max(0, gross - platformFee),
+              provider_net: Math.max(0, gross - platformFee),
               txHash: log.transactionHash,
               blockNumber: log.blockNumber,
             } satisfies SettlementEvent;
@@ -105,12 +105,12 @@ export function useSettlementData() {
 
         if (!cancelled) {
           setWalletUsdc(usdcNum);
-          setSellerRows(events);
+          setProviderRows(events);
         }
       } catch {
         if (!cancelled) {
           setWalletUsdc(0);
-          setSellerRows([]);
+          setProviderRows([]);
         }
       } finally {
         if (!cancelled) {
@@ -127,11 +127,11 @@ export function useSettlementData() {
   }, [userAddress]);
 
   const totals = useMemo(() => {
-    const seller_receivable = sellerRows.reduce((sum, row) => sum + row.seller_net, 0);
-    const seller_gross = sellerRows.reduce((sum, row) => sum + row.gross, 0);
-    const platform_fee = sellerRows.reduce((sum, row) => sum + row.platform_fee, 0);
-    return { seller_receivable, seller_gross, platform_fee };
-  }, [sellerRows]);
+    const provider_receivable = providerRows.reduce((sum, row) => sum + row.provider_net, 0);
+    const provider_gross = providerRows.reduce((sum, row) => sum + row.gross, 0);
+    const platform_fee = providerRows.reduce((sum, row) => sum + row.platform_fee, 0);
+    return { provider_receivable, provider_gross, platform_fee };
+  }, [providerRows]);
 
-  return { userAddress, loading, walletUsdc, sellerRows, totals };
+  return { userAddress, loading, walletUsdc, providerRows, totals };
 }

@@ -22,4 +22,4 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["synapse_client*"]
-exclude = ["seller_api*", "examples*", "venv*", "__pycache__*"]
+exclude = ["provider_api*", "examples*", "venv*", "__pycache__*"]

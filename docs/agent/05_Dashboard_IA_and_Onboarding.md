@@ -89,8 +89,8 @@ Discovery 页面不要做成电商商品瀑布流。
 
 补充要求：
 
-- Discovery 页默认展示 service 信息，不展示 `seller_wallet` 这类内部结算字段。
-- 如果后续需要展示卖家品牌，也应以 Seller Profile 的展示层字段呈现，而不是暴露结算地址。
+- Discovery 页默认展示 service 信息，不展示 `provider_wallet` 这类内部结算字段。
+- 如果后续需要展示 Provider 品牌，也应以 Provider Profile 的展示层字段呈现，而不是暴露结算地址。
 
 ## 6. Agents 页面必须一眼看到什么
 

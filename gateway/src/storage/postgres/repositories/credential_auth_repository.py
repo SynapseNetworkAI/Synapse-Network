@@ -531,8 +531,11 @@ class CredentialAuthRepository:
             row = cur.fetchone()
         if row is None:
             return None
+        payload = row
+        if isinstance(row, (list, tuple)) and row:
+            payload = row[0]
         return self._parse_state_model(
-            row[0],
+            payload,
             AuthSessionState,
             fallback={
                 "walletAddress": str(wallet or "").lower(),

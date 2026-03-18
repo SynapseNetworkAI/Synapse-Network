@@ -43,7 +43,7 @@ const FIELD_GUIDES: Record<string, FieldGuideItem> = {
     title: "Service Name",
     purpose: "Human-readable service title for discovery and trust.",
     howToConfigure: "Use a clear product-like name, 4-80 chars.",
-    platformUse: "Shown in marketplace and seller console cards.",
+    platformUse: "Shown in marketplace and provider console cards.",
     example: "DeepSeek Market Analysis",
   },
   agent_tool_name: {
@@ -57,7 +57,7 @@ const FIELD_GUIDES: Record<string, FieldGuideItem> = {
     title: "Description",
     purpose: "Instruction for when/why agents should call this tool.",
     howToConfigure: "Write concrete trigger conditions in 12-240 chars.",
-    platformUse: "Used by intent matching and buyer-side selection.",
+    platformUse: "Used by intent matching and agent-side selection.",
   },
   intent: {
     title: "Intent Tags",
@@ -532,7 +532,7 @@ export default function DeployManifestPage() {
         serviceName: manifest.service_name.trim(),
         createdAt: nowDateTimeString(),
         updatedAt: nowDateTimeString(),
-        role: "Provider / Seller",
+        role: "Provider",
         address,
         pricing: manifest.pricing.amount,
         isActive: true,
@@ -721,7 +721,7 @@ export default function DeployManifestPage() {
                 <Server className="w-6 h-6 mr-3 text-green-500" />
                 Build Service Manifest
               </h1>
-              <p className="text-gray-500 mt-2 text-sm">Design your AI-native API contract. Synapse Gateway will use this to route buyer requests and process zero-gas payments.</p>
+              <p className="text-gray-500 mt-2 text-sm">Design your AI-native API contract. Synapse Gateway will use this to route agent requests and process zero-gas payments.</p>
             </div>
             {hasDraft && (
               <button 
@@ -1152,7 +1152,7 @@ export default function DeployManifestPage() {
           <div className="relative z-10 space-y-4">
             <div className="rounded-lg border border-gray-800 bg-black/60 p-3">
               <p className="text-xs text-gray-300">
-                This is the final contract the gateway and AI buyers will read after deployment.
+                This is the final contract the gateway and AI agents will read after deployment.
               </p>
               <p className="text-[11px] text-gray-500 mt-1">
                 It updates in real-time while you edit the form on the left.
@@ -1243,7 +1243,7 @@ export default function DeployManifestPage() {
             </p>
           )}
           <p className="text-center text-[10px] text-gray-600 mt-3 font-mono">
-            By deploying, you accept the Seller Gateway ToS. Cost: 0 Gas (Off-chain injection).
+            By deploying, you accept the Provider Gateway ToS. Cost: 0 Gas (Off-chain injection).
           </p>
         </div>
       </div>

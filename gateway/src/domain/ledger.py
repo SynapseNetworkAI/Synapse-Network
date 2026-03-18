@@ -16,21 +16,13 @@ class LedgerAccountRecord(BaseModel):
     owner_id: Optional[str] = Field(default=None, alias="ownerId")
     provider_id: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("providerId", "sellerId"),
+        validation_alias=AliasChoices("providerId"),
         serialization_alias="providerId",
     )
     currency: str = "USDC"
     status: Literal["active", "paused", "closed"] = "active"
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
-
-    @property
-    def seller_id(self) -> Optional[str]:
-        return self.provider_id
-
-    @seller_id.setter
-    def seller_id(self, value: Optional[str]) -> None:
-        self.provider_id = value
 
 class DepositIntentRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -41,7 +33,7 @@ class DepositIntentRow(BaseModel):
     request_id: Optional[str] = Field(default=None, alias="requestId")
     consumer_address: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("consumerAddress", "buyerAddress"),
+        validation_alias=AliasChoices("consumerAddress"),
         serialization_alias="consumerAddress",
     )
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
@@ -55,15 +47,6 @@ class DepositIntentRow(BaseModel):
     confirmed_at: Optional[int] = Field(default=None, alias="confirmedAt")
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
-
-    @property
-    def buyer_address(self) -> Optional[str]:
-        return self.consumer_address
-
-    @buyer_address.setter
-    def buyer_address(self, value: Optional[str]) -> None:
-        self.consumer_address = value
-
 
 class WithdrawalIntentRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -174,29 +157,13 @@ class BalanceLedgerRecord(BaseModel):
 
     consumer_wallet_accounts: dict[str, AccountBalanceRecord] = Field(
         default_factory=dict,
-        validation_alias=AliasChoices("consumerWalletAccounts", "buyerAccounts"),
+        validation_alias=AliasChoices("consumerWalletAccounts"),
         serialization_alias="consumerWalletAccounts",
     )
     provider_wallet_accounts: dict[str, AccountBalanceRecord] = Field(
         default_factory=dict,
-        validation_alias=AliasChoices("providerWalletAccounts", "sellerAccounts"),
+        validation_alias=AliasChoices("providerWalletAccounts"),
         serialization_alias="providerWalletAccounts",
     )
     platform_revenue: PlatformRevenueRecord = Field(default_factory=PlatformRevenueRecord, alias="platformRevenue")
     updated_at: str = Field(default="", alias="updatedAt")
-
-    @property
-    def buyer_accounts(self) -> dict[str, AccountBalanceRecord]:
-        return self.consumer_wallet_accounts
-
-    @buyer_accounts.setter
-    def buyer_accounts(self, value: dict[str, AccountBalanceRecord]) -> None:
-        self.consumer_wallet_accounts = value
-
-    @property
-    def seller_accounts(self) -> dict[str, AccountBalanceRecord]:
-        return self.provider_wallet_accounts
-
-    @seller_accounts.setter
-    def seller_accounts(self, value: dict[str, AccountBalanceRecord]) -> None:
-        self.provider_wallet_accounts = value

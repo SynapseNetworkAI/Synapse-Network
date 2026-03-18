@@ -14,7 +14,7 @@ from src.services.provider import secret_service
 
 class InMemoryCredentialAuthRepository:
     def __init__(self) -> None:
-        self._credential_rows = {"buyer": [], "seller": []}
+        self._credential_rows = {"agent": [], "provider": []}
         self._auth_sessions: dict[str, AuthSessionState] = {}
 
     def read_credential_rows(self, credential_type: str):
@@ -51,7 +51,7 @@ class FakeStorage:
         return self.data_manager
 
 
-def test_buyer_credential_service_uses_runtime_models() -> None:
+def test_agent_credential_service_uses_runtime_models() -> None:
     storage = FakeStorage()
 
     issued = asyncio.run(
@@ -59,7 +59,7 @@ def test_buyer_credential_service_uses_runtime_models() -> None:
             storage,
             "0xABC",
             CredentialIssueRequest(
-                name="Buyer Key",
+                name="Agent Key",
                 maxCalls=5,
                 rpm=10,
                 creditLimit=2.5,
@@ -74,7 +74,7 @@ def test_buyer_credential_service_uses_runtime_models() -> None:
     rows = credential_service.load_credential_rows(storage)
     assert len(rows) == 1
     assert isinstance(rows[0], RuntimeCredentialRecord)
-    assert rows[0].metadata.name == "Buyer Key"
+    assert rows[0].metadata.name == "Agent Key"
 
     resolved = credential_service.resolve_active_credential(
         storage, issued["credential"]["token"]
@@ -114,7 +114,7 @@ def test_provider_secret_service_uses_runtime_models() -> None:
             storage,
             "0xDEF",
             CredentialIssueRequest(
-                name="Seller Key",
+                name="Provider Key",
                 maxCalls=7,
                 rpm=12,
                 creditLimit=4.2,
@@ -129,11 +129,11 @@ def test_provider_secret_service_uses_runtime_models() -> None:
     rows = secret_service.load_provider_secret_rows(storage)
     assert len(rows) == 1
     assert isinstance(rows[0], RuntimeCredentialRecord)
-    assert rows[0].metadata.credential_type == "seller"
+    assert rows[0].metadata.credential_type == "provider"
 
     visible = secret_service.list_provider_secrets_by_owner(storage, "0xdef")
     assert len(visible) == 1
-    assert visible[0]["name"] == "Seller Key"
+    assert visible[0]["name"] == "Provider Key"
     assert visible[0]["rpm"] == 12
 
     deleted = asyncio.run(

@@ -249,7 +249,7 @@ export default function DeveloperConsole() {
     if (!address) return;
     try {
       const bal = await getV2Balance(address);
-      setBalanceUsdc(bal.buyerBalance);
+      setBalanceUsdc(bal.ownerBalance);
     } catch {
       // Ignore
     }

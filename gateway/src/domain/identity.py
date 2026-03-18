@@ -23,7 +23,7 @@ class ProviderProfileRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     provider_id: str = Field(
-        validation_alias=AliasChoices("providerId", "sellerId"),
+        validation_alias=AliasChoices("providerId"),
         serialization_alias="providerId",
     )
     owner_id: str = Field(alias="ownerId")
@@ -32,15 +32,6 @@ class ProviderProfileRecord(BaseModel):
     status: Literal["active", "paused", "archived"] = "active"
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
-
-    @property
-    def seller_id(self) -> str:
-        return self.provider_id
-
-    @seller_id.setter
-    def seller_id(self, value: str) -> None:
-        self.provider_id = value
-
 
 class AgentProfileRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

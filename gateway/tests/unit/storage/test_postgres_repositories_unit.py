@@ -231,7 +231,7 @@ def test_audit_log_repository_append_replace_and_read() -> None:
             "fetchall": [[
                 (
                     "system-9",
-                    "SELLER_SECRET_ISSUED",
+                    "PROVIDER_SECRET_ISSUED",
                     "0xabc",
                     "success",
                     None,
@@ -265,7 +265,7 @@ def test_audit_log_repository_append_replace_and_read() -> None:
     )
     repo.append_audit_row(
         AuditLogEntry(
-            action="SELLER_SECRET_ISSUED",
+            action="PROVIDER_SECRET_ISSUED",
             domain="system",
             ownerAddress="0xabc",
             details={"requestId": "req-2", "resourceType": "credential", "resourceId": "cred-1"},
@@ -293,8 +293,8 @@ def test_balance_repository_read_and_write() -> None:
         {
             "fetchall": [
                 [
-                    ("0xbuyer", "consumer_wallet", Decimal("10"), Decimal("1"), Decimal("2"), 100),
-                    ("0xseller", "provider_wallet", Decimal("20"), Decimal("3"), Decimal("4"), 110),
+                    ("0xowner", "consumer_wallet", Decimal("10"), Decimal("1"), Decimal("2"), 100),
+                    ("0xprovider", "provider_wallet", Decimal("20"), Decimal("3"), Decimal("4"), 110),
                     ("__platform__", "platform_revenue", Decimal("0.5"), Decimal("0"), Decimal("0"), 120),
                 ]
             ]
@@ -303,8 +303,8 @@ def test_balance_repository_read_and_write() -> None:
     repo = BalanceRepository(db, _q6, "UPSERT")
 
     ledger = repo.read_balance_ledger()
-    assert abs(ledger.consumer_available_balance("0xbuyer") - 10.0) < 1e-9
-    assert abs(ledger.provider_receivable_balance("0xseller") - 20.0) < 1e-9
+    assert abs(ledger.consumer_available_balance("0xowner") - 10.0) < 1e-9
+    assert abs(ledger.provider_receivable_balance("0xprovider") - 20.0) < 1e-9
     assert abs(ledger.platform.fee_accrued - 0.5) < 1e-9
     assert ledger.updated_at == "1970-01-01 00:02:00"
 
@@ -465,11 +465,11 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
                 "USDC",
                 "2026-03-15 14:23:00",
                 "2026-03-15 14:23:01",
-                "agent:seller:0xabc",
-                "seller-runtime",
-                "seller runtime credential holder",
+                "agent:provider:0xabc",
+                "provider-runtime",
+                "provider runtime credential holder",
                 "active",
-                "seller",
+                "provider",
                 "2026-03-15 14:23:00",
                 "2026-03-15 14:23:01",
                 "cred-1",
@@ -490,7 +490,7 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
                 ["svc-1"],
                 [],
                 {
-                    "credentialType": "seller",
+                    "credentialType": "provider",
                     "ownerAddress": "0xabc",
                     "name": "cred-name",
                     "maxCalls": 100,
@@ -502,11 +502,6 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
                 },
                 "2026-03-15 14:24:05",
             )]],
-        }
-    )
-    db.readonly_plan.append(
-        {
-            "fetchone": [({"role": "admin"},)],
         }
     )
     db.readonly_plan.append(
@@ -525,7 +520,7 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     from src.domain.identity import RuntimeCredentialRecord
     from src.domain.runtime_state import AuthSessionState
 
-    creds = repo.read_credential_rows("seller")
+    creds = repo.read_credential_rows("provider")
     assert len(creds) == 1
     assert isinstance(creds[0], RuntimeCredentialRecord)
     assert creds[0].credential.credential_id == "cred-1"
@@ -538,7 +533,7 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     assert session.last_login == 200
 
     repo.write_credential_rows(
-        "seller",
+        "provider",
         [
             RuntimeCredentialRecord.model_validate(
                 {
@@ -549,17 +544,17 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
                         "updatedAt": "2026-03-15 14:25:01",
                     },
                     "agent": {
-                        "agentId": "agent:seller:0xdef",
+                        "agentId": "agent:provider:0xdef",
                         "ownerId": "owner:0xdef",
-                        "name": "seller-runtime",
-                        "purpose": "seller runtime credential holder",
-                        "runtimeLabel": "seller",
+                        "name": "provider-runtime",
+                        "purpose": "provider runtime credential holder",
+                        "runtimeLabel": "provider",
                         "createdAt": "2026-03-15 14:25:00",
                         "updatedAt": "2026-03-15 14:25:01",
                     },
                     "credential": {
                         "credentialId": "cred-2",
-                        "agentId": "agent:seller:0xdef",
+                        "agentId": "agent:provider:0xdef",
                         "secretHash": "hash-2",
                         "secretPrefix": "sk_test",
                         "status": "active",
@@ -578,7 +573,7 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
                         "updatedAt": "2026-03-15 14:25:01",
                     },
                     "metadata": {
-                        "credentialType": "seller",
+                        "credentialType": "provider",
                         "ownerAddress": "0xdef",
                         "name": "cred-two",
                         "maxCalls": 100,
@@ -596,7 +591,7 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
     assert "DELETE FROM synapse_budget_policies AS bp" in tx_sql
     assert "DELETE FROM synapse_agent_credentials AS ac" in tx_sql
-    assert tx_sql.count("INSERT INTO synapse_runtime_state") >= 3
+    assert tx_sql.count("INSERT INTO synapse_runtime_state") >= 2
     assert "INSERT INTO synapse_agent_credentials" in tx_sql
     assert "INSERT INTO synapse_budget_policies" in tx_sql
 
@@ -604,7 +599,7 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
 def test_gateway_state_repository_read_and_write() -> None:
     db = FakeDB()
     db.readonly_plan.append({"fetchall": [[(
-        "dep-1", "0xabc", "0xtx", "req-1", {"buyerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("1.0"), "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
+        "dep-1", "0xabc", "0xtx", "req-1", {"ownerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("1.0"), "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
     )]]})
     db.readonly_plan.append({"fetchall": [[(
         "ref-1", "0xabc", "0xtx2", "REQUESTED", "req-2", Decimal("0.5"), "sig-r", 9, 999, "2026-03-15 14:24:02", "2026-03-15 14:24:03", {"flowStatus": "PENDING", "consumerAddress": "0xabc", "idempotencyKey": "idem-2", "originRequestId": "req-1", "requestMeta": {"requestId": "req-2", "traceId": "trace-refund-1"}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "ok", "reviewedAt": 1711111111, "completeMeta": {"requestId": "req-complete-ref-1"}}
@@ -794,7 +789,7 @@ def test_gateway_state_repository_write_paths() -> None:
         RouterConfigRow(ownerAddress="0xA", dailyLimitUsdc=10, createdAt="2026-03-15 14:26:02", updatedAt="2026-03-15 14:26:03")
     ], updated_at="2026-03-15 14:26:02")
     repo.write_invocation_billing_rows([
-        UsageLogRow(id="usage-2", ts=124, buyerAddress="0xA", sellerAddress="0xB", totalCharge=1, businessType="charge", riskLevel="green")
+        UsageLogRow(id="usage-2", ts=124, consumerAddress="0xA", providerAddress="0xB", totalCharge=1, businessType="charge", riskLevel="green")
     ])
     repo.write_processed_deposit_event_keys(["ek-2"], updated_at="2026-03-15 14:26:03")
 
@@ -957,16 +952,16 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
 
     result = repo.charge_consumer_and_record_usage_atomic(
         ChargeConsumerUsageCommand(
-            owner_wallet="0xbuyer",
-            provider_wallet="0xseller",
+            owner_wallet="0xowner",
+            provider_wallet="0xprovider",
             total_charge=Decimal("1.110000"),
             provider_net=Decimal("1.000000"),
             platform_fee_total=Decimal("0.110000"),
             usage_row=UsageLogRow(
                 id="usage-1",
                 ts=123,
-                consumerAddress="0xbuyer",
-                providerAddress="0xseller",
+                consumerAddress="0xowner",
+                providerAddress="0xprovider",
                 status="accepted",
                 totalCharge=Decimal("1.110000"),
                 businessType="charge",

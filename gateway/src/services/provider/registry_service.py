@@ -679,7 +679,7 @@ def _usage_ts(row: Dict[str, Any]) -> int:
 
 
 def _usage_consumer(row: Dict[str, Any]) -> str:
-    return str(row.get("consumerAddress") or row.get("buyerAddress") or "").strip().lower()
+    return str(row.get("consumerAddress") or "").strip().lower()
 
 
 def _settled_usage_metrics(raw_rows: Any) -> tuple[Dict[str, Dict[str, Any]], Dict[str, int]]:

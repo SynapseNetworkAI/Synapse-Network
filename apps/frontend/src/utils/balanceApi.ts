@@ -13,8 +13,8 @@ function buildIdempotencyKey(prefix: string): string {
 }
 
 export type BalanceSummary = {
-  buyerBalance: number;
-  sellerReceivable: number;
+  ownerBalance: number;
+  providerReceivable: number;
   platformFeeAccrued: number;
 };
 
@@ -56,13 +56,13 @@ export type DepositAttemptRecord = {
 
 type TimestampLike = string | number | undefined;
 
-export type BuyerRefundIntent = {
+export type OwnerRefundIntent = {
   refundId: string;
   signature: string;
   amountRefunded: number;
   status: "PENDING" | "COMPLETED";
-  gasPayer: "BUYER";
-  gasModel: "BUYER_PAYS_ONCHAIN";
+  gasPayer: "OWNER";
+  gasModel: "OWNER_PAYS_ONCHAIN";
 };
 
 export type IndexerStatus = {
@@ -111,19 +111,15 @@ export async function getV2Balance(userAddress: string): Promise<BalanceSummary>
 
   const payload = (await response.json()) as {
     balance?: Partial<BalanceSummary> & {
-      buyers?: Record<string, number>;
-      sellers?: Record<string, number>;
+      ownerBalance?: number;
+      providerReceivable?: number;
       platform?: { feeAccrued?: number };
     };
   };
-  const normalized = userAddress.trim().toLowerCase();
-  const buyerFromMap = Number(payload.balance?.buyers?.[normalized] ?? 0);
-  const sellerFromMap = Number(payload.balance?.sellers?.[normalized] ?? 0);
   const feeFromMap = Number(payload.balance?.platform?.feeAccrued ?? 0);
   return {
-    // Compatible with both legacy summary shape and current ledger shape.
-    buyerBalance: Number(payload.balance?.buyerBalance ?? buyerFromMap),
-    sellerReceivable: Number(payload.balance?.sellerReceivable ?? sellerFromMap),
+    ownerBalance: Number(payload.balance?.ownerBalance ?? 0),
+    providerReceivable: Number(payload.balance?.providerReceivable ?? 0),
     platformFeeAccrued: Number(payload.balance?.platformFeeAccrued ?? feeFromMap),
   };
 }
@@ -152,7 +148,6 @@ export async function createDepositIntent(
       ...payload,
       txHash: normalizedTx,
       ownerAddress: userAddress,
-      buyerAddress: userAddress,
     }),
   });
 
@@ -264,7 +259,7 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
   }));
 }
 
-export async function requestV2Refund(userAddress: string, amountUsdc: number): Promise<BuyerRefundIntent> {
+export async function requestV2Refund(userAddress: string, amountUsdc: number): Promise<OwnerRefundIntent> {
   const headers = {
     ...buildAuthedHeaders(userAddress, true),
     "X-Idempotency-Key": buildIdempotencyKey("refund"),
@@ -288,8 +283,8 @@ export async function requestV2Refund(userAddress: string, amountUsdc: number): 
     signature,
     amountRefunded: Number(payload.amountRefunded || 0),
     status: payload.status === "COMPLETED" ? "COMPLETED" : "PENDING",
-    gasPayer: "BUYER",
-    gasModel: "BUYER_PAYS_ONCHAIN",
+    gasPayer: "OWNER",
+    gasModel: "OWNER_PAYS_ONCHAIN",
   };
 }
 

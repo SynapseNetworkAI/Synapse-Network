@@ -22,7 +22,7 @@ REGISTRATION_GUIDE_FIELDS: List[Dict[str, Any]] = [
         "key": "serviceName",
         "required": True,
         "title": "Service Name",
-        "description": "Human-readable service title shown in marketplace and seller console.",
+        "description": "Human-readable service title shown in marketplace and provider console.",
         "howToConfigure": "Use a concise product-grade name, 4-80 chars.",
         "platformUse": "Display, search ranking, and trust cues.",
         "example": "DeepSeek Market Analysis",
@@ -170,7 +170,7 @@ async def discover_services(
     service: RegistryService = Depends(get_registry_service),
 ):
     """
-    Public endpoint for Buyer AI Agents to discover available services.
+    Public endpoint for owner-scoped AI agents to discover available services.
     Returns only active services.
     """
     gateway_url = None

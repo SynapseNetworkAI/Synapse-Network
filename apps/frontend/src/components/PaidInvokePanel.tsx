@@ -8,7 +8,7 @@ import { payForServiceWithApproval } from "@/utils/payForService";
 import { getCredentialForService } from "@/utils/agentCredentialStore";
 
 type PaidInvokePanelProps = {
-  sellerAddress: string;
+  providerAddress: string;
   serviceId?: string;
   pricing?: string;
   endpoint?: string;
@@ -19,7 +19,7 @@ type PaidInvokePanelProps = {
 };
 
 export default function PaidInvokePanel({
-  sellerAddress,
+  providerAddress,
   serviceId,
   pricing,
   endpoint,
@@ -28,7 +28,7 @@ export default function PaidInvokePanel({
   compact = false,
   defaultCollapsed = false,
 }: Readonly<PaidInvokePanelProps>) {
-  const [testPrompt, setTestPrompt] = useState("hello from buyer");
+  const [testPrompt, setTestPrompt] = useState("hello from agent");
   const [isInvoking, setIsInvoking] = useState(false);
   const [lastInvokeTxHash, setLastInvokeTxHash] = useState("");
   const [lastInvokeAttempts, setLastInvokeAttempts] = useState(0);
@@ -63,7 +63,7 @@ export default function PaidInvokePanel({
         credential: getCredentialForService(serviceId),
         payForService: async () =>
           payForServiceWithApproval({
-            seller: sellerAddress as Address,
+            provider: providerAddress as Address,
             serviceId,
             priceUsdc: pricing,
             rpcUrl: "http://127.0.0.1:8545",

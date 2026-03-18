@@ -42,7 +42,7 @@ class ConsumerWalletRecord(BaseModel):
 
     owner_address: str = Field(
         default="",
-        validation_alias=AliasChoices("ownerAddress", "consumerAddress", "buyerAddress"),
+        validation_alias=AliasChoices("ownerAddress", "consumerAddress"),
         serialization_alias="ownerAddress",
     )
     available_balance: float = Field(default=0.0, alias="availableBalance")
@@ -92,17 +92,17 @@ class BalanceLedger(BaseModel):
         payload.setdefault(
             "consumerWallets",
             cls._consumer_wallets_from_legacy_maps(
-                payload.pop("consumerAvailable", payload.pop("buyers", {})),
-                payload.pop("consumerPending", payload.pop("buyersLocked", {})),
-                payload.pop("consumerFrozen", payload.pop("buyersFrozen", {})),
+                payload.pop("consumerAvailable", {}),
+                payload.pop("consumerPending", {}),
+                payload.pop("consumerFrozen", {}),
             ),
         )
         payload.setdefault(
             "providerWallets",
             cls._provider_wallets_from_legacy_maps(
-                payload.pop("providerReceivable", payload.pop("sellers", {})),
-                payload.pop("providerLocked", payload.pop("sellersLocked", {})),
-                payload.pop("providerFrozen", payload.pop("sellersFrozen", {})),
+                payload.pop("providerReceivable", {}),
+                payload.pop("providerLocked", {}),
+                payload.pop("providerFrozen", {}),
             ),
         )
         return payload
@@ -273,7 +273,7 @@ class RefundIntentRow(BaseModel):
     request_id: Optional[str] = Field(default=None, alias="requestId")
     consumer_address: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("consumerAddress", "buyerAddress"),
+        validation_alias=AliasChoices("consumerAddress"),
         serialization_alias="consumerAddress",
     )
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
@@ -304,15 +304,6 @@ class RefundIntentRow(BaseModel):
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 
-    @property
-    def buyer_address(self) -> Optional[str]:
-        return self.consumer_address
-
-    @buyer_address.setter
-    def buyer_address(self, value: Optional[str]) -> None:
-        self.consumer_address = value
-
-
 class UsageLogRow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -324,12 +315,12 @@ class UsageLogRow(BaseModel):
     service_id: Optional[str] = Field(default=None, alias="serviceId")
     consumer_address: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("consumerAddress", "buyerAddress"),
+        validation_alias=AliasChoices("consumerAddress"),
         serialization_alias="consumerAddress",
     )
     provider_address: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("providerAddress", "sellerAddress"),
+        validation_alias=AliasChoices("providerAddress"),
         serialization_alias="providerAddress",
     )
     status: Optional[str] = None
@@ -344,43 +335,14 @@ class UsageLogRow(BaseModel):
         default="green", alias="riskLevel"
     )
 
-    @property
-    def buyer_address(self) -> Optional[str]:
-        return self.consumer_address
-
-    @buyer_address.setter
-    def buyer_address(self, value: Optional[str]) -> None:
-        self.consumer_address = value
-
-    @property
-    def seller_address(self) -> Optional[str]:
-        return self.provider_address
-
-    @seller_address.setter
-    def seller_address(self, value: Optional[str]) -> None:
-        self.provider_address = value
-
-
 class ConsumerChargeResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     consumer_available_balance_after: float = Field(
-        validation_alias=AliasChoices(
-            "consumerAvailableBalanceAfter", "buyerBalanceAfter"
-        ),
+        validation_alias=AliasChoices("consumerAvailableBalanceAfter"),
         serialization_alias="consumerAvailableBalanceAfter",
     )
 
-    @property
-    def buyer_balance_after(self) -> float:
-        return self.consumer_available_balance_after
-
-    @buyer_balance_after.setter
-    def buyer_balance_after(self, value: float) -> None:
-        self.consumer_available_balance_after = value
-
-
-BuyerChargeResult = ConsumerChargeResult
 UsageChargeResult = ConsumerChargeResult
 
 
@@ -470,13 +432,5 @@ class ChargeConsumerUsageCommand:
     protocol_fee: Decimal = Decimal("0")
     routing_tax: Decimal = Decimal("0")
     invocation: Optional[InvocationRecord] = None
-
-    @property
-    def seller_wallet(self) -> str:
-        return self.provider_wallet
-
-    @property
-    def seller_net(self) -> Decimal:
-        return self.provider_net
 
 

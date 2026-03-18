@@ -1,10 +1,10 @@
-# 卖家收益提现（Seller Withdrawal）生产级设计
+# Provider 收益提现生产级设计
 
 ## 1. 目标与边界
 
 本设计用于 Provider 在赚取收益后进行提现，遵循以下硬约束：
 
-- 卖家自己发起链上交易并承担 Gas。
+- Provider 自己发起链上交易并承担 Gas。
 - 网关只负责离链账本结算与 EIP-712 票据签发，不代付 Gas。
 - 提现必须金融级安全：
   - 幂等（同一请求不重复执行）
@@ -14,30 +14,30 @@
 
 ## 2. 核心流程
 
-### Step 1: 卖家创建提现意图（离链）
+### Step 1: Provider 创建提现意图（离链）
 
 前端调用：`POST /api/v1/providers/withdrawals/intent`。
 
 - Header 必须包含 `X-Idempotency-Key`。
 - 请求金额 `amountUsdc` 可选：
   - 为空表示“全额提现当前可用应收”
-  - 非空则必须满足 `0 < amountUsdc <= sellerReceivable`
+  - 非空则必须满足 `0 < amountUsdc <= providerReceivable`
 
 网关在同一临界区完成：
 
 1. 校验 owner 会话与请求合法性。
 2. 校验同 owner 当前不存在其他 `PENDING` 提现单。
-3. 从 `balance_ledger.sellers[owner]` 扣减并锁定到 `balance_ledger.sellersLocked[owner]`。
+3. 从 `balance_ledger.providers[owner]` 扣减并锁定到 `balance_ledger.providersLocked[owner]`。
 4. 读取链上 `userNonces(owner)`，拼装 EIP-712 Withdraw 结构并签名。
 5. 写入 `synapse_vault_withdrawals`，`withdrawal_kind = provider_withdrawal`。
 6. 同步写入 `synapse_runtime_state` 中的 `vault_withdrawal_meta::{withdrawal_id}` sidecar，保存签名票据、风险判定、review 元数据。
 
-### Step 2: 卖家钱包发链上提现（卖家付 Gas）
+### Step 2: Provider 钱包发链上提现（Provider 付 Gas）
 
 前端用票据调用 `SynapseCore.withdraw(amount, fee, nonce, deadline, signature)`。
 
-- 交易由卖家钱包签名并广播。
-- Gas 费用由卖家支付。
+- 交易由 Provider 钱包签名并广播。
+- Gas 费用由 Provider 支付。
 - 合约层校验：
   - `deadline` 未过期
   - `nonce == userNonces[msg.sender]`
@@ -50,7 +50,7 @@
 
 - 请求体：`{ txHash }`
 - 网关更新 `synapse_vault_withdrawals` 主记录与 `vault_withdrawal_meta::{withdrawal_id}` sidecar 状态为 `COMPLETED`。
-- 原子释放锁仓：`sellersLocked[owner] -= amountUsdc`。
+- 原子释放锁仓：`providersLocked[owner] -= amountUsdc`。
 - 写入 `synapse_audit_events` 与必要的 `synapse_ledger_entries`（withdrawalId、txHash、amount、owner、时间）。
 
 ## 3. 状态机
@@ -76,7 +76,7 @@
 
 ### 4.3 离链防重复提现
 
-- 创建提现意图时先锁定应收（`sellers -> sellersLocked`）。
+- 创建提现意图时先锁定应收（`providers -> providersLocked`）。
 - owner 仅允许一个 `PENDING` 提现单。
 - 完成接口对 `COMPLETED` 状态做幂等保护，不可重复核销不同 txHash。
 
@@ -142,11 +142,11 @@
 
 Provider Settlements 页面必须满足：
 
-- 显示可提现余额（`sellerReceivable`）。
+- 显示可提现余额（`providerReceivable`）。
 - 创建 ticket 后立即拉起钱包 `withdraw`。
 - 显示 `PENDING/COMPLETED` 提现历史。
 - 当存在 `PENDING` 时，阻断创建新 ticket，仅允许 `Resume Pending`。
-- UI 明确提示“卖家承担链上 Gas”。
+- UI 明确提示“Provider 承担链上 Gas”。
 
 ## 8. 测试覆盖
 

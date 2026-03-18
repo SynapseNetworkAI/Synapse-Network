@@ -11,14 +11,14 @@ find_pid_by_port() {
   lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
-SELLER_PID=""
+PROVIDER_PID=""
 
 if [[ -f "$PID_FILE" ]]; then
   source "$PID_FILE"
 else
   echo "No PID file found at: $PID_FILE"
   echo "Trying fallback by port scan (8000)..."
-  SELLER_PID="$(find_pid_by_port 8000)"
+  PROVIDER_PID="$(find_pid_by_port 8000)"
 fi
 
 stop_pid() {
@@ -45,7 +45,7 @@ stop_pid() {
 }
 
 echo "=== Stopping Synapse prod profile ==="
-stop_pid "SellerAPI" "${SELLER_PID:-}"
+stop_pid "ProviderAPI" "${PROVIDER_PID:-}"
 
 if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"

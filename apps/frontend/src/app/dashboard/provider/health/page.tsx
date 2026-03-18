@@ -143,7 +143,7 @@ export default function ProviderHealthPage() {
         <div>
           <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
             <Activity className="w-8 h-8 text-[#22c55e]" />
-            Seller Health Console
+            Provider Health Console
           </h1>
           <p className="mt-2 text-sm text-[#86868b]">
             24h health curve and latency jitter distribution per target.

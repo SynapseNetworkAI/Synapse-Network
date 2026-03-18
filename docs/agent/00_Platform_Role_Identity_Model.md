@@ -211,9 +211,9 @@ Platform 不应该：
 
 ### 6.1.1 代码层落地口径
 
-为了避免后端继续把旧 `buyer / seller` 词汇偷偷带回仓储层，DDD 里的持久化和聚合模型必须强制遵守下面三条：
+为了避免后端继续把历史角色词偷偷带回仓储层，DDD 里的持久化和聚合模型必须强制遵守下面三条：
 
-1. Provider 身份表统一叫 `provider_profiles`，不再新增任何 `seller_profile` 口径的新模型。
+1. Provider 身份表统一叫 `provider_profiles`，不再新增任何历史旧命名口径的新模型。
 2. 消费侧余额聚合统一叫 `consumer_wallet`，表示 Owner 的可消费、待确认、冻结资金桶。
 3. 供给侧余额聚合统一叫 `provider_wallet`，表示 Owner 在 Provider role 下的应收、锁定、冻结资金桶。
 

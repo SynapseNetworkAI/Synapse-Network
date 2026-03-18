@@ -12,7 +12,7 @@ This document defines backoffice-level controls to recover and prevent divergenc
 1. Recover missed deposits automatically by block scanning.
 2. Detect chain-vs-ledger drift continuously and alert quickly.
 3. Provide deterministic operator tooling to replay a tx hash without manual DB edits.
-4. Keep buyer UX resilient when intent submission fails transiently.
+4. Keep owner funding UX resilient when intent submission fails transiently.
 
 ## 3. Scope
 
@@ -24,7 +24,7 @@ This document defines backoffice-level controls to recover and prevent divergenc
    - Reuse existing confirmation path to ensure atomic ledger application.
 
 2. **Strong consistency reconciliation metric**
-   - Compare `vault_token_balance(router)` vs `sum(buyers.available + buyers.pending)`.
+   - Compare `vault_token_balance(router)` vs `sum(consumers.available + consumers.pending)`.
    - Emit alert when absolute delta exceeds threshold.
    - Persist latest check summary in indexer status payload.
 
@@ -34,7 +34,7 @@ This document defines backoffice-level controls to recover and prevent divergenc
    - Behavior: decode chain receipt events, create missing intent if needed, replay confirmation.
    - Auth: admin wallets only (`PLATFORM_FEE_ADMIN_WALLETS`).
 
-### 3.2 Frontend buyer-console resilience
+### 3.2 Frontend owner-console resilience
 
 1. Onchain tx success + intent submit failure must enqueue retry task in browser storage.
 2. Retry task runs periodically while session is active until intent submit succeeds.
@@ -107,7 +107,7 @@ This document defines backoffice-level controls to recover and prevent divergenc
 
 ## 7. Operations Playbook
 
-1. Buyer reports onchain success but no gateway balance increase.
+1. Owner reports onchain success but no gateway balance increase.
 2. Operator checks `GET /api/v1/indexer/status`:
    - backfill cursor progress
    - reconciliation delta

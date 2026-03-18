@@ -2,16 +2,16 @@
 
 > 状态更新（2026-03-17）：本文档不再定义 Runtime 的 canonical credential 模型。
 >
-> 当前 Runtime 主模型以 `docs/agent/04_Credential_Budget_Risk_Model.md` 和 `docs/agent/06_Build_For_Agent_Database_Rebuild.md` 为准；本文只保留 Seller / Provider 控制面的历史兼容说明。
+> 当前 Runtime 主模型以 `docs/agent/04_Credential_Budget_Risk_Model.md` 和 `docs/agent/06_Build_For_Agent_Database_Rebuild.md` 为准；本文只保留 Provider 控制面的历史兼容说明。
 
 ## 1. 为什么还保留本文档
 
-因为平台当前仍可能存在 Seller 侧的 `provider secret / service key` 控制面实现，而这套东西和 Agent Runtime 的 `Agent Credential` 不是同一个对象。
+因为平台当前仍可能存在 Provider 侧的 `provider secret / service key` 控制面实现，而这套东西和 Agent Runtime 的 `Agent Credential` 不是同一个对象。
 
 简单说：
 
 1. `Agent Credential`：给 Agent Runtime 花钱、拉 quote、发 invocation 用。
-2. `Provider Secret / Service Key`：给 Seller 控制面或平台到 Seller 的服务访问控制用。
+2. `Provider Secret / Service Key`：给 Provider 控制面或平台到 Provider 的服务访问控制用。
 
 两者不能混成一个协议面。
 
@@ -29,11 +29,11 @@
 
 ### 2.2 Provider Secret 的适用面
 
-本文只覆盖 Seller 控制面相关能力：
+本文只覆盖 Provider 控制面相关能力：
 
-1. Seller 签发和撤销 service key。
-2. Seller 控制自己挂载服务的访问源。
-3. Seller 侧局部限流与调用审计。
+1. Provider 签发和撤销 service key。
+2. Provider 控制自己挂载服务的访问源。
+3. Provider 侧局部限流与调用审计。
 
 ## 3. 当前实现补充
 
@@ -48,24 +48,24 @@
 - `status`
 - `createdAt / updatedAt / revokedAt`
 
-### 3.2 Seller 侧限流建议
+### 3.2 Provider 侧限流建议
 
 如果保留 provider secret 体系，限流至少分两层：
 
 1. `service key` 级 RPM 限流
-2. `seller owner` 级全局 RPM 限流
+2. `provider owner` 级全局 RPM 限流
 
-命中限流时，Seller 控制面可以继续使用 `RATE_LIMITED` 语义，但不要把它和 Agent Runtime 已发布错误码集合混成同一层 contract。
+命中限流时，Provider 控制面可以继续使用 `RATE_LIMITED` 语义，但不要把它和 Agent Runtime 已发布错误码集合混成同一层 contract。
 
 ### 3.3 与 Runtime 的隔离要求
 
 1. Provider Secret 不能直接代替 Agent Credential 去消费 Runtime。
-2. Provider Secret 的审计主体是 Seller，不是 Owner-Agent 支付链路。
+2. Provider Secret 的审计主体是 Provider，不是 Owner-Agent 支付链路。
 3. 生产态建议与 Agent Credential 分表、分索引、分审计 retention。
 
 ## 4. 后续迁移方向
 
 1. 运行时支付身份继续收敛到 `Agent Profile + Agent Credential + Budget Policy`。
-2. Seller 控制面如需保留 key 体系，应把它视为后台配置与服务访问控制，而不是公开 Runtime 协议。
+2. Provider 控制面如需保留 key 体系，应把它视为后台配置与服务访问控制，而不是公开 Runtime 协议。
 3. 所有对 Agent 暴露的鉴权、错误码、限流语义，都应回写到 `docs/api.md`，不要再从本文档扩散。
 

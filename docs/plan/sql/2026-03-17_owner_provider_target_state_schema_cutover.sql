@@ -175,7 +175,7 @@ CREATE INDEX IF NOT EXISTS idx_synapse_vault_withdrawals_kind_owner
 ON synapse_vault_withdrawals (withdrawal_kind, owner_id, created_at DESC);
 
 -- -----------------------------------------------------------------------------
--- 4. Owner-scoped finance summary should not depend on buyer/seller legacy tables.
+-- 4. Owner-scoped finance summary should not depend on legacy role tables.
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE VIEW synapse_owner_finance_summary AS

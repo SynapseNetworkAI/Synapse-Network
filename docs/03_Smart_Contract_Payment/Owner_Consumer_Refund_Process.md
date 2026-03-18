@@ -45,14 +45,14 @@
 当前 API 已经在返回层体现了这件事：
 
 - `GET /api/v1/balance`
-  - `buyerBalance`: 历史字段名，当前语义应理解为 `owner consumer spendable balance`
-  - `sellerReceivable`: 历史字段名，当前语义应理解为 `owner provider receivable`
+  - `consumerBalance`: 当前语义应理解为 `owner consumer spendable balance`
+  - `providerReceivable`: 当前语义应理解为 `owner provider receivable`
   - `platformFeeAccrued`: 平台内部手续费池，不归 Owner 自由支配
 
 所以对同一个 Owner 来说：
 
-1. Refund 只影响 `buyerBalance` 这条消费侧余额语义
-2. Provider Withdrawal 只影响 `sellerReceivable` 这条供给侧收益语义
+1. Refund 只影响 `consumerBalance` 这条消费侧余额语义
+2. Provider Withdrawal 只影响 `providerReceivable` 这条供给侧收益语义
 3. 两者 owner 相同，但 ledger bucket 不同
 
 ## 4. 退款链路回答的是什么问题
@@ -66,7 +66,7 @@
 1. Owner-scoped
 2. consumer-bucket-scoped
 3. route-back only
-4. buyer-pays-onchain-gas
+4. owner-pays-onchain-gas
 
 ## 5. 退款不等于 Agent 提现
 
@@ -117,17 +117,17 @@ sequenceDiagram
 1. `consumer_available -> consumer_locked`
 2. `consumer_locked -> withdrawn_to_owner_wallet`
 
-如果用当前历史命名理解，就是：
+当前推荐的实现口径就是：
 
-1. `buyers[owner] -= amount`
-2. `buyersLocked[owner] += amount`
-3. complete 后 `buyersLocked[owner] -= amount`
+1. `consumers[owner] -= amount`
+2. `consumersLocked[owner] += amount`
+3. complete 后 `consumersLocked[owner] -= amount`
 
 重要的是：
 
-1. 这些历史名字不代表产品语义仍然是 Buyer-first
-2. 它们只是当前实现里的旧字段名
-3. 当前文档解释已经切换成 Owner consumer bucket 模型
+1. 这些名字直接表达 Owner consumer bucket 模型
+2. 账务语义应避免再回退到旧角色词
+3. 当前文档解释已经完全切换成 Owner consumer bucket 模型
 
 ## 8. 为什么它不会和 Provider 提现冲突
 
@@ -136,11 +136,11 @@ sequenceDiagram
 1. `provider_receivable -> provider_locked`
 2. `provider_locked -> withdrawn_to_owner_wallet`
 
-如果用当前历史命名理解，就是：
+当前推荐的实现口径就是：
 
-1. `sellers[owner] -= amount`
-2. `sellersLocked[owner] += amount`
-3. complete 后 `sellersLocked[owner] -= amount`
+1. `providers[owner] -= amount`
+2. `providersLocked[owner] += amount`
+3. complete 后 `providersLocked[owner] -= amount`
 
 所以同一个 owner 地址下，可能同时存在：
 
@@ -165,7 +165,7 @@ sequenceDiagram
 
 ### Q2: 同一个钱包既是调用方又是服务方，为什么不会混账？
 
-因为记账不是按“这个钱包现在像买家还是卖家”来区分，而是按：
+因为记账不是按“这个钱包现在像消费方还是供给方”来区分，而是按：
 
 1. owner 归属
 2. ledger bucket
@@ -255,30 +255,30 @@ Runtime 语义上不应该理解成“删掉 Agent 身份”，而应该理解�
 
 两边都属于同一个 Owner。
 
-所以 UI 上最重要的不是“把用户分成 Buyer 或 Seller”，而是把两个资金桶清晰可视化：
+所以 UI 上最重要的不是“把用户分成消费侧或供给侧账号”，而是把两个资金桶清晰可视化：
 
 1. `Spendable Balance`
 2. `Provider Receivable`
 
 ## 13. 对当前 API 的解释口径
 
-当前如果你在接口里看到这些历史字段：
+当前接口和实现应统一使用这些字段：
 
-- `buyerBalance`
-- `buyers[owner]`
-- `buyersLocked[owner]`
+- `consumerBalance`
+- `consumers[owner]`
+- `consumersLocked[owner]`
 
-应该统一理解成：
+它们统一表达：
 
 **Owner consumer balance buckets**。
 
-如果看到这些字段：
+Provider 收益侧对应字段应统一使用：
 
-- `sellerReceivable`
-- `sellers[owner]`
-- `sellersLocked[owner]`
+- `providerReceivable`
+- `providers[owner]`
+- `providersLocked[owner]`
 
-应该统一理解成：
+它们统一表达：
 
 **Owner provider receivable buckets**。
 

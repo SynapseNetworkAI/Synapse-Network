@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function BuyerOverviewRedirect() {
+export default function AgentWorkspaceRedirect() {
   redirect("/dashboard/overview");
 }

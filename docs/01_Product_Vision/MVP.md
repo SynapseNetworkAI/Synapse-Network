@@ -31,7 +31,7 @@
 ### 核心字段映射
 - **幂等键**: `request_id`（请求头 `X-Request-Id`）
 - **可消费余额**: `available_balance`
-- **资金池分配**: `unit_price` / `platform_fee` / `seller_net`
+- **资金池分配**: `unit_price` / `platform_fee` / `provider_net`
 - **凭据状态**: `credential_status`（`active | revoked | expired`）
 
 ---

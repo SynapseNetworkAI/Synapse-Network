@@ -7,7 +7,7 @@ from src.api.schemas.pydantic_models import (
     AgentQuoteRequest,
     InferenceRequest,
 )
-from src.services.buyer import forwarding_service
+from src.services.owner import forwarding_service
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()

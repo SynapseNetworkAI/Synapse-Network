@@ -27,7 +27,7 @@ from src.domain.service_contract import (
     ServiceDefinitionRecord,
 )
 from src import app as gateway_app
-from src.services.buyer import forwarding_billing, forwarding_service, forwarding_upstream
+from src.services.owner import forwarding_billing, forwarding_service, forwarding_upstream
 from src.services.platform import credential_service
 from src.services.provider.registry_service import RegistryService
 
@@ -92,7 +92,7 @@ class InMemoryRegistryRepo:
 
 class InMemoryCredentialAuthRepo:
     def __init__(self, credential_row) -> None:
-        self._rows = {"buyer": [credential_row], "seller": []}
+        self._rows = {"agent": [credential_row], "provider": []}
 
     def read_credential_rows(self, credential_type: str):
         return list(self._rows.get(credential_type, []))
@@ -281,10 +281,10 @@ def _http_runtime_client(monkeypatch, storage: FakeStorage):
 def _runtime_credential(raw_token: str):
     return credential_service.build_runtime_credential_record(
         credential_service.CredentialRuntimeSeed(
-            credential_type="buyer",
+            credential_type="agent",
             owner_wallet="0xabc",
-            credential_id="cred-buyer-001",
-            display_name="Buyer Runtime Key",
+            credential_id="cred-agent-001",
+            display_name="Agent Runtime Key",
             token_hash_value=credential_service.hash_token(raw_token),
             token_prefix_value=credential_service.token_prefix(raw_token),
             status="active",
@@ -307,7 +307,7 @@ def _service_definition() -> ServiceDefinitionRecord:
         serviceId="svc.echo",
         ownerAddress="0xdef",
         serviceName="Echo Service",
-        summary="Echoes buyer prompt",
+        summary="Echoes agent prompt",
         status="active",
         isActive=True,
         pricingAmount="1.2",
@@ -321,7 +321,7 @@ def _service_definition() -> ServiceDefinitionRecord:
         forwarding={"requestIdHeader": "X-Synapse-Request-Id"},
         invoke={
             "method": "POST",
-            "targets": [{"url": "https://seller.test/invoke", "weight": 100}],
+            "targets": [{"url": "https://provider.test/invoke", "weight": 100}],
             "request": {
                 "contentType": "application/json",
                 "schema": {"body": {"required": ["text"]}},
@@ -377,7 +377,7 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     }
 
     assert FakeAsyncClient.last_request == {
-        "url": "https://seller.test/invoke",
+        "url": "https://provider.test/invoke",
         "json": {"text": "hello typed world"},
         "headers": {"X-Synapse-Request-Id": "req-typed-001"},
         "timeout": 15.0,
