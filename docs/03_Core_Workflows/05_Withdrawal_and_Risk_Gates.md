@@ -1,0 +1,206 @@
+# Withdrawal and Risk Gates
+
+## 1. 目标
+
+Withdrawal 链路定义 Provider 如何把已经结算的离链收益提现到链上钱包。
+
+这条链路必须同时满足：
+
+1. 提现目标明确，只动 Provider 收益桶
+2. 风控拦截前置，不允许直接裸提
+3. 链上防重放可靠，必须使用 EIP-712 票据
+4. 账本、状态机、审计全链可追溯
+
+## 2. 参与者
+
+1. `Owner in Provider Role`
+   发起提现申请的人。
+2. `Platform Gateway`
+   负责风控、锁仓、签名票据和审计。
+3. `Vault Contract`
+   负责执行链上 withdraw。
+4. `PostgreSQL`
+   负责持久化 withdrawal intent、余额冻结、ledger entry 和 audit event。
+
+## 3. 核心表
+
+| 表 | 作用 |
+| --- | --- |
+| `synapse_vault_withdrawals` | 提现主记录，保存 kind、状态、nonce、deadline、signature |
+| `synapse_ledger_accounts` | 定义 provider wallet 账户 |
+| `synapse_account_balances` | 保存 provider 可提现余额和冻结余额 |
+| `synapse_ledger_entries` | 保存锁仓、出金、释放等资金分录 |
+| `synapse_audit_events` | 保存创建 intent、签名、广播、确认、失败等审计 |
+
+## 4. 状态机
+
+`synapse_vault_withdrawals.status` 当前允许：
+
+1. `REQUESTED`
+2. `SIGNED`
+3. `BROADCASTED`
+4. `CONFIRMED`
+5. `FAILED`
+
+`withdrawal_kind` 当前允许：
+
+1. `consumer_refund`
+2. `provider_withdrawal`
+3. `platform_distribution`
+
+本文件只讲 `provider_withdrawal`。
+
+## 5. 风险三段阀门
+
+Provider 提现必须先过三道门，而不是先签名再说。
+
+### 5.1 第一段：业务资格阀门
+
+先检查：
+
+1. 当前 session 是否绑定正确 Owner
+2. 当前 Owner 是否已经建立 Provider role
+3. `provider_wallet` 账户是否存在并 active
+4. `available_balance` 是否足够
+
+### 5.2 第二段：资金锁仓阀门
+
+在签发链上票据前，Platform 必须先把收益锁住：
+
+1. `available_balance -= amount_usdc`
+2. `frozen_balance += amount_usdc`
+3. 写对应 `synapse_ledger_entries`
+4. 写 `synapse_vault_withdrawals(status = REQUESTED)`
+
+没有锁仓，就不允许继续往下走。
+
+### 5.3 第三段：签名与重放保护阀门
+
+提现票据必须带：
+
+1. `signature`
+2. `nonce`
+3. `deadline`
+
+这些字段直接保存在 `synapse_vault_withdrawals`，并由链上合约校验。
+
+它的作用是：
+
+1. 防止旧票据无限重放
+2. 防止不同请求串用签名
+3. 让离链审批结果和链上执行绑定为一个可追溯对象
+
+## 6. 主流程
+
+```mermaid
+sequenceDiagram
+    participant O as Owner in Provider Role
+    participant G as Platform Gateway
+    participant DB as PostgreSQL
+    participant V as Vault Contract
+
+    O->>G: Create provider withdrawal intent
+    G->>DB: Validate provider balance and account
+    G->>DB: Freeze funds
+    G->>DB: Create synapse_vault_withdrawals(status=REQUESTED)
+    G->>DB: Write ledger entries + audit
+    G->>G: Generate EIP-712 signature
+    G->>DB: Update status=SIGNED, nonce, deadline, signature
+    O->>V: Call withdraw(...) with signed payload
+    V-->>O: txHash
+    O->>G: Report broadcast / completion
+    G->>DB: Update status=BROADCASTED / CONFIRMED
+    G->>DB: Release frozen balance and finalize ledger
+    G->>DB: Write audit events
+```
+
+## 7. Step A: 创建提现意图
+
+Gateway 收到提现请求后，至少要先做：
+
+1. 校验当前 Owner scope
+2. 找到对应 `provider_id`
+3. 找到对应 `provider_wallet` 账户
+4. 检查可提现余额是否足够
+
+只有全部通过，才能创建 `synapse_vault_withdrawals` 主记录。
+
+## 8. Step B: 锁仓
+
+提现不是从 consumer bucket 扣钱，而是从 Provider 收益桶锁钱。
+
+因此平台必须保证：
+
+1. `provider_wallet.available_balance` 减少
+2. `provider_wallet.frozen_balance` 增加
+3. 锁仓金额与 withdrawal.amount 完全一致
+4. 对应 ledger entry 可审计可回放
+
+## 9. Step C: 生成 EIP-712 提现票据
+
+Platform 在离链生成：
+
+1. `nonce`
+2. `deadline`
+3. `signature`
+
+这些值进入 `synapse_vault_withdrawals`，成为链上提现前必须持有的授权材料。
+
+### 9.1 为什么一定要走 EIP-712
+
+因为它同时解决了：
+
+1. 链上签名可验证
+2. 离链审批和链上执行绑定
+3. nonce + deadline 防重放
+
+## 10. Step D: 链上广播与确认
+
+Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
+
+1. `SIGNED -> BROADCASTED`
+2. 记录 `tx_hash`
+3. receipt 成功后推进到 `CONFIRMED`
+4. 完成最终冻结释放和分录闭环
+
+## 11. 失败路径
+
+### 11.1 签名前失败
+
+1. `REQUESTED -> FAILED`
+2. 释放冻结金额
+3. 写失败审计
+
+### 11.2 链上失败或过期
+
+1. `SIGNED` 或 `BROADCASTED` 最终转 `FAILED`
+2. 释放 `frozen_balance`
+3. 写逆向 ledger / audit 证据
+
+### 11.3 严禁的行为
+
+1. 失败后不释放冻结金额
+2. 直接修改余额，不写 ledger entry
+3. 用 consumer balance 替 Provider 兜底提现
+
+## 12. 与 Refund 的严格隔离
+
+最新 schema 明确把两类出金放在同一张 `synapse_vault_withdrawals` 表，但通过 `withdrawal_kind` 强隔离：
+
+1. `consumer_refund` 只作用于 Owner 消费资金桶
+2. `provider_withdrawal` 只作用于 Provider 收益桶
+
+即使归属同一个 Owner，也不能混用：
+
+1. source account
+2. 风控规则
+3. 业务解释
+4. 审计维度
+
+## 13. 文档结论
+
+Provider withdrawal 的正确顺序不是“先提现，再补风控”，而是：
+
+**资格校验 -> 收益锁仓 -> EIP-712 签名 -> 链上广播 -> 状态确认 -> 审计闭环**
+
+这就是 Synapse 在供给侧收益出金上的金融级最小闭环。
