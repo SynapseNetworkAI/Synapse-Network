@@ -174,6 +174,92 @@ def test_consumer_finance_deposit_flow_uses_typed_rows() -> None:
     )
     assert confirmed["status"] == "CONFIRMED"
     assert storage.gateway_state.deposit_rows[0].event_key == "evt-1"
+    assert storage.audit.rows[-1].action == "DEPOSIT_INTENT_CONFIRMED"
+    assert storage.audit.rows[-1].details["businessType"] == "deposit"
+    assert storage.audit.rows[-1].details["resultStatus"] == "CONFIRMED"
+    assert storage.audit.rows[-1].details["txHash"] == registered["txHash"]
+
+
+def test_register_deposit_intent_replay_returns_existing_intent() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+
+    registered = asyncio.run(
+        service.register_deposit_intent(
+            {"txHash": "0x" + "4" * 64, "amountUsdc": "15"},
+            "0xabc",
+            "deposit-intent-key-0002",
+        )
+    )
+
+    replayed = asyncio.run(
+        service.register_deposit_intent(
+            {"txHash": "0x" + "4" * 64, "amountUsdc": "15"},
+            "0xabc",
+            "deposit-intent-key-0003",
+        )
+    )
+
+    assert replayed == registered
+    assert len(storage.gateway_state.deposit_rows) == 1
+    assert storage.audit.rows[-1].action == "DEPOSIT_REPLAY_RETURNED_EXISTING"
+    assert storage.audit.rows[-1].details["depositIntentId"] == registered["id"]
+
+
+def test_get_deposit_sync_status_returns_confirmed_intent_state() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+
+    registered = asyncio.run(
+        service.register_deposit_intent(
+            {"txHash": "0x" + "5" * 64, "amountUsdc": "15"},
+            "0xabc",
+            "deposit-intent-key-0004",
+        )
+    )
+    asyncio.run(
+        service.confirm_deposit_intent(
+            owner_wallet="0xabc",
+            deposit_intent_id=storage.gateway_state.deposit_rows[0].id,
+            event_key="evt-5",
+            confirmations=4,
+        )
+    )
+
+    sync = asyncio.run(
+        service.get_deposit_sync_status("0xabc", registered["txHash"])
+    )
+
+    assert sync["found"] is True
+    assert sync["synced"] is True
+    assert sync["status"] == "CONFIRMED"
+    assert sync["confirmed"] is True
+    assert sync["canRefreshBalance"] is True
+    assert sync["txHash"] == registered["txHash"]
+    assert sync["depositIntentId"] == registered["id"]
+    assert sync["eventKey"] == "evt-5"
+    assert sync["confirmations"] == 4
+
+
+def test_get_deposit_sync_status_returns_not_registered_for_unknown_tx_hash() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+
+    sync = asyncio.run(
+        service.get_deposit_sync_status("0xabc", "0x" + "6" * 64)
+    )
+
+    assert sync == {
+        "txHash": "0x" + "6" * 64,
+        "found": False,
+        "synced": False,
+        "status": "NOT_REGISTERED",
+        "confirmed": False,
+        "canRefreshBalance": False,
+    }
 
 
 def test_consumer_finance_refund_flow_uses_typed_rows() -> None:
@@ -265,9 +351,11 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
 
     assert balance == {
         "ownerAddress": "0xabc",
+        "ownerBalance": 12.5,
         "consumerAvailableBalance": 12.5,
         "consumerPendingBalance": 1.25,
         "consumerFrozenBalance": 0.75,
+        "providerReceivable": 9.5,
         "providerReceivableBalance": 9.5,
         "providerLockedBalance": 2.0,
         "platformFeeAccrued": 0.4,

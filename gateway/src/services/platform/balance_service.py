@@ -81,6 +81,13 @@ class BalanceService(
     async def list_deposit_intents(self, owner_wallet: str) -> list:
         return await self.owner_finance_service.list_deposit_intents(owner_wallet)
 
+    async def get_deposit_sync_status(
+        self, owner_wallet: str, tx_hash: str
+    ) -> Dict[str, Any]:
+        return await self.owner_finance_service.get_deposit_sync_status(
+            owner_wallet, tx_hash
+        )
+
     async def confirm_deposit_intent(
         self,
         *,

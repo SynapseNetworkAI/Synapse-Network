@@ -75,6 +75,34 @@
 3. 先进入 `PENDING_CONFIRMATION`
 4. 资金先进入 `consumer_pending`
 5. 确认后才转 `consumer_available`
+6. 同一 `txHash` 在 replay-protection window 内重复提交时，返回已存在的 intent，保持稳定业务结果
+
+### 3.2.1 `GET /api/v1/balance/deposit/sync?txHash=...`
+
+这是前端轮询充值同步状态的只读接口。
+
+返回约定：
+
+1. `found = false`：后端当前还没看到这个 `owner + txHash` 的 deposit intent
+2. `found = true, status = PENDING_CONFIRMATION`：后端已同步到 intent，但还没确认到账
+3. `found = true, status = CONFIRMED`：后端已确认到账，可以刷新余额
+4. `canRefreshBalance = true` 只在 `CONFIRMED` 时返回 true
+
+核心字段：
+
+1. `txHash`
+2. `found`
+3. `synced`
+4. `status`
+5. `confirmed`
+6. `canRefreshBalance`
+7. `depositIntentId`
+8. `amountUsdc`
+9. `creditedAmountUsdc`
+10. `confirmations`
+11. `eventKey`
+12. `confirmedAt`
+13. `updatedAt`
 
 ### 3.3 `POST /api/v1/refund`
 

@@ -94,6 +94,56 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _save_deposit_intents(self, rows: List[DepositIntentRow]) -> None:
         self.storage.get_data_manager().system.gateway_state.write_deposit_intents(rows)
 
+    def _find_deposit_intent_by_tx_hash(
+        self, rows: List[DepositIntentRow], owner_wallet: str, tx_hash: str
+    ) -> Optional[DepositIntentRow]:
+        owner = normalize_wallet(owner_wallet)
+        normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)
+        target: Optional[DepositIntentRow] = None
+        for row in rows:
+            if self._deposit_owner(row) != owner:
+                continue
+            if str(row.tx_hash or "").strip().lower() != normalized_tx_hash:
+                continue
+            if target is None or self._row_updated_at(row) >= self._row_updated_at(target):
+                target = row
+        return target
+
+    @staticmethod
+    def _deposit_sync_status_from_row(
+        tx_hash: str, row: Optional[DepositIntentRow]
+    ) -> Dict[str, Any]:
+        normalized_tx_hash = str(tx_hash or "").strip().lower()
+        if row is None:
+            return {
+                "txHash": normalized_tx_hash,
+                "found": False,
+                "synced": False,
+                "status": "NOT_REGISTERED",
+                "confirmed": False,
+                "canRefreshBalance": False,
+            }
+
+        status = str(row.status or "PENDING_CONFIRMATION").strip().upper()
+        confirmed = status == "CONFIRMED"
+        return {
+            "txHash": normalized_tx_hash,
+            "found": True,
+            "synced": True,
+            "status": status,
+            "confirmed": confirmed,
+            "canRefreshBalance": confirmed,
+            "depositIntentId": str(row.id or ""),
+            "ownerAddress": normalize_wallet(str(row.owner_address or "")),
+            "amountUsdc": round(float(row.amount_usdc or 0), 6),
+            "creditedAmountUsdc": round(float(row.credited_amount_usdc or 0), 6),
+            "confirmations": int(row.confirmations or 0),
+            "eventKey": str(row.event_key or "") or None,
+            "confirmedAt": row.confirmed_at,
+            "updatedAt": str(row.updated_at or "") or None,
+            "source": "deposit_intent",
+        }
+
     def _load_refund_rows(self) -> List[RefundIntentRow]:
         rows = self.storage.get_data_manager().system.gateway_state.read_consumer_refund_rows()
         if not isinstance(rows, list):
@@ -947,11 +997,13 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _persist_deposit_intent(
         self,
-        *,
         owner: str,
         idempotency_key: str,
         draft: DepositIntentDraft,
         intents: List[DepositIntentRow],
+        client_request_id: Optional[str] = None,
+        client_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
     ) -> DepositIntentRow:
         next_intent = DepositIntentRow(
             id=draft.intent_id,
@@ -959,6 +1011,9 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             txHash=draft.tx_hash,
             amountUsdc=draft.amount_usdc,
             idempotencyKey=idempotency_key,
+            clientRequestId=client_request_id,
+            clientIp=client_ip,
+            userAgent=user_agent,
             status=draft.status,
             createdAt=draft.created_at,
             updatedAt=now_dt_str(),
@@ -989,14 +1044,23 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         event_key: str,
         confirmations: int,
         request_meta: Optional[Dict[str, Any]],
+        confirmed_row: Optional[DepositIntentRow] = None,
         moved: Optional[DepositBalanceMove] = None,
     ) -> None:
         details: Dict[str, Any] = {
+            "businessType": "deposit",
             "depositIntentId": deposit_intent_id,
             "eventKey": event_key,
             "confirmations": int(confirmations),
+            "status": "CONFIRMED",
+            "resultStatus": "CONFIRMED",
             "requestMeta": request_meta or {},
         }
+        if confirmed_row is not None:
+            details["requestId"] = confirmed_row.request_id
+            details["txHash"] = confirmed_row.tx_hash
+            details["deltaAmount"] = str(confirmed_row.amount_usdc)
+            details["amountUsdc"] = str(confirmed_row.amount_usdc)
         if moved is not None:
             details["availableAfter"] = moved.available_after
             details["pendingAfter"] = moved.pending_after
@@ -1145,6 +1209,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     event_key=event_key,
                     confirmations=confirmations,
                     request_meta=request_meta,
+                    confirmed_row=result,
                 )
                 return result.model_dump(by_alias=True, mode="json")
 
@@ -1177,6 +1242,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 event_key=event_key,
                 confirmations=confirmations,
                 request_meta=request_meta,
+                confirmed_row=target,
                 moved=moved,
             )
             return target.model_dump(by_alias=True, mode="json")
@@ -1204,13 +1270,34 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             if idem_hit is not None:
                 return idem_hit
 
-            self._validate_unique_recent_deposit(intents, owner, draft.tx_hash)
+            replay_hit = self._validate_unique_recent_deposit(intents, owner, draft.tx_hash)
+            if replay_hit is not None:
+                if redis_client is None:
+                    self._record_idempotent_response(
+                        rows=idem_rows,
+                        scope="deposit_intent",
+                        owner_wallet=owner,
+                        idempotency_key=idempotency_key,
+                        request_hash=draft.request_hash,
+                        response=replay_hit,
+                    )
+                await self._complete_idempotency_redis(
+                    scope="deposit_intent",
+                    owner_wallet=owner,
+                    idempotency_key=idempotency_key,
+                    request_hash=draft.request_hash,
+                    response=replay_hit,
+                )
+                return replay_hit
 
             next_intent = self._persist_deposit_intent(
                 owner=owner,
                 idempotency_key=idempotency_key,
                 draft=draft,
                 intents=intents,
+                client_request_id=intent.get("clientRequestId"),
+                client_ip=request_meta.get("clientIp") if request_meta else None,
+                user_agent=request_meta.get("userAgent") if request_meta else None,
             )
 
             response = next_intent.model_dump(by_alias=True, mode="json")
@@ -1253,6 +1340,14 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             for row in rows
             if self._deposit_owner(row) == normalized_owner
         ]
+
+    async def get_deposit_sync_status(
+        self, owner_wallet: str, tx_hash: str
+    ) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        rows = self._load_deposit_intents()
+        target = self._find_deposit_intent_by_tx_hash(rows, owner_wallet, tx_hash)
+        return self._deposit_sync_status_from_row(tx_hash, target)
 
     async def process_refund_intent(
         self,

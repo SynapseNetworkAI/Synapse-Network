@@ -4,6 +4,7 @@ import json
 from typing import Any, List, Optional
 from uuid import uuid4
 
+from src.core.common import normalize_wallet
 from src.domain.audit import AuditLogEntry
 from src.domain.audit import AuditLogRow, SystemAuditLogRow
 
@@ -11,6 +12,12 @@ from ..database_manager import DatabaseManager
 
 
 class AuditLogRepository:
+    _ANOMALY_ACTIONS = {
+        "FINANCE_RATE_LIMIT_HIT",
+        "DEPOSIT_REPLAY_DETECTED",
+        "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+    }
+
     def __init__(self, db: DatabaseManager, audit_insert_sql: str):
         self._db = db
         _ = audit_insert_sql
@@ -36,6 +43,28 @@ class AuditLogRepository:
     def _event_id(prefix: str) -> str:
         return f"{prefix}-{uuid4().hex}"
 
+    @staticmethod
+    def _owner_id(wallet: str) -> str:
+        normalized = normalize_wallet(wallet)
+        return f"owner:{normalized}" if normalized else ""
+
+    @classmethod
+    def _owner_id_candidates(cls, wallet: str) -> list[str]:
+        normalized = normalize_wallet(wallet)
+        if not normalized:
+            return []
+        return [cls._owner_id(normalized), normalized]
+
+    @staticmethod
+    def _owner_address_from_row(owner_id: Any, details: dict[str, Any]) -> str:
+        detail_owner = normalize_wallet(str(details.get("ownerAddress") or ""))
+        if detail_owner:
+            return detail_owner
+        raw_owner = str(owner_id or "")
+        if raw_owner.startswith("owner:"):
+            return normalize_wallet(raw_owner.split(":", 1)[1])
+        return normalize_wallet(raw_owner)
+
     def _build_system_row(self, entry: AuditLogEntry) -> SystemAuditLogRow:
         details = entry.details if isinstance(entry.details, dict) else {}
         return SystemAuditLogRow(
@@ -60,6 +89,7 @@ class AuditLogRepository:
 
     def _build_finance_row(self, entry: AuditLogEntry) -> AuditLogRow:
         details = entry.details if isinstance(entry.details, dict) else {}
+        default_business_type = "anomaly" if entry.action in self._ANOMALY_ACTIONS else "charge"
         return AuditLogRow(
             actionType=entry.action,
             ownerAddress=entry.owner_address,
@@ -84,41 +114,143 @@ class AuditLogRepository:
             afterBalance=details.get("afterBalance"),
             resultStatus=self._str_detail(details, "resultStatus"),
             errorCode=self._str_detail(details, "errorCode"),
-            businessType=self._str_detail(details, "businessType") or "charge",
+            businessType=self._str_detail(details, "businessType") or default_business_type,
             riskLevel=self._str_detail(details, "riskLevel") or "green",
+            detailJson=details,
         )
 
     def append_audit_row(self, entry: AuditLogEntry) -> None:
         if entry.domain == "system":
             self.append_system_audit_log(self._build_system_row(entry))
             return
+        if self._should_skip_finance_entry(entry):
+            return
         self.append_audit_log(self._build_finance_row(entry))
 
+    def _has_existing_deposit_intent_registered_audit(
+        self, owner_wallet: str, tx_hash: str
+    ) -> bool:
+        owner_id = self._owner_id(owner_wallet)
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM synapse_audit_events
+                WHERE event_type = %s
+                  AND lower(owner_id) = lower(%s)
+                  AND lower(detail_json->>'txHash') = lower(%s)
+                LIMIT 1
+                """,
+                ("DEPOSIT_INTENT_REGISTERED", owner_id, tx_hash),
+            )
+            return cur.fetchone() is not None
+
+    def _has_existing_rate_limit_audit(
+        self,
+        owner_wallet: str,
+        action: str,
+        backend: str,
+        bucket: str,
+    ) -> bool:
+        owner_id = self._owner_id(owner_wallet)
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM synapse_audit_events
+                WHERE event_type = %s
+                  AND lower(owner_id) = lower(%s)
+                  AND coalesce(detail_json->>'action', '') = %s
+                  AND coalesce(detail_json->>'backend', '') = %s
+                  AND coalesce(detail_json->>'rateLimitBucket', '') = %s
+                LIMIT 1
+                """,
+                ("FINANCE_RATE_LIMIT_HIT", owner_id, action, backend, bucket),
+            )
+            return cur.fetchone() is not None
+
+    def _extract_rate_limit_bucket(self, details: dict[str, Any]) -> str:
+        bucket = self._str_detail(details, "rateLimitBucket")
+        if bucket:
+            return bucket
+
+        raw_bucket = details.get("windowBucket")
+        if raw_bucket is not None:
+            bucket = str(raw_bucket)
+        else:
+            raw_start = details.get("windowStart")
+            if raw_start is None:
+                bucket = ""
+            else:
+                try:
+                    bucket = str(int(raw_start) // 60)
+                except Exception:
+                    bucket = str(raw_start)
+
+        if bucket:
+            details["rateLimitBucket"] = bucket
+        return bucket
+
+    def _should_skip_deposit_registered_audit(
+        self, owner_wallet: str, details: dict[str, Any]
+    ) -> bool:
+        tx_hash = self._str_detail(details, "txHash")
+        if not tx_hash:
+            return False
+        return self._has_existing_deposit_intent_registered_audit(owner_wallet, tx_hash)
+
+    def _should_skip_rate_limit_audit(
+        self, owner_wallet: str, details: dict[str, Any]
+    ) -> bool:
+        action = self._str_detail(details, "action") or ""
+        backend = self._str_detail(details, "backend") or ""
+        bucket = self._extract_rate_limit_bucket(details)
+        if not (action and backend and bucket):
+            return False
+        return self._has_existing_rate_limit_audit(owner_wallet, action, backend, bucket)
+
+    def _should_skip_finance_entry(self, entry: AuditLogEntry) -> bool:
+        details = entry.details if isinstance(entry.details, dict) else {}
+        if entry.action == "DEPOSIT_INTENT_REGISTERED":
+            return self._should_skip_deposit_registered_audit(
+                entry.owner_address, details
+            )
+
+        if entry.action == "FINANCE_RATE_LIMIT_HIT":
+            return self._should_skip_rate_limit_audit(entry.owner_address, details)
+        return False
+
     def append_audit_log(self, row: AuditLogRow) -> None:
-        detail_json = {
-            "domain": "finance",
-            "riskLevel": row.risk_level,
-            "actor": row.actor,
-            "requestId": row.request_id,
-            "traceId": row.trace_id,
-            "txHash": row.tx_hash,
-            "counterpartyAddress": row.counterparty_address,
-            "direction": row.direction,
-            "status": row.status,
-            "riskReasonCode": row.risk_reason_code,
-            "ledgerId": row.ledger_id,
-            "clientIp": row.client_ip,
-            "userAgent": row.user_agent,
-            "beforeBalance": str(row.before_balance) if row.before_balance is not None else None,
-            "afterBalance": str(row.after_balance) if row.after_balance is not None else None,
-            "message": row.message,
-            "ownerAddress": row.owner_address,
-            "agentId": row.agent_id,
-            "credentialId": row.credential_id,
-            "serviceId": row.service_id,
-            "quoteId": row.quote_id,
-            "invocationId": row.invocation_id,
-        }
+        detail_json = dict(row.detail_json or {})
+        detail_json.setdefault("domain", "finance")
+        detail_json.setdefault("businessType", row.business_type)
+        detail_json.setdefault("riskLevel", row.risk_level)
+        detail_json.setdefault("actor", row.actor)
+        detail_json.setdefault("requestId", row.request_id)
+        detail_json.setdefault("traceId", row.trace_id)
+        detail_json.setdefault("txHash", row.tx_hash)
+        detail_json.setdefault("counterpartyAddress", row.counterparty_address)
+        detail_json.setdefault("direction", row.direction)
+        detail_json.setdefault("status", row.status)
+        detail_json.setdefault("riskReasonCode", row.risk_reason_code)
+        detail_json.setdefault("ledgerId", row.ledger_id)
+        detail_json.setdefault("clientIp", row.client_ip)
+        detail_json.setdefault("userAgent", row.user_agent)
+        detail_json.setdefault(
+            "beforeBalance",
+            str(row.before_balance) if row.before_balance is not None else None,
+        )
+        detail_json.setdefault(
+            "afterBalance",
+            str(row.after_balance) if row.after_balance is not None else None,
+        )
+        detail_json.setdefault("message", row.message)
+        detail_json.setdefault("ownerAddress", row.owner_address)
+        detail_json.setdefault("agentId", row.agent_id)
+        detail_json.setdefault("credentialId", row.credential_id)
+        detail_json.setdefault("serviceId", row.service_id)
+        detail_json.setdefault("quoteId", row.quote_id)
+        detail_json.setdefault("invocationId", row.invocation_id)
         with self._db.tx_cursor() as cur:
             cur.execute(
                 """
@@ -132,7 +264,7 @@ class AuditLogRepository:
                     self._event_id("audit"),
                     row.action_type,
                     row.business_type,
-                    row.owner_address,
+                    self._owner_id(row.owner_address),
                     row.agent_id,
                     row.credential_id,
                     row.service_id,
@@ -176,7 +308,7 @@ class AuditLogRepository:
                     self._event_id("system"),
                     row.action_type,
                     "system",
-                    row.owner_address,
+                    self._owner_id(row.owner_address),
                     row.agent_id,
                     row.credential_id,
                     row.service_id,
@@ -210,8 +342,10 @@ class AuditLogRepository:
         params: List[object] = []
 
         if owner_wallet:
-            sql += " AND lower(owner_id) = lower(%s)"
-            params.append(owner_wallet)
+            owner_candidates = self._owner_id_candidates(owner_wallet)
+            if owner_candidates:
+                sql += " AND (lower(owner_id) = lower(%s) OR lower(owner_id) = lower(%s))"
+                params.extend(owner_candidates)
 
         sql += " ORDER BY created_at DESC LIMIT %s"
         params.append(max(1, min(limit, 1000)))
@@ -233,8 +367,9 @@ class AuditLogRepository:
             created_at,
         ) in rows:
             details = self._payload_dict(detail_json)
+            resolved_owner = self._owner_address_from_row(owner_address, details)
             details.setdefault("businessType", str(business_type or "charge"))
-            details.setdefault("ownerAddress", str(owner_address or ""))
+            details.setdefault("ownerAddress", resolved_owner)
             details.setdefault(
                 "deltaAmount", float(amount_delta) if amount_delta is not None else 0.0
             )
@@ -246,7 +381,7 @@ class AuditLogRepository:
                     timestamp=int(created_at or 0),
                     action=str(action_type or ""),
                     domain="finance",
-                    ownerAddress=str(owner_address or ""),
+                    ownerAddress=resolved_owner,
                     details=details,
                 )
             )
@@ -263,8 +398,10 @@ class AuditLogRepository:
         params: List[object] = []
 
         if owner_wallet:
-            sql += " AND lower(owner_id) = lower(%s)"
-            params.append(owner_wallet)
+            owner_candidates = self._owner_id_candidates(owner_wallet)
+            if owner_candidates:
+                sql += " AND (lower(owner_id) = lower(%s) OR lower(owner_id) = lower(%s))"
+                params.extend(owner_candidates)
 
         sql += " ORDER BY created_at DESC LIMIT %s"
         params.append(max(1, min(limit, 1000)))
@@ -284,17 +421,18 @@ class AuditLogRepository:
             created_at,
         ) in rows:
             details = self._payload_dict(detail_json)
+            resolved_owner = self._owner_address_from_row(owner_address, details)
             details.setdefault("domain", "system")
             details.setdefault("resultStatus", result_status)
             details.setdefault("errorCode", error_code)
-            details.setdefault("ownerAddress", str(owner_address or ""))
+            details.setdefault("ownerAddress", resolved_owner)
             result.append(
                 AuditLogEntry(
                     id=str(row_id or ""),
                     timestamp=int(created_at or 0),
                     action=str(action_type or ""),
                     domain="system",
-                    ownerAddress=str(owner_address or ""),
+                    ownerAddress=resolved_owner,
                     details=details,
                 )
             )
