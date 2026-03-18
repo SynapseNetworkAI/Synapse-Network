@@ -33,9 +33,9 @@
 
 1. 产品愿景与品牌表达：本目录。
 2. Agent Runtime 与身份模型：`docs/agent/`。
-3. 前端体验与页面 IA：`docs/05_Frontend_UX/` 与 `docs/feature_designs/frontend_product/`。
-4. 充值、扣费、提现、结算：`docs/03_Smart_Contract_Payment/`。
-5. Gateway 架构与生产安全：`docs/02_Architecture/`。
+3. 前端体验与页面 IA：`docs/01_Product_Frontend/` 与 `docs/feature_designs/frontend_product/`。
+4. 充值、扣费、提现、结算：`docs/03_Core_Workflows/` 与 `docs/04_Database_Design/`。
+5. Gateway 架构与生产安全：`docs/02_System_Architecture/` 与 `docs/05_DevOps_Deployment/`。
 
 ## 维护规则
 

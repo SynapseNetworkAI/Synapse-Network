@@ -17,9 +17,10 @@
 2. `docs/Gateway_Error_Codes.md`
 3. `docs/agent/02_Discovery_Quote_Invoke_API_Design.md`
 4. `docs/agent/03_Service_Manifest_Field_Standard.md`
-5. `docs/06_Developer_Guides/Backend_Unit_Testing_Guide.md`
-6. `docs/06_Developer_Guides/Backend_Python_Dev_Guide.md`
-7. `docs/06_Developer_Guides/Agent_SDK_Quickstart.md`
+5. `docs/agent/04_Credential_Budget_Risk_Model.md`
+6. `docs/04_Database_Design/`
+
+说明：旧 `06_Developer_Guides/` 中的开发、测试、SDK 有效内容已收敛进本模块，不再保留为主引用源。
 
 ## 阅读顺序
 

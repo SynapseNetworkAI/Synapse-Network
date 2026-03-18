@@ -28,4 +28,4 @@
 
 1. 先看根目录 README 和对应业务域 README，再看这里的专题深化。
 2. 本目录不负责重新定义身份模型、Runtime 协议和数据库主语义。
-3. 如果某专题已经上升为主流程设计，应把 canonical 部分回写到 `docs/agent/`、`docs/03_Smart_Contract_Payment/`、`docs/05_Frontend_UX/` 或其他业务域目录。
+3. 如果某专题已经上升为主流程设计，应把 canonical 部分回写到 `docs/agent/`、`docs/01_Product_Frontend/`、`docs/03_Core_Workflows/` 或其他官方业务模块。

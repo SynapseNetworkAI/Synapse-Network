@@ -107,8 +107,8 @@ Contribution workflow and quality gates are in [CONTRIBUTING.md](CONTRIBUTING.md
 
 Storage and production-hardening work items are tracked here:
 
-- Strategy doc: [docs/02_Architecture/Storage_Strategy_Upgrade.md](docs/02_Architecture/Storage_Strategy_Upgrade.md)
-- Execution TODO: [docs/02_Architecture/Production_Upgrade_TODO.md](docs/02_Architecture/Production_Upgrade_TODO.md)
+- Release and gate baseline: [docs/05_DevOps_Deployment/02_CI_CD_and_Release_Gates.md](docs/05_DevOps_Deployment/02_CI_CD_and_Release_Gates.md)
+- Production operations and incident response: [docs/05_DevOps_Deployment/04_Financial_Incident_Response_and_Production_Operations.md](docs/05_DevOps_Deployment/04_Financial_Incident_Response_and_Production_Operations.md)
 - Product roadmap board: [docs/01_Product_Vision/ROADMAP.md](docs/01_Product_Vision/ROADMAP.md)
 
 This week focus:
@@ -120,25 +120,25 @@ This week focus:
 GitHub issue templates for direct assignment:
 - Board checklist: [.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
 - Single work item: [.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)
-- Issue seed list (copy-and-create): [docs/02_Architecture/Production_Upgrade_Issue_Seeds.md](docs/02_Architecture/Production_Upgrade_Issue_Seeds.md)
+- Official docs entrypoint: [docs/README.md](docs/README.md)
 
-### 1) Product Vision
-- [docs/01_Product_Vision](docs/01_Product_Vision)
+### 1) Product and Frontend
+- [docs/01_Product_Frontend](docs/01_Product_Frontend)
 
-### 2) Architecture
-- [docs/02_Architecture](docs/02_Architecture)
+### 2) System Architecture
+- [docs/02_System_Architecture](docs/02_System_Architecture)
 
-### 3) Smart Contract and Payment
-- [docs/03_Smart_Contract_Payment](docs/03_Smart_Contract_Payment)
+### 3) Core Workflows
+- [docs/03_Core_Workflows](docs/03_Core_Workflows)
 
-### 4) Agent Network and Protocol
-- [docs/04_Synapse_Network](docs/04_Synapse_Network)
+### 4) Database Design
+- [docs/04_Database_Design](docs/04_Database_Design)
 
-### 5) Frontend UX
-- [docs/05_Frontend_UX](docs/05_Frontend_UX)
+### 5) DevOps and Deployment
+- [docs/05_DevOps_Deployment](docs/05_DevOps_Deployment)
 
-### 6) Developer Guides
-- [docs/06_Developer_Guides](docs/06_Developer_Guides)
+### 6) Reference
+- [docs/06_Reference](docs/06_Reference)
 
 ## Main Project Structure
 

@@ -61,8 +61,8 @@ Docker 化： 把你的 Python Backend、Indexer、前端 React/Vue 全部打成
 目标：在不引入过度工程化的前提下，把资金路径打磨到可上线基线。
 
 执行入口：
-- 存储升级方案文档：[../02_Architecture/Storage_Strategy_Upgrade.md](../02_Architecture/Storage_Strategy_Upgrade.md)
-- 生产升级 TODO 清单：[../02_Architecture/Production_Upgrade_TODO.md](../02_Architecture/Production_Upgrade_TODO.md)
+- 发布与门禁基线：[../05_DevOps_Deployment/02_CI_CD_and_Release_Gates.md](../05_DevOps_Deployment/02_CI_CD_and_Release_Gates.md)
+- 生产运行与事故响应：[../05_DevOps_Deployment/04_Financial_Incident_Response_and_Production_Operations.md](../05_DevOps_Deployment/04_Financial_Incident_Response_and_Production_Operations.md)
 - GitHub 看板模板：[../../.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](../../.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
 - GitHub 子任务模板：[../../.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](../../.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)
 
