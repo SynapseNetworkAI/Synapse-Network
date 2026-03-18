@@ -13,7 +13,7 @@ export type ServiceRegistryPayload = {
   isActive: boolean;
   summary?: string;
   tags?: string[];
-  status?: "active" | "inactive" | "archived";
+  status?: "draft" | "active" | "paused" | "inactive" | "archived";
   auth?: {
     type?: string;
     headerName?: string;
