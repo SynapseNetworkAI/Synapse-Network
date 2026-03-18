@@ -116,7 +116,6 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
   "billing": {
     "price_model": "fixed",
     "base_price_usdc": "0.008",
-    "quote_required": true,
     "settlement_currency": "USDC"
   },
   "runtime": {
@@ -130,7 +129,7 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
     "health_check": {
       "method": "GET",
       "path": "/health",
-      "interval_sec": 30,
+      "interval_sec": 10,
       "timeout_ms": 3000,
       "success_codes": [200]
     },
@@ -143,11 +142,6 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
     ],
     "forwarding_policy": {
       "request_id_header": "X-Synapse-Request-Id"
-    },
-    "metering_policy": {
-      "billing_unit": "per_call",
-      "bill_on_error": false,
-      "billable_status_classes": [2]
     }
   },
   "quality": {
@@ -196,9 +190,78 @@ V1 先强制这些字段：
 - `base_price_usdc`
 - `endpoint_url`
 - `timeout_ms`
-- `status`
 
 其余字段可以逐步丰富，但这几个缺一不可。
+
+### 5.1 Provider Console V1 注册页收敛说明
+
+第一版 Provider 注册页不会把所有 Manifest 字段都开放成可编辑表单。
+
+以下字段在 V1 中由平台统一决定或通过运行时观测生成，不要求 Provider 在注册页面手工填写：
+
+- `status`
+- `runtime.streaming_supported`
+- `runtime.async_supported`
+- `runtime.callback_supported`
+- `quality.*`
+- `billing.unit_name`
+- `billing.min_billable_unit`
+- `billing.quote_required`
+- `gateway_extensions.forwarding_policy.request_id_header`
+- `gateway_extensions.forwarding_policy.pass_through_headers`
+- `gateway_extensions.metering_policy.bill_on_error`
+- `gateway_extensions.metering_policy.request_id_required`
+- `gateway_extensions.metering_policy.response_size_metering`
+- `gateway_extensions.metering_policy.billable_status_classes`
+
+平台默认策略：
+
+- 新建 service 默认进入 `draft`
+- 服务是否可实际对外承载流量，由平台健康检查与运行状态决定
+- `price_model` 在 V1 固定为 `fixed`，即按次调用计费
+- `request_id_header` 固定为 `X-Synapse-Request-Id`
+- `health_check.method` 固定为 `GET`
+- `health_check.interval_sec` 固定为 `10`
+- `health_check.success_codes` 固定为 `200`
+- `quality` 由平台健康检查与运行观测生成，不由 Provider 手填
+- `billable_status_classes` 表示“哪些 HTTP 响应类别可计费”，例如 `2` 代表 `2xx` 响应；V1 由平台统一控制
+- `supported_languages` 在 V1 注册页只提供 `EN` / `CN` 下拉选择
+- `unit_name` 与 `min_billable_unit` 不在 V1 注册页暴露，避免过早引入复杂计费语义
+- `quote_required` 不在 V1 注册页暴露，因为 V1 不支持 quote-first 调用
+- `pass_through_headers` 不在 V1 注册页暴露，由平台决定允许转发哪些头
+
+`price_model` 枚举语义：
+
+- `fixed`：固定单价，每次调用按一个稳定基础价格结算
+- `tiered`：阶梯价格，预留给未来按用量或区间分层计费
+- `quote`：先询价再调用，运行时必须先走 Quote 再决定是否 Invoke
+
+因此，V1 注册页重点只收敛：身份、模型描述、输入输出 Schema、固定按次价格、运行边界、健康检查路径/超时、路由目标。
+
+### 5.2 AI API Parser 输入约定
+
+Provider Console 的 AI API Parser 在 V1 推荐直接粘贴“完整调用样例”，而不是只贴 cURL。
+
+推荐格式：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"关于坚持"}'
+{"input_text":"关于坚持","quotes":["穷则独善其身，达则兼济天下。—— 孟子","路漫漫其修远兮，吾将上下而求索。—— 屈原","不积跬步，无以至千里。—— 荀子"]}
+```
+
+Parser 需要从这段样例中推断：
+
+- `runtime.endpoint_url`
+- `io_schema.input_schema`
+- `io_schema.output_schema`
+- `model_usage.examples`
+- `model_usage.description_for_model`
+- `model_usage.supported_languages`
+- `gateway_extensions.routing_targets`
+
+也就是说，V1 parser 的目标不是返回旧版自由格式字段，而是直接返回当前注册页可以消费的标准 Manifest 结构。
 
 ## 6. 设计结论
 
