@@ -1,6 +1,6 @@
 # Synapse Agent-First Error Codes
 
-> 文件名仍保留 `Buyer_Error_Codes.md` 仅为兼容历史引用；当前内容已经切到 Agent-first Runtime 语义。
+> 当前错误码文档已切到 Agent-first Runtime 语义，不再保留旧角色二分叙事。
 
 ## 1. 设计目标
 
@@ -18,7 +18,7 @@
 {
   "detail": {
     "code": "INSUFFICIENT_BALANCE",
-    "message": "buyer balance is insufficient, please deposit first"
+    "message": "owner balance is insufficient, please deposit first"
   }
 }
 ```
@@ -155,7 +155,7 @@
 3. `PRICE_CHANGED`
 4. `UPSTREAM_TIMEOUT`
 5. `UPSTREAM_5XX`
-6. `INVALID_SELLER_RESPONSE`
+6. `INVALID_PROVIDER_RESPONSE`
 
 如果未来需要引入这些更细粒度错误码，必须同步更新：
 

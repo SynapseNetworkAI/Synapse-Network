@@ -44,7 +44,7 @@ function CredentialsContent() {
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const billingRows = useMemo<{timestamp?: number; buyer?: string; unit_price?: number}[]>(() => [], []);
+  const billingRows = useMemo<{timestamp?: number; owner?: string; unit_price?: number}[]>(() => [], []);
   const [copiedToken, setCopiedToken] = useState(false);
 
   const loadAll = useCallback(async () => {
@@ -108,9 +108,9 @@ function CredentialsContent() {
 
     return billingRows.reduce((sum, row) => {
       const rowTs = Number(row.timestamp || 0);
-      const buyer = String(row.buyer || "").toLowerCase();
+      const owner = String(row.owner || "").toLowerCase();
       if (rowTs < startSec) return sum;
-      if (buyer !== currentAddress) return sum;
+      if (owner !== currentAddress) return sum;
       return sum + Number(row.unit_price || 0);
     }, 0);
   }, [billingRows, userAddress]);
@@ -125,9 +125,9 @@ function CredentialsContent() {
 
     return billingRows.reduce((count, row) => {
       const rowTs = Number(row.timestamp || 0);
-      const buyer = String(row.buyer || "").toLowerCase();
+      const owner = String(row.owner || "").toLowerCase();
       if (rowTs < startSec) return count;
-      if (buyer !== currentAddress) return count;
+      if (owner !== currentAddress) return count;
       return count + 1;
     }, 0);
   }, [billingRows, userAddress]);

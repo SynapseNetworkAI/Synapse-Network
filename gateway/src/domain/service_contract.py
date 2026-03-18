@@ -223,7 +223,7 @@ class ServiceManifestRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     service_id: str = Field(alias="serviceId")
-    seller_id: str = Field(alias="sellerId")
+    provider_id: str = Field(alias="providerId")
     service_name: str = Field(alias="serviceName")
     manifest_version: str = Field(alias="manifestVersion")
     status: Literal["draft", "active", "paused", "archived"] = "draft"

@@ -22,8 +22,8 @@
 ### 2.1 Tenant 层
 
 - `synapse_owner_accounts`
-- `synapse_seller_profiles`
-- `synapse_payout_accounts`
+- `synapse_provider_profiles`
+- `synapse_provider_payout_accounts`
 
 ### 2.2 Agent Runtime 层
 

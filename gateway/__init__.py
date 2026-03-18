@@ -1,7 +1,6 @@
-"""seller_api package marker.
+"""Gateway package marker.
 
-Keep this module side-effect free so submodules like `seller_api.persistence`
-can be imported from runtime workers without requiring an app object here.
+Keep this module side-effect free so runtime worker imports stay lightweight.
 """
 
 __all__: list[str] = []

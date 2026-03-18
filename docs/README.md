@@ -38,7 +38,7 @@
 ### 后端文档
 - `02_Architecture/`: 网关、支付、风控、日志、部署、生产安全架构。
 - `04_Synapse_Network/`: 仅保留后端实现补充说明和历史兼容备注，不能覆盖 `agent/` 与 `api.md` 的 canonical 设计。
-- [Buyer_Error_Codes.md](./Buyer_Error_Codes.md): 当前对外 Runtime 错误码文档；文件名是历史遗留，文档语义已切到 agent-first Runtime。
+- [Gateway_Error_Codes.md](./Gateway_Error_Codes.md): 当前对外 Runtime 错误码文档，语义已切到 agent-first Runtime。
 
 ### 数据库文档
 - `03_Smart_Contract_Payment/`: 合约、账本、充值、提现、结算、数据模型。

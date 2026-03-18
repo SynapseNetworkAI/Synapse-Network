@@ -20,9 +20,9 @@ from src.domain.finance import UsageLogRow
 from src.domain.identity import RuntimeCredentialRecord
 from src.domain.service_contract import ServiceConstraintRecord, ServiceDefinitionRecord
 from src.services.platform import credential_service
-from src.services.buyer import forwarding_billing
-from src.services.buyer import forwarding_upstream
-from src.services.buyer import forwarding_validation
+from src.services.owner import forwarding_billing
+from src.services.owner import forwarding_upstream
+from src.services.owner import forwarding_validation
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -127,7 +127,7 @@ async def _call_upstream(
     invocation: InvocationRecord,
     request_payload: Dict[str, Any],
 ) -> InvocationResultRecord:
-    """Forward prompt to seller upstream and enforce payload size + timeout limits."""
+    """Forward prompt to provider upstream and enforce payload size + timeout limits."""
     return await forwarding_upstream.call_upstream(service, invocation, request_payload)
 
 
@@ -302,7 +302,6 @@ def _charge_amount_from_unit_price(
         "routing_tax": routing_tax,
         "platform_fee_total": platform_fee_total,
         "provider_net": provider_net,
-        "seller_net": provider_net,
         "total_charge": total_charge,
     }
     return settlement, total_charge
@@ -521,7 +520,7 @@ async def _execute_invocation_pipeline(
             ts=credential_service.now_ts(),
             requestId=trace_request_id,
             serviceId=service.service_id,
-            buyerAddress=credential_service.credential_owner_wallet(credential),
+            consumerAddress=credential_service.credential_owner_wallet(credential),
             providerAddress=provider_wallet,
             status="accepted",
             unitPrice=round(unit_price, 6),
@@ -995,11 +994,6 @@ async def generate_response_v2(
     return _build_consumer_success_response(
         receipt, succeeded_invocation.result.payload
     )
-
-
-_build_buyer_receipt = _build_consumer_receipt
-_build_buyer_success_response = _build_consumer_success_response
-
 
 async def create_quote_v1(
     storage: BaseStorage,

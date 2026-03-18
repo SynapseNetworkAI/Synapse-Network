@@ -26,8 +26,8 @@ temp_check.js
 test_agents.js
 admin/gateway-admin/run/
 
-# Buyer sdk local build artifacts
-sdk/python/agentpay_buyer_sdk.egg-info/
+# Agent SDK local build artifacts
+sdk/python/agentpay_agent_sdk.egg-info/
 
 # gateway runtime/generated files
 gateway/agent_credentials.json

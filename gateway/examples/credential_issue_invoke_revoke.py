@@ -12,7 +12,7 @@ from web3 import Web3
 
 
 DEFAULT_DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-DEFAULT_BUYER_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+DEFAULT_OWNER_PAYMENT_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 CONTENT_TYPE_JSON = "application/json"
 
 
@@ -67,10 +67,10 @@ def mint_and_pay_for_service(
     root_dir: Path,
     rpc_url: str,
     service_id: str,
-    seller_address: str,
+    provider_address: str,
     price_usdc: str,
     deployer_private_key: str,
-    buyer_private_key: str,
+    owner_payment_private_key: str,
 ) -> str:
     contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
     router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
@@ -83,10 +83,10 @@ def mint_and_pay_for_service(
     chain_id = int(web3.eth.chain_id)
     router_address = Web3.to_checksum_address(contract_config["SynapseCore"])
     token_address = Web3.to_checksum_address(contract_config["MockUSDC"])
-    seller_checksum = Web3.to_checksum_address(seller_address)
+    provider_checksum = Web3.to_checksum_address(provider_address)
 
     deployer = web3.eth.account.from_key(deployer_private_key)
-    buyer = web3.eth.account.from_key(buyer_private_key)
+    payer = web3.eth.account.from_key(owner_payment_private_key)
 
     usdc_contract = web3.eth.contract(address=token_address, abi=usdc_abi)
     router_contract = web3.eth.contract(address=router_address, abi=router_abi)
@@ -95,7 +95,7 @@ def mint_and_pay_for_service(
 
     try:
         mint_nonce = web3.eth.get_transaction_count(deployer.address)
-        mint_tx = usdc_contract.functions.mint(buyer.address, amount_wei).build_transaction(
+        mint_tx = usdc_contract.functions.mint(payer.address, amount_wei).build_transaction(
             {
                 "from": deployer.address,
                 "nonce": mint_nonce,
@@ -107,36 +107,36 @@ def mint_and_pay_for_service(
         mint_signed = deployer.sign_transaction(mint_tx)
         mint_hash = web3.eth.send_raw_transaction(mint_signed.raw_transaction)
         web3.eth.wait_for_transaction_receipt(mint_hash)
-        print(f"[payment] minted buyer USDC: {mint_hash.hex()}")
+        print(f"[payment] minted owner payment USDC: {mint_hash.hex()}")
     except Exception as error:
         print(f"[payment] mint skipped/failed (continue): {error}")
 
-    approve_nonce = web3.eth.get_transaction_count(buyer.address)
+    approve_nonce = web3.eth.get_transaction_count(payer.address)
     approve_tx = usdc_contract.functions.approve(router_address, amount_wei).build_transaction(
         {
-            "from": buyer.address,
+            "from": payer.address,
             "nonce": approve_nonce,
             "chainId": chain_id,
             "gas": 200000,
             "gasPrice": web3.eth.gas_price,
         }
     )
-    approve_signed = buyer.sign_transaction(approve_tx)
+    approve_signed = payer.sign_transaction(approve_tx)
     approve_hash = web3.eth.send_raw_transaction(approve_signed.raw_transaction)
     web3.eth.wait_for_transaction_receipt(approve_hash)
     print(f"[payment] approve done: {approve_hash.hex()}")
 
-    pay_nonce = web3.eth.get_transaction_count(buyer.address)
-    pay_tx = router_contract.functions.payForService(token_address, seller_checksum, amount_wei, service_id).build_transaction(
+    pay_nonce = web3.eth.get_transaction_count(payer.address)
+    pay_tx = router_contract.functions.payForService(token_address, provider_checksum, amount_wei, service_id).build_transaction(
         {
-            "from": buyer.address,
+            "from": payer.address,
             "nonce": pay_nonce,
             "chainId": chain_id,
             "gas": 400000,
             "gasPrice": web3.eth.gas_price,
         }
     )
-    pay_signed = buyer.sign_transaction(pay_tx)
+    pay_signed = payer.sign_transaction(pay_tx)
     pay_hash = web3.eth.send_raw_transaction(pay_signed.raw_transaction)
     web3.eth.wait_for_transaction_receipt(pay_hash)
 
@@ -194,10 +194,13 @@ def main() -> None:
 
     owner_private_key = require_env("OWNER_PRIVATE_KEY")
     service_id = require_env("SERVICE_ID")
-    seller_address = require_env("SELLER_ADDRESS")
+    provider_address = require_env("PROVIDER_ADDRESS")
 
     deployer_private_key = os.getenv("DEPLOYER_PRIVATE_KEY", DEFAULT_DEPLOYER_PRIVATE_KEY)
-    buyer_private_key = os.getenv("BUYER_PRIVATE_KEY", DEFAULT_BUYER_PRIVATE_KEY)
+    owner_payment_private_key = os.getenv(
+        "OWNER_PAYMENT_PRIVATE_KEY",
+        owner_private_key or DEFAULT_OWNER_PAYMENT_PRIVATE_KEY,
+    )
 
     price_usdc = os.getenv("PRICE_USDC", "1")
     prompt = os.getenv("PROMPT", "hello from credential script")
@@ -211,10 +214,9 @@ def main() -> None:
 
     print("[step] issue credential ...")
     issue_resp = requests.post(
-        f"{api_base}/api/v1/credentials/issue",
+        f"{api_base}/api/v1/credentials/agent/issue",
         headers=build_auth_headers(token, owner_address),
         json={
-            "serviceId": service_id,
             "expiresInSec": expires_in_sec,
             "maxCalls": max_calls,
             "rpm": rpm,
@@ -232,10 +234,10 @@ def main() -> None:
         root_dir=root_dir,
         rpc_url=rpc_url,
         service_id=service_id,
-        seller_address=seller_address,
+        provider_address=provider_address,
         price_usdc=price_usdc,
         deployer_private_key=deployer_private_key,
-        buyer_private_key=buyer_private_key,
+        owner_payment_private_key=owner_payment_private_key,
     )
 
     print("[step] invoke /generate with credential ...")
@@ -250,7 +252,7 @@ def main() -> None:
 
     print("[step] revoke credential ...")
     revoke_resp = requests.post(
-        f"{api_base}/api/v1/credentials/{credential_id}/revoke",
+        f"{api_base}/api/v1/credentials/agent/{credential_id}/revoke",
         headers=build_auth_headers(token, owner_address, with_json=False),
         timeout=20,
     )

@@ -26,8 +26,8 @@ class GatewayFinanceSnapshot:
     today_deposit_usdc: Decimal
     today_refund_usdc: Decimal
     today_withdrawal_usdc: Decimal
-    buyer_liability_usdc: Decimal
-    seller_payable_usdc: Decimal
+    owner_liability_usdc: Decimal
+    provider_payable_usdc: Decimal
     platform_fee_balance_usdc: Decimal
     vault_ledger_delta_usdc: Decimal
     pending_deposit_count: int
@@ -96,8 +96,8 @@ class InMemoryGatewayDashboardProjectionRepository:
                 today_deposit_usdc=Decimal("1640.00"),
                 today_refund_usdc=Decimal("42.25"),
                 today_withdrawal_usdc=Decimal("310.50"),
-                buyer_liability_usdc=Decimal("8450.10"),
-                seller_payable_usdc=Decimal("3920.45"),
+                owner_liability_usdc=Decimal("8450.10"),
+                provider_payable_usdc=Decimal("3920.45"),
                 platform_fee_balance_usdc=Decimal("128.75"),
                 vault_ledger_delta_usdc=Decimal("0.50"),
                 pending_deposit_count=2,
@@ -235,8 +235,8 @@ class PostgresGatewayDashboardProjectionRepository:
                     today_deposit_usdc,
                     today_refund_usdc,
                     today_withdrawal_usdc,
-                    buyer_liability_usdc,
-                    seller_payable_usdc,
+                    owner_liability_usdc,
+                    provider_payable_usdc,
                     platform_fee_balance_usdc,
                     vault_ledger_delta_usdc,
                     pending_deposit_count,
@@ -253,8 +253,8 @@ class PostgresGatewayDashboardProjectionRepository:
                 today_deposit_usdc=Decimal("0"),
                 today_refund_usdc=Decimal("0"),
                 today_withdrawal_usdc=Decimal("0"),
-                buyer_liability_usdc=Decimal("0"),
-                seller_payable_usdc=Decimal("0"),
+                owner_liability_usdc=Decimal("0"),
+                provider_payable_usdc=Decimal("0"),
                 platform_fee_balance_usdc=Decimal("0"),
                 vault_ledger_delta_usdc=Decimal("0"),
                 pending_deposit_count=0,
@@ -266,8 +266,8 @@ class PostgresGatewayDashboardProjectionRepository:
             today_deposit_usdc=Decimal(str(row["today_deposit_usdc"])),
             today_refund_usdc=Decimal(str(row["today_refund_usdc"])),
             today_withdrawal_usdc=Decimal(str(row["today_withdrawal_usdc"])),
-            buyer_liability_usdc=Decimal(str(row["buyer_liability_usdc"])),
-            seller_payable_usdc=Decimal(str(row["seller_payable_usdc"])),
+            owner_liability_usdc=Decimal(str(row["owner_liability_usdc"])),
+            provider_payable_usdc=Decimal(str(row["provider_payable_usdc"])),
             platform_fee_balance_usdc=Decimal(str(row["platform_fee_balance_usdc"])),
             vault_ledger_delta_usdc=Decimal(str(row["vault_ledger_delta_usdc"])),
             pending_deposit_count=int(row["pending_deposit_count"]),

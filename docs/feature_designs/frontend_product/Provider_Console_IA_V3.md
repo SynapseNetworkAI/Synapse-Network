@@ -17,7 +17,7 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 - Revenue Analytics: `/provider/usage`
 - Treasury Ledger: `/provider/billing`
 
-兼容策略：保留历史 `/dashboard/**` 页面，新增 `/provider/**` 作为卖家工作空间统一入口。
+兼容策略：保留历史 `/dashboard/**` 页面，新增 `/provider/**` 作为 Provider 工作空间统一入口。
 
 ## 3. 首页职责（/provider/sell）
 
@@ -31,13 +31,13 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 ## 4. 工作流约束
 
 ### 4.1 Publish API 前置校验
-- 点击 Publish API 前必须检查 seller secrets（Access Keys）是否存在。
+- 点击 Publish API 前必须检查 provider secrets（Access Keys）是否存在。
 - 无 key 时强制跳转 Access Keys 页面创建。
 - 原因：防止服务发布后处于不可签名验证的脆弱状态。
 
 ### 4.2 命名策略
 - 用户文案统一使用 “Access Keys”。
-- 技术实现层继续使用 seller secret key / HMAC key。
+- 技术实现层继续使用 provider secret key / HMAC key。
 
 ## 5. 页面职责拆分
 

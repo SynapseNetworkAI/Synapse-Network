@@ -10,7 +10,7 @@
 
 1. 明确当前 canonical 文档集合。
 2. 让文档按功能分类可读：业务核心、后端、数据库、前端、运维、管理后台。
-3. 把明显过时的 buyer / wallet / V2 过渡期方案移出主阅读路径。
+3. 把明显过时的旧角色词 / wallet / V2 过渡期方案移出主阅读路径。
 4. 为后续继续合并重复文档留下稳定规则。
 
 ## 2. 设计判断标准
@@ -23,7 +23,7 @@
 
 应归档或删除的文档：
 
-1. 继续使用 Buyer / Wallet / API Key 旧主模型定义系统核心对象。
+1. 继续使用历史消费侧 / Wallet / API Key 旧主模型定义系统核心对象。
 2. 与 `docs/agent/*` 中的 canonical 设计直接重复。
 3. 描述的是 V2 过渡期 schema 或已被新 Runtime 架构替代的旧总览。
 
@@ -73,8 +73,8 @@
 - `wallet.md`
 - `soul.md`
 - `04_Synapse_Network/AI_Service_Discovery.md`
-- `04_Synapse_Network/Buyer_Discovery_SDK.md`
-- `04_Synapse_Network/Buyer_Wallet_Topology.md`
+- `04_Synapse_Network/legacy_consumer_discovery_sdk.md`
+- `04_Synapse_Network/legacy_consumer_wallet_topology.md`
 - `04_Synapse_Network/Credential_Design_Optimization.md`
 - `04_Synapse_Network/Synapse_Client_README.md`
 
@@ -98,8 +98,8 @@
 
 ### 4.3 已完成的 `04_Synapse_Network/` 收敛
 
-- `Service_Manifest_Registration.md` 中仍有价值的 Seller 注册映射 / Gateway 扩展字段，已并入 `docs/agent/03_Service_Manifest_Field_Standard.md`。
-- `API_Billing_Deduction_Protocol.md`、`Credential_and_RateLimit.md`、`买家费率动态计算.md` 已降级为实现补充说明，不再定义 canonical 协议。
+- `Service_Manifest_Registration.md` 中仍有价值的 Provider 注册映射 / Gateway 扩展字段，已并入 `docs/agent/03_Service_Manifest_Field_Standard.md`。
+- `API_Billing_Deduction_Protocol.md`、`Credential_and_RateLimit.md`、`平台费率动态计算.md` 已降级为实现补充说明，不再定义 canonical 协议。
 - `04_Synapse_Network/README.md` 已新增，明确本目录只保留补充说明和历史兼容备注。
 
 ## 5. 当前目录分类规则
@@ -113,7 +113,7 @@
 - `02_Architecture/`
 - `04_Synapse_Network/`
 - `api.md`
-- `Buyer_Error_Codes.md`
+- `Gateway_Error_Codes.md`
 
 ### 数据库
 - `03_Smart_Contract_Payment/`

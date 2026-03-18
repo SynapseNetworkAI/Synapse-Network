@@ -81,7 +81,7 @@ def _process_backfill_event(
     if not event_key or event_key in processed_keys:
         return {"result": "skip"}
 
-    owner_wallet = normalize_wallet(str(event.get("buyer") or ""))
+    owner_wallet = normalize_wallet(str(event.get("ownerAddress") or ""))
     if not owner_wallet:
         return {"result": "skip"}
 

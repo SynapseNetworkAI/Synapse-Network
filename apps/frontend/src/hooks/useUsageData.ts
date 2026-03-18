@@ -39,43 +39,43 @@ export function useUsageData() {
 
   const stats = useMemo(() => {
     if (!userAddress) return {
-      totalBuyerSpent: 0,
-      totalBuyerCalls: 0,
-      totalSellerEarned: 0,
-      totalSellerCalls: 0,
+      totalOwnerSpent: 0,
+      totalOwnerCalls: 0,
+      totalProviderEarned: 0,
+      totalProviderCalls: 0,
       aggregatedList: [] as AggregatedUsage[]
     };
     
-    let totalBuyerSpent = 0;
-    let totalBuyerCalls = 0;
-    let totalSellerEarned = 0;
-    let totalSellerCalls = 0;
+    let totalOwnerSpent = 0;
+    let totalOwnerCalls = 0;
+    let totalProviderEarned = 0;
+    let totalProviderCalls = 0;
     
     const serviceAggMap: Record<string, AggregatedUsage> = {};
 
     const myAddress = userAddress.toLowerCase();
 
     for (const log of logs) {
-      const isBuyer = (log.buyer || "").toLowerCase() === myAddress;
-      const isSeller = (log.seller || "").toLowerCase() === myAddress;
+      const isOwner = (log.ownerAddress || "").toLowerCase() === myAddress;
+      const isProvider = (log.providerAddress || "").toLowerCase() === myAddress;
       
       const sId = log.service_id || "unknown";
       if (!serviceAggMap[sId]) {
         serviceAggMap[sId] = { serviceId: sId, totalCalls: 0, totalSpent: 0, totalEarned: 0, platformFee: 0 };
       }
 
-      if (isBuyer) {
-        totalBuyerCalls++;
+      if (isOwner) {
+        totalOwnerCalls++;
         const spent = log.unit_price || 0;
-        totalBuyerSpent += spent;
+        totalOwnerSpent += spent;
         serviceAggMap[sId].totalCalls++;
         serviceAggMap[sId].totalSpent += spent;
       }
       
-      if (isSeller) {
-        totalSellerCalls++;
-        const earned = log.seller_net || ((log.unit_price || 0) - (log.platform_fee || 0));
-        totalSellerEarned += Math.max(0, earned);
+      if (isProvider) {
+        totalProviderCalls++;
+        const earned = log.provider_net || ((log.unit_price || 0) - (log.platform_fee || 0));
+        totalProviderEarned += Math.max(0, earned);
         serviceAggMap[sId].totalCalls++;
         serviceAggMap[sId].totalEarned += Math.max(0, earned);
         serviceAggMap[sId].platformFee += (log.platform_fee || 0);
@@ -85,10 +85,10 @@ export function useUsageData() {
     const aggregatedList = Object.values(serviceAggMap).sort((a, b) => b.totalCalls - a.totalCalls);
 
     return {
-      totalBuyerSpent,
-      totalBuyerCalls,
-      totalSellerEarned,
-      totalSellerCalls,
+      totalOwnerSpent,
+      totalOwnerCalls,
+      totalProviderEarned,
+      totalProviderCalls,
       aggregatedList
     };
   }, [logs, userAddress]);

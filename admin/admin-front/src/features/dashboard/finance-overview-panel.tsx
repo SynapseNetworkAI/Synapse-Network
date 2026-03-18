@@ -9,8 +9,8 @@ const financeCards = [
   { label: "今日充值", key: "todayDepositUsdc" },
   { label: "今日退款", key: "todayRefundUsdc" },
   { label: "今日提现", key: "todayWithdrawalUsdc" },
-  { label: "买家负债", key: "buyerLiabilityUsdc" },
-  { label: "卖家应付", key: "sellerPayableUsdc" },
+  { label: "Owner 负债", key: "ownerLiabilityUsdc" },
+  { label: "Provider 应付", key: "providerPayableUsdc" },
   { label: "平台手续费余额", key: "platformFeeBalanceUsdc" },
   { label: "Vault 对账差额", key: "vaultLedgerDeltaUsdc" },
 ] as const satisfies Array<{ label: string; key: keyof FinanceOverview }>;

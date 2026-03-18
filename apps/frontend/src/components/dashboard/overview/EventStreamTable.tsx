@@ -1,8 +1,8 @@
 import { Activity } from "lucide-react";
 
 type ServicePaidRow = {
-  buyer: string;
-  seller: string;
+  ownerAddress: string;
+  providerAddress: string;
   serviceId: string;
   amount: number;
   fee: number;
@@ -15,7 +15,7 @@ type EventStreamTableProps = {
   paidEvents: ServicePaidRow[];
 };
 
-export default function EventStreamTable({ paidEvents }: EventStreamTableProps) {
+export default function EventStreamTable({ paidEvents }: Readonly<EventStreamTableProps>) {
   return (
     <>
       <div id="event-stream" className="mt-12 mb-6">
@@ -29,7 +29,7 @@ export default function EventStreamTable({ paidEvents }: EventStreamTableProps) 
             <thead className="text-xs text-gray-400 uppercase bg-gray-900 border-b border-gray-800">
               <tr>
                 <th className="px-6 py-4 font-medium tracking-wider">Service ID</th>
-                <th className="px-6 py-4 font-medium tracking-wider">Buyer</th>
+                <th className="px-6 py-4 font-medium tracking-wider">Owner</th>
                 <th className="px-6 py-4 font-medium tracking-wider text-right">Amount (USDC)</th>
                 <th className="px-6 py-4 font-medium tracking-wider text-right">Fee (USDC)</th>
                 <th className="px-6 py-4 font-medium tracking-wider">Tx Hash</th>
@@ -38,7 +38,7 @@ export default function EventStreamTable({ paidEvents }: EventStreamTableProps) 
             <tbody className="divide-y divide-gray-800/80">
               {paidEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500 bg-gray-900/10">No ServicePaid events found for current seller address.</td>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500 bg-gray-900/10">No ServicePaid events found for the current owner scope.</td>
                 </tr>
               ) : (
                 paidEvents.slice(0, 20).map((event) => (
@@ -49,7 +49,7 @@ export default function EventStreamTable({ paidEvents }: EventStreamTableProps) 
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-block w-40 font-mono text-xs text-gray-500 truncate">{event.buyer}</span>
+                      <span className="inline-block w-40 font-mono text-xs text-gray-500 truncate">{event.ownerAddress}</span>
                     </td>
                     <td className="px-6 py-4 font-mono font-bold text-right text-green-400">+{event.amount.toFixed(4)}</td>
                     <td className="px-6 py-4 font-mono font-bold text-right text-red-400">-{event.fee.toFixed(4)}</td>

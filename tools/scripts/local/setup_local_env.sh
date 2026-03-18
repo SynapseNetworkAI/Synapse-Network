@@ -79,9 +79,9 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 fi
 
 ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore)")
-SELLER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
+PROVIDER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
-echo "3) Starting gateway/seller_fastapi.py in background (local profile)..."
+echo "3) Starting gateway/provider_fastapi.py in background (local profile)..."
 cd "${ROOT_DIR}/gateway"
 
 if [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
@@ -96,13 +96,13 @@ if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
 	"$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/gateway/requirements.txt"
 fi
 
-EXISTING_SELLER_PID="$(find_pid_by_port 8000)"
-if [[ -n "$EXISTING_SELLER_PID" ]]; then
-	echo "Port 8000 already in use by PID ${EXISTING_SELLER_PID}. Stopping stale API process..."
-	kill "$EXISTING_SELLER_PID" >/dev/null 2>&1 || true
+EXISTING_PROVIDER_PID="$(find_pid_by_port 8000)"
+if [[ -n "$EXISTING_PROVIDER_PID" ]]; then
+	echo "Port 8000 already in use by PID ${EXISTING_PROVIDER_PID}. Stopping stale API process..."
+	kill "$EXISTING_PROVIDER_PID" >/dev/null 2>&1 || true
 	sleep 1
-	if kill -0 "$EXISTING_SELLER_PID" >/dev/null 2>&1; then
-		kill -9 "$EXISTING_SELLER_PID" >/dev/null 2>&1 || true
+	if kill -0 "$EXISTING_PROVIDER_PID" >/dev/null 2>&1; then
+		kill -9 "$EXISTING_PROVIDER_PID" >/dev/null 2>&1 || true
 	fi
 fi
 
@@ -118,23 +118,23 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	SELLER_ADDRESS="$SELLER_ADDRESS" \
+	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/gateway/logs/seller_api.log" 2>&1 &
+	"$PYTHON_BIN" provider_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	SELLER_ADDRESS="$SELLER_ADDRESS" \
+	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" seller_fastapi.py > "${ROOT_DIR}/gateway/logs/seller_api.log" 2>&1 &
+	"$PYTHON_BIN" provider_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
 fi
-SELLER_PID=$!
+PROVIDER_PID=$!
 sleep 3
 
-if ! kill -0 "$SELLER_PID" >/dev/null 2>&1; then
-	echo "Error: Seller API failed to start. Check gateway/logs/seller_api.log"
+if ! kill -0 "$PROVIDER_PID" >/dev/null 2>&1; then
+	echo "Error: Provider API failed to start. Check gateway/logs/provider_api.log"
 	if [[ "$ANVIL_OWNED_BY_SCRIPT" -eq 1 ]]; then
 		kill "$ANVIL_PID" >/dev/null 2>&1 || true
 	fi
@@ -162,7 +162,7 @@ else
 
 	if ! kill -0 "$FRONTEND_PID" >/dev/null 2>&1; then
 		echo "Error: Frontend failed to start. Check apps/frontend/frontend_dev.log"
-		kill "$SELLER_PID" >/dev/null 2>&1 || true
+		kill "$PROVIDER_PID" >/dev/null 2>&1 || true
 		if [[ "$ANVIL_OWNED_BY_SCRIPT" -eq 1 ]]; then
 			kill "$ANVIL_PID" >/dev/null 2>&1 || true
 		fi
@@ -173,7 +173,7 @@ fi
 cat > "$PID_FILE" <<EOF
 ANVIL_PID=$ANVIL_PID
 ANVIL_OWNED_BY_SCRIPT=$ANVIL_OWNED_BY_SCRIPT
-SELLER_PID=$SELLER_PID
+PROVIDER_PID=$PROVIDER_PID
 FRONTEND_PID=$FRONTEND_PID
 FRONTEND_OWNED_BY_SCRIPT=$FRONTEND_OWNED_BY_SCRIPT
 EOF
@@ -181,10 +181,10 @@ EOF
 echo ""
 echo "=== Local system running ==="
 echo "Anvil PID    : $ANVIL_PID"
-echo "Seller PID   : $SELLER_PID"
+echo "Provider PID : $PROVIDER_PID"
 echo "Frontend PID : $FRONTEND_PID"
 echo "Router       : $ROUTER_ADDRESS"
-echo "Seller       : $SELLER_ADDRESS"
+echo "Provider     : $PROVIDER_ADDRESS"
 echo "PID file     : $PID_FILE"
 echo "Frontend URL : http://127.0.0.1:3000"
 echo ""

@@ -29,7 +29,7 @@ export default function DashboardSidebar() {
       "/dashboard/overview",
       "/dashboard/billing",
       "/dashboard/usage",
-      "/dashboard/buyer",
+      "/dashboard/agents",
       "/dashboard/console",
       "/dashboard/discover",
       `${providerRoot}/sell`,
@@ -100,10 +100,10 @@ export default function DashboardSidebar() {
           Agent Workspace
         </h3>
         <nav className="flex flex-col gap-0.5">
-          <Link href="/dashboard/buyer" className={getLinkClasses("/dashboard/buyer", false)}>
+          <Link href="/dashboard/agents" className={getLinkClasses("/dashboard/agents", false)}>
             <Users className="w-4 h-4 mr-3 opacity-80" />
             Agents
-            <span className={getBadgeClasses(pathname.startsWith("/dashboard/buyer"))}>3</span>
+            <span className={getBadgeClasses(pathname.startsWith("/dashboard/agents"))}>3</span>
           </Link>
           <Link href="/dashboard/console" className={getLinkClasses("/dashboard/console", false)}>
             <Briefcase className="w-4 h-4 mr-3 opacity-80" />

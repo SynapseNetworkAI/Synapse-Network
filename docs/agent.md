@@ -25,7 +25,7 @@
 3. **Runtime Identity First（以 Agent Runtime 为第一公民）**：买家主钱包只是 Owner 金库；真正参与发现、报价、调用、扣费的是 **Agent Profile + Agent Credential + Budget Policy**。系统不再以“单个 API Key 桶”理解 Runtime，而是以 Agent 身份和预算边界理解 Runtime。
 4. **单一本位币（USDC Native）**：拒绝多币种的记账灾难，系统全局唯一结算货币为合规的 USDC。
 5. **一切围绕 Agent 首次自主付费调用**：服务发现、报价、凭据、SDK、错误码、回调和审计链路，都要围绕“让 Agent 无需人工介入完成第一次付费调用”来收敛。
-6. **公开协议只暴露 Service，不暴露 Seller 结算面**：Agent-facing Discovery / Quote / Invoke 默认只返回 service、price、schema、result，不暴露 `seller_wallet`、分账明细、内部路由和账本主键。
+6. **公开协议只暴露 Service，不暴露 Provider 结算面**：Agent-facing Discovery / Quote / Invoke 默认只返回 service、price、schema、result，不暴露 `provider_wallet`、分账明细、内部路由和账本主键。
 
 ## 🎨 4. 产品与 UI/UX 美学 (Design Philosophy)
 - **产品名称**：Synapse Network（突触网络）

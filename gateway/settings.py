@@ -8,7 +8,7 @@ from src.core.config import settings
 
 # Compatibility aliases (read-only values sourced from centralized settings).
 RPC_URL = settings.rpc_url
-SELLER_ADDRESS = settings.seller_address
+PROVIDER_ADDRESS = settings.provider_address
 EXPECTED_PRICE = settings.expected_price
 ROUTER_ADDRESS = settings.router_address
 MIN_CONFIRMATIONS = settings.min_confirmations

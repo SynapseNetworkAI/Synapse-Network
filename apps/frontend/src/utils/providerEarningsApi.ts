@@ -12,7 +12,7 @@ export type ProviderRecentCall = {
   unitPrice: number;
   protocolFee: number;
   routingTax: number;
-  sellerNet: number;
+  providerNet: number;
   createdAt: number;
 };
 
@@ -22,8 +22,8 @@ export type ProviderEarningsSummary = {
   totalEarned: number;
   totalProtocolFee: number;
   totalRoutingTax: number;
-  sellerNetEarned: number;
-  sellerReceivable: number;
+  providerNetEarned: number;
+  providerReceivable: number;
   duplicateRowsDropped: number;
   idempotencyKey: string;
   recentCalls: ProviderRecentCall[];

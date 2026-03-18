@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useAccount } from "wagmi";
-import { useBuyerData } from "@/hooks/useBuyerData";
+import { useOwnerData } from "@/hooks/useOwnerData";
 import { useAuth } from "@/components/WalletAuthGuard";
 import OverviewHero from "@/components/dashboard/overview/OverviewHero";
 import RolePathCards from "@/components/dashboard/overview/RolePathCards";
@@ -16,10 +16,10 @@ import { RefreshCw, Activity, LayoutGrid, ShieldCheck, Zap } from "lucide-react"
 export default function OverviewPage() {
   const { isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
-  const { stats, logs, handleRefresh, isRefreshing, userAddress } = useBuyerData();
-  const [activeTab, setActiveTab] = useState<"buyer" | "provider">("buyer");
+  const { stats, handleRefresh, isRefreshing, userAddress } = useOwnerData();
+  const [activeTab, setActiveTab] = useState<"agent" | "provider">("agent");
 
-  const currentBalance = isConnected && isSessionAuthenticated ? stats?.buyerBalance || "0.00" : "0.00";
+  const currentBalance = isConnected && isSessionAuthenticated ? stats?.ownerBalance || "0.00" : "0.00";
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#f5f5f7] font-sans selection:bg-white/90 selection:text-black">
@@ -94,14 +94,14 @@ export default function OverviewPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">Workspace Selection</h2>
-              <p className="text-xs text-gray-500 mt-1">Switch between Buyer and Provider operational contexts.</p>
+              <p className="text-xs text-gray-500 mt-1">Switch between Agent and Provider operational contexts.</p>
             </div>
             <div className="flex p-1 rounded-full bg-white/[0.03] border border-white/5">
               <button 
-                onClick={() => setActiveTab("buyer")}
-                className={`px-6 py-1.5 rounded-full text-[11px] font-bold transition-all ${activeTab === "buyer" ? "bg-white text-black shadow-lg" : "text-gray-500 hover:text-gray-300"}`}
+                onClick={() => setActiveTab("agent")}
+                className={`px-6 py-1.5 rounded-full text-[11px] font-bold transition-all ${activeTab === "agent" ? "bg-white text-black shadow-lg" : "text-gray-500 hover:text-gray-300"}`}
               >
-                BUYER
+                AGENT
               </button>
               <button 
                 onClick={() => setActiveTab("provider")}
@@ -170,7 +170,7 @@ export default function OverviewPage() {
             <div className="p-6 rounded-2xl bg-[#0a0a0c] border border-white/5">
               <FeeTransparencyPanel
                 masterBalance={currentBalance}
-                sellerNetTotal={0}
+                providerNetTotal={0}
                 platformFeesTotal={0}
                 platformFeeRatePercent={10}
               />
@@ -195,13 +195,13 @@ export default function OverviewPage() {
               <span className="text-xl font-black tracking-tighter">SYNAPSE</span>
             </div>
             <p className="text-sm text-gray-600 italic leading-relaxed max-w-2xl">
-              "We are not just writing code; we are forging the central bank for silicon-based life. Let's build the M2M Economy!"
+              {`We are not just writing code; we are forging the central bank for silicon-based life. Let's build the M2M Economy!`}
             </p>
             <div className="flex items-center gap-8 text-[10px] font-bold tracking-[0.2em] text-gray-700 uppercase">
-              <a href="#" className="hover:text-gray-400 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-gray-400 transition-colors">Terms</a>
-              <a href="#" className="hover:text-gray-400 transition-colors">Security</a>
-              <a href="#" className="hover:text-gray-400 transition-colors">Status</a>
+              <button type="button" className="hover:text-gray-400 transition-colors">Privacy</button>
+              <button type="button" className="hover:text-gray-400 transition-colors">Terms</button>
+              <button type="button" className="hover:text-gray-400 transition-colors">Security</button>
+              <button type="button" className="hover:text-gray-400 transition-colors">Status</button>
             </div>
           </div>
         </footer>

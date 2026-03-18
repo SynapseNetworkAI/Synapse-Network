@@ -15,8 +15,8 @@ import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
 
 export type ServicePaidRow = {
-  buyer: string;
-  seller: string;
+  ownerAddress: string;
+  providerAddress: string;
   serviceId: string;
   amount: number;
   fee: number;
@@ -106,12 +106,12 @@ export function useDashboardData() {
     }
   }, []);
 
-  const fetchProviderStatsFromBackend = useCallback(async (sellerAddr: string) => {
+  const fetchProviderStatsFromBackend = useCallback(async (providerAddress: string) => {
     try {
-      const summary = await getProviderEarningsSummary(sellerAddr, 500);
+      const summary = await getProviderEarningsSummary(providerAddress, 500);
       const safeRows: ServicePaidRow[] = (summary.recentCalls || []).map((row, index) => ({
-        buyer: "",
-        seller: summary.ownerAddress,
+        ownerAddress: "",
+        providerAddress: summary.ownerAddress,
         serviceId: row.serviceId,
         amount: row.unitPrice,
         fee: row.protocolFee,
@@ -133,8 +133,8 @@ export function useDashboardData() {
         totalEarned: summary.totalEarned,
         totalFees: summary.totalProtocolFee,
         totalRoutingTax: summary.totalRoutingTax,
-        netEarned: summary.sellerNetEarned,
-        receivable: summary.sellerReceivable,
+        netEarned: summary.providerNetEarned,
+        receivable: summary.providerReceivable,
         paidCount24h,
         duplicateRowsDropped: summary.duplicateRowsDropped,
       });

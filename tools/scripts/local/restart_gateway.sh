@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
-LOG_FILE="${ROOT_DIR}/gateway/logs/seller_api.log"
+LOG_FILE="${ROOT_DIR}/gateway/logs/provider_api.log"
 CONFIG_FILE="${ROOT_DIR}/apps/frontend/src/contract-config.json"
 
 find_pid_by_port() {
@@ -50,7 +50,7 @@ else
   PYTHON_BIN="python3"
 fi
 
-echo "=== Restarting gateway/seller_fastapi.py only ==="
+echo "=== Restarting gateway/provider_fastapi.py only ==="
 echo "Using Python interpreter: ${PYTHON_BIN}"
 
 if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
@@ -58,25 +58,25 @@ if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
   "$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/gateway/requirements.txt"
 fi
 
-SELLER_PID_FROM_FILE=""
+PROVIDER_PID_FROM_FILE=""
 if [[ -f "$PID_FILE" ]]; then
   # shellcheck source=/dev/null
   source "$PID_FILE" || true
-  SELLER_PID_FROM_FILE="${SELLER_PID:-}"
+  PROVIDER_PID_FROM_FILE="${PROVIDER_PID:-}"
 fi
 
-EXISTING_SELLER_PID="${SELLER_PID_FROM_FILE}"
-if [[ -z "$EXISTING_SELLER_PID" ]]; then
-  EXISTING_SELLER_PID="$(find_pid_by_port 8000)"
+EXISTING_PROVIDER_PID="${PROVIDER_PID_FROM_FILE}"
+if [[ -z "$EXISTING_PROVIDER_PID" ]]; then
+  EXISTING_PROVIDER_PID="$(find_pid_by_port 8000)"
 fi
 
-if [[ -n "$EXISTING_SELLER_PID" ]]; then
-  echo "Stopping existing gateway process on 8000: PID ${EXISTING_SELLER_PID}"
-  stop_pid "SellerAPI" "$EXISTING_SELLER_PID"
+if [[ -n "$EXISTING_PROVIDER_PID" ]]; then
+  echo "Stopping existing gateway process on 8000: PID ${EXISTING_PROVIDER_PID}"
+  stop_pid "ProviderAPI" "$EXISTING_PROVIDER_PID"
 fi
 
 ROUTER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore || c.A2APaySyncRouter || '')")"
-SELLER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury || '')")"
+PROVIDER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury || '')")"
 
 DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse_gateway"
 LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
@@ -90,39 +90,39 @@ if [[ -f "${ROOT_DIR}/gateway/.env.local" ]]; then
   POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
   RPC_URL="http://127.0.0.1:8545" \
   ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-  SELLER_ADDRESS="$SELLER_ADDRESS" \
+  PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
   EXPECTED_PRICE="1000000000000000000" \
-  "$PYTHON_BIN" seller_fastapi.py > "$LOG_FILE" 2>&1 &
+  "$PYTHON_BIN" provider_fastapi.py > "$LOG_FILE" 2>&1 &
 else
   ENVIRONMENT=local \
   POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
   RPC_URL="http://127.0.0.1:8545" \
   ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-  SELLER_ADDRESS="$SELLER_ADDRESS" \
+  PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
   EXPECTED_PRICE="1000000000000000000" \
-  "$PYTHON_BIN" seller_fastapi.py > "$LOG_FILE" 2>&1 &
+  "$PYTHON_BIN" provider_fastapi.py > "$LOG_FILE" 2>&1 &
 fi
 
-NEW_SELLER_PID=$!
+NEW_PROVIDER_PID=$!
 sleep 3
 
-if ! kill -0 "$NEW_SELLER_PID" >/dev/null 2>&1; then
+if ! kill -0 "$NEW_PROVIDER_PID" >/dev/null 2>&1; then
   echo "Error: gateway failed to start. Check ${LOG_FILE}"
   exit 1
 fi
 
 if [[ -f "$PID_FILE" ]]; then
-  grep -v '^SELLER_PID=' "$PID_FILE" > "${PID_FILE}.tmp" || true
-  echo "SELLER_PID=${NEW_SELLER_PID}" >> "${PID_FILE}.tmp"
+  grep -v '^PROVIDER_PID=' "$PID_FILE" > "${PID_FILE}.tmp" || true
+  echo "PROVIDER_PID=${NEW_PROVIDER_PID}" >> "${PID_FILE}.tmp"
   mv "${PID_FILE}.tmp" "$PID_FILE"
 else
   cat > "$PID_FILE" <<EOF
-SELLER_PID=${NEW_SELLER_PID}
+PROVIDER_PID=${NEW_PROVIDER_PID}
 EOF
 fi
 
 echo "Gateway restarted successfully"
-echo "Gateway PID  : ${NEW_SELLER_PID}"
+echo "Gateway PID  : ${NEW_PROVIDER_PID}"
 echo "PID file     : ${PID_FILE}"
 echo "Health check : http://127.0.0.1:8000/health"
 echo "Log file     : ${LOG_FILE}"

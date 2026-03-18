@@ -54,8 +54,8 @@ export type FinanceOverview = {
   todayDepositUsdc: string;
   todayRefundUsdc: string;
   todayWithdrawalUsdc: string;
-  buyerLiabilityUsdc: string;
-  sellerPayableUsdc: string;
+  ownerLiabilityUsdc: string;
+  providerPayableUsdc: string;
   platformFeeBalanceUsdc: string;
   vaultLedgerDeltaUsdc: string;
   pendingDepositCount: number;

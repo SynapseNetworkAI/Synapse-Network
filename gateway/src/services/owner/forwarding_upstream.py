@@ -12,7 +12,7 @@ from src.core.config import settings
 from src.domain.execution import InvocationRecord, InvocationResultRecord
 from src.domain.service_contract import ServiceDefinitionRecord, ServiceInvokeConfigRecord
 from src.services.platform import service_health_service
-from src.services.buyer.forwarding_validation import (
+from src.services.owner.forwarding_validation import (
     effective_service_constraints,
     validate_invoke_request_contract,
 )
@@ -107,7 +107,7 @@ async def call_upstream(
     invocation: InvocationRecord,
     request_payload: dict[str, Any],
 ) -> InvocationResultRecord:
-    """Forward validated payload to seller upstream and enforce request/response size guards."""
+    """Forward validated payload to provider upstream and enforce request/response size guards."""
     constraints = effective_service_constraints(service)
     validate_invoke_request_contract(service, request_payload)
     request_bytes = len(json.dumps(request_payload, ensure_ascii=False).encode("utf-8"))

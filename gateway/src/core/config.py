@@ -380,9 +380,9 @@ class Settings:
     )
 
     # Global platform fee rate for gateway billing split, range [0.0, 1.0].
-    # Example: 0.10 means 10% platform fee and 90% seller net.
+    # Example: 0.10 means 10% platform fee and 90% provider net.
     platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.10)
-    # Fixed per-request routing fee charged to buyer, in USDC.
+    # Fixed per-request routing fee charged to the consumer, in USDC.
     # Example: 0.0001 adds $0.0001 to every gateway generate call.
     gateway_routing_tax: float = max(0.0, _env_float("GATEWAY_ROUTING_TAX", 0.0001))
     # Optional admin wallet allow-list for fee-policy management endpoints.
@@ -413,9 +413,9 @@ class Settings:
     # Timeout (seconds) for DeepSeek parse-curl requests.
     deepseek_timeout_s: float = _env_float("DEEPSEEK_TIMEOUT_S", 30.0)
 
-    # Legacy payment fallback seller wallet (for compatibility-only flows).
-    seller_address: str = os.getenv(
-        "SELLER_ADDRESS", "0x0000000000000000000000000000000000000000"
+    # Legacy payment fallback provider wallet.
+    provider_address: str = os.getenv(
+        "PROVIDER_ADDRESS", "0x0000000000000000000000000000000000000000"
     )
     # Legacy payment fallback expected price in wei.
     expected_price: int = _env_int("EXPECTED_PRICE", 1000000000000000000)
@@ -481,7 +481,7 @@ class Settings:
         "REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE", False
     )
 
-    # Platform hard caps for seller-registered forwarding constraints.
+    # Platform hard caps for provider-registered forwarding constraints.
     # These guardrails prevent a single service manifest from exhausting gateway resources.
     gateway_min_timeout_ms: int = _env_int("GATEWAY_MIN_TIMEOUT_MS", 300)
     gateway_max_timeout_ms: int = _env_int("GATEWAY_MAX_TIMEOUT_MS", 15000)
@@ -509,14 +509,14 @@ class Settings:
         0.0, _env_float("WITHDRAWAL_AUTO_24H_LIMIT_USDC", 500.0)
     )
     withdrawal_window_hours: int = max(1, _env_int("WITHDRAWAL_WINDOW_HOURS", 24))
-    # Comma-separated seller addresses always treated as high risk.
-    withdrawal_high_risk_seller_addresses: set[str] = {
+    # Comma-separated provider addresses always treated as high risk.
+    withdrawal_high_risk_provider_addresses: set[str] = {
         addr.strip().lower()
-        for addr in os.getenv("WITHDRAWAL_HIGH_RISK_SELLER_ADDRESSES", "").split(",")
+        for addr in os.getenv("WITHDRAWAL_HIGH_RISK_PROVIDER_ADDRESSES", "").split(",")
         if addr.strip()
     }
 
-    # Service health monitor controls for seller upstream availability checks.
+    # Service health monitor controls for provider upstream availability checks.
     service_health_monitor_enabled: bool = _env_bool(
         "SERVICE_HEALTH_MONITOR_ENABLED", True
     )
@@ -549,10 +549,10 @@ class Settings:
     host: str = os.getenv("HOST", "0.0.0.1")
     # Server bind port for the main app process.
     port: int = _env_int("PORT", 5000)
-    # Dedicated host for gateway/seller_fastapi.py launcher compatibility.
-    seller_api_host: str = os.getenv("SELLER_API_HOST", "127.0.0.1")
-    # Dedicated port for gateway/seller_fastapi.py launcher compatibility.
-    seller_api_port: int = _env_int("SELLER_API_PORT", 8000)
+    # Dedicated host for gateway/provider_fastapi.py launcher compatibility.
+    provider_api_host: str = os.getenv("PROVIDER_API_HOST", "127.0.0.1")
+    # Dedicated port for gateway/provider_fastapi.py launcher compatibility.
+    provider_api_port: int = _env_int("PROVIDER_API_PORT", 8000)
 
     # Runtime JSON path: service registry.
     service_registry_path: str = os.getenv(
@@ -562,13 +562,13 @@ class Settings:
     agent_registry_path: str = os.getenv(
         "AGENT_REGISTRY_PATH", _runtime_path("agent_registry.json")
     )
-    # Runtime JSON path: buyer credential records.
+    # Runtime JSON path: agent credential records.
     agent_credentials_path: str = os.getenv(
         "AGENT_CREDENTIALS_PATH", _runtime_path("agent_credentials.json")
     )
     # Runtime JSONL path: audit events.
     audit_log_path: str = os.getenv("AUDIT_LOG_PATH", _runtime_path("audit_log.jsonl"))
-    # Runtime JSON path: buyer/seller/platform balances.
+    # Runtime JSON path: consumer/provider/platform balances.
     balance_ledger_path: str = os.getenv(
         "BALANCE_LEDGER_PATH", _runtime_path("balance_ledger.json")
     )
@@ -602,7 +602,7 @@ class Settings:
     # Standardized payment-layer error metadata.
     error_responses: dict[int, dict[str, str]] = {
         402: {"description": "Payment required or invalid payment proof"},
-        403: {"description": "Payment does not match seller/service policy"},
+        403: {"description": "Payment does not match provider/service policy"},
         408: {"description": "Payment confirmation timed out"},
         409: {"description": "Replay detected"},
         422: {"description": "Required serviceId missing"},

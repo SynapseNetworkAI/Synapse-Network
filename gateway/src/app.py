@@ -10,8 +10,8 @@ from src.api.routers import (
     auth,
     services,
     balance,
-    buyer_credentials,
-    seller_secrets,
+    agent_credentials,
+    provider_secrets,
     forwarding,
 )
 from src.storage import create_storage
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
         run_v2_deposit_indexer(app.state.v2_indexer_stop_event, app.state.storage)
     )
 
-    # Service health monitor keeps seller target liveness fresh for discover and routing.
+    # Service health monitor keeps provider targets fresh for discover and routing.
     app.state.service_health_stop_event = asyncio.Event()
     app.state.service_health_task = None
     if settings.service_health_monitor_enabled:
@@ -91,9 +91,9 @@ def create_app() -> FastAPI:
     app.include_router(services.router, prefix="/api", tags=["services"])
     app.include_router(balance.router, prefix="/api", tags=["balance"])
     app.include_router(
-        buyer_credentials.router, prefix="/api", tags=["buyer-credentials"]
+        agent_credentials.router, prefix="/api", tags=["agent-credentials"]
     )
-    app.include_router(seller_secrets.router, prefix="/api", tags=["seller-secrets"])
+    app.include_router(provider_secrets.router, prefix="/api", tags=["provider-secrets"])
     app.include_router(forwarding.router, prefix="/api", tags=["forwarding"])
 
     @app.get("/health")

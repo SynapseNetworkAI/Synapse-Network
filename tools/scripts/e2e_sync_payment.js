@@ -12,22 +12,22 @@ async function main() {
   const routerAbi = JSON.parse(fs.readFileSync(routerAbiPath, "utf8"));
   const usdcAbi = JSON.parse(fs.readFileSync(usdcAbiPath, "utf8"));
 
-  const [deployer, buyer] = await hre.ethers.getSigners();
+  const [deployer, payer] = await hre.ethers.getSigners();
 
   const usdc = new hre.ethers.Contract(config.MockUSDC, usdcAbi, deployer);
-  const router = new hre.ethers.Contract(config.SynapseCore, routerAbi, buyer);
+  const router = new hre.ethers.Contract(config.SynapseCore, routerAbi, payer);
 
   const amount = hre.ethers.parseUnits("1", 18);
   const serviceId = "V1_DEMO";
 
-  await (await usdc.mint(buyer.address, amount)).wait();
-  await (await usdc.connect(buyer).approve(config.SynapseCore, amount)).wait();
+  await (await usdc.mint(payer.address, amount)).wait();
+  await (await usdc.connect(payer).approve(config.SynapseCore, amount)).wait();
 
   const tx = await router.payForService(config.MockUSDC, config.Treasury, amount, serviceId);
   const receipt = await tx.wait();
 
-  console.log(`BUYER=${buyer.address}`);
-  console.log(`SELLER=${config.Treasury}`);
+  console.log(`PAYER=${payer.address}`);
+  console.log(`PROVIDER=${config.Treasury}`);
   console.log(`SERVICE_ID=${serviceId}`);
   console.log(`AMOUNT_WEI=${amount.toString()}`);
   console.log(`TX_HASH=${receipt.hash}`);

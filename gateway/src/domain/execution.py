@@ -133,10 +133,6 @@ class WithdrawalAtomicRequestCommand:
     high_risk_override: bool
     sign_ticket_factory: Optional[Callable[[Decimal], PreparedWithdrawTicket]] = None
 
-    @property
-    def seller_address(self) -> str:
-        return self.provider_address
-
 
 @dataclass(frozen=True)
 class CompleteWithdrawTxCommand:

@@ -74,7 +74,7 @@ export default function UsageAnalyticsPage() {
         <div>
           <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
             <BarChart3 className="w-8 h-8 text-[#22c55e]" />
-            Seller Revenue Analytics
+            Provider Revenue Analytics
           </h1>
           <p className="mt-2 text-sm text-[#86868b]">
             Revenue and call trends from deduplicated settlement records.
@@ -174,7 +174,7 @@ export default function UsageAnalyticsPage() {
               ) : (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-[#86868b]">
-                    No seller revenue metrics available yet.
+                    No provider revenue metrics available yet.
                   </td>
                 </tr>
               )}

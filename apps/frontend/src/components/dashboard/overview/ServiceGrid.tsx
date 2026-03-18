@@ -18,7 +18,7 @@ type ServiceGridProps = {
   masterAddress?: string;
 };
 
-export default function ServiceGrid({ services, serviceBalances, onFundService, onSweepService, masterAddress }: ServiceGridProps) {
+export default function ServiceGrid({ services, serviceBalances, onFundService, onSweepService, masterAddress }: Readonly<ServiceGridProps>) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {services.map((service) => (
@@ -55,7 +55,7 @@ export default function ServiceGrid({ services, serviceBalances, onFundService, 
 
           <div className="mb-6 space-y-4">
             <div>
-              <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Seller Wallet Address</span>
+              <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Provider Wallet Address</span>
               <div className="px-3 py-2 mt-1 font-mono text-sm text-gray-300 truncate border rounded select-all bg-gray-900/50 border-gray-800/50">
                 {masterAddress}
               </div>
@@ -92,7 +92,7 @@ export default function ServiceGrid({ services, serviceBalances, onFundService, 
 
           <div className="mt-4">
             <PaidInvokePanel
-              sellerAddress={masterAddress || ""}
+              providerAddress={masterAddress || ""}
               endpoint={service.endpoint}
               serviceId={service.serviceId}
               pricing={service.pricing}

@@ -15,7 +15,7 @@ provider_write_lock = asyncio.Lock()
 
 
 def load_provider_secret_rows(storage: BaseStorage) -> List[RuntimeCredentialRecord]:
-    return credential_service.load_runtime_credentials(storage, "seller")
+    return credential_service.load_runtime_credentials(storage, "provider")
 
 
 def save_provider_secret_rows(
@@ -33,7 +33,7 @@ def save_provider_secret_rows(
                 ),
                 "agent": row.agent.model_copy(
                     update={
-                        "runtime_label": "seller",
+                        "runtime_label": "provider",
                         "created_at": to_dt_str(row.agent.created_at, now_dt_str()),
                         "updated_at": to_dt_str(row.agent.updated_at, now_dt_str()),
                     }
@@ -57,7 +57,7 @@ def save_provider_secret_rows(
                 "metadata": (
                     row.metadata.model_copy(
                         update={
-                            "credential_type": "seller",
+                            "credential_type": "provider",
                             "owner_address": normalize_wallet(row.owner.owner_wallet),
                             "created_at": to_dt_str(row.metadata.created_at, now_dt_str()),
                             "updated_at": to_dt_str(row.metadata.updated_at, now_dt_str()),
@@ -70,7 +70,7 @@ def save_provider_secret_rows(
         )
         for row in rows
     ]
-    credential_service.save_runtime_credentials(storage, "seller", normalized_rows)
+    credential_service.save_runtime_credentials(storage, "provider", normalized_rows)
 
 
 def list_provider_secrets_by_owner(
@@ -123,7 +123,7 @@ async def issue_provider_secret_for_owner(
     plain_token = credential_service.issue_token()
     record = credential_service.build_runtime_credential_record(
         credential_service.CredentialRuntimeSeed(
-            credential_type="seller",
+            credential_type="provider",
             owner_wallet=owner_wallet,
             credential_id=str(uuid4()),
             display_name=(req.name or "Provider Secret Key").strip(),
@@ -151,7 +151,7 @@ async def issue_provider_secret_for_owner(
     response_payload = credential_service._build_credential_response(record)
     credential_service.append_audit_log(
         storage,
-        "SELLER_SECRET_ISSUED",
+        "PROVIDER_SECRET_ISSUED",
         owner_wallet,
         {
             "secretId": record.credential.credential_id,
@@ -214,14 +214,6 @@ async def revoke_provider_secret_for_owner(
         save_provider_secret_rows(storage, rows)
 
     credential_service.append_audit_log(
-        storage, "SELLER_SECRET_REVOKED", owner_wallet, {"secretId": secret_id}
+        storage, "PROVIDER_SECRET_REVOKED", owner_wallet, {"secretId": secret_id}
     )
     return {"status": "success", "message": "Deleted"}
-
-
-seller_write_lock = provider_write_lock
-load_seller_secret_rows = load_provider_secret_rows
-save_seller_secret_rows = save_provider_secret_rows
-list_seller_secrets_by_owner = list_provider_secrets_by_owner
-issue_seller_secret_for_owner = issue_provider_secret_for_owner
-revoke_seller_secret_for_owner = revoke_provider_secret_for_owner

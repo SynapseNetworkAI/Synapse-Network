@@ -28,25 +28,25 @@
 - `status`
 - `default_currency`
 
-### `synapse_seller_profiles`
+### `synapse_provider_profiles`
 
-用途：卖家主体，仅供平台内部治理、结算和服务归属使用。
+用途：Provider 主体，仅供平台内部治理、结算和服务归属使用。
 
 关键字段：
 
-- `seller_id`
+- `provider_id`
 - `owner_wallet`
 - `display_name`
 - `status`
 
-### `synapse_payout_accounts`
+### `synapse_provider_payout_accounts`
 
-用途：卖家结算账户，不暴露给 Agent。
+用途：Provider 结算账户，不暴露给 Agent。
 
 关键字段：
 
 - `payout_account_id`
-- `seller_id`
+- `provider_id`
 - `payout_address`
 - `chain_id`
 - `settlement_currency`
@@ -105,7 +105,7 @@
 关键字段：
 
 - `service_id`
-- `seller_id`
+- `provider_id`
 - `service_name`
 - `manifest_version`
 - `status`
@@ -228,7 +228,7 @@
 账户类型建议：
 
 - `owner_vault`
-- `seller_receivable`
+- `provider_receivable`
 - `platform_revenue`
 - `budget_hold`
 
@@ -310,11 +310,11 @@
 新模型强制分层：
 
 - Agent-facing：`service_id`、Manifest、Quote、Invocation、Credential 最小视图
-- Platform-internal：`seller_wallet`、`payout_account_id`、分账比例、路由节点、内部账本键
+- Platform-internal：`provider_wallet`、`payout_account_id`、分账比例、路由节点、内部账本键
 
 公开协议不应默认返回：
 
-- 卖家钱包地址
+- Provider 钱包地址
 - 平台拆账明细
 - 内部账本流水主键
 - 内部风控命中规则细节

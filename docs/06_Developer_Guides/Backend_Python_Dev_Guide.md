@@ -38,7 +38,7 @@ sh scripts/local/setup_local_env.sh
 
 ```bash
 cd gateway
-python3 seller_fastapi.py
+python3 provider_fastapi.py
 ```
 
 说明：当前入口文件名仍是历史实现名，但业务角色语义已经是 Platform Gateway，不应再把这个文件名理解为产品角色定义。

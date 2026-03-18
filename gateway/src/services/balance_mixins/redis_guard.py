@@ -421,7 +421,7 @@ class BalanceRedisGuardMixin:
         replay_window = max(60, int(settings.finance_replay_window_sec))
         for row in rows:
             row_owner = normalize_wallet(
-                str(row.get("ownerAddress") or row.get("buyerAddress") or "")
+                str(row.get("ownerAddress") or "")
             )
             if row_owner != owner:
                 continue

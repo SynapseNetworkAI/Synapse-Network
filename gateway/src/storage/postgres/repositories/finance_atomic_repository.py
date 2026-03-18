@@ -19,8 +19,8 @@ from src.domain.execution import (
 )
 from src.domain.finance import (
     BalanceMutationResult,
-    BuyerChargeResult,
     ChargeConsumerUsageCommand,
+    ConsumerChargeResult,
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
@@ -477,9 +477,9 @@ class FinanceAtomicRepository:
         self, cur: Any, owner: str, provider: str, now: int
     ) -> None:
         if self._is_account_restricted_for_charge(cur, owner, "consumer", now):
-            raise RuntimeError("BUYER_RESTRICTED_RISK_BLOCK")
+            raise RuntimeError("CONSUMER_RESTRICTED_RISK_BLOCK")
         if self._is_account_restricted_for_charge(cur, provider, "provider", now):
-            raise RuntimeError("SELLER_RESTRICTED_RISK_BLOCK")
+            raise RuntimeError("PROVIDER_RESTRICTED_RISK_BLOCK")
 
     def _build_charge_usage_row(
         self,
@@ -602,7 +602,7 @@ class FinanceAtomicRepository:
             ownerAddress=str(hit[1]),
             txHash=str(hit[2]),
             requestId=hit[3],
-            consumerAddress=meta.buyer_address,
+            consumerAddress=meta.consumer_address,
             amountUsdc=self._q6(hit[4]),
             idempotencyKey=meta.idempotency_key,
             status=str(hit[5]),
@@ -720,7 +720,7 @@ class FinanceAtomicRepository:
         historical_net_income = self._q6((cur.fetchone() or [0])[0])
 
         cur.execute(
-            "SELECT 1 FROM synapse_seller_risk_flags WHERE owner_address = %s AND is_high_risk = TRUE LIMIT 1",
+            "SELECT 1 FROM synapse_provider_risk_flags WHERE owner_address = %s AND is_high_risk = TRUE LIMIT 1",
             (owner,),
         )
         high_risk_from_db = cur.fetchone() is not None
@@ -762,7 +762,7 @@ class FinanceAtomicRepository:
         if amount > historical_net_income:
             return "WITHDRAW_EXCEEDS_HISTORICAL_NET_INCOME"
         if is_high_risk:
-            return "HIGH_RISK_SELLER_TAGGED"
+            return "HIGH_RISK_PROVIDER_TAGGED"
         return None
 
     def process_withdrawal_request_atomic(
@@ -1031,7 +1031,7 @@ class FinanceAtomicRepository:
                     ownerAddress=str(hit[1]),
                     txHash=str(hit[2]),
                     requestId=hit[3],
-                    consumerAddress=meta.buyer_address,
+                    consumerAddress=meta.consumer_address,
                     amountUsdc=self._q6(hit[4]),
                     idempotencyKey=meta.idempotency_key,
                     status=str(hit[5]),
@@ -1062,7 +1062,7 @@ class FinanceAtomicRepository:
                         )
                         self._append_withdrawal_audit(
                             cur,
-                            action="BUYER_DEPOSIT_CONFIRMED_REPAIRED",
+                            action="CONSUMER_DEPOSIT_CONFIRMED_REPAIRED",
                             business_type="deposit",
                             owner=owner,
                             request_id=row.request_id or command.event_key,
@@ -1110,7 +1110,7 @@ class FinanceAtomicRepository:
 
                 self._append_withdrawal_audit(
                     cur,
-                    action="BUYER_DEPOSIT_CONFIRMED",
+                    action="CONSUMER_DEPOSIT_CONFIRMED",
                     business_type="deposit",
                     owner=owner,
                     request_id=row.request_id or command.event_key,
@@ -1137,7 +1137,7 @@ class FinanceAtomicRepository:
     def charge_consumer_and_record_usage_atomic(
         self,
         command: ChargeConsumerUsageCommand,
-    ) -> BuyerChargeResult:
+    ) -> ConsumerChargeResult:
         now = int(time.time())
         now_text = to_dt_str(now, now_dt_str())
         owner = str(command.owner_wallet or "").strip().lower()
@@ -1194,7 +1194,7 @@ class FinanceAtomicRepository:
                 self._append_finance_audit_row(
                     cur,
                     AuditLogRow(
-                        actionType="BUYER_CHARGE_ATOMIC",
+                        actionType="CONSUMER_CHARGE_ATOMIC",
                         businessType="charge",
                         riskLevel="green",
                         ownerAddress=owner,
@@ -1209,15 +1209,9 @@ class FinanceAtomicRepository:
                 )
 
             conn.commit()
-        return BuyerChargeResult(
+        return ConsumerChargeResult(
             consumerAvailableBalanceAfter=float(consumer_after)
         )
-
-    def charge_buyer_and_record_usage_atomic(
-        self,
-        command: ChargeConsumerUsageCommand,
-    ) -> BuyerChargeResult:
-        return self.charge_consumer_and_record_usage_atomic(command)
 
     def reserve_provider_withdraw_atomic(
         self, command: ReserveProviderWithdrawCommand
@@ -1251,10 +1245,6 @@ class FinanceAtomicRepository:
             beforeBalance=float(before_available), afterBalance=float(after_available)
         )
 
-    def reserve_seller_withdraw_atomic(
-        self, command: ReserveProviderWithdrawCommand
-    ) -> BalanceMutationResult:
-        return self.reserve_provider_withdraw_atomic(command)
 
     def complete_withdraw_tx_atomic(
         self, command: CompleteWithdrawTxCommand

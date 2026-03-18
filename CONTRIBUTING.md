@@ -22,7 +22,7 @@ When you modify backend files under `gateway/src/` or `provider_service/app/`:
 Suggested command examples:
 
 ```bash
-# Seller API
+# Provider API
 python -m pytest -q gateway/tests
 
 # Provider service

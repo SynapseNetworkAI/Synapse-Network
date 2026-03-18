@@ -44,7 +44,7 @@ Credential 不是通行证，而是带预算和风控边界的运行时支付身
 
 说明：
 
-- `owner_wallet` 是平台控制面和审计面需要的绑定信息，不是 Seller 或其他外部服务需要知道的字段。
+- `owner_wallet` 是平台控制面和审计面需要的绑定信息，不是 Provider 或其他外部服务需要知道的字段。
 - 对外发给 Agent SDK 的 credential 载荷，应保持最小披露。
 
 ### 2.3 BudgetPolicy
@@ -106,7 +106,7 @@ Gateway 每次调用必须按这个顺序检查：
 - `daily_limit_hit`
 - `rate_limit_hit`
 - `scope_denied`
-- `seller_timeout_spike`
+- `provider_timeout_spike`
 - `invoke_failure_spike`
 
 这些事件要同时服务三类消费者：

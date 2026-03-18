@@ -58,7 +58,7 @@ export default function AnalyticsCards({
             <ActivitySquare className="w-5 h-5 text-blue-400" />
           </div>
           <div className="mb-1 text-2xl font-bold text-blue-400">{paidCount24h}</div>
-          <p className="text-xs text-gray-500">Seller = connected wallet</p>
+          <p className="text-xs text-gray-500">Provider workspace = connected wallet</p>
         </div>
       </div>
     </>

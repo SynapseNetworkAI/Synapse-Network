@@ -26,7 +26,7 @@ def as_int(raw: Any, fallback: int) -> int:
 
 
 def effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceConstraintRecord:
-    """Clamp seller constraints into platform-safe runtime boundaries."""
+    """Clamp provider constraints into platform-safe runtime boundaries."""
     timeout_ms = as_int(service.constraints.timeout_ms, settings.gateway_default_timeout_ms)
     max_request_bytes = as_int(
         service.constraints.max_request_bytes, settings.gateway_default_request_bytes
@@ -138,7 +138,7 @@ def validate_service_id(
 
 
 def validate_prompt(prompt: str) -> str:
-    """Validate buyer prompt for non-empty content and platform max length."""
+    """Validate owner prompt for non-empty content and platform max length."""
     raw = str(prompt or "")
     if not raw.strip():
         raise HTTPException(
@@ -161,7 +161,7 @@ def validate_prompt(prompt: str) -> str:
 
 
 def validate_credential_token(credential_token: Optional[str]) -> str:
-    """Validate buyer credential token format before credential lookup."""
+    """Validate agent credential token format before credential lookup."""
     token = str(credential_token or "").strip()
     if not token:
         raise HTTPException(

@@ -5,11 +5,11 @@ import SynapseCoreABI from "@/SynapseCoreABI.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 
 export type PayForServiceInput = {
-  seller: Address;
+  provider: Address;
   serviceId: string;
   priceUsdc: string;
   token?: Address;
-  buyer?: Address;
+  owner?: Address;
   rpcUrl?: string;
   decimals?: number;
 };
@@ -26,18 +26,18 @@ const normalizeAddress = (value: string): Address => value as Address;
 
 export async function payForServiceWithApproval(input: PayForServiceInput): Promise<Hash> {
   const {
-    seller,
+    provider,
     serviceId,
     priceUsdc,
     token = normalizeAddress(contractConfig.MockUSDC),
-    buyer,
+    owner,
     rpcUrl = "http://127.0.0.1:8545",
     decimals = 18,
   } = input;
 
   const transport = ensureWalletTransport();
   const walletClient = createWalletClient({ transport });
-  const [walletAddress] = buyer ? [buyer] : await walletClient.getAddresses();
+  const [walletAddress] = owner ? [owner] : await walletClient.getAddresses();
 
   if (!walletAddress) {
     throw new Error("No wallet account available. Please connect wallet first.");
@@ -75,7 +75,7 @@ export async function payForServiceWithApproval(input: PayForServiceInput): Prom
     address: routerAddress,
     abi: SynapseCoreABI,
     functionName: "payForService",
-    args: [token, seller, amount, serviceId],
+    args: [token, provider, amount, serviceId],
     chain: { id: chainId, name: `chain-${chainId}`, nativeCurrency: { name: "Native", symbol: "NATIVE", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } },
   });
 

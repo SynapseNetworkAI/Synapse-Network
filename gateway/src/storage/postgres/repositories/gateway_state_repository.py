@@ -119,8 +119,8 @@ class GatewayStateRepository:
             ts=self._epoch_seconds(created_at),
             requestId=str(metadata.request_id or idempotency_key or ""),
             serviceId=service_id,
-            buyerAddress=metadata.owner_address,
-            sellerAddress=metadata.provider_address,
+            consumerAddress=metadata.owner_address,
+            providerAddress=metadata.provider_address,
             status=str(status or "pending").lower(),
             unitPrice=self._q6(metadata.unit_price)
             if metadata.unit_price is not None
@@ -147,8 +147,8 @@ class GatewayStateRepository:
     ) -> InvocationBillingState:
         return InvocationBillingState(
             requestId=row.request_id,
-            ownerAddress=row.buyer_address.lower() if row.buyer_address else "",
-            providerAddress=row.seller_address.lower() if row.seller_address else "",
+            ownerAddress=row.consumer_address.lower() if row.consumer_address else "",
+            providerAddress=row.provider_address.lower() if row.provider_address else "",
             unitPrice=self._billing_amount_or_zero(row.unit_price),
             protocolFee=self._billing_amount_or_zero(row.protocol_fee),
             routingTax=self._billing_amount_or_zero(row.routing_tax),
@@ -264,9 +264,9 @@ class GatewayStateRepository:
                 ownerAddress=str(owner),
                 txHash=str(tx_hash),
                 requestId=request_id,
-                buyerAddress=DepositMetadataState.model_validate(
+                consumerAddress=DepositMetadataState.model_validate(
                     self._payload_dict(meta_payload)
-                ).buyer_address,
+                ).consumer_address,
                 amountUsdc=self._q6(amount_usdc),
                 idempotencyKey=DepositMetadataState.model_validate(
                     self._payload_dict(meta_payload)
@@ -333,8 +333,8 @@ class GatewayStateRepository:
                     cur,
                     self._deposit_state_key(entity.id),
                     DepositMetadataState(
-                        buyerAddress=entity.buyer_address.lower()
-                        if entity.buyer_address
+                        consumerAddress=entity.consumer_address.lower()
+                        if entity.consumer_address
                         else None,
                         idempotencyKey=entity.idempotency_key,
                     ).model_dump(by_alias=True, mode="json"),
@@ -395,7 +395,7 @@ class GatewayStateRepository:
                     txHash=tx_hash,
                     status=str(metadata.flow_status or status or "pending"),
                     requestId=str(request_id or metadata.request_id or ""),
-                    buyerAddress=str(metadata.consumer_address or owner or ""),
+                    consumerAddress=str(metadata.consumer_address or owner or ""),
                     amountUsdc=self._q6(amount_usdc),
                     idempotencyKey=metadata.idempotency_key,
                     reason=metadata.reason,
@@ -430,7 +430,7 @@ class GatewayStateRepository:
             for row in rows:
                 row_updated_at = to_dt_str(row.updated_at or updated_at, now_dt_str())
                 consumer_wallet = str(
-                    row.buyer_address or row.owner_address or ""
+                    row.consumer_address or row.owner_address or ""
                 ).lower()
                 source_account_id = self._ensure_ledger_account(
                     cur,

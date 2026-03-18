@@ -20,7 +20,7 @@ build-for-agent 口径下，充值链路要先分清三个对象：
 2. **Vault**：链上 Dumb Vault，只负责收钱和出金，不负责 Runtime 预算控制。
 3. **Agent Runtime**：后续发现服务、拉 quote、发 invocation、消耗预算的执行主体。
 
-所以这条充值链路的真正含义不是“某个 Buyer 给自己充钱”，而是：
+所以这条充值链路的真正含义不是“某个运行时身份给自己单独充钱”，而是：
 
 1. Owner 把 USDC 充值进链上 Vault。
 2. 前端把这笔链上交易登记成平台侧 deposit intent。
@@ -37,7 +37,7 @@ build-for-agent 口径下，充值链路要先分清三个对象：
 - 前端充值入口：`apps/frontend/src/app/dashboard/console/page.tsx`
 - 前端 API 封装：`apps/frontend/src/utils/balanceApi.ts`
 - 网关充值路由：`gateway/src/api/routers/balance.py`
-- 充值业务编排：`gateway/src/services/buyer/finance_service.py`
+- 充值业务编排：`gateway/src/services/owner/finance_service.py`
 - PostgreSQL 原子记账：`gateway/src/storage/postgres/repositories/finance_atomic_repository.py`
 - 充值索引推进：`gateway/src/services/platform/tasks/deposit_indexer/processing.py`
 - 对账告警：`gateway/src/services/platform/tasks/deposit_indexer/reconciliation.py`
@@ -45,9 +45,9 @@ build-for-agent 口径下，充值链路要先分清三个对象：
 
 注意：
 
-1. 当前代码路径里仍有 `buyer` 命名，这是历史遗留。
-2. 当前表字段里仍有 `buyer_address`、`account_type = buyer`、`BUYER_DEPOSIT_CONFIRMED` 这类历史名字。
-3. 这些名字不改变 build-for-agent 语义：**它们现在都应理解为 Owner 资金池入金链路的历史字段名，而不是产品对象模型里的 canonical 命名。**
+1. 当前仓库仍保留少量历史兼容别名，用于平滑读取旧数据与旧事件。
+2. 这些兼容别名不改变 build-for-agent 语义：**它们都应理解为 Owner 资金池入金链路的历史兼容层，而不是产品对象模型里的 canonical 命名。**
+3. 新增代码与文档必须统一使用 `Owner / Agent / Provider / Vault` 口径。
 
 ## 3. 一句话总览
 
@@ -95,28 +95,18 @@ sequenceDiagram
     I->>DB: 更新 synapse_deposit_intents.status=CONFIRMED
     I->>DB: synapse_balances.pending_balance -= amount
     I->>DB: synapse_balances.available_balance += amount
-    I->>DB: 写 synapse_audit_log(action=BUYER_DEPOSIT_CONFIRMED)
+    I->>DB: 写 synapse_audit_log(action=OWNER_DEPOSIT_CONFIRMED)
     I->>DB: 写 synapse_audit_log(action=V2_DEPOSIT_CONFIRMED)
     F->>G: GET /balance
     G-->>F: Owner platform balance 已增加
 ```
 
-## 5. 历史字段名与当前语义映射
+## 5. 兼容别名与当前语义映射
 
-当前实现为了兼容历史代码，存在一些旧命名。阅读时按下面这张表理解：
+当前实现为了兼容旧数据和旧事件，仍会读取少量历史兼容字段。阅读时遵守下面两条原则：
 
-| 当前实现名 | 现在应理解成什么 |
-| --- | --- |
-| `buyer wallet` | Owner wallet |
-| `buyerAddress` | 历史前端字段，语义上仍归属 Owner 发起的链上地址 |
-| `account_type = buyer` | Owner 的平台余额快照行 |
-| `BUYER_DEPOSIT_CONFIRMED` | Owner deposit ledger confirmed |
-| `BuyerFinanceService` | 历史命名的 Owner funding service |
-
-原则很简单：
-
-1. **代码真相不改名装作不存在**。
-2. **产品语义已经切到 Owner / Agent / Vault，不再接受 Buyer/API Key 作为解释主轴。**
+1. **兼容层只用于读取旧状态，不再作为新设计主语义。**
+2. **产品语义已经切到 Owner / Agent / Provider / Vault，不再接受旧角色词作为解释主轴。**
 
 ## 6. 参与组件
 
@@ -246,7 +236,6 @@ Owner 入金后，这笔钱：
 前端请求体核心字段：
 
 - `ownerAddress`
-- `buyerAddress`
 - `txHash`
 - `amountUsdc`
 
@@ -262,9 +251,9 @@ Owner 入金后，这笔钱：
 2. 校验 `txHash` 格式
 3. 校验 `amountUsdc > 0`
 4. 校验幂等键
-5. 进入 `BuyerFinanceService.register_deposit_intent(...)`
+5. 进入 `OwnerFinanceService.register_deposit_intent(...)`
 
-虽然服务名还是 `BuyerFinanceService`，但这里的真实业务含义已经是：
+这里的真实业务含义是：
 
 **register owner vault deposit intent**。
 
@@ -328,14 +317,10 @@ Owner 入金后，这笔钱：
 2. `available_balance` 不变
 3. `frozen_balance` 不变
 
-当前记录形态仍是：
+当前记录形态的业务语义是：
 
 - `owner_address = owner wallet`
-- `account_type = buyer`
-
-这里的 `account_type = buyer` 必须按 build-for-agent 语义阅读成：
-
-**Owner 在平台上的历史余额快照类型名。**
+- `account_type = owner consumer wallet snapshot`
 
 为什么先加 `pending_balance`：
 
@@ -350,7 +335,6 @@ Owner 入金后，这笔钱：
 - `owner_address`
 - `tx_hash`
 - `request_id`
-- `buyer_address`
 - `amount_usdc`
 - `idempotency_key`
 - `status = PENDING_CONFIRMATION`
@@ -363,8 +347,8 @@ Owner 入金后，这笔钱：
 
 注意：
 
-1. `buyer_address` 是历史字段名
-2. 当前语义上它仍然是发起这笔 Owner 入金的链上地址
+1. 链上发起地址在兼容层里仍可被回填。
+2. 当前语义上它始终表示发起这笔 Owner 入金的链上地址。
 
 ### 10.5 审计表：`synapse_audit_log`
 
@@ -481,10 +465,10 @@ intent 会被置成失败类状态，例如：
 
 ## 13. 审计日志动作如何按新语义理解
 
-你现在看到的审计动作名仍然带历史痕迹，例如：
+你现在看到的审计动作名会同时出现 canonical 动作和兼容动作，例如：
 
 1. `DEPOSIT_INTENT_REGISTERED`
-2. `BUYER_DEPOSIT_CONFIRMED`
+2. `DEPOSIT_INTENT_CONFIRMED`
 3. `V2_DEPOSIT_CONFIRMED`
 4. `V2_DEPOSIT_RECONCILIATION_ALERT`
 
@@ -499,9 +483,9 @@ build-for-agent 口径下，应这样理解：
 3. `pending_balance` 已增加
 4. 但这笔钱还不是最终可消费余额
 
-### 13.2 `BUYER_DEPOSIT_CONFIRMED`
+### 13.2 `DEPOSIT_INTENT_CONFIRMED`
 
-这是历史动作名，但当前语义是：
+当前语义是：
 
 **Owner deposit ledger confirmed**
 
@@ -514,7 +498,7 @@ build-for-agent 口径下，应这样理解：
 
 这是 indexer / 链路层面的补充确认：
 
-1. `BUYER_DEPOSIT_CONFIRMED`：账本层确认
+1. `DEPOSIT_INTENT_CONFIRMED`：账本层确认
 2. `V2_DEPOSIT_CONFIRMED`：索引器与链路层确认
 
 ### 13.4 `V2_DEPOSIT_RECONCILIATION_ALERT`
@@ -544,7 +528,7 @@ build-for-agent 口径下，应这样理解：
    - `pending_balance -= amount`
    - `available_balance += amount`
    - `synapse_deposit_intents.status = CONFIRMED`
-   - `synapse_audit_log` 写 `BUYER_DEPOSIT_CONFIRMED`
+  - `synapse_audit_log` 写确认类审计动作
    - `synapse_audit_log` 写 `V2_DEPOSIT_CONFIRMED`
 7. 如果后续 reconciliation 发现全局 delta，则追加 `V2_DEPOSIT_RECONCILIATION_ALERT`
 
@@ -618,7 +602,7 @@ build-for-agent 口径下，应这样理解：
 2. `pending_balance`
 3. `frozen_balance`
 
-注意：当前实现里这行记录的 `account_type` 仍可能是历史值 `buyer`。
+注意：当前实现里这行记录可能仍经过历史兼容值映射后再被解释。
 
 判断：
 
@@ -630,7 +614,7 @@ build-for-agent 口径下，应这样理解：
 重点动作：
 
 1. `DEPOSIT_INTENT_REGISTERED`
-2. `BUYER_DEPOSIT_CONFIRMED`
+2. `DEPOSIT_INTENT_CONFIRMED`
 3. `V2_DEPOSIT_CONFIRMED`
 4. `V2_DEPOSIT_RECONCILIATION_ALERT`
 

@@ -11,7 +11,7 @@ Core idea:
 
 This repository includes:
 - Smart contracts and local-chain tooling (Hardhat)
-- Python seller gateway (FastAPI) and SDK
+- Python provider gateway (FastAPI) and SDK
 - Frontend console (Next.js)
 - Structured architecture and product documentation
 
@@ -20,7 +20,7 @@ Synapse-Network/
 │   ├── gateway/               # 核心结算网关（FastAPI）
 │   │   ├── src/
 │   │   ├── tests/
-│   │   ├── main.py            # 原 seller_fastapi 入口
+│   │   ├── main.py            # 原 provider_fastapi 入口
 │   │   ├── pyproject.toml
 │   │   └── .env.example
 │   └── frontend/              # Next.js 控制台
@@ -64,9 +64,9 @@ chmod +x scripts/local/stop_local_env.sh
 ./scripts/local/stop_local_env.sh
 ```
 
-### 3) Prod backend scripts (seller_fastapi only)
+### 3) Prod backend scripts (provider_fastapi only)
 
-Prod scripts only manage `gateway/seller_fastapi.py` and do not start local Anvil or deploy localhost contracts.
+Prod scripts only manage `gateway/provider_fastapi.py` and do not start local Anvil or deploy localhost contracts.
 
 ```bash
 chmod +x scripts/prod/start_prod_env.sh
@@ -94,7 +94,7 @@ cd gateway
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python3 seller_fastapi.py
+python3 provider_fastapi.py
 ```
 
 ## Documentation Map

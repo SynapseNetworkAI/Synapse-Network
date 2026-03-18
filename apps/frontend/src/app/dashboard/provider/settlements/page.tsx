@@ -242,11 +242,11 @@ export default function ProviderSettlementsPage() {
         <div className="xl:col-span-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#86868b]">
             <Wallet className="w-4 h-4" />
-            Seller Withdrawal (Self-pay Gas)
+            Provider Withdrawal (Self-pay Gas)
           </div>
           <h2 className="mt-3 text-xl font-semibold text-white">Claim Receivable to Wallet via EIP-712 Ticket</h2>
           <p className="mt-2 text-sm text-[#86868b] leading-relaxed">
-            Gateway issues a signed withdrawal ticket; seller submits on-chain withdraw transaction and pays gas.
+            Gateway issues a signed withdrawal ticket; provider submits the on-chain withdraw transaction and pays gas.
             Pending tickets lock receivable to prevent duplicate withdrawal and replay at ledger layer.
           </p>
 
@@ -303,7 +303,7 @@ export default function ProviderSettlementsPage() {
           </div>
           <ul className="mt-3 space-y-2 text-xs text-[#c5c5c7] leading-relaxed">
             <li>One owner can only keep one PENDING withdrawal ticket at a time.</li>
-            <li>Intent creation atomically locks receivable into sellersLocked ledger bucket.</li>
+            <li>Intent creation atomically locks receivable into providersLocked ledger bucket.</li>
             <li>Completion consumes lock once and binds txHash for idempotent finalize.</li>
             <li>EIP-712 payload includes nonce + deadline, contract enforces replay protection.</li>
           </ul>

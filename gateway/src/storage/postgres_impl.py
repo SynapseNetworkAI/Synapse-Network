@@ -32,8 +32,8 @@ from src.domain.execution import (
 )
 from src.domain.finance import (
     BalanceMutationResult,
-    BuyerChargeResult,
     ChargeConsumerUsageCommand,
+    ConsumerChargeResult,
     DepositAttemptRow,
     UsageLogRow,
 )
@@ -273,26 +273,15 @@ class PostgresStorage(BaseStorage):
     def charge_consumer_and_record_usage_atomic(
         self,
         command: ChargeConsumerUsageCommand,
-    ) -> BuyerChargeResult:
+    ) -> ConsumerChargeResult:
         return self._data_manager.finance.atomic.charge_consumer_and_record_usage_atomic(
             command
         )
-
-    def charge_buyer_and_record_usage_atomic(
-        self,
-        command: ChargeConsumerUsageCommand,
-    ) -> BuyerChargeResult:
-        return self.charge_consumer_and_record_usage_atomic(command)
 
     def reserve_provider_withdraw_atomic(
         self, command: ReserveProviderWithdrawCommand
     ) -> BalanceMutationResult:
         return self._data_manager.finance.atomic.reserve_provider_withdraw_atomic(command)
-
-    def reserve_seller_withdraw_atomic(
-        self, command: ReserveProviderWithdrawCommand
-    ) -> BalanceMutationResult:
-        return self.reserve_provider_withdraw_atomic(command)
 
     def read_audit_rows(
         self, owner_wallet: Optional[str] = None, limit: int = 200

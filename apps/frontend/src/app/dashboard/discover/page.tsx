@@ -17,7 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { useBuyerData } from "@/hooks/useBuyerData";
+import { useOwnerData } from "@/hooks/useOwnerData";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { formatPricing } from "@/utils/pricing";
@@ -162,7 +162,7 @@ export default function AgentWorkspacePage() {
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated } = useAuth();
-  const { stats, handleRefresh, isRefreshing } = useBuyerData();
+  const { stats, handleRefresh, isRefreshing } = useOwnerData();
 
   const [intent, setIntent] = useState("");
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
@@ -273,7 +273,7 @@ export default function AgentWorkspacePage() {
             <div className="grid gap-4 sm:grid-cols-3 xl:min-w-[520px]">
               <article className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Spendable Balance</p>
-                <p className="mt-4 text-3xl font-bold tracking-[-0.05em] text-white">{stats.buyerBalance}</p>
+                <p className="mt-4 text-3xl font-bold tracking-[-0.05em] text-white">{stats.ownerBalance}</p>
                 <p className="mt-1 text-xs text-zinc-500">USDC available for runtime consumption</p>
               </article>
               <article className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5">
@@ -552,7 +552,7 @@ export default function AgentWorkspacePage() {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em]">Safety reminder</p>
                   </div>
                   <p className="mt-3 text-sm leading-7 text-zinc-400">
-                    Owner session and credentials control access. The public discovery surface should help the agent choose a service without leaking seller settlement internals.
+                    Owner session and credentials control access. The public discovery surface should help the agent choose a service without leaking provider settlement internals.
                   </p>
                 </div>
               </div>
