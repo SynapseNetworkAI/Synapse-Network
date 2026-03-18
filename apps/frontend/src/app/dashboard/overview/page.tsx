@@ -1,23 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
 import { useAccount } from "wagmi";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useAuth } from "@/components/WalletAuthGuard";
 import OverviewHero from "@/components/dashboard/overview/OverviewHero";
-import RolePathCards from "@/components/dashboard/overview/RolePathCards";
+import WorkflowSection from "@/components/dashboard/overview/WorkflowSection";
 import TreasurySection from "@/components/dashboard/overview/TreasurySection";
 import AnalyticsCards from "@/components/dashboard/overview/AnalyticsCards";
 import EventStreamTable from "@/components/dashboard/overview/EventStreamTable";
 import CapabilityCards from "@/components/dashboard/overview/CapabilityCards";
 import FeeTransparencyPanel from "@/components/dashboard/overview/FeeTransparencyPanel";
-import { RefreshCw, Activity, LayoutGrid, ShieldCheck, Zap } from "lucide-react";
+import { RefreshCw, Activity, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu } from "lucide-react";
 
 export default function OverviewPage() {
   const { isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
   const { stats, handleRefresh, isRefreshing, userAddress } = useOwnerData();
-  const [activeTab, setActiveTab] = useState<"agent" | "provider">("agent");
 
   const currentBalance = isConnected && isSessionAuthenticated ? stats?.ownerBalance || "0.00" : "0.00";
 
@@ -60,58 +58,74 @@ export default function OverviewPage() {
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10 space-y-12">
+      <main className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10 space-y-16">
         {/* HERO SECTION */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <div className="lg:col-span-8">
-            <OverviewHero />
-          </div>
-          <div className="lg:col-span-4 space-y-4">
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 shadow-2xl">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <Zap className="w-4 h-4 text-blue-400" />
-                </div>
-                <h3 className="text-sm font-bold text-white">Quick Integration</h3>
-              </div>
-              <p className="text-xs text-gray-400 leading-relaxed mb-6">
-                Start building with Synapse SDK. Our high-performance gateway handles all the complexity of M2M payments.
-              </p>
-              <div className="space-y-2">
-                <code className="block p-3 rounded-lg bg-black border border-white/5 text-[10px] font-mono text-blue-300/80">
-                  npm install @synapse/sdk
-                </code>
-                <button className="w-full py-2.5 text-[11px] font-bold tracking-wider uppercase bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
-                  View Documentation
-                </button>
-              </div>
-            </div>
-          </div>
+        <section>
+          <OverviewHero />
         </section>
 
-        {/* WORKSPACE SELECTOR */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">Workspace Selection</h2>
-              <p className="text-xs text-gray-500 mt-1">Switch between Agent and Provider operational contexts.</p>
+        {/* WORKFLOW SECTION */}
+        <section className="space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/5" />
+            <div className="flex items-center gap-2 px-4 py-1 rounded-full border border-white/5 bg-white/[0.02]">
+              <Zap className="w-3 h-3 text-blue-400/60" />
+              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">Operational Workflows</span>
             </div>
-            <div className="flex p-1 rounded-full bg-white/[0.03] border border-white/5">
-              <button 
-                onClick={() => setActiveTab("agent")}
-                className={`px-6 py-1.5 rounded-full text-[11px] font-bold transition-all ${activeTab === "agent" ? "bg-white text-black shadow-lg" : "text-gray-500 hover:text-gray-300"}`}
-              >
-                AGENT
-              </button>
-              <button 
-                onClick={() => setActiveTab("provider")}
-                className={`px-6 py-1.5 rounded-full text-[11px] font-bold transition-all ${activeTab === "provider" ? "bg-white text-black shadow-lg" : "text-gray-500 hover:text-gray-300"}`}
-              >
-                PROVIDER
-              </button>
+            <div className="h-px flex-1 bg-white/5" />
+          </div>
+          <WorkflowSection />
+        </section>
+
+        {/* IDENTITY MODEL SECTION */}
+        <section className="space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/5" />
+            <div className="flex items-center gap-2 px-4 py-1 rounded-full border border-white/5 bg-white/[0.02]">
+              <Layers className="w-3 h-3 text-purple-400/60" />
+              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">Platform Identity Model</span>
+            </div>
+            <div className="h-px flex-1 bg-white/5" />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 w-fit mb-4">
+                <User className="w-5 h-5 text-blue-400" />
+              </div>
+              <h4 className="text-sm font-bold text-white mb-2">Owner</h4>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                The root account and tenant boundary. Controls funds, agents, and service registrations.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 w-fit mb-4">
+                <Bot className="w-5 h-5 text-purple-400" />
+              </div>
+              <h4 className="text-sm font-bold text-white mb-2">Agent</h4>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                The runtime execution principal. Discovers and invokes services autonomously within budget.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 w-fit mb-4">
+                <Server className="w-5 h-5 text-emerald-400" />
+              </div>
+              <h4 className="text-sm font-bold text-white mb-2">Provider</h4>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                The supply-side business role. Registers services and earns revenue from agent invocations.
+              </p>
+            </div>
+            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 w-fit mb-4">
+                <Cpu className="w-5 h-5 text-amber-400" />
+              </div>
+              <h4 className="text-sm font-bold text-white mb-2">Platform</h4>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                The system operator and settlement engine. Handles routing, auditing, and real-time billing.
+              </p>
             </div>
           </div>
-          <RolePathCards />
         </section>
 
         {/* FINANCIAL INFRASTRUCTURE */}

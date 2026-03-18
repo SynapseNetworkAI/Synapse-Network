@@ -23,7 +23,7 @@ const en: I18nMessages = {
     heroTitleLead: "Fund once. Agents discover and",
     heroTitleAccent: "pay for APIs.",
     heroTitle: "Fund once. Agents discover and pay for APIs.",
-    heroSubtitle: "The Settlement Layer for AI Agents.",
+    heroSubtitle: "Financial Layer for Autonomous Agents.",
     heroTagline: "Agents can talk. But now, they can trade.",
     heroMechanism: "On-chain collateral. Off-chain charging. Zero gas per API call.",
     heroCommandLabel: "Payment rail",
