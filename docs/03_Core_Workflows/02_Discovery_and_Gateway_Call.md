@@ -67,6 +67,26 @@ Discovery 只做一件事：
 
 **让 Agent 得到足够结构化的服务决策输入，而不是营销卡片。**
 
+### 5.0 Provider Service 生命周期
+
+Provider 侧注册服务必须走明确状态机，不能用物理删除破坏审计链路。
+
+1. `draft`
+   刚创建或尚未完成发布收敛，不对外承载流量。
+2. `active`
+   Provider 明确启用，且只有健康检查存在可用 target 时，才会进入 discover / invoke 候选。
+3. `inactive`
+   Provider 主动下线。Gateway 不再允许新的 discovery 命中或新的转发调用，但保留配置、历史健康数据与审计上下文。
+4. `deleted`
+   逻辑删除终态。记录保留在注册表中用于审计、归因与问题追溯；默认不再出现在 Provider 日常服务列表，也不会参与探活、发现或调用。
+
+V1 删除规则：
+
+1. 只有服务 owner 可以删除自己的 service
+2. `active` 不能直接删除，必须先切到 `inactive`
+3. 删除必须是逻辑删除，禁止物理删除注册记录
+4. 删除动作必须追加 audit event
+
 ### 5.1 Discovery 读取的数据
 
 Gateway 至少要组合：
@@ -142,6 +162,14 @@ Gateway 必须按成本从低到高执行：
 6. Owner 资金池是否足以支撑 quote 金额
 7. Idempotency key 是否冲突
 
+其中第 4 条的服务可调用状态，至少要同时满足：
+
+1. `is_active = true`
+2. `status = active`
+3. 至少一个 target 在健康窗口内为 `healthy`
+
+只要 Provider 把服务切到 `inactive`，或者平台把服务标记为 `deleted`，调用链就必须在进入上游转发前被网关硬拦截。
+
 ### 7.2 Invocation 记录
 
 Gateway 在转发前先写 `synapse_invocations`，至少包含：
@@ -215,6 +243,17 @@ Invoke 的业务幂等由 `synapse_invocations UNIQUE (credential_id, idempotenc
 3. 平台可以稳定返回同一次调用的最终状态
 
 ## 10. 数据边界结论
+
+## 11. 为什么删除必须是逻辑删除
+
+物理删除看起来干净，实际上会把生产系统最关键的证据链直接抹掉。
+
+逻辑删除更符合 Synapse 的注册-发现-调用-审计闭环：
+
+1. 保留 `service_id` 与 owner 的历史绑定关系，避免账单、审计、告警和历史调用失去归因
+2. 保留状态迁移轨迹，支持回答“这个服务何时下线、何时删除、删除前是否仍在被调用”
+3. 避免因为注册行被物理移除而造成 health history、invocation、quote、budget event 的孤儿记录
+4. 允许控制面默认隐藏 `deleted`，同时让审计面继续可追溯
 
 这条链路必须永远守住两条边界：
 

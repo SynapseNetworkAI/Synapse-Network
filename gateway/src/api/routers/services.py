@@ -5,7 +5,11 @@ from typing import Optional, Dict, Any, List, Annotated, Union
 from uuid import uuid4
 from src.api.deps import get_registry_service
 from src.api.schemas.pydantic_models import AgentDiscoverySearchRequest
-from src.services.provider.registry_service import RegistryService
+from src.services.provider.registry_service import (
+    RegistryService,
+    SERVICE_ALREADY_DELETED,
+    SERVICE_DELETE_ACTIVE_CONFLICT,
+)
 from src.services.platform import credential_service
 from src.services.provider.manifest_parser_service import parse_manifest_from_curl
 from src.core.config import settings
@@ -349,6 +353,14 @@ async def update_service(
     try:
         updated = await service.update_service(service_record_id, req, owner)
     except ValueError as exc:
+        if str(exc) == SERVICE_ALREADY_DELETED:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": SERVICE_ALREADY_DELETED,
+                    "message": "Deleted services cannot be edited.",
+                },
+            )
         raise HTTPException(
             status_code=422,
             detail={
@@ -369,7 +381,18 @@ async def delete_service(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    success = await service.delete_service(service_record_id, owner)
+    try:
+        success = await service.delete_service(service_record_id, owner)
+    except ValueError as exc:
+        if str(exc) == SERVICE_DELETE_ACTIVE_CONFLICT:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": SERVICE_DELETE_ACTIVE_CONFLICT,
+                    "message": "Active services must be set to inactive before deletion.",
+                },
+            )
+        raise
     if not success:
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Service deleted"}

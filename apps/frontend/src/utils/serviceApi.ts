@@ -13,7 +13,7 @@ export type ServiceRegistryPayload = {
   isActive: boolean;
   summary?: string;
   tags?: string[];
-  status?: "draft" | "active" | "paused" | "inactive" | "archived";
+  status?: "draft" | "active" | "paused" | "inactive" | "archived" | "deleted";
   auth?: {
     type?: string;
     headerName?: string;
@@ -84,7 +84,7 @@ export type ServiceRegistryRecord = {
   pricing: string | { currency?: string; amount?: string | number };
   endpoint: string;
   isActive: boolean;
-  status?: "active" | "inactive" | "archived" | "healthy" | "degraded" | "unhealthy" | "unknown";
+  status?: "active" | "inactive" | "archived" | "deleted" | "healthy" | "degraded" | "unhealthy" | "unknown";
   runtimeAvailable?: boolean;
   health?: {
     overallStatus?: "healthy" | "degraded" | "unhealthy" | "unknown";

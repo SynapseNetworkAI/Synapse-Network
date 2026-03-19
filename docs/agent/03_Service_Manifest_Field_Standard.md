@@ -159,6 +159,19 @@ Manifest 不是广告页，它是 Agent 与 Gateway 共同消费的服务契约�
 - 对 Owner 侧 Agent 来说，真正重要的是 `service_id`、`description_for_model`、`input_schema`、`output_schema`、`price_model`、`endpoint_url` 和运行约束。
 - 对平台 Gateway 来说，`gateway_extensions` 则补充了探活、转发、多 target 路由和计费策略这些内部执行信息。
 
+`status` 字段生命周期约束：
+
+1. `draft`：新建草稿，默认不对外提供 discover / invoke
+2. `active`：允许进入 discover 候选；最终是否可调用仍受健康检查约束
+3. `inactive`：Provider 主动下线；不再允许新 discovery / invoke
+4. `deleted`：逻辑删除终态；仅用于审计保留，不再出现在默认 owner 服务列表
+
+删除约束：
+
+1. `active` 不能直接删，必须先转成 `inactive`
+2. 删除只允许 owner 发起
+3. 删除必须写 append-only audit log
+
 ## 4. Manifest 校验规则
 
 Gateway 在 Provider 提交 Manifest 时，必须校验：

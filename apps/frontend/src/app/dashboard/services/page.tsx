@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
+  deleteServiceRegistry,
   discoverServices,
   invalidateServiceRegistryListCache,
   listServiceRegistry,
@@ -28,9 +29,10 @@ export default function ServicesPage() {
   const [publicServices, setPublicServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
 
   const updateServiceStatus = async (svc: ServiceRegistryRecord, nextActive: boolean) => {
-    if (!address || statusUpdatingServiceId) {
+    if (!address || statusUpdatingServiceId || deletingServiceId) {
       return;
     }
 
@@ -64,6 +66,34 @@ export default function ServicesPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update service status");
+    }
+  };
+
+  const deleteService = async (svc: ServiceRegistryRecord) => {
+    if (!address || statusUpdatingServiceId || deletingServiceId || svc.isActive) {
+      return;
+    }
+
+    const confirmed = globalThis.confirm(
+      `Delete service ${svc.serviceId}? This is a logical delete. The service will be marked as deleted, removed from your active registry view, and kept only for audit history.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    const prevServices = services;
+    setDeletingServiceId(svc.serviceId);
+    setServices((prev) => prev.filter((item) => item.serviceId !== svc.serviceId));
+
+    try {
+      await deleteServiceRegistry(svc.serviceId, address);
+      toast.success("Service deleted");
+    } catch (err) {
+      setServices(prevServices);
+      invalidateServiceRegistryListCache(address);
+      toast.error(err instanceof Error ? err.message : "Failed to delete service");
+    } finally {
+      setDeletingServiceId(null);
     }
   };
   
@@ -155,6 +185,7 @@ export default function ServicesPage() {
           <div key={svc.id} className="p-6 border border-gray-800 rounded-xl bg-gray-900/50 hover:border-green-500/50 transition-colors">
             {(() => {
               const isStatusUpdating = statusUpdatingServiceId === svc.serviceId;
+              const isDeleting = deletingServiceId === svc.serviceId;
               let statusActionLabel = "Activate";
               if (isStatusUpdating) {
                 statusActionLabel = "Updating...";
@@ -189,13 +220,21 @@ export default function ServicesPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => router.push(`/dashboard/provider/nodes?edit=${encodeURIComponent(svc.serviceId)}`)}
-                className="flex-1 px-4 py-2 font-bold text-white transition bg-gray-800 rounded hover:bg-gray-700 text-sm"
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 font-bold text-white transition bg-gray-800 rounded hover:bg-gray-700 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Edit Manifest
               </button>
               <button
+                onClick={() => void deleteService(svc)}
+                disabled={svc.isActive || isDeleting || isStatusUpdating}
+                className="flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 text-red-300 border-red-500/30 hover:bg-red-500/10"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+              <button
                 onClick={() => void updateServiceStatus(svc, !svc.isActive)}
-                disabled={isStatusUpdating}
+                disabled={isStatusUpdating || isDeleting}
                 className={`flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 ${svc.isActive
                   ? "text-amber-300 border-amber-500/30 hover:bg-amber-500/10"
                   : "text-green-400 border-green-500/30 hover:bg-green-500/10"
@@ -205,7 +244,8 @@ export default function ServicesPage() {
               </button>
               <button
                 onClick={() => router.push(`/dashboard/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`)}
-                className="flex items-center justify-center flex-1 px-4 py-2 text-sm font-bold text-green-400 transition border border-green-500/30 rounded hover:bg-green-500/10"
+                disabled={isDeleting}
+                className="flex items-center justify-center flex-1 px-4 py-2 text-sm font-bold text-green-400 transition border border-green-500/30 rounded hover:bg-green-500/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Activity className="w-4 h-4 mr-2" />
                 Health
