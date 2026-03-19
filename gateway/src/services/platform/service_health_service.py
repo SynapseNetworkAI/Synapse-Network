@@ -166,6 +166,8 @@ def _build_service_target_health_rows(
 ) -> List[ServiceTargetHealth]:
     rows: List[ServiceTargetHealth] = []
     for service in services:
+        if str(service.status or "").strip().lower() == "deleted":
+            continue
         target_health = _target_health_map(service)
         for target in _service_targets(service):
             next_row = _service_health_row(service, target, target_health)

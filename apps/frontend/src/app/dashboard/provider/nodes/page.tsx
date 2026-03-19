@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import {
+  deleteServiceRegistry,
   invalidateServiceRegistryListCache,
   listServiceRegistry,
   upsertServiceRegistryListCache,
@@ -45,9 +46,9 @@ function isServiceRuntimeOnline(svc: ServiceRegistryRecord): boolean {
   return healthyTargets > 0 && String(health.overallStatus || "").toLowerCase() !== "unhealthy";
 }
 
-function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inactive" | "archived" {
+function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inactive" | "archived" | "deleted" {
   const raw = String(svc.status || "").toLowerCase();
-  if (raw === "inactive" || raw === "archived") {
+  if (raw === "inactive" || raw === "archived" || raw === "deleted") {
     return raw;
   }
   return svc.isActive ? "active" : "inactive";
@@ -69,6 +70,7 @@ export default function ProviderNodesPage() {
   const [draft, setDraft] = useState<ServiceEditDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
   const PAGE_SIZE = 8;
 
   useEffect(() => {
@@ -181,7 +183,7 @@ export default function ProviderNodesPage() {
   );
 
   const updateServiceStatus = async (service: ServiceRegistryRecord, nextActive: boolean) => {
-    if (!address || saving || statusUpdatingServiceId) {
+    if (!address || saving || statusUpdatingServiceId || deletingServiceId) {
       return;
     }
 
@@ -216,6 +218,37 @@ export default function ProviderNodesPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `Failed to ${actionLabel} service`);
+    }
+  };
+
+  const deleteService = async (service: ServiceRegistryRecord) => {
+    if (!address || saving || statusUpdatingServiceId || deletingServiceId || service.isActive) {
+      return;
+    }
+
+    const confirmed = globalThis.confirm(
+      `Delete service ${service.serviceId}? This is a logical delete and keeps the audit trail while removing the service from the active provider registry.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    const prevServices = services;
+    setDeletingServiceId(service.serviceId);
+    setServices((prev) => prev.filter((svc) => svc.serviceId !== service.serviceId));
+    if (editing?.serviceId === service.serviceId) {
+      closeModal();
+    }
+
+    try {
+      await deleteServiceRegistry(service.serviceId, address);
+      toast.success("Service deleted");
+    } catch (err) {
+      setServices(prevServices);
+      invalidateServiceRegistryListCache(address);
+      toast.error(err instanceof Error ? err.message : "Failed to delete service");
+    } finally {
+      setDeletingServiceId(null);
     }
   };
 
@@ -333,6 +366,7 @@ export default function ProviderNodesPage() {
             )}
             {pageRows.map((svc) => {
               const isStatusUpdating = statusUpdatingServiceId === svc.serviceId;
+              const isDeleting = deletingServiceId === svc.serviceId;
               let statusActionLabel = "Activate";
               if (isStatusUpdating) {
                 statusActionLabel = "Updating...";
@@ -372,6 +406,13 @@ export default function ProviderNodesPage() {
                         </span>
                       );
                     }
+                    if (serviceStatus === "deleted") {
+                      return (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#ef4444] border border-[#ef4444]/30 bg-[#ef4444]/10">
+                          Deleted
+                        </span>
+                      );
+                    }
                     return (
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#ef4444] border border-[#ef4444]/30 bg-[#ef4444]/10">
                         Archived
@@ -395,20 +436,28 @@ export default function ProviderNodesPage() {
                   <div className="inline-flex items-center gap-2">
                     <button
                       onClick={() => openEditModal(svc)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333333] hover:border-[#ffffff] text-white hover:bg-white hover:text-black transition-all"
+                      disabled={isDeleting}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333333] hover:border-[#ffffff] text-white hover:bg-white hover:text-black transition-all disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Edit
                     </button>
                     <button
+                      onClick={() => void deleteService(svc)}
+                      disabled={saving || isStatusUpdating || isDeleting || svc.isActive}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#ef4444]/40 text-[#fca5a5] hover:bg-[#ef4444] hover:text-black transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isDeleting ? "Deleting" : "Delete"}
+                    </button>
+                    <button
                       onClick={() => void updateServiceStatus(svc, !svc.isActive)}
-                      disabled={saving || isStatusUpdating}
+                      disabled={saving || isStatusUpdating || isDeleting}
                       className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:cursor-not-allowed disabled:opacity-50 ${statusActionClassName}`}
                     >
                       {statusActionLabel}
                     </button>
                     <Link
                       href={`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black transition-all"
+                      className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black transition-all ${isDeleting ? "pointer-events-none opacity-50" : ""}`}
                     >
                       <Activity className="w-3.5 h-3.5" />
                       Health

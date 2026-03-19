@@ -27,7 +27,7 @@ from src.domain.service_contract import (
     ServiceRetryPolicyRecord,
     ServiceRuntimeHealthRecord,
 )
-from src.services.platform import service_health_service
+from src.services.platform import credential_service, service_health_service
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 import uuid
 import time
@@ -37,6 +37,8 @@ import string
 import math
 
 JSON_CONTENT_TYPE = "application/json"
+SERVICE_DELETE_ACTIVE_CONFLICT = "SERVICE_DELETE_ACTIVE_CONFLICT"
+SERVICE_ALREADY_DELETED = "SERVICE_ALREADY_DELETED"
 
 
 def _provider_short(owner_wallet: str) -> str:
@@ -580,6 +582,14 @@ def _find_owned_service(
     )
 
 
+def _service_lifecycle_status(service: ServiceDefinitionRecord) -> str:
+    return str(service.status or ("active" if service.is_active else "inactive")).strip().lower()
+
+
+def _is_deleted_service(service: ServiceDefinitionRecord) -> bool:
+    return _service_lifecycle_status(service) == "deleted"
+
+
 def _history_window_hours(hours: Optional[int], days: Optional[int]) -> tuple[int, int]:
     retention_hours = max(1, int(settings.service_health_history_retention_hours))
     if hours is not None:
@@ -841,6 +851,8 @@ class RegistryService:
                     svc.service_id == service_record_id
                     and svc.owner_address == owner_wallet
                 ):
+                    if _is_deleted_service(svc):
+                        raise ValueError(SERVICE_ALREADY_DELETED)
                     blocked = {
                         "id",
                         "serviceId",
@@ -876,21 +888,42 @@ class RegistryService:
     async def delete_service(self, service_record_id: str, owner_wallet: str) -> bool:
         async with self._registry_lock():
             rows = self._load_service_registry_rows()
-            original_len = len(rows)
-            rows = [
-                r
-                for r in rows
-                if not (
-                    r.service_id == service_record_id
-                    and r.owner_address == owner_wallet
-                )
-            ]
-            if len(rows) == original_len:
-                return False
-            self._save_service_registry_rows(rows)
-            service_health_service.sync_service_target_health_table(self.storage, rows)
-            service_health_service.prune_health_history(self.storage)
-            return True
+            for i, svc in enumerate(rows):
+                if (
+                    svc.service_id == service_record_id
+                    and svc.owner_address == owner_wallet
+                ):
+                    if _is_deleted_service(svc):
+                        return False
+                    if bool(svc.is_active) or _service_lifecycle_status(svc) == "active":
+                        raise ValueError(SERVICE_DELETE_ACTIVE_CONFLICT)
+
+                    deleted = svc.model_copy(
+                        update={
+                            "status": "deleted",
+                            "is_active": False,
+                            "updated_at": now_dt_str(),
+                        }
+                    )
+                    rows[i] = deleted
+                    self._save_service_registry_rows(rows)
+                    service_health_service.sync_service_target_health_table(
+                        self.storage, rows
+                    )
+                    credential_service.append_audit_log(
+                        self.storage,
+                        "provider.service.deleted",
+                        owner_wallet,
+                        {
+                            "serviceId": service_record_id,
+                            "serviceName": deleted.service_name,
+                            "status": "deleted",
+                            "deletedAt": deleted.updated_at,
+                        },
+                    )
+                    return True
+
+            return False
 
     async def has_owner_service(
         self, service_record_id: str, owner_wallet: str
@@ -902,6 +935,8 @@ class RegistryService:
                 svc.service_id == service_record_id
                 and svc.owner_address == owner_wallet
             ):
+                if _is_deleted_service(svc):
+                    return False
                 return True
         return False
 
@@ -1000,12 +1035,14 @@ class RegistryService:
         for svc in rows:
             if svc.owner_address != owner_wallet:
                 continue
+            if _is_deleted_service(svc):
+                continue
             enriched = svc.model_dump(by_alias=True, mode="json")
             enriched["pricing"] = {
                 "amount": str(svc.pricing_amount),
                 "currency": svc.pricing_currency,
             }
-            enriched["status"] = service_health_service.public_discover_status(svc)
+            enriched["status"] = _service_lifecycle_status(svc)
             enriched["health"] = service_health_service.public_health_summary(svc)
             enriched["runtimeAvailable"] = service_health_service.is_service_discoverable(svc)
             owner_rows.append(enriched)
