@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
 
 import pytest
 
 from src.api.routers.services import RegisterServiceRequest
+from src.domain.finance import UsageLogRow
+from src.domain.service_contract import ServiceRuntimeHealthRecord
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.platform import service_health_service
 from src.services.provider.registry_service import RegistryService
@@ -45,11 +48,20 @@ class InMemoryAuditRepo:
         self.rows.append(row)
 
 
+class InMemoryGatewayStateRepo:
+    def __init__(self) -> None:
+        self.rows: list[UsageLogRow] = []
+
+    def read_invocation_billing_rows(self):
+        return list(self.rows)
+
+
 class FakeStorage:
     def __init__(self) -> None:
         self.data_manager = SimpleNamespace(
             system=SimpleNamespace(
                 registry=InMemoryRegistryRepo(),
+                gateway_state=InMemoryGatewayStateRepo(),
             )
             ,
             audit=SimpleNamespace(
@@ -97,6 +109,21 @@ def _service_payload(service_id: str | None) -> dict:
             },
         },
     }
+
+
+async def _healthy_probe(payload):
+    await asyncio.sleep(0)
+    return payload.model_copy(
+        update={
+            "runtime_health": ServiceRuntimeHealthRecord(
+                overallStatus="healthy",
+                healthyTargets=1,
+                totalTargets=1,
+                lastCheckedAt=1,
+                targets=[],
+            )
+        }
+    )
 
 
 def test_register_service_request_maps_agent_tool_name_to_service_id() -> None:
@@ -222,3 +249,60 @@ def test_deleted_service_cannot_be_updated(monkeypatch) -> None:
                 "0xabc",
             )
         )
+
+
+def test_discover_services_supports_revenue_and_call_count_sort(monkeypatch) -> None:
+    storage = FakeStorage()
+    service = RegistryService(cast(BaseStorage, storage))
+
+    monkeypatch.setattr(service_health_service, "probe_service_health", _healthy_probe)
+    monkeypatch.setattr(
+        service_health_service,
+        "sync_service_target_health_table",
+        lambda storage_ref, rows: rows,
+    )
+    monkeypatch.setattr(service_health_service, "is_service_discoverable", lambda row: True)
+
+    first_payload = _service_payload("alpha_service")
+    first_payload["serviceName"] = "Alpha Service"
+    second_payload = _service_payload("beta_service")
+    second_payload["serviceName"] = "Beta Service"
+
+    asyncio.run(service.register_service(first_payload, "0xabc"))
+    asyncio.run(service.register_service(second_payload, "0xabc"))
+
+    storage.get_data_manager().system.gateway_state.rows = [
+        UsageLogRow(
+            id="row_1",
+            ts=100,
+            requestId="req_1",
+            serviceId="alpha_service",
+            status="SUCCEEDED",
+            totalCharge=Decimal("0.050"),
+        ),
+        UsageLogRow(
+            id="row_2",
+            ts=200,
+            requestId="req_2",
+            serviceId="alpha_service",
+            status="SUCCEEDED",
+            totalCharge=Decimal("0.040"),
+        ),
+        UsageLogRow(
+            id="row_3",
+            ts=300,
+            requestId="req_3",
+            serviceId="beta_service",
+            status="SUCCEEDED",
+            totalCharge=Decimal("0.120"),
+        ),
+    ]
+
+    by_count = asyncio.run(service.discover_services(sort_by="invocation_count", sort_order="desc"))
+    by_revenue = asyncio.run(service.discover_services(sort_by="revenue", sort_order="desc"))
+
+    assert by_count[0]["serviceId"] == "alpha_service"
+    assert by_count[0]["invocationCount"] == 2
+    assert by_count[0]["totalRevenueUsdc"] == "0.090"
+    assert by_revenue[0]["serviceId"] == "beta_service"
+    assert by_revenue[0]["totalRevenueUsdc"] == "0.120"

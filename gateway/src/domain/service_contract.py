@@ -58,9 +58,6 @@ class AgentDiscoveryQueryRecord(BaseModel):
 
     query: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
-    max_price_usdc: Optional[Decimal] = Field(default=None, alias="maxPriceUsdc")
-    requires_structured_output: bool = Field(default=False, alias="requiresStructuredOutput")
-    region: Optional[str] = None
     limit: int = 10
     sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
 

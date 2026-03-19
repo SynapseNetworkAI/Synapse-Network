@@ -86,6 +86,8 @@ export type ServiceRegistryRecord = {
   isActive: boolean;
   status?: "active" | "inactive" | "archived" | "deleted" | "healthy" | "degraded" | "unhealthy" | "unknown";
   runtimeAvailable?: boolean;
+  invocationCount?: number;
+  totalRevenueUsdc?: string;
   health?: {
     overallStatus?: "healthy" | "degraded" | "unhealthy" | "unknown";
     healthyTargets?: number;
@@ -164,6 +166,8 @@ type ServiceRegistryApiRecord = Partial<ServiceRegistryRecord> & {
     lastCheckedAt?: number | null;
   };
   runtimeAvailable?: boolean;
+  invocationCount?: number;
+  totalRevenueUsdc?: string;
 };
 
 const DEFAULT_SERVICE_LIST_CACHE_TTL_MS = 20_000;
@@ -296,6 +300,8 @@ function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryR
     isActive: typeof raw.isActive === "boolean" ? raw.isActive : raw.status === "active",
     status: raw.status,
     runtimeAvailable: typeof raw.runtimeAvailable === "boolean" ? raw.runtimeAvailable : undefined,
+    invocationCount: typeof raw.invocationCount === "number" ? raw.invocationCount : 0,
+    totalRevenueUsdc: typeof raw.totalRevenueUsdc === "string" ? raw.totalRevenueUsdc : "0",
     health: raw.health || raw.serviceHealth,
     summary: raw.summary,
     tags: raw.tags || [],
@@ -430,9 +436,25 @@ export async function listServiceRegistry(
   return rows;
 }
 
-export async function discoverServices(intent?: string): Promise<ServiceRegistryRecord[]> {
-  const query = intent ? `?intent=${encodeURIComponent(intent)}` : "";
-  const response = await fetch(`${API_BASE_URL}/discover${query}`, {
+export async function discoverServices(
+  intent?: string,
+  options?: {
+    sortBy?: "best_match" | "price" | "health" | "invocation_count" | "revenue" | "service_name";
+    sortOrder?: "asc" | "desc";
+  },
+): Promise<ServiceRegistryRecord[]> {
+  const query = new URLSearchParams();
+  if (intent) {
+    query.set("intent", intent);
+  }
+  if (options?.sortBy) {
+    query.set("sortBy", options.sortBy);
+  }
+  if (options?.sortOrder) {
+    query.set("sortOrder", options.sortOrder);
+  }
+  const queryText = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(`${API_BASE_URL}/discover${queryText}`, {
     method: "GET",
     // Public endpoint, no auth headers needed
     headers: {

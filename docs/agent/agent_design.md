@@ -26,6 +26,9 @@
 6. [06_Build_For_Agent_Database_Rebuild.md](./06_Build_For_Agent_Database_Rebuild.md)
   旧 schema 哪些可复用、哪些必须删除重写、全新 Agent Runtime 数据库结构与表映射。
 
+7. [07_Agent_SDK_Integration_Guide.md](./07_Agent_SDK_Integration_Guide.md)
+  外部 Agent 如何通过 SDK 接入 Synapse，为什么主路径应是 SDK + Markdown contract，而不是 skill-first 或 CLI-first。
+
 ## 北极星与拆分原则
 
 所有专题文档都服务同一个问题：
@@ -40,4 +43,5 @@
 2. 再读 DQI API，明确机器侧调用闭环。
 3. 再读 Manifest 标准，明确卖家如何上架。
 4. 再读风控模型，明确预算和安全边界。
-5. 最后读 Dashboard 和 onboarding，明确 Owner 控制台怎么承载这些能力。
+5. 再读 SDK Integration Guide，明确外部 Agent 如何真正接入。
+6. 最后读 Dashboard 和 onboarding，明确 Owner 控制台怎么承载这些能力。

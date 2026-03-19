@@ -27,6 +27,7 @@
 2. `02_CI_CD_and_Release_Gates.md`
 3. `03_Observability_Logging_and_Indexer_Operations.md`
 4. `04_Financial_Incident_Response_and_Production_Operations.md`
+5. `05_Discovery_Service_Troubleshooting_SQL.md`
 
 ## 模块边界
 

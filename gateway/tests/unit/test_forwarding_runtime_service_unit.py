@@ -312,6 +312,7 @@ def _service_definition() -> ServiceDefinitionRecord:
         isActive=True,
         pricingAmount="1.2",
         pricingCurrency="USDC",
+        tags=["echo", "inspiration"],
         constraints={
             "timeoutMs": 15000,
             "maxQps": 10,
@@ -626,3 +627,28 @@ def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkey
     assert persisted_quote.status == "CONSUMED"
     assert persisted_invocation is not None
     assert persisted_invocation.status == "SUCCEEDED"
+
+
+def test_agent_discovery_supports_query_or_tag_union_matching(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+
+    with _http_runtime_client(monkeypatch, storage) as client:
+        discovery_http = client.post(
+            "/api/v1/agent/discovery/search",
+            json={
+                "query": "svc.echo",
+                "tags": ["missing-tag", "inspiration"],
+                "limit": 5,
+                "sort": "best_match",
+            },
+            headers={"X-Request-Id": "req-http-disc-search-001"},
+        )
+
+    assert discovery_http.status_code == 200
+    discovery_response = AgentDiscoverySearchResponse.model_validate(
+        discovery_http.json()
+    )
+    assert discovery_response.requestId == "req-http-disc-search-001"
+    assert discovery_response.count == 1
+    assert discovery_response.results[0].service_id == "svc.echo"

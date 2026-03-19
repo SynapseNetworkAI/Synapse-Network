@@ -63,9 +63,6 @@ class InferenceRequest(BaseModel):
 class AgentDiscoverySearchRequest(BaseModel):
     query: Optional[str] = Field(default=None, max_length=256)
     tags: list[str] = Field(default_factory=list)
-    maxPriceUsdc: Optional[float] = Field(default=None, gt=0)
-    requiresStructuredOutput: bool = False
-    region: Optional[str] = Field(default=None, min_length=1, max_length=64)
     limit: int = Field(default=10, ge=1, le=50)
     sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
 
