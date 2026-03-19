@@ -1,6 +1,15 @@
 # Synapse Client
-The official Python client for interacting with the Synapse Network AI services.
-`synapse-client` lets you programmatically call decentralized AI tasks through Synapse Agent network with automatic billing and seamless API integrations.
+
+Official Python SDK for Synapse agent-first runtime APIs.
+
+`synapse-client` is designed around the Synapse runtime contract:
+
+1. `discovery/search`
+2. `quotes`
+3. `invocations`
+4. `invocation receipt`
+
+That means an agent can discover a service, preflight budget and constraints, invoke with idempotency, and poll receipt state without inventing its own transport layer.
 
 ## Installation
 
@@ -12,45 +21,110 @@ pip install synapse-client
 
 ## Usage
 
-### Mode 1: Hardcoded Service ID (Direct Invoke)
-Call a specific service when you know its `Service ID`:
+### Live smoke test
+
+For local gateway validation, use the executable example instead of running package modules directly:
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY="agt_xxxxx..."
+PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python examples/smoke_test.py --query "名人名言"
+```
+
+If you already know the service id, skip discovery:
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY="agt_xxxxx..."
+PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python examples/smoke_test.py --service-id svc_quotes_famous_top3
+```
+
+### Recommended: discover -> quote -> invoke
+
+Use the structured runtime flow when your agent needs to choose a service autonomously.
+
 ```python
 from synapse_client import SynapseClient
-import os
 
-client = SynapseClient(api_key="agt_xxxxx...") # You can find your API key dynamically
+client = SynapseClient(api_key="agt_xxxxx...")
+
+discovery = client.discover_services(
+    intent="cheap OCR for SEA invoices",
+    tags=["ocr", "invoice"],
+)
+
+if not discovery.results:
+    raise RuntimeError("No discoverable service matched the request")
+
+service = discovery.results[0]
+quote = client.create_quote(
+    service_id=service.service_id,
+    input_preview={
+        "sample": {
+            "body": {
+                "image_url": "https://example.com/invoice.png"
+            }
+        }
+    },
+)
+
+invocation = client.create_invocation(
+    quote_id=quote.quote_id,
+    idempotency_key="task-8891-step-2",
+    payload={
+        "image_url": "https://example.com/invoice.png"
+    },
+)
+
+if not invocation.is_terminal:
+    invocation = client.wait_for_invocation(invocation.invocation_id, max_wait_sec=30)
+
+print(invocation.status)
+print(invocation.result)
+print(invocation.charged_usdc)
+```
+
+### Shortcut: one-call helper
+
+If you already know the `service_id`, use the helper that internally performs quote then invoke.
+
+```python
+from synapse_client import SynapseClient
+
+client = SynapseClient(api_key="agt_xxxxx...")
 
 response = client.call_service(
-    service_id="SVC_WEATHER_001",
-    payload={
-        "location": "Kuala Lumpur",
-        "days": 3
-    }
+    service_id="svc_quotes_famous_top3",
+    payload={"text": "给我一句关于坚持的名人名言"},
+    idempotency_key="job-42-step-1",
 )
 
 print(response.content)
-print(f"Cost Deducted: {response.fee_deducted} USDC")
-print(f"Transaction Hash: {response.tx_hash}")
+print(response.fee_deducted)
+print(response.invocation_id)
 ```
 
-### Mode 2: Semantic Discovery
-Find the best model dynamically based on your intent:
-```python
-client = SynapseClient(api_key="agt_xxxxx...")
+### Agent integration guidance
 
-discovery = client.discover_services(intent="image-generation", max_price=0.2)
-if discovery.services:
-    best_service = discovery.services[0].serviceId
-    print(f"Available: {best_service}")
-    
-    res = client.call_service(
-        service_id=best_service,
-        payload={"prompt": "A futuristic cyberpunk city"}
-    )
-```
+For production agent integration, the recommended stack is:
 
-### Mode 3: OpenAI Drop-in (Universal API Proxy)
-If you already have an Agent using OpenAI's library, you can instantly integrate with Synapse by simply changing the base URL.
+1. `SDK` as the executable control plane for discovery, quote, invoke, and receipt polling.
+2. `Agent-readable markdown` as the stable contract and orchestration guide.
+3. `CLI` only as an operator debugging tool or demo harness.
+4. `Skills` only when you are integrating with an IDE agent environment such as Copilot customizations, not as the runtime transport for your autonomous agent.
+
+Why:
+
+1. Skills solve prompt-time workflow composition inside an IDE or chat agent.
+2. Your runtime agent still needs a deterministic programmatic client with idempotency and error handling.
+3. A markdown contract helps external agents understand when to discover, when to quote, what fields matter, and how to react to stable error codes.
+
+See the design note in `docs/agent/07_Agent_SDK_Integration_Guide.md` for the recommended product shape.
+
+### OpenAI-compatible proxy
+
+If you already have an OpenAI-style agent and only want a compatibility path, you can still point it at Synapse's proxy surface.
+
 ```python
 from openai import OpenAI
 
@@ -60,7 +134,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="DeepSeek-R1-2501", # Equivalent to Synapse Service ID
+    model="DeepSeek-R1-2501",
     messages=[{"role": "user", "content": "Hello, decentralized AI!"}]
 )
 ```
@@ -72,10 +146,13 @@ response = client.chat.completions.create(
 You can inject configuration via environment variables without hardcoding them:
 
 - `SYNAPSE_API_KEY`: Set your agent auth key.
-- `SYNAPSE_GATEWAY`: Override the gateway endpoint URL.
+- `SYNAPSE_GATEWAY`: Used by `examples/smoke_test.py` as the default gateway URL.
 
 ## Exceptions & Error Handling
 
-- `InsufficientFundsError`: Catch this to notify user that their on-chain Vault USDC balance is out.
+- `DiscoveryError`: Discovery contract failed.
+- `QuoteError`: Quote creation failed.
+- `BudgetExceededError`: Credential budget, daily cap, or policy guard blocked the call.
+- `InsufficientFundsError`: Remaining budget or credit is exhausted.
 - `AuthenticationError`: When API key is disabled or revoked.
-- `InvokeError`: Execution failed on the provider side.
+- `InvokeError`: Execution failed or receipt polling timed out.

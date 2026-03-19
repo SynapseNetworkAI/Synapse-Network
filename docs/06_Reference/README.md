@@ -9,6 +9,7 @@
 3. Service Manifest 与 Runtime 对象如何建模
 4. 开发、测试、集成时的最低共识是什么
 
+8. `docs/sdk/README.md`
 ## 真理源
 
 本目录以以下来源为准：
@@ -16,9 +17,11 @@
 1. `docs/api.md`
 2. `docs/Gateway_Error_Codes.md`
 3. `docs/agent/02_Discovery_Quote_Invoke_API_Design.md`
+5. `../sdk/README.md`
 4. `docs/agent/03_Service_Manifest_Field_Standard.md`
 5. `docs/agent/04_Credential_Budget_Risk_Model.md`
-6. `docs/04_Database_Design/`
+6. `docs/agent/07_Agent_SDK_Integration_Guide.md`
+7. `docs/04_Database_Design/`
 
 说明：旧 `06_Developer_Guides/` 中的开发、测试、SDK 有效内容已收敛进本模块，不再保留为主引用源。
 

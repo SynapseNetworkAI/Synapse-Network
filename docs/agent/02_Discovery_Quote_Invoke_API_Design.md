@@ -32,13 +32,17 @@
 {
   "query": "cheap OCR for SEA invoices",
   "tags": ["ocr", "invoice"],
-  "max_price_usdc": "0.02",
-  "requires_structured_output": true,
-  "region": "ap-southeast-1",
   "limit": 10,
   "sort": "best_match"
 }
 ```
+
+说明：
+
+1. V1 Agent Discovery 请求只保留 `query`、`tags`、`limit`、`sort` 四个核心字段。
+2. `query` 和 `tags` 采用并集语义，命中任一侧即可进入候选集合。
+3. `tags` 采用任一命中策略，不要求请求中的 tags 全部命中。
+4. `query` 的搜索面至少应覆盖 `service_id`、`service_name`、`description_for_model` 和 tags 文本。
 
 ### 2.3 Response
 
@@ -72,6 +76,23 @@
 - 不允许把关键字段藏在长文本介绍里
 - `sort` 至少支持 `best_match`、`lowest_price`、`fastest`、`highest_reliability`
 - 排序和展示应该以 service 健康度、价格、能力为中心，而不是暴露卖家身份细节
+
+### 2.5 Console Discovery 与 Agent Discovery 必须分层
+
+控制台页面和 Agent Runtime 都会消费同一个 service catalog，但不应该共用同一个 HTTP contract。
+
+推荐拆分方式：
+
+1. `GET /api/v1/services/discover`
+  面向控制台与公开浏览页，返回更适合人类阅读的列表结果，可按页面需要做轻量搜索、分页，以及 `price / invocation_count / revenue / health / service_name` 排序。
+2. `POST /api/v1/agent/discovery/search`
+  面向 Agent Runtime / SDK，返回严格结构化的机器协议结果，V1 请求仅保留 `query`、`tags`、`limit`、`sort`，降低接入成本。
+
+约束：
+
+1. 底层 ranking / filtering / discoverability 逻辑应复用同一套 registry service，禁止维护两套 discover 真相。
+2. 上层 response shape 必须分开，避免控制台临时字段污染 agent contract。
+3. 人类页面允许做视觉增强与本地分页；agent 协议必须保持字段稳定、语义稳定、错误码稳定。
 
 ## 3. Quote API
 

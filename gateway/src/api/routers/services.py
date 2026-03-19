@@ -185,21 +185,28 @@ class ParseCurlRequest(BaseModel):
 
 @router.get("/v1/services/discover")
 async def discover_services(
+    request: Request,
     intent: Optional[str] = Query(
         None, description="Search keyword for service discovery"
     ),
-    request: Request = None,
+    sort_by: str = Query(
+        "best_match", alias="sortBy", description="Sort field for console discovery list"
+    ),
+    sort_order: str = Query(
+        "desc", alias="sortOrder", description="Sort order for console discovery list"
+    ),
     service: RegistryService = Depends(get_registry_service),
 ):
     """
     Public endpoint for owner-scoped AI agents to discover available services.
     Returns only active services.
     """
-    gateway_url = None
-    if request is not None:
-        gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
+    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
     public_services = await service.discover_services(
-        intent, public_gateway_url=gateway_url
+        intent,
+        public_gateway_url=gateway_url,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     return {
         "status": "success",

@@ -85,6 +85,7 @@ docs/
 │   ├── 04_Credential_Budget_Risk_Model.md
 │   ├── 05_Dashboard_IA_and_Onboarding.md
 │   ├── 06_Build_For_Agent_Database_Rebuild.md
+│   ├── 07_Agent_SDK_Integration_Guide.md
 │   └── agent_design.md
 ├── feature_designs/
 │   ├── README.md
@@ -97,6 +98,8 @@ docs/
 │   │   └── Wallet_Auth_Challenge_Session_Design.md
 │   ├── 战略.md
 │   └── 路演准备.md
+├── sdk/
+│   └── README.md
 ├── plan/
 │   ├── 2026-03-17_Docs_Information_Architecture_Consolidation_Plan.md
 │   └── sql/
@@ -135,8 +138,9 @@ docs/
 1. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
 2. [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
 3. [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
-4. [api.md](./api.md)
-5. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
+4. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
+5. [api.md](./api.md)
+6. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
 
 ### 2.3 数据库与资金真相层
 
@@ -175,6 +179,8 @@ docs/
    收敛计划和历史执行记录。
 5. [竞品调研/](./竞品调研/)
    市场和竞品研究材料。
+6. [sdk/README.md](./sdk/README.md)
+   Python SDK 的测试、联调、发布前检查与常见故障排查。
 
 ## 5. 推荐阅读路径
 
@@ -193,6 +199,7 @@ docs/
 3. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
 4. [03_Core_Workflows/03_Billing_Settlement_and_Audit.md](./03_Core_Workflows/03_Billing_Settlement_and_Audit.md)
 5. [03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](./03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
+6. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
 
 ### 5.3 看 Provider 注册、转发、收益、提现
 

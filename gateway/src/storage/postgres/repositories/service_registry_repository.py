@@ -434,6 +434,7 @@ class ServiceRegistryRepository:
         return " ".join(
             value
             for value in [
+                str(row.service_id or ""),
                 str(row.service_name or ""),
                 str(row.summary or ""),
                 " ".join(str(tag) for tag in row.tags or []),

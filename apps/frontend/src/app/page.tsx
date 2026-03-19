@@ -256,7 +256,7 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
               <button
-                onClick={() => handleEnterRole("CONSUMER", "/dashboard/discover")}
+                onClick={() => handleEnterRole("CONSUMER", "/dashboard/discovery")}
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-[#7ff7be] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#6ae5ac]"
               >
                 {t("home.finalCta")}
