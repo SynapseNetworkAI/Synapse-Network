@@ -46,8 +46,25 @@ PR 阻断流水线至少要检查：
 3. admin gateway 测试
 4. admin front 构建
 5. 合约编译或测试
-6. 前端 lint / build
+6. 前端 lint / test / build
 7. 文档链接和关键入口校验
+
+当前仓库脚本入口建议至少固化：
+
+1. `npm run ci:frontend` 作为前端质量门禁入口
+2. `npm run ci:pr` 作为 PR 聚合检查入口
+
+当前 `ci:pr` 已接入的仓库门禁建议包括：
+
+1. `apps/frontend`: lint / test / build
+2. `admin/admin-front`: lint / build
+3. `gateway`: pytest
+4. `admin/gateway-admin`: pytest
+5. `provider_service`: pytest
+6. `sdk/python`: pytest unit tests + `python -m build`，联调 demo 保持 opt-in
+7. root contracts: hardhat compile，若存在 root `test/` 用例则继续执行 hardhat test
+
+当前 Python 打包校验范围只包括 `sdk/python`，因为它是仓库内唯一带 `pyproject.toml` 的 Python 分发包；`gateway`、`admin/gateway-admin`、`provider_service` 当前仍按服务进程治理。
 
 ### 4.2 Financial Security CI
 

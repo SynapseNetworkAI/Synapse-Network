@@ -3,6 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "description": "Local Hardhat toolchain for Synapse contract deployment and test scripts",
+  "scripts": {
+    "ci:admin-front": "bash scripts/ci/admin_front_checks.sh",
+    "ci:admin-gateway": "bash scripts/ci/admin_gateway_checks.sh",
+    "ci:contracts": "bash scripts/ci/contracts_checks.sh",
+    "ci:frontend": "bash scripts/ci/frontend_checks.sh",
+    "ci:gateway": "bash scripts/ci/gateway_checks.sh",
+    "ci:pr": "bash scripts/ci/pr_checks.sh",
+    "ci:provider-service": "bash scripts/ci/provider_service_checks.sh",
+    "ci:sdk-python": "bash scripts/ci/sdk_python_checks.sh"
+  },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.2"
   },
