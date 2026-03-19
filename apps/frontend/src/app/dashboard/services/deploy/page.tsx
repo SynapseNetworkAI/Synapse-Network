@@ -21,8 +21,25 @@ import { useAccount } from "wagmi";
 import AuthMask from "@/components/AuthMask";
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
-import { createServiceRegistry, type ServiceRegistryPayload } from "@/utils/serviceApi";
-import { nowDateTimeString } from "@/utils/time";
+import { createServiceRegistry } from "@/utils/serviceApi";
+import {
+  buildProviderDeployGatewayPayloadPreview,
+  buildProviderDeployStandardManifest,
+  DEFAULT_SERVICE_AUTH_MODE,
+  DEFAULT_SERVICE_BILLING_UNIT,
+  DEFAULT_SERVICE_BILLABLE_STATUS_CLASSES_TEXT,
+  DEFAULT_SERVICE_HEALTH_INTERVAL_SEC,
+  DEFAULT_SERVICE_HEALTH_METHOD,
+  DEFAULT_SERVICE_HEALTH_PATH,
+  DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT,
+  DEFAULT_SERVICE_HEALTH_TIMEOUT_MS,
+  DEFAULT_SERVICE_REQUEST_ID_HEADER,
+  DEFAULT_SERVICE_SETTLEMENT_CURRENCY,
+  DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET,
+  DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG,
+  DEFAULT_SERVICE_PRICING_AMOUNT,
+  SERVICE_CONSTRAINT_LIMITS,
+} from "@/utils/serviceStatus";
 
 const PARSE_CURL_ENDPOINT = `${getGatewayBaseUrl()}/api/v1/services/parse-curl`;
 const STORAGE_KEY = "synapse_manifest_v2_draft";
@@ -31,22 +48,8 @@ const SERVICE_NAME_MIN = 4;
 const SERVICE_NAME_MAX = 80;
 const DESCRIPTION_MIN = 12;
 const DESCRIPTION_MAX = 240;
-const TIMEOUT_MIN = 300;
-const TIMEOUT_MAX = 60000;
-const PAYLOAD_MIN = 256;
-const REQUEST_BYTES_MAX = 262144;
-const RESPONSE_BYTES_MAX = 1048576;
 const WEIGHT_MIN = 1;
 const WEIGHT_MAX = 1000;
-const MAX_QPS_MIN = 1;
-const MAX_QPS_MAX = 200;
-const DEFAULT_REQUEST_ID_HEADER = "X-Synapse-Request-Id";
-const DEFAULT_BILLABLE_STATUS_CLASSES: Array<2 | 4 | 5> = [2];
-const DEFAULT_REGISTRY_STATUS = "draft" as const;
-const DEFAULT_PRICE_MODEL = "fixed" as const;
-const DEFAULT_HEALTH_METHOD = "GET" as const;
-const DEFAULT_HEALTH_INTERVAL_SEC = 10;
-const DEFAULT_HEALTH_SUCCESS_CODES = "200";
 const SUPPORTED_LANGUAGE_OPTIONS = ["en", "cn"] as const;
 const DEFAULT_AI_PARSER_SAMPLE = String.raw`curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \\
   -H "Content-Type: application/json" \\
@@ -207,7 +210,7 @@ const createDefaultDraft = (): ManifestDraft => ({
     serviceName: "",
     serviceSlug: "",
     manifestVersion: "1.0.0",
-    status: "draft",
+    status: DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status,
   },
   modelUsage: {
     descriptionForModel: "",
@@ -222,16 +225,16 @@ const createDefaultDraft = (): ManifestDraft => ({
     outputSchemaText: "{}",
   },
   billing: {
-    priceModel: DEFAULT_PRICE_MODEL,
-    basePriceUsdc: "0.01",
-    settlementCurrency: "USDC",
+    priceModel: DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel,
+    basePriceUsdc: DEFAULT_SERVICE_PRICING_AMOUNT,
+    settlementCurrency: DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.settlementCurrency,
   },
   runtime: {
     endpointUrl: "",
-    authMode: "gateway_forward",
-    timeoutMs: 15000,
-    maxRequestBytes: 4096,
-    maxResponseBytes: 4096,
+    authMode: DEFAULT_SERVICE_AUTH_MODE,
+    timeoutMs: DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultTimeoutMs,
+    maxRequestBytes: DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultMaxRequestBytes,
+    maxResponseBytes: DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultMaxResponseBytes,
   },
   quality: {
     availabilitySlo: "0.995",
@@ -242,25 +245,25 @@ const createDefaultDraft = (): ManifestDraft => ({
   },
   gatewayExtensions: {
     healthCheck: {
-      method: DEFAULT_HEALTH_METHOD,
-      path: "/health",
-      intervalSec: DEFAULT_HEALTH_INTERVAL_SEC,
-      timeoutMs: 3000,
-      successCodesText: DEFAULT_HEALTH_SUCCESS_CODES,
+      method: DEFAULT_SERVICE_HEALTH_METHOD,
+      path: DEFAULT_SERVICE_HEALTH_PATH,
+      intervalSec: DEFAULT_SERVICE_HEALTH_INTERVAL_SEC,
+      timeoutMs: DEFAULT_SERVICE_HEALTH_TIMEOUT_MS,
+      successCodesText: DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT,
     },
     routingTargets: [emptyRoutingTarget()],
     forwardingPolicy: {
-      requestIdHeader: DEFAULT_REQUEST_ID_HEADER,
+      requestIdHeader: DEFAULT_SERVICE_REQUEST_ID_HEADER,
     },
     meteringPolicy: {
-      billingUnit: "per_call",
+      billingUnit: DEFAULT_SERVICE_BILLING_UNIT,
       billOnError: false,
-      billableStatusClassesText: "2",
+      billableStatusClassesText: DEFAULT_SERVICE_BILLABLE_STATUS_CLASSES_TEXT,
       requestIdRequired: true,
       responseSizeMetering: true,
     },
     rateLimitPolicy: {
-      maxQps: 50,
+      maxQps: DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultMaxQps,
     },
   },
 });
@@ -424,7 +427,7 @@ const applyIdentityOverrides = (draft: ManifestDraft, raw: Record<string, unknow
   if (serviceName) draft.identity.serviceName = serviceName;
   if (serviceSlug) draft.identity.serviceSlug = slugifyValue(serviceSlug);
   if (manifestVersion) draft.identity.manifestVersion = manifestVersion;
-  draft.identity.status = DEFAULT_REGISTRY_STATUS;
+  draft.identity.status = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status;
 };
 
 const applyModelUsageOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
@@ -485,7 +488,7 @@ const applyBillingOverrides = (draft: ManifestDraft, raw: Record<string, unknown
     const basePriceUsdc = readString(billing.base_price_usdc);
     const settlementCurrency = readString(billing.settlement_currency);
 
-    draft.billing.priceModel = DEFAULT_PRICE_MODEL;
+    draft.billing.priceModel = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
     if (basePriceUsdc) draft.billing.basePriceUsdc = basePriceUsdc;
     if (settlementCurrency) draft.billing.settlementCurrency = settlementCurrency;
   }
@@ -498,7 +501,7 @@ const applyBillingOverrides = (draft: ManifestDraft, raw: Record<string, unknown
   const currency = readString(pricing.currency);
   if (amount) draft.billing.basePriceUsdc = amount;
   if (currency) draft.billing.settlementCurrency = currency;
-  draft.billing.priceModel = DEFAULT_PRICE_MODEL;
+  draft.billing.priceModel = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
 };
 
 const applyRuntimeRecord = (draft: ManifestDraft, runtime: Record<string, unknown>): void => {
@@ -513,9 +516,9 @@ const applyRuntimeRecord = (draft: ManifestDraft, runtime: Record<string, unknow
   if (authMode) draft.runtime.authMode = authMode;
   if (timeoutMs !== null) draft.runtime.timeoutMs = timeoutMs;
   if (maxRequestBytes !== null) draft.runtime.maxRequestBytes = maxRequestBytes;
-  else if (maxPayloadBytes !== null) draft.runtime.maxRequestBytes = Math.min(maxPayloadBytes, REQUEST_BYTES_MAX);
+  else if (maxPayloadBytes !== null) draft.runtime.maxRequestBytes = Math.min(maxPayloadBytes, SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max);
   if (maxResponseBytes !== null) draft.runtime.maxResponseBytes = maxResponseBytes;
-  else if (maxPayloadBytes !== null) draft.runtime.maxResponseBytes = Math.min(maxPayloadBytes, RESPONSE_BYTES_MAX);
+  else if (maxPayloadBytes !== null) draft.runtime.maxResponseBytes = Math.min(maxPayloadBytes, SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max);
 };
 
 const applyConstraintRecord = (draft: ManifestDraft, constraints: Record<string, unknown>): void => {
@@ -549,10 +552,10 @@ const applyHealthCheckRecord = (draft: ManifestDraft, healthCheck: Record<string
   const timeoutMs = readNumber(healthCheck.timeout_ms);
 
   if (path) draft.gatewayExtensions.healthCheck.path = normalizeHealthPath(path);
-  draft.gatewayExtensions.healthCheck.method = DEFAULT_HEALTH_METHOD;
-  draft.gatewayExtensions.healthCheck.intervalSec = DEFAULT_HEALTH_INTERVAL_SEC;
+  draft.gatewayExtensions.healthCheck.method = DEFAULT_SERVICE_HEALTH_METHOD;
+  draft.gatewayExtensions.healthCheck.intervalSec = DEFAULT_SERVICE_HEALTH_INTERVAL_SEC;
   if (timeoutMs !== null) draft.gatewayExtensions.healthCheck.timeoutMs = timeoutMs;
-  draft.gatewayExtensions.healthCheck.successCodesText = DEFAULT_HEALTH_SUCCESS_CODES;
+  draft.gatewayExtensions.healthCheck.successCodesText = DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT;
 };
 
 const applyRoutingTargetsRecord = (draft: ManifestDraft, routingTargets: unknown[]): void => {
@@ -572,7 +575,7 @@ const applyRoutingTargetsRecord = (draft: ManifestDraft, routingTargets: unknown
 };
 
 const applyForwardingPolicyRecord = (draft: ManifestDraft): void => {
-  draft.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_REQUEST_ID_HEADER;
+  draft.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_SERVICE_REQUEST_ID_HEADER;
 };
 
 const applyGatewayOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
@@ -647,14 +650,14 @@ const collectRuntimeErrors = (
   if (!isHttpUrl(draft.runtime.endpointUrl.trim())) {
     errors.endpointUrl = "Endpoint URL must be a valid http(s) URL.";
   }
-  if (draft.runtime.timeoutMs < TIMEOUT_MIN || draft.runtime.timeoutMs > TIMEOUT_MAX) {
-    errors.timeoutMs = `Timeout must be in [${TIMEOUT_MIN}, ${TIMEOUT_MAX}] ms.`;
+  if (draft.runtime.timeoutMs < SERVICE_CONSTRAINT_LIMITS.timeoutMs.min || draft.runtime.timeoutMs > SERVICE_CONSTRAINT_LIMITS.timeoutMs.max) {
+    errors.timeoutMs = `Timeout must be in [${SERVICE_CONSTRAINT_LIMITS.timeoutMs.min}, ${SERVICE_CONSTRAINT_LIMITS.timeoutMs.max}] ms.`;
   }
-  if (draft.runtime.maxRequestBytes < PAYLOAD_MIN || draft.runtime.maxRequestBytes > REQUEST_BYTES_MAX) {
-    errors.maxRequestBytes = `Max Request Bytes must be in [${PAYLOAD_MIN}, ${REQUEST_BYTES_MAX}].`;
+  if (draft.runtime.maxRequestBytes < SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min || draft.runtime.maxRequestBytes > SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max) {
+    errors.maxRequestBytes = `Max Request Bytes must be in [${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min}, ${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max}].`;
   }
-  if (draft.runtime.maxResponseBytes < PAYLOAD_MIN || draft.runtime.maxResponseBytes > RESPONSE_BYTES_MAX) {
-    errors.maxResponseBytes = `Max Response Bytes must be in [${PAYLOAD_MIN}, ${RESPONSE_BYTES_MAX}].`;
+  if (draft.runtime.maxResponseBytes < SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min || draft.runtime.maxResponseBytes > SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max) {
+    errors.maxResponseBytes = `Max Response Bytes must be in [${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min}, ${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max}].`;
   }
   if (!normalizeHealthPath(draft.gatewayExtensions.healthCheck.path).startsWith("/")) {
     errors.healthPath = "Health Check Path must start with /.";
@@ -665,8 +668,8 @@ const collectRuntimeErrors = (
   if (draft.gatewayExtensions.routingTargets.some((target) => target.url.trim() && (target.weight < WEIGHT_MIN || target.weight > WEIGHT_MAX))) {
     errors.routingTargets = `Target weight must be in [${WEIGHT_MIN}, ${WEIGHT_MAX}].`;
   }
-  if (draft.gatewayExtensions.rateLimitPolicy.maxQps < MAX_QPS_MIN || draft.gatewayExtensions.rateLimitPolicy.maxQps > MAX_QPS_MAX) {
-    errors.maxQps = `Max QPS must be in [${MAX_QPS_MIN}, ${MAX_QPS_MAX}].`;
+  if (draft.gatewayExtensions.rateLimitPolicy.maxQps < SERVICE_CONSTRAINT_LIMITS.maxQps.min || draft.gatewayExtensions.rateLimitPolicy.maxQps > SERVICE_CONSTRAINT_LIMITS.maxQps.max) {
+    errors.maxQps = `Max QPS must be in [${SERVICE_CONSTRAINT_LIMITS.maxQps.min}, ${SERVICE_CONSTRAINT_LIMITS.maxQps.max}].`;
   }
 };
 
@@ -971,7 +974,7 @@ export default function DeployManifestPage() {
   const [draft, setDraft] = useState<ManifestDraft>(createDefaultDraft);
   const [hasDraft, setHasDraft] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
-  const [aiCurl, setAICurl] = useState(DEFAULT_AI_PARSER_SAMPLE);
+  const [aiCurl, setAICurl] = useState("");
   const [aiResponse, setAIResponse] = useState("");
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
@@ -995,13 +998,13 @@ export default function DeployManifestPage() {
 
     try {
       const parsed = JSON.parse(saved) as ManifestDraft;
-      parsed.identity.status = DEFAULT_REGISTRY_STATUS;
+      parsed.identity.status = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status;
       parsed.modelUsage.supportedLanguages = normalizeSupportedLanguages(parsed.modelUsage.supportedLanguages ?? []);
-      parsed.billing.priceModel = DEFAULT_PRICE_MODEL;
-      parsed.gatewayExtensions.healthCheck.method = DEFAULT_HEALTH_METHOD;
-      parsed.gatewayExtensions.healthCheck.intervalSec = DEFAULT_HEALTH_INTERVAL_SEC;
-      parsed.gatewayExtensions.healthCheck.successCodesText = DEFAULT_HEALTH_SUCCESS_CODES;
-      parsed.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_REQUEST_ID_HEADER;
+      parsed.billing.priceModel = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
+      parsed.gatewayExtensions.healthCheck.method = DEFAULT_SERVICE_HEALTH_METHOD;
+      parsed.gatewayExtensions.healthCheck.intervalSec = DEFAULT_SERVICE_HEALTH_INTERVAL_SEC;
+      parsed.gatewayExtensions.healthCheck.successCodesText = DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT;
+      parsed.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_SERVICE_REQUEST_ID_HEADER;
       setDraft(parsed);
       setHasDraft(false);
       toast.success("Manifest draft restored.");
@@ -1131,139 +1134,30 @@ export default function DeployManifestPage() {
     [draft, inputSchema.valid, outputSchema.valid, normalizedTargets.length],
   );
 
-  const standardManifest = useMemo(() => {
-    const derivedServiceSlug = draft.identity.serviceSlug.trim() || slugifyValue(draft.identity.serviceName || draft.identity.serviceId);
-    return {
-      service_id: draft.identity.serviceId.trim(),
-      service_name: draft.identity.serviceName.trim(),
-      service_slug: derivedServiceSlug || undefined,
-      manifest_version: draft.identity.manifestVersion.trim(),
-      model_usage: {
-        description_for_model: draft.modelUsage.descriptionForModel.trim(),
-        task_category: draft.modelUsage.taskCategory.trim() || undefined,
-        capabilities: uniqueList(draft.modelUsage.capabilities),
-        limitations: uniqueList(draft.modelUsage.limitations),
-        supported_languages: normalizeSupportedLanguages(draft.modelUsage.supportedLanguages),
-        examples: examples.value,
-      },
-      io_schema: {
-        input_schema: inputSchema.value,
-        output_schema: outputSchema.value,
-      },
-      billing: {
-        price_model: DEFAULT_PRICE_MODEL,
-        base_price_usdc: draft.billing.basePriceUsdc.trim(),
-        settlement_currency: draft.billing.settlementCurrency.trim() || "USDC",
-      },
-      runtime: {
-        endpoint_url: draft.runtime.endpointUrl.trim(),
-        auth_mode: draft.runtime.authMode.trim() || "gateway_forward",
-        timeout_ms: draft.runtime.timeoutMs,
-        max_request_bytes: draft.runtime.maxRequestBytes,
-        max_response_bytes: draft.runtime.maxResponseBytes,
-      },
-      gateway_extensions: {
-        health_check: {
-          method: DEFAULT_HEALTH_METHOD,
-          path: normalizeHealthPath(draft.gatewayExtensions.healthCheck.path),
-          interval_sec: DEFAULT_HEALTH_INTERVAL_SEC,
-          timeout_ms: draft.gatewayExtensions.healthCheck.timeoutMs,
-          success_codes: successCodes,
-        },
-        routing_targets: normalizedTargets,
-        forwarding_policy: {
-          request_id_header: DEFAULT_REQUEST_ID_HEADER,
-        },
-        rate_limit_policy: {
-          max_qps: draft.gatewayExtensions.rateLimitPolicy.maxQps,
-        },
-      },
-    };
-  }, [draft, examples.value, inputSchema.value, outputSchema.value, successCodes, normalizedTargets]);
+  const standardManifest = useMemo(
+    () => buildProviderDeployStandardManifest({
+      draft,
+      inputSchema: inputSchema.value,
+      outputSchema: outputSchema.value,
+      examples: examples.value,
+      successCodes,
+      normalizedTargets,
+    }),
+    [draft, examples.value, inputSchema.value, outputSchema.value, successCodes, normalizedTargets],
+  );
 
-  const gatewayPayloadPreview = useMemo<ServiceRegistryPayload>(() => {
-    const serviceId = draft.identity.serviceId.trim();
-    const description = draft.modelUsage.descriptionForModel.trim();
-    const combinedTags = uniqueList([
-      draft.identity.serviceSlug.trim(),
-      draft.modelUsage.taskCategory.trim(),
-      ...draft.modelUsage.capabilities,
-    ]);
-
-    return {
-      serviceId,
-      serviceName: draft.identity.serviceName.trim(),
-      createdAt: nowDateTimeString(),
-      updatedAt: nowDateTimeString(),
-      role: "Provider",
+  const gatewayPayloadPreview = useMemo(
+    () => buildProviderDeployGatewayPayloadPreview({
+      draft,
       address,
-      pricing: {
-        currency: draft.billing.settlementCurrency.trim() || "USDC",
-        amount: draft.billing.basePriceUsdc.trim() || "0",
-      },
-      isActive: false,
-      status: DEFAULT_REGISTRY_STATUS,
-      summary: description,
-      tags: combinedTags,
-      auth: {
-        type: draft.runtime.authMode.trim() || "gateway_forward",
-        headerName: "X-Credential",
-      },
-      healthCheck: {
-        path: normalizeHealthPath(draft.gatewayExtensions.healthCheck.path),
-        method: DEFAULT_HEALTH_METHOD,
-        intervalSec: DEFAULT_HEALTH_INTERVAL_SEC,
-        timeoutMs: draft.gatewayExtensions.healthCheck.timeoutMs,
-        successCodes,
-        healthyThreshold: 2,
-        unhealthyThreshold: 3,
-      },
-      constraints: {
-        timeoutMs: draft.runtime.timeoutMs,
-        maxRequestBytes: draft.runtime.maxRequestBytes,
-        maxResponseBytes: draft.runtime.maxResponseBytes,
-        maxQps: draft.gatewayExtensions.rateLimitPolicy.maxQps,
-      },
-      forwarding: {
-        requestIdHeader: DEFAULT_REQUEST_ID_HEADER,
-        injectHeaders: {
-          "X-Synapse-Service-Id": serviceId,
-        },
-        retryPolicy: {
-          maxAttempts: 2,
-          backoffMs: 200,
-          retryOnStatus: [429, 500, 502, 503, 504],
-        },
-      },
-      metering: {
-        billingUnit: "per_call",
-        billOnError: false,
-        billableStatusClasses: DEFAULT_BILLABLE_STATUS_CLASSES,
-        requestIdRequired: true,
-        responseSizeMetering: true,
-      },
-      invoke: {
-        method: "POST",
-        targets: normalizedTargets.map((target) => ({
-          url: target.url,
-          region: target.region,
-          weight: target.weight,
-        })),
-        timeoutMs: draft.runtime.timeoutMs,
-        request: {
-          contentType: "application/json",
-          schema: inputSchema.value,
-        },
-        response: {
-          schema: outputSchema.value,
-        },
-        headersTemplate: {
-          [DEFAULT_REQUEST_ID_HEADER]: "{{requestId}}",
-        },
-        examples: examples.value as Array<Record<string, unknown>>,
-      },
-    };
-  }, [draft, address, normalizedTargets, inputSchema.value, outputSchema.value, successCodes, examples.value]);
+      inputSchema: inputSchema.value,
+      outputSchema: outputSchema.value,
+      examples: examples.value,
+      successCodes,
+      normalizedTargets,
+    }),
+    [draft, address, normalizedTargets, inputSchema.value, outputSchema.value, successCodes, examples.value],
+  );
 
   const aiCurlLooksValid = useMemo(() => isValidCurlCommand(aiCurl), [aiCurl]);
   const parsedAiResponse = useMemo(() => {
@@ -1285,7 +1179,17 @@ export default function DeployManifestPage() {
   const readinessPercent = Math.round((completedChecks / readinessChecks.length) * 100);
   const nextBlockingIssue = firstValidationError(fieldErrors);
 
-  const openParser = () => setShowAIModal(true);
+  const openParser = () => {
+    setAICurl("");
+    setAIResponse("");
+    setShowAIModal(true);
+  };
+
+  const closeParser = () => {
+    setAICurl("");
+    setAIResponse("");
+    setShowAIModal(false);
+  };
 
   const autofillAIMagic = async () => {
     setIsAiGenerating(true);
@@ -1347,7 +1251,7 @@ export default function DeployManifestPage() {
     }
 
     setDraft((current) => normalizeParsedManifest(current, parsedAiResponse));
-    setShowAIModal(false);
+    closeParser();
     toast.success("Parsed manifest data injected into the form.");
   };
 
@@ -1597,7 +1501,7 @@ export default function DeployManifestPage() {
                   </label>
                   <select
                     className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-zinc-400 outline-none"
-                    value={DEFAULT_PRICE_MODEL}
+                    value={DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel}
                     disabled
                   >
                     <option value="fixed">fixed</option>
@@ -1617,7 +1521,7 @@ export default function DeployManifestPage() {
                   label="Settlement Currency"
                   value={draft.billing.settlementCurrency}
                   onChange={(value) => updateBilling("settlementCurrency", value.toUpperCase())}
-                  placeholder="USDC"
+                  placeholder={DEFAULT_SERVICE_SETTLEMENT_CURRENCY}
                   hint="Current system is USDC-native."
                   mono
                 />
@@ -1651,7 +1555,7 @@ export default function DeployManifestPage() {
                   label="Auth Mode"
                   value={draft.runtime.authMode}
                   onChange={(value) => updateRuntime("authMode", value)}
-                  placeholder="gateway_forward"
+                  placeholder={DEFAULT_SERVICE_AUTH_MODE}
                   hint="Defines how the gateway authenticates to your upstream. gateway_forward means Synapse forwards the request using platform-managed credentials and headers."
                   mono
                 />
@@ -1660,21 +1564,21 @@ export default function DeployManifestPage() {
                   value={draft.runtime.timeoutMs}
                   onChange={(value) => updateRuntime("timeoutMs", value)}
                   error={fieldErrors.timeoutMs}
-                  hint={`Allowed range ${TIMEOUT_MIN}-${TIMEOUT_MAX}.`}
+                  hint={`Allowed range ${SERVICE_CONSTRAINT_LIMITS.timeoutMs.min}-${SERVICE_CONSTRAINT_LIMITS.timeoutMs.max}.`}
                 />
                 <NumberField
                   label="Max Request Bytes"
                   value={draft.runtime.maxRequestBytes}
                   onChange={(value) => updateRuntime("maxRequestBytes", value)}
                   error={fieldErrors.maxRequestBytes}
-                  hint={`Allowed range ${PAYLOAD_MIN}-${REQUEST_BYTES_MAX}.`}
+                  hint={`Allowed range ${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min}-${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max}.`}
                 />
                 <NumberField
                   label="Max Response Bytes"
                   value={draft.runtime.maxResponseBytes}
                   onChange={(value) => updateRuntime("maxResponseBytes", value)}
                   error={fieldErrors.maxResponseBytes}
-                  hint={`Allowed range ${PAYLOAD_MIN}-${RESPONSE_BYTES_MAX}.`}
+                  hint={`Allowed range ${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min}-${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max}.`}
                 />
               </div>
             </SectionCard>
@@ -1689,7 +1593,7 @@ export default function DeployManifestPage() {
                 <div>
                   <p className="mb-1.5 block text-sm font-medium text-zinc-200">Health Method</p>
                   <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                    {DEFAULT_HEALTH_METHOD}
+                    {DEFAULT_SERVICE_HEALTH_METHOD}
                   </div>
                   <FieldNote hint="Platform probes health with a fixed GET request in V1." />
                 </div>
@@ -1704,7 +1608,7 @@ export default function DeployManifestPage() {
                 <div>
                   <p className="mb-1.5 block text-sm font-medium text-zinc-200">Health Interval (sec)</p>
                   <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                    {DEFAULT_HEALTH_INTERVAL_SEC}
+                    {DEFAULT_SERVICE_HEALTH_INTERVAL_SEC}
                   </div>
                   <FieldNote hint="Platform probes every 10 seconds in V1." />
                 </div>
@@ -1718,7 +1622,7 @@ export default function DeployManifestPage() {
               <div>
                 <p className="mb-1.5 block text-sm font-medium text-zinc-200">Health Success Codes</p>
                 <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                  {DEFAULT_HEALTH_SUCCESS_CODES}
+                  {DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT}
                 </div>
                 <FieldNote hint="V1 treats HTTP 200 as the health success signal." />
               </div>
@@ -1745,7 +1649,7 @@ export default function DeployManifestPage() {
                 <div>
                   <p className="mb-1.5 block text-sm font-medium text-zinc-200">Request ID Header</p>
                   <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                    {DEFAULT_REQUEST_ID_HEADER}
+                    {DEFAULT_SERVICE_REQUEST_ID_HEADER}
                   </div>
                   <FieldNote hint="Platform-managed trace header. V1 always injects this value." />
                 </div>
@@ -1762,7 +1666,7 @@ export default function DeployManifestPage() {
                   value={draft.gatewayExtensions.rateLimitPolicy.maxQps}
                   onChange={updateRateLimitPolicy}
                   error={fieldErrors.maxQps}
-                  hint={`Gateway v1 admission cap ${MAX_QPS_MIN}-${MAX_QPS_MAX}.`}
+                  hint={`Gateway v1 admission cap ${SERVICE_CONSTRAINT_LIMITS.maxQps.min}-${SERVICE_CONSTRAINT_LIMITS.maxQps.max}.`}
                 />
                 <div className="rounded-2xl border border-white/8 bg-black/60 px-4 py-3">
                   <p className="text-sm font-medium text-white">Platform Defaults</p>
@@ -1775,13 +1679,19 @@ export default function DeployManifestPage() {
 
             {showAIModal ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-                <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-green-900/40 bg-[#0a0d11] shadow-[0_0_50px_rgba(34,197,94,0.12)]">
+                <button
+                  type="button"
+                  aria-label="Close AI parser"
+                  onClick={closeParser}
+                  className="absolute inset-0"
+                />
+                <div className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-green-900/40 bg-[#0a0d11] shadow-[0_0_50px_rgba(34,197,94,0.12)]">
                   <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
                     <div>
                       <h3 className="text-xl font-semibold text-white">AI API Parser</h3>
                       <p className="mt-1 text-sm text-zinc-500">Paste a complete API example block: raw cURL command plus the returned JSON result. The parser will infer the current V1 contract fields and fill the form.</p>
                     </div>
-                    <button type="button" onClick={() => setShowAIModal(false)} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-white">
+                    <button type="button" onClick={closeParser} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-white">
                       <X className="h-5 w-5" />
                     </button>
                   </div>
@@ -1872,7 +1782,7 @@ export default function DeployManifestPage() {
                   </div>
                   <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
                     <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Registry State</p>
-                    <p className="mt-2 text-sm text-white">{DEFAULT_REGISTRY_STATUS}</p>
+                    <p className="mt-2 text-sm text-white">{DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status}</p>
                   </div>
                 </div>
                 <div className="mt-4 rounded-2xl border border-white/8 bg-black/50 p-4 text-sm text-zinc-400">

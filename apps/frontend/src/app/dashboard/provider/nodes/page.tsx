@@ -15,9 +15,18 @@ import {
   type ServiceRegistryPayload,
   type ServiceRegistryRecord,
 } from "@/utils/serviceApi";
-import { nowDateTimeString } from "@/utils/time";
-import { extractPricingAmount, formatPricing } from "@/utils/pricing";
+import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
+import {
+  DEFAULT_SERVICE_EDIT_DRAFT_CONFIG,
+  SERVICE_CONSTRAINT_LIMITS,
+  buildEditDraftFromService,
+  buildOptimisticServiceRecord,
+  buildServicePayloadFromEditDraft,
+  buildServiceStatusUpdatePayload,
+  type ServiceEditDraft,
+  validateServiceEditDraft,
+} from "@/utils/serviceStatus";
 
 type NodeStatus = "all" | "online" | "offline";
 
@@ -44,266 +53,6 @@ function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inacti
   return svc.isActive ? "active" : "inactive";
 }
 
-const CONSTRAINT_LIMITS = {
-  timeoutMs: { min: 300, max: 15000 },
-  maxRequestBytes: { min: 256, max: 262144 },
-  maxResponseBytes: { min: 256, max: 1048576 },
-  maxQps: { min: 1, max: 200 },
-} as const;
-
-const CONSTRAINT_DEFAULTS = {
-  timeoutMs: 3000,
-  maxRequestBytes: 4096,
-  maxResponseBytes: 2048,
-  maxQps: 50,
-} as const;
-
-type EditDraft = {
-  serviceName: string;
-  summary: string;
-  pricingAmount: string;
-  isActive: boolean;
-  tagsText: string;
-  authType: string;
-  authHeaderName: string;
-  healthPath: string;
-  healthMethod: "GET" | "HEAD" | "POST";
-  healthIntervalSec: string;
-  healthTimeoutMs: string;
-  healthSuccessCodesText: string;
-  healthyThreshold: string;
-  unhealthyThreshold: string;
-  constraintsTimeoutMs: string;
-  constraintsMaxResponseBytes: string;
-  constraintsMaxRequestBytes: string;
-  constraintsMaxQps: string;
-  requestIdHeader: string;
-  passThroughHeadersText: string;
-  injectHeadersJson: string;
-  retryMaxAttempts: string;
-  retryBackoffMs: string;
-  retryOnStatusText: string;
-  billingUnit: "per_call" | "per_success_call";
-  billOnError: boolean;
-  requestIdRequired: boolean;
-  responseSizeMetering: boolean;
-  invokeMethod: string;
-  invokeUrl: string;
-  invokeTimeoutMs: string;
-  invokeTargetsJson: string;
-  requestSchemaJson: string;
-  responseSchemaJson: string;
-};
-
-function toEditDraft(svc: ServiceRegistryRecord): EditDraft {
-  const invokeTargets = svc.invoke?.targets || (svc.endpoint ? [{ url: svc.endpoint, weight: 100 }] : []);
-  const invokeUrl = svc.invoke?.url || invokeTargets[0]?.url || svc.endpoint || "";
-
-  return {
-    serviceName: svc.serviceName || svc.name || "",
-    summary: svc.summary || "",
-    pricingAmount: extractPricingAmount(svc.pricing, "0.01"),
-    isActive: Boolean(svc.isActive),
-    tagsText: (svc.tags || []).join(", "),
-    authType: svc.auth?.type || "service_key",
-    authHeaderName: svc.auth?.headerName || "X-Credential",
-    healthPath: svc.healthCheck?.path || "/health",
-    healthMethod: svc.healthCheck?.method || "GET",
-    healthIntervalSec: String(svc.healthCheck?.intervalSec ?? 30),
-    healthTimeoutMs: String(svc.healthCheck?.timeoutMs ?? 3000),
-    healthSuccessCodesText: (svc.healthCheck?.successCodes || [200]).join(","),
-    healthyThreshold: String(svc.healthCheck?.healthyThreshold ?? 2),
-    unhealthyThreshold: String(svc.healthCheck?.unhealthyThreshold ?? 3),
-    constraintsTimeoutMs: String(svc.constraints?.timeoutMs ?? svc.invoke?.timeoutMs ?? CONSTRAINT_DEFAULTS.timeoutMs),
-    constraintsMaxResponseBytes: String(svc.constraints?.maxResponseBytes ?? CONSTRAINT_DEFAULTS.maxResponseBytes),
-    constraintsMaxRequestBytes: String(svc.constraints?.maxRequestBytes ?? CONSTRAINT_DEFAULTS.maxRequestBytes),
-    constraintsMaxQps: String(svc.constraints?.maxQps ?? CONSTRAINT_DEFAULTS.maxQps),
-    requestIdHeader: svc.forwarding?.requestIdHeader || "X-Synapse-Request-Id",
-    passThroughHeadersText: (svc.forwarding?.passThroughHeaders || []).join(", "),
-    injectHeadersJson: JSON.stringify(svc.forwarding?.injectHeaders || {}, null, 2),
-    retryMaxAttempts: String(svc.forwarding?.retryPolicy?.maxAttempts ?? 2),
-    retryBackoffMs: String(svc.forwarding?.retryPolicy?.backoffMs ?? 200),
-    retryOnStatusText: (svc.forwarding?.retryPolicy?.retryOnStatus || [429, 500, 502, 503, 504]).join(","),
-    billingUnit: svc.metering?.billingUnit || "per_call",
-    billOnError: Boolean(svc.metering?.billOnError),
-    requestIdRequired: svc.metering?.requestIdRequired !== false,
-    responseSizeMetering: svc.metering?.responseSizeMetering !== false,
-    invokeMethod: svc.invoke?.method || "POST",
-    invokeUrl,
-    invokeTimeoutMs: String(svc.invoke?.timeoutMs ?? 3000),
-    invokeTargetsJson: JSON.stringify(invokeTargets, null, 2),
-    requestSchemaJson: JSON.stringify(svc.invoke?.request?.schema || { type: "object", properties: {} }, null, 2),
-    responseSchemaJson: JSON.stringify(svc.invoke?.response?.schema || { type: "object", properties: {} }, null, 2),
-  };
-}
-
-function parseCsvText(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parseCsvNumbers(value: string): number[] {
-  return parseCsvText(value)
-    .map((item) => Number.parseInt(item, 10))
-    .filter((num) => Number.isFinite(num));
-}
-
-function parsePositiveInt(value: string, fallback: number): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function parseObjectJson(value: string): Record<string, unknown> {
-  const parsed = JSON.parse(value) as unknown;
-  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-    throw new Error("JSON must be an object");
-  }
-  return parsed as Record<string, unknown>;
-}
-
-function parseTargetsJson(value: string): Array<{ url: string; weight?: number; region?: string }> {
-  const parsed = JSON.parse(value) as unknown;
-  if (!Array.isArray(parsed)) {
-    throw new TypeError("Targets must be a JSON array");
-  }
-  const targets = parsed
-    .filter((item): item is { url?: unknown; weight?: unknown; region?: unknown } => Boolean(item && typeof item === "object"))
-    .map((item) => {
-      const url = typeof item.url === "string" ? item.url.trim() : "";
-      const weight = Number.isFinite(Number(item.weight)) ? Number(item.weight) : undefined;
-      const region = typeof item.region === "string" ? item.region.trim() : undefined;
-      return { url, weight, region };
-    })
-    .filter((item) => Boolean(item.url));
-
-  if (targets.length === 0) {
-    throw new Error("At least one invoke target with a valid url is required");
-  }
-
-  return targets;
-}
-
-function parseStrictInt(value: string): number | null {
-  if (!value.trim()) {
-    return null;
-  }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed)) {
-    return null;
-  }
-  return parsed;
-}
-
-function isNonNegativeNumber(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return false;
-  }
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 0;
-}
-
-type EditValidation = {
-  isValid: boolean;
-  firstError: string | null;
-  errors: Record<string, string>;
-};
-
-function validateConstraintField(
-  value: string,
-  fieldName: string,
-  limits: { min: number; max: number },
-  errors: Record<string, string>,
-  label: string,
-): void {
-  const parsed = parseStrictInt(value);
-  if (parsed === null) {
-    errors[fieldName] = `${label} must be an integer.`;
-    return;
-  }
-  if (parsed < limits.min || parsed > limits.max) {
-    errors[fieldName] = `${label} must be ${limits.min}-${limits.max}.`;
-  }
-}
-
-function validateJsonField(
-  value: string,
-  fieldName: string,
-  errors: Record<string, string>,
-  message: string,
-): void {
-  try {
-    parseObjectJson(value);
-  } catch {
-    errors[fieldName] = message;
-  }
-}
-
-function validateEditDraft(draft: EditDraft | null): EditValidation {
-  const errors: Record<string, string> = {};
-
-  if (!draft) {
-    return {
-      isValid: false,
-      firstError: "Draft not ready",
-      errors,
-    };
-  }
-
-  if (!draft.serviceName.trim()) {
-    errors.serviceName = "Service name is required.";
-  }
-  if (!isNonNegativeNumber(draft.pricingAmount)) {
-    errors.pricingAmount = "Unit price must be a non-negative number.";
-  }
-  if (!draft.healthPath.trim()) {
-    errors.healthPath = "Health path is required.";
-  } else if (!draft.healthPath.trim().startsWith("/")) {
-    errors.healthPath = "Health path must start with /.";
-  }
-  if (!draft.invokeUrl.trim()) {
-    errors.invokeUrl = "Invoke URL is required.";
-  }
-
-  validateConstraintField(draft.constraintsTimeoutMs, "constraintsTimeoutMs", CONSTRAINT_LIMITS.timeoutMs, errors, "Constraint timeout");
-  validateConstraintField(
-    draft.constraintsMaxRequestBytes,
-    "constraintsMaxRequestBytes",
-    CONSTRAINT_LIMITS.maxRequestBytes,
-    errors,
-    "Max request bytes",
-  );
-  validateConstraintField(
-    draft.constraintsMaxResponseBytes,
-    "constraintsMaxResponseBytes",
-    CONSTRAINT_LIMITS.maxResponseBytes,
-    errors,
-    "Max response bytes",
-  );
-  validateConstraintField(draft.constraintsMaxQps, "constraintsMaxQps", CONSTRAINT_LIMITS.maxQps, errors, "Max QPS");
-
-  try {
-    parseTargetsJson(draft.invokeTargetsJson);
-  } catch (err) {
-    errors.invokeTargetsJson = err instanceof Error ? err.message : "Invalid invoke targets JSON.";
-  }
-
-  validateJsonField(draft.requestSchemaJson, "requestSchemaJson", errors, "Request schema must be a valid JSON object.");
-  validateJsonField(draft.responseSchemaJson, "responseSchemaJson", errors, "Response schema must be a valid JSON object.");
-  validateJsonField(draft.injectHeadersJson, "injectHeadersJson", errors, "Inject headers must be a valid JSON object.");
-
-  return {
-    isValid: Object.keys(errors).length === 0,
-    firstError: Object.values(errors)[0] || null,
-    errors,
-  };
-}
-
 export default function ProviderNodesPage() {
   const { address, isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
@@ -317,8 +66,9 @@ export default function ProviderNodesPage() {
   const [status, setStatus] = useState<NodeStatus>("all");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<ServiceRegistryRecord | null>(null);
-  const [draft, setDraft] = useState<EditDraft | null>(null);
+  const [draft, setDraft] = useState<ServiceEditDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
   const PAGE_SIZE = 8;
 
   useEffect(() => {
@@ -362,7 +112,7 @@ export default function ProviderNodesPage() {
     const matched = services.find((svc) => svc.serviceId === editServiceId);
     if (matched) {
       setEditing(matched);
-      setDraft(toEditDraft(matched));
+      setDraft(buildEditDraftFromService(matched, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG));
     }
   }, [searchParams, services]);
 
@@ -402,7 +152,10 @@ export default function ProviderNodesPage() {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, safePage]);
 
-  const editValidation = useMemo(() => validateEditDraft(draft), [draft]);
+  const editValidation = useMemo(
+    () => validateServiceEditDraft(draft, SERVICE_CONSTRAINT_LIMITS),
+    [draft],
+  );
 
   const closeModal = () => {
     setEditing(null);
@@ -411,7 +164,7 @@ export default function ProviderNodesPage() {
 
   const openEditModal = (svc: ServiceRegistryRecord) => {
     setEditing(svc);
-    const nextDraft = toEditDraft(svc);
+    const nextDraft = buildEditDraftFromService(svc, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG);
     if (!nextDraft.invokeUrl.trim()) {
       nextDraft.invokeUrl =
         svc.endpoint ||
@@ -419,6 +172,51 @@ export default function ProviderNodesPage() {
         (Array.isArray(svc.invoke?.targets) ? (svc.invoke?.targets[0]?.url || "") : "");
     }
     setDraft(nextDraft);
+  };
+
+  const buildServicePayload = (service: ServiceRegistryRecord, nextDraft: ServiceEditDraft): ServiceRegistryPayload => buildServicePayloadFromEditDraft(
+    service,
+    nextDraft,
+    DEFAULT_SERVICE_EDIT_DRAFT_CONFIG,
+  );
+
+  const updateServiceStatus = async (service: ServiceRegistryRecord, nextActive: boolean) => {
+    if (!address || saving || statusUpdatingServiceId) {
+      return;
+    }
+
+    const actionLabel = nextActive ? "activate" : "inactive";
+    const confirmed = globalThis.confirm(
+      nextActive
+        ? `Activate service ${service.serviceId}? It will be eligible for discovery again after health checks report healthy targets.`
+        : `Set service ${service.serviceId} to inactive? New discovery and direct gateway forwarding will stop once this update is applied.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const payload = buildServiceStatusUpdatePayload(service, nextActive);
+      const optimisticService = buildOptimisticServiceRecord(service, payload);
+
+      const prevServices = services;
+      setStatusUpdatingServiceId(service.serviceId);
+      setServices((prev) => prev.map((svc) => (svc.serviceId === service.serviceId ? optimisticService : svc)));
+      upsertServiceRegistryListCache(optimisticService);
+
+      try {
+        await updateServiceRegistry(payload, address);
+        toast.success(nextActive ? "Service activated" : "Service set to inactive");
+      } catch (err) {
+        setServices(prevServices);
+        invalidateServiceRegistryListCache(address);
+        toast.error(err instanceof Error ? err.message : `Failed to ${actionLabel} service`);
+      } finally {
+        setStatusUpdatingServiceId(null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to ${actionLabel} service`);
+    }
   };
 
   const persistEdit = async () => {
@@ -431,149 +229,30 @@ export default function ProviderNodesPage() {
       return;
     }
 
-    const normalizedPath = draft.healthPath.trim().startsWith("/")
-      ? draft.healthPath.trim()
-      : `/${draft.healthPath.trim() || "health"}`;
-
-    let invokeTargets: Array<{ url: string; weight?: number; region?: string }> = [];
-    let requestSchema: Record<string, unknown> = {};
-    let responseSchema: Record<string, unknown> = {};
-    let injectHeaders: Record<string, string> = {};
-
     try {
-      invokeTargets = parseTargetsJson(draft.invokeTargetsJson);
-      requestSchema = parseObjectJson(draft.requestSchemaJson);
-      responseSchema = parseObjectJson(draft.responseSchemaJson);
-      const injectHeadersRaw = parseObjectJson(draft.injectHeadersJson);
-      injectHeaders = Object.entries(injectHeadersRaw).reduce<Record<string, string>>((acc, [key, value]) => {
-        if (typeof value === "string") {
-          acc[key] = value;
-        }
-        return acc;
-      }, {});
+      const payload = buildServicePayload(editing, draft);
+      const optimisticService = buildOptimisticServiceRecord(editing, payload);
+
+      const prevServices = services;
+      setServices((prev) => prev.map((svc) => (
+        svc.serviceId === editing.serviceId ? optimisticService : svc
+      )));
+      upsertServiceRegistryListCache(optimisticService);
+
+      setSaving(true);
+      try {
+        await updateServiceRegistry(payload, address);
+        toast.success("Service updated");
+        closeModal();
+      } catch (err) {
+        setServices(prevServices);
+        invalidateServiceRegistryListCache(address);
+        toast.error(err instanceof Error ? err.message : "Failed to update service");
+      } finally {
+        setSaving(false);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Invalid JSON fields in edit form");
-      return;
-    }
-
-    const tags = Array.from(new Set(parseCsvText(draft.tagsText)));
-    const passThroughHeaders = parseCsvText(draft.passThroughHeadersText);
-    const successCodes = parseCsvNumbers(draft.healthSuccessCodesText);
-    const retryOnStatus = parseCsvNumbers(draft.retryOnStatusText);
-
-    const invokeUrl = draft.invokeUrl.trim() || invokeTargets[0]?.url || "";
-    if (!invokeUrl) {
-      toast.error("Invoke URL is required");
-      return;
-    }
-
-    const payload: ServiceRegistryPayload = {
-      id: editing.id,
-      serviceId: editing.serviceId,
-      createdAt: String(editing.createdAt || ""),
-      updatedAt: nowDateTimeString(),
-      serviceName: draft.serviceName.trim(),
-      role: editing.role,
-      address: editing.address,
-      pricing: {
-        currency: "USDC",
-        amount: draft.pricingAmount.trim() || "0.01",
-      },
-      isActive: draft.isActive,
-      summary: draft.summary.trim(),
-      tags,
-      status: draft.isActive ? "active" : "inactive",
-      auth: {
-        type: editing.auth?.type || "service_key",
-        headerName: editing.auth?.headerName || "X-Credential",
-      },
-      healthCheck: {
-        path: normalizedPath,
-        method: draft.healthMethod,
-        intervalSec: parsePositiveInt(draft.healthIntervalSec, 30),
-        timeoutMs: parsePositiveInt(draft.healthTimeoutMs, 3000),
-        successCodes: successCodes.length > 0 ? successCodes : [200],
-        healthyThreshold: parsePositiveInt(draft.healthyThreshold, 2),
-        unhealthyThreshold: parsePositiveInt(draft.unhealthyThreshold, 3),
-      },
-      constraints: {
-        timeoutMs: parsePositiveInt(draft.constraintsTimeoutMs, CONSTRAINT_DEFAULTS.timeoutMs),
-        maxResponseBytes: parsePositiveInt(draft.constraintsMaxResponseBytes, CONSTRAINT_DEFAULTS.maxResponseBytes),
-        maxRequestBytes: parsePositiveInt(draft.constraintsMaxRequestBytes, CONSTRAINT_DEFAULTS.maxRequestBytes),
-        maxQps: parsePositiveInt(draft.constraintsMaxQps, CONSTRAINT_DEFAULTS.maxQps),
-      },
-      forwarding: {
-        requestIdHeader: draft.requestIdHeader.trim() || "X-Synapse-Request-Id",
-        passThroughHeaders,
-        injectHeaders,
-        retryPolicy: {
-          maxAttempts: parsePositiveInt(draft.retryMaxAttempts, 2),
-          backoffMs: parsePositiveInt(draft.retryBackoffMs, 200),
-          retryOnStatus: retryOnStatus.length > 0 ? retryOnStatus : [429, 500, 502, 503, 504],
-        },
-      },
-      metering: {
-        billingUnit: draft.billingUnit,
-        billOnError: draft.billOnError,
-        billableStatusClasses: editing.metering?.billableStatusClasses || [2],
-        requestIdRequired: draft.requestIdRequired,
-        responseSizeMetering: draft.responseSizeMetering,
-      },
-      invoke: {
-        method: draft.invokeMethod.trim() || "POST",
-        url: invokeUrl,
-        targets: invokeTargets,
-        timeoutMs: parsePositiveInt(draft.invokeTimeoutMs, 3000),
-        request: {
-          contentType: editing.invoke?.request?.contentType || "application/json",
-          schema: requestSchema,
-        },
-        response: {
-          schema: responseSchema,
-        },
-        headersTemplate: editing.invoke?.headersTemplate,
-        examples: editing.invoke?.examples,
-      },
-    };
-
-    const optimisticService: ServiceRegistryRecord = {
-      ...editing,
-      name: payload.serviceName,
-      serviceName: payload.serviceName,
-      summary: payload.summary || "",
-      pricing: typeof payload.pricing === "string" ? payload.pricing : payload.pricing.amount,
-      isActive: payload.isActive,
-      status: payload.status,
-      tags: payload.tags,
-      auth: payload.auth,
-      healthCheck: payload.healthCheck,
-      constraints: payload.constraints,
-      forwarding: payload.forwarding,
-      metering: payload.metering,
-      invoke: {
-        ...payload.invoke,
-        url: payload.invoke.url || editing.invoke?.url || editing.endpoint || "",
-      },
-      updatedAt: payload.updatedAt,
-    };
-
-    const prevServices = services;
-    setServices((prev) => prev.map((svc) => (
-      svc.serviceId === editing.serviceId ? optimisticService : svc
-    )));
-    upsertServiceRegistryListCache(optimisticService);
-
-    setSaving(true);
-    try {
-      await updateServiceRegistry(payload, address);
-      toast.success("Service updated");
-      closeModal();
-    } catch (err) {
-      setServices(prevServices);
-      invalidateServiceRegistryListCache(address);
-      toast.error(err instanceof Error ? err.message : "Failed to update service");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -652,7 +331,20 @@ export default function ProviderNodesPage() {
                 </td>
               </tr>
             )}
-            {pageRows.map((svc) => (
+            {pageRows.map((svc) => {
+              const isStatusUpdating = statusUpdatingServiceId === svc.serviceId;
+              let statusActionLabel = "Activate";
+              if (isStatusUpdating) {
+                statusActionLabel = "Updating...";
+              } else if (svc.isActive) {
+                statusActionLabel = "Inactive";
+              }
+
+              const statusActionClassName = svc.isActive
+                ? "border-[#f59e0b]/40 text-[#f59e0b] hover:bg-[#f59e0b] hover:text-black"
+                : "border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black";
+
+              return (
               <tr key={svc.id} className="hover:bg-[#111111] transition-colors">
                 <td className="py-5 px-6">
                   <div className="font-semibold text-white">{svc.name || svc.serviceName || "Unnamed Service"}</div>
@@ -707,6 +399,13 @@ export default function ProviderNodesPage() {
                     >
                       Edit
                     </button>
+                    <button
+                      onClick={() => void updateServiceStatus(svc, !svc.isActive)}
+                      disabled={saving || isStatusUpdating}
+                      className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:cursor-not-allowed disabled:opacity-50 ${statusActionClassName}`}
+                    >
+                      {statusActionLabel}
+                    </button>
                     <Link
                       href={`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`}
                       className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black transition-all"
@@ -717,7 +416,8 @@ export default function ProviderNodesPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -908,7 +608,7 @@ export default function ProviderNodesPage() {
                       onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsTimeoutMs: e.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsTimeoutMs ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.timeoutMs.min}-{CONSTRAINT_LIMITS.timeoutMs.max}</p>
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.timeoutMs.min}-{SERVICE_CONSTRAINT_LIMITS.timeoutMs.max}</p>
                     {editValidation.errors.constraintsTimeoutMs && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsTimeoutMs}</p>}
                   </label>
 
@@ -919,7 +619,7 @@ export default function ProviderNodesPage() {
                       onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxRequestBytes: e.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxRequestBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.maxRequestBytes.min}-{CONSTRAINT_LIMITS.maxRequestBytes.max}</p>
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min}-{SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max}</p>
                     {editValidation.errors.constraintsMaxRequestBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxRequestBytes}</p>}
                   </label>
 
@@ -930,7 +630,7 @@ export default function ProviderNodesPage() {
                       onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxResponseBytes: e.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxResponseBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.maxResponseBytes.min}-{CONSTRAINT_LIMITS.maxResponseBytes.max}</p>
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min}-{SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max}</p>
                     {editValidation.errors.constraintsMaxResponseBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxResponseBytes}</p>}
                   </label>
 
@@ -941,7 +641,7 @@ export default function ProviderNodesPage() {
                       onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxQps: e.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxQps ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {CONSTRAINT_LIMITS.maxQps.min}-{CONSTRAINT_LIMITS.maxQps.max}</p>
+                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.maxQps.min}-{SERVICE_CONSTRAINT_LIMITS.maxQps.max}</p>
                     {editValidation.errors.constraintsMaxQps && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxQps}</p>}
                   </label>
                 </div>

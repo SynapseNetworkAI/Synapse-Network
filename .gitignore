@@ -28,6 +28,9 @@ admin/gateway-admin/run/
 
 # Agent SDK local build artifacts
 sdk/python/agentpay_agent_sdk.egg-info/
+sdk/python/.ci-tools/
+sdk/python/dist/
+sdk/python/*.egg-info/
 
 # gateway runtime/generated files
 gateway/agent_credentials.json

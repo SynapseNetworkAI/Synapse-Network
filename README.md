@@ -87,6 +87,50 @@ yarn install
 yarn dev
 ```
 
+### 4.1) Frontend CI gate
+
+From repo root:
+
+```bash
+npm run ci:frontend
+```
+
+This runs the frontend quality checks currently enforced in the repository CI chain:
+
+- `yarn lint`
+- `yarn test`
+- `yarn build`
+
+### 4.2) Pull request CI gate
+
+From repo root:
+
+```bash
+npm run ci:pr
+```
+
+This aggregates the repository PR checks currently wired in:
+
+- `apps/frontend`: lint / test / build
+- `admin/admin-front`: lint / build
+- `gateway`: pytest
+- `admin/gateway-admin`: pytest
+- `provider_service`: pytest
+- `sdk/python`: pytest unit coverage + `python -m build`; live gateway demo test is opt-in
+- root contracts: hardhat compile, plus hardhat test when root contract tests exist
+
+Current Python packaging target in this repository:
+
+- `sdk/python`: distributable Python SDK package (`pyproject.toml` present)
+
+Current Python service projects that do not run `python -m build` in CI:
+
+- `gateway`
+- `admin/gateway-admin`
+- `provider_service`
+
+These three are runtime service processes, not Python distribution packages today.
+
 ### 5) Python backend only
 
 ```bash

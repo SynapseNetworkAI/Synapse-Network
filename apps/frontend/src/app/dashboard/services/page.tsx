@@ -7,19 +7,65 @@ import { ArrowLeft, Server, Plus, Activity } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { discoverServices, listServiceRegistry, type ServiceRegistryRecord } from "@/utils/serviceApi";
+import {
+  discoverServices,
+  invalidateServiceRegistryListCache,
+  listServiceRegistry,
+  updateServiceRegistry,
+  upsertServiceRegistryListCache,
+  type ServiceRegistryRecord,
+} from "@/utils/serviceApi";
 import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { buildOptimisticServiceRecord, buildServiceStatusUpdatePayload } from "@/utils/serviceStatus";
 
 export default function ServicesPage() {
   const router = useRouter();
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated } = useAuth();
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  const [services, setServices] = useState<any[]>([]);
+  const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
   const [publicServices, setPublicServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
+
+  const updateServiceStatus = async (svc: ServiceRegistryRecord, nextActive: boolean) => {
+    if (!address || statusUpdatingServiceId) {
+      return;
+    }
+
+    const confirmed = globalThis.confirm(
+      nextActive
+        ? `Activate service ${svc.serviceId}? It will appear for discovery again only when health checks report healthy targets.`
+        : `Set service ${svc.serviceId} to inactive? New discovery and direct gateway forwarding requests will be blocked after this update.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const payload = buildServiceStatusUpdatePayload(svc, nextActive);
+      const optimisticService = buildOptimisticServiceRecord(svc, payload);
+
+      const prevServices = services;
+      setStatusUpdatingServiceId(svc.serviceId);
+      setServices((prev) => prev.map((item) => (item.serviceId === svc.serviceId ? optimisticService : item)));
+      upsertServiceRegistryListCache(optimisticService);
+
+      try {
+        await updateServiceRegistry(payload, address);
+        toast.success(nextActive ? "Service activated" : "Service set to inactive");
+      } catch (err) {
+        setServices(prevServices);
+        invalidateServiceRegistryListCache(address);
+        toast.error(err instanceof Error ? err.message : "Failed to update service status");
+      } finally {
+        setStatusUpdatingServiceId(null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update service status");
+    }
+  };
   
   const loadServices = async () => {
     try {
@@ -107,6 +153,16 @@ export default function ServicesPage() {
       <div className="grid gap-6 md:grid-cols-2">
         {services.map((svc) => (
           <div key={svc.id} className="p-6 border border-gray-800 rounded-xl bg-gray-900/50 hover:border-green-500/50 transition-colors">
+            {(() => {
+              const isStatusUpdating = statusUpdatingServiceId === svc.serviceId;
+              let statusActionLabel = "Activate";
+              if (isStatusUpdating) {
+                statusActionLabel = "Updating...";
+              } else if (svc.isActive) {
+                statusActionLabel = "Inactive";
+              }
+
+              return <>
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="flex items-center text-xl font-bold text-white">
@@ -138,6 +194,16 @@ export default function ServicesPage() {
                 Edit Manifest
               </button>
               <button
+                onClick={() => void updateServiceStatus(svc, !svc.isActive)}
+                disabled={isStatusUpdating}
+                className={`flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 ${svc.isActive
+                  ? "text-amber-300 border-amber-500/30 hover:bg-amber-500/10"
+                  : "text-green-400 border-green-500/30 hover:bg-green-500/10"
+                }`}
+              >
+                {statusActionLabel}
+              </button>
+              <button
                 onClick={() => router.push(`/dashboard/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`)}
                 className="flex items-center justify-center flex-1 px-4 py-2 text-sm font-bold text-green-400 transition border border-green-500/30 rounded hover:bg-green-500/10"
               >
@@ -145,6 +211,8 @@ export default function ServicesPage() {
                 Health
               </button>
             </div>
+              </>;
+            })()}
           </div>
         ))}
       </div>

@@ -107,10 +107,15 @@ class SynapseClient:
                 raise InvokeError(response.text or "Synapse network invoke failed.")
 
             data = response.json()
+            result_payload = data.get("result", "")
+            if isinstance(result_payload, dict):
+                content = result_payload.get("answer", result_payload)
+            else:
+                content = result_payload
             
             # Unpack response
             return SynapseResponse(
-                content=data.get("result", {}).get("answer", data.get("result", "")),
+                content=content,
                 tx_hash=data.get("routerTxHash") or data.get("txHash"),
                 fee_deducted=float(data.get("usage", {}).get("fee", 0.0)),
                 raw_response=data

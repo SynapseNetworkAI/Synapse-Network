@@ -1,6 +1,13 @@
 import os
+import pytest
 from synapse_client import SynapseClient
 from synapse_client.exceptions import SynapseClientError
+
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_SYNAPSE_SDK_INTEGRATION") != "1",
+    reason="opt-in integration demo; set RUN_SYNAPSE_SDK_INTEGRATION=1 to execute against a live gateway",
+)
 
 def test_synapse():
     # 1. 配置参数：由于你在本地，我们需要指定网关，否则代码会默认去连线上的正式服

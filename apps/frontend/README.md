@@ -7,10 +7,25 @@ First, run the development server:
 ```bash
 yarn install
 yarn dev
+yarn test
 ```
 
 Package management for `apps/frontend` is standardized on Yarn.
 Do not use `npm install` or `npm ci` in this app, and do not regenerate `package-lock.json`.
+
+Repository-level CI integration for this app is exposed at repo root via:
+
+```bash
+npm run ci:frontend
+```
+
+That command delegates into the frontend Yarn-based checks, so local usage stays consistent with CI.
+
+Current frontend CI scope:
+
+- `yarn lint`
+- `yarn test`
+- `yarn build`
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 

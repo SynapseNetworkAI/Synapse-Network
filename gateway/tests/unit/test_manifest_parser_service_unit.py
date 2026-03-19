@@ -20,7 +20,7 @@ def test_parse_manifest_from_curl_fallback_builds_v1_manifest_from_curl_and_resu
     assert result["fallback"] is True
     manifest = result["manifest"]
 
-    assert manifest["service_id"] == "svc_api_v1_quotes_famous_top3"
+    assert manifest["service_id"] == "svc_quotes_famous_top3"
     assert manifest["service_name"] == "Famous Top3"
     assert manifest["billing"]["price_model"] == "fixed"
     assert manifest["runtime"]["endpoint_url"] == "http://127.0.0.1:8100/api/v1/quotes/famous/top3"
