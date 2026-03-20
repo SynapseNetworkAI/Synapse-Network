@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response
 
 from src.api.deps import get_admin_token, get_auth_service, get_request_id, require_admin
-from src.api.schemas.auth import AdminProfile, LoginRequest, LoginResponse
+from src.api.schemas.auth import AdminAuthSecurityPolicy, AdminProfile, LoginRequest, LoginResponse
 from src.api.schemas.common import ApiResponse
 from src.core.config import get_settings
 from src.core.csrf import build_admin_csrf_token
@@ -11,6 +11,15 @@ from src.services.auth.service import AdminAuthService, AdminIdentity
 
 router = APIRouter(prefix="/api/admin/v1/auth", tags=["admin-auth"])
 settings = get_settings()
+
+
+def _build_security_policy(auth_service: AdminAuthService) -> AdminAuthSecurityPolicy:
+    policy = auth_service.get_security_policy()
+    return AdminAuthSecurityPolicy(
+        login_totp_required=policy.login_totp_required,
+        high_risk_totp_required=policy.high_risk_totp_required,
+        totp_issuer=policy.issuer,
+    )
 
 
 def _set_admin_session_cookie(response: Response, token: str) -> None:
@@ -58,9 +67,18 @@ def login(
                 role=admin.role,
                 permissions=list(admin.permissions),
             ),
+            security=_build_security_policy(auth_service),
         ),
         request_id=request_id,
     )
+
+
+@router.get("/policy", response_model=ApiResponse)
+def auth_policy(
+    request_id: Annotated[str, Depends(get_request_id)],
+    auth_service: Annotated[AdminAuthService, Depends(get_auth_service)],
+):
+    return ApiResponse(data=_build_security_policy(auth_service), request_id=request_id)
 
 
 @router.get("/me", response_model=ApiResponse)
@@ -68,6 +86,7 @@ def me(
     request: Request,
     admin: Annotated[AdminIdentity, Depends(require_admin)],
     request_id: Annotated[str, Depends(get_request_id)],
+    auth_service: Annotated[AdminAuthService, Depends(get_auth_service)],
 ):
     token = get_admin_token(request)
     return ApiResponse(
@@ -81,6 +100,7 @@ def me(
                 role=admin.role,
                 permissions=list(admin.permissions),
             ),
+            security=_build_security_policy(auth_service),
         ),
         request_id=request_id,
     )

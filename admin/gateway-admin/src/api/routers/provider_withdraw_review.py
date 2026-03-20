@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from src.api.deps import (
     get_provider_withdraw_review_service,
     get_request_id,
+    require_high_risk_permission,
     require_permission,
 )
 from src.api.schemas.common import ApiResponse
@@ -42,7 +43,7 @@ def list_provider_withdraw_reviews(
 def decide_provider_withdraw_review(
     withdrawal_id: str,
     payload: ProviderWithdrawReviewDecisionRequest,
-    admin: Annotated[AdminIdentity, Depends(require_permission("approval:decide"))],
+    admin: Annotated[AdminIdentity, Depends(require_high_risk_permission("approval:decide"))],
     request_id: Annotated[str, Depends(get_request_id)],
     review_service: Annotated[ProviderWithdrawReviewService, Depends(get_provider_withdraw_review_service)],
 ):

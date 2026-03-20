@@ -8,6 +8,12 @@ import {
   type ProviderWithdrawReviewItem,
 } from "@/services/admin-api";
 
+type RequestStepUpCode = (input: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+}) => Promise<string | undefined>;
+
 
 type UseProviderWithdrawReviewsResult = {
   items: ProviderWithdrawReviewItem[];
@@ -31,7 +37,10 @@ type UseProviderWithdrawReviewsResult = {
 };
 
 
-export function useProviderWithdrawReviews(token: string | null): UseProviderWithdrawReviewsResult {
+export function useProviderWithdrawReviews(
+  token: string | null,
+  requestStepUpCode: RequestStepUpCode,
+): UseProviderWithdrawReviewsResult {
   const [items, setItems] = useState<ProviderWithdrawReviewItem[]>([]);
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState("");
@@ -108,6 +117,11 @@ export function useProviderWithdrawReviews(token: string | null): UseProviderWit
         const result = await decideProviderWithdrawReview(token, activeReviewId, {
           decision,
           note,
+          otpCode: await requestStepUpCode({
+            title: `${decision === "APPROVE" ? "批准" : "拒绝"}提现单`,
+            description: `你正在对 ${activeReviewId} 执行 ${decision}，该动作会推进 provider 资金状态并写入审计链路。`,
+            confirmLabel: decision === "APPROVE" ? "确认批准" : "确认拒绝",
+          }),
         });
         const messageSuffix = result.message ? ` · ${result.message}` : "";
         setMessage(`${result.reviewDecision} -> ${result.status}${messageSuffix}`);

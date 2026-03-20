@@ -12,7 +12,7 @@
 1. **是的，当前审批/执行类动作会由 `gateway-admin` 以服务端代理方式调用 `gateway`。不是浏览器直连 `gateway`。**
 2. **当前方案能支撑内网开发与受控环境联调，但还不是金融级生产终态。**
 3. 当前最大安全债不是“有没有鉴权”，而是：**`admin -> gateway` 仍然复用了 wallet-subject JWT 语义和共享 secret 模式，服务身份、用户身份、内部命令身份还没彻底拆开。**
-4. **当前代码已完成第一阶段硬化：`gateway-admin -> gateway` 内部命令已经切到独立 `service principal + scope + body digest + jti replay guard`。下一阶段重点是浏览器 session 和网络隔离。**
+4. **当前代码已完成两阶段硬化：`gateway-admin -> gateway` 内部命令已经切到独立 `service principal + scope + body digest + jti replay guard`，浏览器侧也已切到 `HttpOnly session cookie + CSRF + Google Authenticator step-up`。下一阶段重点是网络隔离、mTLS 和非对称签名。**
 
 ## 1. 当前真实调用链
 
@@ -114,7 +114,7 @@ admin-front (browser)
 1. token 只要在有效期内被截获，就存在重放窗口
 2. gateway 也无法明确区分“这是 owner 自己的 token”还是“这是 gateway-admin 服务 token”
 
-### 3.3 已完成第一步：admin-front token 已迁到 HttpOnly cookie
+### 3.3 已完成：admin-front token 已迁到 HttpOnly cookie
 
 这部分已经完成：`gateway-admin` 登录成功后会直接下发 `HttpOnly` admin session cookie，`admin-front` 不再把 admin token 持久化到 `localStorage`。
 
@@ -128,7 +128,22 @@ admin-front (browser)
 1. 当前 cookie 策略仍是 `SameSite=Lax`，生产还要继续评估收紧到更严格策略
 2. 生产环境必须强制 `Secure`，并结合 HTTPS / WAF / CSP 收紧浏览器面
 
-### 3.4 第四个问题：Gateway 管理命令仍挂在主 API 面上
+### 3.4 已完成：cookie 会话写请求具备 CSRF 防护，并对高风险动作要求 Google Authenticator
+
+这部分现在已经落地：
+
+1. `/api/admin/v1/auth/login` 与 `/api/admin/v1/auth/me` 会返回 `security` 策略对象，明确当前环境是否启用登录 TOTP 和高风险 TOTP。
+2. 浏览器侧对普通写请求统一附带 `X-CSRF-Token`。
+3. 高风险写请求还必须携带 `X-Admin-OTP-Code`，由 `gateway-admin` 在服务端校验 Google Authenticator 6 位验证码。
+4. 当前高风险 step-up 已覆盖审批决策、Provider 提现审核决策、执行重试和菜单配置发布。
+
+因此浏览器面的剩余问题不再是“有没有 MFA”，而是：
+
+1. 是否把当前已落地的 step-up modal 继续升级成设备绑定和风险分层 UX
+2. 是否把默认 `SameSite=Lax` 在生产进一步收紧
+3. 是否把 bootstrap/dev TOTP 配置彻底替换为正式发放和轮换机制
+
+### 3.5 第四个问题：Gateway 管理命令仍挂在主 API 面上
 
 当前 gateway 的管理命令和交易 API 在同一个服务面里，只是 path 区分为 `/api/v1/admin/...`。
 
@@ -142,7 +157,7 @@ admin-front (browser)
 1. 公网 API 面只服务 owner / provider / agent
 2. 内部命令面只服务 `gateway-admin` 或内部 orchestrator
 
-### 3.5 第五个问题：开发态 fallback 不能带入生产认知
+### 3.6 第五个问题：开发态 fallback 不能带入生产认知
 
 例如 `gateway` 某些 admin allow-list 在 development 下有 fallback 逻辑，这对本地开发友好，但不能被团队误解为生产可接受默认值。
 

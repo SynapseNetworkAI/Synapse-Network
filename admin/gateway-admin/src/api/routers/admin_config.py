@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from src.api.deps import get_admin_config_service, get_request_id, require_admin
+from src.api.deps import get_admin_config_service, get_request_id, require_admin, require_high_risk_permission
 from src.api.schemas.admin_config import (
     AdminMenuConfigItemModel,
     AdminMenuConfigMetaModel,
@@ -71,7 +71,7 @@ def delete_menu_item(
 
 @router.post("/menu-items/publish", response_model=ApiResponse)
 def publish_menu_config(
-    admin: Annotated[AdminIdentity, Depends(require_admin)],
+    admin: Annotated[AdminIdentity, Depends(require_high_risk_permission("dashboard:read"))],
     request_id: Annotated[str, Depends(get_request_id)],
     admin_config_service: Annotated[AdminConfigService, Depends(get_admin_config_service)],
 ):

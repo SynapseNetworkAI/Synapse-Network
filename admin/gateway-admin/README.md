@@ -72,6 +72,13 @@
 - `GET /api/admin/v1/approvals`: 现在会把 provider manual review 投影成标准 approval summary，一起出现在统一审批队列里
 - `POST /api/admin/v1/approvals/{approvalId}/decision`: 当 `approvalId` 形如 `PWR-{withdrawalId}` 时，会路由到 provider manual review 决策流
 
+当前已落地的管理员认证增强：
+
+- `GET /api/admin/v1/auth/policy`: 返回当前环境的登录 TOTP / 高风险 TOTP 开关与 Google Authenticator issuer
+- `POST /api/admin/v1/auth/login`: 当 `ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED=true` 时，要求 `otpCode`
+- 高风险写请求在 `X-CSRF-Token` 之外，还要求 `X-Admin-OTP-Code`
+- 当前高风险 step-up 覆盖 approval decision、withdrawal review decision、execution retry、menu publish
+
 `/menu-config` 切到真实 draft / publish 流程，指的是：
 
 - 菜单配置不再保存在前端浏览器本地，而是存入 `gateway-admin` 的 `admin_config_documents` 持久化表
@@ -142,6 +149,10 @@ ADMIN_SESSION_COOKIE_NAME=synapse_admin_session
 ADMIN_SESSION_COOKIE_SECURE=false
 ADMIN_SESSION_COOKIE_SAMESITE=lax
 ADMIN_CSRF_SECRET=replace-this-with-a-dedicated-admin-csrf-secret
+ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED=true
+ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED=true
+ADMIN_GOOGLE_AUTHENTICATOR_ISSUER=Synapse Gateway Admin
+ADMIN_GOOGLE_AUTHENTICATOR_WINDOW=1
 EXECUTION_WORKER_ENABLED=true
 EXECUTION_WORKER_POLL_INTERVAL_SEC=5
 EXECUTION_WORKER_BATCH_SIZE=10
@@ -159,6 +170,8 @@ EXECUTION_WORKER_BATCH_SIZE=10
 - admin -> gateway 内部命令现在使用独立 internal service token，claim 至少包含 `iss / aud / sub / adminWallet / scope / requestId / bodySha256 / actorAdminId / actorRole / jti`，不再复用普通 owner JWT 语义。
 - admin 登录态现在由 `gateway-admin` 下发 `HttpOnly` session cookie；`/api/admin/v1/auth/login` 不再把 access token 回传给浏览器。
 - cookie 会话模式下，`/api/admin/v1/auth/login` 与 `/api/admin/v1/auth/me` 还会返回会话绑定的 `csrfToken`；`admin-front` 只保存在内存里，并自动给 `POST / PATCH / DELETE` 请求附带 `X-CSRF-Token`。
+- 当 Google Authenticator 开关开启时，`/api/admin/v1/auth/login` 需要 6 位 TOTP；高风险动作还需要 `X-Admin-OTP-Code`。
+- 默认 bootstrap / demo 管理员 TOTP secret 已写入 seed payload，值为 `JBSWY3DPEHPK3PXP`，仅供本地开发把账号先加入 Google Authenticator，生产必须改成独立发放与轮换机制。
 - gateway-admin 现在会在服务启动后自动拉起 execution worker，周期性扫描 `PENDING` execution jobs 并执行，不再依赖手动 retry 才能推进。
 - 新增菜单配置中心后，持久化数据库需要执行 `migrations/003_admin_config_center_schema.sql`，否则 `/api/admin/v1/config/menu-items` 无法在 PostgreSQL 模式下工作。
 

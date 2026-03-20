@@ -456,7 +456,15 @@ class InMemoryAdminStore:
             "adm_readonly_analyst": AdminUser("adm_readonly_analyst", "readonly@synapse.network", "Readonly Analyst", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
         }
         factors = [
-            AdminMfaFactor(f"mfa_{user.admin_id}", user.admin_id, MfaFactorType.TOTP, "bootstrap_totp", status=MfaFactorStatus.ACTIVE, secret_ref=f"kms://{user.admin_id}")
+            AdminMfaFactor(
+                f"mfa_{user.admin_id}",
+                user.admin_id,
+                MfaFactorType.TOTP,
+                "bootstrap_totp",
+                status=MfaFactorStatus.ACTIVE,
+                secret_ref=f"kms://{user.admin_id}",
+                payload={"totpSecret": "JBSWY3DPEHPK3PXP"},
+            )
             for user in users.values()
         ]
         role_bindings = [

@@ -54,6 +54,22 @@ class Settings(BaseSettings):
         default="replace-this-with-a-dedicated-admin-csrf-secret",
         alias="ADMIN_CSRF_SECRET",
     )
+    admin_google_authenticator_login_enabled: bool = Field(
+        default=True,
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED",
+    )
+    admin_google_authenticator_high_risk_enabled: bool = Field(
+        default=True,
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED",
+    )
+    admin_google_authenticator_issuer: str = Field(
+        default="Synapse Gateway Admin",
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_ISSUER",
+    )
+    admin_google_authenticator_window: int = Field(
+        default=1,
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_WINDOW",
+    )
     admin_database_dsn: str = Field(
         default="postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin",
         alias="ADMIN_DATABASE_DSN",

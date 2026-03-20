@@ -4,6 +4,7 @@ import { FormEvent, useDeferredValue, useEffect, useMemo, useState, useTransitio
 
 import { AdminShell } from "@/components/admin-shell";
 import { CrudDrawer, CrudField, CrudSection, CrudTable, CrudToolbar, CrudToolbarFilters } from "@/components/crud";
+import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
   createAdminMenuItem,
@@ -61,7 +62,11 @@ function getMenuSubmitLabel(isPending: boolean, editingRow: AdminMenuConfigItem 
 }
 
 export default function MenuConfigPage() {
-  const { admin, token, loading } = useAdminSession();
+  const { admin, security, token, loading } = useAdminSession();
+  const { requestStepUpCode, stepUpModal } = useAdminStepUp({
+    enabled: security?.highRiskTotpRequired ?? false,
+    issuer: security?.totpIssuer ?? "Synapse Gateway Admin",
+  });
   const [rows, setRows] = useState<AdminMenuConfigItem[]>([]);
   const [meta, setMeta] = useState<AdminMenuConfigMeta | null>(null);
   const [search, setSearch] = useState("");
@@ -231,7 +236,12 @@ export default function MenuConfigPage() {
     setMessage(null);
     setError(null);
     try {
-      const response = await publishAdminMenuConfig(token);
+      const otpCode = await requestStepUpCode({
+        title: "发布菜单配置",
+        description: "你正在把当前 draft 菜单树切换成全局 published 版本，这会影响所有管理员的导航入口。",
+        confirmLabel: "确认发布",
+      });
+      const response = await publishAdminMenuConfig(token, otpCode);
       setMeta(response.meta);
       await loadMenuConfig(token);
       setMessage("菜单配置已发布，新的导航树将对所有管理员生效。");
@@ -379,6 +389,7 @@ export default function MenuConfigPage() {
           </div>
         </form>
       </CrudDrawer>
+      {stepUpModal}
     </AdminShell>
   );
 }

@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { getCurrentAdmin, type AdminProfile } from "@/services/admin-api";
+import { getCurrentAdmin, type AdminAuthSecurityPolicy, type AdminProfile } from "@/services/admin-api";
 
 
 type UseAdminSessionResult = {
   admin: AdminProfile | null;
+  security: AdminAuthSecurityPolicy | null;
   token: string | null;
   loading: boolean;
 };
@@ -16,6 +17,7 @@ type UseAdminSessionResult = {
 export function useAdminSession(): UseAdminSessionResult {
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminProfile | null>(null);
+  const [security, setSecurity] = useState<AdminAuthSecurityPolicy | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +31,7 @@ export function useAdminSession(): UseAdminSessionResult {
           return;
         }
         setAdmin(session.admin);
+        setSecurity(session.security);
         setToken("cookie-session");
         setLoading(false);
       } catch {
@@ -36,6 +39,7 @@ export function useAdminSession(): UseAdminSessionResult {
           return;
         }
         setAdmin(null);
+        setSecurity(null);
         setToken(null);
         setLoading(false);
         router.replace("/login");
@@ -48,5 +52,5 @@ export function useAdminSession(): UseAdminSessionResult {
     };
   }, [router]);
 
-  return { admin, token, loading };
+  return { admin, security, token, loading };
 }

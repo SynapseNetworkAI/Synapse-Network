@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from src.api.deps import get_execution_service, get_request_id, require_permission
+from src.api.deps import get_execution_service, get_request_id, require_high_risk_permission, require_permission
 from src.api.schemas.common import ApiResponse
 from src.api.schemas.execution import ExecutionJobItem, ExecutionJobListResponse, ExecutionRetryResult
 from src.core.errors import ResourceNotFoundError
@@ -41,7 +41,7 @@ def list_execution_jobs(
 @router.post("/{job_id}/retry", response_model=ApiResponse, responses={404: {"description": "Execution job not found"}})
 def retry_execution_job(
     job_id: str,
-    admin: Annotated[AdminIdentity, Depends(require_permission("execution:retry"))],
+    admin: Annotated[AdminIdentity, Depends(require_high_risk_permission("execution:retry"))],
     request_id: Annotated[str, Depends(get_request_id)],
     execution_service: Annotated[ExecutionService, Depends(get_execution_service)],
 ):
