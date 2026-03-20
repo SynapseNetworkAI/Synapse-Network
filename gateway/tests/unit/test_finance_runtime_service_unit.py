@@ -335,6 +335,152 @@ def test_provider_withdraw_flow_uses_typed_rows() -> None:
     assert storage.gateway_state.withdraw_rows[0].tx_hash == "0x" + "3" * 64
 
 
+def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_pending() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 200.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    def fake_prepare_withdraw_ticket(**kwargs):
+        force_sign = bool(kwargs.get("force_sign", False))
+        if not force_sign:
+            return PreparedWithdrawTicket(
+                requires_manual_review=True,
+                amount_wei=120000000,
+                fee_wei=0,
+                nonce=0,
+                chain_id=0,
+                deadline=0,
+                signature="",
+                signer_address="",
+                ticket={},
+            )
+        return PreparedWithdrawTicket(
+            requires_manual_review=False,
+            amount_wei=120000000,
+            fee_wei=0,
+            nonce=9,
+            chain_id=31337,
+            deadline=9999999999,
+            signature="sig-approved",
+            signer_address="0xsigner",
+            ticket={
+                "amount": "120000000",
+                "fee": "0",
+                "nonce": 9,
+                "deadline": 9999999999,
+                "signature": "sig-approved",
+                "chainId": 31337,
+                "contractAddress": "0xrouter",
+            },
+        )
+
+    service._prepare_withdraw_ticket = fake_prepare_withdraw_ticket
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": 120},
+            "0xdef",
+            "withdraw-intent-key-0002",
+        )
+    )
+
+    assert created["status"] == "PENDING_MANUAL_REVIEW"
+    wallet_after_create = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after_create.available_balance - 80.0) < 1e-9
+    assert abs(wallet_after_create.pending_balance - 0.0) < 1e-9
+    assert abs(wallet_after_create.frozen_balance - 120.0) < 1e-9
+
+    approved = asyncio.run(
+        service.review_provider_withdrawal(
+            "0xdef",
+            storage.gateway_state.withdraw_rows[0].id,
+            {
+                "review": {
+                    "decision": "APPROVE",
+                    "reviewerAddress": "0xreviewer",
+                    "reviewerNote": "approved",
+                }
+            },
+        )
+    )
+
+    assert approved["status"] == "APPROVED_AUTO"
+    assert approved["ticket"]["signature"] == "sig-approved"
+    row = storage.gateway_state.withdraw_rows[0]
+    assert row.review_decision == "APPROVE"
+    assert row.reviewer_address == "0xreviewer"
+    assert row.signature == "sig-approved"
+    wallet_after_approve = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after_approve.available_balance - 80.0) < 1e-9
+    assert abs(wallet_after_approve.pending_balance - 120.0) < 1e-9
+    assert abs(wallet_after_approve.frozen_balance - 0.0) < 1e-9
+
+    completed = asyncio.run(
+        service.complete_provider_withdrawal(
+            "0xdef",
+            row.id,
+            "0x" + "7" * 64,
+        )
+    )
+    assert completed["status"] == "COMPLETED"
+    wallet_after_complete = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after_complete.pending_balance - 0.0) < 1e-9
+
+
+def test_provider_withdraw_manual_review_rejection_releases_frozen_balance() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 150.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+    service._prepare_withdraw_ticket = lambda **kwargs: PreparedWithdrawTicket(
+        requires_manual_review=True,
+        amount_wei=120000000,
+        fee_wei=0,
+        nonce=0,
+        chain_id=0,
+        deadline=0,
+        signature="",
+        signer_address="",
+        ticket={},
+    )
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": 120},
+            "0xdef",
+            "withdraw-intent-key-0003",
+        )
+    )
+    assert created["status"] == "PENDING_MANUAL_REVIEW"
+
+    rejected = asyncio.run(
+        service.review_provider_withdrawal(
+            "0xdef",
+            storage.gateway_state.withdraw_rows[0].id,
+            {
+                "review": {
+                    "decision": "REJECT",
+                    "reviewerAddress": "0xreviewer",
+                    "reviewerNote": "risk reject",
+                }
+            },
+        )
+    )
+
+    assert rejected["status"] == "REJECTED"
+    row = storage.gateway_state.withdraw_rows[0]
+    assert row.review_decision == "REJECT"
+    assert row.reviewer_address == "0xreviewer"
+    assert row.ticket.signature is None
+    wallet_after_reject = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after_reject.available_balance - 150.0) < 1e-9
+    assert abs(wallet_after_reject.pending_balance - 0.0) < 1e-9
+    assert abs(wallet_after_reject.frozen_balance - 0.0) < 1e-9
+
+
 def test_balance_service_reports_withdraw_signer_capability(monkeypatch) -> None:
     storage = FakeStorage()
     service = BalanceService(storage)

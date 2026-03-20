@@ -171,6 +171,18 @@ class BalanceService(
             request_meta=request_meta,
         )
 
+    async def review_provider_withdrawal(
+        self,
+        owner_wallet: str,
+        withdrawal_id: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return await self.provider_withdraw_service.review_provider_withdrawal(
+            owner_wallet=owner_wallet,
+            withdrawal_id=withdrawal_id,
+            request_meta=request_meta,
+        )
+
     async def get_provider_withdraw_capability(
         self, owner_wallet: str
     ) -> Dict[str, Any]:

@@ -218,6 +218,13 @@ class AdminProviderWithdrawCompleteRequest(ProviderWithdrawCompleteRequest):
     ownerAddress: str = Field(..., min_length=1, max_length=64)
 
 
+class AdminProviderWithdrawReviewRequest(BaseModel):
+    ownerAddress: str = Field(..., min_length=1, max_length=64)
+    reviewDecision: str = Field(..., min_length=7, max_length=16)
+    reviewerAddress: Optional[str] = Field(default=None, max_length=64)
+    reviewerNote: Optional[str] = Field(default=None, max_length=512)
+
+
 class RouterConfigRequest(BaseModel):
     dailyLimitUsdc: float = Field(..., ge=0, le=10_000)
 

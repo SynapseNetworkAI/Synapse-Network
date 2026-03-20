@@ -21,6 +21,7 @@ from src.domain.finance import (
     WithdrawCreateContext,
 )
 from src.domain.ledger import WithdrawalIntentRow
+from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
 from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
@@ -38,6 +39,8 @@ ACTIVE_WITHDRAWAL_STATUSES = {
     "PENDING",
 }
 INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds provider receivable."
+MANUAL_REVIEW_REJECT_MESSAGE = "Withdrawal rejected during manual security review."
+MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready for on-chain claim."
 
 
 class ProviderWithdrawService(
@@ -302,16 +305,64 @@ class ProviderWithdrawService(
         provider_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
+    def _release_frozen_withdraw_to_available(
+        self, owner: str, amount_usdc: float
+    ) -> None:
+        ledger = self._load_balance_ledger()
+        provider_wallet = ledger.ensure_provider_wallet(owner)
+        frozen = round(float(provider_wallet.frozen_balance or 0.0), 6)
+        if frozen + 1e-9 < amount_usdc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "WITHDRAWAL_FROZEN_INCONSISTENT",
+                    "message": "Frozen provider receivable is insufficient for this manual review action.",
+                },
+            )
+        provider_wallet.frozen_balance = round(max(0.0, frozen - amount_usdc), 6)
+        provider_wallet.available_balance = round(
+            float(provider_wallet.available_balance or 0.0) + amount_usdc, 6
+        )
+        self._save_balance_ledger(ledger)
+
+    def _move_frozen_withdraw_to_pending(self, owner: str, amount_usdc: float) -> None:
+        ledger = self._load_balance_ledger()
+        provider_wallet = ledger.ensure_provider_wallet(owner)
+        frozen = round(float(provider_wallet.frozen_balance or 0.0), 6)
+        if frozen + 1e-9 < amount_usdc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "WITHDRAWAL_FROZEN_INCONSISTENT",
+                    "message": "Frozen provider receivable is insufficient for this manual review action.",
+                },
+            )
+        provider_wallet.frozen_balance = round(max(0.0, frozen - amount_usdc), 6)
+        provider_wallet.pending_balance = round(
+            float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6
+        )
+        self._save_balance_ledger(ledger)
+
     def _reserve_withdraw_amount(
-        self, owner: str, amount_usdc: float, ledger: BalanceLedger
+        self,
+        owner: str,
+        amount_usdc: float,
+        ledger: BalanceLedger,
+        *,
+        lock_to_frozen: bool = False,
     ) -> None:
         provider_wallet = ledger.ensure_provider_wallet(owner)
         provider_wallet.available_balance = round(
             float(provider_wallet.available_balance or 0.0) - amount_usdc, 6
         )
-        provider_wallet.pending_balance = round(
-            float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6
-        )
+        if lock_to_frozen:
+            provider_wallet.frozen_balance = round(
+                float(provider_wallet.frozen_balance or 0.0) + amount_usdc, 6
+            )
+        else:
+            provider_wallet.pending_balance = round(
+                float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6
+            )
         if hasattr(self.storage, "reserve_provider_withdraw_atomic"):
             try:
                 self.storage.reserve_provider_withdraw_atomic(
@@ -340,8 +391,9 @@ class ProviderWithdrawService(
         *,
         owner: str,
         amount_usdc: float,
+        force_sign: bool = False,
     ) -> PreparedWithdrawTicket:
-        requires_manual_review = amount_usdc >= WITHDRAW_AUTO_APPROVAL_LIMIT_USDC
+        requires_manual_review = (amount_usdc >= WITHDRAW_AUTO_APPROVAL_LIMIT_USDC) and not force_sign
         amount_wei = int(round(amount_usdc * float(10**USDC_DECIMALS)))
 
         if requires_manual_review:
@@ -398,6 +450,118 @@ class ProviderWithdrawService(
                 "contractAddress": normalize_wallet(settings.router_address),
             },
         )
+
+    def _parse_withdraw_review_context(
+        self, request_meta: Optional[Dict[str, Any]]
+    ) -> tuple[str, str, str]:
+        review_ctx = OperationContextMetadata.model_validate(request_meta or {}).review
+        reviewer_address = (
+            normalize_wallet(str(review_ctx.reviewer_address or ""))
+            if review_ctx.reviewer_address
+            else ""
+        )
+        return (
+            str(review_ctx.decision or "").strip().upper(),
+            reviewer_address,
+            str(review_ctx.reviewer_note or "").strip(),
+        )
+
+    def _reject_manual_review_withdrawal(
+        self,
+        *,
+        owner: str,
+        rows: List[WithdrawalIntentRow],
+        target: WithdrawalIntentRow,
+        amount_usdc: float,
+        reviewer_address: str,
+        reviewer_note: str,
+        request_meta: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        self._release_frozen_withdraw_to_available(owner, amount_usdc)
+        now = int(time.time())
+        target.status = "REJECTED"
+        target.review_decision = "REJECT"
+        target.reviewer_address = reviewer_address
+        target.reviewer_note = reviewer_note
+        target.reviewed_at = now
+        target.updated_at = str(now)
+        target.message = MANUAL_REVIEW_REJECT_MESSAGE
+        self._save_withdrawal_rows(rows)
+        self._append_financial_audit(
+            "PROVIDER_WITHDRAW_REVIEW_REJECTED",
+            owner,
+            {
+                "withdrawalId": str(target.id or ""),
+                "amountUsdc": amount_usdc,
+                "reviewerAddress": reviewer_address,
+                "reviewerNote": reviewer_note,
+                "requestMeta": request_meta or {},
+            },
+        )
+        return {
+            "withdrawalId": str(target.id or ""),
+            "status": "REJECTED",
+            "amountUsdc": amount_usdc,
+            "ticket": {},
+            "message": MANUAL_REVIEW_REJECT_MESSAGE,
+        }
+
+    def _approve_manual_review_withdrawal(
+        self,
+        *,
+        owner: str,
+        rows: List[WithdrawalIntentRow],
+        target: WithdrawalIntentRow,
+        amount_usdc: float,
+        reviewer_address: str,
+        reviewer_note: str,
+        request_meta: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        ticket_payload = self._prepare_withdraw_ticket(
+            owner=owner,
+            amount_usdc=amount_usdc,
+            force_sign=True,
+        )
+        self._move_frozen_withdraw_to_pending(owner, amount_usdc)
+
+        now = int(time.time())
+        target.status = "APPROVED_AUTO"
+        target.review_decision = "APPROVE"
+        target.reviewer_address = reviewer_address
+        target.reviewer_note = reviewer_note
+        target.reviewed_at = now
+        target.updated_at = str(now)
+        target.amount_wei = str(ticket_payload.amount_wei)
+        target.fee_wei = str(ticket_payload.fee_wei)
+        target.nonce = ticket_payload.nonce
+        target.deadline = ticket_payload.deadline
+        target.signature = ticket_payload.signature
+        target.chain_id = ticket_payload.chain_id
+        target.contract_address = normalize_wallet(settings.router_address)
+        target.signer_address = ticket_payload.signer_address
+        target.ticket = WithdrawalTicketMetadata.model_validate(ticket_payload.ticket)
+        target.message = MANUAL_REVIEW_APPROVED_MESSAGE
+        self._save_withdrawal_rows(rows)
+
+        response = {
+            "withdrawalId": str(target.id or ""),
+            "status": "APPROVED_AUTO",
+            "amountUsdc": amount_usdc,
+            "ticket": dict(ticket_payload.ticket),
+            "message": MANUAL_REVIEW_APPROVED_MESSAGE,
+        }
+        self._append_financial_audit(
+            "PROVIDER_WITHDRAW_REVIEW_APPROVED",
+            owner,
+            {
+                "withdrawalId": response["withdrawalId"],
+                "amountUsdc": amount_usdc,
+                "reviewerAddress": reviewer_address,
+                "reviewerNote": reviewer_note,
+                "requestMeta": request_meta or {},
+            },
+        )
+        return response
 
     def _build_atomic_signing_ticket(
         self, owner: str, amount_usdc: Decimal
@@ -675,7 +839,12 @@ class ProviderWithdrawService(
             ticket_payload = self._prepare_withdraw_ticket(
                 owner=owner, amount_usdc=context.amount_usdc
             )
-            self._reserve_withdraw_amount(owner, context.amount_usdc, ledger)
+            self._reserve_withdraw_amount(
+                owner,
+                context.amount_usdc,
+                ledger,
+                lock_to_frozen=ticket_payload.requires_manual_review,
+            )
             row, response = self._build_withdraw_row_and_response(
                 owner=owner,
                 amount_usdc=context.amount_usdc,
@@ -722,6 +891,80 @@ class ProviderWithdrawService(
         ]
         filtered.sort(key=self._withdraw_created_at, reverse=True)
         return [row.model_dump(by_alias=True, mode="json") for row in filtered]
+
+    async def review_provider_withdrawal(
+        self,
+        owner_wallet: str,
+        withdrawal_id: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:provider_withdraw_review"):
+            await self._enforce_owner_write_rate_limit(
+                owner, "provider_withdraw_review"
+            )
+            rows = self._normalize_withdrawal_rows()
+            target = self._find_withdrawal_by_id(rows, owner, withdrawal_id)
+            if target is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "code": "WITHDRAWAL_NOT_FOUND",
+                        "message": "Provider withdrawal intent not found.",
+                    },
+                )
+
+            status = str(target.status or "").upper()
+            if status != "PENDING_MANUAL_REVIEW":
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "WITHDRAWAL_REVIEW_NOT_PENDING",
+                        "message": f"Withdrawal status={status} is not awaiting manual review.",
+                    },
+                )
+
+            review_decision, reviewer_address, reviewer_note = (
+                self._parse_withdraw_review_context(request_meta)
+            )
+            if review_decision not in {"APPROVE", "REJECT"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INVALID_REVIEW_DECISION",
+                        "message": "review decision must be APPROVE or REJECT for manual review withdrawals.",
+                    },
+                )
+            if not reviewer_address:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "code": "WITHDRAW_REVIEW_APPROVER_REQUIRED",
+                        "message": "Manual review withdrawals require reviewerAddress.",
+                    },
+                )
+
+            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            if review_decision == "REJECT":
+                return self._reject_manual_review_withdrawal(
+                    owner=owner,
+                    rows=rows,
+                    target=target,
+                    amount_usdc=amount_usdc,
+                    reviewer_address=reviewer_address,
+                    reviewer_note=reviewer_note,
+                    request_meta=request_meta,
+                )
+
+            return self._approve_manual_review_withdrawal(
+                owner=owner,
+                rows=rows,
+                target=target,
+                amount_usdc=amount_usdc,
+                reviewer_address=reviewer_address,
+                reviewer_note=reviewer_note,
+                request_meta=request_meta,
+            )
 
     async def complete_provider_withdrawal(
         self,
