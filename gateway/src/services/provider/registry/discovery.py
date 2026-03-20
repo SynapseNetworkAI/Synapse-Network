@@ -90,7 +90,28 @@ async def discover_services(
 
 async def public_network_stats(context: RegistryContext) -> Dict[str, Any]:
     await asyncio.sleep(0)
-    public_services = await discover_public_services(context)
+    rows = context._load_service_registry_rows()
+    registered_services = [
+        row
+        for row in rows
+        if not is_deleted_service(row)
+        and bool(row.is_active)
+        and str(row.status or "active").lower() == "active"
+    ]
+    discoverable_count = len(
+        [
+            service
+            for service in registered_services
+            if service_health_service.is_service_discoverable(service)
+        ]
+    )
+    stale_count = len(
+        [
+            service
+            for service in registered_services
+            if service_health_service.effective_runtime_status(service) == "stale"
+        ]
+    )
     raw_usage_rows = context.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
     dedup_by_request_id, status_counts = settled_usage_metrics(raw_usage_rows)
     connected_agents = {
@@ -99,17 +120,11 @@ async def public_network_stats(context: RegistryContext) -> Dict[str, Any]:
         if usage_consumer(row)
     }
 
-    runtime_ready_count = len(
-        [
-            service
-            for service in public_services
-            if str(service.health.overall_status or "unknown").lower() in {"healthy", "degraded"}
-        ]
-    )
-
     return {
-        "registeredServices": len(public_services),
-        "runtimeReadyServices": runtime_ready_count,
+        "registeredServices": len(registered_services),
+        "discoverableServices": discoverable_count,
+        "staleServices": stale_count,
+        "runtimeReadyServices": discoverable_count,
         "totalCalls": len(dedup_by_request_id),
         "connectedAgents": len(connected_agents),
         "statusBreakdown": dict(status_counts),
