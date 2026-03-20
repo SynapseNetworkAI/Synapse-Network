@@ -1,1 +1,1 @@
-export { default } from "@/app/provider/settlements/page";
+export { default } from "@/components/provider-workspace/ProviderSettlementsPage";
