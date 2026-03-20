@@ -93,17 +93,20 @@ def _client(balance_service: StubBalanceService):
     gateway_app.run_v2_deposit_indexer = _background_loop_until_stopped
     gateway_app.run_service_health_monitor = _background_loop_until_stopped
     gateway_app.settings.service_health_monitor_enabled = False
+    gateway_app.run_provider_withdraw_expiry_reaper = _background_loop_until_stopped
     original_get_redis_client = internal_auth.get_redis_client
     original_internal_secret = gateway_app.settings.gateway_internal_jwt_secret
     original_internal_issuer = gateway_app.settings.gateway_internal_token_issuer
     original_internal_audience = gateway_app.settings.gateway_internal_token_audience
     original_internal_subjects = set(gateway_app.settings.gateway_internal_service_subjects)
     original_admin_wallets = set(gateway_app.settings.platform_fee_admin_wallets)
+    original_withdraw_reaper_enabled = gateway_app.settings.provider_withdraw_expiry_reaper_enabled
     gateway_app.settings.gateway_internal_jwt_secret = TEST_INTERNAL_SECRET
     gateway_app.settings.gateway_internal_token_issuer = "gateway-admin"
     gateway_app.settings.gateway_internal_token_audience = "gateway-internal"
     gateway_app.settings.gateway_internal_service_subjects = {"service:gateway-admin"}
     gateway_app.settings.platform_fee_admin_wallets = {"0x1111111111111111111111111111111111111111"}
+    gateway_app.settings.provider_withdraw_expiry_reaper_enabled = False
     internal_auth.get_redis_client = _no_redis_client
     try:
         app = gateway_app.create_app()
@@ -120,6 +123,7 @@ def _client(balance_service: StubBalanceService):
         gateway_app.settings.gateway_internal_token_audience = original_internal_audience
         gateway_app.settings.gateway_internal_service_subjects = original_internal_subjects
         gateway_app.settings.platform_fee_admin_wallets = original_admin_wallets
+        gateway_app.settings.provider_withdraw_expiry_reaper_enabled = original_withdraw_reaper_enabled
 
 
 async def _no_redis_client():

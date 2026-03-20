@@ -1,4 +1,5 @@
 import asyncio
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -520,6 +521,202 @@ def test_provider_withdraw_manual_review_rejection_releases_frozen_balance() -> 
     assert abs(wallet_after_reject.available_balance - 150.0) < 1e-9
     assert abs(wallet_after_reject.pending_balance - 0.0) < 1e-9
     assert abs(wallet_after_reject.frozen_balance - 0.0) < 1e-9
+
+
+def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 10.0
+    wallet.pending_balance = 12.0
+
+    storage.gateway_state.withdraw_rows = [
+        WithdrawalIntentRow(
+            id="wd-expired-1",
+            ownerAddress="0xdef",
+            amountUsdc=Decimal("12.0"),
+            amountWei="12000000",
+            feeWei="0",
+            nonce=7,
+            deadline=1,
+            signature="sig-expired",
+            chainId=31337,
+            contractAddress="0xrouter",
+            signerAddress="0xsigner",
+            status="APPROVED_AUTO",
+            businessType="withdraw",
+            riskLevel="green",
+            idempotencyKey="withdraw-intent-expired-1",
+            createdAt="1",
+            updatedAt="1",
+            message="Signed ticket ready.",
+            ticket={
+                "amount": "12000000",
+                "fee": "0",
+                "nonce": 7,
+                "deadline": 1,
+                "signature": "sig-expired",
+                "chainId": 31337,
+                "contractAddress": "0xrouter",
+            },
+        )
+    ]
+
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    rows = asyncio.run(service.list_provider_withdrawals("0xdef"))
+
+    assert rows[0]["status"] == "CANCELLED"
+    assert "expired" in rows[0]["message"].lower()
+    wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after.available_balance - 22.0) < 1e-9
+    assert abs(wallet_after.pending_balance - 0.0) < 1e-9
+    assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
+    assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
+
+
+def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 10.0
+    wallet.pending_balance = 12.0
+
+    storage.gateway_state.withdraw_rows = [
+        WithdrawalIntentRow(
+            id="wd-expired-2",
+            ownerAddress="0xdef",
+            amountUsdc=Decimal("12.0"),
+            amountWei="12000000",
+            feeWei="0",
+            nonce=7,
+            deadline=1,
+            signature="sig-expired",
+            chainId=31337,
+            contractAddress="0xrouter",
+            signerAddress="0xsigner",
+            status="APPROVED_AUTO",
+            businessType="withdraw",
+            riskLevel="green",
+            idempotencyKey="withdraw-intent-expired-2",
+            createdAt="1",
+            updatedAt="1",
+            message="Signed ticket ready.",
+            ticket={
+                "amount": "12000000",
+                "fee": "0",
+                "nonce": 7,
+                "deadline": 1,
+                "signature": "sig-expired",
+                "chainId": 31337,
+                "contractAddress": "0xrouter",
+            },
+        )
+    ]
+
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": 20},
+            "0xdef",
+            "withdraw-intent-key-0014",
+        )
+    )
+
+    assert created["status"] == "APPROVED_AUTO"
+    assert len(storage.gateway_state.withdraw_rows) == 2
+    assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
+    assert storage.gateway_state.withdraw_rows[1].status == "APPROVED_AUTO"
+    wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after.available_balance - 2.0) < 1e-9
+    assert abs(wallet_after.pending_balance - 20.0) < 1e-9
+
+
+def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
+    storage = FakeStorage()
+
+    wallet_a = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet_a.available_balance = 5.0
+    wallet_a.pending_balance = 12.0
+
+    wallet_b = storage.balance.ledger.ensure_provider_wallet("0xaaa")
+    wallet_b.available_balance = 3.0
+    wallet_b.pending_balance = 8.0
+
+    storage.gateway_state.withdraw_rows = [
+        WithdrawalIntentRow(
+            id="wd-expired-a",
+            ownerAddress="0xdef",
+            amountUsdc=Decimal("12.0"),
+            amountWei="12000000",
+            feeWei="0",
+            nonce=7,
+            deadline=1,
+            signature="sig-expired-a",
+            chainId=31337,
+            contractAddress="0xrouter",
+            signerAddress="0xsigner",
+            status="APPROVED_AUTO",
+            businessType="withdraw",
+            riskLevel="green",
+            idempotencyKey="withdraw-intent-expired-a",
+            createdAt="1",
+            updatedAt="1",
+            message="Signed ticket ready.",
+            ticket={
+                "amount": "12000000",
+                "fee": "0",
+                "nonce": 7,
+                "deadline": 1,
+                "signature": "sig-expired-a",
+                "chainId": 31337,
+                "contractAddress": "0xrouter",
+            },
+        ),
+        WithdrawalIntentRow(
+            id="wd-expired-b",
+            ownerAddress="0xaaa",
+            amountUsdc=Decimal("8.0"),
+            amountWei="8000000",
+            feeWei="0",
+            nonce=9,
+            deadline=1,
+            signature="sig-expired-b",
+            chainId=31337,
+            contractAddress="0xrouter",
+            signerAddress="0xsigner",
+            status="APPROVED_AUTO",
+            businessType="withdraw",
+            riskLevel="green",
+            idempotencyKey="withdraw-intent-expired-b",
+            createdAt="1",
+            updatedAt="1",
+            message="Signed ticket ready.",
+            ticket={
+                "amount": "8000000",
+                "fee": "0",
+                "nonce": 9,
+                "deadline": 1,
+                "signature": "sig-expired-b",
+                "chainId": 31337,
+                "contractAddress": "0xrouter",
+            },
+        ),
+    ]
+
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    expired_count = asyncio.run(service.expire_stale_provider_withdrawals())
+
+    assert expired_count == 2
+    assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
+    assert storage.gateway_state.withdraw_rows[1].status == "CANCELLED"
+    assert abs(storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance - 17.0) < 1e-9
+    assert abs(storage.balance.ledger.ensure_provider_wallet("0xdef").pending_balance - 0.0) < 1e-9
+    assert abs(storage.balance.ledger.ensure_provider_wallet("0xaaa").available_balance - 11.0) < 1e-9
+    assert abs(storage.balance.ledger.ensure_provider_wallet("0xaaa").pending_balance - 0.0) < 1e-9
 
 
 def test_balance_service_reports_withdraw_signer_capability(monkeypatch) -> None:

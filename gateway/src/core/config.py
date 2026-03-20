@@ -527,6 +527,13 @@ class Settings:
     provider_withdraw_deadline_sec: int = _env_int(
         "PROVIDER_WITHDRAW_DEADLINE_SEC", 900
     )
+    # Background reaper that periodically releases expired provider withdrawal tickets.
+    provider_withdraw_expiry_reaper_enabled: bool = _env_bool(
+        "PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED", True
+    )
+    provider_withdraw_expiry_reaper_interval_sec: float = _env_float(
+        "PROVIDER_WITHDRAW_EXPIRY_REAPER_INTERVAL_SEC", 30.0
+    )
     # Withdrawal risk-engine thresholds.
     withdrawal_auto_single_limit_usdc: float = max(
         0.0, _env_float("WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC", 100.0)

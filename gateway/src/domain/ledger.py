@@ -58,7 +58,7 @@ class WithdrawalIntentRow(BaseModel):
     owner_address: str = Field(alias="ownerAddress")
     tx_hash: Optional[str] = Field(default=None, alias="txHash")
     status: Literal[
-        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED"
+        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED", "CANCELLED"
     ] = "REQUESTED"
     request_id: Optional[str] = Field(default=None, alias="requestId")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")

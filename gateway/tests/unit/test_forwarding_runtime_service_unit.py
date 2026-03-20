@@ -278,6 +278,17 @@ def _http_runtime_client(monkeypatch, storage: FakeStorage):
         "run_service_health_monitor",
         _background_loop_until_stopped,
     )
+    monkeypatch.setattr(
+        gateway_app,
+        "run_provider_withdraw_expiry_reaper",
+        _background_loop_until_stopped,
+    )
+    monkeypatch.setattr(
+        gateway_app.settings,
+        "provider_withdraw_expiry_reaper_enabled",
+        False,
+        raising=False,
+    )
     with TestClient(gateway_app.create_app(), base_url="https://gateway.test") as client:
         yield client
 

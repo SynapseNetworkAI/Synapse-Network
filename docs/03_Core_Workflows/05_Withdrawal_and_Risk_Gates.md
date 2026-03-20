@@ -40,6 +40,7 @@ Withdrawal 链路定义 Provider 如何把已经结算的离链收益提现到�
 2. `PENDING_MANUAL_REVIEW`
 3. `REJECTED`
 4. `COMPLETED`
+5. `CANCELLED`
 
 其中：
 
@@ -47,6 +48,7 @@ Withdrawal 链路定义 Provider 如何把已经结算的离链收益提现到�
 2. `PENDING_MANUAL_REVIEW` 表示资金已冻结在 `provider frozen`，等待平台审核。
 3. `REJECTED` 表示人工审核拒绝，冻结金额已释放回 `provider available`。
 4. `COMPLETED` 表示链上 withdraw 已完成并被 Gateway 收口。
+5. `CANCELLED` 表示已签发 ticket 过期失效，原先锁定在 `provider pending / locked` 的金额已释放回 `provider available`。
 
 `withdrawal_kind` 当前允许：
 
@@ -207,6 +209,7 @@ Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
 1. 已签票但未完成的单据最终需要可回收 / 可失效
 2. 释放对应的 `pending / locked` 金额
 3. 写逆向 ledger / audit 证据
+4. 业务状态推进到 `CANCELLED`，前端应允许用户基于释放后的 `available` 重新生成新 ticket
 
 ### 11.3 严禁的行为
 

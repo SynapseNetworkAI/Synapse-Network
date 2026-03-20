@@ -41,6 +41,7 @@ ACTIVE_WITHDRAWAL_STATUSES = {
 INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds provider receivable."
 MANUAL_REVIEW_REJECT_MESSAGE = "Withdrawal rejected during manual security review."
 MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready for on-chain claim."
+EXPIRED_WITHDRAW_RELEASE_MESSAGE = "Withdrawal ticket expired. Locked receivable was released back to available balance."
 WITHDRAW_AMOUNT_PRECISION = Decimal("0.01")
 
 
@@ -131,6 +132,72 @@ class ProviderWithdrawService(
             if str(row.status or "").upper() in ACTIVE_WITHDRAWAL_STATUSES:
                 return row
         return None
+
+    @staticmethod
+    def _is_expired_signed_withdrawal(
+        row: WithdrawalIntentRow, now: Optional[int] = None
+    ) -> bool:
+        status = str(row.status or "").upper()
+        if status not in {"APPROVED_AUTO", "REQUESTED", "PENDING"}:
+            return False
+        deadline = int(row.deadline or 0)
+        if deadline <= 0:
+            return False
+        current_time = int(now or time.time())
+        return deadline < current_time
+
+    def _expire_stale_withdrawals(
+        self, rows: List[WithdrawalIntentRow], owner_wallet: Optional[str] = None
+    ) -> List[WithdrawalIntentRow]:
+        owner = normalize_wallet(owner_wallet) if owner_wallet is not None else None
+        now = int(time.time())
+        changed = False
+
+        for row in rows:
+            row_owner = self._withdraw_owner(row)
+            if owner is not None and row_owner != owner:
+                continue
+            if not self._is_expired_signed_withdrawal(row, now):
+                continue
+
+            amount_usdc = round(float(row.amount_usdc or 0.0), 6)
+            if amount_usdc > 0:
+                self._release_pending_withdraw_to_available(row_owner, amount_usdc)
+
+            row.status = "CANCELLED"
+            row.updated_at = str(now)
+            row.completed_at = now
+            row.message = EXPIRED_WITHDRAW_RELEASE_MESSAGE
+            changed = True
+
+            self._append_financial_audit(
+                "PROVIDER_WITHDRAW_CANCELLED",
+                row_owner,
+                {
+                    "withdrawalId": str(row.id or ""),
+                    "amountUsdc": amount_usdc,
+                    "reason": "TICKET_EXPIRED",
+                    "deadline": int(row.deadline or 0),
+                },
+            )
+
+        if changed:
+            self._save_withdrawal_rows(rows)
+
+        return rows
+
+    async def expire_stale_provider_withdrawals(self) -> int:
+        await asyncio.sleep(0)
+        async with self._mutation_lock.lock("provider_withdraw_expiry_reaper"):
+            rows = self._normalize_withdrawal_rows()
+            before_cancelled = sum(
+                1 for row in rows if str(row.status or "").upper() == "CANCELLED"
+            )
+            rows = self._expire_stale_withdrawals(rows)
+            after_cancelled = sum(
+                1 for row in rows if str(row.status or "").upper() == "CANCELLED"
+            )
+            return max(0, after_cancelled - before_cancelled)
 
     def _find_withdrawal_by_id(
         self, rows: List[WithdrawalIntentRow], owner_wallet: str, withdrawal_id: str
@@ -314,6 +381,24 @@ class ProviderWithdrawService(
                 },
             )
         provider_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
+        self._save_balance_ledger(ledger)
+
+    def _release_pending_withdraw_to_available(self, owner: str, amount_usdc: float) -> None:
+        ledger = self._load_balance_ledger()
+        provider_wallet = ledger.ensure_provider_wallet(owner)
+        locked = round(float(provider_wallet.pending_balance or 0.0), 6)
+        if locked + 1e-9 < amount_usdc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "WITHDRAWAL_LOCK_INCONSISTENT",
+                    "message": "Locked provider receivable is insufficient for expired ticket release.",
+                },
+            )
+        provider_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
+        provider_wallet.available_balance = round(
+            float(provider_wallet.available_balance or 0.0) + amount_usdc, 6
+        )
         self._save_balance_ledger(ledger)
 
     def _release_frozen_withdraw_to_available(
@@ -803,6 +888,9 @@ class ProviderWithdrawService(
                 owner, "provider_withdraw_intent"
             )
 
+            rows = self._expire_stale_withdrawals(
+                self._normalize_withdrawal_rows(), owner
+            )
             ledger = self._load_balance_ledger()
             available_receivable = ledger.provider_receivable_balance(owner)
             context = self._build_withdraw_create_context(
@@ -823,7 +911,6 @@ class ProviderWithdrawService(
             if existing_response is not None:
                 return existing_response
 
-            rows = self._normalize_withdrawal_rows()
             pending_response = await self._resolve_pending_withdrawal_response(
                 rows=rows,
                 owner=owner,
@@ -894,7 +981,9 @@ class ProviderWithdrawService(
     ) -> List[Dict[str, Any]]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
-        rows = self._normalize_withdrawal_rows()
+        rows = self._expire_stale_withdrawals(
+            self._normalize_withdrawal_rows(), owner
+        )
         filtered = [
             row
             for row in rows
@@ -989,7 +1078,9 @@ class ProviderWithdrawService(
             await self._enforce_owner_write_rate_limit(
                 owner, "provider_withdraw_complete"
             )
-            rows = self._normalize_withdrawal_rows()
+            rows = self._expire_stale_withdrawals(
+                self._normalize_withdrawal_rows(), owner
+            )
             target = self._find_withdrawal_by_id(rows, owner, withdrawal_id)
             if target is None:
                 raise HTTPException(
