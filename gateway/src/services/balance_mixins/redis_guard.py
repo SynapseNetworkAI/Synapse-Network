@@ -530,7 +530,7 @@ class BalanceRedisGuardMixin:
         request_hash: str,
         response: Dict[str, Any],
         redis_client: Optional[Any],
-        idem_rows: List[Dict[str, Any]],
+        idem_rows: List[IdempotencyRow],
     ) -> None:
         if redis_client is None:
             self._record_idempotent_response(
