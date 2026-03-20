@@ -11,6 +11,8 @@ import contractConfig from "@/contract-config.json";
 import {
   completeProviderWithdrawal,
   createProviderWithdrawIntent,
+  getProviderWithdrawCapability,
+  type ProviderWithdrawCapability,
   listProviderWithdrawals,
   type ProviderWithdrawRecord,
   type ProviderWithdrawTicket,
@@ -51,6 +53,8 @@ export default function ProviderSettlementsPage() {
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
   const [withdrawals, setWithdrawals] = useState<ProviderWithdrawRecord[]>([]);
   const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(null);
+  const [withdrawCapability, setWithdrawCapability] = useState<ProviderWithdrawCapability | null>(null);
+  const [loadingWithdrawCapability, setLoadingWithdrawCapability] = useState(false);
 
   const PAGE_SIZE = 10;
   const availableReceivable = Number(providerStats.receivable || 0);
@@ -80,6 +84,28 @@ export default function ProviderSettlementsPage() {
     }
   }, [address]);
 
+  const refreshWithdrawCapability = useCallback(async () => {
+    if (!address) {
+      setWithdrawCapability(null);
+      return;
+    }
+    setLoadingWithdrawCapability(true);
+    try {
+      const capability = await getProviderWithdrawCapability(address);
+      setWithdrawCapability(capability);
+    } catch (error) {
+      console.error("Failed to load provider withdrawal capability", error);
+      setWithdrawCapability({
+        ticketSigningEnabled: false,
+        code: "WITHDRAW_CAPABILITY_UNAVAILABLE",
+        message: "Unable to verify whether the gateway can issue withdrawal tickets right now.",
+        contractAddress: null,
+      });
+    } finally {
+      setLoadingWithdrawCapability(false);
+    }
+  }, [address]);
+
   useEffect(() => {
     if (!address) {
       setWithdrawals([]);
@@ -87,6 +113,10 @@ export default function ProviderSettlementsPage() {
     }
     void refreshWithdrawals();
   }, [address, refreshWithdrawals]);
+
+  useEffect(() => {
+    void refreshWithdrawCapability();
+  }, [refreshWithdrawCapability]);
 
   useEffect(() => {
     if (!isTxConfirmed || !txHash || !address || !activeWithdrawalId) return;
@@ -150,6 +180,13 @@ export default function ProviderSettlementsPage() {
       toast.error("An active withdrawal exists. Complete or review it before creating a new one.");
       return;
     }
+    if (!withdrawCapability?.ticketSigningEnabled) {
+      toast.error(
+        withdrawCapability?.message ||
+          "Provider withdrawals are unavailable because the gateway cannot issue signed withdrawal tickets.",
+      );
+      return;
+    }
 
     const requestedAmount = withdrawAmountInput.trim();
     let amountUsdc: number | undefined = undefined;
@@ -174,7 +211,7 @@ export default function ProviderSettlementsPage() {
       } else {
         toast.success("Withdrawal intent created.", { id: toastId });
       }
-      await Promise.all([refreshWithdrawals(), reloadDashboard()]);
+      await Promise.all([refreshWithdrawals(), refreshWithdrawCapability(), reloadDashboard()]);
       setWithdrawAmountInput("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create provider withdrawal";
@@ -220,6 +257,14 @@ export default function ProviderSettlementsPage() {
   };
 
   const isAnyLoading = creatingIntent || isWalletPrompting || isTxConfirming;
+  const ticketSigningEnabled = Boolean(withdrawCapability?.ticketSigningEnabled);
+  let generateClaimLabel = "Signer Unavailable";
+  if (ticketSigningEnabled) {
+    generateClaimLabel = "Generate & Claim";
+  }
+  if (creatingIntent) {
+    generateClaimLabel = "Creating Ticket...";
+  }
   let txStateLabel = "0";
   if (isWalletPrompting) {
     txStateLabel = "Wallet Prompt";
@@ -251,6 +296,11 @@ export default function ProviderSettlementsPage() {
             Gateway issues a signed withdrawal ticket; provider submits the on-chain withdraw transaction and pays gas.
             Pending tickets lock receivable to prevent duplicate withdrawal and replay at ledger layer.
           </p>
+          {!loadingWithdrawCapability && withdrawCapability && !ticketSigningEnabled && (
+            <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
+              {withdrawCapability.message}
+            </div>
+          )}
 
           <div className="mt-5 flex flex-col sm:flex-row gap-3">
             <input
@@ -265,10 +315,10 @@ export default function ProviderSettlementsPage() {
             />
             <button
               onClick={handleCreateWithdrawalIntent}
-              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || Boolean(pendingWithdrawal)}
+              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || Boolean(pendingWithdrawal) || !ticketSigningEnabled || loadingWithdrawCapability}
               className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors disabled:opacity-40"
             >
-              {creatingIntent ? "Creating Ticket..." : "Generate & Claim"}
+              {generateClaimLabel}
             </button>
             <button
               onClick={resumePendingWithdraw}

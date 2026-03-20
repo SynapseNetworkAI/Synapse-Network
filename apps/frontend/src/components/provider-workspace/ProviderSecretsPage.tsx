@@ -56,7 +56,7 @@ export default function SecretsPage() {
       toast("Please sign in with wallet session first.", { icon: "🔐" });
       return;
     }
-    const finalName = newSecretName.trim() || `Secret Key ${secrets.length + 1}`;
+    const finalName = newSecretName.trim() || `Signing Secret ${secrets.length + 1}`;
     try {
       setIsCreating(true);
       const rpm = qpsLimit.trim() ? Number.parseInt(qpsLimit, 10) : null;
@@ -88,7 +88,7 @@ export default function SecretsPage() {
       toast("Please sign in with wallet session first.", { icon: "🔐" });
       return;
     }
-    if (!confirm("Are you sure you want to delete this secret key? Any services using it will be blocked.")) return;
+    if (!confirm("Are you sure you want to revoke this signing secret? Any service using gateway signature verification with it will stop accepting traffic.")) return;
     try {
       await deleteApiSecret(id, address as string);
       setSecrets(secrets.filter(s => s.id !== id));
@@ -101,7 +101,7 @@ export default function SecretsPage() {
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopied(id);
-    toast.success("API Key copied");
+    toast.success("Signing secret copied");
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -125,15 +125,15 @@ export default function SecretsPage() {
   if (loading) {
     secretListContent = (
       <div className="text-center py-8 text-gray-500 font-mono animate-pulse">
-        Loading secrets...
+        Loading provider credentials...
       </div>
     );
   } else if (secrets.length === 0) {
     secretListContent = (
       <div className="text-center py-8 text-gray-500 font-mono">
         {address
-          ? "No secrets generated yet. Create one to secure your endpoints."
-          : "No secrets available. Connect your wallet and sign in to create one."}
+          ? "No provider credentials issued yet. Create a signing secret before routing live traffic."
+          : "No provider credentials available. Connect your wallet and sign in to issue one."}
       </div>
     );
   } else {
@@ -160,9 +160,9 @@ export default function SecretsPage() {
                 </span>
                 {sec.secretKey && (
                   <button
-                    onClick={() => copyToClipboard(sec.secretKey, sec.id)}
+                    onClick={() => sec.secretKey && copyToClipboard(sec.secretKey, sec.id)}
                     className="text-gray-500 hover:text-white transition-colors"
-                    title="Copy Original Key"
+                    title="Copy Signing Secret"
                   >
                     {copied === sec.id ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
@@ -172,7 +172,7 @@ export default function SecretsPage() {
               <button
                 onClick={() => handleDeleteSecret(sec.id)}
                 className="p-2 text-gray-500 hover:text-red-400 transition-colors border border-transparent hover:border-red-900/50 rounded hover:bg-red-900/20"
-                title="Revoke Key"
+                title="Revoke Signing Secret"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -190,7 +190,7 @@ export default function SecretsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-[#1C1C1C] border border-gray-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-gray-800">
-              <h2 className="text-lg font-semibold text-white">Generate keys</h2>
+              <h2 className="text-lg font-semibold text-white">Issue Provider Credential</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -204,7 +204,7 @@ export default function SecretsPage() {
                   <div className="group relative flex items-center">
                     <Info className="w-4 h-4 text-gray-500 cursor-help" />
                     <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
-                      Choose a clear and descriptive name for this API key.
+                      Choose a clear and descriptive name for this provider signing secret.
                     </div>
                   </div>
                 </div>
@@ -221,11 +221,11 @@ export default function SecretsPage() {
               {/* QPS Limit Field */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label htmlFor="secret-qps" className="text-sm font-medium text-gray-200">qps</label>
+                    <label htmlFor="secret-qps" className="text-sm font-medium text-gray-200">Rate limit</label>
                   <div className="group relative flex items-center">
                     <Info className="w-4 h-4 text-gray-500 cursor-help" />
                     <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
-                      Set a maximum Queries Per Second limit. Leave empty for unlimited.
+                      Set the maximum requests per minute allowed for traffic signed with this credential. Leave empty for unlimited.
                     </div>
                   </div>
                 </div>
@@ -248,7 +248,7 @@ export default function SecretsPage() {
                   <div className="group relative flex items-center">
                     <Info className="w-4 h-4 text-gray-500 cursor-help" />
                     <div className="absolute bottom-full mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-xs text-gray-200 rounded shadow-lg border border-gray-700 z-10">
-                      Select when you want this API key to expire for security.
+                      Select when you want this signing secret to expire for security.
                     </div>
                   </div>
                 </div>
@@ -279,7 +279,7 @@ export default function SecretsPage() {
                 disabled={isCreating || !newSecretName.trim()}
                 className="px-6 py-2 bg-white hover:bg-gray-200 text-black font-semibold rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCreating ? "Generating..." : "Generate"}
+                {isCreating ? "Issuing..." : "Issue credential"}
               </button>
             </div>
           </div>
@@ -292,10 +292,10 @@ export default function SecretsPage() {
         <div>
           <h1 className="text-3xl font-bold font-mono tracking-tight text-white mb-2 flex items-center gap-3">
             <Key className="w-8 h-8 text-green-400" />
-            Provider API Secrets
+            Provider Credentials
           </h1>
           <p className="text-gray-400 max-w-2xl">
-            API Secrets serve as master keys for your provider node. A single secret can authorize calls to all of your registered services.
+            A Provider Signing Secret is shared between Synapse Gateway and your runtime. The platform uses it to HMAC-sign routed payloads, and your service uses the same secret to verify that the request really came from Synapse.
           </p>
         </div>
       </div>
@@ -305,7 +305,7 @@ export default function SecretsPage() {
         <div className="p-6 border-b border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h2 className="text-xl font-mono text-white flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            Active Service Keys
+            Active Provider Credentials
           </h2>
           <div className="flex items-center gap-2">
             <button 
@@ -313,7 +313,7 @@ export default function SecretsPage() {
               className="px-4 py-2 bg-green-500 hover:bg-green-600 text-black font-semibold rounded-md text-sm transition-colors flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              Create new secret key
+              Issue signing secret
             </button>
           </div>
         </div>
@@ -335,12 +335,12 @@ export default function SecretsPage() {
             <div className="space-y-4 text-sm text-gray-400">
               <p>
                 To ensure only authorized requests reach your agent, the Synapse Gateway 
-                generates an <strong>HMAC-SHA256</strong> signature for every payload using your Node&apos;s Secret Key.
+                generates an <strong>HMAC-SHA256</strong> signature for every routed payload using your Provider Signing Secret.
               </p>
               <ul className="space-y-3">
                 <li className="flex gap-3">
                   <span className="text-green-400 mt-0.5">1.</span>
-                  <span>Platform computes hash of the exact JSON payload using your Secret Key.</span>
+                  <span>Synapse Gateway computes a hash of the exact JSON payload using your Provider Signing Secret.</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="text-green-400 mt-0.5">2.</span>
@@ -348,7 +348,7 @@ export default function SecretsPage() {
                 </li>
                 <li className="flex gap-3">
                   <span className="text-green-400 mt-0.5">3.</span>
-                  <span>Your server re-computes the hash using the same secret. If they match, the payload is authentic.</span>
+                  <span>Your runtime re-computes the hash using the same secret. If they match, the request is authentic and safe to execute.</span>
                 </li>
               </ul>
             </div>

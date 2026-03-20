@@ -24,12 +24,12 @@ export default function RolePathCards() {
         <h3 className="text-sm font-bold text-white">Provider 接入</h3>
         <ol className="mt-3 space-y-2 text-xs text-gray-300 list-decimal list-inside h-24">
           <li>进入 Provider Workspace</li>
-          <li>配置 Access Keys 与健康检查</li>
+          <li>配置 Provider Signing Secrets 与健康检查</li>
           <li>发布 API Service 并接收网关调用</li>
           <li>在 Settlements / Revenue Analytics 查看收益</li>
         </ol>
         <div className="flex flex-wrap gap-2 mt-2">
-          <Link href="/provider/sell" className="flex items-center px-4 py-2.5 text-xs font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors">
+          <Link href="/provider/console" className="flex items-center px-4 py-2.5 text-xs font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors">
             点击进入 Provider Workspace
             <ArrowRight className="w-4 h-4 ml-1" />
           </Link>

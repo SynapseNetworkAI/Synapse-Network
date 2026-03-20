@@ -9,6 +9,7 @@ import {
   Bot,
   Compass,
   Box,
+  Key,
   AreaChart,
   Clock,
   ShieldCheck,
@@ -22,6 +23,7 @@ export default function DashboardSidebar() {
   const router = useRouter();
 
   const providerRoot = "/provider";
+  const providerConsoleRoute = `${providerRoot}/console`;
 
   useEffect(() => {
     const allRoutes = [
@@ -32,6 +34,8 @@ export default function DashboardSidebar() {
       "/dashboard/billing",
       "/dashboard/audit",
       "/dashboard/developer",
+      providerConsoleRoute,
+      `${providerRoot}/secrets`,
       `${providerRoot}/services`,
       `${providerRoot}/usage`,
       `${providerRoot}/settlements`,
@@ -50,7 +54,7 @@ export default function DashboardSidebar() {
 
     const timeoutId = globalThis.setTimeout(warmup, 200);
     return () => globalThis.clearTimeout(timeoutId);
-  }, [router, providerRoot]);
+  }, [router, providerConsoleRoute, providerRoot]);
 
   const getLinkClasses = (paths: string | string[], exact = false) => {
     const candidates = Array.isArray(paths) ? paths : [paths];
@@ -116,6 +120,14 @@ export default function DashboardSidebar() {
           Provider Role
         </h3>
         <nav className="flex flex-col gap-0.5">
+          <Link href={providerConsoleRoute} className={getLinkClasses([providerConsoleRoute, `${providerRoot}/sell`], false)}>
+            <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
+            Provider Console
+          </Link>
+          <Link href={`${providerRoot}/secrets`} className={getLinkClasses([`${providerRoot}/secrets`], false)}>
+            <Key className="w-4 h-4 mr-3 opacity-80" />
+            Provider Credentials
+          </Link>
           <Link href={`${providerRoot}/services`} className={getLinkClasses([`${providerRoot}/services`], false)}>
             <Box className="w-4 h-4 mr-3 opacity-80" />
             My Services
