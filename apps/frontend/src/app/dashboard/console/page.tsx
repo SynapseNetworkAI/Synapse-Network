@@ -1,1 +1,5 @@
-export { default } from "@/components/dashboard-workspace/DashboardConsolePage";
+import { redirect } from "next/navigation";
+
+export default function DashboardConsoleRedirect() {
+	redirect("/dashboard/developer");
+}

@@ -1,7 +1,3 @@
-# Synapse Network Documentation Map
-
-> 当前官方文档体系已经完成五阶段重构。主阅读路径不再依赖旧 `02_Architecture/`、`03_Smart_Contract_Payment/`、`04_Synapse_Network/`、`05_Frontend_UX/`、`06_Developer_Guides/` 目录，而是统一收敛到六个新模块。
-
 ## 1. 先理解这套文档怎么组织
 
 阅读和维护遵守三条规则：

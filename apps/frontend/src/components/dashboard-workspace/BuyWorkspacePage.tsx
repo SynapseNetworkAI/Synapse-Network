@@ -32,7 +32,7 @@ export default function BuyPage() {
       <div>
         <h1 className="text-3xl font-bold text-white">Buy Workspace</h1>
         <p className="mt-2 text-gray-400">
-          面向调用方：总钱包充值担保，签发 API Key 凭据，调用卖家服务共享全局消费流水。
+          面向调用方：总钱包充值担保，签发 Agent Credential，并把一次性 API key secret 分发给真实运行中的 agent。
         </p>
       </div>
 
@@ -73,18 +73,18 @@ export default function BuyPage() {
             <div className="p-2 rounded-lg bg-green-500/10">
               <ShieldCheck className="w-6 h-6 text-green-500" />
             </div>
-            <h2 className="text-xl font-bold tracking-wide text-white">Step 2 · 凭据管理 (API Keys)</h2>
+            <h2 className="text-xl font-bold tracking-wide text-white">Step 2 · Agent Credentials</h2>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/dashboard/credentials" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-green-400 transition border rounded-lg border-green-400/30 bg-green-500/10 hover:bg-green-500/20">
-              管理 API Keys <ArrowRight className="w-4 h-4" />
+              打开 Agent Credentials <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
         
         <div className="mt-4">
           <p className="text-sm leading-relaxed text-gray-400">
-            API Key 就是基础设施中执行调用的唯一凭证，代表你发起对目标服务的访问。所有该钱包下持有的 API Key 创建的消费将会自动汇总在当前资金池中。
+            Agent Credential 是 owner 为运行时签发的访问身份；创建成功后系统只展示一次对应的 API key secret。所有该钱包下 credential 产生的消费都会自动汇总到当前资金池。
           </p>
           <div className="mt-6 flex flex-col gap-2.5">
             <Link href="/dashboard/discovery" className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 hover:text-white transition-colors border border-transparent hover:border-gray-600">

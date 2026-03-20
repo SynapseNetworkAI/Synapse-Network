@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Terminal, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers } from "lucide-react";
 
 export default function DeveloperPage() {
@@ -47,10 +48,16 @@ console.log(result.data);`;
             <Terminal className="w-6 h-6 text-blue-400" />
             Developer Resources
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Integrate Synapse M2M payments into your autonomous agent workflows.</p>
+          <p className="text-sm text-gray-500 mt-1">SDK docs, quickstarts, and integration references for autonomous agent workflows. Funding stays in Owner Treasury. Runtime secret issuance stays in Agent Credentials.</p>
         </div>
         
         <div className="flex items-center gap-3">
+          <Link href="/dashboard/credentials" className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border border-white/10 text-white hover:border-blue-400/40 hover:bg-white/[0.04] transition-colors">
+            Agent Credentials
+          </Link>
+          <Link href="/dashboard/billing" className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border border-white/10 text-white hover:border-amber-400/40 hover:bg-white/[0.04] transition-colors">
+            Owner Treasury
+          </Link>
           <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold hover:bg-blue-400 transition-colors">
             <BookOpen className="w-3.5 h-3.5" />
             Full Documentation

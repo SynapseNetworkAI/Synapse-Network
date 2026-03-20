@@ -167,12 +167,14 @@ Wallet modal UX baseline:
 1. `/provider/services/deploy` (canonical provider publish workflow)
 2. `/provider/secrets` (canonical access key management)
 3. `/dashboard/credentials` (credential issuance/revoke/audit)
-4. `/dashboard/console` for authenticated data actions
+4. `/dashboard/billing` (owner treasury and deposit actions)
+5. `/dashboard/developer` (resource hub; old `/dashboard/console` now redirects here)
 
 Compatibility note:
 
 1. Some `/dashboard/**` routes still exist as legacy aliases or implementation hosts.
 2. Product and new docs should prefer `/provider/**` for Provider workspace links.
+3. Do not treat `/dashboard/console` as a maintained owner workspace anymore; runtime setup is split across Treasury, Agent Credentials, and Developer Resources.
 
 ### Public-readable pages (no session required)
 

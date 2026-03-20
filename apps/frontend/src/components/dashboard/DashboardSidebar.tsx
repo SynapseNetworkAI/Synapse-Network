@@ -104,7 +104,7 @@ export default function DashboardSidebar() {
           </Link>
           <Link href="/dashboard/developer" className={getLinkClasses(["/dashboard/developer"], false)}>
             <Terminal className="w-4 h-4 mr-3 opacity-80" />
-            Developer
+            Developer Resources
           </Link>
         </nav>
       </div>
