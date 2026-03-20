@@ -1,104 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-
 import { AdminShell } from "@/components/admin-shell";
 import { ReviewWorkbench } from "@/features/withdrawal-reviews/review-workbench";
+import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
 import { useAdminSession } from "@/lib/use-admin-session";
-import {
-  decideProviderWithdrawReview,
-  listProviderWithdrawReviews,
-  type ProviderWithdrawReviewItem,
-} from "@/services/admin-api";
 
 
 export default function WithdrawalReviewsPage() {
   const { admin, token, loading } = useAdminSession();
-  const [items, setItems] = useState<ProviderWithdrawReviewItem[]>([]);
-  const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
-  const [decisionNote, setDecisionNote] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  async function refreshReviews(activeToken: string) {
-    const reviewQueue = await listProviderWithdrawReviews(activeToken, { limit: 20 });
-    setItems(reviewQueue.items);
-    setActiveReviewId((current) => {
-      if (current && reviewQueue.items.some((item) => item.withdrawalId === current)) {
-        return current;
-      }
-      return reviewQueue.items[0]?.withdrawalId ?? null;
-    });
-  }
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-    const activeToken = token;
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const reviewQueue = await listProviderWithdrawReviews(activeToken, { limit: 20 });
-        if (cancelled) {
-          return;
-        }
-        setItems(reviewQueue.items);
-        setActiveReviewId(reviewQueue.items[0]?.withdrawalId ?? null);
-      } catch (loadError) {
-        if (cancelled) {
-          return;
-        }
-        setError(loadError instanceof Error ? loadError.message : "加载提现审核队列失败");
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
+  const {
+    items,
+    activeReviewId,
+    decisionNote,
+    message,
+    error,
+    isPending,
+    metrics,
+    setActiveReviewId,
+    setDecisionNote,
+    setMessage,
+    handleDecision,
+  } = useProviderWithdrawReviews(token);
   const canDecide = admin?.permissions.includes("approval:decide") ?? false;
-  const metrics = useMemo(() => {
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.amountUsdc || 0), 0);
-    const redCount = items.filter((item) => item.riskLevel === "red").length;
-    const yellowCount = items.filter((item) => item.riskLevel === "yellow").length;
-    return {
-      pendingCount: items.length,
-      totalAmount: totalAmount.toFixed(2),
-      redCount,
-      yellowCount,
-    };
-  }, [items]);
-
-  function handleDecision(decision: "APPROVE" | "REJECT") {
-    if (!token || !activeReviewId) {
-      return;
-    }
-    const note = decisionNote.trim();
-    if (decision === "REJECT" && !note) {
-      setError("Reject 需要 reviewer note，避免审计链路只剩一个状态码。\n");
-      return;
-    }
-    const activeToken = token;
-    startTransition(async () => {
-      try {
-        const result = await decideProviderWithdrawReview(activeToken, activeReviewId, {
-          decision,
-          note,
-        });
-        setMessage(`${result.reviewDecision} -> ${result.status}${result.message ? ` · ${result.message}` : ""}`);
-        setError(null);
-        setDecisionNote("");
-        await refreshReviews(activeToken);
-      } catch (actionError) {
-        setError(actionError instanceof Error ? actionError.message : "提交提现审核动作失败");
-      }
-    });
-  }
 
   if (loading || !admin) {
     return <main className="state-screen">正在同步提现审核工作台...</main>;

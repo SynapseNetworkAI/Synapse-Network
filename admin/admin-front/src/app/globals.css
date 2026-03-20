@@ -818,6 +818,10 @@ textarea {
   gap: 12px;
 }
 
+.approvals-link-button {
+  margin-top: 16px;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.72;
