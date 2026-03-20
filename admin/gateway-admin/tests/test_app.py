@@ -317,9 +317,74 @@ def test_published_menu_config_is_available_to_regular_admins() -> None:
         "/api/admin/v1/config/menu-items?stage=published",
         headers={"Authorization": f"Bearer {token}"},
     )
-
     assert response.status_code == 200
-    assert response.json()["data"]["meta"]["publishedVersion"] >= 1
+    assert any(item["itemId"] == "dashboard" for item in response.json()["data"]["items"])
+
+
+def test_provider_withdraw_review_list_and_decision() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "finance-review@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    list_response = client.get(
+        "/api/admin/v1/withdrawal-reviews?limit=10",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert list_response.status_code == 200
+    items = list_response.json()["data"]["items"]
+    assert len(items) >= 1
+    first_item = items[0]
+    assert first_item["status"] == "PENDING_MANUAL_REVIEW"
+
+    decision_response = client.post(
+        f"/api/admin/v1/withdrawal-reviews/{first_item['withdrawalId']}/decision",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "decision": "APPROVE",
+            "note": "Looks consistent with provider income.",
+        },
+    )
+    assert decision_response.status_code == 200
+    result = decision_response.json()["data"]
+    assert result["reviewDecision"] == "APPROVE"
+    assert result["status"] == "APPROVED_AUTO"
+
+    list_after_response = client.get(
+        "/api/admin/v1/withdrawal-reviews?limit=10",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert list_after_response.status_code == 200
+    remaining_ids = [item["withdrawalId"] for item in list_after_response.json()["data"]["items"]]
+    assert first_item["withdrawalId"] not in remaining_ids
+
+
+def test_provider_withdraw_review_decision_requires_permission() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "finance@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    response = client.post(
+        "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "decision": "REJECT",
+            "note": "Finance admin cannot decide directly.",
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
 def test_draft_menu_config_requires_control_plane_role() -> None:

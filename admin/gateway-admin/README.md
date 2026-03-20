@@ -45,6 +45,7 @@
 4. `approval` 路由
 5. `audit` 路由
 6. `execution` 路由
+7. `provider withdrawal review` 路由
 5. 基础 schema / service / adapter 分层
 6. 第一版 API contract 文档
 8. 第一版 PostgreSQL migration：`migrations/001_admin_control_plane_schema.sql`
@@ -63,6 +64,11 @@
 - `PATCH /api/admin/v1/config/menu-items/{itemId}`: 编辑 draft 菜单项
 - `DELETE /api/admin/v1/config/menu-items/{itemId}`: 从 draft 删除菜单项
 - `POST /api/admin/v1/config/menu-items/publish`: 将当前 draft 发布为全局生效菜单版本
+
+当前已落地的提现审核能力：
+
+- `GET /api/admin/v1/withdrawal-reviews`: 读取仍处于 `PENDING_MANUAL_REVIEW` 的 provider 提现单
+- `POST /api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`: 由 reviewer 执行 approve / reject，再由 gateway-admin 使用内部管理员钱包代理到 gateway review API
 
 `/menu-config` 切到真实 draft / publish 流程，指的是：
 
@@ -139,6 +145,7 @@ EXECUTION_WORKER_BATCH_SIZE=10
 - Dashboard 的 gateway 指标通过 `synapse_gateway_ro` 查询 gateway 侧 3 个稳定只读投影视图：`synapse_admin_dashboard_finance_projection`、`synapse_admin_dashboard_activity_trend_projection`、`synapse_admin_dashboard_operations_projection`。
 - 兼容接口 `overview` / `system-status` 继续通过聚合视图 `synapse_admin_dashboard_projection` 暴露旧摘要字段。
 - Execution retry 现在不再只是把 job 重新入队，而是会使用内部管理员钱包 JWT 调用 gateway 管理命令，例如 `deposit_repair -> /api/v1/admin/deposits/replay`、`refund_approve -> /api/v1/admin/refunds/{refundId}/complete`、`withdrawal_approve -> /api/v1/admin/providers/withdrawals/{withdrawalId}/complete`，并把成功/失败结果回写到 execution job、attempt 和 approval 状态。
+- Provider 提现人工审核不走旧的 execution complete 路径，而是新增专用 review proxy：`gateway-admin -> /api/admin/v1/withdrawal-reviews/* -> gateway /api/v1/admin/providers/withdrawals/{withdrawalId}/review`。
 - gateway-admin 现在会在服务启动后自动拉起 execution worker，周期性扫描 `PENDING` execution jobs 并执行，不再依赖手动 retry 才能推进。
 - 新增菜单配置中心后，持久化数据库需要执行 `migrations/003_admin_config_center_schema.sql`，否则 `/api/admin/v1/config/menu-items` 无法在 PostgreSQL 模式下工作。
 

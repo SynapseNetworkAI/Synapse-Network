@@ -81,7 +81,7 @@ export default function FinancePage() {
             {[
               ["充值异常定位", "定位 deposit intent 未入账、链上确认延迟和 backfill 回放问题。"],
               ["退款审批", "对接 refund_approve 审批命令，避免未复核直接出账。"],
-              ["提现审核", "大额或高风险提现统一进入审批和 execution worker。"],
+              ["提现审核", "大额或高风险提现进入 /withdrawal-reviews 专用工作台，直接调用 review API 推进 approve / reject。"],
               ["冻结 / 解冻", "后续接受控 gateway 内部命令，不直接改资金真相表。"],
             ].map(([title, description]) => (
               <div key={title} className="catalog-card">

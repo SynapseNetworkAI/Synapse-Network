@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.routers import admin_auth, admin_config, admin_users, approval, audit, dashboard, execution
+from src.api.routers import admin_auth, admin_config, admin_users, approval, audit, dashboard, execution, provider_withdraw_review
 from src.api import deps
 from src.core.config import get_settings
 from src.core.errors import AppError
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
 	app.include_router(approval.router)
 	app.include_router(audit.router)
 	app.include_router(execution.router)
+	app.include_router(provider_withdraw_review.router)
 
 	@app.exception_handler(AppError)
 	async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
