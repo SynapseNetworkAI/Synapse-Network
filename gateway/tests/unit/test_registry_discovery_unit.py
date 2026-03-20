@@ -7,6 +7,7 @@ import pytest
 from src.domain.finance import UsageLogRow
 from src.domain.service_contract import (
     AgentDiscoveryQueryRecord,
+    ServiceHealthTargetRecord,
     ServiceRuntimeHealthRecord,
 )
 from src.services.provider.registry.discovery import (
@@ -313,3 +314,43 @@ async def test_health_status_excludes_inactive_until_requested() -> None:
 
     assert [row["serviceId"] for row in active_only] == ["svc.active"]
     assert [row["serviceId"] for row in including_inactive] == ["svc.active", "svc.inactive"]
+
+
+@pytest.mark.asyncio
+async def test_health_status_uses_discovery_effective_runtime_state(monkeypatch) -> None:
+    context = FakeRegistryContext(
+        [
+            service_definition(
+                "svc.stale",
+                service_name="Stale Quotes",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1_000,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl="https://svc.stale.test/invoke",
+                            status="healthy",
+                            weight=100,
+                            lastCheckedAt=1_000,
+                        )
+                    ],
+                ),
+            )
+        ],
+        [],
+    )
+
+    monkeypatch.setattr(
+        "src.services.provider.registry.discovery.service_health_service._now_ms",
+        lambda: 1_000 + 121_000,
+    )
+
+    rows = await health_status(context, include_inactive=True)
+
+    assert rows[0]["health"]["probeStatus"] == "healthy"
+    assert rows[0]["health"]["overallStatus"] == "stale"
+    assert rows[0]["health"]["isStale"] is True
+    assert rows[0]["health"]["runtimeAvailable"] is False
+    assert rows[0]["runtimeAvailable"] is False

@@ -202,6 +202,7 @@ async def health_status(
             "isActive": bool(svc.is_active),
             "status": str(svc.status or "unknown"),
             "health": service_health_service.public_health_summary(svc),
+            "runtimeAvailable": service_health_service.is_service_discoverable(svc),
         }
         for svc in scoped
     ]
