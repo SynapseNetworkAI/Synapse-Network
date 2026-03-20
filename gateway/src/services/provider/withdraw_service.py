@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, cast
 import asyncio
 import time
 from uuid import uuid4
@@ -20,6 +20,7 @@ from src.domain.finance import BalanceLedger
 from src.domain.finance import (
     WithdrawCreateContext,
 )
+from src.domain.idempotency import IdempotencyRow
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
 from src.services.balance_mixins import (
@@ -43,6 +44,22 @@ MANUAL_REVIEW_REJECT_MESSAGE = "Withdrawal rejected during manual security revie
 MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready for on-chain claim."
 EXPIRED_WITHDRAW_RELEASE_MESSAGE = "Withdrawal ticket expired. Locked receivable was released back to available balance."
 WITHDRAW_AMOUNT_PRECISION = Decimal("0.01")
+WithdrawalRowStatus = Literal[
+    "REQUESTED",
+    "APPROVED_AUTO",
+    "PENDING_MANUAL_REVIEW",
+    "REJECTED",
+    "COMPLETED",
+    "CANCELLED",
+]
+WITHDRAW_ROW_STATUSES: set[WithdrawalRowStatus] = {
+    "REQUESTED",
+    "APPROVED_AUTO",
+    "PENDING_MANUAL_REVIEW",
+    "REJECTED",
+    "COMPLETED",
+    "CANCELLED",
+}
 
 
 class ProviderWithdrawService(
@@ -106,8 +123,8 @@ class ProviderWithdrawService(
             status = str(row.status or "").upper()
             if not status or status == "PENDING":
                 row.status = "REQUESTED"
-            else:
-                row.status = status
+            elif status in WITHDRAW_ROW_STATUSES:
+                row.status = cast(WithdrawalRowStatus, status)
         return rows
 
     def _save_withdrawal_rows(self, rows: List[WithdrawalIntentRow]) -> None:
@@ -119,8 +136,20 @@ class ProviderWithdrawService(
         return self.storage.get_data_manager().finance.balance.read_balance_ledger()
 
     def _save_balance_ledger(self, ledger: BalanceLedger) -> None:
-        ledger.updated_at = int(time.time())
+        ledger.updated_at = str(int(time.time()))
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
+
+    @staticmethod
+    def _operation_context_metadata(
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> OperationContextMetadata:
+        return OperationContextMetadata.model_validate(request_meta or {})
+
+    @staticmethod
+    def _withdrawal_ticket_metadata(
+        ticket_payload: Dict[str, Any],
+    ) -> WithdrawalTicketMetadata:
+        return WithdrawalTicketMetadata.model_validate(ticket_payload)
 
     def _get_pending_withdrawal(
         self, rows: List[WithdrawalIntentRow], owner_wallet: str
@@ -459,9 +488,12 @@ class ProviderWithdrawService(
             provider_wallet.pending_balance = round(
                 float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6
             )
-        if hasattr(self.storage, "reserve_provider_withdraw_atomic"):
+        reserve_provider_withdraw_atomic = getattr(
+            self.storage, "reserve_provider_withdraw_atomic", None
+        )
+        if callable(reserve_provider_withdraw_atomic):
             try:
-                self.storage.reserve_provider_withdraw_atomic(
+                reserve_provider_withdraw_atomic(
                     ReserveProviderWithdrawCommand(
                         owner_wallet=owner,
                         amount_usdc=Decimal(str(amount_usdc)).quantize(
@@ -722,7 +754,7 @@ class ProviderWithdrawService(
         request_hash: str,
         request_meta: Optional[Dict[str, Any]],
         redis_client: Optional[Any],
-        idem_rows: List[Dict[str, Any]],
+        idem_rows: List[IdempotencyRow],
     ) -> Dict[str, Any]:
         request_id = str((request_meta or {}).get("requestId") or str(uuid4()))
         atomic_result = self.process_withdrawal_request(
@@ -778,7 +810,7 @@ class ProviderWithdrawService(
                 "amountUsdc": response["amountUsdc"],
                 "status": response["status"],
                 "idempotencyKey": idempotency_key,
-                "requestId": atomic_result.request_id,
+                "requestId": request_id,
                 "requestMeta": request_meta or {},
             },
         )
@@ -793,7 +825,7 @@ class ProviderWithdrawService(
         idempotency_key: str,
         request_hash: str,
         redis_client: Optional[Any],
-        idem_rows: List[Dict[str, Any]],
+        idem_rows: List[IdempotencyRow],
     ) -> Optional[Dict[str, Any]]:
         pending = self._get_pending_withdrawal(rows, owner)
         if pending is None:
@@ -861,9 +893,9 @@ class ProviderWithdrawService(
             idempotencyKey=idempotency_key,
             createdAt=str(now),
             updatedAt=str(now),
-            requestMeta=request_meta or {},
+            requestMeta=self._operation_context_metadata(request_meta),
             message=message,
-            ticket=dict(ticket_payload.ticket),
+            ticket=self._withdrawal_ticket_metadata(ticket_payload.ticket),
         )
         response = {
             "withdrawalId": withdrawal_id,
@@ -1125,7 +1157,7 @@ class ProviderWithdrawService(
             target.tx_hash = normalized_tx_hash
             target.completed_at = now
             target.updated_at = str(now)
-            target.complete_meta = request_meta or {}
+            target.complete_meta = self._operation_context_metadata(request_meta)
             self._save_withdrawal_rows(rows)
 
             self._append_financial_audit(
