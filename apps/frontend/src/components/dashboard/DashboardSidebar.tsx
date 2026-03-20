@@ -102,7 +102,7 @@ export default function DashboardSidebar() {
           </Link>
           <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing"], false)}>
             <Wallet className="w-4 h-4 mr-3 opacity-80" />
-            Billing
+            Treasury
           </Link>
           <Link href="/dashboard/audit" className={getLinkClasses(["/dashboard/audit"], false)}>
             <AlertTriangle className="w-4 h-4 mr-3 opacity-80" />

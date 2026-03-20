@@ -56,7 +56,8 @@ flowchart TD
 3. `Access Keys` / `/provider/secrets`
 4. `Settlements` / `/provider/settlements`
 5. `Revenue Analytics` / `/provider/usage`
-6. `Treasury Ledger` / `/provider/billing`
+
+Provider 不再单独暴露 `/provider/billing`。Owner 资金账本保留在 `/dashboard/billing`，Provider 财务面拆分为 `/provider/settlements` 与 `/provider/usage`。
 
 这组拆分的意义是：
 
