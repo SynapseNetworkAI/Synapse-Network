@@ -23,8 +23,24 @@ export type AdminProfile = {
 
 export type LoginResponse = {
   expiresIn: number;
+  csrfToken: string;
   admin: AdminProfile;
 };
+
+let adminCsrfToken: string | null = null;
+
+function setAdminCsrfToken(token: string | null): void {
+  adminCsrfToken = token;
+}
+
+function readAdminCsrfToken(): string | null {
+  return adminCsrfToken;
+}
+
+function isSafeMethod(method: string | undefined): boolean {
+  const normalized = (method ?? "GET").toUpperCase();
+  return normalized === "GET" || normalized === "HEAD" || normalized === "OPTIONS";
+}
 
 export type DashboardOverview = {
   metrics: {
@@ -311,9 +327,18 @@ function buildHeaders(init?: HeadersInit): HeadersInit {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method?.toUpperCase() ?? "GET";
+  const headers = new Headers(buildHeaders(init?.headers));
+  if (!isSafeMethod(method) && path !== "/api/admin/v1/auth/login") {
+    const csrfToken = readAdminCsrfToken();
+    if (!csrfToken) {
+      throw new Error("Missing admin CSRF token");
+    }
+    headers.set("X-CSRF-Token", csrfToken);
+  }
   const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
     ...init,
-    headers: buildHeaders(init?.headers),
+    headers,
     cache: "no-store",
     credentials: "include",
   });
@@ -331,18 +356,24 @@ export async function loginAdmin(input: {
   password: string;
   otpCode: string;
 }): Promise<LoginResponse> {
-  return request<LoginResponse>("/api/admin/v1/auth/login", {
+  const session = await request<LoginResponse>("/api/admin/v1/auth/login", {
     method: "POST",
     body: JSON.stringify(input),
   });
+  setAdminCsrfToken(session.csrfToken);
+  return session;
 }
 
-export async function getCurrentAdmin(token: string): Promise<AdminProfile> {
-  return request<AdminProfile>("/api/admin/v1/auth/me");
+export async function getCurrentAdmin(token: string): Promise<LoginResponse> {
+  const session = await request<LoginResponse>("/api/admin/v1/auth/me");
+  setAdminCsrfToken(session.csrfToken);
+  return session;
 }
 
 export async function logoutAdmin(token: string): Promise<{ adminId: string; loggedOut: boolean }> {
-  return request<{ adminId: string; loggedOut: boolean }>("/api/admin/v1/auth/logout", { method: "POST" });
+  const result = await request<{ adminId: string; loggedOut: boolean }>("/api/admin/v1/auth/logout", { method: "POST" });
+  setAdminCsrfToken(null);
+  return result;
 }
 
 export async function getDashboardOverview(token: string): Promise<DashboardOverview> {

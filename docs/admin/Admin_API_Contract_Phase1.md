@@ -103,6 +103,7 @@
   "success": true,
   "data": {
     "expiresIn": 3600,
+    "csrfToken": "<session-bound-csrf-token>",
     "admin": {
       "adminId": "adm_finance_admin",
       "email": "ops@synapse.network",
@@ -120,6 +121,11 @@
 Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; SameSite=Lax
 ```
 
+说明：
+
+- `csrfToken` 不是登录凭证，只用于浏览器侧写请求防 CSRF
+- `admin-front` 需要在后续 `POST / PATCH / DELETE` 请求里附带 `X-CSRF-Token: <csrfToken>`
+
 ### `GET /api/admin/v1/auth/me`
 
 用途：前端基于 `HttpOnly` cookie 恢复登录态，获取当前管理员身份。
@@ -130,15 +136,19 @@ Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; Same
 {
   "success": true,
   "data": {
-    "adminId": "adm_finance_admin",
-    "email": "ops@synapse.network",
-    "displayName": "Finance Admin",
-    "role": "finance_admin",
-    "permissions": [
-      "dashboard:read",
-      "approval:submit",
-      "approval:read"
-    ]
+    "expiresIn": 3600,
+    "csrfToken": "<session-bound-csrf-token>",
+    "admin": {
+      "adminId": "adm_finance_admin",
+      "email": "ops@synapse.network",
+      "displayName": "Finance Admin",
+      "role": "finance_admin",
+      "permissions": [
+        "dashboard:read",
+        "approval:submit",
+        "approval:read"
+      ]
+    }
   },
   "requestId": "req_demo"
 }
@@ -151,6 +161,12 @@ Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; Same
 请求体：空。
 
 响应头会清理 `synapse_admin_session` cookie。
+
+请求头要求：
+
+```text
+X-CSRF-Token: <csrfToken>
+```
 
 ## 3.2 dashboard
 

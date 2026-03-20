@@ -123,9 +123,9 @@ admin-front (browser)
 1. 页面 JS 无法直接读取 session token，XSS 的直接 token exfiltration 风险明显下降
 2. `admin-front` 所有 API 请求都统一走 `credentials: include`，浏览器不再显式拼 `Authorization` header
 
-但这还不是终态，还剩两个必须继续补的点：
+这一步之后，还剩两个必须继续补的点：
 
-1. 当前 cookie 策略是 `SameSite=Lax`，后续高风险写操作要继续加 `CSRF` 防护
+1. 当前 cookie 策略仍是 `SameSite=Lax`，生产还要继续评估收紧到更严格策略
 2. 生产环境必须强制 `Secure`，并结合 HTTPS / WAF / CSP 收紧浏览器面
 
 ### 3.4 第四个问题：Gateway 管理命令仍挂在主 API 面上
@@ -323,6 +323,7 @@ admin-front (browser)
 3. 禁止生产复用 `JWT_SECRET` 作为 internal secret。配置边界已拆开，生产密钥治理仍需落地。
 4. 收紧 `PLATFORM_FEE_ADMIN_WALLETS`。待按生产环境收口。
 5. 所有 internal command 都强制 request-id 审计贯通。已完成主链路。
+6. cookie 会话写请求增加会话绑定 `CSRF` token 校验。已完成。
 
 ### Phase 2：身份拆域
 
@@ -379,7 +380,7 @@ Admin User
 1. internal service auth 与 external owner auth 语义混用
 2. shared secret 模式过重
 3. 缺少独立 service principal / aud / scope / jti / body digest
-4. 浏览器侧仍缺 `CSRF` / 更严格 cookie 策略 / CSP
+4. 浏览器侧仍缺更严格 cookie 策略 / CSP / step-up MFA
 5. gateway internal command 与 public API 面未完全网络隔离
 
 ### 8.3 如何保证 gateway 和 admin 的安全

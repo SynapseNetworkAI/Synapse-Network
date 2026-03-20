@@ -7,7 +7,7 @@ client = TestClient(app)
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
 
 
-def _login_as(email: str) -> None:
+def _login_as(email: str) -> dict[str, str]:
     client.cookies.clear()
     response = client.post(
         "/api/admin/v1/auth/login",
@@ -18,6 +18,8 @@ def _login_as(email: str) -> None:
         },
     )
     assert response.status_code == 200
+    csrf_token = response.json()["data"]["csrfToken"]
+    return {"X-CSRF-Token": csrf_token}
 
 
 def _seed_test_passwords() -> None:
@@ -60,17 +62,19 @@ def test_admin_auth_login() -> None:
     assert body["success"] is True
     assert body["data"]["admin"]["email"] == "ops@synapse.network"
     assert body["data"]["expiresIn"] == 3600
+    assert body["data"]["csrfToken"]
     assert "synapse_admin_session=" in response.headers["set-cookie"]
 
 
 def test_admin_auth_me_and_logout_use_cookie_session() -> None:
-    _login_as("ops@synapse.network")
+    csrf_headers = _login_as("ops@synapse.network")
 
     me_response = client.get("/api/admin/v1/auth/me")
     assert me_response.status_code == 200
-    assert me_response.json()["data"]["email"] == "ops@synapse.network"
+    assert me_response.json()["data"]["admin"]["email"] == "ops@synapse.network"
+    assert me_response.json()["data"]["csrfToken"]
 
-    logout_response = client.post("/api/admin/v1/auth/logout")
+    logout_response = client.post("/api/admin/v1/auth/logout", headers=csrf_headers)
     assert logout_response.status_code == 200
     assert logout_response.json()["data"]["loggedOut"] is True
     assert "synapse_admin_session=" in logout_response.headers["set-cookie"]
@@ -93,7 +97,7 @@ def test_admin_auth_login_rejects_wrong_password() -> None:
 
 
 def test_admin_users_catalog_and_create_user() -> None:
-    _login_as("super@synapse.network")
+    csrf_headers = _login_as("super@synapse.network")
 
     roles_response = client.get("/api/admin/v1/users/roles")
     assert roles_response.status_code == 200
@@ -102,6 +106,7 @@ def test_admin_users_catalog_and_create_user() -> None:
 
     create_response = client.post(
         "/api/admin/v1/users",
+        headers=csrf_headers,
         json={
             "email": "new-ops@synapse.network",
             "displayName": "New Ops",
@@ -123,10 +128,11 @@ def test_admin_users_catalog_and_create_user() -> None:
 
 
 def test_admin_users_update_and_disable_user() -> None:
-    _login_as("super@synapse.network")
+    csrf_headers = _login_as("super@synapse.network")
 
     create_response = client.post(
         "/api/admin/v1/users",
+        headers=csrf_headers,
         json={
             "email": "crud-user@synapse.network",
             "displayName": "CRUD User",
@@ -141,6 +147,7 @@ def test_admin_users_update_and_disable_user() -> None:
 
     update_response = client.patch(
         f"/api/admin/v1/users/{admin_id}",
+        headers=csrf_headers,
         json={
             "displayName": "Updated CRUD User",
             "roleKey": "finance_admin",
@@ -155,7 +162,7 @@ def test_admin_users_update_and_disable_user() -> None:
     assert updated_admin["roleKeys"] == ["finance_admin"]
     assert updated_admin["requireMfa"] is True
 
-    delete_response = client.delete(f"/api/admin/v1/users/{admin_id}")
+    delete_response = client.delete(f"/api/admin/v1/users/{admin_id}", headers=csrf_headers)
     assert delete_response.status_code == 200
     assert delete_response.json()["data"]["status"] == "disabled"
 
@@ -167,7 +174,7 @@ def test_admin_users_update_and_disable_user() -> None:
 
 
 def test_admin_roles_crud_flow() -> None:
-    _login_as("super@synapse.network")
+    csrf_headers = _login_as("super@synapse.network")
 
     permissions_response = client.get("/api/admin/v1/users/permissions")
     assert permissions_response.status_code == 200
@@ -176,6 +183,7 @@ def test_admin_roles_crud_flow() -> None:
 
     create_response = client.post(
         "/api/admin/v1/users/roles",
+        headers=csrf_headers,
         json={
             "roleKey": "ops_shift_manager",
             "roleName": "Ops Shift Manager",
@@ -191,6 +199,7 @@ def test_admin_roles_crud_flow() -> None:
 
     update_response = client.patch(
         "/api/admin/v1/users/roles/ops_shift_manager",
+        headers=csrf_headers,
         json={
             "roleName": "Ops Shift Lead",
             "description": "Lead for operations shift",
@@ -203,13 +212,13 @@ def test_admin_roles_crud_flow() -> None:
     assert updated_role["roleName"] == "Ops Shift Lead"
     assert "audit:read" in updated_role["permissions"]
 
-    delete_response = client.delete("/api/admin/v1/users/roles/ops_shift_manager")
+    delete_response = client.delete("/api/admin/v1/users/roles/ops_shift_manager", headers=csrf_headers)
     assert delete_response.status_code == 200
     assert delete_response.json()["data"]["status"] == "disabled"
 
 
 def test_admin_menu_config_crud_and_publish_flow() -> None:
-    _login_as("super@synapse.network")
+    csrf_headers = _login_as("super@synapse.network")
 
     list_response = client.get("/api/admin/v1/config/menu-items")
     assert list_response.status_code == 200
@@ -217,6 +226,7 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
 
     create_response = client.post(
         "/api/admin/v1/config/menu-items",
+        headers=csrf_headers,
         json={
             "itemId": "ops-copilot",
             "sectionId": "ops-controls",
@@ -236,6 +246,7 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
 
     update_response = client.patch(
         "/api/admin/v1/config/menu-items/ops-copilot",
+        headers=csrf_headers,
         json={
             "sectionId": "ops-controls",
             "sectionLabel": "业务控制",
@@ -251,7 +262,7 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     assert update_response.status_code == 200
     assert any(item["label"] == "运行副驾中心" for item in update_response.json()["data"]["items"])
 
-    publish_response = client.post("/api/admin/v1/config/menu-items/publish")
+    publish_response = client.post("/api/admin/v1/config/menu-items/publish", headers=csrf_headers)
     assert publish_response.status_code == 200
     assert publish_response.json()["data"]["meta"]["isDirty"] is False
 
@@ -259,7 +270,7 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     assert published_response.status_code == 200
     assert any(item["itemId"] == "ops-copilot" for item in published_response.json()["data"]["items"])
 
-    delete_response = client.delete("/api/admin/v1/config/menu-items/ops-copilot")
+    delete_response = client.delete("/api/admin/v1/config/menu-items/ops-copilot", headers=csrf_headers)
     assert delete_response.status_code == 200
     assert all(item["itemId"] != "ops-copilot" for item in delete_response.json()["data"]["items"])
 
@@ -296,10 +307,11 @@ def test_approvals_list_filter_can_select_only_projected_provider_reviews() -> N
 
 
 def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> None:
-    _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse.network")
 
     response = client.post(
         "/api/admin/v1/approvals/PWR-wd-demo-review-002/decision",
+        headers=csrf_headers,
         json={
             "decision": "APPROVE",
             "comment": "Projected approval routed to provider manual review flow.",
@@ -312,7 +324,7 @@ def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> 
 
 
 def test_provider_withdraw_review_list_and_decision() -> None:
-    _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse.network")
 
     list_response = client.get("/api/admin/v1/withdrawal-reviews?limit=10")
     assert list_response.status_code == 200
@@ -323,6 +335,7 @@ def test_provider_withdraw_review_list_and_decision() -> None:
 
     decision_response = client.post(
         f"/api/admin/v1/withdrawal-reviews/{first_item['withdrawalId']}/decision",
+        headers=csrf_headers,
         json={
             "decision": "APPROVE",
             "note": "Looks consistent with provider income.",
@@ -340,10 +353,11 @@ def test_provider_withdraw_review_list_and_decision() -> None:
 
 
 def test_provider_withdraw_review_decision_requires_permission() -> None:
-    _login_as("finance@synapse.network")
+    csrf_headers = _login_as("finance@synapse.network")
 
     response = client.post(
         "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
+        headers=csrf_headers,
         json={
             "decision": "REJECT",
             "note": "Finance admin cannot decide directly.",
@@ -371,10 +385,11 @@ def test_dashboard_requires_auth() -> None:
 
 
 def test_approval_submit_forbidden_without_permission() -> None:
-    _login_as("audit@synapse.network")
+    csrf_headers = _login_as("audit@synapse.network")
 
     response = client.post(
         "/api/admin/v1/approvals",
+        headers=csrf_headers,
         json={
             "approvalType": "deposit_repair",
             "resourceType": "deposit_intent",
@@ -393,10 +408,11 @@ def test_approval_submit_forbidden_without_permission() -> None:
 
 
 def test_approval_decision_requires_reviewer_role() -> None:
-    _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse.network")
 
     response = client.post(
         "/api/admin/v1/approvals/APR-20260316-001/decision",
+        headers=csrf_headers,
         json={"decision": "APPROVE", "comment": "approved"},
     )
 
@@ -481,7 +497,7 @@ def test_audit_actions_list_is_available() -> None:
 
 
 def test_execution_jobs_list_and_retry() -> None:
-    _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse.network")
 
     list_response = client.get("/api/admin/v1/execution-jobs?status=FAILED")
     assert list_response.status_code == 200
@@ -489,7 +505,7 @@ def test_execution_jobs_list_and_retry() -> None:
     assert len(items) >= 1
     job_id = items[0]["jobId"]
 
-    retry_response = client.post(f"/api/admin/v1/execution-jobs/{job_id}/retry")
+    retry_response = client.post(f"/api/admin/v1/execution-jobs/{job_id}/retry", headers=csrf_headers)
 
     assert retry_response.status_code == 200
     assert retry_response.json()["data"]["status"] == "SUCCEEDED"
@@ -500,3 +516,22 @@ def test_execution_jobs_list_and_retry() -> None:
     assert retried_job["status"] == "SUCCEEDED"
     assert retried_job["retryCount"] == 2
     assert retried_job["attempts"][0]["status"] == "SUCCEEDED"
+
+
+def test_cookie_authenticated_write_requires_csrf_token() -> None:
+    _login_as("super@synapse.network")
+
+    response = client.post(
+        "/api/admin/v1/users",
+        json={
+            "email": "csrf-missing@synapse.network",
+            "displayName": "Missing CSRF",
+            "roleKey": "platform_ops_admin",
+            "password": PLACEHOLDER_PASSWORD,
+            "requireMfa": False,
+            "status": "active",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["message"] == "Invalid CSRF token"

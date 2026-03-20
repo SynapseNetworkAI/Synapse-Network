@@ -6,6 +6,7 @@ from src.api.deps import get_admin_token, get_auth_service, get_request_id, requ
 from src.api.schemas.auth import AdminProfile, LoginRequest, LoginResponse
 from src.api.schemas.common import ApiResponse
 from src.core.config import get_settings
+from src.core.csrf import build_admin_csrf_token
 from src.services.auth.service import AdminAuthService, AdminIdentity
 
 router = APIRouter(prefix="/api/admin/v1/auth", tags=["admin-auth"])
@@ -45,9 +46,11 @@ def login(
 ):
     token, admin = auth_service.login(payload.email, payload.password, payload.otp_code)
     _set_admin_session_cookie(response, token)
+    csrf_token = build_admin_csrf_token(token)
     return ApiResponse(
         data=LoginResponse(
             expires_in=settings.admin_session_ttl_sec,
+            csrf_token=csrf_token,
             admin=AdminProfile(
                 admin_id=admin.admin_id,
                 email=admin.email,
@@ -62,16 +65,22 @@ def login(
 
 @router.get("/me", response_model=ApiResponse)
 def me(
+    request: Request,
     admin: Annotated[AdminIdentity, Depends(require_admin)],
     request_id: Annotated[str, Depends(get_request_id)],
 ):
+    token = get_admin_token(request)
     return ApiResponse(
-        data=AdminProfile(
-            admin_id=admin.admin_id,
-            email=admin.email,
-            display_name=admin.display_name,
-            role=admin.role,
-            permissions=list(admin.permissions),
+        data=LoginResponse(
+            expires_in=settings.admin_session_ttl_sec,
+            csrf_token=build_admin_csrf_token(token),
+            admin=AdminProfile(
+                admin_id=admin.admin_id,
+                email=admin.email,
+                display_name=admin.display_name,
+                role=admin.role,
+                permissions=list(admin.permissions),
+            ),
         ),
         request_id=request_id,
     )
