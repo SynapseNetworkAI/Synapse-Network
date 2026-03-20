@@ -141,6 +141,33 @@ python -m pip install -r requirements.txt
 .venv/bin/python provider_fastapi.py
 ```
 
+### 6) Gateway env templates
+
+Gateway env templates live under `gateway/`:
+
+- `.env.local.example`: local bootstrap template
+- `.env.prod.example`: production bootstrap template
+- `.env.example`: full variable catalog
+
+If you want Provider withdrawals to work, these are hard requirements:
+
+- `PRIVATE_KEY`: gateway-side withdraw signer private key used to issue EIP-712 withdrawal tickets
+- `RPC_URL`: chain RPC used by withdraw signing, deposit sync, and reconciliation
+- `ROUTER_ADDRESS`: deployed SynapseCore contract address
+
+Recommended local flow:
+
+1. Copy `gateway/.env.local.example` to `gateway/.env.local`.
+2. Fill `PRIVATE_KEY`, `RPC_URL`, `ROUTER_ADDRESS`, `POSTGRES_DSN`, `JWT_SECRET`.
+3. Restart the gateway with `sh scripts/local/restart_gateway.sh`.
+
+Where does `PRIVATE_KEY` come from?
+
+- Local dev: use a private key from your local chain test accounts. Anvil / Hardhat usually prints funded dev accounts and their private keys at startup.
+- Production: use a dedicated withdraw signer account managed by your infra stack, ideally injected via Secret Manager, KMS, or HSM-backed workflows.
+
+Do not use a personal browser-wallet mnemonic or commit a real production private key into the repository.
+
 ## Documentation Map
 
 All docs are under [docs/](docs/README.md).

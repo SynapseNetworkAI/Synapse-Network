@@ -319,7 +319,8 @@ class Settings:
         or _load_usdc_address_from_contract_config()
         or ""
     )
-    # Optional signer key for legacy or maintenance chain operations.
+    # Gateway withdraw signer used to issue EIP-712 provider withdrawal tickets.
+    # Provider settlements require this key to be configured in the runtime environment.
     private_key: str = os.getenv("PRIVATE_KEY", "")
     # Optional contract address used by compatibility paths.
     contract_address: str = os.getenv("CONTRACT_ADDRESS", "")
