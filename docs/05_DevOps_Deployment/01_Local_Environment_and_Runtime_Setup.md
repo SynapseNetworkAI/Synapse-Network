@@ -145,6 +145,8 @@ npx hardhat run scripts/fund_eth.js --network localhost
 1. 新起一套本地 Anvil 后，测试钱包没有 gas
 2. 前端切钱包后无法发起 deposit / claim / approve
 3. 需要给新加入的测试地址补原生币做联调
+4. Provider 在 Settlement 页面执行 Claim / Withdraw 时，钱包会自己支付链上 gas；没有原生币时，前端会在提现前直接拦截并提示先补 gas
+5. Provider Claim / Withdraw 在钱包弹窗前还会检查 vault 链上 USDC 流动性；如果金库余额不足，前端会直接提示，不再把十六进制回滚错误甩给用户
 
 ### 3.3.2 scripts/fund_usdc.js 如何执行
 

@@ -13,7 +13,6 @@ from .postgres.database_manager import DatabaseManager
 from .postgres.schema_contracts import (
     POSTGRES_TABLE_SCHEMA_CONTRACTS,
     TableSchemaContract,
-    WITHDRAWAL_STATUS_CHECK_FRAGMENT,
 )
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
@@ -100,7 +99,6 @@ class PostgresStorage(BaseStorage):
         self.dsn = dsn.strip()
         self._db = DatabaseManager(self._connect)
         if ensure_schema:
-            self._apply_schema_hotfixes()
             self._validate_schema_contract()
 
         # -- Build repository set (inlined from former repository_factory.py) --
@@ -141,25 +139,6 @@ class PostgresStorage(BaseStorage):
     def _validate_schema_contract(self) -> None:
         for contract in POSTGRES_TABLE_SCHEMA_CONTRACTS:
             self._validate_table_schema_contract(contract)
-
-    def _apply_schema_hotfixes(self) -> None:
-        self._repair_withdrawal_status_constraint()
-
-    def _repair_withdrawal_status_constraint(self) -> None:
-        with self._db.tx_cursor() as cur:
-            cur.execute(
-                """
-                ALTER TABLE IF EXISTS synapse_vault_withdrawals
-                DROP CONSTRAINT IF EXISTS synapse_vault_withdrawals_status_check
-                """
-            )
-            cur.execute(
-                f"""
-                ALTER TABLE IF EXISTS synapse_vault_withdrawals
-                ADD CONSTRAINT synapse_vault_withdrawals_status_check
-                {WITHDRAWAL_STATUS_CHECK_FRAGMENT}
-                """
-            )
 
     def _validate_table_schema_contract(self, contract: TableSchemaContract) -> None:
         self._validate_required_columns(contract.table_name, set(contract.required_columns))
@@ -261,6 +240,8 @@ class PostgresStorage(BaseStorage):
             )
 
     def _connect(self):
+        if psycopg is None:
+            raise RuntimeError("psycopg is not installed")
         return psycopg.connect(self.dsn)
 
     def get_database_manager(self) -> DatabaseManager:

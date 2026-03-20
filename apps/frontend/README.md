@@ -38,6 +38,7 @@ NEXT_PUBLIC_GATEWAY_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=20000
 ```
 
+- `NEXT_PUBLIC_GATEWAY_BASE_URL`: strongly recommended in every environment. If omitted, the frontend falls back to `http://localhost:8000` for local browser sessions and same-origin for non-local hosts to avoid mixed-content/network failures.
 - `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS`: service list client cache TTL in milliseconds (recommend 15000-30000).
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
