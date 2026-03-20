@@ -69,6 +69,7 @@ export default function ProviderSettlementsPage() {
       ) || null,
     [withdrawals]
   );
+  const lockedReceivable = Number(pendingWithdrawal?.amountUsdc || 0);
 
   const refreshWithdrawals = useCallback(async () => {
     if (!address) return;
@@ -167,6 +168,24 @@ export default function ProviderSettlementsPage() {
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, safePage]);
 
+  const withdrawAmountValidationMessage = useMemo(() => {
+    const requestedAmount = withdrawAmountInput.trim();
+    if (!requestedAmount) {
+      return null;
+    }
+
+    const parsed = Number(requestedAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return "Enter a valid withdrawal amount.";
+    }
+
+    if (parsed > availableReceivable) {
+      return `Amount exceeds available receivable (${availableReceivable.toFixed(6)} USDC).`;
+    }
+
+    return null;
+  }, [availableReceivable, withdrawAmountInput]);
+
   const handleCreateWithdrawalIntent = async () => {
     if (!address || !isConnected) {
       openConnectModal?.();
@@ -194,6 +213,10 @@ export default function ProviderSettlementsPage() {
       const parsed = Number(requestedAmount);
       if (!Number.isFinite(parsed) || parsed <= 0) {
         toast.error("Enter a valid withdrawal amount");
+        return;
+      }
+      if (parsed > availableReceivable) {
+        toast.error(`Amount exceeds available receivable (${availableReceivable.toFixed(6)} USDC)`);
         return;
       }
       amountUsdc = parsed;
@@ -306,16 +329,17 @@ export default function ProviderSettlementsPage() {
             <input
               type="number"
               min="0"
+              max={availableReceivable > 0 ? availableReceivable : undefined}
               step="0.000001"
               value={withdrawAmountInput}
               onChange={(e) => setWithdrawAmountInput(e.target.value)}
               placeholder={`Amount (blank = full ${availableReceivable.toFixed(6)} USDC)`}
-              className="w-full sm:max-w-md px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b]"
+              className={`w-full sm:max-w-md px-3 py-2 rounded-lg border bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] ${withdrawAmountValidationMessage ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[#222222]"}`}
               disabled={isAnyLoading}
             />
             <button
               onClick={handleCreateWithdrawalIntent}
-              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || Boolean(pendingWithdrawal) || !ticketSigningEnabled || loadingWithdrawCapability}
+              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || Boolean(pendingWithdrawal) || !ticketSigningEnabled || loadingWithdrawCapability || Boolean(withdrawAmountValidationMessage)}
               className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors disabled:opacity-40"
             >
               {generateClaimLabel}
@@ -328,11 +352,23 @@ export default function ProviderSettlementsPage() {
               Resume Pending
             </button>
           </div>
+          {withdrawAmountValidationMessage ? (
+            <p className="mt-3 text-xs text-[#f87171]">{withdrawAmountValidationMessage}</p>
+          ) : (
+            <p className="mt-3 text-xs text-[#86868b]">
+              Leave amount blank to withdraw the full available receivable. Any active ticket moves funds from
+              Available into Pending / Locked until it is completed or released.
+            </p>
+          )}
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
               <div className="uppercase tracking-[0.15em] text-[#86868b]">Available</div>
               <div className="mt-1 font-mono text-white text-sm">{availableReceivable.toFixed(6)} USDC</div>
+            </div>
+            <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
+              <div className="uppercase tracking-[0.15em] text-[#86868b]">Pending / Locked</div>
+              <div className="mt-1 font-mono text-[#ff9f0a] text-sm">{lockedReceivable.toFixed(6)} USDC</div>
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
               <div className="uppercase tracking-[0.15em] text-[#86868b]">Pending Ticket</div>
@@ -395,8 +431,8 @@ export default function ProviderSettlementsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl border border-[#222222] bg-[#0a0a0a]">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Net Earnings</div>
-          <div className="text-2xl font-mono font-bold text-white">{providerStats.receivable.toFixed(4)} USDC</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Net Earned</div>
+          <div className="text-2xl font-mono font-bold text-white">{providerStats.netEarned.toFixed(4)} USDC</div>
         </div>
         <div className="p-4 rounded-2xl border border-[#222222] bg-[#0a0a0a]">
           <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Gross Earnings</div>
