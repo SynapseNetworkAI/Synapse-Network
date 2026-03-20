@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Database, ReceiptText, Activity, Wallet, ShieldCheck, Loader2 } from "lucide-react";
+import { BaseError, ContractFunctionRevertedError } from "viem";
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
@@ -37,6 +38,52 @@ function withdrawalStatusColor(status: ProviderWithdrawRecord["status"]): string
   if (status === "COMPLETED") return "text-[#22c55e]";
   if (status === "REJECTED") return "text-[#ef4444]";
   return "text-[#ff9f0a]";
+}
+
+function toSafeErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
+
+function normalizeWithdrawWalletError(error: unknown): string {
+  const baseError = error instanceof BaseError ? error : undefined;
+  const revertError = baseError?.walk((walked) => walked instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | undefined;
+  const rawMessage = toSafeErrorMessage(error, "Failed to submit withdrawal transaction.");
+  const messageParts = [
+    revertError?.reason,
+    revertError?.data?.errorName,
+    baseError?.shortMessage,
+    baseError?.details,
+    rawMessage,
+  ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+  const normalizedMessage = messageParts.join(" | ").toLowerCase();
+
+  if (
+    normalizedMessage.includes("user rejected")
+    || normalizedMessage.includes("user denied")
+    || normalizedMessage.includes("rejected the request")
+    || normalizedMessage.includes("denied transaction signature")
+    || normalizedMessage.includes("4001")
+  ) {
+    return "Withdrawal was cancelled in wallet. No gas fee was spent and no funds were moved.";
+  }
+  if (
+    normalizedMessage.includes("insufficient funds")
+    || normalizedMessage.includes("intrinsic gas too low")
+    || normalizedMessage.includes("gas required exceeds allowance")
+    || normalizedMessage.includes("exceeds the balance of the account")
+    || normalizedMessage.includes("out of gas")
+  ) {
+    return "Withdrawal could not be submitted because the wallet does not have enough native token to pay gas.";
+  }
+  if (revertError?.data?.errorName) {
+    return `Withdrawal was rejected by the vault contract (${revertError.data.errorName}).`;
+  }
+  if (revertError?.reason) {
+    return `Withdrawal was rejected by the vault contract: ${revertError.reason}.`;
+  }
+  return rawMessage;
 }
 
 function validateRequestedWithdrawAmount(
@@ -196,6 +243,27 @@ export default function ProviderSettlementsPage() {
     return validateRequestedWithdrawAmount(withdrawAmountInput.trim(), availableReceivable);
   }, [availableReceivable, withdrawAmountInput]);
 
+  const resolveRequestedWithdrawAmount = (): number | undefined => {
+    const requestedAmount = withdrawAmountInput.trim();
+    return requestedAmount ? Number(requestedAmount) : undefined;
+  };
+
+  const handleExistingPendingWithdrawal = async (): Promise<boolean> => {
+    if (!pendingWithdrawal) {
+      return false;
+    }
+    if (pendingWithdrawal.status === "APPROVED_AUTO" && pendingWithdrawal.ticket) {
+      try {
+        await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);
+      } catch (error) {
+        toast.error(normalizeWithdrawWalletError(error));
+      }
+      return true;
+    }
+    toast.error("A withdrawal is already pending review. Wait for review completion before creating a new one.");
+    return true;
+  };
+
   const handleCreateWithdrawalIntent = async () => {
     if (!address || !isConnected) {
       openConnectModal?.();
@@ -203,10 +271,6 @@ export default function ProviderSettlementsPage() {
     }
     if (!VAULT_ADDRESS) {
       toast.error("Vault contract address missing");
-      return;
-    }
-    if (pendingWithdrawal) {
-      toast.error("An active withdrawal exists. Complete or review it before creating a new one.");
       return;
     }
     if (!withdrawCapability?.ticketSigningEnabled) {
@@ -224,10 +288,11 @@ export default function ProviderSettlementsPage() {
       return;
     }
 
-    let amountUsdc: number | undefined = undefined;
-    if (requestedAmount) {
-      amountUsdc = Number(requestedAmount);
+    if (await handleExistingPendingWithdrawal()) {
+      return;
     }
+
+    const amountUsdc = resolveRequestedWithdrawAmount();
 
     setCreatingIntent(true);
     const toastId = toast.loading("Generating signed withdrawal ticket...");
@@ -281,8 +346,7 @@ export default function ProviderSettlementsPage() {
     try {
       await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to submit withdrawal tx";
-      toast.error(message);
+      toast.error(normalizeWithdrawWalletError(error));
     }
   };
 
@@ -349,7 +413,7 @@ export default function ProviderSettlementsPage() {
             />
             <button
               onClick={handleCreateWithdrawalIntent}
-              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || Boolean(pendingWithdrawal) || !ticketSigningEnabled || loadingWithdrawCapability || Boolean(withdrawAmountValidationMessage)}
+              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || Boolean(withdrawAmountValidationMessage)}
               className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors disabled:opacity-40"
             >
               {generateClaimLabel}

@@ -185,6 +185,7 @@ Provider Workspace 的目标是一站式解决“挂服务、看收益、提收�
 2. provider locked
 3. withdrawal history
 4. pending ticket status
+5. 若已存在 `APPROVED_AUTO` 的 pending ticket，`Generate & Claim` 需要直接复用现有 ticket 继续链上提现，而不是要求用户手动切到 `Resume Pending`
 
 ## 7. 首次 Onboarding 五步
 
