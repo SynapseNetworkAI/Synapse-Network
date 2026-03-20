@@ -131,6 +131,7 @@ class WithdrawalAtomicRequestCommand:
     rolling_24h_limit_usdc: Decimal
     window_seconds: int
     high_risk_override: bool
+    pre_reserve_check: Optional[Callable[[Decimal], None]] = None
     sign_ticket_factory: Optional[Callable[[Decimal], PreparedWithdrawTicket]] = None
 
 

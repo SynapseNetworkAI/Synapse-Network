@@ -118,6 +118,10 @@ async def _async_true(*args, **kwargs):
     return True
 
 
+def _noop_assert_withdraw_vault_liquidity(amount_usdc) -> None:
+    _ = amount_usdc
+
+
 def _configure_owner_service(service: OwnerFinanceService) -> None:
     service._get_redis_client = _async_none
     service._check_idempotency_redis = _async_none
@@ -132,6 +136,7 @@ def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
     service._start_idempotency_redis = _async_true
     service._complete_idempotency_redis = _async_none
     service._enforce_owner_write_rate_limit = _async_none
+    service._assert_withdraw_vault_liquidity = _noop_assert_withdraw_vault_liquidity
     service._prepare_withdraw_ticket = lambda **kwargs: PreparedWithdrawTicket(
         requires_manual_review=False,
         amount_wei=12000000,
@@ -151,6 +156,10 @@ def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
             "contractAddress": "0xrouter",
         },
     )
+
+
+def _raise_insufficient_vault_liquidity(_amount) -> None:
+    raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
 
 
 def test_consumer_finance_deposit_flow_uses_typed_rows() -> None:
@@ -375,6 +384,32 @@ def test_provider_withdraw_rejects_more_than_two_decimal_places() -> None:
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "INVALID_AMOUNT"
     assert "2 decimal places" in exc_info.value.detail["message"]
+
+
+def test_provider_withdraw_blocks_when_vault_liquidity_is_insufficient_before_locking() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 50.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+    service._assert_withdraw_vault_liquidity = _raise_insufficient_vault_liquidity
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            service.create_provider_withdraw_intent(
+                {"amountUsdc": 8.5},
+                "0xdef",
+                "withdraw-intent-key-liquidity-1",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "INSUFFICIENT_VAULT_LIQUIDITY"
+    assert len(storage.gateway_state.withdraw_rows) == 0
+    wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after.available_balance - 50.0) < 1e-9
+    assert abs(wallet_after.pending_balance - 0.0) < 1e-9
+    assert abs(wallet_after.frozen_balance - 0.0) < 1e-9
 
 
 def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_pending() -> None:

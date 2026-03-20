@@ -47,6 +47,8 @@ MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready fo
 EXPIRED_WITHDRAW_RELEASE_MESSAGE = "Withdrawal ticket expired. Locked receivable was released back to available balance."
 EXPIRED_WITHDRAW_RECONCILED_MESSAGE = "Withdrawal ticket expired. Locked receivable had already been reconciled before cleanup."
 WITHDRAW_AMOUNT_PRECISION = Decimal("0.01")
+INSUFFICIENT_VAULT_LIQUIDITY_MESSAGE = "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry."
+WITHDRAW_VAULT_CHECK_UNAVAILABLE_MESSAGE = "Unable to verify vault liquidity right now. Retry after the gateway reconnects to chain RPC."
 WithdrawalRowStatus = Literal[
     "REQUESTED",
     "APPROVED_AUTO",
@@ -103,6 +105,81 @@ class ProviderWithdrawService(
         if self._signing_delegate is not None:
             return self._signing_delegate._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
         return super()._sign_withdraw_ticket(typed_data, private_key)
+
+    def _read_vault_liquidity_amount_wei(self) -> int:
+        token_address = normalize_wallet(settings.usdc_token_address)
+        router_address = normalize_wallet(settings.router_address)
+        if not token_address or not router_address:
+            raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE")
+
+        try:
+            contract = self._withdraw_contract()
+            web3 = getattr(contract, "w3", None)
+            if web3 is None:
+                raise RuntimeError("missing web3 provider")
+            token_contract = web3.eth.contract(
+                address=web3.to_checksum_address(token_address),
+                abi=[
+                    {
+                        "constant": True,
+                        "inputs": [{"name": "account", "type": "address"}],
+                        "name": "balanceOf",
+                        "outputs": [{"name": "", "type": "uint256"}],
+                        "stateMutability": "view",
+                        "type": "function",
+                    }
+                ],
+            )
+            return int(
+                token_contract.functions.balanceOf(
+                    web3.to_checksum_address(router_address)
+                ).call()
+            )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") from exc
+
+    def _assert_withdraw_vault_liquidity(self, amount_usdc: Decimal) -> None:
+        amount_wei = int(round(float(amount_usdc) * float(10**USDC_DECIMALS)))
+        vault_balance_wei = self._read_vault_liquidity_amount_wei()
+        if vault_balance_wei < amount_wei:
+            raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
+
+    @staticmethod
+    def _raise_withdraw_runtime_error(code: str) -> None:
+        if code == "INSUFFICIENT_PROVIDER_RECEIVABLE":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INSUFFICIENT_PROVIDER_RECEIVABLE",
+                    "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
+                },
+            )
+        if code == "INVALID_WITHDRAW_AMOUNT":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc must be greater than 0.",
+                },
+            )
+        if code == "INSUFFICIENT_VAULT_LIQUIDITY":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INSUFFICIENT_VAULT_LIQUIDITY",
+                    "message": INSUFFICIENT_VAULT_LIQUIDITY_MESSAGE,
+                },
+            )
+        if code == "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE":
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
+                    "message": WITHDRAW_VAULT_CHECK_UNAVAILABLE_MESSAGE,
+                },
+            )
 
     @staticmethod
     def _withdraw_owner(row: WithdrawalIntentRow) -> str:
@@ -667,6 +744,7 @@ class ProviderWithdrawService(
         reviewer_note: str,
         request_meta: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
+        self._assert_withdraw_vault_liquidity(Decimal(str(amount_usdc)))
         ticket_payload = self._prepare_withdraw_ticket(
             owner=owner,
             amount_usdc=amount_usdc,
@@ -743,29 +821,14 @@ class ProviderWithdrawService(
                     rolling_24h_limit_usdc=command.rolling_24h_limit_usdc,
                     window_seconds=window_seconds,
                     high_risk_override=bool(high_risk_override or command.high_risk_override),
+                    pre_reserve_check=self._assert_withdraw_vault_liquidity,
                     sign_ticket_factory=lambda value: self._build_atomic_signing_ticket(
                         owner, value
                     ),
                 )
             )
         except RuntimeError as exc:
-            code = str(exc)
-            if code == "INSUFFICIENT_PROVIDER_RECEIVABLE":
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "code": "INSUFFICIENT_PROVIDER_RECEIVABLE",
-                        "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
-                    },
-                )
-            if code == "INVALID_WITHDRAW_AMOUNT":
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "code": "INVALID_AMOUNT",
-                        "message": "amountUsdc must be greater than 0.",
-                    },
-                )
+            self._raise_withdraw_runtime_error(str(exc))
             raise
 
     async def _create_provider_withdraw_intent_atomic(
@@ -988,6 +1051,12 @@ class ProviderWithdrawService(
                     redis_client=redis_client,
                     idem_rows=idem_rows,
                 )
+
+            try:
+                self._assert_withdraw_vault_liquidity(Decimal(str(context.amount_usdc)))
+            except RuntimeError as exc:
+                self._raise_withdraw_runtime_error(str(exc))
+                raise
 
             ticket_payload = self._prepare_withdraw_ticket(
                 owner=owner, amount_usdc=context.amount_usdc
