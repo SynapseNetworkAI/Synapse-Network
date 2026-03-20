@@ -19,6 +19,14 @@ import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { buildOptimisticServiceRecord, buildServiceStatusUpdatePayload } from "@/utils/serviceStatus";
 
+function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inactive" | "archived" | "deleted" {
+  const raw = String(svc.status || "").toLowerCase();
+  if (raw === "inactive" || raw === "archived" || raw === "deleted") {
+    return raw;
+  }
+  return svc.isActive ? "active" : "inactive";
+}
+
 export default function ServicesPage() {
   const router = useRouter();
   const { address } = useAccount();
@@ -121,6 +129,20 @@ export default function ServicesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
+  const handleEditService = (svc: ServiceRegistryRecord) => {
+    const serviceStatus = normalizedServiceStatus(svc);
+    if (serviceStatus !== "inactive") {
+      toast.error(
+        serviceStatus === "active"
+          ? "Active services can't be edited. Set the service to Inactive first."
+          : "Only inactive services can be edited.",
+      );
+      return;
+    }
+
+    router.push(`/provider/services?edit=${encodeURIComponent(svc.serviceId)}`);
+  };
+
   const handleOpenDeployService = () => {
     if (!address) {
       openConnectModal?.();
@@ -172,6 +194,8 @@ export default function ServicesPage() {
             {(() => {
               const isStatusUpdating = statusUpdatingServiceId === svc.serviceId;
               const isDeleting = deletingServiceId === svc.serviceId;
+              const serviceStatus = normalizedServiceStatus(svc);
+              const canEditService = serviceStatus === "inactive";
               let statusActionLabel = "Activate";
               if (isStatusUpdating) {
                 statusActionLabel = "Updating...";
@@ -184,8 +208,8 @@ export default function ServicesPage() {
               <div>
                 <h3 className="flex items-center text-xl font-bold text-white">
                   {svc.name}
-                  <span className={`ml-3 px-2 py-1 text-xs rounded-full ${svc.isActive ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
-                    {svc.isActive ? "Active" : "Offline"}
+                  <span className={`ml-3 px-2 py-1 text-xs rounded-full ${svc.isActive ? "bg-green-500/20 text-green-400" : "bg-amber-500/20 text-amber-300"}`}>
+                    {svc.isActive ? "Active" : "Inactive"}
                   </span>
                 </h3>
                 <p className="mt-1 font-mono text-sm text-gray-400">{svc.serviceId}</p>
@@ -205,18 +229,15 @@ export default function ServicesPage() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => router.push(`/provider/services?edit=${encodeURIComponent(svc.serviceId)}`)}
-                disabled={isDeleting}
-                className="flex-1 px-4 py-2 font-bold text-white transition bg-gray-800 rounded hover:bg-gray-700 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => handleEditService(svc)}
+                disabled={isDeleting || isStatusUpdating}
+                title={canEditService ? "Edit inactive service" : "Set service to Inactive before editing"}
+                className={`flex-1 px-4 py-2 font-bold transition rounded text-sm disabled:cursor-not-allowed disabled:opacity-50 ${canEditService
+                  ? "text-white bg-gray-800 hover:bg-gray-700"
+                  : "text-amber-200 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/15"
+                }`}
               >
                 Edit Service
-              </button>
-              <button
-                onClick={() => void deleteService(svc)}
-                disabled={svc.isActive || isDeleting || isStatusUpdating}
-                className="flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 text-red-300 border-red-500/30 hover:bg-red-500/10"
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
               </button>
               <button
                 onClick={() => void updateServiceStatus(svc, !svc.isActive)}
@@ -227,6 +248,13 @@ export default function ServicesPage() {
                 }`}
               >
                 {statusActionLabel}
+              </button>
+              <button
+                onClick={() => void deleteService(svc)}
+                disabled={svc.isActive || isDeleting || isStatusUpdating}
+                className="flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 text-red-300 border-red-500/30 hover:bg-red-500/10"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
               </button>
               <button
                 onClick={() => router.push(`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`)}
@@ -271,6 +299,10 @@ export default function ServicesPage() {
       </div>
 
       {managedServicesContent}
+
+      <div className="rounded-xl border border-gray-800 bg-black/30 p-4 text-xs text-gray-400">
+        Active services are runtime-live. Switch a service to Inactive before editing its contract or routing fields.
+      </div>
 
     </div>
   );
