@@ -1,1 +1,1 @@
-export { default } from "@/app/provider/billing/page";
+export { default } from "@/components/provider-workspace/ProviderBillingPage";
