@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Database, ReceiptText, Activity, Wallet, ShieldCheck, Loader2 } from "lucide-react";
 import { BaseError, ContractFunctionRevertedError } from "viem";
-import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useChainId, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useDashboardData } from "@/hooks/useDashboardData";
@@ -21,6 +21,12 @@ import {
 
 const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string }).SynapseCore as `0x${string}` | undefined;
 const WITHDRAW_AMOUNT_INPUT_PATTERN = /^\d*(?:\.\d{0,2})?$/;
+const CHAIN_LABELS: Record<number, string> = {
+  31337: "Hardhat Local",
+  11155111: "Sepolia",
+  84532: "Base Sepolia",
+  421614: "Arbitrum Sepolia",
+};
 
 function formatTimestamp(seconds?: number | string): string {
   if (!seconds) return "-";
@@ -38,6 +44,16 @@ function withdrawalStatusColor(status: ProviderWithdrawRecord["status"]): string
   if (status === "COMPLETED") return "text-[#22c55e]";
   if (status === "REJECTED") return "text-[#ef4444]";
   return "text-[#ff9f0a]";
+}
+
+function formatChainLabel(chainId?: number): string {
+  if (!chainId || !Number.isFinite(chainId)) return "the required network";
+  return CHAIN_LABELS[chainId] || `chain ${chainId}`;
+}
+
+function resolveTicketContractAddress(ticket: ProviderWithdrawTicket): `0x${string}` | undefined {
+  const contractAddress = String(ticket.contractAddress || VAULT_ADDRESS || "").trim();
+  return contractAddress ? (contractAddress as `0x${string}`) : undefined;
 }
 
 function toSafeErrorMessage(error: unknown, fallback: string): string {
@@ -113,6 +129,7 @@ export default function ProviderSettlementsPage() {
   const { providerStats, paidEvents, handleRefresh: reloadDashboard } = useDashboardData();
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
+  const chainId = useChainId();
 
   const [requestInput, setRequestInput] = useState("");
   const [serviceInput, setServiceInput] = useState("");
@@ -124,14 +141,21 @@ export default function ProviderSettlementsPage() {
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
   const [withdrawals, setWithdrawals] = useState<ProviderWithdrawRecord[]>([]);
   const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(null);
+  const [activeTxChainId, setActiveTxChainId] = useState<number | undefined>(undefined);
   const [withdrawCapability, setWithdrawCapability] = useState<ProviderWithdrawCapability | null>(null);
   const [loadingWithdrawCapability, setLoadingWithdrawCapability] = useState(false);
 
   const PAGE_SIZE = 10;
   const availableReceivable = Number(providerStats.receivable || 0);
 
+  const { data: nativeBalanceData } = useBalance({ address });
   const { data: txHash, writeContractAsync, isPending: isWalletPrompting } = useWriteContract();
-  const { isLoading: isTxConfirming, isSuccess: isTxConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+  const {
+    isLoading: isTxConfirming,
+    isSuccess: isTxConfirmed,
+    isError: isTxFailed,
+    error: txReceiptError,
+  } = useWaitForTransactionReceipt({ hash: txHash, chainId: activeTxChainId });
 
   const pendingWithdrawal = useMemo(
     () =>
@@ -141,6 +165,16 @@ export default function ProviderSettlementsPage() {
     [withdrawals]
   );
   const lockedReceivable = Number(pendingWithdrawal?.amountUsdc || 0);
+  const pendingTicket = pendingWithdrawal?.ticket;
+  const pendingTicketChainMismatch = Boolean(pendingTicket?.chainId && chainId !== pendingTicket.chainId);
+  const pendingTicketExpired = Boolean(
+    pendingTicket?.deadline && pendingTicket.deadline < Math.floor(Date.now() / 1000),
+  );
+  const nativeGasWarning = useMemo(() => {
+    if (!isConnected || !nativeBalanceData) return null;
+    if (nativeBalanceData.value > BigInt(0)) return null;
+    return `Wallet has no ${nativeBalanceData.symbol || "native token"} to pay gas on ${formatChainLabel(chainId)}.`;
+  }, [chainId, isConnected, nativeBalanceData]);
 
   const refreshWithdrawals = useCallback(async () => {
     if (!address) return;
@@ -202,11 +236,19 @@ export default function ProviderSettlementsPage() {
         toast.error("On-chain tx succeeded, but backend completion failed. Retry from history.");
       } finally {
         setActiveWithdrawalId(null);
+        setActiveTxChainId(undefined);
       }
     };
     void complete();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTxConfirmed, txHash, address, activeWithdrawalId]);
+
+  useEffect(() => {
+    if (!isTxFailed || !txHash || !activeWithdrawalId) return;
+    toast.error(normalizeWithdrawWalletError(txReceiptError));
+    setActiveWithdrawalId(null);
+    setActiveTxChainId(undefined);
+  }, [activeWithdrawalId, isTxFailed, txHash, txReceiptError]);
 
   const applySearch = () => {
     setRequestQuery(requestInput);
@@ -316,14 +358,44 @@ export default function ProviderSettlementsPage() {
     }
   };
 
-  const startWalletWithdraw = async (withdrawalId: string, ticket: ProviderWithdrawTicket) => {
-    if (!VAULT_ADDRESS) {
-      throw new Error("Vault address not configured");
+  const validateWalletWithdrawReadiness = (ticket: ProviderWithdrawTicket): {
+    contractAddress: `0x${string}`;
+    targetChainId?: number;
+  } => {
+    const contractAddress = resolveTicketContractAddress(ticket);
+    if (!contractAddress) {
+      throw new Error("Withdrawal contract address is missing from the signed ticket.");
     }
 
+    if (ticket.chainId && chainId !== ticket.chainId) {
+      throw new Error(
+        `Wrong network. Switch wallet to ${formatChainLabel(ticket.chainId)} before resuming this withdrawal.`,
+      );
+    }
+
+    if (ticket.deadline && ticket.deadline < Math.floor(Date.now() / 1000)) {
+      throw new Error("This withdrawal ticket has expired. Generate a new ticket before retrying.");
+    }
+
+    if (nativeBalanceData && nativeBalanceData.value <= BigInt(0)) {
+      throw new Error(
+        `Withdrawal could not be submitted because the wallet has no ${nativeBalanceData.symbol || "native token"} to pay gas on ${formatChainLabel(chainId)}.`,
+      );
+    }
+
+    return {
+      contractAddress,
+      targetChainId: ticket.chainId || chainId,
+    };
+  };
+
+  const startWalletWithdraw = async (withdrawalId: string, ticket: ProviderWithdrawTicket) => {
+    const { contractAddress, targetChainId } = validateWalletWithdrawReadiness(ticket);
+
     const hash = await writeContractAsync({
-      address: VAULT_ADDRESS,
+      address: contractAddress,
       abi: SynapseCoreABI,
+      chainId: targetChainId,
       functionName: "withdraw",
       args: [
         BigInt(ticket.amount),
@@ -335,6 +407,7 @@ export default function ProviderSettlementsPage() {
     });
 
     setActiveWithdrawalId(withdrawalId);
+    setActiveTxChainId(targetChainId);
     toast.success(`Tx submitted: ${hash.slice(0, 10)}...`);
   };
 
@@ -366,6 +439,9 @@ export default function ProviderSettlementsPage() {
   if (isTxConfirming) {
     txStateLabel = "Confirming";
   }
+  if (isTxFailed) {
+    txStateLabel = "Failed";
+  }
 
   return (
     <div className="p-6 md:p-10 mx-auto max-w-7xl text-white bg-[#000000] min-h-screen space-y-6">
@@ -393,6 +469,21 @@ export default function ProviderSettlementsPage() {
           {!loadingWithdrawCapability && withdrawCapability && !ticketSigningEnabled && (
             <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
               {withdrawCapability.message}
+            </div>
+          )}
+          {pendingTicketChainMismatch && pendingTicket?.chainId && (
+            <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
+              Resume Pending requires the wallet to be on {formatChainLabel(pendingTicket.chainId)}. Current wallet network is {formatChainLabel(chainId)}.
+            </div>
+          )}
+          {!pendingTicketChainMismatch && nativeGasWarning && (
+            <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
+              {nativeGasWarning}
+            </div>
+          )}
+          {pendingTicketExpired && (
+            <div className="mt-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10 px-4 py-3 text-sm text-[#fecaca]">
+              The pending withdrawal ticket has expired. Generate a new ticket before retrying.
             </div>
           )}
 
