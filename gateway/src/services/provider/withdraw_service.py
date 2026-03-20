@@ -43,6 +43,7 @@ INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds provider receivable."
 MANUAL_REVIEW_REJECT_MESSAGE = "Withdrawal rejected during manual security review."
 MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready for on-chain claim."
 EXPIRED_WITHDRAW_RELEASE_MESSAGE = "Withdrawal ticket expired. Locked receivable was released back to available balance."
+EXPIRED_WITHDRAW_RECONCILED_MESSAGE = "Withdrawal ticket expired. Locked receivable had already been reconciled before cleanup."
 WITHDRAW_AMOUNT_PRECISION = Decimal("0.01")
 WithdrawalRowStatus = Literal[
     "REQUESTED",
@@ -190,13 +191,23 @@ class ProviderWithdrawService(
                 continue
 
             amount_usdc = round(float(row.amount_usdc or 0.0), 6)
+            released_amount_usdc = 0.0
             if amount_usdc > 0:
-                self._release_pending_withdraw_to_available(row_owner, amount_usdc)
+                released_amount_usdc = self._release_pending_withdraw_to_available(
+                    row_owner, amount_usdc
+                )
+            release_shortfall_usdc = round(
+                max(0.0, amount_usdc - released_amount_usdc), 6
+            )
 
             row.status = "CANCELLED"
             row.updated_at = str(now)
             row.completed_at = now
-            row.message = EXPIRED_WITHDRAW_RELEASE_MESSAGE
+            row.message = (
+                EXPIRED_WITHDRAW_RELEASE_MESSAGE
+                if release_shortfall_usdc <= 1e-9
+                else EXPIRED_WITHDRAW_RECONCILED_MESSAGE
+            )
             changed = True
 
             self._append_financial_audit(
@@ -205,6 +216,8 @@ class ProviderWithdrawService(
                 {
                     "withdrawalId": str(row.id or ""),
                     "amountUsdc": amount_usdc,
+                    "releasedAmountUsdc": released_amount_usdc,
+                    "releaseShortfallUsdc": release_shortfall_usdc,
                     "reason": "TICKET_EXPIRED",
                     "deadline": int(row.deadline or 0),
                 },
@@ -412,23 +425,21 @@ class ProviderWithdrawService(
         provider_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
         self._save_balance_ledger(ledger)
 
-    def _release_pending_withdraw_to_available(self, owner: str, amount_usdc: float) -> None:
+    def _release_pending_withdraw_to_available(self, owner: str, amount_usdc: float) -> float:
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
         locked = round(float(provider_wallet.pending_balance or 0.0), 6)
-        if locked + 1e-9 < amount_usdc:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "WITHDRAWAL_LOCK_INCONSISTENT",
-                    "message": "Locked provider receivable is insufficient for expired ticket release.",
-                },
-            )
-        provider_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
+        releasable_amount = round(min(max(0.0, amount_usdc), locked), 6)
+        if releasable_amount <= 0:
+            return 0.0
+        provider_wallet.pending_balance = round(
+            max(0.0, locked - releasable_amount), 6
+        )
         provider_wallet.available_balance = round(
-            float(provider_wallet.available_balance or 0.0) + amount_usdc, 6
+            float(provider_wallet.available_balance or 0.0) + releasable_amount, 6
         )
         self._save_balance_ledger(ledger)
+        return releasable_amount
 
     def _release_frozen_withdraw_to_available(
         self, owner: str, amount_usdc: float

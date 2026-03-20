@@ -573,6 +573,62 @@ def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> N
     assert abs(wallet_after.pending_balance - 0.0) < 1e-9
     assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
     assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
+    assert abs(storage.audit.rows[-1].details["releasedAmountUsdc"] - 12.0) < 1e-9
+    assert abs(storage.audit.rows[-1].details["releaseShortfallUsdc"] - 0.0) < 1e-9
+
+
+def test_provider_withdraw_expired_ticket_cancels_even_if_locked_balance_was_already_reconciled() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 10.0
+    wallet.pending_balance = 0.0
+
+    storage.gateway_state.withdraw_rows = [
+        WithdrawalIntentRow(
+            id="wd-expired-reconciled",
+            ownerAddress="0xdef",
+            amountUsdc=Decimal("12.0"),
+            amountWei="12000000",
+            feeWei="0",
+            nonce=7,
+            deadline=1,
+            signature="sig-expired",
+            chainId=31337,
+            contractAddress="0xrouter",
+            signerAddress="0xsigner",
+            status="APPROVED_AUTO",
+            businessType="withdraw",
+            riskLevel="green",
+            idempotencyKey="withdraw-intent-expired-reconciled",
+            createdAt="1",
+            updatedAt="1",
+            message="Signed ticket ready.",
+            ticket={
+                "amount": "12000000",
+                "fee": "0",
+                "nonce": 7,
+                "deadline": 1,
+                "signature": "sig-expired",
+                "chainId": 31337,
+                "contractAddress": "0xrouter",
+            },
+        )
+    ]
+
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    rows = asyncio.run(service.list_provider_withdrawals("0xdef"))
+
+    assert rows[0]["status"] == "CANCELLED"
+    assert "reconciled" in rows[0]["message"].lower()
+    wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert abs(wallet_after.available_balance - 10.0) < 1e-9
+    assert abs(wallet_after.pending_balance - 0.0) < 1e-9
+    assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
+    assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
+    assert abs(storage.audit.rows[-1].details["releasedAmountUsdc"] - 0.0) < 1e-9
+    assert abs(storage.audit.rows[-1].details["releaseShortfallUsdc"] - 12.0) < 1e-9
 
 
 def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
