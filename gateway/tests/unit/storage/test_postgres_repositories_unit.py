@@ -573,7 +573,7 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "UPDATE synapse_service_endpoints" in all_sql
     assert "ON CONFLICT (service_id, endpoint_id)" in all_sql
     assert "DELETE FROM synapse_service_health_snapshots WHERE (service_id, endpoint_id) NOT IN" in all_sql
-    assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%' AND state_key NOT IN" in all_sql
+    assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%' AND state_key NOT IN" in all_sql
     assert "INSERT INTO synapse_service_search_index" in all_sql
     assert "INSERT INTO synapse_runtime_state" in all_sql
 
@@ -750,11 +750,14 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     repo.upsert_auth_session("0xABC", 100, 200, "active")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    assert "DELETE FROM synapse_agent_credentials AS ac" not in tx_sql
+    assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE %s AND state_key NOT IN" in tx_sql
     assert "DELETE FROM synapse_budget_policies AS bp" in tx_sql
-    assert "DELETE FROM synapse_agent_credentials AS ac" in tx_sql
     assert tx_sql.count("INSERT INTO synapse_runtime_state") >= 2
     assert "INSERT INTO synapse_agent_credentials" in tx_sql
+    assert "ON CONFLICT (credential_id)" in tx_sql
     assert "INSERT INTO synapse_budget_policies" in tx_sql
+    assert "ON CONFLICT (policy_id)" in tx_sql
 
 
 def test_gateway_state_repository_read_and_write() -> None:

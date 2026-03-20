@@ -335,8 +335,10 @@ def run_quote_and_invoke(
     payload: dict,
     request_id: str,
     idempotency_key: str,
+    stage_context: dict[str, dict | None],
 ) -> tuple[dict, dict, InvocationResponse]:
     quote_body = build_quote_body(service_id, payload)
+    stage_context["quote_body"] = quote_body
     print_section("quote")
     print_json("Quote request", quote_body)
     quote: QuoteResponse = client.create_quote(
@@ -350,6 +352,7 @@ def run_quote_and_invoke(
     print_json("Quote summary", build_quote_summary(quote))
 
     invoke_body = build_invoke_body(quote.quote_id, idempotency_key, payload)
+    stage_context["invoke_body"] = invoke_body
     print_section("invoke")
     print_json("Invoke request", invoke_body)
     invocation: InvocationResponse = client.create_invocation(
@@ -390,6 +393,7 @@ def main() -> int:
     discovery_body = build_discovery_body(args) if not service_id else None
     quote_body: dict | None = None
     invoke_body: dict | None = None
+    stage_context: dict[str, dict | None] = {"quote_body": None, "invoke_body": None}
 
     print_section("smoke test context")
     print(f"Gateway: {args.gateway_url}")
@@ -429,8 +433,11 @@ def main() -> int:
             payload=payload,
             request_id=request_id,
             idempotency_key=idempotency_key,
+            stage_context=stage_context,
         )
     except SynapseClientError as exc:
+        quote_body = stage_context.get("quote_body")
+        invoke_body = stage_context.get("invoke_body")
         print(f"Synapse SDK smoke test failed: {exc}", file=sys.stderr)
         print_failure_diagnosis(
             stage=determine_failure_stage(quote_body, invoke_body),

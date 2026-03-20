@@ -338,6 +338,12 @@ def _seed_service_health_from_persisted_rows(
     ]
 
 
+def seed_service_health_from_persisted_rows(
+    storage: BaseStorage, services: List[ServiceDefinitionRecord]
+) -> List[ServiceDefinitionRecord]:
+    return _seed_service_health_from_persisted_rows(storage, services)
+
+
 def sync_service_target_health_table(
     storage: BaseStorage, services: Optional[List[ServiceDefinitionRecord]] = None
 ) -> int:

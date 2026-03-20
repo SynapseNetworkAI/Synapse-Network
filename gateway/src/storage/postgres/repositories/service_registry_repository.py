@@ -686,7 +686,7 @@ class ServiceRegistryRepository:
             if str(row.service_id or "").strip() and str(row.target_url or "").strip()
         ]
         if not valid_rows:
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%'")
+            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%'")
             return
 
         state_keys = [
@@ -698,7 +698,7 @@ class ServiceRegistryRepository:
         ]
         placeholders = self._scalar_not_in_clause(len(state_keys))
         cur.execute(
-            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%' AND state_key NOT IN ({placeholders})",
+            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%' AND state_key NOT IN ({placeholders})",
             tuple(state_keys),
         )
 
@@ -840,7 +840,7 @@ class ServiceRegistryRepository:
     def read_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
-                "SELECT state_key, payload FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%' ORDER BY state_key ASC"
+                "SELECT state_key, payload FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%%' ORDER BY state_key ASC"
             )
             rows = cur.fetchall()
         result: List[ServiceTargetHealthHistory] = []
@@ -863,7 +863,7 @@ class ServiceRegistryRepository:
             grouped[service_id].append(payload)
 
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%'")
+            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%%'")
             for service_id, payload_rows in grouped.items():
                 self._upsert_runtime_state(
                     cur,
