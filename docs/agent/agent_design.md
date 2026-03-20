@@ -1,7 +1,6 @@
 # Synapse Agent Design Index
 
 > 产品原则：**Synapse is for agent, not for human.**
->
 > 最终成功指标：**Agent completed first paid invocation autonomously.**
 
 这份索引文档把 Agent Runtime 蓝图拆成 5 个专题文档，便于后续分别推进产品、后端接口、卖家挂载标准、风控与 Dashboard 设计。

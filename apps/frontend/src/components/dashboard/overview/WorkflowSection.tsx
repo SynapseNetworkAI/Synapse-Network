@@ -27,10 +27,10 @@ export default function WorkflowSection() {
     },
     {
       icon: <Zap className="w-4 h-4 text-blue-400" />,
-      title: "Call & Pay",
-      description: "Agent invokes API; platform handles real-time settlement and fee deduction.",
+      title: "Attach Runtime Credentials",
+      description: "Issue the credential that your agent runtime will actually use before discovery, quote, and paid invocation.",
       link: "/dashboard/credentials",
-      linkText: "View Credentials"
+      linkText: "Open Agent Credentials"
     }
   ];
 

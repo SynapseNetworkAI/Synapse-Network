@@ -111,7 +111,7 @@ Gateway 不是 UI 用户，但前端必须正确表现 Gateway 的角色：
 以下叙事都必须彻底废弃：
 
 1. “Buyer 和 Seller 是两套根账户体系”
-2. “Developer Console 的核心是人工申请 API key”
+2. “Owner 需要一个 Developer Console，把充值、凭据签发、文档入口全部塞进同一页”
 3. “Provider 的本质是公开钱包地址和手工填商品页”
 4. “Dashboard 首屏应该堆所有表格和所有细节”
 

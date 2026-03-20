@@ -13,7 +13,7 @@ This file is now the only maintained product guide for the Agents page.
 
 The current funding path also changed:
 
-1. `Deposit USDC` on Agents now reuses the same Vault Deposit flow as Developer Console
+1. `Deposit USDC` on Agents now reuses the same Vault Deposit flow as Owner Treasury
 2. permit signing, transaction submission, receipt recovery, and deposit-intent retry are no longer maintained as a separate Agents-only implementation
 
 ## 1. Product Role

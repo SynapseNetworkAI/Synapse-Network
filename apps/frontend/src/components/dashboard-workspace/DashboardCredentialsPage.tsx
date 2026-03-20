@@ -174,11 +174,11 @@ function CredentialsContent() {
 
       setCredentialForService("OWNER_SHARED", res.token);
 
-      toast.success("API Key successfully generated");
+      toast.success("Credential issued");
       await loadAll();
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : "Failed to generate API Key");
+      toast.error(e instanceof Error ? e.message : "Failed to issue credential");
     }
   };
 
@@ -188,11 +188,11 @@ function CredentialsContent() {
       toast.error("Already revoked");
       return;
     }
-    if (!confirm("Are you sure you want to revoke this API Key? Execution will be blocked instantly.")) return;
+    if (!confirm("Are you sure you want to revoke this credential? Any API key secret derived from it will stop authenticating immediately.")) return;
 
     try {
       await revokeAgentCredential(userAddress, id);
-      toast.success("API Key revoked");
+      toast.success("Credential revoked");
       await loadAll();
     } catch (e) {
       console.error(e);
@@ -254,10 +254,10 @@ function CredentialsContent() {
           <div>
             <h1 className="text-2xl font-black tracking-tight text-white mb-1.5 flex items-center gap-2">
               <KeyRound className="w-6 h-6 text-green-400" />
-              API Keys (Credentials)
+              Agent Credentials
             </h1>
             <p className="text-sm text-gray-400 max-w-2xl">
-              API Keys represent your executing entities. Issue restricted Keys linked to your main Wallet address to securely authenticate requests.
+              Issue runtime credentials for autonomous agents. Each credential is delivered once as a secret API key and stays inside owner-scoped spending controls.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -266,7 +266,7 @@ function CredentialsContent() {
               className="inline-flex items-center px-4 py-2.5 text-sm font-bold text-black transition-all bg-green-500 rounded-lg hover:bg-green-400 hover:scale-105 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Generate API Key
+              Issue Credential
             </button>
           </div>
         </div>
@@ -282,7 +282,7 @@ function CredentialsContent() {
                 <KeyRound className="w-6 h-6 text-gray-400" />
              </div>
              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Active Keys</p>
+               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Active Credentials</p>
                 <p className="text-2xl font-mono text-white">{activeCredentialsCount}</p>
              </div>
           </div>
@@ -314,7 +314,7 @@ function CredentialsContent() {
              <Search className="absolute w-4 h-4 text-gray-500 -translate-y-1/2 left-3 top-1/2" />
              <input
               type="text"
-              placeholder="Search Key ID..."
+              placeholder="Search credential ID..."
               className="w-full py-2 pl-9 pr-4 text-sm text-white bg-[#0a0a0a] border border-gray-800 rounded-lg focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 outline-none transition-all"
              />
           </div>
@@ -341,7 +341,7 @@ function CredentialsContent() {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-800 bg-[#0a0a0a]">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Key Prefix</th>
+                  <th className="px-4 py-3 font-semibold">Credential Prefix</th>
                   <th className="px-4 py-3 font-semibold">Scope</th>
                   <th className="px-4 py-3 font-semibold">Calls (Used / Max)</th>
                   <th className="px-4 py-3 font-semibold">Rate Limit</th>
@@ -354,7 +354,7 @@ function CredentialsContent() {
                 {filteredCredentials.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                      No API Keys found. Click &quot;Generate API Key&quot; to create one.
+                      No credentials found. Click &quot;Issue Credential&quot; to create one.
                     </td>
                   </tr>
                 ) : (
@@ -431,7 +431,7 @@ function CredentialsContent() {
           <div className="w-full max-w-lg p-6 border border-gray-800 bg-[#0a0a0a] rounded-xl shadow-2xl">
              <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl flex items-center gap-2 font-bold text-white">
-                  <KeyRound className="w-5 h-5 text-green-400" /> Generate API Key
+                  <KeyRound className="w-5 h-5 text-green-400" /> Issue Credential
                 </h3>
                 <button onClick={() => { setIsCreateModalOpen(false); setLatestIssued(null); }} className="text-gray-500 hover:text-white transition">
                   <X className="w-5 h-5" />
@@ -469,19 +469,19 @@ function CredentialsContent() {
 
                   <div className="flex justify-end gap-3 mt-8">
                      <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800">Cancel</button>
-                     <button onClick={handleIssue} className="px-5 py-2 text-sm font-bold text-black bg-green-500 rounded-lg hover:bg-green-400">Generate Key</button>
+                    <button onClick={handleIssue} className="px-5 py-2 text-sm font-bold text-black bg-green-500 rounded-lg hover:bg-green-400">Issue Credential</button>
                   </div>
                </div>
              ) : (
                <div className="space-y-6">
                  <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
                    <Check className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                   <h4 className="text-green-400 font-bold mb-1">API Key Generated</h4>
-                   <p className="text-xs text-gray-300">Copy your API Key now. It will not be shown again.</p>
+                   <h4 className="text-green-400 font-bold mb-1">Credential Issued</h4>
+                   <p className="text-xs text-gray-300">Copy the secret API key now. It will not be shown again.</p>
                  </div>
                  
                  <div>
-                   <label htmlFor="issued-secret-token" className="block mb-2 text-xs font-bold text-gray-500 uppercase">Secret Token</label>
+                   <label htmlFor="issued-secret-token" className="block mb-2 text-xs font-bold text-gray-500 uppercase">Secret API Key</label>
                    <div className="flex items-center gap-2">
                       <input id="issued-secret-token" readOnly value={latestIssued.token} className="w-full px-3 py-2.5 text-sm font-mono text-gray-300 bg-black border border-gray-800 rounded-lg outline-none selection:bg-gray-800" />
                       <button 
