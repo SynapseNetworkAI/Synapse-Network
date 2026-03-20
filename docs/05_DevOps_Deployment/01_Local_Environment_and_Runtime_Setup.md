@@ -93,11 +93,30 @@ Gateway 至少要显式配置：
 
 1. `ENVIRONMENT`
 2. `RPC_URL`
-3. `ROUTER_ADDRESS`
-4. `USDC_TOKEN_ADDRESS`
-5. `POSTGRES_DSN`
-6. `JWT_SECRET`
-7. `AUTH_SECRET`
+3. `PRIVATE_KEY`（如果要启用 Provider 提现，则这是硬门槛）
+4. `ROUTER_ADDRESS`
+5. `USDC_TOKEN_ADDRESS`
+6. `POSTGRES_DSN`
+7. `JWT_SECRET`
+8. `AUTH_SECRET`
+
+模板位置：
+
+1. `gateway/.env.local.example` 用于本地开发
+2. `gateway/.env.prod.example` 用于生产部署模板
+3. `gateway/.env.example` 是完整变量总表
+
+`PRIVATE_KEY` 的语义必须明确：
+
+1. 它是 Gateway withdraw signer，用于签发 EIP-712 withdrawal ticket。
+2. 它不是浏览器钱包助记词，也不是 Provider 自己在前端连接的钱包私钥。
+3. 没有它时，Provider Settlements 只能看到提现能力不可用，不能签发 `Generate & Claim`。
+
+推荐来源：
+
+1. 本地开发：使用 Anvil / Hardhat 启动后打印的测试账户私钥，或单独创建一个本地测试账户。
+2. 生产环境：使用独立签名账户，并通过 Secret Manager / KMS / HSM 或部署平台环境变量注入。
+3. 严禁把真实生产私钥提交到仓库，或复用个人主钱包助记词。
 
 ### 4.2 金融与幂等参数
 
