@@ -149,6 +149,7 @@ Gateway 收到提现请求后，至少要先做：
 5. 审核拒绝后，金额从 `frozen_balance -> available_balance`
 6. 锁仓金额与 withdrawal.amount 完全一致
 7. 对应 ledger entry / audit 证据可追溯
+8. Provider 自定义提现金额输入统一按 USDC 金额校验，最多允许小数点后 2 位；空值代表按当前可提现余额整额创建 intent
 
 ## 9. Step C: 生成 EIP-712 提现票据
 

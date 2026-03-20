@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, Literal, Optional
 
@@ -194,7 +196,16 @@ class AdminRefundCompleteRequest(RefundCompleteRequest):
 
 
 class ProviderWithdrawIntentRequest(BaseModel):
-    amountUsdc: Optional[float] = Field(default=None, gt=0)
+    amountUsdc: Optional[Decimal] = Field(default=None, gt=0)
+
+    @field_validator("amountUsdc")
+    @classmethod
+    def validate_amount_usdc(cls, value: Optional[Decimal]) -> Optional[Decimal]:
+        if value is None:
+            return None
+        if value != value.quantize(Decimal("0.01")):
+            raise ValueError("amountUsdc supports up to 2 decimal places")
+        return value
 
 
 class ProviderWithdrawCompleteRequest(BaseModel):

@@ -41,6 +41,7 @@ ACTIVE_WITHDRAWAL_STATUSES = {
 INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds provider receivable."
 MANUAL_REVIEW_REJECT_MESSAGE = "Withdrawal rejected during manual security review."
 MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready for on-chain claim."
+WITHDRAW_AMOUNT_PRECISION = Decimal("0.01")
 
 
 class ProviderWithdrawService(
@@ -161,7 +162,7 @@ class ProviderWithdrawService(
                 )
             return round(available, 6)
         try:
-            amount = float(raw)
+            amount = Decimal(str(raw))
         except Exception:
             raise HTTPException(
                 status_code=400,
@@ -170,7 +171,14 @@ class ProviderWithdrawService(
                     "message": "amountUsdc must be a number.",
                 },
             )
-        amount = round(amount, 6)
+        if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_AMOUNT",
+                    "message": "amountUsdc supports up to 2 decimal places.",
+                },
+            )
         if amount <= 0:
             raise HTTPException(
                 status_code=400,
@@ -179,7 +187,7 @@ class ProviderWithdrawService(
                     "message": "amountUsdc must be greater than 0.",
                 },
             )
-        if amount > available:
+        if amount > Decimal(str(available)):
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -187,14 +195,17 @@ class ProviderWithdrawService(
                     "message": INSUFFICIENT_RECEIVABLE_MESSAGE,
                 },
             )
-        return amount
+        return float(amount)
 
     def _requested_withdraw_amount_for_hash(self, payload: Dict[str, Any]) -> Any:
         raw = payload.get("amountUsdc")
         if raw is None:
             return None
         try:
-            return round(float(raw), 6)
+            amount = Decimal(str(raw))
+            if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION):
+                return raw
+            return float(amount)
         except Exception:
             return raw
 

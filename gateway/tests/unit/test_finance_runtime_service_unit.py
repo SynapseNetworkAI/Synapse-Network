@@ -1,6 +1,9 @@
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
+
 from src.core.config import settings
 from src.domain.execution import PreparedWithdrawTicket
 from src.domain.finance import BalanceLedger, RefundIntentRow, UsageLogRow
@@ -333,6 +336,44 @@ def test_provider_withdraw_flow_uses_typed_rows() -> None:
     )
     assert completed["status"] == "COMPLETED"
     assert storage.gateway_state.withdraw_rows[0].tx_hash == "0x" + "3" * 64
+
+
+def test_provider_withdraw_allows_two_decimal_amount() -> None:
+    storage = FakeStorage()
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = 50.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": 12.34},
+            "0xdef",
+            "withdraw-intent-key-0012",
+        )
+    )
+
+    assert created["status"] == "APPROVED_AUTO"
+    assert abs(created["amountUsdc"] - 12.34) < 1e-9
+
+
+def test_provider_withdraw_rejects_more_than_two_decimal_places() -> None:
+    storage = FakeStorage()
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = 50.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            service.create_provider_withdraw_intent(
+                {"amountUsdc": 12.345},
+                "0xdef",
+                "withdraw-intent-key-0013",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "INVALID_AMOUNT"
+    assert "2 decimal places" in exc_info.value.detail["message"]
 
 
 def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_pending() -> None:
