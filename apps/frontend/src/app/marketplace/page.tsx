@@ -392,7 +392,7 @@ export default function MarketplacePage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push("/dashboard/sell")}
+              onClick={() => router.push("/provider/sell")}
               className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
             >
               {t("marketplacePage.providerCta")}

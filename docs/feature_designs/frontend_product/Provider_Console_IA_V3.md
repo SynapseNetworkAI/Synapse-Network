@@ -12,26 +12,30 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 
 - My Services: `/provider/sell`
 - Access Keys: `/provider/secrets`
-- API Services: `/provider/nodes`
+- API Services: `/provider/services`
 - Settlements: `/provider/settlements`
 - Revenue Analytics: `/provider/usage`
 - Treasury Ledger: `/provider/billing`
 
-兼容策略：保留历史 `/dashboard/**` 页面，新增 `/provider/**` 作为 Provider 工作空间统一入口。
+兼容策略：
+
+1. `/provider/**` 是当前 Provider 工作空间的 canonical 入口。
+2. 历史 `/dashboard/**` 页面保留为兼容壳，不再作为新交互和新文档的主入口。
+3. `/provider/nodes` 仅保留为历史 alias；产品和文档统一使用 `/provider/services`。
 
 ## 3. 首页职责（/provider/sell）
 
 首页只做三件事：
-1. KPI 摘要：Net / Gross / Calls / Active Nodes
+1. KPI 摘要：Net / Gross / Calls / Active Services
 2. Deploy Pipeline（2 Steps）：
    - Step 01 Access Keys
-   - Step 02 Publish API
+   - Step 02 Publish API Service
 不再在首页承载大表格，也移除 Nodes/Settlements 导航卡片，避免首屏信息过载。
 
 ## 4. 工作流约束
 
 ### 4.1 Publish API 前置校验
-- 点击 Publish API 前必须检查 provider secrets（Access Keys）是否存在。
+- 点击 `New Service` / `Publish API Service` 前必须检查 provider secrets（Access Keys）是否存在。
 - 无 key 时强制跳转 Access Keys 页面创建。
 - 原因：防止服务发布后处于不可签名验证的脆弱状态。
 
@@ -41,15 +45,18 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 
 ## 5. 页面职责拆分
 
-### 5.1 Network Nodes 页面
+### 5.1 API Services 页面
 - 页面命名统一为 API Services。
-- 展示服务节点、endpoint、serviceId、定价、状态。
+- canonical route: `/provider/services`
+- legacy alias: `/provider/nodes`
+- 展示 API service、endpoint、serviceId、定价、状态。
 - 支持 Service ID / 服务名模糊搜索。
 - 支持状态筛选（All / Online / Offline）。
 - 搜索区采用紧凑工具条（输入框 + 状态下拉 + Search 按钮），点击 Search 后更新列表。
 - 点击 Search 时若钱包未连接，前端直接唤起 RainbowKit Connect 弹窗；已连接则继续执行筛选流程。
 - 支持分页浏览。
-- 面向运维与发布校验。
+- 支持从列表进入 `Edit Service`、启停、删除和 Health 页面。
+- 面向运维、发布校验和 Service Definition 生命周期管理。
 
 ### 5.2 Settlements 页面
 - 支持 RequestId 搜索与 Service 模糊搜索。
@@ -66,5 +73,5 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 ## 6. 一致性要求
 
 - 文档与代码同批更新。
-- 新路由上线时，侧边导航必须同步。
+- 新路由上线时，侧边导航、Homepage CTA、Marketplace CTA 必须同步。
 - Homepage 风格基线继续遵循 `docs/Design.md` 的 95/5 色彩策略。

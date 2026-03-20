@@ -136,7 +136,7 @@ UX fallback:
 | Re-login after session expires | Yes | Not yet | Need fresh wallet proof |
 | Register / update / delete provider service | No (if session valid) | Yes | Platform write operation, owner-isolated by session subject |
 | Rotate service key / ping own service | No (if session valid) | Yes | Sensitive provider operation |
-| Parse cURL and autofill manifest (provider workspace) | No (if session valid) | Yes | Workspace-scoped mutation helper |
+| Parse cURL and autofill service definition (provider workspace) | No (if session valid) | Yes | Workspace-scoped mutation helper |
 | List own services | No (if session valid) | Yes | Tenant-isolated read |
 | Public service discovery | No | No | Public marketplace capability |
 | Read own audit logs | No (if session valid) | Yes | Sensitive tenant logs |
@@ -164,10 +164,15 @@ Wallet modal UX baseline:
 
 ### Session-required pages (page-level)
 
-1. `/dashboard/services/deploy` (provider publish workflow)
-2. `/dashboard/secrets` (secret key management)
+1. `/provider/services/deploy` (canonical provider publish workflow)
+2. `/provider/secrets` (canonical access key management)
 3. `/dashboard/credentials` (credential issuance/revoke/audit)
 4. `/dashboard/console` for authenticated data actions
+
+Compatibility note:
+
+1. Some `/dashboard/**` routes still exist as legacy aliases or implementation hosts.
+2. Product and new docs should prefer `/provider/**` for Provider workspace links.
 
 ### Public-readable pages (no session required)
 
@@ -175,7 +180,7 @@ Wallet modal UX baseline:
 2. `/blog`, `/about`
 3. `/dashboard/services` public marketplace section (discover list)
 4. `/dashboard/billing` with guest empty/zero state
-5. `/dashboard/sell` and summary cards with guest-safe zeros
+5. `/provider/sell` and summary cards with guest-safe zeros
 
 Behavior requirement:
 
@@ -240,3 +245,8 @@ Adopt this baseline:
 2. Billing/refund/usage routes (`/api/v1/balance*`, `/api/v1/refund`, `/api/v1/refunds`, `/api/v1/usage/logs`) are session-protected and owner-scoped.
 3. Discovery route (`/api/v1/services/discover`) and indexer health (`/api/v1/indexer/status`) remain public.
 4. If docs claim service management or private billing routes are open/public, that is outdated and must be corrected.
+
+Provider workspace naming note:
+
+1. UI copy may use `API Service` and `Service Definition`.
+2. Protocol/storage canonical terms still retain `Service Manifest` where required by backend schema and runtime contract docs.

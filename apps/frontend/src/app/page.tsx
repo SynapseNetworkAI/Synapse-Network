@@ -263,7 +263,7 @@ export default function Home() {
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
-                onClick={() => handleEnterRole("PROVIDER", "/dashboard/sell")}
+                onClick={() => handleEnterRole("PROVIDER", "/provider/sell")}
                 className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
               >
                 {t("home.providerWorkspaceBtn")}
