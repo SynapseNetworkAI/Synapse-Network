@@ -9,10 +9,10 @@ MODE="${1:-${ADMIN_GATEWAY_START_MODE:-local}}"
 
 case "${MODE}" in
 	local)
-		"${SCRIPT_DIR}/start-local.sh"
+		bash "${SCRIPT_DIR}/start-local.sh"
 		;;
 	prod)
-		"${SCRIPT_DIR}/start-prod.sh"
+		bash "${SCRIPT_DIR}/start-prod.sh"
 		;;
 	*)
 		echo "Unsupported restart mode: ${MODE}. Use 'local' or 'prod'."

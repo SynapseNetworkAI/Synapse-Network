@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Database, ReceiptText, Activity, Wallet, ShieldCheck, Loader2 } from "lucide-react";
-import { BaseError, ContractFunctionRevertedError } from "viem";
-import { useAccount, useBalance, useChainId, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { formatEther, formatUnits } from "viem";
+import { useAccount, useBalance, useChainId, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 import contractConfig from "@/contract-config.json";
@@ -18,9 +19,20 @@ import {
   type ProviderWithdrawRecord,
   type ProviderWithdrawTicket,
 } from "@/utils/providerWithdrawApi";
+import { normalizeWithdrawWalletError, toSafeErrorMessage } from "@/utils/providerWithdrawWallet";
 
 const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string }).SynapseCore as `0x${string}` | undefined;
+const USDC_TOKEN_ADDRESS = (contractConfig as { MockUSDC?: string }).MockUSDC as `0x${string}` | undefined;
 const WITHDRAW_AMOUNT_INPUT_PATTERN = /^\d*(?:\.\d{0,2})?$/;
+const ERC20_BALANCE_OF_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
 const CHAIN_LABELS: Record<number, string> = {
   31337: "Hardhat Local",
   11155111: "Sepolia",
@@ -38,6 +50,7 @@ const WITHDRAWAL_HISTORY_STATUS_FILTERS = [
 ] as const;
 
 type WithdrawalHistoryStatusFilter = (typeof WITHDRAWAL_HISTORY_STATUS_FILTERS)[number];
+type TranslateFn = (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string;
 
 function formatTimestamp(seconds?: number | string): string {
   if (!seconds) return "-";
@@ -79,70 +92,27 @@ function resolveTicketContractAddress(ticket: ProviderWithdrawTicket): `0x${stri
   return contractAddress ? (contractAddress as `0x${string}`) : undefined;
 }
 
-function toSafeErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim()) return error.message;
-  if (typeof error === "string" && error.trim()) return error;
-  return fallback;
-}
-
-function normalizeWithdrawWalletError(error: unknown): string {
-  const baseError = error instanceof BaseError ? error : undefined;
-  const revertError = baseError?.walk((walked) => walked instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | undefined;
-  const rawMessage = toSafeErrorMessage(error, "Failed to submit withdrawal transaction.");
-  const messageParts = [
-    revertError?.reason,
-    revertError?.data?.errorName,
-    baseError?.shortMessage,
-    baseError?.details,
-    rawMessage,
-  ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
-  const normalizedMessage = messageParts.join(" | ").toLowerCase();
-
-  if (
-    normalizedMessage.includes("user rejected")
-    || normalizedMessage.includes("user denied")
-    || normalizedMessage.includes("rejected the request")
-    || normalizedMessage.includes("denied transaction signature")
-    || normalizedMessage.includes("4001")
-  ) {
-    return "Withdrawal was cancelled in wallet. No gas fee was spent and no funds were moved.";
-  }
-  if (
-    normalizedMessage.includes("insufficient funds")
-    || normalizedMessage.includes("intrinsic gas too low")
-    || normalizedMessage.includes("gas required exceeds allowance")
-    || normalizedMessage.includes("exceeds the balance of the account")
-    || normalizedMessage.includes("out of gas")
-  ) {
-    return "Withdrawal could not be submitted because the wallet does not have enough native token to pay gas.";
-  }
-  if (revertError?.data?.errorName) {
-    return `Withdrawal was rejected by the vault contract (${revertError.data.errorName}).`;
-  }
-  if (revertError?.reason) {
-    return `Withdrawal was rejected by the vault contract: ${revertError.reason}.`;
-  }
-  return rawMessage;
-}
-
 function validateRequestedWithdrawAmount(
   requestedAmount: string,
   availableReceivable: number,
+  t: TranslateFn,
 ): string | null {
   if (!requestedAmount) {
     return null;
   }
   if (!WITHDRAW_AMOUNT_INPUT_PATTERN.test(requestedAmount)) {
-    return "Use up to 2 decimal places for withdrawal amount.";
+    return t("providerSettlements.invalidAmountPrecision");
   }
 
   const parsed = Number(requestedAmount);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return "Enter a valid withdrawal amount.";
+    return t("providerSettlements.invalidAmountValue");
   }
 
   if (parsed > availableReceivable) {
-    return `Amount exceeds available receivable (${availableReceivable.toFixed(6)} USDC).`;
+    return t("providerSettlements.amountExceedsAvailable", {
+      amount: availableReceivable.toFixed(6),
+    });
   }
 
   return null;
@@ -150,9 +120,11 @@ function validateRequestedWithdrawAmount(
 
 export default function ProviderSettlementsPage() {
   const { providerStats, paidEvents, handleRefresh: reloadDashboard } = useDashboardData();
+  const { t } = useLanguage();
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const chainId = useChainId();
+  const publicClient = usePublicClient();
 
   const [requestInput, setRequestInput] = useState("");
   const [serviceInput, setServiceInput] = useState("");
@@ -168,6 +140,20 @@ export default function ProviderSettlementsPage() {
   const [activeTxChainId, setActiveTxChainId] = useState<number | undefined>(undefined);
   const [withdrawCapability, setWithdrawCapability] = useState<ProviderWithdrawCapability | null>(null);
   const [loadingWithdrawCapability, setLoadingWithdrawCapability] = useState(false);
+  const [estimatedWithdrawGasFee, setEstimatedWithdrawGasFee] = useState<string | null>(null);
+
+  const withdrawWalletErrorMessages = useMemo(() => ({
+    fallback: t("providerSettlements.withdrawalCreateFailed"),
+    walletRejected: t("providerSettlements.walletRejected"),
+    insufficientNativeGas: t("providerSettlements.insufficientNativeGas"),
+    ticketExpired: t("providerSettlements.ticketExpired"),
+    staleTicket: t("providerSettlements.staleTicket"),
+    invalidSignature: t("providerSettlements.invalidSignature"),
+    vaultLiquidityInsufficient: t("providerSettlements.vaultLiquidityInsufficient"),
+    vaultAllowanceUnavailable: t("providerSettlements.vaultAllowanceUnavailable"),
+    contractRejectedWithName: (name: string) => t("providerSettlements.contractRejectedWithName", { name }),
+    contractRejectedWithReason: (reason: string) => t("providerSettlements.contractRejectedWithReason", { reason }),
+  }), [t]);
 
   const PAGE_SIZE = 10;
   const availableReceivable = Number(providerStats.receivable || 0);
@@ -209,8 +195,28 @@ export default function ProviderSettlementsPage() {
   const nativeGasWarning = useMemo(() => {
     if (!isConnected || !nativeBalanceData) return null;
     if (nativeBalanceData.value > BigInt(0)) return null;
-    return `Wallet has no ${nativeBalanceData.symbol || "native token"} to pay gas on ${formatChainLabel(chainId)}.`;
-  }, [chainId, isConnected, nativeBalanceData]);
+    return t("providerSettlements.walletNoGas", {
+      symbol: nativeBalanceData.symbol || "native token",
+      chainLabel: formatChainLabel(chainId),
+    });
+  }, [chainId, isConnected, nativeBalanceData, t]);
+  const walletGasGuidance = useMemo(() => {
+    if (!isConnected) {
+      return t("providerSettlements.walletPaysGasDisconnected");
+    }
+
+    const symbol = nativeBalanceData?.symbol || "native token";
+    const balanceText = nativeBalanceData
+      ? `${Number(formatUnits(nativeBalanceData.value, nativeBalanceData.decimals)).toFixed(6)} ${symbol}`
+      : `an available ${symbol} balance`;
+    return t("providerSettlements.walletPaysGasConnected", {
+      symbol,
+      balance: balanceText,
+      estimate: estimatedWithdrawGasFee
+        ? t("providerSettlements.walletPaysGasEstimate", { estimate: estimatedWithdrawGasFee })
+        : "",
+    });
+  }, [estimatedWithdrawGasFee, isConnected, nativeBalanceData, t]);
 
   const refreshWithdrawals = useCallback(async () => {
     if (!address) return;
@@ -240,13 +246,13 @@ export default function ProviderSettlementsPage() {
       setWithdrawCapability({
         ticketSigningEnabled: false,
         code: "WITHDRAW_CAPABILITY_UNAVAILABLE",
-        message: "Unable to verify whether the gateway can issue withdrawal tickets right now.",
+        message: t("providerSettlements.ticketSigningUnavailable"),
         contractAddress: null,
       });
     } finally {
       setLoadingWithdrawCapability(false);
     }
-  }, [address]);
+  }, [address, t]);
 
   useEffect(() => {
     if (!address) {
@@ -265,11 +271,11 @@ export default function ProviderSettlementsPage() {
     const complete = async () => {
       try {
         await completeProviderWithdrawal(address, activeWithdrawalId, txHash);
-        toast.success("Withdrawal settled and marked completed");
+        toast.success(t("providerSettlements.settledCompleted"));
         await Promise.all([refreshWithdrawals(), reloadDashboard()]);
       } catch (error) {
         console.error("Failed to complete provider withdrawal", error);
-        toast.error("On-chain tx succeeded, but backend completion failed. Retry from history.");
+        toast.error(t("providerSettlements.backendCompletionFailed"));
       } finally {
         setActiveWithdrawalId(null);
         setActiveTxChainId(undefined);
@@ -281,10 +287,14 @@ export default function ProviderSettlementsPage() {
 
   useEffect(() => {
     if (!isTxFailed || !txHash || !activeWithdrawalId) return;
-    toast.error(normalizeWithdrawWalletError(txReceiptError));
+    toast.error(normalizeWithdrawWalletError(txReceiptError, withdrawWalletErrorMessages));
     setActiveWithdrawalId(null);
     setActiveTxChainId(undefined);
-  }, [activeWithdrawalId, isTxFailed, txHash, txReceiptError]);
+  }, [activeWithdrawalId, isTxFailed, txHash, txReceiptError, withdrawWalletErrorMessages]);
+
+  useEffect(() => {
+    setEstimatedWithdrawGasFee(null);
+  }, [address, chainId]);
 
   const applySearch = () => {
     setRequestQuery(requestInput);
@@ -318,8 +328,8 @@ export default function ProviderSettlementsPage() {
   }, [filtered, safePage]);
 
   const withdrawAmountValidationMessage = useMemo(() => {
-    return validateRequestedWithdrawAmount(withdrawAmountInput.trim(), availableReceivable);
-  }, [availableReceivable, withdrawAmountInput]);
+    return validateRequestedWithdrawAmount(withdrawAmountInput.trim(), availableReceivable, t);
+  }, [availableReceivable, t, withdrawAmountInput]);
 
   const resolveRequestedWithdrawAmount = (): number | undefined => {
     const requestedAmount = withdrawAmountInput.trim();
@@ -332,18 +342,18 @@ export default function ProviderSettlementsPage() {
     }
     if (pendingTicketExpired) {
       await Promise.all([refreshWithdrawals(), reloadDashboard()]);
-      toast.error("Previous withdrawal ticket expired. Locked receivable has been released back to available balance.");
+      toast.error(t("providerSettlements.pendingTicketExpiredReleased"));
       return true;
     }
     if (pendingWithdrawal.status === "APPROVED_AUTO" && pendingWithdrawal.ticket) {
       try {
         await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);
       } catch (error) {
-        toast.error(normalizeWithdrawWalletError(error));
+        toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages));
       }
       return true;
     }
-    toast.error("A withdrawal is already pending review. Wait for review completion before creating a new one.");
+    toast.error(t("providerSettlements.pendingReviewExists"));
     return true;
   };
 
@@ -353,19 +363,19 @@ export default function ProviderSettlementsPage() {
       return;
     }
     if (!VAULT_ADDRESS) {
-      toast.error("Vault contract address missing");
+      toast.error(t("providerSettlements.vaultAddressMissing"));
       return;
     }
     if (!withdrawCapability?.ticketSigningEnabled) {
       toast.error(
         withdrawCapability?.message ||
-          "Provider withdrawals are unavailable because the gateway cannot issue signed withdrawal tickets.",
+          t("providerSettlements.ticketSigningUnavailable"),
       );
       return;
     }
 
     const requestedAmount = withdrawAmountInput.trim();
-    const validationMessage = validateRequestedWithdrawAmount(requestedAmount, availableReceivable);
+    const validationMessage = validateRequestedWithdrawAmount(requestedAmount, availableReceivable, t);
     if (validationMessage) {
       toast.error(validationMessage);
       return;
@@ -378,50 +388,111 @@ export default function ProviderSettlementsPage() {
     const amountUsdc = resolveRequestedWithdrawAmount();
 
     setCreatingIntent(true);
-    const toastId = toast.loading("Generating signed withdrawal ticket...");
+    const toastId = toast.loading(t("providerSettlements.generatingTicket"));
     try {
       const intent = await createProviderWithdrawIntent(address, amountUsdc);
-      if (intent.status === "PENDING_MANUAL_REVIEW") {
-        toast.success(intent.message || "Withdrawal queued for manual security review.", { id: toastId });
-      } else if (intent.ticket) {
-        await startWalletWithdraw(intent.withdrawalId, intent.ticket);
-        toast.success("Ticket generated. Confirm transaction in wallet.", { id: toastId });
-      } else {
-        toast.success("Withdrawal intent created.", { id: toastId });
-      }
       await Promise.all([refreshWithdrawals(), refreshWithdrawCapability(), reloadDashboard()]);
       setWithdrawAmountInput("");
+
+      if (intent.status === "PENDING_MANUAL_REVIEW") {
+        toast.success(intent.message || t("providerSettlements.manualReviewQueued"), { id: toastId });
+      } else if (intent.ticket) {
+        try {
+          await startWalletWithdraw(intent.withdrawalId, intent.ticket);
+          toast.success(t("providerSettlements.ticketGenerated"), { id: toastId });
+        } catch (error) {
+          toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages), { id: toastId });
+        }
+      } else {
+        toast.success(t("providerSettlements.withdrawalIntentCreated"), { id: toastId });
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create provider withdrawal";
+      const message = error instanceof Error ? error.message : t("providerSettlements.withdrawalCreateFailed");
       toast.error(message, { id: toastId });
     } finally {
       setCreatingIntent(false);
     }
   };
 
-  const validateWalletWithdrawReadiness = (ticket: ProviderWithdrawTicket): {
+  const validateWalletWithdrawReadiness = async (ticket: ProviderWithdrawTicket): Promise<{
     contractAddress: `0x${string}`;
     targetChainId?: number;
-  } => {
+  }> => {
     const contractAddress = resolveTicketContractAddress(ticket);
     if (!contractAddress) {
-      throw new Error("Withdrawal contract address is missing from the signed ticket.");
+      throw new Error(t("providerSettlements.withdrawalContractMissing"));
     }
 
     if (ticket.chainId && chainId !== ticket.chainId) {
       throw new Error(
-        `Wrong network. Switch wallet to ${formatChainLabel(ticket.chainId)} before resuming this withdrawal.`,
+        t("providerSettlements.wrongNetwork", { chainLabel: formatChainLabel(ticket.chainId) }),
       );
     }
 
     if (ticket.deadline && ticket.deadline < Math.floor(Date.now() / 1000)) {
-      throw new Error("This withdrawal ticket has expired. Generate a new ticket before retrying.");
+      throw new Error(t("providerSettlements.ticketExpired"));
     }
 
-    if (nativeBalanceData && nativeBalanceData.value <= BigInt(0)) {
+    const symbol = nativeBalanceData?.symbol || "native token";
+    if (!address) {
+      throw new Error(t("providerSettlements.connectWalletFirst"));
+    }
+    if (!publicClient) {
+      throw new Error(t("providerSettlements.walletClientUnavailable"));
+    }
+    if (!USDC_TOKEN_ADDRESS) {
+      throw new Error(t("providerSettlements.vaultLiquidityInsufficient"));
+    }
+
+    const liveNativeBalance = await publicClient.getBalance({ address });
+    if (liveNativeBalance <= BigInt(0)) {
       throw new Error(
-        `Withdrawal could not be submitted because the wallet has no ${nativeBalanceData.symbol || "native token"} to pay gas on ${formatChainLabel(chainId)}.`,
+        t("providerSettlements.walletNoGas", {
+          symbol,
+          chainLabel: formatChainLabel(chainId),
+        }),
       );
+    }
+
+    const vaultUsdcBalance = await publicClient.readContract({
+      address: USDC_TOKEN_ADDRESS,
+      abi: ERC20_BALANCE_OF_ABI,
+      functionName: "balanceOf",
+      args: [contractAddress],
+    });
+    if (vaultUsdcBalance < BigInt(ticket.amount)) {
+      throw new Error(t("providerSettlements.vaultLiquidityInsufficient"));
+    }
+
+    const gasLimit = await publicClient.estimateContractGas({
+      account: address,
+      address: contractAddress,
+      abi: SynapseCoreABI,
+      functionName: "withdraw",
+      args: [
+        BigInt(ticket.amount),
+        BigInt(ticket.fee),
+        BigInt(ticket.nonce),
+        BigInt(ticket.deadline),
+        normalizeSignature(ticket.signature),
+      ],
+    });
+    const feeEstimate = await publicClient.estimateFeesPerGas();
+    const perGasFee = feeEstimate.maxFeePerGas ?? feeEstimate.gasPrice;
+    if (perGasFee && perGasFee > BigInt(0)) {
+      const estimatedFeeWei = (gasLimit * perGasFee * BigInt(12)) / BigInt(10);
+      setEstimatedWithdrawGasFee(`${formatEther(estimatedFeeWei)} ${symbol}`);
+      if (liveNativeBalance < estimatedFeeWei) {
+        throw new Error(
+          t("providerSettlements.gasEstimateInsufficient", {
+            estimateFee: formatEther(estimatedFeeWei),
+            balance: formatEther(liveNativeBalance),
+            symbol,
+          }),
+        );
+      }
+    } else {
+      setEstimatedWithdrawGasFee(null);
     }
 
     return {
@@ -431,7 +502,7 @@ export default function ProviderSettlementsPage() {
   };
 
   const startWalletWithdraw = async (withdrawalId: string, ticket: ProviderWithdrawTicket) => {
-    const { contractAddress, targetChainId } = validateWalletWithdrawReadiness(ticket);
+    const { contractAddress, targetChainId } = await validateWalletWithdrawReadiness(ticket);
 
     const hash = await writeContractAsync({
       address: contractAddress,
@@ -449,39 +520,39 @@ export default function ProviderSettlementsPage() {
 
     setActiveWithdrawalId(withdrawalId);
     setActiveTxChainId(targetChainId);
-    toast.success(`Tx submitted: ${hash.slice(0, 10)}...`);
+    toast.success(t("providerSettlements.txSubmitted", { hash: hash.slice(0, 10) }));
   };
 
   const resumePendingWithdraw = async () => {
     if (!pendingWithdrawal?.ticket) {
-      toast.error("No pending withdrawal ticket found");
+      toast.error(t("providerSettlements.noPendingTicket"));
       return;
     }
     try {
       await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);
     } catch (error) {
-      toast.error(normalizeWithdrawWalletError(error));
+      toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages));
     }
   };
 
   const isAnyLoading = creatingIntent || isWalletPrompting || isTxConfirming;
   const ticketSigningEnabled = Boolean(withdrawCapability?.ticketSigningEnabled);
-  let generateClaimLabel = "Signer Unavailable";
+  let generateClaimLabel = t("providerSettlements.signerUnavailable");
   if (ticketSigningEnabled) {
-    generateClaimLabel = "Generate & Claim";
+    generateClaimLabel = t("providerSettlements.generateAndClaim");
   }
   if (creatingIntent) {
-    generateClaimLabel = "Creating Ticket...";
+    generateClaimLabel = t("providerSettlements.creatingTicket");
   }
-  let txStateLabel = "0";
+  let txStateLabel = "-";
   if (isWalletPrompting) {
-    txStateLabel = "Wallet Prompt";
+    txStateLabel = t("providerSettlements.txStateWalletPrompt");
   }
   if (isTxConfirming) {
-    txStateLabel = "Confirming";
+    txStateLabel = t("providerSettlements.txStateConfirming");
   }
   if (isTxFailed) {
-    txStateLabel = "Failed";
+    txStateLabel = t("providerSettlements.txStateFailed");
   }
 
   return (
@@ -514,7 +585,10 @@ export default function ProviderSettlementsPage() {
           )}
           {pendingTicketChainMismatch && pendingTicket?.chainId && (
             <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
-              Resume Pending requires the wallet to be on {formatChainLabel(pendingTicket.chainId)}. Current wallet network is {formatChainLabel(chainId)}.
+              {t("providerSettlements.pendingWrongNetwork", {
+                requiredChain: formatChainLabel(pendingTicket.chainId),
+                currentChain: formatChainLabel(chainId),
+              })}
             </div>
           )}
           {!pendingTicketChainMismatch && nativeGasWarning && (
@@ -522,9 +596,12 @@ export default function ProviderSettlementsPage() {
               {nativeGasWarning}
             </div>
           )}
+          <div className="mt-4 rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/[0.06] px-4 py-3 text-sm text-[#d9ffe7]">
+            {walletGasGuidance}
+          </div>
           {pendingTicketExpired && (
             <div className="mt-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10 px-4 py-3 text-sm text-[#fecaca]">
-              The pending withdrawal ticket has expired. Generate a new ticket before retrying.
+              {t("providerSettlements.pendingTicketExpiredBanner")}
             </div>
           )}
 
@@ -539,7 +616,9 @@ export default function ProviderSettlementsPage() {
                   setWithdrawAmountInput(nextValue);
                 }
               }}
-              placeholder={`Amount (blank = full ${availableReceivable.toFixed(6)} USDC)`}
+              placeholder={t("providerSettlements.amountPlaceholder", {
+                amount: availableReceivable.toFixed(6),
+              })}
               className={`w-full sm:max-w-md px-3 py-2 rounded-lg border bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] ${withdrawAmountValidationMessage ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[#222222]"}`}
               disabled={isAnyLoading}
             />
@@ -555,15 +634,14 @@ export default function ProviderSettlementsPage() {
               disabled={!pendingWithdrawal?.ticket || pendingWithdrawal?.status !== "APPROVED_AUTO" || isAnyLoading}
               className="px-4 py-2 rounded-lg border border-[#222222] bg-[#111111] text-white text-sm font-semibold hover:bg-[#1a1a1a] transition-colors disabled:opacity-40"
             >
-              Resume Pending
+              {t("providerSettlements.resumePending")}
             </button>
           </div>
           {withdrawAmountValidationMessage ? (
             <p className="mt-3 text-xs text-[#f87171]">{withdrawAmountValidationMessage}</p>
           ) : (
             <p className="mt-3 text-xs text-[#86868b]">
-              Leave amount blank to withdraw the full available receivable. Any active ticket moves funds from
-              Available into Pending / Locked until it is completed or released. Custom amount supports up to 2 decimal places.
+              {t("providerSettlements.withdrawAmountHint")}
             </p>
           )}
 
@@ -734,7 +812,7 @@ export default function ProviderSettlementsPage() {
             )}
             {loadingWithdrawals && (
               <tr>
-                <td colSpan={7} className="py-10 text-center text-sm text-[#86868b]">Loading withdrawal history...</td>
+                <td colSpan={7} className="py-10 text-center text-sm text-[#86868b]">{t("providerSettlements.loadingHistory")}</td>
               </tr>
             )}
             {filteredWithdrawals.map((row) => (
@@ -746,7 +824,7 @@ export default function ProviderSettlementsPage() {
                     {withdrawalStatusLabel(row.status)}
                   </span>
                 </td>
-                <td className="py-4 px-6 text-xs text-[#c5c5c7]">{row.message || (row.status === "CANCELLED" ? "Expired ticket released back to available balance." : "-")}</td>
+                <td className="py-4 px-6 text-xs text-[#c5c5c7]">{row.message || (row.status === "CANCELLED" ? t("providerSettlements.expiredTicketReleasedRow") : "-")}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">{row.nonce}</td>
                 <td className="py-4 px-6 text-xs text-[#86868b]">{formatTimestamp(row.createdAt)}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.txHash || "-"}</td>

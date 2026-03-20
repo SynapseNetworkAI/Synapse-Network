@@ -5,8 +5,19 @@ from dataclasses import dataclass
 
 PRIMARY_KEY_FRAGMENT = "primary key"
 WITHDRAWAL_STATUS_CHECK_FRAGMENT = (
-    "check (status in ('requested', 'signed', 'failed', "
-    "'approved_auto', 'pending_manual_review', 'rejected', 'completed', 'cancelled'))"
+    "check (status in ('REQUESTED', 'SIGNED', 'FAILED', "
+    "'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'REJECTED', 'COMPLETED', 'CANCELLED'))"
+)
+WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS = (
+    "status",
+    "'REQUESTED'::text",
+    "'SIGNED'::text",
+    "'FAILED'::text",
+    "'APPROVED_AUTO'::text",
+    "'PENDING_MANUAL_REVIEW'::text",
+    "'REJECTED'::text",
+    "'COMPLETED'::text",
+    "'CANCELLED'::text",
 )
 
 
@@ -172,7 +183,7 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
             _constraint("primary key on withdrawal_id", PRIMARY_KEY_FRAGMENT, "withdrawal_id"),
             _constraint(
                 "withdrawal status check supports current lifecycle",
-                WITHDRAWAL_STATUS_CHECK_FRAGMENT,
+                *WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS,
             ),
         ),
     ),
