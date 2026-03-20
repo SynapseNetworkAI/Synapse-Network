@@ -104,11 +104,11 @@ export default function BuyPage() {
                 <h2 className="text-xl font-bold tracking-wide text-white">Step 3 · 消费对账 (全局统一结算)</h2>
             </div>
             <Link href="/dashboard/billing" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700">
-                打开对账单 <ArrowRight className="w-4 h-4" />
+                打开资金账本 <ArrowRight className="w-4 h-4" />
             </Link>
         </div>
         <p className="max-w-4xl mt-2 text-sm leading-relaxed text-gray-400">
-          所有执行单元使用的 API Key 调用产生的扣费账单，最终都会汇聚在 Owner 总钱包下统一展现与核销。在结算中心你可以查看、导出完整的聚合交易流水。
+          所有执行单元使用的 API Key 调用产生的扣费账单，最终都会汇聚在 Owner 总钱包下统一展现与核销。在 Owner Treasury 里你可以查看、导出完整的聚合交易流水。
         </p>
       </section>
     </div>

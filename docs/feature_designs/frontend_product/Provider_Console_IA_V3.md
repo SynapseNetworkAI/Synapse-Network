@@ -15,13 +15,13 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 - API Services: `/provider/services`
 - Settlements: `/provider/settlements`
 - Revenue Analytics: `/provider/usage`
-- Treasury Ledger: `/provider/billing`
 
 兼容策略：
 
 1. `/provider/**` 是当前 Provider 工作空间的 canonical 入口。
 2. 历史 `/dashboard/**` 页面保留为兼容壳，不再作为新交互和新文档的主入口。
-3. `/provider/nodes` 仅保留为历史 alias；产品和文档统一使用 `/provider/services`。
+3. `/provider/nodes` 已删除；产品和文档统一使用 `/provider/services`。
+4. Owner 资金账本保留在 `/dashboard/billing`；Provider 财务面拆分为 `/provider/settlements` 与 `/provider/usage`。
 
 ## 3. 首页职责（/provider/sell）
 
@@ -48,7 +48,6 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 ### 5.1 API Services 页面
 - 页面命名统一为 API Services。
 - canonical route: `/provider/services`
-- legacy alias: `/provider/nodes`
 - 展示 API service、endpoint、serviceId、定价、状态。
 - 支持 Service ID / 服务名模糊搜索。
 - 支持状态筛选（All / Online / Offline）。

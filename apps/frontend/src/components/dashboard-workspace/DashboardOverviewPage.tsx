@@ -72,7 +72,7 @@ export default function OverviewPage() {
             { name: "Agents", icon: <Bot className="w-4 h-4" />, href: "/dashboard/agents", color: "text-blue-400" },
             { name: "Discovery", icon: <Cpu className="w-4 h-4" />, href: "/dashboard/discovery", color: "text-purple-400" },
             { name: "Invocations", icon: <History className="w-4 h-4" />, href: "/dashboard/invocations", color: "text-emerald-400" },
-            { name: "Billing", icon: <Wallet className="w-4 h-4" />, href: "/dashboard/billing", color: "text-amber-400" },
+            { name: "Treasury", icon: <Wallet className="w-4 h-4" />, href: "/dashboard/billing", color: "text-amber-400" },
             { name: "Risk & Audit", icon: <ShieldCheck className="w-4 h-4" />, href: "/dashboard/audit", color: "text-red-400" },
             { name: "Developer", icon: <Terminal className="w-4 h-4" />, href: "/dashboard/developer", color: "text-gray-400" },
           ].map((item) => (
