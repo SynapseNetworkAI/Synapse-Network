@@ -2,8 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Optional
+import re
 
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+_NUMERIC_TEXT_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
+
+
+def _parse_numeric_datetime_text(text: str, default: Optional[str]) -> Optional[str]:
+    if not _NUMERIC_TEXT_PATTERN.fullmatch(text):
+        return None
+    try:
+        return to_dt_str(float(text), default)
+    except Exception:
+        return default
 
 
 def now_dt_str() -> str:
@@ -26,6 +37,9 @@ def to_dt_str(value: Any, default: Optional[str] = None) -> Optional[str]:
     text = str(value).strip()
     if not text:
         return default
+    numeric_text = _parse_numeric_datetime_text(text, default)
+    if numeric_text is not None:
+        return numeric_text
     for pattern in (DATETIME_FORMAT, "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
         try:
             parsed = datetime.strptime(text, pattern)

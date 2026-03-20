@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional, cast
 import asyncio
+from datetime import datetime, timezone
 import time
 from uuid import uuid4
 from decimal import Decimal, ROUND_HALF_UP
@@ -30,6 +31,7 @@ from src.services.balance_mixins import (
     USDC_DECIMALS,
 )
 from src.storage.base import BaseStorage
+from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 
 WITHDRAW_AUTO_APPROVAL_LIMIT_USDC = 100.0
@@ -108,8 +110,15 @@ class ProviderWithdrawService(
 
     @staticmethod
     def _withdraw_created_at(row: WithdrawalIntentRow) -> int:
+        normalized = to_dt_str(row.created_at, "") or ""
+        if not normalized:
+            return 0
         try:
-            return int(row.created_at or 0)
+            return int(
+                datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S")
+                .replace(tzinfo=timezone.utc)
+                .timestamp()
+            )
         except Exception:
             return 0
 
@@ -137,7 +146,7 @@ class ProviderWithdrawService(
         return self.storage.get_data_manager().finance.balance.read_balance_ledger()
 
     def _save_balance_ledger(self, ledger: BalanceLedger) -> None:
-        ledger.updated_at = str(int(time.time()))
+        ledger.updated_at = now_dt_str()
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
     @staticmethod
@@ -181,6 +190,7 @@ class ProviderWithdrawService(
     ) -> List[WithdrawalIntentRow]:
         owner = normalize_wallet(owner_wallet) if owner_wallet is not None else None
         now = int(time.time())
+        now_text = now_dt_str()
         changed = False
 
         for row in rows:
@@ -201,7 +211,7 @@ class ProviderWithdrawService(
             )
 
             row.status = "CANCELLED"
-            row.updated_at = str(now)
+            row.updated_at = now_text
             row.completed_at = now
             row.message = (
                 EXPIRED_WITHDRAW_RELEASE_MESSAGE
@@ -618,12 +628,13 @@ class ProviderWithdrawService(
     ) -> Dict[str, Any]:
         self._release_frozen_withdraw_to_available(owner, amount_usdc)
         now = int(time.time())
+        now_text = now_dt_str()
         target.status = "REJECTED"
         target.review_decision = "REJECT"
         target.reviewer_address = reviewer_address
         target.reviewer_note = reviewer_note
         target.reviewed_at = now
-        target.updated_at = str(now)
+        target.updated_at = now_text
         target.message = MANUAL_REVIEW_REJECT_MESSAGE
         self._save_withdrawal_rows(rows)
         self._append_financial_audit(
@@ -664,12 +675,13 @@ class ProviderWithdrawService(
         self._move_frozen_withdraw_to_pending(owner, amount_usdc)
 
         now = int(time.time())
+        now_text = now_dt_str()
         target.status = "APPROVED_AUTO"
         target.review_decision = "APPROVE"
         target.reviewer_address = reviewer_address
         target.reviewer_note = reviewer_note
         target.reviewed_at = now
-        target.updated_at = str(now)
+        target.updated_at = now_text
         target.amount_wei = str(ticket_payload.amount_wei)
         target.fee_wei = str(ticket_payload.fee_wei)
         target.nonce = ticket_payload.nonce
@@ -874,7 +886,7 @@ class ProviderWithdrawService(
         request_meta: Optional[Dict[str, Any]],
         ticket_payload: PreparedWithdrawTicket,
     ) -> tuple[WithdrawalIntentRow, Dict[str, Any]]:
-        now = int(time.time())
+        now_text = now_dt_str()
         withdrawal_id = str(uuid4())
         status = (
             "PENDING_MANUAL_REVIEW"
@@ -902,8 +914,8 @@ class ProviderWithdrawService(
             businessType="withdraw",
             riskLevel="yellow" if ticket_payload.requires_manual_review else "green",
             idempotencyKey=idempotency_key,
-            createdAt=str(now),
-            updatedAt=str(now),
+            createdAt=now_text,
+            updatedAt=now_text,
             requestMeta=self._operation_context_metadata(request_meta),
             message=message,
             ticket=self._withdrawal_ticket_metadata(ticket_payload.ticket),
@@ -1164,10 +1176,11 @@ class ProviderWithdrawService(
             self._consume_locked_withdraw_amount(owner, amount_usdc)
 
             now = int(time.time())
+            now_text = now_dt_str()
             target.status = "COMPLETED"
             target.tx_hash = normalized_tx_hash
             target.completed_at = now
-            target.updated_at = str(now)
+            target.updated_at = now_text
             target.complete_meta = self._operation_context_metadata(request_meta)
             self._save_withdrawal_rows(rows)
 

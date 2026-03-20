@@ -1085,6 +1085,32 @@ def test_gateway_state_repository_reads_withdrawals_from_owner_accounts() -> Non
     assert "JOIN synapse_owners owner" not in read_sql
 
 
+def test_gateway_state_repository_normalizes_epoch_string_withdraw_timestamps() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+
+    repo.write_provider_withdrawal_rows(
+        [
+            WithdrawalIntentRow(
+                id="wd-epoch-text",
+                ownerAddress="0xabc",
+                amountUsdc=Decimal("2.5"),
+                status="APPROVED_AUTO",
+                createdAt="1774012466",
+                updatedAt="1774012466",
+            )
+        ],
+        updated_at="1774012466",
+    )
+
+    params_list = [
+        params for cur in db.tx_cursors for _, params in cur.executed if params is not None
+    ]
+    flat_text = "\n".join(str(params) for params in params_list)
+    assert "1774012466" not in flat_text
+    assert "2026-03-20 13:14:26" in flat_text
+
+
 def test_balance_redis_guard_accepts_typed_deposit_rows_for_replay_check() -> None:
     class _Guard(BalanceRedisGuardMixin):
         def __init__(self):
