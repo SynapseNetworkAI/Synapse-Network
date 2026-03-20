@@ -119,6 +119,10 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query '名人名言'
 
 当前脚本默认会为每次执行自动生成新的 `request_id` 和 `idempotency_key`。这点非常关键，因为如果你总是复用固定幂等键，你看到的很可能是旧调用结果，不是一次新的真实请求。
 
+如果联调失败，不要只看一行异常。现在可以直接加上 `--print-curl`，脚本会把 discovery / quote / invoke 三段请求分别打印成可复打的 curl 命令，并保留 `request_id` / `idempotency_key` 方便去 gateway 日志里串联同一条调用。
+
+即使 discovery 返回 0 条结果，脚本现在也会走同一套失败诊断输出，告诉你当前卡在 discovery 阶段，并把 discovery curl 原样打印出来方便复打。
+
 这个 smoke test 的前提：
 
 1. 本地 gateway 已启动
@@ -151,6 +155,25 @@ cd /Users/cliff/workspace/Synapse-Network/sdk/python
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'
 PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query '名人名言' --skip-invoke
 ```
+
+如果你要在失败时拿到更强的复现信息：
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY='agt_xxx_your_real_key'
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
+    --query '名人名言' \
+    --print-curl
+```
+
+脚本现在会额外输出：
+
+1. 当前卡在 `discovery` / `quote` / `invoke` / `poll receipt` 哪一层
+2. 当前运行使用的 `request_id`
+3. 当前运行使用的 `idempotency_key`
+4. 当前选中的 `service_id`
+5. 对应阶段的 curl 复打命令
+6. 一段简短的人话诊断建议
 
 ### 3.4 一条能打通真实链路的最短操作路径
 

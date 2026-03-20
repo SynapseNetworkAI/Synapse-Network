@@ -58,8 +58,26 @@ class AgentDiscoveryQueryRecord(BaseModel):
 
     query: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
-    limit: int = 10
+    page: int = 1
+    page_size: int = Field(default=10, alias="pageSize")
     sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
+
+    @property
+    def normalized_query(self) -> Optional[str]:
+        value = str(self.query or "").strip()
+        return value or None
+
+    @property
+    def normalized_tags(self) -> list[str]:
+        return [str(tag).strip() for tag in self.tags if str(tag).strip()]
+
+    @property
+    def effective_page(self) -> int:
+        return max(1, int(self.page or 1))
+
+    @property
+    def effective_page_size(self) -> int:
+        return max(1, int(self.page_size or 10))
 
 
 class PublicServiceDiscoveryRecord(BaseModel):

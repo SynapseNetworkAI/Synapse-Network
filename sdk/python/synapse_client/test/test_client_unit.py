@@ -38,6 +38,10 @@ def test_discover_services_passes_intent_and_parses_response(monkeypatch):
         return DummyResponse(
             json_data={
                 "requestId": "disc_123",
+                "page": 1,
+                "pageSize": 10,
+                "totalCount": 1,
+                "hasMore": False,
                 "count": 1,
                 "results": [
                     {
@@ -70,6 +74,10 @@ def test_discover_services_passes_intent_and_parses_response(monkeypatch):
 
     assert result.count == 1
     assert result.request_id == "disc_123"
+    assert result.page == 1
+    assert result.page_size == 10
+    assert result.total_count == 1
+    assert result.has_more is False
     assert result.services[0].serviceId == "svc_quotes_famous_top3"
     assert str(result.services[0].price_usdc) == "0.05"
     assert calls == [
@@ -82,7 +90,8 @@ def test_discover_services_passes_intent_and_parses_response(monkeypatch):
             "json": {
                 "query": "quotes",
                 "tags": ["quotes"],
-                "limit": 10,
+                "page": 1,
+                "pageSize": 10,
                 "sort": "best_match",
             },
             "timeout": 12,

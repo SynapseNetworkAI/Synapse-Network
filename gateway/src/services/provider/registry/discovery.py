@@ -130,15 +130,34 @@ async def search_agent_discovery(
     scoped_services = [
         svc
         for svc in available_services
-        if service_matches_agent_search(svc, query.query, query.tags)
+        if service_matches_agent_search(svc, query.normalized_query, query.normalized_tags)
     ]
 
     ordered = sorted_discovery_services(scoped_services, query)
-    limited = ordered[: max(1, int(query.limit or 10))]
+    start = (query.effective_page - 1) * query.effective_page_size
+    end = start + query.effective_page_size
+    limited = ordered[start:end]
     return [
         public_service_discovery_record(svc, public_gateway_url)
         for svc in limited
     ]
+
+
+async def count_agent_discovery_results(
+    context: RegistryContext,
+    query: AgentDiscoveryQueryRecord,
+) -> int:
+    await asyncio.sleep(0)
+    rows = context._load_service_registry_rows()
+    available_services = [
+        row for row in rows if service_health_service.is_service_discoverable(row)
+    ]
+    scoped_services = [
+        svc
+        for svc in available_services
+        if service_matches_agent_search(svc, query.normalized_query, query.normalized_tags)
+    ]
+    return len(scoped_services)
 
 
 async def list_owner_services(context: RegistryContext, owner_wallet: str) -> List[Dict[str, Any]]:

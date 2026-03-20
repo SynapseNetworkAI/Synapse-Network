@@ -121,7 +121,7 @@ CLI 不适合作为外部 Agent 的正式 runtime integration surface，因为�
 
 ### 6.1 标准闭环
 
-1. `discover_services(intent, tags, limit=..., sort=...)`
+1. `discover_services(intent, tags, page=..., page_size=..., sort=...)`
 2. 选择最合适的 `service_id`
 3. `create_quote(service_id, input_preview=...)`
 4. 如果 `budget_check.allowed == false`，立即停止

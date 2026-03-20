@@ -216,6 +216,10 @@ class AgentDiscoverySearchResponse(BaseModel):
     requestId: str
     results: list[PublicServiceDiscoveryRecord]
     count: int
+    page: int
+    pageSize: int
+    totalCount: int
+    hasMore: bool
 
 
 class BudgetCheckResponse(BaseModel):
@@ -500,7 +504,7 @@ def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypa
 
     discovery_results = asyncio.run(
         registry_service.search_agent_discovery(
-            AgentDiscoveryQueryRecord(query="echo", limit=5),
+            AgentDiscoveryQueryRecord(query="echo", pageSize=5),
             public_gateway_url="https://gateway.test/api/v1/gateway/generate",
         )
     )
@@ -558,7 +562,7 @@ def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkey
     )
 
     with _http_runtime_client(monkeypatch, storage) as client:
-        discovery_request = AgentDiscoverySearchRequest(query="echo", limit=5)
+        discovery_request = AgentDiscoverySearchRequest(query="echo", pageSize=5)
         discovery_http = client.post(
             "/api/v1/agent/discovery/search",
             json=discovery_request.model_dump(by_alias=True),
@@ -571,6 +575,10 @@ def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkey
         )
         assert discovery_response.requestId == "req-http-disc-001"
         assert discovery_response.count == 1
+        assert discovery_response.page == 1
+        assert discovery_response.pageSize == 5
+        assert discovery_response.totalCount == 1
+        assert discovery_response.hasMore is False
 
         discovery_result = discovery_response.results[0]
         quote_request = AgentQuoteRequest(
@@ -639,7 +647,7 @@ def test_agent_discovery_supports_query_or_tag_union_matching(monkeypatch) -> No
             json={
                 "query": "svc.echo",
                 "tags": ["missing-tag", "inspiration"],
-                "limit": 5,
+                "pageSize": 5,
                 "sort": "best_match",
             },
             headers={"X-Request-Id": "req-http-disc-search-001"},
@@ -651,4 +659,33 @@ def test_agent_discovery_supports_query_or_tag_union_matching(monkeypatch) -> No
     )
     assert discovery_response.requestId == "req-http-disc-search-001"
     assert discovery_response.count == 1
+    assert discovery_response.totalCount == 1
     assert discovery_response.results[0].service_id == "svc.echo"
+
+
+def test_agent_discovery_supports_empty_query_pagination(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+
+    with _http_runtime_client(monkeypatch, storage) as client:
+        discovery_http = client.post(
+            "/api/v1/agent/discovery/search",
+            json={
+                "query": "",
+                "page": 1,
+                "pageSize": 1,
+                "sort": "best_match",
+            },
+            headers={"X-Request-Id": "req-http-disc-empty-001"},
+        )
+
+    assert discovery_http.status_code == 200
+    discovery_response = AgentDiscoverySearchResponse.model_validate(
+        discovery_http.json()
+    )
+    assert discovery_response.requestId == "req-http-disc-empty-001"
+    assert discovery_response.count == 1
+    assert discovery_response.page == 1
+    assert discovery_response.pageSize == 1
+    assert discovery_response.totalCount == 1
+    assert discovery_response.hasMore is False

@@ -16,7 +16,8 @@ curl -X POST "http://127.0.0.1:8000/api/v1/agent/discovery/search" \
   -d '{
     "query": "famous",
     "tags": [],
-    "limit": 10,
+    "page": 1,
+    "pageSize": 10,
     "sort": "best_match"
   }'
 ```

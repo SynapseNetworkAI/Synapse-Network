@@ -10,6 +10,7 @@ from src.domain.service_contract import (
     ServiceRuntimeHealthRecord,
 )
 from src.services.provider.registry.discovery import (
+    count_agent_discovery_results,
     discover_public_services,
     discover_services,
     health_status,
@@ -179,10 +180,108 @@ async def test_search_agent_discovery_uses_query_and_tag_union(monkeypatch) -> N
 
     rows = await search_agent_discovery(
         context,
-        AgentDiscoveryQueryRecord(query="svc.echo", tags=["inspiration"], limit=10),
+        AgentDiscoveryQueryRecord(query="svc.echo", tags=["inspiration"], pageSize=10),
     )
 
     assert [row.service_id for row in rows] == ["svc.echo", "svc.poem"]
+
+
+@pytest.mark.asyncio
+async def test_search_agent_discovery_blank_query_returns_all_healthy_services(monkeypatch) -> None:
+    context = FakeRegistryContext(
+        [
+            service_definition(
+                "svc.echo",
+                service_name="Echo Service",
+                summary="echo text back",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1710000000000,
+                ),
+            ),
+            service_definition(
+                "svc.poem",
+                service_name="Poem Writer",
+                summary="creative writing service",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1710000000000,
+                ),
+            ),
+        ],
+        [],
+    )
+
+    monkeypatch.setattr(
+        "src.services.provider.registry.discovery.service_health_service.is_service_discoverable",
+        lambda service: True,
+    )
+
+    rows = await search_agent_discovery(
+        context,
+        AgentDiscoveryQueryRecord(query="", pageSize=10),
+    )
+
+    assert [row.service_id for row in rows] == ["svc.echo", "svc.poem"]
+
+
+@pytest.mark.asyncio
+async def test_search_agent_discovery_supports_pagination(monkeypatch) -> None:
+    context = FakeRegistryContext(
+        [
+            service_definition(
+                "svc.alpha",
+                service_name="Alpha Service",
+                summary="alpha",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1710000000000,
+                ),
+            ),
+            service_definition(
+                "svc.beta",
+                service_name="Beta Service",
+                summary="beta",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1710000000000,
+                ),
+            ),
+            service_definition(
+                "svc.gamma",
+                service_name="Gamma Service",
+                summary="gamma",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1710000000000,
+                ),
+            ),
+        ],
+        [],
+    )
+
+    monkeypatch.setattr(
+        "src.services.provider.registry.discovery.service_health_service.is_service_discoverable",
+        lambda service: True,
+    )
+
+    query = AgentDiscoveryQueryRecord(query="", page=2, pageSize=1)
+    total_count = await count_agent_discovery_results(context, query)
+    rows = await search_agent_discovery(context, query)
+
+    assert total_count == 3
+    assert len(rows) == 1
+    assert rows[0].service_id == "svc.beta"
 
 
 @pytest.mark.asyncio

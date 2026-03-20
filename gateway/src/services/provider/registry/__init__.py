@@ -5,6 +5,7 @@ from .registration import (
     update_service,
 )
 from .discovery import (
+    count_agent_discovery_results,
     discover_public_services,
     discover_services,
     health_status,
@@ -15,6 +16,7 @@ from .discovery import (
 from .health_history import service_health_history
 
 __all__ = [
+    "count_agent_discovery_results",
     "delete_service",
     "discover_public_services",
     "discover_services",

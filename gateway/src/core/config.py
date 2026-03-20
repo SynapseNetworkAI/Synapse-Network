@@ -68,19 +68,8 @@ def _load_usdc_address_from_contract_config() -> str:
         return ""
 
 
-def _default_runtime_storage_dir() -> str:
-    # Shared runtime storage root for all JSON persistence artifacts.
-    return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "runtime_storage")
-    )
-
-
 def _sdk_root_dir() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-
-
-def _runtime_path(filename: str) -> str:
-    return os.path.join(_default_runtime_storage_dir(), filename)
 
 
 def _resolve_env_file_path(env_file: str) -> str:
@@ -335,8 +324,6 @@ class Settings:
     # Optional contract address used by compatibility paths.
     contract_address: str = os.getenv("CONTRACT_ADDRESS", "")
 
-    # Runtime artifact directory is fixed to sdk/runtime_storage (not env-configurable).
-    runtime_storage_dir: str = _default_runtime_storage_dir()
     # Storage backend switch. Only "postgres" is supported.
     storage_backend: str = (
         os.getenv("STORAGE_BACKEND", "postgres").strip().lower() or "postgres"
@@ -554,51 +541,6 @@ class Settings:
     # Dedicated port for gateway/provider_fastapi.py launcher compatibility.
     provider_api_port: int = _env_int("PROVIDER_API_PORT", 8000)
 
-    # Runtime JSON path: service registry.
-    service_registry_path: str = os.getenv(
-        "SERVICE_REGISTRY_PATH", _runtime_path("service_registry.json")
-    )
-    # Runtime JSON path: agent registry.
-    agent_registry_path: str = os.getenv(
-        "AGENT_REGISTRY_PATH", _runtime_path("agent_registry.json")
-    )
-    # Runtime JSON path: agent credential records.
-    agent_credentials_path: str = os.getenv(
-        "AGENT_CREDENTIALS_PATH", _runtime_path("agent_credentials.json")
-    )
-    # Runtime JSONL path: audit events.
-    audit_log_path: str = os.getenv("AUDIT_LOG_PATH", _runtime_path("audit_log.jsonl"))
-    # Runtime JSON path: consumer/provider/platform balances.
-    balance_ledger_path: str = os.getenv(
-        "BALANCE_LEDGER_PATH", _runtime_path("balance_ledger.json")
-    )
-    # Runtime JSON path: usage logs.
-    usage_log_path: str = os.getenv("USAGE_LOG_PATH", _runtime_path("usage_log.json"))
-    # Runtime JSON path: deposit intents.
-    deposit_intents_path: str = os.getenv(
-        "DEPOSIT_INTENTS_PATH", _runtime_path("deposit_intents.json")
-    )
-    # Runtime JSON path: legacy deposit cursor.
-    deposit_event_cursor_path: str = os.getenv(
-        "DEPOSIT_EVENT_CURSOR_PATH", _runtime_path("deposit_event_cursor.json")
-    )
-    # Runtime JSON path: processed deposit event keys.
-    deposit_event_processed_path: str = os.getenv(
-        "DEPOSIT_EVENT_PROCESSED_PATH", _runtime_path("deposit_event_processed.json")
-    )
-    # Runtime JSON path: refund intents.
-    refund_intents_path: str = os.getenv(
-        "REFUND_INTENTS_PATH", _runtime_path("refund_intents.json")
-    )
-    # Runtime JSON path: router owner configs.
-    router_config_path: str = os.getenv(
-        "ROUTER_CONFIG_PATH", _runtime_path("router_config.json")
-    )
-    # Runtime JSON path: provider secrets.
-    provider_secrets_path: str = os.getenv(
-        "PROVIDER_SECRETS_PATH", _runtime_path("provider_secrets.json")
-    )
-
     # Standardized payment-layer error metadata.
     error_responses: dict[int, dict[str, str]] = {
         402: {"description": "Payment required or invalid payment proof"},
@@ -632,6 +574,3 @@ class Settings:
 
 
 settings = Settings()
-
-# Ensure runtime artifact directory exists.
-os.makedirs(settings.runtime_storage_dir, exist_ok=True)

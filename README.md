@@ -214,6 +214,6 @@ Synapse-Network/
 
 ## Notes
 
-- Runtime JSON files are centralized under `gateway/runtime_storage/` and ignored from Git.
+- Gateway runtime state is stored in PostgreSQL; `runtime_storage/` is no longer part of the active persistence path.
 - For architecture and protocol details, start from [docs/README.md](docs/README.md).
 
