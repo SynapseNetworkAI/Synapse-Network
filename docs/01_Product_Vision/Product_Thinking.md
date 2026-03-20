@@ -9,7 +9,7 @@
 - `doc/feature_designs/frontend_product/Homepage_V2_Functional_Design.md`
 
 3. Agent 执行与风格规则（协作规范）
-- `doc/agent.md`
+- `doc/agents.md`
 
 > 规则：
 > - `Design.md` 只保留“品味、基调、原则、美学”。

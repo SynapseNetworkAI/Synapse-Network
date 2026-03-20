@@ -130,6 +130,81 @@ def _clamp_rate(value: Any, fallback: Optional[float] = None) -> float:
     return float(rate)
 
 
+def _usage_log_sort_key(row: UsageLogRow) -> tuple[int, str]:
+    return (int(row.ts or 0), str(row.id or ""))
+
+
+def _usage_log_matches_query(row: UsageLogRow, query: str) -> bool:
+    needle = str(query or "").strip().lower()
+    if not needle:
+        return True
+    haystacks = [
+        str(row.id or "").lower(),
+        str(row.agent_id or "").lower(),
+        str(row.request_id or "").lower(),
+        str(row.origin_request_id or "").lower(),
+        str(row.service_id or "").lower(),
+        str(row.consumer_address or "").lower(),
+        str(row.provider_address or "").lower(),
+        str(row.status or "").lower(),
+    ]
+    return any(needle in value for value in haystacks if value)
+
+
+def _normalize_usage_log_rows(raw_rows: Any) -> list[UsageLogRow]:
+    rows: list[UsageLogRow] = []
+    if not isinstance(raw_rows, list):
+        return rows
+    for row in raw_rows:
+        if isinstance(row, UsageLogRow):
+            rows.append(row)
+        elif isinstance(row, dict):
+            rows.append(UsageLogRow.model_validate(row))
+    return rows
+
+
+def _filter_owner_usage_logs(
+    rows: list[UsageLogRow],
+    owner_wallet: str,
+    status: Optional[str],
+    query: Optional[str],
+) -> list[UsageLogRow]:
+    owner = str(owner_wallet or "").lower()
+    normalized_status = str(status or "").strip().lower()
+    filtered: list[UsageLogRow] = []
+    for row in rows:
+        owner_address = str(row.consumer_address or "").lower()
+        provider_address = str(row.provider_address or "").lower()
+        if owner_address != owner and provider_address != owner:
+            continue
+        if normalized_status and str(row.status or "").strip().lower() != normalized_status:
+            continue
+        if not _usage_log_matches_query(row, str(query or "")):
+            continue
+        filtered.append(row)
+    filtered.sort(key=_usage_log_sort_key, reverse=True)
+    return filtered
+
+
+def _build_usage_logs_response(
+    rows: list[UsageLogRow],
+    *,
+    total: int,
+    page: int,
+    page_size: int,
+    has_more: bool,
+) -> dict[str, Any]:
+    return {
+        "status": "success",
+        "logs": [row.model_dump(by_alias=True, mode="json") for row in rows],
+        "count": len(rows),
+        "total": total,
+        "page": page,
+        "pageSize": page_size,
+        "hasMore": has_more,
+    }
+
+
 def _normalize_fee_policy_payload(
     payload: Dict[str, Any], default_fallback: float
 ) -> Dict[str, Any]:
@@ -390,29 +465,36 @@ async def list_finance_audit_logs(
 async def get_usage_logs(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     storage: Annotated[BaseStorage, Depends(get_storage)],
-    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    limit: Annotated[Optional[int], Query(ge=1, le=500)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
+    status: Annotated[Optional[str], Query(min_length=1, max_length=32)] = None,
+    query: Annotated[Optional[str], Query(min_length=1, max_length=128)] = None,
 ):
     raw_rows = storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
-    rows = []
-    if isinstance(raw_rows, list):
-        for row in raw_rows:
-            if isinstance(row, UsageLogRow):
-                rows.append(row)
-            elif isinstance(row, dict):
-                rows.append(UsageLogRow.model_validate(row))
-    owner = owner_wallet.lower()
-    filtered = []
-    for row in rows:
-        owner_address = str(row.consumer_address or "").lower()
-        provider_address = str(row.provider_address or "").lower()
-        if owner_address == owner or provider_address == owner:
-            filtered.append(row.model_dump(by_alias=True, mode="json"))
+    rows = _normalize_usage_log_rows(raw_rows)
+    filtered = _filter_owner_usage_logs(rows, owner_wallet, status, query)
 
-    return {
-        "status": "success",
-        "logs": filtered[:limit],
-        "count": len(filtered[:limit]),
-    }
+    if limit is not None:
+        page_rows = filtered[:limit]
+        return _build_usage_logs_response(
+            page_rows,
+            total=len(filtered),
+            page=1,
+            page_size=limit,
+            has_more=len(filtered) > limit,
+        )
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_rows = filtered[start:end]
+    return _build_usage_logs_response(
+        page_rows,
+        total=len(filtered),
+        page=page,
+        page_size=page_size,
+        has_more=end < len(filtered),
+    )
 
 
 @router.get("/v1/providers/earnings/summary")

@@ -518,6 +518,7 @@ async def _execute_invocation_pipeline(
         usage_row=UsageLogRow(
             id=invocation.invocation_id,
             ts=credential_service.now_ts(),
+            agentId=credential.agent.agent_id,
             requestId=trace_request_id,
             serviceId=service.service_id,
             consumerAddress=credential_service.credential_owner_wallet(credential),

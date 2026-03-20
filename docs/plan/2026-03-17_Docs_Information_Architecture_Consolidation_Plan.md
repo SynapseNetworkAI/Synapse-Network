@@ -32,7 +32,7 @@
 ## 3. 当前 canonical 文档集合
 
 ### 业务核心
-- `docs/agent.md`
+- `docs/agents.md`
 - `docs/Design.md`
 - `docs/agent/01_Agent_Runtime_Product_Architecture.md`
 - `docs/agent/05_Dashboard_IA_and_Onboarding.md`
@@ -102,7 +102,7 @@
 ### 业务核心
 - `01_Product_Vision/`
 - `agent/`
-- `agent.md`
+- `agents.md`
 
 ### 后端
 - `02_System_Architecture/`

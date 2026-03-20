@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${APP_DIR}/../.." && pwd)"
 LOG_DIR="${APP_DIR}/logs"
 RUN_DIR="${APP_DIR}/run"
 PID_FILE="${RUN_DIR}/gateway-admin.pid"
@@ -38,7 +39,7 @@ resolve_python_bin() {
     echo "${APP_DIR}/.venv/bin/python"
     return 0
   fi
-  command -v python3
+  bash "${REPO_ROOT}/scripts/python/resolve_python_311.sh"
 }
 
 resolve_uvicorn_bin() {

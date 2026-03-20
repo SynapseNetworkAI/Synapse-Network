@@ -122,7 +122,7 @@ export default function ProviderHealthPage() {
     bodyContent = (
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-10 text-center text-[#86868b]">
         <Server className="mx-auto mb-3 h-8 w-8 text-[#3d3d3f]" />
-        Select a service to inspect target health trends.
+        Select an API service to inspect runtime target health trends.
       </div>
     );
   } else if (history.targets.length === 0) {
@@ -143,14 +143,14 @@ export default function ProviderHealthPage() {
         <div>
           <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
             <Activity className="w-8 h-8 text-[#22c55e]" />
-            Provider Health Console
+            API Service Health
           </h1>
           <p className="mt-2 text-sm text-[#86868b]">
-            24h health curve and latency jitter distribution per target.
+            24h runtime health curve and latency jitter distribution for targets behind each API service.
           </p>
         </div>
         <Link
-          href="/provider/nodes"
+          href="/provider/services"
           className="inline-flex items-center gap-2 rounded-lg border border-[#333333] px-4 py-2 text-sm text-[#d1d1d4] hover:border-white hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -159,7 +159,7 @@ export default function ProviderHealthPage() {
       </div>
 
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <label htmlFor="health-service-select" className="text-xs tracking-wide text-[#86868b] uppercase">Service</label>
+        <label htmlFor="health-service-select" className="text-xs tracking-wide text-[#86868b] uppercase">API Service</label>
         <select
           id="health-service-select"
           value={selectedServiceId}

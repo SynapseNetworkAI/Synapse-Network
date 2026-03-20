@@ -1,1 +1,1 @@
-export { default } from "../../dashboard/provider/nodes/page";
+export { default } from "../../dashboard/provider/services/page";

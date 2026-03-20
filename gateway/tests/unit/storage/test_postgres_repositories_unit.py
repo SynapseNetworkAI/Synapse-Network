@@ -756,7 +756,7 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
 def test_gateway_state_repository_read_and_write() -> None:
     db = FakeDB()
     db.readonly_plan.append({"fetchall": [[(
-        "dep-1", "0xabc", "0xtx", "req-1", {"ownerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("1.0"), "PENDING", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
+        "dep-1", "0xabc", "0xtx1", "req-1", {"consumerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("5.0"), "CONFIRMED", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
     )]]})
     db.readonly_plan.append({"fetchall": [[(
         "ref-1", "0xabc", "0xtx2", "REQUESTED", "req-2", Decimal("0.5"), "sig-r", 9, 999, "2026-03-15 14:24:02", "2026-03-15 14:24:03", {"flowStatus": "PENDING", "consumerAddress": "0xabc", "idempotencyKey": "idem-2", "originRequestId": "req-1", "requestMeta": {"requestId": "req-2", "traceId": "trace-refund-1"}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "ok", "reviewedAt": 1711111111, "completeMeta": {"requestId": "req-complete-ref-1"}}
@@ -766,7 +766,7 @@ def test_gateway_state_repository_read_and_write() -> None:
     )]]})
     db.readonly_plan.append({"fetchall": [[("0xabc", Decimal("100"), "2026-03-15 14:24:06", "2026-03-15 14:24:07")]]})
     db.readonly_plan.append({"fetchall": [[(
-        "usage-1", "req-u", "svc-1", "SUCCEEDED", Decimal("1.11"), "2026-03-15 14:24:08", {"ownerAddress": "0xb", "providerAddress": "0xs", "requestId": "req-u", "unitPrice": "1", "protocolFee": "0.1", "routingTax": "0.01", "totalCharge": "1.11", "businessType": "charge", "riskLevel": "green"}
+        "usage-1", "agent-1", "req-u", "svc-1", "SUCCEEDED", Decimal("1.11"), "2026-03-15 14:24:08", "2026-03-15 14:24:10", "2026-03-15 14:24:08", {"ownerAddress": "0xb", "providerAddress": "0xs", "requestId": "req-u", "unitPrice": "1", "protocolFee": "0.1", "routingTax": "0.01", "totalCharge": "1.11", "businessType": "charge", "riskLevel": "green"}
     )]]})
     db.readonly_plan.append({"fetchall": [[("ek-1",)]]})
     repo = GatewayStateRepository(db, _q6)
@@ -789,6 +789,8 @@ def test_gateway_state_repository_read_and_write() -> None:
     assert abs(router_rows[0].daily_limit_usdc - 100.0) < 1e-9
     usage_rows = repo.read_invocation_billing_rows()
     assert len(usage_rows) == 1 and usage_rows[0].id == "usage-1"
+    assert usage_rows[0].agent_id == "agent-1"
+    assert usage_rows[0].latency_ms == 2000
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
 
 
@@ -946,7 +948,7 @@ def test_gateway_state_repository_write_paths() -> None:
         RouterConfigRow(ownerAddress="0xA", dailyLimitUsdc=10, createdAt="2026-03-15 14:26:02", updatedAt="2026-03-15 14:26:03")
     ], updated_at="2026-03-15 14:26:02")
     repo.write_invocation_billing_rows([
-        UsageLogRow(id="usage-2", ts=124, consumerAddress="0xA", providerAddress="0xB", totalCharge=1, businessType="charge", riskLevel="green")
+        UsageLogRow(id="usage-2", ts=124, agentId="agent-2", consumerAddress="0xA", providerAddress="0xB", totalCharge=1, latencyMs=875, businessType="charge", riskLevel="green")
     ])
     repo.write_processed_deposit_event_keys(["ek-2"], updated_at="2026-03-15 14:26:03")
 
@@ -965,6 +967,8 @@ def test_gateway_state_repository_write_paths() -> None:
     assert "sig-wd-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_router_config" in tx_sql
     assert "invocation_billing::usage-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
+    assert "agent-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
+    assert "875" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_processed_deposit_events" in tx_sql
 
 

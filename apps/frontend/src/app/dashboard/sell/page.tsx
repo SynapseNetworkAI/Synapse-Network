@@ -56,7 +56,7 @@ export default function SellDashboard() {
             Provider Console
           </h1>
           <p className="mt-4 text-[#86868b] font-medium tracking-wide text-sm md:text-base">
-            Deploy API Manifests. Wrap with SDK. Accumulate zero-gas billing and settle to Synapse Vault.
+            Define API services, publish service definitions, wrap with SDK, and settle zero-gas billing to Synapse Vault.
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -65,7 +65,7 @@ export default function SellDashboard() {
             className="hidden md:flex items-center px-6 py-3 text-sm font-bold text-black transition-colors bg-white rounded-xl hover:bg-gray-200"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Deploy Manifest
+            New Service
           </button>
           <button
             onClick={handleRefresh}
@@ -142,7 +142,7 @@ export default function SellDashboard() {
         {/* Metric 4 */}
         <div className="p-6 bg-[#0a0a0a] border border-[#222222] rounded-3xl group hover:border-[#444444] transition-colors relative overflow-hidden flex flex-col justify-between">
           <h3 className="text-[10px] text-[#86868b] font-semibold uppercase tracking-[0.2em] mb-4 flex items-center justify-between">
-            Active Nodes
+            Active Services
             <Server className="w-4 h-4" />
           </h3>
           <div className="flex items-center gap-3">
@@ -160,7 +160,7 @@ export default function SellDashboard() {
             )}
           </div>
           <p className="mt-3 text-[11px] text-[#86868b] tracking-wide uppercase">
-            Endpoint Availability
+            Runtime Availability
           </p>
         </div>
       </div>
@@ -224,15 +224,15 @@ export default function SellDashboard() {
               <span className="text-xl font-mono font-[800] text-[#22c55e]">02</span>
               <Server className="w-6 h-6 text-[#22c55e]" />
             </div>
-            <h3 className="text-xl font-bold text-[#ffffff] mb-3">Publish API</h3>
+            <h3 className="text-xl font-bold text-[#ffffff] mb-3">Publish API Service</h3>
             <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm group-hover:text-[#e5e5ea] transition-colors">
-              Publish service manifest to marketplace and start metered routing in one shot.
+              Publish an API service definition to the marketplace and start metered runtime routing in one shot.
             </p>
             <button 
               onClick={handlePublishClick}
               className="w-full py-4 text-sm font-bold border border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e] hover:text-[#000000] transition-all bg-[#000000] rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.1)] flex items-center justify-center gap-2"
             >
-              Deploy <ArrowRight className="w-4 h-4" />
+              Create Service <ArrowRight className="w-4 h-4" />
             </button>
           </div>
           </div>

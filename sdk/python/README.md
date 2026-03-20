@@ -17,7 +17,14 @@ That means an agent can discover a service, preflight budget and constraints, in
 pip install synapse-client
 ```
 
-*(If you are developing locally, install via `pip install -e .` from within the root directory)*
+If you are developing locally, create a dedicated SDK virtual environment from `sdk/python` and install there:
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
 
 ## Usage
 
@@ -28,16 +35,60 @@ For local gateway validation, use the executable example instead of running pack
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
 export SYNAPSE_API_KEY="agt_xxxxx..."
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python examples/smoke_test.py --query "名人名言"
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "名人名言"
 ```
+
+`examples/smoke_test.py` drives the real runtime path:
+
+1. `POST /api/v1/agent/discovery/search`
+2. `POST /api/v1/agent/quotes`
+3. `POST /api/v1/agent/invocations`
+4. `GET /api/v1/agent/invocations/{invocationId}` when polling is needed
+
+By default, the script now auto-generates a fresh `request_id` and `idempotency_key` for each run so repeated smoke tests create a real new invocation instead of replaying an older one.
 
 If you already know the service id, skip discovery:
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
 export SYNAPSE_API_KEY="agt_xxxxx..."
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python examples/smoke_test.py --service-id svc_quotes_famous_top3
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --service-id svc_quotes_famous_top3
 ```
+
+If you want to send a structured request body instead of the default `{\"text\": ...}` payload:
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY="agt_xxxxx..."
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
+    --service-id svc_quotes_famous_top3 \
+    --payload-json '{"topic":"perseverance","style":"short"}'
+```
+
+### End-to-end local validation
+
+Use this when you want to confirm the full SDK -> gateway -> provider chain rather than only validating package import or unit tests.
+
+1. Start or restart the local gateway.
+2. Ensure there is at least one discoverable healthy service behind the gateway.
+3. Export a real agent credential into `SYNAPSE_API_KEY`.
+4. Run the smoke test from `sdk/python`.
+5. Confirm the script prints `Invocation succeeded` and returns a non-empty `invocationId` in the final JSON.
+
+Example:
+
+```bash
+sh /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
+
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY="agt_xxxxx..."
+export SYNAPSE_GATEWAY="http://127.0.0.1:8000"
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
+    --query "名人名言" \
+    --text "想要放弃的时候，请给我一句关于坚持的名人名言"
+```
+
+The script prints the resolved gateway, generated `request_id`, generated `idempotency_key`, discovery results, selected service, and the raw invocation response. Keep the printed identifiers if you need to correlate the run with gateway logs.
 
 ### Recommended: discover -> quote -> invoke
 

@@ -125,7 +125,7 @@ export default function DiscoveryConsolePage() {
             <Compass className="h-6 w-6 text-blue-400" />
             Discovery
           </h1>
-          <p className="mt-1 text-sm text-gray-500">Registered services available for discovery.</p>
+          <p className="mt-1 text-sm text-gray-500">Agent-facing API services and service definitions available for discovery.</p>
         </div>
       </div>
 
@@ -189,8 +189,8 @@ export default function DiscoveryConsolePage() {
         <div className="border-b border-white/5 px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="font-medium text-gray-300">Api Services list</div>
-              <div className="mt-1 text-xs text-gray-500">Showing online services returned from the gateway discovery API.</div>
+              <div className="font-medium text-gray-300">API Services</div>
+              <div className="mt-1 text-xs text-gray-500">Showing agent-facing services and service definitions returned from the gateway discovery API.</div>
             </div>
             <div>Page {currentPage} / {totalPages}</div>
           </div>

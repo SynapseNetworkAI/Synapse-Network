@@ -309,6 +309,7 @@ class UsageLogRow(BaseModel):
 
     id: str
     ts: int
+    agent_id: Optional[str] = Field(default=None, alias="agentId")
     request_id: Optional[str] = Field(default=None, alias="requestId")
     origin_request_id: Optional[str] = Field(default=None, alias="originRequestId")
     origin_tx_hash: Optional[str] = Field(default=None, alias="originTxHash")
@@ -328,6 +329,7 @@ class UsageLogRow(BaseModel):
     protocol_fee: Optional[Decimal] = Field(default=None, alias="protocolFee")
     routing_tax: Optional[Decimal] = Field(default=None, alias="routingTax")
     total_charge: Optional[Decimal] = Field(default=None, alias="totalCharge")
+    latency_ms: Optional[int] = Field(default=None, alias="latencyMs")
     business_type: Literal[
         "deposit", "charge", "refund", "withdraw", "freeze", "unfreeze"
     ] = Field(default="charge", alias="businessType")

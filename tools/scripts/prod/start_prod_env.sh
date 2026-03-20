@@ -12,17 +12,19 @@ find_pid_by_port() {
   lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "Error: python3 is not installed."
+if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_311.sh" ]]; then
+  echo "Error: Python resolver script not found at ${ROOT_DIR}/scripts/python/resolve_python_311.sh"
   exit 1
 fi
 
 cd "${ROOT_DIR}/gateway"
 
-if [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
+if [[ -x "${ROOT_DIR}/gateway/.venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/gateway/.venv/bin/python"
+elif [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
   PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
 else
-  PYTHON_BIN="python3"
+  PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_311.sh")"
 fi
 
 echo "=== Starting Synapse prod profile (gateway/provider_fastapi.py only) ==="
