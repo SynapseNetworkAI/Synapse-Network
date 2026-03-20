@@ -27,7 +27,7 @@ from src.domain.service_contract import (
     ServiceDefinitionRecord,
 )
 from src import app as gateway_app
-from src.services.owner import forwarding_billing, forwarding_service, forwarding_upstream
+from src.services.owner import forwarding_billing, forwarding_service, forwarding_upstream, forwarding_validation
 from src.services.platform import credential_service
 from src.services.provider.registry_service import RegistryService
 
@@ -351,7 +351,7 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
         "get_healthy_target_urls",
-        lambda service: [service.invoke.targets[0].url],
+        lambda service, **_: [service.invoke.targets[0].url],
     )
     monkeypatch.setattr(
         forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
@@ -403,6 +403,16 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.execution.read_invocation(receipt["invocationId"]).status == "SUCCEEDED"
 
 
+def test_find_active_service_hydrates_persisted_health_snapshot() -> None:
+    storage = FakeStorage(_service_definition(), _runtime_credential("agt_1234567890abcdef12345678"))
+
+    service = forwarding_validation.find_active_service(storage, "svc.echo")
+
+    assert service.runtime_health is not None
+    assert service.runtime_health.healthy_targets == 1
+    assert service.runtime_health.targets[0].target_url == "https://provider.test/invoke"
+
+
 def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
@@ -413,7 +423,7 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
         "get_healthy_target_urls",
-        lambda service: [service.invoke.targets[0].url],
+        lambda service, **_: [service.invoke.targets[0].url],
     )
     monkeypatch.setattr(
         forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
@@ -496,7 +506,7 @@ def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypa
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
         "get_healthy_target_urls",
-        lambda service: [service.invoke.targets[0].url],
+        lambda service, **_: [service.invoke.targets[0].url],
     )
     monkeypatch.setattr(
         forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
@@ -555,7 +565,7 @@ def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkey
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
         "get_healthy_target_urls",
-        lambda service: [service.invoke.targets[0].url],
+        lambda service, **_: [service.invoke.targets[0].url],
     )
     monkeypatch.setattr(
         forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
@@ -635,6 +645,82 @@ def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkey
     assert persisted_quote.status == "CONSUMED"
     assert persisted_invocation is not None
     assert persisted_invocation.status == "SUCCEEDED"
+
+
+def test_agent_runtime_http_contract_uses_persisted_health_snapshot_for_discovery_and_invoke(
+    monkeypatch,
+) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
+
+    manifest_service = storage.registry.read_service_registry_rows()[0]
+    assert manifest_service.runtime_health is None
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
+    )
+
+    with _http_runtime_client(monkeypatch, storage) as client:
+        discovery_http = client.post(
+            "/api/v1/agent/discovery/search",
+            json={"query": "echo", "pageSize": 5},
+            headers={"X-Request-Id": "req-http-snapshot-disc-001"},
+        )
+
+        assert discovery_http.status_code == 200
+        discovery_response = AgentDiscoverySearchResponse.model_validate(
+            discovery_http.json()
+        )
+        assert discovery_response.count == 1
+
+        quote_http = client.post(
+            "/api/v1/agent/quotes",
+            json={
+                "serviceId": discovery_response.results[0].service_id,
+                "inputPreview": {
+                    "sample": {"body": {"textLength": 17}},
+                    "payloadSchema": {"body": {}},
+                },
+                "responseMode": "sync",
+            },
+            headers={
+                "X-Credential": raw_token,
+                "X-Request-Id": "req-http-snapshot-quote-001",
+            },
+        )
+
+        assert quote_http.status_code == 200
+        quote_response = AgentQuoteResponse.model_validate(quote_http.json())
+
+        invocation_http = client.post(
+            "/api/v1/agent/invocations",
+            json={
+                "quoteId": quote_response.quoteId,
+                "idempotencyKey": "task-http-snapshot-step-1",
+                "payload": {"body": {"text": "hello typed world"}},
+                "responseMode": "sync",
+            },
+            headers={
+                "X-Credential": raw_token,
+                "X-Request-Id": "req-http-snapshot-invoke-001",
+            },
+        )
+
+        assert invocation_http.status_code == 200
+        invocation_response = AgentInvocationResponse.model_validate(
+            invocation_http.json()
+        )
+        assert invocation_response.status == "SUCCEEDED"
+
+    assert FakeAsyncClient.last_request == {
+        "url": "https://provider.test/invoke",
+        "json": {"text": "hello typed world"},
+        "headers": {"X-Synapse-Request-Id": "task-http-snapshot-step-1"},
+        "timeout": 15.0,
+    }
 
 
 def test_agent_discovery_supports_query_or_tag_union_matching(monkeypatch) -> None:

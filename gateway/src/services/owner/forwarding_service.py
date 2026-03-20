@@ -932,25 +932,21 @@ def _log_upstream_failure(
     error_message: Optional[str] = None,
 ) -> None:
     """Write one failed_upstream usage event with either error code or raw message."""
-    row: Dict[str, Any] = {
-        "request_id": request_id,
-        "consumer": owner_wallet,
-        "provider": provider_wallet,
-        "service_id": service_id,
-        "status": "failed_upstream",
-        "unit_price": settlement["unit_price"],
-        "fee_rate": settlement["fee_rate"],
-        "protocol_fee": settlement["protocol_fee"],
-        "routing_tax": settlement["routing_tax"],
-        "platform_fee_total": settlement["platform_fee_total"],
-        "provider_net": settlement["provider_net"],
-        "total_charge": settlement["total_charge"],
-        "created_at": credential_service.now_ts(),
-    }
-    if error_code:
-        row["error_code"] = error_code
-    if error_message:
-        row["error_msg"] = error_message
+    row = UsageLogRow(
+        id=f"{request_id}:failed_upstream",
+        ts=credential_service.now_ts(),
+        requestId=request_id,
+        serviceId=service_id,
+        consumerAddress=owner_wallet,
+        providerAddress=provider_wallet,
+        status="failed_upstream",
+        unitPrice=round(settlement["unit_price"], 6),
+        protocolFee=round(settlement["protocol_fee"], 6),
+        routingTax=round(settlement["routing_tax"], 6),
+        totalCharge=round(settlement["total_charge"], 6),
+        businessType="charge",
+        riskLevel="green",
+    )
     _append_usage_log(storage, row)
 
 
