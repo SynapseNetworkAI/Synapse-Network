@@ -84,7 +84,7 @@
 
 ### `POST /api/admin/v1/auth/login`
 
-用途：管理员登录，返回第一期占位 token。
+用途：管理员登录，由 `gateway-admin` 通过 `Set-Cookie` 下发 `HttpOnly` session cookie。
 
 请求：
 
@@ -102,8 +102,6 @@
 {
   "success": true,
   "data": {
-    "accessToken": "adm_demo_finance_admin",
-    "tokenType": "bearer",
     "expiresIn": 3600,
     "admin": {
       "adminId": "adm_finance_admin",
@@ -116,9 +114,15 @@
 }
 ```
 
+响应头：
+
+```text
+Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; SameSite=Lax
+```
+
 ### `GET /api/admin/v1/auth/me`
 
-用途：前端恢复登录态，获取当前管理员身份。
+用途：前端基于 `HttpOnly` cookie 恢复登录态，获取当前管理员身份。
 
 响应：
 
@@ -145,6 +149,8 @@
 用途：退出后台会话。
 
 请求体：空。
+
+响应头会清理 `synapse_admin_session` cookie。
 
 ## 3.2 dashboard
 

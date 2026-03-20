@@ -57,7 +57,7 @@ class AdminAuthService:
             mfa_verified_at=now,
             issued_at=now,
             last_seen_at=now,
-            expires_at=now + timedelta(hours=1),
+            expires_at=now + timedelta(seconds=self._settings.admin_session_ttl_sec),
             created_at=now,
         )
         self._store.identity.create_session(session)
@@ -80,6 +80,31 @@ class AdminAuthService:
         return token, admin
 
     def get_current_admin(self, token: str) -> AdminIdentity:
+        session = self._get_active_session(token)
+        return self._build_identity(session.admin_id)
+
+    def logout(self, token: str) -> AdminIdentity:
+        session = self._get_active_session(token)
+        admin = self._build_identity(session.admin_id)
+        self._store.identity.revoke_session(session.session_id)
+        now = datetime.now(timezone.utc)
+        self._store.audit.append_action(
+            AdminActionAudit(
+                action_type="admin.logout.success",
+                result_status=AuditResultStatus.SUCCESS,
+                operator_id=admin.admin_id,
+                operator_email=admin.email,
+                operator_role=admin.role,
+                session_id=session.session_id,
+                resource_type="admin_session",
+                resource_id=session.session_id,
+                detail={},
+                created_at=now,
+            )
+        )
+        return admin
+
+    def _get_active_session(self, token: str) -> AdminSession:
         if not token.startswith(self._settings.token_prefix):
             raise AuthenticationError(INVALID_ADMIN_TOKEN)
         session_id = token.removeprefix(self._settings.token_prefix).strip()
@@ -90,7 +115,7 @@ class AdminAuthService:
             raise AuthenticationError(INVALID_ADMIN_TOKEN)
         if session.expires_at <= datetime.now(timezone.utc):
             raise AuthenticationError("Admin session expired")
-        return self._build_identity(session.admin_id)
+        return session
 
     def _build_identity(self, admin_id: str) -> AdminIdentity:
         user = self._store.identity.get_user_by_id(admin_id)

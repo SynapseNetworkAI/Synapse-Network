@@ -52,6 +52,7 @@
 - 页面统一壳子：`src/components/admin-shell.tsx`
 - CRUD 基础组件：`src/components/crud.tsx`，统一抽出 Toolbar + Table + Drawer 骨架
 - 会话守卫：`src/lib/use-admin-session.ts`
+- 当前会话模型：`gateway-admin` 登录成功后下发 `HttpOnly` session cookie，前端统一通过 `credentials: include` 请求控制面 API，不再把 admin token 落到浏览器 `localStorage`
 - 导航形态：二级 accordion 菜单树，一级分组承载模块域，二级节点承载具体路由
 - 视觉风格：对齐 Gateway Console 的黑色 Web3 dark mode，使用深黑背景、暗金属边框、霓虹绿激活态、`IBM Plex Mono` 展示数字和标识
 
@@ -86,7 +87,7 @@
 
 当前已接入第一版 `gateway-admin` 接口：
 
-- 登录页调用 `/api/admin/v1/auth/login`
+- 登录页调用 `/api/admin/v1/auth/login`，由服务端通过 `Set-Cookie` 建立 `HttpOnly` admin session
 - Dashboard 调用 `/api/admin/v1/auth/me`、`/api/admin/v1/dashboard/overview`、`/api/admin/v1/dashboard/system-status`，以及 3 个稳定读模型接口：`/finance-overview`、`/activity-trends`、`/operations-overview`
 - 审批页调用统一后的 `/api/admin/v1/approvals`，其中已包含 provider manual review projection
 - 提现审核页调用 `/api/admin/v1/withdrawal-reviews` 与 `/api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`
@@ -96,3 +97,8 @@
 - 执行队列页调用 `/api/admin/v1/execution-jobs`、`/api/admin/v1/execution-jobs/{jobId}/retry`
 
 本地开发默认请求 `http://localhost:8300`，可通过环境变量 `NEXT_PUBLIC_ADMIN_API_BASE_URL` 覆盖。
+
+安全备注：
+
+- 当前 cookie 默认策略为 `HttpOnly + SameSite=Lax`，开发环境默认不强制 `Secure`，生产必须开启 HTTPS 并将 `ADMIN_SESSION_COOKIE_SECURE=true`
+- 这次迁移已经切掉浏览器可读 token；下一步应继续补 `CSRF` 防护与更严格的 step-up 校验

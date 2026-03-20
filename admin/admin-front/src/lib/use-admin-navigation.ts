@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { readAdminToken } from "@/lib/admin-session";
 import {
   getVisibleAdminNavigation,
   getVisibleAdminNavigationFromConfig,
@@ -21,18 +20,11 @@ export function useAdminNavigation(admin: AdminProfile): UseAdminNavigationResul
   const [navigation, setNavigation] = useState<AdminNavSection[]>(() => getVisibleAdminNavigation(admin));
 
   useEffect(() => {
-    const token = readAdminToken();
     let cancelled = false;
 
     async function loadNavigation() {
-      if (!token) {
-        if (!cancelled) {
-          setNavigation(getVisibleAdminNavigation(admin));
-        }
-        return;
-      }
       try {
-        const response = await getAdminMenuConfig(token, { stage: "published" });
+        const response = await getAdminMenuConfig("cookie-session", { stage: "published" });
         if (!cancelled) {
           setNavigation(getVisibleAdminNavigationFromConfig(admin, response.items));
         }

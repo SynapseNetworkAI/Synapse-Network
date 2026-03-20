@@ -7,6 +7,19 @@ client = TestClient(app)
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
 
 
+def _login_as(email: str) -> None:
+    client.cookies.clear()
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": email,
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    assert response.status_code == 200
+
+
 def _seed_test_passwords() -> None:
     store = deps.get_store()
     for email in (
@@ -45,7 +58,25 @@ def test_admin_auth_login() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    assert body["data"]["accessToken"].startswith("adm_demo_")
+    assert body["data"]["admin"]["email"] == "ops@synapse.network"
+    assert body["data"]["expiresIn"] == 3600
+    assert "synapse_admin_session=" in response.headers["set-cookie"]
+
+
+def test_admin_auth_me_and_logout_use_cookie_session() -> None:
+    _login_as("ops@synapse.network")
+
+    me_response = client.get("/api/admin/v1/auth/me")
+    assert me_response.status_code == 200
+    assert me_response.json()["data"]["email"] == "ops@synapse.network"
+
+    logout_response = client.post("/api/admin/v1/auth/logout")
+    assert logout_response.status_code == 200
+    assert logout_response.json()["data"]["loggedOut"] is True
+    assert "synapse_admin_session=" in logout_response.headers["set-cookie"]
+
+    me_after_logout = client.get("/api/admin/v1/auth/me")
+    assert me_after_logout.status_code == 401
 
 
 def test_admin_auth_login_rejects_wrong_password() -> None:
@@ -62,27 +93,15 @@ def test_admin_auth_login_rejects_wrong_password() -> None:
 
 
 def test_admin_users_catalog_and_create_user() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "super@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("super@synapse.network")
 
-    roles_response = client.get(
-        "/api/admin/v1/users/roles",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    roles_response = client.get("/api/admin/v1/users/roles")
     assert roles_response.status_code == 200
     role_items = roles_response.json()["data"]["items"]
     assert any(item["roleKey"] == "super_admin" for item in role_items)
 
     create_response = client.post(
         "/api/admin/v1/users",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "email": "new-ops@synapse.network",
             "displayName": "New Ops",
@@ -97,29 +116,17 @@ def test_admin_users_catalog_and_create_user() -> None:
     assert created_admin["email"] == "new-ops@synapse.network"
     assert created_admin["roleKeys"] == ["platform_ops_admin"]
 
-    list_response = client.get(
-        "/api/admin/v1/users",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    list_response = client.get("/api/admin/v1/users")
     assert list_response.status_code == 200
     emails = [item["email"] for item in list_response.json()["data"]["items"]]
     assert "new-ops@synapse.network" in emails
 
 
 def test_admin_users_update_and_disable_user() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "super@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("super@synapse.network")
 
     create_response = client.post(
         "/api/admin/v1/users",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "email": "crud-user@synapse.network",
             "displayName": "CRUD User",
@@ -134,7 +141,6 @@ def test_admin_users_update_and_disable_user() -> None:
 
     update_response = client.patch(
         f"/api/admin/v1/users/{admin_id}",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "displayName": "Updated CRUD User",
             "roleKey": "finance_admin",
@@ -149,17 +155,11 @@ def test_admin_users_update_and_disable_user() -> None:
     assert updated_admin["roleKeys"] == ["finance_admin"]
     assert updated_admin["requireMfa"] is True
 
-    delete_response = client.delete(
-        f"/api/admin/v1/users/{admin_id}",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    delete_response = client.delete(f"/api/admin/v1/users/{admin_id}")
     assert delete_response.status_code == 200
     assert delete_response.json()["data"]["status"] == "disabled"
 
-    filtered_response = client.get(
-        "/api/admin/v1/users?status=disabled&search=crud-user&roleKey=finance_admin",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    filtered_response = client.get("/api/admin/v1/users?status=disabled&search=crud-user&roleKey=finance_admin")
     assert filtered_response.status_code == 200
     filtered_items = filtered_response.json()["data"]["items"]
     assert len(filtered_items) == 1
@@ -167,27 +167,15 @@ def test_admin_users_update_and_disable_user() -> None:
 
 
 def test_admin_roles_crud_flow() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "super@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("super@synapse.network")
 
-    permissions_response = client.get(
-        "/api/admin/v1/users/permissions",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    permissions_response = client.get("/api/admin/v1/users/permissions")
     assert permissions_response.status_code == 200
     permission_keys = [item["permissionKey"] for item in permissions_response.json()["data"]["items"]]
     assert "dashboard:read" in permission_keys
 
     create_response = client.post(
         "/api/admin/v1/users/roles",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "roleKey": "ops_shift_manager",
             "roleName": "Ops Shift Manager",
@@ -203,7 +191,6 @@ def test_admin_roles_crud_flow() -> None:
 
     update_response = client.patch(
         "/api/admin/v1/users/roles/ops_shift_manager",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "roleName": "Ops Shift Lead",
             "description": "Lead for operations shift",
@@ -216,35 +203,20 @@ def test_admin_roles_crud_flow() -> None:
     assert updated_role["roleName"] == "Ops Shift Lead"
     assert "audit:read" in updated_role["permissions"]
 
-    delete_response = client.delete(
-        "/api/admin/v1/users/roles/ops_shift_manager",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    delete_response = client.delete("/api/admin/v1/users/roles/ops_shift_manager")
     assert delete_response.status_code == 200
     assert delete_response.json()["data"]["status"] == "disabled"
 
 
 def test_admin_menu_config_crud_and_publish_flow() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "super@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("super@synapse.network")
 
-    list_response = client.get(
-        "/api/admin/v1/config/menu-items",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    list_response = client.get("/api/admin/v1/config/menu-items")
     assert list_response.status_code == 200
     assert any(item["itemId"] == "dashboard" for item in list_response.json()["data"]["items"])
 
     create_response = client.post(
         "/api/admin/v1/config/menu-items",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "itemId": "ops-copilot",
             "sectionId": "ops-controls",
@@ -264,7 +236,6 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
 
     update_response = client.patch(
         "/api/admin/v1/config/menu-items/ops-copilot",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "sectionId": "ops-controls",
             "sectionLabel": "业务控制",
@@ -280,62 +251,31 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     assert update_response.status_code == 200
     assert any(item["label"] == "运行副驾中心" for item in update_response.json()["data"]["items"])
 
-    publish_response = client.post(
-        "/api/admin/v1/config/menu-items/publish",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    publish_response = client.post("/api/admin/v1/config/menu-items/publish")
     assert publish_response.status_code == 200
     assert publish_response.json()["data"]["meta"]["isDirty"] is False
 
-    published_response = client.get(
-        "/api/admin/v1/config/menu-items?stage=published",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    published_response = client.get("/api/admin/v1/config/menu-items?stage=published")
     assert published_response.status_code == 200
     assert any(item["itemId"] == "ops-copilot" for item in published_response.json()["data"]["items"])
 
-    delete_response = client.delete(
-        "/api/admin/v1/config/menu-items/ops-copilot",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    delete_response = client.delete("/api/admin/v1/config/menu-items/ops-copilot")
     assert delete_response.status_code == 200
     assert all(item["itemId"] != "ops-copilot" for item in delete_response.json()["data"]["items"])
 
 
 def test_published_menu_config_is_available_to_regular_admins() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/config/menu-items?stage=published",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/config/menu-items?stage=published")
     assert response.status_code == 200
     assert any(item["itemId"] == "dashboard" for item in response.json()["data"]["items"])
 
 
 def test_approvals_list_includes_projected_provider_withdraw_reviews() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance-review@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance-review@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/approvals?limit=20",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/approvals?limit=20")
     assert response.status_code == 200
     items = response.json()["data"]["items"]
     projected = [item for item in items if item["approvalType"] == "provider_withdraw_review"]
@@ -345,20 +285,9 @@ def test_approvals_list_includes_projected_provider_withdraw_reviews() -> None:
 
 
 def test_approvals_list_filter_can_select_only_projected_provider_reviews() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance-review@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance-review@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/approvals?approvalType=provider_withdraw_review&status=UNDER_REVIEW&limit=20",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/approvals?approvalType=provider_withdraw_review&status=UNDER_REVIEW&limit=20")
     assert response.status_code == 200
     items = response.json()["data"]["items"]
     assert len(items) >= 1
@@ -367,19 +296,10 @@ def test_approvals_list_filter_can_select_only_projected_provider_reviews() -> N
 
 
 def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance-review@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance-review@synapse.network")
 
     response = client.post(
         "/api/admin/v1/approvals/PWR-wd-demo-review-002/decision",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "decision": "APPROVE",
             "comment": "Projected approval routed to provider manual review flow.",
@@ -392,20 +312,9 @@ def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> 
 
 
 def test_provider_withdraw_review_list_and_decision() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance-review@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance-review@synapse.network")
 
-    list_response = client.get(
-        "/api/admin/v1/withdrawal-reviews?limit=10",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    list_response = client.get("/api/admin/v1/withdrawal-reviews?limit=10")
     assert list_response.status_code == 200
     items = list_response.json()["data"]["items"]
     assert len(items) >= 1
@@ -414,7 +323,6 @@ def test_provider_withdraw_review_list_and_decision() -> None:
 
     decision_response = client.post(
         f"/api/admin/v1/withdrawal-reviews/{first_item['withdrawalId']}/decision",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "decision": "APPROVE",
             "note": "Looks consistent with provider income.",
@@ -425,29 +333,17 @@ def test_provider_withdraw_review_list_and_decision() -> None:
     assert result["reviewDecision"] == "APPROVE"
     assert result["status"] == "APPROVED_AUTO"
 
-    list_after_response = client.get(
-        "/api/admin/v1/withdrawal-reviews?limit=10",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    list_after_response = client.get("/api/admin/v1/withdrawal-reviews?limit=10")
     assert list_after_response.status_code == 200
     remaining_ids = [item["withdrawalId"] for item in list_after_response.json()["data"]["items"]]
     assert first_item["withdrawalId"] not in remaining_ids
 
 
 def test_provider_withdraw_review_decision_requires_permission() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance@synapse.network")
 
     response = client.post(
         "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "decision": "REJECT",
             "note": "Finance admin cannot decide directly.",
@@ -458,26 +354,16 @@ def test_provider_withdraw_review_decision_requires_permission() -> None:
 
 
 def test_draft_menu_config_requires_control_plane_role() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/config/menu-items",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/config/menu-items")
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
 def test_dashboard_requires_auth() -> None:
+    client.cookies.clear()
     response = client.get("/api/admin/v1/dashboard/overview")
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
@@ -485,19 +371,10 @@ def test_dashboard_requires_auth() -> None:
 
 
 def test_approval_submit_forbidden_without_permission() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "audit@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("audit@synapse.network")
 
     response = client.post(
         "/api/admin/v1/approvals",
-        headers={"Authorization": f"Bearer {token}"},
         json={
             "approvalType": "deposit_repair",
             "resourceType": "deposit_intent",
@@ -516,19 +393,10 @@ def test_approval_submit_forbidden_without_permission() -> None:
 
 
 def test_approval_decision_requires_reviewer_role() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance-review@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance-review@synapse.network")
 
     response = client.post(
         "/api/admin/v1/approvals/APR-20260316-001/decision",
-        headers={"Authorization": f"Bearer {token}"},
         json={"decision": "APPROVE", "comment": "approved"},
     )
 
@@ -537,20 +405,9 @@ def test_approval_decision_requires_reviewer_role() -> None:
 
 
 def test_dashboard_overview_uses_store_backed_metrics() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "ops@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("ops@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/dashboard/overview",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/dashboard/overview")
 
     assert response.status_code == 200
     body = response.json()["data"]
@@ -561,20 +418,9 @@ def test_dashboard_overview_uses_store_backed_metrics() -> None:
 
 
 def test_system_status_uses_gateway_projection_snapshot() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "ops@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("ops@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/dashboard/system-status",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/dashboard/system-status")
 
     assert response.status_code == 200
     body = response.json()["data"]
@@ -585,20 +431,9 @@ def test_system_status_uses_gateway_projection_snapshot() -> None:
 
 
 def test_finance_overview_exposes_gateway_finance_projection() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "ops@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("ops@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/dashboard/finance-overview",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/dashboard/finance-overview")
 
     assert response.status_code == 200
     body = response.json()["data"]
@@ -610,20 +445,9 @@ def test_finance_overview_exposes_gateway_finance_projection() -> None:
 
 
 def test_activity_trends_expose_seven_day_projection() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "ops@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("ops@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/dashboard/activity-trends",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/dashboard/activity-trends")
 
     assert response.status_code == 200
     points = response.json()["data"]["points"]
@@ -633,20 +457,9 @@ def test_activity_trends_expose_seven_day_projection() -> None:
 
 
 def test_operations_overview_exposes_gateway_ops_projection() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "ops@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("ops@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/dashboard/operations-overview",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/dashboard/operations-overview")
 
     assert response.status_code == 200
     body = response.json()["data"]
@@ -657,20 +470,9 @@ def test_operations_overview_exposes_gateway_ops_projection() -> None:
 
 
 def test_audit_actions_list_is_available() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "audit@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("audit@synapse.network")
 
-    response = client.get(
-        "/api/admin/v1/audit/actions?resultStatus=failure",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    response = client.get("/api/admin/v1/audit/actions?resultStatus=failure")
 
     assert response.status_code == 200
     items = response.json()["data"]["items"]
@@ -679,37 +481,20 @@ def test_audit_actions_list_is_available() -> None:
 
 
 def test_execution_jobs_list_and_retry() -> None:
-    login_response = client.post(
-        "/api/admin/v1/auth/login",
-        json={
-            "email": "finance-review@synapse.network",
-            "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
-        },
-    )
-    token = login_response.json()["data"]["accessToken"]
+    _login_as("finance-review@synapse.network")
 
-    list_response = client.get(
-        "/api/admin/v1/execution-jobs?status=FAILED",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    list_response = client.get("/api/admin/v1/execution-jobs?status=FAILED")
     assert list_response.status_code == 200
     items = list_response.json()["data"]["items"]
     assert len(items) >= 1
     job_id = items[0]["jobId"]
 
-    retry_response = client.post(
-        f"/api/admin/v1/execution-jobs/{job_id}/retry",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    retry_response = client.post(f"/api/admin/v1/execution-jobs/{job_id}/retry")
 
     assert retry_response.status_code == 200
     assert retry_response.json()["data"]["status"] == "SUCCEEDED"
 
-    jobs_response = client.get(
-        "/api/admin/v1/execution-jobs?approvalId=APR-20260316-003",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    jobs_response = client.get("/api/admin/v1/execution-jobs?approvalId=APR-20260316-003")
     assert jobs_response.status_code == 200
     retried_job = jobs_response.json()["data"]["items"][0]
     assert retried_job["status"] == "SUCCEEDED"

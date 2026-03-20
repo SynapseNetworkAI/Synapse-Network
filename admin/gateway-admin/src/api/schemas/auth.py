@@ -16,7 +16,5 @@ class AdminProfile(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    access_token: str = Field(serialization_alias="accessToken")
-    token_type: str = Field(default="bearer", serialization_alias="tokenType")
     expires_in: int = Field(default=3600, serialization_alias="expiresIn")
     admin: AdminProfile

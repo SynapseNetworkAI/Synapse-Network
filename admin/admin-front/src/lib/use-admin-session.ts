@@ -3,12 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import {
-  clearAdminSession,
-  persistAdminSession,
-  readAdminProfile,
-  readAdminToken,
-} from "@/lib/admin-session";
 import { getCurrentAdmin, type AdminProfile } from "@/services/admin-api";
 
 
@@ -26,36 +20,23 @@ export function useAdminSession(): UseAdminSessionResult {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const currentToken = readAdminToken();
-    const cachedProfile = readAdminProfile();
-    if (!currentToken) {
-      router.replace("/login");
-      setLoading(false);
-      return;
-    }
-    const activeToken = currentToken;
-
-    setToken(activeToken);
-    if (cachedProfile) {
-      setAdmin(cachedProfile);
-    }
-
     let cancelled = false;
 
     async function loadProfile() {
       try {
-        const profile = await getCurrentAdmin(activeToken);
+        const profile = await getCurrentAdmin("cookie-session");
         if (cancelled) {
           return;
         }
         setAdmin(profile);
-        persistAdminSession(activeToken, profile);
+        setToken("cookie-session");
         setLoading(false);
       } catch {
         if (cancelled) {
           return;
         }
-        clearAdminSession();
+        setAdmin(null);
+        setToken(null);
         setLoading(false);
         router.replace("/login");
       }

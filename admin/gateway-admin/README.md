@@ -137,6 +137,10 @@ GATEWAY_INTERNAL_JWT_SECRET=replace-this-with-a-32-byte-minimum-jwt-secret
 GATEWAY_INTERNAL_TOKEN_ISSUER=gateway-admin
 GATEWAY_INTERNAL_TOKEN_AUDIENCE=gateway-internal
 GATEWAY_INTERNAL_SERVICE_SUBJECT=service:gateway-admin
+ADMIN_SESSION_TTL_SEC=3600
+ADMIN_SESSION_COOKIE_NAME=synapse_admin_session
+ADMIN_SESSION_COOKIE_SECURE=false
+ADMIN_SESSION_COOKIE_SAMESITE=lax
 EXECUTION_WORKER_ENABLED=true
 EXECUTION_WORKER_POLL_INTERVAL_SEC=5
 EXECUTION_WORKER_BATCH_SIZE=10
@@ -152,6 +156,7 @@ EXECUTION_WORKER_BATCH_SIZE=10
 - Execution retry 现在不再只是把 job 重新入队，而是会使用内部管理员钱包 JWT 调用 gateway 管理命令，例如 `deposit_repair -> /api/v1/admin/deposits/replay`、`refund_approve -> /api/v1/admin/refunds/{refundId}/complete`、`withdrawal_approve -> /api/v1/admin/providers/withdrawals/{withdrawalId}/complete`，并把成功/失败结果回写到 execution job、attempt 和 approval 状态。
 - Provider 提现人工审核不走旧的 execution complete 路径，而是新增专用 review proxy：`gateway-admin -> /api/admin/v1/withdrawal-reviews/* -> gateway /api/v1/admin/providers/withdrawals/{withdrawalId}/review`。
 - admin -> gateway 内部命令现在使用独立 internal service token，claim 至少包含 `iss / aud / sub / adminWallet / scope / requestId / bodySha256 / actorAdminId / actorRole / jti`，不再复用普通 owner JWT 语义。
+- admin 登录态现在由 `gateway-admin` 下发 `HttpOnly` session cookie；`/api/admin/v1/auth/login` 不再把 access token 回传给浏览器。
 - gateway-admin 现在会在服务启动后自动拉起 execution worker，周期性扫描 `PENDING` execution jobs 并执行，不再依赖手动 retry 才能推进。
 - 新增菜单配置中心后，持久化数据库需要执行 `migrations/003_admin_config_center_schema.sql`，否则 `/api/admin/v1/config/menu-items` 无法在 PostgreSQL 模式下工作。
 
