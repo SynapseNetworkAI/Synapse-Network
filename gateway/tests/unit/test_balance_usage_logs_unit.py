@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 from contextlib import contextmanager
 from decimal import Decimal
 from types import SimpleNamespace
@@ -9,6 +11,7 @@ from fastapi.testclient import TestClient
 from src import app as gateway_app
 from src.domain.finance import UsageLogRow
 from src.services.platform import credential_service
+from src.services.platform.balance_service import BalanceService
 
 
 class InMemoryGatewayStateRepo:
@@ -81,6 +84,50 @@ def _usage_row(
         latencyMs=latency_ms,
         businessType="charge",
     )
+
+
+def test_app_lifespan_runs_provider_withdraw_expiry_reaper_tick(monkeypatch) -> None:
+    storage = FakeStorage([])
+    ticked = threading.Event()
+    tick_count = {"value": 0}
+
+    async def fake_expire_stale_provider_withdrawals(self) -> int:
+        _ = self
+        await asyncio.sleep(0)
+        tick_count["value"] += 1
+        ticked.set()
+        return 0
+
+    monkeypatch.setattr(gateway_app, "create_storage", lambda settings: storage)
+    monkeypatch.setattr(gateway_app, "run_v2_deposit_indexer", _background_loop_until_stopped)
+    monkeypatch.setattr(gateway_app, "run_service_health_monitor", _background_loop_until_stopped)
+    monkeypatch.setattr(
+        gateway_app.settings,
+        "service_health_monitor_enabled",
+        False,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        gateway_app.settings,
+        "provider_withdraw_expiry_reaper_enabled",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        BalanceService,
+        "expire_stale_provider_withdrawals",
+        fake_expire_stale_provider_withdrawals,
+    )
+
+    gateway_app.app.dependency_overrides = {}
+    app = gateway_app.create_app()
+
+    with TestClient(app, base_url="https://gateway.test"):
+        assert ticked.wait(timeout=1.0)
+        assert tick_count["value"] >= 1
+        assert app.state.provider_withdraw_expiry_reaper_task is not None
+
+    assert app.state.provider_withdraw_expiry_reaper_task.done()
 
 
 def test_usage_logs_returns_paginated_owner_scoped_rows() -> None:
