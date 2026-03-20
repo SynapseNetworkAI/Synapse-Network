@@ -61,7 +61,11 @@ def get_admin_config_service() -> AdminConfigService:
 
 @lru_cache(maxsize=1)
 def get_approval_service() -> ApprovalService:
-    return ApprovalService(get_store())
+    return ApprovalService(
+        get_store(),
+        get_provider_withdraw_review_repository(),
+        get_provider_withdraw_review_service(),
+    )
 
 
 @lru_cache(maxsize=1)

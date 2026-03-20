@@ -5,16 +5,37 @@ from uuid import uuid4
 
 from src.domain import AdminActionAudit, AdminApproval, AdminApprovalEvent, AdminApprovalStep, AdminExecutionJob
 from src.domain.enums import ApprovalDecision, ApprovalLevel, ApprovalStatus, AuditResultStatus, ExecutionJobStatus, RiskLevel, RoleBindingStatus
+from src.services.finance_admin import ProviderWithdrawReviewService
 from src.services.auth.service import AdminIdentity
+from src.storage.analytics import ProviderWithdrawReviewRepository
 from src.storage.base import AdminStore
 
+PROVIDER_WITHDRAW_REVIEW_PREFIX = "PWR-"
+PROVIDER_WITHDRAW_REVIEW_TYPE = "provider_withdraw_review"
+PROVIDER_WITHDRAW_REVIEW_REQUESTER = "gateway_risk_engine"
+
 class ApprovalService:
-    def __init__(self, store: AdminStore) -> None:
+    def __init__(
+        self,
+        store: AdminStore,
+        provider_withdraw_review_repository: ProviderWithdrawReviewRepository,
+        provider_withdraw_review_service: ProviderWithdrawReviewService,
+    ) -> None:
         self._store = store
+        self._provider_withdraw_review_repository = provider_withdraw_review_repository
+        self._provider_withdraw_review_service = provider_withdraw_review_service
 
     def list_items(self, status: str | None = None, approval_type: str | None = None, limit: int = 20) -> dict:
         approvals = self._store.approval.list_approvals(status=status, approval_type=approval_type, limit=limit)
         items = [self._to_summary_item(approval) for approval in approvals]
+
+        include_provider_projection = approval_type in {None, "", PROVIDER_WITHDRAW_REVIEW_TYPE}
+        if include_provider_projection and status in {None, "", ApprovalStatus.UNDER_REVIEW.value}:
+            projected_reviews = self._provider_withdraw_review_repository.list_pending_reviews(limit=limit)
+            items.extend(self._to_provider_withdraw_projection(review) for review in projected_reviews)
+
+        items.sort(key=lambda item: item.get("createdAt") or "", reverse=True)
+        items = items[:limit]
         return {"items": items, "nextCursor": None}
 
     def pending_count(self) -> int:
@@ -87,6 +108,16 @@ class ApprovalService:
         }
 
     def decide(self, approval_id: str, decision: str, reviewer: AdminIdentity, comment: str = "") -> dict:
+        if approval_id.startswith(PROVIDER_WITHDRAW_REVIEW_PREFIX):
+            withdrawal_id = approval_id.removeprefix(PROVIDER_WITHDRAW_REVIEW_PREFIX).strip()
+            result = self._provider_withdraw_review_service.decide_review(
+                withdrawal_id,
+                decision=decision,
+                reviewer=reviewer,
+                note=comment,
+            )
+            return {"approvalId": approval_id, "status": result["status"]}
+
         approval = self._store.approval.get_approval(approval_id)
         if approval is None:
             raise ValueError(f"Approval {approval_id} not found")
@@ -180,6 +211,23 @@ class ApprovalService:
             "amountUsdc": f"{approval.amount_usdc:.2f}",
             "createdAt": approval.created_at.isoformat().replace("+00:00", "Z") if approval.created_at else None,
         }
+
+    def _to_provider_withdraw_projection(self, review) -> dict:
+        return {
+            "approvalId": f"{PROVIDER_WITHDRAW_REVIEW_PREFIX}{review.withdrawal_id}",
+            "approvalType": PROVIDER_WITHDRAW_REVIEW_TYPE,
+            "status": ApprovalStatus.UNDER_REVIEW.value,
+            "approvalLevel": self._project_provider_review_level(review.risk_level),
+            "requesterRole": PROVIDER_WITHDRAW_REVIEW_REQUESTER,
+            "amountUsdc": f"{review.amount_usdc:.2f}",
+            "createdAt": review.created_at,
+        }
+
+    @staticmethod
+    def _project_provider_review_level(risk_level: str | None) -> str:
+        if risk_level == RiskLevel.RED.value:
+            return ApprovalLevel.L3.value
+        return ApprovalLevel.L2.value
 
     def _get_primary_role(self, admin_id: str) -> str:
         bindings = [

@@ -64,7 +64,7 @@
 - 执行队列页：读取 `/api/admin/v1/execution-jobs`，支持失败任务重试
 - 资金运营页：读取 finance read model，并承接充值 / 退款 / 提现模块入口
 - 提现审核页：读取 `/api/admin/v1/withdrawal-reviews`，对 provider manual review 单执行 approve / reject
-- 审批中心：同时汇总 `/api/admin/v1/approvals` 与 provider manual review 队列，形成“总览队列 + 专用工作台”双视图
+- 审批中心：直接读取统一后的 `/api/admin/v1/approvals`，其中已投影 provider manual review summary；专用工作台保留深度核验上下文
 - 风控工作台：承接风险工单、标签和名单处置模块入口
 - 系统运维页：读取系统状态与 operations read model
 
@@ -88,7 +88,7 @@
 
 - 登录页调用 `/api/admin/v1/auth/login`
 - Dashboard 调用 `/api/admin/v1/auth/me`、`/api/admin/v1/dashboard/overview`、`/api/admin/v1/dashboard/system-status`，以及 3 个稳定读模型接口：`/finance-overview`、`/activity-trends`、`/operations-overview`
-- 审批页调用 `/api/admin/v1/approvals`，并同步消费 `/api/admin/v1/withdrawal-reviews` 与 `/api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`
+- 审批页调用统一后的 `/api/admin/v1/approvals`，其中已包含 provider manual review projection
 - 提现审核页调用 `/api/admin/v1/withdrawal-reviews` 与 `/api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`
 - 后台用户页调用 `/api/admin/v1/users`、`/api/admin/v1/users/roles`
 - 菜单配置页调用 `/api/admin/v1/config/menu-items` 与 `/api/admin/v1/config/menu-items/publish`

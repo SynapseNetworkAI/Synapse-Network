@@ -69,6 +69,8 @@
 
 - `GET /api/admin/v1/withdrawal-reviews`: 读取仍处于 `PENDING_MANUAL_REVIEW` 的 provider 提现单
 - `POST /api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`: 由 reviewer 执行 approve / reject，再由 gateway-admin 使用内部管理员钱包代理到 gateway review API
+- `GET /api/admin/v1/approvals`: 现在会把 provider manual review 投影成标准 approval summary，一起出现在统一审批队列里
+- `POST /api/admin/v1/approvals/{approvalId}/decision`: 当 `approvalId` 形如 `PWR-{withdrawalId}` 时，会路由到 provider manual review 决策流
 
 `/menu-config` 切到真实 draft / publish 流程，指的是：
 
