@@ -6,11 +6,11 @@ type TreasurySectionProps = {
   userAddress?: string;
 };
 
-export default function TreasurySection({ masterBalance, userAddress }: TreasurySectionProps) {
+export default function TreasurySection({ masterBalance, userAddress }: Readonly<TreasurySectionProps>) {
   return (
     <>
       <div className="mb-4">
-        <h2 className="pl-3 text-xl font-bold text-white border-l-4 border-yellow-500">Tier 1: Provider Treasury (Master Wallet)</h2>
+        <h2 className="pl-3 text-xl font-bold text-white border-l-4 border-yellow-500">Tier 1: Owner Treasury</h2>
       </div>
 
       <div className="grid grid-cols-1 gap-4 mb-8 md:grid-cols-2">
@@ -27,11 +27,11 @@ export default function TreasurySection({ masterBalance, userAddress }: Treasury
         </div>
 
         <div className="relative flex flex-col justify-center p-6 overflow-hidden bg-black border border-gray-800 rounded-xl">
-          <h3 className="mb-2 text-sm font-medium text-gray-400">Fund Router & Auto-Top-Up</h3>
-          <p className="mb-4 text-xs text-gray-500">Manage smart contract daily limits and relayer settings for your service wallets.</p>
-          <Link href="/dashboard/router" className="flex items-center justify-center w-full px-4 py-3 text-sm font-bold text-black transition-colors bg-yellow-500 rounded-lg hover:bg-yellow-600">
+          <h3 className="mb-2 text-sm font-medium text-gray-400">Treasury Controls</h3>
+          <p className="mb-4 text-xs text-gray-500">Review vault balances, refunds, withdrawals, and owner-side treasury activity in one place.</p>
+          <Link href="/dashboard/billing" className="flex items-center justify-center w-full px-4 py-3 text-sm font-bold text-black transition-colors bg-yellow-500 rounded-lg hover:bg-yellow-600">
             <ActivitySquare className="w-5 h-5 mr-2" />
-            Configure Smart Contract Limits
+            Open Owner Treasury
           </Link>
         </div>
       </div>
