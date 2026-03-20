@@ -68,14 +68,23 @@ def _load_usdc_address_from_contract_config() -> str:
         return ""
 
 
-def _sdk_root_dir() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+def _gateway_root_dir() -> str:
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+
+def _repo_root_dir() -> str:
+    return os.path.abspath(os.path.join(_gateway_root_dir(), ".."))
 
 
 def _resolve_env_file_path(env_file: str) -> str:
     if os.path.isabs(env_file):
         return env_file
-    return os.path.join(_sdk_root_dir(), env_file)
+
+    gateway_path = os.path.join(_gateway_root_dir(), env_file)
+    if os.path.exists(gateway_path):
+        return gateway_path
+
+    return os.path.join(_repo_root_dir(), env_file)
 
 
 def _load_environment_files() -> None:
@@ -90,9 +99,17 @@ def _load_environment_files() -> None:
             load_dotenv(explicit_path, override=False)
         return
 
-    sdk_root = _sdk_root_dir()
-    base_env_path = os.path.join(sdk_root, ".env")
-    load_dotenv(base_env_path, override=False)
+    repo_root = _repo_root_dir()
+    gateway_root = _gateway_root_dir()
+
+    base_env_candidates = [
+        os.path.join(gateway_root, ".env"),
+        os.path.join(repo_root, ".env"),
+    ]
+    for base_env_path in base_env_candidates:
+        if os.path.exists(base_env_path):
+            load_dotenv(base_env_path, override=False)
+            break
 
     runtime_env = str(os.getenv("ENVIRONMENT", "local") or "local").strip().lower()
     env_aliases = {
@@ -108,7 +125,7 @@ def _load_environment_files() -> None:
     candidates = env_aliases.get(runtime_env, [f".env.{runtime_env}"])
 
     for env_file in candidates:
-        env_path = os.path.join(sdk_root, env_file)
+        env_path = _resolve_env_file_path(env_file)
         if os.path.exists(env_path):
             # Override values from base .env so per-environment file wins.
             load_dotenv(env_path, override=True)
