@@ -52,6 +52,18 @@ class Settings(BaseSettings):
         default="replace-this-with-a-32-byte-minimum-jwt-secret",
         alias="GATEWAY_INTERNAL_JWT_SECRET",
     )
+    gateway_internal_token_issuer: str = Field(
+        default="gateway-admin",
+        alias="GATEWAY_INTERNAL_TOKEN_ISSUER",
+    )
+    gateway_internal_token_audience: str = Field(
+        default="gateway-internal",
+        alias="GATEWAY_INTERNAL_TOKEN_AUDIENCE",
+    )
+    gateway_internal_service_subject: str = Field(
+        default="service:gateway-admin",
+        alias="GATEWAY_INTERNAL_SERVICE_SUBJECT",
+    )
     gateway_internal_timeout_sec: float = Field(
         default=10.0,
         alias="GATEWAY_INTERNAL_TIMEOUT_SEC",

@@ -21,6 +21,7 @@ from src.api.schemas.pydantic_models import (
 from src.services.platform.balance_service import BalanceService
 from src.services.provider.provider_analytics_service import ProviderAnalyticsService
 from src.services.platform import credential_service
+from src.services.platform.internal_auth import InternalServicePrincipal, require_internal_scope
 from src.services.platform.tasks.deposit_indexer import (
     get_indexer_status,
     replay_deposit_tx,
@@ -392,10 +393,10 @@ async def complete_refund_as_admin(
     refund_id: str,
     payload: AdminRefundCompleteRequest,
     request: Request,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("refund.complete"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
     request_meta = _extract_request_meta(request)
     request_meta["review"] = {
@@ -403,11 +404,16 @@ async def complete_refund_as_admin(
         "reviewerAddress": str(payload.reviewerAddress or admin_wallet).strip().lower(),
         "reviewerNote": str(payload.reviewerNote or "").strip(),
         "requestedBy": admin_wallet,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
     }
     request_meta["adminExecution"] = {
         "requestedBy": admin_wallet,
         "targetOwner": target_owner,
         "resourceId": refund_id,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+        "serviceSubject": principal.service_subject,
     }
     result = await service.complete_refund_intent(
         owner_wallet=target_owner,
@@ -584,16 +590,19 @@ async def complete_provider_withdrawal_as_admin(
     withdrawal_id: str,
     payload: AdminProviderWithdrawCompleteRequest,
     request: Request,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("provider_withdraw.complete"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
     request_meta = _extract_request_meta(request)
     request_meta["adminExecution"] = {
         "requestedBy": admin_wallet,
         "targetOwner": target_owner,
         "resourceId": withdrawal_id,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+        "serviceSubject": principal.service_subject,
     }
     result = await service.complete_provider_withdrawal(
         owner_wallet=target_owner,
@@ -619,10 +628,10 @@ async def review_provider_withdrawal_as_admin(
     withdrawal_id: str,
     payload: AdminProviderWithdrawReviewRequest,
     request: Request,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("provider_withdraw.review"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
     request_meta = _extract_request_meta(request)
     request_meta["review"] = {
@@ -630,11 +639,16 @@ async def review_provider_withdrawal_as_admin(
         "reviewerAddress": str(payload.reviewerAddress or admin_wallet).strip().lower(),
         "reviewerNote": str(payload.reviewerNote or "").strip(),
         "requestedBy": admin_wallet,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
     }
     request_meta["adminExecution"] = {
         "requestedBy": admin_wallet,
         "targetOwner": target_owner,
         "resourceId": withdrawal_id,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+        "serviceSubject": principal.service_subject,
     }
     result = await service.review_provider_withdrawal(
         owner_wallet=target_owner,
@@ -668,10 +682,10 @@ async def get_v2_indexer_status(
     responses={403: {"description": "Forbidden or fee admin not configured"}},
 )
 async def get_fee_policy(
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("fee_policy.read"))],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
     normalized = _normalize_fee_policy_payload(
@@ -699,10 +713,10 @@ async def get_fee_policy(
 )
 async def set_fee_policy(
     payload: Dict[str, Any],
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("fee_policy.write"))],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     try:
         normalized = _normalize_fee_policy_payload(
             payload if isinstance(payload, dict) else {}, settings.platform_fee_rate
@@ -743,10 +757,10 @@ async def set_fee_policy(
 )
 async def replay_deposit_by_tx_hash(
     payload: AdminDepositReplayRequest,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("deposit.replay"))],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     try:
         summary = replay_deposit_tx(storage, payload.txHash, admin_wallet)
     except ValueError as exc:
