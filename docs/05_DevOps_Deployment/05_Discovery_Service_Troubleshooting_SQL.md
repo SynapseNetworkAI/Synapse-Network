@@ -218,6 +218,32 @@ ORDER BY ep.is_primary DESC, ep.created_at ASC;
 
 1. 先确认 Provider 是否实现了 `/health`
 2. 确认该 `/health` 从 Gateway 进程所在环境可访问
+
+### 5.4 Health Monitor 刷新被外键卡死，导致 Discovery 因 stale health 归零
+
+现象：
+
+1. `/api/v1/services/health/status?includeInactive=true` 能看到 service 仍然存在，但 `health.probeStatus = healthy`、`health.overallStatus = stale`、`runtimeAvailable = false`
+2. `/api/v1/services/discover` 或 `/api/v1/agent/discovery/search` 却返回空
+3. 日志出现 `synapse_service_quotes_service_id_fkey` 之类的外键错误
+
+根因：
+
+1. Discovery 真正的放行条件不是“最近一次 probe 看起来 healthy”，而是 target health 必须处在有效时间窗口内
+2. 如果 health monitor 在刷新过程中试图重写 `synapse_service_manifests`，会被 quote / execution 等外键引用阻断
+3. 一旦刷新线程持续失败，`last_checked_at` 不再推进，service 最终会因为 stale health 被 `is_service_discoverable(...)` 过滤掉
+
+现状说明：
+
+1. `health.overallStatus` 现在已经和 discovery 共享同一套有效状态语义
+2. 如果最近一次探活本身是健康的，但已经超出 stale window，会显示为 `probeStatus = healthy`、`overallStatus = stale`
+3. `runtimeAvailable` 是 Agent 真正能不能发现/调用到该 service 的最终开关
+
+建议动作：
+
+1. 先看 Gateway 日志里是否存在 manifest delete/update 被外键阻断的报错
+2. 确认健康刷新只更新 `synapse_service_health_snapshots` 与 runtime health 元数据，不要全表重写 manifest
+3. 修复后重新触发一次 health refresh，再验证 `/api/v1/services/discover` 是否恢复
 3. 如需自定义探测路径，在 service manifest 的 `healthCheck.path` 中显式配置
 4. 等待至少达到 healthy 阈值后，再重新访问 `/api/v1/services/discover`
 

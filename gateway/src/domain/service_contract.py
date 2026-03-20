@@ -32,9 +32,12 @@ class PublicHealthSummaryRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     overall_status: str = Field(default="unknown", alias="overallStatus")
+    probe_status: str = Field(default="unknown", alias="probeStatus")
     healthy_targets: int = Field(default=0, alias="healthyTargets")
     total_targets: int = Field(default=0, alias="totalTargets")
     last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
+    is_stale: bool = Field(default=True, alias="isStale")
+    runtime_available: bool = Field(default=False, alias="runtimeAvailable")
 
 
 class QuoteInputPreviewRecord(BaseModel):

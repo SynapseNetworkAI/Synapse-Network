@@ -328,20 +328,10 @@ class ServiceRegistryRepository:
         )
 
     @staticmethod
-    def _reset_service_tables(cur: Any) -> None:
-        cur.execute("DELETE FROM synapse_service_health_snapshots")
-        cur.execute("DELETE FROM synapse_service_endpoints")
-        cur.execute("DELETE FROM synapse_service_search_index")
-        cur.execute("DELETE FROM synapse_service_manifests")
-        cur.execute(
-            "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_meta::%' OR state_key LIKE 'service_health_meta::%' OR state_key LIKE 'service_health_history::%'"
-        )
-
-    @staticmethod
     def _manifest_timestamps(row: ServiceDefinitionRecord) -> tuple[str, str]:
         return (to_dt_str(row.created_at, now_dt_str()), to_dt_str(row.updated_at, now_dt_str()))
 
-    def _insert_service_manifest(
+    def _upsert_service_manifest(
         self,
         cur: Any,
         row: ServiceDefinitionRecord,
@@ -365,6 +355,21 @@ class ServiceRegistryRepository:
                 'fixed', %s, TRUE,
                 %s, %s, %s
             )
+            ON CONFLICT (service_id)
+            DO UPDATE SET
+                owner_id = EXCLUDED.owner_id,
+                provider_id = EXCLUDED.provider_id,
+                service_name = EXCLUDED.service_name,
+                manifest_version = EXCLUDED.manifest_version,
+                status = EXCLUDED.status,
+                description_for_model = EXCLUDED.description_for_model,
+                task_category = EXCLUDED.task_category,
+                capabilities_json = EXCLUDED.capabilities_json,
+                price_model = EXCLUDED.price_model,
+                base_price_usdc = EXCLUDED.base_price_usdc,
+                quote_required = EXCLUDED.quote_required,
+                settlement_currency = EXCLUDED.settlement_currency,
+                updated_at = EXCLUDED.updated_at
             """,
             (
                 row.service_id,
@@ -390,9 +395,24 @@ class ServiceRegistryRepository:
             return [ServiceInvokeTargetRecord(url=row.endpoint, weight=100, region=None)]
         return endpoint_targets
 
-    def _insert_service_endpoints(
+    def _deactivate_service_endpoints(
+        self, cur: Any, service_id: str, updated_at: str
+    ) -> None:
+        cur.execute(
+            """
+            UPDATE synapse_service_endpoints
+            SET is_primary = FALSE,
+                status = 'inactive',
+                updated_at = %s
+            WHERE service_id = %s
+            """,
+            (updated_at, service_id),
+        )
+
+    def _upsert_service_endpoints(
         self, cur: Any, row: ServiceDefinitionRecord, created_at: str, updated_at: str
     ) -> None:
+        self._deactivate_service_endpoints(cur, str(row.service_id), updated_at)
         for index, target in enumerate(self._endpoint_targets(row)):
             endpoint_url = str(target.url or "").strip()
             if not endpoint_url:
@@ -410,6 +430,21 @@ class ServiceRegistryRepository:
                     %s, %s, %s, %s, %s,
                     %s, %s
                 )
+                ON CONFLICT (endpoint_id)
+                DO UPDATE SET
+                    service_id = EXCLUDED.service_id,
+                    endpoint_url = EXCLUDED.endpoint_url,
+                    auth_mode = EXCLUDED.auth_mode,
+                    timeout_ms = EXCLUDED.timeout_ms,
+                    max_payload_bytes = EXCLUDED.max_payload_bytes,
+                    streaming_supported = EXCLUDED.streaming_supported,
+                    async_supported = EXCLUDED.async_supported,
+                    callback_supported = EXCLUDED.callback_supported,
+                    region = EXCLUDED.region,
+                    weight = EXCLUDED.weight,
+                    is_primary = EXCLUDED.is_primary,
+                    status = EXCLUDED.status,
+                    updated_at = EXCLUDED.updated_at
                 """,
                 (
                     self._endpoint_id(row.service_id, endpoint_url, index),
@@ -442,7 +477,7 @@ class ServiceRegistryRepository:
             if value
         ).strip()
 
-    def _insert_search_index(
+    def _upsert_search_index(
         self, cur: Any, row: ServiceDefinitionRecord, updated_at: str
     ) -> None:
         cur.execute(
@@ -451,6 +486,11 @@ class ServiceRegistryRepository:
                 service_id, tags_json, search_text, embedding_ref,
                 reliability_tier, health_score, p95_latency_ms, success_rate_24h, updated_at
             ) VALUES (%s, %s::jsonb, %s, NULL, NULL, NULL, NULL, NULL, %s)
+            ON CONFLICT (service_id)
+            DO UPDATE SET
+                tags_json = EXCLUDED.tags_json,
+                search_text = EXCLUDED.search_text,
+                updated_at = EXCLUDED.updated_at
             """,
             (
                 row.service_id,
@@ -465,11 +505,11 @@ class ServiceRegistryRepository:
             cur, row.owner_address, row.service_name
         )
         created_at, updated_at = self._manifest_timestamps(row)
-        self._insert_service_manifest(
+        self._upsert_service_manifest(
             cur, row, owner_id, provider_id, created_at, updated_at
         )
-        self._insert_service_endpoints(cur, row, created_at, updated_at)
-        self._insert_search_index(cur, row, updated_at)
+        self._upsert_service_endpoints(cur, row, created_at, updated_at)
+        self._upsert_search_index(cur, row, updated_at)
         self._upsert_runtime_state(
             cur,
             self._service_meta_state_key(row.service_id),
@@ -600,7 +640,6 @@ class ServiceRegistryRepository:
 
     def write_service_registry_rows(self, rows: List[ServiceDefinitionRecord]) -> None:
         with self._db.tx_cursor() as cur:
-            self._reset_service_tables(cur)
             for row in rows:
                 self._persist_service_row(cur, row)
 
