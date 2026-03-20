@@ -187,6 +187,7 @@ Provider Workspace 的目标是一站式解决“挂服务、看收益、提收�
 4. pending ticket status
 5. 若已存在 `APPROVED_AUTO` 的 pending ticket，`Generate & Claim` 需要直接复用现有 ticket 继续链上提现，而不是要求用户手动切到 `Resume Pending`
 6. `Generate & Claim` / `Resume Pending` 在发起链上提现前，前端必须先校验 ticket 的目标链、ticket 内合约地址、ticket 过期时间和钱包原生 gas 余额；若当前钱包网络不对或没有 gas，必须先给出可读错误，不能把用户直接推进黑盒钱包弹窗
+7. withdrawal history 必须显式展示 `CANCELLED`，并把它解释为“ticket 已过期，locked receivable 已释放回 available”；历史区需要提供状态筛选，便于用户单独查看 `COMPLETED` / `REJECTED` / `CANCELLED` 等生命周期结果
 
 ## 7. 首次 Onboarding 五步
 
