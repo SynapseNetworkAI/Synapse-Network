@@ -130,6 +130,7 @@
 5. `red` 直接拒绝并审计
 6. 自动通过时，金额从 `provider_receivable` 进入 `provider_locked_balance`，并立即返回 EIP-712 ticket
 7. 人工审核时，金额先进入 `provider_frozen_balance`，等待 admin approve / reject
+8. `amountUsdc` 如果显式传入，必须大于 `0` 且最多支持小数点后 2 位；留空时表示提取当前全部可提现金额
 
 ### 3.4.1 `GET /api/v1/providers/withdrawals/capability`
 

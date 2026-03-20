@@ -402,7 +402,7 @@ class ServiceRegistryRepository:
             """
             UPDATE synapse_service_endpoints
             SET is_primary = FALSE,
-                status = 'inactive',
+                status = 'paused',
                 updated_at = %s
             WHERE service_id = %s
             """,

@@ -19,6 +19,7 @@ import {
 } from "@/utils/providerWithdrawApi";
 
 const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string }).SynapseCore as `0x${string}` | undefined;
+const WITHDRAW_AMOUNT_INPUT_PATTERN = /^\d*(?:\.\d{0,2})?$/;
 
 function formatTimestamp(seconds?: number | string): string {
   if (!seconds) return "-";
@@ -36,6 +37,29 @@ function withdrawalStatusColor(status: ProviderWithdrawRecord["status"]): string
   if (status === "COMPLETED") return "text-[#22c55e]";
   if (status === "REJECTED") return "text-[#ef4444]";
   return "text-[#ff9f0a]";
+}
+
+function validateRequestedWithdrawAmount(
+  requestedAmount: string,
+  availableReceivable: number,
+): string | null {
+  if (!requestedAmount) {
+    return null;
+  }
+  if (!WITHDRAW_AMOUNT_INPUT_PATTERN.test(requestedAmount)) {
+    return "Use up to 2 decimal places for withdrawal amount.";
+  }
+
+  const parsed = Number(requestedAmount);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return "Enter a valid withdrawal amount.";
+  }
+
+  if (parsed > availableReceivable) {
+    return `Amount exceeds available receivable (${availableReceivable.toFixed(6)} USDC).`;
+  }
+
+  return null;
 }
 
 export default function ProviderSettlementsPage() {
@@ -169,21 +193,7 @@ export default function ProviderSettlementsPage() {
   }, [filtered, safePage]);
 
   const withdrawAmountValidationMessage = useMemo(() => {
-    const requestedAmount = withdrawAmountInput.trim();
-    if (!requestedAmount) {
-      return null;
-    }
-
-    const parsed = Number(requestedAmount);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return "Enter a valid withdrawal amount.";
-    }
-
-    if (parsed > availableReceivable) {
-      return `Amount exceeds available receivable (${availableReceivable.toFixed(6)} USDC).`;
-    }
-
-    return null;
+    return validateRequestedWithdrawAmount(withdrawAmountInput.trim(), availableReceivable);
   }, [availableReceivable, withdrawAmountInput]);
 
   const handleCreateWithdrawalIntent = async () => {
@@ -208,18 +218,15 @@ export default function ProviderSettlementsPage() {
     }
 
     const requestedAmount = withdrawAmountInput.trim();
+    const validationMessage = validateRequestedWithdrawAmount(requestedAmount, availableReceivable);
+    if (validationMessage) {
+      toast.error(validationMessage);
+      return;
+    }
+
     let amountUsdc: number | undefined = undefined;
     if (requestedAmount) {
-      const parsed = Number(requestedAmount);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        toast.error("Enter a valid withdrawal amount");
-        return;
-      }
-      if (parsed > availableReceivable) {
-        toast.error(`Amount exceeds available receivable (${availableReceivable.toFixed(6)} USDC)`);
-        return;
-      }
-      amountUsdc = parsed;
+      amountUsdc = Number(requestedAmount);
     }
 
     setCreatingIntent(true);
@@ -327,12 +334,15 @@ export default function ProviderSettlementsPage() {
 
           <div className="mt-5 flex flex-col sm:flex-row gap-3">
             <input
-              type="number"
-              min="0"
-              max={availableReceivable > 0 ? availableReceivable : undefined}
-              step="0.000001"
+              type="text"
+              inputMode="decimal"
               value={withdrawAmountInput}
-              onChange={(e) => setWithdrawAmountInput(e.target.value)}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                if (nextValue === "" || WITHDRAW_AMOUNT_INPUT_PATTERN.test(nextValue)) {
+                  setWithdrawAmountInput(nextValue);
+                }
+              }}
               placeholder={`Amount (blank = full ${availableReceivable.toFixed(6)} USDC)`}
               className={`w-full sm:max-w-md px-3 py-2 rounded-lg border bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] ${withdrawAmountValidationMessage ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[#222222]"}`}
               disabled={isAnyLoading}
@@ -357,7 +367,7 @@ export default function ProviderSettlementsPage() {
           ) : (
             <p className="mt-3 text-xs text-[#86868b]">
               Leave amount blank to withdraw the full available receivable. Any active ticket moves funds from
-              Available into Pending / Locked until it is completed or released.
+              Available into Pending / Locked until it is completed or released. Custom amount supports up to 2 decimal places.
             </p>
           )}
 

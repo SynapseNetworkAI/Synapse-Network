@@ -615,6 +615,54 @@ def test_service_registry_repository_normalizes_datetime_health_timestamps() -> 
     assert target_rows[0].last_healthy_at == int(last_healthy_at.timestamp() * 1000)
 
 
+def test_service_registry_repository_deactivates_old_endpoints_with_paused_status() -> None:
+    db = FakeDB()
+    repo = ServiceRegistryRepository(db)
+
+    repo.write_service_registry_rows([
+        ServiceDefinitionRecord.model_validate(
+            {
+                "serviceId": "svc-1",
+                "ownerAddress": "0xABC",
+                "serviceName": "svc-one",
+                "summary": "demo",
+                "status": "active",
+                "isActive": True,
+                "pricingAmount": "0.010000",
+                "pricingCurrency": "USDC",
+                "constraints": {
+                    "timeoutMs": 3000,
+                    "maxQps": 50,
+                    "maxRequestBytes": 4096,
+                    "maxResponseBytes": 8192,
+                },
+                "id": "rec-1",
+                "schemaVersion": 1,
+                "role": "provider",
+                "address": "0xabc",
+                "tags": ["a"],
+                "auth": {"type": "service_key"},
+                "healthCheck": {"path": "/health", "method": "GET"},
+                "forwarding": {"requestIdHeader": "X-Synapse-Request-Id"},
+                "metering": {"billingUnit": "per_call"},
+                "invoke": {"method": "POST", "targets": [{"url": "https://a"}]},
+                "createdAt": "2026-03-15 14:23:00",
+                "updatedAt": "2026-03-15 14:23:01",
+            }
+        )
+    ])
+
+    update_sql, update_params = next(
+        (sql, params)
+        for cur in db.tx_cursors
+        for sql, params in cur.executed
+        if "UPDATE synapse_service_endpoints" in sql
+    )
+
+    assert "status = 'paused'" in update_sql
+    assert update_params[1] == "svc-1"
+
+
 def test_credential_auth_repository_read_write_and_roles() -> None:
     db = FakeDB()
     db.readonly_plan.append(
