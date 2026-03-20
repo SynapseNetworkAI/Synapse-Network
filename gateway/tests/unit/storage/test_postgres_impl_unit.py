@@ -7,7 +7,10 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from src.storage.postgres_impl import PostgresStorage
-from src.storage.postgres.schema_contracts import POSTGRES_TABLE_SCHEMA_CONTRACTS
+from src.storage.postgres.schema_contracts import (
+    POSTGRES_TABLE_SCHEMA_CONTRACTS,
+    WITHDRAWAL_STATUS_CHECK_FRAGMENT,
+)
 from src.domain.finance import (
     ChargeConsumerUsageCommand,
     CompleteWithdrawTxCommand,
@@ -156,6 +159,37 @@ def test_validate_schema_contract_rejects_missing_detail_json() -> None:
     except RuntimeError as exc:
         assert "synapse_audit_events" in str(exc)
         assert "detail_json" in str(exc)
+
+
+def test_validate_schema_contract_rejects_legacy_withdraw_status_constraint() -> None:
+    storage = object.__new__(PostgresStorage)
+    storage._db = _FakeDB(
+        _schema_rows(
+            missing_constraint=(
+                "synapse_vault_withdrawals",
+                WITHDRAWAL_STATUS_CHECK_FRAGMENT,
+            )
+        )
+    )  # type: ignore[attr-defined]
+
+    try:
+        storage._validate_schema_contract()
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "synapse_vault_withdrawals" in str(exc)
+        assert "withdrawal status check supports current lifecycle" in str(exc)
+
+
+def test_apply_schema_hotfixes_repairs_withdraw_status_constraint() -> None:
+    storage = object.__new__(PostgresStorage)
+    storage._db = _FakeDB([])  # type: ignore[attr-defined]
+
+    storage._apply_schema_hotfixes()
+
+    executed = storage._db.tx_cursors[0].executed  # type: ignore[attr-defined]
+    assert "DROP CONSTRAINT IF EXISTS synapse_vault_withdrawals_status_check" in executed[0][0]
+    assert "ADD CONSTRAINT synapse_vault_withdrawals_status_check" in executed[1][0]
+    assert WITHDRAWAL_STATUS_CHECK_FRAGMENT in executed[1][0]
 
 
 def test_validate_schema_contract_rejects_missing_endpoint_url() -> None:
