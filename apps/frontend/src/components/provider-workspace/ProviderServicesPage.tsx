@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Server, Shield, Gauge, Link2, Search, X, Activity, Plus } from "lucide-react";
 import { useAccount } from "wagmi";
@@ -56,8 +57,9 @@ function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inacti
 }
 
 export default function ProviderServicesPage() { // NOSONAR
+  const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { isSessionAuthenticated } = useAuth();
+  const { isSessionAuthenticated, authorize } = useAuth();
   const { openConnectModal } = useConnectModal();
   const searchParams = useSearchParams();
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
@@ -149,6 +151,28 @@ export default function ProviderServicesPage() { // NOSONAR
       return;
     }
     applySearch();
+  };
+
+  const handleOpenNewService = async (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    if (!isConnected) {
+      event.preventDefault();
+      openConnectModal?.();
+      return;
+    }
+
+    if (isSessionAuthenticated) {
+      return;
+    }
+
+    event.preventDefault();
+    const authorized = await authorize();
+    if (authorized) {
+      router.push("/provider/services/deploy");
+    }
   };
 
   const filtered = useMemo(() => {
@@ -638,6 +662,9 @@ export default function ProviderServicesPage() { // NOSONAR
           </button>
           <Link
             href="/provider/services/deploy"
+            onClick={(event) => {
+              void handleOpenNewService(event);
+            }}
             className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-[#3a3a3a] bg-[#050505] text-sm font-semibold text-white hover:border-[#22c55e]/50 hover:text-[#22c55e] transition-colors"
           >
             <Plus className="w-4 h-4" />
