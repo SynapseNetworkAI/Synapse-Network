@@ -210,6 +210,7 @@ Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
 2. 释放对应的 `pending / locked` 金额
 3. 写逆向 ledger / audit 证据
 4. 业务状态推进到 `CANCELLED`，前端应允许用户基于释放后的 `available` 重新生成新 ticket
+5. 如果历史脏数据导致 `pending / locked` 已被其他补偿路径提前清空，过期清理也不能报错打断列表接口；系统应把单据推进到 `CANCELLED`，并在 audit 中记录 `releasedAmountUsdc` 与 `releaseShortfallUsdc`
 
 ### 11.3 严禁的行为
 
