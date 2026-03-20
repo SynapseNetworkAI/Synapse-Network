@@ -24,11 +24,11 @@ export function useAdminSession(): UseAdminSessionResult {
 
     async function loadProfile() {
       try {
-        const profile = await getCurrentAdmin("cookie-session");
+        const session = await getCurrentAdmin("cookie-session");
         if (cancelled) {
           return;
         }
-        setAdmin(profile);
+        setAdmin(session.admin);
         setToken("cookie-session");
         setLoading(false);
       } catch {

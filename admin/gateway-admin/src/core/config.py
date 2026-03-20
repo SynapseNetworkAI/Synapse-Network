@@ -50,6 +50,10 @@ class Settings(BaseSettings):
         default=None,
         alias="ADMIN_SESSION_COOKIE_DOMAIN",
     )
+    admin_csrf_secret: str = Field(
+        default="replace-this-with-a-dedicated-admin-csrf-secret",
+        alias="ADMIN_CSRF_SECRET",
+    )
     admin_database_dsn: str = Field(
         default="postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin",
         alias="ADMIN_DATABASE_DSN",

@@ -53,6 +53,7 @@
 - CRUD 基础组件：`src/components/crud.tsx`，统一抽出 Toolbar + Table + Drawer 骨架
 - 会话守卫：`src/lib/use-admin-session.ts`
 - 当前会话模型：`gateway-admin` 登录成功后下发 `HttpOnly` session cookie，前端统一通过 `credentials: include` 请求控制面 API，不再把 admin token 落到浏览器 `localStorage`
+- 当前 CSRF 模型：`login` / `me` 响应会返回会话绑定的 `csrfToken`，前端仅保存在内存中，并由 `src/services/admin-api.ts` 自动注入到所有写请求的 `X-CSRF-Token` header
 - 导航形态：二级 accordion 菜单树，一级分组承载模块域，二级节点承载具体路由
 - 视觉风格：对齐 Gateway Console 的黑色 Web3 dark mode，使用深黑背景、暗金属边框、霓虹绿激活态、`IBM Plex Mono` 展示数字和标识
 
@@ -101,4 +102,4 @@
 安全备注：
 
 - 当前 cookie 默认策略为 `HttpOnly + SameSite=Lax`，开发环境默认不强制 `Secure`，生产必须开启 HTTPS 并将 `ADMIN_SESSION_COOKIE_SECURE=true`
-- 这次迁移已经切掉浏览器可读 token；下一步应继续补 `CSRF` 防护与更严格的 step-up 校验
+- 这次迁移已经切掉浏览器可读 token，并补上 cookie 会话写请求的 `CSRF` header 校验；下一步应继续收口 `SameSite=Strict`、step-up MFA 和 CSP
