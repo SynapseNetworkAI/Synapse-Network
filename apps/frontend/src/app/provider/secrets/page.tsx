@@ -1,1 +1,1 @@
-export { default } from "../../dashboard/secrets/page";
+export { default } from "@/components/provider-workspace/ProviderSecretsPage";
