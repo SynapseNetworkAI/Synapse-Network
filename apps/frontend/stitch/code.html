@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SYNAPSE | The Settlement Layer for AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&amp;family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#f3f3f4",
+              "secondary-container": "#3a3b3f",
+              "tertiary-fixed-dim": "#e5e5e5",
+              "on-secondary-container": "#bfbfc4",
+              "on-background": "#e7e5e4",
+              "primary-fixed-dim": "#00f63e",
+              "secondary-fixed-dim": "#d5d4d9",
+              "on-secondary": "#1f2024",
+              "on-surface": "#e7e5e4",
+              "surface-tint": "#00e639",
+              "inverse-surface": "#fcf8f8",
+              "surface-container-low": "#131313",
+              "tertiary": "#f9f9f9",
+              "on-error-container": "#ff9b82",
+              "background": "#0e0e0e",
+              "primary-dim": "#00d635",
+              "surface-container-high": "#202020",
+              "primary-fixed": "#72ff70",
+              "on-primary-fixed-variant": "#006b15",
+              "tertiary-container": "#ebebeb",
+              "secondary-dim": "#9d9da2",
+              "on-secondary-fixed-variant": "#5b5b60",
+              "on-primary-fixed": "#004b0c",
+              "surface-variant": "#262626",
+              "inverse-primary": "#006f16",
+              "outline-variant": "#484848",
+              "secondary": "#9d9da2",
+              "error-dim": "#ba573f",
+              "on-tertiary-fixed": "#484a4a",
+              "tertiary-dim": "#ebebeb",
+              "on-error": "#450900",
+              "on-primary": "#004c0c",
+              "on-tertiary-fixed-variant": "#656667",
+              "surface-container": "#1a1919",
+              "on-tertiary-container": "#555757",
+              "on-primary-container": "#00f13d",
+              "inverse-on-surface": "#565554",
+              "primary-container": "#00530e",
+              "surface-container-highest": "#262626",
+              "secondary-fixed": "#e3e2e7",
+              "on-surface-variant": "#acabaa",
+              "on-secondary-fixed": "#3e3f43",
+              "surface-dim": "#0e0e0e",
+              "outline": "#767575",
+              "error": "#ed7f64",
+              "error-container": "#7e2b17",
+              "surface-bright": "#2c2c2c",
+              "surface": "#0e0e0e",
+              "surface-container-lowest": "#000000",
+              "primary": "#00FF41",
+              "on-tertiary": "#5e5f60"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Space Grotesk"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .code-block {
+            font-family: 'Space Grotesk', monospace;
+        }
+        body {
+            background-color: #050505;
+            color: #e7e5e4;
+            overflow-x: hidden;
+        }
+        .hero-gradient {
+            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 65, 0.03) 0%, rgba(5, 5, 5, 0) 70%);
+        }
+        
+        /* Ticking animation */
+        @keyframes tick {
+            0% { transform: translateY(0); opacity: 1; filter: blur(0); }
+            45% { transform: translateY(-1px); opacity: 0.8; filter: blur(0.5px); }
+            50% { transform: translateY(1px); opacity: 0.9; }
+            100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+        }
+        .animate-tick {
+            animation: tick 0.15s ease-in-out infinite;
+            display: inline-block;
+        }
+        .animate-tick-slow {
+            animation: tick 2s ease-in-out infinite;
+        }
+        
+        /* Glow refinement */
+        .text-glow-green {
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.4);
+        }
+
+        /* Navigation Capsule specific styles */
+        .nav-capsule {
+            background: linear-gradient(180deg, rgba(30, 30, 30, 0.9) 0%, rgba(15, 15, 15, 0.9) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="font-body" data-mode="connect">
+<!-- Top Navigation Capsule -->
+<nav class="fixed top-0 left-0 right-0 z-50 flex justify-center w-full pointer-events-none">
+<div class="nav-capsule rounded-2xl mt-4 px-3 py-2 flex items-center gap-10 pointer-events-auto">
+<!-- Logo Section -->
+<div class="flex items-center gap-3 pl-1">
+<div class="flex items-center">
+<img alt="Synapse Logo" class="h-9 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ADBb0uiCYXwXOKBq6TkRk0NhuebY8Fb-QIJVz8CKWw7wZXuzxbvhwhI8t6yDCwtv1ne82I271baBZPfFcJWy4_fKHlEuZwlYWNGeXDheNK7BYPkY04VNX0uYU_V_5R7CGZOxyEIZ1iq7VnZMVDPtB-iu2yn17q-CEl9KYcGtMMBCyp_iWHMIsHWKxlxs9SpA3MG3d-chJNssq85aE3WMXOaqmujW2y6z0TV64MYmv8HHcwIgtpERkmhK_e15xoxBr9Q_OHtTmdROukH2hQ"/>
+</div>
+</div>
+<!-- Gateway Status Pill -->
+<div class="hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5">
+<div class="relative flex items-center justify-center">
+<span class="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(0,255,65,0.8)] animate-pulse"></span>
+</div>
+<span class="material-symbols-outlined text-primary/70 text-sm">hub</span>
+<span class="font-label text-[10px] font-bold uppercase tracking-[0.15em] text-primary/80 whitespace-nowrap">Gateway Node / Online</span>
+</div>
+<!-- Nav Links Section -->
+<div class="hidden md:flex items-center gap-1">
+<div class="flex items-center bg-white/5 border border-white/10 rounded-full p-0.5">
+<a class="text-white bg-white/10 px-4 py-1.5 rounded-full text-xs font-bold tracking-tight transition-all" href="#">API Marketplace</a>
+<a class="text-neutral-400 hover:text-white px-4 py-1.5 text-xs font-bold tracking-tight transition-colors" href="#">Blog</a>
+<a class="text-neutral-400 hover:text-white px-4 py-1.5 text-xs font-bold tracking-tight transition-colors" href="#">About</a>
+</div>
+<div class="h-6 w-px bg-white/10 mx-2"></div>
+<div class="flex items-center gap-1 border border-white/10 rounded-full px-3 py-1.5 text-neutral-300 hover:text-white cursor-pointer bg-white/5">
+<span class="text-[10px] font-bold tracking-widest">EN</span>
+<span class="material-symbols-outlined text-[14px]">expand_more</span>
+</div>
+</div>
+</div>
+</nav>
+<main class="relative">
+<!-- Hero Section -->
+<section class="relative min-h-[85vh] flex flex-col items-center justify-center pt-24 pb-12 px-6 hero-gradient overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img alt="Abstract green digital nodes" class="w-full h-full object-cover opacity-10 mix-blend-screen" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtqmBofMU8_lZX6Tr2bD8krT6_hfUVE_hCzG04tchEaHIii_C7lQS3ofePDIUJOT5lGnlgQBGpM58EPH3kZjW1QtiuRrRJ_CHTI9OAaZDfMCWsXBK-a1OyXj4SVYFNa-cde-W3gnRa3howOV-uZoZo-4KpjaeF05DJG4M1AggVUigCx1YV8a2ViCdHptK1B6LwqncfrSm9E9Oyk_NRVfQzbMEKDEiauz13eA5KCcoqYwveWEmD5RtfjmPJ7lJeLLmWjbukWpvftLQ"/>
+</div>
+<div class="relative z-10 max-w-5xl text-center">
+<h1 class="font-headline text-5xl md:text-7xl font-black text-white tracking-tighter leading-[1.05] max-w-4xl mx-auto mb-4">
+                    Fund once.<br/>
+<span class="text-[#7FFFD4] bg-gradient-to-r from-[#7FFFD4] to-[#00D2FF] bg-clip-text text-transparent">Agents discover</span> and <span class="text-primary bg-gradient-to-r from-primary to-[#00D2FF] bg-clip-text text-transparent">pay for APIs.</span>
+</h1>
+<div class="space-y-1 mb-6">
+<p class="font-headline text-xl md:text-2xl text-white font-bold tracking-tight">Agents can talk. But now, they can trade.</p>
+<p class="text-neutral-500 font-medium text-xs md:text-sm uppercase tracking-[0.2em]">Financial Layer for Autonomous Agents.</p>
+</div>
+<div class="flex flex-col md:flex-row items-center justify-center gap-3">
+<button class="w-full md:w-auto px-8 py-3 bg-primary text-on-primary font-headline font-black text-sm uppercase tracking-wider rounded-full hover:shadow-[0_0_30px_rgba(0,255,65,0.4)] transition-all duration-300 flex items-center justify-center gap-2">
+                        Launch Console <span class="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+</button>
+<button class="w-full md:w-auto px-8 py-3 bg-transparent border border-white/10 text-white font-headline font-black text-sm uppercase tracking-wider rounded-full hover:bg-white/5 transition-all">
+                        Read Documentation
+                    </button>
+</div>
+<!-- Quick HUD stats -->
+<div class="grid grid-cols-3 gap-8 mt-12 max-w-2xl mx-auto border-t border-white/5 pt-8">
+<div>
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest mb-1">API Calls</p>
+<p class="font-headline text-2xl font-black text-white"><span class="animate-tick">4,2</span>M</p>
+</div>
+<div>
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest mb-1">Registered Services</p>
+<p class="font-headline text-2xl font-black text-white"><span class="animate-tick">1,28</span>4</p>
+</div>
+<div>
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest mb-1">Connected Agents</p>
+<p class="font-headline text-2xl font-black text-white"><span class="animate-tick">84,</span>102</p>
+</div>
+</div>
+</div>
+<!-- Bottom Metadata HUD -->
+<div class="absolute bottom-6 left-0 right-0 px-12 hidden lg:flex justify-between items-end border-b border-white/5 pb-3">
+<div class="space-y-0.5">
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest">Protocol Latency</p>
+<p class="font-headline font-bold text-primary text-glow-green">0.00<span class="animate-tick">42</span>ms</p>
+</div>
+<div class="space-y-0.5 text-center">
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest">Active Nodes</p>
+<p class="font-headline font-bold text-white tracking-widest">12,<span class="animate-tick-slow">402</span></p>
+</div>
+<div class="space-y-0.5 text-right">
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest">Global Status</p>
+<p class="font-headline font-bold text-primary flex items-center justify-end gap-2 text-glow-green">
+                        OPERATIONAL <span class="material-symbols-outlined text-[10px]">check_circle</span>
+</p>
+</div>
+</div>
+</section>
+<!-- PROTOCOL CAPABILITIES SECTION (Refined Alignment) -->
+<section class="py-24 bg-surface-dim border-y border-white/5">
+<div class="max-w-7xl mx-auto px-6">
+<!-- Section Header -->
+<div class="text-left mb-16">
+<p class="font-label text-primary text-[11px] font-bold uppercase tracking-[0.4em] mb-4">Protocol Capabilities</p>
+<h2 class="font-headline text-5xl md:text-6xl font-black text-white tracking-tighter leading-none mb-6">Three capabilities.<br/>One execution rail.</h2>
+<p class="text-neutral-400 text-base md:text-lg max-w-2xl leading-relaxed">Synapse gives agents the minimum set of powers required to complete a paid invocation autonomously.</p>
+</div>
+<!-- Cards Grid - Aligned to the 7xl container -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Card 1: Discover -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-start text-left group hover:border-primary/20 transition-all duration-500">
+<div class="mb-6 bg-primary/10 p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined text-3xl">search_insights</span>
+</div>
+<h3 class="font-headline text-2xl font-bold text-white mb-4">Discover</h3>
+<p class="text-neutral-400 text-sm leading-relaxed">Read paid API services, pricing, and callable endpoints from one machine-readable discovery feed.</p>
+</div>
+<!-- Card 2: Pay -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-start text-left group hover:border-primary/20 transition-all duration-500">
+<div class="mb-6 bg-primary/10 p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
+</div>
+<h3 class="font-headline text-2xl font-bold text-white mb-4">Pay</h3>
+<p class="text-neutral-400 text-sm leading-relaxed">Execute purchases with budgeted runtime identity instead of manual wallet approval.</p>
+</div>
+<!-- Card 3: Invoke -->
+<div class="glass-panel p-8 rounded-xl flex flex-col items-start text-left group hover:border-primary/20 transition-all duration-500">
+<div class="mb-6 bg-primary/10 p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined text-3xl">bolt</span>
+</div>
+<h3 class="font-headline text-2xl font-bold text-white mb-4">Invoke</h3>
+<p class="text-neutral-400 text-sm leading-relaxed">Route every paid API call through instant metering and settlement on one rail.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- THE ARCHITECTURE OF AUTONOMY / Developer Section (Synced Alignment) -->
+<section class="py-24 bg-surface-container-lowest border-b border-white/5">
+<div class="max-w-7xl mx-auto px-6">
+<div class="flex flex-col md:flex-row gap-12 items-start">
+<div class="flex-1 space-y-4">
+<span class="font-label text-primary text-[10px] uppercase tracking-[0.3em] font-bold">The SDK / Documentation</span>
+<h2 class="font-headline text-5xl font-black text-white leading-tight tracking-tighter">Ready in <br/> 1 Line.</h2>
+<p class="text-neutral-400 text-base max-w-md">Plug Synapse into any AI framework. Financial autonomy for your agents is just one import away.</p>
+<div class="flex flex-col gap-4 pt-4">
+<div class="flex items-center gap-2 bg-surface-container px-3 py-1.5 rounded-sm border border-white/10 w-fit">
+<span class="material-symbols-outlined text-neutral-500 text-xs">terminal</span>
+<span class="font-label text-[10px] text-neutral-300">npm i @synapse/sdk</span>
+</div>
+<button class="w-fit font-label text-[10px] text-white font-bold uppercase tracking-widest border border-white/10 px-6 py-2.5 hover:bg-white/5 transition-all rounded-full">View Architecture Docs</button>
+</div>
+</div>
+<div class="flex-1 w-full lg:pl-12">
+<div class="bg-[#080808] rounded-lg shadow-2xl border border-white/5 overflow-hidden">
+<div class="bg-surface-container px-4 py-2.5 flex items-center justify-between border-b border-white/5">
+<div class="flex gap-1.5">
+<div class="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/30"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/30"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/30"></div>
+</div>
+<span class="font-label text-[8px] text-neutral-500 uppercase tracking-widest">agent_workflow.py</span>
+</div>
+<div class="p-8 code-block text-[13px] leading-relaxed overflow-x-auto">
+<p class="text-neutral-500"><span class="text-primary-dim">from</span> synapse_sdk <span class="text-primary-dim">import</span> AgentWallet</p>
+<p class="text-neutral-500 mt-2"># Initialize Agent with Settlement Layer</p>
+<p class="text-white">agent = AgentWallet(id=<span class="text-primary-dim">"0x9fA...3B"</span>, key=ENV[<span class="text-primary-dim">'API_KEY'</span>])</p>
+<p class="text-neutral-500 mt-2"># Invoke GPT-4o with micro-payment</p>
+<p class="text-white">response = agent.invoke_service(</p>
+<p class="text-white pl-4">service_id=<span class="text-primary-dim">"openai/gpt-4o"</span>,</p>
+<p class="text-white pl-4">max_budget=<span class="text-primary-dim">0.05</span>,</p>
+<p class="text-white pl-4">callback=process_inference</p>
+<p class="text-white">)</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Monitoring Dashboard -->
+<section class="py-24 px-6 bg-black">
+<div class="max-w-7xl mx-auto space-y-12">
+<div class="flex justify-between items-end border-b border-white/5 pb-4">
+<h2 class="font-headline text-3xl font-bold text-white tracking-tighter">Real-time AI Economy</h2>
+<span class="font-label text-[9px] text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(0,255,65,0.6)]"></span> Live Monitoring Stream
+                    </span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-0.5 bg-white/5 border border-white/5">
+<div class="bg-surface-container-low p-10 group hover:bg-surface-container transition-colors">
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest mb-6">Requests per Second</p>
+<p class="font-headline text-5xl font-black text-primary tracking-tighter text-glow-green">84,<span class="animate-tick">102</span></p>
+<div class="mt-8 flex items-center gap-2">
+<span class="text-[9px] text-primary font-label font-bold">+12.4%</span>
+<div class="flex-1 h-0.5 bg-white/5 relative overflow-hidden">
+<div class="absolute inset-0 bg-primary w-2/3"></div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-low p-10 group hover:bg-surface-container transition-colors">
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest mb-6">Avg. Settlement Speed</p>
+<p class="font-headline text-5xl font-black text-primary tracking-tighter text-glow-green">1<span class="animate-tick">4</span>ms</p>
+<div class="mt-8 flex items-center gap-2">
+<span class="text-[9px] text-primary font-label font-bold">OPTIMAL</span>
+<div class="flex-1 h-0.5 bg-white/5 relative overflow-hidden">
+<div class="absolute inset-0 bg-primary w-full shadow-[0_0_10px_rgba(0,255,65,0.5)]"></div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-low p-10 group hover:bg-surface-container transition-colors">
+<p class="font-label text-[9px] text-neutral-500 uppercase tracking-widest mb-6">Total Volume (USDC)</p>
+<p class="font-headline text-5xl font-black text-primary tracking-tighter text-glow-green">$4.<span class="animate-tick">2</span>M</p>
+<div class="mt-8 flex items-center gap-2">
+<span class="text-[9px] text-primary font-label font-bold">ALL-TIME</span>
+<div class="flex-1 h-0.5 bg-white/5 relative overflow-hidden">
+<div class="absolute inset-0 bg-primary w-1/4"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Marketplace -->
+<section class="py-24 px-6 bg-surface-container-lowest">
+<div class="max-w-7xl mx-auto">
+<div class="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+<div>
+<h2 class="font-headline text-4xl font-bold text-white tracking-tighter leading-none">API Marketplace</h2>
+<p class="text-neutral-500 mt-4 text-sm max-w-xl">Browse top-tier AI services accessible via Synapse SDK.</p>
+</div>
+<button class="font-label text-[10px] text-white font-bold uppercase tracking-widest border border-white/10 px-6 py-2.5 hover:bg-white/5 transition-all rounded-sm">View All Services</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-surface-container-low border border-white/5 p-6 rounded-sm hover:border-primary/40 transition-all group">
+<div class="flex justify-between items-start mb-8">
+<div class="w-12 h-12 bg-white/5 rounded-sm flex items-center justify-center">
+<img alt="GPT-4o" class="w-7 h-7 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmAlvR_vmUxoT-1zQ8lob01dLeFnuitPvLXhG5wmsH6pbcwAJE5EIVMDwJUjHwLmIjvVojzUWqneeUK0J5o4nFiZbfIJjmw9V6fXu5bPhSgwBdcoVCYmFcojhwuazUoyizdInQz5xKXJgFDeXafIC3i1dsUOwXFFhKZvTd151n961Vox0RgGxEqhfI-ZbYPFdA8eI0fZNAmvjHyntDTJbmjIt3OQm6mwLO4lyzG1NebbcNKMMhCeqcY2DM6zL2CtJ5P4Mu4UjX1ak"/>
+</div>
+<span class="font-label text-[8px] text-primary bg-primary/10 px-2 py-0.5 rounded-sm uppercase font-bold tracking-widest border border-primary/20">Active</span>
+</div>
+<h3 class="font-headline font-bold text-white text-lg mb-1">GPT-4o</h3>
+<p class="text-neutral-500 text-[11px] mb-6">Multimodal flagship model by OpenAI.</p>
+<div class="flex justify-between items-center border-t border-white/5 pt-4">
+<span class="font-label text-[9px] text-neutral-500 uppercase tracking-widest">Rate</span>
+<span class="font-headline font-bold text-white text-sm">0.005 <span class="text-[9px] text-neutral-500 font-normal">USDC/1K</span></span>
+</div>
+</div>
+<div class="bg-surface-container-low border border-white/5 p-6 rounded-sm hover:border-primary/40 transition-all group">
+<div class="flex justify-between items-start mb-8">
+<div class="w-12 h-12 bg-white/5 rounded-sm flex items-center justify-center">
+<img alt="Claude" class="w-7 h-7 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB2HRXiURFbova02LX5i7ChtOB_jmQ_sBW4L2HOd613UBha8ZxXE0Gia8KCibbGHRMA1Z-Lwue6Em8gw3Q7zPxT2YVXyW22uWzDI-Ouz9o-C87ctBMT596kzGPifljIs9RniVb_GLzvV7zmjQQNw8DLltjekxC2ojCmyXlG3HfAKWJG7ywtMUaB4Gabt6dLKoMNi7gX7rnluqSQp0NFmlvfQVkirT3HfnK4n5ZCpXJcyg_VMaG1dKTi4wLFDNI-ca3Y0zikxsipNwc"/>
+</div>
+<span class="font-label text-[8px] text-primary bg-primary/10 px-2 py-0.5 rounded-sm uppercase font-bold tracking-widest border border-primary/20">Active</span>
+</div>
+<h3 class="font-headline font-bold text-white text-lg mb-1">Claude 3.5</h3>
+<p class="text-neutral-500 text-[11px] mb-6">High-performance intelligence by Anthropic.</p>
+<div class="flex justify-between items-center border-t border-white/5 pt-4">
+<span class="font-label text-[9px] text-neutral-500 uppercase tracking-widest">Rate</span>
+<span class="font-headline font-bold text-white text-sm">0.003 <span class="text-[9px] text-neutral-500 font-normal">USDC/1K</span></span>
+</div>
+</div>
+<div class="bg-surface-container-low border border-white/5 p-6 rounded-sm hover:border-primary/40 transition-all group">
+<div class="flex justify-between items-start mb-8">
+<div class="w-12 h-12 bg-white/5 rounded-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-neutral-400 text-2xl">image</span>
+</div>
+<span class="font-label text-[8px] text-primary bg-primary/10 px-2 py-0.5 rounded-sm uppercase font-bold tracking-widest border border-primary/20">Active</span>
+</div>
+<h3 class="font-headline font-bold text-white text-lg mb-1">SDXL 3.0</h3>
+<p class="text-neutral-500 text-[11px] mb-6">State-of-the-art image synthesis.</p>
+<div class="flex justify-between items-center border-t border-white/5 pt-4">
+<span class="font-label text-[9px] text-neutral-500 uppercase tracking-widest">Rate</span>
+<span class="font-headline font-bold text-white text-sm">0.020 <span class="text-[9px] text-neutral-500 font-normal">USDC/IMG</span></span>
+</div>
+</div>
+<div class="bg-primary/5 border border-primary/20 p-6 rounded-sm flex flex-col items-center justify-center text-center group cursor-pointer hover:bg-primary/10 transition-all">
+<span class="material-symbols-outlined text-primary mb-4 text-3xl">add_circle</span>
+<h3 class="font-headline font-bold text-white text-lg mb-1">Host Your Agent</h3>
+<p class="text-neutral-500 text-[10px] mb-6">Monetize models via Synapse.</p>
+<button class="font-label text-[9px] text-primary font-bold uppercase tracking-widest border border-primary/30 px-5 py-2 hover:bg-primary hover:text-on-primary transition-all">Register Service</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<footer class="bg-black border-t border-white/5 py-12">
+<div class="w-full max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex flex-col md:flex-row items-center gap-6">
+<span class="font-headline font-black text-white tracking-tighter text-2xl">SYNAPSE</span>
+<p class="font-label text-[9px] uppercase tracking-widest text-neutral-600 max-w-xs text-center md:text-left">© 2024 SYNAPSE NETWORK. THE INFRASTRUCTURE FOR AI ECONOMY.</p>
+</div>
+<div class="flex items-center gap-8 font-label text-[10px] uppercase tracking-widest text-neutral-500">
+<a class="hover:text-white transition-colors" href="#">Docs</a>
+<a class="hover:text-white transition-colors" href="#">SDKs</a>
+<a class="hover:text-white transition-colors" href="#">Discord</a>
+<a class="hover:text-white transition-colors" href="#">Twitter</a>
+</div>
+</div>
+</footer>
+</body></html>
