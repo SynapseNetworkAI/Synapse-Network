@@ -126,7 +126,7 @@ export default function ServicesPage() {
       openConnectModal?.();
       return;
     }
-    router.push("/dashboard/services/deploy");
+    router.push("/provider/services/deploy");
   };
 
   let managedServicesContent: JSX.Element;
@@ -229,7 +229,7 @@ export default function ServicesPage() {
                 {statusActionLabel}
               </button>
               <button
-                onClick={() => router.push(`/dashboard/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`)}
+                onClick={() => router.push(`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`)}
                 disabled={isDeleting}
                 className="flex items-center justify-center flex-1 px-4 py-2 text-sm font-bold text-green-400 transition border border-green-500/30 rounded hover:bg-green-500/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
