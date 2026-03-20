@@ -1,1 +1,1 @@
-export { default } from "@/components/dashboard/discovery/DiscoveryConsolePage";
+export { default } from "../discovery/page";
