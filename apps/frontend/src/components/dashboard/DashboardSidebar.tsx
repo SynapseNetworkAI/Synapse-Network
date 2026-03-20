@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import type { MouseEvent } from "react";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAuth } from "@/components/WalletAuthGuard";
 import { 
   LayoutGrid,
   Wallet,
@@ -21,9 +24,12 @@ import {
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { openConnectModal } = useConnectModal();
+  const { isConnected, isSessionAuthenticated, authorize } = useAuth();
 
   const providerRoot = "/provider";
   const providerConsoleRoute = `${providerRoot}/console`;
+  const providerSettlementsRoute = `${providerRoot}/settlements`;
 
   useEffect(() => {
     const allRoutes = [
@@ -69,6 +75,32 @@ export default function DashboardSidebar() {
     return active 
       ? "ml-auto bg-blue-400/10 text-blue-300 text-[10px] px-2 py-0.5 rounded-full font-mono flex items-center justify-center min-w-[20px]"
       : "ml-auto bg-white/5 text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-mono flex items-center justify-center min-w-[20px]";
+  };
+
+  const shouldBypassNavGuard = (event: MouseEvent<HTMLAnchorElement>) => {
+    return event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+  };
+
+  const handleSettlementsNavigation = async (event: MouseEvent<HTMLAnchorElement>) => {
+    if (shouldBypassNavGuard(event)) {
+      return;
+    }
+
+    if (!isConnected) {
+      event.preventDefault();
+      openConnectModal?.();
+      return;
+    }
+
+    if (isSessionAuthenticated) {
+      return;
+    }
+
+    event.preventDefault();
+    const authorized = await authorize();
+    if (authorized) {
+      router.push(providerSettlementsRoute);
+    }
   };
 
   return (
@@ -137,7 +169,13 @@ export default function DashboardSidebar() {
             <AreaChart className="w-4 h-4 mr-3 opacity-80" />
             Usage Analytics
           </Link>
-          <Link href={`${providerRoot}/settlements`} className={getLinkClasses([`${providerRoot}/settlements`], false)}>
+          <Link
+            href={providerSettlementsRoute}
+            className={getLinkClasses([providerSettlementsRoute], false)}
+            onClick={(event) => {
+              void handleSettlementsNavigation(event);
+            }}
+          >
             <Clock className="w-4 h-4 mr-3 opacity-80" />
             Settlements
           </Link>
