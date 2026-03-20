@@ -13,7 +13,7 @@
 
 本目录的约束来源：
 
-1. `docs/agent.md`
+1. `docs/agents.md`
 2. `docs/api.md`
 3. `docs/Gateway_Database_Design.md`
 4. `docs/04_Database_Design/`
@@ -28,6 +28,7 @@
 3. `03_Observability_Logging_and_Indexer_Operations.md`
 4. `04_Financial_Incident_Response_and_Production_Operations.md`
 5. `05_Discovery_Service_Troubleshooting_SQL.md`
+6. `06_Python_Environment_and_Venv_Strategy.md`
 
 ## 模块边界
 

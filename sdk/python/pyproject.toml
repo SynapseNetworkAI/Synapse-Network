@@ -17,6 +17,12 @@ dependencies = [
   "pydantic>=2.0.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.0",
+  "build>=1.4.0"
+]
+
 [tool.setuptools]
 include-package-data = true
 

@@ -118,6 +118,7 @@ class InvocationBillingState(BaseModel):
 
     owner_address: str = Field(default="", alias="ownerAddress")
     provider_address: str = Field(default="", alias="providerAddress")
+    agent_id: Optional[str] = Field(default=None, alias="agentId")
     request_id: Optional[str] = Field(default=None, alias="requestId")
     origin_request_id: Optional[str] = Field(default=None, alias="originRequestId")
     origin_tx_hash: Optional[str] = Field(default=None, alias="originTxHash")
@@ -125,6 +126,7 @@ class InvocationBillingState(BaseModel):
     protocol_fee: Decimal = Field(default=Decimal("0"), alias="protocolFee")
     routing_tax: Decimal = Field(default=Decimal("0"), alias="routingTax")
     total_charge: Decimal = Field(default=Decimal("0"), alias="totalCharge")
+    latency_ms: Optional[int] = Field(default=None, alias="latencyMs")
     business_type: str = Field(default="charge", alias="businessType")
     risk_level: str = Field(default="green", alias="riskLevel")
 

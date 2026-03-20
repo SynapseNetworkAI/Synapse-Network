@@ -9,7 +9,6 @@ import toast from "react-hot-toast";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   deleteServiceRegistry,
-  discoverServices,
   invalidateServiceRegistryListCache,
   listServiceRegistry,
   updateServiceRegistry,
@@ -26,7 +25,6 @@ export default function ServicesPage() {
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated } = useAuth();
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
-  const [publicServices, setPublicServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
@@ -75,7 +73,7 @@ export default function ServicesPage() {
     }
 
     const confirmed = globalThis.confirm(
-      `Delete service ${svc.serviceId}? This is a logical delete. The service will be marked as deleted, removed from your active registry view, and kept only for audit history.`
+      `Delete service ${svc.serviceId}? This is a logical delete. The service will be marked as deleted, removed from your active service list, and kept only for audit history.`
     );
     if (!confirmed) {
       return;
@@ -113,19 +111,7 @@ export default function ServicesPage() {
     }
   };
 
-  const loadPublicServices = async () => {
-    try {
-      const rows = await discoverServices();
-      setPublicServices(rows);
-    } catch (err) {
-      console.warn("Failed to load public services", err);
-      setPublicServices([]);
-    }
-  };
-
   useEffect(() => {
-    void loadPublicServices();
-
     if (address) {
       void loadServices();
     } else {
@@ -135,7 +121,7 @@ export default function ServicesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
-  const handleOpenDeployManifest = () => {
+  const handleOpenDeployService = () => {
     if (!address) {
       openConnectModal?.();
       return;
@@ -148,15 +134,15 @@ export default function ServicesPage() {
   if (address == null) {
     managedServicesContent = (
       <div className="p-8 text-center border border-gray-800 rounded-xl bg-black/40">
-        <p className="text-gray-300">Wallet not connected. You can still browse public services registered on Synapse.</p>
-        <p className="text-gray-500 text-sm mt-2">Connect and sign in to manage your own provider services.</p>
+        <p className="text-gray-300">Wallet not connected.</p>
+        <p className="text-gray-500 text-sm mt-2">Connect and sign in to manage your API services and service definitions.</p>
       </div>
     );
   } else if (isSessionAuthenticated !== true) {
     managedServicesContent = (
       <div className="p-8 text-center border border-yellow-700/30 rounded-xl bg-yellow-900/10">
         <p className="text-yellow-200">Session not authenticated yet.</p>
-        <p className="text-yellow-300/80 text-sm mt-2">Sign in with wallet to view and manage your private service registry.</p>
+        <p className="text-yellow-300/80 text-sm mt-2">Sign in with wallet to view and manage your private service definitions.</p>
       </div>
     );
   } else if (loading) {
@@ -168,13 +154,13 @@ export default function ServicesPage() {
       <div className="p-12 text-center border border-dashed border-gray-800 rounded-xl bg-black/20">
         <Server className="w-12 h-12 mx-auto mb-4 text-gray-600" />
         <h3 className="mb-2 text-xl font-bold text-white">No Services Found</h3>
-        <p className="mb-6 text-gray-400">You haven&apos;t deployed any Service Manifests yet.</p>
+        <p className="mb-6 text-gray-400">You haven&apos;t created any service definitions yet.</p>
         <button
-          onClick={handleOpenDeployManifest}
+          onClick={handleOpenDeployService}
           className="inline-flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600"
         >
           <Plus className="w-5 h-5 mr-2" />
-          Deploy Your First API
+          Create First Service
         </button>
       </div>
     );
@@ -219,11 +205,11 @@ export default function ServicesPage() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => router.push(`/dashboard/provider/nodes?edit=${encodeURIComponent(svc.serviceId)}`)}
+                onClick={() => router.push(`/provider/services?edit=${encodeURIComponent(svc.serviceId)}`)}
                 disabled={isDeleting}
                 className="flex-1 px-4 py-2 font-bold text-white transition bg-gray-800 rounded hover:bg-gray-700 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Edit Manifest
+                Edit Service
               </button>
               <button
                 onClick={() => void deleteService(svc)}
@@ -265,9 +251,9 @@ export default function ServicesPage() {
         <div>
           <h1 className="flex items-center text-3xl font-bold text-white">
             <Server className="mr-3 text-green-400" />
-            Provider Management
+            My Services
           </h1>
-          <p className="mt-2 text-gray-400">Manage your deployed API manifests and monitor endpoint health.</p>
+          <p className="mt-2 text-gray-400">Manage API services, service definitions, and endpoint health.</p>
         </div>
         <div className="flex gap-4">
           <Link href="/dashboard" className="flex items-center px-4 py-2 text-gray-300 transition-colors bg-gray-900 border border-gray-700 rounded-lg hover:bg-gray-800">
@@ -275,50 +261,16 @@ export default function ServicesPage() {
             Back to Dashboard
           </Link>
           <button
-            onClick={handleOpenDeployManifest}
+            onClick={handleOpenDeployService}
             className="flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Deploy Manifest
+            New Service
           </button>
         </div>
       </div>
 
       {managedServicesContent}
-
-      <div className="pt-8 border-t border-gray-800">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Public API Marketplace</h2>
-          <span className="text-xs uppercase tracking-wider text-gray-500">No login required</span>
-        </div>
-
-        {publicServices.length === 0 ? (
-          <div className="p-6 border border-dashed border-gray-800 rounded-xl bg-black/20 text-gray-500 text-sm">
-            No public services discovered yet.
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {publicServices.map((svc) => (
-              <div key={svc.serviceId} className="p-5 border border-gray-800 rounded-xl bg-gray-900/40">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-white">{svc.serviceName || svc.name || "Unnamed Service"}</h3>
-                    <p className="text-xs font-mono text-gray-400 mt-1">{svc.serviceId}</p>
-                  </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-300">
-                    Public
-                  </span>
-                </div>
-                <p className="text-sm text-gray-400 mt-3 line-clamp-2">{svc.summary || "No summary provided."}</p>
-                <div className="mt-3 flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Pricing</span>
-                  <span className="text-green-300 font-mono">{formatPricing(svc.pricing)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
     </div>
   );

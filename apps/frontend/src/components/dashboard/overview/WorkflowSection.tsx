@@ -21,7 +21,7 @@ export default function WorkflowSection() {
     {
       icon: <Search className="w-4 h-4 text-blue-400" />,
       title: "Service Discovery",
-      description: "Find the best APIs and services in the network through our registry.",
+      description: "Find the best API services and service definitions in the network through discovery.",
       link: "/dashboard/discovery",
       linkText: "Explore Services"
     },
@@ -37,10 +37,10 @@ export default function WorkflowSection() {
   const providerSteps = [
     {
       icon: <PlusCircle className="w-4 h-4 text-emerald-400" />,
-      title: "Register API",
-      description: "Define your service manifest, pricing, and routing in the developer console.",
+      title: "Create Service",
+      description: "Define your API service, service definition, pricing, and runtime routing in the developer console.",
       link: "/dashboard/console",
-      linkText: "Register Service"
+      linkText: "Create Service"
     },
     {
       icon: <Server className="w-4 h-4 text-emerald-400" />,
@@ -81,7 +81,7 @@ export default function WorkflowSection() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {consumerSteps.map((step, idx) => (
-            <div key={idx} className="group p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-blue-500/30 transition-all">
+            <div key={step.title} className="group p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-blue-500/30 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5 group-hover:bg-blue-500/10 group-hover:border-blue-500/20 transition-colors">
                   {step.icon}
@@ -113,7 +113,7 @@ export default function WorkflowSection() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {providerSteps.map((step, idx) => (
-            <div key={idx} className="group p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 transition-all">
+            <div key={step.title} className="group p-5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5 group-hover:bg-emerald-500/10 group-hover:border-emerald-500/20 transition-colors">
                   {step.icon}

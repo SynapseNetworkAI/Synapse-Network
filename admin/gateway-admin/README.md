@@ -91,7 +91,7 @@
 ```bash
 docker-compose -f docker-compose/docker-compose.yml up -d postgres
 cd admin/gateway-admin
-python -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 sh scripts/ops/start-local.sh

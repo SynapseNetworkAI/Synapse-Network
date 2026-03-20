@@ -102,21 +102,39 @@ class GatewayStateRepository:
             return metadata.total_charge
         return charged_usdc
 
+    @staticmethod
+    def _latency_ms(started_at: Any, finished_at: Any, fallback: Any) -> int | None:
+        if fallback is not None:
+            try:
+                return int(fallback)
+            except Exception:
+                pass
+        started = GatewayStateRepository._epoch_seconds(started_at)
+        finished = GatewayStateRepository._epoch_seconds(finished_at)
+        if started <= 0 or finished <= 0 or finished < started:
+            return None
+        return int((finished - started) * 1000)
+
     def _project_usage_log_row(
         self,
         invocation_id: Any,
+        agent_id: Any,
         idempotency_key: Any,
         service_id: Any,
         status: Any,
         charged_usdc: Any,
+        started_at: Any,
+        finished_at: Any,
         created_at: Any,
         payload: Any,
     ) -> UsageLogRow:
         metadata = InvocationBillingState.model_validate(self._payload_dict(payload))
         total_charge = self._normalized_total_charge(metadata, charged_usdc)
+        latency_ms = self._latency_ms(started_at, finished_at, metadata.latency_ms)
         return UsageLogRow(
             id=str(invocation_id),
             ts=self._epoch_seconds(created_at),
+            agentId=str(metadata.agent_id or agent_id or "") or None,
             requestId=str(metadata.request_id or idempotency_key or ""),
             serviceId=service_id,
             consumerAddress=metadata.owner_address,
@@ -132,6 +150,7 @@ class GatewayStateRepository:
             if metadata.routing_tax is not None
             else None,
             totalCharge=self._q6(total_charge) if total_charge is not None else None,
+            latencyMs=latency_ms,
             businessType=str(metadata.business_type or "charge"),
             riskLevel=str(metadata.risk_level or "green"),
             originRequestId=metadata.origin_request_id,
@@ -146,6 +165,7 @@ class GatewayStateRepository:
         self, row: UsageLogRow
     ) -> InvocationBillingState:
         return InvocationBillingState(
+            agentId=row.agent_id,
             requestId=row.request_id,
             ownerAddress=row.consumer_address.lower() if row.consumer_address else "",
             providerAddress=row.provider_address.lower() if row.provider_address else "",
@@ -153,6 +173,7 @@ class GatewayStateRepository:
             protocolFee=self._billing_amount_or_zero(row.protocol_fee),
             routingTax=self._billing_amount_or_zero(row.routing_tax),
             totalCharge=self._billing_amount_or_zero(row.total_charge),
+            latencyMs=row.latency_ms,
             businessType=row.business_type,
             riskLevel=row.risk_level,
             originRequestId=row.origin_request_id,
@@ -733,10 +754,13 @@ class GatewayStateRepository:
                 """
                 SELECT
                     inv.invocation_id,
+                    inv.agent_id,
                     inv.idempotency_key,
                     inv.service_id,
                     inv.status,
                     inv.charged_usdc,
+                    inv.started_at,
+                    inv.finished_at,
                     inv.created_at,
                     rs.payload
                 FROM synapse_invocations inv

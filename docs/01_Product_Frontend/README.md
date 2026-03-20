@@ -12,7 +12,7 @@
 
 本目录的约束来源：
 
-1. `docs/agent.md`
+1. `docs/agents.md`
 2. `docs/Design.md`
 3. `docs/agent/00_Platform_Role_Identity_Model.md`
 4. `docs/agent/01_Agent_Runtime_Product_Architecture.md`

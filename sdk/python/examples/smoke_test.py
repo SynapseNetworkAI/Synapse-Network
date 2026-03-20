@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from uuid import uuid4
 
 from synapse_client import SynapseClient
 from synapse_client.exceptions import SynapseClientError
@@ -53,13 +54,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--request-id",
-        default="sdk-smoke-test",
-        help="Request id attached to quote/invoke requests.",
+        default="",
+        help="Request id attached to quote/invoke requests. Auto-generated when omitted.",
     )
     parser.add_argument(
         "--idempotency-key",
-        default="sdk-smoke-test",
-        help="Idempotency key used for invocation.",
+        default="",
+        help="Idempotency key used for invocation. Auto-generated when omitted.",
     )
     parser.add_argument(
         "--skip-invoke",
@@ -78,6 +79,13 @@ def resolve_payload(args: argparse.Namespace) -> dict:
     return {"text": args.text}
 
 
+def resolve_request_identity(args: argparse.Namespace) -> tuple[str, str]:
+    run_id = uuid4().hex[:12]
+    request_id = args.request_id.strip() or f"sdk-smoke-{run_id}"
+    idempotency_key = args.idempotency_key.strip() or f"{request_id}-invoke"
+    return request_id, idempotency_key
+
+
 def main() -> int:
     args = parse_args()
     if not args.api_key:
@@ -90,15 +98,20 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
+    request_id, idempotency_key = resolve_request_identity(args)
+
     client = SynapseClient(api_key=args.api_key, gateway_url=args.gateway_url)
 
     service_id = args.service_id.strip()
+    print(f"Gateway: {args.gateway_url}")
+    print(f"Request id: {request_id}")
+    print(f"Idempotency key: {idempotency_key}")
     try:
         if not service_id:
             discovery = client.discover_services(
                 intent=args.query,
                 tags=args.tags,
-                request_id=args.request_id,
+                request_id=request_id,
             )
             print(f"Discovery count: {discovery.count}")
             for service in discovery.results:
@@ -119,8 +132,8 @@ def main() -> int:
         response = client.call_service(
             service_id=service_id,
             payload=payload,
-            request_id=args.request_id,
-            idempotency_key=args.idempotency_key,
+            request_id=request_id,
+            idempotency_key=idempotency_key,
         )
     except SynapseClientError as exc:
         print(f"Synapse SDK smoke test failed: {exc}", file=sys.stderr)

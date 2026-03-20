@@ -60,22 +60,21 @@ python sdk/python/synapse_client/client.py
 
 ### 3.1 环境准备
 
-在本仓库里，已经验证可用的 Python 解释器是：
+SDK 不应默认借用 `admin/gateway-admin/.venv`。
 
-```bash
-/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python
-```
-
-进入 SDK 目录：
+推荐做法是在 `sdk/python` 目录内维护自己的虚拟环境：
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
 
-如果你要本地开发安装：
+如果你不想激活环境，也可以直接使用：
 
 ```bash
-/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pip install -e .
+$PWD/.venv/bin/python
 ```
 
 ### 3.2 运行 SDK 单测
@@ -84,7 +83,7 @@ cd /Users/cliff/workspace/Synapse-Network/sdk/python
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
+PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
 ```
 
 当前结果：`10 passed`
@@ -106,8 +105,19 @@ PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.ve
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python examples/smoke_test.py --query '名人名言'
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query '名人名言'
 ```
+
+这个命令打的不是 mock，也不是本地假数据，而是真实 SDK 调用链路：
+
+1. SDK 调 `POST /api/v1/agent/discovery/search`
+2. SDK 调 `POST /api/v1/agent/quotes`
+3. SDK 调 `POST /api/v1/agent/invocations`
+4. 如果调用进入非终态，SDK 再轮询 `GET /api/v1/agent/invocations/{invocationId}`
+
+所以它验证的是整条链：`sdk/python/examples/smoke_test.py -> synapse_client -> gateway -> provider/runtime -> invocation receipt`。
+
+当前脚本默认会为每次执行自动生成新的 `request_id` 和 `idempotency_key`。这点非常关键，因为如果你总是复用固定幂等键，你看到的很可能是旧调用结果，不是一次新的真实请求。
 
 这个 smoke test 的前提：
 
@@ -121,8 +131,50 @@ PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.ve
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python examples/smoke_test.py --service-id svc_quotes_famous_top3
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --service-id svc_quotes_famous_top3
 ```
+
+如果你要验证结构化 payload，而不是默认的 `{"text": "..."}` 文本体：
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY='agt_xxx_your_real_key'
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
+    --service-id svc_quotes_famous_top3 \
+    --payload-json '{"topic":"perseverance","style":"short"}'
+```
+
+如果你只想先验证 discovery 是否通，不实际 invoke：
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY='agt_xxx_your_real_key'
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query '名人名言' --skip-invoke
+```
+
+### 3.4 一条能打通真实链路的最短操作路径
+
+如果你的目标是验证“SDK + 网关 + 服务”整条调用链，不要东拼西凑命令，直接按这个顺序：
+
+```bash
+sh /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
+
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY='agt_xxx_your_real_key'
+export SYNAPSE_GATEWAY='http://127.0.0.1:8000'
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
+    --query '名人名言' \
+    --text '想要放弃的时候，请给我一句关于坚持的名人名言'
+```
+
+成功判定标准不是只有退出码，还要看输出里是否同时出现：
+
+1. `Discovery count: N` 且 `N > 0`
+2. `Selected service: ...`
+3. `Invocation succeeded`
+4. 最终 JSON 里有非空 `invocationId`
+
+如果你要把这次调用和 gateway 日志对齐，直接拿脚本输出里的 `Request id` 和 `Idempotency key` 去查日志即可。
 
 ## 4. 正确的调用和 smoke test 方法
 
@@ -130,7 +182,7 @@ PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.ve
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python - <<'PY'
+PYTHONPATH="$PWD" .venv/bin/python - <<'PY'
 from synapse_client import SynapseClient
 
 client = SynapseClient(
@@ -148,7 +200,7 @@ PY
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python - <<'PY'
+PYTHONPATH="$PWD" .venv/bin/python - <<'PY'
 from synapse_client import SynapseClient
 print(SynapseClient)
 PY
@@ -174,21 +226,21 @@ Python SDK 每次改动前后，至少过下面这张清单：
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
-/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pip install -e .
+PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
+.venv/bin/python -m pip install -e .
 ```
 
 如果环境里装了 `build`，再补一轮打包校验：
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
-/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m build
+.venv/bin/python -m build
 ```
 
 如果 `python -m build` 报模块不存在，先安装：
 
 ```bash
-/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pip install build
+.venv/bin/python -m pip install build
 ```
 
 ## 6. 运维关注点
@@ -296,9 +348,9 @@ SDK 会把 `402` 映射成：
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
+PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'
-PYTHONPATH="$PWD" /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python examples/smoke_test.py --query '名人名言'
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query '名人名言'
 ```
 
 第一步验证 SDK 代码本身。

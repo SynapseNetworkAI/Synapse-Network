@@ -113,10 +113,10 @@ This aggregates the repository PR checks currently wired in:
 
 - `apps/frontend`: lint / test / build
 - `admin/admin-front`: lint / build
-- `gateway`: pytest
-- `admin/gateway-admin`: pytest
-- `provider_service`: pytest
-- `sdk/python`: pytest unit coverage + `python -m build`; live gateway demo test is opt-in
+- `gateway`: create `gateway/.venv`, install dependencies, run pytest
+- `admin/gateway-admin`: create `admin/gateway-admin/.venv`, install dependencies, run pytest
+- `provider_service`: create `provider_service/.venv`, install dependencies, run pytest
+- `sdk/python`: create `sdk/python/.venv`, install editable package dependencies, run pytest unit coverage + `python -m build`; live gateway demo test is opt-in
 - root contracts: hardhat compile, plus hardhat test when root contract tests exist
 
 Current Python packaging target in this repository:
@@ -135,10 +135,10 @@ These three are runtime service processes, not Python distribution packages toda
 
 ```bash
 cd gateway
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 provider_fastapi.py
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+.venv/bin/python provider_fastapi.py
 ```
 
 ## Documentation Map

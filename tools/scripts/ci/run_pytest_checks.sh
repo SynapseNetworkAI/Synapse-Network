@@ -10,14 +10,17 @@ fi
 LABEL="$1"
 PROJECT_DIR="$2"
 TEST_TARGET="${3:-tests}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ -x "$PROJECT_DIR/.venv/bin/python" ]]; then
-  PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
-elif [[ -x "$PROJECT_DIR/venv/bin/python" ]]; then
-  PYTHON_BIN="$PROJECT_DIR/venv/bin/python"
+if [[ -f "$PROJECT_DIR/pyproject.toml" ]]; then
+  INSTALL_MODE="editable"
 else
-  PYTHON_BIN="python3"
+  INSTALL_MODE="requirements"
 fi
+
+bash "$SCRIPT_DIR/ensure_python_env.sh" "$LABEL" "$PROJECT_DIR" "$INSTALL_MODE" pytest
+
+PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
 
 echo "[$LABEL] running pytest in $PROJECT_DIR with $PYTHON_BIN"
 cd "$PROJECT_DIR"

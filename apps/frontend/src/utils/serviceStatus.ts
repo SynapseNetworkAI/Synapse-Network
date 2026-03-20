@@ -475,7 +475,7 @@ function normalizeFinalPayload(payload: ServiceRegistryPayload): ServiceRegistry
     : [];
   const finalInvokeUrl = payload.invoke.url || finalTargets[0]?.url || "";
   if (!finalInvokeUrl || finalTargets.length === 0) {
-    throw new Error("Service invoke target is missing. Open Edit Manifest and save a valid endpoint first.");
+    throw new Error("Service invoke target is missing. Open Edit Service and save a valid endpoint first.");
   }
 
   return {

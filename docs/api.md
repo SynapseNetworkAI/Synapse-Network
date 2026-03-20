@@ -201,6 +201,27 @@
 
 用途：返回 owner-scoped 金融审计事件。
 
+### 6.1.1 `GET /api/v1/usage/logs`
+
+用途：返回 owner-scoped invocation / billing 日志，供 Dashboard Invocations、结算明细和 owner 自查使用。
+
+查询参数：
+
+1. `page`，从 `1` 开始，默认 `1`
+2. `pageSize`，默认 `20`，最大 `100`
+3. `status`，可选，按调用状态过滤
+4. `query`，可选，按 `invocation id / request id / service id / wallet` 模糊过滤
+5. `limit`，兼容旧客户端的简化参数；传入时返回前 N 条最新记录
+
+返回约定：
+
+1. `logs` 为当前页记录
+2. `count` 为当前页记录数
+3. `total` 为过滤后的总记录数
+4. `page` / `pageSize` 为服务端实际分页参数
+5. `hasMore` 表示是否仍有下一页
+6. 记录会尽量返回 `agentId` 与 `latencyMs`，用于 Invocations 页面展示真实调用流水视图
+
 ### 6.2 `GET /api/v1/indexer/status`
 
 用途：返回充值索引器、backfill、reconciliation 的运行状态。

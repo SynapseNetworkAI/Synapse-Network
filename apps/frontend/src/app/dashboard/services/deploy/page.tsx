@@ -617,7 +617,7 @@ const collectIdentityErrors = (draft: ManifestDraft, errors: Record<string, stri
     errors.serviceName = `Service Name must be ${SERVICE_NAME_MIN}-${SERVICE_NAME_MAX} chars.`;
   }
   if (!manifestVersion || !/^\d+\.\d+\.\d+$/.test(manifestVersion)) {
-    errors.manifestVersion = "Manifest Version must use semver, for example 1.0.0.";
+    errors.manifestVersion = "Service Version must use semver, for example 1.0.0.";
   }
   if (!descriptionForModel) {
     errors.descriptionForModel = "Description for Model is required.";
@@ -1007,9 +1007,9 @@ export default function DeployManifestPage() {
       parsed.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_SERVICE_REQUEST_ID_HEADER;
       setDraft(parsed);
       setHasDraft(false);
-      toast.success("Manifest draft restored.");
+      toast.success("Service definition draft restored.");
     } catch {
-      toast.error("Stored draft is corrupted. Start from a clean contract.");
+      toast.error("Stored draft is corrupted. Start from a clean service definition.");
     }
   };
 
@@ -1231,11 +1231,11 @@ export default function DeployManifestPage() {
 
       const parsed = payload.data ?? payload.parsed ?? payload.manifest ?? payload.result;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Parser did not return a valid manifest object.");
+        throw new Error("Parser did not return a valid service definition object.");
       }
 
       setAIResponse(JSON.stringify(parsed, null, 2));
-      toast.success("AI manifest draft generated. Review and confirm override.");
+      toast.success("AI service definition draft generated. Review and confirm override.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to parse cURL.";
       toast.error(message);
@@ -1246,13 +1246,13 @@ export default function DeployManifestPage() {
 
   const confirmAndInject = () => {
     if (!parsedAiResponse) {
-      toast.error("Expected / Generated JSON Response must be valid JSON object.");
+      toast.error("Expected / Generated Service Definition JSON must be valid JSON object.");
       return;
     }
 
     setDraft((current) => normalizeParsedManifest(current, parsedAiResponse));
     closeParser();
-    toast.success("Parsed manifest data injected into the form.");
+    toast.success("Parsed service definition data injected into the form.");
   };
 
   const submitDeploy = async () => {
@@ -1269,19 +1269,19 @@ export default function DeployManifestPage() {
     try {
       await createServiceRegistry(gatewayPayloadPreview, address);
       localStorage.removeItem(STORAGE_KEY);
-      toast.success("Service manifest submitted.");
-      router.replace("/dashboard/provider/nodes");
+      toast.success("API service submitted.");
+      router.replace("/provider/services");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to deploy manifest.";
+      const message = error instanceof Error ? error.message : "Failed to create service.";
       toast.error(message);
     } finally {
       setIsDeploying(false);
     }
   };
 
-  let deploymentLabel = "SUBMIT SERVICE MANIFEST";
+  let deploymentLabel = "CREATE API SERVICE";
   if (isDeploying) {
-    deploymentLabel = "SUBMITTING MANIFEST...";
+    deploymentLabel = "CREATING SERVICE...";
   } else if (nextBlockingIssue) {
     deploymentLabel = "FIX CONTRACT VALIDATION";
   }
@@ -1289,8 +1289,8 @@ export default function DeployManifestPage() {
   return (
     <AuthMask
       allowChallengeAuthorize={false}
-      sessionHelpText="This page is session-only. Please complete wallet sign-in from Service Management, then return to publish."
-      sessionRecoveryHref="/dashboard/provider/nodes"
+      sessionHelpText="This page is session-only. Please complete wallet sign-in from My Services, then return to create a service."
+      sessionRecoveryHref="/provider/services"
       sessionRecoveryLabel="Go to API Services"
     >
       <div className="min-h-[calc(100vh-80px)] bg-[#050505]">
@@ -1299,7 +1299,7 @@ export default function DeployManifestPage() {
             <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.12),transparent_28%),linear-gradient(180deg,#0c0f14,#07090d)] p-7">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <Link href="/dashboard/provider/nodes" className="inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-green-300">
+                  <Link href="/provider/services" className="inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-green-300">
                     <ArrowLeft className="h-4 w-4" />
                     Back to API Services
                   </Link>
@@ -1309,12 +1309,12 @@ export default function DeployManifestPage() {
                     </div>
                     <div>
                       <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">Provider Control Plane</p>
-                      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">Register Service Contract</h1>
+                      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">Create API Service</h1>
                     </div>
                   </div>
                   <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
-                    This page now follows the new Service Manifest standard and SQL target model. You define the agent-facing contract,
-                    runtime boundary and gateway extensions here. The right side shows both the standard manifest and the current gateway
+                    This page now follows the new service definition standard and SQL target model. You define the agent-facing contract,
+                    runtime boundary and gateway extensions here. The right side shows both the standard service definition and the current gateway
                     submission mapping, so there is no contract theater.
                   </p>
                 </div>
@@ -1334,7 +1334,7 @@ export default function DeployManifestPage() {
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
                   >
                     <Wand2 className="h-4 w-4" />
-                    AI Auto-Gen
+                    AI Definition Assist
                   </button>
                 </div>
               </div>
@@ -1375,7 +1375,7 @@ export default function DeployManifestPage() {
                   mono
                 />
                 <TextField
-                  label="Manifest Version"
+                  label="Service Version"
                   value={draft.identity.manifestVersion}
                   onChange={(value) => updateIdentity("manifestVersion", value)}
                   placeholder="1.0.0"
@@ -1386,7 +1386,7 @@ export default function DeployManifestPage() {
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
-                  <p className="font-medium text-white">Initial Registry State</p>
+                  <p className="font-medium text-white">Initial Service State</p>
                   <p className="mt-2 leading-6">
                     New services are created as draft. Runtime availability and serving status are determined by gateway health checks after registration.
                   </p>
@@ -1688,8 +1688,8 @@ export default function DeployManifestPage() {
                 <div className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-green-900/40 bg-[#0a0d11] shadow-[0_0_50px_rgba(34,197,94,0.12)]">
                   <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
                     <div>
-                      <h3 className="text-xl font-semibold text-white">AI API Parser</h3>
-                      <p className="mt-1 text-sm text-zinc-500">Paste a complete API example block: raw cURL command plus the returned JSON result. The parser will infer the current V1 contract fields and fill the form.</p>
+                      <h3 className="text-xl font-semibold text-white">AI Service Definition Parser</h3>
+                      <p className="mt-1 text-sm text-zinc-500">Paste a complete API example block: raw cURL command plus the returned JSON result. The parser will infer the current V1 service definition fields and fill the form.</p>
                     </div>
                     <button type="button" onClick={closeParser} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-white">
                       <X className="h-5 w-5" />
@@ -1712,7 +1712,7 @@ export default function DeployManifestPage() {
                       )}
                     </div>
                     <div>
-                      <label htmlFor="ai-response-json" className="mb-1.5 block text-sm font-medium text-zinc-200">Expected / Generated JSON Response</label>
+                      <label htmlFor="ai-response-json" className="mb-1.5 block text-sm font-medium text-zinc-200">Expected / Generated Service Definition JSON</label>
                       <textarea
                         id="ai-response-json"
                         className="h-[420px] w-full rounded-2xl border border-white/10 bg-[#06080c] px-4 py-3 font-mono text-xs text-blue-300 outline-none transition focus:border-green-500"
@@ -1720,7 +1720,7 @@ export default function DeployManifestPage() {
                         onChange={(event) => setAIResponse(event.target.value)}
                         placeholder='{"service_id":"svc_invoice_ocr_apac"}'
                       />
-                      {aiResponse.trim() && !parsedAiResponse ? <p className="mt-2 text-xs text-amber-300">Generated response must be a valid JSON object.</p> : <p className="mt-2 text-xs text-zinc-500">You can manually refine the JSON before applying the override.</p>}
+                      {aiResponse.trim() && !parsedAiResponse ? <p className="mt-2 text-xs text-amber-300">Generated service definition must be a valid JSON object.</p> : <p className="mt-2 text-xs text-zinc-500">You can manually refine the service definition JSON before applying the override.</p>}
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-3 border-t border-white/8 px-6 py-4">
@@ -1730,7 +1730,7 @@ export default function DeployManifestPage() {
                       disabled={isAiGenerating || !aiCurlLooksValid}
                       className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isAiGenerating ? "Generating..." : "Generate JSON"}
+                      {isAiGenerating ? "Generating..." : "Generate Definition JSON"}
                     </button>
                     <button
                       type="button"
@@ -1781,14 +1781,14 @@ export default function DeployManifestPage() {
                     <p className="mt-2 text-sm text-white">{draft.billing.basePriceUsdc || "0"} {draft.billing.settlementCurrency}</p>
                   </div>
                   <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Registry State</p>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Service State</p>
                     <p className="mt-2 text-sm text-white">{DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status}</p>
                   </div>
                 </div>
                 <div className="mt-4 rounded-2xl border border-white/8 bg-black/50 p-4 text-sm text-zinc-400">
                   <p className="font-medium text-white">Current Gateway Reality</p>
                   <p className="mt-2 leading-6">
-                      V1 only collects the fields the current registry and control plane can actually honor. New services land as draft, then
+                      V1 only collects the fields the current gateway and control plane can actually honor. New services land as draft, then
                       gateway health checks determine runtime serving status. Streaming, async callback, quality analytics and metering edge rules
                       remain platform-managed, so this page stays focused on identity, model usage, schema, billing, runtime, routing and health checks.
                   </p>
@@ -1810,7 +1810,7 @@ export default function DeployManifestPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Agent-facing Contract</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Standard Manifest JSON</h2>
+                    <h2 className="mt-2 text-xl font-semibold text-white">Standard Service Definition JSON</h2>
                   </div>
                 </div>
                 <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-green-500/10 bg-black/70 p-4 font-mono text-xs leading-6 text-green-300">
@@ -1822,7 +1822,7 @@ export default function DeployManifestPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Gateway Submission</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Current Registry Payload</h2>
+                    <h2 className="mt-2 text-xl font-semibold text-white">Current Gateway Payload</h2>
                   </div>
                 </div>
                 <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-white/8 bg-black/70 p-4 font-mono text-xs leading-6 text-sky-300">

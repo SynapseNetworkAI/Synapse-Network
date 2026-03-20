@@ -124,7 +124,7 @@ export default function DashboardSidebar() {
         <nav className="flex flex-col gap-0.5">
           <Link href={`${providerRoot}/services`} className={getLinkClasses([`${providerRoot}/services`], false)}>
             <Box className="w-4 h-4 mr-3 opacity-80" />
-            Service Manifests
+            My Services
             <span className={getBadgeClasses(pathname.startsWith(`${providerRoot}/services`))}>2</span>
           </Link>
           <Link href={`${providerRoot}/earnings`} className={getLinkClasses([`${providerRoot}/earnings`], false)}>

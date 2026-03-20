@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
+PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_311.sh"
 
 find_pid_by_port() {
 	local port="$1"
@@ -16,8 +17,8 @@ if ! command -v npm >/dev/null 2>&1; then
 	exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-	echo "Error: python3 is not installed."
+if [[ ! -f "$PYTHON_RESOLVER" ]]; then
+	echo "Error: Python resolver script not found at ${PYTHON_RESOLVER}"
 	exit 1
 fi
 
@@ -84,10 +85,12 @@ PROVIDER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.wr
 echo "3) Starting gateway/gateway_fastapi.py in background (local profile)..."
 cd "${ROOT_DIR}/gateway"
 
-if [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
+if [[ -x "${ROOT_DIR}/gateway/.venv/bin/python" ]]; then
+	PYTHON_BIN="${ROOT_DIR}/gateway/.venv/bin/python"
+elif [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
 	PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
 else
-	PYTHON_BIN="python3"
+	PYTHON_BIN="$(bash "$PYTHON_RESOLVER")"
 fi
 
 echo "Using Python interpreter: ${PYTHON_BIN}"

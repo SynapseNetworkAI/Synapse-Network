@@ -438,6 +438,7 @@ class FinanceAtomicRepository:
             InvocationBillingState(
                 ownerAddress=row.consumer_address or owner,
                 providerAddress=row.provider_address or provider,
+                agentId=(command.invocation.agent_id if command.invocation is not None else row.agent_id),
                 requestId=row.request_id,
                 originRequestId=row.origin_request_id,
                 originTxHash=row.origin_tx_hash,
@@ -445,6 +446,7 @@ class FinanceAtomicRepository:
                 protocolFee=row.protocol_fee or Decimal("0"),
                 routingTax=row.routing_tax or Decimal("0"),
                 totalCharge=row.total_charge or Decimal("0"),
+                latencyMs=row.latency_ms,
                 businessType=row.business_type,
                 riskLevel=row.risk_level,
             ).model_dump(by_alias=True, mode="json"),

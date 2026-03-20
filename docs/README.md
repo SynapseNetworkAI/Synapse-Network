@@ -118,7 +118,7 @@ docs/
 
 建议 Agent 读取顺序：
 
-1. 先读 `agent.md`、`Design.md`、`agent/` 下 canonical 文档。
+1. 先读 `agents.md`、`Design.md`、`agent/` 下 canonical 文档。
 2. 需要产品与 IA 时进入 `01_Product_Frontend/`。
 3. 需要 Runtime 协议与主流程时进入 `02_System_Architecture/`、`03_Core_Workflows/`、`06_Reference/`。
 4. 需要数据库真相时进入 `04_Database_Design/` 与 `Gateway_Database_Design.md`。
@@ -128,7 +128,7 @@ docs/
 
 ### 2.1 项目原则与设计基线
 
-1. [agent.md](./agent.md)
+1. [agents.md](./agents.md)
 2. [Design.md](./Design.md)
 3. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
 4. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)

@@ -58,13 +58,19 @@ PR 阻断流水线至少要检查：
 
 1. `apps/frontend`: lint / test / build
 2. `admin/admin-front`: lint / build
-3. `gateway`: pytest
-4. `admin/gateway-admin`: pytest
-5. `provider_service`: pytest
-6. `sdk/python`: pytest unit tests + `python -m build`，联调 demo 保持 opt-in
+3. `gateway`: 创建 `gateway/.venv`，安装目录依赖，再跑 pytest
+4. `admin/gateway-admin`: 创建 `admin/gateway-admin/.venv`，安装目录依赖，再跑 pytest
+5. `provider_service`: 创建 `provider_service/.venv`，安装目录依赖，再跑 pytest
+6. `sdk/python`: 创建 `sdk/python/.venv`，安装 editable 依赖，再跑 pytest unit tests + `python -m build`，联调 demo 保持 opt-in
 7. root contracts: hardhat compile，若存在 root `test/` 用例则继续执行 hardhat test
 
 当前 Python 打包校验范围只包括 `sdk/python`，因为它是仓库内唯一带 `pyproject.toml` 的 Python 分发包；`gateway`、`admin/gateway-admin`、`provider_service` 当前仍按服务进程治理。
+
+当前 Python CI 的环境原则：
+
+1. 不依赖仓库外部或预先手工激活的 Python 虚拟环境
+2. 每个目录在 CI 里自建自己的 `.venv`
+3. 每个目录只安装自己的依赖和本次门禁需要的测试工具
 
 ### 4.2 Financial Security CI
 
