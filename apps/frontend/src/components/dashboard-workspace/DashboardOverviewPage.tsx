@@ -194,9 +194,9 @@ export default function OverviewPage() {
                 </div>
                 <h2 className="text-lg font-bold text-white tracking-tight">Real-time Activity</h2>
               </div>
-              <button className="text-[10px] font-bold text-gray-500 hover:text-white transition-colors uppercase tracking-widest">
-                View All Logs
-              </button>
+              <Link href="/dashboard/audit" className="text-[10px] font-bold text-gray-500 hover:text-white transition-colors uppercase tracking-widest">
+                Open Audit Trail
+              </Link>
             </div>
             <EventStreamTable paidEvents={[]} />
           </div>

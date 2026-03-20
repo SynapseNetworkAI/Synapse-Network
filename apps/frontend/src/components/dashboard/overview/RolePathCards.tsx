@@ -23,14 +23,14 @@ export default function RolePathCards() {
       <div className="p-4 border border-gray-800 rounded-lg bg-gray-950/60">
         <h3 className="text-sm font-bold text-white">Provider 接入</h3>
         <ol className="mt-3 space-y-2 text-xs text-gray-300 list-decimal list-inside h-24">
-          <li>阅读 Provider 接入文档</li>
-          <li>注册 Service 路由与单次价格</li>
-          <li>接收网关转发的高频调用</li>
-          <li>查看账单收益并发起免 Gas 提现</li>
+          <li>进入 Provider Workspace</li>
+          <li>配置 Access Keys 与健康检查</li>
+          <li>发布 API Service 并接收网关调用</li>
+          <li>在 Settlements / Revenue Analytics 查看收益</li>
         </ol>
         <div className="flex flex-wrap gap-2 mt-2">
-          <Link href="/dashboard/console" className="flex items-center px-4 py-2.5 text-xs font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors">
-            点击进入 Developer Console
+          <Link href="/provider/sell" className="flex items-center px-4 py-2.5 text-xs font-bold text-black bg-green-500 rounded-lg hover:bg-green-400 transition-colors">
+            点击进入 Provider Workspace
             <ArrowRight className="w-4 h-4 ml-1" />
           </Link>
         </div>

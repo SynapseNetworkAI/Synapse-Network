@@ -24,14 +24,14 @@ export default function OverviewHero() {
             href="/dashboard/agents" 
             className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-black bg-white rounded-xl hover:bg-gray-200 transition-all active:scale-95"
           >
-            Start as Consumer
+            Open Agent Workspace
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link 
-            href="/dashboard/console" 
+            href="/provider/sell" 
             className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-white bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all active:scale-95"
           >
-            Become a Provider
+            Open Provider Workspace
             <Shield className="w-4 h-4 text-emerald-400" />
           </Link>
         </div>

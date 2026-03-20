@@ -43,9 +43,15 @@ flowchart TD
 2. `Agents`
 3. `Discovery`
 4. `Invocations`
-5. `Billing`
+5. `Treasury`
 6. `Risk & Audit`
-7. `Developer`
+7. `Developer Resources`
+
+历史兼容路径说明：
+
+1. `/dashboard/router` 是旧 owner finance alias，当前应收口到 `/dashboard/billing`（Treasury）。
+2. `/dashboard/logs` 是旧审计 alias，当前应收口到 `/dashboard/audit`。
+3. `/dashboard/settlement` 只保留为过渡期 reconciliation preview，不再作为主导航入口。
 
 ### 3.2 Provider Role
 

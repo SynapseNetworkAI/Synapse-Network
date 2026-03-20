@@ -45,8 +45,8 @@ export default function BuyPage() {
               </div>
               <h2 className="text-xl font-bold tracking-wide text-white">Step 1 · 充值担保 (全局资金池)</h2>
             </div>
-            <Link href="/dashboard/router" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-black transition-colors bg-yellow-500 rounded-lg hover:bg-yellow-400">
-                去充值配置 <ArrowRight className="w-4 h-4" />
+            <Link href="/dashboard/billing" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-black transition-colors bg-yellow-500 rounded-lg hover:bg-yellow-400">
+              打开 Owner Treasury <ArrowRight className="w-4 h-4" />
             </Link>
         </div>
 
@@ -101,7 +101,7 @@ export default function BuyPage() {
                 <div className="p-2 rounded-lg bg-blue-500/10">
                   <Activity className="w-6 h-6 text-blue-500" />
                 </div>
-                <h2 className="text-xl font-bold tracking-wide text-white">Step 3 · 消费对账 (全局统一结算)</h2>
+                <h2 className="text-xl font-bold tracking-wide text-white">Step 3 · 费用核对 (Owner Treasury)</h2>
             </div>
             <Link href="/dashboard/billing" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700">
                 打开资金账本 <ArrowRight className="w-4 h-4" />

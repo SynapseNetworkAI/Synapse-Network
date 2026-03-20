@@ -191,10 +191,10 @@ export default function Home() {
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
                 <button
-                  onClick={() => router.push("/dashboard/console")}
+                  onClick={() => router.push("/dashboard/developer")}
                   className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/50 px-8 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-all hover:bg-zinc-800 hover:text-zinc-200"
                 >
-                  Read Documentation
+                  Open Developer Resources
                 </button>
               </div>
 

@@ -70,6 +70,13 @@ Admin Control Plane 必须满足：
 3. 高风险动作要求审批或双人分离
 4. 不允许后台页面直接篡改交易主真相表
 
+当前仓库实现约束：
+
+1. 用户控制台前端在 `apps/frontend`。
+2. Admin Control Plane 前端应在 `admin/admin-front`。
+3. Admin Control Plane 后端应在 `admin/gateway-admin`。
+4. 不要再把管理员工作流塞回 `apps/frontend/src/app/dashboard/*`。
+
 ## 5. 页面分层
 
 ### 5.1 Admin Overview

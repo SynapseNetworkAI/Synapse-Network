@@ -10,6 +10,12 @@
 2. 哪些视觉决策是品牌层，哪些是金融信息层
 3. 如何避免产品迭代中重新滑回“吵闹的 Web3 面板风”
 
+实现边界补充：
+
+1. `apps/frontend` 负责 Gateway Console 和 Provider Workspace。
+2. Admin Control Plane 的前端实现属于 `admin/admin-front`，不是 `apps/frontend` 的隐藏模块。
+3. `admin/gateway-admin` 负责后台治理 API、审批和审计编排。
+
 ## 2. 总体原则
 
 ### 2.1 Credibility First

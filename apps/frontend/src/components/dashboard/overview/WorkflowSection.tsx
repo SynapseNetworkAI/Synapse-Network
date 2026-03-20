@@ -8,8 +8,8 @@ export default function WorkflowSection() {
       icon: <Wallet className="w-4 h-4 text-blue-400" />,
       title: "Deposit USDC",
       description: "Fund your vault on the Synapse smart contract to enable agent spending.",
-      link: "/dashboard/vault",
-      linkText: "Add Funds"
+      link: "/dashboard/billing",
+      linkText: "Open Treasury"
     },
     {
       icon: <UserPlus className="w-4 h-4 text-blue-400" />,
@@ -38,30 +38,30 @@ export default function WorkflowSection() {
     {
       icon: <PlusCircle className="w-4 h-4 text-emerald-400" />,
       title: "Create Service",
-      description: "Define your API service, service definition, pricing, and runtime routing in the developer console.",
-      link: "/dashboard/console",
-      linkText: "Create Service"
+      description: "Define your API service, service definition, pricing, and runtime routing in the Provider workspace.",
+      link: "/provider/services/deploy",
+      linkText: "Publish API Service"
     },
     {
       icon: <Server className="w-4 h-4 text-emerald-400" />,
       title: "Serve Agents",
       description: "Receive high-frequency calls from autonomous agents through the gateway.",
-      link: "/dashboard/console",
+      link: "/provider/health",
       linkText: "Monitor Health"
     },
     {
       icon: <DollarSign className="w-4 h-4 text-emerald-400" />,
       title: "Earn USDC",
       description: "Accumulate earnings in your provider wallet for every successful invocation.",
-      link: "/dashboard/console",
-      linkText: "View Earnings"
+      link: "/provider/usage",
+      linkText: "View Revenue"
     },
     {
       icon: <CreditCard className="w-4 h-4 text-emerald-400" />,
       title: "Withdraw",
       description: "Gas-less withdrawals of your revenue back to your main wallet.",
-      link: "/dashboard/console",
-      linkText: "Withdraw Funds"
+      link: "/provider/settlements",
+      linkText: "Open Settlements"
     }
   ];
 
