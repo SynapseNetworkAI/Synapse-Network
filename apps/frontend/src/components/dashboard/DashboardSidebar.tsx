@@ -36,8 +36,8 @@ export default function DashboardSidebar() {
       "/dashboard/audit",
       "/dashboard/developer",
       `${providerRoot}/services`,
-      `${providerRoot}/earnings`,
-      `${providerRoot}/withdrawals`,
+      `${providerRoot}/usage`,
+      `${providerRoot}/settlements`,
     ];
 
     const warmup = () => {
@@ -127,13 +127,13 @@ export default function DashboardSidebar() {
             My Services
             <span className={getBadgeClasses(pathname.startsWith(`${providerRoot}/services`))}>2</span>
           </Link>
-          <Link href={`${providerRoot}/earnings`} className={getLinkClasses([`${providerRoot}/earnings`], false)}>
+          <Link href={`${providerRoot}/usage`} className={getLinkClasses([`${providerRoot}/usage`], false)}>
             <AreaChart className="w-4 h-4 mr-3 opacity-80" />
-            Earnings Summary
+            Usage Analytics
           </Link>
-          <Link href={`${providerRoot}/withdrawals`} className={getLinkClasses([`${providerRoot}/withdrawals`], false)}>
+          <Link href={`${providerRoot}/settlements`} className={getLinkClasses([`${providerRoot}/settlements`], false)}>
             <Clock className="w-4 h-4 mr-3 opacity-80" />
-            Withdrawals
+            Settlements
           </Link>
         </nav>
       </div>
