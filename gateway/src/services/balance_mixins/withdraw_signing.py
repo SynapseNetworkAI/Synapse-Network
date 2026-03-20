@@ -36,6 +36,46 @@ USDC_DECIMALS = 18
 
 
 class BalanceWithdrawSigningMixin:
+    def provider_withdraw_capability(self) -> Dict[str, Any]:
+        web3_class = _web3_class()
+        contract_address = normalize_wallet(settings.router_address)
+
+        if web3_class is None or Account is None:
+            return {
+                "ticketSigningEnabled": False,
+                "code": "CHAIN_SDK_NOT_INSTALLED",
+                "message": "web3 and eth-account are required to issue withdrawal tickets.",
+                "contractAddress": contract_address or None,
+            }
+        if encode_typed_data is None and encode_structured_data is None:
+            return {
+                "ticketSigningEnabled": False,
+                "code": "CHAIN_SDK_NOT_INSTALLED",
+                "message": "eth-account typed-data encoder is unavailable.",
+                "contractAddress": contract_address or None,
+            }
+        if not contract_address or contract_address == "0x0000000000000000000000000000000000000000":
+            return {
+                "ticketSigningEnabled": False,
+                "code": "WITHDRAW_CONTRACT_NOT_CONFIGURED",
+                "message": "ROUTER_ADDRESS/SynapseCore address is not configured.",
+                "contractAddress": None,
+            }
+        private_key = str(getattr(settings, "private_key", "") or "").strip()
+        if not private_key:
+            return {
+                "ticketSigningEnabled": False,
+                "code": "WITHDRAW_SIGNER_NOT_CONFIGURED",
+                "message": "Provider withdrawals are unavailable because the gateway withdraw signer is not configured.",
+                "contractAddress": contract_address,
+            }
+        return {
+            "ticketSigningEnabled": True,
+            "code": None,
+            "message": "Gateway withdraw signer is ready.",
+            "contractAddress": contract_address,
+        }
+
     def _resolve_withdraw_deadline_sec(self) -> int:
         raw = getattr(
             settings, "provider_withdraw_deadline_sec", WITHDRAW_DEADLINE_SEC_DEFAULT

@@ -28,7 +28,7 @@ export default function OverviewHero() {
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link 
-            href="/provider/sell" 
+            href="/provider/console" 
             className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-white bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all active:scale-95"
           >
             Open Provider Workspace

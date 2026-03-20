@@ -9,7 +9,7 @@ import { listApiSecrets } from "@/utils/serviceApi";
 import { Activity, Key, Database, Zap, Server, ArrowRight, TerminalSquare, RefreshCw, Plus } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
-export default function SellDashboard() {
+export default function ProviderConsolePage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -29,14 +29,14 @@ export default function SellDashboard() {
     try {
       const secrets = await listApiSecrets(address);
       if (secrets.length === 0) {
-        toast.error("Create Access Keys first before publishing API.");
+        toast.error("Create a Provider Signing Secret before publishing a service.");
         router.push("/provider/secrets");
         return;
       }
       router.push("/provider/services/deploy");
     } catch(e) {
       console.warn("Precheck failed", e);
-      toast.error("Unable to verify Access Keys. Please open Access Keys and retry.");
+      toast.error("Unable to verify Provider Signing Secrets. Open Provider Credentials and retry.");
       router.push("/provider/secrets");
     }
   };
@@ -201,9 +201,9 @@ export default function SellDashboard() {
               <span className="text-xl font-mono font-[800] text-[#333333] group-hover:text-[#ffffff] transition-colors">01</span>
               <Key className="w-6 h-6 text-[#86868b]" />
             </div>
-            <h3 className="text-xl font-bold text-[#ffffff] mb-3">Access Keys</h3>
+            <h3 className="text-xl font-bold text-[#ffffff] mb-3">Provider Credentials</h3>
             <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm">
-              Create provider authentication keys used by gateway signature verification and request authorization.
+              Issue Provider Signing Secrets that Synapse Gateway uses to sign routed requests and that your runtime uses to verify inbound calls.
             </p>
             <button 
               onClick={() => {
@@ -212,7 +212,7 @@ export default function SellDashboard() {
               }}
               className="w-full py-4 text-sm font-bold border border-[#222222] text-[#ffffff] hover:bg-[#ffffff] hover:text-[#000000] transition-all bg-[#0a0a0a] flex items-center justify-center gap-2 rounded-2xl"
             >
-              Manage Access Keys <ArrowRight className="w-4 h-4" />
+              Manage Provider Credentials <ArrowRight className="w-4 h-4" />
             </button>
           </div>
 

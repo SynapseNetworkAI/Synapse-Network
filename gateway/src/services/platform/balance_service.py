@@ -171,6 +171,12 @@ class BalanceService(
             request_meta=request_meta,
         )
 
+    async def get_provider_withdraw_capability(
+        self, owner_wallet: str
+    ) -> Dict[str, Any]:
+        _ = owner_wallet
+        return self.provider_withdraw_capability()
+
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         return await self.platform_finance_service.get_router_config(owner_wallet)
 

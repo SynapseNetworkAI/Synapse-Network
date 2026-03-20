@@ -1,1 +1,5 @@
-export { default } from "@/components/provider-workspace/ProviderSellPage";
+import { redirect } from "next/navigation";
+
+export default function ProviderSellRedirectPage() {
+	redirect("/provider/console");
+}

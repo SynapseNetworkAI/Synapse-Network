@@ -13,6 +13,8 @@ const HOMEPAGE_STATS_POLL_MS = 12000;
 const EMPTY_NETWORK_STATS: PublicNetworkStats = {
   totalCalls: 0,
   registeredServices: 0,
+  discoverableServices: 0,
+  staleServices: 0,
   connectedAgents: 0,
   runtimeReadyServices: 0,
 };
@@ -263,7 +265,7 @@ export default function Home() {
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
-                onClick={() => handleEnterRole("PROVIDER", "/provider/sell")}
+                onClick={() => handleEnterRole("PROVIDER", "/provider/console")}
                 className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
               >
                 {t("home.providerWorkspaceBtn")}

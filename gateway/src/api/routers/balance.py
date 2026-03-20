@@ -545,6 +545,19 @@ async def list_provider_withdrawals(
     }
 
 
+@router.get("/v1/providers/withdrawals/capability")
+async def get_provider_withdraw_capability(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    capability = await service.get_provider_withdraw_capability(owner_wallet)
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        **capability,
+    }
+
+
 @router.post("/v1/providers/withdrawals/{withdrawal_id}/complete")
 async def complete_provider_withdrawal(
     withdrawal_id: str,

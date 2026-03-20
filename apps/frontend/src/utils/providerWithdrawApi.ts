@@ -61,6 +61,42 @@ export type ProviderWithdrawRecord = {
   ticket?: ProviderWithdrawTicket;
 };
 
+export type ProviderWithdrawCapability = {
+  ticketSigningEnabled: boolean;
+  code?: string | null;
+  message: string;
+  contractAddress?: string | null;
+};
+
+export async function getProviderWithdrawCapability(
+  userAddress: string,
+): Promise<ProviderWithdrawCapability> {
+  const response = await fetch(`${API_BASE}/capability`, {
+    method: "GET",
+    headers: buildAuthedHeaders(userAddress, false),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Failed to fetch provider withdrawal capability"),
+    );
+  }
+
+  const payload = (await response.json()) as {
+    ticketSigningEnabled?: boolean;
+    code?: string | null;
+    message?: string;
+    contractAddress?: string | null;
+  };
+  return {
+    ticketSigningEnabled: Boolean(payload.ticketSigningEnabled),
+    code: payload.code ?? null,
+    message: payload.message || "Unknown provider withdrawal capability state.",
+    contractAddress: payload.contractAddress ?? null,
+  };
+}
+
 export async function createProviderWithdrawIntent(userAddress: string, amountUsdc?: number): Promise<{
   withdrawalId: string;
   status: "REQUESTED" | "APPROVED_AUTO" | "PENDING_MANUAL_REVIEW";

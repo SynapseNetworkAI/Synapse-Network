@@ -1,9 +1,11 @@
 import asyncio
 from types import SimpleNamespace
 
+from src.core.config import settings
 from src.domain.execution import PreparedWithdrawTicket
 from src.domain.finance import BalanceLedger, RefundIntentRow, UsageLogRow
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
+from src.services.platform.balance_service import BalanceService
 from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.finance_service import PlatformFinanceService
 from src.services.provider.withdraw_service import ProviderWithdrawService
@@ -331,6 +333,20 @@ def test_provider_withdraw_flow_uses_typed_rows() -> None:
     )
     assert completed["status"] == "COMPLETED"
     assert storage.gateway_state.withdraw_rows[0].tx_hash == "0x" + "3" * 64
+
+
+def test_balance_service_reports_withdraw_signer_capability(monkeypatch) -> None:
+    storage = FakeStorage()
+    service = BalanceService(storage)
+
+    monkeypatch.setattr(settings, "router_address", "0x" + "1" * 40, raising=False)
+    monkeypatch.setattr(settings, "private_key", "", raising=False)
+
+    capability = asyncio.run(service.get_provider_withdraw_capability("0xdef"))
+
+    assert capability["ticketSigningEnabled"] is False
+    assert capability["code"] == "WITHDRAW_SIGNER_NOT_CONFIGURED"
+    assert "gateway withdraw signer" in capability["message"]
 
 
 def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
