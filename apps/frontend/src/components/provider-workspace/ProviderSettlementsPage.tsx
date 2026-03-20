@@ -294,6 +294,11 @@ export default function ProviderSettlementsPage() {
     if (!pendingWithdrawal) {
       return false;
     }
+    if (pendingTicketExpired) {
+      await Promise.all([refreshWithdrawals(), reloadDashboard()]);
+      toast.error("Previous withdrawal ticket expired. Locked receivable has been released back to available balance.");
+      return true;
+    }
     if (pendingWithdrawal.status === "APPROVED_AUTO" && pendingWithdrawal.ticket) {
       try {
         await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);

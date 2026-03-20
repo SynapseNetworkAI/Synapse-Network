@@ -16,6 +16,9 @@ from src.api.routers import (
 )
 from src.storage import create_storage
 from src.services.platform.tasks.deposit_indexer import run_v2_deposit_indexer
+from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
+    run_provider_withdraw_expiry_reaper,
+)
 from src.services.platform.service_health_service import run_service_health_monitor
 
 setup_logger()
@@ -48,6 +51,16 @@ async def lifespan(app: FastAPI):
             )
         )
 
+    app.state.provider_withdraw_expiry_reaper_stop_event = asyncio.Event()
+    app.state.provider_withdraw_expiry_reaper_task = None
+    if settings.provider_withdraw_expiry_reaper_enabled:
+        app.state.provider_withdraw_expiry_reaper_task = asyncio.create_task(
+            run_provider_withdraw_expiry_reaper(
+                app.state.provider_withdraw_expiry_reaper_stop_event,
+                app.state.storage,
+            )
+        )
+
     yield
     # Cleanup on shutdown
     logger.info("Application shutting down...")
@@ -68,6 +81,16 @@ async def lifespan(app: FastAPI):
         with suppress(asyncio.CancelledError):
             await app.state.service_health_task
         logger.info("Service health task cancelled during shutdown")
+    if hasattr(app.state, "provider_withdraw_expiry_reaper_stop_event"):
+        app.state.provider_withdraw_expiry_reaper_stop_event.set()
+    if (
+        hasattr(app.state, "provider_withdraw_expiry_reaper_task")
+        and app.state.provider_withdraw_expiry_reaper_task is not None
+    ):
+        app.state.provider_withdraw_expiry_reaper_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await app.state.provider_withdraw_expiry_reaper_task
+        logger.info("Provider withdrawal expiry reaper task cancelled during shutdown")
 
 
 def create_app() -> FastAPI:

@@ -189,6 +189,9 @@ class BalanceService(
         _ = owner_wallet
         return self.provider_withdraw_capability()
 
+    async def expire_stale_provider_withdrawals(self) -> int:
+        return await self.provider_withdraw_service.expire_stale_provider_withdrawals()
+
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         return await self.platform_finance_service.get_router_config(owner_wallet)
 

@@ -131,7 +131,9 @@ def _http_runtime_client(storage: FakeStorage):
     gateway_app.create_storage = lambda settings: storage
     gateway_app.run_v2_deposit_indexer = _background_loop_until_stopped
     gateway_app.run_service_health_monitor = _background_loop_until_stopped
+    gateway_app.run_provider_withdraw_expiry_reaper = _background_loop_until_stopped
     gateway_app.settings.service_health_monitor_enabled = False
+    gateway_app.settings.provider_withdraw_expiry_reaper_enabled = False
     with TestClient(gateway_app.create_app(), base_url="https://gateway.test") as client:
         yield client
 
