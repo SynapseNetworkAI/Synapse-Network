@@ -12,7 +12,7 @@ export default function DashboardIndex() {
     setMounted(true);
     const role = getAppRole();
     if (role === "PROVIDER") {
-      router.replace("/dashboard/sell");
+      router.replace("/provider/sell");
     } else if (role === "ADMIN") {
       router.replace("/dashboard/admin");
     } else {

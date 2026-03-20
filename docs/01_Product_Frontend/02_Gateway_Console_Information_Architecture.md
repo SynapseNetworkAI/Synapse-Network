@@ -1,8 +1,19 @@
 # Gateway Console Information Architecture
 
+> Status: archived IA snapshot.
+>
+> This file records an earlier dashboard IA and is no longer the canonical route or naming source for the current Provider workspace.
+> Current canonical frontend design documents are:
+>
+> 1. `docs/feature_designs/frontend_product/Provider_Console_IA_V3.md`
+> 2. `docs/feature_designs/frontend_product/Wallet_Auth_Challenge_Session_Design.md`
+> 3. `docs/feature_designs/frontend_product/Homepage_V2_Functional_Design.md`
+
 ## 1. 目标
 
 Gateway Console 是 Owner 的控制台，不是 Agent 的执行界面，也不是后台管理员大盘。
+
+但当前实现已经把 Provider Workspace 的 canonical 入口收敛到 `/provider/**`，不再建议把本文件里的旧 `dashboard` 词汇和旧 IA 文案当成当前路由真相。
 
 它的核心作用只有四个：
 
@@ -38,9 +49,14 @@ flowchart TD
 
 ### 3.2 Provider Role
 
-1. `Service Manifests`
-2. `Earnings Summary`
-3. `Withdrawals`
+当前 canonical Provider Space 应理解为：
+
+1. `My Services` / `/provider/sell`
+2. `API Services` / `/provider/services`
+3. `Access Keys` / `/provider/secrets`
+4. `Settlements` / `/provider/settlements`
+5. `Revenue Analytics` / `/provider/usage`
+6. `Treasury Ledger` / `/provider/billing`
 
 这组拆分的意义是：
 
@@ -74,7 +90,7 @@ Overview 只负责三件事：
 1. `Add Funds`
 2. `Create Agent Credential`
 3. `Run First Paid Invocation`
-4. `Publish Service Manifest`
+4. `Create API Service`
 
 ## 5. Agent Workspace
 
@@ -132,7 +148,7 @@ Developer 区域必须直接推动集成，而不是写成长教程仓库。
 
 Provider Workspace 的目标是一站式解决“挂服务、看收益、提收益”。
 
-### 6.1 Service Manifests
+### 6.1 API Services / Service Definitions
 
 展示：
 
@@ -191,3 +207,9 @@ Gateway Console 的信息架构必须服务三个结果：
 3. Provider 快速形成服务供给和收益闭环
 
 一切偏离这三点的导航和页面堆叠，都是控制台噪音。
+
+补充说明：
+
+1. 当前数据库和协议主模型仍使用 `Service Manifest` 作为 canonical contract term。
+2. 当前 UI 文案已经收敛到 `API Service` / `Service Definition`，这是产品层命名，不是数据库层 rename。
+3. 看到旧 `Service Manifests` / `Provider Management` / `nodes` 的地方，应优先以当前 Provider Space 文档和实际页面为准。
