@@ -157,15 +157,25 @@ def get_request_id(request: Request, request_id: RequestIdHeader = None) -> str:
     return request_state_id or request_id or "req_demo"
 
 
+def get_admin_token(request: Request, authorization: AuthorizationHeader = None) -> str:
+    if authorization:
+        scheme, _, raw_token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not raw_token:
+            raise AuthenticationError("Invalid Authorization header")
+        return raw_token
+    cookie_name = get_settings().admin_session_cookie_name
+    token = request.cookies.get(cookie_name)
+    if not token:
+        raise AuthenticationError("Missing admin session")
+    return token
+
+
 def require_admin(
+    request: Request,
     authorization: AuthorizationHeader = None,
     auth_service: Annotated[AdminAuthService, Depends(get_auth_service)] = None,
 ) -> AdminIdentity:
-    if not authorization:
-        raise AuthenticationError("Missing Authorization header")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise AuthenticationError("Invalid Authorization header")
+    token = get_admin_token(request, authorization)
     return auth_service.get_current_admin(token)
 
 

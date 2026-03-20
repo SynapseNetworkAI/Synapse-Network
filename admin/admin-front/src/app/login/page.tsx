@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
-import { clearAdminSession, persistAdminSession, readAdminToken } from "@/lib/admin-session";
-import { loginAdmin } from "@/services/admin-api";
+import { getCurrentAdmin, loginAdmin } from "@/services/admin-api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,9 +15,23 @@ export default function LoginPage() {
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (readAdminToken()) {
-      router.replace("/dashboard");
+    let cancelled = false;
+
+    async function detectSession() {
+      try {
+        await getCurrentAdmin("cookie-session");
+        if (!cancelled) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        return;
+      }
     }
+
+    void detectSession();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -26,9 +39,7 @@ export default function LoginPage() {
     setError(null);
     startTransition(async () => {
       try {
-        clearAdminSession();
-        const response = await loginAdmin({ email, password, otpCode });
-        persistAdminSession(response.accessToken, response.admin);
+        await loginAdmin({ email, password, otpCode });
         router.push("/dashboard");
       } catch (submitError) {
         setError(submitError instanceof Error ? submitError.message : "登录失败");

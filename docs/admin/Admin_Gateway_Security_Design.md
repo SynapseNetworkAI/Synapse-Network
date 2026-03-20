@@ -114,16 +114,19 @@ admin-front (browser)
 1. token 只要在有效期内被截获，就存在重放窗口
 2. gateway 也无法明确区分“这是 owner 自己的 token”还是“这是 gateway-admin 服务 token”
 
-### 3.3 第三个问题：admin-front 当前 token 在浏览器 localStorage
+### 3.3 已完成第一步：admin-front token 已迁到 HttpOnly cookie
 
-当前 admin 前端会把 admin access token 持久化到 `localStorage`：[admin/admin-front/src/lib/admin-session.ts](./../../admin/admin-front/src/lib/admin-session.ts)
+这部分已经完成：`gateway-admin` 登录成功后会直接下发 `HttpOnly` admin session cookie，`admin-front` 不再把 admin token 持久化到 `localStorage`。
 
-这带来典型 XSS 风险：
+收益：
 
-1. 一旦后台页面出现 XSS，token 可被直接读取
-2. 读到 token 后，可以调用 `gateway-admin` 全部管理接口，直到 session 失效
+1. 页面 JS 无法直接读取 session token，XSS 的直接 token exfiltration 风险明显下降
+2. `admin-front` 所有 API 请求都统一走 `credentials: include`，浏览器不再显式拼 `Authorization` header
 
-所以当前 admin 浏览器侧的安全等级，也还停留在“开发可用”，不是生产金融后台标准。
+但这还不是终态，还剩两个必须继续补的点：
+
+1. 当前 cookie 策略是 `SameSite=Lax`，后续高风险写操作要继续加 `CSRF` 防护
+2. 生产环境必须强制 `Secure`，并结合 HTTPS / WAF / CSP 收紧浏览器面
 
 ### 3.4 第四个问题：Gateway 管理命令仍挂在主 API 面上
 
@@ -315,11 +318,11 @@ admin-front (browser)
 
 ### Phase 1：立即止血
 
-1. admin token 从 `localStorage` 迁到 HttpOnly cookie
-2. `gateway-admin` 与 `gateway` 的内部地址改为私网专用入口
-3. 禁止生产复用 `JWT_SECRET` 作为 internal secret
-4. 收紧 `PLATFORM_FEE_ADMIN_WALLETS`
-5. 所有 internal command 都强制 request-id 审计贯通
+1. admin token 从 `localStorage` 迁到 HttpOnly cookie。已完成。
+2. `gateway-admin -> gateway` 内部命令改成独立 internal service token。已完成。
+3. 禁止生产复用 `JWT_SECRET` 作为 internal secret。配置边界已拆开，生产密钥治理仍需落地。
+4. 收紧 `PLATFORM_FEE_ADMIN_WALLETS`。待按生产环境收口。
+5. 所有 internal command 都强制 request-id 审计贯通。已完成主链路。
 
 ### Phase 2：身份拆域
 
@@ -376,7 +379,7 @@ Admin User
 1. internal service auth 与 external owner auth 语义混用
 2. shared secret 模式过重
 3. 缺少独立 service principal / aud / scope / jti / body digest
-4. admin token 存在 localStorage
+4. 浏览器侧仍缺 `CSRF` / 更严格 cookie 策略 / CSP
 5. gateway internal command 与 public API 面未完全网络隔离
 
 ### 8.3 如何保证 gateway 和 admin 的安全

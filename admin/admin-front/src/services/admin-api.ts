@@ -22,8 +22,6 @@ export type AdminProfile = {
 };
 
 export type LoginResponse = {
-  accessToken: string;
-  tokenType: string;
   expiresIn: number;
   admin: AdminProfile;
 };
@@ -305,19 +303,19 @@ function buildPath(path: string, params?: Record<string, string | number | undef
   return query ? `${path}?${query}` : path;
 }
 
-function buildHeaders(token?: string, init?: HeadersInit): HeadersInit {
+function buildHeaders(init?: HeadersInit): HeadersInit {
   return {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...init,
   };
 }
 
-async function request<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
     ...init,
-    headers: buildHeaders(token, init?.headers),
+    headers: buildHeaders(init?.headers),
     cache: "no-store",
+    credentials: "include",
   });
 
   const body = (await response.json()) as ApiEnvelope<T> | ApiErrorEnvelope;
@@ -340,49 +338,45 @@ export async function loginAdmin(input: {
 }
 
 export async function getCurrentAdmin(token: string): Promise<AdminProfile> {
-  return request<AdminProfile>("/api/admin/v1/auth/me", undefined, token);
+  return request<AdminProfile>("/api/admin/v1/auth/me");
 }
 
 export async function logoutAdmin(token: string): Promise<{ adminId: string; loggedOut: boolean }> {
-  return request<{ adminId: string; loggedOut: boolean }>(
-    "/api/admin/v1/auth/logout",
-    { method: "POST" },
-    token,
-  );
+  return request<{ adminId: string; loggedOut: boolean }>("/api/admin/v1/auth/logout", { method: "POST" });
 }
 
 export async function getDashboardOverview(token: string): Promise<DashboardOverview> {
-  return request<DashboardOverview>("/api/admin/v1/dashboard/overview", undefined, token);
+  return request<DashboardOverview>("/api/admin/v1/dashboard/overview");
 }
 
 export async function getSystemStatus(token: string): Promise<SystemStatus> {
-  return request<SystemStatus>("/api/admin/v1/dashboard/system-status", undefined, token);
+  return request<SystemStatus>("/api/admin/v1/dashboard/system-status");
 }
 
 export async function getFinanceOverview(token: string): Promise<FinanceOverview> {
-  return request<FinanceOverview>("/api/admin/v1/dashboard/finance-overview", undefined, token);
+  return request<FinanceOverview>("/api/admin/v1/dashboard/finance-overview");
 }
 
 export async function getActivityTrends(token: string): Promise<ActivityTrendSeries> {
-  return request<ActivityTrendSeries>("/api/admin/v1/dashboard/activity-trends", undefined, token);
+  return request<ActivityTrendSeries>("/api/admin/v1/dashboard/activity-trends");
 }
 
 export async function getOperationsOverview(token: string): Promise<OperationsOverview> {
-  return request<OperationsOverview>("/api/admin/v1/dashboard/operations-overview", undefined, token);
+  return request<OperationsOverview>("/api/admin/v1/dashboard/operations-overview");
 }
 
 export async function listApprovals(
   token: string,
   params?: { status?: string; approvalType?: string; limit?: number },
 ): Promise<ApprovalListResponse> {
-  return request<ApprovalListResponse>(buildPath("/api/admin/v1/approvals", params), undefined, token);
+  return request<ApprovalListResponse>(buildPath("/api/admin/v1/approvals", params));
 }
 
 export async function listProviderWithdrawReviews(
   token: string,
   params?: { limit?: number },
 ): Promise<ProviderWithdrawReviewListResponse> {
-  return request<ProviderWithdrawReviewListResponse>(buildPath("/api/admin/v1/withdrawal-reviews", params), undefined, token);
+  return request<ProviderWithdrawReviewListResponse>(buildPath("/api/admin/v1/withdrawal-reviews", params));
 }
 
 export async function decideProviderWithdrawReview(
@@ -399,7 +393,6 @@ export async function decideProviderWithdrawReview(
       method: "POST",
       body: JSON.stringify(input),
     },
-    token,
   );
 }
 
@@ -407,33 +400,33 @@ export async function listAuditActions(
   token: string,
   params?: { resultStatus?: string; actionType?: string; operatorId?: string; limit?: number },
 ): Promise<AuditActionListResponse> {
-  return request<AuditActionListResponse>(buildPath("/api/admin/v1/audit/actions", params), undefined, token);
+  return request<AuditActionListResponse>(buildPath("/api/admin/v1/audit/actions", params));
 }
 
 export async function listExecutionJobs(
   token: string,
   params?: { status?: string; approvalId?: string; targetSystem?: string; limit?: number },
 ): Promise<ExecutionJobListResponse> {
-  return request<ExecutionJobListResponse>(buildPath("/api/admin/v1/execution-jobs", params), undefined, token);
+  return request<ExecutionJobListResponse>(buildPath("/api/admin/v1/execution-jobs", params));
 }
 
 export async function retryExecutionJob(token: string, jobId: string): Promise<ExecutionRetryResult> {
-  return request<ExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, { method: "POST" }, token);
+  return request<ExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, { method: "POST" });
 }
 
 export async function listAdminUsers(
   token: string,
   params?: { status?: string; search?: string; roleKey?: string; limit?: number },
 ): Promise<AdminUserListResponse> {
-  return request<AdminUserListResponse>(buildPath("/api/admin/v1/users", params), undefined, token);
+  return request<AdminUserListResponse>(buildPath("/api/admin/v1/users", params));
 }
 
 export async function listAdminRoles(token: string): Promise<AdminRoleCatalogResponse> {
-  return request<AdminRoleCatalogResponse>("/api/admin/v1/users/roles", undefined, token);
+  return request<AdminRoleCatalogResponse>("/api/admin/v1/users/roles");
 }
 
 export async function listAdminPermissions(token: string): Promise<AdminPermissionCatalogResponse> {
-  return request<AdminPermissionCatalogResponse>("/api/admin/v1/users/permissions", undefined, token);
+  return request<AdminPermissionCatalogResponse>("/api/admin/v1/users/permissions");
 }
 
 export async function createAdminUser(
@@ -453,7 +446,6 @@ export async function createAdminUser(
       method: "POST",
       body: JSON.stringify(input),
     },
-    token,
   );
 }
 
@@ -474,7 +466,6 @@ export async function updateAdminUser(
       method: "PATCH",
       body: JSON.stringify(input),
     },
-    token,
   );
 }
 
@@ -484,7 +475,6 @@ export async function deleteAdminUser(token: string, adminId: string): Promise<D
     {
       method: "DELETE",
     },
-    token,
   );
 }
 
@@ -504,7 +494,6 @@ export async function createAdminRole(
       method: "POST",
       body: JSON.stringify(input),
     },
-    token,
   );
 }
 
@@ -524,7 +513,6 @@ export async function updateAdminRole(
       method: "PATCH",
       body: JSON.stringify(input),
     },
-    token,
   );
 }
 
@@ -534,7 +522,6 @@ export async function deleteAdminRole(token: string, roleKey: string): Promise<D
     {
       method: "DELETE",
     },
-    token,
   );
 }
 
@@ -542,7 +529,7 @@ export async function getAdminMenuConfig(
   token: string,
   params?: { stage?: "draft" | "published" },
 ): Promise<AdminMenuConfigResponse> {
-  return request<AdminMenuConfigResponse>(buildPath("/api/admin/v1/config/menu-items", params), undefined, token);
+  return request<AdminMenuConfigResponse>(buildPath("/api/admin/v1/config/menu-items", params));
 }
 
 export async function createAdminMenuItem(
@@ -566,7 +553,6 @@ export async function createAdminMenuItem(
       method: "POST",
       body: JSON.stringify(input),
     },
-    token,
   );
 }
 
@@ -591,7 +577,6 @@ export async function updateAdminMenuItem(
       method: "PATCH",
       body: JSON.stringify(input),
     },
-    token,
   );
 }
 
@@ -601,16 +586,11 @@ export async function deleteAdminMenuItem(token: string, itemId: string): Promis
     {
       method: "DELETE",
     },
-    token,
   );
 }
 
 export async function publishAdminMenuConfig(token: string): Promise<AdminMenuConfigResponse> {
-  return request<AdminMenuConfigResponse>(
-    "/api/admin/v1/config/menu-items/publish",
-    {
-      method: "POST",
-    },
-    token,
-  );
+  return request<AdminMenuConfigResponse>("/api/admin/v1/config/menu-items/publish", {
+    method: "POST",
+  });
 }

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,23 @@ class Settings(BaseSettings):
         alias="ADMIN_GATEWAY_ALLOWED_ORIGINS",
     )
     token_prefix: str = Field(default="adm_demo_", alias="ADMIN_GATEWAY_TOKEN_PREFIX")
+    admin_session_ttl_sec: int = Field(default=3600, alias="ADMIN_SESSION_TTL_SEC")
+    admin_session_cookie_name: str = Field(
+        default="synapse_admin_session",
+        alias="ADMIN_SESSION_COOKIE_NAME",
+    )
+    admin_session_cookie_secure: bool = Field(
+        default=False,
+        alias="ADMIN_SESSION_COOKIE_SECURE",
+    )
+    admin_session_cookie_samesite: str = Field(
+        default="lax",
+        alias="ADMIN_SESSION_COOKIE_SAMESITE",
+    )
+    admin_session_cookie_domain: Optional[str] = Field(
+        default=None,
+        alias="ADMIN_SESSION_COOKIE_DOMAIN",
+    )
     admin_database_dsn: str = Field(
         default="postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin",
         alias="ADMIN_DATABASE_DSN",
