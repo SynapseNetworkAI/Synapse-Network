@@ -106,6 +106,36 @@ export type ApprovalListResponse = {
   nextCursor: string | null;
 };
 
+export type ProviderWithdrawReviewItem = {
+  withdrawalId: string;
+  ownerAddress: string;
+  amountUsdc: string;
+  status: string;
+  requestId: string | null;
+  txHash: string | null;
+  riskLevel: string | null;
+  riskReasonCode: string | null;
+  evidenceSummary: string | null;
+  message: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type ProviderWithdrawReviewListResponse = {
+  items: ProviderWithdrawReviewItem[];
+  nextCursor: string | null;
+};
+
+export type ProviderWithdrawReviewDecisionResult = {
+  withdrawalId: string;
+  ownerAddress: string;
+  reviewDecision: string;
+  status: string;
+  message: string | null;
+  requestedBy: string | null;
+  ticket: Record<string, unknown>;
+};
+
 export type AuditActionItem = {
   auditId: number | null;
   actionType: string;
@@ -346,6 +376,31 @@ export async function listApprovals(
   params?: { status?: string; approvalType?: string; limit?: number },
 ): Promise<ApprovalListResponse> {
   return request<ApprovalListResponse>(buildPath("/api/admin/v1/approvals", params), undefined, token);
+}
+
+export async function listProviderWithdrawReviews(
+  token: string,
+  params?: { limit?: number },
+): Promise<ProviderWithdrawReviewListResponse> {
+  return request<ProviderWithdrawReviewListResponse>(buildPath("/api/admin/v1/withdrawal-reviews", params), undefined, token);
+}
+
+export async function decideProviderWithdrawReview(
+  token: string,
+  withdrawalId: string,
+  input: {
+    decision: "APPROVE" | "REJECT";
+    note?: string;
+  },
+): Promise<ProviderWithdrawReviewDecisionResult> {
+  return request<ProviderWithdrawReviewDecisionResult>(
+    `/api/admin/v1/withdrawal-reviews/${withdrawalId}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  );
 }
 
 export async function listAuditActions(

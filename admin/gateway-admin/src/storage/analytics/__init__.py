@@ -7,6 +7,12 @@ from src.storage.analytics.gateway_dashboard import (
     InMemoryGatewayDashboardProjectionRepository,
     PostgresGatewayDashboardProjectionRepository,
 )
+from src.storage.analytics.provider_withdraw_review import (
+    InMemoryProviderWithdrawReviewRepository,
+    PostgresProviderWithdrawReviewRepository,
+    ProviderWithdrawReviewItem,
+    ProviderWithdrawReviewRepository,
+)
 
 __all__ = [
     "GatewayActivityTrendPoint",
@@ -15,5 +21,9 @@ __all__ = [
     "GatewayDashboardProjectionRepository",
     "GatewayDashboardSnapshot",
     "InMemoryGatewayDashboardProjectionRepository",
+    "InMemoryProviderWithdrawReviewRepository",
     "PostgresGatewayDashboardProjectionRepository",
+    "PostgresProviderWithdrawReviewRepository",
+    "ProviderWithdrawReviewItem",
+    "ProviderWithdrawReviewRepository",
 ]

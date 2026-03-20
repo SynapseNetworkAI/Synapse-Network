@@ -12,15 +12,22 @@ from src.services.adapters import (
     GatewayExecutionAdapter,
     HttpGatewayExecutionAdapter,
     InMemoryGatewayExecutionAdapter,
+    HttpProviderWithdrawReviewAdapter,
+    InMemoryProviderWithdrawReviewAdapter,
+    ProviderWithdrawReviewAdapter,
 )
 from src.services.audit.service import AuditService
 from src.services.auth.service import AdminAuthService, AdminIdentity
 from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService, ExecutionWorker
+from src.services.finance_admin import ProviderWithdrawReviewService
 from src.storage.analytics import (
     GatewayDashboardProjectionRepository,
     InMemoryGatewayDashboardProjectionRepository,
+    InMemoryProviderWithdrawReviewRepository,
     PostgresGatewayDashboardProjectionRepository,
+    PostgresProviderWithdrawReviewRepository,
+    ProviderWithdrawReviewRepository,
 )
 from src.storage import InMemoryAdminStore, PostgresAdminStore
 from src.storage.base import AdminStore
@@ -68,6 +75,38 @@ def get_gateway_dashboard_projection_repository() -> GatewayDashboardProjectionR
 @lru_cache(maxsize=1)
 def get_dashboard_service() -> DashboardService:
     return DashboardService(get_store(), get_gateway_dashboard_projection_repository())
+
+
+@lru_cache(maxsize=1)
+def get_provider_withdraw_review_repository() -> ProviderWithdrawReviewRepository:
+    settings = get_settings()
+    if settings.use_inmemory_store:
+        return InMemoryProviderWithdrawReviewRepository.seed_demo()
+    return PostgresProviderWithdrawReviewRepository(settings.gateway_readonly_dsn)
+
+
+@lru_cache(maxsize=1)
+def get_provider_withdraw_review_adapter() -> ProviderWithdrawReviewAdapter:
+    settings = get_settings()
+    if settings.use_inmemory_store:
+        repository = get_provider_withdraw_review_repository()
+        if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
+            return InMemoryProviderWithdrawReviewAdapter(repository)
+    return HttpProviderWithdrawReviewAdapter(
+        base_url=settings.gateway_internal_base_url,
+        admin_wallet=settings.gateway_internal_admin_wallet,
+        jwt_secret=settings.gateway_internal_jwt_secret,
+        timeout_sec=settings.gateway_internal_timeout_sec,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_provider_withdraw_review_service() -> ProviderWithdrawReviewService:
+    return ProviderWithdrawReviewService(
+        get_store(),
+        get_provider_withdraw_review_repository(),
+        get_provider_withdraw_review_adapter(),
+    )
 
 
 @lru_cache(maxsize=1)

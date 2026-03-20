@@ -83,6 +83,14 @@ export const adminNavigationTree: AdminNavSection[] = [
         requiredPermissions: ["approval:read"],
       },
       {
+        id: "withdrawal-reviews",
+        href: "/withdrawal-reviews",
+        label: "提现审核",
+        description: "Provider 提现人工审核工作台，直接推进 approve / reject。",
+        badge: "review",
+        requiredPermissions: ["approval:read"],
+      },
+      {
         id: "finance",
         href: "/finance",
         label: "资金运营",

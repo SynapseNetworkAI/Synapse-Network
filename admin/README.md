@@ -20,3 +20,9 @@
 1. 明确后台角色、权限、审批和审计边界。
 2. 保持后台前后端与交易网关代码隔离。
 3. 仅创建骨架，不在本阶段引入具体框架依赖。
+
+当前已落地的财务控制面能力：
+
+- Provider 提现人工审核工作台：`/withdrawal-reviews`
+- `gateway-admin` 提供待审核列表与 approve / reject 代理接口
+- `admin-front` 直接消费该接口，避免浏览器暴露内部 gateway 凭据
