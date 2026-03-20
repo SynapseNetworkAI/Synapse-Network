@@ -643,6 +643,65 @@ class ServiceRegistryRepository:
             for row in rows:
                 self._persist_service_row(cur, row)
 
+    @staticmethod
+    def _composite_not_in_clause(row_count: int) -> str:
+        return ", ".join(["(%s, %s)"] * max(1, row_count))
+
+    @staticmethod
+    def _scalar_not_in_clause(value_count: int) -> str:
+        return ", ".join(["%s"] * max(1, value_count))
+
+    def _delete_obsolete_service_health_snapshots(
+        self, cur: Any, rows: List[ServiceTargetHealth]
+    ) -> None:
+        valid_rows = [
+            row
+            for row in rows
+            if str(row.service_id or "").strip() and str(row.target_url or "").strip()
+        ]
+        if not valid_rows:
+            cur.execute("DELETE FROM synapse_service_health_snapshots")
+            return
+
+        params: list[Any] = []
+        for row in valid_rows:
+            params.extend(
+                [
+                    str(row.service_id or "").strip(),
+                    self._endpoint_id(str(row.service_id or "").strip(), str(row.target_url or "").strip(), 0),
+                ]
+            )
+        placeholders = self._composite_not_in_clause(len(valid_rows))
+        cur.execute(
+            f"DELETE FROM synapse_service_health_snapshots WHERE (service_id, endpoint_id) NOT IN ({placeholders})",
+            tuple(params),
+        )
+
+    def _delete_obsolete_service_health_meta(
+        self, cur: Any, rows: List[ServiceTargetHealth]
+    ) -> None:
+        valid_rows = [
+            row
+            for row in rows
+            if str(row.service_id or "").strip() and str(row.target_url or "").strip()
+        ]
+        if not valid_rows:
+            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%'")
+            return
+
+        state_keys = [
+            self._health_meta_state_key(
+                str(row.service_id or "").strip(),
+                str(row.target_url or "").strip(),
+            )
+            for row in valid_rows
+        ]
+        placeholders = self._scalar_not_in_clause(len(state_keys))
+        cur.execute(
+            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%' AND state_key NOT IN ({placeholders})",
+            tuple(state_keys),
+        )
+
     def read_service_target_health_rows(self) -> List[ServiceTargetHealth]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
@@ -695,8 +754,8 @@ class ServiceRegistryRepository:
 
     def write_service_target_health_rows(self, rows: List[ServiceTargetHealth]) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_service_health_snapshots")
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%'")
+            self._delete_obsolete_service_health_snapshots(cur, rows)
+            self._delete_obsolete_service_health_meta(cur, rows)
             for row in rows:
                 if not row.service_id or not row.target_url:
                     continue
@@ -739,6 +798,14 @@ class ServiceRegistryRepository:
                         service_id, endpoint_id, health_score, p95_latency_ms,
                         success_rate_24h, last_checked_at, error_code, updated_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (service_id, endpoint_id)
+                    DO UPDATE SET
+                        health_score = EXCLUDED.health_score,
+                        p95_latency_ms = EXCLUDED.p95_latency_ms,
+                        success_rate_24h = EXCLUDED.success_rate_24h,
+                        last_checked_at = EXCLUDED.last_checked_at,
+                        error_code = EXCLUDED.error_code,
+                        updated_at = EXCLUDED.updated_at
                     """,
                     (
                         row.service_id,
