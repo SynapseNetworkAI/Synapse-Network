@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
 import { useEffect } from "react";
 import { 
-  ShieldAlert, 
   LayoutGrid,
   Wallet,
   Bot,
@@ -22,7 +20,6 @@ import {
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { address } = useAccount();
 
   const providerRoot = "/provider";
 
@@ -54,9 +51,6 @@ export default function DashboardSidebar() {
     const timeoutId = globalThis.setTimeout(warmup, 200);
     return () => globalThis.clearTimeout(timeoutId);
   }, [router, providerRoot]);
-
-  // Admin address logic
-  const isAdminAddress = address?.toLowerCase() === "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".toLowerCase();
 
   const getLinkClasses = (paths: string | string[], exact = false) => {
     const candidates = Array.isArray(paths) ? paths : [paths];
@@ -138,19 +132,6 @@ export default function DashboardSidebar() {
         </nav>
       </div>
 
-      {(isAdminAddress) && (
-        <div className="mb-6 mt-auto">
-          <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-red-500/60 uppercase">
-            Platform Operator
-          </h3>
-          <nav className="flex flex-col gap-0.5">
-            <Link href="/dashboard/admin" className={getLinkClasses("/dashboard/admin", true)}>
-              <ShieldAlert className="w-4 h-4 mr-3 opacity-80" />
-              Global Settlement
-            </Link>
-          </nav>
-        </div>
-      )}
     </aside>
   );
 }
