@@ -29,16 +29,19 @@
 
 ### 2.1 认证方式
 
-第一期先采用 Bearer Token 占位契约：
+当前控制面已经切到 cookie session + CSRF + step-up OTP 模式：
 
-- Header: `Authorization: Bearer <token>`
-- Header: `X-Request-Id: <uuid>` 可选
+- 登录成功后由 `gateway-admin` 下发 `HttpOnly` admin session cookie
+- 所有浏览器写请求都必须附带 `X-CSRF-Token: <csrfToken>`
+- 高风险写请求额外要求 `X-Admin-OTP-Code: <6-digit-google-authenticator-code>`
+- `X-Request-Id: <uuid>` 仍为可选调试头
 
-后续可替换为：
+当前高风险 step-up 保护接口包括：
 
-- 企业 SSO 会话
-- MFA challenge
-- 短时 admin access token + refresh token
+- `POST /api/admin/v1/approvals/{approvalId}/decision`
+- `POST /api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`
+- `POST /api/admin/v1/execution-jobs/{jobId}/retry`
+- `POST /api/admin/v1/config/menu-items/publish`
 
 ### 2.2 通用响应结构
 
@@ -96,6 +99,11 @@
 }
 ```
 
+说明：
+
+- 当 `GET /api/admin/v1/auth/policy` 返回 `loginTotpRequired=false` 时，`otpCode` 可省略
+- 当 `loginTotpRequired=true` 时，`otpCode` 必须是 Google Authenticator 当前 6 位验证码
+
 响应：
 
 ```json
@@ -104,6 +112,11 @@
   "data": {
     "expiresIn": 3600,
     "csrfToken": "<session-bound-csrf-token>",
+    "security": {
+      "loginTotpRequired": true,
+      "highRiskTotpRequired": true,
+      "totpIssuer": "Synapse Gateway Admin"
+    },
     "admin": {
       "adminId": "adm_finance_admin",
       "email": "ops@synapse.network",
@@ -125,6 +138,25 @@ Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; Same
 
 - `csrfToken` 不是登录凭证，只用于浏览器侧写请求防 CSRF
 - `admin-front` 需要在后续 `POST / PATCH / DELETE` 请求里附带 `X-CSRF-Token: <csrfToken>`
+- 对高风险动作，`admin-front` 还需要额外附带 `X-Admin-OTP-Code: <google-authenticator-code>`
+
+### `GET /api/admin/v1/auth/policy`
+
+用途：在登录前获取当前环境的认证安全策略，让登录页按服务端配置显隐 Google Authenticator 输入框。
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "loginTotpRequired": true,
+    "highRiskTotpRequired": true,
+    "totpIssuer": "Synapse Gateway Admin"
+  },
+  "requestId": "req_demo"
+}
+```
 
 ### `GET /api/admin/v1/auth/me`
 
@@ -138,6 +170,11 @@ Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; Same
   "data": {
     "expiresIn": 3600,
     "csrfToken": "<session-bound-csrf-token>",
+    "security": {
+      "loginTotpRequired": true,
+      "highRiskTotpRequired": true,
+      "totpIssuer": "Synapse Gateway Admin"
+    },
     "admin": {
       "adminId": "adm_finance_admin",
       "email": "ops@synapse.network",

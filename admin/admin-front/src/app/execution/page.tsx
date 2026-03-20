@@ -4,12 +4,17 @@ import { useEffect, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ExecutionJobs } from "@/features/execution/execution-jobs";
+import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
 import { listExecutionJobs, retryExecutionJob, type ExecutionJobItem } from "@/services/admin-api";
 
 
 export default function ExecutionPage() {
-  const { admin, token, loading } = useAdminSession();
+  const { admin, security, token, loading } = useAdminSession();
+  const { requestStepUpCode, stepUpModal } = useAdminStepUp({
+    enabled: security?.highRiskTotpRequired ?? false,
+    issuer: security?.totpIssuer ?? "Synapse Gateway Admin",
+  });
   const [jobs, setJobs] = useState<ExecutionJobItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,10 +63,16 @@ export default function ExecutionPage() {
             throw new Error("Missing admin token");
           }
           const activeToken = token;
-          await retryExecutionJob(activeToken, jobId);
+          const otpCode = await requestStepUpCode({
+            title: "重试执行任务",
+            description: `你正在重试任务 ${jobId}，这会重新触发 gateway 内部命令并写入 execution attempt。`,
+            confirmLabel: "确认重试",
+          });
+          await retryExecutionJob(activeToken, jobId, otpCode);
           await loadJobs(activeToken);
         }}
       />
+      {stepUpModal}
     </AdminShell>
   );
 }

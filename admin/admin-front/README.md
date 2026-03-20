@@ -54,6 +54,7 @@
 - 会话守卫：`src/lib/use-admin-session.ts`
 - 当前会话模型：`gateway-admin` 登录成功后下发 `HttpOnly` session cookie，前端统一通过 `credentials: include` 请求控制面 API，不再把 admin token 落到浏览器 `localStorage`
 - 当前 CSRF 模型：`login` / `me` 响应会返回会话绑定的 `csrfToken`，前端仅保存在内存中，并由 `src/services/admin-api.ts` 自动注入到所有写请求的 `X-CSRF-Token` header
+- 当前 MFA 模型：登录页会先调用 `/api/admin/v1/auth/policy`，由服务端决定是否展示 Google Authenticator 输入框；高风险动作会通过专用 step-up modal 收集验证码，展示 30 秒倒计时与过期提示，并通过 `X-Admin-OTP-Code` 发送给 `gateway-admin`
 - 导航形态：二级 accordion 菜单树，一级分组承载模块域，二级节点承载具体路由
 - 视觉风格：对齐 Gateway Console 的黑色 Web3 dark mode，使用深黑背景、暗金属边框、霓虹绿激活态、`IBM Plex Mono` 展示数字和标识
 
@@ -89,6 +90,7 @@
 当前已接入第一版 `gateway-admin` 接口：
 
 - 登录页调用 `/api/admin/v1/auth/login`，由服务端通过 `Set-Cookie` 建立 `HttpOnly` admin session
+- 登录页还会调用 `/api/admin/v1/auth/policy`，根据 `loginTotpRequired` / `highRiskTotpRequired` 渲染当前环境的认证策略
 - Dashboard 调用 `/api/admin/v1/auth/me`、`/api/admin/v1/dashboard/overview`、`/api/admin/v1/dashboard/system-status`，以及 3 个稳定读模型接口：`/finance-overview`、`/activity-trends`、`/operations-overview`
 - 审批页调用统一后的 `/api/admin/v1/approvals`，其中已包含 provider manual review projection
 - 提现审核页调用 `/api/admin/v1/withdrawal-reviews` 与 `/api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`
@@ -102,4 +104,4 @@
 安全备注：
 
 - 当前 cookie 默认策略为 `HttpOnly + SameSite=Lax`，开发环境默认不强制 `Secure`，生产必须开启 HTTPS 并将 `ADMIN_SESSION_COOKIE_SECURE=true`
-- 这次迁移已经切掉浏览器可读 token，并补上 cookie 会话写请求的 `CSRF` header 校验；下一步应继续收口 `SameSite=Strict`、step-up MFA 和 CSP
+- 当前高风险动作已经接入专用 step-up modal，并提供验证码倒计时与过期提示；下一步应继续补设备绑定和更完整的可观测性

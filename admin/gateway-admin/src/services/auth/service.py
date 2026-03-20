@@ -6,7 +6,9 @@ from src.core.config import get_settings
 from src.core.errors import AuthenticationError, BadRequestError
 from src.core.security import verify_password
 from src.domain import AdminActionAudit, AdminSession
-from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuditResultStatus, MfaFactorStatus, RoleBindingStatus
+from src.domain import AdminMfaFactor, AdminUser
+from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuditResultStatus, MfaFactorStatus, MfaFactorType, RoleBindingStatus
+from src.services.auth.google_authenticator import AdminGoogleAuthenticatorPolicy, build_google_authenticator_policy, verify_google_authenticator_code
 from src.storage.base import AdminStore
 
 DASHBOARD_READ = "dashboard:read"
@@ -30,22 +32,15 @@ class AdminAuthService:
         self._settings = get_settings()
         self._store = store
 
-    def login(self, email: str, password: str, otp_code: str) -> tuple[str, AdminIdentity]:
-        if not email.strip() or not password.strip() or not otp_code.strip():
-            raise BadRequestError("email, password and otpCode are required")
+    def login(self, email: str, password: str, otp_code: str | None) -> tuple[str, AdminIdentity]:
+        if not email.strip() or not password.strip():
+            raise BadRequestError("email and password are required")
         user = self._store.identity.get_user_by_email(email)
         if user is None or user.status != AdminUserStatus.ACTIVE:
             raise AuthenticationError("Invalid admin credentials")
         if not verify_password(password, user.password_hash):
             raise AuthenticationError("Invalid admin credentials")
-        if user.require_mfa:
-            active_factors = [
-                factor
-                for factor in self._store.identity.list_mfa_factors(user.admin_id)
-                if factor.status == MfaFactorStatus.ACTIVE
-            ]
-            if not active_factors:
-                raise AuthenticationError("Admin MFA is not configured")
+        self._verify_login_otp(user, otp_code)
         session_id = uuid4().hex
         token = f"{self._settings.token_prefix}{session_id}"
         now = datetime.now(timezone.utc)
@@ -78,6 +73,22 @@ class AdminAuthService:
             )
         )
         return token, admin
+
+    def get_security_policy(self) -> AdminGoogleAuthenticatorPolicy:
+        return build_google_authenticator_policy()
+
+    def verify_high_risk_otp(self, admin_id: str, otp_code: str | None) -> None:
+        user = self._store.identity.get_user_by_id(admin_id)
+        if user is None or user.status != AdminUserStatus.ACTIVE:
+            raise AuthenticationError("Admin account is not active")
+        policy = self.get_security_policy()
+        if not policy.high_risk_totp_required or not user.require_mfa:
+            return
+        if not (otp_code or "").strip():
+            raise AuthenticationError("Google Authenticator code is required for high-risk actions")
+        factor = self._get_active_totp_factor(user)
+        if not verify_google_authenticator_code(factor, otp_code or ""):
+            raise AuthenticationError("Invalid Google Authenticator code")
 
     def get_current_admin(self, token: str) -> AdminIdentity:
         session = self._get_active_session(token)
@@ -140,3 +151,25 @@ class AdminAuthService:
             role=role,
             permissions=tuple(sorted(permissions)),
         )
+
+    def _verify_login_otp(self, user: AdminUser, otp_code: str | None) -> None:
+        policy = self.get_security_policy()
+        if not user.require_mfa:
+            return
+        factor = self._get_active_totp_factor(user)
+        if not policy.login_totp_required:
+            return
+        if not (otp_code or "").strip():
+            raise BadRequestError("otpCode is required when login TOTP is enabled")
+        if not verify_google_authenticator_code(factor, otp_code or ""):
+            raise AuthenticationError("Invalid Google Authenticator code")
+
+    def _get_active_totp_factor(self, user: AdminUser) -> AdminMfaFactor:
+        for factor in self._store.identity.list_mfa_factors(user.admin_id):
+            if factor.status != MfaFactorStatus.ACTIVE:
+                continue
+            if factor.factor_type != MfaFactorType.TOTP:
+                continue
+            if str(factor.payload.get("totpSecret") or "").strip():
+                return factor
+        raise AuthenticationError("Admin Google Authenticator is not configured")

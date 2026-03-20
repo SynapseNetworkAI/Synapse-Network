@@ -108,17 +108,18 @@ INSERT INTO admin_mfa_factors (
     updated_at
 )
 VALUES
-    ('mfa_super_admin_totp', 'adm_super_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/super/totp', '{}'::jsonb, NOW(), NOW()),
-    ('mfa_platform_ops_admin_totp', 'adm_platform_ops_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/ops/totp', '{}'::jsonb, NOW(), NOW()),
-    ('mfa_finance_admin_totp', 'adm_finance_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/finance/totp', '{}'::jsonb, NOW(), NOW()),
-    ('mfa_finance_reviewer_totp', 'adm_finance_reviewer', 'totp', 'bootstrap_totp', 'active', 'kms://admin/finance-review/totp', '{}'::jsonb, NOW(), NOW()),
-    ('mfa_risk_admin_totp', 'adm_risk_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/risk/totp', '{}'::jsonb, NOW(), NOW()),
-    ('mfa_risk_reviewer_totp', 'adm_risk_reviewer', 'totp', 'bootstrap_totp', 'active', 'kms://admin/risk-review/totp', '{}'::jsonb, NOW(), NOW()),
-    ('mfa_compliance_auditor_totp', 'adm_compliance_auditor', 'totp', 'bootstrap_totp', 'active', 'kms://admin/audit/totp', '{}'::jsonb, NOW(), NOW()),
-    ('mfa_readonly_analyst_totp', 'adm_readonly_analyst', 'totp', 'bootstrap_totp', 'active', 'kms://admin/readonly/totp', '{}'::jsonb, NOW(), NOW())
+    ('mfa_super_admin_totp', 'adm_super_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/super/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_platform_ops_admin_totp', 'adm_platform_ops_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/ops/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_finance_admin_totp', 'adm_finance_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/finance/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_finance_reviewer_totp', 'adm_finance_reviewer', 'totp', 'bootstrap_totp', 'active', 'kms://admin/finance-review/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_risk_admin_totp', 'adm_risk_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/risk/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_risk_reviewer_totp', 'adm_risk_reviewer', 'totp', 'bootstrap_totp', 'active', 'kms://admin/risk-review/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_compliance_auditor_totp', 'adm_compliance_auditor', 'totp', 'bootstrap_totp', 'active', 'kms://admin/audit/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_readonly_analyst_totp', 'adm_readonly_analyst', 'totp', 'bootstrap_totp', 'active', 'kms://admin/readonly/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW())
 ON CONFLICT (factor_id) DO UPDATE
 SET status = EXCLUDED.status,
     secret_ref = EXCLUDED.secret_ref,
+    payload_json = EXCLUDED.payload_json,
     updated_at = NOW();
 
 INSERT INTO admin_user_role_bindings (

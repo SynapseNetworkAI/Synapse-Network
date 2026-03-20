@@ -3,11 +3,16 @@
 import { AdminShell } from "@/components/admin-shell";
 import { ReviewWorkbench } from "@/features/withdrawal-reviews/review-workbench";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
+import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
 
 
 export default function WithdrawalReviewsPage() {
-  const { admin, token, loading } = useAdminSession();
+  const { admin, security, token, loading } = useAdminSession();
+  const { requestStepUpCode, stepUpModal } = useAdminStepUp({
+    enabled: security?.highRiskTotpRequired ?? false,
+    issuer: security?.totpIssuer ?? "Synapse Gateway Admin",
+  });
   const {
     items,
     activeReviewId,
@@ -20,7 +25,7 @@ export default function WithdrawalReviewsPage() {
     setDecisionNote,
     setMessage,
     handleDecision,
-  } = useProviderWithdrawReviews(token);
+  } = useProviderWithdrawReviews(token, requestStepUpCode);
   const canDecide = admin?.permissions.includes("approval:decide") ?? false;
 
   if (loading || !admin) {
@@ -68,6 +73,7 @@ export default function WithdrawalReviewsPage() {
         onDecisionNoteChange={setDecisionNote}
         onDecision={handleDecision}
       />
+      {stepUpModal}
     </AdminShell>
   );
 }

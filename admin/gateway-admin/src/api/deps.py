@@ -34,6 +34,7 @@ from src.storage.base import AdminStore
 
 AuthorizationHeader = Annotated[str | None, Header(alias="Authorization")]
 RequestIdHeader = Annotated[str | None, Header(alias="X-Request-Id")]
+AdminOtpHeader = Annotated[str | None, Header(alias="X-Admin-OTP-Code")]
 
 
 @lru_cache(maxsize=1)
@@ -185,6 +186,18 @@ def require_permission(permission: str):
     ) -> AdminIdentity:
         if permission not in admin.permissions:
             raise AuthorizationError(f"Missing permission: {permission}")
+        return admin
+
+    return dependency
+
+
+def require_high_risk_permission(permission: str):
+    def dependency(
+        otp_code: AdminOtpHeader = None,
+        admin: Annotated[AdminIdentity, Depends(require_permission(permission))] = None,
+        auth_service: Annotated[AdminAuthService, Depends(get_auth_service)] = None,
+    ) -> AdminIdentity:
+        auth_service.verify_high_risk_otp(admin.admin_id, otp_code)
         return admin
 
     return dependency

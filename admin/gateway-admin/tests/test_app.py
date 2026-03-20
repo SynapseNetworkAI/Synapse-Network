@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from src.app import app
 from src.api import deps
+from src.core.totp import generate_totp_code
 from src.core.security import hash_password
 
 client = TestClient(app)
@@ -14,7 +15,7 @@ def _login_as(email: str) -> dict[str, str]:
         json={
             "email": email,
             "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
+            "otpCode": _otp_code_for(email),
         },
     )
     assert response.status_code == 200
@@ -39,6 +40,15 @@ def _seed_test_passwords() -> None:
             store.identity.update_password_hash(user.admin_id, hash_password(PLACEHOLDER_PASSWORD))
 
 
+def _otp_code_for(email: str) -> str:
+    store = deps.get_store()
+    user = store.identity.get_user_by_email(email)
+    assert user is not None
+    factors = store.identity.list_mfa_factors(user.admin_id)
+    secret = next(str(factor.payload.get("totpSecret") or "") for factor in factors if factor.payload.get("totpSecret"))
+    return generate_totp_code(secret)
+
+
 _seed_test_passwords()
 
 
@@ -54,7 +64,7 @@ def test_admin_auth_login() -> None:
         json={
             "email": "ops@synapse.network",
             "password": PLACEHOLDER_PASSWORD,
-            "otpCode": "123456",
+            "otpCode": _otp_code_for("ops@synapse.network"),
         },
     )
     assert response.status_code == 200
@@ -63,7 +73,19 @@ def test_admin_auth_login() -> None:
     assert body["data"]["admin"]["email"] == "ops@synapse.network"
     assert body["data"]["expiresIn"] == 3600
     assert body["data"]["csrfToken"]
+    assert body["data"]["security"]["loginTotpRequired"] is True
+    assert body["data"]["security"]["highRiskTotpRequired"] is True
     assert "synapse_admin_session=" in response.headers["set-cookie"]
+
+
+def test_admin_auth_policy_exposes_google_authenticator_switches() -> None:
+    response = client.get("/api/admin/v1/auth/policy")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["loginTotpRequired"] is True
+    assert body["highRiskTotpRequired"] is True
+    assert body["totpIssuer"] == "Synapse Gateway Admin"
 
 
 def test_admin_auth_me_and_logout_use_cookie_session() -> None:
@@ -89,9 +111,23 @@ def test_admin_auth_login_rejects_wrong_password() -> None:
         json={
             "email": "ops@synapse.network",
             "password": "wrong-password",
-            "otpCode": "123456",
+            "otpCode": _otp_code_for("ops@synapse.network"),
         },
     )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_admin_auth_login_rejects_invalid_google_authenticator_code() -> None:
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "ops@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "000000",
+        },
+    )
+
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
 
@@ -262,7 +298,8 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     assert update_response.status_code == 200
     assert any(item["label"] == "运行副驾中心" for item in update_response.json()["data"]["items"])
 
-    publish_response = client.post("/api/admin/v1/config/menu-items/publish", headers=csrf_headers)
+    publish_headers = {**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("super@synapse.network")}
+    publish_response = client.post("/api/admin/v1/config/menu-items/publish", headers=publish_headers)
     assert publish_response.status_code == 200
     assert publish_response.json()["data"]["meta"]["isDirty"] is False
 
@@ -311,7 +348,7 @@ def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> 
 
     response = client.post(
         "/api/admin/v1/approvals/PWR-wd-demo-review-002/decision",
-        headers=csrf_headers,
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
         json={
             "decision": "APPROVE",
             "comment": "Projected approval routed to provider manual review flow.",
@@ -335,7 +372,7 @@ def test_provider_withdraw_review_list_and_decision() -> None:
 
     decision_response = client.post(
         f"/api/admin/v1/withdrawal-reviews/{first_item['withdrawalId']}/decision",
-        headers=csrf_headers,
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
         json={
             "decision": "APPROVE",
             "note": "Looks consistent with provider income.",
@@ -357,7 +394,7 @@ def test_provider_withdraw_review_decision_requires_permission() -> None:
 
     response = client.post(
         "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
-        headers=csrf_headers,
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance@synapse.network")},
         json={
             "decision": "REJECT",
             "note": "Finance admin cannot decide directly.",
@@ -412,7 +449,7 @@ def test_approval_decision_requires_reviewer_role() -> None:
 
     response = client.post(
         "/api/admin/v1/approvals/APR-20260316-001/decision",
-        headers=csrf_headers,
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
         json={"decision": "APPROVE", "comment": "approved"},
     )
 
@@ -505,7 +542,10 @@ def test_execution_jobs_list_and_retry() -> None:
     assert len(items) >= 1
     job_id = items[0]["jobId"]
 
-    retry_response = client.post(f"/api/admin/v1/execution-jobs/{job_id}/retry", headers=csrf_headers)
+    retry_response = client.post(
+        f"/api/admin/v1/execution-jobs/{job_id}/retry",
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+    )
 
     assert retry_response.status_code == 200
     assert retry_response.json()["data"]["status"] == "SUCCEEDED"
@@ -516,6 +556,19 @@ def test_execution_jobs_list_and_retry() -> None:
     assert retried_job["status"] == "SUCCEEDED"
     assert retried_job["retryCount"] == 2
     assert retried_job["attempts"][0]["status"] == "SUCCEEDED"
+
+
+def test_high_risk_route_requires_google_authenticator_header() -> None:
+    csrf_headers = _login_as("finance-review@synapse.network")
+
+    response = client.post(
+        "/api/admin/v1/approvals/APR-20260316-001/decision",
+        headers=csrf_headers,
+        json={"decision": "APPROVE", "comment": "missing otp"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
 
 
 def test_cookie_authenticated_write_requires_csrf_token() -> None:

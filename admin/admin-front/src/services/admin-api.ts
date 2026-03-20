@@ -25,6 +25,13 @@ export type LoginResponse = {
   expiresIn: number;
   csrfToken: string;
   admin: AdminProfile;
+  security: AdminAuthSecurityPolicy;
+};
+
+export type AdminAuthSecurityPolicy = {
+  loginTotpRequired: boolean;
+  highRiskTotpRequired: boolean;
+  totpIssuer: string;
 };
 
 let adminCsrfToken: string | null = null;
@@ -354,7 +361,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export async function loginAdmin(input: {
   email: string;
   password: string;
-  otpCode: string;
+  otpCode?: string;
 }): Promise<LoginResponse> {
   const session = await request<LoginResponse>("/api/admin/v1/auth/login", {
     method: "POST",
@@ -362,6 +369,10 @@ export async function loginAdmin(input: {
   });
   setAdminCsrfToken(session.csrfToken);
   return session;
+}
+
+export async function getAdminAuthPolicy(): Promise<AdminAuthSecurityPolicy> {
+  return request<AdminAuthSecurityPolicy>("/api/admin/v1/auth/policy");
 }
 
 export async function getCurrentAdmin(token: string): Promise<LoginResponse> {
@@ -416,13 +427,15 @@ export async function decideProviderWithdrawReview(
   input: {
     decision: "APPROVE" | "REJECT";
     note?: string;
+    otpCode?: string;
   },
 ): Promise<ProviderWithdrawReviewDecisionResult> {
   return request<ProviderWithdrawReviewDecisionResult>(
     `/api/admin/v1/withdrawal-reviews/${withdrawalId}/decision`,
     {
       method: "POST",
-      body: JSON.stringify(input),
+      headers: input.otpCode ? { "X-Admin-OTP-Code": input.otpCode } : undefined,
+      body: JSON.stringify({ decision: input.decision, note: input.note }),
     },
   );
 }
@@ -441,8 +454,15 @@ export async function listExecutionJobs(
   return request<ExecutionJobListResponse>(buildPath("/api/admin/v1/execution-jobs", params));
 }
 
-export async function retryExecutionJob(token: string, jobId: string): Promise<ExecutionRetryResult> {
-  return request<ExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, { method: "POST" });
+export async function retryExecutionJob(
+  token: string,
+  jobId: string,
+  otpCode?: string,
+): Promise<ExecutionRetryResult> {
+  return request<ExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, {
+    method: "POST",
+    headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
+  });
 }
 
 export async function listAdminUsers(
@@ -620,8 +640,9 @@ export async function deleteAdminMenuItem(token: string, itemId: string): Promis
   );
 }
 
-export async function publishAdminMenuConfig(token: string): Promise<AdminMenuConfigResponse> {
+export async function publishAdminMenuConfig(token: string, otpCode?: string): Promise<AdminMenuConfigResponse> {
   return request<AdminMenuConfigResponse>("/api/admin/v1/config/menu-items/publish", {
     method: "POST",
+    headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
   });
 }

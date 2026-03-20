@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from src.api.deps import get_approval_service, get_request_id, require_permission
+from src.api.deps import get_approval_service, get_request_id, require_high_risk_permission, require_permission
 from src.api.schemas.approval import (
     ApprovalDecisionRequest,
     ApprovalDecisionResult,
@@ -57,7 +57,7 @@ def create_approval(
 def decide_approval(
     approval_id: str,
     payload: ApprovalDecisionRequest,
-    admin: Annotated[AdminIdentity, Depends(require_permission("approval:decide"))],
+    admin: Annotated[AdminIdentity, Depends(require_high_risk_permission("approval:decide"))],
     request_id: Annotated[str, Depends(get_request_id)],
     approval_service: Annotated[ApprovalService, Depends(get_approval_service)],
 ):
