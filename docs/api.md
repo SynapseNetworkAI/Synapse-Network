@@ -23,13 +23,14 @@
 9. `GET /api/v1/providers/withdrawals/capability`
 10. `GET /api/v1/providers/withdrawals`
 11. `POST /api/v1/providers/withdrawals/{withdrawalId}/complete`
-12. `GET /api/v1/router/config`
-13. `POST /api/v1/router/config`
-14. `GET /api/v1/finance/audit-logs`
-15. `GET /api/v1/admin/fee-policy`
-16. `PUT /api/v1/admin/fee-policy`
-17. `POST /api/v1/admin/deposits/replay`
-18. `GET|POST|PUT|DELETE /api/v1/services*` except public discover
+12. `POST /api/v1/admin/providers/withdrawals/{withdrawalId}/review`
+13. `GET /api/v1/router/config`
+14. `POST /api/v1/router/config`
+15. `GET /api/v1/finance/audit-logs`
+16. `GET /api/v1/admin/fee-policy`
+17. `PUT /api/v1/admin/fee-policy`
+18. `POST /api/v1/admin/deposits/replay`
+19. `GET|POST|PUT|DELETE /api/v1/services*` except public discover
 
 ### 1.3 Public or Runtime APIs
 
@@ -127,6 +128,8 @@
 3. 风控输出 `green / yellow / red`
 4. `yellow` 进入人工审核
 5. `red` 直接拒绝并审计
+6. 自动通过时，金额从 `provider_receivable` 进入 `provider_locked_balance`，并立即返回 EIP-712 ticket
+7. 人工审核时，金额先进入 `provider_frozen_balance`，等待 admin approve / reject
 
 ### 3.4.1 `GET /api/v1/providers/withdrawals/capability`
 
@@ -137,6 +140,18 @@
 1. `ticketSigningEnabled` 表示服务端是否具备签发 EIP-712 withdrawal ticket 的最小条件。
 2. `code` / `message` 返回当前阻塞原因，例如 `WITHDRAW_SIGNER_NOT_CONFIGURED`。
 3. 前端必须先读该接口，再决定是否允许点击 `Generate & Claim`，避免把配置错误直接暴露成 500 交互。
+
+### 3.4.2 `POST /api/v1/admin/providers/withdrawals/{withdrawalId}/review`
+
+用途：平台管理员处理 `PENDING_MANUAL_REVIEW` 的 Provider 提现单。
+
+约束：
+
+1. 仅 fee admin 可调用。
+2. `reviewDecision` 只能是 `APPROVE` 或 `REJECT`。
+3. `APPROVE` 时，系统把金额从 `provider_frozen_balance` 移到 `provider_locked_balance`，并生成 EIP-712 ticket，状态推进到 `APPROVED_AUTO`。
+4. `REJECT` 时，系统把金额从 `provider_frozen_balance` 释放回 `provider_receivable`，状态推进到 `REJECTED`。
+5. 审核动作必须记录 `reviewerAddress`、`reviewerNote` 与 owner-scoped audit event。
 
 ## 4. Runtime Invocation Semantics
 
