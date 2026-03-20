@@ -146,9 +146,11 @@
 要求：
 
 1. 只返回聚合后的公共计数，不返回 wallet、request 级明细。
-2. 至少包含 `registeredServices`、`runtimeReadyServices`、`totalCalls`、`connectedAgents`。
+2. 至少包含 `registeredServices`、`discoverableServices`、`staleServices`、`runtimeReadyServices`、`totalCalls`、`connectedAgents`。
 3. `totalCalls` 必须基于已接受/已成功的 charge 记录做 `requestId` 去重。
 4. `connectedAgents` 只统计至少完成过一次已接受/已成功调用的 consumer 去重数量。
+5. `registeredServices` 表示已注册且处于公开 active 生命周期的服务数；`discoverableServices` 表示当前处于健康窗口内、Agent 可发现的服务数；`staleServices` 表示仍处于 active 生命周期但健康快照已过期的服务数。
+6. `runtimeReadyServices` 为兼容旧前端保留，当前等同于 `discoverableServices`。
 5. 该接口服务首页的 live counters，不得扩张成泄露结算面的公开分析接口。
 
 ### 4.2 `POST /api/v1/services/quote`
