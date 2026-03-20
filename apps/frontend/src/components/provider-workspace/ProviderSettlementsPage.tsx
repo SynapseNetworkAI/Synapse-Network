@@ -27,6 +27,17 @@ const CHAIN_LABELS: Record<number, string> = {
   84532: "Base Sepolia",
   421614: "Arbitrum Sepolia",
 };
+const WITHDRAWAL_HISTORY_STATUS_FILTERS = [
+  "ALL",
+  "REQUESTED",
+  "APPROVED_AUTO",
+  "PENDING_MANUAL_REVIEW",
+  "COMPLETED",
+  "REJECTED",
+  "CANCELLED",
+] as const;
+
+type WithdrawalHistoryStatusFilter = (typeof WITHDRAWAL_HISTORY_STATUS_FILTERS)[number];
 
 function formatTimestamp(seconds?: number | string): string {
   if (!seconds) return "-";
@@ -40,10 +51,22 @@ function normalizeSignature(signature: string): `0x${string}` {
   return normalized as `0x${string}`;
 }
 
-function withdrawalStatusColor(status: ProviderWithdrawRecord["status"]): string {
-  if (status === "COMPLETED") return "text-[#22c55e]";
-  if (status === "REJECTED") return "text-[#ef4444]";
-  return "text-[#ff9f0a]";
+function withdrawalStatusLabel(status: ProviderWithdrawRecord["status"]): string {
+  if (status === "APPROVED_AUTO") return "Ticket Ready";
+  if (status === "PENDING_MANUAL_REVIEW") return "Manual Review";
+  if (status === "CANCELLED") return "Cancelled / Released";
+  if (status === "REQUESTED") return "Requested";
+  if (status === "COMPLETED") return "Completed";
+  if (status === "REJECTED") return "Rejected";
+  return status;
+}
+
+function withdrawalStatusBadgeClass(status: ProviderWithdrawRecord["status"]): string {
+  if (status === "COMPLETED") return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#86efac]";
+  if (status === "REJECTED") return "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fca5a5]";
+  if (status === "CANCELLED") return "border-[#94a3b8]/30 bg-[#94a3b8]/10 text-[#cbd5e1]";
+  if (status === "APPROVED_AUTO") return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#bbf7d0]";
+  return "border-[#ff9f0a]/30 bg-[#ff9f0a]/10 text-[#ffd7a1]";
 }
 
 function formatChainLabel(chainId?: number): string {
@@ -140,6 +163,7 @@ export default function ProviderSettlementsPage() {
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
   const [withdrawals, setWithdrawals] = useState<ProviderWithdrawRecord[]>([]);
+  const [withdrawalStatusFilter, setWithdrawalStatusFilter] = useState<WithdrawalHistoryStatusFilter>("ALL");
   const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(null);
   const [activeTxChainId, setActiveTxChainId] = useState<number | undefined>(undefined);
   const [withdrawCapability, setWithdrawCapability] = useState<ProviderWithdrawCapability | null>(null);
@@ -164,6 +188,18 @@ export default function ProviderSettlementsPage() {
       ) || null,
     [withdrawals]
   );
+  const filteredWithdrawals = useMemo(() => {
+    if (withdrawalStatusFilter === "ALL") {
+      return withdrawals;
+    }
+    return withdrawals.filter((row) => row.status === withdrawalStatusFilter);
+  }, [withdrawalStatusFilter, withdrawals]);
+  const withdrawalHistoryEmptyMessage = useMemo(() => {
+    if (withdrawals.length === 0 || withdrawalStatusFilter === "ALL") {
+      return "No withdrawal records yet.";
+    }
+    return `No ${withdrawalStatusLabel(withdrawalStatusFilter)} records match the current filter.`;
+  }, [withdrawalStatusFilter, withdrawals.length]);
   const lockedReceivable = Number(pendingWithdrawal?.amountUsdc || 0);
   const pendingTicket = pendingWithdrawal?.ticket;
   const pendingTicketChainMismatch = Boolean(pendingTicket?.chainId && chainId !== pendingTicket.chainId);
@@ -184,7 +220,7 @@ export default function ProviderSettlementsPage() {
       setWithdrawals(rows);
     } catch (error) {
       console.error("Failed to load provider withdrawals", error);
-      toast.error("Failed to load withdrawal history");
+      toast.error(toSafeErrorMessage(error, "Failed to load withdrawal history"));
     } finally {
       setLoadingWithdrawals(false);
     }
@@ -655,35 +691,62 @@ export default function ProviderSettlementsPage() {
       </div>
 
       <div className="overflow-x-auto rounded-[1.5rem] border border-[#222222] bg-[#0a0a0a]">
+        <div className="flex flex-col gap-3 border-b border-[#222222] bg-[#050505] px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">Withdrawal History</div>
+            <div className="mt-1 text-sm text-[#c5c5c7]">
+              Includes expired tickets released back to available balance as explicit cancelled history rows.
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {WITHDRAWAL_HISTORY_STATUS_FILTERS.map((status) => {
+              const isActive = withdrawalStatusFilter === status;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setWithdrawalStatusFilter(status)}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors ${isActive ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#86efac]" : "border-[#222222] bg-[#0a0a0a] text-[#86868b] hover:border-[#3a3a3a] hover:text-white"}`}
+                >
+                  {status === "ALL" ? "All" : withdrawalStatusLabel(status)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <table className="w-full text-left border-collapse whitespace-nowrap">
           <thead>
             <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
               <th className="py-4 px-6">Withdrawal ID</th>
               <th className="py-4 px-6 text-right">Amount</th>
               <th className="py-4 px-6">Status</th>
+              <th className="py-4 px-6">Reason</th>
               <th className="py-4 px-6">Nonce</th>
               <th className="py-4 px-6">Created</th>
               <th className="py-4 px-6">Tx Hash</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
-            {!loadingWithdrawals && withdrawals.length === 0 && (
+            {!loadingWithdrawals && filteredWithdrawals.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-10 text-center text-sm text-[#86868b]">No withdrawal records yet.</td>
+                <td colSpan={7} className="py-10 text-center text-sm text-[#86868b]">{withdrawalHistoryEmptyMessage}</td>
               </tr>
             )}
             {loadingWithdrawals && (
               <tr>
-                <td colSpan={6} className="py-10 text-center text-sm text-[#86868b]">Loading withdrawal history...</td>
+                <td colSpan={7} className="py-10 text-center text-sm text-[#86868b]">Loading withdrawal history...</td>
               </tr>
             )}
-            {withdrawals.map((row) => (
+            {filteredWithdrawals.map((row) => (
               <tr key={row.id} className="hover:bg-[#111111] transition-colors">
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.id}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">{row.amountUsdc.toFixed(6)} USDC</td>
                 <td className="py-4 px-6 text-xs">
-                  <span className={withdrawalStatusColor(row.status)}>{row.status}</span>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${withdrawalStatusBadgeClass(row.status)}`}>
+                    {withdrawalStatusLabel(row.status)}
+                  </span>
                 </td>
+                <td className="py-4 px-6 text-xs text-[#c5c5c7]">{row.message || (row.status === "CANCELLED" ? "Expired ticket released back to available balance." : "-")}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">{row.nonce}</td>
                 <td className="py-4 px-6 text-xs text-[#86868b]">{formatTimestamp(row.createdAt)}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.txHash || "-"}</td>

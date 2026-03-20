@@ -56,6 +56,7 @@ export type ProviderWithdrawRecord = {
   deadline: number;
   signature?: string;
   txHash?: string;
+  message?: string;
   createdAt?: string | number;
   completedAt?: string | number;
   ticket?: ProviderWithdrawTicket;
@@ -163,6 +164,7 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
     deadline: Number(row.deadline || 0),
     signature: typeof row.signature === "string" ? row.signature : undefined,
     txHash: typeof row.txHash === "string" ? row.txHash : undefined,
+    message: typeof row.message === "string" ? row.message : undefined,
     createdAt: (row.createdAt as string | number | undefined) ?? undefined,
     completedAt: (row.completedAt as string | number | undefined) ?? undefined,
     ticket: row.ticket && typeof row.ticket === "object" ? (row.ticket as ProviderWithdrawTicket) : undefined,
