@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -979,6 +979,10 @@ export default function DeployManifestPage() {
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
 
+  const closeDeployPage = useCallback(() => {
+    router.push("/provider/services");
+  }, [router]);
+
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -1191,6 +1195,27 @@ export default function DeployManifestPage() {
     setShowAIModal(false);
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      if (showAIModal) {
+        closeParser();
+        return;
+      }
+
+      closeDeployPage();
+    };
+
+    globalThis.window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      globalThis.window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeDeployPage, showAIModal]);
+
   const autofillAIMagic = async () => {
     setIsAiGenerating(true);
     try {
@@ -1319,6 +1344,14 @@ export default function DeployManifestPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={closeDeployPage}
+                    aria-label="Close create API service page"
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-3 text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                   {hasDraft ? (
                     <button
                       type="button"
