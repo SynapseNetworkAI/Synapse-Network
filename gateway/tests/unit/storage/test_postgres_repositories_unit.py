@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
 
+import pytest
+
 from src.storage.postgres.repositories.audit_log_repository import AuditLogRepository
 from src.storage.postgres.repositories.balance_repository import BalanceRepository
 from src.storage.postgres.repositories.credential_auth_repository import CredentialAuthRepository
@@ -129,6 +131,10 @@ class FakeDB:
 
 def _q6(value: Any) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+
+def _raise_insufficient_vault_liquidity(_amount: Decimal) -> None:
+    raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
 
 
 def test_fee_policy_repository_read_write() -> None:
@@ -1451,3 +1457,58 @@ def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:
     assert "INSERT INTO synapse_vault_withdrawals" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "UPSERT" in executed_sql
+
+
+def test_finance_atomic_repository_rejects_withdraw_before_lock_when_precheck_fails() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("50"), Decimal("0"), Decimal("0")),
+                (Decimal("0"),),
+                (Decimal("100"),),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    with pytest.raises(RuntimeError, match="INSUFFICIENT_VAULT_LIQUIDITY"):
+        repo.process_withdrawal_request_atomic(
+            WithdrawalAtomicRequestCommand(
+                provider_address="0xabc",
+                amount_usdc=Decimal("8.500000"),
+                request_id="req-liquidity-1",
+                idempotency_key="idem-liquidity-1",
+                request_meta={"requestId": "req-liquidity-1"},
+                single_limit_usdc=Decimal("100"),
+                rolling_24h_limit_usdc=Decimal("500"),
+                window_seconds=86400,
+                high_risk_override=False,
+                pre_reserve_check=_raise_insufficient_vault_liquidity,
+                sign_ticket_factory=lambda amount: PreparedWithdrawTicket(
+                    requires_manual_review=False,
+                    amount_wei=int(amount * Decimal("1000000")),
+                    fee_wei=0,
+                    nonce=7,
+                    chain_id=31337,
+                    deadline=9999999999,
+                    signature="sig-1",
+                    signer_address="0xsigner",
+                    ticket={},
+                ),
+            )
+        )
+
+    conn = db.connections[0]
+    assert conn.commits == 0
+    assert conn.rollbacks == 1
+    executed_sql = "\n".join(sql for sql, _ in conn.cursor_obj.executed)
+    assert "INSERT INTO synapse_vault_withdrawals" not in executed_sql
+    assert "UPSERT" not in executed_sql

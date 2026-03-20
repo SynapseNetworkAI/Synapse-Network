@@ -788,6 +788,14 @@ class FinanceAtomicRepository:
             return "HIGH_RISK_PROVIDER_TAGGED"
         return None
 
+    @staticmethod
+    def _run_withdraw_pre_reserve_check(
+        command: WithdrawalAtomicRequestCommand, amount: Decimal
+    ) -> None:
+        if command.pre_reserve_check is None:
+            return
+        command.pre_reserve_check(amount)
+
     def process_withdrawal_request_atomic(
         self,
         command: WithdrawalAtomicRequestCommand,
@@ -858,6 +866,8 @@ class FinanceAtomicRepository:
                             riskReasonCode=red_reason,
                             message=_WITHDRAWAL_BLOCKED_MESSAGE,
                         )
+
+                    self._run_withdraw_pre_reserve_check(command, amount)
 
                     is_yellow = amount >= self._q6(command.single_limit_usdc) or (
                         rolling_24h + amount

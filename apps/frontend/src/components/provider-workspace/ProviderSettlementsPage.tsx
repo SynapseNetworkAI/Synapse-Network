@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Database, ReceiptText, Activity, Wallet, ShieldCheck, Loader2 } from "lucide-react";
-import { formatEther, formatUnits } from "viem";
+import { formatEther, formatUnits, parseUnits } from "viem";
 import { useAccount, useBalance, useChainId, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
@@ -336,6 +336,27 @@ export default function ProviderSettlementsPage() {
     return requestedAmount ? Number(requestedAmount) : undefined;
   };
 
+  const validateWithdrawIntentReadiness = async (amountUsdc: number): Promise<void> => {
+    if (!publicClient) {
+      throw new Error(t("providerSettlements.walletClientUnavailable"));
+    }
+    if (!USDC_TOKEN_ADDRESS || !VAULT_ADDRESS) {
+      throw new Error(t("providerSettlements.vaultLiquidityInsufficient"));
+    }
+
+    const requestedAmountWei = parseUnits(amountUsdc.toFixed(6), 18);
+    const vaultUsdcBalance = await publicClient.readContract({
+      address: USDC_TOKEN_ADDRESS,
+      abi: ERC20_BALANCE_OF_ABI,
+      functionName: "balanceOf",
+      args: [VAULT_ADDRESS],
+    });
+
+    if (vaultUsdcBalance < requestedAmountWei) {
+      throw new Error(t("providerSettlements.vaultLiquidityInsufficient"));
+    }
+  };
+
   const handleExistingPendingWithdrawal = async (): Promise<boolean> => {
     if (!pendingWithdrawal) {
       return false;
@@ -385,7 +406,14 @@ export default function ProviderSettlementsPage() {
       return;
     }
 
-    const amountUsdc = resolveRequestedWithdrawAmount();
+    const amountUsdc = resolveRequestedWithdrawAmount() ?? availableReceivable;
+
+    try {
+      await validateWithdrawIntentReadiness(amountUsdc);
+    } catch (error) {
+      toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages));
+      return;
+    }
 
     setCreatingIntent(true);
     const toastId = toast.loading(t("providerSettlements.generatingTicket"));
