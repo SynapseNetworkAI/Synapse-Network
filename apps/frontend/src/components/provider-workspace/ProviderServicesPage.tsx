@@ -139,6 +139,27 @@ export default function ProviderServicesPage() { // NOSONAR
     };
   }, [editing]);
 
+  useEffect(() => {
+    if (!editing || globalThis.window === undefined) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setEditing(null);
+      setDraft(null);
+    };
+
+    globalThis.window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      globalThis.window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [editing]);
+
   const applySearch = () => {
     setQuery(queryInput);
     setStatus(statusInput);
@@ -205,6 +226,16 @@ export default function ProviderServicesPage() { // NOSONAR
   };
 
   const openEditModal = (svc: ServiceRegistryRecord) => {
+    const serviceStatus = normalizedServiceStatus(svc);
+    if (serviceStatus !== "inactive") {
+      toast.error(
+        serviceStatus === "active"
+          ? "Active services can't be edited. Set the service to Inactive first."
+          : "Only inactive services can be edited.",
+      );
+      return;
+    }
+
     setEditing(svc);
     const nextDraft = buildEditDraftFromService(svc, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG);
     if (!nextDraft.invokeUrl.trim()) {
@@ -291,6 +322,11 @@ export default function ProviderServicesPage() { // NOSONAR
 
   const persistEdit = async () => {
     if (!address || !editing || !draft) {
+      return;
+    }
+
+    if (normalizedServiceStatus(editing) !== "inactive") {
+      toast.error("Only inactive services can be edited. Set the service to Inactive first.");
       return;
     }
 
@@ -696,6 +732,8 @@ export default function ProviderServicesPage() { // NOSONAR
             {pageRows.map((svc) => {
               const isStatusUpdating = statusUpdatingServiceId === svc.serviceId;
               const isDeleting = deletingServiceId === svc.serviceId;
+              const serviceStatus = normalizedServiceStatus(svc);
+              const canEditService = serviceStatus === "inactive";
               let statusActionLabel = "Activate";
               if (isStatusUpdating) {
                 statusActionLabel = "Updating...";
@@ -720,7 +758,6 @@ export default function ProviderServicesPage() { // NOSONAR
                   <td className="py-5 px-6 text-sm text-[#e5e5ea] font-mono">{formatPricing(svc.pricing)} / CALL</td>
                   <td className="py-5 px-6 text-center">
                     {(() => {
-                      const serviceStatus = normalizedServiceStatus(svc);
                       if (serviceStatus === "active") {
                         return (
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#22c55e] border border-[#22c55e]/30 bg-[#22c55e]/10">
@@ -765,17 +802,14 @@ export default function ProviderServicesPage() { // NOSONAR
                     <div className="inline-flex items-center gap-2">
                       <button
                         onClick={() => openEditModal(svc)}
-                        disabled={isDeleting}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333333] hover:border-[#ffffff] text-white hover:bg-white hover:text-black transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={saving || isStatusUpdating || isDeleting}
+                        title={canEditService ? "Edit inactive service" : "Set service to Inactive before editing"}
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:cursor-not-allowed disabled:opacity-50 ${canEditService
+                          ? "border-[#333333] text-white hover:border-[#ffffff] hover:bg-white hover:text-black"
+                          : "border-[#f59e0b]/35 text-[#f5d08a] hover:border-[#f59e0b] hover:text-[#f59e0b]"
+                        }`}
                       >
                         Edit
-                      </button>
-                      <button
-                        onClick={() => void deleteService(svc)}
-                        disabled={saving || isStatusUpdating || isDeleting || svc.isActive}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#ef4444]/40 text-[#fca5a5] hover:bg-[#ef4444] hover:text-black transition-all disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isDeleting ? "Deleting" : "Delete"}
                       </button>
                       <button
                         onClick={() => void updateServiceStatus(svc, !svc.isActive)}
@@ -783,6 +817,13 @@ export default function ProviderServicesPage() { // NOSONAR
                         className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:cursor-not-allowed disabled:opacity-50 ${statusActionClassName}`}
                       >
                         {statusActionLabel}
+                      </button>
+                      <button
+                        onClick={() => void deleteService(svc)}
+                        disabled={saving || isStatusUpdating || isDeleting || svc.isActive}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#ef4444]/40 text-[#fca5a5] hover:bg-[#ef4444] hover:text-black transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isDeleting ? "Deleting" : "Delete"}
                       </button>
                       <Link
                         href={`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`}
@@ -828,7 +869,7 @@ export default function ProviderServicesPage() { // NOSONAR
 
       <div className="rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b] flex items-center gap-2">
         <Shield className="w-4 h-4 text-[#22c55e]" />
-        Publish flow requires at least one Access Key to protect provider endpoints with gateway signature validation.
+        Active services are runtime-live. Switch a service to Inactive before editing its contract or routing fields. Press Esc to close the edit panel.
       </div>
 
       {editModal}

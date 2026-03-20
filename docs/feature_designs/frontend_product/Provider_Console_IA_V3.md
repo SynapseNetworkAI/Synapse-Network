@@ -55,6 +55,9 @@ Provider Console 从“单页承载所有表格”升级为“控制台首页 + 
 - 点击 Search 时若钱包未连接，前端直接唤起 RainbowKit Connect 弹窗；已连接则继续执行筛选流程。
 - 支持分页浏览。
 - 支持从列表进入 `Edit Service`、启停、删除和 Health 页面。
+- `Edit Service` 仅允许编辑 `inactive` 服务；当服务仍为 `active` 时，前端必须给出“先切到 Inactive 再编辑”的即时提示。
+- 服务列表中的状态按钮需要紧邻 `Edit`，支持一键把在线服务切到 `Inactive`；编辑浮层支持 `Esc` 快速关闭。
+- 若存在 `/dashboard/services` 等 legacy 入口，其服务编辑、启停、删除规则必须与 `/provider/services` 保持一致，禁止出现双标准交互。
 - 面向运维、发布校验和 Service Definition 生命周期管理。
 
 ### 5.2 Settlements 页面
