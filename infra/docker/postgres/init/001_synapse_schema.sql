@@ -348,7 +348,7 @@ CREATE TABLE IF NOT EXISTS synapse_vault_withdrawals (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (amount_usdc > 0),
-    CHECK (status IN ('REQUESTED', 'SIGNED', 'BROADCASTED', 'CONFIRMED', 'FAILED')),
+    CHECK (status IN ('REQUESTED', 'SIGNED', 'FAILED', 'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'REJECTED', 'COMPLETED', 'CANCELLED')),
     CHECK (
         (withdrawal_kind = 'consumer_refund' AND provider_id IS NULL)
         OR (withdrawal_kind = 'provider_withdrawal' AND provider_id IS NOT NULL)

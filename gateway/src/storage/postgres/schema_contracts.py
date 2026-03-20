@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 
 PRIMARY_KEY_FRAGMENT = "primary key"
+WITHDRAWAL_STATUS_CHECK_FRAGMENT = (
+    "check (status in ('requested', 'signed', 'failed', "
+    "'approved_auto', 'pending_manual_review', 'rejected', 'completed', 'cancelled'))"
+)
 
 
 @dataclass(frozen=True)
@@ -166,6 +170,10 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         required_indexes=frozenset({"idx_synapse_vault_withdrawals_kind_owner"}),
         required_constraints=(
             _constraint("primary key on withdrawal_id", PRIMARY_KEY_FRAGMENT, "withdrawal_id"),
+            _constraint(
+                "withdrawal status check supports current lifecycle",
+                WITHDRAWAL_STATUS_CHECK_FRAGMENT,
+            ),
         ),
     ),
     TableSchemaContract(
