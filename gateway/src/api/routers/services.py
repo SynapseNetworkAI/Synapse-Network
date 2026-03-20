@@ -234,16 +234,23 @@ async def search_agent_discovery(
 ):
     gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
     query = AgentDiscoveryQueryRecord.model_validate(payload.model_dump(by_alias=True))
+    total_count = await service.count_agent_discovery_results(query)
     results = await service.search_agent_discovery(
         query, public_gateway_url=gateway_url
     )
     request_id = str(request.headers.get("X-Request-Id") or "").strip() or f"disc_{uuid4().hex}"
+    page = query.effective_page
+    page_size = query.effective_page_size
     return {
         "requestId": request_id,
         "results": [
             row.model_dump(by_alias=True, exclude_none=True) for row in results
         ],
         "count": len(results),
+        "page": page,
+        "pageSize": page_size,
+        "totalCount": total_count,
+        "hasMore": (page * page_size) < total_count,
     }
 
 

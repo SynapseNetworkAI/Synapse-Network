@@ -32,23 +32,30 @@
 {
   "query": "cheap OCR for SEA invoices",
   "tags": ["ocr", "invoice"],
-  "limit": 10,
+  "page": 1,
+  "pageSize": 10,
   "sort": "best_match"
 }
 ```
 
 说明：
 
-1. V1 Agent Discovery 请求只保留 `query`、`tags`、`limit`、`sort` 四个核心字段。
+1. V1 Agent Discovery 请求支持 `query`、`tags`、`page`、`pageSize`、`sort`。
 2. `query` 和 `tags` 采用并集语义，命中任一侧即可进入候选集合。
 3. `tags` 采用任一命中策略，不要求请求中的 tags 全部命中。
 4. `query` 的搜索面至少应覆盖 `service_id`、`service_name`、`description_for_model` 和 tags 文本。
+5. 当 `query` 为空字符串或未传时，接口应返回当前所有健康可 discover 的服务。
+6. `pageSize` 是唯一的页大小控制字段，客户端和 SDK 不再发送 `limit`。
 
 ### 2.3 Response
 
 ```json
 {
   "request_id": "disc_01J...",
+  "page": 1,
+  "pageSize": 10,
+  "totalCount": 42,
+  "hasMore": true,
   "results": [
     {
       "service_id": "svc_ocr_th_invoice",
@@ -66,7 +73,8 @@
       "service_reliability_tier": "A",
       "manifest_version": "1.0.0"
     }
-  ]
+  ],
+  "count": 10
 }
 ```
 
@@ -86,7 +94,7 @@
 1. `GET /api/v1/services/discover`
   面向控制台与公开浏览页，返回更适合人类阅读的列表结果，可按页面需要做轻量搜索、分页，以及 `price / invocation_count / revenue / health / service_name` 排序。
 2. `POST /api/v1/agent/discovery/search`
-  面向 Agent Runtime / SDK，返回严格结构化的机器协议结果，V1 请求仅保留 `query`、`tags`、`limit`、`sort`，降低接入成本。
+  面向 Agent Runtime / SDK，返回严格结构化的机器协议结果，V1 请求保留 `query`、`tags`、`page`、`pageSize`、`sort`，让分页语义保持单一且稳定。
 
 约束：
 

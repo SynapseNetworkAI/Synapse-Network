@@ -82,6 +82,10 @@ class DiscoveredService(SDKModel):
 class DiscoveryResponse(SDKModel):
     request_id: str = Field(default="", alias="requestId")
     count: int = 0
+    page: int = 1
+    page_size: int = Field(default=10, alias="pageSize")
+    total_count: int = Field(default=0, alias="totalCount")
+    has_more: bool = Field(default=False, alias="hasMore")
     results: List[DiscoveredService] = Field(default_factory=list)
 
     @property

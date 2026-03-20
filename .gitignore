@@ -36,7 +36,6 @@ sdk/python/*.egg-info/
 gateway/agent_credentials.json
 gateway/audit_log.jsonl
 gateway/service_registry.json
-gateway/runtime_storage/
 gateway/*.egg-info/
 
 logs/

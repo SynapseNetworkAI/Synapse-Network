@@ -104,14 +104,16 @@ class SynapseClient:
         *,
         query: Optional[str] = None,
         tags: Optional[list[str]] = None,
-        limit: int = 10,
+        page: int = 1,
+        page_size: int = 10,
         sort: str = "best_match",
         request_id: Optional[str] = None,
     ) -> DiscoveryResponse:
         """Search discoverable services through the agent-facing discovery contract."""
         payload: Dict[str, Any] = {
             "tags": tags or [],
-            "limit": limit,
+            "page": page,
+            "pageSize": page_size,
             "sort": sort,
         }
         if query:
@@ -131,7 +133,8 @@ class SynapseClient:
         intent: Optional[str] = None,
         *,
         tags: Optional[list[str]] = None,
-        limit: int = 10,
+        page: int = 1,
+        page_size: int = 10,
         sort: str = "best_match",
         request_id: Optional[str] = None,
     ) -> DiscoveryResponse:
@@ -139,7 +142,8 @@ class SynapseClient:
         return self.search_services(
             query=intent,
             tags=tags,
-            limit=limit,
+            page=page,
+            page_size=page_size,
             sort=sort,
             request_id=request_id,
         )

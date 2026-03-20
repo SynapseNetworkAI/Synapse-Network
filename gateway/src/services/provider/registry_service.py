@@ -11,6 +11,7 @@ from src.domain.service_contract import (
     ServiceDefinitionRecord,
 )
 from .registry import (
+    count_agent_discovery_results as count_agent_discovery_results_op,
     delete_service as delete_service_op,
     discover_public_services as discover_public_services_op,
     discover_services as discover_services_op,
@@ -118,6 +119,12 @@ class RegistryService:
             query,
             public_gateway_url=public_gateway_url,
         )
+
+    async def count_agent_discovery_results(
+        self,
+        query: AgentDiscoveryQueryRecord,
+    ) -> int:
+        return await count_agent_discovery_results_op(self, query)
 
     async def list_owner_services(self, owner_wallet: str) -> List[Dict[str, Any]]:
         return await list_owner_services_op(self, owner_wallet)

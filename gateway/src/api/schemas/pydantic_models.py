@@ -63,8 +63,17 @@ class InferenceRequest(BaseModel):
 class AgentDiscoverySearchRequest(BaseModel):
     query: Optional[str] = Field(default=None, max_length=256)
     tags: list[str] = Field(default_factory=list)
-    limit: int = Field(default=10, ge=1, le=50)
+    page: int = Field(default=1, ge=1)
+    pageSize: int = Field(default=10, ge=1, le=50)
     sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
+
+    @field_validator("query")
+    @classmethod
+    def normalize_query(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
 
 
 class AgentQuoteRequest(BaseModel):

@@ -47,6 +47,8 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "名人名言"
 
 By default, the script now auto-generates a fresh `request_id` and `idempotency_key` for each run so repeated smoke tests create a real new invocation instead of replaying an older one.
 
+If you are debugging a failing environment, add `--print-curl` to emit stage-by-stage reproducible curl commands for discovery, quote, and invoke. The generated commands keep the credential as `${SYNAPSE_API_KEY:-REPLACE_ME}` so you can replay safely without hardcoding secrets into shell history.
+
 If you already know the service id, skip discovery:
 
 ```bash
@@ -89,6 +91,20 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
 ```
 
 The script prints the resolved gateway, generated `request_id`, generated `idempotency_key`, discovery results, selected service, and the raw invocation response. Keep the printed identifiers if you need to correlate the run with gateway logs.
+
+It now also prints the exact stage boundary (`discovery`, `quote`, `invoke`, `poll receipt`) and, on failure, emits a short diagnosis block with the current `request_id`, `idempotency_key`, chosen `service_id`, and the most likely remediation path.
+
+That same failure path now also covers `Discovery count: 0`, so a zero-result catalog response still prints the diagnosis block and replayable discovery curl instead of exiting silently.
+
+Example with replayable curl diagnostics:
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+export SYNAPSE_API_KEY="agt_xxxxx..."
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
+    --query "名人名言" \
+    --print-curl
+```
 
 ### Recommended: discover -> quote -> invoke
 
