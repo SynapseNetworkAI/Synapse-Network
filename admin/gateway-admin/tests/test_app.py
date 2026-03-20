@@ -321,6 +321,76 @@ def test_published_menu_config_is_available_to_regular_admins() -> None:
     assert any(item["itemId"] == "dashboard" for item in response.json()["data"]["items"])
 
 
+def test_approvals_list_includes_projected_provider_withdraw_reviews() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "finance-review@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    response = client.get(
+        "/api/admin/v1/approvals?limit=20",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    items = response.json()["data"]["items"]
+    projected = [item for item in items if item["approvalType"] == "provider_withdraw_review"]
+    assert projected
+    assert all(item["approvalId"].startswith("PWR-") for item in projected)
+    assert all(item["status"] == "UNDER_REVIEW" for item in projected)
+
+
+def test_approvals_list_filter_can_select_only_projected_provider_reviews() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "finance-review@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    response = client.get(
+        "/api/admin/v1/approvals?approvalType=provider_withdraw_review&status=UNDER_REVIEW&limit=20",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    items = response.json()["data"]["items"]
+    assert len(items) >= 1
+    assert all(item["approvalType"] == "provider_withdraw_review" for item in items)
+    assert all(item["status"] == "UNDER_REVIEW" for item in items)
+
+
+def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> None:
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "finance-review@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+            "otpCode": "123456",
+        },
+    )
+    token = login_response.json()["data"]["accessToken"]
+
+    response = client.post(
+        "/api/admin/v1/approvals/PWR-wd-demo-review-002/decision",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "decision": "APPROVE",
+            "comment": "Projected approval routed to provider manual review flow.",
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["approvalId"] == "PWR-wd-demo-review-002"
+    assert payload["status"] == "APPROVED_AUTO"
+
+
 def test_provider_withdraw_review_list_and_decision() -> None:
     login_response = client.post(
         "/api/admin/v1/auth/login",
