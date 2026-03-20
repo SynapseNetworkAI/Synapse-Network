@@ -369,6 +369,27 @@ class Settings:
     jwt_secret: str = os.getenv(
         "JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret"
     )
+    # Dedicated secret for admin -> gateway internal command tokens.
+    gateway_internal_jwt_secret: str = os.getenv(
+        "GATEWAY_INTERNAL_JWT_SECRET",
+        "replace-this-with-a-separate-32-byte-minimum-internal-jwt-secret",
+    )
+    # Expected issuer for internal service tokens.
+    gateway_internal_token_issuer: str = os.getenv(
+        "GATEWAY_INTERNAL_TOKEN_ISSUER", "gateway-admin"
+    ).strip() or "gateway-admin"
+    # Expected audience for internal service tokens.
+    gateway_internal_token_audience: str = os.getenv(
+        "GATEWAY_INTERNAL_TOKEN_AUDIENCE", "gateway-internal"
+    ).strip() or "gateway-internal"
+    # Allow-list of service subjects permitted to execute internal admin commands.
+    gateway_internal_service_subjects: set[str] = {
+        value.strip()
+        for value in os.getenv(
+            "GATEWAY_INTERNAL_SERVICE_SUBJECTS", "service:gateway-admin"
+        ).split(",")
+        if value.strip()
+    } or {"service:gateway-admin"}
     # Optional Redis URL and fields for distributed counters and rate limits.
     redis_host: str = os.getenv("REDIS_HOST", "").strip()
     redis_port: int = _env_int("REDIS_PORT", 6379)

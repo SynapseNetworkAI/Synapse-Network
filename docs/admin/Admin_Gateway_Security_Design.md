@@ -12,6 +12,7 @@
 1. **是的，当前审批/执行类动作会由 `gateway-admin` 以服务端代理方式调用 `gateway`。不是浏览器直连 `gateway`。**
 2. **当前方案能支撑内网开发与受控环境联调，但还不是金融级生产终态。**
 3. 当前最大安全债不是“有没有鉴权”，而是：**`admin -> gateway` 仍然复用了 wallet-subject JWT 语义和共享 secret 模式，服务身份、用户身份、内部命令身份还没彻底拆开。**
+4. **当前代码已完成第一阶段硬化：`gateway-admin -> gateway` 内部命令已经切到独立 `service principal + scope + body digest + jti replay guard`。下一阶段重点是浏览器 session 和网络隔离。**
 
 ## 1. 当前真实调用链
 

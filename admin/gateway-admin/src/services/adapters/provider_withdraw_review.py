@@ -1,12 +1,11 @@
 import hashlib
 import json
-import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import httpx
-import jwt
 
+from src.services.adapters.internal_gateway_auth import build_internal_service_token, payload_digest
 from src.services.auth.service import AdminIdentity
 from src.storage.analytics.provider_withdraw_review import (
     InMemoryProviderWithdrawReviewRepository,
@@ -71,11 +70,17 @@ class HttpProviderWithdrawReviewAdapter:
         base_url: str,
         admin_wallet: str,
         jwt_secret: str,
+        token_issuer: str,
+        token_audience: str,
+        service_subject: str,
         timeout_sec: float,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._admin_wallet = admin_wallet.strip().lower()
         self._jwt_secret = jwt_secret
+        self._token_issuer = token_issuer
+        self._token_audience = token_audience
+        self._service_subject = service_subject
         self._timeout_sec = timeout_sec
 
     def review_withdrawal(
@@ -86,23 +91,22 @@ class HttpProviderWithdrawReviewAdapter:
         reviewer: AdminIdentity,
         note: str,
     ) -> dict[str, Any]:
-        _ = reviewer
         if not self._admin_wallet:
             raise ProviderWithdrawReviewError(
                 code="GATEWAY_ADMIN_WALLET_NOT_CONFIGURED",
                 message="GATEWAY_INTERNAL_ADMIN_WALLET is required for provider withdrawal reviews.",
                 status_code=500,
             )
-        headers = {
-            "Authorization": f"Bearer {self._build_gateway_token()}",
-            "X-User-Address": self._admin_wallet,
-            "X-Request-Id": f"provider-withdraw-review:{item.withdrawal_id}:{decision.lower()}",
-        }
+        request_id = f"provider-withdraw-review:{item.withdrawal_id}:{decision.lower()}"
         payload = {
             "ownerAddress": item.owner_address.lower(),
             "reviewDecision": decision,
             "reviewerAddress": self._admin_wallet,
             "reviewerNote": note,
+        }
+        headers = {
+            "Authorization": f"Bearer {self._build_gateway_token(reviewer, payload, request_id)}",
+            "X-Request-Id": request_id,
         }
         try:
             response = httpx.post(
@@ -133,17 +137,22 @@ class HttpProviderWithdrawReviewAdapter:
     def build_response_digest(payload: dict[str, Any]) -> str:
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
-    def _build_gateway_token(self) -> str:
-        now = int(time.time())
-        return jwt.encode(
-            {
-                "sub": self._admin_wallet,
-                "role": "admin",
-                "iat": now,
-                "exp": now + 300,
-            },
-            self._jwt_secret,
-            algorithm="HS256",
+    def _build_gateway_token(
+        self,
+        reviewer: AdminIdentity,
+        payload: dict[str, Any],
+        request_id: str,
+    ) -> str:
+        return build_internal_service_token(
+            jwt_secret=self._jwt_secret,
+            issuer=self._token_issuer,
+            audience=self._token_audience,
+            service_subject=self._service_subject,
+            admin_wallet=self._admin_wallet,
+            scope="provider_withdraw.review",
+            request_id=request_id,
+            body_sha256=payload_digest(payload),
+            actor=reviewer,
         )
 
     @staticmethod

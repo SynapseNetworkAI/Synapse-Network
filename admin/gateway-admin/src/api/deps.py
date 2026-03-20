@@ -100,6 +100,9 @@ def get_provider_withdraw_review_adapter() -> ProviderWithdrawReviewAdapter:
         base_url=settings.gateway_internal_base_url,
         admin_wallet=settings.gateway_internal_admin_wallet,
         jwt_secret=settings.gateway_internal_jwt_secret,
+        token_issuer=settings.gateway_internal_token_issuer,
+        token_audience=settings.gateway_internal_token_audience,
+        service_subject=settings.gateway_internal_service_subject,
         timeout_sec=settings.gateway_internal_timeout_sec,
     )
 
@@ -142,6 +145,9 @@ def get_gateway_execution_adapter() -> GatewayExecutionAdapter:
         base_url=settings.gateway_internal_base_url,
         admin_wallet=settings.gateway_internal_admin_wallet,
         jwt_secret=settings.gateway_internal_jwt_secret,
+        token_issuer=settings.gateway_internal_token_issuer,
+        token_audience=settings.gateway_internal_token_audience,
+        service_subject=settings.gateway_internal_service_subject,
         timeout_sec=settings.gateway_internal_timeout_sec,
     )
 
