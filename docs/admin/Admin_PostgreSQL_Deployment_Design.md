@@ -81,6 +81,10 @@
 
 - admin 直连 gateway 时，只允许读取 gateway 暴露的只读投影对象，例如 `synapse_admin_dashboard_finance_projection`、`synapse_admin_dashboard_activity_trend_projection`、`synapse_admin_dashboard_operations_projection` 以及兼容视图 `synapse_admin_dashboard_projection`
 - 不应让 admin 业务逻辑直接依赖 gateway 真相表字段来拼装 dashboard 语义
+- `synapse_admin_dashboard_finance_projection` 与 `synapse_admin_dashboard_activity_trend_projection` 采用“双命名层”策略：
+  - canonical 列：使用 target-state 语义，例如 `today_consumer_refund_usdc`、`today_provider_withdrawal_usdc`、`consumer_liability_usdc`
+  - backward-compatible alias：继续暴露 `today_refund_usdc`、`today_withdrawal_usdc`、`owner_liability_usdc`、`refund_usdc`、`withdrawal_usdc`、`pending_withdrawal_count`
+- 这样做的目的不是鼓励新代码继续依赖旧别名，而是避免旧的 `gateway-admin` 版本在数据库视图升级时直接失联；新代码优先读取 canonical 列，旧代码靠 alias 平滑过渡
 
 ## 6. 备份与恢复建议
 
@@ -131,3 +135,7 @@ postgresql://synapse_gateway_app:12345678@localhost:5432/synapse_gateway
 # admin
 postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin
 ```
+
+## 10. Projection View 设计文档
+
+- `docker-compose/postgres/init/003_gateway_admin_projection_views.sql` 的逐段设计说明、CTE 角色和字段含义见 `Gateway_Admin_Projection_Views_SQL_Design.md`

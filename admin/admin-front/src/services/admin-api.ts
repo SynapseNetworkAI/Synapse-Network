@@ -378,10 +378,26 @@ function buildHeaders(init?: HeadersInit): HeadersInit {
   };
 }
 
+function requiresAdminCsrf(path: string, method: string): boolean {
+  if (isSafeMethod(method)) {
+    return false;
+  }
+
+  if (
+    path === "/api/admin/v1/auth/login" ||
+    path === "/api/admin/v1/auth/mfa/enroll/begin" ||
+    path === "/api/admin/v1/auth/mfa/enroll/verify"
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = init?.method?.toUpperCase() ?? "GET";
   const headers = new Headers(buildHeaders(init?.headers));
-  if (!isSafeMethod(method) && path !== "/api/admin/v1/auth/login") {
+  if (requiresAdminCsrf(path, method)) {
     const csrfToken = readAdminCsrfToken();
     if (!csrfToken) {
       throw new Error("Missing admin CSRF token");

@@ -273,6 +273,8 @@ X-CSRF-Token: <csrfToken>
 
 - 来自 gateway 只读投影视图 `synapse_admin_dashboard_finance_projection`
 - 该视图只允许由 gateway 真相表和持久化运行态派生，不允许拼接 admin 本地写模型
+- 视图 canonical 列已切换到 target-state 命名：`today_consumer_refund_usdc`、`today_provider_withdrawal_usdc`、`consumer_liability_usdc`
+- 为兼容旧版 `gateway-admin`，视图仍保留 `todayRefundUsdc` 对应的底层 alias 列：`today_refund_usdc`、`today_withdrawal_usdc`、`owner_liability_usdc`、`pending_withdrawal_count`
 
 响应：
 
@@ -304,6 +306,8 @@ X-CSRF-Token: <csrfToken>
 
 - 来自 gateway 只读投影视图 `synapse_admin_dashboard_activity_trend_projection`
 - 每日桶聚合只包含持久化的充值、扣费、退款、提现与净流入数值
+- 视图 canonical 列已切换到 target-state 命名：`consumer_refund_usdc`、`provider_withdrawal_usdc`
+- 为兼容旧版 `gateway-admin`，视图仍保留 alias 列：`refund_usdc`、`withdrawal_usdc`
 
 响应：
 

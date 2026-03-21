@@ -1,14 +1,45 @@
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Protocol
+from functools import lru_cache
+from typing import Any, Protocol
 
 
-def _connect(dsn: str):
+def _connect(dsn: str) -> Any:
     import psycopg
     from psycopg.rows import dict_row
 
-    return psycopg.connect(dsn, row_factory=dict_row)
+    return psycopg.connect(dsn, row_factory=dict_row)  # type: ignore[arg-type]
+
+
+@lru_cache(maxsize=16)
+def _get_table_columns(dsn: str, table_name: str) -> frozenset[str]:
+    with _connect(dsn) as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = %s
+            ORDER BY ordinal_position
+            """,
+            (table_name,),
+        )
+        rows = cur.fetchall()
+    return frozenset(str(row["column_name"]) for row in rows)
+
+
+def _resolve_projection_column(
+    columns: frozenset[str],
+    canonical_name: str,
+    legacy_alias: str | None = None,
+) -> str:
+    if canonical_name in columns:
+        return canonical_name
+    if legacy_alias and legacy_alias in columns:
+        return legacy_alias
+    candidates = tuple(candidate for candidate in (canonical_name, legacy_alias) if candidate)
+    raise KeyError(f"projection column not found, candidates={candidates}")
 
 
 @dataclass(slots=True)
@@ -24,14 +55,14 @@ class GatewayDashboardSnapshot:
 class GatewayFinanceSnapshot:
     today_charge_usdc: Decimal
     today_deposit_usdc: Decimal
-    today_refund_usdc: Decimal
-    today_withdrawal_usdc: Decimal
-    owner_liability_usdc: Decimal
+    today_consumer_refund_usdc: Decimal
+    today_provider_withdrawal_usdc: Decimal
+    consumer_liability_usdc: Decimal
     provider_payable_usdc: Decimal
     platform_fee_balance_usdc: Decimal
     vault_ledger_delta_usdc: Decimal
     pending_deposit_count: int
-    pending_withdrawal_count: int
+    pending_provider_withdrawal_count: int
     projected_at: datetime | None
 
 
@@ -40,8 +71,8 @@ class GatewayActivityTrendPoint:
     bucket_date: date
     deposit_usdc: Decimal
     charge_usdc: Decimal
-    refund_usdc: Decimal
-    withdrawal_usdc: Decimal
+    consumer_refund_usdc: Decimal
+    provider_withdrawal_usdc: Decimal
     net_flow_usdc: Decimal
 
 
@@ -94,14 +125,14 @@ class InMemoryGatewayDashboardProjectionRepository:
             finance_snapshot=GatewayFinanceSnapshot(
                 today_charge_usdc=Decimal("1280.40"),
                 today_deposit_usdc=Decimal("1640.00"),
-                today_refund_usdc=Decimal("42.25"),
-                today_withdrawal_usdc=Decimal("310.50"),
-                owner_liability_usdc=Decimal("8450.10"),
+                today_consumer_refund_usdc=Decimal("42.25"),
+                today_provider_withdrawal_usdc=Decimal("310.50"),
+                consumer_liability_usdc=Decimal("8450.10"),
                 provider_payable_usdc=Decimal("3920.45"),
                 platform_fee_balance_usdc=Decimal("128.75"),
                 vault_ledger_delta_usdc=Decimal("0.50"),
                 pending_deposit_count=2,
-                pending_withdrawal_count=1,
+                pending_provider_withdrawal_count=1,
                 projected_at=datetime(2026, 3, 16, 8, 5, tzinfo=timezone.utc),
             ),
             activity_trends=[
@@ -109,56 +140,56 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 10),
                     deposit_usdc=Decimal("920.00"),
                     charge_usdc=Decimal("780.20"),
-                    refund_usdc=Decimal("31.40"),
-                    withdrawal_usdc=Decimal("240.00"),
+                    consumer_refund_usdc=Decimal("31.40"),
+                    provider_withdrawal_usdc=Decimal("240.00"),
                     net_flow_usdc=Decimal("648.60"),
                 ),
                 GatewayActivityTrendPoint(
                     bucket_date=date(2026, 3, 11),
                     deposit_usdc=Decimal("1110.25"),
                     charge_usdc=Decimal("830.00"),
-                    refund_usdc=Decimal("25.15"),
-                    withdrawal_usdc=Decimal("210.00"),
+                    consumer_refund_usdc=Decimal("25.15"),
+                    provider_withdrawal_usdc=Decimal("210.00"),
                     net_flow_usdc=Decimal("875.10"),
                 ),
                 GatewayActivityTrendPoint(
                     bucket_date=date(2026, 3, 12),
                     deposit_usdc=Decimal("1185.50"),
                     charge_usdc=Decimal("910.30"),
-                    refund_usdc=Decimal("0.00"),
-                    withdrawal_usdc=Decimal("320.00"),
+                    consumer_refund_usdc=Decimal("0.00"),
+                    provider_withdrawal_usdc=Decimal("320.00"),
                     net_flow_usdc=Decimal("865.50"),
                 ),
                 GatewayActivityTrendPoint(
                     bucket_date=date(2026, 3, 13),
                     deposit_usdc=Decimal("980.00"),
                     charge_usdc=Decimal("845.90"),
-                    refund_usdc=Decimal("16.20"),
-                    withdrawal_usdc=Decimal("180.00"),
+                    consumer_refund_usdc=Decimal("16.20"),
+                    provider_withdrawal_usdc=Decimal("180.00"),
                     net_flow_usdc=Decimal("783.80"),
                 ),
                 GatewayActivityTrendPoint(
                     bucket_date=date(2026, 3, 14),
                     deposit_usdc=Decimal("1320.15"),
                     charge_usdc=Decimal("990.10"),
-                    refund_usdc=Decimal("45.00"),
-                    withdrawal_usdc=Decimal("275.00"),
+                    consumer_refund_usdc=Decimal("45.00"),
+                    provider_withdrawal_usdc=Decimal("275.00"),
                     net_flow_usdc=Decimal("1000.15"),
                 ),
                 GatewayActivityTrendPoint(
                     bucket_date=date(2026, 3, 15),
                     deposit_usdc=Decimal("1460.00"),
                     charge_usdc=Decimal("1210.50"),
-                    refund_usdc=Decimal("38.75"),
-                    withdrawal_usdc=Decimal("290.00"),
+                    consumer_refund_usdc=Decimal("38.75"),
+                    provider_withdrawal_usdc=Decimal("290.00"),
                     net_flow_usdc=Decimal("1131.25"),
                 ),
                 GatewayActivityTrendPoint(
                     bucket_date=date(2026, 3, 16),
                     deposit_usdc=Decimal("1640.00"),
                     charge_usdc=Decimal("1280.40"),
-                    refund_usdc=Decimal("42.25"),
-                    withdrawal_usdc=Decimal("310.50"),
+                    consumer_refund_usdc=Decimal("42.25"),
+                    provider_withdrawal_usdc=Decimal("310.50"),
                     net_flow_usdc=Decimal("1287.25"),
                 ),
             ],
@@ -195,6 +226,9 @@ class PostgresGatewayDashboardProjectionRepository:
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
 
+    def _get_projection_columns(self, table_name: str) -> frozenset[str]:
+        return _get_table_columns(self._dsn, table_name)
+
     def get_snapshot(self) -> GatewayDashboardSnapshot:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
@@ -227,20 +261,29 @@ class PostgresGatewayDashboardProjectionRepository:
         )
 
     def get_finance_snapshot(self) -> GatewayFinanceSnapshot:
+        columns = self._get_projection_columns("synapse_admin_dashboard_finance_projection")
+        refund_column = _resolve_projection_column(columns, "today_consumer_refund_usdc", "today_refund_usdc")
+        withdrawal_column = _resolve_projection_column(columns, "today_provider_withdrawal_usdc", "today_withdrawal_usdc")
+        liability_column = _resolve_projection_column(columns, "consumer_liability_usdc", "owner_liability_usdc")
+        pending_withdrawal_column = _resolve_projection_column(
+            columns,
+            "pending_provider_withdrawal_count",
+            "pending_withdrawal_count",
+        )
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     today_charge_usdc,
                     today_deposit_usdc,
-                    today_refund_usdc,
-                    today_withdrawal_usdc,
-                    owner_liability_usdc,
+                    {refund_column} AS today_consumer_refund_usdc,
+                    {withdrawal_column} AS today_provider_withdrawal_usdc,
+                    {liability_column} AS consumer_liability_usdc,
                     provider_payable_usdc,
                     platform_fee_balance_usdc,
                     vault_ledger_delta_usdc,
                     pending_deposit_count,
-                    pending_withdrawal_count,
+                    {pending_withdrawal_column} AS pending_provider_withdrawal_count,
                     projected_at
                 FROM synapse_admin_dashboard_finance_projection
                 LIMIT 1
@@ -251,40 +294,43 @@ class PostgresGatewayDashboardProjectionRepository:
             return GatewayFinanceSnapshot(
                 today_charge_usdc=Decimal("0"),
                 today_deposit_usdc=Decimal("0"),
-                today_refund_usdc=Decimal("0"),
-                today_withdrawal_usdc=Decimal("0"),
-                owner_liability_usdc=Decimal("0"),
+                today_consumer_refund_usdc=Decimal("0"),
+                today_provider_withdrawal_usdc=Decimal("0"),
+                consumer_liability_usdc=Decimal("0"),
                 provider_payable_usdc=Decimal("0"),
                 platform_fee_balance_usdc=Decimal("0"),
                 vault_ledger_delta_usdc=Decimal("0"),
                 pending_deposit_count=0,
-                pending_withdrawal_count=0,
+                pending_provider_withdrawal_count=0,
                 projected_at=None,
             )
         return GatewayFinanceSnapshot(
             today_charge_usdc=Decimal(str(row["today_charge_usdc"])),
             today_deposit_usdc=Decimal(str(row["today_deposit_usdc"])),
-            today_refund_usdc=Decimal(str(row["today_refund_usdc"])),
-            today_withdrawal_usdc=Decimal(str(row["today_withdrawal_usdc"])),
-            owner_liability_usdc=Decimal(str(row["owner_liability_usdc"])),
+            today_consumer_refund_usdc=Decimal(str(row["today_consumer_refund_usdc"])),
+            today_provider_withdrawal_usdc=Decimal(str(row["today_provider_withdrawal_usdc"])),
+            consumer_liability_usdc=Decimal(str(row["consumer_liability_usdc"])),
             provider_payable_usdc=Decimal(str(row["provider_payable_usdc"])),
             platform_fee_balance_usdc=Decimal(str(row["platform_fee_balance_usdc"])),
             vault_ledger_delta_usdc=Decimal(str(row["vault_ledger_delta_usdc"])),
             pending_deposit_count=int(row["pending_deposit_count"]),
-            pending_withdrawal_count=int(row["pending_withdrawal_count"]),
+            pending_provider_withdrawal_count=int(row["pending_provider_withdrawal_count"]),
             projected_at=row["projected_at"],
         )
 
     def list_activity_trends(self) -> list[GatewayActivityTrendPoint]:
+        columns = self._get_projection_columns("synapse_admin_dashboard_activity_trend_projection")
+        refund_column = _resolve_projection_column(columns, "consumer_refund_usdc", "refund_usdc")
+        withdrawal_column = _resolve_projection_column(columns, "provider_withdrawal_usdc", "withdrawal_usdc")
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     bucket_date,
                     deposit_usdc,
                     charge_usdc,
-                    refund_usdc,
-                    withdrawal_usdc,
+                    {refund_column} AS consumer_refund_usdc,
+                    {withdrawal_column} AS provider_withdrawal_usdc,
                     net_flow_usdc
                 FROM synapse_admin_dashboard_activity_trend_projection
                 ORDER BY bucket_date ASC
@@ -296,8 +342,8 @@ class PostgresGatewayDashboardProjectionRepository:
                 bucket_date=row["bucket_date"],
                 deposit_usdc=Decimal(str(row["deposit_usdc"])),
                 charge_usdc=Decimal(str(row["charge_usdc"])),
-                refund_usdc=Decimal(str(row["refund_usdc"])),
-                withdrawal_usdc=Decimal(str(row["withdrawal_usdc"])),
+                consumer_refund_usdc=Decimal(str(row["consumer_refund_usdc"])),
+                provider_withdrawal_usdc=Decimal(str(row["provider_withdrawal_usdc"])),
                 net_flow_usdc=Decimal(str(row["net_flow_usdc"])),
             )
             for row in rows

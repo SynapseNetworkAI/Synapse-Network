@@ -44,14 +44,14 @@ class DashboardService:
         return {
             "todayChargeUsdc": self._format_decimal(snapshot.today_charge_usdc),
             "todayDepositUsdc": self._format_decimal(snapshot.today_deposit_usdc),
-            "todayRefundUsdc": self._format_decimal(snapshot.today_refund_usdc),
-            "todayWithdrawalUsdc": self._format_decimal(snapshot.today_withdrawal_usdc),
-            "ownerLiabilityUsdc": self._format_decimal(snapshot.owner_liability_usdc),
+            "todayRefundUsdc": self._format_decimal(snapshot.today_consumer_refund_usdc),
+            "todayWithdrawalUsdc": self._format_decimal(snapshot.today_provider_withdrawal_usdc),
+            "ownerLiabilityUsdc": self._format_decimal(snapshot.consumer_liability_usdc),
             "providerPayableUsdc": self._format_decimal(snapshot.provider_payable_usdc),
             "platformFeeBalanceUsdc": self._format_decimal(snapshot.platform_fee_balance_usdc),
             "vaultLedgerDeltaUsdc": self._format_decimal(snapshot.vault_ledger_delta_usdc),
             "pendingDepositCount": snapshot.pending_deposit_count,
-            "pendingWithdrawalCount": snapshot.pending_withdrawal_count,
+            "pendingWithdrawalCount": snapshot.pending_provider_withdrawal_count,
             "projectedAt": self._format_timestamp(snapshot.projected_at),
         }
 
@@ -63,8 +63,8 @@ class DashboardService:
                     "bucketDate": point.bucket_date.isoformat(),
                     "depositUsdc": self._format_decimal(point.deposit_usdc),
                     "chargeUsdc": self._format_decimal(point.charge_usdc),
-                    "refundUsdc": self._format_decimal(point.refund_usdc),
-                    "withdrawalUsdc": self._format_decimal(point.withdrawal_usdc),
+                    "refundUsdc": self._format_decimal(point.consumer_refund_usdc),
+                    "withdrawalUsdc": self._format_decimal(point.provider_withdrawal_usdc),
                     "netFlowUsdc": self._format_decimal(point.net_flow_usdc),
                 }
                 for point in points
