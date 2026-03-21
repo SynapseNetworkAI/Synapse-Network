@@ -15,7 +15,7 @@ from src.domain.admin_authorization import (
 	AdminRolePermission,
 	AdminUserRoleBinding,
 )
-from src.domain.admin_identity import AdminMfaFactor, AdminSession, AdminUser
+from src.domain.admin_identity import AdminMfaEnrollmentChallenge, AdminMfaFactor, AdminSession, AdminUser
 
 __all__ = [
 	"AdminActionAudit",
@@ -27,6 +27,7 @@ __all__ = [
 	"AdminMenuConfigSnapshot",
 	"AdminExecutionAttempt",
 	"AdminExecutionJob",
+	"AdminMfaEnrollmentChallenge",
 	"AdminMfaFactor",
 	"AdminPermission",
 	"AdminRole",

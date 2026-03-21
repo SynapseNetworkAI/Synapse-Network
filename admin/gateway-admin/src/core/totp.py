@@ -1,14 +1,28 @@
 import base64
 import hashlib
 import hmac
+import secrets
 import struct
 import time
+from urllib.parse import quote
 
 
 def _normalize_secret(secret: str) -> bytes:
     normalized = secret.strip().replace(" ", "").upper()
     padding = (-len(normalized)) % 8
     return base64.b32decode(normalized + ("=" * padding), casefold=True)
+
+
+def generate_totp_secret(length: int = 20) -> str:
+    if length <= 0:
+        raise ValueError("length must be positive")
+    return base64.b32encode(secrets.token_bytes(length)).decode("ascii").rstrip("=")
+
+
+def build_totp_otpauth_url(*, issuer: str, account_name: str, secret: str) -> str:
+    label = quote(f"{issuer}:{account_name}")
+    issuer_query = quote(issuer)
+    return f"otpauth://totp/{label}?secret={secret}&issuer={issuer_query}&algorithm=SHA1&digits=6&period=30"
 
 
 def generate_totp_code(

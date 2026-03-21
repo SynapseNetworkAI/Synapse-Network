@@ -6,6 +6,7 @@ class AppError(Exception):
     code: str
     message: str
     status_code: int
+    data: object | None = None
 
     def __str__(self) -> str:
         return self.message
@@ -29,3 +30,8 @@ class ResourceNotFoundError(AppError):
 class BadRequestError(AppError):
     def __init__(self, message: str = "Invalid request") -> None:
         super().__init__(code="BAD_REQUEST", message=message, status_code=400)
+
+
+class MfaEnrollmentRequiredError(AppError):
+    def __init__(self, data: object, message: str = "MFA enrollment required") -> None:
+        super().__init__(code="MFA_ENROLLMENT_REQUIRED", message=message, status_code=428, data=data)

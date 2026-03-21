@@ -525,7 +525,7 @@ class Settings:
     gateway_default_service_qps: int = _env_int("GATEWAY_DEFAULT_SERVICE_QPS", 50)
     # Provider withdraw ticket expiry seconds for EIP-712 signed claim payload.
     provider_withdraw_deadline_sec: int = _env_int(
-        "PROVIDER_WITHDRAW_DEADLINE_SEC", 900
+        "PROVIDER_WITHDRAW_DEADLINE_SEC", 300
     )
     # Background reaper that periodically releases expired provider withdrawal tickets.
     provider_withdraw_expiry_reaper_enabled: bool = _env_bool(

@@ -204,6 +204,7 @@ class AdminUserService:
                 status=RoleBindingStatus.ACTIVE,
                 granted_by=operator.admin_id,
                 grant_reason="admin console user creation",
+                starts_at=now,
                 created_at=now,
                 updated_at=now,
             )
@@ -404,6 +405,7 @@ class AdminUserService:
                     status=RoleBindingStatus.ACTIVE,
                     granted_by=operator.admin_id,
                     grant_reason=reason,
+                    starts_at=now,
                     created_at=now,
                     updated_at=now,
                 )

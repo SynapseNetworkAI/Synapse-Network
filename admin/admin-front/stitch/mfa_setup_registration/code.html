@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MFA Initialization | SYNAPSE_NETWORK</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-background": "#191c1d",
+              "tertiary-fixed": "#b3ebff",
+              "surface-container-highest": "#e1e3e4",
+              "on-surface-variant": "#44474c",
+              "surface-container-lowest": "#ffffff",
+              "on-secondary-container": "#48617e",
+              "primary-container": "#101b30",
+              "tertiary": "#000000",
+              "on-secondary": "#ffffff",
+              "surface-tint": "#545e76",
+              "secondary": "#47607e",
+              "on-tertiary-fixed": "#001f27",
+              "on-tertiary-container": "#0090ad",
+              "error-container": "#ffdad6",
+              "primary": "#000000",
+              "on-secondary-fixed-variant": "#2f4865",
+              "primary-fixed-dim": "#bbc6e2",
+              "surface-container-high": "#e7e8e9",
+              "inverse-on-surface": "#f0f1f2",
+              "surface-bright": "#f8f9fa",
+              "primary-fixed": "#d7e2ff",
+              "on-error": "#ffffff",
+              "tertiary-fixed-dim": "#4cd6fb",
+              "secondary-fixed-dim": "#afc9ea",
+              "secondary-fixed": "#d1e4ff",
+              "on-tertiary-fixed-variant": "#004e5f",
+              "on-primary-fixed-variant": "#3c475d",
+              "on-tertiary": "#ffffff",
+              "on-primary-fixed": "#101b30",
+              "inverse-surface": "#2e3132",
+              "surface-variant": "#e1e3e4",
+              "on-primary-container": "#79849d",
+              "on-primary": "#ffffff",
+              "secondary-container": "#c2dcff",
+              "surface-container-low": "#f3f4f5",
+              "surface-dim": "#d9dadb",
+              "surface-container": "#edeeef",
+              "on-error-container": "#93000a",
+              "inverse-primary": "#bbc6e2",
+              "tertiary-container": "#001f27",
+              "surface": "#f8f9fa",
+              "error": "#ba1a1a",
+              "outline-variant": "#c4c6cc",
+              "outline": "#74777d",
+              "background": "#f8f9fa",
+              "on-secondary-fixed": "#001d36",
+              "on-surface": "#191c1d"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .bg-grid-pattern {
+            background-image: radial-gradient(circle, #bbc6e2 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 font-body text-on-surface antialiased selection:bg-tertiary-fixed-dim selection:text-primary">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-xl flex justify-between items-center px-6 h-16 z-50 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+<div class="text-lg font-bold tracking-widest text-slate-100 font-headline">SYNAPSE_NETWORK</div>
+<nav class="hidden md:flex gap-8 items-center">
+<a class="font-manrope tracking-tighter uppercase text-xs text-slate-500 hover:text-slate-300 transition-colors" href="#">NODES</a>
+<a class="font-manrope tracking-tighter uppercase text-xs text-slate-500 hover:text-slate-300 transition-colors" href="#">VAULTS</a>
+<a class="font-manrope tracking-tighter uppercase text-xs text-slate-500 hover:text-slate-300 transition-colors" href="#">LOGS</a>
+</nav>
+<div class="flex gap-4 items-center">
+<span class="material-symbols-outlined text-cyan-400 text-sm">security</span>
+<span class="material-symbols-outlined text-cyan-400 text-sm">sensors</span>
+<span class="material-symbols-outlined text-cyan-400 text-sm">account_circle</span>
+</div>
+</header>
+<!-- Main Content -->
+<main class="min-h-screen flex items-center justify-center pt-24 pb-20 px-4 relative overflow-hidden bg-grid-pattern opacity-90">
+<!-- Background Ambient Glow -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyan-900/10 rounded-full blur-[120px] pointer-events-none"></div>
+<!-- MFA Sentinel Container -->
+<div class="relative w-full max-w-xl bg-slate-900 shadow-[0_24px_60px_rgba(0,0,0,0.8)] p-px rounded-lg overflow-hidden group">
+<!-- Security Progress Bar (Loading State) -->
+<div class="absolute top-0 left-0 h-1 bg-tertiary-fixed-dim w-3/4"></div>
+<div class="bg-slate-950 p-8 md:p-12 rounded-lg relative">
+<!-- Header Section -->
+<div class="mb-10 text-left border-l-4 border-cyan-500 pl-6">
+<h1 class="font-headline text-3xl md:text-4xl font-extrabold text-slate-100 tracking-tighter uppercase leading-none mb-2">
+                        Secure Sentinel Protocol
+                    </h1>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
+<p class="font-label text-[10px] tracking-[0.2em] text-cyan-400/70 font-bold uppercase">MFA Initialization Phase 1.0</p>
+</div>
+</div>
+<div class="space-y-10">
+<!-- QR Code Stage -->
+<div class="flex flex-col md:flex-row gap-8 items-center md:items-start">
+<div class="shrink-0 p-3 bg-white rounded-lg shadow-[0_0_30px_rgba(76,214,251,0.2)]">
+<img alt="MFA QR Code" class="w-40 h-40 grayscale contrast-125" data-alt="Futuristic QR code for security authenticator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYrtOav_xWMcEfalBObY_UbsVpK-F8AKz9q4lie8oEoxxC8xhtRzckJHrStj9cJuCBO9fqMZpNKg7v_6Zfr5vxEZREE-tP7seodzAYDk7vbuCk1pEk1s3X7XzQc6Kecl0G-e0IIzb8F2KXLofH-tG9DVQioirigNIWLjfKyx64OTUjXpue_MMc1HgKkJ54KUbyfv9nILhTD5IcFAkW2NOkFFDUGREN_JMRpEgQkdIb-2XF8zomI2a21Qj7kYLozBDn7Mcts5CWA_vM"/>
+</div>
+<div class="space-y-4">
+<p class="text-slate-400 text-sm leading-relaxed">
+                                Scan this visual encryption key with your approved Authenticator application. The <span class="text-slate-100 font-semibold">Sentinel Protocol</span> requires a synchronized temporal token for workspace access.
+                            </p>
+<div class="flex items-center gap-2 text-cyan-500/80">
+<span class="material-symbols-outlined text-lg">info</span>
+<span class="text-[10px] font-bold tracking-widest uppercase">ENCRYPTED CONNECTION ESTABLISHED</span>
+</div>
+</div>
+</div>
+<!-- Manual Key Section -->
+<div class="space-y-3">
+<label class="font-label text-[10px] tracking-[0.2em] text-slate-500 uppercase font-bold">Manual Setup Key</label>
+<div class="flex items-center justify-between bg-slate-900 border border-slate-800 p-4 rounded group hover:border-slate-700 transition-colors">
+<code class="font-mono text-cyan-400 text-lg tracking-widest">ABCD 1234 EFGH 5678</code>
+<button class="text-slate-500 hover:text-cyan-400 transition-colors">
+<span class="material-symbols-outlined">content_copy</span>
+</button>
+</div>
+</div>
+<!-- Verification Code Input -->
+<div class="space-y-4">
+<label class="font-label text-[10px] tracking-[0.2em] text-slate-500 uppercase font-bold">Initial Verification Code</label>
+<div class="grid grid-cols-6 gap-3">
+<input class="w-full aspect-square text-center text-2xl font-bold bg-slate-900 border border-slate-800 text-slate-100 focus:border-cyan-500 focus:ring-0 rounded-sm transition-all outline-none" maxlength="1" type="text"/>
+<input class="w-full aspect-square text-center text-2xl font-bold bg-slate-900 border border-slate-800 text-slate-100 focus:border-cyan-500 focus:ring-0 rounded-sm transition-all outline-none" maxlength="1" type="text"/>
+<input class="w-full aspect-square text-center text-2xl font-bold bg-slate-900 border border-slate-800 text-slate-100 focus:border-cyan-500 focus:ring-0 rounded-sm transition-all outline-none" maxlength="1" type="text"/>
+<input class="w-full aspect-square text-center text-2xl font-bold bg-slate-900 border border-slate-800 text-slate-100 focus:border-cyan-500 focus:ring-0 rounded-sm transition-all outline-none" maxlength="1" type="text"/>
+<input class="w-full aspect-square text-center text-2xl font-bold bg-slate-900 border border-slate-800 text-slate-100 focus:border-cyan-500 focus:ring-0 rounded-sm transition-all outline-none" maxlength="1" type="text"/>
+<input class="w-full aspect-square text-center text-2xl font-bold bg-slate-900 border border-slate-800 text-slate-100 focus:border-cyan-500 focus:ring-0 rounded-sm transition-all outline-none" maxlength="1" type="text"/>
+</div>
+</div>
+<!-- Action Button -->
+<button class="w-full py-5 bg-gradient-to-r from-cyan-600 to-cyan-400 text-slate-950 font-headline font-extrabold uppercase tracking-widest text-sm rounded shadow-[0_0_40px_rgba(34,211,238,0.3)] hover:shadow-[0_0_60px_rgba(34,211,238,0.5)] active:scale-[0.98] transition-all">
+                        Execute Initialization
+                    </button>
+<div class="pt-4 text-center">
+<button class="text-[10px] font-label font-bold tracking-[0.2em] text-slate-600 uppercase hover:text-slate-300 transition-colors">
+                            Abandone Protocol
+                        </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Decorative UI elements -->
+<div class="absolute bottom-24 left-12 hidden lg:block text-slate-800 font-mono text-[10px] rotate-90 origin-left">
+            SCAN_IDENT: 0x99281-SENTINEL-MFA
+        </div>
+<div class="absolute top-32 right-12 hidden lg:block text-slate-800 font-mono text-[10px] -rotate-90 origin-right">
+            AUTH_STREAM: SECURE_SOCKET_LAYER_V3
+        </div>
+</main>
+<!-- Footer -->
+<footer class="fixed bottom-0 w-full border-t border-slate-900 bg-slate-950 flex justify-between items-center px-8 py-3 z-50">
+<div class="font-inter text-[10px] tracking-widest uppercase text-slate-500">
+            © 2024 SYNAPSE_SENTINEL :: NODE_ACTIVE :: 0x4F...32A
+        </div>
+<div class="flex gap-6">
+<a class="font-inter text-[10px] tracking-widest uppercase text-slate-600 hover:text-slate-300 transition-colors opacity-80 hover:opacity-100" href="#">SYSTEM_STATUS</a>
+<a class="font-inter text-[10px] tracking-widest uppercase text-slate-600 hover:text-slate-300 transition-colors opacity-80 hover:opacity-100" href="#">ENCRYPTION_PROTOCOL</a>
+<a class="font-inter text-[10px] tracking-widest uppercase text-slate-600 hover:text-slate-300 transition-colors opacity-80 hover:opacity-100" href="#">TERMINAL</a>
+</div>
+</footer>
+</body></html>

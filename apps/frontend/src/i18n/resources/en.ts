@@ -208,7 +208,7 @@ const en: I18nMessages = {
     invalidAmountPrecision: "Use up to 2 decimal places for withdrawal amount.",
     invalidAmountValue: "Enter a valid withdrawal amount.",
     amountExceedsAvailable: "Amount exceeds available receivable ({{amount}} USDC).",
-    withdrawAmountHint: "Leave amount blank to withdraw the full available receivable. Any active ticket moves funds from Available into Pending / Locked until it is completed or released. Custom amount supports up to 2 decimal places.",
+    withdrawAmountHint: "Leave amount blank to withdraw the full available receivable. Any active ticket moves funds from Available into Pending / Locked; if the on-chain claim never succeeds, the locked amount is automatically released back to Available in about 6 minutes by default. Custom amount supports up to 2 decimal places.",
     loadingHistory: "Loading withdrawal history...",
     expiredTicketReleasedRow: "Expired ticket released back to available balance.",
     txSubmitted: "Tx submitted: {{hash}}...",

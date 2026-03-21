@@ -99,9 +99,7 @@
   - `synapse_gateway_ro`
   - `synapse_admin_app`
   - `synapse_admin_ro`
-- 自动把 `admin/gateway-admin/migrations/001_admin_control_plane_schema.sql`
-  和 `admin/gateway-admin/migrations/002_admin_seed_data.sql`
-  导入到 `synapse_gateway_admin`
+- 自动把 `docker-compose/postgres/init/003_gateway_admin_projection_views.sql` 里的 admin bootstrap 段导入到 `synapse_gateway_admin`
 - 自动给 app / readonly 角色发放最小可用权限
 
 ## 8. 关于 “Cannot create a database when multi-database mode is disabled”

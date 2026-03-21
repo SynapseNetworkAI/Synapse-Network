@@ -1,22 +1,32 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
-import { getAdminAuthPolicy, getCurrentAdmin, loginAdmin, type AdminAuthSecurityPolicy } from "@/services/admin-api";
+import { clearPendingMfaEnrollment, savePendingMfaEnrollment } from "@/lib/admin-mfa-enrollment";
+import {
+  getAdminAuthPolicy,
+  getCurrentAdmin,
+  isAdminApiError,
+  loginAdmin,
+  type AdminAuthSecurityPolicy,
+  type MfaEnrollmentRequiredData,
+} from "@/services/admin-api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("super@synapse.network");
   const [otpCode, setOtpCode] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [security, setSecurity] = useState<AdminAuthSecurityPolicy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let cancelled = false;
+
+    clearPendingMfaEnrollment();
 
     void getAdminAuthPolicy()
       .then((policy) => {
@@ -51,78 +61,161 @@ export default function LoginPage() {
         });
         router.push("/dashboard");
       } catch (submitError) {
+        if (isAdminApiError(submitError) && submitError.code === "MFA_ENROLLMENT_REQUIRED") {
+          const enrollment = submitError.data as MfaEnrollmentRequiredData | undefined;
+          if (enrollment?.enrollmentToken) {
+            savePendingMfaEnrollment(enrollment);
+            router.push("/login/mfa-enroll");
+            return;
+          }
+        }
         setError(submitError instanceof Error ? submitError.message : "登录失败");
       }
     });
   }
 
   return (
-    <main className="login-page">
-      <section className="login-hero">
-        <p className="hero-chip">Synapse Admin Front</p>
-        <h1>把高风险运营动作从交易流量里拆出去。</h1>
-        <p>
-          管理后台仅承载控制面职责：管理员认证、审批流、审计查询、财务受控操作。
-        </p>
-        <div className="hero-actions">
-          <Link href="/dashboard" className="button button--primary">
-            进入控制台样例
-          </Link>
-          <Link href="/users" className="button button--secondary">
-            查看后台模块树
-          </Link>
+    <main className="auth-screen">
+      <div className="auth-screen__grid" />
+      <div className="auth-screen__dots" />
+      <div className="auth-screen__scanline" />
+      <div className="auth-screen__orb auth-screen__orb--left">
+        <div className="auth-screen__orb-core" />
+      </div>
+      <div className="auth-screen__orb auth-screen__orb--right">
+        <div className="auth-screen__orb-core auth-screen__orb-core--reverse" />
+      </div>
+
+      <header className="auth-header">
+        <div className="auth-header__brand">
+          <div className="auth-header__logo" aria-hidden="true">
+            <span className="auth-header__logo-dot" />
+          </div>
+          <span className="auth-header__title">Synapse Network</span>
+          <span className="auth-header__badge">Admin_Portal</span>
         </div>
-      </section>
-      <section className="login-card">
-        <div>
-          <p className="login-card__eyebrow">管理员登录</p>
-          <h2>SSO + Google Authenticator</h2>
-          <p className="login-card__text">
-            当前登录策略由 gateway-admin 服务端下发，支持按配置开启登录态 Google Authenticator 校验。
-          </p>
+        <div className="auth-header__status">
+          <span className="auth-header__node-dot" />
+          <span>NODE_ACTIVE :: 0x4F...32A</span>
+          <span className="auth-header__shield">SEC</span>
         </div>
-        <form className="login-form" onSubmit={handleSubmit}>
-          <label>
-            <span>邮箱</span>
-            <input
-              type="email"
-              placeholder="admin@synapse.network"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>初始密码</span>
-            <input
-              type="password"
-              placeholder="Init@StrongPassword"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          {security?.loginTotpRequired ? (
-            <label>
-              <span>Google Authenticator 验证码</span>
+      </header>
+
+      <section className="auth-main">
+        <div className="auth-panel-corners" aria-hidden="true" />
+        <div className="auth-panel">
+          <div className="auth-panel__lead">
+            <div className="auth-panel__lead-bar" aria-hidden="true" />
+            <h1>System Authorization</h1>
+            <p>Gateway Control Plane v4.0.8</p>
+          </div>
+
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label className="auth-field" htmlFor="admin-email">
+              <span className="auth-field__label">Operator Identification</span>
               <input
-                type="text"
-                inputMode="numeric"
-                placeholder="123456"
-                value={otpCode}
-                onChange={(event) => setOtpCode(event.target.value)}
+                id="admin-email"
+                className="auth-field__input"
+                type="email"
+                placeholder="EMAIL_UID"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
               />
             </label>
-          ) : (
-            <p className="login-card__text">当前环境未开启登录 TOTP，可使用邮箱与密码直接建立管理员会话。</p>
-          )}
-          {security ? (
-            <p className="panel__text">Issuer: {security.totpIssuer} · 高风险动作 {security.highRiskTotpRequired ? "仍需二次验证码" : "当前未要求二次验证码"}</p>
-          ) : null}
-          {error ? <p className="form-message form-message--error">{error}</p> : null}
-          <button type="submit" className="button button--primary button--full" disabled={isPending}>
-            {isPending ? "登录中..." : "登录并进入控制台"}
-          </button>
-        </form>
+
+            <label className="auth-field" htmlFor="admin-password">
+              <span className="auth-field__row">
+                <span className="auth-field__label">Access Cipher</span>
+                <button className="auth-field__link" type="button" onClick={() => setPassword("")}>RECOVER_KEY</button>
+              </span>
+              <span className="auth-field__password-wrap">
+                <input
+                  id="admin-password"
+                  className="auth-field__input"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="PASSWORD"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="auth-field__toggle"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                >
+                  {showPassword ? "HIDE" : "SHOW"}
+                </button>
+              </span>
+            </label>
+
+            <label className="auth-field" htmlFor="admin-otp">
+              <span className="auth-field__label">Google Authenticator Token</span>
+              <div className="auth-token-row">
+                <div className="auth-token-input-wrap">
+                  <span className="auth-token-icon" aria-hidden="true">OTP</span>
+                  <input
+                    id="admin-otp"
+                    className="auth-field__input auth-field__input--token"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={otpCode}
+                    onChange={(event) => setOtpCode(event.target.value.replaceAll(/\D/g, "").slice(0, 6))}
+                  />
+                </div>
+                <div className="auth-token-clock" aria-hidden="true">SYNC</div>
+              </div>
+            </label>
+
+            {security ? (
+              <>
+                <p className="auth-panel__meta">
+                  Issuer: {security.totpIssuer} · 登录 TOTP {security.loginTotpRequired ? "ENABLED" : "OPTIONAL"} · 高风险二次验证 {security.highRiskTotpRequired ? "ACTIVE" : "OFF"}
+                </p>
+                <p className="auth-panel__hint">
+                  Bootstrap admins are already MFA-bound. Only accounts without an active Google Authenticator factor will enter enrollment.
+                </p>
+              </>
+            ) : (
+              <p className="auth-panel__meta">Security policy handshake in progress...</p>
+            )}
+
+            {error ? <p className="form-message form-message--error">{error}</p> : null}
+
+            <button type="submit" className="auth-submit" disabled={isPending}>
+              <span>{isPending ? "Executing..." : "Execute Initialization"}</span>
+              <span aria-hidden="true">&gt;_</span>
+            </button>
+          </form>
+
+          <div className="auth-monitor">
+            <div className="auth-monitor__row">
+              <span>Terminal_Status</span>
+              <span className="auth-monitor__accent">Encrypted_Link</span>
+            </div>
+            <div className="auth-monitor__track">
+              <div className="auth-monitor__progress" />
+            </div>
+          </div>
+        </div>
+
+        <div className="auth-main__meta">
+          <div className="auth-main__meta-line" />
+          <span>Layer-2 Validation Active</span>
+          <div className="auth-main__meta-line" />
+        </div>
+        <p className="auth-main__meta-copy">SECURE_SENTINEL_PROTOCOL_v4.2 // AGENT_ID: 88-ALPHA</p>
       </section>
+
+      <footer className="auth-footer">
+        <span>© 2024 Synapse Network. Consensus Reached.</span>
+        <div className="auth-footer__links">
+          <button type="button">Neural_Net_TOS</button>
+          <button type="button" className="auth-footer__links--active">Blockchain_Sec</button>
+          <button type="button">Node_Metrics</button>
+        </div>
+      </footer>
     </main>
   );
 }
