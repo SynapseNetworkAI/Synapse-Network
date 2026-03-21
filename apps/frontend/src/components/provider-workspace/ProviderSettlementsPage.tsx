@@ -14,6 +14,7 @@ import {
   completeProviderWithdrawal,
   createProviderWithdrawIntent,
   getProviderWithdrawCapability,
+  ProviderWithdrawApiError,
   type ProviderWithdrawCapability,
   listProviderWithdrawals,
   type ProviderWithdrawRecord,
@@ -116,6 +117,22 @@ function validateRequestedWithdrawAmount(
   }
 
   return null;
+}
+
+function resolveCreateWithdrawalIntentErrorMessage(
+  error: unknown,
+  t: TranslateFn,
+): string {
+  if (error instanceof ProviderWithdrawApiError) {
+    if (error.code === "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") {
+      return t("providerSettlements.vaultLiquidityCheckUnavailable");
+    }
+    if (error.code === "CHAIN_RPC_UNAVAILABLE") {
+      return t("providerSettlements.chainRpcUnavailable");
+    }
+  }
+
+  return error instanceof Error ? error.message : t("providerSettlements.withdrawalCreateFailed");
 }
 
 export default function ProviderSettlementsPage() {
@@ -435,7 +452,7 @@ export default function ProviderSettlementsPage() {
         toast.success(t("providerSettlements.withdrawalIntentCreated"), { id: toastId });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("providerSettlements.withdrawalCreateFailed");
+      const message = resolveCreateWithdrawalIntentErrorMessage(error, t);
       toast.error(message, { id: toastId });
     } finally {
       setCreatingIntent(false);

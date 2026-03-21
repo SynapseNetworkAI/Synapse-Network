@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 
+from psycopg import errors as psycopg_errors
 from psycopg.types.json import Jsonb
 
 from src.domain import AdminMfaEnrollmentChallenge, AdminMfaFactor, AdminSession, AdminUser
@@ -79,6 +80,43 @@ def _map_session(row: dict) -> AdminSession:
         last_seen_at=row["last_seen_at"],
         revoked_at=row["revoked_at"],
         created_at=row["created_at"],
+    )
+
+
+def _mfa_factor_upsert_sql() -> str:
+    return """
+        INSERT INTO admin_mfa_factors (
+            factor_id, admin_id, factor_type, factor_label, status,
+            secret_ref, payload_json, last_verified_at, created_at, updated_at, revoked_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
+        ON CONFLICT (factor_id)
+        DO UPDATE SET admin_id = EXCLUDED.admin_id,
+                      factor_type = EXCLUDED.factor_type,
+                      factor_label = EXCLUDED.factor_label,
+                      status = EXCLUDED.status,
+                      secret_ref = EXCLUDED.secret_ref,
+                      payload_json = EXCLUDED.payload_json,
+                      last_verified_at = EXCLUDED.last_verified_at,
+                      updated_at = EXCLUDED.updated_at,
+                      revoked_at = EXCLUDED.revoked_at
+        RETURNING *
+    """
+
+
+def _mfa_factor_upsert_params(factor: AdminMfaFactor) -> tuple[object, ...]:
+    return (
+        factor.factor_id,
+        factor.admin_id,
+        factor.factor_type.value,
+        factor.factor_label,
+        factor.status.value,
+        factor.secret_ref,
+        Jsonb(factor.payload),
+        factor.last_verified_at,
+        factor.created_at,
+        factor.updated_at,
+        factor.revoked_at,
     )
 
 
@@ -193,42 +231,55 @@ class PostgresAdminIdentityRepository:
             row = cur.fetchone()
         return _map_factor(row) if row else None
 
-    def upsert_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
+    def get_mfa_factor_by_identity(self, admin_id: str, factor_type: str, factor_label: str) -> AdminMfaFactor | None:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO admin_mfa_factors (
-                    factor_id, admin_id, factor_type, factor_label, status,
-                    secret_ref, payload_json, last_verified_at, created_at, updated_at, revoked_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
-                ON CONFLICT (factor_id)
-                DO UPDATE SET admin_id = EXCLUDED.admin_id,
-                              factor_type = EXCLUDED.factor_type,
-                              factor_label = EXCLUDED.factor_label,
-                              status = EXCLUDED.status,
-                              secret_ref = EXCLUDED.secret_ref,
-                              payload_json = EXCLUDED.payload_json,
-                              last_verified_at = EXCLUDED.last_verified_at,
-                              updated_at = EXCLUDED.updated_at,
-                              revoked_at = EXCLUDED.revoked_at
-                RETURNING *
+                SELECT * FROM admin_mfa_factors
+                WHERE admin_id = %s AND factor_type = %s AND factor_label = %s
+                ORDER BY created_at ASC
+                LIMIT 1
                 """,
-                (
-                    factor.factor_id,
-                    factor.admin_id,
-                    factor.factor_type.value,
-                    factor.factor_label,
-                    factor.status.value,
-                    factor.secret_ref,
-                    Jsonb(factor.payload),
-                    factor.last_verified_at,
-                    factor.created_at,
-                    factor.updated_at,
-                    factor.revoked_at,
-                ),
+                (admin_id, factor_type, factor_label),
             )
             row = cur.fetchone()
+        return _map_factor(row) if row else None
+
+    def upsert_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            try:
+                cur.execute(_mfa_factor_upsert_sql(), _mfa_factor_upsert_params(factor))
+                row = cur.fetchone()
+            except psycopg_errors.UniqueViolation:
+                conn.rollback()
+                with conn.cursor() as retry_cur:
+                    retry_cur.execute(
+                        """
+                        UPDATE admin_mfa_factors
+                        SET status = %s,
+                            secret_ref = %s,
+                            payload_json = %s::jsonb,
+                            last_verified_at = %s,
+                            updated_at = COALESCE(%s, NOW()),
+                            revoked_at = %s
+                        WHERE admin_id = %s AND factor_type = %s AND factor_label = %s
+                        RETURNING *
+                        """,
+                        (
+                            factor.status.value,
+                            factor.secret_ref,
+                            Jsonb(factor.payload),
+                            factor.last_verified_at,
+                            factor.updated_at,
+                            factor.revoked_at,
+                            factor.admin_id,
+                            factor.factor_type.value,
+                            factor.factor_label,
+                        ),
+                    )
+                    row = retry_cur.fetchone()
+                    if row is None:
+                        raise
         return _map_factor(row)
 
     def list_mfa_enrollment_challenges(self, admin_id: str) -> Sequence[AdminMfaEnrollmentChallenge]:

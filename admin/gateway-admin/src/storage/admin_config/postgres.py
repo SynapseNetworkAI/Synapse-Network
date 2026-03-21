@@ -17,11 +17,15 @@ def _map_item(payload: dict, fallback_index: int) -> AdminMenuConfigItem:
         section_label=str(payload["sectionLabel"]),
         section_description=str(payload.get("sectionDescription") or ""),
         label=str(payload["label"]),
-        href=str(payload["href"]),
+        href=str(payload["href"]) if payload.get("href") else None,
         description=str(payload.get("description") or ""),
+        parent_item_id=str(payload["parentItemId"]) if payload.get("parentItemId") else None,
+        node_type=str(payload.get("nodeType") or "page"),
+        icon_key=str(payload.get("iconKey") or "SN"),
         required_roles=tuple(str(item) for item in payload.get("requiredRoles", [])),
         required_permissions=tuple(str(item) for item in payload.get("requiredPermissions", [])),
         sort_order=int(payload.get("sortOrder", fallback_index)),
+        keywords=tuple(str(item) for item in payload.get("keywords", [])),
     )
 
 
@@ -34,9 +38,13 @@ def _serialize_item(item: AdminMenuConfigItem) -> dict:
         "label": item.label,
         "href": item.href,
         "description": item.description,
+        "parentItemId": item.parent_item_id,
+        "nodeType": item.node_type,
+        "iconKey": item.icon_key,
         "requiredRoles": list(item.required_roles),
         "requiredPermissions": list(item.required_permissions),
         "sortOrder": item.sort_order,
+        "keywords": list(item.keywords),
     }
 
 

@@ -35,9 +35,7 @@ Synapse-Network/
 │       ├── test/
 │       ├── hardhat.config.js
 │       └── package.json
-├── infra/
-│   ├── docker/                # 原 docker-compose 及 postgres init
-│   └── env/                   # env 模板与说明（不放密钥）
+├── docker-compose/            # canonical compose entry + postgres bootstrap SQL
 ├── docs/                      # 原 doc/
 ├── tools/                     # 运维/开发脚本（原 scripts/）
 

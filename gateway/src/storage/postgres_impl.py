@@ -188,7 +188,7 @@ class PostgresStorage(BaseStorage):
         if missing:
             raise RuntimeError(
                 f"PostgreSQL schema mismatch: {table_name} is missing required indexes "
-                f"{', '.join(missing)}. Reapply the bootstrap SQL in infra/docker/postgres/init/."
+                f"{', '.join(missing)}. Reapply the bootstrap SQL in docker-compose/postgres/init/."
             )
 
     def _validate_required_constraints(self, contract: TableSchemaContract) -> None:
@@ -213,7 +213,7 @@ class PostgresStorage(BaseStorage):
         if missing:
             raise RuntimeError(
                 f"PostgreSQL schema mismatch: {contract.table_name} is missing required constraints "
-                f"{', '.join(missing)}. Reapply the bootstrap SQL in infra/docker/postgres/init/."
+                f"{', '.join(missing)}. Reapply the bootstrap SQL in docker-compose/postgres/init/."
             )
 
     def _validate_required_columns(
@@ -236,7 +236,7 @@ class PostgresStorage(BaseStorage):
             raise RuntimeError(
                 f"PostgreSQL schema mismatch: {table_name} is missing required columns "
                 f"{', '.join(missing)}. "
-                "Reapply the bootstrap SQL in infra/docker/postgres/init/."
+                "Reapply the bootstrap SQL in docker-compose/postgres/init/."
             )
 
     def _connect(self):

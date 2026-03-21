@@ -1,71 +1,231 @@
 import type { AdminMenuConfigItem } from "@/services/admin-api";
 
-
-export type AdminNavNode = {
+export type NavItem = {
   id: string;
-  href: string;
+  title: string;
+  icon: string;
+  path?: string;
+  description?: string;
+  nodeType?: "category" | "page" | "panel";
+  searchKeywords?: string[];
+  children?: NavItem[];
+};
+
+type NavLookupRecord = {
   label: string;
   description: string;
-  badge?: string;
 };
 
-export type AdminNavSection = {
-  id: string;
-  label: string;
-  description: string;
-  children: AdminNavNode[];
+const navLookupById: Record<string, NavLookupRecord> = {
+  dashboard: { label: "控制台", description: "总览、运行态与系统健康入口。" },
+  execution: { label: "执行队列", description: "审批后的任务排队、重试与执行状态。" },
+  system: { label: "系统运维", description: "Gateway、Indexer 与对账运行态。" },
+  users: { label: "后台用户", description: "管理员目录、状态与 MFA 要求。" },
+  "role-permissions": { label: "角色权限", description: "权限矩阵、模块边界与 reviewer 分工。" },
+  "menu-config": { label: "菜单配置", description: "后台已发布导航的拓扑与治理。" },
+  approvals: { label: "审批中心", description: "高风险动作审批与审核状态流。" },
+  "withdrawal-reviews": { label: "提现复核", description: "出金审核与风险复核台。" },
+  finance: { label: "财务控制", description: "充值、扣费、退款与责任敞口。" },
+  risk: { label: "风险控制", description: "风险信号、策略与异常处置。" },
+  audit: { label: "审计追踪", description: "操作留痕、追踪检索与审计检视。" },
 };
 
-const navVisualMap: Record<string, { icon: string; kicker: string }> = {
-  dashboard: { icon: "DB", kicker: "overview rail" },
-  users: { icon: "US", kicker: "operator registry" },
-  "role-permissions": { icon: "RP", kicker: "policy matrix" },
-  "menu-config": { icon: "MC", kicker: "shell topology" },
-  execution: { icon: "EX", kicker: "job stream" },
-  approvals: { icon: "AP", kicker: "decision queue" },
-  "withdrawal-reviews": { icon: "WR", kicker: "manual payout" },
-  finance: { icon: "FN", kicker: "money rail" },
-  risk: { icon: "RK", kicker: "threat desk" },
-  system: { icon: "SY", kicker: "runtime health" },
-  audit: { icon: "AU", kicker: "action ledger" },
-};
-
-export function getNavVisual(itemId: string): { icon: string; kicker: string } {
-  return navVisualMap[itemId] ?? { icon: "SN", kicker: "control module" };
+function normalizeQuery(value: string): string {
+  return value.trim().toLowerCase();
 }
 
+type ResolveExpandedNavigationIdsOptions = {
+  manualExpandedIds: string[];
+  manualCollapsedIds: string[];
+  activePath: string[];
+  filteredExpandedIds: string[];
+  query: string;
+};
 
-export function buildAdminNavigation(items: AdminMenuConfigItem[]): AdminNavSection[] {
+function mergeLookup(item: NavItem): NavItem {
+  return {
+    ...item,
+    title: item.title,
+    description: item.description,
+  };
+}
+
+function compareMenuItems(left: AdminMenuConfigItem, right: AdminMenuConfigItem): number {
+  const sortDifference = left.sortOrder - right.sortOrder;
+  if (sortDifference !== 0) {
+    return sortDifference;
+  }
+  const sectionDifference = left.sectionLabel.localeCompare(right.sectionLabel);
+  if (sectionDifference !== 0) {
+    return sectionDifference;
+  }
+  const parentDifference = (left.parentItemId ?? "").localeCompare(right.parentItemId ?? "");
+  if (parentDifference !== 0) {
+    return parentDifference;
+  }
+  return left.label.localeCompare(right.label);
+}
+
+function toNavItem(item: AdminMenuConfigItem): NavItem {
+  const visual = getNavVisual(item.itemId);
+  return mergeLookup({
+    id: item.itemId,
+    title: item.label,
+    icon: item.iconKey || visual.icon,
+    path: item.href ?? undefined,
+    description: item.description || item.sectionDescription || visual.kicker,
+    nodeType: item.nodeType,
+    searchKeywords: [item.sectionLabel, item.sectionDescription, item.label, item.description, ...item.keywords].filter(Boolean),
+  });
+}
+
+function buildFallbackItems(items: AdminMenuConfigItem[]): NavItem[] {
+  const fallbackChildren = [...items].sort(compareMenuItems).map((item) => toNavItem(item));
+
+  if (fallbackChildren.length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      id: "other-modules",
+      title: "其他模块",
+      icon: "OT",
+      description: "来自服务端配置但未在 Sentinel IA 中显式建模的页面。",
+      children: fallbackChildren,
+    },
+  ];
+}
+
+export function buildAdminNavigation(items: AdminMenuConfigItem[]): NavItem[] {
   if (items.length === 0) {
     return [];
   }
 
-  const sections = new Map<string, AdminNavSection>();
+  const sortedItems = [...items].sort(compareMenuItems);
+  const byId = new Map(sortedItems.map((item) => [item.itemId, toNavItem(item)]));
+  const roots: NavItem[] = [];
+  const fallbackItems: AdminMenuConfigItem[] = [];
 
-  items
-    .slice()
-    .sort((left, right) => left.sortOrder - right.sortOrder)
-    .forEach((item) => {
-      const currentSection = sections.get(item.sectionId);
-      const node: AdminNavNode = {
-        id: item.itemId,
-        href: item.href,
-        label: item.label,
-        description: item.description,
-      };
+  sortedItems.forEach((item) => {
+    const navItem = byId.get(item.itemId);
+    if (!navItem) {
+      return;
+    }
 
-      if (currentSection) {
-        currentSection.children.push(node);
-        return;
+    if (!item.parentItemId) {
+      roots.push(navItem);
+      return;
+    }
+
+    const parent = byId.get(item.parentItemId);
+    if (!parent) {
+      fallbackItems.push(item);
+      return;
+    }
+
+    parent.children = [...(parent.children ?? []), navItem];
+  });
+
+  return roots.concat(buildFallbackItems(fallbackItems));
+}
+
+export function findNavPathByPath(items: NavItem[], pathname: string): string[] {
+  for (const item of items) {
+    const childPath = item.children ? findNavPathByPath(item.children, pathname) : [];
+    if (childPath.length > 0) {
+      return [item.id, ...childPath];
+    }
+
+    if (item.path === pathname) {
+      return [item.id];
+    }
+  }
+
+  return [];
+}
+
+export function findNavItemByPath(items: NavItem[], pathname: string): NavItem | null {
+  for (const item of items) {
+    if (item.path === pathname) {
+      return item;
+    }
+
+    if (item.children) {
+      const childItem = findNavItemByPath(item.children, pathname);
+      if (childItem) {
+        return childItem;
       }
+    }
+  }
 
-      sections.set(item.sectionId, {
-        id: item.sectionId,
-        label: item.sectionLabel,
-        description: item.sectionDescription,
-        children: [node],
-      });
-    });
+  return null;
+}
 
-  return Array.from(sections.values());
+export function filterNavigation(items: NavItem[], query: string): { filtered: NavItem[]; expandedIds: string[] } {
+  const normalizedQuery = normalizeQuery(query);
+
+  if (!normalizedQuery) {
+    return { filtered: items, expandedIds: [] };
+  }
+
+  const expandedIds = new Set<string>();
+
+  function visit(node: NavItem): NavItem | null {
+    const haystack = [node.title, node.description, node.path, ...(node.searchKeywords ?? [])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const directMatch = haystack.includes(normalizedQuery);
+    const filteredChildren = node.children
+      ?.map((child) => visit(child))
+      .filter((child): child is NavItem => child !== null);
+
+    if (!directMatch && (!filteredChildren || filteredChildren.length === 0)) {
+      return null;
+    }
+
+    if (filteredChildren && filteredChildren.length > 0) {
+      expandedIds.add(node.id);
+    }
+
+    return {
+      ...node,
+      children: filteredChildren,
+    };
+  }
+
+  return {
+    filtered: items.map((item) => visit(item)).filter((item): item is NavItem => item !== null),
+    expandedIds: Array.from(expandedIds),
+  };
+}
+
+export function resolveExpandedNavigationIds({
+  manualExpandedIds,
+  manualCollapsedIds,
+  activePath,
+  filteredExpandedIds,
+  query,
+}: ResolveExpandedNavigationIdsOptions): string[] {
+  const expandedIds = new Set<string>([
+    ...manualExpandedIds,
+    ...activePath.slice(0, -1),
+    ...filteredExpandedIds,
+  ]);
+
+  if (!normalizeQuery(query)) {
+    for (const id of manualCollapsedIds) {
+      expandedIds.delete(id);
+    }
+  }
+
+  return Array.from(expandedIds);
+}
+
+export function getNavVisual(itemId: string): { icon: string; kicker: string } {
+  const lookup = navLookupById[itemId];
+  return lookup
+    ? { icon: itemId.slice(0, 2).toUpperCase(), kicker: lookup.description }
+    : { icon: "SN", kicker: "control module" };
 }

@@ -3,6 +3,23 @@ import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 const API_BASE = `${getGatewayBaseUrl()}/api/v1/providers/withdrawals`;
 
+type ParsedApiError = {
+  code?: string;
+  message?: string;
+};
+
+export class ProviderWithdrawApiError extends Error {
+  code?: string;
+  status?: number;
+
+  constructor(message: string, code?: string, status?: number) {
+    super(message);
+    this.name = "ProviderWithdrawApiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 function buildIdempotencyKey(prefix: string): string {
   const now = Date.now().toString(36);
   const random =
@@ -17,12 +34,28 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
     const text = await response.text();
     if (!text) return fallback;
     try {
-      const parsed = JSON.parse(text) as { detail?: { message?: string } | string; message?: string };
+      const parsed = JSON.parse(text) as {
+        detail?: ParsedApiError | string;
+        code?: string;
+        message?: string;
+      };
       if (typeof parsed.detail === "string") return normalizeAuthApiError(parsed.detail, response.status);
       if (parsed.detail && typeof parsed.detail === "object" && parsed.detail.message) {
-        return normalizeAuthApiError(parsed.detail.message, response.status);
+        return resolveProviderWithdrawApiErrorMessage({
+          code: parsed.detail.code,
+          message: parsed.detail.message,
+          status: response.status,
+          fallback,
+        });
       }
-      if (parsed.message) return normalizeAuthApiError(parsed.message, response.status);
+      if (parsed.message || parsed.code) {
+        return resolveProviderWithdrawApiErrorMessage({
+          code: parsed.code,
+          message: parsed.message,
+          status: response.status,
+          fallback,
+        });
+      }
       return normalizeAuthApiError(text, response.status);
     } catch {
       return normalizeAuthApiError(text, response.status);
@@ -30,6 +63,28 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
   } catch {
     return fallback;
   }
+}
+
+export function resolveProviderWithdrawApiErrorMessage({
+  code,
+  message,
+  status,
+  fallback,
+}: {
+  code?: string;
+  message?: string;
+  status?: number;
+  fallback: string;
+}): string {
+  if (code === "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") {
+    return "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.";
+  }
+
+  if (code === "CHAIN_RPC_UNAVAILABLE") {
+    return "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.";
+  }
+
+  return normalizeAuthApiError(message || fallback, status);
 }
 
 export type ProviderWithdrawTicket = {
@@ -117,7 +172,43 @@ export async function createProviderWithdrawIntent(userAddress: string, amountUs
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to create provider withdrawal intent"));
+    const fallback = "Failed to create provider withdrawal intent";
+    const text = await response.text();
+    let code: string | undefined;
+    let message = normalizeAuthApiError(text || fallback, response.status);
+
+    if (text) {
+      try {
+        const parsed = JSON.parse(text) as {
+          detail?: ParsedApiError | string;
+          code?: string;
+          message?: string;
+        };
+        if (typeof parsed.detail === "object" && parsed.detail) {
+          code = parsed.detail.code;
+          message = resolveProviderWithdrawApiErrorMessage({
+            code,
+            message: parsed.detail.message,
+            status: response.status,
+            fallback,
+          });
+        } else if (typeof parsed.detail === "string") {
+          message = normalizeAuthApiError(parsed.detail, response.status);
+        } else {
+          code = parsed.code;
+          message = resolveProviderWithdrawApiErrorMessage({
+            code,
+            message: parsed.message,
+            status: response.status,
+            fallback,
+          });
+        }
+      } catch {
+        message = normalizeAuthApiError(text, response.status);
+      }
+    }
+
+    throw new ProviderWithdrawApiError(message, code, response.status);
   }
 
   const payload = (await response.json()) as {

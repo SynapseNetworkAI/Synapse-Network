@@ -473,6 +473,10 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     list_response = client.get("/api/admin/v1/config/menu-items")
     assert list_response.status_code == 200
     assert any(item["itemId"] == "dashboard" for item in list_response.json()["data"]["items"])
+    dashboard_item = next(item for item in list_response.json()["data"]["items"] if item["itemId"] == "dashboard")
+    assert dashboard_item["parentItemId"] == "control-overview"
+    assert dashboard_item["nodeType"] == "page"
+    assert dashboard_item["iconKey"] == "OV"
 
     create_response = client.post(
         "/api/admin/v1/config/menu-items",
@@ -485,13 +489,21 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
             "label": "运行副驾",
             "href": "/ops-copilot",
             "description": "值班辅助和运行手册入口。",
+            "parentItemId": "business-control",
+            "nodeType": "page",
+            "iconKey": "OC",
             "requiredRoles": ["super_admin"],
             "requiredPermissions": ["dashboard:read"],
             "sortOrder": 65,
+            "keywords": ["copilot", "runbook"],
         },
     )
     assert create_response.status_code == 200
-    assert any(item["itemId"] == "ops-copilot" for item in create_response.json()["data"]["items"])
+    created_item = next(item for item in create_response.json()["data"]["items"] if item["itemId"] == "ops-copilot")
+    assert created_item["parentItemId"] == "business-control"
+    assert created_item["nodeType"] == "page"
+    assert created_item["iconKey"] == "OC"
+    assert created_item["keywords"] == ["copilot", "runbook"]
     assert create_response.json()["data"]["meta"]["isDirty"] is True
 
     update_response = client.patch(
@@ -504,13 +516,19 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
             "label": "运行副驾中心",
             "href": "/ops-copilot",
             "description": "值班辅助和运行手册入口。",
+            "parentItemId": "business-control",
+            "nodeType": "page",
+            "iconKey": "OC",
             "requiredRoles": ["super_admin", "platform_ops_admin"],
             "requiredPermissions": ["dashboard:read"],
             "sortOrder": 66,
+            "keywords": ["copilot", "shift"],
         },
     )
     assert update_response.status_code == 200
-    assert any(item["label"] == "运行副驾中心" for item in update_response.json()["data"]["items"])
+    updated_item = next(item for item in update_response.json()["data"]["items"] if item["itemId"] == "ops-copilot")
+    assert updated_item["label"] == "运行副驾中心"
+    assert updated_item["keywords"] == ["copilot", "shift"]
 
     publish_headers = {**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("super@synapse.network")}
     publish_response = client.post("/api/admin/v1/config/menu-items/publish", headers=publish_headers)
@@ -532,7 +550,72 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     response = client.get("/api/admin/v1/config/menu-items/visible")
     assert response.status_code == 200
     item_ids = {item["itemId"] for item in response.json()["data"]["items"]}
-    assert item_ids == {"dashboard", "approvals", "withdrawal-reviews", "finance", "risk", "system"}
+    assert item_ids == {
+        "control-overview",
+        "dashboard",
+        "dashboard-overview",
+        "dashboard-runtime",
+        "dashboard-system-health",
+        "system",
+        "business-control",
+        "approvals",
+        "withdrawal-reviews",
+        "finance",
+        "risk",
+    }
+
+
+def test_menu_config_delete_removes_descendants() -> None:
+    csrf_headers = _login_as("super@synapse.network")
+
+    create_response = client.post(
+        "/api/admin/v1/config/menu-items",
+        headers=csrf_headers,
+        json={
+            "itemId": "ops-root",
+            "sectionId": "ops-controls",
+            "sectionLabel": "业务控制",
+            "sectionDescription": "审批、资金、风控和系统运维的受控操作入口。",
+            "label": "Ops Root",
+            "href": None,
+            "description": "临时父节点。",
+            "nodeType": "category",
+            "iconKey": "OR",
+            "requiredRoles": ["super_admin"],
+            "requiredPermissions": [],
+            "sortOrder": 500,
+            "keywords": ["temporary"],
+        },
+    )
+    assert create_response.status_code == 200
+
+    child_response = client.post(
+        "/api/admin/v1/config/menu-items",
+        headers=csrf_headers,
+        json={
+            "itemId": "ops-child",
+            "sectionId": "ops-controls",
+            "sectionLabel": "业务控制",
+            "sectionDescription": "审批、资金、风控和系统运维的受控操作入口。",
+            "label": "Ops Child",
+            "href": "/ops-child",
+            "description": "临时子节点。",
+            "parentItemId": "ops-root",
+            "nodeType": "page",
+            "iconKey": "OC",
+            "requiredRoles": ["super_admin"],
+            "requiredPermissions": ["dashboard:read"],
+            "sortOrder": 501,
+            "keywords": ["temporary"],
+        },
+    )
+    assert child_response.status_code == 200
+
+    delete_response = client.delete("/api/admin/v1/config/menu-items/ops-root", headers=csrf_headers)
+    assert delete_response.status_code == 200
+    deleted_ids = {item["itemId"] for item in delete_response.json()["data"]["items"]}
+    assert "ops-root" not in deleted_ids
+    assert "ops-child" not in deleted_ids
 
 
 def test_visible_menu_config_returns_full_tree_for_super_admin() -> None:
@@ -757,6 +840,22 @@ def test_operations_overview_exposes_gateway_ops_projection() -> None:
     assert body["backfillLastScannedBlock"] == 19450321
     assert body["reconciliationAlert"] is True
     assert body["reconciliationLastError"] == "vault_delta_detected"
+
+
+def test_dashboard_diagnostics_expose_runtime_signals_and_actions() -> None:
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/dashboard/diagnostics")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["overallStatus"] == "degraded"
+    assert "failed execution job" in body["summary"]
+    assert len(body["signals"]) == 5
+    assert body["signals"][0]["signalId"] == "reconciliation"
+    assert body["signals"][0]["status"] == "degraded"
+    assert len(body["actions"]) == 3
+    assert body["actions"][1]["href"] == "/execution"
 
 
 def test_audit_actions_list_is_available() -> None:

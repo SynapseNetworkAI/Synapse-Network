@@ -260,6 +260,7 @@
 - reconciliation 差额
 - Dashboard 在实现上应拆成 3 个稳定读模型：finance、activity_trend、operations
 - `overview` 与 `system-status` 可以保留，但只作为兼容聚合层，不再承担长期主语义
+- `dashboard/diagnostics` 是控制面的统一诊断语义层，dashboard 与 `/system` 必须复用同一份 `overallStatus`、`summary`、`signals`、`actions`
 - operations 读模型只能使用已持久化的 runtime state / logs，不能把 indexer 进程内内存态直接暴露给后台前端
 - 失败交易数
 - 待审核工单数
@@ -424,7 +425,7 @@ Dashboard 数据边界要求：
 - `admin_auth`: 登录、登出、当前管理员信息
 - `admin_config`: 菜单配置 draft / published 读取、CRUD 与发布
 - `admin_users`: 用户目录、角色权限模板、创建后台用户
-- `admin_dashboard`: `overview`、`system-status`、`finance-overview`、`activity-trends`、`operations-overview`
+- `admin_dashboard`: `overview`、`system-status`、`finance-overview`、`activity-trends`、`operations-overview`、`diagnostics`；其中 `diagnostics` 负责首页和 system 页共享控制面状态结论与建议动作
 - `admin_approval`: 审批单读取、创建、审批决策
 - `admin_audit`: 管理员操作日志查询
 - `execution-jobs`: 执行任务查询与 retry

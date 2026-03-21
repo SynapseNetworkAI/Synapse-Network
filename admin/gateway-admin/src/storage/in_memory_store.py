@@ -39,6 +39,7 @@ from src.domain.enums import (
     RoleBindingStatus,
     RoleStatus,
 )
+from src.services.admin_config.menu_tree import build_default_menu_items
 
 
 def _utcnow() -> datetime:
@@ -52,10 +53,6 @@ APPROVAL_DECIDE = "approval:decide"
 AUDIT_READ = "audit:read"
 EXECUTION_READ = "execution:read"
 EXECUTION_RETRY = "execution:retry"
-IDENTITY_ACCESS_LABEL = "身份与权限"
-IDENTITY_ACCESS_DESCRIPTION = "后台用户、角色模板、菜单树与权限矩阵。"
-OPS_CONTROLS_LABEL = "业务控制"
-OPS_CONTROLS_DESCRIPTION = "审批、资金、风控和系统运维的受控操作入口。"
 
 
 class InMemoryAdminConfigRepository:
@@ -128,6 +125,17 @@ class InMemoryAdminIdentityRepository:
         for factor in self._factors:
             if factor.factor_id == factor_id:
                 return factor
+        return None
+
+    def get_mfa_factor_by_identity(self, admin_id: str, factor_type: str, factor_label: str) -> AdminMfaFactor | None:
+        for factor in self._factors:
+            if factor.admin_id != admin_id:
+                continue
+            if factor.factor_type.value != factor_type:
+                continue
+            if factor.factor_label != factor_label:
+                continue
+            return factor
         return None
 
     def upsert_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
@@ -515,19 +523,7 @@ class InMemoryAdminStore:
             AdminUserRoleBinding("bind_compliance_auditor", "adm_compliance_auditor", "compliance_auditor", status=RoleBindingStatus.ACTIVE),
             AdminUserRoleBinding("bind_readonly_analyst", "adm_readonly_analyst", "readonly_analyst", status=RoleBindingStatus.ACTIVE),
         ]
-        menu_items = (
-            AdminMenuConfigItem("dashboard", "overview", "控制总览", "稳定读模型、控制台总览与核心运营信号。", "控制台", "/dashboard", "总览 finance、activity、operations 3 个稳定读模型。", required_permissions=(DASHBOARD_READ,), sort_order=10),
-            AdminMenuConfigItem("users", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "后台用户", "/users", "创建管理员、分配角色、查看权限模板与启用状态。", required_roles=("super_admin", "platform_ops_admin"), sort_order=20),
-            AdminMenuConfigItem("role-permissions", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "角色权限", "/role-permissions", "查看角色权限矩阵、模块权限边界与 reviewer 分工。", required_roles=("super_admin", "platform_ops_admin"), sort_order=30),
-            AdminMenuConfigItem("menu-config", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "菜单配置", "/menu-config", "菜单树、路由、可见性和权限依赖的配置视图。", required_roles=("super_admin", "platform_ops_admin"), sort_order=40),
-            AdminMenuConfigItem("execution", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "执行队列", "/execution", "查看 execution jobs、失败重试与网关执行结果。", required_permissions=(EXECUTION_READ,), sort_order=50),
-            AdminMenuConfigItem("approvals", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "审批中心", "/approvals", "高风险动作审批流、reviewer 决策与执行前守门。", required_permissions=(APPROVAL_READ,), sort_order=60),
-            AdminMenuConfigItem("withdrawal-reviews", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "提现审核", "/withdrawal-reviews", "Provider 提现人工审核工作台，直接推进 approve / reject。", required_permissions=(APPROVAL_READ,), sort_order=65),
-            AdminMenuConfigItem("finance", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "资金运营", "/finance", "充值异常、退款与提现控制面，聚焦受控动作。", required_permissions=(DASHBOARD_READ,), sort_order=70),
-            AdminMenuConfigItem("risk", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "风控工作台", "/risk", "风险规则、工单分流、黑白名单与风险标签处置。", required_permissions=(DASHBOARD_READ,), sort_order=80),
-            AdminMenuConfigItem("system", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "系统运维", "/system", "gateway、indexer、reconciliation 与运行时参数快照。", required_permissions=(DASHBOARD_READ,), sort_order=90),
-            AdminMenuConfigItem("audit", "audit-ledger", "审计合规", "操作日志、审计回放与高风险动作追踪。", "操作日志", "/audit", "管理员操作日志、审批链路和失败告警审计检索。", required_permissions=(AUDIT_READ,), sort_order=100),
-        )
+        menu_items = build_default_menu_items()
         menu_snapshot = AdminMenuConfigSnapshot(
             config_key="admin_menu_config",
             draft_items=menu_items,

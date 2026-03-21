@@ -140,6 +140,8 @@ export type I18nMessages = {
     walletPaysGasEstimate: string;
     walletNoGas: string;
     vaultLiquidityInsufficient: string;
+    vaultLiquidityCheckUnavailable: string;
+    chainRpcUnavailable: string;
     vaultAddressMissing: string;
     walletClientUnavailable: string;
     connectWalletFirst: string;

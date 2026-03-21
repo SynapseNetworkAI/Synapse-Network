@@ -170,6 +170,8 @@ const en: I18nMessages = {
     walletPaysGasEstimate: " Estimated max network fee: {{estimate}}.",
     walletNoGas: "Wallet has no {{symbol}} to pay gas on {{chainLabel}}.",
     vaultLiquidityInsufficient: "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry.",
+    vaultLiquidityCheckUnavailable: "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.",
+    chainRpcUnavailable: "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.",
     vaultAddressMissing: "Vault contract address missing",
     walletClientUnavailable: "Network client unavailable. Reconnect wallet and retry the withdrawal.",
     connectWalletFirst: "Connect wallet before submitting this withdrawal.",

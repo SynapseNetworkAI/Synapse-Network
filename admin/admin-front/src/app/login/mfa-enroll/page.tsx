@@ -1,10 +1,13 @@
 "use client";
 
+import { Box, Button, Flex, Grid, Stack, Text } from "@chakra-ui/react";
 import Image from "next/image";
 import QRCode from "qrcode";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import { AuthCodeSlots } from "@/components/auth-code-slots";
+import { AuthProtocolShell } from "@/components/auth-protocol-shell";
 import { clearPendingMfaEnrollment, readPendingMfaEnrollment } from "@/lib/admin-mfa-enrollment";
 import {
   beginAdminMfaEnrollment,
@@ -20,15 +23,32 @@ function formatCountdown(msRemaining: number): string {
   return `${minutes}:${remainder}`;
 }
 
+function formatEnrollmentLoadError(error: unknown): string {
+  if (isAdminApiError(error)) {
+    return error.message;
+  }
+  if (error instanceof Error && error.message === "Failed to fetch") {
+    return "无法连接管理后台认证服务，请确认 admin-front 已通过同源代理或正确的 API 地址访问 gateway-admin。";
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return "无法初始化 MFA 绑定";
+}
+
 export default function MfaEnrollPage() {
   const router = useRouter();
   const [enrollment, setEnrollment] = useState(() => readPendingMfaEnrollment());
   const [beginState, setBeginState] = useState<MfaEnrollBeginResponse | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [now, setNow] = useState(() => Date.now());
+  const [copied, setCopied] = useState(false);
+  const enrollmentRequestTokenRef = useRef<string | null>(null);
+  const enrollmentRequestPromiseRef = useRef<Promise<MfaEnrollBeginResponse> | null>(null);
 
   const expiresAt = useMemo(() => {
     if (!enrollment) {
@@ -40,6 +60,8 @@ export default function MfaEnrollPage() {
   useEffect(() => {
     const enrollmentToken = enrollment?.enrollmentToken;
     if (!enrollmentToken) {
+      enrollmentRequestTokenRef.current = null;
+      enrollmentRequestPromiseRef.current = null;
       router.replace("/login");
       return;
     }
@@ -48,31 +70,46 @@ export default function MfaEnrollPage() {
     let active = true;
     async function loadEnrollment(): Promise<void> {
       try {
-        const result = await beginAdminMfaEnrollment(activeEnrollmentToken);
+        setQrCodeDataUrl(null);
+        if (enrollmentRequestTokenRef.current !== activeEnrollmentToken || enrollmentRequestPromiseRef.current === null) {
+          enrollmentRequestTokenRef.current = activeEnrollmentToken;
+          enrollmentRequestPromiseRef.current = beginAdminMfaEnrollment(activeEnrollmentToken);
+        }
+        const result = await enrollmentRequestPromiseRef.current;
         if (!active) {
           return;
         }
         setBeginState(result);
-        const dataUrl = await QRCode.toDataURL(result.otpauthUrl, {
-          width: 220,
-          margin: 1,
-          color: {
-            dark: "#e2f7ff",
-            light: "#0000",
-          },
-        });
-        if (active) {
-          setQrCodeDataUrl(dataUrl);
+
+        try {
+          const dataUrl = await QRCode.toDataURL(result.otpauthUrl, {
+            width: 280,
+            margin: 2,
+            color: {
+              dark: "#0f172a",
+              light: "#ffffff",
+            },
+          });
+          if (active) {
+            setQrCodeDataUrl(dataUrl);
+          }
+        } catch (qrCodeError) {
+          if (active) {
+            setQrError(qrCodeError instanceof Error ? qrCodeError.message : "二维码渲染失败，请改用手动密钥完成绑定");
+          }
         }
       } catch (beginError) {
         if (!active) {
           return;
         }
-        setError(beginError instanceof Error ? beginError.message : "无法初始化 MFA 绑定");
+        enrollmentRequestPromiseRef.current = null;
+        setBeginState(null);
+        setRequestError(formatEnrollmentLoadError(beginError));
       }
     }
 
-    setError(null);
+    setRequestError(null);
+    setQrError(null);
     loadEnrollment().catch(() => undefined);
 
     return () => {
@@ -87,7 +124,18 @@ export default function MfaEnrollPage() {
 
   function handleRestart(): void {
     clearPendingMfaEnrollment();
+    enrollmentRequestTokenRef.current = null;
+    enrollmentRequestPromiseRef.current = null;
     router.replace("/login");
+  }
+
+  async function handleCopyManualKey(): Promise<void> {
+    if (!beginState?.manualEntryKey || typeof navigator === "undefined" || !navigator.clipboard) {
+      return;
+    }
+    await navigator.clipboard.writeText(beginState.manualEntryKey);
+    setCopied(true);
+    globalThis.setTimeout(() => setCopied(false), 1600);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -96,7 +144,7 @@ export default function MfaEnrollPage() {
       return;
     }
 
-    setError(null);
+    setRequestError(null);
     startTransition(async () => {
       try {
         await verifyAdminMfaEnrollment({
@@ -111,7 +159,7 @@ export default function MfaEnrollPage() {
           clearPendingMfaEnrollment();
           setEnrollment(null);
         }
-        setError(submitError instanceof Error ? submitError.message : "MFA 绑定失败");
+        setRequestError(submitError instanceof Error ? submitError.message : "MFA 绑定失败");
       }
     });
   }
@@ -121,126 +169,95 @@ export default function MfaEnrollPage() {
   }
 
   const msRemaining = Math.max(0, expiresAt - now);
+  let qrCodePanel = (
+    <Flex align="center" justify="center" w="160px" h="160px" bg="rgba(255,255,255,0.06)">
+      <Text color="rgba(148, 163, 184, 0.92)" fontSize="sm">Generating secure payload...</Text>
+    </Flex>
+  );
+
+  if (qrError) {
+    qrCodePanel = (
+      <Flex align="center" justify="center" w="160px" h="160px" bg="rgba(15,23,42,0.9)" border="1px solid rgba(30,41,59,0.95)">
+        <Text color="#fecaca" fontSize="sm" textAlign="center">QR render unavailable. Use the manual key below.</Text>
+      </Flex>
+    );
+  }
+
+  if (qrCodeDataUrl) {
+    qrCodePanel = <Image src={qrCodeDataUrl} alt="Google Authenticator enrollment QR code" width={160} height={160} unoptimized />;
+  }
 
   return (
-    <main className="auth-screen">
-      <div className="auth-screen__grid" />
-      <div className="auth-screen__dots" />
-      <div className="auth-screen__scanline" />
-      <div className="auth-screen__orb auth-screen__orb--left">
-        <div className="auth-screen__orb-core" />
-      </div>
-      <div className="auth-screen__orb auth-screen__orb--right">
-        <div className="auth-screen__orb-core auth-screen__orb-core--reverse" />
-      </div>
+    <AuthProtocolShell
+      eyebrow="MFA Initialization"
+      title="Secure Sentinel Protocol"
+      versionLabel={`Challenge TTL ${formatCountdown(msRemaining)}`}
+      statusLabel="AUTH_STREAM :: SECURE_SOCKET_LAYER_V3"
+      railTitle="本次登录不会直接签发 session，必须先完成首个 OTP 验证。"
+      railDescription="MFA 绑定页参考 `stitch/mfa_setup_registration`，保持 QR、手动密钥、六位验证和安全初始化语气在同一条线上。"
+      railFacts={[
+        { label: "Pending Operator", value: enrollment.maskedEmail },
+        { label: "Issuer", value: enrollment.totpIssuer },
+        { label: "Status", value: msRemaining > 0 ? "Awaiting Verification" : "Challenge Expired" },
+      ]}
+      layout="centered"
+      panelMaxW={{ base: "100%", xl: "960px" }}
+      progressWidth={msRemaining > 0 ? "75%" : "22%"}
+      headerVariant="accent-bar"
+    >
+      <Stack gap="8">
+        <Grid templateColumns={{ base: "1fr", md: "220px 1fr" }} gap="8" alignItems="center">
+          <Box bg="#ffffff" p="3" borderRadius="8px" boxShadow="0 0 30px rgba(76,214,251,0.2)" w="fit-content">
+            {qrCodePanel}
+          </Box>
 
-      <header className="auth-header">
-        <div className="auth-header__brand">
-          <div className="auth-header__logo" aria-hidden="true">
-            <span className="auth-header__logo-dot" />
-          </div>
-          <span className="auth-header__title">Synapse Network</span>
-          <span className="auth-header__badge">MFA_Enrollment</span>
-        </div>
-        <div className="auth-header__status">
-          <span className="auth-header__node-dot" />
-          <span>CHALLENGE_TTL :: {formatCountdown(msRemaining)}</span>
-          <span className="auth-header__shield">OTP</span>
-        </div>
-      </header>
+          <Stack gap="4">
+            <Text color="rgba(148, 163, 184, 0.92)" fontSize="sm" lineHeight="1.8">
+              Scan this visual encryption key with your approved Authenticator application. The <Text as="span" color="#f8fafc" fontWeight="700">Sentinel Protocol</Text> requires a synchronized temporal token for workspace access.
+            </Text>
+            <Flex align="center" gap="2" color="rgba(34, 211, 238, 0.8)">
+              <Box w="2" h="2" borderRadius="full" bg="#22d3ee" boxShadow="0 0 12px rgba(34, 211, 238, 0.5)" />
+              <Text fontSize="10px" fontWeight="800" letterSpacing="0.22em" textTransform="uppercase">Encrypted Connection Established</Text>
+            </Flex>
+          </Stack>
+        </Grid>
 
-      <section className="auth-main">
-        <div className="auth-panel-corners" aria-hidden="true" />
-        <div className="auth-panel auth-panel--wide">
-          <div className="auth-panel__lead">
-            <div className="auth-panel__lead-bar" aria-hidden="true" />
-            <h1>Bind Google Authenticator</h1>
-            <p>Restricted Enrollment Channel</p>
-          </div>
+        <Stack gap="3">
+          <Text fontSize="10px" fontWeight="800" letterSpacing="0.22em" textTransform="uppercase" color="rgba(148, 163, 184, 0.78)">Manual Setup Key</Text>
+          <Flex align={{ base: "flex-start", md: "center" }} justify="space-between" gap="4" direction={{ base: "column", md: "row" }} bg="rgba(15,23,42,0.82)" border="1px solid rgba(30,41,59,0.95)" p="4" borderRadius="6px">
+            <Text fontFamily="mono" fontSize={{ base: "md", md: "lg" }} color="#67e8f9" letterSpacing="0.18em">{beginState?.manualEntryKey ?? "Loading..."}</Text>
+            <Button variant="ghost" h="10" minW="110px" borderRadius="6px" color={copied ? "#67e8f9" : "rgba(148, 163, 184, 0.92)"} border="1px solid rgba(30,41,59,0.95)" _hover={{ color: "#67e8f9", bg: "rgba(15,23,42,0.5)" }} onClick={() => void handleCopyManualKey()}>
+              {copied ? "Copied" : "Copy Key"}
+            </Button>
+          </Flex>
+        </Stack>
 
-          <div className="auth-enroll__summary">
-            <div>
-              <span className="auth-enroll__eyebrow">Pending Operator</span>
-              <strong>{enrollment.maskedEmail}</strong>
-            </div>
-            <div>
-              <span className="auth-enroll__eyebrow">Issuer</span>
-              <strong>{enrollment.totpIssuer}</strong>
-            </div>
-            <div>
-              <span className="auth-enroll__eyebrow">Status</span>
-              <strong>{msRemaining > 0 ? "Awaiting Verification" : "Challenge Expired"}</strong>
-            </div>
-          </div>
+        <form onSubmit={handleSubmit}>
+          <Stack gap="6">
+            <Stack gap="2">
+              <Text fontSize="10px" fontWeight="800" letterSpacing="0.22em" textTransform="uppercase" color="rgba(148, 163, 184, 0.78)">Initial Verification Code</Text>
+              <Text color="rgba(148, 163, 184, 0.92)">Account: {beginState?.accountName ?? enrollment.maskedEmail}</Text>
+            </Stack>
 
-          <div className="auth-enroll__grid">
-            <section className="auth-enroll__card auth-enroll__card--qr">
-              <span className="auth-enroll__eyebrow">Authenticator QR</span>
-              <div className="auth-enroll__qr-shell">
-                {qrCodeDataUrl ? (
-                  <Image
-                    src={qrCodeDataUrl}
-                    alt="Google Authenticator enrollment QR code"
-                    className="auth-enroll__qr-image"
-                    width={220}
-                    height={220}
-                    unoptimized
-                  />
-                ) : (
-                  <span className="auth-enroll__qr-loading">Generating secure payload...</span>
-                )}
-              </div>
-              <p className="auth-panel__meta">
-                Scan with Google Authenticator on a second device. If scanning is unavailable, use the manual entry key below.
-              </p>
-            </section>
+            <AuthCodeSlots value={otpCode} onChange={setOtpCode} isDisabled={isPending || msRemaining <= 0} />
 
-            <section className="auth-enroll__card">
-              <span className="auth-enroll__eyebrow">Manual Entry Key</span>
-              <code className="auth-enroll__secret">{beginState?.manualEntryKey ?? "Loading..."}</code>
-              <p className="auth-panel__meta">Account: {beginState?.accountName ?? enrollment.maskedEmail}</p>
+            <Box borderRadius="6px" p="4" bg="rgba(15,23,42,0.45)" border="1px solid rgba(30,41,59,0.95)">
+              <Text color="rgba(148, 163, 184, 0.92)">No admin session is issued until this code is verified successfully. Current TTL: {formatCountdown(msRemaining)}</Text>
+            </Box>
 
-              <form className="auth-form" onSubmit={handleSubmit}>
-                <label className="auth-field" htmlFor="mfa-enroll-otp">
-                  <span className="auth-field__label">First Verification Code</span>
-                  <div className="auth-token-row">
-                    <div className="auth-token-input-wrap">
-                      <span className="auth-token-icon" aria-hidden="true">OTP</span>
-                      <input
-                        id="mfa-enroll-otp"
-                        className="auth-field__input auth-field__input--token"
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        placeholder="000000"
-                        value={otpCode}
-                        onChange={(event) => setOtpCode(event.target.value.replaceAll(/\D/g, "").slice(0, 6))}
-                      />
-                    </div>
-                    <div className="auth-token-clock" aria-hidden="true">{formatCountdown(msRemaining)}</div>
-                  </div>
-                </label>
+            {requestError ? <Box borderRadius="14px" p="4" bg="rgba(127, 29, 29, 0.22)" border="1px solid rgba(248, 113, 113, 0.24)" color="#fecaca">{requestError}</Box> : null}
+            {qrError ? <Box borderRadius="14px" p="4" bg="rgba(120, 53, 15, 0.2)" border="1px solid rgba(251, 191, 36, 0.24)" color="#fde68a">{qrError}</Box> : null}
 
-                <p className="auth-panel__hint">
-                  No admin session is issued until this code is verified successfully.
-                </p>
+            <Button type="submit" h="16" w="full" borderRadius="6px" bg="linear-gradient(90deg, #0891b2 0%, #22d3ee 100%)" color="#082f49" fontWeight="900" fontFamily="heading" textTransform="uppercase" letterSpacing="0.16em" _hover={{ filter: "brightness(1.06)", boxShadow: "0 0 24px rgba(34, 211, 238, 0.34)" }} disabled={isPending || !beginState || msRemaining <= 0}>
+                {isPending ? "Verifying..." : "Execute Initialization"}
+              </Button>
 
-                {error ? <p className="form-message form-message--error">{error}</p> : null}
-
-                <div className="auth-enroll__actions">
-                  <button type="submit" className="auth-submit" disabled={isPending || !beginState || msRemaining <= 0}>
-                    <span>{isPending ? "Verifying..." : "Activate MFA"}</span>
-                    <span aria-hidden="true">&gt;_</span>
-                  </button>
-                  <button type="button" className="auth-secondary" onClick={handleRestart}>
-                    Restart Login
-                  </button>
-                </div>
-              </form>
-            </section>
-          </div>
-        </div>
-      </section>
-    </main>
+            <Box pt="1" textAlign="center">
+              <Button variant="ghost" h="12" borderRadius="6px" color="rgba(148, 163, 184, 0.92)" _hover={{ color: "#f8fafc", bg: "rgba(15,23,42,0.5)" }} onClick={handleRestart}>Abandon Protocol</Button>
+            </Box>
+          </Stack>
+        </form>
+      </Stack>
+    </AuthProtocolShell>
   );
 }

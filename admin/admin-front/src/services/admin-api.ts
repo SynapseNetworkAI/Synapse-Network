@@ -115,6 +115,30 @@ export type SystemStatus = {
   lastReconciliationAt: string | null;
 };
 
+export type DashboardDiagnosticSignal = {
+  signalId: string;
+  label: string;
+  status: string;
+  value: string;
+  detail: string;
+};
+
+export type DashboardDiagnosticAction = {
+  actionId: string;
+  label: string;
+  href: string;
+  detail: string;
+  status: string;
+};
+
+export type DashboardDiagnostics = {
+  overallStatus: string;
+  checkedAt: string;
+  summary: string;
+  signals: DashboardDiagnosticSignal[];
+  actions: DashboardDiagnosticAction[];
+};
+
 export type FinanceOverview = {
   todayChargeUsdc: string;
   todayDepositUsdc: string;
@@ -332,11 +356,15 @@ export type AdminMenuConfigItem = {
   sectionLabel: string;
   sectionDescription: string;
   label: string;
-  href: string;
+  href: string | null;
   description: string;
+  parentItemId: string | null;
+  nodeType: "category" | "page" | "panel";
+  iconKey: string;
   requiredRoles: string[];
   requiredPermissions: string[];
   sortOrder: number;
+  keywords: string[];
 };
 
 export type AdminMenuConfigMeta = {
@@ -354,8 +382,16 @@ export type AdminMenuConfigResponse = {
   meta: AdminMenuConfigMeta;
 };
 
-const ADMIN_API_BASE_URL =
-  process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8300";
+export function resolveAdminApiBaseUrl(baseUrl: string | undefined): string {
+  const normalized = baseUrl?.trim().replace(/\/$/, "");
+  return normalized && normalized.length > 0 ? normalized : "";
+}
+
+const ADMIN_API_BASE_URL = resolveAdminApiBaseUrl(process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL);
+
+function buildRequestUrl(path: string): string {
+  return ADMIN_API_BASE_URL ? `${ADMIN_API_BASE_URL}${path}` : path;
+}
 
 function buildPath(path: string, params?: Record<string, string | number | undefined>): string {
   if (!params) {
@@ -404,7 +440,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     headers.set("X-CSRF-Token", csrfToken);
   }
-  const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
+  const response = await fetch(buildRequestUrl(path), {
     ...init,
     headers,
     cache: "no-store",
@@ -491,6 +527,10 @@ export async function getActivityTrends(token: string): Promise<ActivityTrendSer
 
 export async function getOperationsOverview(token: string): Promise<OperationsOverview> {
   return request<OperationsOverview>("/api/admin/v1/dashboard/operations-overview");
+}
+
+export async function getDashboardDiagnostics(token: string): Promise<DashboardDiagnostics> {
+  return request<DashboardDiagnostics>("/api/admin/v1/dashboard/diagnostics");
 }
 
 export async function listApprovals(
@@ -681,11 +721,15 @@ export async function createAdminMenuItem(
     sectionLabel: string;
     sectionDescription: string;
     label: string;
-    href: string;
+    href: string | null;
     description: string;
+    parentItemId?: string | null;
+    nodeType?: "category" | "page" | "panel";
+    iconKey?: string;
     requiredRoles: string[];
     requiredPermissions: string[];
     sortOrder?: number;
+    keywords?: string[];
   },
 ): Promise<AdminMenuConfigResponse> {
   return request<AdminMenuConfigResponse>(
@@ -705,11 +749,15 @@ export async function updateAdminMenuItem(
     sectionLabel: string;
     sectionDescription: string;
     label: string;
-    href: string;
+    href: string | null;
     description: string;
+    parentItemId?: string | null;
+    nodeType?: "category" | "page" | "panel";
+    iconKey?: string;
     requiredRoles: string[];
     requiredPermissions: string[];
     sortOrder?: number;
+    keywords?: string[];
   },
 ): Promise<AdminMenuConfigResponse> {
   return request<AdminMenuConfigResponse>(
