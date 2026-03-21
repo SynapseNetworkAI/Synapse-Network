@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuthSource, MfaFactorStatus, MfaFactorType
+from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuthSource, MfaEnrollmentChallengeStatus, MfaFactorStatus, MfaFactorType
 
 
 @dataclass(slots=True, frozen=True)
@@ -51,3 +51,20 @@ class AdminSession:
     last_seen_at: datetime | None = None
     revoked_at: datetime | None = None
     created_at: datetime | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class AdminMfaEnrollmentChallenge:
+    challenge_id: str
+    admin_id: str
+    challenge_token_hash: str
+    status: MfaEnrollmentChallengeStatus = MfaEnrollmentChallengeStatus.ISSUED
+    factor_id: str | None = None
+    client_ip: str | None = None
+    user_agent: str | None = None
+    request_id: str | None = None
+    expires_at: datetime | None = None
+    issued_at: datetime | None = None
+    verified_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

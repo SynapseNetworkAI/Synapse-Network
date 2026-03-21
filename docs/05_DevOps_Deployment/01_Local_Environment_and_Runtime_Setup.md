@@ -147,6 +147,7 @@ npx hardhat run scripts/fund_eth.js --network localhost
 3. 需要给新加入的测试地址补原生币做联调
 4. Provider 在 Settlement 页面执行 Claim / Withdraw 时，钱包会自己支付链上 gas；没有原生币时，前端会在提现前直接拦截并提示先补 gas
 5. Provider Claim / Withdraw 现在会在“创建提现意图 / 锁定 Pending / Locked”之前先检查 vault 链上 USDC 流动性；如果金库余额不足，前后端都会直接拒绝，不会再先锁账再报错
+6. 如果提现意图已经进入 `Pending / Locked`，但链上 claim 一直没有成功，系统会在 ticket 过期后自动释放回 `Available`；当前默认配置下，用户侧看到的大致释放时间约为 6 分钟
 
 ### 3.3.2 scripts/fund_usdc.js 如何执行
 
@@ -392,9 +393,10 @@ Gateway 至少要显式配置：
 
 说明：
 
-1. `PROVIDER_WITHDRAW_DEADLINE_SEC` 控制 EIP-712 withdrawal ticket 的有效期。
+1. `PROVIDER_WITHDRAW_DEADLINE_SEC` 控制 EIP-712 withdrawal ticket 的有效期；当前默认值是 `300` 秒。
 2. `PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=true` 时，Gateway 会启动后台定时任务扫描过期 Provider ticket。
-3. `PROVIDER_WITHDRAW_EXPIRY_REAPER_INTERVAL_SEC` 控制定时扫描间隔；默认是短周期守护，而不是依赖用户刷新页面后才释放 locked 金额。
+3. `PROVIDER_WITHDRAW_EXPIRY_REAPER_INTERVAL_SEC` 控制定时扫描间隔；当前默认值是 `30` 秒，默认是短周期守护，而不是依赖用户刷新页面后才释放 locked 金额。
+4. 因此在默认配置下，Provider 侧看到的 `Pending / Locked` 自动释放时间通常约为 5 分钟票据有效期加上下一轮扫描延迟，也就是大约 6 分钟。
 
 ### 4.4 索引器与对账参数
 

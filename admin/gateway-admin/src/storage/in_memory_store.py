@@ -10,6 +10,7 @@ from src.domain import (
     AdminAuditExport,
     AdminExecutionAttempt,
     AdminExecutionJob,
+    AdminMfaEnrollmentChallenge,
     AdminMfaFactor,
     AdminMenuConfigItem,
     AdminMenuConfigSnapshot,
@@ -30,6 +31,7 @@ from src.domain.enums import (
     AuditResultStatus,
     ExecutionAttemptStatus,
     ExecutionJobStatus,
+    MfaEnrollmentChallengeStatus,
     MfaFactorStatus,
     MfaFactorType,
     PermissionRiskLevel,
@@ -71,9 +73,16 @@ class InMemoryAdminConfigRepository:
 
 
 class InMemoryAdminIdentityRepository:
-    def __init__(self, users: dict[str, AdminUser], factors: list[AdminMfaFactor], sessions: dict[str, AdminSession]) -> None:
+    def __init__(
+        self,
+        users: dict[str, AdminUser],
+        factors: list[AdminMfaFactor],
+        challenges: dict[str, AdminMfaEnrollmentChallenge],
+        sessions: dict[str, AdminSession],
+    ) -> None:
         self._users = users
         self._factors = factors
+        self._challenges = challenges
         self._sessions = sessions
 
     def get_user_by_id(self, admin_id: str) -> AdminUser | None:
@@ -114,6 +123,34 @@ class InMemoryAdminIdentityRepository:
 
     def list_mfa_factors(self, admin_id: str) -> list[AdminMfaFactor]:
         return [factor for factor in self._factors if factor.admin_id == admin_id]
+
+    def get_mfa_factor_by_id(self, factor_id: str) -> AdminMfaFactor | None:
+        for factor in self._factors:
+            if factor.factor_id == factor_id:
+                return factor
+        return None
+
+    def upsert_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
+        for index, current in enumerate(self._factors):
+            if current.factor_id == factor.factor_id:
+                self._factors[index] = factor
+                break
+        else:
+            self._factors.append(factor)
+        return factor
+
+    def list_mfa_enrollment_challenges(self, admin_id: str) -> list[AdminMfaEnrollmentChallenge]:
+        return [challenge for challenge in self._challenges.values() if challenge.admin_id == admin_id]
+
+    def get_mfa_enrollment_challenge_by_token_hash(self, token_hash: str) -> AdminMfaEnrollmentChallenge | None:
+        for challenge in self._challenges.values():
+            if challenge.challenge_token_hash == token_hash:
+                return challenge
+        return None
+
+    def upsert_mfa_enrollment_challenge(self, challenge: AdminMfaEnrollmentChallenge) -> AdminMfaEnrollmentChallenge:
+        self._challenges[challenge.challenge_id] = challenge
+        return challenge
 
     def get_session_by_id(self, session_id: str) -> AdminSession | None:
         return self._sessions.get(session_id)
@@ -467,6 +504,7 @@ class InMemoryAdminStore:
             )
             for user in users.values()
         ]
+        challenges: dict[str, AdminMfaEnrollmentChallenge] = {}
         role_bindings = [
             AdminUserRoleBinding("bind_super_admin", "adm_super_admin", "super_admin", status=RoleBindingStatus.ACTIVE),
             AdminUserRoleBinding("bind_platform_ops_admin", "adm_platform_ops_admin", "platform_ops_admin", status=RoleBindingStatus.ACTIVE),
@@ -643,7 +681,7 @@ class InMemoryAdminStore:
             ),
         ]
         return cls(
-            identity=InMemoryAdminIdentityRepository(users, factors, {}),
+            identity=InMemoryAdminIdentityRepository(users, factors, challenges, {}),
             authorization=InMemoryAdminAuthorizationRepository(roles, permissions, role_permissions, role_bindings),
             approval=InMemoryAdminApprovalRepository(approvals, steps, {}, jobs, attempts),
             audit=InMemoryAdminAuditRepository(actions, []),

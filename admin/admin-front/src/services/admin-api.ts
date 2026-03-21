@@ -11,7 +11,36 @@ export type ApiErrorEnvelope = {
     message: string;
   };
   requestId: string;
+  data?: unknown;
 };
+
+export class AdminApiError extends Error {
+  status: number;
+  code: string | null;
+  requestId: string | null;
+  data: unknown;
+
+  constructor(
+    message: string,
+    options: {
+      status: number;
+      code?: string | null;
+      requestId?: string | null;
+      data?: unknown;
+    },
+  ) {
+    super(message);
+    this.name = "AdminApiError";
+    this.status = options.status;
+    this.code = options.code ?? null;
+    this.requestId = options.requestId ?? null;
+    this.data = options.data;
+  }
+}
+
+export function isAdminApiError(error: unknown): error is AdminApiError {
+  return error instanceof AdminApiError;
+}
 
 export type AdminProfile = {
   adminId: string;
@@ -32,6 +61,22 @@ export type AdminAuthSecurityPolicy = {
   loginTotpRequired: boolean;
   highRiskTotpRequired: boolean;
   totpIssuer: string;
+};
+
+export type MfaEnrollmentRequiredData = {
+  enrollmentToken: string;
+  expiresIn: number;
+  maskedEmail: string;
+  totpIssuer: string;
+};
+
+export type MfaEnrollBeginResponse = {
+  factorId: string;
+  issuer: string;
+  accountName: string;
+  otpauthUrl: string;
+  manualEntryKey: string;
+  expiresIn: number;
 };
 
 let adminCsrfToken: string | null = null;
@@ -353,7 +398,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json()) as ApiEnvelope<T> | ApiErrorEnvelope;
   if (!response.ok || !body.success) {
     const message = "error" in body ? body.error.message : `Request failed: ${response.status}`;
-    throw new Error(message);
+    throw new AdminApiError(message, {
+      status: response.status,
+      code: "error" in body ? body.error.code : null,
+      requestId: body.requestId,
+      data: "data" in body ? body.data : undefined,
+    });
   }
   return body.data;
 }
@@ -364,6 +414,26 @@ export async function loginAdmin(input: {
   otpCode?: string;
 }): Promise<LoginResponse> {
   const session = await request<LoginResponse>("/api/admin/v1/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  setAdminCsrfToken(session.csrfToken);
+  return session;
+}
+
+export async function beginAdminMfaEnrollment(enrollmentToken: string): Promise<MfaEnrollBeginResponse> {
+  return request<MfaEnrollBeginResponse>("/api/admin/v1/auth/mfa/enroll/begin", {
+    method: "POST",
+    body: JSON.stringify({ enrollmentToken }),
+  });
+}
+
+export async function verifyAdminMfaEnrollment(input: {
+  enrollmentToken: string;
+  factorId: string;
+  otpCode: string;
+}): Promise<LoginResponse> {
+  const session = await request<LoginResponse>("/api/admin/v1/auth/mfa/enroll/verify", {
     method: "POST",
     body: JSON.stringify(input),
   });

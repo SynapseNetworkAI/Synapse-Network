@@ -1,3 +1,547 @@
+\if :{?synapse_admin_db}
+-- Synapse Gateway Admin PostgreSQL bootstrap schema
+-- First-phase control-plane database: identity, RBAC, approval workflow, execution, audit.
+
+CREATE TABLE IF NOT EXISTS admin_users (
+    admin_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    auth_source TEXT NOT NULL DEFAULT 'bootstrap',
+    sso_subject TEXT,
+    password_hash TEXT,
+    require_mfa BOOLEAN NOT NULL DEFAULT TRUE,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    disabled_at TIMESTAMPTZ,
+    CHECK (status IN ('active', 'disabled', 'locked', 'pending_invite')),
+    CHECK (auth_source IN ('bootstrap', 'sso', 'oidc'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_users_email_ci
+ON admin_users (lower(email));
+
+CREATE INDEX IF NOT EXISTS idx_admin_users_status_updated_at
+ON admin_users (status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_users_sso_subject
+ON admin_users (sso_subject);
+
+CREATE TABLE IF NOT EXISTS admin_mfa_factors (
+    factor_id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL REFERENCES admin_users(admin_id) ON DELETE RESTRICT,
+    factor_type TEXT NOT NULL,
+    factor_label TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    secret_ref TEXT,
+    payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    revoked_at TIMESTAMPTZ,
+    CHECK (factor_type IN ('totp', 'webauthn', 'backup_code')),
+    CHECK (status IN ('pending', 'active', 'revoked'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_mfa_factor_identity
+ON admin_mfa_factors (admin_id, factor_type, factor_label);
+
+CREATE INDEX IF NOT EXISTS idx_admin_mfa_factors_admin_status
+ON admin_mfa_factors (admin_id, status);
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+    session_id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL REFERENCES admin_users(admin_id) ON DELETE RESTRICT,
+    token_jti TEXT NOT NULL,
+    refresh_token_hash TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    mfa_verified_at TIMESTAMPTZ,
+    client_ip TEXT,
+    user_agent TEXT,
+    issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'revoked', 'expired', 'locked'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_sessions_token_jti
+ON admin_sessions (token_jti);
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin_status_expires
+ON admin_sessions (admin_id, status, expires_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at
+ON admin_sessions (expires_at);
+
+CREATE TABLE IF NOT EXISTS admin_mfa_enrollment_challenges (
+    challenge_id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL REFERENCES admin_users(admin_id) ON DELETE CASCADE,
+    challenge_token_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'issued',
+    factor_id TEXT REFERENCES admin_mfa_factors(factor_id) ON DELETE SET NULL,
+    client_ip TEXT,
+    user_agent TEXT,
+    request_id TEXT,
+    expires_at TIMESTAMPTZ NOT NULL,
+    issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('issued', 'verified', 'expired', 'cancelled'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_mfa_enrollment_challenges_token_hash
+ON admin_mfa_enrollment_challenges (challenge_token_hash);
+
+CREATE INDEX IF NOT EXISTS idx_admin_mfa_enrollment_challenges_admin_status
+ON admin_mfa_enrollment_challenges (admin_id, status, expires_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_roles (
+    role_key TEXT PRIMARY KEY,
+    role_name TEXT NOT NULL,
+    description TEXT,
+    is_system BOOLEAN NOT NULL DEFAULT TRUE,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'disabled'))
+);
+
+CREATE TABLE IF NOT EXISTS admin_permissions (
+    permission_key TEXT PRIMARY KEY,
+    resource_domain TEXT NOT NULL,
+    action TEXT NOT NULL,
+    risk_level TEXT NOT NULL DEFAULT 'low',
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (risk_level IN ('low', 'medium', 'high', 'critical'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_permissions_domain_action
+ON admin_permissions (resource_domain, action);
+
+CREATE TABLE IF NOT EXISTS admin_role_permissions (
+    role_key TEXT NOT NULL REFERENCES admin_roles(role_key) ON DELETE RESTRICT,
+    permission_key TEXT NOT NULL REFERENCES admin_permissions(permission_key) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by TEXT,
+    PRIMARY KEY (role_key, permission_key)
+);
+
+CREATE TABLE IF NOT EXISTS admin_user_role_bindings (
+    binding_id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL REFERENCES admin_users(admin_id) ON DELETE RESTRICT,
+    role_key TEXT NOT NULL REFERENCES admin_roles(role_key) ON DELETE RESTRICT,
+    scope_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'active',
+    granted_by TEXT,
+    grant_reason TEXT,
+    starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'expired', 'revoked'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_user_role_bindings_admin_status
+ON admin_user_role_bindings (admin_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_admin_user_role_bindings_role_status
+ON admin_user_role_bindings (role_key, status);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_user_role_bindings_active
+ON admin_user_role_bindings (admin_id, role_key)
+WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS admin_approvals (
+    approval_id TEXT PRIMARY KEY,
+    approval_type TEXT NOT NULL,
+    approval_level TEXT NOT NULL,
+    status TEXT NOT NULL,
+    requester_id TEXT NOT NULL REFERENCES admin_users(admin_id) ON DELETE RESTRICT,
+    current_approver_id TEXT REFERENCES admin_users(admin_id) ON DELETE RESTRICT,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    owner_address TEXT,
+    tx_hash TEXT,
+    event_key TEXT,
+    risk_level TEXT NOT NULL DEFAULT 'green',
+    amount_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL,
+    payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    request_id TEXT,
+    trace_id TEXT,
+    submitted_at TIMESTAMPTZ,
+    approved_at TIMESTAMPTZ,
+    rejected_at TIMESTAMPTZ,
+    executed_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (approval_level IN ('L1', 'L2', 'L3', 'L4')),
+    CHECK (status IN (
+        'DRAFT',
+        'SUBMITTED',
+        'UNDER_REVIEW',
+        'APPROVED_PENDING_EXECUTION',
+        'EXECUTING',
+        'EXECUTED',
+        'REJECTED',
+        'CANCELLED',
+        'FAILED',
+        'EXPIRED'
+    )),
+    CHECK (risk_level IN ('green', 'yellow', 'red')),
+    CHECK (amount_usdc >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approvals_status_created_at
+ON admin_approvals (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approvals_type_status_created_at
+ON admin_approvals (approval_type, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approvals_requester_created_at
+ON admin_approvals (requester_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approvals_current_approver
+ON admin_approvals (current_approver_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approvals_resource
+ON admin_approvals (resource_type, resource_id);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approvals_tx_hash
+ON admin_approvals (tx_hash);
+
+CREATE TABLE IF NOT EXISTS admin_approval_steps (
+    step_id TEXT PRIMARY KEY,
+    approval_id TEXT NOT NULL REFERENCES admin_approvals(approval_id) ON DELETE CASCADE,
+    step_no INTEGER NOT NULL,
+    required_role TEXT,
+    required_permission TEXT,
+    approver_id TEXT REFERENCES admin_users(admin_id) ON DELETE RESTRICT,
+    decision TEXT,
+    decision_comment TEXT,
+    assigned_at TIMESTAMPTZ,
+    decided_at TIMESTAMPTZ,
+    due_at TIMESTAMPTZ,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (step_no > 0),
+    CHECK (decision IS NULL OR decision IN ('APPROVE', 'REJECT', 'ESCALATE', 'SKIP'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_approval_steps_order
+ON admin_approval_steps (approval_id, step_no);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approval_steps_approver_due
+ON admin_approval_steps (approver_id, due_at);
+
+CREATE TABLE IF NOT EXISTS admin_approval_events (
+    event_id BIGSERIAL PRIMARY KEY,
+    approval_id TEXT NOT NULL REFERENCES admin_approvals(approval_id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    operator_id TEXT,
+    operator_role TEXT,
+    from_status TEXT,
+    to_status TEXT,
+    comment TEXT,
+    request_id TEXT,
+    trace_id TEXT,
+    detail_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approval_events_approval_created_at
+ON admin_approval_events (approval_id, created_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approval_events_event_type_created_at
+ON admin_approval_events (event_type, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_execution_jobs (
+    job_id TEXT PRIMARY KEY,
+    approval_id TEXT NOT NULL REFERENCES admin_approvals(approval_id) ON DELETE CASCADE,
+    execution_type TEXT NOT NULL,
+    target_system TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    idempotency_key TEXT NOT NULL,
+    handler_name TEXT,
+    request_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    result_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    error_code TEXT,
+    error_message TEXT,
+    queued_by TEXT,
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    max_retry_count INTEGER NOT NULL DEFAULT 3,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED')),
+    CHECK (retry_count >= 0),
+    CHECK (max_retry_count >= 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_execution_jobs_idempotency_key
+ON admin_execution_jobs (idempotency_key);
+
+CREATE INDEX IF NOT EXISTS idx_admin_execution_jobs_approval
+ON admin_execution_jobs (approval_id);
+
+CREATE INDEX IF NOT EXISTS idx_admin_execution_jobs_status_created_at
+ON admin_execution_jobs (status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_execution_attempts (
+    attempt_id BIGSERIAL PRIMARY KEY,
+    job_id TEXT NOT NULL REFERENCES admin_execution_jobs(job_id) ON DELETE CASCADE,
+    attempt_no INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    request_id TEXT,
+    trace_id TEXT,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ,
+    error_code TEXT,
+    error_summary TEXT,
+    response_digest TEXT,
+    CHECK (attempt_no > 0),
+    CHECK (status IN ('RUNNING', 'SUCCEEDED', 'FAILED'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_execution_attempts_job_attempt
+ON admin_execution_attempts (job_id, attempt_no);
+
+CREATE INDEX IF NOT EXISTS idx_admin_execution_attempts_job_started_at
+ON admin_execution_attempts (job_id, started_at ASC);
+
+CREATE TABLE IF NOT EXISTS admin_action_audit (
+    audit_id BIGSERIAL PRIMARY KEY,
+    action_type TEXT NOT NULL,
+    operator_id TEXT,
+    operator_email TEXT,
+    operator_role TEXT,
+    session_id TEXT,
+    approval_id TEXT,
+    job_id TEXT,
+    request_id TEXT,
+    trace_id TEXT,
+    resource_type TEXT,
+    resource_id TEXT,
+    result_status TEXT NOT NULL,
+    error_code TEXT,
+    client_ip TEXT,
+    user_agent TEXT,
+    before_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    after_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    detail_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (result_status IN ('success', 'failure', 'denied'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_action_audit_operator_created_at
+ON admin_action_audit (operator_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_action_audit_approval_created_at
+ON admin_action_audit (approval_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_action_audit_request_id
+ON admin_action_audit (request_id);
+
+CREATE INDEX IF NOT EXISTS idx_admin_action_audit_resource_created_at
+ON admin_action_audit (resource_type, resource_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_action_audit_action_created_at
+ON admin_action_audit (action_type, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_audit_exports (
+    export_id TEXT PRIMARY KEY,
+    operator_id TEXT,
+    export_scope TEXT NOT NULL,
+    filters_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    contains_sensitive_data BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'queued',
+    file_ref TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    CHECK (row_count >= 0),
+    CHECK (status IN ('queued', 'completed', 'failed', 'expired'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_exports_operator_created_at
+ON admin_audit_exports (operator_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_exports_status_created_at
+ON admin_audit_exports (status, created_at DESC);
+
+INSERT INTO admin_roles (role_key, role_name, description, is_system, status)
+VALUES
+    ('super_admin', 'Super Admin', 'Platform emergency super admin', TRUE, 'active'),
+    ('platform_ops_admin', 'Platform Ops Admin', 'Platform operations administrator', TRUE, 'active'),
+    ('finance_admin', 'Finance Admin', 'Finance operator who can submit finance approvals', TRUE, 'active'),
+    ('finance_reviewer', 'Finance Reviewer', 'Finance reviewer who can decide finance approvals', TRUE, 'active'),
+    ('risk_admin', 'Risk Admin', 'Risk operator who can submit risk approvals', TRUE, 'active'),
+    ('risk_reviewer', 'Risk Reviewer', 'Risk reviewer who can decide finance approvals', TRUE, 'active'),
+    ('compliance_auditor', 'Compliance Auditor', 'Read-only compliance and audit reviewer', TRUE, 'active'),
+    ('readonly_analyst', 'Readonly Analyst', 'Read-only metrics analyst', TRUE, 'active')
+ON CONFLICT (role_key) DO UPDATE
+SET role_name = EXCLUDED.role_name,
+    description = EXCLUDED.description,
+    is_system = EXCLUDED.is_system,
+    status = EXCLUDED.status,
+    updated_at = NOW();
+
+INSERT INTO admin_permissions (permission_key, resource_domain, action, risk_level, description)
+VALUES
+    ('dashboard:read', 'dashboard', 'read', 'low', 'Read admin dashboard overview and system status'),
+    ('approval:read', 'approval', 'read', 'medium', 'Read approval queue and approval details'),
+    ('approval:submit', 'approval', 'submit', 'high', 'Submit approval requests'),
+    ('approval:decide', 'approval', 'decide', 'critical', 'Approve or reject approval requests'),
+    ('audit:read', 'audit', 'read', 'high', 'Read admin audit records'),
+    ('execution:read', 'execution', 'read', 'medium', 'Read execution queue and execution attempt details'),
+    ('execution:retry', 'execution', 'retry', 'high', 'Retry failed execution jobs')
+ON CONFLICT (permission_key) DO UPDATE
+SET resource_domain = EXCLUDED.resource_domain,
+    action = EXCLUDED.action,
+    risk_level = EXCLUDED.risk_level,
+    description = EXCLUDED.description;
+
+INSERT INTO admin_role_permissions (role_key, permission_key, created_by)
+VALUES
+    ('super_admin', 'dashboard:read', 'system_seed'),
+    ('super_admin', 'approval:read', 'system_seed'),
+    ('super_admin', 'approval:submit', 'system_seed'),
+    ('super_admin', 'approval:decide', 'system_seed'),
+    ('super_admin', 'audit:read', 'system_seed'),
+    ('super_admin', 'execution:read', 'system_seed'),
+    ('super_admin', 'execution:retry', 'system_seed'),
+    ('platform_ops_admin', 'dashboard:read', 'system_seed'),
+    ('platform_ops_admin', 'approval:read', 'system_seed'),
+    ('platform_ops_admin', 'execution:read', 'system_seed'),
+    ('platform_ops_admin', 'execution:retry', 'system_seed'),
+    ('finance_admin', 'dashboard:read', 'system_seed'),
+    ('finance_admin', 'approval:read', 'system_seed'),
+    ('finance_admin', 'approval:submit', 'system_seed'),
+    ('finance_reviewer', 'dashboard:read', 'system_seed'),
+    ('finance_reviewer', 'approval:read', 'system_seed'),
+    ('finance_reviewer', 'approval:decide', 'system_seed'),
+    ('finance_reviewer', 'execution:read', 'system_seed'),
+    ('finance_reviewer', 'execution:retry', 'system_seed'),
+    ('risk_admin', 'dashboard:read', 'system_seed'),
+    ('risk_admin', 'approval:read', 'system_seed'),
+    ('risk_admin', 'approval:submit', 'system_seed'),
+    ('risk_reviewer', 'dashboard:read', 'system_seed'),
+    ('risk_reviewer', 'approval:read', 'system_seed'),
+    ('risk_reviewer', 'approval:decide', 'system_seed'),
+    ('risk_reviewer', 'execution:read', 'system_seed'),
+    ('risk_reviewer', 'execution:retry', 'system_seed'),
+    ('compliance_auditor', 'dashboard:read', 'system_seed'),
+    ('compliance_auditor', 'approval:read', 'system_seed'),
+    ('compliance_auditor', 'audit:read', 'system_seed'),
+    ('readonly_analyst', 'dashboard:read', 'system_seed')
+ON CONFLICT (role_key, permission_key) DO NOTHING;
+
+INSERT INTO admin_users (
+    admin_id,
+    email,
+    display_name,
+    status,
+    auth_source,
+    password_hash,
+    require_mfa,
+    created_at,
+    updated_at
+)
+VALUES
+    ('adm_super_admin', 'super@synapse.network', 'Super Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_platform_ops_admin', 'ops@synapse.network', 'Platform Ops Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_finance_admin', 'finance@synapse.network', 'Finance Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_finance_reviewer', 'finance-review@synapse.network', 'Finance Reviewer', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_risk_admin', 'risk@synapse.network', 'Risk Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_risk_reviewer', 'risk-review@synapse.network', 'Risk Reviewer', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_compliance_auditor', 'audit@synapse.network', 'Compliance Auditor', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_readonly_analyst', 'readonly@synapse.network', 'Readonly Analyst', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW())
+ON CONFLICT (admin_id) DO UPDATE
+SET email = EXCLUDED.email,
+    display_name = EXCLUDED.display_name,
+    status = EXCLUDED.status,
+    auth_source = EXCLUDED.auth_source,
+    require_mfa = EXCLUDED.require_mfa,
+    updated_at = NOW();
+
+INSERT INTO admin_mfa_factors (
+    factor_id,
+    admin_id,
+    factor_type,
+    factor_label,
+    status,
+    secret_ref,
+    payload_json,
+    created_at,
+    updated_at
+)
+VALUES
+    ('mfa_super_admin_totp', 'adm_super_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/super/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_platform_ops_admin_totp', 'adm_platform_ops_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/ops/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_finance_admin_totp', 'adm_finance_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/finance/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_finance_reviewer_totp', 'adm_finance_reviewer', 'totp', 'bootstrap_totp', 'active', 'kms://admin/finance-review/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_risk_admin_totp', 'adm_risk_admin', 'totp', 'bootstrap_totp', 'active', 'kms://admin/risk/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_risk_reviewer_totp', 'adm_risk_reviewer', 'totp', 'bootstrap_totp', 'active', 'kms://admin/risk-review/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_compliance_auditor_totp', 'adm_compliance_auditor', 'totp', 'bootstrap_totp', 'active', 'kms://admin/audit/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW()),
+    ('mfa_readonly_analyst_totp', 'adm_readonly_analyst', 'totp', 'bootstrap_totp', 'active', 'kms://admin/readonly/totp', '{"totpSecret": "JBSWY3DPEHPK3PXP"}'::jsonb, NOW(), NOW())
+ON CONFLICT (factor_id) DO UPDATE
+SET status = EXCLUDED.status,
+    secret_ref = EXCLUDED.secret_ref,
+    payload_json = EXCLUDED.payload_json,
+    updated_at = NOW();
+
+INSERT INTO admin_user_role_bindings (
+    binding_id,
+    admin_id,
+    role_key,
+    scope_json,
+    status,
+    granted_by,
+    grant_reason,
+    starts_at,
+    created_at,
+    updated_at
+)
+VALUES
+    ('bind_super_admin', 'adm_super_admin', 'super_admin', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW()),
+    ('bind_platform_ops_admin', 'adm_platform_ops_admin', 'platform_ops_admin', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW()),
+    ('bind_finance_admin', 'adm_finance_admin', 'finance_admin', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW()),
+    ('bind_finance_reviewer', 'adm_finance_reviewer', 'finance_reviewer', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW()),
+    ('bind_risk_admin', 'adm_risk_admin', 'risk_admin', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW()),
+    ('bind_risk_reviewer', 'adm_risk_reviewer', 'risk_reviewer', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW()),
+    ('bind_compliance_auditor', 'adm_compliance_auditor', 'compliance_auditor', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW()),
+    ('bind_readonly_analyst', 'adm_readonly_analyst', 'readonly_analyst', '{}'::jsonb, 'active', 'system_seed', 'bootstrap role assignment', NOW(), NOW(), NOW())
+ON CONFLICT (binding_id) DO UPDATE
+SET role_key = EXCLUDED.role_key,
+    scope_json = EXCLUDED.scope_json,
+    status = EXCLUDED.status,
+    granted_by = EXCLUDED.granted_by,
+    grant_reason = EXCLUDED.grant_reason,
+    starts_at = EXCLUDED.starts_at,
+    updated_at = NOW();
+
+CREATE TABLE IF NOT EXISTS admin_config_documents (
+    config_key TEXT PRIMARY KEY,
+    draft_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    published_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    draft_version INTEGER NOT NULL DEFAULT 1 CHECK (draft_version >= 1),
+    published_version INTEGER NOT NULL DEFAULT 1 CHECK (published_version >= 1),
+    updated_by TEXT REFERENCES admin_users(admin_id) ON DELETE SET NULL,
+    published_by TEXT REFERENCES admin_users(admin_id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    published_at TIMESTAMPTZ
+);
+\endif
+
+\if :{?synapse_gateway_db}
 CREATE OR REPLACE VIEW synapse_admin_dashboard_finance_projection AS
 WITH day_window AS (
     SELECT date_trunc('day', NOW()) AS day_start
@@ -256,3 +800,4 @@ COMMENT ON VIEW synapse_admin_dashboard_operations_projection IS
 
 COMMENT ON VIEW synapse_admin_dashboard_projection IS
 'Target-state compatibility aggregation view built from the finance and operations projections.';
+\endif

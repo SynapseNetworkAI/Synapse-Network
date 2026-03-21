@@ -8,8 +8,7 @@ gateway_ro_user="${SYNAPSE_GATEWAY_READONLY_USER:-synapse_gateway_ro}"
 admin_db="${SYNAPSE_ADMIN_DB:-synapse_gateway_admin}"
 admin_app_user="${SYNAPSE_ADMIN_APP_USER:-synapse_admin_app}"
 admin_ro_user="${SYNAPSE_ADMIN_READONLY_USER:-synapse_admin_ro}"
-admin_schema_file="/docker-entrypoint-initdb.d/synapse_gateway_admin.sql"
-admin_seed_file="/admin-migrations/002_admin_seed_data.sql"
+admin_schema_file="/docker-entrypoint-initdb.d/003_gateway_admin_projection_views.sql"
 
 run_psql() {
     PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" "$@"
@@ -69,13 +68,9 @@ SQL
 
 run_psql \
     --dbname "${admin_db}" \
+    --set=synapse_gateway_db="${gateway_db}" \
+    --set=synapse_admin_db="${admin_db}" \
     --file "${admin_schema_file}"
-
-if [[ -f "${admin_seed_file}" ]]; then
-    run_psql \
-        --dbname "${admin_db}" \
-        --file "${admin_seed_file}"
-fi
 
 run_psql \
     --dbname postgres \

@@ -1,7 +1,9 @@
 from collections.abc import Sequence
 
-from src.domain import AdminMfaFactor, AdminSession, AdminUser
-from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuthSource, MfaFactorStatus, MfaFactorType
+from psycopg.types.json import Jsonb
+
+from src.domain import AdminMfaEnrollmentChallenge, AdminMfaFactor, AdminSession, AdminUser
+from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuthSource, MfaEnrollmentChallengeStatus, MfaFactorStatus, MfaFactorType
 
 
 def _connect(dsn: str):
@@ -41,6 +43,24 @@ def _map_factor(row: dict) -> AdminMfaFactor:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         revoked_at=row["revoked_at"],
+    )
+
+
+def _map_enrollment_challenge(row: dict) -> AdminMfaEnrollmentChallenge:
+    return AdminMfaEnrollmentChallenge(
+        challenge_id=row["challenge_id"],
+        admin_id=row["admin_id"],
+        challenge_token_hash=row["challenge_token_hash"],
+        status=MfaEnrollmentChallengeStatus(row["status"]),
+        factor_id=row["factor_id"],
+        client_ip=row["client_ip"],
+        user_agent=row["user_agent"],
+        request_id=row["request_id"],
+        expires_at=row["expires_at"],
+        issued_at=row["issued_at"],
+        verified_at=row["verified_at"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
     )
 
 
@@ -166,6 +186,115 @@ class PostgresAdminIdentityRepository:
             )
             rows = cur.fetchall()
         return [_map_factor(row) for row in rows]
+
+    def get_mfa_factor_by_id(self, factor_id: str) -> AdminMfaFactor | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM admin_mfa_factors WHERE factor_id = %s", (factor_id,))
+            row = cur.fetchone()
+        return _map_factor(row) if row else None
+
+    def upsert_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO admin_mfa_factors (
+                    factor_id, admin_id, factor_type, factor_label, status,
+                    secret_ref, payload_json, last_verified_at, created_at, updated_at, revoked_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
+                ON CONFLICT (factor_id)
+                DO UPDATE SET admin_id = EXCLUDED.admin_id,
+                              factor_type = EXCLUDED.factor_type,
+                              factor_label = EXCLUDED.factor_label,
+                              status = EXCLUDED.status,
+                              secret_ref = EXCLUDED.secret_ref,
+                              payload_json = EXCLUDED.payload_json,
+                              last_verified_at = EXCLUDED.last_verified_at,
+                              updated_at = EXCLUDED.updated_at,
+                              revoked_at = EXCLUDED.revoked_at
+                RETURNING *
+                """,
+                (
+                    factor.factor_id,
+                    factor.admin_id,
+                    factor.factor_type.value,
+                    factor.factor_label,
+                    factor.status.value,
+                    factor.secret_ref,
+                    Jsonb(factor.payload),
+                    factor.last_verified_at,
+                    factor.created_at,
+                    factor.updated_at,
+                    factor.revoked_at,
+                ),
+            )
+            row = cur.fetchone()
+        return _map_factor(row)
+
+    def list_mfa_enrollment_challenges(self, admin_id: str) -> Sequence[AdminMfaEnrollmentChallenge]:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT * FROM admin_mfa_enrollment_challenges
+                WHERE admin_id = %s
+                ORDER BY created_at DESC
+                """,
+                (admin_id,),
+            )
+            rows = cur.fetchall()
+        return [_map_enrollment_challenge(row) for row in rows]
+
+    def get_mfa_enrollment_challenge_by_token_hash(self, token_hash: str) -> AdminMfaEnrollmentChallenge | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM admin_mfa_enrollment_challenges WHERE challenge_token_hash = %s",
+                (token_hash,),
+            )
+            row = cur.fetchone()
+        return _map_enrollment_challenge(row) if row else None
+
+    def upsert_mfa_enrollment_challenge(self, challenge: AdminMfaEnrollmentChallenge) -> AdminMfaEnrollmentChallenge:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO admin_mfa_enrollment_challenges (
+                    challenge_id, admin_id, challenge_token_hash, status, factor_id,
+                    client_ip, user_agent, request_id, expires_at, issued_at,
+                    verified_at, created_at, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()))
+                ON CONFLICT (challenge_id)
+                DO UPDATE SET admin_id = EXCLUDED.admin_id,
+                              challenge_token_hash = EXCLUDED.challenge_token_hash,
+                              status = EXCLUDED.status,
+                              factor_id = EXCLUDED.factor_id,
+                              client_ip = EXCLUDED.client_ip,
+                              user_agent = EXCLUDED.user_agent,
+                              request_id = EXCLUDED.request_id,
+                              expires_at = EXCLUDED.expires_at,
+                              issued_at = EXCLUDED.issued_at,
+                              verified_at = EXCLUDED.verified_at,
+                              updated_at = EXCLUDED.updated_at
+                RETURNING *
+                """,
+                (
+                    challenge.challenge_id,
+                    challenge.admin_id,
+                    challenge.challenge_token_hash,
+                    challenge.status.value,
+                    challenge.factor_id,
+                    challenge.client_ip,
+                    challenge.user_agent,
+                    challenge.request_id,
+                    challenge.expires_at,
+                    challenge.issued_at,
+                    challenge.verified_at,
+                    challenge.created_at,
+                    challenge.updated_at,
+                ),
+            )
+            row = cur.fetchone()
+        return _map_enrollment_challenge(row)
 
     def get_session_by_id(self, session_id: str) -> AdminSession | None:
         with _connect(self._dsn) as conn, conn.cursor() as cur:

@@ -45,13 +45,16 @@ def _register_exception_handlers(app: FastAPI) -> None:
 	@app.exception_handler(AppError)
 	async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
 		request_id = getattr(request.state, "request_id", "req_unknown")
+		content = {
+			"success": False,
+			"error": {"code": exc.code, "message": exc.message},
+			"requestId": request_id,
+		}
+		if exc.data is not None:
+			content["data"] = exc.data
 		return JSONResponse(
 			status_code=exc.status_code,
-			content={
-				"success": False,
-				"error": {"code": exc.code, "message": exc.message},
-				"requestId": request_id,
-			},
+			content=content,
 		)
 
 	@app.exception_handler(HTTPException)

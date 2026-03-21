@@ -191,7 +191,7 @@ const zh: I18nMessages = {
     invalidAmountPrecision: "提现金额最多支持 2 位小数。",
     invalidAmountValue: "请输入有效的提现金额。",
     amountExceedsAvailable: "提现金额超过当前可用应收（{{amount}} USDC）。",
-    withdrawAmountHint: "提现金额留空时默认提取全部可用应收。存在活动票据时，金额会先从 Available 转入 Pending / Locked，直到提现完成或释放。自定义金额最多支持 2 位小数。",
+    withdrawAmountHint: "提现金额留空时默认提取全部可用应收。存在活动票据时，金额会先从 Available 转入 Pending / Locked；如果链上提现没有成功，锁定金额会在默认约 6 分钟内自动释放回 Available。自定义金额最多支持 2 位小数。",
     loadingHistory: "正在加载提现历史...",
     expiredTicketReleasedRow: "过期票据已释放，对应金额已回到可用余额。",
     txSubmitted: "交易已提交：{{hash}}...",

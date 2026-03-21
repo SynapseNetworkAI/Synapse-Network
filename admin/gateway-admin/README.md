@@ -48,7 +48,7 @@
 7. `provider withdrawal review` 路由
 5. 基础 schema / service / adapter 分层
 6. 第一版 API contract 文档
-8. 第一版 PostgreSQL migration：`migrations/001_admin_control_plane_schema.sql`
+8. 第一版 PostgreSQL bootstrap SQL：`../../docker-compose/postgres/init/003_gateway_admin_projection_views.sql`
 9. 第一版 domain / storage skeleton：`src/domain/`、`src/storage/`
 
 当前已落地的后台用户能力：
@@ -75,7 +75,9 @@
 当前已落地的管理员认证增强：
 
 - `GET /api/admin/v1/auth/policy`: 返回当前环境的登录 TOTP / 高风险 TOTP 开关与 Google Authenticator issuer
-- `POST /api/admin/v1/auth/login`: 当 `ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED=true` 时，要求 `otpCode`
+- `POST /api/admin/v1/auth/login`: 已绑定 TOTP 的管理员在 `ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED=true` 时需要提交 `otpCode`；若账号要求 MFA 但尚未绑定，会返回 `428 MFA_ENROLLMENT_REQUIRED`
+- `POST /api/admin/v1/auth/mfa/enroll/begin`: 使用短时效 `enrollmentToken` 生成当前管理员的待绑定 TOTP secret / `otpauthUrl`
+- `POST /api/admin/v1/auth/mfa/enroll/verify`: 校验待绑定 TOTP，成功后激活因子并下发正式 session cookie
 - 高风险写请求在 `X-CSRF-Token` 之外，还要求 `X-Admin-OTP-Code`
 - 当前高风险 step-up 覆盖 approval decision、withdrawal review decision、execution retry、menu publish
 
@@ -121,6 +123,13 @@ sh scripts/ops/restart.sh local
 sh scripts/ops/status.sh
 ```
 
+说明：
+
+- `start-local.sh` / `start-prod.sh` 现在只负责拉起 `gateway-admin` 进程，不再在启动前自动补跑 admin bootstrap SQL。
+- 如果旧的 PostgreSQL volume 缺表，或你手工建库时漏跑了 admin bootstrap，请手动执行 `./.venv/bin/python scripts/apply_migrations.py`。
+- 如果 `ADMIN_DATABASE_DSN` 只有读写现有表权限、没有 schema `CREATE / ALTER` 权限，请额外配置 `ADMIN_DATABASE_MIGRATION_DSN` 给手工 migration 使用。
+- 如果你已经遇到 `psycopg.errors.UndefinedTable: relation "admin_execution_jobs" does not exist`，可以单独执行一次 `./.venv/bin/python scripts/apply_migrations.py` 补齐 schema，再重启服务。
+
 运维说明见 `docs/运维手册.md`。
 
 Bootstrap 管理员首次初始化密码：
@@ -162,18 +171,18 @@ EXECUTION_WORKER_BATCH_SIZE=10
 
 - `docker-compose` 现在会在首次初始化时自动创建 `synapse_gateway` 和 `synapse_gateway_admin` 两个数据库。
 - 如果本地 `postgres_data` volume 已经存在，需要先删除 volume 再重新初始化，新的建库脚本才会生效。
-- Admin schema 与 seed 会在容器首次初始化时自动导入，无需再手工在图形客户端里点 `Create Database`。
+- Admin schema 与 seed 会在容器首次初始化时自动导入；对于旧的 PostgreSQL volume 或漏跑初始化脚本的环境，需要手动执行 `./.venv/bin/python scripts/apply_migrations.py` 补齐 admin bootstrap 段。
 - Dashboard 的 gateway 指标通过 `synapse_gateway_ro` 查询 gateway 侧 3 个稳定只读投影视图：`synapse_admin_dashboard_finance_projection`、`synapse_admin_dashboard_activity_trend_projection`、`synapse_admin_dashboard_operations_projection`。
 - 兼容接口 `overview` / `system-status` 继续通过聚合视图 `synapse_admin_dashboard_projection` 暴露旧摘要字段。
 - Execution retry 现在不再只是把 job 重新入队，而是会使用内部管理员钱包 JWT 调用 gateway 管理命令，例如 `deposit_repair -> /api/v1/admin/deposits/replay`、`refund_approve -> /api/v1/admin/refunds/{refundId}/complete`、`withdrawal_approve -> /api/v1/admin/providers/withdrawals/{withdrawalId}/complete`，并把成功/失败结果回写到 execution job、attempt 和 approval 状态。
 - Provider 提现人工审核不走旧的 execution complete 路径，而是新增专用 review proxy：`gateway-admin -> /api/admin/v1/withdrawal-reviews/* -> gateway /api/v1/admin/providers/withdrawals/{withdrawalId}/review`。
 - admin -> gateway 内部命令现在使用独立 internal service token，claim 至少包含 `iss / aud / sub / adminWallet / scope / requestId / bodySha256 / actorAdminId / actorRole / jti`，不再复用普通 owner JWT 语义。
 - admin 登录态现在由 `gateway-admin` 下发 `HttpOnly` session cookie；`/api/admin/v1/auth/login` 不再把 access token 回传给浏览器。
-- cookie 会话模式下，`/api/admin/v1/auth/login` 与 `/api/admin/v1/auth/me` 还会返回会话绑定的 `csrfToken`；`admin-front` 只保存在内存里，并自动给 `POST / PATCH / DELETE` 请求附带 `X-CSRF-Token`。
-- 当 Google Authenticator 开关开启时，`/api/admin/v1/auth/login` 需要 6 位 TOTP；高风险动作还需要 `X-Admin-OTP-Code`。
+- cookie 会话模式下，`/api/admin/v1/auth/login`、`/api/admin/v1/auth/mfa/enroll/verify` 与 `/api/admin/v1/auth/me` 都会返回会话绑定的 `csrfToken`；`admin-front` 只保存在内存里，并自动给 `POST / PATCH / DELETE` 请求附带 `X-CSRF-Token`。
+- 当 Google Authenticator 开关开启时，已绑定账号登录需要 6 位 TOTP；未绑定但 `require_mfa=true` 的账号必须先走 `MFA_ENROLLMENT_REQUIRED -> /auth/mfa/enroll/begin -> /auth/mfa/enroll/verify` 受限流程，高风险动作仍要求 `X-Admin-OTP-Code`。
 - 默认 bootstrap / demo 管理员 TOTP secret 已写入 seed payload，值为 `JBSWY3DPEHPK3PXP`，仅供本地开发把账号先加入 Google Authenticator，生产必须改成独立发放与轮换机制。
 - gateway-admin 现在会在服务启动后自动拉起 execution worker，周期性扫描 `PENDING` execution jobs 并执行，不再依赖手动 retry 才能推进。
-- 新增菜单配置中心后，持久化数据库需要执行 `migrations/003_admin_config_center_schema.sql`，否则 `/api/admin/v1/config/menu-items` 无法在 PostgreSQL 模式下工作。
+- 新增菜单配置中心后，持久化数据库需要执行 `docker-compose/postgres/init/003_gateway_admin_projection_views.sql` 里的 admin config bootstrap 段，否则 `/api/admin/v1/config/menu-items` 无法在 PostgreSQL 模式下工作。
 
 第一期建议优先实现：
 

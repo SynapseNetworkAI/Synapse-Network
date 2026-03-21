@@ -3,6 +3,8 @@ from src.app import app
 from src.api import deps
 from src.core.totp import generate_totp_code
 from src.core.security import hash_password
+from src.domain import AdminUser
+from src.domain.enums import AdminUserStatus
 
 client = TestClient(app)
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
@@ -49,6 +51,40 @@ def _otp_code_for(email: str) -> str:
     return generate_totp_code(secret)
 
 
+def _ensure_unenrolled_admin(email: str = "unenrolled@synapse.network") -> None:
+    store = deps.get_store()
+    existing = store.identity.get_user_by_email(email)
+    if existing is None:
+        store.identity.create_user(
+            AdminUser(
+                admin_id="admin_unenrolled",
+                email=email,
+                display_name="Unenrolled Admin",
+                status=AdminUserStatus.ACTIVE,
+                password_hash=hash_password(PLACEHOLDER_PASSWORD),
+                require_mfa=True,
+            )
+        )
+        return
+    store.identity.update_user(
+        AdminUser(
+            admin_id=existing.admin_id,
+            email=existing.email,
+            display_name=existing.display_name,
+            status=AdminUserStatus.ACTIVE,
+            auth_source=existing.auth_source,
+            sso_subject=existing.sso_subject,
+            password_hash=existing.password_hash,
+            require_mfa=True,
+            last_login_at=existing.last_login_at,
+            created_at=existing.created_at,
+            updated_at=existing.updated_at,
+            disabled_at=None,
+        )
+    )
+    store.identity.update_password_hash(existing.admin_id, hash_password(PLACEHOLDER_PASSWORD))
+
+
 _seed_test_passwords()
 
 
@@ -76,6 +112,72 @@ def test_admin_auth_login() -> None:
     assert body["data"]["security"]["loginTotpRequired"] is True
     assert body["data"]["security"]["highRiskTotpRequired"] is True
     assert "synapse_admin_session=" in response.headers["set-cookie"]
+
+
+def test_admin_auth_login_requires_mfa_enrollment_for_unbound_account() -> None:
+    _ensure_unenrolled_admin()
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "unenrolled@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+        },
+    )
+
+    assert response.status_code == 428
+    body = response.json()
+    assert body["error"]["code"] == "MFA_ENROLLMENT_REQUIRED"
+    assert body["data"]["enrollmentToken"]
+    assert body["data"]["expiresIn"] == 600
+    assert body["data"]["totpIssuer"] == "Synapse Gateway Admin"
+
+
+def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
+    _ensure_unenrolled_admin()
+    client.cookies.clear()
+
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "unenrolled@synapse.network",
+            "password": PLACEHOLDER_PASSWORD,
+        },
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    begin_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+    )
+    assert begin_response.status_code == 200
+    begin_body = begin_response.json()["data"]
+    assert begin_body["factorId"]
+    assert begin_body["manualEntryKey"]
+    assert begin_body["otpauthUrl"].startswith("otpauth://totp/")
+
+    verify_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/verify",
+        json={
+            "enrollmentToken": enrollment_token,
+            "factorId": begin_body["factorId"],
+            "otpCode": generate_totp_code(begin_body["manualEntryKey"]),
+        },
+    )
+    assert verify_response.status_code == 200
+    verify_body = verify_response.json()["data"]
+    assert verify_body["admin"]["email"] == "unenrolled@synapse.network"
+    assert verify_body["csrfToken"]
+    assert "synapse_admin_session=" in verify_response.headers["set-cookie"]
+
+    store = deps.get_store()
+    user = store.identity.get_user_by_email("unenrolled@synapse.network")
+    assert user is not None
+    factors = store.identity.list_mfa_factors(user.admin_id)
+    active_factors = [factor for factor in factors if factor.status.value == "active"]
+    assert len(active_factors) == 1
 
 
 def test_admin_auth_policy_exposes_google_authenticator_switches() -> None:
@@ -134,6 +236,7 @@ def test_admin_auth_login_rejects_invalid_google_authenticator_code() -> None:
 
 def test_admin_users_catalog_and_create_user() -> None:
     csrf_headers = _login_as("super@synapse.network")
+    store = deps.get_store()
 
     roles_response = client.get("/api/admin/v1/users/roles")
     assert roles_response.status_code == 200
@@ -156,6 +259,9 @@ def test_admin_users_catalog_and_create_user() -> None:
     created_admin = create_response.json()["data"]["admin"]
     assert created_admin["email"] == "new-ops@synapse.network"
     assert created_admin["roleKeys"] == ["platform_ops_admin"]
+    bindings = store.authorization.list_role_bindings(created_admin["adminId"])
+    assert len(bindings) == 1
+    assert bindings[0].starts_at is not None
 
     list_response = client.get("/api/admin/v1/users")
     assert list_response.status_code == 200
