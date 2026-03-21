@@ -173,6 +173,8 @@ EXECUTION_WORKER_BATCH_SIZE=10
 - 如果本地 `postgres_data` volume 已经存在，需要先删除 volume 再重新初始化，新的建库脚本才会生效。
 - Admin schema 与 seed 会在容器首次初始化时自动导入；对于旧的 PostgreSQL volume 或漏跑初始化脚本的环境，需要手动执行 `./.venv/bin/python scripts/apply_migrations.py` 补齐 admin bootstrap 段。
 - Dashboard 的 gateway 指标通过 `synapse_gateway_ro` 查询 gateway 侧 3 个稳定只读投影视图：`synapse_admin_dashboard_finance_projection`、`synapse_admin_dashboard_activity_trend_projection`、`synapse_admin_dashboard_operations_projection`。
+- `003_gateway_admin_projection_views.sql` 现已把 target-state 的 `consumer_* / provider_*` canonical 列，与旧控制面读取所需的 `today_refund_usdc / today_withdrawal_usdc / owner_liability_usdc / refund_usdc / withdrawal_usdc / pending_withdrawal_count` 兼容别名一起暴露，避免旧 admin 版本因为视图字段升级而直接 500。
+- 视图字段与每个 CTE 的详细设计说明见 `../../docs/admin/Gateway_Admin_Projection_Views_SQL_Design.md`。
 - 兼容接口 `overview` / `system-status` 继续通过聚合视图 `synapse_admin_dashboard_projection` 暴露旧摘要字段。
 - Execution retry 现在不再只是把 job 重新入队，而是会使用内部管理员钱包 JWT 调用 gateway 管理命令，例如 `deposit_repair -> /api/v1/admin/deposits/replay`、`refund_approve -> /api/v1/admin/refunds/{refundId}/complete`、`withdrawal_approve -> /api/v1/admin/providers/withdrawals/{withdrawalId}/complete`，并把成功/失败结果回写到 execution job、attempt 和 approval 状态。
 - Provider 提现人工审核不走旧的 execution complete 路径，而是新增专用 review proxy：`gateway-admin -> /api/admin/v1/withdrawal-reviews/* -> gateway /api/v1/admin/providers/withdrawals/{withdrawalId}/review`。

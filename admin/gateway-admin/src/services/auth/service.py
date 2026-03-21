@@ -415,12 +415,10 @@ class AdminAuthService:
     ) -> AdminMfaFactor:
         factor = self._store.identity.get_mfa_factor_by_id(challenge.factor_id) if challenge.factor_id else None
         if factor is None:
-            for candidate in self._store.identity.list_mfa_factors(user.admin_id):
-                if candidate.factor_type == MfaFactorType.TOTP and candidate.status != MfaFactorStatus.ACTIVE:
-                    factor = candidate
-                    break
+            factor = self._find_reusable_enrollment_factor(user)
         factor_id = factor.factor_id if factor else uuid4().hex
         created_at = factor.created_at if factor else now
+        existing_secret = str(factor.payload.get("totpSecret") or "").strip() if factor else ""
         factor = self._store.identity.upsert_mfa_factor(
             AdminMfaFactor(
                 factor_id=factor_id,
@@ -429,7 +427,7 @@ class AdminAuthService:
                 factor_label=factor.factor_label if factor else "primary",
                 status=MfaFactorStatus.PENDING,
                 secret_ref=None,
-                payload={"totpSecret": generate_totp_secret()},
+                payload={"totpSecret": existing_secret or generate_totp_secret()},
                 last_verified_at=None,
                 created_at=created_at,
                 updated_at=now,
@@ -454,6 +452,19 @@ class AdminAuthService:
             )
         )
         return factor
+
+    def _find_reusable_enrollment_factor(self, user: AdminUser) -> AdminMfaFactor | None:
+        primary_candidate: AdminMfaFactor | None = None
+        for candidate in self._store.identity.list_mfa_factors(user.admin_id):
+            if candidate.factor_type != MfaFactorType.TOTP:
+                continue
+            if candidate.status != MfaFactorStatus.ACTIVE:
+                return candidate
+            if candidate.factor_label != "primary":
+                continue
+            if not str(candidate.payload.get("totpSecret") or "").strip():
+                primary_candidate = candidate
+        return primary_candidate
 
     def _hash_enrollment_token(self, token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()

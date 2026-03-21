@@ -383,7 +383,7 @@ VALUES
     ('finance_admin', 'Finance Admin', 'Finance operator who can submit finance approvals', TRUE, 'active'),
     ('finance_reviewer', 'Finance Reviewer', 'Finance reviewer who can decide finance approvals', TRUE, 'active'),
     ('risk_admin', 'Risk Admin', 'Risk operator who can submit risk approvals', TRUE, 'active'),
-    ('risk_reviewer', 'Risk Reviewer', 'Risk reviewer who can decide finance approvals', TRUE, 'active'),
+    ('risk_reviewer', 'Risk Reviewer', 'Risk reviewer who can decide risk approvals', TRUE, 'active'),
     ('compliance_auditor', 'Compliance Auditor', 'Read-only compliance and audit reviewer', TRUE, 'active'),
     ('readonly_analyst', 'Readonly Analyst', 'Read-only metrics analyst', TRUE, 'active')
 ON CONFLICT (role_key) DO UPDATE
@@ -630,7 +630,11 @@ SELECT
         COALESCE(provider_withdrawal_window.provider_withdrawals_updated_at, 'epoch'::timestamptz),
         COALESCE(charge_window.charge_updated_at, 'epoch'::timestamptz),
         COALESCE(reconciliation.reconciliation_updated_at, 'epoch'::timestamptz)
-    ) AS projected_at
+    ) AS projected_at,
+    consumer_refund_window.today_consumer_refund_usdc::numeric(36, 6) AS today_refund_usdc,
+    provider_withdrawal_window.today_provider_withdrawal_usdc::numeric(36, 6) AS today_withdrawal_usdc,
+    balance_snapshot.consumer_liability_usdc::numeric(36, 6) AS owner_liability_usdc,
+    provider_withdrawal_window.pending_provider_withdrawal_count AS pending_withdrawal_count
 FROM balance_snapshot
 CROSS JOIN deposit_window
 CROSS JOIN consumer_refund_window
@@ -690,7 +694,9 @@ SELECT
         COALESCE(deposit_daily.deposit_usdc, 0)
         - COALESCE(consumer_refund_daily.consumer_refund_usdc, 0)
         - COALESCE(provider_withdrawal_daily.provider_withdrawal_usdc, 0)
-    )::numeric(36, 6) AS net_flow_usdc
+    )::numeric(36, 6) AS net_flow_usdc,
+    COALESCE(consumer_refund_daily.consumer_refund_usdc, 0)::numeric(36, 6) AS refund_usdc,
+    COALESCE(provider_withdrawal_daily.provider_withdrawal_usdc, 0)::numeric(36, 6) AS withdrawal_usdc
 FROM day_series
 LEFT JOIN deposit_daily ON deposit_daily.bucket_date = day_series.bucket_date
 LEFT JOIN charge_daily ON charge_daily.bucket_date = day_series.bucket_date
@@ -790,14 +796,86 @@ FROM synapse_admin_dashboard_finance_projection AS finance
 CROSS JOIN synapse_admin_dashboard_operations_projection AS operations;
 
 COMMENT ON VIEW synapse_admin_dashboard_finance_projection IS
-'Stable admin finance snapshot derived from the target-state Owner / Agent / Provider runtime tables.';
+'Stable admin finance snapshot derived from the target-state Owner / Agent / Provider runtime tables. Canonical columns use consumer/provider naming, while legacy owner/refund/withdrawal aliases remain for backward-compatible admin readers.';
 
 COMMENT ON VIEW synapse_admin_dashboard_activity_trend_projection IS
-'Stable admin daily activity trend projection derived from the target-state Owner / Agent / Provider runtime tables.';
+'Stable admin daily activity trend projection derived from the target-state Owner / Agent / Provider runtime tables. Canonical columns use consumer/provider naming, while refund_usdc / withdrawal_usdc aliases remain for backward-compatible admin readers.';
 
 COMMENT ON VIEW synapse_admin_dashboard_operations_projection IS
 'Stable admin operations projection derived from runtime state and target-state audit events.';
 
 COMMENT ON VIEW synapse_admin_dashboard_projection IS
 'Target-state compatibility aggregation view built from the finance and operations projections.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_charge_usdc IS
+'Canonical: total invocation charges created today for SUCCEEDED / SETTLED invocations.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_deposit_usdc IS
+'Canonical: total confirmed-or-inflight non-failed consumer deposits created today.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_consumer_refund_usdc IS
+'Canonical: total consumer_refund withdrawals confirmed today.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_refund_usdc IS
+'Legacy alias of today_consumer_refund_usdc for older gateway-admin readers.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_provider_withdrawal_usdc IS
+'Canonical: total provider_withdrawal withdrawals confirmed today.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_withdrawal_usdc IS
+'Legacy alias of today_provider_withdrawal_usdc for older gateway-admin readers.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.consumer_liability_usdc IS
+'Canonical: current consumer wallet liability derived from consumer_wallet ledger accounts.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.owner_liability_usdc IS
+'Legacy alias of consumer_liability_usdc for older admin readers.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.provider_payable_usdc IS
+'Canonical: current provider wallet payable balance derived from provider_wallet ledger accounts.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.platform_fee_balance_usdc IS
+'Canonical: current platform revenue balance derived from platform_revenue ledger accounts.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.vault_ledger_delta_usdc IS
+'Canonical: latest reconciliation delta persisted in synapse_runtime_state.deposit_reconciliation_state.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.pending_deposit_count IS
+'Canonical: number of deposits still pending confirmation.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.pending_consumer_refund_count IS
+'Canonical: number of consumer_refund withdrawals still in requested/signed/broadcasted states.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.pending_provider_withdrawal_count IS
+'Canonical: number of provider_withdrawal withdrawals still in requested/signed/broadcasted states.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.pending_withdrawal_count IS
+'Legacy alias of pending_provider_withdrawal_count for older admin readers.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.projected_at IS
+'Canonical: freshness watermark across balances, deposits, withdrawals, charges and reconciliation state.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.bucket_date IS
+'Canonical: UTC day bucket used for the seven-day trend window.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.deposit_usdc IS
+'Canonical: successful deposit volume for the bucket day.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.charge_usdc IS
+'Canonical: succeeded/settled invocation charge volume for the bucket day.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.consumer_refund_usdc IS
+'Canonical: confirmed consumer_refund withdrawal volume for the bucket day.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.refund_usdc IS
+'Legacy alias of consumer_refund_usdc for older admin readers.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.provider_withdrawal_usdc IS
+'Canonical: confirmed provider_withdrawal volume for the bucket day.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.withdrawal_usdc IS
+'Legacy alias of provider_withdrawal_usdc for older admin readers.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.net_flow_usdc IS
+'Canonical: deposit_usdc - consumer_refund_usdc - provider_withdrawal_usdc for the bucket day.';
 \endif

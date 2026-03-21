@@ -1,10 +1,12 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
+
 from src.app import app
 from src.api import deps
 from src.core.totp import generate_totp_code
 from src.core.security import hash_password
-from src.domain import AdminUser
-from src.domain.enums import AdminUserStatus
+from src.domain import AdminMfaFactor, AdminUser
+from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
 
 client = TestClient(app)
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
@@ -178,6 +180,112 @@ def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
     factors = store.identity.list_mfa_factors(user.admin_id)
     active_factors = [factor for factor in factors if factor.status.value == "active"]
     assert len(active_factors) == 1
+
+
+def test_admin_auth_mfa_enrollment_begin_reuses_same_secret_for_same_token() -> None:
+    email = f"repeat-begin-{uuid4().hex[:8]}@synapse.network"
+    store = deps.get_store()
+    store.identity.create_user(
+        AdminUser(
+            admin_id=f"admin_{uuid4().hex[:12]}",
+            email=email,
+            display_name="Repeat Begin Admin",
+            status=AdminUserStatus.ACTIVE,
+            password_hash=hash_password(PLACEHOLDER_PASSWORD),
+            require_mfa=True,
+        )
+    )
+    client.cookies.clear()
+
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": email,
+            "password": PLACEHOLDER_PASSWORD,
+        },
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    first_begin = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+    )
+    second_begin = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+    )
+
+    assert first_begin.status_code == 200
+    assert second_begin.status_code == 200
+    first_body = first_begin.json()["data"]
+    second_body = second_begin.json()["data"]
+    assert second_body["factorId"] == first_body["factorId"]
+    assert second_body["manualEntryKey"] == first_body["manualEntryKey"]
+
+    verify_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/verify",
+        json={
+            "enrollmentToken": enrollment_token,
+            "factorId": first_body["factorId"],
+            "otpCode": generate_totp_code(first_body["manualEntryKey"]),
+        },
+    )
+    assert verify_response.status_code == 200
+
+
+def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity() -> None:
+    email = f"broken-factor-{uuid4().hex[:8]}@synapse.network"
+    store = deps.get_store()
+    user = store.identity.create_user(
+        AdminUser(
+            admin_id=f"admin_{uuid4().hex[:12]}",
+            email=email,
+            display_name="Broken Factor Admin",
+            status=AdminUserStatus.ACTIVE,
+            password_hash=hash_password(PLACEHOLDER_PASSWORD),
+            require_mfa=True,
+        )
+    )
+    existing_factor = store.identity.upsert_mfa_factor(
+        AdminMfaFactor(
+            factor_id="factor_existing_primary",
+            admin_id=user.admin_id,
+            factor_type=MfaFactorType.TOTP,
+            factor_label="primary",
+            status=MfaFactorStatus.ACTIVE,
+            payload={},
+        )
+    )
+
+    client.cookies.clear()
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": email,
+            "password": PLACEHOLDER_PASSWORD,
+        },
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    begin_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+    )
+
+    assert begin_response.status_code == 200
+    begin_body = begin_response.json()["data"]
+    assert begin_body["factorId"] == existing_factor.factor_id
+    factors = store.identity.list_mfa_factors(user.admin_id)
+    primary_factors = [
+        factor
+        for factor in factors
+        if factor.factor_type == MfaFactorType.TOTP and factor.factor_label == "primary"
+    ]
+    assert len(primary_factors) == 1
+    assert primary_factors[0].status == MfaFactorStatus.PENDING
+    assert primary_factors[0].payload["totpSecret"] == begin_body["manualEntryKey"]
 
 
 def test_admin_auth_policy_exposes_google_authenticator_switches() -> None:

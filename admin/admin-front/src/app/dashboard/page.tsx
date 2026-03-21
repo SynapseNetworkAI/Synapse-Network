@@ -70,8 +70,12 @@ export default function DashboardPage() {
     };
   }, [admin, token]);
 
-  if (loading || !admin || !overview || !financeOverview || !activityTrends || !operationsOverview) {
+  if (loading) {
     return <main className="state-screen">正在连接 gateway-admin 控制面...</main>;
+  }
+
+  if (!admin) {
+    return null;
   }
 
   return (
@@ -83,11 +87,11 @@ export default function DashboardPage() {
     >
       <AdminStatus admin={admin} status={systemStatus} />
       {error ? <section className="panel"><p className="form-message form-message--error">{error}</p></section> : null}
-      <SummaryCards metrics={overview.metrics} />
+      {overview ? <SummaryCards metrics={overview.metrics} /> : null}
       <div className="dashboard-stack">
-        <FinanceOverviewPanel overview={financeOverview} />
-        <ActivityTrendPanel trends={activityTrends} />
-        <OperationsOverviewPanel overview={operationsOverview} />
+        {financeOverview ? <FinanceOverviewPanel overview={financeOverview} /> : null}
+        {activityTrends ? <ActivityTrendPanel trends={activityTrends} /> : null}
+        {operationsOverview ? <OperationsOverviewPanel overview={operationsOverview} /> : null}
       </div>
     </AdminShell>
   );
