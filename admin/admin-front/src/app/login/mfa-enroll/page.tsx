@@ -38,15 +38,17 @@ export default function MfaEnrollPage() {
   }, [enrollment]);
 
   useEffect(() => {
-    if (!enrollment?.enrollmentToken) {
+    const enrollmentToken = enrollment?.enrollmentToken;
+    if (!enrollmentToken) {
       router.replace("/login");
       return;
     }
+    const activeEnrollmentToken = enrollmentToken;
 
     let active = true;
     async function loadEnrollment(): Promise<void> {
       try {
-        const result = await beginAdminMfaEnrollment(enrollment.enrollmentToken);
+        const result = await beginAdminMfaEnrollment(activeEnrollmentToken);
         if (!active) {
           return;
         }

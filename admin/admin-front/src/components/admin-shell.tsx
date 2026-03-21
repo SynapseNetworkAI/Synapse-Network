@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useAdminNavigation } from "@/lib/use-admin-navigation";
-import type { AdminNavSection } from "@/lib/navigation";
+import { getNavVisual, type AdminNavSection } from "@/lib/navigation";
 import type { AdminProfile } from "@/services/admin-api";
 
 type AdminShellProps = {
@@ -69,10 +69,13 @@ export function AdminShell({
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar__top">
-          <div>
-            <p className="sidebar__eyebrow">Synapse Admin</p>
-            <h1 className="sidebar__title">Control Plane</h1>
-            <p className="sidebar__text">把财务、风控、审批和审计集中到独立控制面，不直接混入交易网关。</p>
+          <div className="sidebar__brand-lockup">
+            <div className="sidebar__brand-mark">SN</div>
+            <div>
+              <p className="sidebar__eyebrow">Synapse Network</p>
+              <h1 className="sidebar__title">Sentinel Admin</h1>
+              <p className="sidebar__text">Authoritative control rail for approvals, funds, risk, and audit.</p>
+            </div>
           </div>
           <nav className="sidebar__tree" aria-label="Admin navigation tree">
             {navigation.map((section) => {
@@ -87,7 +90,7 @@ export function AdminShell({
                     aria-expanded={isOpen}
                     onClick={() => toggleSection(section.id)}
                   >
-                    <span>
+                    <span className="sidebar__group-copy">
                       <span className="sidebar__group-title">{section.label}</span>
                       <small className="sidebar__group-description">{section.description}</small>
                     </span>
@@ -97,15 +100,17 @@ export function AdminShell({
                     <div className="sidebar__nav">
                       {section.children.map((item) => {
                         const isActive = pathname === item.href;
+                        const visual = getNavVisual(item.id);
                         return (
                           <Link
                             key={item.href}
                             href={item.href}
                             className={`sidebar__link sidebar__child-link${isActive ? " sidebar__link--active" : ""}`}
                           >
-                            <span>
+                            <span className="sidebar__link-icon" aria-hidden="true">{visual.icon}</span>
+                            <span className="sidebar__link-copy">
                               <strong className="sidebar__link-title">{item.label}</strong>
-                              <small className="sidebar__link-description">{item.description}</small>
+                              <small className="sidebar__link-description">{visual.kicker}</small>
                             </span>
                             {item.badge ? <span className="sidebar__badge">{item.badge}</span> : null}
                           </Link>
@@ -127,6 +132,14 @@ export function AdminShell({
         </section>
       </aside>
       <main className="content">
+        <header className="content__topbar">
+          <div className="content__search">QUERY_SYSTEM...</div>
+          <div className="content__topbar-status">
+            <span className="status-dot" />
+            <span>NODE ACTIVE</span>
+            <span className="content__topbar-pill">SENTINEL</span>
+          </div>
+        </header>
         <header className="hero">
           <div>
             <p className="hero__eyebrow">{eyebrow}</p>
@@ -135,7 +148,7 @@ export function AdminShell({
           </div>
           <div className="hero__status">
             <span className="status-dot" />
-            <span>审计链路已启用</span>
+            <span>Audit rail armed</span>
           </div>
         </header>
         {children}

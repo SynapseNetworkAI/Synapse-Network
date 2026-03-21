@@ -669,6 +669,10 @@ export async function getAdminMenuConfig(
   return request<AdminMenuConfigResponse>(buildPath("/api/admin/v1/config/menu-items", params));
 }
 
+export async function getVisibleAdminMenuConfig(token: string): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>("/api/admin/v1/config/menu-items/visible");
+}
+
 export async function createAdminMenuItem(
   token: string,
   input: {

@@ -43,6 +43,18 @@
 - `POST /api/admin/v1/execution-jobs/{jobId}/retry`
 - `POST /api/admin/v1/config/menu-items/publish`
 
+### 2.4 菜单配置读取边界
+
+菜单配置分成“原始配置读取”和“当前会话可见菜单读取”两类：
+
+- `GET /api/admin/v1/config/menu-items?stage=draft|published`：返回原始配置快照，只允许控制面配置角色读取
+- `GET /api/admin/v1/config/menu-items/visible`：返回已按当前管理员角色与权限裁剪后的 published 菜单，供后台壳子渲染
+
+说明：
+
+- 浏览器侧不再本地执行菜单权限判断，避免把未授权菜单项元数据暴露给前端
+- `super_admin` 在 `visible` 视图里可见全部已发布菜单项
+
 ### 2.2 通用响应结构
 
 成功响应：

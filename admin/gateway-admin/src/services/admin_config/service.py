@@ -47,11 +47,14 @@ class AdminConfigService:
         normalized_stage = stage.strip().lower() if stage else "draft"
         if normalized_stage not in {"draft", "published"}:
             raise BadRequestError("Unsupported config stage")
-        if normalized_stage == "draft":
-            self._ensure_role(operator, DRAFT_READ_ROLES)
+        self._ensure_role(operator, DRAFT_READ_ROLES)
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         items = snapshot.draft_items if normalized_stage == "draft" else snapshot.published_items
         return self._serialize_snapshot(snapshot, items)
+
+    def list_visible_menu_items(self, operator: AdminIdentity) -> dict:
+        snapshot = self._get_or_create_snapshot(operator.admin_id)
+        return self._serialize_snapshot(snapshot, self._filter_visible_items(snapshot.published_items, operator))
 
     def create_menu_item(self, operator: AdminIdentity, payload: dict) -> dict:
         self._ensure_role(operator, WRITE_ROLES)
@@ -125,6 +128,20 @@ class AdminConfigService:
                 "publishedBy": snapshot.published_by,
             },
         }
+
+    @staticmethod
+    def _filter_visible_items(items: tuple[AdminMenuConfigItem, ...], operator: AdminIdentity) -> tuple[AdminMenuConfigItem, ...]:
+        if operator.role == "super_admin":
+            return items
+        permissions = set(operator.permissions)
+        visible_items: list[AdminMenuConfigItem] = []
+        for item in items:
+            if item.required_roles and operator.role not in item.required_roles:
+                continue
+            if item.required_permissions and not all(permission in permissions for permission in item.required_permissions):
+                continue
+            visible_items.append(item)
+        return tuple(visible_items)
 
     @staticmethod
     def _sort_items(items: tuple[AdminMenuConfigItem, ...] | list[AdminMenuConfigItem]) -> tuple[AdminMenuConfigItem, ...]:
