@@ -113,10 +113,10 @@ class ProviderWithdrawService(
             raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE")
 
         try:
-            contract = self._withdraw_contract()
+            _provider, contract = self._withdraw_contract()
             web3 = getattr(contract, "w3", None)
             if web3 is None:
-                raise RuntimeError("missing web3 provider")
+                raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE")
             token_contract = web3.eth.contract(
                 address=web3.to_checksum_address(token_address),
                 abi=[

@@ -144,7 +144,6 @@ docs/
 2. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
 3. [04_Database_Design/README.md](./04_Database_Design/README.md)
 4. [../docker-compose/postgres/init/001_synapse_schema.sql](../docker-compose/postgres/init/001_synapse_schema.sql)
-5. [../infra/docker/postgres/init/001_synapse_schema.sql](../infra/docker/postgres/init/001_synapse_schema.sql)
 
 ## 3. 官方六模块
 
@@ -210,7 +209,6 @@ docs/
 2. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
 3. [04_Database_Design/02_Core_Tables_and_Relationships.md](./04_Database_Design/02_Core_Tables_and_Relationships.md)
 4. [../docker-compose/postgres/init/001_synapse_schema.sql](../docker-compose/postgres/init/001_synapse_schema.sql)
-5. [../infra/docker/postgres/init/001_synapse_schema.sql](../infra/docker/postgres/init/001_synapse_schema.sql)
 
 ## 6. 目录职责
 

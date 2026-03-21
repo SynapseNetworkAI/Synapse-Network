@@ -13,3 +13,8 @@
 - [管理后台审批流设计](./Admin_Approval_Workflow.md)
 - [管理后台审计与合规设计](./Admin_Audit_and_Compliance.md)
 - [管理后台财务操作手册](./Admin_Finance_Operations_Runbook.md)
+
+当前实现约束补充：
+
+- `admin/gateway-admin/agents.md` 是 `gateway-admin` 子目录的 AI 执行硬规则，作用是让代码代理在该目录内默认遵守分层、权限、测试、文档同步和环境约束。
+- `GET /api/admin/v1/dashboard/diagnostics` 是 admin 控制面的统一诊断语义层，dashboard 与 `/system` 必须复用同一份诊断结论与建议动作，避免两套系统状态口径。

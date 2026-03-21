@@ -1,53 +1,18 @@
-:root {
-  --bg: #040404;
-  --bg-elevated: #090909;
-  --bg-panel: #101010;
-  --bg-panel-strong: #151515;
-  --bg-panel-soft: #0c0f0d;
-  --line: rgba(255, 255, 255, 0.09);
-  --line-strong: rgba(0, 255, 163, 0.28);
-  --text: #f4f7f5;
-  --text-muted: #8a938f;
-  --text-dim: #68716d;
-  --accent: #00ffa3;
-  --accent-soft: rgba(0, 255, 163, 0.12);
-  --accent-strong: #74ffd0;
-  --warn: #f5c06a;
-  --warn-soft: rgba(245, 192, 106, 0.12);
-  --danger: #ff8577;
-  --danger-soft: rgba(255, 133, 119, 0.12);
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body), sans-serif;
+  background: #f7f3eb;
+  color: #171311;
 }
 
 * {
   box-sizing: border-box;
-}
-
-html {
-  min-height: 100%;
-  background: var(--bg);
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  font-family: var(--font-body), sans-serif;
-  color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(0, 255, 163, 0.08), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(116, 255, 208, 0.05), transparent 28%),
-    linear-gradient(180deg, #050505 0%, #030303 100%);
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 90%);
 }
 
 a {
@@ -61,23 +26,6 @@ select,
 textarea {
   font: inherit;
 }
-
-.login-page,
-.shell {
-  min-height: 100vh;
-}
-
-.login-page {
-  display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
-  gap: 24px;
-  padding: 28px;
-}
-
-.login-hero,
-.login-card,
-.sidebar,
-.hero,
 .metric-card,
 .panel,
 .queue__item,

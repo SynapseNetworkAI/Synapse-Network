@@ -153,6 +153,8 @@ const zh: I18nMessages = {
     walletPaysGasEstimate: " 预估最大网络费：{{estimate}}。",
     walletNoGas: "当前钱包在 {{chainLabel}} 上没有可支付 gas 的 {{symbol}}。",
     vaultLiquidityInsufficient: "当前金库链上 USDC 流动性不足，暂时无法完成这笔提现。请等待平台金库补充后再重试。",
+    vaultLiquidityCheckUnavailable: "网关当前无法校验链上金库余额，请等待 RPC 恢复后再重试。",
+    chainRpcUnavailable: "网关当前无法连接链上 RPC，请等待 RPC 恢复后再重试。",
     vaultAddressMissing: "缺少金库合约地址",
     walletClientUnavailable: "当前网络客户端不可用。请重连钱包后再试。",
     connectWalletFirst: "请先连接钱包，再提交这笔提现。",

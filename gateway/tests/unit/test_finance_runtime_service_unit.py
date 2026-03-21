@@ -412,6 +412,95 @@ def test_provider_withdraw_blocks_when_vault_liquidity_is_insufficient_before_lo
     assert abs(wallet_after.frozen_balance - 0.0) < 1e-9
 
 
+def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 50.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+    service._assert_withdraw_vault_liquidity = ProviderWithdrawService._assert_withdraw_vault_liquidity.__get__(
+        service, ProviderWithdrawService
+    )
+
+    class _FakeBalanceOfCall:
+        def call(self) -> int:
+            return 50 * 10**18
+
+    class _FakeBalanceOfFunctions:
+        def __getattr__(self, name: str):
+            if name != "balanceOf":
+                raise AttributeError(name)
+            return lambda _account: _FakeBalanceOfCall()
+
+    class _FakeEth:
+        def contract(self, *, address: str, abi):
+            _ = (address, abi)
+            return SimpleNamespace(functions=_FakeBalanceOfFunctions())
+
+    fake_web3 = SimpleNamespace(
+        eth=_FakeEth(),
+        to_checksum_address=lambda value: value,
+    )
+    service._withdraw_contract = lambda: (fake_web3, SimpleNamespace(w3=fake_web3))
+
+    def _process_withdrawal_request_atomic(command):
+        assert command.pre_reserve_check is not None
+        command.pre_reserve_check(Decimal("8.5"))
+        return SimpleNamespace(
+            withdrawal_id="wd-1",
+            status="APPROVED_AUTO",
+            amount_usdc=8.5,
+            ticket={},
+            message="ok",
+            decision="green",
+            risk_reason_code=None,
+        )
+
+    storage.process_withdrawal_request_atomic = _process_withdrawal_request_atomic  # type: ignore[attr-defined]
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": 8.5},
+            "0xdef",
+            "withdraw-intent-key-atomic-liquidity-1",
+        )
+    )
+
+    assert created["status"] == "APPROVED_AUTO"
+    assert created["withdrawalId"] == "wd-1"
+
+
+def test_provider_withdraw_maps_missing_vault_web3_provider_to_service_unavailable() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 50.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+    service._assert_withdraw_vault_liquidity = ProviderWithdrawService._assert_withdraw_vault_liquidity.__get__(
+        service, ProviderWithdrawService
+    )
+    service._withdraw_contract = lambda: (SimpleNamespace(), SimpleNamespace(w3=None))
+
+    def _process_withdrawal_request_atomic(command):
+        assert command.pre_reserve_check is not None
+        command.pre_reserve_check(Decimal("8.5"))
+        raise AssertionError("pre_reserve_check should raise before atomic success")
+
+    storage.process_withdrawal_request_atomic = _process_withdrawal_request_atomic  # type: ignore[attr-defined]
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            service.create_provider_withdraw_intent(
+                {"amountUsdc": 8.5},
+                "0xdef",
+                "withdraw-intent-key-atomic-liquidity-2",
+            )
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["code"] == "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE"
+
+
 def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_pending() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")

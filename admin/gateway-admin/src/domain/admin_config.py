@@ -9,11 +9,15 @@ class AdminMenuConfigItem:
     section_label: str
     section_description: str
     label: str
-    href: str
+    href: str | None
     description: str
+    parent_item_id: str | None = None
+    node_type: str = "page"
+    icon_key: str = "SN"
     required_roles: tuple[str, ...] = field(default_factory=tuple)
     required_permissions: tuple[str, ...] = field(default_factory=tuple)
     sort_order: int = 0
+    keywords: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(slots=True, frozen=True)

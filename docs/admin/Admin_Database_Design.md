@@ -424,11 +424,63 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 - `INDEX (operator_id, created_at DESC)`
 - `INDEX (status, created_at DESC)`
 
+### 4.5 `admin_config_documents`
+
+用途：保存控制面的文档型配置快照。当前第一批只落 `admin_menu_config`，由 `draft` / `published` 两个版本组成。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `config_key` | `TEXT` PK | 配置类型，例如 `admin_menu_config` |
+| `draft_payload_json` | `JSONB` | 草稿配置快照 |
+| `published_payload_json` | `JSONB` | 已发布配置快照 |
+| `draft_version` | `INTEGER` | 草稿版本号 |
+| `published_version` | `INTEGER` | 已发布版本号 |
+| `updated_by` | `TEXT` FK | 最近编辑人 |
+| `published_by` | `TEXT` FK | 最近发布人 |
+| `created_at` | `TIMESTAMPTZ` | 创建时间 |
+| `updated_at` | `TIMESTAMPTZ` | 最近草稿更新时间 |
+| `published_at` | `TIMESTAMPTZ` | 最近发布时间 |
+
+`admin_menu_config` 的 payload 采用文档型树节点数组：
+
+```json
+{
+  "items": [
+    {
+      "itemId": "business-control",
+      "parentItemId": null,
+      "nodeType": "category",
+      "label": "业务控制",
+      "href": null,
+      "iconKey": "BC",
+      "requiredRoles": [],
+      "requiredPermissions": [],
+      "keywords": ["approvals", "finance", "risk"]
+    },
+    {
+      "itemId": "approvals",
+      "parentItemId": "business-control",
+      "nodeType": "page",
+      "label": "审批中心",
+      "href": "/approvals",
+      "requiredPermissions": ["approval:read"]
+    }
+  ]
+}
+```
+
+设计约束：
+
+- `page` 节点必须带 `href`，`category / panel` 必须允许 `href = null`。
+- `parentItemId` 形成树结构，删除父节点时必须级联删除子树，避免孤儿节点。
+- `iconKey`、`keywords` 属于 IA/搜索元数据，不应该再散落在前端硬编码常量里。
+- `draft_payload_json` 与 `published_payload_json` 必须是完整快照，而不是 patch 日志，这样前端壳子和审计回溯都更稳定。
+
 ## 5. 一期可以暂缓的表
 
 下面这些表不是一期必须，但二期很可能会补：
 
-- `admin_system_configs`：后台配置中心主表
+- `admin_system_configs`：其他后台配置中心主表
 - `admin_config_change_versions`：配置版本与回滚历史
 - `admin_alert_subscriptions`：后台告警订阅
 - `admin_dashboard_snapshots`：大盘缓存快照

@@ -7,7 +7,10 @@ from src.api.schemas.common import ApiResponse
 from src.api.schemas.dashboard import (
     ActivityTrendPoint,
     ActivityTrendSeries,
+    DashboardDiagnostics,
     DashboardOverview,
+    DiagnosticAction,
+    DiagnosticSignal,
     FinanceOverview,
     HighlightCard,
     OperationsOverview,
@@ -84,3 +87,23 @@ def get_operations_overview(
     _ = admin
     payload = dashboard_service.get_operations_overview()
     return ApiResponse(data=OperationsOverview(**payload), request_id=request_id)
+
+
+@router.get("/diagnostics", response_model=ApiResponse)
+def get_diagnostics(
+    admin: Annotated[AdminIdentity, Depends(require_permission("dashboard:read"))],
+    request_id: Annotated[str, Depends(get_request_id)],
+    dashboard_service: Annotated[DashboardService, Depends(get_dashboard_service)],
+):
+    _ = admin
+    payload = dashboard_service.get_diagnostics()
+    return ApiResponse(
+        data=DashboardDiagnostics(
+            overallStatus=payload["overallStatus"],
+            checkedAt=payload["checkedAt"],
+            summary=payload["summary"],
+            signals=[DiagnosticSignal(**item) for item in payload["signals"]],
+            actions=[DiagnosticAction(**item) for item in payload["actions"]],
+        ),
+        request_id=request_id,
+    )

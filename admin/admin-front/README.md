@@ -102,7 +102,12 @@
 - 审计页调用 `/api/admin/v1/audit/actions`
 - 执行队列页调用 `/api/admin/v1/execution-jobs`、`/api/admin/v1/execution-jobs/{jobId}/retry`
 
-本地开发默认请求 `http://localhost:8300`，可通过环境变量 `NEXT_PUBLIC_ADMIN_API_BASE_URL` 覆盖。
+本地开发默认通过 Next.js 同源代理访问 `/api/admin/*`，再由 `admin-front` 转发到 `http://localhost:8300`。
+
+- 如需修改代理目标地址，可在启动 `admin-front` 前设置 `ADMIN_API_PROXY_TARGET`
+- 如需让浏览器直接请求外部管理 API，可显式设置 `NEXT_PUBLIC_ADMIN_API_BASE_URL`
+
+这样做的目的是消除浏览器侧的跨域、`localhost / 127.0.0.1 / LAN IP` 差异，避免登录与 MFA enrollment 在不同本地访问方式下出现 `Failed to fetch`
 
 安全备注：
 

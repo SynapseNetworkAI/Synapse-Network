@@ -4,18 +4,18 @@ import { useEffect, useState } from "react";
 
 import {
   buildAdminNavigation,
-  type AdminNavSection,
+  type NavItem,
 } from "@/lib/navigation";
 import { getVisibleAdminMenuConfig, type AdminProfile } from "@/services/admin-api";
 
 
 type UseAdminNavigationResult = {
-  navigation: AdminNavSection[];
+  navigation: NavItem[];
 };
 
 
 export function useAdminNavigation(admin: AdminProfile): UseAdminNavigationResult {
-  const [navigation, setNavigation] = useState<AdminNavSection[]>([]);
+  const [navigation, setNavigation] = useState<NavItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;

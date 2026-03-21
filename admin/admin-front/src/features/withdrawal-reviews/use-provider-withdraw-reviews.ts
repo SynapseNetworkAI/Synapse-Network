@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import {
   decideProviderWithdrawReview,
@@ -22,12 +22,6 @@ type UseProviderWithdrawReviewsResult = {
   message: string | null;
   error: string | null;
   isPending: boolean;
-  metrics: {
-    pendingCount: number;
-    totalAmount: string;
-    redCount: number;
-    yellowCount: number;
-  };
   setActiveReviewId: (withdrawalId: string | null) => void;
   setDecisionNote: (value: string) => void;
   setMessage: (value: string | null) => void;
@@ -52,6 +46,7 @@ export function useProviderWithdrawReviews(
     if (!token) {
       setItems([]);
       setActiveReviewId(null);
+      setError(null);
       return;
     }
     const reviewQueue = await listProviderWithdrawReviews(token, { limit: 20 });
@@ -66,6 +61,9 @@ export function useProviderWithdrawReviews(
 
   useEffect(() => {
     if (!token) {
+      setItems([]);
+      setActiveReviewId(null);
+      setError(null);
       return;
     }
     const activeToken = token;
@@ -79,6 +77,7 @@ export function useProviderWithdrawReviews(
         }
         setItems(reviewQueue.items);
         setActiveReviewId(reviewQueue.items[0]?.withdrawalId ?? null);
+        setError(null);
       } catch (loadError) {
         if (cancelled) {
           return;
@@ -92,16 +91,6 @@ export function useProviderWithdrawReviews(
       cancelled = true;
     };
   }, [token]);
-
-  const metrics = useMemo(() => {
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.amountUsdc || 0), 0);
-    return {
-      pendingCount: items.length,
-      totalAmount: totalAmount.toFixed(2),
-      redCount: items.filter((item) => item.riskLevel === "red").length,
-      yellowCount: items.filter((item) => item.riskLevel === "yellow").length,
-    };
-  }, [items]);
 
   function handleDecision(decision: "APPROVE" | "REJECT") {
     if (!token || !activeReviewId) {
@@ -141,7 +130,6 @@ export function useProviderWithdrawReviews(
     message,
     error,
     isPending,
-    metrics,
     setActiveReviewId,
     setDecisionNote,
     setMessage,

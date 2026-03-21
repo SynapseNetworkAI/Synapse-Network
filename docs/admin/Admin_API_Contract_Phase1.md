@@ -54,6 +54,10 @@
 
 - 浏览器侧不再本地执行菜单权限判断，避免把未授权菜单项元数据暴露给前端
 - `super_admin` 在 `visible` 视图里可见全部已发布菜单项
+- 菜单项返回结构已经升级为树元数据平面表，前端按 `parentItemId` 组装递归导航
+- `nodeType` 只允许 `category / page / panel`
+- `page` 节点必须带 `href`，`category / panel` 允许 `href = null`
+- `visible` 接口会自动补回仍然需要显示的祖先 `category` 与父 `page`，这样前端无需猜测展开路径
 
 ### 2.2 通用响应结构
 
@@ -374,6 +378,59 @@ X-CSRF-Token: <csrfToken>
 }
 ```
 
+### `GET /api/admin/v1/dashboard/diagnostics`
+
+用途：读取首页“Run controlled next steps”区域的真实诊断快照和建议动作，避免前端写死系统诊断卡片。
+
+作用：
+
+- 作为 admin 控制面的统一诊断语义层
+- 给 dashboard 和 `/system` 提供同一份 `overallStatus`、`summary`、`signals`、`actions`
+- 保证不同页面看到的是同一次受控聚合结论，而不是各自拼接后的“页面私有真相"
+
+数据来源约束：
+
+- `signals` 必须由 `gateway-admin` 受控聚合现有 dashboard projection、审批队列、执行任务和审计告警得到
+- 不允许前端基于多个接口自行推导“诊断结论”后再伪装成后端事实
+- `actions` 是后端下发的建议动作入口，前端只负责渲染和跳转，不自行发明 control-plane 语义
+
+消费约束：
+
+- dashboard 与 `/system` 必须复用该接口，不允许分别维护两套系统诊断口径
+- 若某页面还需要展示更细 runtime 明细，可额外读取 `system-status` 或 `operations-overview`，但不得改写 `diagnostics` 的状态结论
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "overallStatus": "degraded",
+    "checkedAt": "2026-03-21T10:00:00Z",
+    "summary": "reconciliation delta 0.50 USDC, 1 failed execution job, 2 deposit exceptions",
+    "signals": [
+      {
+        "signalId": "reconciliation",
+        "label": "Reconciliation drift",
+        "status": "degraded",
+        "value": "0.50 USDC",
+        "detail": "vault_delta_detected"
+      }
+    ],
+    "actions": [
+      {
+        "actionId": "system-center",
+        "label": "Open system center",
+        "href": "/system",
+        "detail": "inspect gateway, indexer, backfill, and reconciliation runtime state",
+        "status": "degraded"
+      }
+    ]
+  },
+  "requestId": "req_demo"
+}
+```
+
 ## 3.3 approval
 
 ### `GET /api/admin/v1/approvals`
@@ -496,6 +553,97 @@ X-CSRF-Token: <csrfToken>
 - 实际资金执行接口
 - 审计检索全文查询
 - 报表导出
+
+## 5. menu_config
+
+### `GET /api/admin/v1/config/menu-items/visible`
+
+用途：返回当前会话真正可见的 published 菜单树元数据。
+
+响应片段：
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "itemId": "control-overview",
+        "sectionId": "control-overview",
+        "sectionLabel": "控制总览",
+        "sectionDescription": "总览、执行态与系统健康。",
+        "label": "控制总览",
+        "href": null,
+        "description": "控制台、执行队列和系统运行态的导航根节点。",
+        "parentItemId": null,
+        "nodeType": "category",
+        "iconKey": "CT",
+        "requiredRoles": [],
+        "requiredPermissions": [],
+        "sortOrder": 10,
+        "keywords": ["overview", "dashboard", "runtime"]
+      },
+      {
+        "itemId": "dashboard",
+        "parentItemId": "control-overview",
+        "nodeType": "page",
+        "href": "/dashboard",
+        "iconKey": "OV",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "dashboard-runtime",
+        "parentItemId": "dashboard",
+        "nodeType": "panel",
+        "href": null,
+        "iconKey": "02"
+      }
+    ],
+    "meta": {
+      "draftVersion": 3,
+      "publishedVersion": 2,
+      "isDirty": true,
+      "updatedAt": "2026-03-21T12:00:00Z",
+      "publishedAt": "2026-03-20T12:00:00Z",
+      "updatedBy": "adm_super_admin",
+      "publishedBy": "adm_super_admin"
+    }
+  },
+  "requestId": "req_demo"
+}
+```
+
+### `POST /api/admin/v1/config/menu-items`
+
+用途：在 draft 版本里创建一个菜单树节点。
+
+请求片段：
+
+```json
+{
+  "itemId": "ops-copilot",
+  "sectionId": "ops-controls",
+  "sectionLabel": "业务控制",
+  "sectionDescription": "审批、资金、风控和系统运维的受控操作入口。",
+  "label": "运行副驾",
+  "href": "/ops-copilot",
+  "description": "值班辅助和运行手册入口。",
+  "parentItemId": "business-control",
+  "nodeType": "page",
+  "iconKey": "OC",
+  "requiredRoles": ["super_admin"],
+  "requiredPermissions": ["dashboard:read"],
+  "sortOrder": 265,
+  "keywords": ["copilot", "runbook"]
+}
+```
+
+约束：
+
+- `parentItemId` 必须指向 draft 里的现存节点
+- 不允许自引用或形成树环
+- `href` 只对 `page` 做唯一性约束
+- 删除父节点时服务端必须级联删除整个子树
 
 ## 6. 落地建议
 

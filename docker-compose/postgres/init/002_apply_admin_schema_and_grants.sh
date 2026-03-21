@@ -1,21 +1,66 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-gateway_db="${SYNAPSE_GATEWAY_DB:-${POSTGRES_DB:-synapse_gateway}}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+container_name="${SYNAPSE_POSTGRES_CONTAINER:-synapse-postgres}"
+container_schema_file="/docker-entrypoint-initdb.d/003_gateway_admin_projection_views.sql"
+host_schema_file="${script_dir}/003_gateway_admin_projection_views.sql"
+
+postgres_db="${POSTGRES_DB:-synapse_gateway}"
+postgres_user="${POSTGRES_USER:-synapse}"
+postgres_password="${POSTGRES_PASSWORD:-12345678}"
+
+gateway_db="${SYNAPSE_GATEWAY_DB:-${postgres_db}}"
 gateway_app_user="${SYNAPSE_GATEWAY_APP_USER:-synapse_gateway_app}"
 gateway_ro_user="${SYNAPSE_GATEWAY_READONLY_USER:-synapse_gateway_ro}"
 
 admin_db="${SYNAPSE_ADMIN_DB:-synapse_gateway_admin}"
 admin_app_user="${SYNAPSE_ADMIN_APP_USER:-synapse_admin_app}"
 admin_ro_user="${SYNAPSE_ADMIN_READONLY_USER:-synapse_admin_ro}"
-admin_schema_file="/docker-entrypoint-initdb.d/003_gateway_admin_projection_views.sql"
+admin_schema_file="${container_schema_file}"
 
-run_psql() {
-    PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" "$@"
+run_psql_local() {
+    PGPASSWORD="${postgres_password}" psql -v ON_ERROR_STOP=1 --username "${postgres_user}" "$@"
 }
 
-if [[ ! -f "${admin_schema_file}" ]]; then
-    echo "missing admin schema bootstrap: ${admin_schema_file}" >&2
+run_psql_docker() {
+    docker exec -i -e PGPASSWORD="${postgres_password}" "${container_name}" \
+        psql -v ON_ERROR_STOP=1 --username "${postgres_user}" "$@"
+}
+
+run_psql() {
+    if [[ -f "${container_schema_file}" ]]; then
+        run_psql_local "$@"
+        return
+    fi
+
+    run_psql_docker "$@"
+}
+
+run_psql_file() {
+    local db_name="$1"
+    shift
+
+    if [[ -f "${container_schema_file}" ]]; then
+        run_psql_local --dbname "${db_name}" "$@" --file "${admin_schema_file}"
+        return
+    fi
+
+    if [[ ! -f "${host_schema_file}" ]]; then
+        echo "missing admin schema bootstrap: ${host_schema_file}" >&2
+        exit 1
+    fi
+
+    run_psql_docker --dbname "${db_name}" "$@" --file "${container_schema_file}"
+}
+
+if [[ ! -f "${container_schema_file}" && ! -f "${host_schema_file}" ]]; then
+    echo "missing admin schema bootstrap: ${host_schema_file}" >&2
+    exit 1
+fi
+
+if [[ ! -f "${container_schema_file}" ]] && ! docker ps --format '{{.Names}}' | grep -Fxq "${container_name}"; then
+    echo "postgres container is not running: ${container_name}" >&2
     exit 1
 fi
 
@@ -66,11 +111,13 @@ GRANT SELECT ON SEQUENCES TO :"ro_user";
 SQL
 }
 
-run_psql \
-    --dbname "${admin_db}" \
-    --set=synapse_gateway_db="${gateway_db}" \
-    --set=synapse_admin_db="${admin_db}" \
-    --file "${admin_schema_file}"
+run_psql_file \
+    "${admin_db}" \
+    --set=synapse_admin_db="${admin_db}"
+
+run_psql_file \
+    "${gateway_db}" \
+    --set=synapse_gateway_db="${gateway_db}"
 
 run_psql \
     --dbname postgres \

@@ -229,7 +229,7 @@ Agent 不需要读：
 
 ## 7. 对应落地文件
 
-- 目标 schema SQL: [infra/docker/postgres/init/001_synapse_schema.sql](../../infra/docker/postgres/init/001_synapse_schema.sql)
+- 目标 schema SQL: [docker-compose/postgres/init/001_synapse_schema.sql](../../docker-compose/postgres/init/001_synapse_schema.sql)
 - 新数据模型文档: [docs/04_Database_Design/02_Core_Tables_and_Relationships.md](../04_Database_Design/02_Core_Tables_and_Relationships.md)
 
 一句话：这次不是“把 API Key 升级一下”，而是把 Synapse 从钱包驱动的 API 支付网关，重铸成 Agent Runtime 驱动的调用与结算基础设施。

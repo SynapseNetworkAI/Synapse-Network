@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SYNAPSE_SENTINEL | ADMIN_DASHBOARD</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;600;800&amp;family=Inter:wght@300;400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "tertiary": "#000000",
+                "on-tertiary": "#ffffff",
+                "primary": "#000000",
+                "outline": "#74777d",
+                "inverse-surface": "#2e3132",
+                "surface-dim": "#d9dadb",
+                "primary-container": "#101b30",
+                "outline-variant": "#c4c6cc",
+                "surface-container-high": "#e7e8e9",
+                "surface-container": "#edeeef",
+                "on-background": "#191c1d",
+                "on-tertiary-container": "#0090ad",
+                "inverse-primary": "#bbc6e2",
+                "surface-tint": "#545e76",
+                "on-error-container": "#93000a",
+                "primary-fixed-dim": "#bbc6e2",
+                "primary-fixed": "#d7e2ff",
+                "on-tertiary-fixed": "#001f27",
+                "secondary-fixed-dim": "#afc9ea",
+                "surface-container-highest": "#e1e3e4",
+                "on-secondary-container": "#48617e",
+                "secondary": "#47607e",
+                "on-secondary": "#ffffff",
+                "surface-container-lowest": "#ffffff",
+                "on-surface": "#191c1d",
+                "tertiary-fixed": "#b3ebff",
+                "background": "#f8f9fa",
+                "on-primary-container": "#79849d",
+                "surface-container-low": "#f3f4f5",
+                "error": "#ba1a1a",
+                "tertiary-fixed-dim": "#4cd6fb",
+                "inverse-on-surface": "#f0f1f2",
+                "on-surface-variant": "#44474c",
+                "on-primary": "#ffffff",
+                "surface": "#f8f9fa",
+                "secondary-fixed": "#d1e4ff",
+                "tertiary-container": "#001f27",
+                "surface-bright": "#f8f9fa",
+                "on-primary-fixed": "#101b30",
+                "on-secondary-fixed-variant": "#2f4865",
+                "error-container": "#ffdad6",
+                "on-secondary-fixed": "#001d36",
+                "on-error": "#ffffff",
+                "secondary-container": "#c2dcff",
+                "surface-variant": "#e1e3e4",
+                "on-tertiary-fixed-variant": "#004e5f",
+                "on-primary-fixed-variant": "#3c475d"
+              },
+              fontFamily: {
+                "headline": ["Manrope"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .tonal-layering-surface-low {
+            background-color: #f3f4f5;
+        }
+        .obsidian-glass {
+            background: rgba(16, 27, 48, 0.85);
+            backdrop-filter: blur(20px);
+        }
+        .command-gradient {
+            background: linear-gradient(135deg, #000000 0%, #101b30 100%);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased overflow-x-hidden">
+<!-- SideNavBar (The Shell) -->
+<aside class="fixed left-0 top-0 h-full z-50 flex flex-col h-screen w-64 border-r border-white/5 bg-slate-950 shadow-[20px_0_40px_rgba(0,0,0,0.3)]">
+<div class="p-6 flex flex-col gap-1 border-b border-white/5 mb-4">
+<span class="text-2xl font-black tracking-tighter text-white">SYNAPSE</span>
+<span class="font-manrope tracking-tight text-xs uppercase font-semibold text-cyan-400">NETWORK_OPS</span>
+</div>
+<nav class="flex-1 px-4 space-y-1 overflow-y-auto">
+<!-- Active Tab: Dashboard -->
+<a class="flex items-center gap-3 px-4 py-3 bg-cyan-500/10 text-cyan-400 border-r-2 border-cyan-400 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span>Users</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+<span>Role Permissions</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+<span>Menu Config</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span>Approvals</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span>Finance</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="gpp_maybe">gpp_maybe</span>
+<span>Risk</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="dns">dns</span>
+<span>System</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span>Audit</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 font-manrope tracking-tight text-sm uppercase font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+<span>Execution</span>
+</a>
+</nav>
+<div class="px-4 py-6 border-t border-white/5 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 font-manrope tracking-tight text-sm uppercase font-semibold transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-200 font-manrope tracking-tight text-sm uppercase font-semibold transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-64 min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full bg-slate-900/80 backdrop-blur-xl flex justify-between items-center px-8 h-16 z-40">
+<div class="flex items-center gap-6">
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-sm" data-icon="search">search</span>
+<input class="bg-slate-800/50 border-none rounded-none text-xs font-bold font-inter tracking-wide w-64 pl-10 focus:ring-1 focus:ring-cyan-500 text-slate-200" placeholder="QUERY_SYSTEM..." type="text"/>
+</div>
+<div class="flex items-center gap-2 text-cyan-400 font-inter tracking-wide text-xs font-bold uppercase">
+<span class="material-symbols-outlined text-sm" data-icon="terminal">terminal</span>
+<span>NODE_ACTIVE</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex gap-4">
+<button class="text-slate-400 hover:text-white transition-opacity scale-95 active:scale-100 duration-150">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-slate-400 hover:text-white transition-opacity scale-95 active:scale-100 duration-150">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+</button>
+<button class="text-slate-400 hover:text-white transition-opacity scale-95 active:scale-100 duration-150">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+<div class="h-8 w-8 bg-slate-700 rounded-full overflow-hidden border border-white/10">
+<img alt="Admin Profile" class="w-full h-full object-cover" data-alt="Close up portrait of a professional male administrator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdrRwWzO5EqyZrwB28uc_tKoLUH9Dg3t9K5-NZclGXi_m2BR5kV_GRFXUo0SmDjmh4Cx6letUg-PSdtiQS7srflcD2gPUuNy1zYUe8V_PwVO-uVrlO3DZnSm-H_k0W6oxZu0Br_kSYAJupXDH4OAgXjOz1-aaLD9KAjUf2XRSsYo0bd8j2-ufaf101RLn79UeTpkqzD-tfPkq9S78ARHfIEsjbAoTcVZ5lh2Zq_fVk_b50C73aanUywhyeJHaqCfn4ISBld6QIOZ3n"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="p-8 space-y-8">
+<!-- Breadcrumbs -->
+<nav class="flex items-center gap-2 font-inter text-[10px] font-bold tracking-[0.2em] text-on-surface-variant uppercase">
+<span>ADMIN_ROOT</span>
+<span class="material-symbols-outlined text-[10px]" data-icon="chevron_right">chevron_right</span>
+<span class="text-primary">DASHBOARD</span>
+</nav>
+<!-- Metrics Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="bg-surface-container-lowest p-6 flex flex-col justify-between h-32 relative overflow-hidden group">
+<div class="relative z-10">
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">TOTAL_TRANSACTION_VOLUME</p>
+<h3 class="text-2xl font-black font-headline tracking-tighter">$4.82B</h3>
+</div>
+<div class="flex items-center gap-1 text-[10px] font-bold text-cyan-600 relative z-10">
+<span class="material-symbols-outlined text-xs" data-icon="trending_up">trending_up</span>
+<span>+12.4%</span>
+</div>
+<div class="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-6xl translate-y-4 translate-x-2" data-icon="query_stats">query_stats</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 flex flex-col justify-between h-32 relative overflow-hidden group">
+<div class="relative z-10">
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">DAILY_DEP_WITH</p>
+<h3 class="text-2xl font-black font-headline tracking-tighter">$142.1M</h3>
+</div>
+<div class="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant relative z-10">
+<span class="material-symbols-outlined text-xs" data-icon="swap_horiz">swap_horiz</span>
+<span>8,432 TXNS</span>
+</div>
+<div class="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-6xl translate-y-4 translate-x-2" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 flex flex-col justify-between h-32 relative overflow-hidden group">
+<div class="relative z-10">
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">ACTIVE_NODE_COUNT</p>
+<h3 class="text-2xl font-black font-headline tracking-tighter">1,024</h3>
+</div>
+<div class="flex items-center gap-1 text-[10px] font-bold text-cyan-600 relative z-10">
+<span class="material-symbols-outlined text-xs" data-icon="check_circle">check_circle</span>
+<span>99.9% UPTIME</span>
+</div>
+<div class="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-6xl translate-y-4 translate-x-2" data-icon="hub">hub</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 flex flex-col justify-between h-32 border-l-4 border-primary relative overflow-hidden group">
+<div class="relative z-10">
+<p class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-1">PENDING_APPROVALS</p>
+<h3 class="text-2xl font-black font-headline tracking-tighter">42</h3>
+</div>
+<div class="flex items-center gap-1 text-[10px] font-bold text-error relative z-10">
+<span class="material-symbols-outlined text-xs" data-icon="priority_high">priority_high</span>
+<span>3 CRITICAL</span>
+</div>
+<div class="absolute right-0 bottom-0 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-6xl translate-y-4 translate-x-2" data-icon="notification_important">notification_important</span>
+</div>
+</div>
+</div>
+<!-- Main Data Visuals Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- 1. Finance Overview (Line Chart Mock) -->
+<div class="lg:col-span-2 bg-surface-container-lowest p-8 flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<h2 class="text-xs font-black tracking-[0.2em] text-on-surface uppercase mb-1">FINANCE_OVERVIEW</h2>
+<p class="text-[10px] font-bold text-on-surface-variant">NETWORK ACTIVITY 24H WINDOW</p>
+</div>
+<div class="flex gap-2">
+<span class="h-2 w-8 bg-primary"></span>
+<span class="h-2 w-8 bg-secondary-container"></span>
+</div>
+</div>
+<!-- Chart Placeholder -->
+<div class="flex-1 min-h-[300px] flex items-end justify-between gap-2 pt-4">
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[40%] group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[65%] group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[55%] group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[85%] group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[70%] group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[90%] group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[45%] group-hover:bg-primary transition-colors"></div>
+</div>
+<div class="w-full bg-surface-container-low relative group">
+<div class="absolute bottom-0 w-full bg-primary-container h-[60%] group-hover:bg-primary transition-colors"></div>
+</div>
+</div>
+</div>
+<!-- 2. Operations Overview -->
+<div class="bg-surface-container p-8 flex flex-col gap-8">
+<div>
+<h2 class="text-xs font-black tracking-[0.2em] text-on-surface uppercase mb-1">OPERATIONS_STATUS</h2>
+<p class="text-[10px] font-bold text-on-surface-variant">CORE SUB-SYSTEM INTEGRITY</p>
+</div>
+<div class="space-y-6">
+<div class="space-y-2">
+<div class="flex justify-between items-center text-[10px] font-bold uppercase">
+<span>Indexer_v2.1</span>
+<span class="text-cyan-600">NOMINAL</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest">
+<div class="h-full w-full bg-cyan-500"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center text-[10px] font-bold uppercase">
+<span>Reconciliation_Node</span>
+<span class="text-cyan-600">NOMINAL</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest">
+<div class="h-full w-full bg-cyan-500"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center text-[10px] font-bold uppercase">
+<span>Auth_Sentinel</span>
+<span class="text-cyan-600">NOMINAL</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest">
+<div class="h-full w-full bg-cyan-500"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center text-[10px] font-bold uppercase">
+<span>Storage_Array_Beta</span>
+<span class="text-error">DEGRADED</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest">
+<div class="h-full w-[72%] bg-error"></div>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-6 border-t border-on-surface/5">
+<button class="w-full py-4 command-gradient text-white text-[10px] font-bold tracking-[0.2em] uppercase transition-opacity hover:opacity-90">
+                            RUN_SYSTEM_DIAGNOSTIC
+                        </button>
+</div>
+</div>
+</div>
+<!-- 3. Risk Activity (Table) -->
+<div class="bg-surface-container-lowest p-8">
+<div class="flex justify-between items-end mb-8">
+<div>
+<h2 class="text-xs font-black tracking-[0.2em] text-on-surface uppercase mb-1">RISK_ACTIVITY_STREAM</h2>
+<p class="text-[10px] font-bold text-on-surface-variant">RECENT HIGH-THREAT VECTORS</p>
+</div>
+<button class="text-[10px] font-bold tracking-widest text-secondary uppercase hover:underline">VIEW_ALL_LOGS</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-surface-container-high">
+<th class="pb-4 text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">TIMESTAMP</th>
+<th class="pb-4 text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">VECTOR_ID</th>
+<th class="pb-4 text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">THREAT_LEVEL</th>
+<th class="pb-4 text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">SOURCE_ORIGIN</th>
+<th class="pb-4 text-[10px] font-bold text-on-surface-variant tracking-widest uppercase">ACTION_TAKEN</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<tr class="hover:bg-surface-variant/20 transition-colors">
+<td class="py-4 text-xs font-medium tabular-nums text-on-surface">14:22:01.042</td>
+<td class="py-4 text-xs font-bold font-headline">0xDEAD_BEEF</td>
+<td class="py-4">
+<span class="px-2 py-0.5 bg-error-container text-on-error-container text-[10px] font-black uppercase">CRITICAL</span>
+</td>
+<td class="py-4 text-xs text-on-surface-variant">IP: 185.244.25.12</td>
+<td class="py-4 text-xs font-bold text-cyan-600 uppercase">AUTO_BLOCK</td>
+</tr>
+<tr class="hover:bg-surface-variant/20 transition-colors">
+<td class="py-4 text-xs font-medium tabular-nums text-on-surface">14:18:55.912</td>
+<td class="py-4 text-xs font-bold font-headline">TX_SKEW_99</td>
+<td class="py-4">
+<span class="px-2 py-0.5 bg-secondary-container text-on-secondary-container text-[10px] font-black uppercase">ELEVATED</span>
+</td>
+<td class="py-4 text-xs text-on-surface-variant">USER: _dev_sys_admin</td>
+<td class="py-4 text-xs font-bold text-on-surface-variant uppercase">MFA_REQUESTED</td>
+</tr>
+<tr class="hover:bg-surface-variant/20 transition-colors">
+<td class="py-4 text-xs font-medium tabular-nums text-on-surface">14:05:12.441</td>
+<td class="py-4 text-xs font-bold font-headline">API_STORM_00</td>
+<td class="py-4">
+<span class="px-2 py-0.5 bg-surface-container-highest text-on-surface-variant text-[10px] font-black uppercase">MONITORING</span>
+</td>
+<td class="py-4 text-xs text-on-surface-variant">NODE: SG-01-WEST</td>
+<td class="py-4 text-xs font-bold text-on-surface-variant uppercase">THROTTLED</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB (Only on main dashboard) -->
+<div class="fixed bottom-8 right-8 z-50">
+<button class="command-gradient h-14 w-14 rounded-full flex items-center justify-center text-white shadow-2xl hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-2xl" data-icon="add_moderator" style="font-variation-settings: 'FILL' 1;">add_moderator</span>
+</button>
+</div>
+</body></html>

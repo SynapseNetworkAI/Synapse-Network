@@ -66,3 +66,27 @@ class SystemStatus(BaseModel):
     gateway: str
     approval_queue_depth: int = Field(alias="approvalQueueDepth", serialization_alias="approvalQueueDepth")
     last_reconciliation_at: str | None = Field(alias="lastReconciliationAt", serialization_alias="lastReconciliationAt")
+
+
+class DiagnosticSignal(BaseModel):
+    signal_id: str = Field(alias="signalId", serialization_alias="signalId")
+    label: str
+    status: str
+    value: str
+    detail: str
+
+
+class DiagnosticAction(BaseModel):
+    action_id: str = Field(alias="actionId", serialization_alias="actionId")
+    label: str
+    href: str
+    detail: str
+    status: str
+
+
+class DashboardDiagnostics(BaseModel):
+    overall_status: str = Field(alias="overallStatus", serialization_alias="overallStatus")
+    checked_at: str = Field(alias="checkedAt", serialization_alias="checkedAt")
+    summary: str
+    signals: list[DiagnosticSignal]
+    actions: list[DiagnosticAction]

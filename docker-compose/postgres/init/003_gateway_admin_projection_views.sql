@@ -539,6 +539,65 @@ CREATE TABLE IF NOT EXISTS admin_config_documents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     published_at TIMESTAMPTZ
 );
+
+COMMENT ON TABLE admin_config_documents IS 'Stores draft/published admin control-plane configuration snapshots; admin_menu_config is the canonical navigation tree document.';
+COMMENT ON COLUMN admin_config_documents.draft_payload_json IS 'JSONB config snapshot. admin_menu_config payload shape: {"items": [{itemId, sectionId, sectionLabel, sectionDescription, label, href, description, parentItemId, nodeType, iconKey, requiredRoles, requiredPermissions, sortOrder, keywords}]}.';
+COMMENT ON COLUMN admin_config_documents.published_payload_json IS 'Last published config snapshot consumed by the admin shell visible-menu endpoint.';
+
+WITH menu_tree_seed AS (
+        SELECT $$
+        {
+            "items": [
+                {"itemId":"control-overview","sectionId":"control-overview","sectionLabel":"控制总览","sectionDescription":"总览、执行态与系统健康。","label":"控制总览","href":null,"description":"控制台、执行队列和系统运行态的导航根节点。","parentItemId":null,"nodeType":"category","iconKey":"CT","requiredRoles":[],"requiredPermissions":[],"sortOrder":10,"keywords":["overview","dashboard","runtime","system health"]},
+                {"itemId":"dashboard","sectionId":"control-overview","sectionLabel":"控制总览","sectionDescription":"总览、执行态与系统健康。","label":"控制台","href":"/dashboard","description":"总览 finance、activity、operations 3 个稳定读模型。","parentItemId":"control-overview","nodeType":"page","iconKey":"OV","requiredRoles":[],"requiredPermissions":["dashboard:read"],"sortOrder":20,"keywords":[]},
+                {"itemId":"dashboard-overview","sectionId":"control-overview","sectionLabel":"控制总览","sectionDescription":"总览、执行态与系统健康。","label":"概览","href":null,"description":"关键指标、值班摘要与稳定投影总览。","parentItemId":"dashboard","nodeType":"panel","iconKey":"01","requiredRoles":[],"requiredPermissions":[],"sortOrder":21,"keywords":["overview","summary"]},
+                {"itemId":"dashboard-runtime","sectionId":"control-overview","sectionLabel":"控制总览","sectionDescription":"总览、执行态与系统健康。","label":"运行态","href":null,"description":"运行节点、执行队列和对账信号。","parentItemId":"dashboard","nodeType":"panel","iconKey":"02","requiredRoles":[],"requiredPermissions":[],"sortOrder":22,"keywords":["runtime","queue","operations"]},
+                {"itemId":"dashboard-system-health","sectionId":"control-overview","sectionLabel":"控制总览","sectionDescription":"总览、执行态与系统健康。","label":"系统健康","href":null,"description":"健康度、告警和关键诊断动作。","parentItemId":"dashboard","nodeType":"panel","iconKey":"03","requiredRoles":[],"requiredPermissions":[],"sortOrder":23,"keywords":["health","diagnostic","alerts"]},
+                {"itemId":"execution","sectionId":"control-overview","sectionLabel":"控制总览","sectionDescription":"总览、执行态与系统健康。","label":"执行队列","href":"/execution","description":"查看 execution jobs、失败重试与网关执行结果。","parentItemId":"control-overview","nodeType":"page","iconKey":"EX","requiredRoles":[],"requiredPermissions":["execution:read"],"sortOrder":30,"keywords":[]},
+                {"itemId":"system","sectionId":"control-overview","sectionLabel":"控制总览","sectionDescription":"总览、执行态与系统健康。","label":"系统运维","href":"/system","description":"gateway、indexer、reconciliation 与运行时参数快照。","parentItemId":"control-overview","nodeType":"page","iconKey":"SY","requiredRoles":[],"requiredPermissions":["dashboard:read"],"sortOrder":40,"keywords":[]},
+                {"itemId":"identity-access","sectionId":"identity-access","sectionLabel":"身份与权限","sectionDescription":"后台用户、角色模板、菜单树与权限矩阵。","label":"身份与权限","href":null,"description":"后台用户、角色模板和菜单治理的导航根节点。","parentItemId":null,"nodeType":"category","iconKey":"IA","requiredRoles":[],"requiredPermissions":[],"sortOrder":100,"keywords":["identity","rbac","users","permissions"]},
+                {"itemId":"users","sectionId":"identity-access","sectionLabel":"身份与权限","sectionDescription":"后台用户、角色模板、菜单树与权限矩阵。","label":"后台用户","href":"/users","description":"创建管理员、分配角色、查看权限模板与启用状态。","parentItemId":"identity-access","nodeType":"page","iconKey":"ID","requiredRoles":["super_admin","platform_ops_admin"],"requiredPermissions":[],"sortOrder":110,"keywords":[]},
+                {"itemId":"role-permissions","sectionId":"identity-access","sectionLabel":"身份与权限","sectionDescription":"后台用户、角色模板、菜单树与权限矩阵。","label":"角色权限","href":"/role-permissions","description":"查看角色权限矩阵、模块权限边界与 reviewer 分工。","parentItemId":"identity-access","nodeType":"page","iconKey":"RB","requiredRoles":["super_admin","platform_ops_admin"],"requiredPermissions":[],"sortOrder":120,"keywords":[]},
+                {"itemId":"permissions-matrix","sectionId":"identity-access","sectionLabel":"身份与权限","sectionDescription":"后台用户、角色模板、菜单树与权限矩阵。","label":"权限矩阵","href":null,"description":"角色与权限点的矩阵式映射。","parentItemId":"role-permissions","nodeType":"panel","iconKey":"PM","requiredRoles":[],"requiredPermissions":[],"sortOrder":121,"keywords":[]},
+                {"itemId":"module-boundaries","sectionId":"identity-access","sectionLabel":"身份与权限","sectionDescription":"后台用户、角色模板、菜单树与权限矩阵。","label":"模块边界","href":null,"description":"模块、资源域和职责边界。","parentItemId":"role-permissions","nodeType":"panel","iconKey":"MB","requiredRoles":[],"requiredPermissions":[],"sortOrder":122,"keywords":[]},
+                {"itemId":"reviewer-split","sectionId":"identity-access","sectionLabel":"身份与权限","sectionDescription":"后台用户、角色模板、菜单树与权限矩阵。","label":"Reviewer 分工","href":null,"description":"高风险动作 reviewer 的职责分离。","parentItemId":"role-permissions","nodeType":"panel","iconKey":"RV","requiredRoles":[],"requiredPermissions":[],"sortOrder":123,"keywords":[]},
+                {"itemId":"menu-config","sectionId":"identity-access","sectionLabel":"身份与权限","sectionDescription":"后台用户、角色模板、菜单树与权限矩阵。","label":"菜单配置","href":"/menu-config","description":"菜单树、路由、可见性和权限依赖的配置视图。","parentItemId":"identity-access","nodeType":"page","iconKey":"MN","requiredRoles":["super_admin","platform_ops_admin"],"requiredPermissions":[],"sortOrder":130,"keywords":[]},
+                {"itemId":"business-control","sectionId":"ops-controls","sectionLabel":"业务控制","sectionDescription":"审批、资金、风控和系统运维的受控操作入口。","label":"业务控制","href":null,"description":"审批、资金与风险控制的导航根节点。","parentItemId":null,"nodeType":"category","iconKey":"BC","requiredRoles":[],"requiredPermissions":[],"sortOrder":200,"keywords":["approvals","finance","risk","withdraw"]},
+                {"itemId":"approvals","sectionId":"ops-controls","sectionLabel":"业务控制","sectionDescription":"审批、资金、风控和系统运维的受控操作入口。","label":"审批中心","href":"/approvals","description":"高风险动作审批流、reviewer 决策与执行前守门。","parentItemId":"business-control","nodeType":"page","iconKey":"AP","requiredRoles":[],"requiredPermissions":["approval:read"],"sortOrder":210,"keywords":[]},
+                {"itemId":"withdrawal-reviews","sectionId":"ops-controls","sectionLabel":"业务控制","sectionDescription":"审批、资金、风控和系统运维的受控操作入口。","label":"提现审核","href":"/withdrawal-reviews","description":"Provider 提现人工审核工作台，直接推进 approve / reject。","parentItemId":"business-control","nodeType":"page","iconKey":"WR","requiredRoles":[],"requiredPermissions":["approval:read"],"sortOrder":220,"keywords":[]},
+                {"itemId":"finance","sectionId":"ops-controls","sectionLabel":"业务控制","sectionDescription":"审批、资金、风控和系统运维的受控操作入口。","label":"资金运营","href":"/finance","description":"充值异常、退款与提现控制面，聚焦受控动作。","parentItemId":"business-control","nodeType":"page","iconKey":"FN","requiredRoles":[],"requiredPermissions":["dashboard:read"],"sortOrder":230,"keywords":[]},
+                {"itemId":"risk","sectionId":"ops-controls","sectionLabel":"业务控制","sectionDescription":"审批、资金、风控和系统运维的受控操作入口。","label":"风控工作台","href":"/risk","description":"风险规则、工单分流、黑白名单与风险标签处置。","parentItemId":"business-control","nodeType":"page","iconKey":"RK","requiredRoles":[],"requiredPermissions":["dashboard:read"],"sortOrder":240,"keywords":[]},
+                {"itemId":"audit-compliance","sectionId":"audit-ledger","sectionLabel":"审计合规","sectionDescription":"操作日志、审计回放与高风险动作追踪。","label":"审计合规","href":null,"description":"审计流、追踪与合规检索的导航根节点。","parentItemId":null,"nodeType":"category","iconKey":"AU","requiredRoles":[],"requiredPermissions":[],"sortOrder":300,"keywords":["audit","compliance","trail"]},
+                {"itemId":"audit","sectionId":"audit-ledger","sectionLabel":"审计合规","sectionDescription":"操作日志、审计回放与高风险动作追踪。","label":"操作日志","href":"/audit","description":"管理员操作日志、审批链路和失败告警审计检索。","parentItemId":"audit-compliance","nodeType":"page","iconKey":"AT","requiredRoles":[],"requiredPermissions":["audit:read"],"sortOrder":310,"keywords":[]}
+            ]
+        }
+        $$::jsonb AS payload
+)
+INSERT INTO admin_config_documents (
+        config_key,
+        draft_payload_json,
+        published_payload_json,
+        draft_version,
+        published_version,
+        updated_by,
+        published_by,
+        created_at,
+        updated_at,
+        published_at
+)
+SELECT
+        'admin_menu_config',
+        payload,
+        payload,
+        1,
+        1,
+        'adm_super_admin',
+        'adm_super_admin',
+        NOW(),
+        NOW(),
+        NOW()
+FROM menu_tree_seed
+ON CONFLICT (config_key) DO NOTHING;
 \endif
 
 \if :{?synapse_gateway_db}

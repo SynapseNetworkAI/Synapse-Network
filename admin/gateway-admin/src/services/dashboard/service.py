@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.domain.enums import ExecutionJobStatus
 from src.storage.analytics import GatewayDashboardProjectionRepository
@@ -100,6 +100,204 @@ class DashboardService:
             "approvalQueueDepth": self._store.approval.count_pending_approvals(),
             "lastReconciliationAt": self._format_timestamp(snapshot.last_reconciliation_at),
         }
+
+    def get_diagnostics(self) -> dict:
+        operations = self._gateway_projection.get_operations_snapshot()
+        overview = self._gateway_projection.get_snapshot()
+        pending_approvals = self._store.approval.count_pending_approvals()
+        failed_jobs = self._store.approval.list_execution_jobs(
+            status=ExecutionJobStatus.FAILED.value,
+            limit=20,
+        )
+        failed_job_count = len(failed_jobs)
+        audit_alerts = max(operations.recent_audit_alerts, self._store.audit.count_alerts())
+
+        return {
+            "overallStatus": self._resolve_diagnostic_status(
+                operations.reconciliation_alert,
+                failed_job_count,
+                operations.recent_gateway_failures,
+                pending_approvals,
+                overview.deposit_exceptions,
+                audit_alerts,
+            ),
+            "checkedAt": self._format_timestamp(datetime.now(timezone.utc)),
+            "summary": self._build_diagnostic_summary(
+                operations.reconciliation_alert,
+                operations.reconciliation_delta_usdc,
+                failed_job_count,
+                overview.deposit_exceptions,
+                pending_approvals,
+                audit_alerts,
+            ),
+            "signals": self._build_diagnostic_signals(
+                operations.reconciliation_alert,
+                operations.reconciliation_delta_usdc,
+                operations.reconciliation_last_error,
+                failed_job_count,
+                pending_approvals,
+                overview.deposit_exceptions,
+                audit_alerts,
+            ),
+            "actions": self._build_diagnostic_actions(
+                operations.reconciliation_alert,
+                operations.recent_gateway_failures,
+                failed_job_count,
+                pending_approvals,
+                overview.deposit_exceptions,
+            ),
+        }
+
+    @staticmethod
+    def _resolve_diagnostic_status(
+        reconciliation_alert: bool,
+        failed_job_count: int,
+        recent_gateway_failures: int,
+        pending_approvals: int,
+        deposit_exceptions: int,
+        audit_alerts: int,
+    ) -> str:
+        if reconciliation_alert or failed_job_count > 0 or recent_gateway_failures > 0:
+            return "degraded"
+        if pending_approvals > 0 or deposit_exceptions > 0 or audit_alerts > 0:
+            return "monitoring"
+        return "nominal"
+
+    @staticmethod
+    def _append_summary_part(parts: list[str], value: int, singular: str, plural: str | None = None) -> None:
+        if value <= 0:
+            return
+        noun = singular if value == 1 else plural or f"{singular}s"
+        parts.append(f"{value} {noun}")
+
+    def _build_diagnostic_summary(
+        self,
+        reconciliation_alert: bool,
+        reconciliation_delta_usdc,
+        failed_job_count: int,
+        deposit_exceptions: int,
+        pending_approvals: int,
+        audit_alerts: int,
+    ) -> str:
+        parts: list[str] = []
+        if reconciliation_alert:
+            parts.append(f"reconciliation delta {reconciliation_delta_usdc:.2f} USDC")
+        self._append_summary_part(parts, failed_job_count, "failed execution job")
+        self._append_summary_part(parts, deposit_exceptions, "deposit exception")
+        self._append_summary_part(parts, pending_approvals, "pending approval")
+        self._append_summary_part(parts, audit_alerts, "audit alert")
+        return ", ".join(parts) if parts else "all control-plane signals nominal"
+
+    @staticmethod
+    def _build_signal(signal_id: str, label: str, status: str, value: str, detail: str) -> dict:
+        return {
+            "signalId": signal_id,
+            "label": label,
+            "status": status,
+            "value": value,
+            "detail": detail,
+        }
+
+    def _build_diagnostic_signals(
+        self,
+        reconciliation_alert: bool,
+        reconciliation_delta_usdc,
+        reconciliation_last_error: str | None,
+        failed_job_count: int,
+        pending_approvals: int,
+        deposit_exceptions: int,
+        audit_alerts: int,
+    ) -> list[dict]:
+        return [
+            self._build_signal(
+                "reconciliation",
+                "Reconciliation drift",
+                "degraded" if reconciliation_alert else "nominal",
+                f"{reconciliation_delta_usdc:.2f} USDC",
+                reconciliation_last_error or "vault and ledger remain aligned",
+            ),
+            self._build_signal(
+                "execution-failures",
+                "Execution retries",
+                "degraded" if failed_job_count > 0 else "nominal",
+                str(failed_job_count),
+                "failed jobs require manual retry" if failed_job_count > 0 else "no failed execution jobs pending retry",
+            ),
+            self._build_signal(
+                "pending-approvals",
+                "Pending approvals",
+                "monitoring" if pending_approvals > 0 else "nominal",
+                str(pending_approvals),
+                "approvals still waiting for review or execution" if pending_approvals > 0 else "approval queue clear",
+            ),
+            self._build_signal(
+                "deposit-exceptions",
+                "Deposit exceptions",
+                "monitoring" if deposit_exceptions > 0 else "nominal",
+                str(deposit_exceptions),
+                "gateway projection reports unsettled deposit exceptions" if deposit_exceptions > 0 else "deposit repair queue nominal",
+            ),
+            self._build_signal(
+                "audit-alerts",
+                "Audit alerts",
+                "monitoring" if audit_alerts > 0 else "nominal",
+                str(audit_alerts),
+                "recent sensitive actions need operator review" if audit_alerts > 0 else "no recent audit alert escalation",
+            ),
+        ]
+
+    @staticmethod
+    def _build_action(action_id: str, label: str, href: str, detail: str, status: str) -> dict:
+        return {
+            "actionId": action_id,
+            "label": label,
+            "href": href,
+            "detail": detail,
+            "status": status,
+        }
+
+    @staticmethod
+    def _resolve_execution_action_status(failed_job_count: int, pending_approvals: int) -> str:
+        if failed_job_count > 0:
+            return "degraded"
+        if pending_approvals > 0:
+            return "monitoring"
+        return "nominal"
+
+    def _build_diagnostic_actions(
+        self,
+        reconciliation_alert: bool,
+        recent_gateway_failures: int,
+        failed_job_count: int,
+        pending_approvals: int,
+        deposit_exceptions: int,
+    ) -> list[dict]:
+        system_status = "degraded" if reconciliation_alert or recent_gateway_failures > 0 else "nominal"
+        execution_status = self._resolve_execution_action_status(failed_job_count, pending_approvals)
+        finance_status = "monitoring" if deposit_exceptions > 0 else "nominal"
+        return [
+            self._build_action(
+                "system-center",
+                "Open system center",
+                "/system",
+                "inspect gateway, indexer, backfill, and reconciliation runtime state",
+                system_status,
+            ),
+            self._build_action(
+                "execution-queue",
+                "Inspect execution queue",
+                "/execution",
+                "review failed or queued approval executions and retry when required",
+                execution_status,
+            ),
+            self._build_action(
+                "finance-desk",
+                "Jump to finance desk",
+                "/finance",
+                "resolve deposit exceptions, withdrawal backlog, and liability exposure",
+                finance_status,
+            ),
+        ]
 
     @staticmethod
     def _format_decimal(value) -> str:

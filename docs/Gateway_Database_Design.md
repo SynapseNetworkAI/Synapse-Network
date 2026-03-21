@@ -2,7 +2,7 @@
 
 > 这是删库重建后唯一应参考的 Gateway 数据库设计文档。
 
-> Canonical bootstrap SQL: [infra/docker/postgres/init/001_synapse_schema.sql](../infra/docker/postgres/init/001_synapse_schema.sql)
+> Canonical bootstrap SQL: [docker-compose/postgres/init/001_synapse_schema.sql](../docker-compose/postgres/init/001_synapse_schema.sql)
 
 ## 1. 设计目标
 
@@ -122,7 +122,7 @@
 
 删库重建后，后台投影视图也已经跟着切到新 schema：
 
-- [infra/docker/postgres/init/003_gateway_admin_projection_views.sql](../infra/docker/postgres/init/003_gateway_admin_projection_views.sql)
+- [docker-compose/postgres/init/003_gateway_admin_projection_views.sql](../docker-compose/postgres/init/003_gateway_admin_projection_views.sql)
 
 它现在主要依赖：
 
