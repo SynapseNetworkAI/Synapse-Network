@@ -31,6 +31,7 @@
 
 当前已补齐 Next.js App Router 基础配置，并提供以下占位页面：
 
+- `/`
 - `/login`
 - `/dashboard`
 - `/approvals`
@@ -47,8 +48,8 @@
 当前左侧导航已升级为可配置菜单树：
 
 - 菜单配置文件：`src/lib/navigation.ts`
-- 已发布菜单配置获取：`src/lib/use-admin-navigation.ts` 通过 `gateway-admin` 的 publish 版本拉取导航
-- 权限过滤逻辑：基于当前管理员 `role + permissions` 动态裁剪可见菜单项
+- 已发布菜单配置获取：`src/lib/use-admin-navigation.ts` 通过 `gateway-admin` 的后端可见菜单接口拉取导航
+- 权限过滤逻辑：菜单可见性由 `gateway-admin` 基于当前 session 的角色和权限在服务端裁剪，前端只负责组装 section 和渲染
 - 页面统一壳子：`src/components/admin-shell.tsx`
 - CRUD 基础组件：`src/components/crud.tsx`，统一抽出 Toolbar + Table + Drawer 骨架
 - 会话守卫：`src/lib/use-admin-session.ts`
@@ -56,8 +57,9 @@
 - 当前 CSRF 模型：`login` / `me` 响应会返回会话绑定的 `csrfToken`，前端仅保存在内存中，并由 `src/services/admin-api.ts` 自动注入到所有写请求的 `X-CSRF-Token` header
 - 当前 MFA 模型：登录页会先调用 `/api/admin/v1/auth/policy`，由服务端决定是否展示 Google Authenticator 输入框；高风险动作会通过专用 step-up modal 收集验证码，展示 30 秒倒计时与过期提示，并通过 `X-Admin-OTP-Code` 发送给 `gateway-admin`
 - 首次绑定 MFA：当 `/api/admin/v1/auth/login` 返回 `MFA_ENROLLMENT_REQUIRED` 时，前端会进入 `/login/mfa-enroll` 受限绑定页，调用 `/api/admin/v1/auth/mfa/enroll/begin` 获取二维码与手工 key，再通过 `/api/admin/v1/auth/mfa/enroll/verify` 完成首绑，成功后才建立后台会话
+- 首页形态：`/` 已升级为 Sentinel 风格入口页，承接控制面定位、模块总览与登录/进入控制台双 CTA，不再直接重定向到 `/login`
 - 导航形态：二级 accordion 菜单树，一级分组承载模块域，二级节点承载具体路由
-- 视觉风格：对齐 Gateway Console 的黑色 Web3 dark mode，使用深黑背景、暗金属边框、霓虹绿激活态、`IBM Plex Mono` 展示数字和标识
+- 视觉风格：升级为 Sentinel 控制塔风格，采用 Manrope + Inter 的编辑化层级、深海军黑侧栏、浅色指挥面板和命令条式菜单反馈
 
 当前已落地的控制面功能：
 
@@ -80,7 +82,7 @@
 - 管理员在 `/menu-config` 里看到的是 draft 版本，因此可以先连续调整菜单树，再显式点击 publish
 - publish 发生时，当前 draft 会整体覆盖 published，之后所有后台页面在下一次加载导航时都会读取到新版本
 - 前端会同时展示 `draftVersion`、`publishedVersion` 和 `isDirty`，用于判断当前是否存在未发布变更
-- 如果配置中心暂时不可用，前端仍会回退到 `src/lib/navigation.ts` 内置静态菜单，避免后台壳子不可进入
+- 后台壳子只消费后端返回的可见菜单，不在浏览器内复制角色/权限判定，避免把未授权菜单元数据暴露给前端
 
 这套流程解决的问题：
 

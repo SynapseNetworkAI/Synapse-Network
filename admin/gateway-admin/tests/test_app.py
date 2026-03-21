@@ -526,12 +526,26 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     assert all(item["itemId"] != "ops-copilot" for item in delete_response.json()["data"]["items"])
 
 
-def test_published_menu_config_is_available_to_regular_admins() -> None:
+def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     _login_as("finance@synapse.network")
 
-    response = client.get("/api/admin/v1/config/menu-items?stage=published")
+    response = client.get("/api/admin/v1/config/menu-items/visible")
     assert response.status_code == 200
-    assert any(item["itemId"] == "dashboard" for item in response.json()["data"]["items"])
+    item_ids = {item["itemId"] for item in response.json()["data"]["items"]}
+    assert item_ids == {"dashboard", "approvals", "withdrawal-reviews", "finance", "risk", "system"}
+
+
+def test_visible_menu_config_returns_full_tree_for_super_admin() -> None:
+    _login_as("super@synapse.network")
+
+    published_response = client.get("/api/admin/v1/config/menu-items?stage=published")
+    visible_response = client.get("/api/admin/v1/config/menu-items/visible")
+
+    assert published_response.status_code == 200
+    assert visible_response.status_code == 200
+    published_ids = {item["itemId"] for item in published_response.json()["data"]["items"]}
+    visible_ids = {item["itemId"] for item in visible_response.json()["data"]["items"]}
+    assert visible_ids == published_ids
 
 
 def test_approvals_list_includes_projected_provider_withdraw_reviews() -> None:
@@ -622,6 +636,15 @@ def test_draft_menu_config_requires_control_plane_role() -> None:
     _login_as("finance@synapse.network")
 
     response = client.get("/api/admin/v1/config/menu-items")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_raw_published_menu_config_requires_control_plane_role() -> None:
+    _login_as("finance@synapse.network")
+
+    response = client.get("/api/admin/v1/config/menu-items?stage=published")
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "FORBIDDEN"

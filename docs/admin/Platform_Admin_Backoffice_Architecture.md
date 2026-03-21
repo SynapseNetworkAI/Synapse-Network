@@ -434,8 +434,8 @@ Dashboard 数据边界要求：
 - 持久化表为 `admin_config_documents`
 - 当前落地的配置文档类型为菜单配置 `menu-items`
 - 存储模型维护 `draft` 与 `published` 两个 stage，而不是直接覆盖单份配置
-- 权限上区分“草稿治理”和“线上读取”：只有控制面角色能读 draft，只有 `super_admin` 能发布
-- 前端 `use-admin-navigation` hook 读取 published，静态 `navigation.ts` 仅作为 fallback 与默认种子
+- 权限上区分“草稿治理”和“线上读取”：只有控制面角色能读原始 draft / published，只有 `super_admin` 能发布
+- 前端 `use-admin-navigation` hook 改为读取后端裁剪后的 `visible` 菜单；浏览器不再复制角色/权限过滤逻辑
 
 当前还没有完全落成独立 router 的模块包括：
 

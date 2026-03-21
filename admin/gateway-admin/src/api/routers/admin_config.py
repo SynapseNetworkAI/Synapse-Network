@@ -35,6 +35,16 @@ def list_menu_items(
     return ApiResponse(data=_build_response(payload), request_id=request_id)
 
 
+@router.get("/menu-items/visible", response_model=ApiResponse)
+def list_visible_menu_items(
+    admin: Annotated[AdminIdentity, Depends(require_admin)],
+    request_id: Annotated[str, Depends(get_request_id)],
+    admin_config_service: Annotated[AdminConfigService, Depends(get_admin_config_service)],
+):
+    payload = admin_config_service.list_visible_menu_items(operator=admin)
+    return ApiResponse(data=_build_response(payload), request_id=request_id)
+
+
 @router.post("/menu-items", response_model=ApiResponse)
 def create_menu_item(
     payload: CreateAdminMenuConfigItemRequest,

@@ -3,12 +3,10 @@
 import { useEffect, useState } from "react";
 
 import {
-  getVisibleAdminNavigation,
-  getVisibleAdminNavigationFromConfig,
-  adminNavigationTree,
+  buildAdminNavigation,
   type AdminNavSection,
 } from "@/lib/navigation";
-import { getAdminMenuConfig, type AdminProfile } from "@/services/admin-api";
+import { getVisibleAdminMenuConfig, type AdminProfile } from "@/services/admin-api";
 
 
 type UseAdminNavigationResult = {
@@ -17,20 +15,20 @@ type UseAdminNavigationResult = {
 
 
 export function useAdminNavigation(admin: AdminProfile): UseAdminNavigationResult {
-  const [navigation, setNavigation] = useState<AdminNavSection[]>(() => getVisibleAdminNavigation(admin));
+  const [navigation, setNavigation] = useState<AdminNavSection[]>([]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadNavigation() {
       try {
-        const response = await getAdminMenuConfig("cookie-session", { stage: "published" });
+        const response = await getVisibleAdminMenuConfig("cookie-session");
         if (!cancelled) {
-          setNavigation(getVisibleAdminNavigationFromConfig(admin, response.items));
+          setNavigation(buildAdminNavigation(response.items));
         }
       } catch {
         if (!cancelled) {
-          setNavigation(getVisibleAdminNavigationFromConfig(admin, [], adminNavigationTree));
+          setNavigation([]);
         }
       }
     }
@@ -39,7 +37,7 @@ export function useAdminNavigation(admin: AdminProfile): UseAdminNavigationResul
     return () => {
       cancelled = true;
     };
-  }, [admin]);
+  }, [admin.adminId]);
 
   return { navigation };
 }
