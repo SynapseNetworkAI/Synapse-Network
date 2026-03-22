@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bot, Check, Copy, ExternalLink, Play, Rocket, Terminal } from "lucide-react";
 import type { ServiceRegistryRecord } from "@/utils/serviceApi";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 type SnippetTab = "typescript" | "python" | "curl";
 
@@ -105,6 +106,7 @@ export default function FirstInvocationPanel({
   invokeError,
   result,
 }: Readonly<FirstInvocationPanelProps>) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<SnippetTab>("typescript");
   const [payloadDraft, setPayloadDraft] = useState("");
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
@@ -128,14 +130,14 @@ export default function FirstInvocationPanel({
   };
 
   return (
-    <section id="first-invocation-panel" className="grid gap-6 xl:grid-cols-[1.25fr,0.95fr]" aria-label="First invocation panel">
+    <section id="first-invocation-panel" className="grid gap-6 xl:grid-cols-[1.25fr,0.95fr]" aria-label={t("agentsPage.firstInvocationAria")}>
       <article className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
         <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-300/80">First Invocation</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Discovery, quote, and invoke in one place</h2>
+            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-300/80">{t("agentsPage.firstInvocationEyebrow")}</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{t("agentsPage.firstInvocationTitle")}</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-400">
-              This panel turns the agent credential into a real call path. Pick a service, inspect the SDK snippets, then run the same payload through the paid sandbox below.
+              {t("agentsPage.firstInvocationDescription")}
             </p>
           </div>
 
@@ -157,7 +159,7 @@ export default function FirstInvocationPanel({
           <section className="space-y-4 rounded-[24px] border border-white/8 bg-black/20 p-5">
             <div>
               <label htmlFor="sandbox-service" className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">
-                Demo Service
+                {t("agentsPage.demoServiceLabel")}
               </label>
               <select
                 id="sandbox-service"
@@ -166,7 +168,7 @@ export default function FirstInvocationPanel({
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-500/40"
                 disabled={isLoading || services.length === 0}
               >
-                {services.length === 0 && <option value="">No public services available</option>}
+                {services.length === 0 && <option value="">{t("agentsPage.noPublicServicesAvailable")}</option>}
                 {services.map((service) => (
                   <option key={service.serviceId} value={service.serviceId}>
                     {service.name} ({formatPricing(service.pricing)})
@@ -177,28 +179,28 @@ export default function FirstInvocationPanel({
 
             <dl className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Discovery Result</dt>
-                <dd className="mt-2 text-sm font-semibold text-white">{selectedService?.name || "No service selected"}</dd>
-                <dd className="mt-1 text-xs leading-5 text-gray-400">{selectedService?.summary || "Discover a public service before quoting and invoking."}</dd>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.discoveryResultLabel")}</dt>
+                <dd className="mt-2 text-sm font-semibold text-white">{selectedService?.name || t("agentsPage.noServiceSelected")}</dd>
+                <dd className="mt-1 text-xs leading-5 text-gray-400">{selectedService?.summary || t("agentsPage.discoverPublicServiceHint")}</dd>
               </div>
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Quote Preview</dt>
-                <dd className="mt-2 text-sm font-semibold text-emerald-300">{selectedService ? formatPricing(selectedService.pricing) : "Unknown"}</dd>
-                <dd className="mt-1 text-xs leading-5 text-gray-400">Current catalog pricing. The SDK quote step finalizes the payment terms before invoke.</dd>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.quotePreviewLabel")}</dt>
+                <dd className="mt-2 text-sm font-semibold text-emerald-300">{selectedService ? formatPricing(selectedService.pricing) : t("agentsPage.unknown")}</dd>
+                <dd className="mt-1 text-xs leading-5 text-gray-400">{t("agentsPage.quotePreviewDescription")}</dd>
               </div>
               <div>
-                <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Gateway Endpoint</dt>
-                <dd className="mt-2 break-all font-mono text-xs text-blue-300">{selectedService?.endpoint || "No endpoint selected"}</dd>
+                <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.gatewayEndpointLabel")}</dt>
+                <dd className="mt-2 break-all font-mono text-xs text-blue-300">{selectedService?.endpoint || t("agentsPage.noEndpointSelected")}</dd>
               </div>
             </dl>
 
             <div className="flex flex-wrap gap-3">
               <Link href="/dashboard/discovery" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white transition hover:border-blue-400/40 hover:bg-white/5">
-                Browse Marketplace
+                {t("agentsPage.browseMarketplace")}
                 <ExternalLink className="h-3.5 w-3.5" />
               </Link>
               <Link href="/dashboard/developer" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white transition hover:border-blue-400/40 hover:bg-white/5">
-                SDK Guide
+                {t("agentsPage.sdkGuide")}
                 <Terminal className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -211,7 +213,7 @@ export default function FirstInvocationPanel({
               className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white transition hover:bg-white/10"
             >
               {copiedItem === activeTab ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
-              {copiedItem === activeTab ? "Copied" : "Copy"}
+              {copiedItem === activeTab ? t("agentsPage.copied") : t("agentsPage.copy")}
             </button>
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{activeTab} flow</p>
             <pre className="mt-4 overflow-x-auto whitespace-pre-wrap break-words rounded-2xl border border-white/8 bg-black/30 p-5 font-mono text-xs leading-6 text-blue-200">
@@ -227,24 +229,24 @@ export default function FirstInvocationPanel({
             <Rocket className="h-5 w-5 text-amber-300" />
           </span>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-300/80">Sandbox Invocation</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Run the paid example with a real credential</h3>
+            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-amber-300/80">{t("agentsPage.sandboxInvocationEyebrow")}</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">{t("agentsPage.sandboxInvocationTitle")}</h3>
             <p className="mt-2 text-sm leading-6 text-gray-400">
-              Paste the one-time credential, persist it for this service, then execute the payload. The result shows the on-chain payment hash and the gateway response together.
+              {t("agentsPage.sandboxInvocationDescription")}
             </p>
           </div>
         </header>
 
         <div className="mt-6 space-y-4">
           <label htmlFor="sandbox-credential" className="block space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Agent Credential</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.agentCredentialLabel")}</span>
             <textarea
               id="sandbox-credential"
               value={credential}
               onChange={(event) => onCredentialChange(event.target.value)}
               rows={3}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-xs text-emerald-300 outline-none transition focus:border-emerald-400/40"
-              placeholder="Paste the one-time credential token here"
+              placeholder={t("agentsPage.agentCredentialPlaceholder")}
             />
           </label>
 
@@ -256,7 +258,7 @@ export default function FirstInvocationPanel({
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.22em] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Bot className="h-4 w-4" />
-              Save For Service
+              {t("agentsPage.saveForService")}
             </button>
             <button
               type="button"
@@ -264,12 +266,12 @@ export default function FirstInvocationPanel({
               className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.22em] text-white transition hover:bg-white/10"
             >
               {copiedItem === "payload" ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}
-              Copy Payload
+              {t("agentsPage.copyPayload")}
             </button>
           </div>
 
           <label htmlFor="sandbox-payload" className="block space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Invoke Payload</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.invokePayloadLabel")}</span>
             <textarea
               id="sandbox-payload"
               value={payloadDraft}
@@ -289,41 +291,41 @@ export default function FirstInvocationPanel({
             className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-400 px-4 py-4 text-xs font-bold uppercase tracking-[0.24em] text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Play className="h-4 w-4" />
-            {isInvoking ? "Processing Payment And Invoke" : "Run Paid Example"}
+            {isInvoking ? t("agentsPage.processingPaymentAndInvoke") : t("agentsPage.runPaidExample")}
           </button>
         </div>
 
         <section className="mt-6 rounded-[24px] border border-white/10 bg-black/20 p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Result</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.resultLabel")}</p>
           {result ? (
             <div className="mt-4 space-y-4">
               <dl className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Service</dt>
+                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.resultServiceLabel")}</dt>
                   <dd className="mt-2 text-sm font-semibold text-white">{result.serviceName}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Charged</dt>
+                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.resultChargedLabel")}</dt>
                   <dd className="mt-2 text-sm font-semibold text-emerald-300">{result.chargedUsdc} USDC</dd>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Attempts</dt>
+                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.resultAttemptsLabel")}</dt>
                   <dd className="mt-2 text-sm font-semibold text-white">{result.attempts}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Latency</dt>
+                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.resultLatencyLabel")}</dt>
                   <dd className="mt-2 text-sm font-semibold text-white">{result.durationMs} ms</dd>
                 </div>
               </dl>
 
               <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Transaction Hash</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.resultTransactionHashLabel")}</p>
                 <p className="mt-2 break-all font-mono text-xs text-blue-300">{result.txHash}</p>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">Request Id</p>
-                <p className="mt-2 break-all font-mono text-xs text-white">{result.requestId || "Unavailable in gateway response"}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.resultRequestIdLabel")}</p>
+                <p className="mt-2 break-all font-mono text-xs text-white">{result.requestId || t("agentsPage.unavailableInGatewayResponse")}</p>
               </div>
 
               <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-2xl border border-white/8 bg-[#050b16] p-4 font-mono text-xs leading-6 text-emerald-200">
@@ -332,7 +334,7 @@ export default function FirstInvocationPanel({
             </div>
           ) : (
             <p className="mt-3 text-sm leading-6 text-gray-400">
-              No invocation has been executed from this panel yet. A successful run will display the payment hash, retry count, charged USDC, request id, and gateway payload here.
+              {t("agentsPage.noInvocationYet")}
             </p>
           )}
         </section>

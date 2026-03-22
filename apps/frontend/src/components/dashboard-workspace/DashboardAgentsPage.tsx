@@ -6,6 +6,7 @@ import { AlertCircle, Bot, Check, Copy, PencilLine, Plus, RefreshCw, Search, Shi
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ActivationRunway from "@/components/dashboard/agents/ActivationRunway";
 import ActivationStatusStrip from "@/components/dashboard/agents/ActivationStatusStrip";
 import FirstInvocationPanel, { type FirstInvocationResult } from "@/components/dashboard/agents/FirstInvocationPanel";
@@ -65,6 +66,7 @@ type DashboardAgentsPageProps = {
 export default function DashboardAgentsPage({ mode = "guide" }: Readonly<DashboardAgentsPageProps>) {
   const { address: userAddress, isConnected } = useAccount();
   const { isSessionAuthenticated, authorize } = useAuth();
+  const { t } = useLanguage();
   const { openConnectModal } = useConnectModal();
   const { stats, logs, handleRefresh: handleOwnerRefresh } = useOwnerData();
 
@@ -112,11 +114,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setCredentials(data);
     } catch (err) {
       console.error("Failed to fetch credentials:", err);
-      setError("Failed to load agent credentials. Please try again.");
+      setError(t("agentsPage.loadCredentialsFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [isSessionAuthenticated, userAddress]);
+  }, [isSessionAuthenticated, t, userAddress]);
 
   const fetchServices = useCallback(async () => {
     try {
@@ -133,11 +135,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       });
     } catch (err) {
       console.error("Failed to discover services:", err);
-      setServiceError("Failed to load discovery examples. The sandbox stays available after the gateway comes back.");
+      setServiceError(t("agentsPage.loadDiscoveryFailed"));
     } finally {
       setIsServicesLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isConnected && userAddress && isSessionAuthenticated) {
@@ -163,25 +165,25 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const ensureOwnerReady = useCallback(async (): Promise<string | null> => {
     if (!isConnected) {
       openConnectModal?.();
-      setError("Please connect your wallet before creating an agent.");
+      setError(t("agentsPage.connectWalletBeforeCreate"));
       return null;
     }
 
     if (!userAddress) {
-      setError("Wallet address unavailable. Please reconnect your wallet and try again.");
+      setError(t("agentsPage.walletUnavailable"));
       return null;
     }
 
     if (!isSessionAuthenticated) {
       const ok = await authorize();
       if (!ok) {
-        setError("Please sign in with your wallet before creating an agent.");
+        setError(t("agentsPage.signInBeforeCreate"));
         return null;
       }
     }
 
     return userAddress.toLowerCase();
-  }, [authorize, isConnected, isSessionAuthenticated, openConnectModal, userAddress]);
+  }, [authorize, isConnected, isSessionAuthenticated, openConnectModal, t, userAddress]);
 
   const handleOpenCreateModal = useCallback(async () => {
     setError(null);
@@ -203,7 +205,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setError(null);
       setIsLoading(true);
       const result = await issueAgentCredential(boundOwner, {
-        name: agentName || "Unnamed Agent",
+        name: agentName || t("agentsPage.unnamedAgent"),
         ownerAddress: boundOwner,
         creditLimit: Number.parseFloat(dailyBudget),
         maxCalls: Number.parseInt(maxCalls, 10),
@@ -215,18 +217,18 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setAgentName("");
       setDailyBudget("10.00");
       setMaxCalls("1000");
-      toast.success(`Agent created for owner ${boundOwner.slice(0, 6)}...${boundOwner.slice(-4)}`);
+      toast.success(t("agentsPage.agentCreatedToast", { owner: `${boundOwner.slice(0, 6)}...${boundOwner.slice(-4)}` }));
       await fetchCredentials();
     } catch (err) {
       console.error("Failed to create credential:", err);
-      setError("Failed to create agent. Please check your balance and try again.");
+      setError(t("agentsPage.createAgentFailed"));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRevoke = async (id: string) => {
-    if (!userAddress || !confirm("Are you sure you want to revoke this agent's access? This action cannot be undone.")) {
+    if (!userAddress || !confirm(t("agentsPage.confirmRevoke"))) {
       return;
     }
 
@@ -235,7 +237,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       await fetchCredentials();
     } catch (err) {
       console.error("Failed to revoke credential:", err);
-      alert("Failed to revoke credential.");
+      alert(t("agentsPage.revokeFailed"));
     }
   };
 
@@ -277,12 +279,12 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         creditLimit: Number.isFinite(parsedCreditLimit) && parsedCreditLimit > 0 ? parsedCreditLimit : undefined,
         expiresAt: Number.isFinite(parsedExpiresAt) ? parsedExpiresAt : 0,
       });
-      toast.success("Agent limits updated");
+      toast.success(t("agentsPage.agentLimitsUpdated"));
       setIsEditModalOpen(false);
       await fetchCredentials();
     } catch (err) {
       console.error("Failed to update agent quota:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to update agent limits");
+      toast.error(err instanceof Error ? err.message : t("agentsPage.updateAgentLimitsFailed"));
     }
   };
 
@@ -429,7 +431,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
     if (!isSessionAuthenticated) {
       const ok = await authorize();
       if (!ok) {
-        setError("Please sign in with your wallet before continuing.");
+        setError(t("agentsPage.signInBeforeContinuing"));
       }
       return;
     }
@@ -457,18 +459,18 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       return;
     }
     setCredentialForService(selectedService.serviceId, sandboxCredential.trim());
-    toast.success(`Saved credential for ${selectedService.name}.`);
-  }, [sandboxCredential, selectedService]);
+    toast.success(t("agentsPage.credentialSavedToast", { service: selectedService.name }));
+  }, [sandboxCredential, selectedService, t]);
 
   const handleRunExample = useCallback(async (payloadText: string) => {
     if (!selectedService) {
-      setSandboxInvokeError("Select a service before invoking the sandbox.");
+      setSandboxInvokeError(t("agentsPage.selectServiceBeforeInvoking"));
       return;
     }
 
     const credential = sandboxCredential.trim();
     if (!credential) {
-      setSandboxInvokeError("Paste the full agent credential token before running the paid example.");
+      setSandboxInvokeError(t("agentsPage.pasteCredentialBeforeRun"));
       return;
     }
 
@@ -476,7 +478,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
     try {
       payload = JSON.parse(payloadText);
     } catch {
-      setSandboxInvokeError("Payload must be valid JSON.");
+      setSandboxInvokeError(t("agentsPage.payloadMustBeValidJson"));
       return;
     }
 
@@ -488,7 +490,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
       const providerAddress = selectedService.ownerAddress || selectedService.address;
       if (!providerAddress) {
-        throw new Error("Selected service is missing a provider address.");
+        throw new Error(t("agentsPage.selectedServiceMissingProvider"));
       }
 
       const startedAt = performance.now();
@@ -514,30 +516,30 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         requestId: extractRequestId(result.response),
         response: result.response,
       });
-      toast.success("Paid invocation completed.");
+      toast.success(t("agentsPage.paidInvocationCompleted"));
       await Promise.allSettled([handleOwnerRefresh(), fetchCredentials()]);
     } catch (err) {
       console.error("Sandbox invoke failed:", err);
-      const message = err instanceof Error ? err.message : "Invocation failed";
+      const message = err instanceof Error ? err.message : t("agentsPage.invocationFailed");
       setSandboxInvokeError(message);
     } finally {
       setIsSandboxInvoking(false);
     }
-  }, [fetchCredentials, handleOwnerRefresh, sandboxCredential, selectedService]);
+  }, [fetchCredentials, handleOwnerRefresh, sandboxCredential, selectedService, t]);
 
   const isGuideMode = mode === "guide";
 
-  let primaryActionLabel = "Refresh Workspace";
+  let primaryActionLabel = t("agentsPage.refreshWorkspace");
   if (!isConnected) {
-    primaryActionLabel = "Connect Wallet";
+    primaryActionLabel = t("agentsPage.connectWallet");
   } else if (!isSessionAuthenticated) {
-    primaryActionLabel = "Sign In";
+    primaryActionLabel = t("agentsPage.signIn");
   } else if (Number(stats.ownerBalance) <= 0) {
-    primaryActionLabel = "Add Funds";
+    primaryActionLabel = t("agentsPage.addFunds");
   } else if (activeAgentsCount === 0) {
-    primaryActionLabel = "Create Agent";
+    primaryActionLabel = t("agentsPage.createAgent");
   } else if (!hasSuccessfulInvocation) {
-    primaryActionLabel = "Run First Paid Invocation";
+    primaryActionLabel = t("agentsPage.runFirstPaidInvocation");
   }
 
   const issuedCredential = newCredential;
@@ -747,9 +749,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
           <section className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0c] shadow-2xl">
             <header className="flex items-center justify-between border-b border-white/5 p-6">
               <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-                <span id="create-agent-title" className="sr-only">Create Agent Profile</span>
+                <span id="create-agent-title" className="sr-only">{t("agentsPage.createAgentProfile")}</span>
                 <Plus className="h-5 w-5 text-blue-400" />
-                Create Agent Profile
+                {t("agentsPage.createAgentProfile")}
               </h2>
               <button type="button" onClick={() => setIsCreateModalOpen(false)} className="text-gray-500 hover:text-white">
                 <XCircle className="h-5 w-5" />
@@ -757,30 +759,30 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
             </header>
             <form onSubmit={handleCreateCredential} className="space-y-6 p-6">
               <label htmlFor="agent-name" className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Agent Name</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.agentNameLabel")}</span>
                 <input
                   id="agent-name"
                   type="text"
                   value={agentName}
                   onChange={(event) => setAgentName(event.target.value)}
-                  placeholder="e.g. ResearchBot-01"
+                  placeholder={t("agentsPage.agentNamePlaceholder")}
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
                   required
                 />
               </label>
               <label htmlFor="bound-owner" className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Bound Owner</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.boundOwnerLabel")}</span>
                 <input
                   id="bound-owner"
                   type="text"
                   readOnly
-                  value={ownerAddress || "Wallet session required"}
+                  value={ownerAddress || t("agentsPage.walletSessionRequired")}
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-mono text-blue-300"
                 />
               </label>
               <section className="grid grid-cols-2 gap-4">
                 <label htmlFor="daily-budget" className="block space-y-2">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Daily Budget (USDC)</span>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
                   <input
                     id="daily-budget"
                     type="number"
@@ -792,7 +794,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   />
                 </label>
                 <label htmlFor="max-calls" className="block space-y-2">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Max Calls</span>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
                   <input
                     id="max-calls"
                     type="number"
@@ -806,7 +808,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               <aside className="flex items-start gap-3 rounded-xl border border-blue-500/10 bg-blue-500/5 p-4">
                 <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-400" />
                 <p className="text-[11px] leading-relaxed text-gray-400">
-                  Creating an agent will issue a unique credential bound to the active owner wallet session. You can revoke access or update budget policies at any time.
+                  {t("agentsPage.createAgentHint")}
                 </p>
               </aside>
               <button
@@ -814,7 +816,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 disabled={isLoading}
                 className="w-full rounded-xl bg-blue-500 py-4 text-sm font-bold text-white transition-all hover:bg-blue-400 disabled:opacity-50"
               >
-                {isLoading ? "Creating..." : "Issue Credential"}
+                {isLoading ? t("agentsPage.creating") : t("agentsPage.issueCredential")}
               </button>
             </form>
           </section>
@@ -829,8 +831,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <ShieldCheck className="h-10 w-10 text-emerald-400" />
               </span>
               <header>
-                <h2 id="issued-agent-title" className="text-2xl font-bold text-white">Agent Credential Issued</h2>
-                <p className="mt-2 text-sm text-gray-500">Copy this token now. For security, it will not be shown again.</p>
+                <h2 id="issued-agent-title" className="text-2xl font-bold text-white">{t("agentsPage.credentialIssuedTitle")}</h2>
+                <p className="mt-2 text-sm text-gray-500">{t("agentsPage.credentialIssuedDescription")}</p>
               </header>
 
               <section className="group relative">
@@ -848,17 +850,17 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
               <dl className="grid grid-cols-2 gap-4 text-left">
                 <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-                  <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">Agent Name</dt>
+                  <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.agentNameLabel")}</dt>
                   <dd className="text-sm font-bold text-white">{issuedCredential.name}</dd>
                 </div>
                 <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-                  <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">Daily Budget</dt>
+                  <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</dt>
                   <dd className="text-sm font-bold text-emerald-400">${(issuedCredential.creditLimit ?? 0).toFixed(2)}</dd>
                 </div>
               </dl>
 
               <dl className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left">
-                <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">Bound Owner</dt>
+                <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.boundOwnerValueLabel")}</dt>
                 <dd className="break-all font-mono text-sm text-blue-300">{issuedCredential.ownerAddress}</dd>
               </dl>
 
@@ -867,7 +869,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 onClick={() => setNewCredential(null)}
                 className="w-full rounded-xl bg-white py-4 text-sm font-bold text-black transition-all hover:bg-gray-200"
               >
-                I&apos;ve Saved the Token
+                {t("agentsPage.savedTokenCta")}
               </button>
             </section>
           </section>
@@ -880,16 +882,16 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
             <header className="flex items-center justify-between border-b border-white/5 p-6">
               <h2 id="edit-agent-title" className="flex items-center gap-2 text-lg font-bold text-white">
                 <PencilLine className="h-5 w-5 text-blue-400" />
-                Edit Agent Limits
+                {t("agentsPage.editAgentLimitsTitle")}
               </h2>
               <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-gray-500 hover:text-white">
                 <XCircle className="h-5 w-5" />
               </button>
             </header>
             <section className="space-y-5 p-6">
-              <p className="text-sm leading-6 text-gray-400">This edit flow updates runtime limits on the live credential. Budget amount and owner binding remain fixed at issuance for now.</p>
+              <p className="text-sm leading-6 text-gray-400">{t("agentsPage.editAgentLimitsDescription")}</p>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Max Calls</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
                 <input
                   type="number"
                   value={quotaMaxCalls}
@@ -898,7 +900,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Rate Limit (RPM)</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.rateLimitLabel")}</span>
                 <input
                   type="number"
                   value={quotaRpm}
@@ -907,7 +909,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Daily Budget (USDC)</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
                 <input
                   type="number"
                   step="0.01"
@@ -918,7 +920,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Expiration</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.expirationLabel")}</span>
                 <input
                   type="datetime-local"
                   value={quotaExpiresAtLocal}
@@ -927,8 +929,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5">Cancel</button>
-                <button type="button" onClick={() => void handleUpdateQuota()} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-400">Save</button>
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5">{t("agentsPage.cancel")}</button>
+                <button type="button" onClick={() => void handleUpdateQuota()} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-400">{t("agentsPage.save")}</button>
               </div>
             </section>
           </section>

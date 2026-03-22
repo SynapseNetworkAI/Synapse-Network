@@ -2,6 +2,7 @@
 
 import { Activity, ArrowRight, Bot, HelpCircle, ShieldCheck, Wallet } from "lucide-react";
 import { useState } from "react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 type ActivationStatusStripProps = {
   isConnected: boolean;
@@ -14,9 +15,9 @@ type ActivationStatusStripProps = {
   isPrimaryActionDisabled?: boolean;
 };
 
-function formatInvocationTime(timestamp?: number): string {
+function formatInvocationTime(timestamp: number | undefined, emptyLabel: string): string {
   if (!timestamp) {
-    return "No successful invocation yet";
+    return emptyLabel;
   }
 
   return new Date(timestamp * 1000).toLocaleString();
@@ -42,6 +43,7 @@ export default function ActivationStatusStrip({
   onPrimaryAction,
   isPrimaryActionDisabled = false,
 }: Readonly<ActivationStatusStripProps>) {
+  const { t } = useLanguage();
   const [tooltips, setTooltips] = useState<TooltipState>({});
 
   const toggleTooltip = (key: string) => {
@@ -53,37 +55,37 @@ export default function ActivationStatusStrip({
 
   const metrics = [
     {
-      title: "Wallet",
-      value: isConnected ? "Connected" : "Disconnected",
+      title: t("agentsPage.walletMetricTitle"),
+      value: isConnected ? t("agentsPage.connected") : t("agentsPage.disconnected"),
       icon: Wallet,
       tone: getStatusTone(isConnected),
       tooltip: null,
     },
     {
-      title: "Session",
-      value: isSessionAuthenticated ? "Authenticated" : "Missing",
+      title: t("agentsPage.sessionMetricTitle"),
+      value: isSessionAuthenticated ? t("agentsPage.authenticated") : t("agentsPage.missing"),
       icon: ShieldCheck,
       tone: getStatusTone(isSessionAuthenticated),
       tooltip: null,
     },
     {
-      title: "Owner Vault Balance",
+      title: t("agentsPage.ownerVaultBalanceMetricTitle"),
       value: `${ownerBalance} USDC`,
       icon: Wallet,
       tone: getStatusTone(Number(ownerBalance) > 0),
-      tooltip: "Your available owner credit in the Synapse Vault for agent operations",
+      tooltip: t("agentsPage.ownerVaultBalanceTooltip"),
       tooltipKey: "platform-balance",
     },
     {
-      title: "Active Agents",
+      title: t("agentsPage.activeAgentsMetricTitle"),
       value: String(activeAgents),
       icon: Bot,
       tone: getStatusTone(activeAgents > 0),
       tooltip: null,
     },
     {
-      title: "Last Invocation",
-      value: formatInvocationTime(lastInvocationAt),
+      title: t("agentsPage.lastInvocationMetricTitle"),
+      value: formatInvocationTime(lastInvocationAt, t("agentsPage.noSuccessfulInvocationYet")),
       icon: Activity,
       tone: getStatusTone(Boolean(lastInvocationAt)),
       tooltip: null,
@@ -91,14 +93,14 @@ export default function ActivationStatusStrip({
   ] as const;
 
   return (
-    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(59,130,246,0.14),rgba(8,15,28,0.82))] p-6 shadow-[0_20px_80px_rgba(2,6,23,0.45)]" aria-label="Activation status strip">
+    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(59,130,246,0.14),rgba(8,15,28,0.82))] p-6 shadow-[0_20px_80px_rgba(2,6,23,0.45)]" aria-label={t("agentsPage.activationStatusAria")}>
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-blue-300/80">Activation Status</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-blue-300/80">{t("agentsPage.activationStatusEyebrow")}</p>
           <div>
-            <h2 className="text-2xl font-semibold text-white">Owner readiness for the first paid agent call</h2>
+            <h2 className="text-2xl font-semibold text-white">{t("agentsPage.activationStatusTitle")}</h2>
             <p className="mt-1 max-w-3xl text-sm text-slate-300">
-              Synapse is only activated when an issued credential completes a paid invocation. This strip shows the current blocker and the next action.
+              {t("agentsPage.activationStatusDescription")}
             </p>
           </div>
         </div>
@@ -136,7 +138,7 @@ export default function ActivationStatusStrip({
                     type="button"
                     onClick={() => toggleTooltip(tooltipKey)}
                     className="relative flex-shrink-0 text-current/50 hover:text-current transition"
-                    aria-label={`Help: ${item.title}`}
+                    aria-label={t("agentsPage.activationStatusHelpAria", { title: item.title })}
                   >
                     <HelpCircle className="h-4 w-4" />
                     {showTooltip && (
