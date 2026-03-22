@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, sortWithdrawReviewsByPriority } from "./review-presenters";
+import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "./review-presenters";
 
 const reviews = [
   {
@@ -74,5 +74,10 @@ describe("review-presenters", () => {
     ]);
     expect(listWithdrawRiskLevels(reviews)).toEqual(["yellow", "red"]);
     expect(getWithdrawRiskTone("yellow")).toBe("orange");
+  });
+
+  it("returns only the reviews for the requested page", () => {
+    expect(paginateWithdrawReviews(sortWithdrawReviewsByPriority(reviews), 1, 2).map((item) => item.withdrawalId)).toEqual(["wd-001", "wd-002"]);
+    expect(paginateWithdrawReviews(sortWithdrawReviewsByPriority(reviews), 2, 2).map((item) => item.withdrawalId)).toEqual(["wd-003"]);
   });
 });
