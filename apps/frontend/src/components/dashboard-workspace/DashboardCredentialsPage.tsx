@@ -46,6 +46,7 @@ function CredentialsContent() {
 
   const [quotaMaxCalls, setQuotaMaxCalls] = useState("1000");
   const [quotaRpm, setQuotaRpm] = useState("600");
+  const [quotaDailyBudget, setQuotaDailyBudget] = useState("10.00");
   const [quotaExpiresAt, setQuotaExpiresAt] = useState("");
   const [quotaExpiresAtLocal, setQuotaExpiresAtLocal] = useState("");
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
@@ -204,6 +205,7 @@ function CredentialsContent() {
     setSelectedCredentialId(cred.id);
     setQuotaMaxCalls(String(cred.maxCalls || 1000));
     setQuotaRpm(String(cred.rpm || 600));
+    setQuotaDailyBudget(String(cred.creditLimit ?? 0));
 
     if (cred.expiresAt) {
       setQuotaExpiresAt(String(cred.expiresAt));
@@ -221,6 +223,7 @@ function CredentialsContent() {
     try {
       const pMax = Number.parseInt(quotaMaxCalls, 10) || 0;
       const pRpm = Number.parseInt(quotaRpm, 10) || 0;
+      const pCreditLimit = Number.parseFloat(quotaDailyBudget);
 
       let pExp = Number.parseInt(quotaExpiresAt, 10) || 0;
       if (quotaExpiresAtLocal) {
@@ -233,6 +236,7 @@ function CredentialsContent() {
       await updateAgentCredentialQuota(userAddress, selectedCredentialId, {
         maxCalls: pMax,
         rpm: pRpm,
+        creditLimit: Number.isFinite(pCreditLimit) && pCreditLimit > 0 ? pCreditLimit : undefined,
         expiresAt: pExp,
       });
 
@@ -522,6 +526,10 @@ function CredentialsContent() {
                 <div>
                   <label htmlFor="quota-rpm" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Rate Limit (RPM)</label>
                   <input id="quota-rpm" type="number" value={quotaRpm} onChange={e => setQuotaRpm(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                </div>
+                <div>
+                  <label htmlFor="quota-daily-budget" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Daily Budget (USDC)</label>
+                  <input id="quota-daily-budget" type="number" step="0.01" min="0.01" value={quotaDailyBudget} onChange={e => setQuotaDailyBudget(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
                 </div>
                 <div>
                   <label htmlFor="quota-expiration-local" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Expiration (Local Time)</label>
