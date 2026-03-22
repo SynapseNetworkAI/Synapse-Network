@@ -42,7 +42,10 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
   const sentinelMetrics = useMemo(() => {
     return buildSentinelMetrics(overview, operationsOverview, diagnostics, reconciliationDetail);
   }, [diagnostics, operationsOverview, overview, reconciliationDetail]);
-  const overviewDiagnostics = useMemo(() => omitDiagnosticSignals(diagnostics, ["reconciliation"]), [diagnostics]);
+  const overviewDiagnostics = useMemo(
+    () => omitDiagnosticSignals(diagnostics, ["reconciliation"], { actionIds: ["system-center"] }),
+    [diagnostics],
+  );
 
   const flowCards = useMemo(() => buildDashboardFlowCards(financeOverview), [financeOverview]);
   const pressureCards = useMemo(() => buildDashboardPressureCards(overview, financeOverview), [financeOverview, overview]);

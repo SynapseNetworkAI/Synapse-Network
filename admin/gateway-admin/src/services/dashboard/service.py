@@ -19,9 +19,12 @@ class DashboardService:
         self._gateway_projection = gateway_projection
         self._provider_withdraw_review_repository = provider_withdraw_review_repository
 
+    def _count_pending_approval_work_items(self) -> int:
+        return self._store.approval.count_pending_approvals() + self._provider_withdraw_review_repository.count_pending_reviews()
+
     def get_overview(self) -> dict:
         snapshot = self._gateway_projection.get_snapshot()
-        pending_approvals = self._store.approval.count_pending_approvals()
+        pending_approvals = self._count_pending_approval_work_items()
         return {
             "metrics": {
                 "pendingApprovals": pending_approvals,
@@ -153,7 +156,7 @@ class DashboardService:
             "lastReconciliationAt": self._format_timestamp(runtime_state.last_check_at or operations.last_reconciliation_at),
             "runtimeStateUpdatedAt": self._format_timestamp(runtime_state.updated_at),
             "reconciliationLastError": operations.reconciliation_last_error,
-            "pendingApprovals": self._store.approval.count_pending_approvals(),
+            "pendingApprovals": self._count_pending_approval_work_items(),
             "depositExceptions": overview.deposit_exceptions,
             "auditAlerts": audit_alerts,
             "pendingDepositCount": finance.pending_deposit_count,
@@ -323,14 +326,14 @@ class DashboardService:
         return {
             "gatewayAdmin": "healthy",
             "gateway": "degraded" if failed_jobs and snapshot.gateway_status == "healthy" else snapshot.gateway_status,
-            "approvalQueueDepth": self._store.approval.count_pending_approvals(),
+            "approvalQueueDepth": self._count_pending_approval_work_items(),
             "lastReconciliationAt": self._format_timestamp(snapshot.last_reconciliation_at),
         }
 
     def get_diagnostics(self) -> dict:
         operations = self._gateway_projection.get_operations_snapshot()
         overview = self._gateway_projection.get_snapshot()
-        pending_approvals = self._store.approval.count_pending_approvals()
+        pending_approvals = self._count_pending_approval_work_items()
         failed_jobs = self._store.approval.list_execution_jobs(
             status=ExecutionJobStatus.FAILED.value,
             limit=20,

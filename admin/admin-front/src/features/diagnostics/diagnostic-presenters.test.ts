@@ -175,11 +175,73 @@ describe("diagnostic-presenters", () => {
         },
       ],
     }, ["reconciliation"])).toEqual({
-      overallStatus: "monitoring",
+      overallStatus: "nominal",
       checkedAt: "2026-03-22T00:00:00Z",
       summary: "",
       signals: [],
       actions: [],
+    });
+  });
+
+  it("recomputes overall status after omitting reconciliation and can drop page-local actions", () => {
+    expect(omitDiagnosticSignals({
+      overallStatus: "degraded",
+      checkedAt: "2026-03-22T00:00:00Z",
+      summary: "gateway degraded and reconciliation alert present",
+      signals: [
+        {
+          signalId: "reconciliation",
+          label: "Reconciliation drift",
+          status: "degraded",
+          value: "12.00 USDC",
+          detail: "delta mismatch",
+        },
+        {
+          signalId: "pending-approvals",
+          label: "Approval queue",
+          status: "nominal",
+          value: "0",
+          detail: "healthy",
+        },
+      ],
+      actions: [
+        {
+          actionId: "system-center",
+          label: "Open system center",
+          href: "/system",
+          detail: "inspect gateway health, execution failures, and persisted task status for indexer, backfill, and reconciliation",
+          status: "degraded",
+        },
+        {
+          actionId: "execution-queue",
+          label: "Inspect execution queue",
+          href: "/execution",
+          detail: "pending reviews",
+          status: "nominal",
+        },
+      ],
+    }, ["reconciliation"], { actionIds: ["system-center"] })).toEqual({
+      overallStatus: "nominal",
+      checkedAt: "2026-03-22T00:00:00Z",
+      summary: "gateway degraded",
+      signals: [
+        {
+          signalId: "pending-approvals",
+          label: "Approval queue",
+          status: "nominal",
+          value: "0",
+          detail: "healthy",
+        },
+      ],
+      actions: [
+        {
+          actionId: "execution-queue",
+          label: "Inspect execution queue",
+          href: "/execution",
+          detail: "pending reviews",
+          status: "nominal",
+        },
+      ],
     });
   });
 });

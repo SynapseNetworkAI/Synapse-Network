@@ -46,7 +46,10 @@ export default function SystemPage() {
     }
     return buildRuntimeCards(operations);
   }, [operations]);
-  const systemDiagnostics = useMemo(() => omitDiagnosticSignals(diagnostics, ["reconciliation"]), [diagnostics]);
+  const systemDiagnostics = useMemo(
+    () => omitDiagnosticSignals(diagnostics, ["reconciliation"], { actionIds: ["system-center"] }),
+    [diagnostics],
+  );
 
   useEffect(() => {
     if (!token) {

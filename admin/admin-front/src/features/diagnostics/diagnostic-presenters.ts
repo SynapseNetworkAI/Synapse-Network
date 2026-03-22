@@ -238,15 +238,35 @@ export function buildPrioritizedDiagnosticSignalCards(signals: DashboardDiagnost
     .slice(0, limit);
 }
 
+function resolveDiagnosticOverallStatus(signals: DashboardDiagnosticSignal[]): string {
+  if (signals.some((signal) => signal.status === "degraded")) {
+    return "degraded";
+  }
+
+  if (signals.some((signal) => signal.status === "monitoring")) {
+    return "monitoring";
+  }
+
+  return "nominal";
+}
+
+type OmitDiagnosticOptions = Readonly<{
+  actionIds?: string[];
+}>;
+
 export function omitDiagnosticSignals(
   diagnostics: DashboardDiagnostics | null,
   signalIds: string[],
+  options?: OmitDiagnosticOptions,
 ): DashboardDiagnostics | null {
   if (!diagnostics || signalIds.length === 0) {
-    return diagnostics;
+    if (!diagnostics || !options?.actionIds?.length) {
+      return diagnostics;
+    }
   }
 
   const excludedIds = new Set(signalIds);
+  const excludedActionIds = new Set(options?.actionIds ?? []);
   const shouldOmitReconciliation = excludedIds.has("reconciliation");
   const nextSummary = shouldOmitReconciliation
     ? diagnostics.summary
@@ -255,21 +275,28 @@ export function omitDiagnosticSignals(
         ?.replaceAll(/reconciliation alert present/gi, "")
         ?.trim() || ""
     : diagnostics.summary;
+  const nextSignals = diagnostics.signals.filter((signal) => !excludedIds.has(signal.signalId));
+  const nextActions = diagnostics.actions.filter((action) => {
+    if (excludedActionIds.has(action.actionId)) {
+      return false;
+    }
+
+    if (!shouldOmitReconciliation) {
+      return true;
+    }
+
+    const actionId = action.actionId.toLowerCase();
+    const label = action.label.toLowerCase();
+    const href = action.href.toLowerCase();
+
+    return !actionId.includes("reconciliation") && !label.includes("reconciliation") && !href.includes("/finance/reconciliation");
+  });
 
   return {
     ...diagnostics,
+    overallStatus: resolveDiagnosticOverallStatus(nextSignals),
     summary: nextSummary,
-    signals: diagnostics.signals.filter((signal) => !excludedIds.has(signal.signalId)),
-    actions: diagnostics.actions.filter((action) => {
-      if (!shouldOmitReconciliation) {
-        return true;
-      }
-
-      const actionId = action.actionId.toLowerCase();
-      const label = action.label.toLowerCase();
-      const href = action.href.toLowerCase();
-
-      return !actionId.includes("reconciliation") && !label.includes("reconciliation") && !href.includes("/finance/reconciliation");
-    }),
+    signals: nextSignals,
+    actions: nextActions,
   };
 }

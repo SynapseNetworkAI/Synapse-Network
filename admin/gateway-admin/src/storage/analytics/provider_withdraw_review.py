@@ -36,6 +36,7 @@ class ProviderWithdrawReviewItem:
 
 class ProviderWithdrawReviewRepository(Protocol):
     def list_pending_reviews(self, limit: int = 20) -> list[ProviderWithdrawReviewItem]: ...
+    def count_pending_reviews(self) -> int: ...
     def get_review_item(self, withdrawal_id: str) -> ProviderWithdrawReviewItem | None: ...
 
 
@@ -81,6 +82,9 @@ class InMemoryProviderWithdrawReviewRepository:
     def list_pending_reviews(self, limit: int = 20) -> list[ProviderWithdrawReviewItem]:
         items = [item for item in self._items if item.status == "PENDING_MANUAL_REVIEW"]
         return items[:limit]
+
+    def count_pending_reviews(self) -> int:
+        return len([item for item in self._items if item.status == "PENDING_MANUAL_REVIEW"])
 
     def get_review_item(self, withdrawal_id: str) -> ProviderWithdrawReviewItem | None:
         target = withdrawal_id.strip()
@@ -147,6 +151,21 @@ class PostgresProviderWithdrawReviewRepository:
             )
             rows = cur.fetchall()
         return [self._to_item(row) for row in rows]
+
+    def count_pending_reviews(self) -> int:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM synapse_vault_withdrawals vw
+                LEFT JOIN synapse_runtime_state rs
+                  ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+                WHERE vw.withdrawal_kind = 'provider_withdrawal'
+                  AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
+                """
+            )
+            row = cur.fetchone()
+        return int(row["total"])
 
     def get_review_item(self, withdrawal_id: str) -> ProviderWithdrawReviewItem | None:
         with _connect(self._dsn) as conn, conn.cursor() as cur:

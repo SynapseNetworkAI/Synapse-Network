@@ -39,7 +39,7 @@ class ApprovalService:
         return {"items": items, "nextCursor": None}
 
     def pending_count(self) -> int:
-        return self._store.approval.count_pending_approvals()
+        return self._store.approval.count_pending_approvals() + self._provider_withdraw_review_repository.count_pending_reviews()
 
     def create_item(self, payload: dict, requester: AdminIdentity) -> dict:
         now = datetime.now(timezone.utc)
