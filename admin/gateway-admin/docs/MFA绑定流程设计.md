@@ -7,7 +7,7 @@
 当前判断逻辑可以概括为三条：
 
 1. `admin_users.require_mfa = true` 只代表账号策略上要求 MFA，不代表账号已经完成绑定。
-2. 只有当账号存在 `admin_mfa_factors.factor_type = 'totp'` 且 `status = 'active'` 的因子时，登录页才应该要求直接输入 OTP。
+2. 只有当账号存在且仅存在一条 `admin_mfa_factors.factor_type = 'totp'` 且 `status = 'active'` 的因子时，登录页才应该要求直接输入 OTP。
 3. 当密码正确、`require_mfa = true` 且当前账号没有 active TOTP factor 时，登录接口会返回 `428 MFA_ENROLLMENT_REQUIRED`，前端应进入绑定流程页而不是展示“Invalid admin credentials”。
 
 本地 bootstrap 管理员还要额外注意两点：
@@ -196,6 +196,10 @@
 - `expiresIn`
 
 ### 6.3 `POST /api/admin/v1/auth/mfa/enroll/verify`
+
+- 新因子验证成功后，服务端会把该 TOTP 因子提升为唯一 active 因子。
+- 同一管理员名下其他 `pending` 或 `active` 的 TOTP 因子会被立即回收为 `revoked`，避免出现多个 active secret 并存。
+- 如果库中已经出现多个 active TOTP 因子这类脏状态，登录 OTP 与高风险 step-up OTP 都会拒绝继续执行，直到运维清理或管理员重新绑定。
 
 作用：
 

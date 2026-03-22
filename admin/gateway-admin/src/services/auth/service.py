@@ -21,6 +21,7 @@ APPROVAL_DECIDE = "approval:decide"
 INVALID_ADMIN_TOKEN = "Invalid admin token"
 ADMIN_NOT_ACTIVE = "Admin account is not active"
 INVALID_GOOGLE_AUTHENTICATOR_CODE = "Invalid Google Authenticator code"
+MULTIPLE_ACTIVE_GOOGLE_AUTHENTICATOR_FACTORS = "Multiple active Google Authenticator factors are configured"
 ENROLLMENT_TOKEN_TTL_SEC = 600
 
 
@@ -139,23 +140,11 @@ class AdminAuthService:
         for other_factor in self._store.identity.list_mfa_factors(user.admin_id):
             if other_factor.factor_id == factor.factor_id:
                 continue
-            if other_factor.status != MfaFactorStatus.PENDING:
+            if other_factor.factor_type != MfaFactorType.TOTP:
                 continue
-            self._store.identity.upsert_mfa_factor(
-                AdminMfaFactor(
-                    factor_id=other_factor.factor_id,
-                    admin_id=other_factor.admin_id,
-                    factor_type=other_factor.factor_type,
-                    factor_label=other_factor.factor_label,
-                    status=MfaFactorStatus.REVOKED,
-                    secret_ref=other_factor.secret_ref,
-                    payload=other_factor.payload,
-                    last_verified_at=other_factor.last_verified_at,
-                    created_at=other_factor.created_at,
-                    updated_at=now,
-                    revoked_at=now,
-                )
-            )
+            if other_factor.status not in {MfaFactorStatus.PENDING, MfaFactorStatus.ACTIVE}:
+                continue
+            self._store.identity.upsert_mfa_factor(self._revoked_totp_factor(other_factor, now))
         self._store.identity.upsert_mfa_enrollment_challenge(
             AdminMfaEnrollmentChallenge(
                 challenge_id=challenge.challenge_id,
@@ -495,11 +484,31 @@ class AdminAuthService:
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
 
     def _get_active_totp_factor(self, user: AdminUser) -> AdminMfaFactor:
+        active_factors: list[AdminMfaFactor] = []
         for factor in self._store.identity.list_mfa_factors(user.admin_id):
             if factor.status != MfaFactorStatus.ACTIVE:
                 continue
             if factor.factor_type != MfaFactorType.TOTP:
                 continue
             if str(factor.payload.get("totpSecret") or "").strip():
-                return factor
-        raise AuthenticationError("Admin Google Authenticator is not configured")
+                active_factors.append(factor)
+        if not active_factors:
+            raise AuthenticationError("Admin Google Authenticator is not configured")
+        if len(active_factors) > 1:
+            raise AuthenticationError(MULTIPLE_ACTIVE_GOOGLE_AUTHENTICATOR_FACTORS)
+        return active_factors[0]
+
+    def _revoked_totp_factor(self, factor: AdminMfaFactor, now: datetime) -> AdminMfaFactor:
+        return AdminMfaFactor(
+            factor_id=factor.factor_id,
+            admin_id=factor.admin_id,
+            factor_type=factor.factor_type,
+            factor_label=factor.factor_label,
+            status=MfaFactorStatus.REVOKED,
+            secret_ref=factor.secret_ref,
+            payload=factor.payload,
+            last_verified_at=factor.last_verified_at,
+            created_at=factor.created_at,
+            updated_at=now,
+            revoked_at=now,
+        )

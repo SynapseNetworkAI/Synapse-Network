@@ -4,7 +4,7 @@ from uuid import uuid4
 from src.app import app
 from src.api import deps
 from src.core.config import get_settings
-from src.core.totp import generate_totp_code
+from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
 from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
@@ -295,6 +295,71 @@ def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity
     assert len(primary_factors) == 1
     assert primary_factors[0].status == MfaFactorStatus.PENDING
     assert primary_factors[0].payload["totpSecret"] == begin_body["manualEntryKey"]
+
+
+def test_admin_auth_mfa_enrollment_verify_revokes_other_totp_factors() -> None:
+    email = f"rebind-factor-{uuid4().hex[:8]}@synapse.network"
+    store = deps.get_store()
+    user = store.identity.create_user(
+        AdminUser(
+            admin_id=f"admin_{uuid4().hex[:12]}",
+            email=email,
+            display_name="Rebind Factor Admin",
+            status=AdminUserStatus.ACTIVE,
+            password_hash=hash_password(PLACEHOLDER_PASSWORD),
+            require_mfa=True,
+        )
+    )
+
+    client.cookies.clear()
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": email,
+            "password": PLACEHOLDER_PASSWORD,
+        },
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    begin_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+    )
+    assert begin_response.status_code == 200
+    begin_body = begin_response.json()["data"]
+
+    legacy_factor = store.identity.upsert_mfa_factor(
+        AdminMfaFactor(
+            factor_id=f"legacy_{uuid4().hex[:12]}",
+            admin_id=user.admin_id,
+            factor_type=MfaFactorType.TOTP,
+            factor_label="bootstrap_totp",
+            status=MfaFactorStatus.ACTIVE,
+            payload={"totpSecret": generate_totp_secret()},
+        )
+    )
+
+    verify_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/verify",
+        json={
+            "enrollmentToken": enrollment_token,
+            "factorId": begin_body["factorId"],
+            "otpCode": generate_totp_code(begin_body["manualEntryKey"]),
+        },
+    )
+
+    assert verify_response.status_code == 200
+    factors = store.identity.list_mfa_factors(user.admin_id)
+    active_totp_factors = [
+        factor
+        for factor in factors
+        if factor.factor_type == MfaFactorType.TOTP and factor.status == MfaFactorStatus.ACTIVE
+    ]
+    assert len(active_totp_factors) == 1
+    assert active_totp_factors[0].factor_id == begin_body["factorId"]
+    revoked_legacy_factor = next(factor for factor in factors if factor.factor_id == legacy_factor.factor_id)
+    assert revoked_legacy_factor.status == MfaFactorStatus.REVOKED
 
 
 def test_admin_auth_policy_exposes_google_authenticator_switches() -> None:
@@ -772,6 +837,53 @@ def test_provider_withdraw_review_decision_requires_permission() -> None:
     )
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_provider_withdraw_review_decision_rejects_multiple_active_google_authenticator_factors() -> None:
+    csrf_headers = _login_as("finance-review@synapse.network")
+    store = deps.get_store()
+    user = store.identity.get_user_by_email("finance-review@synapse.network")
+    assert user is not None
+    duplicate_factor = store.identity.upsert_mfa_factor(
+        AdminMfaFactor(
+            factor_id=f"dup_{uuid4().hex[:12]}",
+            admin_id=user.admin_id,
+            factor_type=MfaFactorType.TOTP,
+            factor_label="bootstrap_totp",
+            status=MfaFactorStatus.ACTIVE,
+            payload={"totpSecret": generate_totp_secret()},
+        )
+    )
+
+    try:
+        response = client.post(
+            "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
+            headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+            json={
+                "decision": "REJECT",
+                "note": "Duplicate active TOTP factors must be rejected.",
+            },
+        )
+        assert response.status_code == 401
+        assert response.json()["error"]["message"] == "Multiple active Google Authenticator factors are configured"
+    finally:
+        factor = store.identity.get_mfa_factor_by_id(duplicate_factor.factor_id)
+        assert factor is not None
+        store.identity.upsert_mfa_factor(
+            AdminMfaFactor(
+                factor_id=factor.factor_id,
+                admin_id=factor.admin_id,
+                factor_type=factor.factor_type,
+                factor_label=factor.factor_label,
+                status=MfaFactorStatus.REVOKED,
+                secret_ref=factor.secret_ref,
+                payload=factor.payload,
+                last_verified_at=factor.last_verified_at,
+                created_at=factor.created_at,
+                updated_at=factor.updated_at,
+                revoked_at=factor.updated_at,
+            )
+        )
 
 
 def test_draft_menu_config_requires_control_plane_role() -> None:
