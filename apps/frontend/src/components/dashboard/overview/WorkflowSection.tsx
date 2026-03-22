@@ -15,7 +15,7 @@ export default function WorkflowSection() {
       icon: <UserPlus className="w-4 h-4 text-blue-400" />,
       title: "Create Agent",
       description: "Provision a runtime identity for your autonomous agent to act on your behalf.",
-      link: "/dashboard/agents",
+      link: "/dashboard/agents/workspace",
       linkText: "Manage Agents"
     },
     {

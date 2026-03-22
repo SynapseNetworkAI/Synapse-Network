@@ -35,6 +35,7 @@ export default function DashboardSidebar() {
     const allRoutes = [
       "/dashboard/overview",
       "/dashboard/agents",
+      "/dashboard/agents/workspace",
       "/dashboard/discovery",
       "/dashboard/invocations",
       "/dashboard/billing",
@@ -77,6 +78,14 @@ export default function DashboardSidebar() {
       : "ml-auto bg-white/5 text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-mono flex items-center justify-center min-w-[20px]";
   };
 
+  const getSubLinkClasses = (path: string) => {
+    const active = pathname === path;
+    if (active) {
+      return "ml-12 mr-2 mt-1 flex items-center rounded-lg border-l-2 border-blue-400 bg-blue-500/[0.08] px-4 py-2 text-[12px] font-semibold text-blue-200 transition-all";
+    }
+    return "ml-12 mr-2 mt-1 flex items-center rounded-lg border-l-2 border-transparent px-4 py-2 text-[12px] font-medium text-gray-500 transition-all hover:bg-white/[0.02] hover:text-gray-200";
+  };
+
   const shouldBypassNavGuard = (event: MouseEvent<HTMLAnchorElement>) => {
     return event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
   };
@@ -117,10 +126,13 @@ export default function DashboardSidebar() {
             <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
             Overview
           </Link>
-          <Link href="/dashboard/agents" className={getLinkClasses("/dashboard/agents", false)}>
+          <Link href="/dashboard/agents" className={getLinkClasses(["/dashboard/agents", "/dashboard/agents/workspace"], false)}>
             <Bot className="w-4 h-4 mr-3 opacity-80" />
             Agents
             <span className={getBadgeClasses(pathname.startsWith("/dashboard/agents"))}>3</span>
+          </Link>
+          <Link href="/dashboard/agents/workspace" className={getSubLinkClasses("/dashboard/agents/workspace")}>
+            Agents Workspace
           </Link>
           <Link href="/dashboard/discovery" className={getLinkClasses("/dashboard/discovery", false)}>
             <Compass className="w-4 h-4 mr-3 opacity-80" />

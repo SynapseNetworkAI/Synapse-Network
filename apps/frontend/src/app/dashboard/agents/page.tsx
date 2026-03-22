@@ -1,1 +1,1 @@
-export { default } from "@/components/dashboard-workspace/DashboardAgentsPage";
+export { default } from "@/components/dashboard-workspace/DashboardAgentsHubPage";

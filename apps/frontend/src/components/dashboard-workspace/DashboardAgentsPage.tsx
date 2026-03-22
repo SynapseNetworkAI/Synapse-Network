@@ -58,7 +58,11 @@ function extractRequestId(response: unknown): string | null {
   return null;
 }
 
-export default function AgentsPage() {
+type DashboardAgentsPageProps = {
+  mode?: "guide" | "workspace";
+};
+
+export default function DashboardAgentsPage({ mode = "guide" }: Readonly<DashboardAgentsPageProps>) {
   const { address: userAddress, isConnected } = useAccount();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { openConnectModal } = useConnectModal();
@@ -86,6 +90,7 @@ export default function AgentsPage() {
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null);
   const [quotaMaxCalls, setQuotaMaxCalls] = useState("1000");
   const [quotaRpm, setQuotaRpm] = useState("600");
+  const [quotaDailyBudget, setQuotaDailyBudget] = useState("10.00");
   const [quotaExpiresAtLocal, setQuotaExpiresAtLocal] = useState("");
 
   const [agentName, setAgentName] = useState("");
@@ -244,6 +249,7 @@ export default function AgentsPage() {
     setSelectedCredentialId(agent.id);
     setQuotaMaxCalls(String(agent.maxCalls || 0));
     setQuotaRpm(String(agent.rpm || 0));
+    setQuotaDailyBudget(String(agent.creditLimit ?? 0));
     if (agent.expiresAt) {
       setQuotaExpiresAtLocal(new Date(agent.expiresAt * 1000).toISOString().slice(0, 16));
     } else {
@@ -260,6 +266,7 @@ export default function AgentsPage() {
     try {
       const parsedMaxCalls = Number.parseInt(quotaMaxCalls, 10) || 0;
       const parsedRpm = Number.parseInt(quotaRpm, 10) || 0;
+      const parsedCreditLimit = Number.parseFloat(quotaDailyBudget);
       const parsedExpiresAt = quotaExpiresAtLocal
         ? Math.floor(new Date(quotaExpiresAtLocal).getTime() / 1000)
         : 0;
@@ -267,6 +274,7 @@ export default function AgentsPage() {
       await updateAgentCredentialQuota(userAddress, selectedCredentialId, {
         maxCalls: parsedMaxCalls,
         rpm: parsedRpm,
+        creditLimit: Number.isFinite(parsedCreditLimit) && parsedCreditLimit > 0 ? parsedCreditLimit : undefined,
         expiresAt: Number.isFinite(parsedExpiresAt) ? parsedExpiresAt : 0,
       });
       toast.success("Agent limits updated");
@@ -525,6 +533,8 @@ export default function AgentsPage() {
     }
   }, [fetchCredentials, handleOwnerRefresh, sandboxCredential, selectedService]);
 
+  const isGuideMode = mode === "guide";
+
   let primaryActionLabel = "Refresh Workspace";
   if (!isConnected) {
     primaryActionLabel = "Connect Wallet";
@@ -540,8 +550,8 @@ export default function AgentsPage() {
 
   const issuedCredential = newCredential;
 
-  return (
-    <main className="mx-auto max-w-[1400px] space-y-10 p-8">
+  const guideContent = (
+    <>
       <ActivationStatusStrip
         isConnected={isConnected}
         isSessionAuthenticated={isSessionAuthenticated}
@@ -596,7 +606,11 @@ export default function AgentsPage() {
         invokeError={sandboxInvokeError}
         result={sandboxInvokeResult}
       />
+    </>
+  );
 
+  const workspaceContent = (
+    <>
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5">
           <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">Total Agents</p>
@@ -652,13 +666,6 @@ export default function AgentsPage() {
           </button>
         </menu>
       </header>
-
-      {error && (
-        <aside role="alert" className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
-          <AlertCircle className="h-5 w-5" />
-          {error}
-        </aside>
-      )}
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <article className="rounded-3xl border border-white/8 bg-white/[0.02] p-6">
@@ -729,6 +736,19 @@ export default function AgentsPage() {
           {registryContent}
         </article>
       </section>
+    </>
+  );
+
+  return (
+    <main className="mx-auto max-w-[1400px] space-y-10 p-8">
+      {error && (
+        <aside role="alert" className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
+          <AlertCircle className="h-5 w-5" />
+          {error}
+        </aside>
+      )}
+
+      {isGuideMode ? guideContent : workspaceContent}
 
       {isCreateModalOpen && (
         <dialog open className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" aria-labelledby="create-agent-title">
@@ -891,6 +911,17 @@ export default function AgentsPage() {
                   type="number"
                   value={quotaRpm}
                   onChange={(event) => setQuotaRpm(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                />
+              </label>
+              <label className="block space-y-2">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Daily Budget (USDC)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={quotaDailyBudget}
+                  onChange={(event) => setQuotaDailyBudget(event.target.value)}
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
                 />
               </label>
