@@ -24,10 +24,10 @@ function createMenuItem(overrides: Partial<{
     sectionLabel: "控制总览",
     sectionDescription: "总览、执行态与系统健康。",
     label: "控制台",
-    href: "/dashboard",
+    href: null,
     description: "overview",
     parentItemId: null,
-    nodeType: "page" as const,
+    nodeType: "category" as const,
     iconKey: "OV",
     requiredRoles: [],
     requiredPermissions: [],
@@ -50,13 +50,15 @@ describe("buildAdminNavigation", () => {
       createMenuItem({
         itemId: "dashboard",
         parentItemId: "control-overview",
+        href: null,
+        nodeType: "category",
       }),
       createMenuItem({
         itemId: "dashboard-runtime",
         label: "运行态",
-        href: null,
+        href: "/dashboard/runtime",
         parentItemId: "dashboard",
-        nodeType: "panel",
+        nodeType: "page",
         iconKey: "02",
         sortOrder: 11,
       }),
@@ -88,6 +90,7 @@ describe("buildAdminNavigation", () => {
     expect(navigation.map((section) => section.id)).toEqual(["control-overview", "business-control"]);
     expect(navigation[0]?.children?.[0]?.id).toBe("dashboard");
     expect(navigation[0]?.children?.[0]?.children?.map((item) => item.id)).toEqual(["dashboard-runtime"]);
+    expect(navigation[0]?.children?.[0]?.children?.[0]?.path).toBe("/dashboard/runtime");
     expect(navigation[1]?.children?.[0]?.id).toBe("finance");
   });
 
@@ -113,7 +116,7 @@ describe("buildAdminNavigation", () => {
 
 describe("getNavVisual", () => {
   it("returns the Sentinel metadata for known items", () => {
-    expect(getNavVisual("dashboard")).toEqual({ icon: "DA", kicker: "总览、运行态与系统健康入口。" });
+    expect(getNavVisual("dashboard")).toEqual({ icon: "DA", kicker: "总览与业务运行态入口。" });
   });
 
   it("returns a generic fallback for unknown items", () => {
@@ -140,11 +143,25 @@ describe("navigation tree helpers", () => {
       sectionLabel: "控制总览",
       sectionDescription: "总览、执行态与系统健康。",
       label: "Dashboard",
-      href: "/dashboard",
+      href: null,
       description: "overview",
       parentItemId: "control-overview",
+      nodeType: "category",
       iconKey: "OV",
       sortOrder: 10,
+    }),
+    createMenuItem({
+      itemId: "dashboard-overview",
+      sectionId: "control-overview",
+      sectionLabel: "控制总览",
+      sectionDescription: "总览、执行态与系统健康。",
+      label: "概览",
+      href: "/dashboard/overview",
+      description: "overview summary",
+      parentItemId: "dashboard",
+      nodeType: "page",
+      iconKey: "01",
+      sortOrder: 11,
     }),
     createMenuItem({
       itemId: "identity-access",
@@ -188,8 +205,53 @@ describe("navigation tree helpers", () => {
     expect(findNavPathByPath(navigation, "/role-permissions")).toEqual(["identity-access", "role-permissions"]);
   });
 
-  it("finds the active leaf item for a page", () => {
-    expect(findNavItemByPath(navigation, "/dashboard")?.id).toBe("dashboard");
+  it("finds the active leaf item for a dashboard child page", () => {
+    expect(findNavItemByPath(navigation, "/dashboard/overview")?.id).toBe("dashboard-overview");
+  });
+
+  it("filters legacy health child items out of the dashboard navigation", () => {
+    const mappedNavigation = buildAdminNavigation([
+      createMenuItem({
+        itemId: "control-overview",
+        sectionId: "control-overview",
+        sectionLabel: "控制总览",
+        sectionDescription: "总览、执行态与系统健康。",
+        label: "控制总览",
+        href: null,
+        nodeType: "category",
+        iconKey: "CT",
+        sortOrder: 5,
+      }),
+      createMenuItem({
+        itemId: "dashboard",
+        sectionId: "control-overview",
+        sectionLabel: "控制总览",
+        sectionDescription: "总览、执行态与系统健康。",
+        label: "Dashboard",
+        href: null,
+        description: "overview",
+        parentItemId: "control-overview",
+        nodeType: "category",
+        iconKey: "OV",
+        sortOrder: 10,
+      }),
+      createMenuItem({
+        itemId: "dashboard-system-health",
+        sectionId: "control-overview",
+        sectionLabel: "控制总览",
+        sectionDescription: "总览、执行态与系统健康。",
+        label: "系统健康",
+        href: null,
+        description: "health",
+        parentItemId: "dashboard",
+        nodeType: "panel",
+        iconKey: "03",
+        sortOrder: 12,
+      }),
+    ]);
+
+    expect(mappedNavigation[0]?.children?.[0]?.children ?? []).toHaveLength(0);
+    expect(findNavItemByPath(mappedNavigation, "/system")).toBeNull();
   });
 
   it("filters nested nodes and expands their ancestors", () => {
@@ -204,12 +266,24 @@ describe("navigation tree helpers", () => {
     const expandedIds = resolveExpandedNavigationIds({
       manualExpandedIds: [],
       manualCollapsedIds: ["control-overview"],
-      activePath: ["control-overview", "dashboard"],
+      activePath: ["control-overview", "dashboard", "dashboard-overview"],
       filteredExpandedIds: [],
       query: "",
     });
 
     expect(expandedIds).not.toContain("control-overview");
+  });
+
+  it("expands control overview by default on initial entry", () => {
+    const expandedIds = resolveExpandedNavigationIds({
+      manualExpandedIds: [],
+      manualCollapsedIds: [],
+      activePath: [],
+      filteredExpandedIds: [],
+      query: "",
+    });
+
+    expect(expandedIds).toContain("control-overview");
   });
 
   it("keeps search-driven ancestors expanded even if they were manually collapsed", () => {

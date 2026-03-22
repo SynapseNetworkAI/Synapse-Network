@@ -19,6 +19,25 @@ type ReconciliationQueueCard = {
   description: string;
 };
 
+type ReconciliationMetricSurfaceCard = {
+  key: string;
+  label: string;
+  value: string;
+  description: string;
+  hint: string;
+  meta: string;
+  pending?: boolean;
+};
+
+function formatSeconds(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainderSeconds = seconds % 60;
+  return `${minutes}m ${String(remainderSeconds).padStart(2, "0")}s`;
+}
+
 export type DrilldownToken = {
   kind: "ownerAddress" | "requestId" | "txHash";
   label: string;
@@ -103,6 +122,151 @@ export function buildReconciliationBreakdownCards(detail: ReconciliationDetail):
       label: getFinanceMetricGlossary("signedDifference").label,
       value: formatSignedUsdc(detail.signedDifferenceUsdc),
       description: getFinanceMetricGlossary("signedDifference").hint,
+    },
+  ];
+}
+
+export function buildReconciliationHeroCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+  return [
+    {
+      key: "chain-vault",
+      label: getFinanceMetricGlossary("chainVault").label,
+      value: detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a",
+      description: getFinanceMetricGlossary("chainVault").hint,
+      hint: getFinanceMetricGlossary("chainVault").hint,
+      meta: getFinanceMetricGlossary("chainVault").meta,
+    },
+    {
+      key: "ledger-obligation",
+      label: getFinanceMetricGlossary("ledgerObligation").label,
+      value: detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a",
+      description: getFinanceMetricGlossary("ledgerObligation").hint,
+      hint: getFinanceMetricGlossary("ledgerObligation").hint,
+      meta: getFinanceMetricGlossary("ledgerObligation").meta,
+    },
+    {
+      key: "signed-difference",
+      label: getFinanceMetricGlossary("signedDifference").label,
+      value: formatSignedUsdc(detail.signedDifferenceUsdc),
+      description: getFinanceMetricGlossary("signedDifference").hint,
+      hint: getFinanceMetricGlossary("signedDifference").hint,
+      meta: getFinanceMetricGlossary("signedDifference").meta,
+    },
+    {
+      key: "absolute-delta",
+      label: getFinanceMetricGlossary("absoluteDelta").label,
+      value: `${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`,
+      description: getFinanceMetricGlossary("absoluteDelta").hint,
+      hint: getFinanceMetricGlossary("absoluteDelta").hint,
+      meta: getFinanceMetricGlossary("absoluteDelta").meta,
+    },
+  ];
+}
+
+export function buildReconciliationSupportingCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+  return [
+    {
+      key: "owner-liability",
+      label: getFinanceMetricGlossary("ownerLiability").label,
+      value: `${formatUsdc(detail.ownerLiabilityUsdc)} USDC`,
+      description: getFinanceMetricGlossary("ownerLiability").hint,
+      hint: getFinanceMetricGlossary("ownerLiability").hint,
+      meta: getFinanceMetricGlossary("ownerLiability").meta,
+    },
+    {
+      key: "provider-payable",
+      label: getFinanceMetricGlossary("providerPayable").label,
+      value: `${formatUsdc(detail.providerPayableUsdc)} USDC`,
+      description: getFinanceMetricGlossary("providerPayable").hint,
+      hint: getFinanceMetricGlossary("providerPayable").hint,
+      meta: getFinanceMetricGlossary("providerPayable").meta,
+    },
+    {
+      key: "platform-income",
+      label: getFinanceMetricGlossary("platformIncome").label,
+      value: `${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`,
+      description: getFinanceMetricGlossary("platformIncome").hint,
+      hint: getFinanceMetricGlossary("platformIncome").hint,
+      meta: getFinanceMetricGlossary("platformIncome").meta,
+    },
+  ];
+}
+
+export function buildReconciliationDepositEvidenceCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+  return [
+    {
+      key: "pending-deposits",
+      label: getFinanceMetricGlossary("pendingDeposits").label,
+      value: String(detail.pendingDepositCount),
+      description: getFinanceMetricGlossary("pendingDeposits").hint,
+      hint: getFinanceMetricGlossary("pendingDeposits").hint,
+      meta: getFinanceMetricGlossary("pendingDeposits").meta,
+    },
+    {
+      key: "deposit-exceptions",
+      label: getFinanceQueueGlossary("depositExceptions").label,
+      value: String(detail.depositExceptions),
+      description: getFinanceQueueGlossary("depositExceptions").description,
+      hint: getFinanceQueueGlossary("depositExceptions").description,
+      meta: getFinanceQueueGlossary("depositExceptions").description,
+    },
+    {
+      key: "chain-confirmed-not-ledger-confirmed",
+      label: getFinanceMetricGlossary("chainConfirmedNotLedgerConfirmed").label,
+      value: String(detail.chainConfirmedNotLedgerConfirmedCount),
+      description: "链上 receipt 已确认，但账本仍未完成 confirmed 入账的充值数量。",
+      hint: getFinanceMetricGlossary("chainConfirmedNotLedgerConfirmed").hint,
+      meta: getFinanceMetricGlossary("chainConfirmedNotLedgerConfirmed").meta,
+      pending: false,
+    },
+    {
+      key: "deposit-p95-sync-delay",
+      label: getFinanceMetricGlossary("depositP95SyncDelay").label,
+      value: formatSeconds(detail.depositP95SyncDelaySeconds),
+      description: "从 receipt confirmed 到账本 confirmed 的充值同步 P95 时延。",
+      hint: getFinanceMetricGlossary("depositP95SyncDelay").hint,
+      meta: getFinanceMetricGlossary("depositP95SyncDelay").meta,
+      pending: false,
+    },
+  ];
+}
+
+export function buildReconciliationOutflowEvidenceCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+  return [
+    {
+      key: "today-refund",
+      label: getFinanceMetricGlossary("todayRefund").label,
+      value: `${formatUsdc(detail.todayRefundUsdc)} USDC`,
+      description: "今日已完成退款金额，用于判断链上余额下降是否来自 consumer refund。",
+      hint: getFinanceMetricGlossary("todayRefund").hint,
+      meta: getFinanceMetricGlossary("todayRefund").meta,
+      pending: false,
+    },
+    {
+      key: "today-withdrawal",
+      label: getFinanceMetricGlossary("todayWithdrawal").label,
+      value: `${formatUsdc(detail.todayWithdrawalUsdc)} USDC`,
+      description: "今日已完成 provider withdrawal 金额，用于判断偏差是否来自出账链路。",
+      hint: getFinanceMetricGlossary("todayWithdrawal").hint,
+      meta: getFinanceMetricGlossary("todayWithdrawal").meta,
+      pending: false,
+    },
+    {
+      key: "pending-withdrawals",
+      label: getFinanceMetricGlossary("pendingWithdrawals").label,
+      value: String(detail.pendingWithdrawalCount),
+      description: getFinanceMetricGlossary("pendingWithdrawals").hint,
+      hint: getFinanceMetricGlossary("pendingWithdrawals").hint,
+      meta: getFinanceMetricGlossary("pendingWithdrawals").meta,
+    },
+    {
+      key: "recently-completed-outflows",
+      label: getFinanceMetricGlossary("recentlyCompletedOutflows").label,
+      value: `${formatUsdc(detail.recentlyCompletedOutflowsUsdc)} USDC`,
+      description: "最近 6 小时已完成 refund / withdrawal 的聚合金额，用来解释链上余额短时下降。",
+      hint: getFinanceMetricGlossary("recentlyCompletedOutflows").hint,
+      meta: getFinanceMetricGlossary("recentlyCompletedOutflows").meta,
+      pending: false,
     },
   ];
 }

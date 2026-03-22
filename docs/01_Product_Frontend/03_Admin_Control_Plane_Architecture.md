@@ -89,6 +89,22 @@ Admin Control Plane 必须满足：
 4. abnormal invocation spikes
 5. withdrawal risk queue
 
+首页卡片边界进一步收敛为：
+
+1. `Control plane status`
+2. `Deposit absolute delta`
+3. `Treasury absolute delta`
+4. `Pending approvals`
+5. `Today deposit / charge / refund / withdrawal`
+6. `Pending deposits / pending withdrawals / deposit exceptions / audit alerts`
+7. `Deposit / Billing / Outflow` 三个缩略漏斗摘要
+
+Admin Overview 不放：
+
+1. 逐笔充值表
+2. 逐笔 audit 明细
+3. replay / repair 执行按钮
+
 ### 5.2 Queue-driven Workspaces
 
 Admin 的主工作界面不是“看一个总表”，而是按工作队列组织：
@@ -97,6 +113,18 @@ Admin 的主工作界面不是“看一个总表”，而是按工作队列组�
 2. withdrawals review queue
 3. reconciliation queue
 4. admin audit queue
+
+其中 finance 相关页面应固定分成：
+
+1. `/finance`
+	只看 Treasury 总账、流量趋势、出入金压力。
+2. `/finance/reconciliation`
+	只看 `Chain vault / Ledger obligation / Signed difference / Absolute delta`、补偿队列和证据列表。
+
+换句话说：
+
+1. Finance 是“总账判断页”
+2. Reconciliation 是“事故调查页”
 
 ### 5.3 Record Detail Page
 
@@ -107,6 +135,12 @@ Admin 的主工作界面不是“看一个总表”，而是按工作队列组�
 3. what financial objects are touched
 4. what evidence is attached
 5. what final decision was made
+
+对于 Finance / Reconciliation 相关 detail，还必须补充：
+
+1. 哪个 bucket 被影响
+2. 当前是 owner liability、provider payable 还是 platform income 口径
+3. 是否存在 deposit repair / refund / withdrawal 的关联动作
 
 ## 6. 和 Gateway Console 的边界
 

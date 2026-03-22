@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFinanceExposureCards, buildTrendChartData, filterFinanceApprovals, getVaultDeltaTone } from "./finance-presenters";
+import {
+  buildFinanceDeltaCards,
+  buildFinanceFlowVolumeCards,
+  buildFinancePressureCards,
+  buildFinanceTreasuryCoreCards,
+  buildTrendChartData,
+  filterFinanceApprovals,
+  getVaultDeltaTone,
+} from "./finance-presenters";
 
 describe("finance-presenters", () => {
   it("filters only finance-related approvals", () => {
@@ -39,12 +47,25 @@ describe("finance-presenters", () => {
     expect(getVaultDeltaTone("120")).toBe("red");
   });
 
-  it("builds finance exposure cards with unified glossary wording", () => {
-    expect(buildFinanceExposureCards({
+  it("builds finance treasury core cards with backend truth", () => {
+    expect(buildFinanceTreasuryCoreCards({
       ownerLiabilityUsdc: "8450.10",
       providerPayableUsdc: "3920.45",
       platformFeeBalanceUsdc: "128.75",
-    } as never)).toEqual([
+    } as never, {
+      chainVaultUsdc: "12500.00",
+      signedDifferenceUsdc: "-5.00",
+      ownerLiabilityUsdc: "8450.10",
+      providerPayableUsdc: "3920.45",
+      platformFeeBalanceUsdc: "128.75",
+    })).toEqual([
+      {
+        key: "chain-vault",
+        label: "Chain vault",
+        value: "12500.00",
+        description: "链上 router / vault 当前 USDC 余额。",
+        hint: "链上 router 或 vault 当前可观测到的 USDC 实际余额。",
+      },
       {
         key: "owner-liability",
         label: "Owner liability",
@@ -60,11 +81,91 @@ describe("finance-presenters", () => {
         hint: "平台当前已确认、但尚未对 provider 完成清算的应付池余额。",
       },
       {
-        key: "platform-fee",
+        key: "platform-income",
         label: "Platform income",
         value: "128.75",
         description: "当前平台收入池余额。",
         hint: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
+      },
+    ]);
+  });
+
+  it("builds treasury delta, flow volume, and pressure cards", () => {
+    const overview = {
+      todayChargeUsdc: "120.00",
+      todayDepositUsdc: "300.00",
+      todayRefundUsdc: "10.00",
+      todayWithdrawalUsdc: "5.00",
+      ownerLiabilityUsdc: "800.00",
+      refundableConsumerBalanceUsdc: "630.12",
+      providerPayableUsdc: "150.00",
+      providerAvailableToWithdrawUsdc: "145.50",
+      providerLockedBalanceUsdc: "4.50",
+      platformFeeBalanceUsdc: "25.00",
+      vaultLedgerDeltaUsdc: "0.50",
+      pendingDepositCount: 2,
+      pendingWithdrawalCount: 1,
+      projectedAt: null,
+    } as never;
+
+    const reconciliation = {
+      chainVaultUsdc: "1000.00",
+      signedDifferenceUsdc: "-0.50",
+      ownerLiabilityUsdc: "800.00",
+      providerPayableUsdc: "150.00",
+      platformFeeBalanceUsdc: "25.00",
+    } as never;
+
+    expect(buildFinanceDeltaCards(overview, reconciliation)[0]).toMatchObject({
+      key: "treasury-signed-difference",
+      value: "25.00",
+    });
+    expect(buildFinanceFlowVolumeCards(overview).map((card) => card.key)).toEqual([
+      "today-deposit",
+      "today-charge",
+      "today-refund",
+      "today-withdrawal",
+    ]);
+    expect(buildFinancePressureCards(overview)).toEqual([
+      {
+        key: "refundable-consumer-balance",
+        label: "Refundable consumer balance",
+        value: "630.12 USDC",
+        description: "当前使用 consumer wallet available balance 作为 refund 可用余额的 operator proxy。",
+        hint: "在 refund 风控、状态机和冻结规则约束下，可供用户实际发起退款的消费侧余额。当前若未接入后端投影，应明确标记为待接线。",
+        pending: false,
+      },
+      {
+        key: "provider-available-to-withdraw",
+        label: "Provider available to withdraw",
+        value: "145.50 USDC",
+        description: "Provider wallet available balance 的聚合读模型，用于判断可直接发起提现的空间。",
+        hint: "Provider 收益桶中当前可直接发起提现申请的 available balance。当前若未接入后端投影，应明确标记为待接线。",
+        pending: false,
+      },
+      {
+        key: "provider-locked-balance",
+        label: "Provider locked balance",
+        value: "4.50 USDC",
+        description: "Provider wallet pending + frozen balance 的聚合读模型，用来判断出账队列压力。",
+        hint: "Provider 提现流程里已经进入 pending 或 frozen 的锁仓金额，用来判断出账队列压力。当前若未接入后端投影，应明确标记为待接线。",
+        pending: false,
+      },
+      {
+        key: "pending-withdrawals",
+        label: "Pending withdrawals",
+        value: "1",
+        description: "等待 reviewer 决策。",
+        hint: "当前仍在审核或排队执行中的提现单数量，越高表示 operator 出账压力越大。",
+        pending: false,
+      },
+      {
+        key: "pending-deposits",
+        label: "Pending deposits",
+        value: "2",
+        description: "待补账充值单。",
+        hint: "当前仍在确认、补账或回放中的充值单数量，通常和对账偏差、回放延迟直接相关。",
+        pending: false,
       },
     ]);
   });

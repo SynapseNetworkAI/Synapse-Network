@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildApprovalDrilldownTokens,
-  buildReconciliationBreakdownCards,
-  buildReconciliationQueueCards,
+  buildReconciliationDepositEvidenceCards,
+  buildReconciliationHeroCards,
+  buildReconciliationOutflowEvidenceCards,
+  buildReconciliationSupportingCards,
   buildWithdrawReviewDrilldownTokens,
   describeImbalance,
   formatSignedUsdc,
@@ -28,9 +30,14 @@ const detail = {
   auditAlerts: 10,
   pendingDepositCount: 4,
   pendingWithdrawalCount: 2,
+  todayRefundUsdc: "12.30",
+  todayWithdrawalUsdc: "44.10",
   ownerLiabilityUsdc: "1111.50",
   providerPayableUsdc: "300.00",
   platformFeeBalanceUsdc: "25.00",
+  chainConfirmedNotLedgerConfirmedCount: 3,
+  depositP95SyncDelaySeconds: 184,
+  recentlyCompletedOutflowsUsdc: "58.40",
   projectedAt: "2026-03-21T10:05:00Z",
   priorityApprovals: [],
   depositRepairApprovals: [],
@@ -79,23 +86,27 @@ describe("reconciliation presenters", () => {
     expect(describeImbalance(detail)).toContain("低于账本义务 111.50 USDC");
   });
 
-  it("builds breakdown cards from backend detail payload", () => {
-    const cards = buildReconciliationBreakdownCards(detail);
+  it("builds hero and supporting cards from backend detail payload", () => {
+    const heroCards = buildReconciliationHeroCards(detail);
+    const supportingCards = buildReconciliationSupportingCards(detail);
 
-    expect(cards).toContainEqual({
-      label: "Platform income",
-      value: "25.00 USDC",
-      description: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
-    });
-    expect(cards).toContainEqual({
+    expect(heroCards[0]).toMatchObject({
+      key: "chain-vault",
       label: "Chain vault",
       value: "1,000.00 USDC",
       description: "链上 router 或 vault 当前可观测到的 USDC 实际余额。",
     });
-    expect(cards).toContainEqual({
+    expect(heroCards[2]).toMatchObject({
+      key: "signed-difference",
       label: "Signed difference",
       value: "-111.50 USDC",
       description: "带方向偏差，按 chain vault - ledger obligation 计算；负值代表 vault deficit，正值代表 vault surplus。",
+    });
+    expect(supportingCards[2]).toMatchObject({
+      key: "platform-income",
+      label: "Platform income",
+      value: "25.00 USDC",
+      description: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
     });
   });
 
@@ -105,12 +116,18 @@ describe("reconciliation presenters", () => {
     expect(formatSignedUsdc(null)).toBe("n/a");
   });
 
-  it("builds queue cards for operator backlog context", () => {
-    const cards = buildReconciliationQueueCards(detail);
+  it("builds deposit and outflow evidence cards", () => {
+    const depositEvidence = buildReconciliationDepositEvidenceCards(detail);
+    const outflowEvidence = buildReconciliationOutflowEvidenceCards(detail);
 
-    expect(cards[0]?.value).toBe("3");
-    expect(cards[1]?.label).toBe("Deposit exceptions");
-    expect(cards[3]?.value).toBe("10");
+    expect(depositEvidence[0]).toMatchObject({ key: "pending-deposits", value: "4" });
+    expect(depositEvidence[1]).toMatchObject({ key: "deposit-exceptions", value: "7" });
+    expect(depositEvidence[2]).toMatchObject({ key: "chain-confirmed-not-ledger-confirmed", value: "3" });
+    expect(depositEvidence[3]).toMatchObject({ key: "deposit-p95-sync-delay", value: "3m 04s" });
+    expect(outflowEvidence[0]).toMatchObject({ key: "today-refund", value: "12.30 USDC" });
+    expect(outflowEvidence[1]).toMatchObject({ key: "today-withdrawal", value: "44.10 USDC" });
+    expect(outflowEvidence[2]).toMatchObject({ key: "pending-withdrawals", value: "2" });
+    expect(outflowEvidence[3]).toMatchObject({ key: "recently-completed-outflows", value: "58.40 USDC" });
   });
 
   it("formats projection stamp via shared datetime helper", () => {

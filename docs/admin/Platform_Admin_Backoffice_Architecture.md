@@ -266,6 +266,97 @@
 - 待审核工单数
 - 高风险账户数
 
+Dashboard 卡片职责需要继续收敛，不再把 `/dashboard`、`/finance`、`/finance/reconciliation` 混成一个大盘。
+
+`控制总览` 内部的 `概览 / 运行态 / 系统健康` 与 `/execution`、`/system` 的去重设计，见：`docs/admin/Control_Overview_IA_Redesign.md`。
+
+建议明确为：
+
+1. `/dashboard`
+  只放全局哨兵、今日流量、队列压力、漏斗摘要。
+  在前端路由上拆成 `/dashboard/overview`、`/dashboard/runtime` 两个显式子页；原 `/dashboard/health` 已并入 `/system`，侧边栏里的“控制台”自身改为只负责展开子菜单的导航节点，`/dashboard` 仅保留为重定向入口。
+2. `/finance`
+  只放 Treasury Core、Treasury Delta、Flow Volume、Flow Trend、Liability Pressure。
+3. `/finance/reconciliation`
+  只放 Reconciliation Hero、Supporting Buckets、Deposit Evidence、Outflow Evidence、Action Queues。
+
+#### `/dashboard` 推荐卡片
+
+1. `Control plane status`
+2. `Deposit absolute delta`
+3. `Treasury absolute delta`
+4. `Pending approvals`
+5. `Today deposit`
+6. `Today charge`
+7. `Today refund`
+8. `Today withdrawal`
+9. `Pending deposits`
+10. `Pending withdrawals`
+11. `Deposit exceptions`
+12. `Audit alerts`
+13. `Deposit funnel summary`
+14. `Billing funnel summary`
+15. `Outflow funnel summary`
+
+#### `/finance` 推荐卡片
+
+1. `Chain vault`
+2. `Owner liability`
+3. `Provider payable`
+4. `Platform income`
+5. `Treasury signed difference`
+6. `Treasury absolute delta`
+7. `Deposit signed difference`
+8. `Deposit absolute delta`
+9. `Today deposit`
+10. `Today charge`
+11. `Today refund`
+12. `Today withdrawal`
+13. `Refundable consumer balance`
+14. `Provider available to withdraw`
+15. `Provider locked balance`
+16. `Pending withdrawals`
+17. `Pending deposits`
+
+#### `/finance/reconciliation` 推荐卡片
+
+1. `Chain vault`
+2. `Ledger obligation`
+3. `Signed difference`
+4. `Absolute delta`
+5. `Owner liability`
+6. `Provider payable`
+7. `Platform income`
+8. `Pending deposits`
+9. `Deposit exceptions`
+10. `Chain confirmed but not ledger confirmed`
+11. `Deposit P95 sync delay`
+12. `Today refund`
+13. `Today withdrawal`
+14. `Pending withdrawals`
+15. `Recently completed outflows`
+16. `Priority approvals`
+17. `Deposit repair approvals`
+18. `Pending withdrawal reviews`
+19. `Audit alerts`
+
+字段落地约束：
+
+1. `Refundable consumer balance` 在当前 phase 先落成 operator proxy，直接读取 consumer wallet available balance 聚合，不把它描述成逐 origin 的严格 refund remaining。
+2. `Provider available to withdraw` 读取 provider wallet available balance 聚合。
+3. `Provider locked balance` 读取 provider wallet pending + frozen 聚合。
+4. `Chain confirmed but not ledger confirmed` 读取 receipt 已确认但账本尚未 `CONFIRMED` 的充值 tx 数。
+5. `Deposit P95 sync delay` 使用 receipt confirmed -> ledger confirmed 的 P95 秒数。
+6. `Recently completed outflows` 使用最近 6 小时 completed refund / provider withdrawal 金额。
+7. Refund / withdrawal 的 finished status 统一以 `COMPLETED` 为主口径，兼容旧 `CONFIRMED` 数据。
+
+不变量：
+
+1. `/dashboard` 不放逐笔调查明细
+2. `/finance` 不放 repair 执行按钮
+3. `/finance/reconciliation` 不放经营 KPI 大趋势
+4. 所有高危动作必须跳去 queue 或 detail 页面执行
+
 Dashboard 数据边界要求：
 
 - admin 后台不能长期直接把 gateway 真相表散查后自行拼装 dashboard 语义
@@ -324,7 +415,7 @@ Dashboard 数据边界要求：
 - 左侧导航实际渲染优先读取 `gateway-admin` 已发布菜单配置，静态 `navigation.ts` 只作为 fallback 和默认种子
 - 菜单可见性基于当前管理员的 `role + permissions` 动态裁剪
 - `Toolbar + Table + Drawer` 已抽成前端共享 CRUD 基础组件，后续配置型页面不需要重复手写工作台骨架
-- 当前页面路由包括：`/dashboard`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`
+- 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
 - 整体视觉已切换为与 Gateway Console 对齐的 dark mode control plane：黑色背景、深灰面板、细金属边框、绿色激活态、无玻璃阴影
 - 左侧导航已升级为二级 accordion 菜单树，活动项使用绿色左边界高亮，适合值班与高密度模块切换
 - `users` 页面已经接入后台用户目录、角色模板和创建后台用户能力

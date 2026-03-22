@@ -102,6 +102,8 @@ docs/
 │       └── 2026-03-17_owner_provider_target_state_schema_cutover.sql
 ├── 竞品调研/
 │   └── EigenFlux.md
+├── 平台资金监控方案.md
+├── 测试文档.md
 ├── agents.md
 ├── api.md
 ├── Design.md
@@ -159,6 +161,10 @@ docs/
    本地环境、CI/CD、观测、索引器运行、金融事故响应。
 6. [06_Reference/README.md](./06_Reference/README.md)
    API 索引、错误码契约、Manifest 与 Runtime 对象、开发测试参考。
+7. [测试文档.md](./测试文档.md)
+   本地测试、清库 SQL、链路重置与执行前后校验说明。
+8. [平台资金监控方案.md](./平台资金监控方案.md)
+   解释 reconciliation 指标，并定义充值、计费、收入、退款、提现、Vault 总账的监控漏斗方案。
 
 ## 4. 补充模块
 

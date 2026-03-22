@@ -59,11 +59,17 @@ class GatewayFinanceSnapshot:
     today_consumer_refund_usdc: Decimal
     today_provider_withdrawal_usdc: Decimal
     consumer_liability_usdc: Decimal
+    refundable_consumer_balance_usdc: Decimal
     provider_payable_usdc: Decimal
+    provider_available_to_withdraw_usdc: Decimal
+    provider_locked_balance_usdc: Decimal
     platform_fee_balance_usdc: Decimal
     vault_ledger_delta_usdc: Decimal
     pending_deposit_count: int
     pending_provider_withdrawal_count: int
+    chain_confirmed_not_ledger_confirmed_count: int
+    deposit_p95_sync_delay_seconds: int
+    recently_completed_outflows_usdc: Decimal
     projected_at: datetime | None
 
 
@@ -142,11 +148,17 @@ class InMemoryGatewayDashboardProjectionRepository:
                 today_consumer_refund_usdc=Decimal("42.25"),
                 today_provider_withdrawal_usdc=Decimal("310.50"),
                 consumer_liability_usdc=Decimal("8450.10"),
+                refundable_consumer_balance_usdc=Decimal("7320.35"),
                 provider_payable_usdc=Decimal("3920.45"),
+                provider_available_to_withdraw_usdc=Decimal("3510.20"),
+                provider_locked_balance_usdc=Decimal("410.25"),
                 platform_fee_balance_usdc=Decimal("128.75"),
                 vault_ledger_delta_usdc=Decimal("0.50"),
                 pending_deposit_count=2,
                 pending_provider_withdrawal_count=1,
+                chain_confirmed_not_ledger_confirmed_count=1,
+                deposit_p95_sync_delay_seconds=184,
+                recently_completed_outflows_usdc=Decimal("186.40"),
                 projected_at=datetime(2026, 3, 16, 8, 5, tzinfo=timezone.utc),
             ),
             activity_trends=[
@@ -332,11 +344,17 @@ class PostgresGatewayDashboardProjectionRepository:
                     {refund_column} AS today_consumer_refund_usdc,
                     {withdrawal_column} AS today_provider_withdrawal_usdc,
                     {liability_column} AS consumer_liability_usdc,
+                    refundable_consumer_balance_usdc,
                     provider_payable_usdc,
+                    provider_available_to_withdraw_usdc,
+                    provider_locked_balance_usdc,
                     platform_fee_balance_usdc,
                     vault_ledger_delta_usdc,
                     pending_deposit_count,
                     {pending_withdrawal_column} AS pending_provider_withdrawal_count,
+                    chain_confirmed_not_ledger_confirmed_count,
+                    deposit_p95_sync_delay_seconds,
+                    recently_completed_outflows_usdc,
                     projected_at
                 FROM synapse_admin_dashboard_finance_projection
                 LIMIT 1
@@ -350,11 +368,17 @@ class PostgresGatewayDashboardProjectionRepository:
                 today_consumer_refund_usdc=Decimal("0"),
                 today_provider_withdrawal_usdc=Decimal("0"),
                 consumer_liability_usdc=Decimal("0"),
+                refundable_consumer_balance_usdc=Decimal("0"),
                 provider_payable_usdc=Decimal("0"),
+                provider_available_to_withdraw_usdc=Decimal("0"),
+                provider_locked_balance_usdc=Decimal("0"),
                 platform_fee_balance_usdc=Decimal("0"),
                 vault_ledger_delta_usdc=Decimal("0"),
                 pending_deposit_count=0,
                 pending_provider_withdrawal_count=0,
+                chain_confirmed_not_ledger_confirmed_count=0,
+                deposit_p95_sync_delay_seconds=0,
+                recently_completed_outflows_usdc=Decimal("0"),
                 projected_at=None,
             )
         return GatewayFinanceSnapshot(
@@ -363,11 +387,17 @@ class PostgresGatewayDashboardProjectionRepository:
             today_consumer_refund_usdc=Decimal(str(row["today_consumer_refund_usdc"])),
             today_provider_withdrawal_usdc=Decimal(str(row["today_provider_withdrawal_usdc"])),
             consumer_liability_usdc=Decimal(str(row["consumer_liability_usdc"])),
+            refundable_consumer_balance_usdc=Decimal(str(row["refundable_consumer_balance_usdc"])),
             provider_payable_usdc=Decimal(str(row["provider_payable_usdc"])),
+            provider_available_to_withdraw_usdc=Decimal(str(row["provider_available_to_withdraw_usdc"])),
+            provider_locked_balance_usdc=Decimal(str(row["provider_locked_balance_usdc"])),
             platform_fee_balance_usdc=Decimal(str(row["platform_fee_balance_usdc"])),
             vault_ledger_delta_usdc=Decimal(str(row["vault_ledger_delta_usdc"])),
             pending_deposit_count=int(row["pending_deposit_count"]),
             pending_provider_withdrawal_count=int(row["pending_provider_withdrawal_count"]),
+            chain_confirmed_not_ledger_confirmed_count=int(row["chain_confirmed_not_ledger_confirmed_count"]),
+            deposit_p95_sync_delay_seconds=int(row["deposit_p95_sync_delay_seconds"]),
+            recently_completed_outflows_usdc=Decimal(str(row["recently_completed_outflows_usdc"])),
             projected_at=row["projected_at"],
         )
 

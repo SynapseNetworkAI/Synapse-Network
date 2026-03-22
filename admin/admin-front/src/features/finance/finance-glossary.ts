@@ -2,6 +2,8 @@ export type FinanceMetricGlossaryKey =
   | "platformIncome"
   | "absoluteDelta"
   | "signedDifference"
+  | "treasuryAbsoluteDelta"
+  | "treasurySignedDifference"
   | "chainVault"
   | "ledgerObligation"
   | "todayDeposit"
@@ -12,7 +14,13 @@ export type FinanceMetricGlossaryKey =
   | "pendingDeposits"
   | "ownerLiability"
   | "providerPayable"
-  | "vaultLedgerDelta";
+  | "vaultLedgerDelta"
+  | "refundableConsumerBalance"
+  | "providerAvailableToWithdraw"
+  | "providerLockedBalance"
+  | "chainConfirmedNotLedgerConfirmed"
+  | "depositP95SyncDelay"
+  | "recentlyCompletedOutflows";
 
 export type FinanceQueueGlossaryKey =
   | "pendingApprovals"
@@ -40,12 +48,22 @@ const metricGlossary: Record<FinanceMetricGlossaryKey, FinanceMetricGlossaryEntr
   absoluteDelta: {
     label: "Absolute delta",
     meta: "首页哨兵 04 的真实后端值。",
-    hint: "绝对偏差值，不区分正负方向，只回答账本和链上当前差了多少。",
+    hint: "绝对偏差值，不区分正负方向，只回答买家侧账本义务和链上当前差了多少。用户发生消费后，这个值可以非 0，需结合 Treasury absolute delta 一起判断是否异常。",
   },
   signedDifference: {
     label: "Signed difference",
     meta: "按 chain vault - ledger obligation 计算。",
     hint: "带方向偏差，按 chain vault - ledger obligation 计算；负值代表 vault deficit，正值代表 vault surplus。",
+  },
+  treasuryAbsoluteDelta: {
+    label: "Treasury absolute delta",
+    meta: "全局总账绝对偏差。",
+    hint: "按 chain vault 和 owner liability + provider payable + platform income 的总账差值计算；为 0 通常表示平台总账已经对齐。",
+  },
+  treasurySignedDifference: {
+    label: "Treasury signed difference",
+    meta: "全局总账带方向偏差。",
+    hint: "按 chain vault - (owner liability + provider payable + platform income) 计算；负值代表 treasury deficit，正值代表 treasury surplus。",
   },
   chainVault: {
     label: "Chain vault",
@@ -101,6 +119,36 @@ const metricGlossary: Record<FinanceMetricGlossaryKey, FinanceMetricGlossaryEntr
     label: "Absolute delta",
     meta: "账本与金库偏差。",
     hint: "账本义务与链上 vault 余额之间的绝对偏差，是 finance operator 的第一优先级风险信号。",
+  },
+  refundableConsumerBalance: {
+    label: "Refundable consumer balance",
+    meta: "可发起退款的买家侧余额。",
+    hint: "在 refund 风控、状态机和冻结规则约束下，可供用户实际发起退款的消费侧余额。当前若未接入后端投影，应明确标记为待接线。",
+  },
+  providerAvailableToWithdraw: {
+    label: "Provider available to withdraw",
+    meta: "Provider 当前可提现余额。",
+    hint: "Provider 收益桶中当前可直接发起提现申请的 available balance。当前若未接入后端投影，应明确标记为待接线。",
+  },
+  providerLockedBalance: {
+    label: "Provider locked balance",
+    meta: "Provider 当前锁仓余额。",
+    hint: "Provider 提现流程里已经进入 pending 或 frozen 的锁仓金额，用来判断出账队列压力。当前若未接入后端投影，应明确标记为待接线。",
+  },
+  chainConfirmedNotLedgerConfirmed: {
+    label: "Chain confirmed, not ledger confirmed",
+    meta: "链上已确认但账本未入账。",
+    hint: "链上 receipt 已确认，但平台账本还未完成确认入账的充值数量或金额。当前若未接入后端投影，应明确标记为待接线。",
+  },
+  depositP95SyncDelay: {
+    label: "Deposit P95 sync delay",
+    meta: "充值同步 P95 时延。",
+    hint: "充值从链上确认到平台账本完成入账的 P95 时延，用来观察 indexer / backfill 压力。当前若未接入后端投影，应明确标记为待接线。",
+  },
+  recentlyCompletedOutflows: {
+    label: "Recently completed outflows",
+    meta: "最近完成的出金。",
+    hint: "最近一个统计窗口内已经完成结转的 refund / withdrawal 数量或金额，用来辅助判断链上余额下降是否合理。当前若未接入后端投影，应明确标记为待接线。",
   },
 };
 

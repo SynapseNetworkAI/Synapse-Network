@@ -520,8 +520,13 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     assert any(item["itemId"] == "dashboard" for item in list_response.json()["data"]["items"])
     dashboard_item = next(item for item in list_response.json()["data"]["items"] if item["itemId"] == "dashboard")
     assert dashboard_item["parentItemId"] == "control-overview"
-    assert dashboard_item["nodeType"] == "page"
+    assert dashboard_item["nodeType"] == "category"
+    assert dashboard_item["href"] is None
     assert dashboard_item["iconKey"] == "OV"
+    dashboard_runtime_item = next(item for item in list_response.json()["data"]["items"] if item["itemId"] == "dashboard-runtime")
+    assert dashboard_runtime_item["parentItemId"] == "dashboard"
+    assert dashboard_runtime_item["nodeType"] == "page"
+    assert dashboard_runtime_item["href"] == "/dashboard/runtime"
 
     create_response = client.post(
         "/api/admin/v1/config/menu-items",
@@ -600,7 +605,6 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
         "dashboard",
         "dashboard-overview",
         "dashboard-runtime",
-        "dashboard-system-health",
         "system",
         "business-control",
         "approvals",
@@ -608,6 +612,13 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
         "finance",
         "risk",
     }
+    runtime_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard-runtime")
+    dashboard_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard")
+    system_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "system")
+    assert dashboard_item["href"] is None
+    assert dashboard_item["nodeType"] == "category"
+    assert runtime_item["href"] == "/dashboard/runtime"
+    assert system_item["href"] == "/system"
 
 
 def test_menu_config_delete_removes_descendants() -> None:
@@ -857,6 +868,9 @@ def test_finance_overview_exposes_gateway_finance_projection() -> None:
     body = response.json()["data"]
     assert body["todayChargeUsdc"] == "1280.40"
     assert body["todayDepositUsdc"] == "1640.00"
+    assert body["refundableConsumerBalanceUsdc"] == "7320.35"
+    assert body["providerAvailableToWithdrawUsdc"] == "3510.20"
+    assert body["providerLockedBalanceUsdc"] == "410.25"
     assert body["vaultLedgerDeltaUsdc"] == "0.50"
     assert body["pendingDepositCount"] == 2
     assert body["pendingWithdrawalCount"] == 1
@@ -907,8 +921,13 @@ def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -
     assert body["depositExceptions"] == 2
     assert body["pendingDepositCount"] == 2
     assert body["pendingWithdrawalCount"] == 1
+    assert body["todayRefundUsdc"] == "42.25"
+    assert body["todayWithdrawalUsdc"] == "310.50"
     assert body["ownerLiabilityUsdc"] == "8450.10"
     assert body["platformFeeBalanceUsdc"] == "128.75"
+    assert body["chainConfirmedNotLedgerConfirmedCount"] == 1
+    assert body["depositP95SyncDelaySeconds"] == 184
+    assert body["recentlyCompletedOutflowsUsdc"] == "186.40"
     assert len(body["priorityApprovals"]) >= 1
     assert body["depositRepairApprovals"][0]["approvalType"] == "deposit_repair"
     assert len(body["pendingWithdrawalReviews"]) >= 1

@@ -145,7 +145,10 @@ export type FinanceOverview = {
   todayRefundUsdc: string;
   todayWithdrawalUsdc: string;
   ownerLiabilityUsdc: string;
+  refundableConsumerBalanceUsdc: string;
   providerPayableUsdc: string;
+  providerAvailableToWithdrawUsdc: string;
+  providerLockedBalanceUsdc: string;
   platformFeeBalanceUsdc: string;
   vaultLedgerDeltaUsdc: string;
   pendingDepositCount: number;
@@ -210,9 +213,14 @@ export type ReconciliationDetail = {
   auditAlerts: number;
   pendingDepositCount: number;
   pendingWithdrawalCount: number;
+  todayRefundUsdc: string;
+  todayWithdrawalUsdc: string;
   ownerLiabilityUsdc: string;
   providerPayableUsdc: string;
   platformFeeBalanceUsdc: string;
+  chainConfirmedNotLedgerConfirmedCount: number;
+  depositP95SyncDelaySeconds: number;
+  recentlyCompletedOutflowsUsdc: string;
   projectedAt: string | null;
   priorityApprovals: ReconciliationApprovalItem[];
   depositRepairApprovals: ReconciliationApprovalItem[];
