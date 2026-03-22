@@ -17,8 +17,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.core.db_migrations import apply_sql_file, grant_admin_schema_access
 
 
-def _default_sql_file() -> Path:
-    return Path(__file__).resolve().parents[3] / "docker-compose" / "postgres" / "init" / "003_gateway_admin_projection_views.sql"
+def _default_sql_files() -> list[Path]:
+    init_dir = Path(__file__).resolve().parents[3] / "docker-compose" / "postgres" / "init"
+    return sorted(init_dir.glob("[0-9][0-9][0-9]_*.sql"))
 
 
 def _env_or_dsn_user(env_key: str, dsn: str) -> str:
@@ -39,8 +40,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--sql-file",
-        default=str(_default_sql_file()),
-        help="Bootstrap SQL file that contains the gateway-admin schema and seed section.",
+        action="append",
+        default=None,
+        help="SQL file to apply. Repeat this flag to apply multiple files. Defaults to all docker-compose/postgres/init/*.sql files in order.",
     )
     parser.add_argument(
         "--app-user",
@@ -58,7 +60,10 @@ def main() -> int:
         raise SystemExit("Set ADMIN_DATABASE_MIGRATION_DSN or ADMIN_DATABASE_DSN before applying gateway-admin migrations.")
 
     try:
-        applied = apply_sql_file(args.dsn, Path(args.sql_file))
+        sql_files = [Path(path) for path in args.sql_file] if args.sql_file else _default_sql_files()
+        applied_names: list[str] = []
+        for sql_file in sql_files:
+            applied_names.append(apply_sql_file(args.dsn, sql_file))
         app_user = args.app_user.strip() or _env_or_dsn_user("ADMIN_DATABASE_APP_USER", os.environ.get("ADMIN_DATABASE_DSN", ""))
         if app_user:
             grant_admin_schema_access(args.dsn, app_user, readonly_user=args.readonly_user.strip() or None)
@@ -68,7 +73,7 @@ def main() -> int:
             "Set ADMIN_DATABASE_MIGRATION_DSN to a schema-owner or superuser DSN and rerun."
         ) from exc
 
-    print(f"Applied gateway-admin bootstrap SQL: {applied}")
+    print(f"Applied gateway-admin bootstrap SQL: {', '.join(applied_names)}")
     return 0
 
 
