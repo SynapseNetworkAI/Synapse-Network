@@ -83,6 +83,11 @@ describe("reconciliation presenters", () => {
     const cards = buildReconciliationBreakdownCards(detail);
 
     expect(cards).toContainEqual({
+      label: "Platform income",
+      value: "25.00 USDC",
+      description: "平台手续费收入池余额，用来反映当前已沉淀的平台收入。",
+    });
+    expect(cards).toContainEqual({
       label: "Chain vault",
       value: "1,000.00 USDC",
       description: "链上 router/vault 当前真实 USDC 余额。",

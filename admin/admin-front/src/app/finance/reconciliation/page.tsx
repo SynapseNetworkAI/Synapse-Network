@@ -1,12 +1,12 @@
 "use client";
 
-import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
-import { DataTable, EmptyBlock, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
+import { DataTable, EmptyBlock, InlineHintTooltip, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
@@ -46,6 +46,21 @@ function resolveApprovalStatusTone(status: string): "green" | "orange" | "red" |
     return "green";
   }
   return "gray";
+}
+
+function MetricLabelWithHint({
+  label,
+  hint,
+}: Readonly<{
+  label: string;
+  hint: string;
+}>) {
+  return (
+    <Flex align="center" gap="8px" wrap="wrap">
+      <Text fontSize="inherit" letterSpacing="inherit" textTransform="inherit" color="inherit">{label}</Text>
+      <InlineHintTooltip label={`${label} tip`} content={hint} />
+    </Flex>
+  );
 }
 
 function DrilldownTokenButtons({
@@ -351,6 +366,7 @@ export default function ReconciliationDetailPage() {
 
   const tone = resolveTone(detail);
   const stamp = resolveReconciliationStamp(detail);
+  const topMetricColumns = { base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(5, 1fr)" };
 
   return (
     <AdminShell
@@ -361,11 +377,32 @@ export default function ReconciliationDetailPage() {
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
 
-      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
-        <MetricCard label="Absolute delta" value={`${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`} meta="首页哨兵 04 的真实后端值。" />
-        <MetricCard label="Signed difference" value={formatSignedUsdc(detail.signedDifferenceUsdc)} meta="按 chain vault - ledger obligation 计算。" />
-        <MetricCard label="Chain vault" value={detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a"} meta="链上 router / vault 当前 USDC 余额。" />
-        <MetricCard label="Ledger obligation" value={detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a"} meta="平台账本对 owner 的当前义务。" />
+      <Grid templateColumns={topMetricColumns} gap="16px">
+        <MetricCard
+          label={<MetricLabelWithHint label="Platform income" hint="平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。" />}
+          value={`${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`}
+          meta="当前平台收入池余额。"
+        />
+        <MetricCard
+          label={<MetricLabelWithHint label="Absolute delta" hint="绝对偏差值，不区分正负方向，只回答账本和链上当前差了多少。" />}
+          value={`${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`}
+          meta="首页哨兵 04 的真实后端值。"
+        />
+        <MetricCard
+          label={<MetricLabelWithHint label="Signed difference" hint="带方向偏差，按 chain vault - ledger obligation 计算；负值代表 vault deficit，正值代表 vault surplus。" />}
+          value={formatSignedUsdc(detail.signedDifferenceUsdc)}
+          meta="按 chain vault - ledger obligation 计算。"
+        />
+        <MetricCard
+          label={<MetricLabelWithHint label="Chain vault" hint="链上 router 或 vault 当前可观测到的 USDC 实际余额。" />}
+          value={detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a"}
+          meta="链上 router / vault 当前 USDC 余额。"
+        />
+        <MetricCard
+          label={<MetricLabelWithHint label="Ledger obligation" hint="平台账本对 owner 的当前义务总额，也就是理论上应由 vault 覆盖的负债。" />}
+          value={detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a"}
+          meta="平台账本对 owner 的当前义务。"
+        />
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "1.1fr 0.9fr" }} gap="16px">

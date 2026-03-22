@@ -4,6 +4,7 @@ import {
   Badge,
   Box,
   Button,
+  Flex,
   Grid,
   Heading,
   Input,
@@ -71,9 +72,9 @@ export function MetricCard({
   href,
   actionLabel,
 }: Readonly<{
-  label: string;
+  label: ReactNode;
   value: string | number;
-  meta?: string;
+  meta?: ReactNode;
   accent?: string;
   href?: string;
   actionLabel?: string;
@@ -91,7 +92,7 @@ export function MetricCard({
       _hover={href ? { transform: "translateY(-2px)", boxShadow: "0 16px 40px rgba(15,17,21,0.08)", borderColor: "rgba(31,146,87,0.24)" } : undefined}
     >
       <Box position="absolute" right="-20px" top="-24px" w="96px" h="96px" borderRadius="full" bg="rgba(31,146,87,0.06)" />
-      <Text position="relative" zIndex={1} fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">{label}</Text>
+      <Box position="relative" zIndex={1} fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">{label}</Box>
       <Heading position="relative" zIndex={1} mt="18px" size="2xl" color="ink.900" letterSpacing="-0.04em">{value}</Heading>
       {meta ? <Text position="relative" zIndex={1} mt="10px" color="ink.500">{meta}</Text> : null}
       {href ? <Text position="relative" zIndex={1} mt="12px" fontWeight="700" color="signal.700">{actionLabel ?? "查看明细"}</Text> : null}
@@ -106,6 +107,58 @@ export function MetricCard({
     <Link href={href} style={{ display: "block", textDecoration: "none" }}>
       {card}
     </Link>
+  );
+}
+
+export function InlineHintTooltip({
+  label,
+  content,
+}: Readonly<{
+  label: string;
+  content: string;
+}>) {
+  return (
+    <Box position="relative" role="group" display="inline-flex" alignItems="center">
+      <Flex
+        align="center"
+        justify="center"
+        w="18px"
+        h="18px"
+        borderRadius="full"
+        border="1px solid rgba(99,92,82,0.18)"
+        bg="rgba(255,255,255,0.72)"
+        color="ink.500"
+        fontSize="10px"
+        fontWeight="800"
+        cursor="help"
+        aria-label={label}
+      >
+        ?
+      </Flex>
+      <Box
+        position="absolute"
+        left="50%"
+        bottom="calc(100% + 12px)"
+        transform="translateX(-50%) translateY(6px)"
+        minW="220px"
+        maxW="280px"
+        px="12px"
+        py="10px"
+        borderRadius="14px"
+        border="1px solid rgba(15,17,21,0.10)"
+        bg="rgba(255,255,255,0.98)"
+        boxShadow="0 16px 42px rgba(23, 19, 17, 0.12)"
+        pointerEvents="none"
+        opacity={0}
+        visibility="hidden"
+        transition="opacity 140ms ease, transform 140ms ease, visibility 140ms ease"
+        _groupHover={{ opacity: 1, visibility: "visible", transform: "translateX(-50%) translateY(0)" }}
+        _groupFocusWithin={{ opacity: 1, visibility: "visible", transform: "translateX(-50%) translateY(0)" }}
+        zIndex={5}
+      >
+        <Text fontSize="12px" lineHeight="1.55" textTransform="none" letterSpacing="normal" color="ink.700">{content}</Text>
+      </Box>
+    </Box>
   );
 }
 
