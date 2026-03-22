@@ -397,14 +397,6 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                         </button>
                         <button
                           type="button"
-                          onClick={() => copyToClipboard(agent.tokenPrefix ?? agent.id, agent.id)}
-                          className="rounded-xl bg-white/5 p-2 transition-colors hover:bg-white/10"
-                          title="Copy token prefix"
-                        >
-                          {copiedId === agent.id ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-gray-400" />}
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => void handleRevoke(agent.id)}
                           className="rounded-xl bg-red-500/5 p-2 transition-colors hover:bg-red-500/10"
                           title="Revoke agent"
