@@ -3,20 +3,20 @@
 import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, MessageBanner, MetricCard, MetricLabelWithHint, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
 import { CapitalPulseSurface } from "@/features/finance/capital-pulse-surface";
+import { CapitalPulseTrendSurface } from "@/features/finance/capital-pulse-trend-surface";
 import {
+  buildCapitalPulseTrendLanes,
   buildFinanceCapitalPulseLanes,
   buildFinanceDeltaCards,
   buildFinanceFlowVolumeCards,
   buildFinancePressureCards,
   buildFinanceTreasuryCoreCards,
-  buildTrendChartData,
   filterFinanceApprovals,
   getVaultDeltaTone,
 } from "@/features/finance/finance-presenters";
@@ -42,8 +42,8 @@ export default function FinancePage() {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const chartData = useMemo(() => buildTrendChartData(trendPoints), [trendPoints]);
   const capitalPulseLanes = useMemo(() => (overview ? buildFinanceCapitalPulseLanes(overview) : []), [overview]);
+  const capitalPulseTrendLanes = useMemo(() => (overview ? buildCapitalPulseTrendLanes(overview, trendPoints) : []), [overview, trendPoints]);
 
   useEffect(() => {
     if (!token) {
@@ -166,30 +166,13 @@ export default function FinancePage() {
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "1.08fr 0.92fr" }} gap="16px">
-        <SurfaceCard eyebrow="Finance Trend" title="流量趋势视图" description="趋势留在 Finance，但它只服务于总账判断，不承担调查证据角色。" stamp={overview.projectedAt ?? "live"}>
-          <Box h="320px">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 12, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(99,92,82,0.10)" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#635c52", fontSize: 12 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#635c52", fontSize: 12 }} width={44} />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "18px",
-                    border: "1px solid rgba(99,92,82,0.12)",
-                    background: "rgba(255,255,255,0.96)",
-                    boxShadow: "0 16px 42px rgba(23, 19, 17, 0.10)",
-                  }}
-                />
-                <Line type="monotone" dataKey="deposit" stroke="#1f9257" strokeWidth={3} dot={false} />
-                <Line type="monotone" dataKey="charge" stroke="#0f1115" strokeWidth={2.2} dot={false} />
-                <Line type="monotone" dataKey="refund" stroke="#f36a1d" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="withdrawal" stroke="#b83131" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        </SurfaceCard>
-
+        <CapitalPulseTrendSurface
+          eyebrow="Capital Pulse Trend"
+          title="七日责任面趋势"
+          description="Consumer 看调用活跃度，Platform 看新增手续费，Provider 看新增收入与提现节奏；趋势仍然留在 Finance，不回流到 overview。"
+          lanes={capitalPulseTrendLanes}
+          stamp={overview.projectedAt ?? "live"}
+        />
         <SurfaceCard eyebrow="Operational Pressure" title="处置压力与跳转" description="这一组直接读取 gateway-admin 的资金压力读模型，不再由前端拼接或猜测。">
           <Stack gap="12px">
             <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">

@@ -28,6 +28,32 @@ export type CapitalPulseLane = {
   items: CapitalPulseMetric[];
 };
 
+export type CapitalPulseTrendSeries = {
+  key: "primary" | "secondary";
+  label: string;
+  color: string;
+};
+
+export type CapitalPulseTrendDatum = {
+  label: string;
+  primary: number;
+  secondary?: number;
+};
+
+export type CapitalPulseTrendLane = {
+  key: "consumer" | "platform" | "provider";
+  title: string;
+  description: string;
+  latestLabel: string;
+  latestValue: string;
+  aggregateLabel: string;
+  aggregateValue: string;
+  valueType: "count" | "usdc";
+  series: CapitalPulseTrendSeries[];
+  data: CapitalPulseTrendDatum[];
+  supportMetrics: CapitalPulseMetric[];
+};
+
 type ReconciliationLike = {
   chainVaultUsdc: string | null;
   signedDifferenceUsdc: string | null;
@@ -69,6 +95,143 @@ export function buildTrendChartData(points: ActivityTrendPoint[]) {
     withdrawal: Number(point.withdrawalUsdc || 0),
     netFlow: Number(point.netFlowUsdc || 0),
   }));
+}
+
+function sumNumeric(values: number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+export function buildCapitalPulseTrendLanes(
+  overview: FinanceOverview,
+  points: ActivityTrendPoint[],
+): CapitalPulseTrendLane[] {
+  const latestPoint = points.at(-1);
+  const latestInvocationCount = latestPoint?.invocationCount ?? overview.todayInvocationCount;
+  const sevenDayInvocationCount = sumNumeric(points.map((point) => point.invocationCount));
+  const latestPlatformFee = Number(latestPoint?.platformFeeEarnedUsdc ?? overview.todayPlatformFeeEarnedUsdc ?? 0);
+  const sevenDayPlatformFee = sumNumeric(points.map((point) => Number(point.platformFeeEarnedUsdc ?? 0)));
+  const latestProviderEarned = Number(latestPoint?.providerEarnedUsdc ?? overview.todayProviderEarnedUsdc ?? 0);
+  const sevenDayProviderEarned = sumNumeric(points.map((point) => Number(point.providerEarnedUsdc ?? 0)));
+
+  return [
+    {
+      key: "consumer",
+      title: "Consumer activity",
+      description: "把调用活跃度留在 Consumer 责任面，帮助 operator 判断今天的消费增长是不是由真实 usage 驱动。",
+      latestLabel: "Latest day invocations",
+      latestValue: String(latestInvocationCount),
+      aggregateLabel: "7d invocations",
+      aggregateValue: String(sevenDayInvocationCount),
+      valueType: "count",
+      series: [
+        {
+          key: "primary",
+          label: getFinanceMetricGlossary("todayInvocationCount").label,
+          color: "#0f1115",
+        },
+      ],
+      data: points.map((point) => ({
+        label: formatBucketLabel(point.bucketDate),
+        primary: point.invocationCount,
+      })),
+      supportMetrics: [
+        {
+          key: "consumer-charge-support",
+          label: getFinanceMetricGlossary("todayCharge").label,
+          value: `${formatUsdc(overview.todayChargeUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayCharge").hint,
+        },
+        {
+          key: "consumer-refund-support",
+          label: getFinanceMetricGlossary("todayRefund").label,
+          value: `${formatUsdc(overview.todayRefundUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayRefund").hint,
+        },
+      ],
+    },
+    {
+      key: "platform",
+      title: "Platform earnings",
+      description: "把平台新增手续费收入和消费基线放在同一张趋势图里，避免只看累计收入池却看不到今天的新增结果。",
+      latestLabel: "Latest day fee earned",
+      latestValue: `${formatUsdc(latestPlatformFee)} USDC`,
+      aggregateLabel: "7d fee earned",
+      aggregateValue: `${formatUsdc(sevenDayPlatformFee)} USDC`,
+      valueType: "usdc",
+      series: [
+        {
+          key: "primary",
+          label: getFinanceMetricGlossary("todayPlatformFeeEarned").label,
+          color: "#f36a1d",
+        },
+        {
+          key: "secondary",
+          label: getFinanceMetricGlossary("todayCharge").label,
+          color: "#0f1115",
+        },
+      ],
+      data: points.map((point) => ({
+        label: formatBucketLabel(point.bucketDate),
+        primary: Number(point.platformFeeEarnedUsdc ?? 0),
+        secondary: Number(point.chargeUsdc ?? 0),
+      })),
+      supportMetrics: [
+        {
+          key: "platform-income-support",
+          label: getFinanceMetricGlossary("platformIncome").label,
+          value: `${formatUsdc(overview.platformFeeBalanceUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("platformIncome").hint,
+        },
+        {
+          key: "platform-charge-support",
+          label: getFinanceMetricGlossary("todayCharge").label,
+          value: `${formatUsdc(overview.todayChargeUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayCharge").hint,
+        },
+      ],
+    },
+    {
+      key: "provider",
+      title: "Provider settlement",
+      description: "把 Provider 新增收入和当日提现一起展示，帮助 operator 判断供给侧是处于积累还是出账阶段。",
+      latestLabel: "Latest day provider earned",
+      latestValue: `${formatUsdc(latestProviderEarned)} USDC`,
+      aggregateLabel: "7d provider earned",
+      aggregateValue: `${formatUsdc(sevenDayProviderEarned)} USDC`,
+      valueType: "usdc",
+      series: [
+        {
+          key: "primary",
+          label: getFinanceMetricGlossary("todayProviderEarned").label,
+          color: "#1f9257",
+        },
+        {
+          key: "secondary",
+          label: getFinanceMetricGlossary("todayWithdrawal").label,
+          color: "#b83131",
+        },
+      ],
+      data: points.map((point) => ({
+        label: formatBucketLabel(point.bucketDate),
+        primary: Number(point.providerEarnedUsdc ?? 0),
+        secondary: Number(point.withdrawalUsdc ?? 0),
+      })),
+      supportMetrics: [
+        {
+          key: "provider-available-support",
+          label: getFinanceMetricGlossary("providerAvailableToWithdraw").label,
+          value: `${formatUsdc(overview.providerAvailableToWithdrawUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("providerAvailableToWithdraw").hint,
+        },
+        {
+          key: "provider-withdrawal-support",
+          label: getFinanceMetricGlossary("todayWithdrawal").label,
+          value: `${formatUsdc(overview.todayWithdrawalUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayWithdrawal").hint,
+        },
+      ],
+    },
+  ];
 }
 
 export function buildFinanceCapitalPulseLanes(overview: FinanceOverview): CapitalPulseLane[] {

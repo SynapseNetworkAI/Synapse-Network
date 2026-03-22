@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildCapitalPulseTrendLanes,
   buildFinanceCapitalPulseLanes,
   buildFinanceDeltaCards,
   buildFinanceFlowVolumeCards,
@@ -41,6 +42,171 @@ describe("finance-presenters", () => {
         refund: 1,
         withdrawal: 3,
         netFlow: 2.3,
+      },
+    ]);
+  });
+
+  it("builds capital pulse trend lanes from activity trends", () => {
+    const overview = {
+      todayChargeUsdc: "120.00",
+      todayDepositUsdc: "300.00",
+      todayRefundUsdc: "10.00",
+      todayWithdrawalUsdc: "5.00",
+      todayInvocationCount: 48,
+      todayPlatformFeeEarnedUsdc: "18.00",
+      todayProviderEarnedUsdc: "102.00",
+      ownerLiabilityUsdc: "800.00",
+      refundableConsumerBalanceUsdc: "630.12",
+      providerPayableUsdc: "150.00",
+      providerAvailableToWithdrawUsdc: "145.50",
+      providerLockedBalanceUsdc: "4.50",
+      platformFeeBalanceUsdc: "25.00",
+      vaultLedgerDeltaUsdc: "0.50",
+      pendingDepositCount: 2,
+      pendingWithdrawalCount: 1,
+      projectedAt: null,
+    } as never;
+
+    const points = [
+      {
+        bucketDate: "2026-03-20T00:00:00Z",
+        depositUsdc: "120.0",
+        chargeUsdc: "60.0",
+        invocationCount: 30,
+        platformFeeEarnedUsdc: "9.0",
+        providerEarnedUsdc: "51.0",
+        refundUsdc: "2.0",
+        withdrawalUsdc: "8.0",
+        netFlowUsdc: "50.0",
+      },
+      {
+        bucketDate: "2026-03-21T00:00:00Z",
+        depositUsdc: "150.0",
+        chargeUsdc: "70.0",
+        invocationCount: 42,
+        platformFeeEarnedUsdc: "11.0",
+        providerEarnedUsdc: "59.0",
+        refundUsdc: "3.0",
+        withdrawalUsdc: "12.0",
+        netFlowUsdc: "55.0",
+      },
+    ] as never;
+
+    expect(buildCapitalPulseTrendLanes(overview, points)).toEqual([
+      {
+        key: "consumer",
+        title: "Consumer activity",
+        description: "把调用活跃度留在 Consumer 责任面，帮助 operator 判断今天的消费增长是不是由真实 usage 驱动。",
+        latestLabel: "Latest day invocations",
+        latestValue: "42",
+        aggregateLabel: "7d invocations",
+        aggregateValue: "72",
+        valueType: "count",
+        series: [
+          {
+            key: "primary",
+            label: "Today invocation count",
+            color: "#0f1115",
+          },
+        ],
+        data: [
+          { label: "03/20", primary: 30 },
+          { label: "03/21", primary: 42 },
+        ],
+        supportMetrics: [
+          {
+            key: "consumer-charge-support",
+            label: "Today charge",
+            value: "120.00 USDC",
+            hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。",
+          },
+          {
+            key: "consumer-refund-support",
+            label: "Today refund",
+            value: "10.00 USDC",
+            hint: "当前统计窗口内已经进入退款审批或完成退款结转的金额，用来观察逆向资金流。",
+          },
+        ],
+      },
+      {
+        key: "platform",
+        title: "Platform earnings",
+        description: "把平台新增手续费收入和消费基线放在同一张趋势图里，避免只看累计收入池却看不到今天的新增结果。",
+        latestLabel: "Latest day fee earned",
+        latestValue: "11.00 USDC",
+        aggregateLabel: "7d fee earned",
+        aggregateValue: "20.00 USDC",
+        valueType: "usdc",
+        series: [
+          {
+            key: "primary",
+            label: "Today platform fee earned",
+            color: "#f36a1d",
+          },
+          {
+            key: "secondary",
+            label: "Today charge",
+            color: "#0f1115",
+          },
+        ],
+        data: [
+          { label: "03/20", primary: 9, secondary: 60 },
+          { label: "03/21", primary: 11, secondary: 70 },
+        ],
+        supportMetrics: [
+          {
+            key: "platform-income-support",
+            label: "Platform income",
+            value: "25.00 USDC",
+            hint: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
+          },
+          {
+            key: "platform-charge-support",
+            label: "Today charge",
+            value: "120.00 USDC",
+            hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。",
+          },
+        ],
+      },
+      {
+        key: "provider",
+        title: "Provider settlement",
+        description: "把 Provider 新增收入和当日提现一起展示，帮助 operator 判断供给侧是处于积累还是出账阶段。",
+        latestLabel: "Latest day provider earned",
+        latestValue: "59.00 USDC",
+        aggregateLabel: "7d provider earned",
+        aggregateValue: "110.00 USDC",
+        valueType: "usdc",
+        series: [
+          {
+            key: "primary",
+            label: "Today provider earned",
+            color: "#1f9257",
+          },
+          {
+            key: "secondary",
+            label: "Today withdrawal",
+            color: "#b83131",
+          },
+        ],
+        data: [
+          { label: "03/20", primary: 51, secondary: 8 },
+          { label: "03/21", primary: 59, secondary: 12 },
+        ],
+        supportMetrics: [
+          {
+            key: "provider-available-support",
+            label: "Provider available to withdraw",
+            value: "145.50 USDC",
+            hint: "Provider 收益桶中当前可直接发起提现申请的 available balance。当前若未接入后端投影，应明确标记为待接线。",
+          },
+          {
+            key: "provider-withdrawal-support",
+            label: "Today withdrawal",
+            value: "5.00 USDC",
+            hint: "当前统计窗口内已经完成或进入结转流程的提现金额，反映资金流出压力。",
+          },
+        ],
       },
     ]);
   });
