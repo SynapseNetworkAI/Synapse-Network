@@ -59,9 +59,18 @@ export function AuthProtocolShell({
         <Box w="24" h="24" border="1px solid rgba(34, 211, 238, 0.18)" borderRadius="full" animation="spin 15s linear infinite reverse" />
       </Box>
 
-      <Box as="main" position="relative" zIndex={1} pt="24" pb="28" px={{ base: "4", md: "6" }}>
+      <Flex
+        as="main"
+        position="relative"
+        zIndex={1}
+        px={{ base: "4", md: "6" }}
+        pt="24"
+        pb="28"
+        minH="calc(100dvh - 64px)"
+        align={layout === "centered" ? "center" : "stretch"}
+      >
         {layout === "centered" ? (
-          <Box maxW={panelMaxW} mx="auto" position="relative">
+          <Box maxW={panelMaxW} w="full" mx="auto" my="auto" position="relative">
             <Box position="absolute" top="-1px" left="-1px" w="4" h="4" borderTop="2px solid #22d3ee" borderLeft="2px solid #22d3ee" />
             <Box position="absolute" bottom="-1px" right="-1px" w="4" h="4" borderBottom="2px solid #22d3ee" borderRight="2px solid #22d3ee" />
             <Box bg="rgba(15, 23, 42, 0.9)" border="1px solid rgba(34, 211, 238, 0.18)" boxShadow="0 24px 60px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(34, 211, 238, 0.05)" backdropFilter="blur(18px)" p={{ base: "6", md: "8", xl: "10" }} borderRadius="8px" position="relative" overflow="hidden">
@@ -109,20 +118,32 @@ export function AuthProtocolShell({
             </Box>
           </Flex>
         )}
-      </Box>
-
-      <Flex as="footer" position="relative" zIndex={1} justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap="4" px={{ base: "5", md: "8" }} pb="8" maxW="7xl" mx="auto">
-        <Text fontSize="10px" letterSpacing="0.22em" textTransform="uppercase" color="rgba(100, 116, 139, 0.9)">© 2026 Synapse Network. Secure Sentinel Interface.</Text>
-        <Flex gap="6" wrap="wrap">
-          {[
-            "Security Logs",
-            "Encryption Protocol",
-            "Core Status",
-          ].map((item) => (
-            <Text key={item} fontSize="10px" letterSpacing="0.22em" textTransform="uppercase" color="rgba(100, 116, 139, 0.9)">{item}</Text>
-          ))}
-        </Flex>
       </Flex>
+
+      <Box
+        as="footer"
+        position="fixed"
+        left="0"
+        right="0"
+        bottom="0"
+        zIndex={15}
+        borderTop="1px solid rgba(34, 211, 238, 0.10)"
+        bg="rgba(2, 6, 23, 0.84)"
+        backdropFilter="blur(12px)"
+      >
+        <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap="4" px={{ base: "5", md: "8" }} py="4" maxW="7xl" mx="auto">
+          <Text fontSize="10px" letterSpacing="0.22em" textTransform="uppercase" color="rgba(100, 116, 139, 0.9)">© 2026 Synapse Network. Secure Sentinel Interface.</Text>
+          <Flex gap="6" wrap="wrap">
+            {[
+              "Security Logs",
+              "Encryption Protocol",
+              "Core Status",
+            ].map((item) => (
+              <Text key={item} fontSize="10px" letterSpacing="0.22em" textTransform="uppercase" color="rgba(100, 116, 139, 0.9)">{item}</Text>
+            ))}
+          </Flex>
+        </Flex>
+      </Box>
 
       <style>{`@keyframes scanline { 0% { transform: translateY(-160px); } 100% { transform: translateY(calc(100vh + 160px)); } }`}</style>
     </Box>

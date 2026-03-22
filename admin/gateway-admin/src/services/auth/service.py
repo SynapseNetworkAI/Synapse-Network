@@ -317,6 +317,9 @@ class AdminAuthService:
         user_agent: str | None,
         request_id: str | None,
     ) -> None:
+        policy = self.get_security_policy()
+        if not policy.login_totp_required:
+            return
         if not user.require_mfa:
             return
         if self._has_active_totp_factor(user):
@@ -483,9 +486,9 @@ class AdminAuthService:
         policy = self.get_security_policy()
         if not user.require_mfa:
             return
-        factor = self._get_active_totp_factor(user)
         if not policy.login_totp_required:
             return
+        factor = self._get_active_totp_factor(user)
         if not (otp_code or "").strip():
             raise BadRequestError("otpCode is required when login TOTP is enabled")
         if not verify_google_authenticator_code(factor, otp_code or ""):
