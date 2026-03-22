@@ -28,7 +28,7 @@ describe("review-action-feedback", () => {
         new AdminApiError("Invalid Google Authenticator code", { status: 401, code: "INVALID_GOOGLE_AUTHENTICATOR_CODE" }),
         "APPROVE",
       ),
-    ).toContain("验证码不正确");
+    ).toContain("验证码错误或已过期");
     expect(getWithdrawReviewActionErrorMessage(new Error("Missing admin CSRF token"), "APPROVE")).toContain("安全校验令牌");
     expect(getWithdrawReviewActionErrorMessage(new Error("已取消 Google Authenticator 验证"), "REJECT")).toContain("后台还没有收到");
   });

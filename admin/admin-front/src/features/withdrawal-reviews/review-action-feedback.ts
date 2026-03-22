@@ -44,7 +44,7 @@ export function getWithdrawReviewActionErrorMessage(
 ): string {
   if (isAdminApiError(error)) {
     if (error.code === "INVALID_GOOGLE_AUTHENTICATOR_CODE") {
-      return "验证码不正确，请输入当前 Google Authenticator 的 6 位验证码后重试。";
+      return "验证码错误或已过期，请使用最新 6 位码重试。";
     }
     if ((error.message || "").includes("Google Authenticator code is required")) {
       return `完成验证码验证后，系统才会提交${getDecisionLabel(decision)}请求。`;

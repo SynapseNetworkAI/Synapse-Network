@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AdminStepUpModal } from "@/components/admin-step-up-modal";
+import { shouldDisableStepUpConfirm } from "@/lib/admin-step-up-presenters";
 
 const TOTP_STEP_SECONDS = 30;
 
@@ -76,6 +77,10 @@ export function useAdminStepUp({ enabled, issuer }: Readonly<UseAdminStepUpOptio
       setError("验证码已过期，请输入新的 6 位验证码。");
       return;
     }
+    if (remainingSeconds <= 5) {
+      setError("验证码即将过期，请等待下一轮 6 位码刷新后再确认。");
+      return;
+    }
     if (normalizedCode.length !== 6 || !/^\d{6}$/.test(normalizedCode)) {
       setError("请输入 6 位数字验证码。");
       return;
@@ -112,8 +117,9 @@ export function useAdminStepUp({ enabled, issuer }: Readonly<UseAdminStepUpOptio
       error={error}
       expiredNotice={expiredNotice}
       remainingSeconds={remainingSeconds}
+      confirmDisabled={shouldDisableStepUpConfirm({ remainingSeconds, code, expiredNotice })}
       onCodeChange={(value) => {
-        setCode(value);
+        setCode(value.replaceAll(/\D/g, "").slice(0, 6));
         if (error || expiredNotice) {
           setError(null);
           setExpiredNotice(false);
