@@ -67,30 +67,30 @@ export default function WithdrawalReviewsPage() {
   const activeReview = visibleItems.find((item) => item.withdrawalId === activeReviewId) ?? null;
 
   if (loading || !admin) {
-    return <ControlPlaneLoadingScreen title="Withdrawal Review Sync" message="正在同步提现审核工作台..." />;
+    return <ControlPlaneLoadingScreen title="提现处理同步中" message="正在加载待处理的提现申请..." />;
   }
 
   return (
     <AdminShell
       admin={admin}
-      eyebrow="Withdrawal Reviews"
+      eyebrow="提现处理"
       title="提现审核工作台"
-      description="专门处理 provider withdrawal 的人工审核队列，不再把 manual review 挤进泛审批列表里丢上下文。"
+      description="集中查看需要人工确认的提现申请，帮助业务、财务和风控同学更快判断该放行、驳回，还是继续跟进。"
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       {message ? <MessageBanner kind="success" message={message} /> : null}
 
       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
-        <MetricCard label="Pending reviews" value={metrics.pendingCount} meta="provider frozen state awaiting reviewer" />
-        <MetricCard label="Review amount" value={formatUsdc(metrics.totalAmount)} meta="aggregated amount under review" />
-        <MetricCard label="Red risk" value={metrics.redCount} meta="highest-severity manual reviews" />
-        <MetricCard label="Linked on-chain" value={metrics.linkedCount} meta={`${metrics.yellowCount} yellow-risk reviews in queue`} />
+        <MetricCard label="待处理申请" value={metrics.pendingCount} meta="当前等待人工确认的提现笔数" />
+        <MetricCard label="待确认金额" value={formatUsdc(metrics.totalAmount)} meta="当前列表涉及的提现总额" />
+        <MetricCard label="优先处理" value={metrics.redCount} meta="建议先处理的高关注申请" />
+        <MetricCard label="已关联流水" value={metrics.linkedCount} meta={`另有 ${metrics.yellowCount} 笔需要持续关注`} />
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "1.05fr 0.95fr" }} gap="16px">
-        <SurfaceCard eyebrow="Manual Review Stream" title="提现审核队列" description="高风险提现先冻结在 provider frozen，reviewer 在这里保留风控上下文、链路证据和审批动作。" stamp={`approval:read${canDecide ? " + approval:decide" : " only"}`}>
+        <SurfaceCard eyebrow="待处理列表" title="提现审核队列" description="这里汇总所有需要人工确认的提现申请，方便按用户、申请编号和风险等级快速筛查。" stamp={canDecide ? "可查看并处理" : "仅可查看"}>
           <Grid templateColumns={{ base: "1fr", xl: "minmax(0, 320px) 180px" }} gap="12px" mb="16px">
-            <SearchInput value={search} onChange={setSearch} placeholder="搜索 withdrawal / owner / risk code" />
+            <SearchInput value={search} onChange={setSearch} placeholder="搜索申请编号、用户地址或原因标签" />
             <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} style={nativeFieldStyle}>
               <option value="all">全部风险等级</option>
               {riskLevels.map((level) => <option key={level} value={level}>{level.toUpperCase()}</option>)}
@@ -124,27 +124,27 @@ export default function WithdrawalReviewsPage() {
               </TableBody>
             </DataTable>
           ) : (
-            <EmptyBlock title="当前筛选下没有提现审核单" description="可以放宽风险等级或搜索条件，重新拉回人工审核队列。" />
+            <EmptyBlock title="当前筛选条件下没有待处理申请" description="可以调整风险等级或搜索条件，查看其他需要人工确认的提现。" />
           )}
         </SurfaceCard>
 
-        <SurfaceCard eyebrow="Review Detail" title={activeReview?.withdrawalId ?? "Select a review"} description="专用工作台保留 evidence summary、风控原因和 reviewer note，不让这些上下文在统一审批页丢失。">
+        <SurfaceCard eyebrow="申请详情" title={activeReview?.withdrawalId ?? "请选择一笔申请"} description="查看这笔提现的关键信息、处理依据和备注，避免在来回切页时遗漏判断依据。">
           {activeReview ? (
             <Stack gap="14px">
               <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
                 <Stack direction="row" justify="space-between" align="center">
-                  <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">Evidence Summary</Text>
+                  <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理摘要</Text>
                   <SentinelStatusChip label={(activeReview.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(activeReview.riskLevel)} />
                 </Stack>
                 <Heading mt="10px" size="sm">{inputText(activeReview.evidenceSummary ?? activeReview.message)}</Heading>
-                <Text mt="8px" color="ink.500">risk code {inputText(activeReview.riskReasonCode)} · tx {inputText(activeReview.txHash)}</Text>
+                <Text mt="8px" color="ink.500">原因标签 {inputText(activeReview.riskReasonCode)} · 流水号 {inputText(activeReview.txHash)}</Text>
               </Box>
               <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="10px">
                 {[
-                  ["Owner", activeReview.ownerAddress],
-                  ["Amount", `${formatUsdc(activeReview.amountUsdc)} USDC`],
-                  ["Requested", formatDateTime(activeReview.createdAt)],
-                  ["Request ID", inputText(activeReview.requestId)],
+                  ["用户地址", activeReview.ownerAddress],
+                  ["提现金额", `${formatUsdc(activeReview.amountUsdc)} USDC`],
+                  ["申请时间", formatDateTime(activeReview.createdAt)],
+                  ["申请编号", inputText(activeReview.requestId)],
                 ].map(([label, value]) => (
                   <Box key={label} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
                     <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">{label}</Text>
@@ -153,48 +153,48 @@ export default function WithdrawalReviewsPage() {
                 ))}
               </Grid>
               <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">Reviewer Note</Text>
+                <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理备注</Text>
                 <Box mt="10px">
                   <textarea
                     value={decisionNote}
                     onChange={(event) => setDecisionNote(event.target.value)}
-                    placeholder="Record the verification result, risk rationale, or escalation notes."
+                    placeholder="填写核实结果、处理原因，或需要其他同事继续跟进的说明。"
                     style={nativeTextAreaStyle}
                   />
                 </Box>
               </Box>
               <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="10px">
-                <Button bg="signal.500" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("APPROVE")} disabled={!canDecide || isPending || !activeReview}>Approve</Button>
-                <Button bg="#b83131" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("REJECT")} disabled={!canDecide || isPending || !activeReview}>Reject</Button>
+                <Button bg="signal.500" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("APPROVE")} disabled={!canDecide || isPending || !activeReview}>确认放行</Button>
+                <Button bg="#b83131" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("REJECT")} disabled={!canDecide || isPending || !activeReview}>驳回申请</Button>
               </Grid>
-              {canDecide ? null : <MessageBanner kind="error" message="当前会话只有 approval:read，不能执行 approve / reject。" />}
+              {canDecide ? null : <MessageBanner kind="error" message="当前账号只有查看权限，不能提交处理结果。" />}
             </Stack>
           ) : (
-            <EmptyBlock title="没有选中的审核单" description="从左侧队列选择一条提现审核单，查看证据摘要并推进审批动作。" />
+            <EmptyBlock title="还没有选中申请" description="从左侧列表选择一笔提现申请，即可查看详情并填写处理意见。" />
           )}
         </SurfaceCard>
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "0.92fr 1.08fr" }} gap="16px">
-        <SurfaceCard eyebrow="Risk Reasons" title="风险原因簇" description="先看聚类，再逐单回放，reviewer 才能知道是单个 owner 问题还是策略阈值过紧。">
+        <SurfaceCard eyebrow="原因分布" title="常见触发原因" description="先看哪些原因最集中，再决定是逐笔处理，还是统一排查某一类问题。">
           <Stack gap="12px">
             {reasonClusters.map((cluster) => (
               <Box key={cluster.code} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
                 <Stack direction="row" justify="space-between" align="center">
                   <Heading size="sm">{cluster.code}</Heading>
-                  <SentinelStatusChip label={`${cluster.count} reviews`} tone={cluster.code === "manual_review" ? "gray" : "orange"} />
+                  <SentinelStatusChip label={`${cluster.count} 笔`} tone={cluster.code === "manual_review" ? "gray" : "orange"} />
                 </Stack>
               </Box>
             ))}
           </Stack>
         </SurfaceCard>
 
-        <SurfaceCard eyebrow="Workflow Guardrail" title="审核动作边界" description="approve 会推进 provider frozen -> pending 并生成 ticket，reject 会释放回 available；任何动作都应保留 reviewer note 和 admin audit。">
+        <SurfaceCard eyebrow="处理说明" title="操作注意事项" description="提交结果前，请确认判断依据和备注完整，方便后续追踪、复核和对外沟通。">
           <Stack gap="12px">
             {[
-              ["安全边界", "浏览器只拿 admin token，真正的资金推进由 gateway-admin 通过内部 adapter 调用 gateway，不暴露 gateway 管理命令给前端。"],
-              ["审计要求", "review decision 必须写入 admin_action_audit，拒绝动作尤其要保留清晰的理由与证据摘要。"],
-              ["队列语义", "这里只承接 provider withdrawal review，不把手工审核混回泛审批列表里丢上下文。"],
+              ["处理结果", "放行后，申请会进入后续出款流程；驳回后，会回到可用状态并保留处理记录。"],
+              ["备注要求", "无论通过还是驳回，都建议写清楚核实结果和处理原因，方便后续查询与复盘。"],
+              ["页面定位", "这里专门处理需要人工确认的提现申请，避免和其他审批事项混在一起，影响判断效率。"],
             ].map(([title, description]) => (
               <Box key={title} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
                 <Heading size="sm">{title}</Heading>

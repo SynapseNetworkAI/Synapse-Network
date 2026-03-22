@@ -51,6 +51,12 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
   const pressureCards = useMemo(() => buildDashboardPressureCards(overview, financeOverview), [financeOverview, overview]);
   const funnelCards = useMemo(() => buildDashboardFunnelCards(financeOverview, operationsOverview, null), [financeOverview, operationsOverview]);
   const capitalPulseLanes = useMemo(() => buildDashboardCapitalPulseLanes(financeOverview), [financeOverview]);
+  const headerActions = (
+    <>
+      <Link href="/dashboard/runtime"><Button borderRadius="full" variant="ghost">查看业务运行情况</Button></Link>
+      <Link href="/system"><Button borderRadius="full" bg="#0f1115" color="#f4f7fb" _hover={{ bg: "#1b1f26" }}>查看系统状态</Button></Link>
+    </>
+  );
 
   if (bootstrapping) {
     return <ControlPlaneLoadingScreen title="概览加载中" message="正在汇总首页关键数据，请稍候..." />;
@@ -62,12 +68,7 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
       eyebrow="控制台概览"
       title="控制台概览"
       description="把当前整体情况、今日资金变化和待处理事项集中在首页，方便业务同学先判断哪里需要优先跟进。"
-      actions={(
-        <>
-          <Link href="/dashboard/runtime"><Button borderRadius="full" variant="ghost">查看业务运行情况</Button></Link>
-          <Link href="/system"><Button borderRadius="full" bg="#0f1115" color="#f4f7fb" _hover={{ bg: "#1b1f26" }}>查看系统状态</Button></Link>
-        </>
-      )}
+      actions={headerActions}
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <DashboardSentinelMetricsGrid metrics={sentinelMetrics} />
