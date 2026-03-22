@@ -230,7 +230,7 @@ X-CSRF-Token: <csrfToken>
 
 数据来源约束：
 
-- `pendingApprovals` 来自 admin 控制面审批库
+- `pendingApprovals` 来自统一审批工作队列，包含 admin 控制面审批库中的待处理审批，以及 gateway provider withdraw manual review 的只读投影待审项
 - `depositExceptions`、`auditAlerts`、`vaultLedgerDelta` 来自 gateway 只读投影视图 `synapse_admin_dashboard_projection`
 - 这里说的“gateway 只读投影表”指的是由 gateway 真相表与运行态状态派生出来、仅供后台读取的读模型；当前第一版以 SQL view 实现，而不是新的资金真相表
 
@@ -264,7 +264,8 @@ X-CSRF-Token: <csrfToken>
 
 数据来源约束：
 
-- `gatewayAdmin`、`approvalQueueDepth` 来自 admin 控制面
+- `gatewayAdmin` 来自 admin 控制面
+- `approvalQueueDepth` 来自统一审批工作队列，包含 admin 控制面审批与 provider withdraw manual review 投影待审项
 - `gateway`、`lastReconciliationAt` 来自 gateway 只读投影视图 `synapse_admin_dashboard_projection`
 
 响应：
@@ -407,7 +408,7 @@ X-CSRF-Token: <csrfToken>
 
 - `reconciliationDeltaUsdc`、`gatewayStatus`、`reconciliationAlert`、`reconciliationLastError`、`projectedAt` 来自 gateway 只读投影视图
 - `chainVaultUsdc`、`ledgerObligationUsdc`、`signedDifferenceUsdc`、`runtimeStateUpdatedAt` 来自持久化 runtime state `synapse_runtime_state(state_key='deposit_reconciliation_state')`
-- `pendingApprovals` 来自 admin 审批库
+- `pendingApprovals` 来自统一审批工作队列，包含 admin 审批与 provider withdraw manual review 投影待审项
 - `depositExceptions`、`auditAlerts`、`pendingDepositCount`、`pendingWithdrawalCount`、`ownerLiabilityUsdc`、`providerPayableUsdc`、`platformFeeBalanceUsdc` 来自稳定 projection 或受控聚合，不允许前端自行拼装“详情”
 - `priorityApprovals`、`depositRepairApprovals`、`pendingWithdrawalReviews` 必须由 `gateway-admin` 在后端聚合后返回，前端只负责展示和跳转，不得自行从多个列表接口拼装出“关联异常真相”
 - `priorityApprovals[*].ownerAddress`、`requestId`、`txHash` 与 `pendingWithdrawalReviews[*]` 上的同名字段属于统一 locator 语义，供 reconciliation 页面发起同页 cross-locator drill-down

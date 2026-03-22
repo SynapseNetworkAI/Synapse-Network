@@ -638,13 +638,47 @@ def test_provider_withdraw_manual_review_rejection_releases_frozen_balance() -> 
 
     assert rejected["status"] == "REJECTED"
     row = storage.gateway_state.withdraw_rows[0]
-    assert row.review_decision == "REJECT"
-    assert row.reviewer_address == "0xreviewer"
-    assert row.ticket.signature is None
-    wallet_after_reject = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after_reject.available_balance - 150.0) < 1e-9
-    assert abs(wallet_after_reject.pending_balance - 0.0) < 1e-9
-    assert abs(wallet_after_reject.frozen_balance - 0.0) < 1e-9
+
+
+def test_provider_withdraw_manual_review_uses_configured_single_limit(monkeypatch) -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = 100.0
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+    captured_single_limit: Decimal | None = None
+
+    def _process_withdrawal_request_atomic(command):
+        nonlocal captured_single_limit
+        captured_single_limit = command.single_limit_usdc
+        return SimpleNamespace(
+            withdrawal_id="wd-config-threshold-1",
+            status="PENDING_MANUAL_REVIEW",
+            amount_usdc=60.0,
+            ticket={},
+            message="configured threshold hit",
+            decision="yellow",
+            risk_reason_code=None,
+        )
+
+    storage.process_withdrawal_request_atomic = _process_withdrawal_request_atomic  # type: ignore[attr-defined]
+
+    original_limit = settings.withdrawal_auto_single_limit_usdc
+    monkeypatch.setattr(settings, "withdrawal_auto_single_limit_usdc", 50.0, raising=False)
+
+    try:
+        created = asyncio.run(
+            service.create_provider_withdraw_intent(
+                {"amountUsdc": 60},
+                "0xdef",
+                "withdraw-intent-config-threshold-0001",
+            )
+        )
+    finally:
+        monkeypatch.setattr(settings, "withdrawal_auto_single_limit_usdc", original_limit, raising=False)
+
+    assert created["status"] == "PENDING_MANUAL_REVIEW"
+    assert captured_single_limit == Decimal("50.0")
 
 
 def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> None:

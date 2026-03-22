@@ -34,7 +34,6 @@ from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 
-WITHDRAW_AUTO_APPROVAL_LIMIT_USDC = 100.0
 ACTIVE_WITHDRAWAL_STATUSES = {
     "REQUESTED",
     "APPROVED_AUTO",
@@ -619,7 +618,9 @@ class ProviderWithdrawService(
         amount_usdc: float,
         force_sign: bool = False,
     ) -> PreparedWithdrawTicket:
-        requires_manual_review = (amount_usdc >= WITHDRAW_AUTO_APPROVAL_LIMIT_USDC) and not force_sign
+        requires_manual_review = (
+            amount_usdc >= settings.withdrawal_auto_single_limit_usdc
+        ) and not force_sign
         amount_wei = int(round(amount_usdc * float(10**USDC_DECIMALS)))
 
         if requires_manual_review:
@@ -956,8 +957,9 @@ class ProviderWithdrawService(
             if ticket_payload.requires_manual_review
             else "APPROVED_AUTO"
         )
+        manual_review_limit = settings.withdrawal_auto_single_limit_usdc
         message = (
-            "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
+            f"Withdrawal requested. Amounts at or above ${manual_review_limit:g} require manual security review (ETA: 12-24 hrs)."
             if ticket_payload.requires_manual_review
             else ""
         )

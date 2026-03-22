@@ -885,7 +885,9 @@ class FinanceAtomicRepository:
                             now_text,
                         )
                         ticket = {}
-                        message = "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
+                        message = (
+                            f"Withdrawal requested. Amounts at or above ${command.single_limit_usdc:g} require manual security review (ETA: 12-24 hrs)."
+                        )
                         risk_level = "yellow"
                     else:
                         status = "APPROVED_AUTO"

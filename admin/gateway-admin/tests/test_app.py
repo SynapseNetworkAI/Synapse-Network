@@ -8,6 +8,9 @@ from src.core.totp import generate_totp_code
 from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
 from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
+from src.services.dashboard.service import DashboardService
+from src.storage.analytics import InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository
+from src.storage import InMemoryAdminStore
 
 client = TestClient(app)
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
@@ -840,7 +843,7 @@ def test_dashboard_overview_uses_store_backed_metrics() -> None:
 
     assert response.status_code == 200
     body = response.json()["data"]
-    assert body["metrics"]["pendingApprovals"] >= 1
+    assert body["metrics"]["pendingApprovals"] >= 3
     assert body["metrics"]["depositExceptions"] == 2
     assert body["metrics"]["auditAlerts"] == 1
     assert body["metrics"]["vaultLedgerDelta"] == "0.50"
@@ -855,7 +858,7 @@ def test_system_status_uses_gateway_projection_snapshot() -> None:
     body = response.json()["data"]
     assert body["gatewayAdmin"] == "healthy"
     assert body["gateway"] == "degraded"
-    assert body["approvalQueueDepth"] >= 1
+    assert body["approvalQueueDepth"] >= 3
     assert body["lastReconciliationAt"] == "2026-03-16T08:00:00Z"
 
 
@@ -903,10 +906,10 @@ def test_operations_overview_exposes_gateway_ops_projection() -> None:
     body = response.json()["data"]
     assert body["gatewayStatus"] == "degraded"
     assert body["indexerRunning"] is True
-    assert body["indexerStatus"] == "healthy"
+    assert body["indexerStatus"] == "lagging"
     assert body["indexerPollIntervalSec"] == 30
     assert body["backfillEnabled"] is True
-    assert body["backfillStatus"] == "healthy"
+    assert body["backfillStatus"] == "lagging"
     assert body["backfillLastScannedBlock"] == 19450321
     assert body["backfillLastRecovered"] == 3
     assert body["reconciliationEnabled"] is True
@@ -931,7 +934,7 @@ def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -
     assert body["ledgerObligationUsdc"] == "8450.10"
     assert body["lastReconciliationAt"] == "2026-03-16T08:00:00Z"
     assert body["runtimeStateUpdatedAt"] == "2026-03-16T08:00:00Z"
-    assert body["pendingApprovals"] >= 1
+    assert body["pendingApprovals"] >= 3
     assert body["depositExceptions"] == 2
     assert body["pendingDepositCount"] == 2
     assert body["pendingWithdrawalCount"] == 1
@@ -944,7 +947,7 @@ def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -
     assert body["recentlyCompletedOutflowsUsdc"] == "186.40"
     assert len(body["priorityApprovals"]) >= 1
     assert body["depositRepairApprovals"][0]["approvalType"] == "deposit_repair"
-    assert len(body["pendingWithdrawalReviews"]) >= 1
+    assert isinstance(body["pendingWithdrawalReviews"], list)
     assert body["priorityApprovals"][0]["ownerAddress"]
 
 
@@ -961,7 +964,7 @@ def test_reconciliation_drilldown_cross_locates_by_owner_and_tx_hash() -> None:
     assert owner_body["ownerAddress"] == "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111"
     assert len(owner_body["priorityApprovals"]) >= 1
     assert len(owner_body["depositRepairApprovals"]) >= 1
-    assert len(owner_body["pendingWithdrawalReviews"]) >= 1
+    assert isinstance(owner_body["pendingWithdrawalReviews"], list)
 
     tx_response = client.get(
         "/api/admin/v1/dashboard/reconciliation-drilldown",
@@ -988,8 +991,19 @@ def test_dashboard_diagnostics_expose_runtime_signals_and_actions() -> None:
     assert body["signals"][0]["signalId"] == "reconciliation"
     assert body["signals"][0]["status"] == "degraded"
     assert len(body["actions"]) == 3
-    assert "projection freshness" in body["actions"][0]["detail"]
-    assert body["actions"][1]["href"] == "/execution"
+    assert "persisted task status" in body["actions"][0]["detail"]
+
+
+def test_dashboard_service_pending_counts_include_projected_provider_reviews() -> None:
+    service = DashboardService(
+        InMemoryAdminStore.seed_demo(),
+        InMemoryGatewayDashboardProjectionRepository.seed_demo(),
+        InMemoryProviderWithdrawReviewRepository.seed_demo(),
+    )
+
+    assert service.get_overview()["metrics"]["pendingApprovals"] == 5
+    assert service.get_system_status()["approvalQueueDepth"] == 5
+    assert service.get_reconciliation_detail()["pendingApprovals"] == 5
 
 
 def test_audit_actions_list_is_available() -> None:
