@@ -1,4 +1,5 @@
 import type { ActivityTrendPoint, ApprovalItem, FinanceOverview } from "@/services/admin-api";
+import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
 
 export function filterFinanceApprovals(items: ApprovalItem[]): ApprovalItem[] {
   return items.filter((item) => item.approvalType.includes("refund") || item.approvalType.includes("withdraw") || item.approvalType.includes("deposit"));
@@ -39,21 +40,24 @@ export function buildFinanceExposureCards(overview: FinanceOverview) {
   return [
     {
       key: "owner-liability",
-      label: "Owner liability",
+      label: getFinanceMetricGlossary("ownerLiability").label,
       value: overview.ownerLiabilityUsdc,
-      description: "买家侧应付余额读模型",
+      description: getFinanceMetricGlossary("ownerLiability").meta,
+      hint: getFinanceMetricGlossary("ownerLiability").hint,
     },
     {
       key: "provider-payable",
-      label: "Provider payable",
+      label: getFinanceMetricGlossary("providerPayable").label,
       value: overview.providerPayableUsdc,
-      description: "待结算给 provider 的应付池",
+      description: getFinanceMetricGlossary("providerPayable").meta,
+      hint: getFinanceMetricGlossary("providerPayable").hint,
     },
     {
       key: "platform-fee",
-      label: "Platform fee pool",
+      label: getFinanceMetricGlossary("platformIncome").label,
       value: overview.platformFeeBalanceUsdc,
-      description: "平台手续费累计余额",
+      description: getFinanceMetricGlossary("platformIncome").meta,
+      hint: getFinanceMetricGlossary("platformIncome").hint,
     },
   ];
 }

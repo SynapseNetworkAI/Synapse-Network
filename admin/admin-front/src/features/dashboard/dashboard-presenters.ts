@@ -1,4 +1,5 @@
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
+import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
 import type {
   ActivityTrendSeries,
   ApprovalItem,
@@ -31,8 +32,10 @@ type RiskActivityRow = {
 };
 
 type CapitalSnapshotCard = {
+  key: string;
   label: string;
   value: string;
+  hint: string;
 };
 
 const HIGHLIGHT_META_BY_TREND: Record<string, string> = {
@@ -150,16 +153,16 @@ export function buildCapitalSnapshotCards(financeOverview: FinanceOverview | nul
   }
 
   return [
-    { label: "Today charge", value: `${formatUsdc(financeOverview.todayChargeUsdc)} USDC` },
-    { label: "Today deposit", value: `${formatUsdc(financeOverview.todayDepositUsdc)} USDC` },
-    { label: "Today refund", value: `${formatUsdc(financeOverview.todayRefundUsdc)} USDC` },
-    { label: "Today withdrawal", value: `${formatUsdc(financeOverview.todayWithdrawalUsdc)} USDC` },
-    { label: "Owner liability", value: `${formatUsdc(financeOverview.ownerLiabilityUsdc)} USDC` },
-    { label: "Provider payable", value: `${formatUsdc(financeOverview.providerPayableUsdc)} USDC` },
-    { label: "Platform fee balance", value: `${formatUsdc(financeOverview.platformFeeBalanceUsdc)} USDC` },
-    { label: "Vault ledger delta", value: `${formatUsdc(financeOverview.vaultLedgerDeltaUsdc)} USDC` },
-    { label: "Pending deposits", value: String(financeOverview.pendingDepositCount) },
-    { label: "Pending withdrawals", value: String(financeOverview.pendingWithdrawalCount) },
+    { key: "today-charge", label: getFinanceMetricGlossary("todayCharge").label, value: `${formatUsdc(financeOverview.todayChargeUsdc)} USDC`, hint: getFinanceMetricGlossary("todayCharge").hint },
+    { key: "today-deposit", label: getFinanceMetricGlossary("todayDeposit").label, value: `${formatUsdc(financeOverview.todayDepositUsdc)} USDC`, hint: getFinanceMetricGlossary("todayDeposit").hint },
+    { key: "today-refund", label: getFinanceMetricGlossary("todayRefund").label, value: `${formatUsdc(financeOverview.todayRefundUsdc)} USDC`, hint: getFinanceMetricGlossary("todayRefund").hint },
+    { key: "today-withdrawal", label: getFinanceMetricGlossary("todayWithdrawal").label, value: `${formatUsdc(financeOverview.todayWithdrawalUsdc)} USDC`, hint: getFinanceMetricGlossary("todayWithdrawal").hint },
+    { key: "owner-liability", label: getFinanceMetricGlossary("ownerLiability").label, value: `${formatUsdc(financeOverview.ownerLiabilityUsdc)} USDC`, hint: getFinanceMetricGlossary("ownerLiability").hint },
+    { key: "provider-payable", label: getFinanceMetricGlossary("providerPayable").label, value: `${formatUsdc(financeOverview.providerPayableUsdc)} USDC`, hint: getFinanceMetricGlossary("providerPayable").hint },
+    { key: "platform-income", label: getFinanceMetricGlossary("platformIncome").label, value: `${formatUsdc(financeOverview.platformFeeBalanceUsdc)} USDC`, hint: getFinanceMetricGlossary("platformIncome").hint },
+    { key: "vault-ledger-delta", label: getFinanceMetricGlossary("vaultLedgerDelta").label, value: `${formatUsdc(financeOverview.vaultLedgerDeltaUsdc)} USDC`, hint: getFinanceMetricGlossary("vaultLedgerDelta").hint },
+    { key: "pending-deposits", label: getFinanceMetricGlossary("pendingDeposits").label, value: String(financeOverview.pendingDepositCount), hint: getFinanceMetricGlossary("pendingDeposits").hint },
+    { key: "pending-withdrawals", label: getFinanceMetricGlossary("pendingWithdrawals").label, value: String(financeOverview.pendingWithdrawalCount), hint: getFinanceMetricGlossary("pendingWithdrawals").hint },
   ];
 }
 

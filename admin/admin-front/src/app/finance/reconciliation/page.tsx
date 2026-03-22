@@ -1,12 +1,12 @@
 "use client";
 
-import { Box, Button, Flex, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
-import { DataTable, EmptyBlock, InlineHintTooltip, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
+import { DataTable, EmptyBlock, MessageBanner, MetricCard, MetricLabelWithHint, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
@@ -21,7 +21,7 @@ import {
   resolveDrilldownTitle,
   resolveReconciliationStamp,
 } from "@/features/finance/reconciliation-presenters";
-import { getReconciliationMetricGlossary } from "@/features/finance/reconciliation-glossary";
+import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
 import { getWithdrawRiskTone } from "@/features/withdrawal-reviews/review-presenters";
 import { getReconciliationDetail, getReconciliationDrilldown, type ReconciliationDetail, type ReconciliationDrilldownResult } from "@/services/admin-api";
@@ -47,21 +47,6 @@ function resolveApprovalStatusTone(status: string): "green" | "orange" | "red" |
     return "green";
   }
   return "gray";
-}
-
-function MetricLabelWithHint({
-  label,
-  hint,
-}: Readonly<{
-  label: string;
-  hint: string;
-}>) {
-  return (
-    <Flex align="center" gap="8px" wrap="wrap">
-      <Text fontSize="inherit" letterSpacing="inherit" textTransform="inherit" color="inherit">{label}</Text>
-      <InlineHintTooltip label={`${label} tip`} content={hint} />
-    </Flex>
-  );
 }
 
 function DrilldownTokenButtons({
@@ -380,29 +365,29 @@ export default function ReconciliationDetailPage() {
 
       <Grid templateColumns={topMetricColumns} gap="16px">
         <MetricCard
-          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("platformIncome").label} hint={getReconciliationMetricGlossary("platformIncome").hint} />}
+          label={<MetricLabelWithHint label={getFinanceMetricGlossary("platformIncome").label} hint={getFinanceMetricGlossary("platformIncome").hint} />}
           value={`${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`}
-          meta={getReconciliationMetricGlossary("platformIncome").meta}
+          meta={getFinanceMetricGlossary("platformIncome").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("absoluteDelta").label} hint={getReconciliationMetricGlossary("absoluteDelta").hint} />}
+          label={<MetricLabelWithHint label={getFinanceMetricGlossary("absoluteDelta").label} hint={getFinanceMetricGlossary("absoluteDelta").hint} />}
           value={`${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`}
-          meta={getReconciliationMetricGlossary("absoluteDelta").meta}
+          meta={getFinanceMetricGlossary("absoluteDelta").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("signedDifference").label} hint={getReconciliationMetricGlossary("signedDifference").hint} />}
+          label={<MetricLabelWithHint label={getFinanceMetricGlossary("signedDifference").label} hint={getFinanceMetricGlossary("signedDifference").hint} />}
           value={formatSignedUsdc(detail.signedDifferenceUsdc)}
-          meta={getReconciliationMetricGlossary("signedDifference").meta}
+          meta={getFinanceMetricGlossary("signedDifference").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("chainVault").label} hint={getReconciliationMetricGlossary("chainVault").hint} />}
+          label={<MetricLabelWithHint label={getFinanceMetricGlossary("chainVault").label} hint={getFinanceMetricGlossary("chainVault").hint} />}
           value={detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a"}
-          meta={getReconciliationMetricGlossary("chainVault").meta}
+          meta={getFinanceMetricGlossary("chainVault").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("ledgerObligation").label} hint={getReconciliationMetricGlossary("ledgerObligation").hint} />}
+          label={<MetricLabelWithHint label={getFinanceMetricGlossary("ledgerObligation").label} hint={getFinanceMetricGlossary("ledgerObligation").hint} />}
           value={detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a"}
-          meta={getReconciliationMetricGlossary("ledgerObligation").meta}
+          meta={getFinanceMetricGlossary("ledgerObligation").meta}
         />
       </Grid>
 

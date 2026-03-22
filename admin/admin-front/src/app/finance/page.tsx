@@ -7,10 +7,11 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
-import { DataTable, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
+import { DataTable, MessageBanner, MetricCard, MetricLabelWithHint, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime, formatUsdc, toneFromStatus } from "@/lib/admin-console";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
 import { buildFinanceExposureCards, buildTrendChartData, filterFinanceApprovals, getVaultDeltaTone } from "@/features/finance/finance-presenters";
+import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
   getActivityTrends,
@@ -93,10 +94,10 @@ export default function FinancePage() {
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
-        <MetricCard label="Today deposit" value={formatUsdc(overview.todayDepositUsdc)} meta="stable read model" />
-        <MetricCard label="Today charge" value={formatUsdc(overview.todayChargeUsdc)} meta="gateway metered usage" />
-        <MetricCard label="Today refund" value={formatUsdc(overview.todayRefundUsdc)} meta="refund approval path" />
-        <MetricCard label="Pending withdrawal" value={overview.pendingWithdrawalCount} meta="awaiting reviewer decisions" />
+        <MetricCard label={<MetricLabelWithHint label={getFinanceMetricGlossary("todayDeposit").label} hint={getFinanceMetricGlossary("todayDeposit").hint} />} value={formatUsdc(overview.todayDepositUsdc)} meta={getFinanceMetricGlossary("todayDeposit").meta} />
+        <MetricCard label={<MetricLabelWithHint label={getFinanceMetricGlossary("todayCharge").label} hint={getFinanceMetricGlossary("todayCharge").hint} />} value={formatUsdc(overview.todayChargeUsdc)} meta={getFinanceMetricGlossary("todayCharge").meta} />
+        <MetricCard label={<MetricLabelWithHint label={getFinanceMetricGlossary("todayRefund").label} hint={getFinanceMetricGlossary("todayRefund").hint} />} value={formatUsdc(overview.todayRefundUsdc)} meta={getFinanceMetricGlossary("todayRefund").meta} />
+        <MetricCard label={<MetricLabelWithHint label={getFinanceMetricGlossary("pendingWithdrawals").label} hint={getFinanceMetricGlossary("pendingWithdrawals").hint} />} value={overview.pendingWithdrawalCount} meta={getFinanceMetricGlossary("pendingWithdrawals").meta} />
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "1.15fr 0.85fr" }} gap="16px">
@@ -132,7 +133,7 @@ export default function FinancePage() {
                 <Heading size="md">{formatUsdc(overview.vaultLedgerDeltaUsdc)} USDC</Heading>
                 <SentinelStatusChip label={getVaultDeltaTone(overview.vaultLedgerDeltaUsdc).toUpperCase()} tone={getVaultDeltaTone(overview.vaultLedgerDeltaUsdc)} />
               </Stack>
-              <Text mt="8px" color="ink.500">账本和金库偏差是 operator 第一优先信号，大额偏差不应该在审批环节之后才发现。</Text>
+              <Text mt="8px" color="ink.500">{getFinanceMetricGlossary("vaultLedgerDelta").hint}</Text>
               <Link href="/finance/reconciliation"><Button mt="12px" size="sm" borderRadius="full">查看对账明细</Button></Link>
             </Box>
             {[
@@ -156,16 +157,18 @@ export default function FinancePage() {
           <Stack gap="12px">
             {exposureCards.map((card) => (
               <Box key={card.key} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">{card.label}</Text>
+                <Box fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">
+                  <MetricLabelWithHint label={card.label} hint={card.hint} />
+                </Box>
                 <Heading mt="8px" size="md">{formatUsdc(card.value)} USDC</Heading>
                 <Text mt="8px" color="ink.500">{card.description}</Text>
               </Box>
             ))}
             <Box borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
               <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">Queue counters</Text>
-              <Text mt="8px" color="ink.500">Pending deposit: {overview.pendingDepositCount}</Text>
-              <Text mt="6px" color="ink.500">Pending withdrawal: {overview.pendingWithdrawalCount}</Text>
-              <Text mt="6px" color="ink.500">Today withdrawal: {formatUsdc(overview.todayWithdrawalUsdc)} USDC</Text>
+              <Text mt="8px" color="ink.500">{getFinanceMetricGlossary("pendingDeposits").label}: {overview.pendingDepositCount}</Text>
+              <Text mt="6px" color="ink.500">{getFinanceMetricGlossary("pendingWithdrawals").label}: {overview.pendingWithdrawalCount}</Text>
+              <Text mt="6px" color="ink.500">{getFinanceMetricGlossary("todayWithdrawal").label}: {formatUsdc(overview.todayWithdrawalUsdc)} USDC</Text>
             </Box>
           </Stack>
         </SurfaceCard>
