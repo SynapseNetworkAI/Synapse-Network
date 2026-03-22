@@ -11,17 +11,17 @@ import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
   buildApprovalDrilldownTokens,
-  buildReconciliationBreakdownCards,
-  buildReconciliationQueueCards,
+  buildReconciliationDepositEvidenceCards,
+  buildReconciliationHeroCards,
+  buildReconciliationOutflowEvidenceCards,
+  buildReconciliationSupportingCards,
   buildWithdrawReviewDrilldownTokens,
   describeImbalance,
-  formatSignedUsdc,
   type DrilldownToken,
   resolveDrilldownCount,
   resolveDrilldownTitle,
   resolveReconciliationStamp,
 } from "@/features/finance/reconciliation-presenters";
-import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
 import { getWithdrawRiskTone } from "@/features/withdrawal-reviews/review-presenters";
 import { getReconciliationDetail, getReconciliationDrilldown, type ReconciliationDetail, type ReconciliationDrilldownResult } from "@/services/admin-api";
@@ -313,8 +313,10 @@ export default function ReconciliationDetailPage() {
     };
   }, [token]);
 
-  const breakdownCards = useMemo(() => detail ? buildReconciliationBreakdownCards(detail) : [], [detail]);
-  const queueCards = useMemo(() => detail ? buildReconciliationQueueCards(detail) : [], [detail]);
+  const heroCards = useMemo(() => detail ? buildReconciliationHeroCards(detail) : [], [detail]);
+  const supportingCards = useMemo(() => detail ? buildReconciliationSupportingCards(detail) : [], [detail]);
+  const depositEvidenceCards = useMemo(() => detail ? buildReconciliationDepositEvidenceCards(detail) : [], [detail]);
+  const outflowEvidenceCards = useMemo(() => detail ? buildReconciliationOutflowEvidenceCards(detail) : [], [detail]);
 
   async function handleDrilldown(tokenConfig: DrilldownToken) {
     if (!token) {
@@ -352,49 +354,32 @@ export default function ReconciliationDetailPage() {
 
   const tone = resolveTone(detail);
   const stamp = resolveReconciliationStamp(detail);
-  const topMetricColumns = { base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(5, 1fr)" };
+  const topMetricColumns = { base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" };
 
   return (
     <AdminShell
       admin={admin}
       eyebrow="Finance Admin"
-      title="账本对账详情"
-      description="展示链上 vault、账本义务、带方向的净偏差，以及与处置优先级强相关的 backlog。"
+      title="对账调查页"
+      description="当 Finance 已经判断出现偏差后，在这里集中查看链上证据、入账证据、出账证据和关联处置队列。"
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
 
       <Grid templateColumns={topMetricColumns} gap="16px">
-        <MetricCard
-          label={<MetricLabelWithHint label={getFinanceMetricGlossary("platformIncome").label} hint={getFinanceMetricGlossary("platformIncome").hint} />}
-          value={`${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`}
-          meta={getFinanceMetricGlossary("platformIncome").meta}
-        />
-        <MetricCard
-          label={<MetricLabelWithHint label={getFinanceMetricGlossary("absoluteDelta").label} hint={getFinanceMetricGlossary("absoluteDelta").hint} />}
-          value={`${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`}
-          meta={getFinanceMetricGlossary("absoluteDelta").meta}
-        />
-        <MetricCard
-          label={<MetricLabelWithHint label={getFinanceMetricGlossary("signedDifference").label} hint={getFinanceMetricGlossary("signedDifference").hint} />}
-          value={formatSignedUsdc(detail.signedDifferenceUsdc)}
-          meta={getFinanceMetricGlossary("signedDifference").meta}
-        />
-        <MetricCard
-          label={<MetricLabelWithHint label={getFinanceMetricGlossary("chainVault").label} hint={getFinanceMetricGlossary("chainVault").hint} />}
-          value={detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a"}
-          meta={getFinanceMetricGlossary("chainVault").meta}
-        />
-        <MetricCard
-          label={<MetricLabelWithHint label={getFinanceMetricGlossary("ledgerObligation").label} hint={getFinanceMetricGlossary("ledgerObligation").hint} />}
-          value={detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a"}
-          meta={getFinanceMetricGlossary("ledgerObligation").meta}
-        />
+        {heroCards.map((card) => (
+          <MetricCard
+            key={card.key}
+            label={<MetricLabelWithHint label={card.label} hint={card.hint} />}
+            value={card.value}
+            meta={card.meta}
+          />
+        ))}
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "1.1fr 0.9fr" }} gap="16px">
         <SurfaceCard
-          eyebrow="Drift Breakdown"
-          title="对账拆解"
+          eyebrow="Investigation Summary"
+          title="偏差调查摘要"
           description={describeImbalance(detail)}
           stamp={stamp}
           actions={<Link href="/dashboard"><Button size="sm" borderRadius="full">返回 Dashboard</Button></Link>}
@@ -404,15 +389,6 @@ export default function ReconciliationDetailPage() {
             <SentinelStatusChip label={detail.gatewayStatus} tone={detail.gatewayStatus === "healthy" ? "green" : "red"} />
             <SentinelStatusChip label={detail.imbalanceDirection.replace("_", " ")} tone={tone} />
           </Stack>
-          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="12px">
-            {breakdownCards.map((card) => (
-              <Box key={card.label} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">{card.label}</Text>
-                <Heading mt="10px" size="md">{card.value}</Heading>
-                <Text mt="8px" color="ink.500">{card.description}</Text>
-              </Box>
-            ))}
-          </Grid>
           <Box mt="12px" borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
             <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">Last reconciliation markers</Text>
             <Text mt="10px" color="ink.500">Last reconciliation: {detail.lastReconciliationAt ? formatDateTime(detail.lastReconciliationAt) : "n/a"}</Text>
@@ -423,15 +399,17 @@ export default function ReconciliationDetailPage() {
         </SurfaceCard>
 
         <SurfaceCard
-          eyebrow="Operator Context"
-          title="关联处置面"
-          description="对账偏差本身不是全部，operator 还需要同时看到审批积压、充值异常和提现排队。"
+          eyebrow="Supporting Signals"
+          title="调查支撑信号"
+          description="这些卡片用于帮助值班人员快速确认偏差落在哪一层责任面，并决定下一跳去哪一个队列。"
           actions={<Link href="/finance"><Button size="sm" borderRadius="full">打开 Finance Desk</Button></Link>}
         >
           <Stack gap="12px">
-            {queueCards.map((card) => (
-              <Box key={card.label} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">{card.label}</Text>
+            {supportingCards.map((card) => (
+              <Box key={card.key} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+                <Box fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">
+                  <MetricLabelWithHint label={card.label} hint={card.hint} />
+                </Box>
                 <Heading mt="10px" size="md">{card.value}</Heading>
                 <Text mt="8px" color="ink.500">{card.description}</Text>
               </Box>
@@ -449,26 +427,48 @@ export default function ReconciliationDetailPage() {
 
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
         <SurfaceCard
-          eyebrow="Exception Queue"
-          title="相关审批单"
-          description="这里聚合对账偏差处置最相关的 finance approvals，避免 operator 再从首页回忆该去哪张表。"
-          actions={<Link href="/approvals?status=UNDER_REVIEW"><Button size="sm" borderRadius="full">打开审批中心</Button></Link>}
+          eyebrow="Deposit Evidence"
+          title="充值入账证据"
+          description="先确认充值链路是否存在链上已确认但账本未完成同步、审批未补齐或修复单积压。"
+          actions={<Link href="/approvals?type=deposit_repair"><Button size="sm" borderRadius="full">只看充值修复</Button></Link>}
         >
-          <PriorityApprovalsSection
-            items={detail.priorityApprovals}
+          <Stack gap="12px" mb="16px">
+            {depositEvidenceCards.map((card) => (
+              <Box key={card.key} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+                <Box fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">
+                  <MetricLabelWithHint label={card.label} hint={card.hint} />
+                </Box>
+                <Heading mt="10px" size="md">{card.value}</Heading>
+                <Text mt="8px" color="ink.500">{card.description}</Text>
+              </Box>
+            ))}
+          </Stack>
+          <DepositRepairSection
+            items={detail.depositRepairApprovals}
             drilldownLoading={drilldownLoading}
             onDrilldown={(tokenConfig) => void handleDrilldown(tokenConfig)}
           />
         </SurfaceCard>
 
         <SurfaceCard
-          eyebrow="Deposit Repair"
-          title="充值异常处置审批"
-          description="当前还没有独立的充值异常单列表接口，这里展示最相关的 deposit_repair 审批，作为异常处置入口。"
-          actions={<Link href="/approvals?type=deposit_repair"><Button size="sm" borderRadius="full">只看充值修复</Button></Link>}
+          eyebrow="Outflow Evidence"
+          title="退款与提现证据"
+          description="确认偏差是否来自退款、提现审核或 provider 出账队列，而不是充值同步问题。"
+          actions={<Link href="/withdrawal-reviews"><Button size="sm" borderRadius="full">打开提现审核台</Button></Link>}
         >
-          <DepositRepairSection
-            items={detail.depositRepairApprovals}
+          <Stack gap="12px" mb="16px">
+            {outflowEvidenceCards.map((card) => (
+              <Box key={card.key} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+                <Box fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">
+                  <MetricLabelWithHint label={card.label} hint={card.hint} />
+                </Box>
+                <Heading mt="10px" size="md">{card.value}</Heading>
+                <Text mt="8px" color="ink.500">{card.description}</Text>
+              </Box>
+            ))}
+          </Stack>
+          <WithdrawalReviewsSection
+            items={detail.pendingWithdrawalReviews}
             drilldownLoading={drilldownLoading}
             onDrilldown={(tokenConfig) => void handleDrilldown(tokenConfig)}
           />
@@ -476,13 +476,13 @@ export default function ReconciliationDetailPage() {
       </Grid>
 
       <SurfaceCard
-        eyebrow="Withdrawal Reviews"
-        title="提现审核队列联动"
-        description="对账异常常常伴随出账审核积压，这里直接露出待审核提现单并保留风险上下文。"
-        actions={<Link href="/withdrawal-reviews"><Button size="sm" borderRadius="full">打开提现审核台</Button></Link>}
+        eyebrow="Exception Queue"
+        title="相关审批单"
+        description="这里聚合对账偏差处置最相关的 finance approvals，避免 operator 再从首页回忆该去哪张表。"
+        actions={<Link href="/approvals?status=UNDER_REVIEW"><Button size="sm" borderRadius="full">打开审批中心</Button></Link>}
       >
-        <WithdrawalReviewsSection
-          items={detail.pendingWithdrawalReviews}
+        <PriorityApprovalsSection
+          items={detail.priorityApprovals}
           drilldownLoading={drilldownLoading}
           onDrilldown={(tokenConfig) => void handleDrilldown(tokenConfig)}
         />

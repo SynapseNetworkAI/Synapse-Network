@@ -753,17 +753,26 @@ X-CSRF-Token: <csrfToken>
       {
         "itemId": "dashboard",
         "parentItemId": "control-overview",
-        "nodeType": "page",
-        "href": "/dashboard",
+        "nodeType": "category",
+        "href": null,
         "iconKey": "OV",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "dashboard-overview",
+        "parentItemId": "dashboard",
+        "nodeType": "page",
+        "href": "/dashboard/overview",
+        "iconKey": "01",
         "requiredPermissions": ["dashboard:read"]
       },
       {
         "itemId": "dashboard-runtime",
         "parentItemId": "dashboard",
-        "nodeType": "panel",
-        "href": null,
-        "iconKey": "02"
+        "nodeType": "page",
+        "href": "/dashboard/runtime",
+        "iconKey": "02",
+        "requiredPermissions": ["dashboard:read"]
       }
     ],
     "meta": {

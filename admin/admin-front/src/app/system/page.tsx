@@ -88,7 +88,7 @@ export default function SystemPage() {
         admin={admin}
         eyebrow="System Control"
         title="系统运维中心"
-        description="把 gateway、indexer、backfill 与 reconciliation 的运行时快照统一折叠进控制面。"
+        description="这里负责定位 gateway、indexer、backfill、reconciliation 为什么退化，是系统调查中心，不承载业务分诊和执行重试。"
       >
         {error ? <MessageBanner kind="error" message={error} /> : <MessageBanner kind="error" message="系统运行视图暂时不可用。" />}
       </AdminShell>
@@ -100,17 +100,17 @@ export default function SystemPage() {
       admin={admin}
       eyebrow="System Control"
       title="系统运维中心"
-      description="把 gateway、indexer、backfill 与 reconciliation 的运行时快照统一折叠进控制面。"
+      description="这里负责定位 gateway、indexer、backfill、reconciliation 为什么退化，是系统调查中心，不承载业务分诊和执行重试。"
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
-        <MetricCard label="Gateway Admin" value={metrics?.gatewayAdmin ?? "n/a"} meta="control-plane availability" />
-        <MetricCard label="Gateway" value={metrics?.gateway ?? "n/a"} meta="runtime availability" />
-        <MetricCard label="Approval queue" value={metrics?.approvalQueueDepth ?? 0} meta="pending review items" />
-        <MetricCard label="Reconciliation delta" value={metrics?.reconciliationDeltaUsdc ?? "0.00"} meta="money rail drift" />
+        <MetricCard label="Admin 控制面" value={metrics?.gatewayAdmin ?? "n/a"} meta="后台控制面可用性" />
+        <MetricCard label="Gateway 运行面" value={metrics?.gateway ?? "n/a"} meta="交易网关运行可用性" />
+        <MetricCard label="审批队列深度" value={metrics?.approvalQueueDepth ?? 0} meta="待 reviewer 处理项目" />
+        <MetricCard label="对账差额" value={metrics?.reconciliationDeltaUsdc ?? "0.00"} meta="资金链路偏差调查入口" />
       </Grid>
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
-        <SurfaceCard eyebrow="Runtime Snapshot" title="补偿与对账" description="把 backfill、indexer、gateway failure 和 reconciliation 统一拉平给运营与工程查看。">
+        <SurfaceCard eyebrow="Runtime Snapshot" title="组件运行快照" description="这里提供 gateway、indexer、backfill、reconciliation 的组件级调查线索，不再重复业务链路摘要。">
           <Stack direction="row" gap="10px" mb="16px" flexWrap="wrap">
             <SentinelStatusChip label={`gateway ${status.gateway}`} tone={getRuntimeTone(status.gateway)} />
             <SentinelStatusChip label={`admin ${status.gatewayAdmin}`} tone={getRuntimeTone(status.gatewayAdmin)} />
@@ -133,12 +133,12 @@ export default function SystemPage() {
           </Stack>
         </SurfaceCard>
         <DiagnosticsPanel
-          eyebrow="Shared Diagnostics"
-          title="统一控制面诊断"
-          descriptionFallback="dashboard 与 system 复用同一份 diagnostics 结论，避免不同页面各自解释系统状态。"
+          eyebrow="共享诊断"
+          title="系统诊断明细"
+          descriptionFallback="这里提供完整 diagnostics 结论与组件级调查线索；dashboard 页面只保留摘要，不在那边重复展开。"
           diagnostics={diagnostics}
           error={diagnosticError}
-          statusHint="同源于 dashboard 的 `/dashboard/diagnostics` 聚合结果。"
+          statusHint="与 dashboard 概览和系统入口共享同一诊断源，但这里只承担调查，不承担摘要分诊。"
           actionColumnsMd={2}
           cardRadius="20px"
           cardPadding="16px"
@@ -147,7 +147,7 @@ export default function SystemPage() {
           signalHeadingSize="sm"
           extraContent={operations.reconciliationLastError ? (
               <Box borderRadius="20px" p="16px" bg="rgba(184, 49, 49, 0.10)" border="1px solid rgba(184, 49, 49, 0.16)">
-                <Heading size="sm" color="#8f1d1d">Last reconciliation error</Heading>
+                <Heading size="sm" color="#8f1d1d">最近一次对账错误</Heading>
                 <Text mt="8px" color="#8f1d1d">{operations.reconciliationLastError}</Text>
               </Box>
             ) : null}

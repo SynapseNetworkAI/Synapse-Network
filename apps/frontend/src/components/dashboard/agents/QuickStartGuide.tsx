@@ -35,6 +35,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
   const [depositAmount, setDepositAmount] = useState("10");
   const [depositError, setDepositError] = useState<string>("");
   const [depositStep, setDepositStep] = useState<"input" | "signing" | "executing">("input");
+  const handledConfirmedHashesRef = React.useRef<Set<string>>(new Set());
 
   // Deposit flow state
   const { data: usdcNonce } = useReadContract({
@@ -142,6 +143,12 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
   React.useEffect(() => {
     if (isConfirmed && hash) {
+      const normalizedHash = String(hash).trim().toLowerCase();
+      if (handledConfirmedHashesRef.current.has(normalizedHash)) {
+        return;
+      }
+      handledConfirmedHashesRef.current.add(normalizedHash);
+
       setDepositStep("input");
       setIsDepositModalOpen(false);
       setCurrentStep("agent");

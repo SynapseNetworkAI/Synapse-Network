@@ -22,4 +22,13 @@ describe("finance glossary", () => {
     expect(getFinanceMetricGlossary("platformIncome").label).toBe("Platform income");
     expect(getFinanceMetricGlossary("platformIncome").meta).toBe("当前平台收入池余额。");
   });
+
+  it("explains that absolute delta can be non-zero during normal consumption settlement", () => {
+    expect(getFinanceMetricGlossary("absoluteDelta").hint).toBe(
+      "绝对偏差值，不区分正负方向，只回答买家侧账本义务和链上当前差了多少。用户发生消费后，这个值可以非 0，需结合 Treasury absolute delta 一起判断是否异常。",
+    );
+    expect(getFinanceMetricGlossary("treasuryAbsoluteDelta").hint).toBe(
+      "按 chain vault 和 owner liability + provider payable + platform income 的总账差值计算；为 0 通常表示平台总账已经对齐。",
+    );
+  });
 });

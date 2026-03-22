@@ -615,7 +615,10 @@ reconciliation AS (
 balance_snapshot AS (
     SELECT
         COALESCE(SUM(ab.available_balance + ab.pending_balance) FILTER (WHERE la.account_kind = 'consumer_wallet'), 0) AS consumer_liability_usdc,
+        COALESCE(SUM(ab.available_balance) FILTER (WHERE la.account_kind = 'consumer_wallet'), 0) AS refundable_consumer_balance_usdc,
         COALESCE(SUM(ab.available_balance + ab.pending_balance) FILTER (WHERE la.account_kind = 'provider_wallet'), 0) AS provider_payable_usdc,
+        COALESCE(SUM(ab.available_balance) FILTER (WHERE la.account_kind = 'provider_wallet'), 0) AS provider_available_to_withdraw_usdc,
+        COALESCE(SUM(ab.pending_balance + ab.frozen_balance) FILTER (WHERE la.account_kind = 'provider_wallet'), 0) AS provider_locked_balance_usdc,
         COALESCE(SUM(ab.available_balance + ab.pending_balance) FILTER (WHERE la.account_kind = 'platform_revenue'), 0) AS platform_fee_balance_usdc,
         MAX(ab.updated_at) AS balances_updated_at
     FROM synapse_account_balances AS ab
@@ -637,11 +640,11 @@ consumer_refund_window AS (
     SELECT
         COALESCE(SUM(amount_usdc) FILTER (
             WHERE updated_at >= (SELECT day_start FROM day_window)
-                AND upper(status) = 'CONFIRMED'
+                AND upper(status) IN ('COMPLETED', 'CONFIRMED')
                 AND withdrawal_kind = 'consumer_refund'
         ), 0) AS today_consumer_refund_usdc,
         COUNT(*) FILTER (
-            WHERE upper(status) IN ('REQUESTED', 'SIGNED', 'BROADCASTED')
+            WHERE upper(status) IN ('REQUESTED', 'SIGNED', 'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'BROADCASTED', 'PENDING')
                 AND withdrawal_kind = 'consumer_refund'
         )::bigint AS pending_consumer_refund_count,
         MAX(updated_at) AS consumer_refunds_updated_at
@@ -651,14 +654,64 @@ provider_withdrawal_window AS (
     SELECT
         COALESCE(SUM(amount_usdc) FILTER (
             WHERE updated_at >= (SELECT day_start FROM day_window)
-                AND upper(status) = 'CONFIRMED'
+                AND upper(status) IN ('COMPLETED', 'CONFIRMED')
                 AND withdrawal_kind = 'provider_withdrawal'
         ), 0) AS today_provider_withdrawal_usdc,
         COUNT(*) FILTER (
-            WHERE upper(status) IN ('REQUESTED', 'SIGNED', 'BROADCASTED')
+            WHERE upper(status) IN ('REQUESTED', 'SIGNED', 'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'BROADCASTED', 'PENDING')
                 AND withdrawal_kind = 'provider_withdrawal'
         )::bigint AS pending_provider_withdrawal_count,
         MAX(updated_at) AS provider_withdrawals_updated_at
+    FROM synapse_vault_withdrawals
+),
+receipt_confirmed_attempts AS (
+    SELECT
+        lower(tx_hash) AS tx_hash,
+        MAX(updated_at) AS receipt_confirmed_at
+    FROM synapse_deposit_attempts
+    WHERE stage = 'RECEIPT_CONFIRMED'
+        AND tx_hash IS NOT NULL
+        AND tx_hash <> ''
+    GROUP BY lower(tx_hash)
+),
+ledger_confirmed_deposits AS (
+    SELECT
+        lower(tx_hash) AS tx_hash,
+        MAX(updated_at) AS ledger_confirmed_at
+    FROM synapse_vault_deposits
+    WHERE upper(status) = 'CONFIRMED'
+    GROUP BY lower(tx_hash)
+),
+deposit_sync_evidence AS (
+    SELECT
+        COUNT(*) FILTER (
+            WHERE ledger_confirmed_deposits.ledger_confirmed_at IS NULL
+                OR ledger_confirmed_deposits.ledger_confirmed_at < receipt_confirmed_attempts.receipt_confirmed_at
+        )::bigint AS chain_confirmed_not_ledger_confirmed_count,
+        COALESCE(
+            ROUND(
+                percentile_cont(0.95) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (ledger_confirmed_deposits.ledger_confirmed_at - receipt_confirmed_attempts.receipt_confirmed_at))
+                )
+            ),
+            0
+        )::bigint AS deposit_p95_sync_delay_seconds,
+        GREATEST(
+            COALESCE(MAX(receipt_confirmed_attempts.receipt_confirmed_at), 'epoch'::timestamptz),
+            COALESCE(MAX(ledger_confirmed_deposits.ledger_confirmed_at), 'epoch'::timestamptz)
+        ) AS deposit_sync_updated_at
+    FROM receipt_confirmed_attempts
+    LEFT JOIN ledger_confirmed_deposits
+        ON ledger_confirmed_deposits.tx_hash = receipt_confirmed_attempts.tx_hash
+),
+recent_completed_outflow_window AS (
+    SELECT
+        COALESCE(SUM(amount_usdc) FILTER (
+            WHERE updated_at >= NOW() - INTERVAL '6 hours'
+                AND upper(status) IN ('COMPLETED', 'CONFIRMED')
+                AND withdrawal_kind IN ('consumer_refund', 'provider_withdrawal')
+        ), 0) AS recently_completed_outflows_usdc,
+        MAX(updated_at) AS recent_completed_outflows_updated_at
     FROM synapse_vault_withdrawals
 ),
 charge_window AS (
@@ -676,17 +729,25 @@ SELECT
     consumer_refund_window.today_consumer_refund_usdc::numeric(36, 6) AS today_consumer_refund_usdc,
     provider_withdrawal_window.today_provider_withdrawal_usdc::numeric(36, 6) AS today_provider_withdrawal_usdc,
     balance_snapshot.consumer_liability_usdc::numeric(36, 6) AS consumer_liability_usdc,
+    balance_snapshot.refundable_consumer_balance_usdc::numeric(36, 6) AS refundable_consumer_balance_usdc,
     balance_snapshot.provider_payable_usdc::numeric(36, 6) AS provider_payable_usdc,
+    balance_snapshot.provider_available_to_withdraw_usdc::numeric(36, 6) AS provider_available_to_withdraw_usdc,
+    balance_snapshot.provider_locked_balance_usdc::numeric(36, 6) AS provider_locked_balance_usdc,
     balance_snapshot.platform_fee_balance_usdc::numeric(36, 6) AS platform_fee_balance_usdc,
     COALESCE(reconciliation.vault_ledger_delta_usdc, 0)::numeric(36, 6) AS vault_ledger_delta_usdc,
     deposit_window.pending_deposit_count,
     consumer_refund_window.pending_consumer_refund_count,
     provider_withdrawal_window.pending_provider_withdrawal_count,
+    deposit_sync_evidence.chain_confirmed_not_ledger_confirmed_count,
+    deposit_sync_evidence.deposit_p95_sync_delay_seconds,
+    recent_completed_outflow_window.recently_completed_outflows_usdc::numeric(36, 6) AS recently_completed_outflows_usdc,
     GREATEST(
         COALESCE(balance_snapshot.balances_updated_at, 'epoch'::timestamptz),
         COALESCE(deposit_window.deposits_updated_at, 'epoch'::timestamptz),
         COALESCE(consumer_refund_window.consumer_refunds_updated_at, 'epoch'::timestamptz),
         COALESCE(provider_withdrawal_window.provider_withdrawals_updated_at, 'epoch'::timestamptz),
+        COALESCE(deposit_sync_evidence.deposit_sync_updated_at, 'epoch'::timestamptz),
+        COALESCE(recent_completed_outflow_window.recent_completed_outflows_updated_at, 'epoch'::timestamptz),
         COALESCE(charge_window.charge_updated_at, 'epoch'::timestamptz),
         COALESCE(reconciliation.reconciliation_updated_at, 'epoch'::timestamptz)
     ) AS projected_at,
@@ -698,6 +759,8 @@ FROM balance_snapshot
 CROSS JOIN deposit_window
 CROSS JOIN consumer_refund_window
 CROSS JOIN provider_withdrawal_window
+CROSS JOIN deposit_sync_evidence
+CROSS JOIN recent_completed_outflow_window
 CROSS JOIN charge_window
 LEFT JOIN reconciliation ON TRUE;
 
@@ -730,7 +793,7 @@ consumer_refund_daily AS (
         updated_at::date AS bucket_date,
         COALESCE(SUM(amount_usdc), 0) AS consumer_refund_usdc
     FROM synapse_vault_withdrawals
-    WHERE upper(status) = 'CONFIRMED'
+    WHERE upper(status) IN ('COMPLETED', 'CONFIRMED')
         AND withdrawal_kind = 'consumer_refund'
     GROUP BY updated_at::date
 ),
@@ -739,7 +802,7 @@ provider_withdrawal_daily AS (
         updated_at::date AS bucket_date,
         COALESCE(SUM(amount_usdc), 0) AS provider_withdrawal_usdc
     FROM synapse_vault_withdrawals
-    WHERE upper(status) = 'CONFIRMED'
+    WHERE upper(status) IN ('COMPLETED', 'CONFIRMED')
         AND withdrawal_kind = 'provider_withdrawal'
     GROUP BY updated_at::date
 )

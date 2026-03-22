@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { MessageBanner, SentinelStatusChip, SurfaceCard } from "@/components/console-ui";
-import { buildDiagnosticActionCards, buildDiagnosticSignalCards, getDiagnosticTone } from "@/features/diagnostics/diagnostic-presenters";
+import { buildDiagnosticActionCards, buildDiagnosticSignalCards, getDiagnosticStatusLabel, getDiagnosticSummaryText, getDiagnosticTone } from "@/features/diagnostics/diagnostic-presenters";
 import { formatDateTime } from "@/lib/admin-console";
 import type { DashboardDiagnostics } from "@/services/admin-api";
 
@@ -45,16 +45,16 @@ export function DiagnosticsPanel({
   signalHeadingSize = "md",
 }: DiagnosticsPanelProps) {
   const diagnosticTone = getDiagnosticTone(diagnostics?.overallStatus);
-  const diagnosticStamp = diagnostics?.checkedAt ? `Checked ${formatDateTime(diagnostics.checkedAt)}` : "diagnostic pending";
+  const diagnosticStamp = diagnostics?.checkedAt ? `已更新 ${formatDateTime(diagnostics.checkedAt)}` : "等待诊断结果";
   const signalCards = buildDiagnosticSignalCards(diagnostics?.signals ?? []);
   const actionCards = buildDiagnosticActionCards(diagnostics?.actions ?? []);
 
   return (
-    <SurfaceCard eyebrow={eyebrow} title={title} description={diagnostics?.summary ?? descriptionFallback} stamp={diagnosticStamp}>
+    <SurfaceCard eyebrow={eyebrow} title={title} description={getDiagnosticSummaryText(diagnostics?.summary) ?? descriptionFallback} stamp={diagnosticStamp}>
       <Stack gap="14px">
         <HStack gap="10px" wrap="wrap">
           {primaryAction}
-          <SentinelStatusChip label={diagnostics?.overallStatus ?? "pending"} tone={diagnosticTone} />
+          <SentinelStatusChip label={getDiagnosticStatusLabel(diagnostics?.overallStatus)} tone={diagnosticTone} />
         </HStack>
         {statusHint ? <Text color="ink.500">{statusHint}</Text> : null}
         {error ? <MessageBanner kind="error" message={error} /> : null}
@@ -67,7 +67,7 @@ export function DiagnosticsPanel({
                     <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">{signal.label}</Text>
                     <Heading size={signalHeadingSize}>{signal.value}</Heading>
                   </Stack>
-                  <SentinelStatusChip label={signal.status} tone={signal.tone} />
+                  <SentinelStatusChip label={getDiagnosticStatusLabel(signal.status)} tone={signal.tone} />
                 </HStack>
                 <Text mt="8px" color="ink.500">{signal.detail}</Text>
               </Box>
@@ -81,7 +81,7 @@ export function DiagnosticsPanel({
                 <Box borderRadius={cardRadius} p={cardPadding} bg={cardBackground} border={cardBorder} h="100%">
                   <HStack justify="space-between" align="flex-start" gap="12px">
                     <Heading size="sm">{action.label}</Heading>
-                    <SentinelStatusChip label={action.status} tone={action.tone} />
+                    <SentinelStatusChip label={getDiagnosticStatusLabel(action.status)} tone={action.tone} />
                   </HStack>
                   <Text mt="8px" color="ink.500">{action.detail}</Text>
                 </Box>

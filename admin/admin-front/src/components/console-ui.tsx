@@ -11,7 +11,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 
 import { toneFromStatus, toneStyles } from "@/lib/admin-console";
@@ -119,8 +119,18 @@ export function InlineHintTooltip({
   label: string;
   content: string;
 }>) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Box position="relative" role="group" display="inline-flex" alignItems="center">
+    <Box
+      position="relative"
+      display="inline-flex"
+      alignItems="center"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
       <Flex
         tabIndex={0}
         align="center"
@@ -135,6 +145,7 @@ export function InlineHintTooltip({
         fontWeight="800"
         cursor="help"
         aria-label={label}
+        role="button"
       >
         ?
       </Flex>
@@ -142,7 +153,6 @@ export function InlineHintTooltip({
         position="absolute"
         left="50%"
         bottom="calc(100% + 12px)"
-        transform="translateX(-50%) translateY(6px)"
         minW="220px"
         maxW="280px"
         px="12px"
@@ -152,11 +162,10 @@ export function InlineHintTooltip({
         bg="rgba(255,255,255,0.98)"
         boxShadow="0 16px 42px rgba(23, 19, 17, 0.12)"
         pointerEvents="none"
-        opacity={0}
-        visibility="hidden"
+        opacity={open ? 1 : 0}
+        visibility={open ? "visible" : "hidden"}
         transition="opacity 140ms ease, transform 140ms ease, visibility 140ms ease"
-        _groupHover={{ opacity: 1, visibility: "visible", transform: "translateX(-50%) translateY(0)" }}
-        _groupFocusWithin={{ opacity: 1, visibility: "visible", transform: "translateX(-50%) translateY(0)" }}
+        transform={open ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(6px)"}
         zIndex={20}
       >
         <Box

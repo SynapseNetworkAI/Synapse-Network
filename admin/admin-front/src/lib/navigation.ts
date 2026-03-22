@@ -16,8 +16,15 @@ type NavLookupRecord = {
   description: string;
 };
 
+const hiddenNavigationItemIds = new Set(["dashboard-system-health"]);
+
+const legacyPathByItemId: Record<string, string> = {
+  "dashboard-overview": "/dashboard/overview",
+  "dashboard-runtime": "/dashboard/runtime",
+};
+
 const navLookupById: Record<string, NavLookupRecord> = {
-  dashboard: { label: "控制台", description: "总览、运行态与系统健康入口。" },
+  dashboard: { label: "控制台", description: "总览与业务运行态入口。" },
   execution: { label: "执行队列", description: "审批后的任务排队、重试与执行状态。" },
   system: { label: "系统运维", description: "Gateway、Indexer 与对账运行态。" },
   users: { label: "后台用户", description: "管理员目录、状态与 MFA 要求。" },
@@ -41,6 +48,8 @@ type ResolveExpandedNavigationIdsOptions = {
   filteredExpandedIds: string[];
   query: string;
 };
+
+const defaultExpandedNavigationIds = ["control-overview"];
 
 function mergeLookup(item: NavItem): NavItem {
   return {
@@ -72,7 +81,7 @@ function toNavItem(item: AdminMenuConfigItem): NavItem {
     id: item.itemId,
     title: item.label,
     icon: item.iconKey || visual.icon,
-    path: item.href ?? undefined,
+    path: item.href ?? legacyPathByItemId[item.itemId],
     description: item.description || item.sectionDescription || visual.kicker,
     nodeType: item.nodeType,
     searchKeywords: [item.sectionLabel, item.sectionDescription, item.label, item.description, ...item.keywords].filter(Boolean),
@@ -102,7 +111,9 @@ export function buildAdminNavigation(items: AdminMenuConfigItem[]): NavItem[] {
     return [];
   }
 
-  const sortedItems = [...items].sort(compareMenuItems);
+  const sortedItems = items
+    .filter((item) => !hiddenNavigationItemIds.has(item.itemId))
+    .sort(compareMenuItems);
   const byId = new Map(sortedItems.map((item) => [item.itemId, toNavItem(item)]));
   const roots: NavItem[] = [];
   const fallbackItems: AdminMenuConfigItem[] = [];
@@ -209,6 +220,7 @@ export function resolveExpandedNavigationIds({
   query,
 }: ResolveExpandedNavigationIdsOptions): string[] {
   const expandedIds = new Set<string>([
+    ...defaultExpandedNavigationIds,
     ...manualExpandedIds,
     ...activePath.slice(0, -1),
     ...filteredExpandedIds,

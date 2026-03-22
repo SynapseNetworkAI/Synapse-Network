@@ -111,6 +111,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
   const currentDepositAttemptIdRef = useRef<string | null>(null);
   const activeSyncHashRef = useRef<string | null>(null);
   const syncedIntentHashesRef = useRef<Set<string>>(new Set());
+  const handledConfirmedHashesRef = useRef<Set<string>>(new Set());
 
   const [isOpen, setIsOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState(initialAmount);
@@ -193,6 +194,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
   useEffect(() => {
     activeSyncHashRef.current = null;
     syncedIntentHashesRef.current.clear();
+    handledConfirmedHashesRef.current.clear();
   }, [address]);
 
   const wait = useCallback(async (ms: number) => {
@@ -250,6 +252,11 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     }
 
     const normalizedHash = String(hash).trim().toLowerCase();
+    if (handledConfirmedHashesRef.current.has(normalizedHash)) {
+      return;
+    }
+    handledConfirmedHashesRef.current.add(normalizedHash);
+
     if (activeSyncHashRef.current === normalizedHash) {
       return;
     }

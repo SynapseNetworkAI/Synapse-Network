@@ -5,6 +5,7 @@
 当前文档：
 
 - [平台管理后台架构设计](./Platform_Admin_Backoffice_Architecture.md)
+- [控制总览 IA 重构设计](./Control_Overview_IA_Redesign.md)
 - [Admin 与 Gateway 安全方案设计](./Admin_Gateway_Security_Design.md)
 - [管理后台数据库设计](./Admin_Database_Design.md)
 - [管理后台 PostgreSQL 部署与账号权限设计](./Admin_PostgreSQL_Deployment_Design.md)

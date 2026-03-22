@@ -81,19 +81,19 @@ export default function ExecutionPage() {
       admin={admin}
       eyebrow="Execution Control"
       title="执行队列"
-      description="审批通过后的 gateway 内部命令在这里统一观察、重试和追踪，避免人工操作脱离审计。"
+      description="这里只处理受控命令的失败、重试与追踪，不解释系统健康，也不承担业务分诊。"
     >
       {message ? <MessageBanner kind="success" message={message} /> : null}
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
-        <MetricCard label="Execution jobs" value={metrics.totalCount} meta="approval-backed controlled commands" />
-        <MetricCard label="Failed jobs" value={metrics.failedCount} meta={`${metrics.retryableCount} still retryable`} accent="linear-gradient(180deg, rgba(255,243,240,0.98) 0%, rgba(255,232,226,0.96) 100%)" />
-        <MetricCard label="Inflight jobs" value={metrics.inflightCount} meta="queued, executing, or retrying" accent="linear-gradient(180deg, rgba(255,251,244,0.98) 0%, rgba(255,242,226,0.96) 100%)" />
-        <MetricCard label="Exhausted retries" value={metrics.exhaustedCount} meta={`${metrics.succeededCount} already closed successfully`} />
+        <MetricCard label="执行任务总数" value={metrics.totalCount} meta="审批落地后的受控命令" />
+        <MetricCard label="失败任务" value={metrics.failedCount} meta={`${metrics.retryableCount} 个仍可重试`} accent="linear-gradient(180deg, rgba(255,243,240,0.98) 0%, rgba(255,232,226,0.96) 100%)" />
+        <MetricCard label="处理中任务" value={metrics.inflightCount} meta="排队、执行中或重试中" accent="linear-gradient(180deg, rgba(255,251,244,0.98) 0%, rgba(255,242,226,0.96) 100%)" />
+        <MetricCard label="重试耗尽" value={metrics.exhaustedCount} meta={`${metrics.succeededCount} 个已经成功收口`} />
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "0.88fr 1.12fr" }} gap="16px">
-        <SurfaceCard eyebrow="Failure Clusters" title="失败信号面" description="执行器不应该只是一个平面列表。先看失败簇，再看具体 job，operator 才能判断是单点错误还是系统性退化。">
+        <SurfaceCard eyebrow="Failure Clusters" title="失败簇视图" description="这里先回答失败任务是否成簇，便于判断是单个命令异常还是同类执行路径一起退化。">
           <Stack gap="12px">
             {failureClusters.length ? failureClusters.map((cluster) => (
               <Box key={cluster.code} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
@@ -108,12 +108,12 @@ export default function ExecutionPage() {
             )}
             <Box borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
               <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">Execution Guardrail</Text>
-              <Text mt="8px" color="ink.500">所有资金或配置推进动作都必须从审批层进入 execution queue，前端只能请求 retry，不能绕过 gateway-admin 直接打 gateway 管理命令。</Text>
+              <Text mt="8px" color="ink.500">所有资金或配置推进动作都必须从审批层进入 execution queue，前端只能请求 retry，不能在这里直接替代系统调查或业务分诊。</Text>
             </Box>
           </Stack>
         </SurfaceCard>
 
-        <SurfaceCard eyebrow="Execution Queue" title="执行任务列表" description="优先暴露失败和重试热点，让 operator 先收敛故障面，再处理尾部成功任务。" stamp={`${visibleJobs.length}/${jobs.length} jobs`}>
+        <SurfaceCard eyebrow="Execution Queue" title="执行任务工作台" description="优先暴露失败和重试热点，让 operator 先收敛故障面，再处理尾部成功任务。" stamp={`${visibleJobs.length}/${jobs.length} jobs`}>
           <Grid templateColumns={{ base: "1fr", xl: "minmax(0, 320px) 180px 180px" }} gap="12px" mb="16px">
             <SearchInput value={search} onChange={setSearch} placeholder="搜索 job / approval / error code" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={nativeFieldStyle}>
@@ -131,16 +131,23 @@ export default function ExecutionPage() {
           </Grid>
           <DataTable>
             <TableHeaderRow>
-              <Th>Job</Th>
-              <Th>Target</Th>
-              <Th>Status</Th>
+              <Th>任务</Th>
+              <Th>目标</Th>
+              <Th>状态</Th>
               <Th>Retry</Th>
-              <Th>Attempts</Th>
-              <Th>Action</Th>
+              <Th>尝试</Th>
+              <Th>动作</Th>
             </TableHeaderRow>
             <TableBody>
               {visibleJobs.map((job) => {
                 const retryable = job.status === "FAILED" && job.retryCount < job.maxRetryCount;
+                let actionLabel = "Locked";
+                if (retryingJobId === job.jobId) {
+                  actionLabel = "处理中...";
+                } else if (retryable) {
+                  actionLabel = "Retry";
+                }
+
                 return (
                   <Box as="tr" key={job.jobId}>
                     <Td>
@@ -200,7 +207,7 @@ export default function ExecutionPage() {
                           }
                         }}
                       >
-                        {retryingJobId === job.jobId ? "处理中..." : retryable ? "Retry" : "Locked"}
+                        {actionLabel}
                       </Button>
                     </Td>
                   </Box>
@@ -212,7 +219,7 @@ export default function ExecutionPage() {
       </Grid>
 
       <Grid templateColumns={{ base: "1fr", xl: "0.98fr 1.02fr" }} gap="16px">
-        <SurfaceCard eyebrow="Hot Queue" title="优先处理任务" description="这里保留最热的失败或重试项，方便 operator 直接进入恢复动作。">
+        <SurfaceCard eyebrow="Hot Queue" title="待处置热点" description="这里只保留最值得立即处理的失败或重试项，帮助值班人员快速收敛故障面。">
           <Stack gap="12px">
             {hotJobs.length ? hotJobs.map((job) => (
               <Box key={job.jobId} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
@@ -226,22 +233,31 @@ export default function ExecutionPage() {
                 <Text mt="8px" color="ink.500">approval {job.approvalId} · {job.errorMessage ?? "等待 operator 决定是否重试"}</Text>
               </Box>
             )) : (
-              <EmptyBlock title="当前没有热任务" description="筛选结果为空，或者执行流处于稳定状态。" />
+              <EmptyBlock title="当前没有待处置热点" description="筛选结果为空，或者执行流处于稳定状态。" />
             )}
           </Stack>
         </SurfaceCard>
 
-        <SurfaceCard eyebrow="Target Domains" title="目标系统分布" description="执行热点按目标系统切开之后，才能快速判断是 adapter 故障、worker 拥塞还是单个命令退化。">
+        <SurfaceCard eyebrow="Target Domains" title="目标系统分布" description="把失败与处理中任务按目标系统切开，快速判断是 adapter 故障、worker 拥塞还是单个命令退化。">
           <Stack gap="12px">
-            {targetCards.map((card) => (
-              <Box key={card.key} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                <Stack direction="row" justify="space-between" align="center">
-                  <Heading size="sm">{card.label}</Heading>
-                  <SentinelStatusChip label={`${card.totalCount} jobs`} tone={card.failedCount > 0 ? "red" : card.inflightCount > 0 ? "orange" : "green"} />
-                </Stack>
-                <Text mt="8px" color="ink.500">failed {card.failedCount} · inflight {card.inflightCount}</Text>
-              </Box>
-            ))}
+            {targetCards.map((card) => {
+              let cardTone: "green" | "orange" | "red" = "green";
+              if (card.failedCount > 0) {
+                cardTone = "red";
+              } else if (card.inflightCount > 0) {
+                cardTone = "orange";
+              }
+
+              return (
+                <Box key={card.key} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+                  <Stack direction="row" justify="space-between" align="center">
+                    <Heading size="sm">{card.label}</Heading>
+                    <SentinelStatusChip label={`${card.totalCount} jobs`} tone={cardTone} />
+                  </Stack>
+                  <Text mt="8px" color="ink.500">failed {card.failedCount} · inflight {card.inflightCount}</Text>
+                </Box>
+              );
+            })}
           </Stack>
         </SurfaceCard>
       </Grid>
