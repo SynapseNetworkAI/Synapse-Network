@@ -4,6 +4,7 @@ type StatusFilterProps<T extends string> = {
   options: readonly T[];
   value: T;
   onChange: (value: T) => void;
+  getOptionLabel?: (value: T) => string;
 };
 
 export default function StatusFilter<T extends string>({
@@ -12,7 +13,8 @@ export default function StatusFilter<T extends string>({
   options,
   value,
   onChange,
-}: StatusFilterProps<T>) {
+  getOptionLabel,
+}: Readonly<StatusFilterProps<T>>) {
   return (
     <div className="flex items-center gap-2">
       <label htmlFor={id} className="text-xs text-gray-400">{label}</label>
@@ -23,7 +25,7 @@ export default function StatusFilter<T extends string>({
         className="px-3 py-2 text-xs text-white bg-gray-900 border border-gray-700 rounded-lg"
       >
         {options.map((option) => (
-          <option key={option} value={option}>{option}</option>
+          <option key={option} value={option}>{getOptionLabel ? getOptionLabel(option) : option}</option>
         ))}
       </select>
     </div>

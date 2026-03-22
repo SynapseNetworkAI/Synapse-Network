@@ -13,6 +13,8 @@ import marketplacePage from "@/i18n/resources/en/marketplacePage";
 import overviewPage from "@/i18n/resources/en/overviewPage";
 import providerConsolePage from "@/i18n/resources/en/providerConsolePage";
 import providerSettlements from "@/i18n/resources/en/providerSettlements";
+import providerUsagePage from "@/i18n/resources/en/providerUsagePage";
+import settlementPage from "@/i18n/resources/en/settlementPage";
 import servicesPage from "@/i18n/resources/en/servicesPage";
 import shared from "@/i18n/resources/en/shared";
 
@@ -29,7 +31,9 @@ const en: I18nMessages = {
   developerPage,
   buyPage,
   servicesPage,
+  settlementPage,
   providerConsolePage,
+  providerUsagePage,
   providerSettlements,
   blogPage,
   aboutPage,
