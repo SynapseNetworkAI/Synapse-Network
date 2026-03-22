@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_dashboard_service, get_request_id, require_permission
 from src.api.schemas.common import ApiResponse
@@ -15,6 +15,9 @@ from src.api.schemas.dashboard import (
     HighlightCard,
     OperationsOverview,
     OverviewMetrics,
+    ReconciliationDetail,
+    ReconciliationDrilldownResult,
+    ReconciliationApprovalSummary,
     SystemStatus,
 )
 from src.services.auth.service import AdminIdentity
@@ -87,6 +90,35 @@ def get_operations_overview(
     _ = admin
     payload = dashboard_service.get_operations_overview()
     return ApiResponse(data=OperationsOverview(**payload), request_id=request_id)
+
+
+@router.get("/reconciliation-detail", response_model=ApiResponse)
+def get_reconciliation_detail(
+    admin: Annotated[AdminIdentity, Depends(require_permission("dashboard:read"))],
+    request_id: Annotated[str, Depends(get_request_id)],
+    dashboard_service: Annotated[DashboardService, Depends(get_dashboard_service)],
+):
+    _ = admin
+    payload = dashboard_service.get_reconciliation_detail()
+    return ApiResponse(data=ReconciliationDetail(**payload), request_id=request_id)
+
+
+@router.get("/reconciliation-drilldown", response_model=ApiResponse)
+def get_reconciliation_drilldown(
+    admin: Annotated[AdminIdentity, Depends(require_permission("dashboard:read"))],
+    request_id: Annotated[str, Depends(get_request_id)],
+    dashboard_service: Annotated[DashboardService, Depends(get_dashboard_service)],
+    owner_address: Annotated[str | None, Query(alias="ownerAddress")] = None,
+    locator_request_id: Annotated[str | None, Query(alias="requestId")] = None,
+    tx_hash: Annotated[str | None, Query(alias="txHash")] = None,
+):
+    _ = admin
+    payload = dashboard_service.get_reconciliation_drilldown(
+        owner_address=owner_address,
+        request_id=locator_request_id,
+        tx_hash=tx_hash,
+    )
+    return ApiResponse(data=ReconciliationDrilldownResult(**payload), request_id=request_id)
 
 
 @router.get("/diagnostics", response_model=ApiResponse)

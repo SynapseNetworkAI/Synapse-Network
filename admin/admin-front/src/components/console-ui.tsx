@@ -11,6 +11,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
 
 import { toneFromStatus, toneStyles } from "@/lib/admin-console";
 
@@ -62,14 +63,49 @@ export function SurfaceCard({ eyebrow, title, description, stamp, actions, child
   );
 }
 
-export function MetricCard({ label, value, meta, accent }: Readonly<{ label: string; value: string | number; meta?: string; accent?: string }>) {
-  return (
-    <Box borderRadius="26px" p="18px" bg={accent ?? "linear-gradient(180deg, #ffffff 0%, #f3f6fa 100%)"} border="1px solid rgba(15,17,21,0.06)" minH="154px" overflow="hidden" position="relative">
+export function MetricCard({
+  label,
+  value,
+  meta,
+  accent,
+  href,
+  actionLabel,
+}: Readonly<{
+  label: string;
+  value: string | number;
+  meta?: string;
+  accent?: string;
+  href?: string;
+  actionLabel?: string;
+}>) {
+  const card = (
+    <Box
+      borderRadius="26px"
+      p="18px"
+      bg={accent ?? "linear-gradient(180deg, #ffffff 0%, #f3f6fa 100%)"}
+      border="1px solid rgba(15,17,21,0.06)"
+      minH="154px"
+      overflow="hidden"
+      position="relative"
+      transition="transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease"
+      _hover={href ? { transform: "translateY(-2px)", boxShadow: "0 16px 40px rgba(15,17,21,0.08)", borderColor: "rgba(31,146,87,0.24)" } : undefined}
+    >
       <Box position="absolute" right="-20px" top="-24px" w="96px" h="96px" borderRadius="full" bg="rgba(31,146,87,0.06)" />
       <Text position="relative" zIndex={1} fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">{label}</Text>
       <Heading position="relative" zIndex={1} mt="18px" size="2xl" color="ink.900" letterSpacing="-0.04em">{value}</Heading>
       {meta ? <Text position="relative" zIndex={1} mt="10px" color="ink.500">{meta}</Text> : null}
+      {href ? <Text position="relative" zIndex={1} mt="12px" fontWeight="700" color="signal.700">{actionLabel ?? "查看明细"}</Text> : null}
     </Box>
+  );
+
+  if (!href) {
+    return card;
+  }
+
+  return (
+    <Link href={href} style={{ display: "block", textDecoration: "none" }}>
+      {card}
+    </Link>
   );
 }
 

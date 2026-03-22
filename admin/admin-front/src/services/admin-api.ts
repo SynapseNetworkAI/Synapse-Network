@@ -181,6 +181,53 @@ export type OperationsOverview = {
   projectedAt: string | null;
 };
 
+export type ReconciliationApprovalItem = {
+  approvalId: string;
+  approvalType: string;
+  status: string;
+  approvalLevel: string;
+  requesterRole: string;
+  amountUsdc: string;
+  createdAt: string;
+  ownerAddress: string | null;
+  requestId: string | null;
+  txHash: string | null;
+};
+
+export type ReconciliationDetail = {
+  gatewayStatus: string;
+  reconciliationAlert: boolean;
+  reconciliationDeltaUsdc: string;
+  signedDifferenceUsdc: string | null;
+  imbalanceDirection: string;
+  chainVaultUsdc: string | null;
+  ledgerObligationUsdc: string | null;
+  lastReconciliationAt: string | null;
+  runtimeStateUpdatedAt: string | null;
+  reconciliationLastError: string | null;
+  pendingApprovals: number;
+  depositExceptions: number;
+  auditAlerts: number;
+  pendingDepositCount: number;
+  pendingWithdrawalCount: number;
+  ownerLiabilityUsdc: string;
+  providerPayableUsdc: string;
+  platformFeeBalanceUsdc: string;
+  projectedAt: string | null;
+  priorityApprovals: ReconciliationApprovalItem[];
+  depositRepairApprovals: ReconciliationApprovalItem[];
+  pendingWithdrawalReviews: ProviderWithdrawReviewItem[];
+};
+
+export type ReconciliationDrilldownResult = {
+  ownerAddress: string | null;
+  requestId: string | null;
+  txHash: string | null;
+  priorityApprovals: ReconciliationApprovalItem[];
+  depositRepairApprovals: ReconciliationApprovalItem[];
+  pendingWithdrawalReviews: ProviderWithdrawReviewItem[];
+};
+
 export type ApprovalItem = {
   approvalId: string;
   approvalType: string;
@@ -527,6 +574,17 @@ export async function getActivityTrends(token: string): Promise<ActivityTrendSer
 
 export async function getOperationsOverview(token: string): Promise<OperationsOverview> {
   return request<OperationsOverview>("/api/admin/v1/dashboard/operations-overview");
+}
+
+export async function getReconciliationDetail(token: string): Promise<ReconciliationDetail> {
+  return request<ReconciliationDetail>("/api/admin/v1/dashboard/reconciliation-detail");
+}
+
+export async function getReconciliationDrilldown(
+  token: string,
+  locator: { ownerAddress?: string; requestId?: string; txHash?: string },
+): Promise<ReconciliationDrilldownResult> {
+  return request<ReconciliationDrilldownResult>(buildPath("/api/admin/v1/dashboard/reconciliation-drilldown", locator));
 }
 
 export async function getDashboardDiagnostics(token: string): Promise<DashboardDiagnostics> {

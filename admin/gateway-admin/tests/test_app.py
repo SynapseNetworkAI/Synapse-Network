@@ -842,6 +842,61 @@ def test_operations_overview_exposes_gateway_ops_projection() -> None:
     assert body["reconciliationLastError"] == "vault_delta_detected"
 
 
+def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -> None:
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/dashboard/reconciliation-detail")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["gatewayStatus"] == "degraded"
+    assert body["reconciliationAlert"] is True
+    assert body["reconciliationDeltaUsdc"] == "0.50"
+    assert body["signedDifferenceUsdc"] == "-0.50"
+    assert body["imbalanceDirection"] == "vault_deficit"
+    assert body["chainVaultUsdc"] == "8449.60"
+    assert body["ledgerObligationUsdc"] == "8450.10"
+    assert body["lastReconciliationAt"] == "2026-03-16T08:00:00Z"
+    assert body["runtimeStateUpdatedAt"] == "2026-03-16T08:00:00Z"
+    assert body["pendingApprovals"] >= 1
+    assert body["depositExceptions"] == 2
+    assert body["pendingDepositCount"] == 2
+    assert body["pendingWithdrawalCount"] == 1
+    assert body["ownerLiabilityUsdc"] == "8450.10"
+    assert body["platformFeeBalanceUsdc"] == "128.75"
+    assert len(body["priorityApprovals"]) >= 1
+    assert body["depositRepairApprovals"][0]["approvalType"] == "deposit_repair"
+    assert len(body["pendingWithdrawalReviews"]) >= 1
+    assert body["priorityApprovals"][0]["ownerAddress"]
+
+
+def test_reconciliation_drilldown_cross_locates_by_owner_and_tx_hash() -> None:
+    _login_as("ops@synapse.network")
+
+    owner_response = client.get(
+        "/api/admin/v1/dashboard/reconciliation-drilldown",
+        params={"ownerAddress": "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111"},
+    )
+
+    assert owner_response.status_code == 200
+    owner_body = owner_response.json()["data"]
+    assert owner_body["ownerAddress"] == "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111"
+    assert len(owner_body["priorityApprovals"]) >= 1
+    assert len(owner_body["depositRepairApprovals"]) >= 1
+    assert len(owner_body["pendingWithdrawalReviews"]) >= 1
+
+    tx_response = client.get(
+        "/api/admin/v1/dashboard/reconciliation-drilldown",
+        params={"txHash": "0xdep003"},
+    )
+
+    assert tx_response.status_code == 200
+    tx_body = tx_response.json()["data"]
+    assert tx_body["txHash"] == "0xdep003"
+    assert tx_body["depositRepairApprovals"][0]["approvalId"] == "APR-20260316-003"
+    assert tx_body["pendingWithdrawalReviews"] == []
+
+
 def test_dashboard_diagnostics_expose_runtime_signals_and_actions() -> None:
     _login_as("ops@synapse.network")
 

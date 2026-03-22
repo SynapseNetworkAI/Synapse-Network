@@ -378,6 +378,172 @@ X-CSRF-Token: <csrfToken>
 }
 ```
 
+### `GET /api/admin/v1/dashboard/reconciliation-detail`
+
+用途：把首页哨兵中的“账本对账差额”展开为可操作的对账详情视图，说明偏差来自哪两组数、偏差方向以及当前关联 backlog。
+
+数据来源约束：
+
+- `reconciliationDeltaUsdc`、`gatewayStatus`、`reconciliationAlert`、`reconciliationLastError`、`projectedAt` 来自 gateway 只读投影视图
+- `chainVaultUsdc`、`ledgerObligationUsdc`、`signedDifferenceUsdc`、`runtimeStateUpdatedAt` 来自持久化 runtime state `synapse_runtime_state(state_key='deposit_reconciliation_state')`
+- `pendingApprovals` 来自 admin 审批库
+- `depositExceptions`、`auditAlerts`、`pendingDepositCount`、`pendingWithdrawalCount`、`ownerLiabilityUsdc`、`providerPayableUsdc`、`platformFeeBalanceUsdc` 来自稳定 projection 或受控聚合，不允许前端自行拼装“详情”
+- `priorityApprovals`、`depositRepairApprovals`、`pendingWithdrawalReviews` 必须由 `gateway-admin` 在后端聚合后返回，前端只负责展示和跳转，不得自行从多个列表接口拼装出“关联异常真相”
+- `priorityApprovals[*].ownerAddress`、`requestId`、`txHash` 与 `pendingWithdrawalReviews[*]` 上的同名字段属于统一 locator 语义，供 reconciliation 页面发起同页 cross-locator drill-down
+
+消费约束：
+
+- 该接口的目的是回答“首页哨兵数字从哪来”，前端应把它渲染为 operator 可读的详情页，而不是原始 JSON dump
+- 若 runtime state 尚未落库，可保留 `chainVaultUsdc`、`ledgerObligationUsdc`、`signedDifferenceUsdc` 为 `null`，但仍必须返回稳定 projection 摘要字段
+- 关联列表是为了把 operator 直接带到“下一步该处理什么”，不是把所有底层表字段平铺到页面上
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "gatewayStatus": "degraded",
+    "reconciliationAlert": true,
+    "reconciliationDeltaUsdc": "0.50",
+    "signedDifferenceUsdc": "-0.50",
+    "imbalanceDirection": "vault_deficit",
+    "chainVaultUsdc": "8449.60",
+    "ledgerObligationUsdc": "8450.10",
+    "lastReconciliationAt": "2026-03-16T08:00:00Z",
+    "runtimeStateUpdatedAt": "2026-03-16T08:00:00Z",
+    "reconciliationLastError": "vault_delta_detected",
+    "pendingApprovals": 3,
+    "depositExceptions": 2,
+    "auditAlerts": 1,
+    "pendingDepositCount": 2,
+    "pendingWithdrawalCount": 1,
+    "ownerLiabilityUsdc": "8450.10",
+    "providerPayableUsdc": "3920.45",
+    "platformFeeBalanceUsdc": "128.75",
+    "projectedAt": "2026-03-16T08:05:00Z",
+    "priorityApprovals": [
+      {
+        "approvalId": "APR-20260316-001",
+        "approvalType": "withdrawal_approve",
+        "status": "UNDER_REVIEW",
+        "approvalLevel": "L2",
+        "requesterRole": "finance_admin",
+        "amountUsdc": "200.00",
+        "createdAt": "2026-03-16T08:04:00Z",
+        "ownerAddress": "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
+        "requestId": "refund-review-001",
+        "txHash": "0xref001"
+      }
+    ],
+    "depositRepairApprovals": [
+      {
+        "approvalId": "APR-20260316-003",
+        "approvalType": "deposit_repair",
+        "status": "SUBMITTED",
+        "approvalLevel": "L2",
+        "requesterRole": "finance_admin",
+        "amountUsdc": "150.00",
+        "createdAt": "2026-03-16T08:02:00Z",
+        "ownerAddress": "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
+        "requestId": "dep-repair-003",
+        "txHash": "0xdep003"
+      }
+    ],
+    "pendingWithdrawalReviews": [
+      {
+        "withdrawalId": "wd-demo-review-001",
+        "ownerAddress": "0x1234...abcd",
+        "amountUsdc": "88.00",
+        "status": "PENDING_MANUAL_REVIEW",
+        "requestId": "req_123",
+        "txHash": null,
+        "riskLevel": "red",
+        "riskReasonCode": "velocity_limit",
+        "evidenceSummary": "withdrawal frequency exceeded threshold",
+        "message": null,
+        "createdAt": "2026-03-16T08:01:00Z",
+        "updatedAt": "2026-03-16T08:01:00Z"
+      }
+    ]
+  },
+  "requestId": "req_demo"
+}
+```
+
+### `GET /api/admin/v1/dashboard/reconciliation-drilldown`
+
+用途：接收任一 `ownerAddress`、`requestId` 或 `txHash`，把该 locator 在对账详情关联的三类 backlog 中做统一交叉定位，并返回同页 drill-down 结果。
+
+请求约束：
+
+- 至少提供一个查询参数：`ownerAddress`、`requestId`、`txHash`
+- 匹配语义由后端统一定义，前端不得分别对审批列表、充值修复和提现审核实现三套“搜索规则”
+- 当前只返回 reconciliation detail 相关的活动审批和待审核提现单，不承担全站全文检索职责
+
+消费约束：
+
+- 该接口用于同页下钻，不替代审批中心或提现审核台的完整筛选页
+- 若后端返回空数组，前端应明确显示 “No matches”，而不是把空结果解释为 locator 无效
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "ownerAddress": "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
+    "requestId": null,
+    "txHash": null,
+    "priorityApprovals": [
+      {
+        "approvalId": "APR-20260316-001",
+        "approvalType": "withdrawal_approve",
+        "status": "UNDER_REVIEW",
+        "approvalLevel": "L2",
+        "requesterRole": "finance_admin",
+        "amountUsdc": "200.00",
+        "createdAt": "2026-03-16T08:04:00Z",
+        "ownerAddress": "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
+        "requestId": "refund-review-001",
+        "txHash": "0xref001"
+      }
+    ],
+    "depositRepairApprovals": [
+      {
+        "approvalId": "APR-20260316-003",
+        "approvalType": "deposit_repair",
+        "status": "FAILED",
+        "approvalLevel": "L2",
+        "requesterRole": "platform_ops_admin",
+        "amountUsdc": "42.50",
+        "createdAt": "2026-03-16T08:40:00Z",
+        "ownerAddress": "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
+        "requestId": "dep-repair-003",
+        "txHash": "0xdep003"
+      }
+    ],
+    "pendingWithdrawalReviews": [
+      {
+        "withdrawalId": "wd-demo-review-001",
+        "ownerAddress": "0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
+        "amountUsdc": "88.00",
+        "status": "PENDING_MANUAL_REVIEW",
+        "requestId": "provider-withdraw-review-001",
+        "txHash": null,
+        "riskLevel": "red",
+        "riskReasonCode": "velocity_limit",
+        "evidenceSummary": "withdrawal frequency exceeded threshold",
+        "message": null,
+        "createdAt": "2026-03-16T08:01:00Z",
+        "updatedAt": "2026-03-16T08:01:00Z"
+      }
+    ]
+  },
+  "requestId": "req_demo"
+}
+```
+
 ### `GET /api/admin/v1/dashboard/diagnostics`
 
 用途：读取首页“Run controlled next steps”区域的真实诊断快照和建议动作，避免前端写死系统诊断卡片。

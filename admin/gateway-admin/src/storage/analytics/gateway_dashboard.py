@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -92,11 +93,22 @@ class GatewayOperationsSnapshot:
     projected_at: datetime | None
 
 
+@dataclass(slots=True)
+class GatewayReconciliationRuntimeState:
+    last_check_at: datetime | None
+    chain_vault_usdc: Decimal | None
+    ledger_obligation_usdc: Decimal | None
+    delta_usdc: Decimal | None
+    alert: bool
+    updated_at: datetime | None
+
+
 class GatewayDashboardProjectionRepository(Protocol):
     def get_snapshot(self) -> GatewayDashboardSnapshot: ...
     def get_finance_snapshot(self) -> GatewayFinanceSnapshot: ...
     def list_activity_trends(self) -> list[GatewayActivityTrendPoint]: ...
     def get_operations_snapshot(self) -> GatewayOperationsSnapshot: ...
+    def get_reconciliation_runtime_state(self) -> GatewayReconciliationRuntimeState: ...
 
 
 class InMemoryGatewayDashboardProjectionRepository:
@@ -106,11 +118,13 @@ class InMemoryGatewayDashboardProjectionRepository:
         finance_snapshot: GatewayFinanceSnapshot,
         activity_trends: list[GatewayActivityTrendPoint],
         operations_snapshot: GatewayOperationsSnapshot,
+        reconciliation_runtime_state: GatewayReconciliationRuntimeState,
     ) -> None:
         self._snapshot = snapshot
         self._finance_snapshot = finance_snapshot
         self._activity_trends = activity_trends
         self._operations_snapshot = operations_snapshot
+        self._reconciliation_runtime_state = reconciliation_runtime_state
 
     @classmethod
     def seed_demo(cls) -> "InMemoryGatewayDashboardProjectionRepository":
@@ -207,6 +221,14 @@ class InMemoryGatewayDashboardProjectionRepository:
                 reconciliation_last_error="vault_delta_detected",
                 projected_at=datetime(2026, 3, 16, 8, 5, tzinfo=timezone.utc),
             ),
+            reconciliation_runtime_state=GatewayReconciliationRuntimeState(
+                last_check_at=datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
+                chain_vault_usdc=Decimal("8449.60"),
+                ledger_obligation_usdc=Decimal("8450.10"),
+                delta_usdc=Decimal("0.50"),
+                alert=True,
+                updated_at=datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
+            ),
         )
 
     def get_snapshot(self) -> GatewayDashboardSnapshot:
@@ -221,6 +243,9 @@ class InMemoryGatewayDashboardProjectionRepository:
     def get_operations_snapshot(self) -> GatewayOperationsSnapshot:
         return self._operations_snapshot
 
+    def get_reconciliation_runtime_state(self) -> GatewayReconciliationRuntimeState:
+        return self._reconciliation_runtime_state
+
 
 class PostgresGatewayDashboardProjectionRepository:
     def __init__(self, dsn: str) -> None:
@@ -228,6 +253,34 @@ class PostgresGatewayDashboardProjectionRepository:
 
     def _get_projection_columns(self, table_name: str) -> frozenset[str]:
         return _get_table_columns(self._dsn, table_name)
+
+    @staticmethod
+    def _payload_dict(payload: Any) -> dict[str, Any]:
+        if isinstance(payload, dict):
+            return payload
+        if isinstance(payload, memoryview):
+            payload = payload.tobytes().decode("utf-8")
+        if isinstance(payload, bytes):
+            payload = payload.decode("utf-8")
+        if isinstance(payload, str) and payload.strip():
+            try:
+                parsed = json.loads(payload)
+            except json.JSONDecodeError:
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
+    @staticmethod
+    def _coerce_timestamp(value: Any) -> datetime | None:
+        if value in (None, ""):
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        try:
+            timestamp = int(value)
+        except (TypeError, ValueError):
+            return None
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
     def get_snapshot(self) -> GatewayDashboardSnapshot:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
@@ -399,4 +452,38 @@ class PostgresGatewayDashboardProjectionRepository:
             reconciliation_delta_usdc=Decimal(str(row["reconciliation_delta_usdc"])),
             reconciliation_last_error=row["reconciliation_last_error"],
             projected_at=row["projected_at"],
+        )
+
+    def get_reconciliation_runtime_state(self) -> GatewayReconciliationRuntimeState:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT payload, updated_at
+                FROM synapse_runtime_state
+                WHERE state_key = 'deposit_reconciliation_state'
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+        if row is None:
+            return GatewayReconciliationRuntimeState(
+                last_check_at=None,
+                chain_vault_usdc=None,
+                ledger_obligation_usdc=None,
+                delta_usdc=None,
+                alert=False,
+                updated_at=None,
+            )
+
+        payload = self._payload_dict(row.get("payload"))
+        chain_vault = payload.get("chainVaultUsdc")
+        ledger_obligation = payload.get("ledgerObligationUsdc")
+        delta = payload.get("deltaUsdc")
+        return GatewayReconciliationRuntimeState(
+            last_check_at=self._coerce_timestamp(payload.get("lastCheckAt")),
+            chain_vault_usdc=Decimal(str(chain_vault)) if chain_vault is not None else None,
+            ledger_obligation_usdc=Decimal(str(ledger_obligation)) if ledger_obligation is not None else None,
+            delta_usdc=Decimal(str(delta)) if delta is not None else None,
+            alert=bool(payload.get("alert") or False),
+            updated_at=row.get("updated_at"),
         )

@@ -145,6 +145,8 @@ export default function DashboardPage() {
             label={metric.label}
             value={metric.value}
             meta={metric.meta}
+            href={metric.href}
+            actionLabel={metric.actionLabel}
             accent={index === 0 ? "linear-gradient(180deg, #ffffff 0%, #edf8f1 100%)" : undefined}
           />
         ))}

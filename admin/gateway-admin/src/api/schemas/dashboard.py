@@ -1,5 +1,8 @@
 from pydantic import BaseModel, Field
 
+from src.api.schemas.approval import ApprovalSummary
+from src.api.schemas.provider_withdraw_review import ProviderWithdrawReviewSummary
+
 
 class HighlightCard(BaseModel):
     title: str
@@ -59,6 +62,46 @@ class OperationsOverview(BaseModel):
     reconciliation_delta_usdc: str = Field(alias="reconciliationDeltaUsdc", serialization_alias="reconciliationDeltaUsdc")
     reconciliation_last_error: str | None = Field(alias="reconciliationLastError", serialization_alias="reconciliationLastError")
     projected_at: str | None = Field(alias="projectedAt", serialization_alias="projectedAt")
+
+
+class ReconciliationDetail(BaseModel):
+    gateway_status: str = Field(alias="gatewayStatus", serialization_alias="gatewayStatus")
+    reconciliation_alert: bool = Field(alias="reconciliationAlert", serialization_alias="reconciliationAlert")
+    reconciliation_delta_usdc: str = Field(alias="reconciliationDeltaUsdc", serialization_alias="reconciliationDeltaUsdc")
+    signed_difference_usdc: str | None = Field(alias="signedDifferenceUsdc", serialization_alias="signedDifferenceUsdc")
+    imbalance_direction: str = Field(alias="imbalanceDirection", serialization_alias="imbalanceDirection")
+    chain_vault_usdc: str | None = Field(alias="chainVaultUsdc", serialization_alias="chainVaultUsdc")
+    ledger_obligation_usdc: str | None = Field(alias="ledgerObligationUsdc", serialization_alias="ledgerObligationUsdc")
+    last_reconciliation_at: str | None = Field(alias="lastReconciliationAt", serialization_alias="lastReconciliationAt")
+    runtime_state_updated_at: str | None = Field(alias="runtimeStateUpdatedAt", serialization_alias="runtimeStateUpdatedAt")
+    reconciliation_last_error: str | None = Field(alias="reconciliationLastError", serialization_alias="reconciliationLastError")
+    pending_approvals: int = Field(alias="pendingApprovals", serialization_alias="pendingApprovals")
+    deposit_exceptions: int = Field(alias="depositExceptions", serialization_alias="depositExceptions")
+    audit_alerts: int = Field(alias="auditAlerts", serialization_alias="auditAlerts")
+    pending_deposit_count: int = Field(alias="pendingDepositCount", serialization_alias="pendingDepositCount")
+    pending_withdrawal_count: int = Field(alias="pendingWithdrawalCount", serialization_alias="pendingWithdrawalCount")
+    owner_liability_usdc: str = Field(alias="ownerLiabilityUsdc", serialization_alias="ownerLiabilityUsdc")
+    provider_payable_usdc: str = Field(alias="providerPayableUsdc", serialization_alias="providerPayableUsdc")
+    platform_fee_balance_usdc: str = Field(alias="platformFeeBalanceUsdc", serialization_alias="platformFeeBalanceUsdc")
+    projected_at: str | None = Field(alias="projectedAt", serialization_alias="projectedAt")
+    priority_approvals: list["ReconciliationApprovalSummary"] = Field(alias="priorityApprovals", serialization_alias="priorityApprovals")
+    deposit_repair_approvals: list["ReconciliationApprovalSummary"] = Field(alias="depositRepairApprovals", serialization_alias="depositRepairApprovals")
+    pending_withdrawal_reviews: list[ProviderWithdrawReviewSummary] = Field(alias="pendingWithdrawalReviews", serialization_alias="pendingWithdrawalReviews")
+
+
+class ReconciliationApprovalSummary(ApprovalSummary):
+    owner_address: str | None = Field(default=None, alias="ownerAddress", serialization_alias="ownerAddress")
+    request_id: str | None = Field(default=None, alias="requestId", serialization_alias="requestId")
+    tx_hash: str | None = Field(default=None, alias="txHash", serialization_alias="txHash")
+
+
+class ReconciliationDrilldownResult(BaseModel):
+    owner_address: str | None = Field(default=None, alias="ownerAddress", serialization_alias="ownerAddress")
+    request_id: str | None = Field(default=None, alias="requestId", serialization_alias="requestId")
+    tx_hash: str | None = Field(default=None, alias="txHash", serialization_alias="txHash")
+    priority_approvals: list[ReconciliationApprovalSummary] = Field(alias="priorityApprovals", serialization_alias="priorityApprovals")
+    deposit_repair_approvals: list[ReconciliationApprovalSummary] = Field(alias="depositRepairApprovals", serialization_alias="depositRepairApprovals")
+    pending_withdrawal_reviews: list[ProviderWithdrawReviewSummary] = Field(alias="pendingWithdrawalReviews", serialization_alias="pendingWithdrawalReviews")
 
 
 class SystemStatus(BaseModel):
