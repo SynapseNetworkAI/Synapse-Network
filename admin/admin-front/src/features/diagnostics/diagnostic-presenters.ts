@@ -8,6 +8,7 @@ const diagnosticSummaryExactMap: Record<string, string> = {
 const diagnosticDetailExactMap: Record<string, string> = {
   "delta mismatch": "账面记录和实际资金不一致，需要进一步核对。",
   "inspect runtime state": "建议进入系统状态页查看当前运行情况。",
+  "inspect gateway health, execution failures, and projection freshness for indexer, backfill, and reconciliation": "建议进入系统状态页查看网关健康度、执行失败，以及 indexer / backfill / 对账投影的新鲜度。",
   "pending reviews": "当前还有事项等待人工审核，请关注处理进度。",
   "heartbeat lost": "系统心跳异常，说明该模块当前可能未正常工作。",
   healthy: "当前状态正常，无需额外处理。",
