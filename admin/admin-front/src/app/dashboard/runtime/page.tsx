@@ -41,7 +41,7 @@ export default function DashboardRuntimePage() {
       admin={admin}
       eyebrow="Dashboard Runtime"
       title="业务运行态"
-      description="只看审批、充值、出账、对账四条业务链路是否堵塞。系统组件异常去系统运维中心，任务失败处置去执行队列。"
+      description="只看审批、充值、出账三条业务链路是否堵塞。系统组件异常去系统运维中心，任务失败处置去执行队列。"
       actions={(
         <>
           <Link href="/system"><Button borderRadius="full" variant="ghost">查看系统运维状态</Button></Link>

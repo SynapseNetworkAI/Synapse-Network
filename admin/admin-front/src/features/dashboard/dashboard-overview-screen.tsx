@@ -19,6 +19,7 @@ import {
   buildDashboardPressureCards,
   buildSentinelMetrics,
 } from "@/features/dashboard/dashboard-presenters";
+import { omitDiagnosticSignals } from "@/features/diagnostics/diagnostic-presenters";
 import { useDashboardSnapshot } from "@/features/dashboard/use-dashboard-snapshot";
 import type { AdminProfile } from "@/services/admin-api";
 
@@ -39,6 +40,7 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
   const sentinelMetrics = useMemo(() => {
     return buildSentinelMetrics(overview, operationsOverview, diagnostics, reconciliationDetail);
   }, [diagnostics, operationsOverview, overview, reconciliationDetail]);
+  const overviewDiagnostics = useMemo(() => omitDiagnosticSignals(diagnostics, ["reconciliation"]), [diagnostics]);
 
   const flowCards = useMemo(() => buildDashboardFlowCards(financeOverview), [financeOverview]);
   const pressureCards = useMemo(() => buildDashboardPressureCards(overview, financeOverview), [financeOverview, overview]);
@@ -64,7 +66,7 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <DashboardSentinelMetricsGrid metrics={sentinelMetrics} />
       <DashboardDiagnosticsSurface
-        diagnostics={diagnostics}
+        diagnostics={overviewDiagnostics}
         diagnosticError={diagnosticError}
         diagnosticsLoading={diagnosticsLoading}
         onRefresh={() => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDiagnosticActionCards, buildDiagnosticSignalCards, buildPrioritizedDiagnosticSignalCards, getDiagnosticDetailText, getDiagnosticLabelText, getDiagnosticStatusLabel, getDiagnosticSummaryText, getDiagnosticTone } from "./diagnostic-presenters";
+import { buildDiagnosticActionCards, buildDiagnosticSignalCards, buildPrioritizedDiagnosticSignalCards, getDiagnosticDetailText, getDiagnosticLabelText, getDiagnosticStatusLabel, getDiagnosticSummaryText, getDiagnosticTone, omitDiagnosticSignals } from "./diagnostic-presenters";
 
 describe("diagnostic-presenters", () => {
   it("maps diagnostics tones", () => {
@@ -110,5 +110,76 @@ describe("diagnostic-presenters", () => {
     ], 2);
 
     expect(cards.map((card) => card.key)).toEqual(["gateway", "queue"]);
+  });
+
+  it("omits excluded diagnostic signals while preserving the rest of the snapshot", () => {
+    expect(omitDiagnosticSignals({
+      overallStatus: "degraded",
+      checkedAt: "2026-03-22T00:00:00Z",
+      summary: "gateway degraded and reconciliation alert present",
+      signals: [
+        {
+          signalId: "reconciliation",
+          label: "Reconciliation drift",
+          status: "degraded",
+          value: "12.00 USDC",
+          detail: "delta mismatch",
+        },
+        {
+          signalId: "gateway",
+          label: "Gateway runtime",
+          status: "degraded",
+          value: "down",
+          detail: "heartbeat lost",
+        },
+      ],
+      actions: [],
+    }, ["reconciliation"])).toEqual({
+      overallStatus: "degraded",
+      checkedAt: "2026-03-22T00:00:00Z",
+      summary: "gateway degraded",
+      signals: [
+        {
+          signalId: "gateway",
+          label: "Gateway runtime",
+          status: "degraded",
+          value: "down",
+          detail: "heartbeat lost",
+        },
+      ],
+      actions: [],
+    });
+  });
+
+  it("drops reconciliation-only summary and actions when reconciliation is excluded", () => {
+    expect(omitDiagnosticSignals({
+      overallStatus: "monitoring",
+      checkedAt: "2026-03-22T00:00:00Z",
+      summary: "reconciliation alert present",
+      signals: [
+        {
+          signalId: "reconciliation",
+          label: "Reconciliation drift",
+          status: "monitoring",
+          value: "4.00 USDC",
+          detail: "delta mismatch",
+        },
+      ],
+      actions: [
+        {
+          actionId: "open-reconciliation",
+          label: "Open reconciliation",
+          href: "/finance/reconciliation",
+          detail: "inspect delta",
+          status: "monitoring",
+        },
+      ],
+    }, ["reconciliation"])).toEqual({
+      overallStatus: "monitoring",
+      checkedAt: "2026-03-22T00:00:00Z",
+      summary: "",
+      signals: [],
+      actions: [],
+    });
   });
 });

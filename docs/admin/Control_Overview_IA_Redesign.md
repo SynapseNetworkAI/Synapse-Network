@@ -142,14 +142,13 @@
 
 ### 4.2 `业务运行态`
 
-只回答：**当前哪条业务链路在堵塞，堵塞发生在审批、充值、出账还是对账。**
+只回答：**当前哪条业务链路在堵塞，堵塞发生在审批、充值还是出账。**
 
 允许放：
 
 - Approval lane status
 - Deposit lane status
 - Outflow lane status
-- Reconciliation lane status
 - Threat stream / hot approval stream
 - Queue pressure by workflow lane
 - 只保留 lane 级别的状态摘要与升级建议

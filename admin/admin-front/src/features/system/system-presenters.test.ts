@@ -36,11 +36,9 @@ describe("system-presenters", () => {
       gatewayAdmin: "healthy",
       gateway: "degraded",
       approvalQueueDepth: 7,
-      reconciliationDeltaUsdc: "12.00",
       recentGatewayFailures: 2,
       recentAuditAlerts: 3,
       failedDepositCount: 1,
-      reconciliationAlert: true,
     });
   });
 

@@ -1,4 +1,4 @@
-import type { DashboardDiagnosticAction, DashboardDiagnosticSignal } from "@/services/admin-api";
+import type { DashboardDiagnosticAction, DashboardDiagnosticSignal, DashboardDiagnostics } from "@/services/admin-api";
 
 const diagnosticSummaryExactMap: Record<string, string> = {
   "gateway degraded and reconciliation alert present": "当前网关运行存在异常，且对账已触发提醒，建议优先排查系统状态和资金差异。",
@@ -235,4 +235,40 @@ export function buildPrioritizedDiagnosticSignalCards(signals: DashboardDiagnost
       return left.label.localeCompare(right.label);
     })
     .slice(0, limit);
+}
+
+export function omitDiagnosticSignals(
+  diagnostics: DashboardDiagnostics | null,
+  signalIds: string[],
+): DashboardDiagnostics | null {
+  if (!diagnostics || signalIds.length === 0) {
+    return diagnostics;
+  }
+
+  const excludedIds = new Set(signalIds);
+  const shouldOmitReconciliation = excludedIds.has("reconciliation");
+  const nextSummary = shouldOmitReconciliation
+    ? diagnostics.summary
+        ?.replaceAll(/\s+and\s+reconciliation alert present/gi, "")
+        ?.replaceAll(/reconciliation alert present\s+and\s+/gi, "")
+        ?.replaceAll(/reconciliation alert present/gi, "")
+        ?.trim() || ""
+    : diagnostics.summary;
+
+  return {
+    ...diagnostics,
+    summary: nextSummary,
+    signals: diagnostics.signals.filter((signal) => !excludedIds.has(signal.signalId)),
+    actions: diagnostics.actions.filter((action) => {
+      if (!shouldOmitReconciliation) {
+        return true;
+      }
+
+      const actionId = action.actionId.toLowerCase();
+      const label = action.label.toLowerCase();
+      const href = action.href.toLowerCase();
+
+      return !actionId.includes("reconciliation") && !label.includes("reconciliation") && !href.includes("/finance/reconciliation");
+    }),
+  };
 }
