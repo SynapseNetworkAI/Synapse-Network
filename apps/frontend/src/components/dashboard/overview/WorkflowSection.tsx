@@ -1,67 +1,70 @@
 import React from "react";
 import { Wallet, UserPlus, Search, Zap, PlusCircle, Server, DollarSign, ArrowRight, CreditCard } from "lucide-react";
 import Link from "next/link";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export default function WorkflowSection() {
+  const { t } = useLanguage();
+
   const consumerSteps = [
     {
       icon: <Wallet className="w-4 h-4 text-blue-400" />,
-      title: "Deposit USDC",
-      description: "Fund your vault on the Synapse smart contract to enable agent spending.",
+      title: t("overviewPage.consumerDepositTitle"),
+      description: t("overviewPage.consumerDepositDescription"),
       link: "/dashboard/billing",
-      linkText: "Open Treasury"
+      linkText: t("overviewPage.consumerDepositLink")
     },
     {
       icon: <UserPlus className="w-4 h-4 text-blue-400" />,
-      title: "Create Agent",
-      description: "Provision a runtime identity for your autonomous agent to act on your behalf.",
+      title: t("overviewPage.consumerCreateAgentTitle"),
+      description: t("overviewPage.consumerCreateAgentDescription"),
       link: "/dashboard/agents/workspace",
-      linkText: "Manage Agents"
+      linkText: t("overviewPage.consumerCreateAgentLink")
     },
     {
       icon: <Search className="w-4 h-4 text-blue-400" />,
-      title: "Service Discovery",
-      description: "Find the best API services and service definitions in the network through discovery.",
+      title: t("overviewPage.consumerDiscoveryTitle"),
+      description: t("overviewPage.consumerDiscoveryDescription"),
       link: "/dashboard/discovery",
-      linkText: "Explore Services"
+      linkText: t("overviewPage.consumerDiscoveryLink")
     },
     {
       icon: <Zap className="w-4 h-4 text-blue-400" />,
-      title: "Attach Runtime Credentials",
-      description: "Issue the credential that your agent runtime will actually use before discovery, quote, and paid invocation.",
+      title: t("overviewPage.consumerCredentialTitle"),
+      description: t("overviewPage.consumerCredentialDescription"),
       link: "/dashboard/credentials",
-      linkText: "Open Agent Credentials"
+      linkText: t("overviewPage.consumerCredentialLink")
     }
   ];
 
   const providerSteps = [
     {
       icon: <PlusCircle className="w-4 h-4 text-emerald-400" />,
-      title: "Create Service",
-      description: "Define your API service, service definition, pricing, and runtime routing in the Provider workspace.",
+      title: t("overviewPage.providerCreateServiceTitle"),
+      description: t("overviewPage.providerCreateServiceDescription"),
       link: "/provider/services/deploy",
-      linkText: "Publish API Service"
+      linkText: t("overviewPage.providerCreateServiceLink")
     },
     {
       icon: <Server className="w-4 h-4 text-emerald-400" />,
-      title: "Serve Agents",
-      description: "Receive high-frequency calls from autonomous agents through the gateway.",
+      title: t("overviewPage.providerServeAgentsTitle"),
+      description: t("overviewPage.providerServeAgentsDescription"),
       link: "/provider/health",
-      linkText: "Monitor Health"
+      linkText: t("overviewPage.providerServeAgentsLink")
     },
     {
       icon: <DollarSign className="w-4 h-4 text-emerald-400" />,
-      title: "Earn USDC",
-      description: "Accumulate earnings in your provider wallet for every successful invocation.",
+      title: t("overviewPage.providerEarnTitle"),
+      description: t("overviewPage.providerEarnDescription"),
       link: "/provider/usage",
-      linkText: "View Revenue"
+      linkText: t("overviewPage.providerEarnLink")
     },
     {
       icon: <CreditCard className="w-4 h-4 text-emerald-400" />,
-      title: "Withdraw",
-      description: "Gas-less withdrawals of your revenue back to your main wallet.",
+      title: t("overviewPage.providerWithdrawTitle"),
+      description: t("overviewPage.providerWithdrawDescription"),
       link: "/provider/settlements",
-      linkText: "Open Settlements"
+      linkText: t("overviewPage.providerWithdrawLink")
     }
   ];
 
@@ -74,8 +77,8 @@ export default function WorkflowSection() {
             <UserPlus className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-white">Consumer Path</h3>
-            <p className="text-xs text-gray-500">Build for agents, let agents pay.</p>
+            <h3 className="text-xl font-bold text-white">{t("overviewPage.consumerPathTitle")}</h3>
+            <p className="text-xs text-gray-500">{t("overviewPage.consumerPathDescription")}</p>
           </div>
         </div>
         
@@ -106,8 +109,8 @@ export default function WorkflowSection() {
             <Server className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-white">Provider Path</h3>
-            <p className="text-xs text-gray-500">Monetize your APIs for the agentic economy.</p>
+            <h3 className="text-xl font-bold text-white">{t("overviewPage.providerPathTitle")}</h3>
+            <p className="text-xs text-gray-500">{t("overviewPage.providerPathDescription")}</p>
           </div>
         </div>
         
