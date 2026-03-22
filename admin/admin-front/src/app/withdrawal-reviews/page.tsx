@@ -44,6 +44,16 @@ export default function WithdrawalReviewsPage() {
   );
 
   useEffect(() => {
+    if (globalThis.window === undefined) {
+      return;
+    }
+
+    const params = new URLSearchParams(globalThis.window.location.search);
+    setSearch(params.get("q") ?? "");
+    setRiskFilter(params.get("risk") ?? "all");
+  }, []);
+
+  useEffect(() => {
     const nextActiveId = visibleItems.some((item) => item.withdrawalId === activeReviewId)
       ? activeReviewId
       : visibleItems[0]?.withdrawalId ?? null;

@@ -79,7 +79,11 @@ def get_gateway_dashboard_projection_repository() -> GatewayDashboardProjectionR
 
 @lru_cache(maxsize=1)
 def get_dashboard_service() -> DashboardService:
-    return DashboardService(get_store(), get_gateway_dashboard_projection_repository())
+    return DashboardService(
+        get_store(),
+        get_gateway_dashboard_projection_repository(),
+        get_provider_withdraw_review_repository(),
+    )
 
 
 @lru_cache(maxsize=1)

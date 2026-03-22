@@ -12,6 +12,8 @@ type SentinelMetric = {
   label: string;
   value: string;
   meta: string;
+  href?: string;
+  actionLabel?: string;
 };
 
 type OperationsItem = {
@@ -88,7 +90,9 @@ export function buildSentinelMetrics(
     {
       label: "SENTINEL 04",
       value: `账本对账差额 ${formatUsdc(operationsOverview?.reconciliationDeltaUsdc ?? overview?.metrics.vaultLedgerDelta ?? "0")} USDC`,
-      meta: "接入真实后端数据。",
+      meta: "接入真实后端数据，支持下钻查看对账明细。",
+      href: "/finance/reconciliation",
+      actionLabel: "打开对账详情",
     },
   ];
 }

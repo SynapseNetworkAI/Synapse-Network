@@ -28,6 +28,17 @@ export default function ApprovalsPage() {
   const hotItems = filteredItems.slice(0, 4);
 
   useEffect(() => {
+    if (globalThis.window === undefined) {
+      return;
+    }
+
+    const params = new URLSearchParams(globalThis.window.location.search);
+    setSearch(params.get("q") ?? "");
+    setTypeFilter(params.get("type") ?? "all");
+    setStatusFilter(params.get("status") ?? "all");
+  }, []);
+
+  useEffect(() => {
     if (!token) {
       return;
     }

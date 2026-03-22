@@ -1,14 +1,23 @@
 from datetime import datetime, timezone
 
+from src.core.errors import BadRequestError
 from src.domain.enums import ExecutionJobStatus
 from src.storage.analytics import GatewayDashboardProjectionRepository
+from src.storage.analytics.provider_withdraw_review import ProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
+from src.domain import AdminApproval
 from src.storage.base import AdminStore
 
 
 class DashboardService:
-    def __init__(self, store: AdminStore, gateway_projection: GatewayDashboardProjectionRepository) -> None:
+    def __init__(
+        self,
+        store: AdminStore,
+        gateway_projection: GatewayDashboardProjectionRepository,
+        provider_withdraw_review_repository: ProviderWithdrawReviewRepository,
+    ) -> None:
         self._store = store
         self._gateway_projection = gateway_projection
+        self._provider_withdraw_review_repository = provider_withdraw_review_repository
 
     def get_overview(self) -> dict:
         snapshot = self._gateway_projection.get_snapshot()
@@ -87,6 +96,195 @@ class DashboardService:
             "reconciliationLastError": snapshot.reconciliation_last_error,
             "projectedAt": self._format_timestamp(snapshot.projected_at),
         }
+
+    def get_reconciliation_detail(self) -> dict:
+        overview = self._gateway_projection.get_snapshot()
+        operations = self._gateway_projection.get_operations_snapshot()
+        finance = self._gateway_projection.get_finance_snapshot()
+        runtime_state = self._gateway_projection.get_reconciliation_runtime_state()
+        audit_alerts = max(overview.audit_alerts, operations.recent_audit_alerts, self._store.audit.count_alerts())
+
+        signed_difference = None
+        imbalance_direction = "unknown"
+        if runtime_state.chain_vault_usdc is not None and runtime_state.ledger_obligation_usdc is not None:
+            signed_difference = runtime_state.chain_vault_usdc - runtime_state.ledger_obligation_usdc
+            if signed_difference > 0:
+                imbalance_direction = "vault_surplus"
+            elif signed_difference < 0:
+                imbalance_direction = "vault_deficit"
+            else:
+                imbalance_direction = "balanced"
+
+        delta_value = runtime_state.delta_usdc
+        if delta_value is None:
+            delta_value = operations.reconciliation_delta_usdc
+
+        return {
+            "gatewayStatus": operations.gateway_status,
+            "reconciliationAlert": operations.reconciliation_alert,
+            "reconciliationDeltaUsdc": self._format_decimal(delta_value),
+            "signedDifferenceUsdc": self._format_decimal(signed_difference) if signed_difference is not None else None,
+            "imbalanceDirection": imbalance_direction,
+            "chainVaultUsdc": self._format_decimal(runtime_state.chain_vault_usdc) if runtime_state.chain_vault_usdc is not None else None,
+            "ledgerObligationUsdc": self._format_decimal(runtime_state.ledger_obligation_usdc) if runtime_state.ledger_obligation_usdc is not None else None,
+            "lastReconciliationAt": self._format_timestamp(runtime_state.last_check_at or operations.last_reconciliation_at),
+            "runtimeStateUpdatedAt": self._format_timestamp(runtime_state.updated_at),
+            "reconciliationLastError": operations.reconciliation_last_error,
+            "pendingApprovals": self._store.approval.count_pending_approvals(),
+            "depositExceptions": overview.deposit_exceptions,
+            "auditAlerts": audit_alerts,
+            "pendingDepositCount": finance.pending_deposit_count,
+            "pendingWithdrawalCount": finance.pending_provider_withdrawal_count,
+            "ownerLiabilityUsdc": self._format_decimal(finance.consumer_liability_usdc),
+            "providerPayableUsdc": self._format_decimal(finance.provider_payable_usdc),
+            "platformFeeBalanceUsdc": self._format_decimal(finance.platform_fee_balance_usdc),
+            "projectedAt": self._format_timestamp(operations.projected_at or finance.projected_at),
+            "priorityApprovals": [
+                self._serialize_reconciliation_approval_summary(item)
+                for item in self._list_active_finance_approvals(limit=6)
+            ],
+            "depositRepairApprovals": [
+                self._serialize_reconciliation_approval_summary(item)
+                for item in self._list_active_deposit_repair_approvals(limit=6)
+            ],
+            "pendingWithdrawalReviews": [
+                self._serialize_withdraw_review_summary(item)
+                for item in self._provider_withdraw_review_repository.list_pending_reviews(limit=6)
+            ],
+        }
+
+    def get_reconciliation_drilldown(
+        self,
+        *,
+        owner_address: str | None = None,
+        request_id: str | None = None,
+        tx_hash: str | None = None,
+    ) -> dict:
+        owner_value = owner_address.strip() if owner_address else None
+        request_value = request_id.strip() if request_id else None
+        tx_value = tx_hash.strip() if tx_hash else None
+        if not owner_value and not request_value and not tx_value:
+            raise BadRequestError("ownerAddress, requestId, or txHash is required")
+
+        priority_matches = [
+            self._serialize_reconciliation_approval_summary(item)
+            for item in self._list_active_finance_approvals(limit=200)
+            if self._matches_approval_locator(item, owner_address=owner_value, request_id=request_value, tx_hash=tx_value)
+        ]
+        deposit_repair_matches = [
+            self._serialize_reconciliation_approval_summary(item)
+            for item in self._list_active_deposit_repair_approvals(limit=200)
+            if self._matches_approval_locator(item, owner_address=owner_value, request_id=request_value, tx_hash=tx_value)
+        ]
+        review_matches = [
+            self._serialize_withdraw_review_summary(item)
+            for item in self._provider_withdraw_review_repository.list_pending_reviews(limit=200)
+            if self._matches_review_locator(item, owner_address=owner_value, request_id=request_value, tx_hash=tx_value)
+        ]
+
+        return {
+            "ownerAddress": owner_value,
+            "requestId": request_value,
+            "txHash": tx_value,
+            "priorityApprovals": priority_matches[:20],
+            "depositRepairApprovals": deposit_repair_matches[:20],
+            "pendingWithdrawalReviews": review_matches[:20],
+        }
+
+    def _list_active_finance_approvals(self, limit: int) -> list[AdminApproval]:
+        approvals = self._store.approval.list_approvals(limit=max(limit * 3, 12))
+        active_statuses = {"SUBMITTED", "UNDER_REVIEW", "APPROVED_PENDING_EXECUTION", "FAILED"}
+        finance_types = {"deposit_repair", "withdrawal_approve", "refund_approve"}
+        return [
+            approval
+            for approval in approvals
+            if approval.status.value in active_statuses and approval.approval_type in finance_types
+        ][:limit]
+
+    def _list_active_deposit_repair_approvals(self, limit: int) -> list[AdminApproval]:
+        approvals = self._store.approval.list_approvals(approval_type="deposit_repair", limit=max(limit * 3, 12))
+        active_statuses = {"SUBMITTED", "UNDER_REVIEW", "APPROVED_PENDING_EXECUTION", "FAILED"}
+        return [approval for approval in approvals if approval.status.value in active_statuses][:limit]
+
+    def _serialize_reconciliation_approval_summary(self, approval: AdminApproval) -> dict:
+        return {
+            "approvalId": approval.approval_id,
+            "approvalType": approval.approval_type,
+            "status": approval.status.value,
+            "approvalLevel": approval.approval_level.value,
+            "requesterRole": self._resolve_requester_role(approval.requester_id),
+            "amountUsdc": self._format_decimal(approval.amount_usdc),
+            "createdAt": self._format_timestamp(approval.created_at),
+            "ownerAddress": approval.owner_address,
+            "requestId": approval.request_id,
+            "txHash": approval.tx_hash,
+        }
+
+    @staticmethod
+    def _serialize_withdraw_review_summary(review: ProviderWithdrawReviewItem) -> dict:
+        return {
+            "withdrawalId": review.withdrawal_id,
+            "ownerAddress": review.owner_address,
+            "amountUsdc": f"{review.amount_usdc:.2f}",
+            "status": review.status,
+            "requestId": review.request_id,
+            "txHash": review.tx_hash,
+            "riskLevel": review.risk_level,
+            "riskReasonCode": review.risk_reason_code,
+            "evidenceSummary": review.evidence_summary,
+            "message": review.message,
+            "createdAt": review.created_at,
+            "updatedAt": review.updated_at,
+        }
+
+    def _resolve_requester_role(self, admin_id: str | None) -> str:
+        if not admin_id:
+            return "platform_ops_admin"
+        bindings = [
+            binding
+            for binding in self._store.authorization.list_role_bindings(admin_id)
+            if binding.status.value == "ACTIVE"
+        ]
+        return bindings[0].role_key if bindings else "platform_ops_admin"
+
+    @staticmethod
+    def _matches_approval_locator(
+        approval: AdminApproval,
+        *,
+        owner_address: str | None,
+        request_id: str | None,
+        tx_hash: str | None,
+    ) -> bool:
+        payload = approval.payload or {}
+        if owner_address:
+            candidates = [approval.owner_address, payload.get("ownerAddress"), payload.get("owner_address")]
+            if any(str(candidate).lower() == owner_address.lower() for candidate in candidates if candidate):
+                return True
+        if request_id:
+            candidates = [approval.request_id, payload.get("requestId"), payload.get("request_id")]
+            if any(str(candidate) == request_id for candidate in candidates if candidate):
+                return True
+        if tx_hash:
+            candidates = [approval.tx_hash, payload.get("txHash"), payload.get("tx_hash")]
+            if any(str(candidate).lower() == tx_hash.lower() for candidate in candidates if candidate):
+                return True
+        return False
+
+    @staticmethod
+    def _matches_review_locator(
+        review: ProviderWithdrawReviewItem,
+        *,
+        owner_address: str | None,
+        request_id: str | None,
+        tx_hash: str | None,
+    ) -> bool:
+        if owner_address and review.owner_address.lower() == owner_address.lower():
+            return True
+        if request_id and review.request_id == request_id:
+            return True
+        if tx_hash and review.tx_hash and review.tx_hash.lower() == tx_hash.lower():
+            return True
+        return False
 
     def get_system_status(self) -> dict:
         snapshot = self._gateway_projection.get_operations_snapshot()

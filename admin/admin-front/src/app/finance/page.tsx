@@ -132,6 +132,7 @@ export default function FinancePage() {
                 <SentinelStatusChip label={getVaultDeltaTone(overview.vaultLedgerDeltaUsdc).toUpperCase()} tone={getVaultDeltaTone(overview.vaultLedgerDeltaUsdc)} />
               </Stack>
               <Text mt="8px" color="ink.500">账本和金库偏差是 operator 第一优先信号，大额偏差不应该在审批环节之后才发现。</Text>
+              <Link href="/finance/reconciliation"><Button mt="12px" size="sm" borderRadius="full">查看对账明细</Button></Link>
             </Box>
             {[
               ["充值异常定位", "定位 deposit intent 未入账、链上确认延迟和 backfill 回放问题。"],

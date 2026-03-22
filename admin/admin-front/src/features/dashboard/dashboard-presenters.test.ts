@@ -45,7 +45,8 @@ describe("dashboard presenters", () => {
       meta: "读模型当前稳定，可以继续保持值班观察。",
     });
     expect(metrics[3]?.value).toContain("0.50 USDC");
-    expect(metrics[3]?.meta).toBe("接入真实后端数据。");
+    expect(metrics[3]?.meta).toBe("接入真实后端数据，支持下钻查看对账明细。");
+    expect(metrics[3]?.href).toBe("/finance/reconciliation");
   });
 
   it("builds capital cards directly from finance payload", () => {
