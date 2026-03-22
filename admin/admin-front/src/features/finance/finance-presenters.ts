@@ -14,6 +14,20 @@ type FinancePlaceholderCard = FinanceMetricSurfaceCard & {
   pending: boolean;
 };
 
+export type CapitalPulseMetric = {
+  key: string;
+  label: string;
+  value: string;
+  hint: string;
+};
+
+export type CapitalPulseLane = {
+  key: "consumer" | "platform" | "provider";
+  title: string;
+  description: string;
+  items: CapitalPulseMetric[];
+};
+
 type ReconciliationLike = {
   chainVaultUsdc: string | null;
   signedDifferenceUsdc: string | null;
@@ -55,6 +69,92 @@ export function buildTrendChartData(points: ActivityTrendPoint[]) {
     withdrawal: Number(point.withdrawalUsdc || 0),
     netFlow: Number(point.netFlowUsdc || 0),
   }));
+}
+
+export function buildFinanceCapitalPulseLanes(overview: FinanceOverview): CapitalPulseLane[] {
+  return [
+    {
+      key: "consumer",
+      title: "Consumer",
+      description: "把今日入金、消费、退款和调用次数放在同一侧，快速判断需求侧是否正常展开。",
+      items: [
+        {
+          key: "today-deposit",
+          label: getFinanceMetricGlossary("todayDeposit").label,
+          value: `${formatUsdc(overview.todayDepositUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayDeposit").hint,
+        },
+        {
+          key: "today-charge",
+          label: getFinanceMetricGlossary("todayCharge").label,
+          value: `${formatUsdc(overview.todayChargeUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayCharge").hint,
+        },
+        {
+          key: "today-refund",
+          label: getFinanceMetricGlossary("todayRefund").label,
+          value: `${formatUsdc(overview.todayRefundUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayRefund").hint,
+        },
+        {
+          key: "today-invocation-count",
+          label: getFinanceMetricGlossary("todayInvocationCount").label,
+          value: String(overview.todayInvocationCount),
+          hint: getFinanceMetricGlossary("todayInvocationCount").hint,
+        },
+      ],
+    },
+    {
+      key: "platform",
+      title: "Platform",
+      description: "平台侧只保留新增手续费和累计收入池，避免把总账判断和经营摘要混成一组。",
+      items: [
+        {
+          key: "today-platform-fee-earned",
+          label: getFinanceMetricGlossary("todayPlatformFeeEarned").label,
+          value: `${formatUsdc(overview.todayPlatformFeeEarnedUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayPlatformFeeEarned").hint,
+        },
+        {
+          key: "platform-income",
+          label: getFinanceMetricGlossary("platformIncome").label,
+          value: `${formatUsdc(overview.platformFeeBalanceUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("platformIncome").hint,
+        },
+      ],
+    },
+    {
+      key: "provider",
+      title: "Provider",
+      description: "把新增收入、提现和可提现空间放到一起，帮助 operator 判断供给侧结算压力。",
+      items: [
+        {
+          key: "today-provider-earned",
+          label: getFinanceMetricGlossary("todayProviderEarned").label,
+          value: `${formatUsdc(overview.todayProviderEarnedUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayProviderEarned").hint,
+        },
+        {
+          key: "today-withdrawal",
+          label: getFinanceMetricGlossary("todayWithdrawal").label,
+          value: `${formatUsdc(overview.todayWithdrawalUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("todayWithdrawal").hint,
+        },
+        {
+          key: "pending-withdrawals",
+          label: getFinanceMetricGlossary("pendingWithdrawals").label,
+          value: String(overview.pendingWithdrawalCount),
+          hint: getFinanceMetricGlossary("pendingWithdrawals").hint,
+        },
+        {
+          key: "provider-available-to-withdraw",
+          label: getFinanceMetricGlossary("providerAvailableToWithdraw").label,
+          value: `${formatUsdc(overview.providerAvailableToWithdrawUsdc)} USDC`,
+          hint: getFinanceMetricGlossary("providerAvailableToWithdraw").hint,
+        },
+      ],
+    },
+  ];
 }
 
 export function buildFinanceExposureCards(overview: FinanceOverview) {

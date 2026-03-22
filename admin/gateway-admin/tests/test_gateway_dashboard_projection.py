@@ -40,3 +40,17 @@ def test_resolve_projection_column_raises_when_no_candidate_exists() -> None:
         assert "projection column not found" in str(exc)
     else:
         raise AssertionError("expected KeyError when projection columns are missing")
+
+
+def test_seed_demo_exposes_funds_observability_metrics() -> None:
+    repository = gateway_dashboard.InMemoryGatewayDashboardProjectionRepository.seed_demo()
+
+    finance = repository.get_finance_snapshot()
+    trends = repository.list_activity_trends()
+
+    assert finance.today_invocation_count == 342
+    assert finance.today_platform_fee_earned_usdc == gateway_dashboard.Decimal("196.40")
+    assert finance.today_provider_earned_usdc == gateway_dashboard.Decimal("1084.00")
+    assert trends[-1].invocation_count == 342
+    assert trends[-1].platform_fee_earned_usdc == gateway_dashboard.Decimal("196.40")
+    assert trends[-1].provider_earned_usdc == gateway_dashboard.Decimal("1084.00")

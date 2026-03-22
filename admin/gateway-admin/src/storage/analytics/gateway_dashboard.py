@@ -58,6 +58,9 @@ class GatewayFinanceSnapshot:
     today_deposit_usdc: Decimal
     today_consumer_refund_usdc: Decimal
     today_provider_withdrawal_usdc: Decimal
+    today_invocation_count: int
+    today_platform_fee_earned_usdc: Decimal
+    today_provider_earned_usdc: Decimal
     consumer_liability_usdc: Decimal
     refundable_consumer_balance_usdc: Decimal
     provider_payable_usdc: Decimal
@@ -78,6 +81,9 @@ class GatewayActivityTrendPoint:
     bucket_date: date
     deposit_usdc: Decimal
     charge_usdc: Decimal
+    invocation_count: int
+    platform_fee_earned_usdc: Decimal
+    provider_earned_usdc: Decimal
     consumer_refund_usdc: Decimal
     provider_withdrawal_usdc: Decimal
     net_flow_usdc: Decimal
@@ -147,6 +153,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                 today_deposit_usdc=Decimal("1640.00"),
                 today_consumer_refund_usdc=Decimal("42.25"),
                 today_provider_withdrawal_usdc=Decimal("310.50"),
+                today_invocation_count=342,
+                today_platform_fee_earned_usdc=Decimal("196.40"),
+                today_provider_earned_usdc=Decimal("1084.00"),
                 consumer_liability_usdc=Decimal("8450.10"),
                 refundable_consumer_balance_usdc=Decimal("7320.35"),
                 provider_payable_usdc=Decimal("3920.45"),
@@ -166,6 +175,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 10),
                     deposit_usdc=Decimal("920.00"),
                     charge_usdc=Decimal("780.20"),
+                    invocation_count=218,
+                    platform_fee_earned_usdc=Decimal("118.20"),
+                    provider_earned_usdc=Decimal("662.00"),
                     consumer_refund_usdc=Decimal("31.40"),
                     provider_withdrawal_usdc=Decimal("240.00"),
                     net_flow_usdc=Decimal("648.60"),
@@ -174,6 +186,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 11),
                     deposit_usdc=Decimal("1110.25"),
                     charge_usdc=Decimal("830.00"),
+                    invocation_count=226,
+                    platform_fee_earned_usdc=Decimal("126.00"),
+                    provider_earned_usdc=Decimal("704.00"),
                     consumer_refund_usdc=Decimal("25.15"),
                     provider_withdrawal_usdc=Decimal("210.00"),
                     net_flow_usdc=Decimal("875.10"),
@@ -182,6 +197,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 12),
                     deposit_usdc=Decimal("1185.50"),
                     charge_usdc=Decimal("910.30"),
+                    invocation_count=244,
+                    platform_fee_earned_usdc=Decimal("141.30"),
+                    provider_earned_usdc=Decimal("769.00"),
                     consumer_refund_usdc=Decimal("0.00"),
                     provider_withdrawal_usdc=Decimal("320.00"),
                     net_flow_usdc=Decimal("865.50"),
@@ -190,6 +208,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 13),
                     deposit_usdc=Decimal("980.00"),
                     charge_usdc=Decimal("845.90"),
+                    invocation_count=231,
+                    platform_fee_earned_usdc=Decimal("129.90"),
+                    provider_earned_usdc=Decimal("716.00"),
                     consumer_refund_usdc=Decimal("16.20"),
                     provider_withdrawal_usdc=Decimal("180.00"),
                     net_flow_usdc=Decimal("783.80"),
@@ -198,6 +219,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 14),
                     deposit_usdc=Decimal("1320.15"),
                     charge_usdc=Decimal("990.10"),
+                    invocation_count=268,
+                    platform_fee_earned_usdc=Decimal("150.10"),
+                    provider_earned_usdc=Decimal("840.00"),
                     consumer_refund_usdc=Decimal("45.00"),
                     provider_withdrawal_usdc=Decimal("275.00"),
                     net_flow_usdc=Decimal("1000.15"),
@@ -206,6 +230,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 15),
                     deposit_usdc=Decimal("1460.00"),
                     charge_usdc=Decimal("1210.50"),
+                    invocation_count=316,
+                    platform_fee_earned_usdc=Decimal("186.50"),
+                    provider_earned_usdc=Decimal("1024.00"),
                     consumer_refund_usdc=Decimal("38.75"),
                     provider_withdrawal_usdc=Decimal("290.00"),
                     net_flow_usdc=Decimal("1131.25"),
@@ -214,6 +241,9 @@ class InMemoryGatewayDashboardProjectionRepository:
                     bucket_date=date(2026, 3, 16),
                     deposit_usdc=Decimal("1640.00"),
                     charge_usdc=Decimal("1280.40"),
+                    invocation_count=342,
+                    platform_fee_earned_usdc=Decimal("196.40"),
+                    provider_earned_usdc=Decimal("1084.00"),
                     consumer_refund_usdc=Decimal("42.25"),
                     provider_withdrawal_usdc=Decimal("310.50"),
                     net_flow_usdc=Decimal("1287.25"),
@@ -343,6 +373,9 @@ class PostgresGatewayDashboardProjectionRepository:
                     today_deposit_usdc,
                     {refund_column} AS today_consumer_refund_usdc,
                     {withdrawal_column} AS today_provider_withdrawal_usdc,
+                    today_invocation_count,
+                    today_platform_fee_earned_usdc,
+                    today_provider_earned_usdc,
                     {liability_column} AS consumer_liability_usdc,
                     refundable_consumer_balance_usdc,
                     provider_payable_usdc,
@@ -367,6 +400,9 @@ class PostgresGatewayDashboardProjectionRepository:
                 today_deposit_usdc=Decimal("0"),
                 today_consumer_refund_usdc=Decimal("0"),
                 today_provider_withdrawal_usdc=Decimal("0"),
+                today_invocation_count=0,
+                today_platform_fee_earned_usdc=Decimal("0"),
+                today_provider_earned_usdc=Decimal("0"),
                 consumer_liability_usdc=Decimal("0"),
                 refundable_consumer_balance_usdc=Decimal("0"),
                 provider_payable_usdc=Decimal("0"),
@@ -386,6 +422,9 @@ class PostgresGatewayDashboardProjectionRepository:
             today_deposit_usdc=Decimal(str(row["today_deposit_usdc"])),
             today_consumer_refund_usdc=Decimal(str(row["today_consumer_refund_usdc"])),
             today_provider_withdrawal_usdc=Decimal(str(row["today_provider_withdrawal_usdc"])),
+            today_invocation_count=int(row["today_invocation_count"]),
+            today_platform_fee_earned_usdc=Decimal(str(row["today_platform_fee_earned_usdc"])),
+            today_provider_earned_usdc=Decimal(str(row["today_provider_earned_usdc"])),
             consumer_liability_usdc=Decimal(str(row["consumer_liability_usdc"])),
             refundable_consumer_balance_usdc=Decimal(str(row["refundable_consumer_balance_usdc"])),
             provider_payable_usdc=Decimal(str(row["provider_payable_usdc"])),
@@ -412,6 +451,9 @@ class PostgresGatewayDashboardProjectionRepository:
                     bucket_date,
                     deposit_usdc,
                     charge_usdc,
+                    invocation_count,
+                    platform_fee_earned_usdc,
+                    provider_earned_usdc,
                     {refund_column} AS consumer_refund_usdc,
                     {withdrawal_column} AS provider_withdrawal_usdc,
                     net_flow_usdc
@@ -425,6 +467,9 @@ class PostgresGatewayDashboardProjectionRepository:
                 bucket_date=row["bucket_date"],
                 deposit_usdc=Decimal(str(row["deposit_usdc"])),
                 charge_usdc=Decimal(str(row["charge_usdc"])),
+                invocation_count=int(row["invocation_count"]),
+                platform_fee_earned_usdc=Decimal(str(row["platform_fee_earned_usdc"])),
+                provider_earned_usdc=Decimal(str(row["provider_earned_usdc"])),
                 consumer_refund_usdc=Decimal(str(row["consumer_refund_usdc"])),
                 provider_withdrawal_usdc=Decimal(str(row["provider_withdrawal_usdc"])),
                 net_flow_usdc=Decimal(str(row["net_flow_usdc"])),

@@ -1,5 +1,6 @@
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
+import { buildFinanceCapitalPulseLanes, type CapitalPulseLane } from "@/features/finance/finance-presenters";
 import { getDiagnosticSummaryText } from "@/features/diagnostics/diagnostic-presenters";
 import type {
   ActivityTrendSeries,
@@ -310,6 +311,32 @@ export function buildCapitalSnapshotCards(financeOverview: FinanceOverview | nul
     { key: "pending-deposits", label: getFinanceMetricGlossary("pendingDeposits").label, value: String(financeOverview.pendingDepositCount), hint: getFinanceMetricGlossary("pendingDeposits").hint },
     { key: "pending-withdrawals", label: getFinanceMetricGlossary("pendingWithdrawals").label, value: String(financeOverview.pendingWithdrawalCount), hint: getFinanceMetricGlossary("pendingWithdrawals").hint },
   ];
+}
+
+export function buildDashboardCapitalPulseLanes(financeOverview: FinanceOverview | null): CapitalPulseLane[] {
+  if (!financeOverview) {
+    return [];
+  }
+
+  const lanes = buildFinanceCapitalPulseLanes(financeOverview);
+
+  return lanes.map((lane) => {
+    if (lane.key === "consumer") {
+      return {
+        ...lane,
+        items: lane.items.filter((item) => ["today-deposit", "today-charge", "today-invocation-count"].includes(item.key)),
+      };
+    }
+
+    if (lane.key === "provider") {
+      return {
+        ...lane,
+        items: lane.items.filter((item) => ["today-provider-earned", "today-withdrawal", "pending-withdrawals"].includes(item.key)),
+      };
+    }
+
+    return lane;
+  });
 }
 
 export function buildDashboardFlowCards(financeOverview: FinanceOverview | null): CapitalSnapshotCard[] {

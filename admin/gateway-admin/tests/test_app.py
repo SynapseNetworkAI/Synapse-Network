@@ -868,6 +868,9 @@ def test_finance_overview_exposes_gateway_finance_projection() -> None:
     body = response.json()["data"]
     assert body["todayChargeUsdc"] == "1280.40"
     assert body["todayDepositUsdc"] == "1640.00"
+    assert body["todayInvocationCount"] == 342
+    assert body["todayPlatformFeeEarnedUsdc"] == "196.40"
+    assert body["todayProviderEarnedUsdc"] == "1084.00"
     assert body["refundableConsumerBalanceUsdc"] == "7320.35"
     assert body["providerAvailableToWithdrawUsdc"] == "3510.20"
     assert body["providerLockedBalanceUsdc"] == "410.25"
@@ -885,6 +888,9 @@ def test_activity_trends_expose_seven_day_projection() -> None:
     points = response.json()["data"]["points"]
     assert len(points) == 7
     assert points[-1]["bucketDate"] == "2026-03-16"
+    assert points[-1]["invocationCount"] == 342
+    assert points[-1]["platformFeeEarnedUsdc"] == "196.40"
+    assert points[-1]["providerEarnedUsdc"] == "1084.00"
     assert points[-1]["netFlowUsdc"] == "1287.25"
 
 

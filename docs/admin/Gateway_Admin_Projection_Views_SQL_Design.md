@@ -57,7 +57,7 @@ target-state 表结构已经从旧的 owner/refund/withdrawal 语义，升级到
 用途：
 
 - 给后台资金总览卡片提供稳定快照
-- 暴露当天充值、扣费、退款、提现、负债、应付、平台收入、对账差额和待处理计数
+- 暴露当天充值、扣费、调用次数、平台新增手续费、Provider 新增收入、退款、提现、负债、应付、平台收入、对账差额和待处理计数
 
 ### 3.1 CTE: `day_window`
 
@@ -172,7 +172,27 @@ SELECT date_trunc('day', NOW()) AS day_start
 - `today_charge_usdc`：当天 `SUCCEEDED / SETTLED` 的 `charged_usdc` 总和
 - `charge_updated_at`：相关调用记录最新更新时间
 
-### 3.8 最终 SELECT 字段说明
+### 3.8 CTE: `invocation_billing_window`
+
+来源：
+
+- `synapse_invocations`
+- `synapse_runtime_state(state_key like 'invocation_billing::%')`
+
+作用：
+
+- 统计当天成功进入计费链路的调用次数
+- 统计当天平台新增手续费收入
+- 统计当天 Provider 新增收入
+
+字段：
+
+- `today_invocation_count`：当天 `SUCCEEDED / SETTLED` 且 `businessType = charge` 的调用次数
+- `today_platform_fee_earned_usdc`：当天 `protocolFee + routingTax` 的总和
+- `today_provider_earned_usdc`：当天 `unitPrice - protocolFee` 的总和
+- `invocation_billing_updated_at`：调用计费投影视图相关记录最新更新时间
+
+### 3.9 最终 SELECT 字段说明
 
 canonical 字段：
 
@@ -180,6 +200,9 @@ canonical 字段：
 - `today_deposit_usdc`：当天充值额
 - `today_consumer_refund_usdc`：当天消费者退款额
 - `today_provider_withdrawal_usdc`：当天服务商提现额
+- `today_invocation_count`：当天成功进入计费链路的调用次数
+- `today_platform_fee_earned_usdc`：当天平台新增手续费收入
+- `today_provider_earned_usdc`：当天 Provider 新增收入
 - `consumer_liability_usdc`：消费者侧钱包负债
 - `provider_payable_usdc`：服务商应付余额
 - `platform_fee_balance_usdc`：平台收入余额
@@ -231,7 +254,21 @@ canonical 字段：
 - `bucket_date`：`created_at::date`
 - `charge_usdc`：当天 `SUCCEEDED / SETTLED` 收费额
 
-### 4.4 CTE: `consumer_refund_daily`
+### 4.4 CTE: `invocation_billing_daily`
+
+来源：
+
+- `synapse_invocations`
+- `synapse_runtime_state(state_key like 'invocation_billing::%')`
+
+字段：
+
+- `bucket_date`：`created_at::date`
+- `invocation_count`：当天进入计费链路的调用次数
+- `platform_fee_earned_usdc`：当天平台新增手续费收入
+- `provider_earned_usdc`：当天 Provider 新增收入
+
+### 4.5 CTE: `consumer_refund_daily`
 
 来源：`synapse_vault_withdrawals`
 
@@ -240,7 +277,7 @@ canonical 字段：
 - `bucket_date`：`updated_at::date`
 - `consumer_refund_usdc`：当天确认的消费者退款额
 
-### 4.5 CTE: `provider_withdrawal_daily`
+### 4.6 CTE: `provider_withdrawal_daily`
 
 来源：`synapse_vault_withdrawals`
 
@@ -249,13 +286,16 @@ canonical 字段：
 - `bucket_date`：`updated_at::date`
 - `provider_withdrawal_usdc`：当天确认的服务商提现额
 
-### 4.6 最终 SELECT 字段说明
+### 4.7 最终 SELECT 字段说明
 
 canonical 字段：
 
 - `bucket_date`：日桶日期
 - `deposit_usdc`：充值额
 - `charge_usdc`：收费额
+- `invocation_count`：成功进入计费链路的调用次数
+- `platform_fee_earned_usdc`：平台新增手续费收入
+- `provider_earned_usdc`：Provider 新增收入
 - `consumer_refund_usdc`：消费者退款额
 - `provider_withdrawal_usdc`：服务商提现额
 - `net_flow_usdc`：`deposit - consumer_refund - provider_withdrawal`
