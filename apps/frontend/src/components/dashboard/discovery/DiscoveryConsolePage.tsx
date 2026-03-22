@@ -8,51 +8,52 @@ import {
   Search,
   Server,
 } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { formatPricing } from "@/utils/pricing";
 
 const PAGE_SIZE = 8;
 
-function resolveServiceTitle(service: ServiceRegistryRecord): string {
-  return service.serviceName || service.name || service.serviceId || "Unnamed Service";
+function resolveServiceTitle(service: ServiceRegistryRecord, fallbackTitle: string): string {
+  return service.serviceName || service.name || service.serviceId || fallbackTitle;
 }
 
-function resolveStatusMeta(service: ServiceRegistryRecord) {
+function resolveStatusMeta(service: ServiceRegistryRecord, t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string) {
   const rawStatus = String(service.health?.overallStatus || service.status || "unknown").toLowerCase();
   if (rawStatus === "healthy" || rawStatus === "active") {
     return {
-      label: "Healthy",
+      label: t("discoveryPage.healthHealthy"),
       className: "text-emerald-400",
     };
   }
   if (rawStatus === "degraded") {
     return {
-      label: "Degraded",
+      label: t("discoveryPage.healthDegraded"),
       className: "text-amber-400",
     };
   }
   if (rawStatus === "inactive" || rawStatus === "unhealthy" || rawStatus === "archived") {
     return {
-      label: "Unavailable",
+      label: t("discoveryPage.healthUnavailable"),
       className: "text-red-400",
     };
   }
   return {
-    label: "Unknown",
+    label: t("discoveryPage.healthUnknown"),
     className: "text-zinc-400",
   };
 }
 
-function resolveRouteStatus(service: ServiceRegistryRecord) {
+function resolveRouteStatus(service: ServiceRegistryRecord, t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string) {
   if (service.runtimeAvailable === false) {
     return {
-      label: "Unavailable",
+      label: t("discoveryPage.routeUnavailable"),
       className: "text-red-400",
     };
   }
 
   return {
-    label: "Online",
+    label: t("discoveryPage.routeOnline"),
     className: "text-emerald-400",
   };
 }
@@ -62,6 +63,7 @@ function resolveVisibleTags(service: ServiceRegistryRecord): string[] {
 }
 
 export default function DiscoveryConsolePage() {
+  const { t } = useLanguage();
   const [queryInput, setQueryInput] = useState("");
   const [appliedQuery, setAppliedQuery] = useState("");
   const [sortBy, setSortBy] = useState<"best_match" | "price" | "health" | "invocation_count" | "revenue" | "service_name">("best_match");
@@ -92,7 +94,7 @@ export default function DiscoveryConsolePage() {
       } catch (err) {
         if (!cancelled) {
           setServices([]);
-          setError(err instanceof Error ? err.message : "Failed to load discovery services");
+          setError(err instanceof Error ? err.message : t("discoveryPage.loadFailed"));
         }
       } finally {
         if (!cancelled) {
@@ -106,7 +108,7 @@ export default function DiscoveryConsolePage() {
     return () => {
       cancelled = true;
     };
-  }, [appliedQuery, sortBy, sortOrder]);
+  }, [appliedQuery, sortBy, sortOrder, t]);
 
   const totalPages = Math.max(1, Math.ceil(services.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -123,9 +125,9 @@ export default function DiscoveryConsolePage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-white">
             <Compass className="h-6 w-6 text-blue-400" />
-            Discovery
+            {t("discoveryPage.title")}
           </h1>
-          <p className="mt-1 text-sm text-gray-500">Agent-facing API services and service definitions available for discovery.</p>
+          <p className="mt-1 text-sm text-gray-500">{t("discoveryPage.description")}</p>
         </div>
       </div>
 
@@ -142,35 +144,35 @@ export default function DiscoveryConsolePage() {
                     applySearch();
                   }
                 }}
-                placeholder="Search by service name or ID..."
+                placeholder={t("discoveryPage.searchPlaceholder")}
                 className="w-full min-w-0 rounded-lg border border-white/10 bg-white/5 py-2 pl-10 pr-4 text-sm text-white outline-none transition focus:border-blue-500/50 lg:w-96"
               />
             </div>
             <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white lg:min-w-[220px]">
-              <span className="text-gray-400">Sort by</span>
+              <span className="text-gray-400">{t("discoveryPage.sortByLabel")}</span>
               <Filter className="h-4 w-4 text-gray-500" />
               <select
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
                 className="w-full bg-transparent text-sm text-white outline-none"
               >
-                <option value="best_match">Best Match</option>
-                <option value="revenue">Call Amount</option>
-                <option value="invocation_count">Call Count</option>
-                <option value="price">Price</option>
-                <option value="health">Health</option>
-                <option value="service_name">Name</option>
+                <option value="best_match">{t("discoveryPage.sortBestMatch")}</option>
+                <option value="revenue">{t("discoveryPage.sortCallAmount")}</option>
+                <option value="invocation_count">{t("discoveryPage.sortCallCount")}</option>
+                <option value="price">{t("discoveryPage.sortPrice")}</option>
+                <option value="health">{t("discoveryPage.sortHealth")}</option>
+                <option value="service_name">{t("discoveryPage.sortName")}</option>
               </select>
             </label>
             <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white lg:min-w-[180px]">
-              <span className="text-gray-400">Order</span>
+              <span className="text-gray-400">{t("discoveryPage.orderLabel")}</span>
               <select
                 value={sortOrder}
                 onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}
                 className="w-full bg-transparent text-sm text-white outline-none"
               >
-                <option value="desc">Descending</option>
-                <option value="asc">Ascending</option>
+                <option value="desc">{t("discoveryPage.orderDescending")}</option>
+                <option value="asc">{t("discoveryPage.orderAscending")}</option>
               </select>
             </label>
           </div>
@@ -180,7 +182,7 @@ export default function DiscoveryConsolePage() {
             onClick={applySearch}
             className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-zinc-200 lg:ml-auto"
           >
-            Search
+            {t("discoveryPage.searchAction")}
           </button>
         </div>
       </div>
@@ -189,10 +191,10 @@ export default function DiscoveryConsolePage() {
         <div className="border-b border-white/5 px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="font-medium text-gray-300">API Services</div>
-              <div className="mt-1 text-xs text-gray-500">Showing agent-facing services and service definitions returned from the gateway discovery API.</div>
+              <div className="font-medium text-gray-300">{t("discoveryPage.tableTitle")}</div>
+              <div className="mt-1 text-xs text-gray-500">{t("discoveryPage.tableDescription")}</div>
             </div>
-            <div>Page {currentPage} / {totalPages}</div>
+            <div>{t("discoveryPage.pageIndicator", { current: currentPage, total: totalPages })}</div>
           </div>
         </div>
 
@@ -203,20 +205,20 @@ export default function DiscoveryConsolePage() {
         ) : null}
 
         {loading ? (
-          <div className="px-6 py-12 text-center text-sm text-gray-500">Loading services...</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-500">{t("discoveryPage.loading")}</div>
         ) : null}
 
         <table className="w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-white/5 bg-white/[0.02]">
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Service</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Service ID</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Tags</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Price</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Call Count</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Call Amount</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Route Status</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Health</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.serviceHeader")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.serviceIdHeader")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.tagsHeader")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.priceHeader")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.callCountHeader")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.callAmountHeader")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.routeStatusHeader")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">{t("discoveryPage.healthHeader")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -224,22 +226,22 @@ export default function DiscoveryConsolePage() {
               <tr>
                 <td colSpan={8} className="px-6 py-14 text-center">
                   <Server className="mx-auto h-8 w-8 text-gray-700" />
-                  <p className="mt-4 text-sm text-gray-400">No services found.</p>
+                  <p className="mt-4 text-sm text-gray-400">{t("discoveryPage.empty")}</p>
                 </td>
               </tr>
             ) : null}
 
             {loading ? null : pageRows.map((service) => {
-              const statusMeta = resolveStatusMeta(service);
-              const routeStatus = resolveRouteStatus(service);
+              const statusMeta = resolveStatusMeta(service, t);
+              const routeStatus = resolveRouteStatus(service, t);
               const visibleTags = resolveVisibleTags(service);
 
               return (
                 <tr key={service.serviceId} className="group transition-colors hover:bg-white/[0.01]">
                   <td className="px-6 py-4">
                     <div>
-                      <div className="text-sm font-medium text-white">{resolveServiceTitle(service)}</div>
-                      <div className="mt-1 line-clamp-1 text-xs text-gray-500">{service.summary || "No summary"}</div>
+                      <div className="text-sm font-medium text-white">{resolveServiceTitle(service, t("discoveryPage.unnamedService"))}</div>
+                      <div className="mt-1 line-clamp-1 text-xs text-gray-500">{service.summary || t("discoveryPage.noSummary")}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -295,10 +297,18 @@ export default function DiscoveryConsolePage() {
         <div className="flex flex-col gap-3 border-t border-white/5 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1 text-xs text-gray-500">
             <p>
-              Showing {services.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + PAGE_SIZE, services.length)} of {services.length}
+              {t("discoveryPage.showingRange", {
+                start: services.length === 0 ? 0 : startIndex + 1,
+                end: Math.min(startIndex + PAGE_SIZE, services.length),
+                total: services.length,
+              })}
             </p>
             <p>
-              Current page {currentPage} of {totalPages} • {PAGE_SIZE} items per page
+              {t("discoveryPage.currentPageStatus", {
+                current: currentPage,
+                total: totalPages,
+                pageSize: PAGE_SIZE,
+              })}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -308,7 +318,7 @@ export default function DiscoveryConsolePage() {
               disabled={currentPage <= 1}
               className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Prev
+              {t("discoveryPage.prev")}
             </button>
             <button
               type="button"
@@ -316,7 +326,7 @@ export default function DiscoveryConsolePage() {
               disabled={currentPage >= totalPages}
               className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Next
+              {t("discoveryPage.next")}
             </button>
           </div>
         </div>

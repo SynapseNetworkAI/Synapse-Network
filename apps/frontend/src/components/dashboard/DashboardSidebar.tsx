@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import type { MouseEvent } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { 
   LayoutGrid,
   Wallet,
@@ -26,6 +27,7 @@ export default function DashboardSidebar() {
   const router = useRouter();
   const { openConnectModal } = useConnectModal();
   const { isConnected, isSessionAuthenticated, authorize } = useAuth();
+  const { t } = useLanguage();
 
   const providerRoot = "/provider";
   const providerConsoleRoute = `${providerRoot}/console`;
@@ -119,40 +121,40 @@ export default function DashboardSidebar() {
       <div className="mb-6">
         <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-gray-500 uppercase flex items-center gap-2">
           <ShieldCheck className="w-3 h-3" />
-          Owner Control
+          {t("sidebar.ownerControl")}
         </h3>
         <nav className="flex flex-col gap-0.5">
           <Link href="/dashboard/overview" className={getLinkClasses(["/dashboard/overview"], true)}>
             <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
-            Overview
+            {t("sidebar.overview")}
           </Link>
           <Link href="/dashboard/agents" className={getLinkClasses(["/dashboard/agents", "/dashboard/agents/workspace"], false)}>
             <Bot className="w-4 h-4 mr-3 opacity-80" />
-            Agents
+            {t("sidebar.agents")}
             <span className={getBadgeClasses(pathname.startsWith("/dashboard/agents"))}>3</span>
           </Link>
           <Link href="/dashboard/agents/workspace" className={getSubLinkClasses("/dashboard/agents/workspace")}>
-            Agents Workspace
+            {t("sidebar.agentsWorkspace")}
           </Link>
           <Link href="/dashboard/discovery" className={getLinkClasses("/dashboard/discovery", false)}>
             <Compass className="w-4 h-4 mr-3 opacity-80" />
-            Discovery
+            {t("sidebar.discovery")}
           </Link>
           <Link href="/dashboard/invocations" className={getLinkClasses("/dashboard/invocations", false)}>
             <History className="w-4 h-4 mr-3 opacity-80" />
-            Invocations
+            {t("sidebar.invocations")}
           </Link>
           <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing"], false)}>
             <Wallet className="w-4 h-4 mr-3 opacity-80" />
-            Treasury
+            {t("sidebar.treasury")}
           </Link>
           <Link href="/dashboard/audit" className={getLinkClasses(["/dashboard/audit"], false)}>
             <AlertTriangle className="w-4 h-4 mr-3 opacity-80" />
-            Risk & Audit
+            {t("sidebar.riskAudit")}
           </Link>
           <Link href="/dashboard/developer" className={getLinkClasses(["/dashboard/developer"], false)}>
             <Terminal className="w-4 h-4 mr-3 opacity-80" />
-            Developer Resources
+            {t("sidebar.developerResources")}
           </Link>
         </nav>
       </div>
@@ -161,25 +163,25 @@ export default function DashboardSidebar() {
       <div className="mb-6">
         <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-gray-500 uppercase flex items-center gap-2">
           <Box className="w-3 h-3" />
-          Provider Role
+          {t("sidebar.providerRole")}
         </h3>
         <nav className="flex flex-col gap-0.5">
           <Link href={providerConsoleRoute} className={getLinkClasses([providerConsoleRoute, `${providerRoot}/sell`], false)}>
             <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
-            Provider Console
+            {t("sidebar.providerConsole")}
           </Link>
           <Link href={`${providerRoot}/secrets`} className={getLinkClasses([`${providerRoot}/secrets`], false)}>
             <Key className="w-4 h-4 mr-3 opacity-80" />
-            Provider Credentials
+            {t("sidebar.providerCredentials")}
           </Link>
           <Link href={`${providerRoot}/services`} className={getLinkClasses([`${providerRoot}/services`], false)}>
             <Box className="w-4 h-4 mr-3 opacity-80" />
-            My Services
+            {t("sidebar.myServices")}
             <span className={getBadgeClasses(pathname.startsWith(`${providerRoot}/services`))}>2</span>
           </Link>
           <Link href={`${providerRoot}/usage`} className={getLinkClasses([`${providerRoot}/usage`], false)}>
             <AreaChart className="w-4 h-4 mr-3 opacity-80" />
-            Usage Analytics
+            {t("sidebar.usageAnalytics")}
           </Link>
           <Link
             href={providerSettlementsRoute}
@@ -189,7 +191,7 @@ export default function DashboardSidebar() {
             }}
           >
             <Clock className="w-4 h-4 mr-3 opacity-80" />
-            Settlements
+            {t("sidebar.settlements")}
           </Link>
         </nav>
       </div>
