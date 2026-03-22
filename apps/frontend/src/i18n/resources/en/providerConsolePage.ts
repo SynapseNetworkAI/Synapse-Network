@@ -1,0 +1,35 @@
+import type { I18nMessages } from "@/i18n/schema";
+
+const providerConsolePage: I18nMessages["providerConsolePage"] = {
+  missingSigningSecret: "Create a Provider Signing Secret before publishing a service.",
+  verifySigningSecretFailed: "Unable to verify Provider Signing Secrets. Open Provider Credentials and retry.",
+  title: "Provider Console",
+  description: "Define API services, publish service definitions, wrap with SDK, and settle zero-gas billing to Synapse Vault.",
+  newService: "New Service",
+  refreshConsole: "Refresh console",
+  metricNetEarnings: "Net Earnings",
+  metricGrossEarnings: "Gross Earnings",
+  metricTotalApiCalls: "Total API Calls",
+  metricActiveServices: "Active Services",
+  claim: "Claim",
+  withdrawableConsistent: "Withdrawable Consistent",
+  beforeProtocolDeductions: "Before Protocol Deductions",
+  deduplicatedSettledCalls: "Deduplicated Settled Calls",
+  online: "Online",
+  offline: "Offline",
+  runtimeAvailability: "Runtime Availability",
+  settlementBreakdown: "Settlement Breakdown",
+  protocolFee: "Protocol Fee",
+  routingTax: "Routing Tax",
+  providerNetLifetime: "Provider Net (Lifetime)",
+  deploymentPipeline: "Deployment Pipeline (2 Steps)",
+  providerCredentialsTitle: "Provider Credentials",
+  providerCredentialsDescription: "Issue Provider Signing Secrets that Synapse Gateway uses to sign routed requests and that your runtime uses to verify inbound calls.",
+  connectTerminalToManageKeys: "Connect terminal to manage keys",
+  manageProviderCredentials: "Manage Provider Credentials",
+  publishApiServiceTitle: "Publish API Service",
+  publishApiServiceDescription: "Publish an API service definition to the marketplace and start metered runtime routing in one shot.",
+  createService: "Create Service",
+};
+
+export default providerConsolePage;
