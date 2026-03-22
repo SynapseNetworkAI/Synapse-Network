@@ -4,6 +4,7 @@ import React from "react";
 import { useAccount } from "wagmi";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import OverviewHero from "@/components/dashboard/overview/OverviewHero";
 import WorkflowSection from "@/components/dashboard/overview/WorkflowSection";
 import TreasurySection from "@/components/dashboard/overview/TreasurySection";
@@ -18,8 +19,17 @@ export default function OverviewPage() {
   const { isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
   const { stats, handleRefresh, isRefreshing, userAddress } = useOwnerData();
+  const { t } = useLanguage();
 
   const currentBalance = isConnected && isSessionAuthenticated ? stats?.ownerBalance || "0.00" : "0.00";
+  const quickNavItems = [
+    { name: t("overviewPage.quickNavAgents"), icon: <Bot className="w-4 h-4" />, href: "/dashboard/agents", color: "text-blue-400" },
+    { name: t("overviewPage.quickNavDiscovery"), icon: <Cpu className="w-4 h-4" />, href: "/dashboard/discovery", color: "text-purple-400" },
+    { name: t("overviewPage.quickNavInvocations"), icon: <History className="w-4 h-4" />, href: "/dashboard/invocations", color: "text-emerald-400" },
+    { name: t("overviewPage.quickNavTreasury"), icon: <Wallet className="w-4 h-4" />, href: "/dashboard/billing", color: "text-amber-400" },
+    { name: t("overviewPage.quickNavRiskAudit"), icon: <ShieldCheck className="w-4 h-4" />, href: "/dashboard/audit", color: "text-red-400" },
+    { name: t("overviewPage.quickNavDeveloperResources"), icon: <Terminal className="w-4 h-4" />, href: "/dashboard/developer", color: "text-gray-400" },
+  ];
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#f5f5f7] font-sans selection:bg-white/90 selection:text-black">
@@ -29,20 +39,20 @@ export default function OverviewPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400/80">System Operational</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400/80">{t("overviewPage.systemOperational")}</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">Control Plane Overview</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-white">{t("overviewPage.controlPlaneOverview")}</h1>
           </div>
           
           <div className="flex items-center gap-3">
             <div className="hidden lg:flex items-center gap-6 mr-4 px-4 py-2 rounded-full bg-white/[0.03] border border-white/5">
               <div className="flex flex-col">
-                <span className="text-[9px] uppercase tracking-wider text-gray-500 font-bold">Network Status</span>
+                <span className="text-[9px] uppercase tracking-wider text-gray-500 font-bold">{t("overviewPage.networkStatus")}</span>
                 <span className="text-xs font-mono text-gray-300">Mainnet-Beta v0.4.2</span>
               </div>
               <div className="h-8 w-px bg-white/5" />
               <div className="flex flex-col">
-                <span className="text-[9px] uppercase tracking-wider text-gray-500 font-bold">Latency</span>
+                <span className="text-[9px] uppercase tracking-wider text-gray-500 font-bold">{t("overviewPage.latency")}</span>
                 <span className="text-xs font-mono text-emerald-400">24ms</span>
               </div>
             </div>
@@ -53,7 +63,7 @@ export default function OverviewPage() {
               className="group flex items-center gap-2 px-4 py-2 text-xs font-bold bg-white text-black rounded-full hover:bg-gray-200 transition-all active:scale-95 disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
-              {isRefreshing ? "SYNCING..." : "REFRESH DATA"}
+              {isRefreshing ? t("overviewPage.syncing") : t("overviewPage.refreshData")}
             </button>
           </div>
         </div>
@@ -68,14 +78,7 @@ export default function OverviewPage() {
 
         {/* QUICK NAVIGATION */}
         <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {[
-            { name: "Agents", icon: <Bot className="w-4 h-4" />, href: "/dashboard/agents", color: "text-blue-400" },
-            { name: "Discovery", icon: <Cpu className="w-4 h-4" />, href: "/dashboard/discovery", color: "text-purple-400" },
-            { name: "Invocations", icon: <History className="w-4 h-4" />, href: "/dashboard/invocations", color: "text-emerald-400" },
-            { name: "Treasury", icon: <Wallet className="w-4 h-4" />, href: "/dashboard/billing", color: "text-amber-400" },
-            { name: "Risk & Audit", icon: <ShieldCheck className="w-4 h-4" />, href: "/dashboard/audit", color: "text-red-400" },
-            { name: "Developer Resources", icon: <Terminal className="w-4 h-4" />, href: "/dashboard/developer", color: "text-gray-400" },
-          ].map((item) => (
+          {quickNavItems.map((item) => (
             <Link 
               key={item.name} 
               href={item.href}
@@ -95,7 +98,7 @@ export default function OverviewPage() {
             <div className="h-px flex-1 bg-white/5" />
             <div className="flex items-center gap-2 px-4 py-1 rounded-full border border-white/5 bg-white/[0.02]">
               <Zap className="w-3 h-3 text-blue-400/60" />
-              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">Operational Workflows</span>
+              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">{t("overviewPage.operationalWorkflows")}</span>
             </div>
             <div className="h-px flex-1 bg-white/5" />
           </div>
@@ -108,7 +111,7 @@ export default function OverviewPage() {
             <div className="h-px flex-1 bg-white/5" />
             <div className="flex items-center gap-2 px-4 py-1 rounded-full border border-white/5 bg-white/[0.02]">
               <Layers className="w-3 h-3 text-purple-400/60" />
-              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">Platform Identity Model</span>
+              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">{t("overviewPage.platformIdentityModel")}</span>
             </div>
             <div className="h-px flex-1 bg-white/5" />
           </div>
@@ -118,36 +121,36 @@ export default function OverviewPage() {
               <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 w-fit mb-4">
                 <User className="w-5 h-5 text-blue-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-2">Owner</h4>
+              <h4 className="text-sm font-bold text-white mb-2">{t("overviewPage.ownerTitle")}</h4>
               <p className="text-xs text-gray-500 leading-relaxed">
-                The root account and tenant boundary. Controls funds, agents, and service registrations.
+                {t("overviewPage.ownerDescription")}
               </p>
             </div>
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
               <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 w-fit mb-4">
                 <Bot className="w-5 h-5 text-purple-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-2">Agent</h4>
+              <h4 className="text-sm font-bold text-white mb-2">{t("overviewPage.agentTitle")}</h4>
               <p className="text-xs text-gray-500 leading-relaxed">
-                The runtime execution principal. Discovers and invokes services autonomously within budget.
+                {t("overviewPage.agentDescription")}
               </p>
             </div>
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 w-fit mb-4">
                 <Server className="w-5 h-5 text-emerald-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-2">Provider</h4>
+              <h4 className="text-sm font-bold text-white mb-2">{t("overviewPage.providerTitle")}</h4>
               <p className="text-xs text-gray-500 leading-relaxed">
-                The supply-side business role. Registers services and earns revenue from agent invocations.
+                {t("overviewPage.providerDescription")}
               </p>
             </div>
             <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 w-fit mb-4">
                 <Cpu className="w-5 h-5 text-amber-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-2">Platform</h4>
+              <h4 className="text-sm font-bold text-white mb-2">{t("overviewPage.platformTitle")}</h4>
               <p className="text-xs text-gray-500 leading-relaxed">
-                The system operator and settlement engine. Handles routing, auditing, and real-time billing.
+                {t("overviewPage.platformDescription")}
               </p>
             </div>
           </div>
@@ -159,7 +162,7 @@ export default function OverviewPage() {
             <div className="h-px flex-1 bg-white/5" />
             <div className="flex items-center gap-2 px-4 py-1 rounded-full border border-white/5 bg-white/[0.02]">
               <ShieldCheck className="w-3 h-3 text-amber-400/60" />
-              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">Financial Infrastructure</span>
+              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">{t("overviewPage.financialInfrastructure")}</span>
             </div>
             <div className="h-px flex-1 bg-white/5" />
           </div>
@@ -178,8 +181,8 @@ export default function OverviewPage() {
         {/* CORE CAPABILITIES */}
         <section>
           <div className="mb-8">
-            <h2 className="text-lg font-bold text-white tracking-tight">Core Capabilities</h2>
-            <p className="text-xs text-gray-500 mt-1">The architectural pillars of the Synapse M2M economy.</p>
+            <h2 className="text-lg font-bold text-white tracking-tight">{t("overviewPage.coreCapabilities")}</h2>
+            <p className="text-xs text-gray-500 mt-1">{t("overviewPage.coreCapabilitiesDescription")}</p>
           </div>
           <CapabilityCards />
         </section>
@@ -192,10 +195,10 @@ export default function OverviewPage() {
                 <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5">
                   <Activity className="w-4 h-4 text-gray-400" />
                 </div>
-                <h2 className="text-lg font-bold text-white tracking-tight">Real-time Activity</h2>
+                <h2 className="text-lg font-bold text-white tracking-tight">{t("overviewPage.realTimeActivity")}</h2>
               </div>
               <Link href="/dashboard/audit" className="text-[10px] font-bold text-gray-500 hover:text-white transition-colors uppercase tracking-widest">
-                Open Audit Trail
+                {t("overviewPage.openAuditTrail")}
               </Link>
             </div>
             <EventStreamTable paidEvents={[]} />
@@ -203,8 +206,8 @@ export default function OverviewPage() {
 
           <div className="lg:col-span-4">
             <div className="mb-6">
-              <h2 className="text-lg font-bold text-white tracking-tight">Fee Transparency</h2>
-              <p className="text-xs text-gray-500 mt-1">Real-time protocol fee calculation.</p>
+              <h2 className="text-lg font-bold text-white tracking-tight">{t("overviewPage.feeTransparency")}</h2>
+              <p className="text-xs text-gray-500 mt-1">{t("overviewPage.feeTransparencyDescription")}</p>
             </div>
             <div className="p-6 rounded-2xl bg-[#0a0a0c] border border-white/5">
               <FeeTransparencyPanel
@@ -215,7 +218,7 @@ export default function OverviewPage() {
               />
               <div className="mt-8 pt-6 border-t border-white/5">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Protocol Efficiency</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{t("overviewPage.protocolEfficiency")}</span>
                   <span className="text-xs font-mono text-emerald-400">99.98%</span>
                 </div>
                 <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
@@ -234,13 +237,13 @@ export default function OverviewPage() {
               <span className="text-xl font-black tracking-tighter">SYNAPSE</span>
             </div>
             <p className="text-sm text-gray-600 italic leading-relaxed max-w-2xl">
-              {`We are not just writing code; we are forging the central bank for silicon-based life. Let's build the M2M Economy!`}
+              {t("overviewPage.footerTagline")}
             </p>
             <div className="flex items-center gap-8 text-[10px] font-bold tracking-[0.2em] text-gray-700 uppercase">
-              <button type="button" className="hover:text-gray-400 transition-colors">Privacy</button>
-              <button type="button" className="hover:text-gray-400 transition-colors">Terms</button>
-              <button type="button" className="hover:text-gray-400 transition-colors">Security</button>
-              <button type="button" className="hover:text-gray-400 transition-colors">Status</button>
+              <button type="button" className="hover:text-gray-400 transition-colors">{t("overviewPage.footerPrivacy")}</button>
+              <button type="button" className="hover:text-gray-400 transition-colors">{t("overviewPage.footerTerms")}</button>
+              <button type="button" className="hover:text-gray-400 transition-colors">{t("overviewPage.footerSecurity")}</button>
+              <button type="button" className="hover:text-gray-400 transition-colors">{t("overviewPage.footerStatus")}</button>
             </div>
           </div>
         </footer>
