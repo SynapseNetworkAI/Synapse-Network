@@ -1,6 +1,8 @@
 import type { I18nMessages } from "@/i18n/schema";
 import aboutPage from "@/i18n/resources/zh/aboutPage";
 import agentsPage from "@/i18n/resources/zh/agentsPage";
+import auditPage from "@/i18n/resources/zh/auditPage";
+import billingPage from "@/i18n/resources/zh/billingPage";
 import blogPage from "@/i18n/resources/zh/blogPage";
 import discoveryPage from "@/i18n/resources/zh/discoveryPage";
 import home from "@/i18n/resources/zh/home";
@@ -18,6 +20,8 @@ const zh: I18nMessages = {
   marketplacePage,
   discoveryPage,
   invocationsPage,
+  billingPage,
+  auditPage,
   providerSettlements,
   blogPage,
   aboutPage,
