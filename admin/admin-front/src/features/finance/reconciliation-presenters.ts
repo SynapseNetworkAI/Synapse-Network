@@ -1,4 +1,5 @@
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
+import { getReconciliationMetricGlossary, getReconciliationQueueGlossary } from "@/features/finance/reconciliation-glossary";
 import type {
   ProviderWithdrawReviewItem,
   ReconciliationApprovalItem,
@@ -79,29 +80,29 @@ export function buildWithdrawReviewDrilldownTokens(item: ProviderWithdrawReviewI
 export function buildReconciliationBreakdownCards(detail: ReconciliationDetail): ReconciliationBreakdownCard[] {
   return [
     {
-      label: "Platform income",
+      label: getReconciliationMetricGlossary("platformIncome").label,
       value: `${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`,
-      description: "平台手续费收入池余额，用来反映当前已沉淀的平台收入。",
+      description: getReconciliationMetricGlossary("platformIncome").hint,
     },
     {
-      label: "Chain vault",
+      label: getReconciliationMetricGlossary("chainVault").label,
       value: detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a",
-      description: "链上 router/vault 当前真实 USDC 余额。",
+      description: getReconciliationMetricGlossary("chainVault").hint,
     },
     {
-      label: "Ledger obligation",
+      label: getReconciliationMetricGlossary("ledgerObligation").label,
       value: detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a",
-      description: "平台账本对 owner 的当前义务总额。",
+      description: getReconciliationMetricGlossary("ledgerObligation").hint,
     },
     {
-      label: "Absolute delta",
+      label: getReconciliationMetricGlossary("absoluteDelta").label,
       value: `${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`,
-      description: "后端稳定读模型中的绝对偏差值，也是首页哨兵卡展示的数据。",
+      description: getReconciliationMetricGlossary("absoluteDelta").hint,
     },
     {
-      label: "Signed difference",
+      label: getReconciliationMetricGlossary("signedDifference").label,
       value: formatSignedUsdc(detail.signedDifferenceUsdc),
-      description: "按 chain vault - ledger obligation 计算，帮助判断是 vault surplus 还是 vault deficit。",
+      description: getReconciliationMetricGlossary("signedDifference").hint,
     },
   ];
 }
@@ -109,24 +110,24 @@ export function buildReconciliationBreakdownCards(detail: ReconciliationDetail):
 export function buildReconciliationQueueCards(detail: ReconciliationDetail): ReconciliationQueueCard[] {
   return [
     {
-      label: "Pending approvals",
+      label: getReconciliationQueueGlossary("pendingApprovals").label,
       value: String(detail.pendingApprovals),
-      description: "仍待 review 或执行的审批任务，可能拖慢异常处置。",
+      description: getReconciliationQueueGlossary("pendingApprovals").description,
     },
     {
-      label: "Deposit exceptions",
+      label: getReconciliationQueueGlossary("depositExceptions").label,
       value: String(detail.depositExceptions),
-      description: "充值异常积压通常是对账偏差的第一关联信号。",
+      description: getReconciliationQueueGlossary("depositExceptions").description,
     },
     {
-      label: "Pending withdrawals",
+      label: getReconciliationQueueGlossary("pendingWithdrawals").label,
       value: String(detail.pendingWithdrawalCount),
-      description: "出账排队会影响 vault 余额波动和 operator 判断顺序。",
+      description: getReconciliationQueueGlossary("pendingWithdrawals").description,
     },
     {
-      label: "Audit alerts",
+      label: getReconciliationQueueGlossary("auditAlerts").label,
       value: String(detail.auditAlerts),
-      description: "若同时存在敏感操作告警，需提高对账异常处置优先级。",
+      description: getReconciliationQueueGlossary("auditAlerts").description,
     },
   ];
 }
