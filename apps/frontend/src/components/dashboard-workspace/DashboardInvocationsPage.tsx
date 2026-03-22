@@ -13,6 +13,7 @@ import {
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { listPaginatedUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 
@@ -27,32 +28,35 @@ function formatCost(value?: number): string {
   return `${Number(value).toFixed(6)}`;
 }
 
-function formatRelativeTime(timestamp?: number): string {
+function formatRelativeTime(
+  timestamp: number | undefined,
+  t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string,
+): string {
   if (!timestamp || !Number.isFinite(timestamp)) {
     return "-";
   }
 
   const deltaSec = Math.max(0, Math.floor(Date.now() / 1000) - Math.floor(timestamp));
   if (deltaSec < 60) {
-    return `${deltaSec}s ago`;
+    return t("invocationsPage.relativeSecondsAgo", { count: deltaSec });
   }
   const deltaMin = Math.floor(deltaSec / 60);
   if (deltaMin < 60) {
-    return `${deltaMin}m ago`;
+    return t("invocationsPage.relativeMinutesAgo", { count: deltaMin });
   }
   const deltaHour = Math.floor(deltaMin / 60);
   if (deltaHour < 24) {
-    return `${deltaHour}h ago`;
+    return t("invocationsPage.relativeHoursAgo", { count: deltaHour });
   }
   const deltaDay = Math.floor(deltaHour / 24);
-  return `${deltaDay}d ago`;
+  return t("invocationsPage.relativeDaysAgo", { count: deltaDay });
 }
 
-function formatTimestamp(timestamp?: number): string {
+function formatTimestamp(timestamp: number | undefined, locale: string): string {
   if (!timestamp || !Number.isFinite(timestamp)) {
     return "-";
   }
-  return new Date(timestamp * 1000).toLocaleString();
+  return new Date(timestamp * 1000).toLocaleString(locale);
 }
 
 function formatLatency(latencyMs?: number): string {
@@ -79,13 +83,26 @@ function resolveCounterparty(row: UsageLogRecord, currentWallet?: string): strin
   return row.providerAddress || row.ownerAddress || "-";
 }
 
-function StatusBadge({ status }: Readonly<{ status: UsageLogRecord["status"] }>) {
+function StatusBadge({
+  status,
+  t,
+}: Readonly<{
+  status: UsageLogRecord["status"];
+  t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string;
+}>) {
   const normalized = String(status || "").toLowerCase();
+  const statusLabelMap: Record<string, string> = {
+    accepted: t("invocationsPage.statusAccepted"),
+    succeeded: t("invocationsPage.statusSucceeded"),
+    refunded: t("invocationsPage.statusRefunded"),
+    failed: t("invocationsPage.statusFailed"),
+  };
+
   if (normalized === "failed") {
     return (
       <div className="flex items-center gap-1.5 text-red-400">
         <XCircle className="w-3.5 h-3.5" />
-        <span className="text-[11px] font-bold uppercase tracking-wider">Failed</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider">{t("invocationsPage.statusFailed")}</span>
       </div>
     );
   }
@@ -93,12 +110,13 @@ function StatusBadge({ status }: Readonly<{ status: UsageLogRecord["status"] }>)
   return (
     <div className="flex items-center gap-1.5 text-emerald-400">
       <CheckCircle2 className="w-3.5 h-3.5" />
-      <span className="text-[11px] font-bold uppercase tracking-wider">{normalized || "succeeded"}</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider">{statusLabelMap[normalized] || t("invocationsPage.statusSucceeded")}</span>
     </div>
   );
 }
 
 export default function InvocationsPage() {
+  const { t, lang } = useLanguage();
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated } = useAuth();
@@ -142,7 +160,7 @@ export default function InvocationsPage() {
           setRows([]);
           setTotal(0);
           setHasMore(false);
-          toast.error(err instanceof Error ? err.message : "Failed to load invocation logs");
+          toast.error(err instanceof Error ? err.message : t("invocationsPage.loadFailed"));
         }
       } finally {
         if (!cancelled) {
@@ -155,7 +173,7 @@ export default function InvocationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [address, isSessionAuthenticated, page, query, status]);
+  }, [address, isSessionAuthenticated, page, query, status, t]);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -186,10 +204,10 @@ export default function InvocationsPage() {
   if (loading) {
     tableBody = (
       <tr>
-        <td colSpan={8} className="px-6 py-12 text-center text-[#86868b]">
+        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
           <div className="inline-flex items-center gap-2">
             <RefreshCw className="w-4 h-4 animate-spin text-[#22c55e]" />
-            Loading invocation logs...
+            {t("invocationsPage.loading")}
           </div>
         </td>
       </tr>
@@ -197,8 +215,8 @@ export default function InvocationsPage() {
   } else if (rows.length === 0) {
     tableBody = (
       <tr>
-        <td colSpan={8} className="px-6 py-12 text-center text-[#86868b]">
-          No invocation logs found for the current filters.
+        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
+          {t("invocationsPage.empty")}
         </td>
       </tr>
     );
@@ -215,11 +233,11 @@ export default function InvocationsPage() {
             <td className="px-6 py-4">
               <div className="space-y-1">
                 <div className="text-xs font-mono text-white">{row.request_id}</div>
-                <div className="text-[11px] text-[#86868b]">Origin: {row.origin_request_id || "-"}</div>
+                <div className="text-[11px] text-[#86868b]">{t("invocationsPage.originLabel")}: {row.origin_request_id || "-"}</div>
               </div>
             </td>
             <td className="px-6 py-4">
-              <span className="text-sm font-medium text-white">{row.service_id || "Unknown service"}</span>
+              <span className="text-sm font-medium text-white">{row.service_id || t("invocationsPage.unknownService")}</span>
             </td>
             <td className="px-6 py-4">
               <span className="text-xs font-mono text-[#c5c5c7]">{row.agent_id || "-"}</span>
@@ -237,14 +255,14 @@ export default function InvocationsPage() {
               <span className="text-xs font-mono text-[#c5c5c7]">{formatLatency(row.latency_ms)}</span>
             </td>
             <td className="px-6 py-4">
-              <StatusBadge status={row.status} />
+              <StatusBadge status={row.status} t={t} />
             </td>
             <td className="px-6 py-4">
               <div className="flex items-center gap-1.5 text-[#86868b]">
                 <Clock className="w-3 h-3" />
                 <div className="space-y-1">
-                  <div className="text-xs font-mono">{formatRelativeTime(row.created_at)}</div>
-                  <div className="text-[11px]">{formatTimestamp(row.created_at)}</div>
+                  <div className="text-xs font-mono">{formatRelativeTime(row.created_at, t)}</div>
+                  <div className="text-[11px]">{formatTimestamp(row.created_at, lang === "zh" ? "zh-CN" : "en-US")}</div>
                 </div>
               </div>
             </td>
@@ -260,10 +278,10 @@ export default function InvocationsPage() {
         <div>
           <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
             <History className="w-8 h-8 text-[#22c55e]" />
-            Invocations
+            {t("invocationsPage.title")}
           </h1>
           <p className="mt-2 text-sm text-[#86868b]">
-            Owner-scoped invocation ledger backed by the real gateway billing stream.
+            {t("invocationsPage.description")}
           </p>
         </div>
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
@@ -278,7 +296,7 @@ export default function InvocationsPage() {
                   applyFilters();
                 }
               }}
-              placeholder="Search invocation, request, service, or wallet"
+              placeholder={t("invocationsPage.searchPlaceholder")}
               className="w-full pl-10 pr-4 py-2.5 bg-[#0a0a0a] border border-[#222222] rounded-xl text-sm text-white placeholder:text-[#666666] focus:outline-none focus:border-[#22c55e]/50"
             />
           </div>
@@ -287,17 +305,17 @@ export default function InvocationsPage() {
             onChange={(event) => setStatusInput(event.target.value as InvocationStatusFilter)}
             className="px-3 py-2.5 bg-[#0a0a0a] border border-[#222222] rounded-xl text-sm text-white focus:outline-none focus:border-[#22c55e]/50"
           >
-            <option value="all">All status</option>
-            <option value="accepted">Accepted</option>
-            <option value="succeeded">Succeeded</option>
-            <option value="failed">Failed</option>
-            <option value="refunded">Refunded</option>
+            <option value="all">{t("invocationsPage.statusAll")}</option>
+            <option value="accepted">{t("invocationsPage.statusAccepted")}</option>
+            <option value="succeeded">{t("invocationsPage.statusSucceeded")}</option>
+            <option value="failed">{t("invocationsPage.statusFailed")}</option>
+            <option value="refunded">{t("invocationsPage.statusRefunded")}</option>
           </select>
           <button
             onClick={applyFilters}
             className="px-4 py-2.5 rounded-xl border border-[#22c55e]/40 bg-[#22c55e]/10 hover:bg-[#22c55e] hover:text-black text-sm font-semibold text-[#22c55e] transition-colors"
           >
-            Apply
+            {t("invocationsPage.apply")}
           </button>
           <button
             onClick={() => {
@@ -309,22 +327,22 @@ export default function InvocationsPage() {
             }}
             className="px-4 py-2.5 rounded-xl border border-[#222222] bg-[#0a0a0a] hover:bg-[#111111] text-sm font-semibold text-[#c5c5c7] transition-colors"
           >
-            Reset
+            {t("invocationsPage.reset")}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Rows In Page</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("invocationsPage.summaryRowsInPage")}</p>
           <p className="text-3xl font-mono font-bold text-white">{rows.length}</p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Succeeded Or Accepted</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("invocationsPage.summarySucceededOrAccepted")}</p>
           <p className="text-3xl font-mono font-bold text-[#22c55e]">{summary.succeeded}</p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Failed In Page</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("invocationsPage.summaryFailedInPage")}</p>
           <p className="text-3xl font-mono font-bold text-[#ff5f57]">{summary.failed}</p>
         </div>
       </div>
@@ -333,15 +351,15 @@ export default function InvocationsPage() {
         <table className="w-full text-left border-collapse whitespace-nowrap min-w-[980px]">
           <thead>
             <tr className="border-b border-[#222222] bg-[#050505]">
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Invocation ID</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Request</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Service</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Agent</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Counterparty</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Cost (USDC)</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Latency</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Status</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">Timestamp</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableInvocationId")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableRequest")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableService")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableAgent")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableCounterparty")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableCostUsdc")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableLatency")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableStatus")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[#86868b] uppercase tracking-wider">{t("invocationsPage.tableTimestamp")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515] text-sm">{tableBody}</tbody>
@@ -350,8 +368,11 @@ export default function InvocationsPage() {
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs text-[#86868b]">
         <div>
-          Showing {(safePage - 1) * PAGE_SIZE + (rows.length ? 1 : 0)}-
-          {Math.min(safePage * PAGE_SIZE, total)} of {total}
+          {t("invocationsPage.showingRange", {
+            start: (safePage - 1) * PAGE_SIZE + (rows.length ? 1 : 0),
+            end: Math.min(safePage * PAGE_SIZE, total),
+            total,
+          })}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -359,7 +380,7 @@ export default function InvocationsPage() {
             disabled={safePage <= 1 || loading}
             className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
           >
-            Prev
+            {t("invocationsPage.prev")}
           </button>
           <span className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#050505] text-white">
             {safePage} / {pageCount}
@@ -369,7 +390,7 @@ export default function InvocationsPage() {
             disabled={!hasMore || safePage >= pageCount || loading}
             className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
           >
-            Next
+            {t("invocationsPage.next")}
           </button>
         </div>
       </div>
@@ -377,7 +398,7 @@ export default function InvocationsPage() {
       <div className="rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b] flex items-center gap-2">
         <History className="w-4 h-4 text-[#22c55e]" />
         <span>
-          This page is paginated against the real owner-scoped gateway usage stream, ordered by newest billing events first.
+          {t("invocationsPage.footer")}
         </span>
       </div>
     </div>
