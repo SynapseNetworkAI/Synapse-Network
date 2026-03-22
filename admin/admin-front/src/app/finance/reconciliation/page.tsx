@@ -345,7 +345,7 @@ export default function ReconciliationDetailPage() {
         admin={admin}
         eyebrow="Finance Admin"
         title="账本对账详情"
-        description="把首页哨兵里的账本对账差额展开成可操作的值班视图。"
+        description="把资金偏差调查展开成可操作的值班视图。"
       >
         {error ? <MessageBanner kind="error" message={error} /> : <MessageBanner kind="error" message="对账详情暂时不可用。" />}
       </AdminShell>

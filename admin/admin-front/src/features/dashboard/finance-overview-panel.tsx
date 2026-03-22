@@ -12,7 +12,7 @@ const financeCards = [
   { label: "Owner 负债", key: "ownerLiabilityUsdc" },
   { label: "Provider 应付", key: "providerPayableUsdc" },
   { label: "平台手续费余额", key: "platformFeeBalanceUsdc" },
-  { label: "Vault 对账差额", key: "vaultLedgerDeltaUsdc" },
+  { label: "Vault 资金偏差", key: "vaultLedgerDeltaUsdc" },
 ] as const satisfies Array<{ label: string; key: keyof FinanceOverview }>;
 
 export function FinanceOverviewPanel({ overview }: Readonly<FinanceOverviewPanelProps>) {
@@ -22,7 +22,7 @@ export function FinanceOverviewPanel({ overview }: Readonly<FinanceOverviewPanel
         <div>
           <p className="panel__eyebrow">Stable Read Model 01</p>
           <h3 className="panel__title">Finance Overview</h3>
-          <p className="panel__text">按资金语义拆分的只读快照，统一展示当日流水、账本义务和对账差额。</p>
+          <p className="panel__text">按资金语义拆分的只读快照，统一展示当日流水、账本义务和 Vault 资金偏差信号。</p>
         </div>
         <span className="dashboard-section__stamp">{overview.projectedAt ?? "projection pending"}</span>
       </div>

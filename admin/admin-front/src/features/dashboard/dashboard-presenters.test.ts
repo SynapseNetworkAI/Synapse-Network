@@ -61,21 +61,15 @@ describe("dashboard presenters", () => {
       meta: "当前平台总账还有 25.00 USDC 未对齐，建议优先核对客户余额、待结算款和平台收入是否一致。",
     });
     expect(metrics[1]).toMatchObject({
-      label: "客户资金与链上差额",
-      value: "0.50 USDC",
-      actionLabel: "查看差额来源",
-    });
-    expect(metrics[1]?.href).toBe("/finance/reconciliation");
-    expect(metrics[2]).toMatchObject({
       label: "平台总账差额",
       value: "25.00 USDC",
       actionLabel: "查看总账拆分",
     });
-    expect(metrics[2]?.href).toBe("/finance");
-    expect(metrics[3]?.value).toBe("12");
+    expect(metrics[1]?.href).toBe("/finance");
+    expect(metrics[2]?.value).toBe("12");
   });
 
-  it("keeps the overview verdict calm when deposit-side delta exists but treasury is balanced", () => {
+  it("keeps the overview verdict focused on treasury alignment when the total ledger is balanced", () => {
     const metrics = buildSentinelMetrics(
       {
         metrics: {
@@ -117,11 +111,11 @@ describe("dashboard presenters", () => {
 
     expect(metrics[0]).toEqual({
       label: "当前值班结论",
-      value: "继续观察",
-      meta: "当前客户侧余额与链上资金相差 6.00 USDC，但平台整体总账已经对齐，通常是正常消费或收入沉淀造成，可先持续观察。",
+      value: "需要处理",
+      meta: "当前系统或业务链路存在异常，建议优先查看系统健康摘要与待处理事项。",
     });
-    expect(metrics[1]).toMatchObject({ label: "客户资金与链上差额", value: "6.00 USDC" });
-    expect(metrics[2]).toMatchObject({ label: "平台总账差额", value: "0.00 USDC" });
+    expect(metrics[1]).toMatchObject({ label: "平台总账差额", value: "0.00 USDC" });
+    expect(metrics[2]).toMatchObject({ label: "待处理审批", value: "0" });
   });
 
   it("builds capital cards directly from finance payload", () => {
@@ -259,9 +253,10 @@ describe("dashboard presenters", () => {
       key: "deposit-funnel",
       title: "充值情况摘要",
       value: "2 笔待确认",
-      tone: "green",
+      tone: "orange",
       href: "/finance/reconciliation",
     });
+    expect(funnelCards[0]?.detail).toBe("今日已入账 300.00 USDC，当前仍有 2 笔充值等待确认。");
     expect(funnelCards[1]).toMatchObject({
       title: "消费扣费摘要",
       value: "今日已扣费 120.00 USDC",
@@ -348,10 +343,9 @@ describe("dashboard presenters", () => {
       } as never,
     );
 
-    expect(cards).toHaveLength(4);
+    expect(cards).toHaveLength(3);
     expect(cards[0]).toMatchObject({ key: "approval-lane", href: "/approvals", tone: "orange" });
     expect(cards[1]).toMatchObject({ key: "deposit-lane", href: "/finance/reconciliation", tone: "red" });
     expect(cards[2]).toMatchObject({ key: "outflow-lane", href: "/withdrawal-reviews", tone: "orange" });
-    expect(cards[3]).toMatchObject({ key: "reconciliation-lane", href: "/finance/reconciliation", tone: "red" });
   });
 });

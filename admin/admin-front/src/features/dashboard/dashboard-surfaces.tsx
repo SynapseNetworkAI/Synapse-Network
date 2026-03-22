@@ -326,7 +326,7 @@ export function DashboardThreatStreamSurface({ rows }: Readonly<{ rows: Dashboar
 
 export function DashboardBusinessRuntimeSurface({ cards }: Readonly<{ cards: DashboardBusinessLaneCard[] }>) {
   return (
-    <SurfaceCard eyebrow="Business Runtime" title="四条业务链路" description="这里只回答审批、充值、出账、对账哪条链路在堵塞，不展示系统组件级明细，也不承载执行任务操作。">
+    <SurfaceCard eyebrow="Business Runtime" title="三条业务链路" description="这里只回答审批、充值、出账哪条链路在堵塞，不展示系统组件级明细，也不承载执行任务操作。">
       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="12px">
         {cards.map((card) => (
           <Link key={card.key} href={card.href}>

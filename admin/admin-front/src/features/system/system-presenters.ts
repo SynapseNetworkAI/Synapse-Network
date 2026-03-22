@@ -19,11 +19,9 @@ export function buildSystemMetrics(status: SystemStatus, operations: OperationsO
     gatewayAdmin: status.gatewayAdmin,
     gateway: status.gateway,
     approvalQueueDepth: status.approvalQueueDepth,
-    reconciliationDeltaUsdc: operations.reconciliationDeltaUsdc,
     recentGatewayFailures: operations.recentGatewayFailures,
     recentAuditAlerts: operations.recentAuditAlerts,
     failedDepositCount: operations.failedDepositCount,
-    reconciliationAlert: operations.reconciliationAlert,
   };
 }
 

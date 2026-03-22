@@ -145,39 +145,6 @@ function buildOutflowLaneCard(
   };
 }
 
-function buildReconciliationLaneCard(reconciliationDelta: number, auditAlerts: number): DashboardBusinessLaneCard {
-  const hasDrift = Math.abs(reconciliationDelta) > 0.01;
-  const hasAuditAlerts = auditAlerts > 0;
-
-  let summary = "当前对账正常";
-  let detail = "目前没有看到明显的资金差异或异常提醒。";
-
-  if (hasDrift) {
-    summary = `存在 ${formatUsdc(reconciliationDelta)} USDC 差额`;
-    detail = "当前账目存在差异，建议尽快进入对账明细查看原因。";
-  } else if (hasAuditAlerts) {
-    summary = `${auditAlerts} 条风险提醒`;
-    detail = "虽然账目当前基本正常，但已有风险提醒，需要持续关注。";
-  }
-
-  let tone: DashboardTone = "green";
-  if (hasDrift) {
-    tone = "red";
-  } else if (hasAuditAlerts) {
-    tone = "orange";
-  }
-
-  return {
-    key: "reconciliation-lane",
-    title: "对账情况",
-    summary,
-    detail,
-    tone,
-    href: "/finance/reconciliation",
-    actionLabel: "打开对账详情",
-  };
-}
-
 const HIGHLIGHT_META_BY_TREND: Record<string, string> = {
   stable: "读模型当前稳定，可以继续保持值班观察。",
   monitor: "读模型当前稳定，可以继续保持值班观察。",
@@ -186,11 +153,10 @@ const HIGHLIGHT_META_BY_TREND: Record<string, string> = {
 
 function resolveOverviewVerdictLabel(
   status: string | null | undefined,
-  reconciliationDelta: number,
   treasuryAbsoluteDelta: number | null,
 ): string {
-  if (treasuryAbsoluteDelta !== null && treasuryAbsoluteDelta <= 0.01 && reconciliationDelta > 0.01) {
-    return "继续观察";
+  if (treasuryAbsoluteDelta !== null && treasuryAbsoluteDelta > 0.01) {
+    return "需要处理";
   }
 
   const normalized = status?.toLowerCase() ?? "";
@@ -216,22 +182,13 @@ function resolveOverviewVerdictLabel(
 
 function resolveOverviewVerdictMeta(
   status: string | null | undefined,
-  reconciliationDelta: number,
   treasuryAbsoluteDelta: number | null,
   fallbackSummary: string | null | undefined,
 ): string {
   const normalized = status?.toLowerCase() ?? "";
 
-  if (treasuryAbsoluteDelta !== null && treasuryAbsoluteDelta <= 0.01 && reconciliationDelta > 0.01) {
-    return `当前客户侧余额与链上资金相差 ${formatUsdc(reconciliationDelta)} USDC，但平台整体总账已经对齐，通常是正常消费或收入沉淀造成，可先持续观察。`;
-  }
-
   if (treasuryAbsoluteDelta !== null && treasuryAbsoluteDelta > 0.01) {
     return `当前平台总账还有 ${formatUsdc(treasuryAbsoluteDelta)} USDC 未对齐，建议优先核对客户余额、待结算款和平台收入是否一致。`;
-  }
-
-  if (reconciliationDelta > 0.01) {
-    return `当前发现账面记录与链上余额存在 ${formatUsdc(reconciliationDelta)} USDC 差异，建议先查看对账明细确认来源。`;
   }
 
   if (normalized === "nominal" || normalized === "healthy") {
@@ -239,11 +196,11 @@ function resolveOverviewVerdictMeta(
   }
 
   if (normalized === "monitoring") {
-    return "当前存在需要持续观察的信号，建议关注审批队列与对账链路。";
+    return "当前存在需要持续观察的信号，建议关注系统健康摘要与待处理事项。";
   }
 
   if (normalized === "degraded") {
-    return getDiagnosticSummaryText(fallbackSummary) ?? "控制面已经发现异常信号，建议优先查看系统健康摘要与对账详情。";
+    return "当前系统或业务链路存在异常，建议优先查看系统健康摘要与待处理事项。";
   }
 
   return getDiagnosticSummaryText(fallbackSummary) ?? "统一诊断语义层当前尚未返回状态摘要。";
@@ -255,7 +212,6 @@ export function buildSentinelMetrics(
   diagnostics: DashboardDiagnostics | null,
   reconciliationDetail: ReconciliationDetail | null,
 ): SentinelMetric[] {
-  const reconciliationDelta = Math.abs(Number(operationsOverview?.reconciliationDeltaUsdc ?? overview?.metrics.vaultLedgerDelta ?? "0"));
   const treasuryAbsoluteDelta = reconciliationDetail
     ? Math.abs(
         Number(reconciliationDetail.chainVaultUsdc ?? 0)
@@ -270,15 +226,8 @@ export function buildSentinelMetrics(
   return [
     {
       label: "当前值班结论",
-      value: resolveOverviewVerdictLabel(diagnostics?.overallStatus, reconciliationDelta, treasuryAbsoluteDelta),
-      meta: resolveOverviewVerdictMeta(diagnostics?.overallStatus, reconciliationDelta, treasuryAbsoluteDelta, diagnostics?.summary),
-    },
-    {
-      label: "客户资金与链上差额",
-      value: `${formatUsdc(reconciliationDelta)} USDC`,
-      meta: "这里反映客户侧账面资金与链上余额当前相差多少，需要结合平台总账差额一起判断是否异常。",
-      href: "/finance/reconciliation",
-      actionLabel: "查看差额来源",
+      value: resolveOverviewVerdictLabel(diagnostics?.overallStatus, treasuryAbsoluteDelta),
+      meta: resolveOverviewVerdictMeta(diagnostics?.overallStatus, treasuryAbsoluteDelta, diagnostics?.summary),
     },
     {
       label: "平台总账差额",
@@ -434,15 +383,15 @@ export function buildDashboardFunnelCards(
   activityTrends: ActivityTrendSeries | null,
 ): DashboardFunnelCard[] {
   const latestTrend = activityTrends?.points.at(-1) ?? null;
-  const depositDelta = Number(operationsOverview?.reconciliationDeltaUsdc ?? financeOverview?.vaultLedgerDeltaUsdc ?? 0);
-  const depositTone = resolveDeltaTone(depositDelta);
+  const pendingDeposits = financeOverview?.pendingDepositCount ?? 0;
+  const depositTone = pendingDeposits > 0 ? "orange" : "green";
 
   return [
     {
       key: "deposit-funnel",
       title: "充值情况摘要",
-      value: `${financeOverview?.pendingDepositCount ?? 0} 笔待确认`,
-      detail: `今日已入账 ${formatUsdc(financeOverview?.todayDepositUsdc ?? 0)} USDC，当前差额 ${formatUsdc(depositDelta)} USDC。`,
+      value: `${pendingDeposits} 笔待确认`,
+      detail: `今日已入账 ${formatUsdc(financeOverview?.todayDepositUsdc ?? 0)} USDC，当前仍有 ${pendingDeposits} 笔充值等待确认。`,
       tone: depositTone,
       href: "/finance/reconciliation",
     },
@@ -475,14 +424,10 @@ export function buildBusinessRuntimeLaneCards(
   const pendingWithdrawals = financeOverview?.pendingWithdrawalCount ?? 0;
   const depositExceptions = overview?.metrics.depositExceptions ?? 0;
   const chainNotLedger = reconciliationDetail?.chainConfirmedNotLedgerConfirmedCount ?? 0;
-  const auditAlerts = overview?.metrics.auditAlerts ?? 0;
-  const reconciliationDelta = Number(reconciliationDetail?.reconciliationDeltaUsdc ?? financeOverview?.vaultLedgerDeltaUsdc ?? 0);
-
   return [
     buildApprovalLaneCard(pendingApprovals),
     buildDepositLaneCard(pendingDeposits, depositExceptions, chainNotLedger),
     buildOutflowLaneCard(pendingWithdrawals, financeOverview?.todayRefundUsdc, financeOverview?.todayWithdrawalUsdc),
-    buildReconciliationLaneCard(reconciliationDelta, auditAlerts),
   ];
 }
 

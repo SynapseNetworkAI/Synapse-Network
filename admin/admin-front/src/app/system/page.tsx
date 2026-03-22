@@ -7,6 +7,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DiagnosticsPanel } from "@/components/diagnostics-panel";
 import { MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard } from "@/components/console-ui";
+import { omitDiagnosticSignals } from "@/features/diagnostics/diagnostic-presenters";
 import { formatDateTime } from "@/lib/admin-console";
 import { useDiagnosticsSnapshot } from "@/lib/use-diagnostics-snapshot";
 import {
@@ -45,6 +46,7 @@ export default function SystemPage() {
     }
     return buildRuntimeCards(operations);
   }, [operations]);
+  const systemDiagnostics = useMemo(() => omitDiagnosticSignals(diagnostics, ["reconciliation"]), [diagnostics]);
 
   useEffect(() => {
     if (!token) {
@@ -107,14 +109,12 @@ export default function SystemPage() {
         <MetricCard label="Admin 控制面" value={metrics?.gatewayAdmin ?? "n/a"} meta="后台控制面可用性" />
         <MetricCard label="Gateway 运行面" value={metrics?.gateway ?? "n/a"} meta="交易网关运行可用性" />
         <MetricCard label="审批队列深度" value={metrics?.approvalQueueDepth ?? 0} meta="待 reviewer 处理项目" />
-        <MetricCard label="对账差额" value={metrics?.reconciliationDeltaUsdc ?? "0.00"} meta="资金链路偏差调查入口" />
       </Grid>
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
         <SurfaceCard eyebrow="Runtime Snapshot" title="组件运行快照" description="这里提供 gateway、indexer、backfill、reconciliation 的组件级调查线索，不再重复业务链路摘要。">
           <Stack direction="row" gap="10px" mb="16px" flexWrap="wrap">
             <SentinelStatusChip label={`gateway ${status.gateway}`} tone={getRuntimeTone(status.gateway)} />
             <SentinelStatusChip label={`admin ${status.gatewayAdmin}`} tone={getRuntimeTone(status.gatewayAdmin)} />
-            <SentinelStatusChip label={operations.reconciliationAlert ? "reconciliation alert" : "reconciliation nominal"} tone={operations.reconciliationAlert ? "red" : "green"} />
           </Stack>
           <Stack gap="12px">
             {runtimeCards.map((card) => (
@@ -136,7 +136,7 @@ export default function SystemPage() {
           eyebrow="共享诊断"
           title="系统诊断明细"
           descriptionFallback="这里提供完整 diagnostics 结论与组件级调查线索；dashboard 页面只保留摘要，不在那边重复展开。"
-          diagnostics={diagnostics}
+          diagnostics={systemDiagnostics}
           error={diagnosticError}
           statusHint="与 dashboard 概览和系统入口共享同一诊断源，但这里只承担调查，不承担摘要分诊。"
           actionColumnsMd={2}

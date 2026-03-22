@@ -381,7 +381,7 @@ X-CSRF-Token: <csrfToken>
 
 ### `GET /api/admin/v1/dashboard/reconciliation-detail`
 
-用途：把首页哨兵中的“账本对账差额”展开为可操作的对账详情视图，说明偏差来自哪两组数、偏差方向以及当前关联 backlog。
+用途：把 Finance 已识别的资金偏差信号展开为可操作的对账详情视图，说明偏差来自哪两组数、偏差方向以及当前关联 backlog。
 
 数据来源约束：
 
@@ -394,7 +394,7 @@ X-CSRF-Token: <csrfToken>
 
 消费约束：
 
-- 该接口的目的是回答“首页哨兵数字从哪来”，前端应把它渲染为 operator 可读的详情页，而不是原始 JSON dump
+- 该接口的目的是回答“资金偏差信号从哪来”，前端应把它渲染为 operator 可读的详情页，而不是原始 JSON dump
 - 若 runtime state 尚未落库，可保留 `chainVaultUsdc`、`ledgerObligationUsdc`、`signedDifferenceUsdc` 为 `null`，但仍必须返回稳定 projection 摘要字段
 - 关联列表是为了把 operator 直接带到“下一步该处理什么”，不是把所有底层表字段平铺到页面上
 
