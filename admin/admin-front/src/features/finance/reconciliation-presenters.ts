@@ -79,6 +79,11 @@ export function buildWithdrawReviewDrilldownTokens(item: ProviderWithdrawReviewI
 export function buildReconciliationBreakdownCards(detail: ReconciliationDetail): ReconciliationBreakdownCard[] {
   return [
     {
+      label: "Platform income",
+      value: `${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`,
+      description: "平台手续费收入池余额，用来反映当前已沉淀的平台收入。",
+    },
+    {
       label: "Chain vault",
       value: detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a",
       description: "链上 router/vault 当前真实 USDC 余额。",
