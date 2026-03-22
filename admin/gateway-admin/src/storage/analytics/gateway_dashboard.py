@@ -6,6 +6,10 @@ from functools import lru_cache
 from typing import Any, Protocol
 
 
+_ZERO_BIGINT_SQL = "0::bigint"
+_ZERO_NUMERIC_SQL = "0::numeric"
+
+
 def _connect(dsn: str) -> Any:
     import psycopg
     from psycopg.rows import dict_row
@@ -41,6 +45,20 @@ def _resolve_projection_column(
         return legacy_alias
     candidates = tuple(candidate for candidate in (canonical_name, legacy_alias) if candidate)
     raise KeyError(f"projection column not found, candidates={candidates}")
+
+
+def _resolve_projection_expr(
+    columns: frozenset[str],
+    canonical_name: str,
+    legacy_alias: str | None = None,
+    *,
+    default_sql: str,
+) -> str:
+    if canonical_name in columns:
+        return canonical_name
+    if legacy_alias and legacy_alias in columns:
+        return legacy_alias
+    return default_sql
 
 
 @dataclass(slots=True)
@@ -360,6 +378,21 @@ class PostgresGatewayDashboardProjectionRepository:
         refund_column = _resolve_projection_column(columns, "today_consumer_refund_usdc", "today_refund_usdc")
         withdrawal_column = _resolve_projection_column(columns, "today_provider_withdrawal_usdc", "today_withdrawal_usdc")
         liability_column = _resolve_projection_column(columns, "consumer_liability_usdc", "owner_liability_usdc")
+        today_invocation_count_column = _resolve_projection_expr(
+            columns,
+            "today_invocation_count",
+            default_sql=_ZERO_BIGINT_SQL,
+        )
+        today_platform_fee_earned_column = _resolve_projection_expr(
+            columns,
+            "today_platform_fee_earned_usdc",
+            default_sql=_ZERO_NUMERIC_SQL,
+        )
+        today_provider_earned_column = _resolve_projection_expr(
+            columns,
+            "today_provider_earned_usdc",
+            default_sql=_ZERO_NUMERIC_SQL,
+        )
         pending_withdrawal_column = _resolve_projection_column(
             columns,
             "pending_provider_withdrawal_count",
@@ -373,9 +406,9 @@ class PostgresGatewayDashboardProjectionRepository:
                     today_deposit_usdc,
                     {refund_column} AS today_consumer_refund_usdc,
                     {withdrawal_column} AS today_provider_withdrawal_usdc,
-                    today_invocation_count,
-                    today_platform_fee_earned_usdc,
-                    today_provider_earned_usdc,
+                    {today_invocation_count_column} AS today_invocation_count,
+                    {today_platform_fee_earned_column} AS today_platform_fee_earned_usdc,
+                    {today_provider_earned_column} AS today_provider_earned_usdc,
                     {liability_column} AS consumer_liability_usdc,
                     refundable_consumer_balance_usdc,
                     provider_payable_usdc,
@@ -444,6 +477,21 @@ class PostgresGatewayDashboardProjectionRepository:
         columns = self._get_projection_columns("synapse_admin_dashboard_activity_trend_projection")
         refund_column = _resolve_projection_column(columns, "consumer_refund_usdc", "refund_usdc")
         withdrawal_column = _resolve_projection_column(columns, "provider_withdrawal_usdc", "withdrawal_usdc")
+        invocation_count_column = _resolve_projection_expr(
+            columns,
+            "invocation_count",
+            default_sql=_ZERO_BIGINT_SQL,
+        )
+        platform_fee_earned_column = _resolve_projection_expr(
+            columns,
+            "platform_fee_earned_usdc",
+            default_sql=_ZERO_NUMERIC_SQL,
+        )
+        provider_earned_column = _resolve_projection_expr(
+            columns,
+            "provider_earned_usdc",
+            default_sql=_ZERO_NUMERIC_SQL,
+        )
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 f"""
@@ -451,9 +499,9 @@ class PostgresGatewayDashboardProjectionRepository:
                     bucket_date,
                     deposit_usdc,
                     charge_usdc,
-                    invocation_count,
-                    platform_fee_earned_usdc,
-                    provider_earned_usdc,
+                    {invocation_count_column} AS invocation_count,
+                    {platform_fee_earned_column} AS platform_fee_earned_usdc,
+                    {provider_earned_column} AS provider_earned_usdc,
                     {refund_column} AS consumer_refund_usdc,
                     {withdrawal_column} AS provider_withdrawal_usdc,
                     net_flow_usdc

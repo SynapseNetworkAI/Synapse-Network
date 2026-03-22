@@ -126,7 +126,7 @@ sh scripts/ops/status.sh
 说明：
 
 - `start-local.sh` / `start-prod.sh` 现在只负责拉起 `gateway-admin` 进程，不再在启动前自动补跑 admin bootstrap SQL。
-- 如果旧的 PostgreSQL volume 缺表，或你手工建库时漏跑了 admin bootstrap，请手动执行 `./.venv/bin/python scripts/apply_migrations.py`。
+- 如果旧的 PostgreSQL volume 缺表，或你手工建库时漏跑了 admin bootstrap，请手动执行 `./.venv/bin/python scripts/apply_migrations.py`。该脚本现在会按顺序补跑 `docker-compose/postgres/init/*.sql` 中的全部 SQL 文件。
 - 如果 `ADMIN_DATABASE_DSN` 只有读写现有表权限、没有 schema `CREATE / ALTER` 权限，请额外配置 `ADMIN_DATABASE_MIGRATION_DSN` 给手工 migration 使用。
 - 如果你已经遇到 `psycopg.errors.UndefinedTable: relation "admin_execution_jobs" does not exist`，可以单独执行一次 `./.venv/bin/python scripts/apply_migrations.py` 补齐 schema，再重启服务。
 
@@ -171,7 +171,7 @@ EXECUTION_WORKER_BATCH_SIZE=10
 
 - `docker-compose` 现在会在首次初始化时自动创建 `synapse_gateway` 和 `synapse_gateway_admin` 两个数据库。
 - 如果本地 `postgres_data` volume 已经存在，需要先删除 volume 再重新初始化，新的建库脚本才会生效。
-- Admin schema 与 seed 会在容器首次初始化时自动导入；对于旧的 PostgreSQL volume 或漏跑初始化脚本的环境，需要手动执行 `./.venv/bin/python scripts/apply_migrations.py` 补齐 admin bootstrap 段。
+- Admin schema 与 seed 会在容器首次初始化时自动导入；对于旧的 PostgreSQL volume 或漏跑初始化脚本的环境，需要手动执行 `./.venv/bin/python scripts/apply_migrations.py` 补齐 admin bootstrap 段，包含后续增量视图升级文件。
 - Dashboard 的 gateway 指标通过 `synapse_gateway_ro` 查询 gateway 侧 3 个稳定只读投影视图：`synapse_admin_dashboard_finance_projection`、`synapse_admin_dashboard_activity_trend_projection`、`synapse_admin_dashboard_operations_projection`。
 - `003_gateway_admin_projection_views.sql` 现已把 target-state 的 `consumer_* / provider_*` canonical 列，与旧控制面读取所需的 `today_refund_usdc / today_withdrawal_usdc / owner_liability_usdc / refund_usdc / withdrawal_usdc / pending_withdrawal_count` 兼容别名一起暴露，避免旧 admin 版本因为视图字段升级而直接 500。
 - 视图字段与每个 CTE 的详细设计说明见 `../../docs/admin/Gateway_Admin_Projection_Views_SQL_Design.md`。
