@@ -902,7 +902,15 @@ def test_operations_overview_exposes_gateway_ops_projection() -> None:
     assert response.status_code == 200
     body = response.json()["data"]
     assert body["gatewayStatus"] == "degraded"
+    assert body["indexerRunning"] is True
+    assert body["indexerStatus"] == "healthy"
+    assert body["indexerPollIntervalSec"] == 30
+    assert body["backfillEnabled"] is True
+    assert body["backfillStatus"] == "healthy"
     assert body["backfillLastScannedBlock"] == 19450321
+    assert body["backfillLastRecovered"] == 3
+    assert body["reconciliationEnabled"] is True
+    assert body["reconciliationStatus"] == "alert"
     assert body["reconciliationAlert"] is True
     assert body["reconciliationLastError"] == "vault_delta_detected"
 

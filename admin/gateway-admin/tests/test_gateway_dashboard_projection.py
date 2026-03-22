@@ -199,6 +199,65 @@ def test_list_activity_trends_defaults_new_metrics_for_legacy_projection(monkeyp
     assert "0::bigint AS invocation_count" in cursor.executed_sql[0]
 
 
+def test_get_operations_snapshot_defaults_new_task_fields_for_legacy_projection(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
+    cursor = _FakeCursor(
+        {
+            "gateway_status": "healthy",
+            "indexer_last_processed_at": None,
+            "backfill_last_scan_at": None,
+            "backfill_last_scanned_block": None,
+            "recent_gateway_failures": 0,
+            "failed_deposit_count": 0,
+            "recent_audit_alerts": 0,
+            "last_reconciliation_at": None,
+            "reconciliation_alert": False,
+            "reconciliation_delta_usdc": "0",
+            "reconciliation_last_error": None,
+            "projected_at": None,
+            "indexer_running": False,
+            "indexer_last_heartbeat_at": None,
+            "indexer_last_error": None,
+            "indexer_poll_interval_sec": 0,
+            "backfill_enabled": False,
+            "backfill_last_recovered": 0,
+            "backfill_last_error": None,
+            "reconciliation_enabled": False,
+        }
+    )
+
+    monkeypatch.setattr(
+        repository,
+        "_get_projection_columns",
+        lambda table_name: frozenset(
+            {
+                "gateway_status",
+                "indexer_last_processed_at",
+                "backfill_last_scan_at",
+                "backfill_last_scanned_block",
+                "recent_gateway_failures",
+                "failed_deposit_count",
+                "recent_audit_alerts",
+                "last_reconciliation_at",
+                "reconciliation_alert",
+                "reconciliation_delta_usdc",
+                "reconciliation_last_error",
+                "projected_at",
+            }
+        ),
+    )
+    monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
+
+    snapshot = repository.get_operations_snapshot()
+
+    assert snapshot.indexer_running is False
+    assert snapshot.indexer_poll_interval_sec == 0
+    assert snapshot.backfill_enabled is False
+    assert snapshot.backfill_last_recovered == 0
+    assert snapshot.reconciliation_enabled is False
+    assert "FALSE::boolean AS indexer_running" in cursor.executed_sql[0]
+
+
 def test_seed_demo_exposes_funds_observability_metrics() -> None:
     repository = gateway_dashboard.InMemoryGatewayDashboardProjectionRepository.seed_demo()
 

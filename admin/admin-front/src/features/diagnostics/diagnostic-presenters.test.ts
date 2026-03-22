@@ -69,7 +69,7 @@ describe("diagnostic-presenters", () => {
         actionId: "system-center",
         label: "Open system center",
         href: "/system",
-        detail: "inspect gateway health, execution failures, and projection freshness for indexer, backfill, and reconciliation",
+        detail: "inspect gateway health, execution failures, and persisted task status for indexer, backfill, and reconciliation",
         status: "monitoring",
       },
     ])).toEqual([
@@ -77,7 +77,7 @@ describe("diagnostic-presenters", () => {
         key: "system-center",
         label: "打开系统状态页",
         href: "/system",
-        detail: "建议进入系统状态页查看网关健康度、执行失败，以及 indexer / backfill / 对账投影的新鲜度。",
+        detail: "建议进入系统状态页查看网关健康度、执行失败，以及 indexer / backfill / 对账任务的持久化运行状态。",
         status: "monitoring",
         tone: "orange",
       },
