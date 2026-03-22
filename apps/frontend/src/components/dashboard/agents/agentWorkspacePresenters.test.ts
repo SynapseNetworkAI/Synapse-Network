@@ -49,6 +49,22 @@ const credentials: AgentCredentialRecord[] = [
   },
 ];
 
+const t = (key: string, vars?: Record<string, string | number>) => {
+  if (key === "agentsPage.workspaceHighlightAttentionDetail") {
+    return `Usage is at ${vars?.percent}% of the current call cap. Review limits before automation stalls.`;
+  }
+  if (key === "agentsPage.workspaceHighlightHealthyDetail") {
+    return `Healthy runtime profile with ${vars?.remaining} calls left in the current quota window.`;
+  }
+  if (key === "agentsPage.workspaceHighlightRevokedDetail") {
+    return "This agent has been revoked and no longer authenticates runtime calls.";
+  }
+  if (key === "agentsPage.unnamedAgent") {
+    return "Unnamed Agent";
+  }
+  return key;
+};
+
 describe("agentWorkspacePresenters", () => {
   it("builds workspace summary from credentials", () => {
     expect(buildAgentWorkspaceSummary(credentials)).toEqual({
@@ -67,14 +83,14 @@ describe("agentWorkspacePresenters", () => {
   });
 
   it("calculates usage and attention correctly", () => {
-    expect(getAgentUsagePercent(credentials[0]!)).toBe(20);
-    expect(isAgentNeedingAttention(credentials[0]!)).toBe(false);
-    expect(isAgentNeedingAttention(credentials[1]!)).toBe(true);
-    expect(isAgentNeedingAttention(credentials[2]!)).toBe(false);
+    expect(getAgentUsagePercent(credentials[0])).toBe(20);
+    expect(isAgentNeedingAttention(credentials[0])).toBe(false);
+    expect(isAgentNeedingAttention(credentials[1])).toBe(true);
+    expect(isAgentNeedingAttention(credentials[2])).toBe(false);
   });
 
   it("ranks highlights with attention agents first", () => {
-    const highlights = buildAgentWorkspaceHighlights(credentials);
+    const highlights = buildAgentWorkspaceHighlights(credentials, t);
 
     expect(highlights[0]).toMatchObject({
       name: "Bravo",
