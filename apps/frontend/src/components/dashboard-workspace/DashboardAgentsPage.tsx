@@ -294,7 +294,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
     () => filterAgentWorkspaceCredentials(credentials, deferredSearchQuery, statusFilter),
     [credentials, deferredSearchQuery, statusFilter],
   );
-  const workspaceHighlights = useMemo(() => buildAgentWorkspaceHighlights(credentials), [credentials]);
+  const workspaceHighlights = useMemo(() => buildAgentWorkspaceHighlights(credentials, t), [credentials, t]);
   const latestCredential = credentials[0] ?? null;
   let registryContent: React.ReactNode;
 
@@ -313,8 +313,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
           <Bot className="h-10 w-10 text-gray-600" />
         </span>
         <header>
-          <h3 className="text-lg font-bold text-white">No matching agents</h3>
-          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">Adjust the search or status filter, or issue a new agent credential to expand this workspace.</p>
+          <h3 className="text-lg font-bold text-white">{t("agentsPage.workspaceNoMatchingAgents")}</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{t("agentsPage.workspaceNoMatchingAgentsDescription")}</p>
         </header>
         <button
           type="button"
@@ -323,7 +323,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
           }}
           className="rounded-full bg-white px-6 py-2 text-xs font-bold text-black transition-colors hover:bg-gray-200"
         >
-          Create Agent
+          {t("agentsPage.workspaceCreateAgentCta")}
         </button>
       </section>
     );
@@ -334,13 +334,13 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
           <table className="w-full min-w-[920px] text-left text-sm text-gray-300">
             <thead className="border-b border-white/8 bg-white/[0.03] text-[11px] font-bold uppercase tracking-[0.2em] text-gray-500">
               <tr>
-                <th className="px-4 py-3">Agent</th>
-                <th className="px-4 py-3">Budget</th>
-                <th className="px-4 py-3">Usage</th>
-                <th className="px-4 py-3">Rate Limit</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Updated</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3">{t("agentsPage.workspaceTableAgent")}</th>
+                <th className="px-4 py-3">{t("agentsPage.workspaceTableBudget")}</th>
+                <th className="px-4 py-3">{t("agentsPage.workspaceTableUsage")}</th>
+                <th className="px-4 py-3">{t("agentsPage.workspaceTableRateLimit")}</th>
+                <th className="px-4 py-3">{t("agentsPage.workspaceTableStatus")}</th>
+                <th className="px-4 py-3">{t("agentsPage.workspaceTableUpdated")}</th>
+                <th className="px-4 py-3 text-right">{t("agentsPage.workspaceTableActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -358,33 +358,33 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                           <Bot className={`h-4 w-4 ${agent.status === "active" ? "text-blue-400" : "text-gray-500"}`} />
                         </span>
                         <div>
-                          <p className="font-semibold text-white">{agent.name || "Unnamed Agent"}</p>
+                          <p className="font-semibold text-white">{agent.name || t("agentsPage.unnamedAgent")}</p>
                           <p className="mt-1 font-mono text-xs text-gray-500">{agent.tokenPrefix || agent.id.slice(0, 12)}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-4">
                       <p className="font-semibold text-emerald-400">{formatAgentBudget(agent.creditLimit)}</p>
-                      <p className="mt-1 text-xs text-gray-500">Owner-bound budget set at issuance.</p>
+                      <p className="mt-1 text-xs text-gray-500">{t("agentsPage.workspaceBudgetIssuedHint")}</p>
                     </td>
                     <td className="px-4 py-4">
                       <p className="font-semibold text-white">{agent.callsUsed} / {agent.maxCalls || "∞"}</p>
                       <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.04]">
                         <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" style={{ width: `${usagePercent}%` }} />
                       </div>
-                      <p className="mt-1 text-xs text-gray-500">{usagePercent}% of the current cap</p>
+                      <p className="mt-1 text-xs text-gray-500">{t("agentsPage.workspaceUsageCapHint", { percent: usagePercent })}</p>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="font-mono text-sm text-white">{agent.rpm > 0 ? `${agent.rpm}/min` : "Unlimited"}</p>
-                      <p className="mt-1 text-xs text-gray-500">Call cap and expiry can be adjusted from Edit.</p>
+                      <p className="font-mono text-sm text-white">{agent.rpm > 0 ? `${agent.rpm}/min` : t("agentsPage.workspaceUnlimited")}</p>
+                      <p className="mt-1 text-xs text-gray-500">{t("agentsPage.workspaceRateLimitHint")}</p>
                     </td>
                     <td className="px-4 py-4">
                       <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${statusClasses}`}>
-                        {agent.status}
+                        {agent.status === "active" ? t("agentsPage.workspaceFilterActive") : t("agentsPage.workspaceToneRevoked")}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-xs text-gray-400">
-                      {agent.updatedAt || agent.createdAt ? new Date((agent.updatedAt ?? agent.createdAt) as string | number).toLocaleString() : "Pending"}
+                      {agent.updatedAt || agent.createdAt ? new Date((agent.updatedAt ?? agent.createdAt) as string | number).toLocaleString() : t("agentsPage.workspacePending")}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-end gap-2">
@@ -395,13 +395,13 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                           className="inline-flex items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-300 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <PencilLine className="h-3.5 w-3.5" />
-                          Edit
+                          {t("agentsPage.workspaceEdit")}
                         </button>
                         <button
                           type="button"
                           onClick={() => void handleRevoke(agent.id)}
                           className="rounded-xl bg-red-500/5 p-2 transition-colors hover:bg-red-500/10"
-                          title="Revoke agent"
+                          title={t("agentsPage.workspaceRevokeTitle")}
                         >
                           <Trash2 className="h-4 w-4 text-red-400" />
                         </button>
@@ -607,24 +607,24 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
     <>
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">Total Agents</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.workspaceSummaryTotalAgents")}</p>
           <p className="mt-3 text-3xl font-black tracking-tight text-white">{workspaceSummary.totalAgents}</p>
-          <p className="mt-2 text-sm text-gray-500">{workspaceSummary.activeAgents} runtime profiles are currently active.</p>
+          <p className="mt-2 text-sm text-gray-500">{t("agentsPage.workspaceSummaryActiveAgents", { count: workspaceSummary.activeAgents })}</p>
         </article>
         <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(36,99,235,0.14),rgba(15,23,42,0.22))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-300/70">Budget Envelope</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-300/70">{t("agentsPage.workspaceSummaryBudgetEnvelope")}</p>
           <p className="mt-3 text-3xl font-black tracking-tight text-white">{formatAgentBudget(workspaceSummary.totalBudget)}</p>
-          <p className="mt-2 text-sm text-blue-100/70">Issued runtime budget across the current owner workspace.</p>
+          <p className="mt-2 text-sm text-blue-100/70">{t("agentsPage.workspaceSummaryBudgetEnvelopeDescription")}</p>
         </article>
         <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(245,158,11,0.12),rgba(15,23,42,0.22))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-amber-300/80">Needs Attention</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-amber-300/80">{t("agentsPage.workspaceSummaryNeedsAttention")}</p>
           <p className="mt-3 text-3xl font-black tracking-tight text-white">{workspaceSummary.attentionAgents}</p>
-          <p className="mt-2 text-sm text-amber-100/70">Agents nearing quota or expiry should be adjusted before jobs stall.</p>
+          <p className="mt-2 text-sm text-amber-100/70">{t("agentsPage.workspaceSummaryNeedsAttentionDescription")}</p>
         </article>
         <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(148,163,184,0.10),rgba(15,23,42,0.22))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-300/80">Remaining Calls</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-300/80">{t("agentsPage.workspaceSummaryRemainingCalls")}</p>
           <p className="mt-3 text-3xl font-black tracking-tight text-white">{workspaceSummary.remainingCalls}</p>
-          <p className="mt-2 text-sm text-slate-300/70">Available call headroom left inside the currently issued credentials.</p>
+          <p className="mt-2 text-sm text-slate-300/70">{t("agentsPage.workspaceSummaryRemainingCallsDescription")}</p>
         </article>
       </section>
 
@@ -632,9 +632,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         <section>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-white">
             <Bot className="h-6 w-6 text-blue-400" />
-            Agent Workspace
+            {t("agentsPage.workspaceTitle")}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-500">This page is the standalone workspace for agent runtime identities. Keep cards for quick posture, but use the registry list as the primary operating surface for edits, quota reviews, and revocation.</p>
+          <p className="mt-1 max-w-3xl text-sm text-gray-500">{t("agentsPage.workspaceDescription")}</p>
         </section>
 
         <menu className="flex items-center gap-3">
@@ -656,7 +656,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
             className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-400"
           >
             <Plus className="h-4 w-4" />
-            Create New Agent
+            {t("agentsPage.workspaceCreateNewAgent")}
           </button>
         </menu>
       </header>
@@ -664,21 +664,21 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <article className="rounded-3xl border border-white/8 bg-white/[0.02] p-6">
           <header className="mb-5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">Workspace Highlights</p>
-            <h2 className="mt-2 text-xl font-bold text-white">Cards stay for quick posture</h2>
-            <p className="mt-2 text-sm text-gray-500">Use them to spot who needs attention first. The actual management workflow lives in the registry list on the right.</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.workspaceHighlightsEyebrow")}</p>
+            <h2 className="mt-2 text-xl font-bold text-white">{t("agentsPage.workspaceHighlightsTitle")}</h2>
+            <p className="mt-2 text-sm text-gray-500">{t("agentsPage.workspaceHighlightsDescription")}</p>
           </header>
           <div className="space-y-3">
             {workspaceHighlights.map((highlight) => {
               let toneClasses = "border-slate-400/20 bg-slate-500/5 text-slate-300";
-              let toneLabel = "Revoked";
+              let toneLabel = t("agentsPage.workspaceToneRevoked");
 
               if (highlight.tone === "amber") {
                 toneClasses = "border-amber-400/20 bg-amber-500/5 text-amber-300";
-                toneLabel = "Review";
+                toneLabel = t("agentsPage.workspaceToneReview");
               } else if (highlight.tone === "blue") {
                 toneClasses = "border-blue-400/20 bg-blue-500/5 text-blue-300";
-                toneLabel = "Healthy";
+                toneLabel = t("agentsPage.workspaceToneHealthy");
               }
 
               return (
@@ -701,9 +701,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         <article className="rounded-3xl border border-white/8 bg-white/[0.02] p-6">
           <header className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">Workspace Registry</p>
-              <h2 className="mt-2 text-xl font-bold text-white">List view is the main control surface</h2>
-              <p className="mt-2 text-sm text-gray-500">Cards are useful for posture. Registry rows are better for owner-scale work because they keep status, budget, usage, and actions on one line.</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.workspaceRegistryEyebrow")}</p>
+              <h2 className="mt-2 text-xl font-bold text-white">{t("agentsPage.workspaceRegistryTitle")}</h2>
+              <p className="mt-2 text-sm text-gray-500">{t("agentsPage.workspaceRegistryDescription")}</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <label className="relative min-w-[220px]">
@@ -711,7 +711,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search name, id, prefix"
+                  placeholder={t("agentsPage.workspaceSearchPlaceholder")}
                   className="w-full rounded-2xl border border-white/10 bg-black/30 py-2.5 pl-9 pr-4 text-sm text-white outline-none transition focus:border-blue-400/40"
                 />
               </label>
@@ -720,9 +720,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "revoked")}
                 className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white outline-none transition focus:border-blue-400/40"
               >
-                <option value="all">All statuses</option>
-                <option value="active">Active only</option>
-                <option value="revoked">Revoked only</option>
+                <option value="all">{t("agentsPage.workspaceFilterAll")}</option>
+                <option value="active">{t("agentsPage.workspaceFilterActive")}</option>
+                <option value="revoked">{t("agentsPage.workspaceFilterRevoked")}</option>
               </select>
             </div>
           </header>

@@ -17,6 +17,8 @@ export type AgentWorkspaceHighlight = {
   tone: "blue" | "amber" | "slate";
 };
 
+type AgentWorkspaceTranslator = (key: string, vars?: Record<string, string | number>) => string;
+
 function normalizeQuery(query: string): string {
   return query.trim().toLowerCase();
 }
@@ -99,7 +101,10 @@ export function filterAgentWorkspaceCredentials(
   });
 }
 
-export function buildAgentWorkspaceHighlights(credentials: AgentCredentialRecord[]): AgentWorkspaceHighlight[] {
+export function buildAgentWorkspaceHighlights(
+  credentials: AgentCredentialRecord[],
+  t: AgentWorkspaceTranslator,
+): AgentWorkspaceHighlight[] {
   const ranked = [...credentials].sort((left, right) => {
     const attentionDelta = Number(isAgentNeedingAttention(right)) - Number(isAgentNeedingAttention(left));
     if (attentionDelta !== 0) {
@@ -114,8 +119,8 @@ export function buildAgentWorkspaceHighlights(credentials: AgentCredentialRecord
     if (agent.status !== "active") {
       return {
         id: agent.id,
-        name: agent.name || "Unnamed Agent",
-        detail: "This agent has been revoked and no longer authenticates runtime calls.",
+        name: agent.name || t("agentsPage.unnamedAgent"),
+        detail: t("agentsPage.workspaceHighlightRevokedDetail"),
         tone: "slate",
       };
     }
@@ -123,16 +128,18 @@ export function buildAgentWorkspaceHighlights(credentials: AgentCredentialRecord
     if (isAgentNeedingAttention(agent)) {
       return {
         id: agent.id,
-        name: agent.name || "Unnamed Agent",
-        detail: `Usage is at ${usagePercent}% of the current call cap. Review limits before automation stalls.`,
+        name: agent.name || t("agentsPage.unnamedAgent"),
+        detail: t("agentsPage.workspaceHighlightAttentionDetail", { percent: usagePercent }),
         tone: "amber",
       };
     }
 
     return {
       id: agent.id,
-      name: agent.name || "Unnamed Agent",
-      detail: `Healthy runtime profile with ${Math.max(0, (agent.maxCalls || 0) - agent.callsUsed)} calls left in the current quota window.`,
+      name: agent.name || t("agentsPage.unnamedAgent"),
+      detail: t("agentsPage.workspaceHighlightHealthyDetail", {
+        remaining: Math.max(0, (agent.maxCalls || 0) - agent.callsUsed),
+      }),
       tone: "blue",
     };
   });

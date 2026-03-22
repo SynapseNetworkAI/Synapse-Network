@@ -134,54 +134,58 @@ function buildRunwayCards(
   const invokeState = getInvokeState(availability);
 
   return [
-      title: t("agentsPage.runwayFundOwnerVaultTitle"),
+    {
       step: "deposit",
-      title: "Fund Owner Vault",
+      title: t("agentsPage.runwayFundOwnerVaultTitle"),
       state: depositState,
-      actionLabel: t("agentsPage.runwayDepositUsdc"),
+      summary: `${availability.ownerBalance} USDC available`,
       hint: depositHint,
-      tooltip: t("agentsPage.runwayDepositTooltip"),
+      actionLabel: t("agentsPage.runwayDepositUsdc"),
       icon: Wallet,
-      tooltip: "Move USDC from your wallet into the Synapse Vault so your runtime has spendable credit for paid agent calls.",
+      tooltip: t("agentsPage.runwayDepositTooltip"),
     },
-      title: t("agentsPage.runwayCreateAgentRuntimeTitle"),
+    {
       step: "agent",
-      summary: availability.hasActiveAgent ? t("agentsPage.runwayAgentCreated") : t("agentsPage.runwayNoActiveAgent"),
+      title: t("agentsPage.runwayCreateAgentRuntimeTitle"),
       state: agentState,
+      summary: availability.hasActiveAgent ? t("agentsPage.runwayAgentCreated") : t("agentsPage.runwayNoActiveAgent"),
+      hint: availability.hasBalance
         ? t("agentsPage.runwayFundingReady")
         : t("agentsPage.runwayFundVaultFirst"),
       actionLabel: t("agentsPage.runwayCreateAgentAction"),
-        : "Fund the vault first to create an agent.",
-      actionLabel: "Create Agent",
-      tooltip: t("agentsPage.runwayAgentTooltip"),
+      disabled: !availability.hasBalance,
       icon: Bot,
-      tooltip: "Create the runtime identity that owns budget, call limits, and service discovery for your autonomous agent.",
+      tooltip: t("agentsPage.runwayAgentTooltip"),
     },
+    {
+      step: "credential",
       title: t("agentsPage.runwayCaptureCredentialTitle"),
-      summary: availability.hasCredential ? t("agentsPage.runwayCredentialSummary", { prefix: availability.latestCredentialPrefix ?? "" }) : t("agentsPage.runwayNoCredentialVisible"),
-      title: "Capture Credential",
+      state: credentialState,
+      summary: availability.hasCredential
+        ? t("agentsPage.runwayCredentialSummary", { prefix: availability.latestCredentialPrefix ?? "" })
+        : t("agentsPage.runwayNoCredentialVisible"),
+      hint: availability.hasCredential
         ? t("agentsPage.runwayCopySaveToken")
         : t("agentsPage.runwayCreateAgentFirst"),
       actionLabel: t("agentsPage.runwayCopyCredential"),
-        ? "Copy and save the token in your application code."
-        : "Create an agent first to generate a credential.",
-      tooltip: t("agentsPage.runwayCredentialTooltip"),
       disabled: !availability.hasCredential,
       icon: KeyRound,
-      tooltip: "Generate the one-time runtime credential your agent uses to authenticate paid calls. Copy it once and store it securely.",
-      title: t("agentsPage.runwayRunInvocationTitle"),
-      summary: availability.hasSuccessfulInvocation ? t("agentsPage.runwayInvocationCompleted") : t("agentsPage.noSuccessfulInvocationYet"),
+      tooltip: t("agentsPage.runwayCredentialTooltip"),
+    },
+    {
       step: "invoke",
+      title: t("agentsPage.runwayRunInvocationTitle"),
+      state: invokeState,
+      summary: availability.hasSuccessfulInvocation
+        ? t("agentsPage.runwayInvocationCompleted")
+        : t("agentsPage.noSuccessfulInvocationYet"),
+      hint: availability.hasCredential
         ? t("agentsPage.runwayScrollSandbox")
         : t("agentsPage.runwayCompletePreviousSteps"),
       actionLabel: t("agentsPage.runwayRunExample"),
-      hint: availability.hasCredential
-        ? "Scroll down to the sandbox and run an example invocation."
-      tooltip: t("agentsPage.runwayInvokeTooltip"),
-      actionLabel: "Run Example",
       disabled: !availability.hasCredential,
       icon: Rocket,
-      tooltip: "Use the credential to discover a service, settle payment, and prove the runtime can complete its first autonomous paid call.",
+      tooltip: t("agentsPage.runwayInvokeTooltip"),
     },
   ];
 }
