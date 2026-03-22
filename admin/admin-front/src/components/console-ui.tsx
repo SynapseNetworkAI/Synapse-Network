@@ -86,12 +86,14 @@ export function MetricCard({
       bg={accent ?? "linear-gradient(180deg, #ffffff 0%, #f3f6fa 100%)"}
       border="1px solid rgba(15,17,21,0.06)"
       minH="154px"
-      overflow="hidden"
+      overflow="visible"
       position="relative"
       transition="transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease"
       _hover={href ? { transform: "translateY(-2px)", boxShadow: "0 16px 40px rgba(15,17,21,0.08)", borderColor: "rgba(31,146,87,0.24)" } : undefined}
     >
-      <Box position="absolute" right="-20px" top="-24px" w="96px" h="96px" borderRadius="full" bg="rgba(31,146,87,0.06)" />
+      <Box position="absolute" inset="0" overflow="hidden" borderRadius="inherit" pointerEvents="none">
+        <Box position="absolute" right="-20px" top="-24px" w="96px" h="96px" borderRadius="full" bg="rgba(31,146,87,0.06)" />
+      </Box>
       <Box position="relative" zIndex={1} fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">{label}</Box>
       <Heading position="relative" zIndex={1} mt="18px" size="2xl" color="ink.900" letterSpacing="-0.04em">{value}</Heading>
       {meta ? <Text position="relative" zIndex={1} mt="10px" color="ink.500">{meta}</Text> : null}
@@ -120,6 +122,7 @@ export function InlineHintTooltip({
   return (
     <Box position="relative" role="group" display="inline-flex" alignItems="center">
       <Flex
+        tabIndex={0}
         align="center"
         justify="center"
         w="18px"
@@ -154,7 +157,7 @@ export function InlineHintTooltip({
         transition="opacity 140ms ease, transform 140ms ease, visibility 140ms ease"
         _groupHover={{ opacity: 1, visibility: "visible", transform: "translateX(-50%) translateY(0)" }}
         _groupFocusWithin={{ opacity: 1, visibility: "visible", transform: "translateX(-50%) translateY(0)" }}
-        zIndex={5}
+        zIndex={20}
       >
         <Box
           position="absolute"
