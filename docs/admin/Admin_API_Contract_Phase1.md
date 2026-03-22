@@ -582,7 +582,7 @@ X-CSRF-Token: <csrfToken>
   "data": {
     "overallStatus": "degraded",
     "checkedAt": "2026-03-21T10:00:00Z",
-    "summary": "reconciliation delta 0.50 USDC, 1 failed execution job, 2 deposit exceptions",
+    "summary": "reconciliation alert present, 1 failed execution job, 2 deposit exceptions",
     "signals": [
       {
         "signalId": "reconciliation",
@@ -597,7 +597,7 @@ X-CSRF-Token: <csrfToken>
         "actionId": "system-center",
         "label": "Open system center",
         "href": "/system",
-        "detail": "inspect gateway, indexer, backfill, and reconciliation runtime state",
+        "detail": "inspect gateway health, execution failures, and projection freshness for indexer, backfill, and reconciliation",
         "status": "degraded"
       }
     ]
@@ -605,6 +605,11 @@ X-CSRF-Token: <csrfToken>
   "requestId": "req_demo"
 }
 ```
+
+说明：
+
+- `system-center` 动作当前接入的是统一 diagnostics 语义层、execution failed jobs、approval queue 与 gateway projection 快照。
+- `indexer / backfill / reconciliation` 在 `/system` 中当前展示的是 runtime projection freshness proxy，不是各自独立任务系统的原生监控面板。
 
 ## 3.3 approval
 

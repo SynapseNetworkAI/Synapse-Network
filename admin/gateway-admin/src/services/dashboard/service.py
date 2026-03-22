@@ -336,7 +336,6 @@ class DashboardService:
             "checkedAt": self._format_timestamp(datetime.now(timezone.utc)),
             "summary": self._build_diagnostic_summary(
                 operations.reconciliation_alert,
-                operations.reconciliation_delta_usdc,
                 failed_job_count,
                 overview.deposit_exceptions,
                 pending_approvals,
@@ -385,7 +384,6 @@ class DashboardService:
     def _build_diagnostic_summary(
         self,
         reconciliation_alert: bool,
-        reconciliation_delta_usdc,
         failed_job_count: int,
         deposit_exceptions: int,
         pending_approvals: int,
@@ -393,7 +391,7 @@ class DashboardService:
     ) -> str:
         parts: list[str] = []
         if reconciliation_alert:
-            parts.append(f"reconciliation delta {reconciliation_delta_usdc:.2f} USDC")
+            parts.append("reconciliation alert present")
         self._append_summary_part(parts, failed_job_count, "failed execution job")
         self._append_summary_part(parts, deposit_exceptions, "deposit exception")
         self._append_summary_part(parts, pending_approvals, "pending approval")
@@ -492,7 +490,7 @@ class DashboardService:
                 "system-center",
                 "Open system center",
                 "/system",
-                "inspect gateway, indexer, backfill, and reconciliation runtime state",
+                "inspect gateway health, execution failures, and projection freshness for indexer, backfill, and reconciliation",
                 system_status,
             ),
             self._build_action(

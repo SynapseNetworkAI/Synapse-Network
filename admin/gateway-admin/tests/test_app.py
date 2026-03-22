@@ -975,11 +975,12 @@ def test_dashboard_diagnostics_expose_runtime_signals_and_actions() -> None:
     assert response.status_code == 200
     body = response.json()["data"]
     assert body["overallStatus"] == "degraded"
-    assert "failed execution job" in body["summary"]
+    assert "reconciliation alert present" in body["summary"]
     assert len(body["signals"]) == 5
     assert body["signals"][0]["signalId"] == "reconciliation"
     assert body["signals"][0]["status"] == "degraded"
     assert len(body["actions"]) == 3
+    assert "projection freshness" in body["actions"][0]["detail"]
     assert body["actions"][1]["href"] == "/execution"
 
 
