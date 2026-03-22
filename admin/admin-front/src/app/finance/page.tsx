@@ -9,7 +9,9 @@ import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, MessageBanner, MetricCard, MetricLabelWithHint, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
+import { CapitalPulseSurface } from "@/features/finance/capital-pulse-surface";
 import {
+  buildFinanceCapitalPulseLanes,
   buildFinanceDeltaCards,
   buildFinanceFlowVolumeCards,
   buildFinancePressureCards,
@@ -41,6 +43,7 @@ export default function FinancePage() {
   const [error, setError] = useState<string | null>(null);
 
   const chartData = useMemo(() => buildTrendChartData(trendPoints), [trendPoints]);
+  const capitalPulseLanes = useMemo(() => (overview ? buildFinanceCapitalPulseLanes(overview) : []), [overview]);
 
   useEffect(() => {
     if (!token) {
@@ -123,6 +126,14 @@ export default function FinancePage() {
           />
         ))}
       </Grid>
+
+      <CapitalPulseSurface
+        eyebrow="Capital Pulse"
+        title="资金责任面"
+        description="把 Consumer、Platform、Provider 三侧的今日资金活动拉到同一层，先看责任面，再看总账与调查证据。"
+        lanes={capitalPulseLanes}
+        stamp={overview.projectedAt}
+      />
 
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
         <SurfaceCard eyebrow="Treasury Delta" title="总账差额判断" description="Finance 页负责回答资金是否健康，而不是解释差额为什么出现。差额解释统一进入 reconciliation。" stamp={overview.projectedAt ?? "live"}>

@@ -291,6 +291,8 @@ X-CSRF-Token: <csrfToken>
 - 来自 gateway 只读投影视图 `synapse_admin_dashboard_finance_projection`
 - 该视图只允许由 gateway 真相表和持久化运行态派生，不允许拼接 admin 本地写模型
 - 视图 canonical 列已切换到 target-state 命名：`today_consumer_refund_usdc`、`today_provider_withdrawal_usdc`、`consumer_liability_usdc`
+- 第一批资金链路观测增强字段也由该 projection 提供：`today_invocation_count`、`today_platform_fee_earned_usdc`、`today_provider_earned_usdc`
+- `today_invocation_count`、`today_platform_fee_earned_usdc`、`today_provider_earned_usdc` 来源于 `synapse_invocations` 与 `synapse_runtime_state(invocation_billing::*)`
 - 为兼容旧版 `gateway-admin`，视图仍保留 `todayRefundUsdc` 对应的底层 alias 列：`today_refund_usdc`、`today_withdrawal_usdc`、`owner_liability_usdc`、`pending_withdrawal_count`
 
 响应：
@@ -303,6 +305,9 @@ X-CSRF-Token: <csrfToken>
     "todayDepositUsdc": "1640.00",
     "todayRefundUsdc": "42.25",
     "todayWithdrawalUsdc": "310.50",
+    "todayInvocationCount": 342,
+    "todayPlatformFeeEarnedUsdc": "196.40",
+    "todayProviderEarnedUsdc": "1084.00",
     "ownerLiabilityUsdc": "8450.10",
     "providerPayableUsdc": "3920.45",
     "platformFeeBalanceUsdc": "128.75",
@@ -322,7 +327,7 @@ X-CSRF-Token: <csrfToken>
 数据来源约束：
 
 - 来自 gateway 只读投影视图 `synapse_admin_dashboard_activity_trend_projection`
-- 每日桶聚合只包含持久化的充值、扣费、退款、提现与净流入数值
+- 每日桶聚合只包含持久化的充值、扣费、调用次数、平台手续费、Provider 收益、退款、提现与净流入数值
 - 视图 canonical 列已切换到 target-state 命名：`consumer_refund_usdc`、`provider_withdrawal_usdc`
 - 为兼容旧版 `gateway-admin`，视图仍保留 alias 列：`refund_usdc`、`withdrawal_usdc`
 
@@ -337,6 +342,9 @@ X-CSRF-Token: <csrfToken>
         "bucketDate": "2026-03-16",
         "depositUsdc": "1640.00",
         "chargeUsdc": "1280.40",
+        "invocationCount": 342,
+        "platformFeeEarnedUsdc": "196.40",
+        "providerEarnedUsdc": "1084.00",
         "refundUsdc": "42.25",
         "withdrawalUsdc": "310.50",
         "netFlowUsdc": "1287.25"

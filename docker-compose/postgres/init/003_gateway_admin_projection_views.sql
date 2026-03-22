@@ -722,12 +722,46 @@ charge_window AS (
         ), 0) AS today_charge_usdc,
         MAX(updated_at) AS charge_updated_at
     FROM synapse_invocations
+),
+invocation_billing_window AS (
+    SELECT
+        COUNT(*) FILTER (
+            WHERE inv.created_at >= (SELECT day_start FROM day_window)
+                AND inv.status IN ('SUCCEEDED', 'SETTLED')
+                AND lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+        )::bigint AS today_invocation_count,
+        COALESCE(SUM(
+            COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0)
+            + COALESCE(NULLIF(billing.payload->>'routingTax', '')::numeric, 0)
+        ) FILTER (
+            WHERE inv.created_at >= (SELECT day_start FROM day_window)
+                AND inv.status IN ('SUCCEEDED', 'SETTLED')
+                AND lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+        ), 0) AS today_platform_fee_earned_usdc,
+        COALESCE(SUM(
+            GREATEST(
+                COALESCE(NULLIF(billing.payload->>'unitPrice', '')::numeric, 0)
+                - COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0),
+                0
+            )
+        ) FILTER (
+            WHERE inv.created_at >= (SELECT day_start FROM day_window)
+                AND inv.status IN ('SUCCEEDED', 'SETTLED')
+                AND lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+        ), 0) AS today_provider_earned_usdc,
+        MAX(GREATEST(inv.updated_at, COALESCE(billing.updated_at, inv.updated_at))) AS invocation_billing_updated_at
+    FROM synapse_invocations AS inv
+    LEFT JOIN synapse_runtime_state AS billing
+        ON billing.state_key = 'invocation_billing::' || inv.invocation_id
 )
 SELECT
     charge_window.today_charge_usdc::numeric(36, 6) AS today_charge_usdc,
     deposit_window.today_deposit_usdc::numeric(36, 6) AS today_deposit_usdc,
     consumer_refund_window.today_consumer_refund_usdc::numeric(36, 6) AS today_consumer_refund_usdc,
     provider_withdrawal_window.today_provider_withdrawal_usdc::numeric(36, 6) AS today_provider_withdrawal_usdc,
+    invocation_billing_window.today_invocation_count,
+    invocation_billing_window.today_platform_fee_earned_usdc::numeric(36, 6) AS today_platform_fee_earned_usdc,
+    invocation_billing_window.today_provider_earned_usdc::numeric(36, 6) AS today_provider_earned_usdc,
     balance_snapshot.consumer_liability_usdc::numeric(36, 6) AS consumer_liability_usdc,
     balance_snapshot.refundable_consumer_balance_usdc::numeric(36, 6) AS refundable_consumer_balance_usdc,
     balance_snapshot.provider_payable_usdc::numeric(36, 6) AS provider_payable_usdc,
@@ -749,6 +783,7 @@ SELECT
         COALESCE(deposit_sync_evidence.deposit_sync_updated_at, 'epoch'::timestamptz),
         COALESCE(recent_completed_outflow_window.recent_completed_outflows_updated_at, 'epoch'::timestamptz),
         COALESCE(charge_window.charge_updated_at, 'epoch'::timestamptz),
+        COALESCE(invocation_billing_window.invocation_billing_updated_at, 'epoch'::timestamptz),
         COALESCE(reconciliation.reconciliation_updated_at, 'epoch'::timestamptz)
     ) AS projected_at,
     consumer_refund_window.today_consumer_refund_usdc::numeric(36, 6) AS today_refund_usdc,
@@ -762,6 +797,7 @@ CROSS JOIN provider_withdrawal_window
 CROSS JOIN deposit_sync_evidence
 CROSS JOIN recent_completed_outflow_window
 CROSS JOIN charge_window
+CROSS JOIN invocation_billing_window
 LEFT JOIN reconciliation ON TRUE;
 
 CREATE OR REPLACE VIEW synapse_admin_dashboard_activity_trend_projection AS
@@ -788,6 +824,33 @@ charge_daily AS (
     WHERE status IN ('SUCCEEDED', 'SETTLED')
     GROUP BY created_at::date
 ),
+invocation_billing_daily AS (
+    SELECT
+        inv.created_at::date AS bucket_date,
+        COUNT(*) FILTER (
+            WHERE lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+        )::bigint AS invocation_count,
+        COALESCE(SUM(
+            COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0)
+            + COALESCE(NULLIF(billing.payload->>'routingTax', '')::numeric, 0)
+        ) FILTER (
+            WHERE lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+        ), 0) AS platform_fee_earned_usdc,
+        COALESCE(SUM(
+            GREATEST(
+                COALESCE(NULLIF(billing.payload->>'unitPrice', '')::numeric, 0)
+                - COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0),
+                0
+            )
+        ) FILTER (
+            WHERE lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+        ), 0) AS provider_earned_usdc
+    FROM synapse_invocations AS inv
+    LEFT JOIN synapse_runtime_state AS billing
+        ON billing.state_key = 'invocation_billing::' || inv.invocation_id
+    WHERE inv.status IN ('SUCCEEDED', 'SETTLED')
+    GROUP BY inv.created_at::date
+),
 consumer_refund_daily AS (
     SELECT
         updated_at::date AS bucket_date,
@@ -810,6 +873,9 @@ SELECT
     day_series.bucket_date,
     COALESCE(deposit_daily.deposit_usdc, 0)::numeric(36, 6) AS deposit_usdc,
     COALESCE(charge_daily.charge_usdc, 0)::numeric(36, 6) AS charge_usdc,
+    COALESCE(invocation_billing_daily.invocation_count, 0)::bigint AS invocation_count,
+    COALESCE(invocation_billing_daily.platform_fee_earned_usdc, 0)::numeric(36, 6) AS platform_fee_earned_usdc,
+    COALESCE(invocation_billing_daily.provider_earned_usdc, 0)::numeric(36, 6) AS provider_earned_usdc,
     COALESCE(consumer_refund_daily.consumer_refund_usdc, 0)::numeric(36, 6) AS consumer_refund_usdc,
     COALESCE(provider_withdrawal_daily.provider_withdrawal_usdc, 0)::numeric(36, 6) AS provider_withdrawal_usdc,
     (
@@ -822,6 +888,7 @@ SELECT
 FROM day_series
 LEFT JOIN deposit_daily ON deposit_daily.bucket_date = day_series.bucket_date
 LEFT JOIN charge_daily ON charge_daily.bucket_date = day_series.bucket_date
+LEFT JOIN invocation_billing_daily ON invocation_billing_daily.bucket_date = day_series.bucket_date
 LEFT JOIN consumer_refund_daily ON consumer_refund_daily.bucket_date = day_series.bucket_date
 LEFT JOIN provider_withdrawal_daily ON provider_withdrawal_daily.bucket_date = day_series.bucket_date
 ORDER BY day_series.bucket_date ASC;
@@ -944,6 +1011,15 @@ COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_refund_usdc I
 COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_provider_withdrawal_usdc IS
 'Canonical: total provider_withdrawal withdrawals confirmed today.';
 
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_invocation_count IS
+'Canonical: count of succeeded/settled charge invocations created today.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_platform_fee_earned_usdc IS
+'Canonical: total protocol_fee + routing_tax earned today from persisted invocation billing state.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_provider_earned_usdc IS
+'Canonical: total provider net earned today from persisted invocation billing state.';
+
 COMMENT ON COLUMN synapse_admin_dashboard_finance_projection.today_withdrawal_usdc IS
 'Legacy alias of today_provider_withdrawal_usdc for older gateway-admin readers.';
 
@@ -985,6 +1061,15 @@ COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.deposit_usdc
 
 COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.charge_usdc IS
 'Canonical: succeeded/settled invocation charge volume for the bucket day.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.invocation_count IS
+'Canonical: count of succeeded/settled charge invocations for the bucket day.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.platform_fee_earned_usdc IS
+'Canonical: platform fee earned from persisted invocation billing state for the bucket day.';
+
+COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.provider_earned_usdc IS
+'Canonical: provider net earned from persisted invocation billing state for the bucket day.';
 
 COMMENT ON COLUMN synapse_admin_dashboard_activity_trend_projection.consumer_refund_usdc IS
 'Canonical: confirmed consumer_refund withdrawal volume for the bucket day.';

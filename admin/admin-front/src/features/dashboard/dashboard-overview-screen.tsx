@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { MessageBanner } from "@/components/console-ui";
+import { CapitalPulseSurface } from "@/features/finance/capital-pulse-surface";
 import {
   DashboardDiagnosticsSurface,
   DashboardFlowSnapshotSurface,
@@ -14,6 +15,7 @@ import {
   DashboardSentinelMetricsGrid,
 } from "@/features/dashboard/dashboard-surfaces";
 import {
+  buildDashboardCapitalPulseLanes,
   buildDashboardFlowCards,
   buildDashboardFunnelCards,
   buildDashboardPressureCards,
@@ -45,6 +47,7 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
   const flowCards = useMemo(() => buildDashboardFlowCards(financeOverview), [financeOverview]);
   const pressureCards = useMemo(() => buildDashboardPressureCards(overview, financeOverview), [financeOverview, overview]);
   const funnelCards = useMemo(() => buildDashboardFunnelCards(financeOverview, operationsOverview, null), [financeOverview, operationsOverview]);
+  const capitalPulseLanes = useMemo(() => buildDashboardCapitalPulseLanes(financeOverview), [financeOverview]);
 
   if (bootstrapping) {
     return <ControlPlaneLoadingScreen title="概览加载中" message="正在汇总首页关键数据，请稍候..." />;
@@ -73,6 +76,15 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
           refreshDiagnostics(token);
         }}
         funnelCards={funnelCards}
+      />
+      <CapitalPulseSurface
+        eyebrow="Capital Pulse"
+        title="资金链路摘要"
+        description="首页只保留 Consumer、Platform、Provider 三侧的紧凑摘要，帮助值班员快速判断今天的资金活动发生在哪一侧。"
+        lanes={capitalPulseLanes}
+        compact
+        ctaHref="/finance"
+        ctaLabel="打开 Finance Desk"
       />
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
         <DashboardFlowSnapshotSurface flowCards={flowCards} />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildDashboardCapitalPulseLanes,
   buildBusinessRuntimeLaneCards,
   buildCapitalSnapshotCards,
   buildDashboardFunnelCards,
@@ -124,6 +125,9 @@ describe("dashboard presenters", () => {
       todayDepositUsdc: "1640.00",
       todayRefundUsdc: "42.25",
       todayWithdrawalUsdc: "310.50",
+      todayInvocationCount: 342,
+      todayPlatformFeeEarnedUsdc: "196.40",
+      todayProviderEarnedUsdc: "1084.00",
       ownerLiabilityUsdc: "8450.10",
       providerPayableUsdc: "3920.45",
       platformFeeBalanceUsdc: "128.75",
@@ -202,6 +206,9 @@ describe("dashboard presenters", () => {
         todayDepositUsdc: "300.00",
         todayRefundUsdc: "10.00",
         todayWithdrawalUsdc: "5.00",
+        todayInvocationCount: 48,
+        todayPlatformFeeEarnedUsdc: "18.00",
+        todayProviderEarnedUsdc: "102.00",
         ownerLiabilityUsdc: "800.00",
         providerPayableUsdc: "150.00",
         platformFeeBalanceUsdc: "25.00",
@@ -218,6 +225,9 @@ describe("dashboard presenters", () => {
         todayDepositUsdc: "300.00",
         todayRefundUsdc: "10.00",
         todayWithdrawalUsdc: "5.00",
+        todayInvocationCount: 48,
+        todayPlatformFeeEarnedUsdc: "18.00",
+        todayProviderEarnedUsdc: "102.00",
         ownerLiabilityUsdc: "800.00",
         providerPayableUsdc: "150.00",
         platformFeeBalanceUsdc: "25.00",
@@ -347,5 +357,59 @@ describe("dashboard presenters", () => {
     expect(cards[0]).toMatchObject({ key: "approval-lane", href: "/approvals", tone: "orange" });
     expect(cards[1]).toMatchObject({ key: "deposit-lane", href: "/finance/reconciliation", tone: "red" });
     expect(cards[2]).toMatchObject({ key: "outflow-lane", href: "/withdrawal-reviews", tone: "orange" });
+  });
+
+  it("builds a compact capital pulse summary for overview", () => {
+    const lanes = buildDashboardCapitalPulseLanes({
+      todayChargeUsdc: "120.00",
+      todayDepositUsdc: "300.00",
+      todayRefundUsdc: "10.00",
+      todayWithdrawalUsdc: "5.00",
+      todayInvocationCount: 48,
+      todayPlatformFeeEarnedUsdc: "18.00",
+      todayProviderEarnedUsdc: "102.00",
+      ownerLiabilityUsdc: "800.00",
+      refundableConsumerBalanceUsdc: "630.12",
+      providerPayableUsdc: "150.00",
+      providerAvailableToWithdrawUsdc: "145.50",
+      providerLockedBalanceUsdc: "4.50",
+      platformFeeBalanceUsdc: "25.00",
+      vaultLedgerDeltaUsdc: "0.00",
+      pendingDepositCount: 2,
+      pendingWithdrawalCount: 1,
+      projectedAt: null,
+    });
+
+    expect(lanes).toEqual([
+      {
+        key: "consumer",
+        title: "Consumer",
+        description: "把今日入金、消费、退款和调用次数放在同一侧，快速判断需求侧是否正常展开。",
+        items: [
+          { key: "today-deposit", label: "Today deposit", value: "300.00 USDC", hint: "当前统计窗口内已确认进入系统的充值总额，用来观察入金节奏和补账压力。" },
+          { key: "today-charge", label: "Today charge", value: "120.00 USDC", hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。" },
+          { key: "today-invocation-count", label: "Today invocation count", value: "48", hint: "当前统计窗口内成功进入计费链路的调用次数，用来判断活跃度和收入规模是否同步变化。" },
+        ],
+      },
+      {
+        key: "platform",
+        title: "Platform",
+        description: "平台侧只保留新增手续费和累计收入池，避免把总账判断和经营摘要混成一组。",
+        items: [
+          { key: "today-platform-fee-earned", label: "Today platform fee earned", value: "18.00 USDC", hint: "当前统计窗口内新增记入平台收入池的手续费金额，用来观察今天新增商业结果。" },
+          { key: "platform-income", label: "Platform income", value: "25.00 USDC", hint: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。" },
+        ],
+      },
+      {
+        key: "provider",
+        title: "Provider",
+        description: "把新增收入、提现和可提现空间放到一起，帮助 operator 判断供给侧结算压力。",
+        items: [
+          { key: "today-provider-earned", label: "Today provider earned", value: "102.00 USDC", hint: "当前统计窗口内新增记入 Provider payable 的收入金额，用来判断供给侧结算和提现压力。" },
+          { key: "today-withdrawal", label: "Today withdrawal", value: "5.00 USDC", hint: "当前统计窗口内已经完成或进入结转流程的提现金额，反映资金流出压力。" },
+          { key: "pending-withdrawals", label: "Pending withdrawals", value: "1", hint: "当前仍在审核或排队执行中的提现单数量，越高表示 operator 出账压力越大。" },
+        ],
+      },
+    ]);
   });
 });

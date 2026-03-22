@@ -8,6 +8,9 @@ export type FinanceMetricGlossaryKey =
   | "ledgerObligation"
   | "todayDeposit"
   | "todayCharge"
+  | "todayInvocationCount"
+  | "todayPlatformFeeEarned"
+  | "todayProviderEarned"
   | "todayRefund"
   | "todayWithdrawal"
   | "pendingWithdrawals"
@@ -84,6 +87,21 @@ const metricGlossary: Record<FinanceMetricGlossaryKey, FinanceMetricGlossaryEntr
     label: "Today charge",
     meta: "当日网关扣费。",
     hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。",
+  },
+  todayInvocationCount: {
+    label: "Today invocation count",
+    meta: "当日计费调用次数。",
+    hint: "当前统计窗口内成功进入计费链路的调用次数，用来判断活跃度和收入规模是否同步变化。",
+  },
+  todayPlatformFeeEarned: {
+    label: "Today platform fee earned",
+    meta: "当日平台新增手续费收入。",
+    hint: "当前统计窗口内新增记入平台收入池的手续费金额，用来观察今天新增商业结果。",
+  },
+  todayProviderEarned: {
+    label: "Today provider earned",
+    meta: "当日 Provider 新增收入。",
+    hint: "当前统计窗口内新增记入 Provider payable 的收入金额，用来判断供给侧结算和提现压力。",
   },
   todayRefund: {
     label: "Today refund",

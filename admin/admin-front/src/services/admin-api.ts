@@ -144,6 +144,9 @@ export type FinanceOverview = {
   todayDepositUsdc: string;
   todayRefundUsdc: string;
   todayWithdrawalUsdc: string;
+  todayInvocationCount: number;
+  todayPlatformFeeEarnedUsdc: string;
+  todayProviderEarnedUsdc: string;
   ownerLiabilityUsdc: string;
   refundableConsumerBalanceUsdc: string;
   providerPayableUsdc: string;
@@ -160,6 +163,9 @@ export type ActivityTrendPoint = {
   bucketDate: string;
   depositUsdc: string;
   chargeUsdc: string;
+  invocationCount: number;
+  platformFeeEarnedUsdc: string;
+  providerEarnedUsdc: string;
   refundUsdc: string;
   withdrawalUsdc: string;
   netFlowUsdc: string;
