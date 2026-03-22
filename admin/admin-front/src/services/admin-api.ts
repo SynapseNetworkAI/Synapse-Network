@@ -4,7 +4,7 @@ export type ApiEnvelope<T> = {
   requestId: string;
 };
 
-import { readAdminCsrfTokenFromStorage, saveAdminCsrfToken } from "@/lib/admin-csrf-token";
+import { clearAdminCsrfToken, readAdminCsrfTokenFromStorage, saveAdminCsrfToken } from "@/lib/admin-csrf-token";
 
 export type ApiErrorEnvelope = {
   success: false;
@@ -98,6 +98,25 @@ function readAdminCsrfToken(): string | null {
     adminCsrfToken = persistedToken;
   }
   return persistedToken;
+}
+
+function isExpiredAdminSession(status: number, code: string | null, message: string): boolean {
+  return status === 401 && code === "UNAUTHORIZED" && message.trim().toLowerCase() === "admin session expired";
+}
+
+function redirectToLoginOnExpiredSession(): void {
+  setAdminCsrfToken(null);
+  clearAdminCsrfToken();
+
+  if (globalThis.window === undefined) {
+    return;
+  }
+
+  if (globalThis.window.location.pathname === "/login") {
+    return;
+  }
+
+  globalThis.window.location.replace("/login");
 }
 
 function isSafeMethod(method: string | undefined): boolean {
@@ -533,9 +552,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json()) as ApiEnvelope<T> | ApiErrorEnvelope;
   if (!response.ok || !body.success) {
     const message = "error" in body ? body.error.message : `Request failed: ${response.status}`;
+    const code = "error" in body ? body.error.code : null;
+    if (isExpiredAdminSession(response.status, code, message)) {
+      redirectToLoginOnExpiredSession();
+    }
     throw new AdminApiError(message, {
       status: response.status,
-      code: "error" in body ? body.error.code : null,
+      code,
       requestId: body.requestId,
       data: "data" in body ? body.data : undefined,
     });
