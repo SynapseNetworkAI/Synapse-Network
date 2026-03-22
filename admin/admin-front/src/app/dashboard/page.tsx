@@ -8,7 +8,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DiagnosticsPanel } from "@/components/diagnostics-panel";
-import { DataTable, EmptyBlock, MessageBanner, MetricCard, SentinelStatusChip, StatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
+import { DataTable, EmptyBlock, MessageBanner, MetricCard, MetricLabelWithHint, SentinelStatusChip, StatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime } from "@/lib/admin-console";
 import { useDiagnosticsSnapshot } from "@/lib/use-diagnostics-snapshot";
 import { useAdminSession } from "@/lib/use-admin-session";
@@ -211,9 +211,11 @@ export default function DashboardPage() {
       <Grid templateColumns={{ base: "1fr", xl: "0.9fr 1.1fr" }} gap="16px">
         <SurfaceCard eyebrow="Capital Snapshot" title="Capital posture" description="把资金快照拆成更接近控制面的卡片，而不是旧后台的线性指标堆叠。">
           <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="12px">
-            {capitalCards.map(({ label, value }) => (
-              <Box key={label} borderRadius="20px" p="16px" bg="#f7f9fc" border="1px solid rgba(15,17,21,0.06)">
-                <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">{label}</Text>
+            {capitalCards.map(({ key, label, value, hint }) => (
+              <Box key={key} borderRadius="20px" p="16px" bg="#f7f9fc" border="1px solid rgba(15,17,21,0.06)">
+                <Box fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">
+                  <MetricLabelWithHint label={label} hint={hint} />
+                </Box>
                 <Heading mt="12px" size="md">{value}</Heading>
               </Box>
             ))}

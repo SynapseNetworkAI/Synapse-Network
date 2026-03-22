@@ -64,9 +64,24 @@ describe("dashboard presenters", () => {
       projectedAt: "2026-03-16T08:05:00Z",
     });
 
-    expect(cards).toContainEqual({ label: "Owner liability", value: "8,450.10 USDC" });
-    expect(cards).toContainEqual({ label: "Pending deposits", value: "2" });
-    expect(cards).toContainEqual({ label: "Pending withdrawals", value: "1" });
+    expect(cards).toContainEqual({
+      key: "owner-liability",
+      label: "Owner liability",
+      value: "8,450.10 USDC",
+      hint: "平台账本对 owner 的应付总额，是 vault 资金应该优先覆盖的核心负债面。",
+    });
+    expect(cards).toContainEqual({
+      key: "pending-deposits",
+      label: "Pending deposits",
+      value: "2",
+      hint: "当前仍在确认、补账或回放中的充值单数量，通常和对账偏差、回放延迟直接相关。",
+    });
+    expect(cards).toContainEqual({
+      key: "pending-withdrawals",
+      label: "Pending withdrawals",
+      value: "1",
+      hint: "当前仍在审核或排队执行中的提现单数量，越高表示 operator 出账压力越大。",
+    });
   });
 
   it("does not fall back to local current time when projections are missing", () => {

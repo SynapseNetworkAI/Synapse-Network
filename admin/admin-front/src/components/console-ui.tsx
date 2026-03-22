@@ -156,9 +156,35 @@ export function InlineHintTooltip({
         _groupFocusWithin={{ opacity: 1, visibility: "visible", transform: "translateX(-50%) translateY(0)" }}
         zIndex={5}
       >
+        <Box
+          position="absolute"
+          left="50%"
+          bottom="-6px"
+          w="12px"
+          h="12px"
+          transform="translateX(-50%) rotate(45deg)"
+          bg="rgba(255,255,255,0.98)"
+          borderRight="1px solid rgba(15,17,21,0.10)"
+          borderBottom="1px solid rgba(15,17,21,0.10)"
+        />
         <Text fontSize="12px" lineHeight="1.55" textTransform="none" letterSpacing="normal" color="ink.700">{content}</Text>
       </Box>
     </Box>
+  );
+}
+
+export function MetricLabelWithHint({
+  label,
+  hint,
+}: Readonly<{
+  label: string;
+  hint: string;
+}>) {
+  return (
+    <Flex align="center" gap="8px" wrap="wrap">
+      <Text fontSize="inherit" letterSpacing="inherit" textTransform="inherit" color="inherit">{label}</Text>
+      <InlineHintTooltip label={`${label} tip`} content={hint} />
+    </Flex>
   );
 }
 

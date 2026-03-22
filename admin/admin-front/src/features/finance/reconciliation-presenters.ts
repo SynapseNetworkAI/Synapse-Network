@@ -1,5 +1,5 @@
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
-import { getReconciliationMetricGlossary, getReconciliationQueueGlossary } from "@/features/finance/reconciliation-glossary";
+import { getFinanceMetricGlossary, getFinanceQueueGlossary } from "@/features/finance/finance-glossary";
 import type {
   ProviderWithdrawReviewItem,
   ReconciliationApprovalItem,
@@ -80,29 +80,29 @@ export function buildWithdrawReviewDrilldownTokens(item: ProviderWithdrawReviewI
 export function buildReconciliationBreakdownCards(detail: ReconciliationDetail): ReconciliationBreakdownCard[] {
   return [
     {
-      label: getReconciliationMetricGlossary("platformIncome").label,
+      label: getFinanceMetricGlossary("platformIncome").label,
       value: `${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`,
-      description: getReconciliationMetricGlossary("platformIncome").hint,
+      description: getFinanceMetricGlossary("platformIncome").hint,
     },
     {
-      label: getReconciliationMetricGlossary("chainVault").label,
+      label: getFinanceMetricGlossary("chainVault").label,
       value: detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a",
-      description: getReconciliationMetricGlossary("chainVault").hint,
+      description: getFinanceMetricGlossary("chainVault").hint,
     },
     {
-      label: getReconciliationMetricGlossary("ledgerObligation").label,
+      label: getFinanceMetricGlossary("ledgerObligation").label,
       value: detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a",
-      description: getReconciliationMetricGlossary("ledgerObligation").hint,
+      description: getFinanceMetricGlossary("ledgerObligation").hint,
     },
     {
-      label: getReconciliationMetricGlossary("absoluteDelta").label,
+      label: getFinanceMetricGlossary("absoluteDelta").label,
       value: `${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`,
-      description: getReconciliationMetricGlossary("absoluteDelta").hint,
+      description: getFinanceMetricGlossary("absoluteDelta").hint,
     },
     {
-      label: getReconciliationMetricGlossary("signedDifference").label,
+      label: getFinanceMetricGlossary("signedDifference").label,
       value: formatSignedUsdc(detail.signedDifferenceUsdc),
-      description: getReconciliationMetricGlossary("signedDifference").hint,
+      description: getFinanceMetricGlossary("signedDifference").hint,
     },
   ];
 }
@@ -110,24 +110,24 @@ export function buildReconciliationBreakdownCards(detail: ReconciliationDetail):
 export function buildReconciliationQueueCards(detail: ReconciliationDetail): ReconciliationQueueCard[] {
   return [
     {
-      label: getReconciliationQueueGlossary("pendingApprovals").label,
+      label: getFinanceQueueGlossary("pendingApprovals").label,
       value: String(detail.pendingApprovals),
-      description: getReconciliationQueueGlossary("pendingApprovals").description,
+      description: getFinanceQueueGlossary("pendingApprovals").description,
     },
     {
-      label: getReconciliationQueueGlossary("depositExceptions").label,
+      label: getFinanceQueueGlossary("depositExceptions").label,
       value: String(detail.depositExceptions),
-      description: getReconciliationQueueGlossary("depositExceptions").description,
+      description: getFinanceQueueGlossary("depositExceptions").description,
     },
     {
-      label: getReconciliationQueueGlossary("pendingWithdrawals").label,
+      label: getFinanceQueueGlossary("queuePendingWithdrawals").label,
       value: String(detail.pendingWithdrawalCount),
-      description: getReconciliationQueueGlossary("pendingWithdrawals").description,
+      description: getFinanceQueueGlossary("queuePendingWithdrawals").description,
     },
     {
-      label: getReconciliationQueueGlossary("auditAlerts").label,
+      label: getFinanceQueueGlossary("auditAlerts").label,
       value: String(detail.auditAlerts),
-      description: getReconciliationQueueGlossary("auditAlerts").description,
+      description: getFinanceQueueGlossary("auditAlerts").description,
     },
   ];
 }
