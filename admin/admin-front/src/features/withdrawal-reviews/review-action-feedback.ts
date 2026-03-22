@@ -43,6 +43,9 @@ export function getWithdrawReviewActionErrorMessage(
   decision: WithdrawReviewDecision,
 ): string {
   if (isAdminApiError(error)) {
+    if ((error.message || "").includes("is not awaiting manual review")) {
+      return "当前申请已不处于可审核状态，请刷新页面。";
+    }
     if (error.code === "INVALID_GOOGLE_AUTHENTICATOR_CODE") {
       return "验证码错误或已过期，请使用最新 6 位码重试。";
     }

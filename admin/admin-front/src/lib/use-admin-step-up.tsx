@@ -51,7 +51,7 @@ export function useAdminStepUp({ enabled, issuer }: Readonly<UseAdminStepUpOptio
       if (nextRemaining > previousRemainingRef.current) {
         setExpiredNotice(true);
         setCode("");
-        setError("验证码已过期，请输入新的 6 位验证码。");
+        setError(null);
       }
       previousRemainingRef.current = nextRemaining;
       setRemainingSeconds(nextRemaining);
@@ -74,11 +74,9 @@ export function useAdminStepUp({ enabled, issuer }: Readonly<UseAdminStepUpOptio
   function confirmCode() {
     const normalizedCode = code.trim();
     if (expiredNotice) {
-      setError("验证码已过期，请输入新的 6 位验证码。");
       return;
     }
     if (remainingSeconds <= 5) {
-      setError("验证码即将过期，请等待下一轮 6 位码刷新后再确认。");
       return;
     }
     if (normalizedCode.length !== 6 || !/^\d{6}$/.test(normalizedCode)) {

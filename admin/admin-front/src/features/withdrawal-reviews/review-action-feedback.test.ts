@@ -29,6 +29,12 @@ describe("review-action-feedback", () => {
         "APPROVE",
       ),
     ).toContain("验证码错误或已过期");
+    expect(
+      getWithdrawReviewActionErrorMessage(
+        new AdminApiError("Withdrawal status=CANCELLED is not awaiting manual review", { status: 400, code: "BAD_REQUEST" }),
+        "APPROVE",
+      ),
+    ).toContain("当前申请已不处于可审核状态，请刷新页面");
     expect(getWithdrawReviewActionErrorMessage(new Error("Missing admin CSRF token"), "APPROVE")).toContain("安全校验令牌");
     expect(getWithdrawReviewActionErrorMessage(new Error("已取消 Google Authenticator 验证"), "REJECT")).toContain("后台还没有收到");
   });
