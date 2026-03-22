@@ -4,6 +4,7 @@ import { Box, Button, Flex, Grid, Heading, Input, Stack, Text } from "@chakra-ui
 import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, FieldBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { formatDateTime } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
@@ -88,7 +89,7 @@ export default function UsersPage() {
   }, [token]);
 
   if (loading || !admin) {
-    return <main className="state-screen">正在读取后台用户目录...</main>;
+    return <ControlPlaneLoadingScreen title="Operator Directory Hydration" message="正在读取后台用户目录..." />;
   }
 
   const canManage = admin.role === "super_admin";

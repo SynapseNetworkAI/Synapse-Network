@@ -4,6 +4,7 @@ import { Box, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, MessageBanner, MetricCard, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { formatDateTime, inputText } from "@/lib/admin-console";
 import { buildAuditMetrics, collectAuditStatuses, filterAuditItems, sortAuditItems, topAuditErrorCodes } from "@/features/audit/audit-presenters";
@@ -47,7 +48,7 @@ export default function AuditPage() {
   }, [token]);
 
   if (loading || !admin) {
-    return <main className="state-screen">正在检索审计链路...</main>;
+    return <ControlPlaneLoadingScreen title="Audit Trail Retrieval" message="正在检索审计链路..." />;
   }
 
   return (

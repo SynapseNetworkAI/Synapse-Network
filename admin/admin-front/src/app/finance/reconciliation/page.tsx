@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, EmptyBlock, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
@@ -332,7 +333,7 @@ export default function ReconciliationDetailPage() {
   }
 
   if (loading || !admin || bootstrapping) {
-    return <main className="state-screen">正在同步对账详情...</main>;
+    return <ControlPlaneLoadingScreen title="Reconciliation Detail Sync" message="正在同步对账详情..." />;
   }
 
   if (!detail) {

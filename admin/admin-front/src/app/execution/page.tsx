@@ -4,6 +4,7 @@ import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, EmptyBlock, MessageBanner, MetricCard, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { buildExecutionFailureClusters, buildExecutionMetrics, buildExecutionTargetCards, filterExecutionJobs, getExecutionStatusLabel, getExecutionTone, listExecutionTargets, sortExecutionJobsByPriority } from "@/features/execution/execution-presenters";
 import { formatDateTime } from "@/lib/admin-console";
@@ -72,7 +73,7 @@ export default function ExecutionPage() {
   }, [token]);
 
   if (loading || !admin || bootstrapping) {
-    return <main className="state-screen">正在同步执行任务...</main>;
+    return <ControlPlaneLoadingScreen title="Execution Queue Sync" message="正在同步执行任务..." />;
   }
 
   return (

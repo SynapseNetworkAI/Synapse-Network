@@ -4,6 +4,7 @@ import { Box, Button, Flex, Grid, Heading, Input, Stack, Text } from "@chakra-ui
 import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, FieldBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, StatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { buildPermissionGroups, buildRoleDomainCards, buildRoleMetrics, buildRoleRiskCards, filterRoles, sortRolesByPriority } from "@/features/rbac/role-presenters";
 import { useAdminSession } from "@/lib/use-admin-session";
@@ -95,7 +96,7 @@ export default function RolePermissionsPage() {
   const riskCards = useMemo(() => buildRoleRiskCards(roles), [roles]);
 
   if (loading || !admin || bootstrapping) {
-    return <main className="state-screen">正在载入角色权限矩阵...</main>;
+    return <ControlPlaneLoadingScreen title="RBAC Matrix Hydration" message="正在载入角色权限矩阵..." />;
   }
 
   const canManage = admin.role === "super_admin";

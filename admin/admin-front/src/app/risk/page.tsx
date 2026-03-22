@@ -4,6 +4,7 @@ import { Box, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, MessageBanner, MetricCard, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { formatDateTime } from "@/lib/admin-console";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
@@ -69,7 +70,7 @@ export default function RiskPage() {
   }, [token]);
 
   if (loading || !admin) {
-    return <main className="state-screen">正在构建风控工作台...</main>;
+    return <ControlPlaneLoadingScreen title="Risk Console Warmup" message="正在构建风控工作台..." />;
   }
 
   return (

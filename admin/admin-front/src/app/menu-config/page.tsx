@@ -4,6 +4,7 @@ import { Box, Button, Flex, Grid, Input, Stack, Text } from "@chakra-ui/react";
 import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, FieldBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { buildMenuGateCards, buildMenuMetrics, buildMenuSections, buildMenuVersionCards, filterMenuItems, sortMenuItemsByTopology } from "@/features/menu-config/menu-presenters";
 import { formatDateTime } from "@/lib/admin-console";
@@ -126,7 +127,7 @@ export default function MenuConfigPage() {
   const gateCards = useMemo(() => buildMenuGateCards(rows), [rows]);
 
   if (loading || !admin || bootstrapping) {
-    return <main className="state-screen">正在生成菜单配置视图...</main>;
+    return <ControlPlaneLoadingScreen title="Menu Topology Compose" message="正在生成菜单配置视图..." />;
   }
 
   const canManage = admin.role === "super_admin";

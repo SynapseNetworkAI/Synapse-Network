@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, MessageBanner, MetricCard, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { formatDateTime, formatUsdc, toneFromStatus } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
@@ -68,7 +69,7 @@ export default function ApprovalsPage() {
   }, [token]);
 
   if (loading || !admin) {
-    return <main className="state-screen">正在读取审批队列...</main>;
+    return <ControlPlaneLoadingScreen title="Approval Queue Projection" message="正在读取审批队列..." />;
   }
 
   return (
