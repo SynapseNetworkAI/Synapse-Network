@@ -4,6 +4,7 @@ import { Box, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DiagnosticsPanel } from "@/components/diagnostics-panel";
 import { MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard } from "@/components/console-ui";
 import { formatDateTime } from "@/lib/admin-console";
@@ -78,7 +79,7 @@ export default function SystemPage() {
   }, [token]);
 
   if (loading || !admin || bootstrapping) {
-    return <main className="state-screen">正在同步系统运行状态...</main>;
+    return <ControlPlaneLoadingScreen title="Runtime Snapshot Sync" message="正在同步系统运行状态..." />;
   }
 
   if (!status || !operations) {

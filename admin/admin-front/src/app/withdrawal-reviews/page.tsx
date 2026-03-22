@@ -4,6 +4,7 @@ import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, EmptyBlock, MessageBanner, MetricCard, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle, nativeTextAreaStyle } from "@/components/console-ui";
 import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
 import { formatDateTime, formatUsdc, inputText, toneFromStatus } from "@/lib/admin-console";
@@ -66,7 +67,7 @@ export default function WithdrawalReviewsPage() {
   const activeReview = visibleItems.find((item) => item.withdrawalId === activeReviewId) ?? null;
 
   if (loading || !admin) {
-    return <main className="state-screen">正在同步提现审核工作台...</main>;
+    return <ControlPlaneLoadingScreen title="Withdrawal Review Sync" message="正在同步提现审核工作台..." />;
   }
 
   return (

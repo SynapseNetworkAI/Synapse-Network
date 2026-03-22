@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DiagnosticsPanel } from "@/components/diagnostics-panel";
 import { DataTable, EmptyBlock, MessageBanner, MetricCard, SentinelStatusChip, StatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime } from "@/lib/admin-console";
@@ -122,7 +123,7 @@ export default function DashboardPage() {
   }, [admin, refreshDiagnostics, token]);
 
   if (loading) {
-    return <main className="state-screen">正在连接 gateway-admin 控制面...</main>;
+    return <ControlPlaneLoadingScreen title="Control Plane Handshake" message="正在连接 gateway-admin 控制面..." />;
   }
 
   if (!admin) {

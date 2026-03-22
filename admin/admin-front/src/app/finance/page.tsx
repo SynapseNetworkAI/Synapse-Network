@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime, formatUsdc, toneFromStatus } from "@/lib/admin-console";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
@@ -65,7 +66,7 @@ export default function FinancePage() {
   }, [token]);
 
   if (loading || !admin || bootstrapping) {
-    return <main className="state-screen">正在同步资金运营视图...</main>;
+    return <ControlPlaneLoadingScreen title="Finance Projection Sync" message="正在同步资金运营视图..." />;
   }
 
   if (!overview) {
