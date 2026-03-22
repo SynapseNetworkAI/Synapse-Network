@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
 import { AuthProtocolShell } from "@/components/auth-protocol-shell";
+import { buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "@/features/auth/login-presenters";
 import { clearPendingMfaEnrollment, savePendingMfaEnrollment } from "@/lib/admin-mfa-enrollment";
 import {
   getAdminAuthPolicy,
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [security, setSecurity] = useState<AdminAuthSecurityPolicy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const showLoginTotp = isLoginTotpEnabled(security);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,11 +85,8 @@ export default function LoginPage() {
       versionLabel="Gateway Control Plane v4.0.8"
       statusLabel="NODE_ACTIVE :: ENCRYPTED_LINK"
       railTitle="管理员登录控制台。"
-      railDescription="输入管理员邮箱、密码和验证码后进入控制台。"
-      railFacts={[
-        { label: "Primary Session", value: "cookie-session" },
-        { label: "Login TOTP", value: security?.loginTotpRequired ? "required" : "enabled" },
-      ]}
+      railDescription={buildLoginRailDescription(security)}
+      railFacts={buildLoginRailFacts(security)}
       layout="centered"
       panelMaxW="460px"
     >
@@ -109,22 +108,24 @@ export default function LoginPage() {
             </Flex>
           </Stack>
 
-          <Stack gap="2">
-            <Text fontSize="10px" fontWeight="800" letterSpacing="0.2em" textTransform="uppercase" color="rgba(103, 232, 249, 0.68)">Google Authenticator Token</Text>
-            <Flex gap="2">
-              <Box flex="1" position="relative">
-                <Box position="absolute" left="4" top="50%" transform="translateY(-50%)" pointerEvents="none">
-                  <Text color="rgba(103, 232, 249, 0.52)" fontSize="lg" fontWeight="800">⌁</Text>
+          {showLoginTotp ? (
+            <Stack gap="2">
+              <Text fontSize="10px" fontWeight="800" letterSpacing="0.2em" textTransform="uppercase" color="rgba(103, 232, 249, 0.68)">Google Authenticator Token</Text>
+              <Flex gap="2">
+                <Box flex="1" position="relative">
+                  <Box position="absolute" left="4" top="50%" transform="translateY(-50%)" pointerEvents="none">
+                    <Text color="rgba(103, 232, 249, 0.52)" fontSize="lg" fontWeight="800">⌁</Text>
+                  </Box>
+                  <Input value={otpCode} onChange={(event) => setOtpCode(event.target.value.replaceAll(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="000000" fontFamily="mono" letterSpacing="0.5em" pl="11" h="14" borderRadius="6px" bg="rgba(15,23,42,0.5)" borderColor="rgba(30,41,59,0.95)" color="#f8fafc" _placeholder={{ color: "rgba(100, 116, 139, 0.9)" }} _hover={{ borderColor: "rgba(34, 211, 238, 0.35)" }} _focusVisible={{ borderColor: "rgba(34, 211, 238, 0.55)", boxShadow: "0 0 0 1px rgba(34, 211, 238, 0.28)" }} />
                 </Box>
-                <Input value={otpCode} onChange={(event) => setOtpCode(event.target.value.replaceAll(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="000000" fontFamily="mono" letterSpacing="0.5em" pl="11" h="14" borderRadius="6px" bg="rgba(15,23,42,0.5)" borderColor="rgba(30,41,59,0.95)" color="#f8fafc" _placeholder={{ color: "rgba(100, 116, 139, 0.9)" }} _hover={{ borderColor: "rgba(34, 211, 238, 0.35)" }} _focusVisible={{ borderColor: "rgba(34, 211, 238, 0.55)", boxShadow: "0 0 0 1px rgba(34, 211, 238, 0.28)" }} />
-              </Box>
-              <Box minW="12" h="14" display="grid" placeItems="center" borderRadius="6px" bg="rgba(15,23,42,0.3)" border="1px solid rgba(30,41,59,0.95)">
-                <Text color="rgba(103, 232, 249, 0.7)" fontSize="xs" fontWeight="800">OTP</Text>
-              </Box>
-            </Flex>
-          </Stack>
+                <Box minW="12" h="14" display="grid" placeItems="center" borderRadius="6px" bg="rgba(15,23,42,0.3)" border="1px solid rgba(30,41,59,0.95)">
+                  <Text color="rgba(103, 232, 249, 0.7)" fontSize="xs" fontWeight="800">OTP</Text>
+                </Box>
+              </Flex>
+            </Stack>
+          ) : null}
 
-          <Button type="submit" h="16" borderRadius="6px" bg="#22d3ee" color="#082f49" fontWeight="900" fontFamily="mono" fontSize="sm" letterSpacing="0.2em" textTransform="uppercase" _hover={{ bg: "#f8fafc", boxShadow: "0 0 24px rgba(34, 211, 238, 0.34)" }} disabled={isPending}>
+          <Button type="submit" mt={showLoginTotp ? "0" : "3"} h="16" borderRadius="6px" bg="#22d3ee" color="#082f49" fontWeight="900" fontFamily="mono" fontSize="sm" letterSpacing="0.2em" textTransform="uppercase" _hover={{ bg: "#f8fafc", boxShadow: "0 0 24px rgba(34, 211, 238, 0.34)" }} disabled={isPending}>
             {isPending ? "Executing..." : "Execute Initialization"}
           </Button>
 

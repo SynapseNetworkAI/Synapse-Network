@@ -118,6 +118,7 @@
 说明：
 
 - 当 `GET /api/admin/v1/auth/policy` 返回 `loginTotpRequired=false` 时，`otpCode` 可省略
+- 当 `loginTotpRequired=false` 时，登录页不显示 Google Authenticator 输入框，后端也不会因为未绑定 TOTP 因子而触发登录期 enrollment
 - 当 `loginTotpRequired=true` 时，`otpCode` 必须是 Google Authenticator 当前 6 位验证码
 
 响应：

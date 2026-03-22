@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from src.app import app
 from src.api import deps
+from src.core.config import get_settings
 from src.core.totp import generate_totp_code
 from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
@@ -85,6 +86,11 @@ def _ensure_unenrolled_admin(email: str = "unenrolled@synapse.network") -> None:
         )
     )
     store.identity.update_password_hash(existing.admin_id, hash_password(PLACEHOLDER_PASSWORD))
+
+
+def _refresh_auth_settings() -> None:
+    get_settings.cache_clear()
+    deps.get_auth_service.cache_clear()
 
 
 _seed_test_passwords()
@@ -296,6 +302,45 @@ def test_admin_auth_policy_exposes_google_authenticator_switches() -> None:
     assert body["loginTotpRequired"] is True
     assert body["highRiskTotpRequired"] is True
     assert body["totpIssuer"] == "Synapse Gateway Admin"
+
+
+def test_admin_auth_policy_disables_login_totp_when_switch_is_off(monkeypatch) -> None:
+    monkeypatch.setenv("ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED", "false")
+    _refresh_auth_settings()
+
+    try:
+        response = client.get("/api/admin/v1/auth/policy")
+
+        assert response.status_code == 200
+        body = response.json()["data"]
+        assert body["loginTotpRequired"] is False
+        assert body["highRiskTotpRequired"] is True
+    finally:
+        _refresh_auth_settings()
+
+
+def test_admin_auth_login_skips_google_authenticator_when_login_switch_is_off(monkeypatch) -> None:
+    _ensure_unenrolled_admin("mfa-disabled@synapse.network")
+    monkeypatch.setenv("ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED", "false")
+    _refresh_auth_settings()
+    client.cookies.clear()
+
+    try:
+        response = client.post(
+            "/api/admin/v1/auth/login",
+            json={
+                "email": "mfa-disabled@synapse.network",
+                "password": PLACEHOLDER_PASSWORD,
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()["data"]
+        assert body["admin"]["email"] == "mfa-disabled@synapse.network"
+        assert body["security"]["loginTotpRequired"] is False
+        assert "synapse_admin_session=" in response.headers["set-cookie"]
+    finally:
+        _refresh_auth_settings()
 
 
 def test_admin_auth_me_and_logout_use_cookie_session() -> None:
