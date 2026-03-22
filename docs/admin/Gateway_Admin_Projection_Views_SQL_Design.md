@@ -311,7 +311,30 @@ canonical 字段：
 
 - 暴露运行态健康、回填进度、审计告警、失败充值、对账状态摘要
 
-### 5.1 CTE: `reconciliation`
+### 5.1 CTE: `indexer_runtime`
+
+来源：`synapse_runtime_state(state_key='deposit_indexer_runtime_state')`
+
+字段：
+
+- `indexer_running`：indexer 主循环是否处于运行态
+- `indexer_last_processed_at`：最近一次成功推进 pending intent 的时间
+- `indexer_last_heartbeat_at`：最近一次任务心跳时间
+- `indexer_last_error`：最近一次 indexer 主循环错误码
+- `indexer_poll_interval_sec`：indexer 轮询间隔
+- `backfill_enabled`：backfill 是否开启
+- `backfill_last_scan_at`：最近一次 backfill 扫描时间
+- `backfill_last_scanned_block`：最近一次完成扫描的区块高度
+- `backfill_last_recovered`：最近一次 backfill 扫描追回的充值数量
+- `backfill_last_error`：最近一次 backfill 失败错误码
+- `reconciliation_enabled`：reconciliation 是否开启
+- `last_reconciliation_at`：最近一次 reconciliation 执行时间
+- `reconciliation_delta_usdc`：最近一次 reconciliation 差额
+- `reconciliation_alert`：最近一次 reconciliation 是否打开告警
+- `reconciliation_last_error`：最近一次 reconciliation 任务错误码
+- `indexer_runtime_updated_at`：持久化任务状态记录更新时间
+
+### 5.2 CTE: `reconciliation`
 
 来源：`synapse_runtime_state`
 
@@ -323,7 +346,9 @@ canonical 字段：
 - `reconciliation_last_error`：最近对账错误
 - `reconciliation_updated_at`：runtime state 更新时间
 
-### 5.2 CTE: `runtime_projection`
+该 CTE 仅作为兼容回退来源，在新字段未回填到 `deposit_indexer_runtime_state` 时提供旧对账时间/差额。
+
+### 5.3 CTE: `runtime_projection`
 
 来源：`synapse_runtime_state`
 
@@ -331,14 +356,9 @@ canonical 字段：
 
 - `runtime_projection_updated_at`：运行态投影最近更新时间
 
-当前它同时复用为：
+当前只作为 legacy fallback 使用：如果 `deposit_indexer_runtime_state` 尚未生成，旧 reader 仍可得到最近投影更新时间。
 
-- `indexer_last_processed_at`
-- `backfill_last_scan_at`
-
-这是一版占位实现，后续如果 runtime state 里拆出更细粒度字段，可以再替换。
-
-### 5.3 CTE: `failed_deposits`
+### 5.4 CTE: `failed_deposits`
 
 来源：`synapse_vault_deposits`
 
@@ -347,7 +367,7 @@ canonical 字段：
 - `failed_deposit_count`：失败充值数量
 - `failed_deposits_updated_at`：相关记录最新更新时间
 
-### 5.4 CTE: `audit_window`
+### 5.5 CTE: `audit_window`
 
 来源：`synapse_audit_events`
 
@@ -356,7 +376,7 @@ canonical 字段：
 - `recent_audit_alerts`：24 小时内带失败/告警语义或有 `error_code` 的审计数
 - `audit_updated_at`：相关审计最近更新时间
 
-### 5.5 CTE: `system_window`
+### 5.6 CTE: `system_window`
 
 来源：`synapse_audit_events`
 
@@ -365,19 +385,27 @@ canonical 字段：
 - `recent_gateway_failures`：30 分钟内网关失败/错误/降级类事件数
 - `system_updated_at`：相关系统事件最近更新时间
 
-### 5.6 最终 SELECT 字段说明
+### 5.7 最终 SELECT 字段说明
 
-- `gateway_status`：如果存在对账告警、最近错误或近期网关失败，则为 `degraded`，否则 `healthy`
-- `indexer_last_processed_at`：当前复用 runtime projection 更新时间
-- `backfill_last_scan_at`：当前复用 runtime projection 更新时间
-- `backfill_last_scanned_block`：当前版本固定 `NULL`，预留给后续链上回填模块
+- `gateway_status`：如果存在对账告警、indexer/backfill/reconciliation 任务错误、indexer 停止或近期网关失败，则为 `degraded`，否则 `healthy`
+- `indexer_running`：真实 indexer 主循环运行态
+- `indexer_last_processed_at`：优先取真实 indexer 处理时间，缺失时回退到 runtime projection 更新时间
+- `indexer_last_heartbeat_at`：真实 indexer 心跳时间
+- `indexer_last_error`：真实 indexer 主循环错误码
+- `indexer_poll_interval_sec`：indexer 轮询周期
+- `backfill_enabled`：真实 backfill 开关状态
+- `backfill_last_scan_at`：优先取真实 backfill 扫描时间，缺失时回退到 runtime projection 更新时间
+- `backfill_last_scanned_block`：真实 backfill 最近扫到的区块高度
+- `backfill_last_recovered`：真实 backfill 最近追回的充值数量
+- `backfill_last_error`：真实 backfill 错误码
 - `recent_gateway_failures`：最近 30 分钟失败事件数
 - `failed_deposit_count`：失败充值数
 - `recent_audit_alerts`：最近 24 小时审计告警数
-- `last_reconciliation_at`：最近对账时间
-- `reconciliation_alert`：是否有对账告警
-- `reconciliation_delta_usdc`：最近对账差额
-- `reconciliation_last_error`：最近对账错误信息
+- `reconciliation_enabled`：真实 reconciliation 开关状态
+- `last_reconciliation_at`：优先取真实 reconciliation 最近执行时间，缺失时回退到旧 runtime state
+- `reconciliation_alert`：真实 reconciliation 告警状态
+- `reconciliation_delta_usdc`：真实 reconciliation 最近差额
+- `reconciliation_last_error`：真实 reconciliation 任务错误信息
 - `projected_at`：operations projection 的 freshness watermark
 
 ## 6. synapse_admin_dashboard_projection

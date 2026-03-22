@@ -90,7 +90,7 @@ export default function SystemPage() {
         admin={admin}
         eyebrow="System Control"
         title="系统运维中心"
-        description="这里负责查看 gateway 相关运行快照、执行异常和投影新鲜度；当前 indexer / backfill / reconciliation 展示的是 runtime projection proxy，不是独立任务监控台。"
+        description="这里负责查看 gateway 相关运行快照、执行异常和持久化任务状态；indexer / backfill / reconciliation 现在展示真实后端任务状态，而不是 projection proxy。"
       >
         {error ? <MessageBanner kind="error" message={error} /> : <MessageBanner kind="error" message="系统运行视图暂时不可用。" />}
       </AdminShell>
@@ -102,7 +102,7 @@ export default function SystemPage() {
       admin={admin}
       eyebrow="System Control"
       title="系统运维中心"
-      description="这里负责查看 gateway 相关运行快照、执行异常和投影新鲜度；当前 indexer / backfill / reconciliation 展示的是 runtime projection proxy，不是独立任务监控台。"
+      description="这里负责查看 gateway 相关运行快照、执行异常和持久化任务状态；indexer / backfill / reconciliation 现在展示真实后端任务状态，而不是 projection proxy。"
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
@@ -111,7 +111,7 @@ export default function SystemPage() {
         <MetricCard label="审批队列深度" value={metrics?.approvalQueueDepth ?? 0} meta="待 reviewer 处理项目" />
       </Grid>
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
-        <SurfaceCard eyebrow="Runtime Snapshot" title="组件运行快照" description="这里提供 gateway 运行快照与 projection freshness 线索，不再把它表述成独立任务监控。">
+        <SurfaceCard eyebrow="Runtime Snapshot" title="组件运行快照" description="这里提供 gateway 真实任务状态、最近处理时间和失败信号，同时保留聚合投影时间供交叉核对。">
           <Stack direction="row" gap="10px" mb="16px" flexWrap="wrap">
             <SentinelStatusChip label={`gateway ${status.gateway}`} tone={getRuntimeTone(status.gateway)} />
             <SentinelStatusChip label={`admin ${status.gatewayAdmin}`} tone={getRuntimeTone(status.gatewayAdmin)} />
@@ -138,7 +138,7 @@ export default function SystemPage() {
           descriptionFallback="这里提供完整 diagnostics 结论与组件级调查线索；dashboard 页面只保留摘要，不在那边重复展开。"
           diagnostics={systemDiagnostics}
           error={diagnosticError}
-          statusHint="与 dashboard 概览和系统入口共享同一诊断源；这里展示真实后台执行失败、审批压力与投影快照，但不是独立任务监控控制台。"
+          statusHint="与 dashboard 概览和系统入口共享同一诊断源；这里展示真实后台执行失败、审批压力，以及 indexer / backfill / reconciliation 的持久化任务状态。"
           actionColumnsMd={2}
           cardRadius="20px"
           cardPadding="16px"

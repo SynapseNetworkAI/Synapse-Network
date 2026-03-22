@@ -22,6 +22,7 @@ INDEXER_STATUS: Dict[str, Any] = {
     "listenerAddress": normalize_wallet(settings.router_address),
     "lastCounters": {"credited": 0, "failed": 0, "pending": 0},
     "lastProcessedAt": None,
+    "heartbeatAt": None,
     "lastError": None,
     "backfill": {
         "enabled": bool(settings.v2_backfill_enabled),
@@ -118,6 +119,7 @@ def get_indexer_status() -> Dict[str, Any]:
                 or {"credited": 0, "failed": 0, "pending": 0}
             ),
             "lastProcessedAt": snapshot.get("lastProcessedAt"),
+            "heartbeatAt": snapshot.get("heartbeatAt"),
             "lastError": snapshot.get("lastError"),
             "pollIntervalSec": settings.v2_indexer_poll_interval_sec,
             "backfill": dict(snapshot.get("backfill") or {}),

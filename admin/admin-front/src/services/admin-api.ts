@@ -177,12 +177,23 @@ export type ActivityTrendSeries = {
 
 export type OperationsOverview = {
   gatewayStatus: string;
+  indexerRunning: boolean;
+  indexerStatus: string;
   indexerLastProcessedAt: string | null;
+  indexerLastHeartbeatAt: string | null;
+  indexerLastError: string | null;
+  indexerPollIntervalSec: number;
+  backfillEnabled: boolean;
+  backfillStatus: string;
   backfillLastScanAt: string | null;
   backfillLastScannedBlock: number | null;
+  backfillLastRecovered: number;
+  backfillLastError: string | null;
   recentGatewayFailures: number;
   failedDepositCount: number;
   recentAuditAlerts: number;
+  reconciliationEnabled: boolean;
+  reconciliationStatus: string;
   lastReconciliationAt: string | null;
   reconciliationAlert: boolean;
   reconciliationDeltaUsdc: string;

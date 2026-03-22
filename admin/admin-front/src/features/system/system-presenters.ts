@@ -2,13 +2,16 @@ import type { OperationsOverview, SystemStatus } from "@/services/admin-api";
 
 export function getRuntimeTone(status: string): "green" | "orange" | "red" | "gray" {
   const normalized = status.toLowerCase();
+  if (normalized.includes("alert") || normalized.includes("lagging")) {
+    return "orange";
+  }
   if (normalized.includes("healthy") || normalized.includes("active") || normalized.includes("nominal")) {
     return "green";
   }
   if (normalized.includes("degraded") || normalized.includes("warning") || normalized.includes("lag")) {
     return "orange";
   }
-  if (normalized.includes("failed") || normalized.includes("error") || normalized.includes("down")) {
+  if (normalized.includes("failed") || normalized.includes("error") || normalized.includes("down") || normalized.includes("stopped")) {
     return "red";
   }
   return "gray";
@@ -26,33 +29,42 @@ export function buildSystemMetrics(status: SystemStatus, operations: OperationsO
 }
 
 export function buildRuntimeCards(operations: OperationsOverview) {
+  const indexerErrorDetail = operations.indexerLastError ? `; error ${operations.indexerLastError}` : "";
+  const backfillErrorDetail = operations.backfillLastError ? `; error ${operations.backfillLastError}` : "";
+  let reconciliationTailDetail = "";
+  if (operations.reconciliationLastError) {
+    reconciliationTailDetail = `; error ${operations.reconciliationLastError}`;
+  } else if (operations.reconciliationAlert) {
+    reconciliationTailDetail = "; alert open";
+  }
+
   return [
     {
       key: "indexer",
-      label: "Indexer last processed",
-      value: operations.indexerLastProcessedAt ?? "n/a",
-      description: "当前 indexer freshness proxy，来自 runtime projection 最近刷新时间。",
-      format: "datetime" as const,
+      label: "Indexer task",
+      value: operations.indexerStatus,
+      description: `running ${operations.indexerRunning ? "yes" : "no"}; heartbeat ${operations.indexerLastHeartbeatAt ?? "n/a"}; last processed ${operations.indexerLastProcessedAt ?? "n/a"}${indexerErrorDetail}`,
+      format: "text" as const,
     },
     {
       key: "backfill-scan",
-      label: "Backfill last scan",
-      value: operations.backfillLastScanAt ?? "n/a",
-      description: "当前 backfill freshness proxy，来自 runtime projection 最近刷新时间。",
-      format: "datetime" as const,
-    },
-    {
-      key: "backfill-block",
-      label: "Backfill block",
-      value: String(operations.backfillLastScannedBlock ?? "n/a"),
-      description: "当前尚未接入独立 backfill 扫块监控，缺省只展示最近可用投影值。",
+      label: "Backfill task",
+      value: operations.backfillStatus,
+      description: `enabled ${operations.backfillEnabled ? "yes" : "no"}; last scan ${operations.backfillLastScanAt ?? "n/a"}; block ${operations.backfillLastScannedBlock ?? "n/a"}; recovered ${operations.backfillLastRecovered}${backfillErrorDetail}`,
       format: "text" as const,
     },
     {
       key: "reconciliation",
-      label: "Last reconciliation",
-      value: operations.lastReconciliationAt ?? "n/a",
-      description: "账本对账投影最后更新时间，用来判断 reconciliation freshness。",
+      label: "Reconciliation task",
+      value: operations.reconciliationStatus,
+      description: `enabled ${operations.reconciliationEnabled ? "yes" : "no"}; last check ${operations.lastReconciliationAt ?? "n/a"}; delta ${operations.reconciliationDeltaUsdc} USDC${reconciliationTailDetail}`,
+      format: "text" as const,
+    },
+    {
+      key: "projection",
+      label: "Projection updated",
+      value: operations.projectedAt ?? "n/a",
+      description: "运维读模型最近一次刷新时间，用于交叉验证持久化任务状态和聚合计数。",
       format: "datetime" as const,
     },
   ];

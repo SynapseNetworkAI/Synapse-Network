@@ -13,6 +13,9 @@ from src.utils.datetime_utils import now_dt_str
 from .shared import _now
 
 
+_INDEXER_RUNTIME_STATE_KEY = "deposit_indexer_runtime_state"
+
+
 def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
     """从存储层读取充值意图，并统一转换成 indexer 可变 dict。"""
     raw_rows = storage.get_data_manager().system.gateway_state.read_deposit_intents()
@@ -85,6 +88,18 @@ def _save_backfill_state(storage: BaseStorage, state: Dict[str, Any]) -> None:
     payload = dict(state)
     payload["updatedAt"] = now_dt_str()
     _save_runtime_state(storage, "deposit_backfill_state", payload)
+
+
+def _load_indexer_runtime_state(storage: BaseStorage) -> Dict[str, Any]:
+    """读取 indexer 持久化运行状态。"""
+    return _load_runtime_state(storage, _INDEXER_RUNTIME_STATE_KEY)
+
+
+def _persist_indexer_runtime_state(storage: BaseStorage) -> None:
+    """把 indexer 当前运行状态持久化为稳定 runtime state。"""
+    from .shared import get_indexer_status
+
+    _save_runtime_state(storage, _INDEXER_RUNTIME_STATE_KEY, get_indexer_status())
 
 
 def _append_audit_log(

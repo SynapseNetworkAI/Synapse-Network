@@ -91,14 +91,28 @@ class DashboardService:
 
     def get_operations_overview(self) -> dict:
         snapshot = self._gateway_projection.get_operations_snapshot()
+        indexer_status = self._resolve_indexer_runtime_status(snapshot)
+        backfill_status = self._resolve_backfill_runtime_status(snapshot)
+        reconciliation_status = self._resolve_reconciliation_runtime_status(snapshot)
         return {
             "gatewayStatus": snapshot.gateway_status,
+            "indexerRunning": snapshot.indexer_running,
+            "indexerStatus": indexer_status,
             "indexerLastProcessedAt": self._format_timestamp(snapshot.indexer_last_processed_at),
+            "indexerLastHeartbeatAt": self._format_timestamp(snapshot.indexer_last_heartbeat_at),
+            "indexerLastError": snapshot.indexer_last_error,
+            "indexerPollIntervalSec": snapshot.indexer_poll_interval_sec,
+            "backfillEnabled": snapshot.backfill_enabled,
+            "backfillStatus": backfill_status,
             "backfillLastScanAt": self._format_timestamp(snapshot.backfill_last_scan_at),
             "backfillLastScannedBlock": snapshot.backfill_last_scanned_block,
+            "backfillLastRecovered": snapshot.backfill_last_recovered,
+            "backfillLastError": snapshot.backfill_last_error,
             "recentGatewayFailures": snapshot.recent_gateway_failures,
             "failedDepositCount": snapshot.failed_deposit_count,
             "recentAuditAlerts": snapshot.recent_audit_alerts,
+            "reconciliationEnabled": snapshot.reconciliation_enabled,
+            "reconciliationStatus": reconciliation_status,
             "lastReconciliationAt": self._format_timestamp(snapshot.last_reconciliation_at),
             "reconciliationAlert": snapshot.reconciliation_alert,
             "reconciliationDeltaUsdc": self._format_decimal(snapshot.reconciliation_delta_usdc),
@@ -490,7 +504,7 @@ class DashboardService:
                 "system-center",
                 "Open system center",
                 "/system",
-                "inspect gateway health, execution failures, and projection freshness for indexer, backfill, and reconciliation",
+                "inspect gateway health, execution failures, and persisted task status for indexer, backfill, and reconciliation",
                 system_status,
             ),
             self._build_action(
@@ -512,6 +526,48 @@ class DashboardService:
     @staticmethod
     def _format_decimal(value) -> str:
         return f"{value:.2f}"
+
+    @staticmethod
+    def _resolve_indexer_runtime_status(snapshot) -> str:
+        if snapshot.indexer_last_error:
+            return "failed"
+        if not snapshot.indexer_running:
+            return "stopped"
+        if snapshot.indexer_last_heartbeat_at is None:
+            return "starting"
+        poll_window = max(int(snapshot.indexer_poll_interval_sec or 0) * 3, 90)
+        age_seconds = int((datetime.now(timezone.utc) - snapshot.indexer_last_heartbeat_at).total_seconds())
+        if age_seconds > poll_window:
+            return "lagging"
+        return "healthy"
+
+    @classmethod
+    def _resolve_backfill_runtime_status(cls, snapshot) -> str:
+        if not snapshot.backfill_enabled:
+            return "disabled"
+        if snapshot.backfill_last_error:
+            return "failed"
+        if snapshot.backfill_last_scan_at is None:
+            return "idle"
+        poll_window = max(int(snapshot.indexer_poll_interval_sec or 0) * 5, 180)
+        age_seconds = int((datetime.now(timezone.utc) - snapshot.backfill_last_scan_at).total_seconds())
+        if age_seconds > poll_window:
+            indexer_status = cls._resolve_indexer_runtime_status(snapshot)
+            if indexer_status in {"healthy", "lagging"}:
+                return "lagging"
+        return "healthy"
+
+    @staticmethod
+    def _resolve_reconciliation_runtime_status(snapshot) -> str:
+        if not snapshot.reconciliation_enabled:
+            return "disabled"
+        if snapshot.reconciliation_alert:
+            return "alert"
+        if snapshot.reconciliation_last_error:
+            return "failed"
+        if snapshot.last_reconciliation_at is None:
+            return "idle"
+        return "healthy"
 
     @staticmethod
     def _format_timestamp(timestamp: datetime | None) -> str | None:

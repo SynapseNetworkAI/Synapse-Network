@@ -11,6 +11,7 @@ from .chain import _amount_usdc_from_raw, _resolve_token_decimals
 from .persistence import (
     _append_audit_log,
     _load_balance_ledger,
+    _persist_indexer_runtime_state,
     _load_runtime_state,
     _save_runtime_state,
 )
@@ -102,6 +103,7 @@ def run_reconciliation_check_once(storage: BaseStorage) -> Dict[str, Any]:
         },
     )
     _set_status(reconciliation=summary)
+    _persist_indexer_runtime_state(storage)
     logger.info(
         "deposit reconciliation checked chain_vault=%.6f ledger_obligation=%.6f delta=%.6f alert=%s",
         chain_vault,

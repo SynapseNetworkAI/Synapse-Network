@@ -363,6 +363,7 @@ X-CSRF-Token: <csrfToken>
 
 - 来自 gateway 只读投影视图 `synapse_admin_dashboard_operations_projection`
 - 只允许使用已持久化的 runtime state 和日志，不允许暴露仅存在于进程内存中的瞬时字段
+- `indexer / backfill / reconciliation` 的任务状态来自 `synapse_runtime_state(state_key='deposit_indexer_runtime_state')`，不再复用 `agent_runtime_projection_state` freshness proxy
 
 响应：
 
@@ -371,12 +372,23 @@ X-CSRF-Token: <csrfToken>
   "success": true,
   "data": {
     "gatewayStatus": "degraded",
+    "indexerRunning": true,
+    "indexerStatus": "healthy",
     "indexerLastProcessedAt": "2026-03-16T08:03:00Z",
+    "indexerLastHeartbeatAt": "2026-03-16T08:04:00Z",
+    "indexerLastError": null,
+    "indexerPollIntervalSec": 30,
+    "backfillEnabled": true,
+    "backfillStatus": "healthy",
     "backfillLastScanAt": "2026-03-16T07:58:00Z",
     "backfillLastScannedBlock": 19450321,
+    "backfillLastRecovered": 3,
+    "backfillLastError": null,
     "recentGatewayFailures": 1,
     "failedDepositCount": 2,
     "recentAuditAlerts": 1,
+    "reconciliationEnabled": true,
+    "reconciliationStatus": "alert",
     "lastReconciliationAt": "2026-03-16T08:00:00Z",
     "reconciliationAlert": true,
     "reconciliationDeltaUsdc": "0.50",
@@ -597,7 +609,7 @@ X-CSRF-Token: <csrfToken>
         "actionId": "system-center",
         "label": "Open system center",
         "href": "/system",
-        "detail": "inspect gateway health, execution failures, and projection freshness for indexer, backfill, and reconciliation",
+        "detail": "inspect gateway health, execution failures, and persisted task status for indexer, backfill, and reconciliation",
         "status": "degraded"
       }
     ]
@@ -609,7 +621,7 @@ X-CSRF-Token: <csrfToken>
 说明：
 
 - `system-center` 动作当前接入的是统一 diagnostics 语义层、execution failed jobs、approval queue 与 gateway projection 快照。
-- `indexer / backfill / reconciliation` 在 `/system` 中当前展示的是 runtime projection freshness proxy，不是各自独立任务系统的原生监控面板。
+- `indexer / backfill / reconciliation` 在 `/system` 中当前展示的是持久化任务状态，来源于 gateway 持续刷新的 `deposit_indexer_runtime_state`。
 
 ## 3.3 approval
 

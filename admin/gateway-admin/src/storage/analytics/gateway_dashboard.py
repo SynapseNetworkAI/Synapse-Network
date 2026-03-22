@@ -8,6 +8,10 @@ from typing import Any, Protocol
 
 _ZERO_BIGINT_SQL = "0::bigint"
 _ZERO_NUMERIC_SQL = "0::numeric"
+_ZERO_INTEGER_SQL = "0::integer"
+_FALSE_BOOL_SQL = "FALSE::boolean"
+_NULL_TEXT_SQL = "NULL::text"
+_NULL_TIMESTAMPTZ_SQL = "NULL::timestamptz"
 
 
 def _connect(dsn: str) -> Any:
@@ -110,12 +114,20 @@ class GatewayActivityTrendPoint:
 @dataclass(slots=True)
 class GatewayOperationsSnapshot:
     gateway_status: str
+    indexer_running: bool
     indexer_last_processed_at: datetime | None
+    indexer_last_heartbeat_at: datetime | None
+    indexer_last_error: str | None
+    indexer_poll_interval_sec: int
+    backfill_enabled: bool
     backfill_last_scan_at: datetime | None
     backfill_last_scanned_block: int | None
+    backfill_last_recovered: int
+    backfill_last_error: str | None
     recent_gateway_failures: int
     failed_deposit_count: int
     recent_audit_alerts: int
+    reconciliation_enabled: bool
     last_reconciliation_at: datetime | None
     reconciliation_alert: bool
     reconciliation_delta_usdc: Decimal
@@ -269,12 +281,20 @@ class InMemoryGatewayDashboardProjectionRepository:
             ],
             operations_snapshot=GatewayOperationsSnapshot(
                 gateway_status="degraded",
+                indexer_running=True,
                 indexer_last_processed_at=datetime(2026, 3, 16, 8, 3, tzinfo=timezone.utc),
+                indexer_last_heartbeat_at=datetime(2026, 3, 16, 8, 4, tzinfo=timezone.utc),
+                indexer_last_error=None,
+                indexer_poll_interval_sec=30,
+                backfill_enabled=True,
                 backfill_last_scan_at=datetime(2026, 3, 16, 7, 58, tzinfo=timezone.utc),
                 backfill_last_scanned_block=19450321,
+                backfill_last_recovered=3,
+                backfill_last_error=None,
                 recent_gateway_failures=1,
                 failed_deposit_count=2,
                 recent_audit_alerts=1,
+                reconciliation_enabled=True,
                 last_reconciliation_at=datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
                 reconciliation_alert=True,
                 reconciliation_delta_usdc=Decimal("0.50"),
@@ -526,17 +546,66 @@ class PostgresGatewayDashboardProjectionRepository:
         ]
 
     def get_operations_snapshot(self) -> GatewayOperationsSnapshot:
+        columns = self._get_projection_columns("synapse_admin_dashboard_operations_projection")
+        indexer_running_column = _resolve_projection_expr(
+            columns,
+            "indexer_running",
+            default_sql=_FALSE_BOOL_SQL,
+        )
+        indexer_last_heartbeat_column = _resolve_projection_expr(
+            columns,
+            "indexer_last_heartbeat_at",
+            default_sql=_NULL_TIMESTAMPTZ_SQL,
+        )
+        indexer_last_error_column = _resolve_projection_expr(
+            columns,
+            "indexer_last_error",
+            default_sql=_NULL_TEXT_SQL,
+        )
+        indexer_poll_interval_column = _resolve_projection_expr(
+            columns,
+            "indexer_poll_interval_sec",
+            default_sql=_ZERO_INTEGER_SQL,
+        )
+        backfill_enabled_column = _resolve_projection_expr(
+            columns,
+            "backfill_enabled",
+            default_sql=_FALSE_BOOL_SQL,
+        )
+        backfill_last_recovered_column = _resolve_projection_expr(
+            columns,
+            "backfill_last_recovered",
+            default_sql=_ZERO_BIGINT_SQL,
+        )
+        backfill_last_error_column = _resolve_projection_expr(
+            columns,
+            "backfill_last_error",
+            default_sql=_NULL_TEXT_SQL,
+        )
+        reconciliation_enabled_column = _resolve_projection_expr(
+            columns,
+            "reconciliation_enabled",
+            default_sql=_FALSE_BOOL_SQL,
+        )
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT
                     gateway_status,
+                    {indexer_running_column} AS indexer_running,
                     indexer_last_processed_at,
+                    {indexer_last_heartbeat_column} AS indexer_last_heartbeat_at,
+                    {indexer_last_error_column} AS indexer_last_error,
+                    {indexer_poll_interval_column} AS indexer_poll_interval_sec,
+                    {backfill_enabled_column} AS backfill_enabled,
                     backfill_last_scan_at,
                     backfill_last_scanned_block,
+                    {backfill_last_recovered_column} AS backfill_last_recovered,
+                    {backfill_last_error_column} AS backfill_last_error,
                     recent_gateway_failures,
                     failed_deposit_count,
                     recent_audit_alerts,
+                    {reconciliation_enabled_column} AS reconciliation_enabled,
                     last_reconciliation_at,
                     reconciliation_alert,
                     reconciliation_delta_usdc,
@@ -550,12 +619,20 @@ class PostgresGatewayDashboardProjectionRepository:
         if row is None:
             return GatewayOperationsSnapshot(
                 gateway_status="unknown",
+                indexer_running=False,
                 indexer_last_processed_at=None,
+                indexer_last_heartbeat_at=None,
+                indexer_last_error=None,
+                indexer_poll_interval_sec=0,
+                backfill_enabled=False,
                 backfill_last_scan_at=None,
                 backfill_last_scanned_block=None,
+                backfill_last_recovered=0,
+                backfill_last_error=None,
                 recent_gateway_failures=0,
                 failed_deposit_count=0,
                 recent_audit_alerts=0,
+                reconciliation_enabled=False,
                 last_reconciliation_at=None,
                 reconciliation_alert=False,
                 reconciliation_delta_usdc=Decimal("0"),
@@ -564,12 +641,20 @@ class PostgresGatewayDashboardProjectionRepository:
             )
         return GatewayOperationsSnapshot(
             gateway_status=str(row["gateway_status"]),
+            indexer_running=bool(row["indexer_running"]),
             indexer_last_processed_at=row["indexer_last_processed_at"],
+            indexer_last_heartbeat_at=row["indexer_last_heartbeat_at"],
+            indexer_last_error=row["indexer_last_error"],
+            indexer_poll_interval_sec=int(row["indexer_poll_interval_sec"]),
+            backfill_enabled=bool(row["backfill_enabled"]),
             backfill_last_scan_at=row["backfill_last_scan_at"],
             backfill_last_scanned_block=row["backfill_last_scanned_block"],
+            backfill_last_recovered=int(row["backfill_last_recovered"]),
+            backfill_last_error=row["backfill_last_error"],
             recent_gateway_failures=int(row["recent_gateway_failures"]),
             failed_deposit_count=int(row["failed_deposit_count"]),
             recent_audit_alerts=int(row["recent_audit_alerts"]),
+            reconciliation_enabled=bool(row["reconciliation_enabled"]),
             last_reconciliation_at=row["last_reconciliation_at"],
             reconciliation_alert=bool(row["reconciliation_alert"]),
             reconciliation_delta_usdc=Decimal(str(row["reconciliation_delta_usdc"])),
