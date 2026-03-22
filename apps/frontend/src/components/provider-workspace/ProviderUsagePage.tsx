@@ -4,9 +4,11 @@ import { useMemo } from "react";
 import { BarChart3, LineChart, TrendingUp } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function UsageAnalyticsPage() {
+  const { t } = useLanguage();
   const { providerStats, paidEvents, handleRefresh, isRefreshing } = useDashboardData();
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -75,35 +77,35 @@ export default function UsageAnalyticsPage() {
         <div>
           <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
             <BarChart3 className="w-8 h-8 text-[#22c55e]" />
-            Provider Revenue Analytics
+            {t("providerUsagePage.title")}
           </h1>
           <p className="mt-2 text-sm text-[#86868b]">
-            Revenue and call trends from deduplicated settlement records.
+            {t("providerUsagePage.description")}
           </p>
         </div>
         <button
           onClick={() => void handleRefreshClick()}
           className="px-4 py-2 rounded-xl border border-[#22c55e]/40 bg-[#22c55e]/10 hover:bg-[#22c55e] hover:text-black text-sm font-semibold text-[#22c55e] transition-colors"
         >
-          {isRefreshing ? "Refreshing..." : "Refresh Data"}
+          {isRefreshing ? t("providerUsagePage.refreshing") : t("providerUsagePage.refreshData")}
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Net Earnings</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricNetEarnings")}</p>
           <p className="text-3xl font-mono font-bold text-white">{providerStats.receivable.toFixed(4)} USDC</p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Gross Earnings</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricGrossEarnings")}</p>
           <p className="text-3xl font-mono font-bold text-white">{providerStats.totalEarned.toFixed(4)} USDC</p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Protocol Fee</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricProtocolFee")}</p>
           <p className="text-3xl font-mono font-bold text-[#ff9f0a]">{providerStats.totalFees.toFixed(4)} USDC</p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Routing Tax</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricRoutingTax")}</p>
           <p className="text-3xl font-mono font-bold text-[#22c55e]">{providerStats.totalRoutingTax.toFixed(4)} USDC</p>
         </div>
       </div>
@@ -112,7 +114,7 @@ export default function UsageAnalyticsPage() {
         <div className="xl:col-span-3 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 mb-4">
             <LineChart className="w-4 h-4 text-[#22c55e]" />
-            <h2 className="text-sm font-semibold tracking-wide text-white">Net Earnings Trend (7D)</h2>
+            <h2 className="text-sm font-semibold tracking-wide text-white">{t("providerUsagePage.netEarningsTrend")}</h2>
           </div>
           <div className="h-56 flex items-end gap-2">
             {trendRows.map((row) => {
@@ -130,7 +132,7 @@ export default function UsageAnalyticsPage() {
         <div className="xl:col-span-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4 text-[#86868b]" />
-            <h2 className="text-sm font-semibold tracking-wide text-white">Call Volume Trend (7D)</h2>
+            <h2 className="text-sm font-semibold tracking-wide text-white">{t("providerUsagePage.callVolumeTrend")}</h2>
           </div>
           <div className="h-56 flex items-end gap-2">
             {trendRows.map((row) => {
@@ -148,17 +150,17 @@ export default function UsageAnalyticsPage() {
 
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] overflow-hidden">
         <div className="px-6 py-4 border-b border-[#222222] bg-[#050505]">
-          <h2 className="text-lg font-semibold text-white">Top Services by Calls</h2>
+          <h2 className="text-lg font-semibold text-white">{t("providerUsagePage.topServicesTitle")}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-[#050505] text-[#86868b] text-sm border-b border-[#222222]">
-                <th className="py-4 px-6 font-medium">Service ID</th>
-                <th className="py-4 px-6 font-medium">Total Calls</th>
-                <th className="py-4 px-6 font-medium text-right">Gross</th>
-                <th className="py-4 px-6 font-medium text-right">Protocol Fee</th>
-                <th className="py-4 px-6 font-medium text-right">Net</th>
+                <th className="py-4 px-6 font-medium">{t("providerUsagePage.tableServiceId")}</th>
+                <th className="py-4 px-6 font-medium">{t("providerUsagePage.tableTotalCalls")}</th>
+                <th className="py-4 px-6 font-medium text-right">{t("providerUsagePage.tableGross")}</th>
+                <th className="py-4 px-6 font-medium text-right">{t("providerUsagePage.tableProtocolFee")}</th>
+                <th className="py-4 px-6 font-medium text-right">{t("providerUsagePage.tableNet")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#151515] text-sm">
@@ -175,7 +177,7 @@ export default function UsageAnalyticsPage() {
               ) : (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-[#86868b]">
-                    No provider revenue metrics available yet.
+                    {t("providerUsagePage.empty")}
                   </td>
                 </tr>
               )}

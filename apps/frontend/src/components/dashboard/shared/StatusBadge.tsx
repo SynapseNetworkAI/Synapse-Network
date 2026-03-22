@@ -2,6 +2,7 @@ import type { DeductionStatus } from "@/components/dashboard/shared/deductionSta
 
 type StatusBadgeProps = {
   status: DeductionStatus;
+  label?: string;
 };
 
 const STATUS_CLASS: Record<DeductionStatus, string> = {
@@ -11,6 +12,6 @@ const STATUS_CLASS: Record<DeductionStatus, string> = {
   failed: "text-red-300 border-red-500/40 bg-red-500/10",
 };
 
-export default function StatusBadge({ status }: StatusBadgeProps) {
-  return <span className={`px-2 py-1 text-xs rounded border ${STATUS_CLASS[status]}`}>{status}</span>;
+export default function StatusBadge({ status, label }: Readonly<StatusBadgeProps>) {
+  return <span className={`px-2 py-1 text-xs rounded border ${STATUS_CLASS[status]}`}>{label || status}</span>;
 }
