@@ -7,6 +7,7 @@ import { ArrowLeft, Server, Plus, Activity } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import {
   deleteServiceRegistry,
   invalidateServiceRegistryListCache,
@@ -28,6 +29,7 @@ function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inacti
 }
 
 export default function ServicesPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -44,8 +46,8 @@ export default function ServicesPage() {
 
     const confirmed = globalThis.confirm(
       nextActive
-        ? `Activate service ${svc.serviceId}? It will appear for discovery again only when health checks report healthy targets.`
-        : `Set service ${svc.serviceId} to inactive? New discovery and direct gateway forwarding requests will be blocked after this update.`
+        ? t("servicesPage.confirmActivate", { serviceId: svc.serviceId })
+        : t("servicesPage.confirmDeactivate", { serviceId: svc.serviceId })
     );
     if (!confirmed) {
       return;
@@ -62,16 +64,16 @@ export default function ServicesPage() {
 
       try {
         await updateServiceRegistry(payload, address);
-        toast.success(nextActive ? "Service activated" : "Service set to inactive");
+        toast.success(nextActive ? t("servicesPage.serviceActivated") : t("servicesPage.serviceSetInactive"));
       } catch (err) {
         setServices(prevServices);
         invalidateServiceRegistryListCache(address);
-        toast.error(err instanceof Error ? err.message : "Failed to update service status");
+        toast.error(err instanceof Error ? err.message : t("servicesPage.updateStatusFailed"));
       } finally {
         setStatusUpdatingServiceId(null);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update service status");
+      toast.error(err instanceof Error ? err.message : t("servicesPage.updateStatusFailed"));
     }
   };
 
@@ -81,7 +83,7 @@ export default function ServicesPage() {
     }
 
     const confirmed = globalThis.confirm(
-      `Delete service ${svc.serviceId}? This is a logical delete. The service will be marked as deleted, removed from your active service list, and kept only for audit history.`
+      t("servicesPage.confirmDelete", { serviceId: svc.serviceId })
     );
     if (!confirmed) {
       return;
@@ -93,11 +95,11 @@ export default function ServicesPage() {
 
     try {
       await deleteServiceRegistry(svc.serviceId, address);
-      toast.success("Service deleted");
+      toast.success(t("servicesPage.serviceDeleted"));
     } catch (err) {
       setServices(prevServices);
       invalidateServiceRegistryListCache(address);
-      toast.error(err instanceof Error ? err.message : "Failed to delete service");
+      toast.error(err instanceof Error ? err.message : t("servicesPage.deleteFailed"));
     } finally {
       setDeletingServiceId(null);
     }
@@ -109,9 +111,9 @@ export default function ServicesPage() {
       setServices(data);
     } catch (err) {
       console.error(err);
-      const message = err instanceof Error ? err.message : "Failed to load services";
+      const message = err instanceof Error ? err.message : t("servicesPage.loadFailed");
       if (!message.toLowerCase().includes("wallet auth session missing")) {
-        toast.error("Failed to load services");
+        toast.error(t("servicesPage.loadFailed"));
       }
       setServices([]);
     } finally {
@@ -134,8 +136,8 @@ export default function ServicesPage() {
     if (serviceStatus !== "inactive") {
       toast.error(
         serviceStatus === "active"
-          ? "Active services can't be edited. Set the service to Inactive first."
-          : "Only inactive services can be edited.",
+          ? t("servicesPage.activeEditBlocked")
+          : t("servicesPage.inactiveOnlyEditBlocked"),
       );
       return;
     }
@@ -156,33 +158,33 @@ export default function ServicesPage() {
   if (address == null) {
     managedServicesContent = (
       <div className="p-8 text-center border border-gray-800 rounded-xl bg-black/40">
-        <p className="text-gray-300">Wallet not connected.</p>
-        <p className="text-gray-500 text-sm mt-2">Connect and sign in to manage your API services and service definitions.</p>
+        <p className="text-gray-300">{t("servicesPage.walletNotConnected")}</p>
+        <p className="text-gray-500 text-sm mt-2">{t("servicesPage.walletNotConnectedDescription")}</p>
       </div>
     );
   } else if (isSessionAuthenticated !== true) {
     managedServicesContent = (
       <div className="p-8 text-center border border-yellow-700/30 rounded-xl bg-yellow-900/10">
-        <p className="text-yellow-200">Session not authenticated yet.</p>
-        <p className="text-yellow-300/80 text-sm mt-2">Sign in with wallet to view and manage your private service definitions.</p>
+        <p className="text-yellow-200">{t("servicesPage.sessionNotAuthenticated")}</p>
+        <p className="text-yellow-300/80 text-sm mt-2">{t("servicesPage.sessionNotAuthenticatedDescription")}</p>
       </div>
     );
   } else if (loading) {
     managedServicesContent = (
-      <div className="p-8 text-center text-green-400 animate-pulse">Loading Synapses...</div>
+      <div className="p-8 text-center text-green-400 animate-pulse">{t("servicesPage.loading")}</div>
     );
   } else if (services.length === 0) {
     managedServicesContent = (
       <div className="p-12 text-center border border-dashed border-gray-800 rounded-xl bg-black/20">
         <Server className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-        <h3 className="mb-2 text-xl font-bold text-white">No Services Found</h3>
-        <p className="mb-6 text-gray-400">You haven&apos;t created any service definitions yet.</p>
+        <h3 className="mb-2 text-xl font-bold text-white">{t("servicesPage.emptyTitle")}</h3>
+        <p className="mb-6 text-gray-400">{t("servicesPage.emptyDescription")}</p>
         <button
           onClick={handleOpenDeployService}
           className="inline-flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600"
         >
           <Plus className="w-5 h-5 mr-2" />
-          Create First Service
+          {t("servicesPage.createFirstService")}
         </button>
       </div>
     );
@@ -196,11 +198,11 @@ export default function ServicesPage() {
               const isDeleting = deletingServiceId === svc.serviceId;
               const serviceStatus = normalizedServiceStatus(svc);
               const canEditService = serviceStatus === "inactive";
-              let statusActionLabel = "Activate";
+              let statusActionLabel = t("servicesPage.actionActivate");
               if (isStatusUpdating) {
-                statusActionLabel = "Updating...";
+                statusActionLabel = t("servicesPage.actionUpdating");
               } else if (svc.isActive) {
-                statusActionLabel = "Inactive";
+                statusActionLabel = t("servicesPage.actionInactive");
               }
 
               return <>
@@ -209,7 +211,7 @@ export default function ServicesPage() {
                 <h3 className="flex items-center text-xl font-bold text-white">
                   {svc.name}
                   <span className={`ml-3 px-2 py-1 text-xs rounded-full ${svc.isActive ? "bg-green-500/20 text-green-400" : "bg-amber-500/20 text-amber-300"}`}>
-                    {svc.isActive ? "Active" : "Inactive"}
+                    {svc.isActive ? t("servicesPage.statusActive") : t("servicesPage.statusInactive")}
                   </span>
                 </h3>
                 <p className="mt-1 font-mono text-sm text-gray-400">{svc.serviceId}</p>
@@ -218,11 +220,11 @@ export default function ServicesPage() {
 
             <div className="mb-6 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Endpoint</span>
+                <span className="text-gray-500">{t("servicesPage.fieldEndpoint")}</span>
                 <span className="text-gray-300 font-mono truncate max-w-[200px]">{svc.endpoint}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Pricing</span>
+                <span className="text-gray-500">{t("servicesPage.fieldPricing")}</span>
                 <span className="font-mono text-green-400">{formatPricing(svc.pricing)}</span>
               </div>
             </div>
@@ -231,13 +233,13 @@ export default function ServicesPage() {
               <button
                 onClick={() => handleEditService(svc)}
                 disabled={isDeleting || isStatusUpdating}
-                title={canEditService ? "Edit inactive service" : "Set service to Inactive before editing"}
+                title={canEditService ? t("servicesPage.editInactiveService") : t("servicesPage.setInactiveBeforeEditing")}
                 className={`flex-1 px-4 py-2 font-bold transition rounded text-sm disabled:cursor-not-allowed disabled:opacity-50 ${canEditService
                   ? "text-white bg-gray-800 hover:bg-gray-700"
                   : "text-amber-200 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/15"
                 }`}
               >
-                Edit Service
+                {t("servicesPage.editService")}
               </button>
               <button
                 onClick={() => void updateServiceStatus(svc, !svc.isActive)}
@@ -254,7 +256,7 @@ export default function ServicesPage() {
                 disabled={svc.isActive || isDeleting || isStatusUpdating}
                 className="flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 text-red-300 border-red-500/30 hover:bg-red-500/10"
               >
-                {isDeleting ? "Deleting..." : "Delete"}
+                {isDeleting ? t("servicesPage.deleting") : t("servicesPage.delete")}
               </button>
               <button
                 onClick={() => router.push(`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`)}
@@ -262,7 +264,7 @@ export default function ServicesPage() {
                 className="flex items-center justify-center flex-1 px-4 py-2 text-sm font-bold text-green-400 transition border border-green-500/30 rounded hover:bg-green-500/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Activity className="w-4 h-4 mr-2" />
-                Health
+                {t("servicesPage.health")}
               </button>
             </div>
               </>;
@@ -279,21 +281,21 @@ export default function ServicesPage() {
         <div>
           <h1 className="flex items-center text-3xl font-bold text-white">
             <Server className="mr-3 text-green-400" />
-            My Services
+            {t("servicesPage.title")}
           </h1>
-          <p className="mt-2 text-gray-400">Manage API services, service definitions, and endpoint health.</p>
+          <p className="mt-2 text-gray-400">{t("servicesPage.description")}</p>
         </div>
         <div className="flex gap-4">
           <Link href="/dashboard" className="flex items-center px-4 py-2 text-gray-300 transition-colors bg-gray-900 border border-gray-700 rounded-lg hover:bg-gray-800">
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Dashboard
+            {t("servicesPage.backToDashboard")}
           </Link>
           <button
             onClick={handleOpenDeployService}
             className="flex items-center px-6 py-2 font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-600"
           >
             <Plus className="w-5 h-5 mr-2" />
-            New Service
+            {t("servicesPage.newService")}
           </button>
         </div>
       </div>
@@ -301,7 +303,7 @@ export default function ServicesPage() {
       {managedServicesContent}
 
       <div className="rounded-xl border border-gray-800 bg-black/30 p-4 text-xs text-gray-400">
-        Active services are runtime-live. Switch a service to Inactive before editing its contract or routing fields.
+        {t("servicesPage.footerNote")}
       </div>
 
     </div>
