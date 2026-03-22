@@ -21,6 +21,7 @@ import {
   resolveDrilldownTitle,
   resolveReconciliationStamp,
 } from "@/features/finance/reconciliation-presenters";
+import { getReconciliationMetricGlossary } from "@/features/finance/reconciliation-glossary";
 import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
 import { getWithdrawRiskTone } from "@/features/withdrawal-reviews/review-presenters";
 import { getReconciliationDetail, getReconciliationDrilldown, type ReconciliationDetail, type ReconciliationDrilldownResult } from "@/services/admin-api";
@@ -379,29 +380,29 @@ export default function ReconciliationDetailPage() {
 
       <Grid templateColumns={topMetricColumns} gap="16px">
         <MetricCard
-          label={<MetricLabelWithHint label="Platform income" hint="平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。" />}
+          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("platformIncome").label} hint={getReconciliationMetricGlossary("platformIncome").hint} />}
           value={`${formatUsdc(detail.platformFeeBalanceUsdc)} USDC`}
-          meta="当前平台收入池余额。"
+          meta={getReconciliationMetricGlossary("platformIncome").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label="Absolute delta" hint="绝对偏差值，不区分正负方向，只回答账本和链上当前差了多少。" />}
+          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("absoluteDelta").label} hint={getReconciliationMetricGlossary("absoluteDelta").hint} />}
           value={`${formatUsdc(detail.reconciliationDeltaUsdc)} USDC`}
-          meta="首页哨兵 04 的真实后端值。"
+          meta={getReconciliationMetricGlossary("absoluteDelta").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label="Signed difference" hint="带方向偏差，按 chain vault - ledger obligation 计算；负值代表 vault deficit，正值代表 vault surplus。" />}
+          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("signedDifference").label} hint={getReconciliationMetricGlossary("signedDifference").hint} />}
           value={formatSignedUsdc(detail.signedDifferenceUsdc)}
-          meta="按 chain vault - ledger obligation 计算。"
+          meta={getReconciliationMetricGlossary("signedDifference").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label="Chain vault" hint="链上 router 或 vault 当前可观测到的 USDC 实际余额。" />}
+          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("chainVault").label} hint={getReconciliationMetricGlossary("chainVault").hint} />}
           value={detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a"}
-          meta="链上 router / vault 当前 USDC 余额。"
+          meta={getReconciliationMetricGlossary("chainVault").meta}
         />
         <MetricCard
-          label={<MetricLabelWithHint label="Ledger obligation" hint="平台账本对 owner 的当前义务总额，也就是理论上应由 vault 覆盖的负债。" />}
+          label={<MetricLabelWithHint label={getReconciliationMetricGlossary("ledgerObligation").label} hint={getReconciliationMetricGlossary("ledgerObligation").hint} />}
           value={detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a"}
-          meta="平台账本对 owner 的当前义务。"
+          meta={getReconciliationMetricGlossary("ledgerObligation").meta}
         />
       </Grid>
 
