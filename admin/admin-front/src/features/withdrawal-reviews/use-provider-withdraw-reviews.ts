@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 
 import {
   decideProviderWithdrawReview,
   listProviderWithdrawReviews,
   type ProviderWithdrawReviewItem,
 } from "@/services/admin-api";
+import {
+  getWithdrawReviewActionErrorMessage,
+  getWithdrawReviewActionSuccessMessage,
+  type WithdrawReviewActionPhase,
+  type WithdrawReviewDecision,
+} from "@/features/withdrawal-reviews/review-action-feedback";
 
 type RequestStepUpCode = (input: {
   title: string;
@@ -22,6 +28,8 @@ type UseProviderWithdrawReviewsResult = {
   message: string | null;
   error: string | null;
   isPending: boolean;
+  actionPhase: WithdrawReviewActionPhase;
+  pendingDecision: WithdrawReviewDecision | null;
   setActiveReviewId: (withdrawalId: string | null) => void;
   setDecisionNote: (value: string) => void;
   setMessage: (value: string | null) => void;
@@ -40,7 +48,10 @@ export function useProviderWithdrawReviews(
   const [decisionNote, setDecisionNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [actionPhase, setActionPhase] = useState<WithdrawReviewActionPhase>("idle");
+  const [pendingDecision, setPendingDecision] = useState<WithdrawReviewDecision | null>(null);
+
+  const isPending = actionPhase !== "idle";
 
   async function refreshReviews() {
     if (!token) {
@@ -98,29 +109,43 @@ export function useProviderWithdrawReviews(
     }
     const note = decisionNote.trim();
     if (decision === "REJECT" && !note) {
-      setError("Reject 需要 reviewer note，避免审计链路只剩一个状态码。");
+      setError("驳回前请填写处理备注，说明不通过的原因，方便后续跟进。");
       return;
     }
-    startTransition(async () => {
+    setError(null);
+    setMessage(null);
+    setPendingDecision(decision);
+    setActionPhase("awaitingOtp");
+
+    void (async () => {
       try {
+        const otpCode = await requestStepUpCode({
+          title: `${decision === "APPROVE" ? "批准" : "拒绝"}提现单`,
+          description: `你正在处理 ${activeReviewId}，完成验证码验证后系统才会提交${decision === "APPROVE" ? "放行" : "驳回"}请求。`,
+          confirmLabel: decision === "APPROVE" ? "确认放行" : "确认驳回",
+        });
+
+        setActionPhase("submitting");
         const result = await decideProviderWithdrawReview(token, activeReviewId, {
           decision,
           note,
-          otpCode: await requestStepUpCode({
-            title: `${decision === "APPROVE" ? "批准" : "拒绝"}提现单`,
-            description: `你正在对 ${activeReviewId} 执行 ${decision}，该动作会推进 provider 资金状态并写入审计链路。`,
-            confirmLabel: decision === "APPROVE" ? "确认批准" : "确认拒绝",
-          }),
+          otpCode,
         });
-        const messageSuffix = result.message ? ` · ${result.message}` : "";
-        setMessage(`${result.reviewDecision} -> ${result.status}${messageSuffix}`);
+        setMessage(getWithdrawReviewActionSuccessMessage({
+          decision,
+          status: result.status,
+          message: result.message,
+        }));
         setError(null);
         setDecisionNote("");
         await refreshReviews();
       } catch (actionError) {
-        setError(actionError instanceof Error ? actionError.message : "提交提现审核动作失败");
+        setError(getWithdrawReviewActionErrorMessage(actionError, decision));
+      } finally {
+        setActionPhase("idle");
+        setPendingDecision(null);
       }
-    });
+    })();
   }
 
   return {
@@ -130,6 +155,8 @@ export function useProviderWithdrawReviews(
     message,
     error,
     isPending,
+    actionPhase,
+    pendingDecision,
     setActiveReviewId,
     setDecisionNote,
     setMessage,

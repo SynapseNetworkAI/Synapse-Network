@@ -95,3 +95,13 @@ export function buildWithdrawReasonClusters(items: ProviderWithdrawReviewItem[])
 export function listWithdrawRiskLevels(items: ProviderWithdrawReviewItem[]): string[] {
   return [...new Set(items.map((item) => item.riskLevel).filter((value): value is string => Boolean(value)))];
 }
+
+export function paginateWithdrawReviews(items: ProviderWithdrawReviewItem[], page: number, pageSize: number): ProviderWithdrawReviewItem[] {
+  if (pageSize <= 0) {
+    return items;
+  }
+
+  const normalizedPage = Math.max(1, page);
+  const startIndex = (normalizedPage - 1) * pageSize;
+  return items.slice(startIndex, startIndex + pageSize);
+}

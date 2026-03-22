@@ -5,13 +5,15 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
-import { DataTable, EmptyBlock, MessageBanner, MetricCard, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle, nativeTextAreaStyle } from "@/components/console-ui";
-import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
+import { DataTable, EmptyBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle, nativeTextAreaStyle } from "@/components/console-ui";
+import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
 import { formatDateTime, formatUsdc, inputText, toneFromStatus } from "@/lib/admin-console";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
 import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
+import { getWithdrawReviewActionButtonLabel, getWithdrawReviewActionNotice } from "@/features/withdrawal-reviews/review-action-feedback";
 
+const PAGE_SIZE = 6;
 
 export default function WithdrawalReviewsPage() {
   const { admin, security, token, loading } = useAdminSession();
@@ -26,6 +28,8 @@ export default function WithdrawalReviewsPage() {
     message,
     error,
     isPending,
+    actionPhase,
+    pendingDecision,
     setActiveReviewId,
     setDecisionNote,
     setMessage,
@@ -34,14 +38,21 @@ export default function WithdrawalReviewsPage() {
   const canDecide = admin?.permissions.includes("approval:decide") ?? false;
   const [search, setSearch] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const deferredSearch = useDeferredValue(search);
 
   const metrics = useMemo(() => buildWithdrawReviewMetrics(items), [items]);
   const riskLevels = useMemo(() => listWithdrawRiskLevels(items), [items]);
   const reasonClusters = useMemo(() => buildWithdrawReasonClusters(items).slice(0, 4), [items]);
-  const visibleItems = useMemo(
+  const filteredItems = useMemo(
     () => sortWithdrawReviewsByPriority(filterWithdrawReviews(items, deferredSearch, riskFilter)),
     [deferredSearch, items, riskFilter],
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const visibleItems = useMemo(
+    () => paginateWithdrawReviews(filteredItems, currentPage, PAGE_SIZE),
+    [currentPage, filteredItems],
   );
 
   useEffect(() => {
@@ -55,16 +66,39 @@ export default function WithdrawalReviewsPage() {
   }, []);
 
   useEffect(() => {
-    const nextActiveId = visibleItems.some((item) => item.withdrawalId === activeReviewId)
+    const nextActiveId = filteredItems.some((item) => item.withdrawalId === activeReviewId)
       ? activeReviewId
-      : visibleItems[0]?.withdrawalId ?? null;
+      : filteredItems[0]?.withdrawalId ?? null;
     if (nextActiveId !== activeReviewId) {
       setActiveReviewId(nextActiveId);
       setDecisionNote("");
     }
-  }, [activeReviewId, setActiveReviewId, setDecisionNote, visibleItems]);
+  }, [activeReviewId, filteredItems, setActiveReviewId, setDecisionNote]);
 
-  const activeReview = visibleItems.find((item) => item.withdrawalId === activeReviewId) ?? null;
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [deferredSearch, riskFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (isDetailOpen && !filteredItems.some((item) => item.withdrawalId === activeReviewId)) {
+      setIsDetailOpen(false);
+    }
+  }, [activeReviewId, filteredItems, isDetailOpen]);
+
+  const activeReview = filteredItems.find((item) => item.withdrawalId === activeReviewId) ?? null;
+  const actionNotice = getWithdrawReviewActionNotice(actionPhase, pendingDecision);
+
+  function openReviewDetail(withdrawalId: string) {
+    setActiveReviewId(withdrawalId);
+    setMessage(null);
+    setIsDetailOpen(true);
+  }
 
   if (loading || !admin) {
     return <ControlPlaneLoadingScreen title="提现处理同步中" message="正在加载待处理的提现申请..." />;
@@ -79,6 +113,11 @@ export default function WithdrawalReviewsPage() {
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       {message ? <MessageBanner kind="success" message={message} /> : null}
+      {actionNotice ? (
+        <Box borderRadius="18px" border="1px solid rgba(15,17,21,0.08)" bg="rgba(15,17,21,0.03)" p="14px 16px">
+          <Text fontWeight="600" color="ink.700">{actionNotice}</Text>
+        </Box>
+      ) : null}
 
       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
         <MetricCard label="待处理申请" value={metrics.pendingCount} meta="当前等待人工确认的提现笔数" />
@@ -87,8 +126,7 @@ export default function WithdrawalReviewsPage() {
         <MetricCard label="已关联流水" value={metrics.linkedCount} meta={`另有 ${metrics.yellowCount} 笔需要持续关注`} />
       </Grid>
 
-      <Grid templateColumns={{ base: "1fr", xl: "1.05fr 0.95fr" }} gap="16px">
-        <SurfaceCard eyebrow="待处理列表" title="提现审核队列" description="这里汇总所有需要人工确认的提现申请，方便按用户、申请编号和风险等级快速筛查。" stamp={canDecide ? "可查看并处理" : "仅可查看"}>
+      <SurfaceCard eyebrow="待处理列表" title="提现审核队列" description="这里汇总所有需要人工确认的提现申请，按页查看，避免长列表平铺影响判断效率。" stamp={canDecide ? "可查看并处理" : "仅可查看"}>
           <Grid templateColumns={{ base: "1fr", xl: "minmax(0, 320px) 180px" }} gap="12px" mb="16px">
             <SearchInput value={search} onChange={setSearch} placeholder="搜索申请编号、用户地址或原因标签" />
             <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} style={nativeFieldStyle}>
@@ -104,10 +142,11 @@ export default function WithdrawalReviewsPage() {
                 <Th>Amount</Th>
                 <Th>Risk</Th>
                 <Th>Status</Th>
+                <Th>详情</Th>
               </TableHeaderRow>
               <TableBody>
                 {visibleItems.map((item) => (
-                  <Box as="tr" key={item.withdrawalId} onClick={() => { setActiveReviewId(item.withdrawalId); setDecisionNote(""); setMessage(null); }} style={{ cursor: "pointer" }}>
+                  <Box as="tr" key={item.withdrawalId}>
                     <Td>
                       <Text fontWeight="700">{item.withdrawalId}</Text>
                       <Text color="ink.500">{formatDateTime(item.createdAt)}</Text>
@@ -119,6 +158,9 @@ export default function WithdrawalReviewsPage() {
                     <Td>{formatUsdc(item.amountUsdc)}</Td>
                     <Td><SentinelStatusChip label={(item.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(item.riskLevel)} /></Td>
                     <Td><SentinelStatusChip label={item.status} tone={toneFromStatus(item.status)} /></Td>
+                    <Td>
+                      <Button size="sm" borderRadius="full" variant="ghost" onClick={() => openReviewDetail(item.withdrawalId)}>详情</Button>
+                    </Td>
                   </Box>
                 ))}
               </TableBody>
@@ -126,54 +168,16 @@ export default function WithdrawalReviewsPage() {
           ) : (
             <EmptyBlock title="当前筛选条件下没有待处理申请" description="可以调整风险等级或搜索条件，查看其他需要人工确认的提现。" />
           )}
-        </SurfaceCard>
-
-        <SurfaceCard eyebrow="申请详情" title={activeReview?.withdrawalId ?? "请选择一笔申请"} description="查看这笔提现的关键信息、处理依据和备注，避免在来回切页时遗漏判断依据。">
-          {activeReview ? (
-            <Stack gap="14px">
-              <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                <Stack direction="row" justify="space-between" align="center">
-                  <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理摘要</Text>
-                  <SentinelStatusChip label={(activeReview.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(activeReview.riskLevel)} />
-                </Stack>
-                <Heading mt="10px" size="sm">{inputText(activeReview.evidenceSummary ?? activeReview.message)}</Heading>
-                <Text mt="8px" color="ink.500">原因标签 {inputText(activeReview.riskReasonCode)} · 流水号 {inputText(activeReview.txHash)}</Text>
-              </Box>
-              <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="10px">
-                {[
-                  ["用户地址", activeReview.ownerAddress],
-                  ["提现金额", `${formatUsdc(activeReview.amountUsdc)} USDC`],
-                  ["申请时间", formatDateTime(activeReview.createdAt)],
-                  ["申请编号", inputText(activeReview.requestId)],
-                ].map(([label, value]) => (
-                  <Box key={label} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                    <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">{label}</Text>
-                    <Heading mt="10px" size="sm">{value}</Heading>
-                  </Box>
-                ))}
-              </Grid>
-              <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
-                <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理备注</Text>
-                <Box mt="10px">
-                  <textarea
-                    value={decisionNote}
-                    onChange={(event) => setDecisionNote(event.target.value)}
-                    placeholder="填写核实结果、处理原因，或需要其他同事继续跟进的说明。"
-                    style={nativeTextAreaStyle}
-                  />
-                </Box>
-              </Box>
-              <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="10px">
-                <Button bg="signal.500" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("APPROVE")} disabled={!canDecide || isPending || !activeReview}>确认放行</Button>
-                <Button bg="#b83131" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("REJECT")} disabled={!canDecide || isPending || !activeReview}>驳回申请</Button>
-              </Grid>
-              {canDecide ? null : <MessageBanner kind="error" message="当前账号只有查看权限，不能提交处理结果。" />}
+          {filteredItems.length ? (
+            <Stack direction={{ base: "column", md: "row" }} justify="space-between" align={{ base: "flex-start", md: "center" }} mt="14px" gap="12px">
+              <Text color="ink.500">第 {currentPage} / {totalPages} 页，当前展示 {visibleItems.length} 笔，本次筛选共 {filteredItems.length} 笔。</Text>
+              <Stack direction="row" gap="10px">
+                <Button variant="ghost" borderRadius="full" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>上一页</Button>
+                <Button bg="#0f1115" color="#f4f7fb" borderRadius="full" _hover={{ bg: "#1b1f26" }} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>下一页</Button>
+              </Stack>
             </Stack>
-          ) : (
-            <EmptyBlock title="还没有选中申请" description="从左侧列表选择一笔提现申请，即可查看详情并填写处理意见。" />
-          )}
-        </SurfaceCard>
-      </Grid>
+          ) : null}
+      </SurfaceCard>
 
       <Grid templateColumns={{ base: "1fr", xl: "0.92fr 1.08fr" }} gap="16px">
         <SurfaceCard eyebrow="原因分布" title="常见触发原因" description="先看哪些原因最集中，再决定是逐笔处理，还是统一排查某一类问题。">
@@ -204,6 +208,54 @@ export default function WithdrawalReviewsPage() {
           </Stack>
         </SurfaceCard>
       </Grid>
+
+      <OverlayPanel open={isDetailOpen && activeReview !== null} title={activeReview?.withdrawalId ?? "申请详情"} description="查看这笔提现的关键资料、处理依据和备注，确认后再提交放行或驳回。" onClose={() => setIsDetailOpen(false)}>
+        {activeReview ? (
+          <Stack gap="14px">
+            <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+              <Stack direction="row" justify="space-between" align="center">
+                <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理摘要</Text>
+                <SentinelStatusChip label={(activeReview.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(activeReview.riskLevel)} />
+              </Stack>
+              <Heading mt="10px" size="sm">{inputText(activeReview.evidenceSummary ?? activeReview.message)}</Heading>
+              <Text mt="8px" color="ink.500">原因标签 {inputText(activeReview.riskReasonCode)} · 流水号 {inputText(activeReview.txHash)}</Text>
+            </Box>
+            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap="10px">
+              {[
+                ["用户地址", activeReview.ownerAddress],
+                ["提现金额", `${formatUsdc(activeReview.amountUsdc)} USDC`],
+                ["申请时间", formatDateTime(activeReview.createdAt)],
+                ["申请编号", inputText(activeReview.requestId)],
+              ].map(([label, value]) => (
+                <Box key={label} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+                  <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">{label}</Text>
+                  <Heading mt="10px" size="sm">{value}</Heading>
+                </Box>
+              ))}
+            </Grid>
+            <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+              <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理备注</Text>
+              <Box mt="10px">
+                <textarea
+                  value={decisionNote}
+                  onChange={(event) => setDecisionNote(event.target.value)}
+                  placeholder="填写核实结果、处理原因，或需要其他同事继续跟进的说明。"
+                  style={nativeTextAreaStyle}
+                />
+              </Box>
+            </Box>
+            <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="10px">
+              <Button bg="signal.500" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("APPROVE")} disabled={!canDecide || isPending || !activeReview} loading={isPending && pendingDecision === "APPROVE" && actionPhase === "submitting"} loadingText="放行提交中">
+                {getWithdrawReviewActionButtonLabel("APPROVE", actionPhase, pendingDecision)}
+              </Button>
+              <Button bg="#b83131" color="white" borderRadius="18px" h="52px" onClick={() => handleDecision("REJECT")} disabled={!canDecide || isPending || !activeReview} loading={isPending && pendingDecision === "REJECT" && actionPhase === "submitting"} loadingText="驳回提交中">
+                {getWithdrawReviewActionButtonLabel("REJECT", actionPhase, pendingDecision)}
+              </Button>
+            </Grid>
+            {canDecide ? null : <MessageBanner kind="error" message="当前账号只有查看权限，不能提交处理结果。" />}
+          </Stack>
+        ) : null}
+      </OverlayPanel>
       {stepUpModal}
     </AdminShell>
   );

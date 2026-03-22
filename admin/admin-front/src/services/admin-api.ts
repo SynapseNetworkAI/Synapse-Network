@@ -4,6 +4,8 @@ export type ApiEnvelope<T> = {
   requestId: string;
 };
 
+import { readAdminCsrfTokenFromStorage, saveAdminCsrfToken } from "@/lib/admin-csrf-token";
+
 export type ApiErrorEnvelope = {
   success: false;
   error: {
@@ -83,10 +85,19 @@ let adminCsrfToken: string | null = null;
 
 function setAdminCsrfToken(token: string | null): void {
   adminCsrfToken = token;
+  saveAdminCsrfToken(token);
 }
 
 function readAdminCsrfToken(): string | null {
-  return adminCsrfToken;
+  if (adminCsrfToken) {
+    return adminCsrfToken;
+  }
+
+  const persistedToken = readAdminCsrfTokenFromStorage();
+  if (persistedToken) {
+    adminCsrfToken = persistedToken;
+  }
+  return persistedToken;
 }
 
 function isSafeMethod(method: string | undefined): boolean {
