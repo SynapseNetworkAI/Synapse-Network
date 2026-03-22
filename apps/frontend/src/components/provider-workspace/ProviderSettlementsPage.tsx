@@ -53,11 +53,11 @@ const WITHDRAWAL_HISTORY_STATUS_FILTERS = [
 type WithdrawalHistoryStatusFilter = (typeof WITHDRAWAL_HISTORY_STATUS_FILTERS)[number];
 type TranslateFn = (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string;
 
-function formatTimestamp(seconds?: number | string): string {
+function formatTimestamp(seconds?: number | string, locale?: string): string {
   if (!seconds) return "-";
   const numSeconds = typeof seconds === "string" ? Number.parseInt(seconds, 10) : seconds;
   if (Number.isNaN(numSeconds)) return "-";
-  return new Date(numSeconds * 1000).toLocaleString();
+  return new Date(numSeconds * 1000).toLocaleString(locale);
 }
 
 function normalizeSignature(signature: string): `0x${string}` {
@@ -65,13 +65,13 @@ function normalizeSignature(signature: string): `0x${string}` {
   return normalized as `0x${string}`;
 }
 
-function withdrawalStatusLabel(status: ProviderWithdrawRecord["status"]): string {
-  if (status === "APPROVED_AUTO") return "Ticket Ready";
-  if (status === "PENDING_MANUAL_REVIEW") return "Manual Review";
-  if (status === "CANCELLED") return "Cancelled / Released";
-  if (status === "REQUESTED") return "Requested";
-  if (status === "COMPLETED") return "Completed";
-  if (status === "REJECTED") return "Rejected";
+function withdrawalStatusLabel(status: ProviderWithdrawRecord["status"], t: TranslateFn): string {
+  if (status === "APPROVED_AUTO") return t("providerSettlements.historyStatusApprovedAuto");
+  if (status === "PENDING_MANUAL_REVIEW") return t("providerSettlements.historyStatusPendingManualReview");
+  if (status === "CANCELLED") return t("providerSettlements.historyStatusCancelled");
+  if (status === "REQUESTED") return t("providerSettlements.historyStatusRequested");
+  if (status === "COMPLETED") return t("providerSettlements.historyStatusCompleted");
+  if (status === "REJECTED") return t("providerSettlements.historyStatusRejected");
   return status;
 }
 
@@ -83,8 +83,8 @@ function withdrawalStatusBadgeClass(status: ProviderWithdrawRecord["status"]): s
   return "border-[#ff9f0a]/30 bg-[#ff9f0a]/10 text-[#ffd7a1]";
 }
 
-function formatChainLabel(chainId?: number): string {
-  if (!chainId || !Number.isFinite(chainId)) return "the required network";
+function formatChainLabel(chainId: number | undefined, t: TranslateFn): string {
+  if (!chainId || !Number.isFinite(chainId)) return t("providerSettlements.chainRequiredNetwork");
   return CHAIN_LABELS[chainId] || `chain ${chainId}`;
 }
 
@@ -137,7 +137,7 @@ function resolveCreateWithdrawalIntentErrorMessage(
 
 export default function ProviderSettlementsPage() {
   const { providerStats, paidEvents, handleRefresh: reloadDashboard } = useDashboardData();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const chainId = useChainId();
@@ -158,6 +158,7 @@ export default function ProviderSettlementsPage() {
   const [withdrawCapability, setWithdrawCapability] = useState<ProviderWithdrawCapability | null>(null);
   const [loadingWithdrawCapability, setLoadingWithdrawCapability] = useState(false);
   const [estimatedWithdrawGasFee, setEstimatedWithdrawGasFee] = useState<string | null>(null);
+  const locale = lang === "zh" ? "zh-CN" : "en-US";
 
   const withdrawWalletErrorMessages = useMemo(() => ({
     fallback: t("providerSettlements.withdrawalCreateFailed"),
@@ -199,10 +200,12 @@ export default function ProviderSettlementsPage() {
   }, [withdrawalStatusFilter, withdrawals]);
   const withdrawalHistoryEmptyMessage = useMemo(() => {
     if (withdrawals.length === 0 || withdrawalStatusFilter === "ALL") {
-      return "No withdrawal records yet.";
+      return t("providerSettlements.historyEmpty");
     }
-    return `No ${withdrawalStatusLabel(withdrawalStatusFilter)} records match the current filter.`;
-  }, [withdrawalStatusFilter, withdrawals.length]);
+    return t("providerSettlements.historyFilteredEmpty", {
+      status: withdrawalStatusLabel(withdrawalStatusFilter, t),
+    });
+  }, [t, withdrawalStatusFilter, withdrawals.length]);
   const lockedReceivable = Number(pendingWithdrawal?.amountUsdc || 0);
   const pendingTicket = pendingWithdrawal?.ticket;
   const pendingTicketChainMismatch = Boolean(pendingTicket?.chainId && chainId !== pendingTicket.chainId);
@@ -213,8 +216,8 @@ export default function ProviderSettlementsPage() {
     if (!isConnected || !nativeBalanceData) return null;
     if (nativeBalanceData.value > BigInt(0)) return null;
     return t("providerSettlements.walletNoGas", {
-      symbol: nativeBalanceData.symbol || "native token",
-      chainLabel: formatChainLabel(chainId),
+      symbol: nativeBalanceData.symbol || t("providerSettlements.nativeTokenFallback"),
+      chainLabel: formatChainLabel(chainId, t),
     });
   }, [chainId, isConnected, nativeBalanceData, t]);
   const walletGasGuidance = useMemo(() => {
@@ -222,7 +225,7 @@ export default function ProviderSettlementsPage() {
       return t("providerSettlements.walletPaysGasDisconnected");
     }
 
-    const symbol = nativeBalanceData?.symbol || "native token";
+    const symbol = nativeBalanceData?.symbol || t("providerSettlements.nativeTokenFallback");
     const balanceText = nativeBalanceData
       ? `${Number(formatUnits(nativeBalanceData.value, nativeBalanceData.decimals)).toFixed(6)} ${symbol}`
       : `an available ${symbol} balance`;
@@ -243,11 +246,11 @@ export default function ProviderSettlementsPage() {
       setWithdrawals(rows);
     } catch (error) {
       console.error("Failed to load provider withdrawals", error);
-      toast.error(toSafeErrorMessage(error, "Failed to load withdrawal history"));
+      toast.error(toSafeErrorMessage(error, t("providerSettlements.loadHistoryFailed")));
     } finally {
       setLoadingWithdrawals(false);
     }
-  }, [address]);
+  }, [address, t]);
 
   const refreshWithdrawCapability = useCallback(async () => {
     if (!address) {
@@ -470,7 +473,7 @@ export default function ProviderSettlementsPage() {
 
     if (ticket.chainId && chainId !== ticket.chainId) {
       throw new Error(
-        t("providerSettlements.wrongNetwork", { chainLabel: formatChainLabel(ticket.chainId) }),
+        t("providerSettlements.wrongNetwork", { chainLabel: formatChainLabel(ticket.chainId, t) }),
       );
     }
 
@@ -478,7 +481,7 @@ export default function ProviderSettlementsPage() {
       throw new Error(t("providerSettlements.ticketExpired"));
     }
 
-    const symbol = nativeBalanceData?.symbol || "native token";
+    const symbol = nativeBalanceData?.symbol || t("providerSettlements.nativeTokenFallback");
     if (!address) {
       throw new Error(t("providerSettlements.connectWalletFirst"));
     }
@@ -494,7 +497,7 @@ export default function ProviderSettlementsPage() {
       throw new Error(
         t("providerSettlements.walletNoGas", {
           symbol,
-          chainLabel: formatChainLabel(chainId),
+          chainLabel: formatChainLabel(chainId, t),
         }),
       );
     }
@@ -605,10 +608,10 @@ export default function ProviderSettlementsPage() {
       <div className="border-b border-[#222222] pb-5">
         <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
           <Database className="w-8 h-8 text-[#22c55e]" />
-          Settlement Pipeline
+          {t("providerSettlements.title")}
         </h1>
         <p className="mt-2 text-sm text-[#86868b]">
-          Reconciled provider payouts from gateway settlement logs (deduplicated by request ID).
+          {t("providerSettlements.description")}
         </p>
       </div>
 
@@ -616,12 +619,11 @@ export default function ProviderSettlementsPage() {
         <div className="xl:col-span-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#86868b]">
             <Wallet className="w-4 h-4" />
-            Provider Withdrawal (Self-pay Gas)
+            {t("providerSettlements.providerWithdrawalEyebrow")}
           </div>
-          <h2 className="mt-3 text-xl font-semibold text-white">Claim Receivable to Wallet via EIP-712 Ticket</h2>
+          <h2 className="mt-3 text-xl font-semibold text-white">{t("providerSettlements.withdrawalTitle")}</h2>
           <p className="mt-2 text-sm text-[#86868b] leading-relaxed">
-            Gateway issues a signed withdrawal ticket; provider submits the on-chain withdraw transaction and pays gas.
-            Pending tickets lock receivable to prevent duplicate withdrawal and replay at ledger layer.
+            {t("providerSettlements.withdrawalDescription")}
           </p>
           {!loadingWithdrawCapability && withdrawCapability && !ticketSigningEnabled && (
             <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
@@ -631,8 +633,8 @@ export default function ProviderSettlementsPage() {
           {pendingTicketChainMismatch && pendingTicket?.chainId && (
             <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
               {t("providerSettlements.pendingWrongNetwork", {
-                requiredChain: formatChainLabel(pendingTicket.chainId),
-                currentChain: formatChainLabel(chainId),
+                requiredChain: formatChainLabel(pendingTicket.chainId, t),
+                currentChain: formatChainLabel(chainId, t),
               })}
             </div>
           )}
@@ -692,19 +694,19 @@ export default function ProviderSettlementsPage() {
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
-              <div className="uppercase tracking-[0.15em] text-[#86868b]">Available</div>
+              <div className="uppercase tracking-[0.15em] text-[#86868b]">{t("providerSettlements.metricAvailable")}</div>
               <div className="mt-1 font-mono text-white text-sm">{availableReceivable.toFixed(6)} USDC</div>
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
-              <div className="uppercase tracking-[0.15em] text-[#86868b]">Pending / Locked</div>
+              <div className="uppercase tracking-[0.15em] text-[#86868b]">{t("providerSettlements.metricPendingLocked")}</div>
               <div className="mt-1 font-mono text-[#ff9f0a] text-sm">{lockedReceivable.toFixed(6)} USDC</div>
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
-              <div className="uppercase tracking-[0.15em] text-[#86868b]">Pending Ticket</div>
+              <div className="uppercase tracking-[0.15em] text-[#86868b]">{t("providerSettlements.metricPendingTicket")}</div>
               <div className="mt-1 font-mono text-white text-sm">{pendingWithdrawal ? pendingWithdrawal.id.slice(0, 10) : "0"}</div>
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
-              <div className="uppercase tracking-[0.15em] text-[#86868b]">Tx State</div>
+              <div className="uppercase tracking-[0.15em] text-[#86868b]">{t("providerSettlements.metricTxState")}</div>
               <div className="mt-1 font-mono text-white text-sm flex items-center gap-2">
                 {(isWalletPrompting || isTxConfirming) && <Loader2 className="w-3 h-3 animate-spin" />}
                 {txStateLabel}
@@ -716,13 +718,13 @@ export default function ProviderSettlementsPage() {
         <div className="rounded-2xl border border-[#22c55e]/30 bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#22c55e]">
             <ShieldCheck className="w-4 h-4" />
-            Security Contract
+            {t("providerSettlements.securityContractTitle")}
           </div>
           <ul className="mt-3 space-y-2 text-xs text-[#c5c5c7] leading-relaxed">
-            <li>One owner can only keep one PENDING withdrawal ticket at a time.</li>
-            <li>Intent creation atomically locks receivable into providersLocked ledger bucket.</li>
-            <li>Completion consumes lock once and binds txHash for idempotent finalize.</li>
-            <li>EIP-712 payload includes nonce + deadline, contract enforces replay protection.</li>
+            <li>{t("providerSettlements.securityBulletOne")}</li>
+            <li>{t("providerSettlements.securityBulletTwo")}</li>
+            <li>{t("providerSettlements.securityBulletThree")}</li>
+            <li>{t("providerSettlements.securityBulletFour")}</li>
           </ul>
         </div>
       </div>
@@ -736,7 +738,7 @@ export default function ProviderSettlementsPage() {
               handleSearch();
             }
           }}
-          placeholder="Search RequestId"
+          placeholder={t("providerSettlements.searchRequestPlaceholder")}
           className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] w-full lg:w-[320px]"
         />
         <input
@@ -747,32 +749,32 @@ export default function ProviderSettlementsPage() {
               handleSearch();
             }
           }}
-          placeholder="Search Service (fuzzy)"
+          placeholder={t("providerSettlements.searchServicePlaceholder")}
           className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] w-full lg:w-[320px]"
         />
         <button
           onClick={handleSearch}
           className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors lg:ml-auto"
         >
-          Search
+          {t("providerSettlements.searchButton")}
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl border border-[#222222] bg-[#0a0a0a]">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Net Earned</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerSettlements.summaryNetEarned")}</div>
           <div className="text-2xl font-mono font-bold text-white">{providerStats.netEarned.toFixed(4)} USDC</div>
         </div>
         <div className="p-4 rounded-2xl border border-[#222222] bg-[#0a0a0a]">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Gross Earnings</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerSettlements.summaryGrossEarnings")}</div>
           <div className="text-2xl font-mono font-bold text-white">{providerStats.totalEarned.toFixed(4)} USDC</div>
         </div>
         <div className="p-4 rounded-2xl border border-[#222222] bg-[#0a0a0a]">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Protocol Fee</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerSettlements.summaryProtocolFee")}</div>
           <div className="text-2xl font-mono font-bold text-[#ff9f0a]">{providerStats.totalFees.toFixed(4)} USDC</div>
         </div>
         <div className="p-4 rounded-2xl border border-[#222222] bg-[#0a0a0a]">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">Routing Tax</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerSettlements.summaryRoutingTax")}</div>
           <div className="text-2xl font-mono font-bold text-[#22c55e]">{providerStats.totalRoutingTax.toFixed(4)} USDC</div>
         </div>
       </div>
@@ -781,32 +783,32 @@ export default function ProviderSettlementsPage() {
         <table className="w-full text-left border-collapse whitespace-nowrap">
           <thead>
             <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
-              <th className="py-5 px-6">RequestId</th>
-              <th className="py-5 px-6">Service</th>
-              <th className="py-5 px-6 text-right">Gross</th>
-              <th className="py-5 px-6 text-right">Protocol Fee</th>
-              <th className="py-5 px-6 text-right">Routing Tax</th>
-              <th className="py-5 px-6 text-right">Net</th>
-              <th className="py-5 px-6 text-right">Call Time</th>
+              <th className="py-5 px-6">{t("providerSettlements.eventsTableRequestId")}</th>
+              <th className="py-5 px-6">{t("providerSettlements.eventsTableService")}</th>
+              <th className="py-5 px-6 text-right">{t("providerSettlements.eventsTableGross")}</th>
+              <th className="py-5 px-6 text-right">{t("providerSettlements.eventsTableProtocolFee")}</th>
+              <th className="py-5 px-6 text-right">{t("providerSettlements.eventsTableRoutingTax")}</th>
+              <th className="py-5 px-6 text-right">{t("providerSettlements.eventsTableNet")}</th>
+              <th className="py-5 px-6 text-right">{t("providerSettlements.eventsTableCallTime")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
             {pageRows.length === 0 && (
               <tr>
                 <td colSpan={7} className="py-14 text-center text-sm text-[#86868b]">
-                  No settlement events yet.
+                  {t("providerSettlements.eventsTableEmpty")}
                 </td>
               </tr>
             )}
             {pageRows.map((event) => (
               <tr key={event.txHash + String(event.blockNumber)} className="hover:bg-[#111111] transition-colors">
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{event.txHash}</td>
-                <td className="py-4 px-6 text-sm font-semibold text-white">{event.serviceId || "unknown"}</td>
+                <td className="py-4 px-6 text-sm font-semibold text-white">{event.serviceId || t("providerSettlements.unknownService")}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">{event.amount.toFixed(4)}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-[#ff9f0a]">{event.fee.toFixed(4)}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-[#22c55e]">{event.routingTax.toFixed(4)}</td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">{(event.amount - event.fee).toFixed(4)}</td>
-                <td className="py-4 px-6 text-xs text-right text-[#86868b]">{formatTimestamp(event.timestamp)}</td>
+                <td className="py-4 px-6 text-xs text-right text-[#86868b]">{formatTimestamp(event.timestamp, locale)}</td>
               </tr>
             ))}
           </tbody>
@@ -816,9 +818,9 @@ export default function ProviderSettlementsPage() {
       <div className="overflow-x-auto rounded-[1.5rem] border border-[#222222] bg-[#0a0a0a]">
         <div className="flex flex-col gap-3 border-b border-[#222222] bg-[#050505] px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">Withdrawal History</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">{t("providerSettlements.historyTitle")}</div>
             <div className="mt-1 text-sm text-[#c5c5c7]">
-              Includes expired tickets released back to available balance as explicit cancelled history rows.
+              {t("providerSettlements.historyDescription")}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -831,7 +833,7 @@ export default function ProviderSettlementsPage() {
                   onClick={() => setWithdrawalStatusFilter(status)}
                   className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors ${isActive ? "border-[#22c55e]/40 bg-[#22c55e]/10 text-[#86efac]" : "border-[#222222] bg-[#0a0a0a] text-[#86868b] hover:border-[#3a3a3a] hover:text-white"}`}
                 >
-                  {status === "ALL" ? "All" : withdrawalStatusLabel(status)}
+                  {status === "ALL" ? t("providerSettlements.historyFilterAll") : withdrawalStatusLabel(status, t)}
                 </button>
               );
             })}
@@ -840,13 +842,13 @@ export default function ProviderSettlementsPage() {
         <table className="w-full text-left border-collapse whitespace-nowrap">
           <thead>
             <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
-              <th className="py-4 px-6">Withdrawal ID</th>
-              <th className="py-4 px-6 text-right">Amount</th>
-              <th className="py-4 px-6">Status</th>
-              <th className="py-4 px-6">Reason</th>
-              <th className="py-4 px-6">Nonce</th>
-              <th className="py-4 px-6">Created</th>
-              <th className="py-4 px-6">Tx Hash</th>
+              <th className="py-4 px-6">{t("providerSettlements.historyTableWithdrawalId")}</th>
+              <th className="py-4 px-6 text-right">{t("providerSettlements.historyTableAmount")}</th>
+              <th className="py-4 px-6">{t("providerSettlements.historyTableStatus")}</th>
+              <th className="py-4 px-6">{t("providerSettlements.historyTableReason")}</th>
+              <th className="py-4 px-6">{t("providerSettlements.historyTableNonce")}</th>
+              <th className="py-4 px-6">{t("providerSettlements.historyTableCreated")}</th>
+              <th className="py-4 px-6">{t("providerSettlements.historyTableTxHash")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
@@ -866,12 +868,12 @@ export default function ProviderSettlementsPage() {
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">{row.amountUsdc.toFixed(6)} USDC</td>
                 <td className="py-4 px-6 text-xs">
                   <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${withdrawalStatusBadgeClass(row.status)}`}>
-                    {withdrawalStatusLabel(row.status)}
+                    {withdrawalStatusLabel(row.status, t)}
                   </span>
                 </td>
                 <td className="py-4 px-6 text-xs text-[#c5c5c7]">{row.message || (row.status === "CANCELLED" ? t("providerSettlements.expiredTicketReleasedRow") : "-")}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">{row.nonce}</td>
-                <td className="py-4 px-6 text-xs text-[#86868b]">{formatTimestamp(row.createdAt)}</td>
+                <td className="py-4 px-6 text-xs text-[#86868b]">{formatTimestamp(row.createdAt, locale)}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.txHash || "-"}</td>
               </tr>
             ))}
@@ -881,8 +883,11 @@ export default function ProviderSettlementsPage() {
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs text-[#86868b]">
         <div>
-          Showing {(safePage - 1) * PAGE_SIZE + (filtered.length ? 1 : 0)}-
-          {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+          {t("providerSettlements.paginationShowing", {
+            start: (safePage - 1) * PAGE_SIZE + (filtered.length ? 1 : 0),
+            end: Math.min(safePage * PAGE_SIZE, filtered.length),
+            total: filtered.length,
+          })}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -890,7 +895,7 @@ export default function ProviderSettlementsPage() {
             disabled={safePage <= 1}
             className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
           >
-            Prev
+            {t("providerSettlements.paginationPrev")}
           </button>
           <span className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#050505] text-white">
             {safePage} / {pageCount}
@@ -900,7 +905,7 @@ export default function ProviderSettlementsPage() {
             disabled={safePage >= pageCount}
             className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
           >
-            Next
+            {t("providerSettlements.paginationNext")}
           </button>
         </div>
       </div>
@@ -908,7 +913,7 @@ export default function ProviderSettlementsPage() {
       <div className="rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b] flex items-center gap-2">
         <ReceiptText className="w-4 h-4 text-[#22c55e]" />
         <span>
-          Requests are deduplicated by request ID before summary aggregation to prevent double-counting across retries.
+          {t("providerSettlements.dedupeNote")}
         </span>
         <Activity className="w-4 h-4 text-[#86868b] ml-auto" />
       </div>

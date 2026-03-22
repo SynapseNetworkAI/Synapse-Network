@@ -20,6 +20,7 @@ import {
 } from "@/utils/serviceApi";
 import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import {
   DEFAULT_SERVICE_EDIT_DRAFT_CONFIG,
   SERVICE_CONSTRAINT_LIMITS,
@@ -32,6 +33,7 @@ import {
 } from "@/utils/serviceStatus";
 
 type ServiceStatusFilter = "all" | "online" | "offline";
+type TranslateFn = (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string;
 
 function isServiceRuntimeOnline(svc: ServiceRegistryRecord): boolean {
   if (!svc.isActive) {
@@ -56,12 +58,65 @@ function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inacti
   return svc.isActive ? "active" : "inactive";
 }
 
+function serviceStatusLabel(status: ReturnType<typeof normalizedServiceStatus>, t: TranslateFn): string {
+  if (status === "active") return t("providerServicesPage.statusActive");
+  if (status === "inactive") return t("providerServicesPage.statusInactive");
+  if (status === "deleted") return t("providerServicesPage.statusDeleted");
+  return t("providerServicesPage.statusArchived");
+}
+
+function localizeValidationMessage(message: string, t: TranslateFn): string {
+  const normalized = message.trim();
+  if (!normalized) {
+    return normalized;
+  }
+
+  const withField = (key: string, field: string) => t(key, { field });
+
+  if (normalized === "Draft not ready") {
+    return t("providerServicesPage.validationFixBeforeSave");
+  }
+  if (normalized === "Service name is required.") {
+    return withField("providerServicesPage.validationFieldRequired", t("providerServicesPage.fieldServiceName"));
+  }
+  if (normalized === "Unit price must be a non-negative number.") {
+    return withField("providerServicesPage.validationNonNegativeNumber", t("providerServicesPage.fieldUnitPrice"));
+  }
+  if (normalized === "Health path is required.") {
+    return withField("providerServicesPage.validationFieldRequired", t("providerServicesPage.fieldHealthPath"));
+  }
+  if (normalized === "Health path must start with /.") {
+    return withField("providerServicesPage.validationMustStartWithSlash", t("providerServicesPage.fieldHealthPath"));
+  }
+  if (normalized === "Invoke URL is required." || normalized === "Invoke URL is required") {
+    return withField("providerServicesPage.validationFieldRequired", t("providerServicesPage.fieldInvokeUrl"));
+  }
+  if (normalized === "Invalid invoke targets JSON.") {
+    return withField("providerServicesPage.validationInvalidJson", t("providerServicesPage.fieldInvokeTargets"));
+  }
+  if (normalized === "Targets must be a JSON array") {
+    return withField("providerServicesPage.validationMustBeJsonArray", t("providerServicesPage.fieldInvokeTargets"));
+  }
+  if (normalized === "At least one invoke target with a valid url is required") {
+    return withField("providerServicesPage.validationOneValidTargetRequired", t("providerServicesPage.fieldInvokeTargets"));
+  }
+  if (normalized === "Request schema must be a valid JSON object.") {
+    return withField("providerServicesPage.validationMustBeValidJsonObject", t("providerServicesPage.fieldRequestSchema"));
+  }
+  if (normalized === "Response schema must be a valid JSON object.") {
+    return withField("providerServicesPage.validationMustBeValidJsonObject", t("providerServicesPage.fieldResponseSchema"));
+  }
+
+  return normalized;
+}
+
 export default function ProviderServicesPage() { // NOSONAR
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { openConnectModal } = useConnectModal();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [queryInput, setQueryInput] = useState("");
@@ -94,7 +149,7 @@ export default function ProviderServicesPage() { // NOSONAR
       } catch (err) {
         if (!cancelled) {
           setServices([]);
-          toast.error(err instanceof Error ? err.message : "Failed to load services");
+          toast.error(err instanceof Error ? err.message : t("providerServicesPage.loadFailed"));
         }
       } finally {
         if (!cancelled) {
@@ -107,7 +162,7 @@ export default function ProviderServicesPage() { // NOSONAR
     return () => {
       cancelled = true;
     };
-  }, [address, isSessionAuthenticated]);
+  }, [address, isSessionAuthenticated, t]);
 
   useEffect(() => {
     const editServiceId = searchParams.get("edit");
@@ -204,9 +259,9 @@ export default function ProviderServicesPage() { // NOSONAR
       const matchesText = !q || byServiceId || byName;
       const runtimeOnline = isServiceRuntimeOnline(svc);
       const matchesStatus =
-        status === "all" ||
-        (status === "online" && runtimeOnline) ||
-        (status === "offline" && !runtimeOnline);
+        status === "all"
+        || (status === "online" && runtimeOnline)
+        || (status === "offline" && !runtimeOnline);
       return matchesText && matchesStatus;
     });
   }, [query, services, status]);
@@ -218,7 +273,18 @@ export default function ProviderServicesPage() { // NOSONAR
     return filtered.slice(start, start + pageSize);
   }, [filtered, safePage]);
 
-  const editValidation = useMemo(() => validateServiceEditDraft(draft, SERVICE_CONSTRAINT_LIMITS), [draft]);
+  const rawEditValidation = useMemo(() => validateServiceEditDraft(draft, SERVICE_CONSTRAINT_LIMITS), [draft]);
+  const editValidation = useMemo(() => {
+    const localizedErrors = Object.fromEntries(
+      Object.entries(rawEditValidation.errors).map(([field, message]) => [field, localizeValidationMessage(message, t)]),
+    );
+
+    return {
+      ...rawEditValidation,
+      errors: localizedErrors,
+      firstError: rawEditValidation.firstError ? localizeValidationMessage(rawEditValidation.firstError, t) : null,
+    };
+  }, [rawEditValidation, t]);
 
   const closeModal = () => {
     setEditing(null);
@@ -230,8 +296,8 @@ export default function ProviderServicesPage() { // NOSONAR
     if (serviceStatus !== "inactive") {
       toast.error(
         serviceStatus === "active"
-          ? "Active services can't be edited. Set the service to Inactive first."
-          : "Only inactive services can be edited.",
+          ? t("providerServicesPage.activeEditBlocked")
+          : t("providerServicesPage.inactiveOnlyEditBlocked"),
       );
       return;
     }
@@ -240,9 +306,9 @@ export default function ProviderServicesPage() { // NOSONAR
     const nextDraft = buildEditDraftFromService(svc, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG);
     if (!nextDraft.invokeUrl.trim()) {
       nextDraft.invokeUrl =
-        svc.endpoint ||
-        svc.invoke?.url ||
-        (Array.isArray(svc.invoke?.targets) ? (svc.invoke?.targets[0]?.url || "") : "");
+        svc.endpoint
+        || svc.invoke?.url
+        || (Array.isArray(svc.invoke?.targets) ? (svc.invoke?.targets[0]?.url || "") : "");
     }
     setDraft(nextDraft);
   };
@@ -255,11 +321,11 @@ export default function ProviderServicesPage() { // NOSONAR
       return;
     }
 
-    const actionLabel = nextActive ? "activate" : "inactive";
+    const actionLabel = nextActive ? t("providerServicesPage.actionActivate") : t("providerServicesPage.actionInactive");
     const confirmed = globalThis.confirm(
       nextActive
-        ? `Activate service ${service.serviceId}? It will be eligible for discovery again after health checks report healthy targets.`
-        : `Set service ${service.serviceId} to inactive? New discovery and direct gateway forwarding will stop once this update is applied.`,
+        ? t("providerServicesPage.confirmActivate", { serviceId: service.serviceId })
+        : t("providerServicesPage.confirmDeactivate", { serviceId: service.serviceId }),
     );
     if (!confirmed) {
       return;
@@ -276,16 +342,16 @@ export default function ProviderServicesPage() { // NOSONAR
 
       try {
         await updateServiceRegistry(payload, address);
-        toast.success(nextActive ? "Service activated" : "Service set to inactive");
+        toast.success(nextActive ? t("providerServicesPage.serviceActivated") : t("providerServicesPage.serviceSetInactive"));
       } catch (err) {
         setServices(prevServices);
         invalidateServiceRegistryListCache(address);
-        toast.error(err instanceof Error ? err.message : `Failed to ${actionLabel} service`);
+        toast.error(err instanceof Error ? err.message : t("providerServicesPage.updateStatusFailed", { action: actionLabel }));
       } finally {
         setStatusUpdatingServiceId(null);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Failed to ${actionLabel} service`);
+      toast.error(err instanceof Error ? err.message : t("providerServicesPage.updateStatusFailed", { action: actionLabel }));
     }
   };
 
@@ -294,9 +360,7 @@ export default function ProviderServicesPage() { // NOSONAR
       return;
     }
 
-    const confirmed = globalThis.confirm(
-      `Delete service ${service.serviceId}? This is a logical delete and keeps the audit trail while removing the service from the active provider service list.`,
-    );
+    const confirmed = globalThis.confirm(t("providerServicesPage.confirmDelete", { serviceId: service.serviceId }));
     if (!confirmed) {
       return;
     }
@@ -310,11 +374,11 @@ export default function ProviderServicesPage() { // NOSONAR
 
     try {
       await deleteServiceRegistry(service.serviceId, address);
-      toast.success("Service deleted");
+      toast.success(t("providerServicesPage.serviceDeleted"));
     } catch (err) {
       setServices(prevServices);
       invalidateServiceRegistryListCache(address);
-      toast.error(err instanceof Error ? err.message : "Failed to delete service");
+      toast.error(err instanceof Error ? err.message : t("providerServicesPage.deleteFailed"));
     } finally {
       setDeletingServiceId(null);
     }
@@ -326,12 +390,12 @@ export default function ProviderServicesPage() { // NOSONAR
     }
 
     if (normalizedServiceStatus(editing) !== "inactive") {
-      toast.error("Only inactive services can be edited. Set the service to Inactive first.");
+      toast.error(t("providerServicesPage.activeEditBlocked"));
       return;
     }
 
     if (!editValidation.isValid) {
-      toast.error(editValidation.firstError || "Please fix validation errors before saving.");
+      toast.error(editValidation.firstError || t("providerServicesPage.validationFixBeforeSave"));
       return;
     }
 
@@ -346,17 +410,17 @@ export default function ProviderServicesPage() { // NOSONAR
       setSaving(true);
       try {
         await updateServiceRegistry(payload, address);
-        toast.success("Service updated");
+        toast.success(t("providerServicesPage.serviceUpdated"));
         closeModal();
       } catch (err) {
         setServices(prevServices);
         invalidateServiceRegistryListCache(address);
-        toast.error(err instanceof Error ? err.message : "Failed to update service");
+        toast.error(err instanceof Error ? err.message : t("providerServicesPage.updateFailed"));
       } finally {
         setSaving(false);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Invalid JSON fields in service definition form");
+      toast.error(err instanceof Error ? err.message : t("providerServicesPage.invalidJsonFields"));
     }
   };
 
@@ -367,13 +431,13 @@ export default function ProviderServicesPage() { // NOSONAR
           <div className="w-full max-w-6xl rounded-2xl border border-[#2a2a2a] bg-[#0a0a0a] p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between border-b border-[#1d1d1d] pb-4">
               <div>
-                <h2 className="text-xl font-bold text-white">Edit Service</h2>
-                <p className="mt-1 text-xs text-[#86868b] font-mono">{editing.serviceId}</p>
-                <p className="mt-2 text-xs text-[#86868b]">Review the service definition and runtime mapping for this API service.</p>
+                <h2 className="text-xl font-bold text-white">{t("providerServicesPage.modalTitle")}</h2>
+                <p className="mt-1 font-mono text-xs text-[#86868b]">{editing.serviceId}</p>
+                <p className="mt-2 text-xs text-[#86868b]">{t("providerServicesPage.modalDescription")}</p>
               </div>
               <button
                 onClick={closeModal}
-                className="rounded-lg border border-[#333333] p-2 text-[#86868b] hover:text-white hover:border-white"
+                className="rounded-lg border border-[#333333] p-2 text-[#86868b] hover:border-white hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -381,49 +445,49 @@ export default function ProviderServicesPage() { // NOSONAR
 
             {!editValidation.isValid && (
               <div className="mb-4 rounded-lg border border-[#7f1d1d] bg-[#2a0f12] px-4 py-3 text-sm text-[#fca5a5]">
-                Validation failed. Fix highlighted fields to avoid `422 SERVICE_REGISTRATION_INVALID`.
+                {t("providerServicesPage.validationBanner")}
               </div>
             )}
 
             <div className="space-y-6">
               <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Basic Profile</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">{t("providerServicesPage.sectionBasicProfile")}</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Service Name</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldServiceName")}</span>
                     <input
                       value={draft.serviceName}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, serviceName: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, serviceName: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.serviceName ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
                     {editValidation.errors.serviceName && <p className="text-xs text-[#f87171]">{editValidation.errors.serviceName}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Unit Price (USDC)</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldUnitPrice")}</span>
                     <input
                       value={draft.pricingAmount}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, pricingAmount: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricingAmount: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.pricingAmount ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
                     {editValidation.errors.pricingAmount && <p className="text-xs text-[#f87171]">{editValidation.errors.pricingAmount}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">Summary</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldSummary")}</span>
                     <textarea
                       rows={2}
                       value={draft.summary}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, summary: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, summary: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">Tags (comma separated)</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldTags")}</span>
                     <input
                       value={draft.tagsText}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, tagsText: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, tagsText: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
@@ -432,32 +496,32 @@ export default function ProviderServicesPage() { // NOSONAR
                     <input
                       type="checkbox"
                       checked={draft.isActive}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, isActive: e.target.checked } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, isActive: event.target.checked } : prev))}
                       className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
                     />
-                    <span>Service Active</span>
+                    <span>{t("providerServicesPage.fieldServiceActive")}</span>
                   </label>
                 </div>
               </section>
 
               <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Health And Constraints</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">{t("providerServicesPage.sectionHealthConstraints")}</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
                   <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">Health Path</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthPath")}</span>
                     <input
                       value={draft.healthPath}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthPath: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthPath: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.healthPath ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
                     {editValidation.errors.healthPath && <p className="text-xs text-[#f87171]">{editValidation.errors.healthPath}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Health Method</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthMethod")}</span>
                     <select
                       value={draft.healthMethod}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthMethod: e.target.value as "GET" | "HEAD" | "POST" } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthMethod: event.target.value as "GET" | "HEAD" | "POST" } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     >
                       <option value="GET">GET</option>
@@ -467,160 +531,160 @@ export default function ProviderServicesPage() { // NOSONAR
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Health Interval Sec</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthIntervalSec")}</span>
                     <input
                       value={draft.healthIntervalSec}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthIntervalSec: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthIntervalSec: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Health Timeout Ms</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthTimeoutMs")}</span>
                     <input
                       value={draft.healthTimeoutMs}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthTimeoutMs: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthTimeoutMs: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">Health Success Codes (comma separated)</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthSuccessCodes")}</span>
                     <input
                       value={draft.healthSuccessCodesText}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthSuccessCodesText: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthSuccessCodesText: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Healthy Threshold</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthyThreshold")}</span>
                     <input
                       value={draft.healthyThreshold}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, healthyThreshold: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthyThreshold: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Unhealthy Threshold</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldUnhealthyThreshold")}</span>
                     <input
                       value={draft.unhealthyThreshold}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, unhealthyThreshold: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, unhealthyThreshold: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Constraint Timeout Ms</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldConstraintTimeoutMs")}</span>
                     <input
                       value={draft.constraintsTimeoutMs}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsTimeoutMs: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsTimeoutMs: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsTimeoutMs ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.timeoutMs.min}-{SERVICE_CONSTRAINT_LIMITS.timeoutMs.max}</p>
+                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.timeoutMs.min, max: SERVICE_CONSTRAINT_LIMITS.timeoutMs.max })}</p>
                     {editValidation.errors.constraintsTimeoutMs && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsTimeoutMs}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Max Request Bytes</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldMaxRequestBytes")}</span>
                     <input
                       value={draft.constraintsMaxRequestBytes}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxRequestBytes: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsMaxRequestBytes: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxRequestBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min}-{SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max}</p>
+                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min, max: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max })}</p>
                     {editValidation.errors.constraintsMaxRequestBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxRequestBytes}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Max Response Bytes</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldMaxResponseBytes")}</span>
                     <input
                       value={draft.constraintsMaxResponseBytes}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxResponseBytes: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsMaxResponseBytes: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxResponseBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min}-{SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max}</p>
+                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min, max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max })}</p>
                     {editValidation.errors.constraintsMaxResponseBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxResponseBytes}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Max QPS</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldMaxQps")}</span>
                     <input
                       value={draft.constraintsMaxQps}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, constraintsMaxQps: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsMaxQps: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxQps ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
-                    <p className="text-[11px] text-[#86868b]">Platform hard limit: {SERVICE_CONSTRAINT_LIMITS.maxQps.min}-{SERVICE_CONSTRAINT_LIMITS.maxQps.max}</p>
+                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.maxQps.min, max: SERVICE_CONSTRAINT_LIMITS.maxQps.max })}</p>
                     {editValidation.errors.constraintsMaxQps && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxQps}</p>}
                   </label>
                 </div>
               </section>
 
               <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">Service Definition / Invoke Contract</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">{t("providerServicesPage.sectionServiceDefinition")}</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Invoke Method</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeMethod")}</span>
                     <input
                       value={draft.invokeMethod}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeMethod: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeMethod: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">Invoke URL</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeUrl")}</span>
                     <input
                       value={
-                        draft.invokeUrl ||
-                        editing.endpoint ||
-                        editing.invoke?.url ||
-                        (Array.isArray(editing.invoke?.targets) ? (editing.invoke?.targets[0]?.url || "") : "")
+                        draft.invokeUrl
+                        || editing.endpoint
+                        || editing.invoke?.url
+                        || (Array.isArray(editing.invoke?.targets) ? (editing.invoke?.targets[0]?.url || "") : "")
                       }
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeUrl: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeUrl: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.invokeUrl ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
                     {editValidation.errors.invokeUrl && <p className="text-xs text-[#f87171]">{editValidation.errors.invokeUrl}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">Invoke Timeout Ms</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeTimeoutMs")}</span>
                     <input
                       value={draft.invokeTimeoutMs}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeTimeoutMs: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeTimeoutMs: event.target.value } : prev))}
                       className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
                     />
                   </label>
 
                   <label className="space-y-2 text-sm md:col-span-3">
-                    <span className="text-[#c6c6c9]">Invoke Targets (JSON Array)</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeTargets")}</span>
                     <textarea
                       rows={6}
                       value={draft.invokeTargetsJson}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, invokeTargetsJson: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeTargetsJson: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.invokeTargetsJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
                     {editValidation.errors.invokeTargetsJson && <p className="text-xs text-[#f87171]">{editValidation.errors.invokeTargetsJson}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm md:col-span-3">
-                    <span className="text-[#c6c6c9]">Request Schema (JSON)</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldRequestSchema")}</span>
                     <textarea
                       rows={6}
                       value={draft.requestSchemaJson}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, requestSchemaJson: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, requestSchemaJson: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.requestSchemaJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
                     {editValidation.errors.requestSchemaJson && <p className="text-xs text-[#f87171]">{editValidation.errors.requestSchemaJson}</p>}
                   </label>
 
                   <label className="space-y-2 text-sm md:col-span-3">
-                    <span className="text-[#c6c6c9]">Response Schema (JSON)</span>
+                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldResponseSchema")}</span>
                     <textarea
                       rows={6}
                       value={draft.responseSchemaJson}
-                      onChange={(e) => setDraft((prev) => (prev ? { ...prev, responseSchemaJson: e.target.value } : prev))}
+                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, responseSchemaJson: event.target.value } : prev))}
                       className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.responseSchemaJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
                     />
                     {editValidation.errors.responseSchemaJson && <p className="text-xs text-[#f87171]">{editValidation.errors.responseSchemaJson}</p>}
@@ -634,14 +698,14 @@ export default function ProviderServicesPage() { // NOSONAR
                 onClick={closeModal}
                 className="rounded-lg border border-[#333333] px-4 py-2 text-sm text-[#c6c6c9] hover:border-white hover:text-white"
               >
-                Cancel
+                {t("providerServicesPage.cancel")}
               </button>
               <button
                 onClick={() => void persistEdit()}
                 disabled={saving || !editValidation.isValid}
                 className="rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/15 px-4 py-2 text-sm font-semibold text-[#22c55e] hover:bg-[#22c55e] hover:text-black disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? t("providerServicesPage.saving") : t("providerServicesPage.saveChanges")}
               </button>
             </div>
           </div>
@@ -652,80 +716,80 @@ export default function ProviderServicesPage() { // NOSONAR
     : null;
 
   return (
-    <div className="p-6 md:p-10 mx-auto max-w-7xl text-white bg-[#000000] min-h-screen space-y-6">
+    <div className="mx-auto min-h-screen max-w-7xl space-y-6 bg-[#000000] p-6 text-white md:p-10">
       <div className="border-b border-[#222222] pb-5">
-        <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
-          <Server className="w-8 h-8 text-[#22c55e]" />
-          API Services
+        <h1 className="flex items-center gap-3 text-3xl font-[800] tracking-tight text-white md:text-4xl">
+          <Server className="h-8 w-8 text-[#22c55e]" />
+          {t("providerServicesPage.title")}
         </h1>
         <p className="mt-2 text-sm text-[#86868b]">
-          Manage API services, service definitions, runtime status, pricing, and routing readiness.
+          {t("providerServicesPage.description")}
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2 w-full lg:w-auto lg:flex-1">
-          <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] w-full lg:w-[360px]">
-            <Search className="w-4 h-4 text-[#86868b]" />
+      <div className="flex flex-col gap-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex w-full items-center gap-2 lg:w-auto lg:flex-1">
+          <label className="flex w-full items-center gap-2 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 lg:w-[360px]">
+            <Search className="h-4 w-4 text-[#86868b]" />
             <input
               value={queryInput}
-              onChange={(e) => setQueryInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
+              onChange={(event) => setQueryInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
                   handleSearch();
                 }
               }}
-              placeholder="Search Service ID or name"
+              placeholder={t("providerServicesPage.searchPlaceholder")}
               className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#86868b]"
             />
           </label>
           <select
             value={statusInput}
-            onChange={(e) => setStatusInput(e.target.value as ServiceStatusFilter)}
-            className="px-3 py-2 rounded-lg border border-[#222222] bg-[#050505] text-sm text-white text-left outline-none min-w-[130px]"
+            onChange={(event) => setStatusInput(event.target.value as ServiceStatusFilter)}
+            className="min-w-[130px] rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-left text-sm text-white outline-none"
           >
-            <option value="all">All Status</option>
-            <option value="online">Online</option>
-            <option value="offline">Offline</option>
+            <option value="all">{t("providerServicesPage.filterAllStatus")}</option>
+            <option value="online">{t("providerServicesPage.filterOnline")}</option>
+            <option value="offline">{t("providerServicesPage.filterOffline")}</option>
           </select>
         </div>
         <div className="flex items-center gap-2 lg:justify-end">
           <button
             onClick={handleSearch}
-            className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors"
+            className="rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 px-4 py-2 text-sm font-semibold text-[#22c55e] transition-colors hover:bg-[#22c55e] hover:text-black"
           >
-            Search
+            {t("providerServicesPage.searchButton")}
           </button>
           <Link
             href="/provider/services/deploy"
             onClick={(event) => {
               void handleOpenNewService(event);
             }}
-            className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-[#3a3a3a] bg-[#050505] text-sm font-semibold text-white hover:border-[#22c55e]/50 hover:text-[#22c55e] transition-colors"
+            className="inline-flex items-center gap-1 rounded-lg border border-[#3a3a3a] bg-[#050505] px-4 py-2 text-sm font-semibold text-white transition-colors hover:border-[#22c55e]/50 hover:text-[#22c55e]"
           >
-            <Plus className="w-4 h-4" />
-            New Service
+            <Plus className="h-4 w-4" />
+            {t("providerServicesPage.newService")}
           </Link>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-[1.5rem] border border-[#222222] bg-[#0a0a0a]">
-        <table className="w-full text-left border-collapse whitespace-nowrap">
+        <table className="w-full border-collapse whitespace-nowrap text-left">
           <thead>
-            <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
-              <th className="py-5 px-6">Service</th>
-              <th className="py-5 px-6">Service ID</th>
-              <th className="py-5 px-6">Pricing</th>
-              <th className="py-5 px-6 text-center">Status</th>
-              <th className="py-5 px-6 text-center">Callable</th>
-              <th className="py-5 px-6 text-right">Action</th>
+            <tr className="border-b border-[#222222] bg-[#050505] text-[10px] font-semibold uppercase tracking-[0.2em] text-[#86868b]">
+              <th className="px-6 py-5">{t("providerServicesPage.tableService")}</th>
+              <th className="px-6 py-5">{t("providerServicesPage.tableServiceId")}</th>
+              <th className="px-6 py-5">{t("providerServicesPage.tablePricing")}</th>
+              <th className="px-6 py-5 text-center">{t("providerServicesPage.tableStatus")}</th>
+              <th className="px-6 py-5 text-center">{t("providerServicesPage.tableCallable")}</th>
+              <th className="px-6 py-5 text-right">{t("providerServicesPage.tableAction")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
             {pageRows.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-14 text-center text-sm text-[#86868b]">
-                  {loading ? "Loading API services..." : "No API services match the current filters."}
+                  {loading ? t("providerServicesPage.loading") : t("providerServicesPage.empty")}
                 </td>
               </tr>
             )}
@@ -734,103 +798,86 @@ export default function ProviderServicesPage() { // NOSONAR
               const isDeleting = deletingServiceId === svc.serviceId;
               const serviceStatus = normalizedServiceStatus(svc);
               const canEditService = serviceStatus === "inactive";
-              let statusActionLabel = "Activate";
+
+              let statusActionLabel = t("providerServicesPage.actionActivate");
               if (isStatusUpdating) {
-                statusActionLabel = "Updating...";
+                statusActionLabel = t("providerServicesPage.actionUpdating");
               } else if (svc.isActive) {
-                statusActionLabel = "Inactive";
+                statusActionLabel = t("providerServicesPage.actionInactive");
               }
 
               const statusActionClassName = svc.isActive
                 ? "border-[#f59e0b]/40 text-[#f59e0b] hover:bg-[#f59e0b] hover:text-black"
                 : "border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black";
+              const serviceStatusText = serviceStatusLabel(serviceStatus, t);
+              let statusToneClassName = "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444]";
+              if (serviceStatus === "active") {
+                statusToneClassName = "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#22c55e]";
+              } else if (serviceStatus === "inactive") {
+                statusToneClassName = "border-[#f59e0b]/30 bg-[#f59e0b]/10 text-[#f59e0b]";
+              }
 
               return (
-                <tr key={svc.id} className="hover:bg-[#111111] transition-colors">
-                  <td className="py-5 px-6">
-                    <div className="font-semibold text-white">{svc.name || svc.serviceName || "Unnamed Service"}</div>
-                    <div className="text-xs text-[#86868b] mt-1 flex items-center gap-1">
-                      <Link2 className="w-3.5 h-3.5" />
+                <tr key={svc.id} className="transition-colors hover:bg-[#111111]">
+                  <td className="px-6 py-5">
+                    <div className="font-semibold text-white">{svc.name || svc.serviceName || t("providerServicesPage.unnamedService")}</div>
+                    <div className="mt-1 flex items-center gap-1 text-xs text-[#86868b]">
+                      <Link2 className="h-3.5 w-3.5" />
                       {svc.endpoint || "-"}
                     </div>
                   </td>
-                  <td className="py-5 px-6 text-sm font-mono text-[#e5e5ea]">{svc.serviceId}</td>
-                  <td className="py-5 px-6 text-sm text-[#e5e5ea] font-mono">{formatPricing(svc.pricing)} / CALL</td>
-                  <td className="py-5 px-6 text-center">
-                    {(() => {
-                      if (serviceStatus === "active") {
-                        return (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#22c55e] border border-[#22c55e]/30 bg-[#22c55e]/10">
-                            Active
-                          </span>
-                        );
-                      }
-                      if (serviceStatus === "inactive") {
-                        return (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#f59e0b] border border-[#f59e0b]/30 bg-[#f59e0b]/10">
-                            Inactive
-                          </span>
-                        );
-                      }
-                      if (serviceStatus === "deleted") {
-                        return (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#ef4444] border border-[#ef4444]/30 bg-[#ef4444]/10">
-                            Deleted
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#ef4444] border border-[#ef4444]/30 bg-[#ef4444]/10">
-                          Archived
-                        </span>
-                      );
-                    })()}
+                  <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">{svc.serviceId}</td>
+                  <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">{formatPricing(svc.pricing)} {t("providerServicesPage.perCall")}</td>
+                  <td className="px-6 py-5 text-center">
+                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${statusToneClassName}`}>
+                      {serviceStatusText}
+                    </span>
                   </td>
-                  <td className="py-5 px-6 text-center">
+                  <td className="px-6 py-5 text-center">
                     {isServiceRuntimeOnline(svc) ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#22c55e] border border-[#22c55e]/30 bg-[#22c55e]/10">
-                        <Gauge className="w-3 h-3 mr-1" />
-                        Callable
+                      <span className="inline-flex items-center rounded-full border border-[#22c55e]/30 bg-[#22c55e]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#22c55e]">
+                        <Gauge className="mr-1 h-3 w-3" />
+                        {t("providerServicesPage.callable")}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold text-[#86868b] border border-[#333333] bg-[#111111]">
-                        Unavailable
+                      <span className="inline-flex items-center rounded-full border border-[#333333] bg-[#111111] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#86868b]">
+                        {t("providerServicesPage.unavailable")}
                       </span>
                     )}
                   </td>
-                  <td className="py-5 px-6 text-right">
+                  <td className="px-6 py-5 text-right">
                     <div className="inline-flex items-center gap-2">
                       <button
                         onClick={() => openEditModal(svc)}
                         disabled={saving || isStatusUpdating || isDeleting}
-                        title={canEditService ? "Edit inactive service" : "Set service to Inactive before editing"}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:cursor-not-allowed disabled:opacity-50 ${canEditService
+                        title={canEditService ? t("providerServicesPage.editInactiveService") : t("providerServicesPage.setInactiveBeforeEditing")}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${canEditService
                           ? "border-[#333333] text-white hover:border-[#ffffff] hover:bg-white hover:text-black"
                           : "border-[#f59e0b]/35 text-[#f5d08a] hover:border-[#f59e0b] hover:text-[#f59e0b]"
                         }`}
                       >
-                        Edit
+                        {t("providerServicesPage.edit")}
                       </button>
                       <button
                         onClick={() => void updateServiceStatus(svc, !svc.isActive)}
                         disabled={saving || isStatusUpdating || isDeleting}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:cursor-not-allowed disabled:opacity-50 ${statusActionClassName}`}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${statusActionClassName}`}
                       >
                         {statusActionLabel}
                       </button>
                       <button
                         onClick={() => void deleteService(svc)}
                         disabled={saving || isStatusUpdating || isDeleting || svc.isActive}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#ef4444]/40 text-[#fca5a5] hover:bg-[#ef4444] hover:text-black transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#ef4444]/40 px-3 py-1.5 text-xs font-bold text-[#fca5a5] transition-all hover:bg-[#ef4444] hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {isDeleting ? "Deleting" : "Delete"}
+                        {isDeleting ? t("providerServicesPage.deleting") : t("providerServicesPage.delete")}
                       </button>
                       <Link
                         href={`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black transition-all ${isDeleting ? "pointer-events-none opacity-50" : ""}`}
+                        className={`inline-flex items-center gap-1 rounded-lg border border-[#22c55e]/40 px-3 py-1.5 text-xs font-bold text-[#22c55e] transition-all hover:bg-[#22c55e] hover:text-black ${isDeleting ? "pointer-events-none opacity-50" : ""}`}
                       >
-                        <Activity className="w-3.5 h-3.5" />
-                        Health
+                        <Activity className="h-3.5 w-3.5" />
+                        {t("providerServicesPage.health")}
                       </Link>
                     </div>
                   </td>
@@ -843,33 +890,36 @@ export default function ProviderServicesPage() { // NOSONAR
 
       <div className="flex flex-col gap-3 text-xs text-[#86868b] md:flex-row md:items-center md:justify-between">
         <div>
-          Showing {(safePage - 1) * pageSize + (filtered.length ? 1 : 0)}-
-          {Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
+          {t("providerServicesPage.paginationShowing", {
+            start: (safePage - 1) * pageSize + (filtered.length ? 1 : 0),
+            end: Math.min(safePage * pageSize, filtered.length),
+            total: filtered.length,
+          })}
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
             disabled={safePage <= 1}
-            className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
+            className="rounded-lg border border-[#222222] bg-[#0a0a0a] px-3 py-1.5 disabled:opacity-40"
           >
-            Prev
+            {t("providerServicesPage.paginationPrev")}
           </button>
-          <span className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#050505] text-white">
+          <span className="rounded-lg border border-[#222222] bg-[#050505] px-3 py-1.5 text-white">
             {safePage} / {pageCount}
           </span>
           <button
-            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            onClick={() => setPage((currentPage) => Math.min(pageCount, currentPage + 1))}
             disabled={safePage >= pageCount}
-            className="px-3 py-1.5 rounded-lg border border-[#222222] bg-[#0a0a0a] disabled:opacity-40"
+            className="rounded-lg border border-[#222222] bg-[#0a0a0a] px-3 py-1.5 disabled:opacity-40"
           >
-            Next
+            {t("providerServicesPage.paginationNext")}
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b] flex items-center gap-2">
-        <Shield className="w-4 h-4 text-[#22c55e]" />
-        Active services are runtime-live. Switch a service to Inactive before editing its contract or routing fields. Press Esc to close the edit panel.
+      <div className="flex items-center gap-2 rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b]">
+        <Shield className="h-4 w-4 text-[#22c55e]" />
+        {t("providerServicesPage.footerNote")}
       </div>
 
       {editModal}
