@@ -79,9 +79,16 @@ class ProviderWithdrawReviewService:
             reviewed_to=reviewed_to_at,
         )
 
+        total_count = len(filtered_items)
         page_items = filtered_items[cursor_offset:cursor_offset + limit]
-        next_cursor = str(cursor_offset + limit) if cursor_offset + limit < len(filtered_items) else None
-        return {"items": page_items, "nextCursor": next_cursor}
+        next_cursor = str(cursor_offset + limit) if cursor_offset + limit < total_count else None
+        total_pages = max(1, (total_count + limit - 1) // limit) if total_count else 1
+        return {
+            "items": page_items,
+            "nextCursor": next_cursor,
+            "totalCount": total_count,
+            "totalPages": total_pages,
+        }
 
     def _collect_history_items(
         self,

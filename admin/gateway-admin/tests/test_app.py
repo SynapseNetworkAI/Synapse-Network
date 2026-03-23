@@ -863,7 +863,8 @@ def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
 
     history_response = client.get("/api/admin/v1/withdrawal-reviews/history?limit=10")
     assert history_response.status_code == 200
-    items = history_response.json()["data"]["items"]
+    payload = history_response.json()["data"]
+    items = payload["items"]
     reviewed = next(item for item in items if item["withdrawalId"] == review_item_id)
     assert reviewed["reviewDecision"] == "APPROVE"
     assert reviewed["currentStatus"] == "APPROVED_AUTO"
@@ -873,6 +874,8 @@ def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
     assert reviewed["evidenceSummary"] == "Seeded by test for review history endpoint."
     assert reviewed["createdAt"] == "2026-03-20T09:30:00Z"
     assert reviewed["updatedAt"] is not None
+    assert payload["totalCount"] >= 1
+    assert payload["totalPages"] >= 1
 
 
 def test_provider_withdraw_review_history_supports_filters_and_pagination() -> None:
@@ -933,6 +936,8 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
     assert len(first_page["items"]) == 1
     assert first_page["items"][0]["withdrawalId"] == review_ids[1]
     assert first_page["nextCursor"] == "1"
+    assert first_page["totalCount"] == 2
+    assert first_page["totalPages"] == 2
 
     second_page_response = client.get(
         f"/api/admin/v1/withdrawal-reviews/history?query=wd-history-filter-&reviewer=finance-review&reviewedFrom={reviewed_on}&reviewedTo={reviewed_on}&limit=1&cursor={first_page['nextCursor']}"
@@ -942,6 +947,8 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
     assert len(second_page["items"]) == 1
     assert second_page["items"][0]["withdrawalId"] == review_ids[0]
     assert second_page["nextCursor"] is None
+    assert second_page["totalCount"] == 2
+    assert second_page["totalPages"] == 2
 
 
 def test_menu_config_snapshot_auto_adds_review_history_seed_item() -> None:

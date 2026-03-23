@@ -52,6 +52,8 @@ class ProviderWithdrawReviewHistoryListResponse(BaseModel):
 
     items: list[ProviderWithdrawReviewHistoryItem]
     next_cursor: str | None = Field(default=None, alias="nextCursor")
+    total_count: int = Field(alias="totalCount")
+    total_pages: int = Field(alias="totalPages")
 
 
 class ProviderWithdrawReviewDecisionRequest(BaseModel):

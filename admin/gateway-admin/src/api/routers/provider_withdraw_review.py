@@ -70,6 +70,8 @@ def list_provider_withdraw_review_history(
         data=ProviderWithdrawReviewHistoryListResponse(
             items=[ProviderWithdrawReviewHistoryItem(**item) for item in payload["items"]],
             next_cursor=payload["nextCursor"],
+            total_count=payload["totalCount"],
+            total_pages=payload["totalPages"],
         ),
         request_id=request_id,
     )
