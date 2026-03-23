@@ -23,9 +23,10 @@ AI 协作优先入口新增如下：
 2. [ARCHITECTURE.md](./ARCHITECTURE.md)
 3. [Harness_engineering.md](./Harness_engineering.md)
 4. [Design.md](./Design.md)
-5. [api.md](./api.md)
-6. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
-7. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
+5. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
+6. [api.md](./api.md)
+7. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
+8. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
 
 ### Official modules
 
