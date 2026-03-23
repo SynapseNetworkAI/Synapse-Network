@@ -6,6 +6,13 @@
 2. 再进入六个官方模块，按产品、架构、流程、数据库、运维、参考分层阅读。
 3. 专题设计、后台文档、产品愿景保留为补充层，不再承担 Runtime canonical 定义职责。
 
+AI 协作优先入口新增如下：
+
+1. 仓库根 `llms.txt` 作为机器可消费的最短入口。
+2. `ARCHITECTURE.md` 作为全仓顶层结构地图。
+3. `Harness_engineering.md` 作为 AI 文档治理与落地顺序说明。
+4. `exec-plans/` 作为多步骤任务的标准执行计划目录。
+
 ### 1.1 docs/ 文件地图（Agent File Map）
 
 下面这份目录树按当前仓库实际文件生成，供 Agent 快速定位文档，不需要再手工猜目录。
@@ -147,9 +154,13 @@ docs/
 ### 2.1 项目原则与设计基线
 
 1. [AGENTS.md](./AGENTS.md)
-2. [Design.md](./Design.md)
-3. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
-4. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
+2. [ARCHITECTURE.md](./ARCHITECTURE.md)
+3. [Harness_engineering.md](./Harness_engineering.md)
+4. [exec-plans/README.md](./exec-plans/README.md)
+5. [06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)
+6. [Design.md](./Design.md)
+7. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
+8. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
 
 ### 2.2 Runtime 协议与平台 API
 
@@ -231,11 +242,13 @@ docs/
 ### 5.1 新同学入门
 
 1. [AGENTS.md](./AGENTS.md)
-2. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
-3. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
-4. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
-5. [04_Database_Design/README.md](./04_Database_Design/README.md)
-6. [03_Projects/README.md](./03_Projects/README.md)
+2. [ARCHITECTURE.md](./ARCHITECTURE.md)
+3. [06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)
+4. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
+5. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
+6. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
+7. [04_Database_Design/README.md](./04_Database_Design/README.md)
+8. [03_Projects/README.md](./03_Projects/README.md)
 
 ### 5.2 看 Owner 资金与 Agent Runtime 主链路
 

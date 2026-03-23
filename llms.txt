@@ -1,0 +1,62 @@
+# Synapse Network
+
+Synapse Network is an agent-first settlement layer for AI agents. The primary product goal is: agent completed first paid invocation autonomously.
+
+## Start Here
+
+- docs/AGENTS.md - canonical workspace rules, product doctrine, architecture invariants, security baseline, and instruction layering
+- docs/README.md - full documentation map and recommended reading order
+- docs/ARCHITECTURE.md - top-level architecture summary across runtime, settlement, control plane, and provider systems
+- docs/Harness_engineering.md - repository-level AI collaboration and documentation landing plan
+
+## Core Runtime Docs
+
+- docs/agent/01_Agent_Runtime_Product_Architecture.md
+- docs/agent/02_Discovery_Quote_Invoke_API_Design.md
+- docs/03_Core_Workflows/README.md
+- docs/04_Database_Design/README.md
+- docs/api.md
+- docs/Gateway_Error_Codes.md
+
+## Project Entry Points
+
+- docs/03_Projects/gateway/README.md
+- docs/03_Projects/frontend/README.md
+- docs/03_Projects/gateway-admin/README.md
+- docs/03_Projects/admin-front/README.md
+- docs/03_Projects/provider-service/README.md
+- docs/03_Projects/sdk-python/README.md
+
+## AI-Oriented References
+
+- docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
+- docs/06_Reference/Validation_Entry_Points.md - current validation commands and workflow checks
+- docs/exec-plans/README.md - plan structure for active and completed work
+
+## Important Boundaries
+
+- gateway is the runtime and settlement chain-offload control point
+- contracts is the on-chain vault and settlement boundary
+- gateway-admin is the admin control-plane backend, not a second runtime gateway
+- admin-front is the admin control-plane UI
+- provider_service is a provider runtime sample, not a settlement service
+- frontend is the owner and developer facing product console
+
+## Finance-Sensitive Work
+
+For any money movement, settlement, approval, withdrawal review, refund, or reconciliation change, always read:
+
+- docs/AGENTS.md
+- .github/instructions/finance-backend.instructions.md
+- .github/instructions/finance-admin.instructions.md when the task touches admin finance control-plane flows
+
+## Validation Anchors
+
+- root CI wrappers live in package.json under ci:* scripts
+- project-local validation commands are summarized in docs/06_Reference/Validation_Entry_Points.md
+
+## Planning
+
+- use docs/exec-plans/templates/Exec_Plan_Template.md for new multi-step work
+- store in-progress work under docs/exec-plans/active/
+- move finished plans to docs/exec-plans/completed/
