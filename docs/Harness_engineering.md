@@ -9,6 +9,11 @@ It has two jobs:
 1. explain how this repository should evolve to become more agent-readable
 2. define the most pragmatic landing order so the work can be implemented incrementally without turning docs into a second product rewrite
 
+Status note:
+
+1. the foundation pass described in this document has now been landed
+2. this file should be read as both the original rollout rationale and the current status record for that pass
+
 ## 2. What Harness Engineering Means Here
 
 For Synapse, harness engineering means the repository itself must become the primary operating surface for AI agents.
@@ -29,14 +34,21 @@ Synapse already has a strong foundation:
 2. `.github/instructions/` already carries file-type and domain-specific coding rules.
 3. `docs/README.md` already provides a high-quality human-facing document map.
 4. `docs/03_Projects/` already centralizes per-project canonical guidance.
-5. the repository already had versioned planning material, but it was still split between legacy `docs/plan/` and the new standardized execution-plan layout.
+5. legacy planning material is now explicitly separated from the standardized execution-plan layout.
 
-The main gaps are now structural rather than conceptual:
+The original structural gaps for the foundation pass are now closed:
 
-1. no repository-level AI entrypoint like `llms.txt`
-2. no single top-level architecture summary for the whole system
-3. no standardized execution-plan workspace for active and completed work
-4. no AI-oriented quick reference for commands, ownership boundaries, and validation entrypoints
+1. root `llms.txt` exists and points to canonical repo entrypoints.
+2. `docs/ARCHITECTURE.md` provides a stable top-level system map.
+3. `docs/exec-plans/` is now the canonical workspace for execution plans.
+4. `docs/06_Reference/AI_Quick_Reference.md` and `docs/06_Reference/Validation_Entry_Points.md` provide compressed AI-facing operational context.
+
+The remaining gaps are now maintenance-oriented rather than foundational:
+
+1. some top-level indexes are still dense and can be compressed further for faster first-read navigation
+2. reference-layer boundaries still need occasional cleanup as contracts evolve across `gateway`, `gateway-admin`, and `provider_service`
+3. there is still no automated freshness enforcement for docs, instructions, and indexes
+4. ADR and decision-log workflows are still lightweight and mostly manual
 
 ## 4. Design Goals
 
@@ -49,7 +61,7 @@ The next round of documentation work should optimize for four outcomes:
 
 ## 5. Most Pragmatic Landing Order
 
-The repository should land the next changes in this order.
+The repository landed the foundation pass in this order.
 
 ### Step 1. Add `llms.txt`
 
@@ -64,6 +76,8 @@ Definition of done:
 1. root `llms.txt` exists
 2. it points to canonical docs, project entrypoints, and validation anchors
 
+Status: completed.
+
 ### Step 2. Add `docs/ARCHITECTURE.md`
 
 Why second:
@@ -75,6 +89,8 @@ Definition of done:
 
 1. one top-level architecture summary exists
 2. it explains system roles, dependency directions, and source-of-truth boundaries
+
+Status: completed.
 
 ### Step 3. Standardize execution plans under `docs/exec-plans/`
 
@@ -88,6 +104,8 @@ Definition of done:
 1. `docs/exec-plans/` exists with `active/`, `completed/`, and `templates/`
 2. a reusable template defines scope, acceptance criteria, decision log, and verification log
 
+Status: completed.
+
 ### Step 4. Add AI quick references and validation entrypoints
 
 Why fourth:
@@ -99,6 +117,8 @@ Definition of done:
 
 1. a quick-reference page compresses core repository facts
 2. a validation-entrypoint page lists the current command anchors by project and workflow
+
+Status: completed.
 
 ### Step 5. Wire the new entrypoints into existing navigation
 
@@ -112,11 +132,13 @@ Definition of done:
 1. `docs/README.md` references the new pages
 2. relevant module indexes point to the new reference material
 
+Status: completed.
+
 ## 6. What This Pass Will Not Do
 
-This pass does not try to solve everything at once.
+The foundation pass does not try to solve everything at once.
 
-Not included in the current landing sequence:
+Still not included after the current landing sequence:
 
 1. automated doc freshness linting
 2. doc-gardening bots or CI jobs
@@ -148,3 +170,8 @@ This harness-engineering pass is complete when:
 3. execution-plan storage is standardized
 4. quick-reference and validation-entrypoint docs exist
 5. existing canonical indexes link to those new assets
+
+Current status:
+
+1. this completion criteria set is satisfied as of 2026-03-24
+2. follow-on work should now focus on index compression, reference-boundary hygiene, and lightweight freshness enforcement rather than more entrypoint creation
