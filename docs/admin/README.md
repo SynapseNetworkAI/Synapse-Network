@@ -19,5 +19,5 @@
 
 当前实现约束补充：
 
-- `admin/gateway-admin/agents.md` 是 `gateway-admin` 子目录的 AI 执行硬规则，作用是让代码代理在该目录内默认遵守分层、权限、测试、文档同步和环境约束。
+- `admin/gateway-admin/AGENTS.md` 是 `gateway-admin` 子目录的 AI 执行硬规则，作用是让代码代理在该目录内默认遵守分层、权限、测试、文档同步和环境约束。
 - `GET /api/admin/v1/dashboard/diagnostics` 是 admin 控制面的统一诊断语义层，dashboard 与 `/system` 必须复用同一份诊断结论与建议动作，避免两套系统状态口径。

@@ -36,7 +36,7 @@ docs/
 │   ├── 03_Admin_Control_Plane_Architecture.md
 │   ├── 04_Frontend_Design_System_Application.md
 │   ├── README.md
-│   ├── agents.md
+│   ├── AGENTS.md
 │   └── owner_agent_guide/
 │       └── agents_guide.md
 ├── 01_Product_Vision/
@@ -123,7 +123,7 @@ docs/
 │   └── EigenFlux.md
 ├── 平台资金监控方案.md
 ├── 测试文档.md
-├── agents.md
+├── AGENTS.md
 ├── api.md
 ├── Design.md
 ├── Gateway_Database_Design.md
@@ -135,7 +135,7 @@ docs/
 
 建议 Agent 读取顺序：
 
-1. 先读 `agents.md`、`Design.md`、`agent/` 下 canonical 文档。
+1. 先读 `AGENTS.md`、`Design.md`、`agent/` 下 canonical 文档。
 2. 需要产品与 IA 时进入 `01_Product_Frontend/`。
 3. 需要 Runtime 协议与主流程时进入 `02_System_Architecture/`、`03_Core_Workflows/`、`06_Reference/`。
 4. 需要数据库真相时进入 `04_Database_Design/` 与 `Gateway_Database_Design.md`。
@@ -146,7 +146,7 @@ docs/
 
 ### 2.1 项目原则与设计基线
 
-1. [agents.md](./agents.md)
+1. [AGENTS.md](./AGENTS.md)
 2. [Design.md](./Design.md)
 3. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
 4. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
@@ -230,7 +230,7 @@ docs/
 
 ### 5.1 新同学入门
 
-1. [agents.md](./agents.md)
+1. [AGENTS.md](./AGENTS.md)
 2. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
 3. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
 4. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)

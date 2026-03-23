@@ -12,7 +12,7 @@
 
 本目录的约束来源：
 
-1. `docs/agents.md`
+1. `docs/AGENTS.md`
 2. `docs/Design.md`
 3. `docs/agent/00_Platform_Role_Identity_Model.md`
 4. `docs/agent/01_Agent_Runtime_Product_Architecture.md`
@@ -27,7 +27,7 @@
 
 ## 迁移说明
 
-`docs/01_Product_Frontend/agents.md` 已正式退役，不再作为 Agents 页的设计真理源。
+`docs/01_Product_Frontend/AGENTS.md` 已正式退役，不再作为 Agents 页的设计真理源。
 
 当前唯一有效的 Agents 页面说明迁移到：
 
@@ -36,7 +36,7 @@
 清理原则：
 
 1. 历史上未继续采用的 Agents 旧方案直接删除，不保留并行设计入口
-2. 后续 Agents 页面改动只更新 owner guide，不再恢复旧 `agents.md`
+2. 后续 Agents 页面改动只更新 owner guide，不再恢复旧 `AGENTS.md`
 3. 充值能力与 Owner Treasury 使用同一套 Vault Deposit 流程；旧 `/dashboard/console` 仅保留为跳转到 `/dashboard/developer` 的兼容入口，避免重新出现混合控制台
 
 ## 模块边界

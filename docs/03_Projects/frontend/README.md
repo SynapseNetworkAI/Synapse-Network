@@ -18,7 +18,7 @@
 - 页面入口：`apps/frontend/src/`
 - 配置文件：`apps/frontend/package.json`、`apps/frontend/next.config.mjs`
 - 本地说明：`apps/frontend/README.md`
-- 项目规则：`apps/frontend/agents.md`
+- 项目规则：`apps/frontend/AGENTS.md`
 
 ## 3. 当前运行约束
 
@@ -65,6 +65,6 @@
 项目目录内只保留：
 
 1. `apps/frontend/README.md`
-2. `apps/frontend/agents.md`
+2. `apps/frontend/AGENTS.md`
 
-其中 `apps/frontend/README.md` 现在只保留入口壳，`apps/frontend/agents.md` 作为本地执行镜像保留；完整规则统一维护在 [Frontend_Agent_Rules.md](./Frontend_Agent_Rules.md)。
+其中 `apps/frontend/README.md` 现在只保留入口壳，`apps/frontend/AGENTS.md` 作为本地执行镜像保留；完整规则统一维护在 [Frontend_Agent_Rules.md](./Frontend_Agent_Rules.md)。

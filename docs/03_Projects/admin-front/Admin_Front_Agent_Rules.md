@@ -92,7 +92,7 @@ Admin front follows the Synapse Sentinel cyber-industrial design language:
 If admin-front behavior, IA, setup, or control-plane wording changes, update together:
 
 1. `admin/admin-front/README.md`
-2. `admin/admin-front/agents.md`
+2. `admin/admin-front/AGENTS.md`
 3. `docs/03_Projects/admin-front/Admin_Front_Local_Development.md`
 4. this file
 5. any affected `docs/admin/` canonical docs

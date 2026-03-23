@@ -6,7 +6,7 @@
 
 1. 项目导航页：`docs/03_Projects/frontend/README.md`
 2. 本地开发说明：`docs/03_Projects/frontend/Frontend_Local_Development.md`
-3. 子项目规则：`apps/frontend/agents.md`
+3. 子项目规则：`apps/frontend/AGENTS.md`
 
 ## 常用命令
 

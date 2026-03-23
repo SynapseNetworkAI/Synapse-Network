@@ -4,7 +4,7 @@
 
 canonical 规则文档在：
 
-1. `docs/agents.md`
+1. `docs/AGENTS.md`
 2. `docs/03_Projects/provider-service/Provider_Service_Agent_Rules.md`
 
 ## 必守规则

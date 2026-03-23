@@ -4,7 +4,7 @@ Local execution mirror for `admin/admin-front/`.
 
 Canonical rules doc:
 
-1. `docs/agents.md`
+1. `docs/AGENTS.md`
 2. `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md`
 
 ## 1. Core Engineering Rules

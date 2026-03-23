@@ -22,11 +22,11 @@
 截至 2026-03-23，本方案的执行状态如下：
 
 1. 批次 A 已完成：7 个项目 `README.md` 正文已迁入 `docs/03_Projects/<project>/*_Local_Development.md`，项目目录内 `README.md` 已收缩为入口壳。
-2. 批次 B 已完成：`provider_service/docs/` 的 Markdown 正文已迁入 `docs/03_Projects/provider-service/`，并补齐了 `provider_service/agents.md` 本地执行镜像。
+2. 批次 B 已完成：`provider_service/docs/` 的 Markdown 正文已迁入 `docs/03_Projects/provider-service/`，并补齐了 `provider_service/AGENTS.md` 本地执行镜像。
 3. 批次 C 已完成：`admin/gateway-admin/docs/` 的 Markdown 正文已迁入 `docs/03_Projects/gateway-admin/`，并补齐了 root canonical 运维、环境变量、systemd 与 agent 规则文档。
 4. 批次 D 已完成：`provider_service`、`gateway-admin`、`apps/frontend`、`admin/admin-front` 已建立 “root canonical + 本地执行镜像” 双轨结构。
 5. 批次 E 已完成：`gateway-providers` init 说明已上提到根 `docs/03_Projects/infra/`，`admin/README.md` 已收缩为工作区入口壳。
-6. 最终例外项已确认：`gateway/` 与 `contracts/` 暂不新增独立 `agents.md`，因为当前没有足够稳定、值得单独维护的 project-level rules。
+6. 最终例外项已确认：`gateway/` 与 `contracts/` 暂不新增独立 `AGENTS.md`，因为当前没有足够稳定、值得单独维护的 project-level rules。
 7. 当前状态可以视为：**迁移已基本完成，仅保留例外项说明与后续增量维护。**
 
 ### 2.1 最终治理原则
@@ -36,7 +36,7 @@
 1. **所有项目级说明文档统一维护在根 `docs/`。**
 2. **`docs/03_Projects/<project>/` 成为每个代码项目的集中目录。**
 3. **项目目录下的 `README.md` 只保留跳转入口，不再放完整说明。**
-4. **项目目录下的 `agents.md` 视为执行型配置文件，短期保留本地副本，但 canonical 文本迁入根 `docs/`。**
+4. **项目目录下的 `AGENTS.md` 视为执行型配置文件，短期保留本地副本，但 canonical 文本迁入根 `docs/`。**
 
 ### 2.2 什么属于“要迁入 `docs/` 的项目文档”
 
@@ -51,7 +51,7 @@
 
 以下内容不做“全文搬迁”，只做边界修正：
 
-1. 根 `docs/agents.md`，它继续作为仓库级规则入口。
+1. 根 `docs/AGENTS.md`，它继续作为仓库级规则入口。
 2. 根 `docs/admin/`、`docs/provider_service/`、`docs/sdk/` 这类系统专题文档，它们本来就已经在根 `docs/`。
 3. SQL、脚本、配置样例这类可执行文件，它们继续留在代码目录，只在根 `docs/` 写说明与入口。
 
@@ -123,7 +123,7 @@ docs/
 迁移后只保留：
 
 1. `README.md` 入口壳文件。
-2. `agents.md` 执行型镜像文件。
+2. `AGENTS.md` 执行型镜像文件。
 3. 必须与代码同目录存在的脚本、配置、样例文件。
 
 ## 4. 当前需迁移清单
@@ -144,16 +144,16 @@ docs/
 
 | 当前路径 | 目标路径 | 动作 |
 | --- | --- | --- |
-| `apps/frontend/agents.md` | `docs/03_Projects/frontend/Frontend_Agent_Rules.md` | 迁移 canonical 文本，本地保留执行镜像 |
-| `admin/admin-front/agents.md` | `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md` | 迁移 canonical 文本，本地保留执行镜像 |
-| `admin/gateway-admin/agents.md` | `docs/03_Projects/gateway-admin/Gateway_Admin_Agent_Rules.md` | 迁移 canonical 文本，本地保留执行镜像 |
-| `provider_service/docs/agents.md` | `docs/03_Projects/provider-service/Provider_Service_Agent_Rules.md` | 迁移 canonical 文本，删除项目内 `docs/agents.md` |
+| `apps/frontend/AGENTS.md` | `docs/03_Projects/frontend/Frontend_Agent_Rules.md` | 迁移 canonical 文本，本地保留执行镜像 |
+| `admin/admin-front/AGENTS.md` | `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md` | 迁移 canonical 文本，本地保留执行镜像 |
+| `admin/gateway-admin/AGENTS.md` | `docs/03_Projects/gateway-admin/Gateway_Admin_Agent_Rules.md` | 迁移 canonical 文本，本地保留执行镜像 |
+| `provider_service/docs/AGENTS.md` | `docs/03_Projects/provider-service/Provider_Service_Agent_Rules.md` | 迁移 canonical 文本，删除项目内 `docs/AGENTS.md` |
 
 说明：
 
-1. `agents.md` 不是普通文档，它会直接影响 Agent 行为。
-2. 因此不能一步到位删掉本地 `agents.md`，否则工具发现链会退化。
-3. 推荐做法是先把规范正文上提到根 `docs/03_Projects/`，然后让本地 `agents.md` 保留精简镜像与跳转说明。
+1. `AGENTS.md` 不是普通文档，它会直接影响 Agent 行为。
+2. 因此不能一步到位删掉本地 `AGENTS.md`，否则工具发现链会退化。
+3. 推荐做法是先把规范正文上提到根 `docs/03_Projects/`，然后让本地 `AGENTS.md` 保留精简镜像与跳转说明。
 
 ## 4.3 第三组: 项目运行与运维文档
 
@@ -190,16 +190,16 @@ docs/
 
 ## 5.2 agents 策略
 
-项目目录下的 `agents.md` 迁移后采用“双轨”策略：
+项目目录下的 `AGENTS.md` 迁移后采用“双轨”策略：
 
 1. 根 `docs/03_Projects/<project>/...Agent_Rules.md` 作为 canonical 文本。
-2. 本地 `agents.md` 保留可执行版镜像，内容尽量压缩，但不能缺失关键硬规则。
+2. 本地 `AGENTS.md` 保留可执行版镜像，内容尽量压缩，但不能缺失关键硬规则。
 
 原因：
 
-1. 很多 Agent 工具优先发现项目目录里的 `agents.md`。
+1. 很多 Agent 工具优先发现项目目录里的 `AGENTS.md`。
 2. 如果本地只留一行跳转，AI 很可能不会自动补读根文档。
-3. 所以 `agents.md` 在工程上更接近“执行配置”，不能按普通 README 同样处理。
+3. 所以 `AGENTS.md` 在工程上更接近“执行配置”，不能按普通 README 同样处理。
 
 ## 5.3 项目内 `docs/` 目录策略
 
@@ -266,7 +266,7 @@ docs/
 
 1. `provider_service/docs/Operations-Runbook.md`
 2. `provider_service/docs/README.md`
-3. `provider_service/docs/agents.md`
+3. `provider_service/docs/AGENTS.md`
 
 目标：
 
@@ -283,7 +283,7 @@ docs/
 2. `admin/gateway-admin/docs/环境变量配置说明.md`
 3. `admin/gateway-admin/docs/systemd生产部署示例.md`
 4. `admin/gateway-admin/docs/README.md`
-5. `admin/gateway-admin/agents.md`
+5. `admin/gateway-admin/AGENTS.md`
 
 目标：
 
@@ -296,26 +296,26 @@ docs/
 
 范围：
 
-1. `apps/frontend/agents.md`
-2. `admin/admin-front/agents.md`
-3. `admin/gateway-admin/agents.md`
-4. 项目化后的 `provider_service` 本地 `agents.md`
+1. `apps/frontend/AGENTS.md`
+2. `admin/admin-front/AGENTS.md`
+3. `admin/gateway-admin/AGENTS.md`
+4. 项目化后的 `provider_service` 本地 `AGENTS.md`
 
 目标：
 
 1. 为每个项目建立根 `docs` canonical 版本。
-2. 本地 `agents.md` 压缩为执行镜像。
+2. 本地 `AGENTS.md` 压缩为执行镜像。
 3. 建立“修改时双处同步”的明确规则。
 
 当前状态：已完成。
 
 已完成：
 
-1. `provider_service/agents.md`
-2. `admin/gateway-admin/agents.md` 建立 root canonical 链接
-3. `apps/frontend/agents.md`
-4. `admin/admin-front/agents.md`
-5. 已明确决定 `gateway/` 与 `contracts/` 不新增独立 `agents.md`
+1. `provider_service/AGENTS.md`
+2. `admin/gateway-admin/AGENTS.md` 建立 root canonical 链接
+3. `apps/frontend/AGENTS.md`
+4. `admin/admin-front/AGENTS.md`
+5. 已明确决定 `gateway/` 与 `contracts/` 不新增独立 `AGENTS.md`
 
 ## 批次 E: 基础设施与目录收尾
 
@@ -346,15 +346,15 @@ docs/
 1. 所有项目长文档都能在 `docs/03_Projects/` 找到 canonical 版本。
 2. `provider_service/docs/` 与 `admin/gateway-admin/docs/` 已删除。
 3. 项目目录里的 `README.md` 全部缩成跳转壳。
-4. 项目目录里的 `agents.md` 都有对应 root canonical 文本。
+4. 项目目录里的 `AGENTS.md` 都有对应 root canonical 文本。
 5. 仓库搜索不再出现旧项目文档路径的正文型引用。
 
 补充说明：
 
-这里的第 4 条不表示“每个项目都必须有 `agents.md`”。最终标准是：
+这里的第 4 条不表示“每个项目都必须有 `AGENTS.md`”。最终标准是：
 
 1. 需要稳定 project-level rules 的项目，必须有 `root canonical + 本地执行镜像`。
-2. 不需要独立规则的项目，可以明确作为例外项，不强行新增空 `agents.md`。
+2. 不需要独立规则的项目，可以明确作为例外项，不强行新增空 `AGENTS.md`。
 
 ## 9. 下一步建议
 
@@ -365,5 +365,5 @@ docs/
 1. 后续新增项目时，直接复用当前已经成型的模式：
     - 根 `docs/03_Projects/<project>/` 维护 canonical 本地说明与 project rules
     - 项目目录 `README.md` 保留入口壳
-    - 项目目录 `agents.md` 只在确实存在稳定规则时保留执行镜像
+    - 项目目录 `AGENTS.md` 只在确实存在稳定规则时保留执行镜像
 2. 当已有项目出现新的长期稳定 project-level rules 时，再补对应 `*_Agent_Rules.md` 与本地镜像；否则维持当前例外项，不为形式统一制造空规则文件。
