@@ -15,137 +15,65 @@ AI 协作优先入口新增如下：
 
 ### 1.1 docs/ 文件地图（Agent File Map）
 
-下面这份目录树按当前仓库实际文件生成，供 Agent 快速定位文档，不需要再手工猜目录。
+这里不再展开完整目录树，而是保留稳定入口分组。完整机器入口优先看根 `llms.txt`；这里负责给人类和 Agent 一个更快的首屏地图。
 
-```text
-docs/
-├── 03_Projects/
-│   ├── README.md
-│   ├── gateway/
-│   │   └── README.md
-│   ├── contracts/
-│   │   └── README.md
-│   ├── frontend/
-│   │   └── README.md
-│   ├── gateway-admin/
-│   │   └── README.md
-│   ├── admin-front/
-│   │   └── README.md
-│   ├── provider-service/
-│   │   └── README.md
-│   ├── sdk-python/
-│   │   └── README.md
-│   └── infra/
-│       └── README.md
-├── 01_Product_Frontend/
-│   ├── 01_Product_Positioning_and_Role_Model.md
-│   ├── 02_Gateway_Console_Information_Architecture.md
-│   ├── 03_Admin_Control_Plane_Architecture.md
-│   ├── 04_Frontend_Design_System_Application.md
-│   ├── README.md
-│   ├── AGENTS.md
-│   └── owner_agent_guide/
-│       └── agents_guide.md
-├── 01_Product_Vision/
-│   ├── Business_Plan.md
-│   ├── Future_Plans.md
-│   ├── MVP.md
-│   ├── Monetization_Model.md
-│   ├── Pitch_Deck_Material.md
-│   ├── Product_Thinking.md
-│   ├── README.md
-│   ├── ROADMAP.md
-│   └── slogan.md
-├── 02_System_Architecture/
-│   ├── 01_System_Topology_and_Request_Routing.md
-│   ├── 02_Gateway_Runtime_Architecture.md
-│   ├── 03_Identity_Authentication_and_Risk_Control.md
-│   ├── 04_Domain_Model_and_Bounded_Contexts.md
-│   └── README.md
-├── 03_Core_Workflows/
-│   ├── 01_Deposit_and_Idempotency.md
-│   ├── 02_Discovery_and_Gateway_Call.md
-│   ├── 03_Billing_Settlement_and_Audit.md
-│   ├── 04_Provider_Registration_and_Agreement.md
-│   ├── 05_Withdrawal_and_Risk_Gates.md
-│   ├── 06_Deposit_Entry_Architecture_Comparison.md
-│   └── README.md
-├── 04_Database_Design/
-│   ├── 01_SQL_Schema_Overview.md
-│   ├── 02_Core_Tables_and_Relationships.md
-│   ├── 03_Balance_Ledger_and_Reservation_Model.md
-│   ├── 04_Concurrency_Idempotency_and_Consistency.md
-│   └── README.md
-├── 05_DevOps_Deployment/
-│   ├── 01_Local_Environment_and_Runtime_Setup.md
-│   ├── 02_CI_CD_and_Release_Gates.md
-│   ├── 03_Observability_Logging_and_Indexer_Operations.md
-│   ├── 04_Financial_Incident_Response_and_Production_Operations.md
-│   └── README.md
-├── 06_Reference/
-│   ├── 01_API_Contract_Index.md
-│   ├── 02_Error_Code_and_Runtime_Response_Contract.md
-│   ├── 03_Service_Manifest_and_Runtime_Object_Reference.md
-│   ├── 04_Development_Testing_and_Integration_Reference.md
-│   └── README.md
-├── admin/
-│   ├── Admin_API_Contract_Phase1.md
-│   ├── Admin_Approval_Workflow.md
-│   ├── Admin_Audit_and_Compliance.md
-│   ├── Admin_Database_Design.md
-│   ├── Admin_Finance_Operations_Runbook.md
-│   ├── Admin_PostgreSQL_Deployment_Design.md
-│   ├── Admin_RBAC_Design.md
-│   ├── Platform_Admin_Backoffice_Architecture.md
-│   └── README.md
-├── agent/
-│   ├── 00_Platform_Role_Identity_Model.md
-│   ├── 01_Agent_Runtime_Product_Architecture.md
-│   ├── 02_Discovery_Quote_Invoke_API_Design.md
-│   ├── 03_Service_Manifest_Field_Standard.md
-│   ├── 04_Credential_Budget_Risk_Model.md
-│   ├── 05_Dashboard_IA_and_Onboarding.md
-│   ├── 06_Build_For_Agent_Database_Rebuild.md
-│   ├── 07_Agent_SDK_Integration_Guide.md
-│   └── agent_design.md
-├── feature_designs/
-│   ├── README.md
-│   ├── backend_admin/
-│   │   └── Deposit_Reconciliation_Backoffice_Requirements.md
-│   ├── frontend_product/
-│   │   ├── Homepage_V2_Functional_Design.md
-│   │   ├── Provider_Console_IA_V3.md
-│   │   ├── Security-Key-Management.md
-│   │   └── Wallet_Auth_Challenge_Session_Design.md
-│   ├── 战略.md
-│   └── 路演准备.md
-├── sdk/
-│   └── README.md
-├── plan/
-│   ├── README.md
-│   └── 项目计划.md
-├── 竞品调研/
-│   └── EigenFlux.md
-├── 平台资金监控方案.md
-├── 测试文档.md
-├── AGENTS.md
-├── api.md
-├── Design.md
-├── Gateway_Database_Design.md
-├── Gateway_Error_Codes.md
-├── README.md
-├── soul.png
-└── 充值退款审批流程.md
-```
+### Root entrypoints
+
+1. [AGENTS.md](./AGENTS.md)
+2. [ARCHITECTURE.md](./ARCHITECTURE.md)
+3. [Harness_engineering.md](./Harness_engineering.md)
+4. [Design.md](./Design.md)
+5. [api.md](./api.md)
+6. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
+7. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
+
+### Official modules
+
+1. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
+2. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
+3. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
+4. [04_Database_Design/README.md](./04_Database_Design/README.md)
+5. [05_DevOps_Deployment/README.md](./05_DevOps_Deployment/README.md)
+6. [06_Reference/README.md](./06_Reference/README.md)
+
+### Runtime canonical docs
+
+1. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
+2. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
+3. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
+4. [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
+5. [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
+6. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
+
+### Project entrypoints
+
+1. [03_Projects/README.md](./03_Projects/README.md)
+2. [03_Projects/gateway/README.md](./03_Projects/gateway/README.md)
+3. [03_Projects/contracts/README.md](./03_Projects/contracts/README.md)
+4. [03_Projects/frontend/README.md](./03_Projects/frontend/README.md)
+5. [03_Projects/gateway-admin/README.md](./03_Projects/gateway-admin/README.md)
+6. [03_Projects/admin-front/README.md](./03_Projects/admin-front/README.md)
+7. [03_Projects/provider-service/README.md](./03_Projects/provider-service/README.md)
+8. [03_Projects/sdk-python/README.md](./03_Projects/sdk-python/README.md)
+9. [03_Projects/infra/README.md](./03_Projects/infra/README.md)
+
+### Supplement and archive layers
+
+1. [01_Product_Vision/README.md](./01_Product_Vision/README.md)
+2. [admin/README.md](./admin/README.md)
+3. [feature_designs/README.md](./feature_designs/README.md)
+4. [exec-plans/README.md](./exec-plans/README.md)
+5. [plan/README.md](./plan/README.md)
+6. [sdk/README.md](./sdk/README.md)
 
 建议 Agent 读取顺序：
 
-1. 先读 `AGENTS.md`、`Design.md`、`agent/` 下 canonical 文档。
-2. 需要产品与 IA 时进入 `01_Product_Frontend/`。
-3. 需要 Runtime 协议与主流程时进入 `02_System_Architecture/`、`03_Core_Workflows/`、`06_Reference/`。
-4. 需要数据库真相时进入 `04_Database_Design/` 与 `Gateway_Database_Design.md`。
-5. 需要先按代码项目定位职责边界时，先读 `03_Projects/`。
-6. 需要补充专题和历史方案时再读 `feature_designs/`、`admin/`、`exec-plans/` 与 `plan/README.md`。
+1. 先读 [AGENTS.md](./AGENTS.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
+2. 需要 Runtime 协议时进入 [agent/](./agent/) 与 [06_Reference/README.md](./06_Reference/README.md)。
+3. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
+4. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [Gateway_Database_Design.md](./Gateway_Database_Design.md)。
+5. 需要按代码项目定位时进入 [03_Projects/README.md](./03_Projects/README.md)。
+6. 需要补充专题、计划或历史背景时再进入 supplement and archive layers。
 
 ## 2. Canonical Source of Truth
 
