@@ -691,7 +691,16 @@ export async function listProviderWithdrawReviews(
 
 export async function listProviderWithdrawReviewHistory(
   token: string,
-  params?: { limit?: number; currentStatus?: string },
+  params?: {
+    limit?: number;
+    cursor?: string;
+    query?: string;
+    reviewer?: string;
+    currentStatus?: string;
+    reviewDecision?: string;
+    reviewedFrom?: string;
+    reviewedTo?: string;
+  },
 ): Promise<ProviderWithdrawReviewHistoryListResponse> {
   return request<ProviderWithdrawReviewHistoryListResponse>(buildPath("/api/admin/v1/withdrawal-reviews/history", params));
 }
