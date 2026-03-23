@@ -1,5 +1,7 @@
 # Synapse Documentation Architecture And Migration Plan
 
+> 归档说明：本文最初位于 `docs/plan/`，现已迁入 `docs/exec-plans/completed/` 作为已完成的历史治理计划保留。
+
 ## 0. 状态说明
 
 这份文档是 2026-03-23 的第一版文档治理方案，主要价值在于记录“为什么要做这轮整理”。

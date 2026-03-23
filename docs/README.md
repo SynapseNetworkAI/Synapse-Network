@@ -122,10 +122,8 @@ docs/
 ├── sdk/
 │   └── README.md
 ├── plan/
-│   ├── 2026-03-17_Docs_Information_Architecture_Consolidation_Plan.md
-│   ├── 2026-03-23_Project_Docs_Centralization_Migration_Plan.md
-│   └── sql/
-│       └── 2026-03-17_owner_provider_target_state_schema_cutover.sql
+│   ├── README.md
+│   └── 项目计划.md
 ├── 竞品调研/
 │   └── EigenFlux.md
 ├── 平台资金监控方案.md
@@ -147,7 +145,7 @@ docs/
 3. 需要 Runtime 协议与主流程时进入 `02_System_Architecture/`、`03_Core_Workflows/`、`06_Reference/`。
 4. 需要数据库真相时进入 `04_Database_Design/` 与 `Gateway_Database_Design.md`。
 5. 需要先按代码项目定位职责边界时，先读 `03_Projects/`。
-6. 需要补充专题和历史方案时再读 `feature_designs/`、`admin/`、`plan/`。
+6. 需要补充专题和历史方案时再读 `feature_designs/`、`admin/`、`exec-plans/` 与 `plan/README.md`。
 
 ## 2. Canonical Source of Truth
 
@@ -228,10 +226,10 @@ docs/
    管理后台代码工作区入口壳，系统级后台文档以 `docs/admin/` 为准。
 4. [feature_designs/README.md](./feature_designs/README.md)
    前端和后台专题深化设计。
-5. [plan/](./plan/)
-   收敛计划和历史执行记录。
-6. [plan/2026-03-23_Project_Docs_Centralization_Migration_Plan.md](./plan/2026-03-23_Project_Docs_Centralization_Migration_Plan.md)
+5. [exec-plans/completed/2026-03-23_Project_Docs_Centralization_Migration_Plan.md](./exec-plans/completed/2026-03-23_Project_Docs_Centralization_Migration_Plan.md)
    项目目录文档统一迁入根 `docs/` 的专项迁移与合并方案。
+6. [plan/README.md](./plan/README.md)
+   旧 `docs/plan/` 目录的 legacy archive 入口，仅保留未标准化的历史计划材料。
 7. [竞品调研/](./竞品调研/)
    市场和竞品研究材料。
 8. [sdk/README.md](./sdk/README.md)

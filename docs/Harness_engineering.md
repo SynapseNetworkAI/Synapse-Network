@@ -29,7 +29,7 @@ Synapse already has a strong foundation:
 2. `.github/instructions/` already carries file-type and domain-specific coding rules.
 3. `docs/README.md` already provides a high-quality human-facing document map.
 4. `docs/03_Projects/` already centralizes per-project canonical guidance.
-5. `docs/plan/` already contains versioned planning material.
+5. the repository already had versioned planning material, but it was still split between legacy `docs/plan/` and the new standardized execution-plan layout.
 
 The main gaps are now structural rather than conceptual:
 

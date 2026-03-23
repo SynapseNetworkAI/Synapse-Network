@@ -1,5 +1,7 @@
 # Synapse Project Docs Centralization And Merge Plan
 
+> 归档说明：本文最初位于 `docs/plan/`，现已迁入 `docs/exec-plans/completed/` 作为已完成的历史治理计划保留。
+
 ## 1. 背景
 
 在前一轮整理中，仓库已经建立了两层结构：
