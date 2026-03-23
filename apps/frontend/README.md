@@ -1,61 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# frontend
 
-## Getting Started
+`apps/frontend/` 是 Synapse 面向 Owner / Developer 的主前端控制台。
 
-First, run the development server:
+## 文档入口
+
+1. 项目导航页：`docs/03_Projects/frontend/README.md`
+2. 本地开发说明：`docs/03_Projects/frontend/Frontend_Local_Development.md`
+3. 子项目规则：`apps/frontend/agents.md`
+
+## 常用命令
 
 ```bash
+cd /Users/cliff/workspace/Synapse-Network/apps/frontend
 yarn install
 yarn dev
 yarn test
 ```
 
-Package management for `apps/frontend` is standardized on Yarn.
-Do not use `npm install` or `npm ci` in this app, and do not regenerate `package-lock.json`.
+## 说明
 
-Repository-level CI integration for this app is exposed at repo root via:
-
-```bash
-npm run ci:frontend
-```
-
-That command delegates into the frontend Yarn-based checks, so local usage stays consistent with CI.
-
-Current frontend CI scope:
-
-- `yarn lint`
-- `yarn test`
-- `yarn build`
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## Environment Variables
-
-Set these in `apps/frontend/.env.local`:
-
-```bash
-NEXT_PUBLIC_GATEWAY_BASE_URL=http://127.0.0.1:8000
-NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=20000
-```
-
-- `NEXT_PUBLIC_GATEWAY_BASE_URL`: strongly recommended in every environment. If omitted, the frontend falls back to `http://localhost:8000` for local browser sessions and same-origin for non-local hosts to avoid mixed-content/network failures.
-- `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS`: service list client cache TTL in milliseconds (recommend 15000-30000).
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. 包管理统一使用 Yarn。
+2. 不要在这个子项目里执行 `npm install` 或 `npm ci`。
+3. 完整环境变量、门禁命令与设计入口统一维护在根 `docs/03_Projects/frontend/`。

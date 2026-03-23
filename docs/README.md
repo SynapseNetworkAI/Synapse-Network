@@ -12,6 +12,24 @@
 
 ```text
 docs/
+├── 03_Projects/
+│   ├── README.md
+│   ├── gateway/
+│   │   └── README.md
+│   ├── contracts/
+│   │   └── README.md
+│   ├── frontend/
+│   │   └── README.md
+│   ├── gateway-admin/
+│   │   └── README.md
+│   ├── admin-front/
+│   │   └── README.md
+│   ├── provider-service/
+│   │   └── README.md
+│   ├── sdk-python/
+│   │   └── README.md
+│   └── infra/
+│       └── README.md
 ├── 01_Product_Frontend/
 │   ├── 01_Product_Positioning_and_Role_Model.md
 │   ├── 02_Gateway_Console_Information_Architecture.md
@@ -98,6 +116,7 @@ docs/
 │   └── README.md
 ├── plan/
 │   ├── 2026-03-17_Docs_Information_Architecture_Consolidation_Plan.md
+│   ├── 2026-03-23_Project_Docs_Centralization_Migration_Plan.md
 │   └── sql/
 │       └── 2026-03-17_owner_provider_target_state_schema_cutover.sql
 ├── 竞品调研/
@@ -120,7 +139,8 @@ docs/
 2. 需要产品与 IA 时进入 `01_Product_Frontend/`。
 3. 需要 Runtime 协议与主流程时进入 `02_System_Architecture/`、`03_Core_Workflows/`、`06_Reference/`。
 4. 需要数据库真相时进入 `04_Database_Design/` 与 `Gateway_Database_Design.md`。
-5. 需要补充专题和历史方案时再读 `feature_designs/`、`admin/`、`plan/`。
+5. 需要先按代码项目定位职责边界时，先读 `03_Projects/`。
+6. 需要补充专题和历史方案时再读 `feature_designs/`、`admin/`、`plan/`。
 
 ## 2. Canonical Source of Truth
 
@@ -145,7 +165,7 @@ docs/
 1. [agent/06_Build_For_Agent_Database_Rebuild.md](./agent/06_Build_For_Agent_Database_Rebuild.md)
 2. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
 3. [04_Database_Design/README.md](./04_Database_Design/README.md)
-4. [../docker-compose/postgres/init/001_synapse_schema.sql](../docker-compose/postgres/init/001_synapse_schema.sql)
+4. [../docker-compose/postgres/init/gateway/001_synapse_schema.sql](../docker-compose/postgres/init/gateway/001_synapse_schema.sql)
 
 ## 3. 官方六模块
 
@@ -166,21 +186,44 @@ docs/
 8. [平台资金监控方案.md](./平台资金监控方案.md)
    解释 reconciliation 指标，并定义充值、计费、收入、退款、提现、Vault 总账的监控漏斗方案。
 
+## 3.1 项目文档集中维护层
+
+在六个官方知识模块之外，`03_Projects/` 现在已经不是纯导航层，而是按代码项目组织的集中维护层：
+
+1. [03_Projects/README.md](./03_Projects/README.md)
+2. [03_Projects/gateway/README.md](./03_Projects/gateway/README.md)
+3. [03_Projects/contracts/README.md](./03_Projects/contracts/README.md)
+4. [03_Projects/frontend/README.md](./03_Projects/frontend/README.md)
+5. [03_Projects/gateway-admin/README.md](./03_Projects/gateway-admin/README.md)
+6. [03_Projects/admin-front/README.md](./03_Projects/admin-front/README.md)
+7. [03_Projects/provider-service/README.md](./03_Projects/provider-service/README.md)
+8. [03_Projects/sdk-python/README.md](./03_Projects/sdk-python/README.md)
+9. [03_Projects/infra/README.md](./03_Projects/infra/README.md)
+
+这层目录现在承担两类职责：
+
+1. 帮助人先判断“我要改哪个项目、该先回到根 docs 的哪个模块”。
+2. 集中维护各项目的本地开发说明、运维手册和 project-level agent rules canonical 文本。
+
 ## 4. 补充模块
 
 这些目录继续保留，但只承担补充职责：
 
 1. [01_Product_Vision/README.md](./01_Product_Vision/README.md)
    商业定位、路线图、品牌叙事。
-2. [admin/README.md](./admin/README.md)
-   管理后台独立体系文档。
-3. [feature_designs/README.md](./feature_designs/README.md)
+2. [03_Projects/README.md](./03_Projects/README.md)
+   按代码项目聚合职责、代码位置、本地说明、project rules 与 canonical 文档入口。
+3. [admin/README.md](./admin/README.md)
+   管理后台代码工作区入口壳，系统级后台文档以 `docs/admin/` 为准。
+4. [feature_designs/README.md](./feature_designs/README.md)
    前端和后台专题深化设计。
-4. [plan/](./plan/)
+5. [plan/](./plan/)
    收敛计划和历史执行记录。
-5. [竞品调研/](./竞品调研/)
+6. [plan/2026-03-23_Project_Docs_Centralization_Migration_Plan.md](./plan/2026-03-23_Project_Docs_Centralization_Migration_Plan.md)
+   项目目录文档统一迁入根 `docs/` 的专项迁移与合并方案。
+7. [竞品调研/](./竞品调研/)
    市场和竞品研究材料。
-6. [sdk/README.md](./sdk/README.md)
+8. [sdk/README.md](./sdk/README.md)
    Python SDK 的测试、联调、发布前检查与常见故障排查。
 
 ## 5. 推荐阅读路径
@@ -192,6 +235,7 @@ docs/
 3. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
 4. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
 5. [04_Database_Design/README.md](./04_Database_Design/README.md)
+6. [03_Projects/README.md](./03_Projects/README.md)
 
 ### 5.2 看 Owner 资金与 Agent Runtime 主链路
 
@@ -201,6 +245,7 @@ docs/
 4. [03_Core_Workflows/03_Billing_Settlement_and_Audit.md](./03_Core_Workflows/03_Billing_Settlement_and_Audit.md)
 5. [03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](./03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
 6. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
+7. [03_Projects/gateway/README.md](./03_Projects/gateway/README.md)
 
 ### 5.3 看 Provider 注册、转发、收益、提现
 
@@ -208,13 +253,15 @@ docs/
 2. [03_Core_Workflows/04_Provider_Registration_and_Agreement.md](./03_Core_Workflows/04_Provider_Registration_and_Agreement.md)
 3. [02_System_Architecture/01_System_Topology_and_Request_Routing.md](./02_System_Architecture/01_System_Topology_and_Request_Routing.md)
 4. [03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](./03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
+5. [03_Projects/provider-service/README.md](./03_Projects/provider-service/README.md)
 
 ### 5.4 看数据库和持久化真相
 
 1. [agent/06_Build_For_Agent_Database_Rebuild.md](./agent/06_Build_For_Agent_Database_Rebuild.md)
 2. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
 3. [04_Database_Design/02_Core_Tables_and_Relationships.md](./04_Database_Design/02_Core_Tables_and_Relationships.md)
-4. [../docker-compose/postgres/init/001_synapse_schema.sql](../docker-compose/postgres/init/001_synapse_schema.sql)
+4. [../docker-compose/postgres/init/gateway/001_synapse_schema.sql](../docker-compose/postgres/init/gateway/001_synapse_schema.sql)
+5. [03_Projects/infra/README.md](./03_Projects/infra/README.md)
 
 ## 6. 目录职责
 
@@ -242,9 +289,11 @@ docs/
    官方运维与部署模块。
 6. `06_Reference/`
    官方协议和开发参考模块。
-7. `agent/`
+7. `03_Projects/`
+   代码项目集中维护层，负责职责、边界、代码位置、本地开发说明与 project-level rules 聚合。
+8. `agent/`
    Runtime canonical 设计源。
-8. `admin/`、`feature_designs/`、`01_Product_Vision/`
+9. `admin/`、`feature_designs/`、`01_Product_Vision/`
    补充材料。
 
 ## 7. 目录退役说明
@@ -264,7 +313,7 @@ docs/
 1. 任何 Runtime、API、数据库、前端 IA 变更，优先更新 canonical 文档和对应官方模块 README。
 2. 新文档先决定归属模块，不再向根目录和已退役技术目录散落文件。
 3. `agent/` 已定义的协议、身份、资金模型，其他目录只能解释实现和应用，不能并列重定义。
-4. `plan/` 只保留计划与历史记录，不再作为当前协议入口。
+4. `plan/` 只保留计划与历史记录，不再作为当前协议入口；当前执行状态以最新专项计划为准。
 
 ## 9. 当前维护基准
 

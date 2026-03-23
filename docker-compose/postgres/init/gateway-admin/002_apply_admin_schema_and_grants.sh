@@ -3,8 +3,18 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 container_name="${SYNAPSE_POSTGRES_CONTAINER:-synapse-postgres}"
-container_schema_file="/docker-entrypoint-initdb.d/003_gateway_admin_projection_views.sql"
-host_schema_file="${script_dir}/003_gateway_admin_projection_views.sql"
+container_gateway_schema_file="/docker-entrypoint-initdb.d/gateway/001_synapse_schema.sql"
+container_admin_schema_files=(
+    "/docker-entrypoint-initdb.d/gateway-admin/003_gateway_admin_projection_views.sql"
+    "/docker-entrypoint-initdb.d/gateway-admin/004_admin_funds_observability_projection_upgrade.sql"
+    "/docker-entrypoint-initdb.d/gateway-admin/005_admin_task_monitoring_projection_upgrade.sql"
+)
+host_gateway_schema_file="${script_dir}/../gateway/001_synapse_schema.sql"
+host_admin_schema_files=(
+    "${script_dir}/003_gateway_admin_projection_views.sql"
+    "${script_dir}/004_admin_funds_observability_projection_upgrade.sql"
+    "${script_dir}/005_admin_task_monitoring_projection_upgrade.sql"
+)
 
 postgres_db="${POSTGRES_DB:-synapse_gateway}"
 postgres_user="${POSTGRES_USER:-synapse}"
@@ -17,7 +27,6 @@ gateway_ro_user="${SYNAPSE_GATEWAY_READONLY_USER:-synapse_gateway_ro}"
 admin_db="${SYNAPSE_ADMIN_DB:-synapse_gateway_admin}"
 admin_app_user="${SYNAPSE_ADMIN_APP_USER:-synapse_admin_app}"
 admin_ro_user="${SYNAPSE_ADMIN_READONLY_USER:-synapse_admin_ro}"
-admin_schema_file="${container_schema_file}"
 
 run_psql_local() {
     PGPASSWORD="${postgres_password}" psql -v ON_ERROR_STOP=1 --username "${postgres_user}" "$@"
@@ -29,7 +38,7 @@ run_psql_docker() {
 }
 
 run_psql() {
-    if [[ -f "${container_schema_file}" ]]; then
+    if [[ -f "${container_gateway_schema_file}" ]]; then
         run_psql_local "$@"
         return
     fi
@@ -39,27 +48,47 @@ run_psql() {
 
 run_psql_file() {
     local db_name="$1"
+    local container_schema_file="$2"
+    local host_schema_file="$3"
+    shift
+    shift
     shift
 
     if [[ -f "${container_schema_file}" ]]; then
-        run_psql_local --dbname "${db_name}" "$@" --file "${admin_schema_file}"
+        run_psql_local --dbname "${db_name}" "$@" --file "${container_schema_file}"
+        return
+    fi
+
+    if [[ -f "${host_schema_file}" ]]; then
+        run_psql_docker --dbname "${db_name}" "$@" --file "${container_schema_file}"
         return
     fi
 
     if [[ ! -f "${host_schema_file}" ]]; then
-        echo "missing admin schema bootstrap: ${host_schema_file}" >&2
+        echo "missing schema bootstrap: ${host_schema_file}" >&2
         exit 1
     fi
-
-    run_psql_docker --dbname "${db_name}" "$@" --file "${container_schema_file}"
 }
 
-if [[ ! -f "${container_schema_file}" && ! -f "${host_schema_file}" ]]; then
-    echo "missing admin schema bootstrap: ${host_schema_file}" >&2
+if [[ ! -f "${container_gateway_schema_file}" && ! -f "${host_gateway_schema_file}" ]]; then
+    echo "missing gateway schema bootstrap: ${host_gateway_schema_file}" >&2
     exit 1
 fi
 
-if [[ ! -f "${container_schema_file}" ]] && ! docker ps --format '{{.Names}}' | grep -Fxq "${container_name}"; then
+for schema_file in "${container_admin_schema_files[@]}"; do
+    if [[ -f "${schema_file}" ]]; then
+        continue
+    fi
+
+    schema_basename="$(basename "${schema_file}")"
+    schema_host_path="${script_dir}/${schema_basename}"
+    if [[ ! -f "${schema_host_path}" ]]; then
+        echo "missing admin schema bootstrap: ${schema_host_path}" >&2
+        exit 1
+    fi
+done
+
+if [[ ! -f "${container_gateway_schema_file}" ]] && ! docker ps --format '{{.Names}}' | grep -Fxq "${container_name}"; then
     echo "postgres container is not running: ${container_name}" >&2
     exit 1
 fi
@@ -112,12 +141,24 @@ SQL
 }
 
 run_psql_file \
-    "${admin_db}" \
-    --set=synapse_admin_db="${admin_db}"
+    "${gateway_db}" \
+    "${container_gateway_schema_file}" \
+    "${host_gateway_schema_file}" \
+    --set=synapse_gateway_db="${gateway_db}"
 
 run_psql_file \
-    "${gateway_db}" \
-    --set=synapse_gateway_db="${gateway_db}"
+    "${admin_db}" \
+    "${container_admin_schema_files[0]}" \
+    "${host_admin_schema_files[0]}" \
+    --set=synapse_admin_db="${admin_db}"
+
+for index in "${!container_admin_schema_files[@]}"; do
+    run_psql_file \
+        "${gateway_db}" \
+        "${container_admin_schema_files[index]}" \
+        "${host_admin_schema_files[index]}" \
+        --set=synapse_gateway_db="${gateway_db}"
+done
 
 run_psql \
     --dbname postgres \

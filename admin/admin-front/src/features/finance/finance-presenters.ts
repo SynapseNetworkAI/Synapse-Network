@@ -116,11 +116,11 @@ export function buildCapitalPulseTrendLanes(
   return [
     {
       key: "consumer",
-      title: "Consumer activity",
-      description: "把调用活跃度留在 Consumer 责任面，帮助 operator 判断今天的消费增长是不是由真实 usage 驱动。",
-      latestLabel: "Latest day invocations",
+      title: "用户侧变化",
+      description: "看今天的调用和消费是否活跃，帮助判断资金变化是不是来自真实业务。",
+      latestLabel: "最近一天调用次数",
       latestValue: String(latestInvocationCount),
-      aggregateLabel: "7d invocations",
+      aggregateLabel: "七天累计调用次数",
       aggregateValue: String(sevenDayInvocationCount),
       valueType: "count",
       series: [
@@ -151,11 +151,11 @@ export function buildCapitalPulseTrendLanes(
     },
     {
       key: "platform",
-      title: "Platform earnings",
-      description: "把平台新增手续费收入和消费基线放在同一张趋势图里，避免只看累计收入池却看不到今天的新增结果。",
-      latestLabel: "Latest day fee earned",
+      title: "平台收入变化",
+      description: "看平台今天新增了多少收入，也看最近一周收入有没有持续变化。",
+      latestLabel: "最近一天新增收入",
       latestValue: `${formatUsdc(latestPlatformFee)} USDC`,
-      aggregateLabel: "7d fee earned",
+      aggregateLabel: "七天累计新增收入",
       aggregateValue: `${formatUsdc(sevenDayPlatformFee)} USDC`,
       valueType: "usdc",
       series: [
@@ -192,11 +192,11 @@ export function buildCapitalPulseTrendLanes(
     },
     {
       key: "provider",
-      title: "Provider settlement",
-      description: "把 Provider 新增收入和当日提现一起展示，帮助 operator 判断供给侧是处于积累还是出账阶段。",
-      latestLabel: "Latest day provider earned",
+      title: "服务商收支变化",
+      description: "看服务商最近收入和提现情况，帮助判断当前结算和出款压力。",
+      latestLabel: "最近一天新增收入",
       latestValue: `${formatUsdc(latestProviderEarned)} USDC`,
-      aggregateLabel: "7d provider earned",
+      aggregateLabel: "七天累计新增收入",
       aggregateValue: `${formatUsdc(sevenDayProviderEarned)} USDC`,
       valueType: "usdc",
       series: [
@@ -238,8 +238,8 @@ export function buildFinanceCapitalPulseLanes(overview: FinanceOverview): Capita
   return [
     {
       key: "consumer",
-      title: "Consumer",
-      description: "把今日入金、消费、退款和调用次数放在同一侧，快速判断需求侧是否正常展开。",
+      title: "用户侧",
+      description: "看今天用户充值、消费和退款的情况，先判断用户侧业务是否正常。",
       items: [
         {
           key: "today-deposit",
@@ -269,8 +269,8 @@ export function buildFinanceCapitalPulseLanes(overview: FinanceOverview): Capita
     },
     {
       key: "platform",
-      title: "Platform",
-      description: "平台侧只保留新增手续费和累计收入池，避免把总账判断和经营摘要混成一组。",
+      title: "平台侧",
+      description: "看今天平台新增收入和当前累计收入，方便快速了解经营结果。",
       items: [
         {
           key: "today-platform-fee-earned",
@@ -288,8 +288,8 @@ export function buildFinanceCapitalPulseLanes(overview: FinanceOverview): Capita
     },
     {
       key: "provider",
-      title: "Provider",
-      description: "把新增收入、提现和可提现空间放到一起，帮助 operator 判断供给侧结算压力。",
+      title: "服务商侧",
+      description: "看服务商今天收入、提现和可提现余额，方便判断当前付款压力。",
       items: [
         {
           key: "today-provider-earned",
@@ -359,7 +359,7 @@ export function buildFinanceTreasuryCoreCards(
       key: "chain-vault",
       label: getFinanceMetricGlossary("chainVault").label,
       value: reconciliationDetail?.chainVaultUsdc ?? "待接线",
-      description: reconciliationDetail?.chainVaultUsdc ? getFinanceMetricGlossary("chainVault").meta : "当前 Finance 视图尚未接入链上 Vault 余额投影。",
+      description: reconciliationDetail?.chainVaultUsdc ? getFinanceMetricGlossary("chainVault").meta : "当前还没有拿到这项余额数据。",
       hint: getFinanceMetricGlossary("chainVault").hint,
     },
     {
@@ -404,21 +404,21 @@ export function buildFinanceDeltaCards(
       key: "treasury-signed-difference",
       label: getFinanceMetricGlossary("treasurySignedDifference").label,
       value: treasurySignedDifference ?? "待接线",
-      description: treasurySignedDifference === null ? "当前 Finance 视图尚未拿到完整 Treasury 总账差额。" : getFinanceMetricGlossary("treasurySignedDifference").meta,
+      description: treasurySignedDifference === null ? "当前还没有拿到这项差异数据。" : getFinanceMetricGlossary("treasurySignedDifference").meta,
       hint: getFinanceMetricGlossary("treasurySignedDifference").hint,
     },
     {
       key: "treasury-absolute-delta",
       label: getFinanceMetricGlossary("treasuryAbsoluteDelta").label,
       value: treasuryAbsoluteDelta ?? "待接线",
-      description: treasuryAbsoluteDelta === null ? "当前 Finance 视图尚未拿到完整 Treasury 总账绝对偏差。" : getFinanceMetricGlossary("treasuryAbsoluteDelta").meta,
+      description: treasuryAbsoluteDelta === null ? "当前还没有拿到这项差异数据。" : getFinanceMetricGlossary("treasuryAbsoluteDelta").meta,
       hint: getFinanceMetricGlossary("treasuryAbsoluteDelta").hint,
     },
     {
       key: "deposit-signed-difference",
       label: getFinanceMetricGlossary("signedDifference").label,
       value: reconciliationDetail?.signedDifferenceUsdc ?? "待接线",
-      description: reconciliationDetail?.signedDifferenceUsdc ? getFinanceMetricGlossary("signedDifference").meta : "当前 Finance 视图尚未接入充值对账带方向偏差。",
+      description: reconciliationDetail?.signedDifferenceUsdc ? getFinanceMetricGlossary("signedDifference").meta : "当前还没有拿到这项差异数据。",
       hint: getFinanceMetricGlossary("signedDifference").hint,
     },
     {
@@ -470,7 +470,7 @@ export function buildFinancePressureCards(overview: FinanceOverview): FinancePla
       key: "refundable-consumer-balance",
       label: getFinanceMetricGlossary("refundableConsumerBalance").label,
       value: `${formatUsdc(overview.refundableConsumerBalanceUsdc)} USDC`,
-      description: "当前使用 consumer wallet available balance 作为 refund 可用余额的 operator proxy。",
+      description: "当前可用于退款处理的用户余额。",
       hint: getFinanceMetricGlossary("refundableConsumerBalance").hint,
       pending: false,
     },
@@ -478,7 +478,7 @@ export function buildFinancePressureCards(overview: FinanceOverview): FinancePla
       key: "provider-available-to-withdraw",
       label: getFinanceMetricGlossary("providerAvailableToWithdraw").label,
       value: `${formatUsdc(overview.providerAvailableToWithdrawUsdc)} USDC`,
-      description: "Provider wallet available balance 的聚合读模型，用于判断可直接发起提现的空间。",
+      description: "服务商当前可以发起提现的金额。",
       hint: getFinanceMetricGlossary("providerAvailableToWithdraw").hint,
       pending: false,
     },
@@ -486,7 +486,7 @@ export function buildFinancePressureCards(overview: FinanceOverview): FinancePla
       key: "provider-locked-balance",
       label: getFinanceMetricGlossary("providerLockedBalance").label,
       value: `${formatUsdc(overview.providerLockedBalanceUsdc)} USDC`,
-      description: "Provider wallet pending + frozen balance 的聚合读模型，用来判断出账队列压力。",
+      description: "服务商当前已在处理中或暂时锁定的金额。",
       hint: getFinanceMetricGlossary("providerLockedBalance").hint,
       pending: false,
     },

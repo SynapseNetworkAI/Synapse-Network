@@ -92,123 +92,34 @@ describe("finance-presenters", () => {
       },
     ] as never;
 
-    expect(buildCapitalPulseTrendLanes(overview, points)).toEqual([
-      {
-        key: "consumer",
-        title: "Consumer activity",
-        description: "把调用活跃度留在 Consumer 责任面，帮助 operator 判断今天的消费增长是不是由真实 usage 驱动。",
-        latestLabel: "Latest day invocations",
-        latestValue: "42",
-        aggregateLabel: "7d invocations",
-        aggregateValue: "72",
-        valueType: "count",
-        series: [
-          {
-            key: "primary",
-            label: "Today invocation count",
-            color: "#0f1115",
-          },
-        ],
-        data: [
-          { label: "03/20", primary: 30 },
-          { label: "03/21", primary: 42 },
-        ],
-        supportMetrics: [
-          {
-            key: "consumer-charge-support",
-            label: "Today charge",
-            value: "120.00 USDC",
-            hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。",
-          },
-          {
-            key: "consumer-refund-support",
-            label: "Today refund",
-            value: "10.00 USDC",
-            hint: "当前统计窗口内已经进入退款审批或完成退款结转的金额，用来观察逆向资金流。",
-          },
-        ],
-      },
-      {
-        key: "platform",
-        title: "Platform earnings",
-        description: "把平台新增手续费收入和消费基线放在同一张趋势图里，避免只看累计收入池却看不到今天的新增结果。",
-        latestLabel: "Latest day fee earned",
-        latestValue: "11.00 USDC",
-        aggregateLabel: "7d fee earned",
-        aggregateValue: "20.00 USDC",
-        valueType: "usdc",
-        series: [
-          {
-            key: "primary",
-            label: "Today platform fee earned",
-            color: "#f36a1d",
-          },
-          {
-            key: "secondary",
-            label: "Today charge",
-            color: "#0f1115",
-          },
-        ],
-        data: [
-          { label: "03/20", primary: 9, secondary: 60 },
-          { label: "03/21", primary: 11, secondary: 70 },
-        ],
-        supportMetrics: [
-          {
-            key: "platform-income-support",
-            label: "Platform income",
-            value: "25.00 USDC",
-            hint: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
-          },
-          {
-            key: "platform-charge-support",
-            label: "Today charge",
-            value: "120.00 USDC",
-            hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。",
-          },
-        ],
-      },
-      {
-        key: "provider",
-        title: "Provider settlement",
-        description: "把 Provider 新增收入和当日提现一起展示，帮助 operator 判断供给侧是处于积累还是出账阶段。",
-        latestLabel: "Latest day provider earned",
-        latestValue: "59.00 USDC",
-        aggregateLabel: "7d provider earned",
-        aggregateValue: "110.00 USDC",
-        valueType: "usdc",
-        series: [
-          {
-            key: "primary",
-            label: "Today provider earned",
-            color: "#1f9257",
-          },
-          {
-            key: "secondary",
-            label: "Today withdrawal",
-            color: "#b83131",
-          },
-        ],
-        data: [
-          { label: "03/20", primary: 51, secondary: 8 },
-          { label: "03/21", primary: 59, secondary: 12 },
-        ],
-        supportMetrics: [
-          {
-            key: "provider-available-support",
-            label: "Provider available to withdraw",
-            value: "145.50 USDC",
-            hint: "Provider 收益桶中当前可直接发起提现申请的 available balance。当前若未接入后端投影，应明确标记为待接线。",
-          },
-          {
-            key: "provider-withdrawal-support",
-            label: "Today withdrawal",
-            value: "5.00 USDC",
-            hint: "当前统计窗口内已经完成或进入结转流程的提现金额，反映资金流出压力。",
-          },
-        ],
-      },
-    ]);
+    const lanes = buildCapitalPulseTrendLanes(overview, points);
+
+    expect(lanes).toHaveLength(3);
+    expect(lanes[0]).toMatchObject({
+      key: "consumer",
+      title: "用户侧变化",
+      latestLabel: "最近一天调用次数",
+      aggregateLabel: "七天累计调用次数",
+      latestValue: "42",
+      aggregateValue: "72",
+    });
+    expect(lanes[1]).toMatchObject({
+      key: "platform",
+      title: "平台收入变化",
+      latestLabel: "最近一天新增收入",
+      aggregateLabel: "七天累计新增收入",
+      latestValue: "11.00 USDC",
+    });
+    expect(lanes[2]).toMatchObject({
+      key: "provider",
+      title: "服务商收支变化",
+      latestLabel: "最近一天新增收入",
+      aggregateLabel: "七天累计新增收入",
+      latestValue: "59.00 USDC",
+    });
+    expect(lanes[0]?.supportMetrics[0]).toMatchObject({ label: "今日消费", value: "120.00 USDC" });
+    expect(lanes[1]?.supportMetrics[0]).toMatchObject({ label: "平台累计收入", value: "25.00 USDC" });
+    expect(lanes[2]?.supportMetrics[0]).toMatchObject({ label: "服务商可提现金额", value: "145.50 USDC" });
   });
 
   it("grades vault delta severity", () => {
@@ -231,31 +142,31 @@ describe("finance-presenters", () => {
     })).toEqual([
       {
         key: "chain-vault",
-        label: "Chain vault",
+        label: "当前资金余额",
         value: "12500.00",
-        description: "链上 router / vault 当前 USDC 余额。",
-        hint: "链上 router 或 vault 当前可观测到的 USDC 实际余额。",
+        description: "平台当前可看到的资金余额。",
+        hint: "用来了解平台现在手上有多少资金可供覆盖业务需要。",
       },
       {
         key: "owner-liability",
-        label: "Owner liability",
+        label: "用户应付金额",
         value: "8450.10",
-        description: "买家侧应付池。",
-        hint: "平台账本对 owner 的应付总额，是 vault 资金应该优先覆盖的核心负债面。",
+        description: "平台当前对用户应承担的金额。",
+        hint: "这部分资金需要优先保证，关系到用户可用余额和退款处理。",
       },
       {
         key: "provider-payable",
-        label: "Provider payable",
+        label: "服务商待结算金额",
         value: "3920.45",
-        description: "待结算给 provider。",
-        hint: "平台当前已确认、但尚未对 provider 完成清算的应付池余额。",
+        description: "平台当前还需要结算给服务商的金额。",
+        hint: "帮助判断后续结算和提现压力。",
       },
       {
         key: "platform-income",
-        label: "Platform income",
+        label: "平台累计收入",
         value: "128.75",
-        description: "当前平台收入池余额。",
-        hint: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
+        description: "当前平台已经确认的收入。",
+        hint: "表示平台目前已经实际沉淀下来的收入金额。",
       },
     ]);
   });
@@ -302,42 +213,42 @@ describe("finance-presenters", () => {
     expect(buildFinancePressureCards(overview)).toEqual([
       {
         key: "refundable-consumer-balance",
-        label: "Refundable consumer balance",
+        label: "可退款金额",
         value: "630.12 USDC",
-        description: "当前使用 consumer wallet available balance 作为 refund 可用余额的 operator proxy。",
-        hint: "在 refund 风控、状态机和冻结规则约束下，可供用户实际发起退款的消费侧余额。当前若未接入后端投影，应明确标记为待接线。",
+        description: "当前可用于退款处理的用户余额。",
+        hint: "帮助判断如果要处理退款，目前还有多少余额可用。",
         pending: false,
       },
       {
         key: "provider-available-to-withdraw",
-        label: "Provider available to withdraw",
+        label: "服务商可提现金额",
         value: "145.50 USDC",
-        description: "Provider wallet available balance 的聚合读模型，用于判断可直接发起提现的空间。",
-        hint: "Provider 收益桶中当前可直接发起提现申请的 available balance。当前若未接入后端投影，应明确标记为待接线。",
+        description: "服务商当前可以发起提现的金额。",
+        hint: "帮助判断服务商侧是否存在集中提现压力。",
         pending: false,
       },
       {
         key: "provider-locked-balance",
-        label: "Provider locked balance",
+        label: "服务商处理中金额",
         value: "4.50 USDC",
-        description: "Provider wallet pending + frozen balance 的聚合读模型，用来判断出账队列压力。",
-        hint: "Provider 提现流程里已经进入 pending 或 frozen 的锁仓金额，用来判断出账队列压力。当前若未接入后端投影，应明确标记为待接线。",
+        description: "服务商当前已在处理中或暂时锁定的金额。",
+        hint: "帮助判断还有多少金额正在走提现或冻结流程。",
         pending: false,
       },
       {
         key: "pending-withdrawals",
-        label: "Pending withdrawals",
+        label: "待处理提现",
         value: "1",
-        description: "等待 reviewer 决策。",
-        hint: "当前仍在审核或排队执行中的提现单数量，越高表示 operator 出账压力越大。",
+        description: "当前还没处理完的提现单数量。",
+        hint: "数量越高，说明当前出款处理压力越大。",
         pending: false,
       },
       {
         key: "pending-deposits",
-        label: "Pending deposits",
+        label: "待处理充值",
         value: "2",
-        description: "待补账充值单。",
-        hint: "当前仍在确认、补账或回放中的充值单数量，通常和对账偏差、回放延迟直接相关。",
+        description: "当前还在确认或补录中的充值单数量。",
+        hint: "如果这里较高，通常说明充值处理中积压较多。",
         pending: false,
       },
     ]);
@@ -367,82 +278,82 @@ describe("finance-presenters", () => {
     expect(buildFinanceCapitalPulseLanes(overview)).toEqual([
       {
         key: "consumer",
-        title: "Consumer",
-        description: "把今日入金、消费、退款和调用次数放在同一侧，快速判断需求侧是否正常展开。",
+        title: "用户侧",
+        description: "看今天用户充值、消费和退款的情况，先判断用户侧业务是否正常。",
         items: [
           {
             key: "today-deposit",
-            label: "Today deposit",
+            label: "今日充值",
             value: "300.00 USDC",
-            hint: "当前统计窗口内已确认进入系统的充值总额，用来观察入金节奏和补账压力。",
+            hint: "帮助了解今天有多少资金流入平台。",
           },
           {
             key: "today-charge",
-            label: "Today charge",
+            label: "今日消费",
             value: "120.00 USDC",
-            hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。",
+            hint: "帮助了解今天用户实际消耗了多少金额。",
           },
           {
             key: "today-refund",
-            label: "Today refund",
+            label: "今日退款",
             value: "10.00 USDC",
-            hint: "当前统计窗口内已经进入退款审批或完成退款结转的金额，用来观察逆向资金流。",
+            hint: "帮助了解今天有多少资金退回给用户。",
           },
           {
             key: "today-invocation-count",
-            label: "Today invocation count",
+            label: "今日调用次数",
             value: "48",
-            hint: "当前统计窗口内成功进入计费链路的调用次数，用来判断活跃度和收入规模是否同步变化。",
+            hint: "帮助判断今天的业务活跃度是否有变化。",
           },
         ],
       },
       {
         key: "platform",
-        title: "Platform",
-        description: "平台侧只保留新增手续费和累计收入池，避免把总账判断和经营摘要混成一组。",
+        title: "平台侧",
+        description: "看今天平台新增收入和当前累计收入，方便快速了解经营结果。",
         items: [
           {
             key: "today-platform-fee-earned",
-            label: "Today platform fee earned",
+            label: "今日平台收入",
             value: "18.00 USDC",
-            hint: "当前统计窗口内新增记入平台收入池的手续费金额，用来观察今天新增商业结果。",
+            hint: "帮助了解今天平台新赚了多少。",
           },
           {
             key: "platform-income",
-            label: "Platform income",
+            label: "平台累计收入",
             value: "25.00 USDC",
-            hint: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
+            hint: "表示平台目前已经实际沉淀下来的收入金额。",
           },
         ],
       },
       {
         key: "provider",
-        title: "Provider",
-        description: "把新增收入、提现和可提现空间放到一起，帮助 operator 判断供给侧结算压力。",
+        title: "服务商侧",
+        description: "看服务商今天收入、提现和可提现余额，方便判断当前付款压力。",
         items: [
           {
             key: "today-provider-earned",
-            label: "Today provider earned",
+            label: "今日服务商收入",
             value: "102.00 USDC",
-            hint: "当前统计窗口内新增记入 Provider payable 的收入金额，用来判断供给侧结算和提现压力。",
+            hint: "帮助了解今天服务商侧新增了多少应结算收入。",
           },
           {
             key: "today-withdrawal",
-            label: "Today withdrawal",
+            label: "今日提现",
             value: "5.00 USDC",
-            hint: "当前统计窗口内已经完成或进入结转流程的提现金额，反映资金流出压力。",
+            hint: "帮助了解今天有多少资金流出平台。",
           },
           {
             key: "pending-withdrawals",
-            label: "Pending withdrawals",
+            label: "待处理提现",
             value: "1",
-            hint: "当前仍在审核或排队执行中的提现单数量，越高表示 operator 出账压力越大。",
+            hint: "数量越高，说明当前出款处理压力越大。",
           },
           {
             key: "provider-available-to-withdraw",
-            label: "Provider available to withdraw",
+            label: "服务商可提现金额",
             value: "145.50 USDC",
-            hint: "Provider 收益桶中当前可直接发起提现申请的 available balance。当前若未接入后端投影，应明确标记为待接线。",
+            hint: "帮助判断服务商侧是否存在集中提现压力。",
           },
         ],
       },

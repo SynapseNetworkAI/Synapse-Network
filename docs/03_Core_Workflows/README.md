@@ -57,7 +57,7 @@ flowchart TD
 2. Error code 全集：看 `docs/Gateway_Error_Codes.md`
 3. Manifest 字段标准：看 `docs/agent/03_Service_Manifest_Field_Standard.md`
 4. Credential / Budget 结构：看 `docs/agent/04_Credential_Budget_Risk_Model.md`
-5. SQL 完整表定义：看 `docker-compose/postgres/init/001_synapse_schema.sql`
+5. SQL 完整表定义：看 `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 
 ## 每条链路必须回答的统一问题
 

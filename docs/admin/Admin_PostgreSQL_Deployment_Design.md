@@ -103,7 +103,7 @@
   - `synapse_gateway_ro`
   - `synapse_admin_app`
   - `synapse_admin_ro`
-- 自动把 `docker-compose/postgres/init/003_gateway_admin_projection_views.sql` 里的 admin bootstrap 段导入到 `synapse_gateway_admin`
+- 自动把 `docker-compose/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql` 里的 admin bootstrap 段导入到 `synapse_gateway_admin`
 - 自动给 app / readonly 角色发放最小可用权限
 
 ## 8. 关于 “Cannot create a database when multi-database mode is disabled”
@@ -138,4 +138,4 @@ postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin
 
 ## 10. Projection View 设计文档
 
-- `docker-compose/postgres/init/003_gateway_admin_projection_views.sql` 的逐段设计说明、CTE 角色和字段含义见 `Gateway_Admin_Projection_Views_SQL_Design.md`
+- `docker-compose/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql` 的逐段设计说明、CTE 角色和字段含义见 `Gateway_Admin_Projection_Views_SQL_Design.md`

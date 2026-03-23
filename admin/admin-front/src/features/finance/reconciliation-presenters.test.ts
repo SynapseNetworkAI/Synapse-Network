@@ -92,21 +92,21 @@ describe("reconciliation presenters", () => {
 
     expect(heroCards[0]).toMatchObject({
       key: "chain-vault",
-      label: "Chain vault",
+      label: "当前资金余额",
       value: "1,000.00 USDC",
-      description: "链上 router 或 vault 当前可观测到的 USDC 实际余额。",
+      description: "用来了解平台现在手上有多少资金可供覆盖业务需要。",
     });
     expect(heroCards[2]).toMatchObject({
       key: "signed-difference",
-      label: "Signed difference",
+      label: "差异方向",
       value: "-111.50 USDC",
-      description: "带方向偏差，按 chain vault - ledger obligation 计算；负值代表 vault deficit，正值代表 vault surplus。",
+      description: "负值表示资金偏少，正值表示资金偏多。",
     });
     expect(supportingCards[2]).toMatchObject({
       key: "platform-income",
-      label: "Platform income",
+      label: "平台累计收入",
       value: "25.00 USDC",
-      description: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。",
+      description: "表示平台目前已经实际沉淀下来的收入金额。",
     });
   });
 

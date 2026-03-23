@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildDashboardCapitalPulseLanes,
   buildBusinessRuntimeLaneCards,
   buildCapitalSnapshotCards,
+  buildDashboardCapitalPulseLanes,
   buildDashboardFunnelCards,
   buildDashboardPressureCards,
   buildSentinelMetrics,
@@ -139,21 +139,21 @@ describe("dashboard presenters", () => {
 
     expect(cards).toContainEqual({
       key: "owner-liability",
-      label: "Owner liability",
+      label: "用户应付金额",
       value: "8,450.10 USDC",
-      hint: "平台账本对 owner 的应付总额，是 vault 资金应该优先覆盖的核心负债面。",
+      hint: "这部分资金需要优先保证，关系到用户可用余额和退款处理。",
     });
     expect(cards).toContainEqual({
       key: "pending-deposits",
-      label: "Pending deposits",
+      label: "待处理充值",
       value: "2",
-      hint: "当前仍在确认、补账或回放中的充值单数量，通常和对账偏差、回放延迟直接相关。",
+      hint: "如果这里较高，通常说明充值处理中积压较多。",
     });
     expect(cards).toContainEqual({
       key: "pending-withdrawals",
-      label: "Pending withdrawals",
+      label: "待处理提现",
       value: "1",
-      hint: "当前仍在审核或排队执行中的提现单数量，越高表示 operator 出账压力越大。",
+      hint: "数量越高，说明当前出款处理压力越大。",
     });
   });
 
@@ -162,32 +162,34 @@ describe("dashboard presenters", () => {
   });
 
   it("renders a backend-driven projection narrative", () => {
-    expect(resolveProjectionNarrative(
-      {
-        metrics: {
-          pendingApprovals: 5,
-          depositExceptions: 1,
-          auditAlerts: 0,
-          vaultLedgerDelta: "0.00",
+    expect(
+      resolveProjectionNarrative(
+        {
+          metrics: {
+            pendingApprovals: 5,
+            depositExceptions: 1,
+            auditAlerts: 0,
+            vaultLedgerDelta: "0.00",
+          },
+          highlights: [],
         },
-        highlights: [],
-      },
-      { points: [{ bucketDate: "2026-03-16", depositUsdc: "1", chargeUsdc: "1", refundUsdc: "0", withdrawalUsdc: "0", netFlowUsdc: "0" }] },
-      {
-        gatewayStatus: "healthy",
-        indexerLastProcessedAt: null,
-        backfillLastScanAt: null,
-        backfillLastScannedBlock: null,
-        recentGatewayFailures: 0,
-        failedDepositCount: 0,
-        recentAuditAlerts: 0,
-        lastReconciliationAt: null,
-        reconciliationAlert: false,
-        reconciliationDeltaUsdc: "0.00",
-        reconciliationLastError: null,
-        projectedAt: null,
-      },
-    )).toBe("overview 5 / trends 1d / gateway healthy");
+        { points: [{ bucketDate: "2026-03-16", depositUsdc: "1", chargeUsdc: "1", refundUsdc: "0", withdrawalUsdc: "0", netFlowUsdc: "0" }] },
+        {
+          gatewayStatus: "healthy",
+          indexerLastProcessedAt: null,
+          backfillLastScanAt: null,
+          backfillLastScannedBlock: null,
+          recentGatewayFailures: 0,
+          failedDepositCount: 0,
+          recentAuditAlerts: 0,
+          lastReconciliationAt: null,
+          reconciliationAlert: false,
+          reconciliationDeltaUsdc: "0.00",
+          reconciliationLastError: null,
+          projectedAt: null,
+        },
+      ),
+    ).toBe("overview 5 / trends 1d / gateway healthy");
   });
 
   it("builds dashboard pressure and funnel cards from stable projections", () => {
@@ -383,31 +385,31 @@ describe("dashboard presenters", () => {
     expect(lanes).toEqual([
       {
         key: "consumer",
-        title: "Consumer",
-        description: "把今日入金、消费、退款和调用次数放在同一侧，快速判断需求侧是否正常展开。",
+        title: "用户侧",
+        description: "看今天用户充值、消费和退款的情况，先判断用户侧业务是否正常。",
         items: [
-          { key: "today-deposit", label: "Today deposit", value: "300.00 USDC", hint: "当前统计窗口内已确认进入系统的充值总额，用来观察入金节奏和补账压力。" },
-          { key: "today-charge", label: "Today charge", value: "120.00 USDC", hint: "当前统计窗口内网关已计量确认的 usage 扣费金额，反映 agent 调用带来的实际消费。" },
-          { key: "today-invocation-count", label: "Today invocation count", value: "48", hint: "当前统计窗口内成功进入计费链路的调用次数，用来判断活跃度和收入规模是否同步变化。" },
+          { key: "today-deposit", label: "今日充值", value: "300.00 USDC", hint: "帮助了解今天有多少资金流入平台。" },
+          { key: "today-charge", label: "今日消费", value: "120.00 USDC", hint: "帮助了解今天用户实际消耗了多少金额。" },
+          { key: "today-invocation-count", label: "今日调用次数", value: "48", hint: "帮助判断今天的业务活跃度是否有变化。" },
         ],
       },
       {
         key: "platform",
-        title: "Platform",
-        description: "平台侧只保留新增手续费和累计收入池，避免把总账判断和经营摘要混成一组。",
+        title: "平台侧",
+        description: "看今天平台新增收入和当前累计收入，方便快速了解经营结果。",
         items: [
-          { key: "today-platform-fee-earned", label: "Today platform fee earned", value: "18.00 USDC", hint: "当前统计窗口内新增记入平台收入池的手续费金额，用来观察今天新增商业结果。" },
-          { key: "platform-income", label: "Platform income", value: "25.00 USDC", hint: "平台手续费收入池余额，表示当前已经沉淀在平台账本内的收入。" },
+          { key: "today-platform-fee-earned", label: "今日平台收入", value: "18.00 USDC", hint: "帮助了解今天平台新赚了多少。" },
+          { key: "platform-income", label: "平台累计收入", value: "25.00 USDC", hint: "表示平台目前已经实际沉淀下来的收入金额。" },
         ],
       },
       {
         key: "provider",
-        title: "Provider",
-        description: "把新增收入、提现和可提现空间放到一起，帮助 operator 判断供给侧结算压力。",
+        title: "服务商侧",
+        description: "看服务商今天收入、提现和可提现余额，方便判断当前付款压力。",
         items: [
-          { key: "today-provider-earned", label: "Today provider earned", value: "102.00 USDC", hint: "当前统计窗口内新增记入 Provider payable 的收入金额，用来判断供给侧结算和提现压力。" },
-          { key: "today-withdrawal", label: "Today withdrawal", value: "5.00 USDC", hint: "当前统计窗口内已经完成或进入结转流程的提现金额，反映资金流出压力。" },
-          { key: "pending-withdrawals", label: "Pending withdrawals", value: "1", hint: "当前仍在审核或排队执行中的提现单数量，越高表示 operator 出账压力越大。" },
+          { key: "today-provider-earned", label: "今日服务商收入", value: "102.00 USDC", hint: "帮助了解今天服务商侧新增了多少应结算收入。" },
+          { key: "today-withdrawal", label: "今日提现", value: "5.00 USDC", hint: "帮助了解今天有多少资金流出平台。" },
+          { key: "pending-withdrawals", label: "待处理提现", value: "1", hint: "数量越高，说明当前出款处理压力越大。" },
         ],
       },
     ]);

@@ -5,9 +5,9 @@ import { getFinanceMetricGlossary, getFinanceQueueGlossary } from "./finance-glo
 describe("finance glossary", () => {
   it("returns the shared detailed hint for signed difference", () => {
     expect(getFinanceMetricGlossary("signedDifference")).toEqual({
-      label: "Signed difference",
-      meta: "按 chain vault - ledger obligation 计算。",
-      hint: "带方向偏差，按 chain vault - ledger obligation 计算；负值代表 vault deficit，正值代表 vault surplus。",
+      label: "差异方向",
+      meta: "用于判断是偏多还是偏少。",
+      hint: "负值表示资金偏少，正值表示资金偏多。",
     });
   });
 
@@ -19,16 +19,16 @@ describe("finance glossary", () => {
   });
 
   it("returns unified finance wording for platform income", () => {
-    expect(getFinanceMetricGlossary("platformIncome").label).toBe("Platform income");
-    expect(getFinanceMetricGlossary("platformIncome").meta).toBe("当前平台收入池余额。");
+    expect(getFinanceMetricGlossary("platformIncome").label).toBe("平台累计收入");
+    expect(getFinanceMetricGlossary("platformIncome").meta).toBe("当前平台已经确认的收入。");
   });
 
   it("explains that absolute delta can be non-zero during normal consumption settlement", () => {
     expect(getFinanceMetricGlossary("absoluteDelta").hint).toBe(
-      "绝对偏差值，不区分正负方向，只回答买家侧账本义务和链上当前差了多少。用户发生消费后，这个值可以非 0，需结合 Treasury absolute delta 一起判断是否异常。",
+      "只看差了多少，不区分多还是少，适合先判断问题大不大。",
     );
     expect(getFinanceMetricGlossary("treasuryAbsoluteDelta").hint).toBe(
-      "按 chain vault 和 owner liability + provider payable + platform income 的总账差值计算；为 0 通常表示平台总账已经对齐。",
+      "适合先看平台整体差了多少，若不为 0，建议进入对账详情查看原因。",
     );
   });
 });

@@ -48,7 +48,7 @@
 - `docs/agent/06_Build_For_Agent_Database_Rebuild.md`
 - `docs/04_Database_Design/`
 - `docs/Gateway_Database_Design.md`
-- `docker-compose/postgres/init/001_synapse_schema.sql`
+- `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 
 ### 前端
 - `docs/01_Product_Frontend/`
