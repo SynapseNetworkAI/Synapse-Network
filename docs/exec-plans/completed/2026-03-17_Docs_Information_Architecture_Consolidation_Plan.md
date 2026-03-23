@@ -1,5 +1,7 @@
 # Docs 信息架构收敛计划
 
+> 归档说明：本文最初位于 `docs/plan/`，现已迁入 `docs/exec-plans/completed/` 作为已完成的历史治理计划保留。
+
 日期：2026-03-17
 
 > 状态更新：Phase 1 至 Phase 5 已完成。旧 `02_Architecture/`、`03_Smart_Contract_Payment/`、`04_Synapse_Network/`、`05_Frontend_UX/`、`06_Developer_Guides/` 技术目录已退役，官方主阅读路径已切换到 `01_Product_Frontend/` 至 `06_Reference/` 六模块。
@@ -105,12 +107,9 @@
 - `AGENTS.md`
 
 ### 后端
-- `02_System_Architecture/`
-- `06_Reference/`
 - `api.md`
 - `Gateway_Error_Codes.md`
-
-### 数据库
+- `docs/exec-plans/completed/` 中归档的历史收敛计划与迁移说明，以及 `docs/plan/README.md` 标识的 legacy 计划材料
 - `04_Database_Design/`
 - `Gateway_Database_Design.md`
 
