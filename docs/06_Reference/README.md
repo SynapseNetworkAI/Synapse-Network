@@ -5,7 +5,7 @@
 这里不承担产品叙事和流程说明，而是聚焦“稳定机器语义与开发事实”：
 
 1. API 合约如何看
-2. 错误码和响应结构如何处理
+2. 错误码枚举与响应结构如何分层处理
 3. Service Manifest 与 Runtime 对象如何建模
 4. 开发、测试、集成时的最低共识是什么
 
@@ -30,11 +30,12 @@
 ## 阅读顺序
 
 1. `01_API_Contract_Index.md`
-2. `02_Error_Code_and_Runtime_Response_Contract.md`
-3. `03_Service_Manifest_and_Runtime_Object_Reference.md`
-4. `04_Development_Testing_and_Integration_Reference.md`
-5. `AI_Quick_Reference.md`
-6. `Validation_Entry_Points.md`
+2. `02_Error_Code_and_Runtime_Response_Contract.md` 先看错误响应与消费原则
+3. `../Gateway_Error_Codes.md` 再看当前已发布错误码矩阵
+4. `03_Service_Manifest_and_Runtime_Object_Reference.md`
+5. `04_Development_Testing_and_Integration_Reference.md`
+6. `AI_Quick_Reference.md`
+7. `Validation_Entry_Points.md`
 
 ## 模块边界
 
