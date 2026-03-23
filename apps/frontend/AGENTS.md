@@ -2,20 +2,27 @@
 
 Local execution mirror for `apps/frontend/`.
 
-Canonical rules doc:
+## Canonical Sources
 
 1. `docs/AGENTS.md`
-2. `docs/03_Projects/frontend/Frontend_Agent_Rules.md`
+2. `.github/instructions/frontend.instructions.md`
+3. `docs/03_Projects/frontend/Frontend_Agent_Rules.md`
+4. `docs/Design.md`
 
-## Must-Follow Rules
+## Role Boundary
 
-1. Use the development server during iteration.
-2. Do not run production build inside the interactive agent workflow.
-3. Package management for `apps/frontend` stays on Yarn.
-4. Prefer TypeScript for new components and utilities.
-5. Keep page IA, product wording, and behavior aligned with root `docs/` and `docs/Design.md`.
+- `apps/frontend` is the owner and developer facing product frontend.
+- It must express the agent-first payment story clearly, but it is not the settlement source of truth.
+- Do not invent backend truth for balances, service status, or runtime policy in the UI.
 
-## Common Commands
+## Local Constraints
+
+- Package management for `apps/frontend` stays on Yarn.
+- Use the development server during iteration.
+- Keep copy, IA, and user flows aligned with canonical product docs and i18n resources.
+- Wallet and payment-related UX should hide avoidable Web3 complexity rather than exposing raw protocol mechanics.
+
+## Commands
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/apps/frontend

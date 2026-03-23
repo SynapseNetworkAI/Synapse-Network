@@ -1,5 +1,13 @@
 # Gateway Admin Agent Rules
 
+## Rule Sources
+
+1. `docs/AGENTS.md`: workspace-level product, security, and governance constraints.
+2. `.github/instructions/python.instructions.md`: shared Python and FastAPI coding rules.
+3. `.github/instructions/finance-backend.instructions.md`: shared finance-sensitive backend transaction rules.
+4. `.github/instructions/finance-admin.instructions.md`: narrow rules for finance approval, withdrawal review, refund approval, deposit repair, and reconciliation control-plane flows.
+5. This file: `gateway-admin` local role boundary, environment, validation, and project-level backend constraints.
+
 ## Role
 
 1. `gateway-admin` is the admin control-plane backend.
@@ -50,7 +58,8 @@ Preferred dashboard read models:
 2. Use decimal-safe monetary handling only.
 3. Never introduce float accounting.
 4. Never bypass repository constraints with inline SQL in services.
-5. If behavior touches approvals, retries, withdrawals, refunds, deposit repair, or reconciliation, update tests and docs in the same change.
+
+For detailed finance review, withdrawal review, refund approval, deposit repair, reconciliation, retry, and execution-flow semantics, follow `.github/instructions/finance-admin.instructions.md` instead of re-declaring those narrow rules here.
 
 ## API and Semantics
 
@@ -59,6 +68,8 @@ Preferred dashboard read models:
 3. New admin read APIs should aggregate in services, not in routers and not in frontend.
 4. New control-plane semantics must come from backend-owned fields or endpoints.
 5. Never make frontend invent dashboard or system status semantics from unrelated endpoints.
+
+For approval queue, provider withdrawal review, review history, reconciliation detail, and execution-job semantics, keep the detailed backend-owned state model in the finance-admin instruction and the code contract, not as duplicated prose in this file.
 
 ## Pagination Semantics
 
@@ -82,6 +93,7 @@ Preferred dashboard read models:
 3. Update `tests/test_app.py` when API shape, permission behavior, or status semantics change.
 4. Update `docs/admin/` in the same change when observable backend behavior changes.
 5. Do not ship backend behavior changes without tests and matching docs.
+6. Finance review and withdrawal-review changes must also keep `finance-admin.instructions.md` aligned if that flow's rule boundary changes.
 
 ## Environment
 
