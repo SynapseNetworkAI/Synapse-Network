@@ -22,22 +22,27 @@ AI 协作优先入口新增如下：
 1. [AGENTS.md](./AGENTS.md)
 2. [ARCHITECTURE.md](./ARCHITECTURE.md)
 3. [Harness_engineering.md](./Harness_engineering.md)
-4. [Design.md](./Design.md)
-5. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
-6. [api.md](./api.md)
-7. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
-8. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
+4. [00_Governance/README.md](./00_Governance/README.md)
+5. [Design.md](./Design.md)
+6. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
+7. [api.md](./api.md)
+8. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
+9. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
 
 ### Official modules
 
-1. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
-2. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
-3. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
-4. [04_Database_Design/README.md](./04_Database_Design/README.md)
-5. [05_DevOps_Deployment/README.md](./05_DevOps_Deployment/README.md)
-6. [06_Reference/README.md](./06_Reference/README.md)
+1. [00_Governance/README.md](./00_Governance/README.md)
+2. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
+3. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
+4. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
+5. [03_Projects/README.md](./03_Projects/README.md)
+6. [04_Database_Design/README.md](./04_Database_Design/README.md)
+7. [05_DevOps_Deployment/README.md](./05_DevOps_Deployment/README.md)
+8. [06_Reference/README.md](./06_Reference/README.md)
 
 ### Runtime canonical docs
+
+说明：该层当前仍是过渡中的 runtime canonical 设计源，后续会逐步并入官方模块，不作为长期独立层保留。
 
 1. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
 2. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
@@ -69,8 +74,8 @@ AI 协作优先入口新增如下：
 
 建议 Agent 读取顺序：
 
-1. 先读 [AGENTS.md](./AGENTS.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
-2. 需要 Runtime 协议时进入 [agent/](./agent/) 与 [06_Reference/README.md](./06_Reference/README.md)。
+1. 先读 [AGENTS.md](./AGENTS.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[00_Governance/README.md](./00_Governance/README.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
+2. 需要 Runtime 协议时先看官方模块；若目标内容仍在过渡层，再进入 [agent/](./agent/) 与 [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)。
 3. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
 4. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [Gateway_Database_Design.md](./Gateway_Database_Design.md)。
 5. 需要按代码项目定位时进入 [03_Projects/README.md](./03_Projects/README.md)。
