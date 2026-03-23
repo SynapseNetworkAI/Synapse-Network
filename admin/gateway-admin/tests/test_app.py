@@ -1,4 +1,5 @@
 from dataclasses import replace
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -872,6 +873,75 @@ def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
     assert reviewed["evidenceSummary"] == "Seeded by test for review history endpoint."
     assert reviewed["createdAt"] == "2026-03-20T09:30:00Z"
     assert reviewed["updatedAt"] is not None
+
+
+def test_provider_withdraw_review_history_supports_filters_and_pagination() -> None:
+    csrf_headers = _login_as("finance-review@synapse.network")
+    repository = deps.get_provider_withdraw_review_repository()
+    review_ids = [f"wd-history-filter-{uuid4().hex[:6]}", f"wd-history-filter-{uuid4().hex[:6]}"]
+    reviewed_on = datetime.now(timezone.utc).date().isoformat()
+    if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
+        repository._items.extend(
+            [
+                ProviderWithdrawReviewItem(
+                    withdrawal_id=review_ids[0],
+                    owner_address="0x9999999999999999999999999999999999999991",
+                    amount_usdc=Decimal("51.00"),
+                    status="PENDING_MANUAL_REVIEW",
+                    request_id="history-page-1",
+                    tx_hash=None,
+                    risk_level="yellow",
+                    risk_reason_code="AUTO_SINGLE_LIMIT_EXCEEDED",
+                    evidence_summary="First paginated reviewer record.",
+                    message="Awaiting reviewer action.",
+                    created_at="2026-03-21T08:00:00Z",
+                    updated_at="2026-03-21T08:00:00Z",
+                ),
+                ProviderWithdrawReviewItem(
+                    withdrawal_id=review_ids[1],
+                    owner_address="0x9999999999999999999999999999999999999992",
+                    amount_usdc=Decimal("52.00"),
+                    status="PENDING_MANUAL_REVIEW",
+                    request_id="history-page-2",
+                    tx_hash=None,
+                    risk_level="yellow",
+                    risk_reason_code="AUTO_SINGLE_LIMIT_EXCEEDED",
+                    evidence_summary="Second paginated reviewer record.",
+                    message="Awaiting reviewer action.",
+                    created_at="2026-03-22T08:00:00Z",
+                    updated_at="2026-03-22T08:00:00Z",
+                ),
+            ]
+        )
+
+    for withdrawal_id in review_ids:
+        decision_response = client.post(
+            f"/api/admin/v1/withdrawal-reviews/{withdrawal_id}/decision",
+            headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+            json={
+                "decision": "APPROVE",
+                "note": f"Reviewed item {withdrawal_id}",
+            },
+        )
+        assert decision_response.status_code == 200
+
+    first_page_response = client.get(
+        f"/api/admin/v1/withdrawal-reviews/history?query=wd-history-filter-&reviewer=finance-review&reviewedFrom={reviewed_on}&reviewedTo={reviewed_on}&limit=1"
+    )
+    assert first_page_response.status_code == 200
+    first_page = first_page_response.json()["data"]
+    assert len(first_page["items"]) == 1
+    assert first_page["items"][0]["withdrawalId"] == review_ids[1]
+    assert first_page["nextCursor"] == "1"
+
+    second_page_response = client.get(
+        f"/api/admin/v1/withdrawal-reviews/history?query=wd-history-filter-&reviewer=finance-review&reviewedFrom={reviewed_on}&reviewedTo={reviewed_on}&limit=1&cursor={first_page['nextCursor']}"
+    )
+    assert second_page_response.status_code == 200
+    second_page = second_page_response.json()["data"]
+    assert len(second_page["items"]) == 1
+    assert second_page["items"][0]["withdrawalId"] == review_ids[0]
+    assert second_page["nextCursor"] is None
 
 
 def test_menu_config_snapshot_auto_adds_review_history_seed_item() -> None:

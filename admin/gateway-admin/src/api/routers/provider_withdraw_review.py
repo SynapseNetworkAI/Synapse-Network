@@ -46,11 +46,26 @@ def list_provider_withdraw_review_history(
     admin: Annotated[AdminIdentity, Depends(require_permission("approval:read"))],
     request_id: Annotated[str, Depends(get_request_id)],
     review_service: Annotated[ProviderWithdrawReviewService, Depends(get_provider_withdraw_review_service)],
+    query: Annotated[str | None, Query()] = None,
+    reviewer: Annotated[str | None, Query()] = None,
     current_status: Annotated[str | None, Query(alias="currentStatus")] = None,
+    review_decision: Annotated[str | None, Query(alias="reviewDecision")] = None,
+    reviewed_from: Annotated[str | None, Query(alias="reviewedFrom")] = None,
+    reviewed_to: Annotated[str | None, Query(alias="reviewedTo")] = None,
+    cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ):
     _ = admin
-    payload = review_service.list_history_items(limit=limit, current_status=current_status)
+    payload = review_service.list_history_items(
+        limit=limit,
+        query=query,
+        reviewer=reviewer,
+        current_status=current_status,
+        review_decision=review_decision,
+        reviewed_from=reviewed_from,
+        reviewed_to=reviewed_to,
+        cursor=cursor,
+    )
     return ApiResponse(
         data=ProviderWithdrawReviewHistoryListResponse(
             items=[ProviderWithdrawReviewHistoryItem(**item) for item in payload["items"]],

@@ -1,8 +1,8 @@
 "use client";
 
-import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Grid, Heading, Input, Stack, Text } from "@chakra-ui/react";
 import Link from "next/link";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
@@ -10,7 +10,29 @@ import { DataTable, EmptyBlock, MessageBanner, MetricCard, OverlayPanel, SearchI
 import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import { listProviderWithdrawReviewHistory, type ProviderWithdrawReviewHistoryItem } from "@/services/admin-api";
-import { buildReviewHistoryFlow, buildReviewHistoryMetrics, collectReviewHistoryStatuses, filterReviewHistoryItems, getReviewDecisionLabel, getReviewDecisionTone, getReviewHistoryStatusLabel, getReviewHistoryStatusTone, sortReviewHistoryItems } from "@/features/review-history/review-history-presenters";
+import { buildReviewHistoryFlow, buildReviewHistoryMetrics, collectReviewHistoryReviewers, collectReviewHistoryStatuses, getReviewDecisionLabel, getReviewDecisionTone, getReviewHistoryStatusLabel, getReviewHistoryStatusTone } from "@/features/review-history/review-history-presenters";
+
+type ReviewHistoryFilters = {
+  query: string;
+  reviewer: string;
+  currentStatus: string;
+  reviewDecision: string;
+  reviewedFrom: string;
+  reviewedTo: string;
+};
+
+const DEFAULT_FILTERS: ReviewHistoryFilters = {
+  query: "",
+  reviewer: "",
+  currentStatus: "all",
+  reviewDecision: "all",
+  reviewedFrom: "",
+  reviewedTo: "",
+};
+
+function normalizeFilterValue(value: string): string | undefined {
+  return value === "all" || value === "" ? undefined : value;
+}
 
 function getFlowDotBackground(tone: "green" | "orange" | "red" | "gray"): string {
   if (tone === "green") {
@@ -28,25 +50,26 @@ function getFlowDotBackground(tone: "green" | "orange" | "red" | "gray"): string
 export default function ReviewHistoryPage() {
   const { admin, token, loading } = useAdminSession();
   const [items, setItems] = useState<ProviderWithdrawReviewHistoryItem[]>([]);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [decisionFilter, setDecisionFilter] = useState("all");
+  const [draftFilters, setDraftFilters] = useState<ReviewHistoryFilters>(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<ReviewHistoryFilters>(DEFAULT_FILTERS);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState(20);
   const [error, setError] = useState<string | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const deferredSearch = useDeferredValue(search);
 
   const metrics = useMemo(() => buildReviewHistoryMetrics(items), [items]);
   const statuses = useMemo(() => collectReviewHistoryStatuses(items), [items]);
-  const visibleItems = useMemo(
-    () => sortReviewHistoryItems(filterReviewHistoryItems(items, deferredSearch, statusFilter, decisionFilter)),
-    [decisionFilter, deferredSearch, items, statusFilter],
-  );
+  const reviewers = useMemo(() => collectReviewHistoryReviewers(items), [items]);
   const activeItem = useMemo(
-    () => visibleItems.find((item) => item.withdrawalId === activeWithdrawalId) ?? null,
-    [activeWithdrawalId, visibleItems],
+    () => items.find((item) => item.withdrawalId === activeWithdrawalId) ?? null,
+    [activeWithdrawalId, items],
   );
   const activeFlow = useMemo(() => (activeItem ? buildReviewHistoryFlow(activeItem) : []), [activeItem]);
+  const pageNumber = cursorHistory.length + 1;
 
   useEffect(() => {
     if (!token) {
@@ -57,14 +80,29 @@ export default function ReviewHistoryPage() {
 
     async function load() {
       try {
-        const response = await listProviderWithdrawReviewHistory(activeToken, { limit: 100 });
+        setIsFetching(true);
+        const response = await listProviderWithdrawReviewHistory(activeToken, {
+          limit: pageSize,
+          cursor: cursor ?? undefined,
+          query: appliedFilters.query || undefined,
+          reviewer: appliedFilters.reviewer || undefined,
+          currentStatus: normalizeFilterValue(appliedFilters.currentStatus),
+          reviewDecision: normalizeFilterValue(appliedFilters.reviewDecision),
+          reviewedFrom: appliedFilters.reviewedFrom || undefined,
+          reviewedTo: appliedFilters.reviewedTo || undefined,
+        });
         if (!cancelled) {
           setItems(response.items);
+          setNextCursor(response.nextCursor);
           setError(null);
         }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "加载审核历史失败");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsFetching(false);
         }
       }
     }
@@ -73,7 +111,42 @@ export default function ReviewHistoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [appliedFilters, cursor, pageSize, token]);
+
+  useEffect(() => {
+    if (activeWithdrawalId && !items.some((item) => item.withdrawalId === activeWithdrawalId)) {
+      setIsDetailOpen(false);
+      setActiveWithdrawalId(null);
+    }
+  }, [activeWithdrawalId, items]);
+
+  function updateDraftFilter<Key extends keyof ReviewHistoryFilters>(key: Key, value: ReviewHistoryFilters[Key]) {
+    setDraftFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function applySearch() {
+    setCursor(null);
+    setCursorHistory([]);
+    setAppliedFilters(draftFilters);
+  }
+
+  function goToNextPage() {
+    if (!nextCursor) {
+      return;
+    }
+    setCursorHistory((current) => [...current, cursor ?? ""]);
+    setCursor(nextCursor);
+  }
+
+  function goToPreviousPage() {
+    if (cursorHistory.length === 0) {
+      return;
+    }
+    const previousHistory = cursorHistory.slice(0, -1);
+    const previousCursor = cursorHistory.at(-1) ?? null;
+    setCursorHistory(previousHistory);
+    setCursor(previousCursor || null);
+  }
 
   if (loading || !admin) {
     return <ControlPlaneLoadingScreen title="Review History Replay" message="正在回放审核历史..." />;
@@ -96,26 +169,58 @@ export default function ReviewHistoryPage() {
         <MetricCard label="已释放" value={metrics.cancelled} meta="已从锁定态释放回可用余额" />
       </Grid>
 
-      <SurfaceCard eyebrow="Review Ledger" title="审核结果台账" description="给业务同学一个直接可读的审核历史面板，不必切到审计页再手动拼状态。" stamp={`${visibleItems.length}/${items.length} records`}>
-        <Grid templateColumns={{ base: "1fr", xl: "minmax(0, 320px) 180px 180px" }} gap="12px" mb="16px">
-          <SearchInput value={search} onChange={setSearch} placeholder="搜索提现单 / 钱包 / reviewer / requestId" />
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={nativeFieldStyle}>
+      <SurfaceCard eyebrow="Review Ledger" title="审核结果台账" description="给业务同学一个直接可读的审核历史面板，不必切到审计页再手动拼状态。" stamp={`第 ${pageNumber} 页`}>
+        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "minmax(0, 1.8fr) minmax(0, 1.2fr) repeat(4, minmax(0, 0.9fr))" }} gap="12px" mb="12px">
+          <SearchInput value={draftFilters.query} onChange={(value) => updateDraftFilter("query", value)} placeholder="搜索提现单 / 用户地址 / requestId / reviewer" />
+          <Input value={draftFilters.reviewer} onChange={(event) => updateDraftFilter("reviewer", event.target.value)} placeholder="reviewer 邮箱或角色" bg="rgba(255,255,255,0.85)" borderRadius="16px" borderColor="rgba(99,92,82,0.16)" _focusVisible={{ borderColor: "brand.400", boxShadow: "0 0 0 3px rgba(243,106,29,0.16)" }} list="review-history-reviewers" />
+          <datalist id="review-history-reviewers">
+            {reviewers.map((reviewer) => <option key={reviewer} value={reviewer} />)}
+          </datalist>
+          <select value={draftFilters.currentStatus} onChange={(event) => updateDraftFilter("currentStatus", event.target.value)} style={nativeFieldStyle}>
             <option value="all">全部当前状态</option>
             {statuses.map((status) => <option key={status} value={status}>{getReviewHistoryStatusLabel(status)}</option>)}
           </select>
-          <select value={decisionFilter} onChange={(event) => setDecisionFilter(event.target.value)} style={nativeFieldStyle}>
+          <select value={draftFilters.reviewDecision} onChange={(event) => updateDraftFilter("reviewDecision", event.target.value)} style={nativeFieldStyle}>
             <option value="all">全部处理结论</option>
             <option value="APPROVE">放行</option>
             <option value="REJECT">驳回</option>
           </select>
+          <input type="date" value={draftFilters.reviewedFrom} onChange={(event) => updateDraftFilter("reviewedFrom", event.target.value)} style={nativeFieldStyle} />
+          <input type="date" value={draftFilters.reviewedTo} onChange={(event) => updateDraftFilter("reviewedTo", event.target.value)} style={nativeFieldStyle} />
         </Grid>
 
-        {visibleItems.length === 0 ? (
+        <Grid templateColumns={{ base: "1fr", md: "180px 180px auto" }} gap="12px" mb="16px">
+          <select value={String(pageSize)} onChange={(event) => {
+            const nextPageSize = Number(event.target.value);
+            setPageSize(nextPageSize);
+            setCursor(null);
+            setCursorHistory([]);
+          }} style={nativeFieldStyle}>
+            <option value="10">每页 10 条</option>
+            <option value="20">每页 20 条</option>
+            <option value="50">每页 50 条</option>
+          </select>
+          <Button size="md" borderRadius="16px" onClick={applySearch} loading={isFetching} alignSelf="stretch">
+            搜索
+          </Button>
+          <Stack direction="row" justify={{ base: "flex-start", md: "flex-end" }} gap="10px">
+            <Button variant="ghost" borderRadius="16px" onClick={goToPreviousPage} disabled={cursorHistory.length === 0 || isFetching}>
+              上一页
+            </Button>
+            <Button variant="ghost" borderRadius="16px" onClick={goToNextPage} disabled={!nextCursor || isFetching}>
+              下一页
+            </Button>
+          </Stack>
+        </Grid>
+
+        {items.length === 0 ? (
           <EmptyBlock title="当前没有匹配的审核历史" description="调整筛选条件后，这里会展示已处理提现的状态回放。" />
         ) : (
           <DataTable>
             <TableHeaderRow>
               <Th>提现单</Th>
+              <Th>提现用户</Th>
+              <Th>提现金额</Th>
               <Th>处理结论</Th>
               <Th>当前状态</Th>
               <Th>处理人</Th>
@@ -124,27 +229,28 @@ export default function ReviewHistoryPage() {
               <Th>详情</Th>
             </TableHeaderRow>
             <TableBody>
-              {visibleItems.map((item) => (
+              {items.map((item) => (
                 <Box as="tr" key={item.withdrawalId}>
                   <Td>
                     <Text fontWeight="700">{item.withdrawalId}</Text>
-                    <Text color="ink.500">{inputText(item.ownerAddress)} · {formatUsdc(item.amountUsdc ?? "0")}</Text>
-                    <Text color="ink.500">request {inputText(item.requestId)}</Text>
+                  </Td>
+                  <Td>
+                    <Text>{inputText(item.ownerAddress)}</Text>
+                  </Td>
+                  <Td>
+                    <Text fontWeight="700">{formatUsdc(item.amountUsdc ?? "0")}</Text>
                   </Td>
                   <Td>
                     <SentinelStatusChip label={getReviewDecisionLabel(item.reviewDecision)} tone={getReviewDecisionTone(item.reviewDecision)} />
                   </Td>
                   <Td>
                     <SentinelStatusChip label={getReviewHistoryStatusLabel(item.currentStatus)} tone={getReviewHistoryStatusTone(item.currentStatus)} />
-                    <Text mt="8px" color="ink.500">tx {inputText(item.txHash)}</Text>
                   </Td>
                   <Td>
                     <Text>{inputText(item.reviewerEmail)}</Text>
-                    <Text color="ink.500">{inputText(item.reviewerRole)}</Text>
                   </Td>
                   <Td>
-                    <Text>{inputText(item.reviewerNote)}</Text>
-                    <Text color="ink.500">{inputText(item.message)}</Text>
+                    <Text>{inputText(item.reviewerNote ?? item.message)}</Text>
                   </Td>
                   <Td>{formatDateTime(item.reviewedAt)}</Td>
                   <Td>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReviewHistoryFlow, buildReviewHistoryMetrics, collectReviewHistoryStatuses, filterReviewHistoryItems, getReviewDecisionLabel, getReviewDecisionTone, getReviewHistoryStatusLabel, getReviewHistoryStatusTone, sortReviewHistoryItems } from "./review-history-presenters";
+import { buildReviewHistoryFlow, buildReviewHistoryMetrics, collectReviewHistoryReviewers, collectReviewHistoryStatuses, filterReviewHistoryItems, getReviewDecisionLabel, getReviewDecisionTone, getReviewHistoryStatusLabel, getReviewHistoryStatusTone, sortReviewHistoryItems } from "./review-history-presenters";
 import type { ProviderWithdrawReviewHistoryItem } from "@/services/admin-api";
 
 const items: ProviderWithdrawReviewHistoryItem[] = [
@@ -85,6 +85,10 @@ describe("review history presenters", () => {
 
   it("collects current statuses", () => {
     expect(collectReviewHistoryStatuses(items)).toEqual(["COMPLETED", "REJECTED", "CANCELLED"]);
+  });
+
+  it("collects reviewers", () => {
+    expect(collectReviewHistoryReviewers(items)).toEqual(["finance-review@synapse.network"]);
   });
 
   it("maps labels and tones", () => {

@@ -418,6 +418,7 @@ Dashboard 数据边界要求：
 - 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
 - `业务控制` 分组现在同时提供 `提现审核` 与 `审核历史`：前者处理待审核申请，后者回看已审批、已拒绝和已释放结果，避免 reviewer 只能依赖审计页做状态回溯
 - `审核历史` 页面支持详情抽屉，下钻展示风险 evidence、reviewer 备注和状态流转，帮助业务直接完成复核与回放
+- `审核历史` 默认按服务端查询执行：支持 reviewer、处理时间范围、状态、处理结论和关键字搜索，并返回分页 cursor，避免前端一次性拉全量历史记录
 - 整体视觉已切换为与 Gateway Console 对齐的 dark mode control plane：黑色背景、深灰面板、细金属边框、绿色激活态、无玻璃阴影
 - 左侧导航已升级为二级 accordion 菜单树，活动项使用绿色左边界高亮，适合值班与高密度模块切换
 - `users` 页面已经接入后台用户目录、角色模板和创建后台用户能力

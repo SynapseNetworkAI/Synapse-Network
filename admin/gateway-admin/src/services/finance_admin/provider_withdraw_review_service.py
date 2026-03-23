@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from src.core.errors import AppError, BadRequestError, ResourceNotFoundError
 from src.domain import AdminActionAudit
@@ -13,6 +13,8 @@ from src.storage.base import AdminStore
 
 
 class ProviderWithdrawReviewService:
+    HISTORY_MAX_SCAN = 5000
+
     def __init__(
         self,
         store: AdminStore,
@@ -46,14 +48,56 @@ class ProviderWithdrawReviewService:
             "nextCursor": None,
         }
 
-    def list_history_items(self, *, limit: int = 50, current_status: str | None = None) -> dict:
+    def list_history_items(
+        self,
+        *,
+        limit: int = 50,
+        query: str | None = None,
+        reviewer: str | None = None,
+        current_status: str | None = None,
+        review_decision: str | None = None,
+        reviewed_from: str | None = None,
+        reviewed_to: str | None = None,
+        cursor: str | None = None,
+    ) -> dict:
+        normalized_query = (query or "").strip().lower() or None
+        normalized_reviewer = (reviewer or "").strip().lower() or None
         normalized_status = (current_status or "").strip().upper() or None
-        audit_rows = self._list_history_audits(limit)
+        normalized_decision = (review_decision or "").strip().upper() or None
+        reviewed_from_at = self._parse_history_datetime(reviewed_from, field_name="reviewedFrom")
+        reviewed_to_at = self._parse_history_datetime(reviewed_to, field_name="reviewedTo", end_of_day=True)
+        self._validate_history_range(reviewed_from_at, reviewed_to_at)
+        cursor_offset = self._parse_history_cursor(cursor)
+        audit_rows = self._list_history_audits()
+        filtered_items = self._collect_history_items(
+            audit_rows,
+            query=normalized_query,
+            reviewer=normalized_reviewer,
+            current_status=normalized_status,
+            review_decision=normalized_decision,
+            reviewed_from=reviewed_from_at,
+            reviewed_to=reviewed_to_at,
+        )
 
+        page_items = filtered_items[cursor_offset:cursor_offset + limit]
+        next_cursor = str(cursor_offset + limit) if cursor_offset + limit < len(filtered_items) else None
+        return {"items": page_items, "nextCursor": next_cursor}
+
+    def _collect_history_items(
+        self,
+        audits: list[AdminActionAudit],
+        *,
+        query: str | None,
+        reviewer: str | None,
+        current_status: str | None,
+        review_decision: str | None,
+        reviewed_from: datetime | None,
+        reviewed_to: datetime | None,
+    ) -> list[dict]:
         items: list[dict] = []
         seen_withdrawal_ids: set[str] = set()
 
-        for audit in audit_rows:
+        for audit in audits:
             history_item = self._build_history_item(audit)
             if history_item is None:
                 continue
@@ -61,15 +105,22 @@ class ProviderWithdrawReviewService:
             withdrawal_id = str(history_item["withdrawalId"])
             if withdrawal_id in seen_withdrawal_ids:
                 continue
-            if normalized_status and history_item["currentStatus"] != normalized_status:
+            if not self._matches_history_filters(
+                history_item,
+                audit=audit,
+                query=query,
+                reviewer=reviewer,
+                current_status=current_status,
+                review_decision=review_decision,
+                reviewed_from=reviewed_from,
+                reviewed_to=reviewed_to,
+            ):
                 continue
 
             seen_withdrawal_ids.add(withdrawal_id)
             items.append(history_item)
-            if len(items) >= limit:
-                break
 
-        return {"items": items, "nextCursor": None}
+        return items
 
     def decide_review(
         self,
@@ -181,14 +232,132 @@ class ProviderWithdrawReviewService:
             return None
         return str(amount)
 
-    def _list_history_audits(self, limit: int) -> list[AdminActionAudit]:
+    @staticmethod
+    def _parse_history_datetime(
+        value: str | None,
+        *,
+        field_name: str,
+        end_of_day: bool = False,
+    ) -> datetime | None:
+        normalized = (value or "").strip()
+        if not normalized:
+            return None
+
+        if len(normalized) == 10:
+            try:
+                parsed_date = date.fromisoformat(normalized)
+            except ValueError as exc:
+                raise BadRequestError(f"{field_name} must be an ISO date or datetime") from exc
+            boundary = time.max if end_of_day else time.min
+            return datetime.combine(parsed_date, boundary, timezone.utc)
+
+        try:
+            parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise BadRequestError(f"{field_name} must be an ISO date or datetime") from exc
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    def _parse_history_cursor(cursor: str | None) -> int:
+        normalized = (cursor or "").strip()
+        if not normalized:
+            return 0
+        try:
+            offset = int(normalized)
+        except ValueError as exc:
+            raise BadRequestError("cursor must be an integer offset") from exc
+        if offset < 0:
+            raise BadRequestError("cursor must be >= 0")
+        return offset
+
+    @staticmethod
+    def _validate_history_range(reviewed_from: datetime | None, reviewed_to: datetime | None) -> None:
+        if reviewed_from and reviewed_to and reviewed_from > reviewed_to:
+            raise BadRequestError("reviewedFrom must be <= reviewedTo")
+
+    def _list_history_audits(self) -> list[AdminActionAudit]:
         return list(
             self._store.audit.list_actions(
                 action_type="provider_withdraw_review.decide",
                 result_status=AuditResultStatus.SUCCESS.value,
-                limit=max(limit * 4, limit),
+                limit=self.HISTORY_MAX_SCAN,
             )
         )
+
+    def _matches_history_filters(
+        self,
+        item: dict,
+        *,
+        audit: AdminActionAudit,
+        query: str | None,
+        reviewer: str | None,
+        current_status: str | None,
+        review_decision: str | None,
+        reviewed_from: datetime | None,
+        reviewed_to: datetime | None,
+    ) -> bool:
+        reviewed_at = audit.created_at.astimezone(timezone.utc) if audit.created_at else None
+        if not self._matches_history_time_range(reviewed_at, reviewed_from=reviewed_from, reviewed_to=reviewed_to):
+            return False
+        if not self._matches_reviewer(item, reviewer):
+            return False
+        if not self._matches_discrete_filter(str(item.get("currentStatus") or ""), current_status):
+            return False
+        if not self._matches_discrete_filter(str(item.get("reviewDecision") or ""), review_decision):
+            return False
+        return self._matches_history_query(item, query)
+
+    @staticmethod
+    def _matches_history_time_range(
+        reviewed_at: datetime | None,
+        *,
+        reviewed_from: datetime | None,
+        reviewed_to: datetime | None,
+    ) -> bool:
+        if reviewed_from and (reviewed_at is None or reviewed_at < reviewed_from):
+            return False
+        if reviewed_to and (reviewed_at is None or reviewed_at > reviewed_to):
+            return False
+        return True
+
+    @staticmethod
+    def _matches_reviewer(item: dict, reviewer: str | None) -> bool:
+        if not reviewer:
+            return True
+        reviewer_email = str(item.get("reviewerEmail") or "").lower()
+        reviewer_role = str(item.get("reviewerRole") or "").lower()
+        return reviewer in reviewer_email or reviewer in reviewer_role
+
+    @staticmethod
+    def _matches_discrete_filter(value: str, expected: str | None) -> bool:
+        if not expected:
+            return True
+        return value.strip().upper() == expected
+
+    @staticmethod
+    def _matches_history_query(item: dict, query: str | None) -> bool:
+        if not query:
+            return True
+        haystack = " ".join(
+            str(value).lower()
+            for value in (
+                item.get("withdrawalId"),
+                item.get("ownerAddress"),
+                item.get("amountUsdc"),
+                item.get("requestId"),
+                item.get("txHash"),
+                item.get("reviewerEmail"),
+                item.get("reviewerRole"),
+                item.get("reviewerNote"),
+                item.get("message"),
+                item.get("reviewDecision"),
+                item.get("currentStatus"),
+            )
+            if value is not None and str(value).strip()
+        )
+        return query in haystack
 
     def _build_history_item(self, audit: AdminActionAudit) -> dict | None:
         withdrawal_id = str(audit.resource_id or "").strip()

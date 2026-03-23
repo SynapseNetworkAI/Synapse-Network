@@ -65,6 +65,10 @@ export function collectReviewHistoryStatuses(items: ProviderWithdrawReviewHistor
   return [...new Set(items.map((item) => item.currentStatus))];
 }
 
+export function collectReviewHistoryReviewers(items: ProviderWithdrawReviewHistoryItem[]): string[] {
+  return [...new Set(items.map((item) => item.reviewerEmail).filter((item): item is string => Boolean(item)))];
+}
+
 export function filterReviewHistoryItems(
   items: ProviderWithdrawReviewHistoryItem[],
   search: string,
