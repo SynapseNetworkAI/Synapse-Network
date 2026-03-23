@@ -2,20 +2,23 @@
 
 本文件是 `provider_service` 目录下的本地 Agent 执行镜像。
 
-canonical 规则文档在：
+## Canonical Sources
 
 1. `docs/AGENTS.md`
-2. `docs/03_Projects/provider-service/Provider_Service_Agent_Rules.md`
+2. `.github/instructions/python.instructions.md`
+3. `docs/03_Projects/provider-service/Provider_Service_Agent_Rules.md`
 
-## 必守规则
+## Role Boundary
 
-1. `provider_service` 是独立 Provider 微服务，不承担网关结算、预算、账本和后台控制面。
-2. 路由层只做参数接收、错误映射和响应返回；业务逻辑下沉到 `app/services/`。
-3. 所有请求与响应必须通过 Pydantic schema 定义，不要长期返回裸 `dict`。
-4. 新增接口、改 schema、替换数据源、变更错误码时，必须同步补测试。
-5. 禁止把项目说明、接口规范、规则文档写进 JSON；Markdown 才是文档载体。
-6. 代码、文档、未来表结构说明必须同步更新。
-7. 本地运行只使用项目虚拟环境：`./.venv/bin/python`。
+1. `provider_service` 是独立 Provider runtime，不承担 gateway 结算、Owner 预算、链上资金托管或后台控制面职责。
+2. 它负责 provider 自己的 API runtime、调用编排、结果返回，以及必要的 provider-side observability。
+3. 如果需求把它推向 gateway 或 admin 职责，说明边界错了，必须停下来重构方案。
+
+## Local Constraints
+
+1. 本地运行只使用项目虚拟环境：`./.venv/bin/python`。
+2. 项目说明、接口规范与运行手册继续使用 Markdown，不要把文档职责塞进 JSON。
+3. 任何 observable 行为变化都要同步更新项目文档与测试。
 
 ## 文档入口
 

@@ -2,51 +2,25 @@
 
 Local execution mirror for `admin/admin-front/`.
 
-Canonical rules doc:
+## Canonical Sources
 
 1. `docs/AGENTS.md`
-2. `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md`
+2. `.github/instructions/frontend.instructions.md`
+3. `.github/instructions/admin-console.instructions.md`
+4. `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md`
 
-## 1. Core Engineering Rules
-
-- Use feature-based structure. Group code by business surface such as `features/auth` or `features/orders`, not only by technical type.
-- Keep components lean. UI state stays in functional components and hooks; complex orchestration and data shaping should live in typed services or presenter-style modules.
-- Reuse shared UI. Prefer `/src/components` before creating new page-local primitives.
-- Keep types strict. Do not use raw `any` or loose JSON blobs for internal logic.
-- Prefer domain-shaped models. Use TypeScript interfaces or classes when data carries validation, derived fields, or behavior.
-
-## 2. Quality Gate
-
-- Add or update tests for every meaningful utility, presenter, service, or component change.
-- Test behavior, not implementation details.
-- After significant modifications, always run lint, test, and build before considering the task complete.
-
-## 3. Useful Commands
+## Local Commands
 
 | Command | Purpose | When to Run |
 | --- | --- | --- |
-| `npm run dev` | Start Next.js dev server with HMR. | During active coding/iteration. |
-| `npm run lint` | Run ESLint/Prettier checks. | After modification. |
-| `npm run test` | Execute the test suite. | After modification (Mandatory). |
-| `npm run build` | Production build & Type check. | Before final submission/commit. |
+| `npm run dev` | Start Next.js dev server with HMR. | During active coding and iteration. |
+| `npm run lint` | Run lint checks. | After meaningful modifications. |
+| `npm run test` | Execute the test suite. | After meaningful modifications. |
+| `npm run build` | Production build and type check. | Only when the task explicitly needs final build validation. |
 
-### HMR Note
+Always use `npm run dev` while iterating. Do not keep the dev server running while executing `npm run build`.
 
-Always use `npm run dev` while iterating. Do not keep the dev server running while executing `npm run build` as it may lead to inconsistent states in the `.next` directory.
-
-This file stays intentionally shorter than the canonical root document so local agent discovery remains stable without duplicating the whole rule source.
-
-## 4. Development Workflow
-
-### Dependency Sync
-
-If adding packages, update the lockfile (`yarn.lock`) and restart the dev server.
-
-### Coding Conventions
-
-- Prefer TypeScript (`.ts`/`.tsx`) exclusively.
-- Co-locate styles with the component when practical.
-- Check existing utilities and components before creating new ones.
+## Product and Docs Alignment
 
 ### 保持文档和前端页面一致
 
@@ -88,115 +62,12 @@ Resolution rules when references differ:
 - `stitch/` defines visual hierarchy, spatial composition, component silhouette, and auth/dashboard atmosphere.
 - If behavior from `docs/admin/` conflicts with a prototype, keep the documented behavior and adapt the prototype visually instead of changing product semantics.
 
-## 5. List Page Standards
+## Admin Console Detail Rules
 
-所有列表页默认遵循统一的 List Page 结构，不允许每个页面单独发明一套搜索区、按钮区和分页区布局。
+- Use `.github/instructions/admin-console.instructions.md` for list-page layout, filter behavior, pagination semantics, and control-plane status presentation.
+- Keep this AGENTS file focused on local docs, commands, and project-only visual references.
 
-### 5.1 Standard Information Hierarchy
-
-Every list page should follow this top-to-bottom order:
-
-1. Page title and short business description.
-2. Search and filter area.
-3. Search action row.
-4. Data table or list body.
-5. Pagination area below the list.
-
-Do not place pagination controls inside the top filter area unless the page has an exceptional workflow explicitly documented.
-
-### 5.2 Search Area Rules
-
-- All search conditions must be placed above the list body.
-- Search conditions should be grouped inside one consistent filter container or surface card.
-- Common filters such as keyword, status, owner, reviewer, date range, and type should align on a clean grid.
-- Inputs should prioritize scan efficiency: same height, same radius family, consistent spacing, and predictable label placement.
-- Date range fields should appear as a start field plus an end field, not as ambiguous freeform text.
-- Avoid mixing inline summary text into the filter row. Filter rows are for input and action only.
-
-### 5.3 Search Button Rules
-
-- Every list page must provide a dedicated `搜索` button.
-- The `搜索` button belongs directly below or to the right of the filter inputs, depending on available width.
-- Changing filter values should not automatically trigger a request unless the page explicitly requires live search.
-- Clicking `搜索` should apply all current filter conditions in one request.
-- While loading, the button must show a loading state and prevent duplicate submission.
-- Text inputs inside the search area should support `Enter` to submit the current search form.
-- Every list page should also provide a dedicated `重置筛选` button near the search button.
-- `重置筛选` should restore default filter values and return the list to the first page.
-
-### 5.4 Pagination Rules
-
-- Pagination controls must be placed below the table or list body, not above it.
-- Every paginated list must provide at minimum:
-	- `上一页`
-	- `下一页`
-	- `每页记录条数`
-	- `总页数`
-- If the backend provides total record count, also show total records near the pagination area.
-- Disabled pagination buttons must have a clear disabled state and should not visually compete with the primary search action.
-- Pagination information should read as operational metadata, not as a primary CTA.
-
-Recommended pagination layout:
-
-- Left side: `每页 10 / 20 / 50 条` selector.
-- Middle: total pages and optional total records.
-- Right side: `上一页` and `下一页` buttons.
-
-Search action row recommendation:
-
-- Left side: primary `搜索` button.
-- Next to it: secondary `重置筛选` button.
-- Support `Enter` submit on desktop and laptop keyboard workflows.
-
-### 5.5 Table Content Rules
-
-- Prefer one column for one business concept. Do not collapse unrelated business fields into a single dense cell unless space is severely constrained.
-- If a field is important enough for filtering or sorting, it should usually have its own visible column.
-- Avoid stacking too many secondary lines inside the first column. This reduces scan speed and breaks row rhythm.
-- Secondary metadata such as tx hash, request id, internal message, or reviewer role should go into detail drawers, expandable rows, or explicitly named columns when they are core to the workflow.
-
-### 5.6 List Surface Design Principles
-
-All list components should feel operational, clean, and calm rather than generic admin CRUD.
-
-- Use one clear surface for the filter zone and one clear surface for the data zone.
-- Preserve strong horizontal rhythm: filters, actions, header row, data rows, pagination.
-- Favor generous whitespace over cramped density in the search area.
-- Keep the table header visually quiet but readable. Avoid heavy decoration.
-- Use status chips only for states and decisions. Do not overuse badges for ordinary text.
-- Primary action weight should belong to `搜索` or the page's core action, not to pagination.
-- Keep row height stable across the table so scanning by eye remains fast.
-- Empty states should appear inside the list surface, with a short explanation of how to adjust filters.
-- Detail actions such as `详情` should be lightweight and visually secondary.
-
-### 5.7 Shared Componentization Rules
-
-To keep all future list pages consistent, list-page structure must be built from shared primitives instead of page-local wrappers.
-
-- Use `ListFilterForm` for the search and action area.
-- Use `ListFilterFields` for config-driven filter field rendering instead of repeating page-local `Grid + input/select` markup.
-- Use shared field presets for recurring combinations such as `keyword`, `status`, and `date-range` before defining page-local field configs.
-- Use `ListPaginationBar` for the bottom pagination area.
-- Use `ListTableSurface` as the default page-level list scaffold that composes `筛选区 + 表格区 + 分页区` into one shared surface.
-- Do not hand-assemble `SurfaceCard + custom filter wrapper + custom pagination wrapper` in each list page unless the page has a documented exception.
-- Prefer a field config array when the page only differs by placeholders, options, and bound values.
-- When a page uses common query patterns, compose the field array from shared presets first and add custom fields only for business-specific gaps.
-- If a page needs extra summary text, stamps, or actions, pass them through the shared list surface instead of creating a parallel layout.
-- Empty state content should also stay inside `ListTableSurface`, so users always read filters, results, and pagination as one operational unit.
-
-### 5.8 Visual Quality Bar
-
-For all future list pages in `admin/admin-front`, the expected quality bar is:
-
-- Business-first layout: filters first, results second, navigation last.
-- Predictable interaction: users always know where to search, where to turn pages, and where to inspect details.
-- Consistent pagination: same placement and same wording across pages.
-- Clean visual grouping: no floating controls that feel detached from the list they operate on.
-- High scan readability on desktop first, while still collapsing cleanly on smaller screens.
-
-If a page cannot follow this structure, document the reason in the implementation PR or design note instead of silently diverging.
-
-## 6. System Design & Visual Identity
+## System Design & Visual Identity
 
 为了让 AI 在后续开发中稳定复刻图片中的“赛博工业风”与“数据驱动”的设计感，需要把认证页与 Dashboard 原型收敛成一套统一的系统设计语言。
 
