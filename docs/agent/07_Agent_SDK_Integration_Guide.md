@@ -76,7 +76,7 @@ SDK 至少要暴露四类能力：
 建议直接基于下面两份 canonical 文档：
 
 1. `docs/agent/02_Discovery_Quote_Invoke_API_Design.md`
-2. `docs/Gateway_Error_Codes.md`
+2. `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
 
 ## 4. 为什么不能把 Skills 当主方案
 

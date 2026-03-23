@@ -13,28 +13,29 @@
 
 本目录以以下来源为准：
 
-1. `docs/api.md`
-2. `docs/Gateway_Error_Codes.md`
+1. `docs/06_Reference/05_Runtime_API_Contract.md`
+2. `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
 3. `docs/agent/02_Discovery_Quote_Invoke_API_Design.md`
 4. `docs/admin/Admin_API_Contract_Phase1.md`
-4. `docs/agent/03_Service_Manifest_Field_Standard.md`
-5. `docs/agent/04_Credential_Budget_Risk_Model.md`
-6. `docs/agent/07_Agent_SDK_Integration_Guide.md`
-7. `docs/04_Database_Design/`
-8. `docs/provider_service/api/README.md`
-9. `../sdk/README.md`
+5. `docs/agent/03_Service_Manifest_Field_Standard.md`
+6. `docs/agent/04_Credential_Budget_Risk_Model.md`
+7. `docs/agent/07_Agent_SDK_Integration_Guide.md`
+8. `docs/04_Database_Design/`
+9. `docs/provider_service/api/README.md`
+10. `../sdk/README.md`
 
 说明：旧 `06_Developer_Guides/` 中的开发、测试、SDK 有效内容已收敛进本模块，不再保留为主引用源。
 
 ## 阅读顺序
 
 1. `01_API_Contract_Index.md`
-2. `02_Error_Code_and_Runtime_Response_Contract.md` 先看错误响应与消费原则
-3. `../Gateway_Error_Codes.md` 再看当前已发布错误码矩阵
-4. `03_Service_Manifest_and_Runtime_Object_Reference.md`
-5. `04_Development_Testing_and_Integration_Reference.md`
-6. `AI_Quick_Reference.md`
-7. `Validation_Entry_Points.md`
+2. `05_Runtime_API_Contract.md`
+3. `02_Error_Code_and_Runtime_Response_Contract.md` 先看错误响应与消费原则
+4. `06_Runtime_Error_Code_Catalog.md`
+5. `03_Service_Manifest_and_Runtime_Object_Reference.md`
+6. `04_Development_Testing_and_Integration_Reference.md`
+7. `AI_Quick_Reference.md`
+8. `Validation_Entry_Points.md`
 
 ## 模块边界
 

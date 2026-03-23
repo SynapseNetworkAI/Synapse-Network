@@ -17,8 +17,8 @@
 
 主真理源：
 
-1. [../api.md](../api.md)
-2. [../Gateway_Error_Codes.md](../Gateway_Error_Codes.md)
+1. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
+2. [06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md)
 3. [../agent/02_Discovery_Quote_Invoke_API_Design.md](../agent/02_Discovery_Quote_Invoke_API_Design.md)
 4. [../agent/04_Credential_Budget_Risk_Model.md](../agent/04_Credential_Budget_Risk_Model.md)
 5. [../03_Projects/gateway/README.md](../03_Projects/gateway/README.md)
@@ -100,7 +100,7 @@
 
 当前 canonical 入口：
 
-1. [../api.md](../api.md)
+1. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
 2. [../admin/Admin_API_Contract_Phase1.md](../admin/Admin_API_Contract_Phase1.md)
 
 包括：
@@ -114,7 +114,7 @@
 
 当前 canonical 入口：
 
-1. [../api.md](../api.md)
+1. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
 2. [../03_Core_Workflows/01_Deposit_and_Idempotency.md](../03_Core_Workflows/01_Deposit_and_Idempotency.md)
 3. [../03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](../03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
 
@@ -133,7 +133,7 @@
 
 当前 canonical 入口：
 
-1. [../api.md](../api.md)
+1. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
 2. [../agent/02_Discovery_Quote_Invoke_API_Design.md](../agent/02_Discovery_Quote_Invoke_API_Design.md)
 3. [../agent/03_Service_Manifest_Field_Standard.md](../agent/03_Service_Manifest_Field_Standard.md)
 
@@ -259,10 +259,10 @@ Invoke 后必须完成：
 
 当 API 契约变更时，至少要同步以下层次：
 
-1. `gateway` Owner / Runtime 主链路：更新 [../api.md](../api.md)
+1. `gateway` Owner / Runtime 主链路：更新 [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
 2. 管理后台控制面：更新 [../admin/Admin_API_Contract_Phase1.md](../admin/Admin_API_Contract_Phase1.md)
 3. provider sample 服务：更新 `docs/provider_service/api/*.md`
-4. 如果返回结构或错误码变化，更新 [../Gateway_Error_Codes.md](../Gateway_Error_Codes.md) 与相关测试
+4. 如果返回结构或错误码变化，更新 [06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md) 与相关测试
 
 ## 9. 设计规则
 

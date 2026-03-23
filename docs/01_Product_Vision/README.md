@@ -8,7 +8,7 @@
 2. 我们要服务什么样的 Agent 经济。
 3. 产品分阶段怎么落地。
 
-它不负责定义 Runtime 协议、数据库字段、Gateway 执行细节。这些 canonical 定义统一回到 `docs/agent/`、`docs/api.md` 和数据库文档。
+它不负责定义 Runtime 协议、数据库字段、Gateway 执行细节。这些 canonical 定义统一回到 `docs/agent/`、`docs/06_Reference/05_Runtime_API_Contract.md` 和数据库文档。
 
 ## 推荐阅读顺序
 
@@ -43,4 +43,4 @@
 ## 维护规则
 
 1. 本目录允许讨论商业和产品方向，但不能覆盖已经落地的 API/数据库事实。
-2. 当商业叙事和当前代码实现不一致时，必须以 `docs/agent/`、`docs/api.md` 和数据库文档为准，再反向修正文案。
+2. 当商业叙事和当前代码实现不一致时，必须以 `docs/agent/`、`docs/06_Reference/05_Runtime_API_Contract.md` 和数据库文档为准，再反向修正文案。

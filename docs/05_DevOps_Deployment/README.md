@@ -14,7 +14,7 @@
 本目录的约束来源：
 
 1. `docs/AGENTS.md`
-2. `docs/api.md`
+2. `docs/06_Reference/05_Runtime_API_Contract.md`
 3. `docs/Gateway_Database_Design.md`
 4. `docs/04_Database_Design/`
 5. `docs/admin/`

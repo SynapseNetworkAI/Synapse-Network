@@ -59,8 +59,8 @@
 3. `docs/03_Core_Workflows/README.md`
 4. `docs/04_Database_Design/README.md`
 5. `docs/Gateway_Database_Design.md`
-6. `docs/api.md`
-7. `docs/Gateway_Error_Codes.md`
+6. `docs/06_Reference/05_Runtime_API_Contract.md`
+7. `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
 
 ## 7. 项目内应保留的贴身文档
 

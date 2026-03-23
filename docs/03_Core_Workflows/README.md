@@ -53,8 +53,8 @@ flowchart TD
 
 本目录只描述核心流程，不重复承载：
 
-1. API 字段全集：看 `docs/api.md`
-2. Error code 全集：看 `docs/Gateway_Error_Codes.md`
+1. API 字段全集：看 `docs/06_Reference/05_Runtime_API_Contract.md`
+2. Error code 全集：看 `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
 3. Manifest 字段标准：看 `docs/agent/03_Service_Manifest_Field_Standard.md`
 4. Credential / Budget 结构：看 `docs/agent/04_Credential_Budget_Risk_Model.md`
 5. SQL 完整表定义：看 `docker-compose/postgres/init/gateway/001_synapse_schema.sql`

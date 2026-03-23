@@ -43,7 +43,7 @@
 
 本目录不承担：
 
-1. API 合约全集：看 `docs/api.md`
+1. API 合约全集：看 `docs/06_Reference/05_Runtime_API_Contract.md`
 2. Runtime 主流程：看 `docs/03_Core_Workflows/`
 3. SQL 表结构和锁策略：看 `docs/04_Database_Design/`
 4. 后端实现细节：看 `docs/02_System_Architecture/`

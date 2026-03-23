@@ -2,7 +2,7 @@
 
 阅读和维护遵守三条规则：
 
-1. 先读 `agent/`、`api.md`、`Gateway_Database_Design.md`，建立当前身份、协议和资金模型。
+1. 先读 `agent/`、`06_Reference/05_Runtime_API_Contract.md`、`Gateway_Database_Design.md`，建立当前身份、协议和资金模型。
 2. 再进入六个官方模块，按产品、架构、流程、数据库、运维、参考分层阅读。
 3. 专题设计、后台文档、产品愿景保留为补充层，不再承担 Runtime canonical 定义职责。
 
@@ -25,9 +25,7 @@ AI 协作优先入口新增如下：
 4. [00_Governance/README.md](./00_Governance/README.md)
 5. [Design.md](./Design.md)
 6. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
-7. [api.md](./api.md)
-8. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
-9. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
+7. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
 
 ### Official modules
 
@@ -100,8 +98,8 @@ AI 协作优先入口新增如下：
 2. [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
 3. [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
 4. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
-5. [api.md](./api.md)
-6. [Gateway_Error_Codes.md](./Gateway_Error_Codes.md)
+5. [06_Reference/05_Runtime_API_Contract.md](./06_Reference/05_Runtime_API_Contract.md)
+6. [06_Reference/06_Runtime_Error_Code_Catalog.md](./06_Reference/06_Runtime_Error_Code_Catalog.md)
 
 ### 2.3 数据库与资金真相层
 
@@ -215,10 +213,8 @@ AI 协作优先入口新增如下：
 只保留这些全局入口：
 
 1. 项目原则
-2. API 合约
-3. 数据库总览
-4. 错误码
-5. 总索引
+2. 数据库总览
+3. 总索引
 
 ### 子目录职责
 
@@ -251,7 +247,7 @@ AI 协作优先入口新增如下：
 4. `05_Frontend_UX/`
 5. `06_Developer_Guides/`
 
-它们承载的当前有效内容已被收敛进六个新官方模块、`agent/`、`api.md` 和根级真理源。
+它们承载的当前有效内容已被收敛进六个新官方模块、`agent/`、`06_Reference/05_Runtime_API_Contract.md` 与 `06_Reference/06_Runtime_Error_Code_Catalog.md`。
 
 ## 8. 维护规则
 
