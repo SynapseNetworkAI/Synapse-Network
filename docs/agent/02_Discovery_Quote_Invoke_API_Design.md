@@ -220,7 +220,7 @@
 为了避免和当前实现混淆，这里明确拆成两层：
 
 1. **Current implemented baseline**
-  当前对外可依赖的错误码，以 `docs/api.md` 和 `docs/Gateway_Error_Codes.md` 中已经对齐到代码实现的集合为准。
+  当前对外可依赖的错误码，以 `docs/06_Reference/05_Runtime_API_Contract.md` 和 `docs/06_Reference/06_Runtime_Error_Code_Catalog.md` 中已经对齐到代码实现的集合为准。
 2. **Future-state target taxonomy**
   下面列出的目标态错误码分层，用于约束后续 Runtime 演进方向，不代表当前网关都已经支持。
 
@@ -240,8 +240,8 @@
 约束说明：
 
 - 这批错误码是当前 V1 Runtime 的真实 contract，优先级高于目标态枚举。
-- Agent 的自动重试、降级、终止逻辑，应该只依赖这批已发布错误码与 `docs/api.md` 当前语义。
-- 如果未来新增错误码，必须先在代码、`docs/api.md`、`docs/Gateway_Error_Codes.md` 三处同步，再把这里的 future-state 项目提升为 current baseline。
+- Agent 的自动重试、降级、终止逻辑，应该只依赖这批已发布错误码与 `docs/06_Reference/05_Runtime_API_Contract.md` 当前语义。
+- 如果未来新增错误码，必须先在代码、`docs/06_Reference/05_Runtime_API_Contract.md`、`docs/06_Reference/06_Runtime_Error_Code_Catalog.md` 三处同步，再把这里的 future-state 项目提升为 current baseline。
 
 ### 5.2 Future-state target taxonomy
 

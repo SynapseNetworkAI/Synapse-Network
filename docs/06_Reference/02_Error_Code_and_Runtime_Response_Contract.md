@@ -6,7 +6,7 @@
 
 它不再维护“已落地错误码全集”。
 
-当前真实已发布、可对外依赖的错误码矩阵，以 [../Gateway_Error_Codes.md](../Gateway_Error_Codes.md) 为准。
+当前真实已发布、可对外依赖的错误码矩阵，以 [06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md) 为准。
 
 ## 2. 统一错误响应结构
 
@@ -22,17 +22,17 @@ Agent、SDK、前端和测试断言都应优先依赖 `detail.code`，而不是�
 
 错误码相关文档现在按三层分工：
 
-1. [../Gateway_Error_Codes.md](../Gateway_Error_Codes.md)
+1. [06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md)
 	维护当前 Gateway 已落地、已发布、可被集成方直接依赖的错误码枚举与状态。
-2. [../api.md](../api.md)
+2. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
 	维护各 API 的业务语义、状态语义和接口边界。
 3. 本文件
 	维护统一错误响应结构、错误码分层理解、消费策略和兼容规则。
 
 如果三者发生冲突，优先级应理解为：
 
-1. 当前错误码可用集合：`Gateway_Error_Codes.md`
-2. 业务语义与接口边界：`api.md`
+1. 当前错误码可用集合：`06_Runtime_Error_Code_Catalog.md`
+2. 业务语义与接口边界：`05_Runtime_API_Contract.md`
 3. 统一消费原则：本文件
 
 ## 4. 错误码分层
@@ -91,7 +91,7 @@ Agent、SDK、前端和测试断言都应优先依赖 `detail.code`，而不是�
 
 这些分类是消费侧的稳定理解框架，不等于当前对外已发布的完整错误码表。
 
-具体 code 名称与当前落地状态，应始终回到 [../Gateway_Error_Codes.md](../Gateway_Error_Codes.md)。
+具体 code 名称与当前落地状态，应始终回到 [06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md)。
 
 ## 6. Runtime 推荐处理策略
 
@@ -129,14 +129,14 @@ Agent、SDK、前端和测试断言都应优先依赖 `detail.code`，而不是�
 
 1. 代码实现
 2. 测试断言
-3. [../Gateway_Error_Codes.md](../Gateway_Error_Codes.md)
-4. [../api.md](../api.md) 中受影响的接口语义
+3. [06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md)
+4. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md) 中受影响的接口语义
 5. 若消费策略变化，再更新本文件
 
 ## 8. 文档结论
 
 Synapse 的错误码不是调试附属品，而是 Agent Runtime 的控制信号。
 
-这份文档负责说明“怎么理解和消费错误码”；[../Gateway_Error_Codes.md](../Gateway_Error_Codes.md) 负责说明“当前到底发布了哪些错误码”。
+这份文档负责说明“怎么理解和消费错误码”；[06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md) 负责说明“当前到底发布了哪些错误码”。
 
 谁绕开稳定错误码去写集成，谁就会把 SDK、前端和自动化编排一起写碎。
