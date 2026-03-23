@@ -9,7 +9,7 @@
 
 This file is now the only maintained product guide for the Agents page.
 
-`docs/01_Product_Frontend/agents.md` has been retired and deleted because its historical design is no longer part of the active frontend direction.
+`docs/01_Product_Frontend/AGENTS.md` has been retired and deleted because its historical design is no longer part of the active frontend direction.
 
 The current funding path also changed:
 

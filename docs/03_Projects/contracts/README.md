@@ -56,8 +56,8 @@
 项目目录内只保留最小入口文档：
 
 1. `contracts/README.md`
-2. 如未来出现稳定、独立、长期维护的 contracts-only 工程规则，再评估是否需要 `contracts/agents.md`
+2. 如未来出现稳定、独立、长期维护的 contracts-only 工程规则，再评估是否需要 `contracts/AGENTS.md`
 
 当前推荐先读本页，再进入 [Contracts_Local_Development.md](./Contracts_Local_Development.md) 看编译与测试说明。
 
-当前结论：`contracts/` 暂不新增独立 `agents.md`。原因是当前约束主要已经由仓库总规范、合约本地开发说明和系统级 canonical 文档覆盖；为了形式统一新增空规则文件没有收益。
+当前结论：`contracts/` 暂不新增独立 `AGENTS.md`。原因是当前约束主要已经由仓库总规范、合约本地开发说明和系统级 canonical 文档覆盖；为了形式统一新增空规则文件没有收益。

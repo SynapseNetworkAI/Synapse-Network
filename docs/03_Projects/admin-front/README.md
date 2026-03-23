@@ -16,7 +16,7 @@
 
 - 项目目录：`admin/admin-front/`
 - 本地说明：`admin/admin-front/README.md`
-- 项目规则：`admin/admin-front/agents.md`
+- 项目规则：`admin/admin-front/AGENTS.md`
 - 页面与组件：`admin/admin-front/src/`
 
 ## 3. 职责边界
@@ -57,6 +57,6 @@
 项目目录内只保留：
 
 1. `admin/admin-front/README.md`
-2. `admin/admin-front/agents.md`
+2. `admin/admin-front/AGENTS.md`
 
-其中 `admin/admin-front/README.md` 现在只保留入口壳，`admin/admin-front/agents.md` 作为本地执行镜像保留；完整规则统一维护在 [Admin_Front_Agent_Rules.md](./Admin_Front_Agent_Rules.md)。
+其中 `admin/admin-front/README.md` 现在只保留入口壳，`admin/admin-front/AGENTS.md` 作为本地执行镜像保留；完整规则统一维护在 [Admin_Front_Agent_Rules.md](./Admin_Front_Agent_Rules.md)。

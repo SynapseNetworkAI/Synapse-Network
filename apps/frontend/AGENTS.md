@@ -4,7 +4,7 @@ Local execution mirror for `apps/frontend/`.
 
 Canonical rules doc:
 
-1. `docs/agents.md`
+1. `docs/AGENTS.md`
 2. `docs/03_Projects/frontend/Frontend_Agent_Rules.md`
 
 ## Must-Follow Rules

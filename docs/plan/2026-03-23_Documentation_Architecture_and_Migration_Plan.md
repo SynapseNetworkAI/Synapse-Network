@@ -57,7 +57,7 @@
 因为每个项目仍然需要少量“贴身文档”：
 
 1. 本项目 `README.md`
-2. 本项目 `agents.md`
+2. 本项目 `AGENTS.md`
 3. 本项目本地启动/调试/运维最小手册
 
 这类文档离代码越近越好，因为它们是“进入目录立即执行”的说明，不是跨系统真相。
@@ -88,7 +88,7 @@
 - 类型：Next.js 前端应用。
 - 当前文档位置：
   - `apps/frontend/README.md`
-  - `apps/frontend/agents.md`
+  - `apps/frontend/AGENTS.md`
   - 根 `docs/01_Product_Frontend/` 中有大量前端与 IA 文档
 
 ### 4. `admin/gateway-admin/`
@@ -97,7 +97,7 @@
 - 类型：后台控制面后端服务。
 - 当前文档位置：
   - `admin/gateway-admin/README.md`
-  - `admin/gateway-admin/agents.md`
+  - `admin/gateway-admin/AGENTS.md`
   - `admin/gateway-admin/docs/`
   - 根 `docs/admin/`
 
@@ -107,7 +107,7 @@
 - 类型：Next.js 后台前端。
 - 当前文档位置：
   - `admin/admin-front/README.md`
-  - `admin/admin-front/agents.md`
+  - `admin/admin-front/AGENTS.md`
   - 许多设计说明仍在根 `docs/admin/` 与 `docs/01_Product_Frontend/`
 
 ### 6. `provider_service/`
@@ -116,7 +116,7 @@
 - 类型：独立 Python Provider Runtime。
 - 当前文档位置：
   - `provider_service/README.md`
-  - `provider_service/docs/agents.md`
+  - `provider_service/docs/AGENTS.md`
   - `provider_service/docs/Operations-Runbook.md`
   - 根 `docs/provider_service/`
 
@@ -172,7 +172,7 @@
 同时各项目又有自己的：
 
 1. `README.md`
-2. `agents.md`
+2. `AGENTS.md`
 
 ## 4.2 现状问题
 
@@ -228,7 +228,7 @@
 每个项目目录只保留：
 
 1. `README.md`
-2. `agents.md`
+2. `AGENTS.md`
 3. `docs/` 下极少量本项目运行手册（如果确实需要）
 
 ### 第三层：归档层
@@ -240,7 +240,7 @@
 ```text
 docs/
 ├── README.md
-├── agents.md
+├── AGENTS.md
 ├── 00_Governance/
 │   ├── Documentation_Standards.md
 │   ├── Contribution_Rules.md
@@ -335,7 +335,7 @@ docs/
 ## 6.1 每个项目一律保留
 
 1. `README.md`
-2. `agents.md`
+2. `AGENTS.md`
 
 ## 6.2 项目内 `docs/` 只允许保留这些类型
 
@@ -360,7 +360,7 @@ docs/
 以后统一使用：
 
 1. `README.md`
-2. `agents.md`
+2. `AGENTS.md`
 3. `docs/`
 
 禁止继续新增：
@@ -377,7 +377,7 @@ docs/
 
 - 职责：运行时结算与调用主链路。
 - 推荐文档：
-  - 项目内：`README.md`、`agents.md`、必要时 `docs/Local_Runbook.md`
+  - 项目内：`README.md`、`AGENTS.md`、必要时 `docs/Local_Runbook.md`
   - 根目录：`docs/03_Projects/gateway/`、`docs/02_Architecture/`、`docs/04_Workflows/`、`docs/05_Data/`、`docs/07_Reference/`
 
 ## 7.2 `contracts/`
@@ -391,28 +391,28 @@ docs/
 
 - 职责：Owner / Developer 主前端。
 - 推荐文档：
-  - 项目内：`README.md`、`agents.md`
+  - 项目内：`README.md`、`AGENTS.md`
   - 根目录：`docs/03_Projects/frontend/`、`docs/01_Product/Frontend/`
 
 ## 7.4 `admin/gateway-admin/`
 
 - 职责：后台控制面 API。
 - 推荐文档：
-  - 项目内：`README.md`、`agents.md`、`docs/Operations.md`、`docs/Env.md`
+  - 项目内：`README.md`、`AGENTS.md`、`docs/Operations.md`、`docs/Env.md`
   - 根目录：`docs/03_Projects/gateway-admin/`、`docs/01_Product/Admin/`、`docs/06_Operations/`
 
 ## 7.5 `admin/admin-front/`
 
 - 职责：后台前端控制台。
 - 推荐文档：
-  - 项目内：`README.md`、`agents.md`
+  - 项目内：`README.md`、`AGENTS.md`
   - 根目录：`docs/03_Projects/admin-front/`、`docs/01_Product/Admin/`
 
 ## 7.6 `provider_service/`
 
 - 职责：Provider 样板微服务。
 - 推荐文档：
-  - 项目内：`README.md`、`agents.md`、`docs/Operations.md`
+  - 项目内：`README.md`、`AGENTS.md`、`docs/Operations.md`
   - 根目录：`docs/03_Projects/provider-service/`、`docs/01_Product/Provider_Marketplace/`、`docs/07_Reference/`
 
 ## 7.7 `sdk/python/`

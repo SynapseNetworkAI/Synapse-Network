@@ -16,7 +16,7 @@
 
 - 项目目录：`provider_service/`
 - 本地说明：`provider_service/README.md`
-- 本地规则镜像：`provider_service/agents.md`
+- 本地规则镜像：`provider_service/AGENTS.md`
 - 应用代码：`provider_service/app/`
 - 测试目录：`provider_service/tests/`
 
@@ -69,6 +69,6 @@
 当前项目目录内只保留：
 
 1. `provider_service/README.md`
-2. `provider_service/agents.md`
+2. `provider_service/AGENTS.md`
 
 其中 `provider_service/README.md` 现在只保留入口壳；原 `provider_service/docs/` 正文已迁入根 `docs/03_Projects/provider-service/`。

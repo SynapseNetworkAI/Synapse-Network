@@ -55,7 +55,7 @@ Frontend must preserve:
 If frontend behavior, environment variables, page IA, or setup instructions change, update together:
 
 1. `apps/frontend/README.md`
-2. `apps/frontend/agents.md`
+2. `apps/frontend/AGENTS.md`
 3. `docs/03_Projects/frontend/Frontend_Local_Development.md`
 4. this file
 5. any affected root product docs

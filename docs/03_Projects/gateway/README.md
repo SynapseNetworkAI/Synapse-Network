@@ -71,9 +71,9 @@
 项目目录内只保留最小入口文档：
 
 1. `gateway/README.md`
-2. 如未来出现稳定、独立、长期维护的 gateway-only 工程规则，再评估是否需要 `gateway/agents.md`
+2. 如未来出现稳定、独立、长期维护的 gateway-only 工程规则，再评估是否需要 `gateway/AGENTS.md`
 3. 必要时再补 `gateway/docs/Local_Runbook.md`
 
 当前推荐先读本页，再进入 [Gateway_Local_Development.md](./Gateway_Local_Development.md) 看本地执行说明。
 
-当前结论：`gateway/` 暂不新增独立 `agents.md`。原因是现阶段它没有足够明确、长期稳定、需要脱离仓库总规范单独维护的 project-level rules；强行新增只会制造形式统一但内容空洞的规则文件。
+当前结论：`gateway/` 暂不新增独立 `AGENTS.md`。原因是现阶段它没有足够明确、长期稳定、需要脱离仓库总规范单独维护的 project-level rules；强行新增只会制造形式统一但内容空洞的规则文件。

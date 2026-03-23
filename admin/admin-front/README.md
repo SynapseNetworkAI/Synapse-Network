@@ -6,7 +6,7 @@
 
 1. 项目导航页：`docs/03_Projects/admin-front/README.md`
 2. 本地开发说明：`docs/03_Projects/admin-front/Admin_Front_Local_Development.md`
-3. 子项目规则：`admin/admin-front/agents.md`
+3. 子项目规则：`admin/admin-front/AGENTS.md`
 
 ## 常用关注点
 

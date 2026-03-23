@@ -8,7 +8,7 @@
 
 ## Source Of Truth
 
-1. 仓库级总规范以 `docs/agents.md` 为准。
+1. 仓库级总规范以 `docs/AGENTS.md` 为准。
 2. 本文件是 `provider_service` 子项目的 canonical 工程规则。
 3. 如果本文件与仓库级规范冲突，优先遵循仓库级规范，再同步修正本文件。
 
@@ -17,7 +17,7 @@
 ### Current Runtime Files
 
 1. `provider_service/README.md`: 项目入口壳文件。
-2. `provider_service/agents.md`: 本地 Agent 执行镜像。
+2. `provider_service/AGENTS.md`: 本地 Agent 执行镜像。
 3. `provider_service/requirements.txt`: Python 依赖。
 4. `provider_service/.env.example`: 环境变量模板。
 5. `provider_service/start.sh`、`stop.sh`、`restart.sh`: 运行脚本。
@@ -99,7 +99,7 @@
 1. 代码变更后，必须同步更新相关 Markdown 文档。
 2. 当前子项目至少保持以下内容一致：
    - `provider_service/README.md`
-   - `provider_service/agents.md`
+   - `provider_service/AGENTS.md`
    - `docs/03_Projects/provider-service/Provider_Service_Local_Development.md`
    - `docs/03_Projects/provider-service/Provider_Service_Operations_Runbook.md`
    - `docs/03_Projects/provider-service/Provider_Service_Agent_Rules.md`

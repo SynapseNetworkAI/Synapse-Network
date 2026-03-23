@@ -7,7 +7,7 @@
 1. 项目导航页：`docs/03_Projects/provider-service/README.md`
 2. 本地开发说明：`docs/03_Projects/provider-service/Provider_Service_Local_Development.md`
 3. 项目运维手册：`docs/03_Projects/provider-service/Provider_Service_Operations_Runbook.md`
-4. 子项目规则：`provider_service/agents.md`
+4. 子项目规则：`provider_service/AGENTS.md`
 
 ## 常用命令
 

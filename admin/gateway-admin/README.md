@@ -8,7 +8,7 @@
 2. 本地开发说明：`docs/03_Projects/gateway-admin/Gateway_Admin_Local_Development.md`
 3. 项目运维说明：`docs/03_Projects/gateway-admin/Gateway_Admin_Operations_Runbook.md`
 4. 环境变量说明：`docs/03_Projects/gateway-admin/Gateway_Admin_Environment_Variables.md`
-5. 子项目规则：`admin/gateway-admin/agents.md`
+5. 子项目规则：`admin/gateway-admin/AGENTS.md`
 
 ## 常用命令
 

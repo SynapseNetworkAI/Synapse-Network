@@ -17,7 +17,7 @@
 
 - 项目目录：`admin/gateway-admin/`
 - 入口说明：`admin/gateway-admin/README.md`
-- 本地规则镜像：`admin/gateway-admin/agents.md`
+- 本地规则镜像：`admin/gateway-admin/AGENTS.md`
 - 核心代码：`admin/gateway-admin/src/`
 - 测试目录：`admin/gateway-admin/tests/`
 
@@ -34,7 +34,7 @@
 当前项目目录内暂时仍保留：
 
 1. `admin/gateway-admin/README.md`
-2. `admin/gateway-admin/agents.md`
+2. `admin/gateway-admin/AGENTS.md`
 
 其中 `admin/gateway-admin/README.md` 现在只保留入口壳；原 `admin/gateway-admin/docs/` 正文已迁入根 `docs/03_Projects/gateway-admin/`。
 
