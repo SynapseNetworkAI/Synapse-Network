@@ -1,3 +1,6 @@
+from dataclasses import replace
+from decimal import Decimal
+
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
@@ -9,7 +12,7 @@ from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
 from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
 from src.services.dashboard.service import DashboardService
-from src.storage.analytics import InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository
+from src.storage.analytics import InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
 from src.storage import InMemoryAdminStore
 
 client = TestClient(app)
@@ -677,6 +680,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
         "business-control",
         "approvals",
         "withdrawal-reviews",
+        "review-history",
         "finance",
         "risk",
     }
@@ -822,6 +826,71 @@ def test_provider_withdraw_review_list_and_decision() -> None:
     assert list_after_response.status_code == 200
     remaining_ids = [item["withdrawalId"] for item in list_after_response.json()["data"]["items"]]
     assert first_item["withdrawalId"] not in remaining_ids
+
+
+def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
+    csrf_headers = _login_as("finance-review@synapse.network")
+    repository = deps.get_provider_withdraw_review_repository()
+    review_item_id = f"wd-history-{uuid4().hex[:8]}"
+    if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
+        repository._items.append(
+            ProviderWithdrawReviewItem(
+                withdrawal_id=review_item_id,
+                owner_address="0x1111111111111111111111111111111111111111",
+                amount_usdc=Decimal("64.00"),
+                status="PENDING_MANUAL_REVIEW",
+                request_id="history-review-request",
+                tx_hash=None,
+                risk_level="yellow",
+                risk_reason_code="AUTO_SINGLE_LIMIT_EXCEEDED",
+                evidence_summary="Seeded by test for review history endpoint.",
+                message="Manual review required before issuing withdraw ticket.",
+                created_at="2026-03-20T09:30:00Z",
+                updated_at="2026-03-20T09:30:00Z",
+            )
+        )
+
+    decision_response = client.post(
+        f"/api/admin/v1/withdrawal-reviews/{review_item_id}/decision",
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        json={
+            "decision": "APPROVE",
+            "note": "History page should show this reviewed item.",
+        },
+    )
+    assert decision_response.status_code == 200
+
+    history_response = client.get("/api/admin/v1/withdrawal-reviews/history?limit=10")
+    assert history_response.status_code == 200
+    items = history_response.json()["data"]["items"]
+    reviewed = next(item for item in items if item["withdrawalId"] == review_item_id)
+    assert reviewed["reviewDecision"] == "APPROVE"
+    assert reviewed["currentStatus"] == "APPROVED_AUTO"
+    assert reviewed["reviewerNote"] == "History page should show this reviewed item."
+    assert reviewed["riskLevel"] == "yellow"
+    assert reviewed["riskReasonCode"] == "AUTO_SINGLE_LIMIT_EXCEEDED"
+    assert reviewed["evidenceSummary"] == "Seeded by test for review history endpoint."
+    assert reviewed["createdAt"] == "2026-03-20T09:30:00Z"
+    assert reviewed["updatedAt"] is not None
+
+
+def test_menu_config_snapshot_auto_adds_review_history_seed_item() -> None:
+    _login_as("super@synapse.network")
+    store = deps.get_store()
+    snapshot = store.config.get_menu_config("admin_menu_config")
+    assert snapshot is not None
+
+    trimmed_snapshot = replace(
+        snapshot,
+        draft_items=tuple(item for item in snapshot.draft_items if item.item_id != "review-history"),
+        published_items=tuple(item for item in snapshot.published_items if item.item_id != "review-history"),
+    )
+    store.config.save_menu_config(trimmed_snapshot)
+
+    visible_response = client.get("/api/admin/v1/config/menu-items/visible")
+    assert visible_response.status_code == 200
+    visible_ids = {item["itemId"] for item in visible_response.json()["data"]["items"]}
+    assert "review-history" in visible_ids
 
 
 def test_provider_withdraw_review_decision_requires_permission() -> None:

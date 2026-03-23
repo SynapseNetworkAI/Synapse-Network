@@ -17,6 +17,7 @@ from src.storage.base import AdminStore
 
 
 MENU_CONFIG_KEY = "admin_menu_config"
+DEFAULT_MENU_MIGRATION_ITEM_IDS = {"review-history"}
 DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}
 
@@ -100,13 +101,48 @@ class AdminConfigService:
     def _get_or_create_snapshot(self, operator_id: str | None) -> AdminMenuConfigSnapshot:
         snapshot = self._store.config.get_menu_config(MENU_CONFIG_KEY)
         if snapshot is not None:
-            return snapshot
+            return self._merge_missing_default_items(snapshot, operator_id)
         now = datetime.now(timezone.utc)
         items = self._sort_items(_default_menu_items())
         return self._save_snapshot(AdminMenuConfigSnapshot(config_key=MENU_CONFIG_KEY, draft_items=items, published_items=items, draft_version=1, published_version=1, created_at=now, updated_at=now, updated_by=operator_id or "system_seed", published_at=now, published_by=operator_id or "system_seed"))
 
     def _save_snapshot(self, snapshot: AdminMenuConfigSnapshot) -> AdminMenuConfigSnapshot:
         return self._store.config.save_menu_config(snapshot)
+
+    def _merge_missing_default_items(self, snapshot: AdminMenuConfigSnapshot, operator_id: str | None) -> AdminMenuConfigSnapshot:
+        default_items_by_id = {item.item_id: item for item in _default_menu_items()}
+        draft_item_ids = {item.item_id for item in snapshot.draft_items}
+        published_item_ids = {item.item_id for item in snapshot.published_items}
+
+        draft_additions = tuple(
+            default_items_by_id[item_id]
+            for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
+            if item_id in default_items_by_id and item_id not in draft_item_ids
+        )
+        published_additions = tuple(
+            default_items_by_id[item_id]
+            for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
+            if item_id in default_items_by_id and item_id not in published_item_ids
+        )
+
+        if not draft_additions and not published_additions:
+            return snapshot
+
+        now = datetime.now(timezone.utc)
+        actor_id = operator_id or snapshot.updated_by or snapshot.published_by or "system_seed"
+        return self._save_snapshot(
+            replace(
+                snapshot,
+                draft_items=self._sort_items((*snapshot.draft_items, *draft_additions)),
+                published_items=self._sort_items((*snapshot.published_items, *published_additions)),
+                draft_version=snapshot.draft_version + (1 if draft_additions else 0),
+                published_version=snapshot.published_version + (1 if published_additions else 0),
+                updated_at=now,
+                updated_by=actor_id,
+                published_at=now if published_additions else snapshot.published_at,
+                published_by=actor_id if published_additions else snapshot.published_by,
+            )
+        )
 
     def _serialize_snapshot(self, snapshot: AdminMenuConfigSnapshot, items: tuple[AdminMenuConfigItem, ...]) -> dict:
         return {
