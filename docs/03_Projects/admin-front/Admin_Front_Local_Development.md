@@ -1,0 +1,56 @@
+# Admin Front Local Development
+
+`admin/admin-front/` 是 Synapse 的平台管理员前端控制台项目。
+
+## 项目结构
+
+```text
+admin/admin-front/
+├── src/app/         # 页面与路由入口
+├── src/components/  # 通用 UI 组件
+├── src/features/    # 按业务域拆分的后台功能模块
+├── src/services/    # 对 gateway-admin 的前端 API 调用封装
+├── src/hooks/       # 复用 hooks
+├── src/lib/         # 权限、格式化、常量、前端工具
+└── public/          # 静态资源
+```
+
+## 当前本地开发重点
+
+当前后台前端已经包含以下关键能力：
+
+1. 管理员登录与 MFA enrollment / step-up。
+2. Dashboard、审批、用户、角色权限、菜单配置、审计、执行、资金、提现审核、风控、系统页。
+3. 基于 `gateway-admin` 可见菜单接口的服务端导航裁剪。
+4. 基于 `HttpOnly` session cookie + 内存态 `csrfToken` 的后台会话模型。
+
+## 本地联调说明
+
+本地开发默认通过 Next.js 同源代理访问 `/api/admin/*`，再由 `admin-front` 转发到 `http://localhost:8300`。
+
+可选环境变量：
+
+1. `ADMIN_API_PROXY_TARGET`: 修改代理目标地址。
+2. `NEXT_PUBLIC_ADMIN_API_BASE_URL`: 让浏览器直接请求外部管理 API。
+
+这样做是为了规避浏览器侧跨域、`localhost / 127.0.0.1 / LAN IP` 差异导致的登录与 MFA 失败。
+
+## 安全约束
+
+1. 当前 cookie 默认策略为 `HttpOnly + SameSite=Lax`。
+2. 开发环境默认不强制 `Secure`。
+3. 生产环境必须启用 HTTPS，并设置 `ADMIN_SESSION_COOKIE_SECURE=true`。
+4. 高风险动作统一通过 step-up modal 收集 `X-Admin-OTP-Code`。
+
+## 开发约束
+
+1. 页面行为、IA、权限语义先对齐根 `docs/admin/`。
+2. 页面视觉与交互先对齐 `admin/admin-front/stitch/` 原型。
+3. 子项目编码与 UI 规则见 [Admin_Front_Agent_Rules.md](./Admin_Front_Agent_Rules.md)。
+
+## 相关文档
+
+1. [README.md](./README.md)
+2. [Admin_Front_Agent_Rules.md](./Admin_Front_Agent_Rules.md)
+3. [../../admin/README.md](../../admin/README.md)
+4. [../../01_Product_Frontend/03_Admin_Control_Plane_Architecture.md](../../01_Product_Frontend/03_Admin_Control_Plane_Architecture.md)

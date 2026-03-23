@@ -1,4 +1,11 @@
-# AGENTS Guidelines for This Repository
+# admin-front Hard Rules
+
+Local execution mirror for `admin/admin-front/`.
+
+Canonical rules doc:
+
+1. `docs/agents.md`
+2. `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md`
 
 ## 1. Core Engineering Rules
 
@@ -26,6 +33,8 @@
 ### HMR Note
 
 Always use `npm run dev` while iterating. Do not keep the dev server running while executing `npm run build` as it may lead to inconsistent states in the `.next` directory.
+
+This file stays intentionally shorter than the canonical root document so local agent discovery remains stable without duplicating the whole rule source.
 
 ## 4. Development Workflow
 

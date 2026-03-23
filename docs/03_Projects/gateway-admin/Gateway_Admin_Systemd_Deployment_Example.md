@@ -1,10 +1,12 @@
-# gateway-admin systemd 生产部署示例
+# Gateway Admin Systemd Deployment Example
 
-本文给出 `gateway-admin` 在 Linux 主机上的标准化 `systemd` 启动方式。目标是把生产链路固定成：
+本文给出 `gateway-admin` 在 Linux 主机上的标准化 `systemd` 启动方式。
 
-- 生产私有 env 文件
-- `start-prod.sh` 统一启动入口
-- `systemd` 管理自启动、重启、日志与进程存活
+目标：
+
+1. 生产私有 env 文件。
+2. `start-prod.sh` 统一启动入口。
+3. `systemd` 管理自启动、重启、日志与进程存活。
 
 ## 1. 推荐目录约定
 
@@ -14,15 +16,7 @@
 /var/log/synapse/
 ```
 
-说明：
-
-- 代码目录放在 `/opt/synapse/...`
-- 生产环境变量单独放在 `/etc/synapse/gateway-admin.env`
-- 服务日志仍由项目内 `logs/gateway-admin.log` 记录，systemd 自身也会记录 journal
-
 ## 2. 生产环境变量文件
-
-创建：
 
 ```bash
 sudo mkdir -p /etc/synapse
@@ -30,24 +24,24 @@ sudo cp /opt/synapse/Synapse-Network/admin/gateway-admin/.env.example /etc/synap
 sudo chmod 600 /etc/synapse/gateway-admin.env
 ```
 
-然后编辑 `/etc/synapse/gateway-admin.env`，至少替换：
+至少替换：
 
-- `ADMIN_DATABASE_DSN`
-- `GATEWAY_READONLY_DSN`
-- `GATEWAY_INTERNAL_BASE_URL`
-- `GATEWAY_INTERNAL_ADMIN_WALLET`
-- `GATEWAY_INTERNAL_JWT_SECRET`
-- `ADMIN_GATEWAY_ALLOWED_ORIGINS`
+1. `ADMIN_DATABASE_DSN`
+2. `GATEWAY_READONLY_DSN`
+3. `GATEWAY_INTERNAL_BASE_URL`
+4. `GATEWAY_INTERNAL_ADMIN_WALLET`
+5. `GATEWAY_INTERNAL_JWT_SECRET`
+6. `ADMIN_GATEWAY_ALLOWED_ORIGINS`
 
-要求：
+同时保证：
 
-- `environment=production`
-- `ADMIN_GATEWAY_DEBUG=false`
-- `ADMIN_GATEWAY_USE_INMEMORY_STORE=false`
+1. `environment=production`
+2. `ADMIN_GATEWAY_DEBUG=false`
+3. `ADMIN_GATEWAY_USE_INMEMORY_STORE=false`
 
 ## 3. systemd unit 示例
 
-创建文件：`/etc/systemd/system/synapse-gateway-admin.service`
+创建 `/etc/systemd/system/synapse-gateway-admin.service`：
 
 ```ini
 [Unit]
@@ -73,13 +67,6 @@ TimeoutStopSec=15
 [Install]
 WantedBy=multi-user.target
 ```
-
-说明：
-
-- `Type=forking`：因为当前 `start-prod.sh` 使用 `nohup` 后台化并写 PID 文件
-- `Environment=ADMIN_GATEWAY_ENV_FILE=...`：显式绑定生产 env
-- `PIDFile=.../run/gateway-admin.pid`：交给 systemd 跟踪实际进程
-- `Restart=always`：进程异常退出时自动拉起
 
 ## 4. 启用命令
 
@@ -108,8 +95,6 @@ sudo systemctl stop synapse-gateway-admin
 ```
 
 ## 5. 发布更新流程
-
-推荐标准流程：
 
 ```bash
 cd /opt/synapse/Synapse-Network
@@ -143,16 +128,14 @@ tail -n 100 /opt/synapse/Synapse-Network/admin/gateway-admin/logs/gateway-admin.
 
 如果启动失败，优先检查：
 
-1. `/etc/synapse/gateway-admin.env` 是否存在且权限正确
-2. `ADMIN_DATABASE_DSN` 和 `GATEWAY_READONLY_DSN` 是否能连通
-3. `GATEWAY_INTERNAL_JWT_SECRET` 是否已替换为真实值
-4. `.venv` 是否存在且依赖安装完整
+1. `/etc/synapse/gateway-admin.env` 是否存在且权限正确。
+2. `ADMIN_DATABASE_DSN` 和 `GATEWAY_READONLY_DSN` 是否能连通。
+3. `GATEWAY_INTERNAL_JWT_SECRET` 是否已替换为真实值。
+4. `.venv` 是否存在且依赖安装完整。
 
-## 7. 为什么选择这套链路
+## 7. 选择这套链路的原因
 
-这套链路的价值在于：
-
-- 本地与生产入口完全分离，不再混用一个 `start.sh`
-- 生产 env 从项目目录剥离，降低误提交和误覆盖风险
-- systemd 接管自启动、重启和进程守护，避免手工 nohup 漂移
-- 生产启动动作仍然统一收口在 `start-prod.sh`，不会让部署方式和项目脚本脱节
+1. 本地与生产入口完全分离，不再混用一个 `start.sh`。
+2. 生产 env 从项目目录剥离，降低误提交和误覆盖风险。
+3. systemd 接管自启动、重启和进程守护，避免手工 nohup 漂移。
+4. 生产启动动作仍统一收口在 `start-prod.sh`。

@@ -15,6 +15,7 @@
 - [管理后台审批流设计](./Admin_Approval_Workflow.md)
 - [管理后台审计与合规设计](./Admin_Audit_and_Compliance.md)
 - [管理后台财务操作手册](./Admin_Finance_Operations_Runbook.md)
+- [管理后台 MFA 首绑与补绑流程设计](./Admin_MFA_Enrollment_and_Binding_Flow.md)
 
 当前实现约束补充：
 

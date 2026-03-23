@@ -614,7 +614,7 @@
 
 并且同时补了一个增量 migration 文件：
 
-- `docker-compose/postgres/init/004_admin_funds_observability_projection_upgrade.sql`
+- `docker-compose/postgres/init/gateway-admin/004_admin_funds_observability_projection_upgrade.sql`
 
 这样新库 bootstrap 和已有库增量升级，都有明确 SQL 入口。
 

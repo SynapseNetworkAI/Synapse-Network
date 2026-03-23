@@ -13,7 +13,7 @@
 
 本目录的最高优先级来源只有两个：
 
-1. `docker-compose/postgres/init/001_synapse_schema.sql`
+1. `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 2. `docs/agent/06_Build_For_Agent_Database_Rebuild.md`
 
 如果本目录和 SQL 不一致，以 SQL 为准；如果本目录和 `docs/agent/` 的对象模型冲突，以 `docs/agent/` 为准。

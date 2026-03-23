@@ -1,6 +1,6 @@
 # Gateway Admin Projection Views SQL 设计文档
 
-本文对应文件：`docker-compose/postgres/init/003_gateway_admin_projection_views.sql`
+本文对应文件：`docker-compose/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql`
 
 目标：
 
@@ -43,7 +43,7 @@ target-state 表结构已经从旧的 owner/refund/withdrawal 语义，升级到
 
 ## 2. 视图总览
 
-`003_gateway_admin_projection_views.sql` 在 `synapse_gateway_db` 条件下创建 4 个只读对象：
+`gateway-admin/003_gateway_admin_projection_views.sql` 在 `synapse_gateway_db` 条件下创建 4 个只读对象：
 
 1. `synapse_admin_dashboard_finance_projection`
 2. `synapse_admin_dashboard_activity_trend_projection`

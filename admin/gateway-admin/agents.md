@@ -1,5 +1,9 @@
 # gateway-admin Hard Rules
 
+Canonical rules doc: `docs/03_Projects/gateway-admin/Gateway_Admin_Agent_Rules.md`
+
+This file stays as the local execution mirror for agent discovery inside `admin/gateway-admin/`.
+
 ## Role
 
 - `gateway-admin` is the admin control-plane backend.
