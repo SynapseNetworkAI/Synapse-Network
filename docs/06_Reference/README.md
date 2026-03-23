@@ -31,6 +31,8 @@
 2. `02_Error_Code_and_Runtime_Response_Contract.md`
 3. `03_Service_Manifest_and_Runtime_Object_Reference.md`
 4. `04_Development_Testing_and_Integration_Reference.md`
+5. `AI_Quick_Reference.md`
+6. `Validation_Entry_Points.md`
 
 ## 模块边界
 
@@ -44,3 +46,8 @@
 ## 核心结论
 
 Reference 模块的职责，是把 Synapse 的关键外部契约压缩成可实现、可测试、可集成的稳定事实，而不是继续让信息散落在历史指南里。
+
+新增的 AI 参考入口承担两项补充职责：
+
+1. `AI_Quick_Reference.md` 用最小上下文压缩仓库核心事实、项目边界与优先阅读路径。
+2. `Validation_Entry_Points.md` 明确当前项目级与仓库级验证入口，降低 AI 和人类重复搜索命令的成本。

@@ -28,6 +28,12 @@ This file is the canonical workspace-level rule source for Synapse Network.
 
 The workspace should now be split into three layers instead of putting every rule into one AGENTS file.
 
+AI-readable repository entrypoints now also include:
+
+- root `llms.txt` for the shortest machine-readable repo map
+- `docs/ARCHITECTURE.md` for the top-level system model
+- `docs/exec-plans/` for persistent multi-step execution plans
+
 ### 4.1 Canonical Workspace Layer
 
 - `docs/AGENTS.md`
@@ -89,10 +95,11 @@ Recommended split:
 Before implementation:
 
 1. Read `docs/AGENTS.md`.
-2. If the task touches visual or UX work, read `docs/Design.md`.
-3. Rely on `.github/instructions/*.instructions.md` for language-specific coding rules.
-4. Read the target subproject `AGENTS.md` for local commands, runtime boundaries, and validation flow.
-5. If the task is finance-sensitive, admin-console-heavy, or behavior-changing across docs/tests/contracts, expect the finer-grained instructions to apply too.
+2. For cross-project or repo-structure tasks, read `docs/ARCHITECTURE.md` and root `llms.txt`.
+3. If the task touches visual or UX work, read `docs/Design.md`.
+4. Rely on `.github/instructions/*.instructions.md` for language-specific coding rules.
+5. Read the target subproject `AGENTS.md` for local commands, runtime boundaries, and validation flow.
+6. If the task is finance-sensitive, admin-console-heavy, or behavior-changing across docs/tests/contracts, expect the finer-grained instructions to apply too.
 
 ## 7. Docs-Code-Test Sync
 
