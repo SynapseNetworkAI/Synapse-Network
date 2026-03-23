@@ -229,7 +229,7 @@ docs/
 5. [exec-plans/completed/2026-03-23_Project_Docs_Centralization_Migration_Plan.md](./exec-plans/completed/2026-03-23_Project_Docs_Centralization_Migration_Plan.md)
    项目目录文档统一迁入根 `docs/` 的专项迁移与合并方案。
 6. [plan/README.md](./plan/README.md)
-   旧 `docs/plan/` 目录的 legacy archive 入口，仅保留未标准化的历史计划材料。
+   旧 `docs/plan/` 目录的 legacy archive 入口，仅保留未标准化的历史计划材料与增长/路演草稿，不再承担执行计划职责。
 7. [竞品调研/](./竞品调研/)
    市场和竞品研究材料。
 8. [sdk/README.md](./sdk/README.md)

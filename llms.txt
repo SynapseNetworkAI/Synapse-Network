@@ -60,3 +60,5 @@ For any money movement, settlement, approval, withdrawal review, refund, or reco
 - use docs/exec-plans/templates/Exec_Plan_Template.md for new multi-step work
 - store in-progress work under docs/exec-plans/active/
 - move finished plans to docs/exec-plans/completed/
+- docs/plan/README.md is a legacy archive entrypoint, not the canonical planning workspace
+- docs/plan/项目计划.md is a historical product-growth memo, not a standardized execution plan
