@@ -1,12 +1,12 @@
 "use client";
 
-import { Box, Button, Grid, Heading, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
-import { DataTable, EmptyBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
+import { DataTable, EmptyBlock, ListFilterFields, ListFilterForm, ListPaginationBar, ListTableSurface, MessageBanner, MetricCard, OverlayPanel, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import { listProviderWithdrawReviewHistory, type ProviderWithdrawReviewHistoryItem } from "@/services/admin-api";
@@ -58,6 +58,8 @@ export default function ReviewHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -70,6 +72,58 @@ export default function ReviewHistoryPage() {
   );
   const activeFlow = useMemo(() => (activeItem ? buildReviewHistoryFlow(activeItem) : []), [activeItem]);
   const pageNumber = cursorHistory.length + 1;
+  const pageSizeOptions = [10, 20, 50];
+  const filterFields = useMemo(() => ([
+    {
+      key: "query",
+      kind: "search" as const,
+      value: draftFilters.query,
+      onChange: (value: string) => updateDraftFilter("query", value),
+      placeholder: "搜索提现单 / 用户地址 / requestId / reviewer",
+    },
+    {
+      key: "reviewer",
+      kind: "text" as const,
+      value: draftFilters.reviewer,
+      onChange: (value: string) => updateDraftFilter("reviewer", value),
+      placeholder: "reviewer 邮箱或角色",
+      listId: "review-history-reviewers",
+      listOptions: reviewers,
+    },
+    {
+      key: "currentStatus",
+      kind: "select" as const,
+      value: draftFilters.currentStatus,
+      onChange: (value: string) => updateDraftFilter("currentStatus", value),
+      options: [
+        { value: "all", label: "全部当前状态" },
+        ...statuses.map((status) => ({ value: status, label: getReviewHistoryStatusLabel(status) })),
+      ],
+    },
+    {
+      key: "reviewDecision",
+      kind: "select" as const,
+      value: draftFilters.reviewDecision,
+      onChange: (value: string) => updateDraftFilter("reviewDecision", value),
+      options: [
+        { value: "all", label: "全部处理结论" },
+        { value: "APPROVE", label: "放行" },
+        { value: "REJECT", label: "驳回" },
+      ],
+    },
+    {
+      key: "reviewedFrom",
+      kind: "date" as const,
+      value: draftFilters.reviewedFrom,
+      onChange: (value: string) => updateDraftFilter("reviewedFrom", value),
+    },
+    {
+      key: "reviewedTo",
+      kind: "date" as const,
+      value: draftFilters.reviewedTo,
+      onChange: (value: string) => updateDraftFilter("reviewedTo", value),
+    },
+  ]), [draftFilters, reviewers, statuses]);
 
   useEffect(() => {
     if (!token) {
@@ -94,6 +148,8 @@ export default function ReviewHistoryPage() {
         if (!cancelled) {
           setItems(response.items);
           setNextCursor(response.nextCursor);
+          setTotalCount(response.totalCount);
+          setTotalPages(response.totalPages);
           setError(null);
         }
       } catch (loadError) {
@@ -128,6 +184,13 @@ export default function ReviewHistoryPage() {
     setCursor(null);
     setCursorHistory([]);
     setAppliedFilters(draftFilters);
+  }
+
+  function resetFilters() {
+    setCursor(null);
+    setCursorHistory([]);
+    setDraftFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
   }
 
   function goToNextPage() {
@@ -169,51 +232,25 @@ export default function ReviewHistoryPage() {
         <MetricCard label="已释放" value={metrics.cancelled} meta="已从锁定态释放回可用余额" />
       </Grid>
 
-      <SurfaceCard eyebrow="Review Ledger" title="审核结果台账" description="给业务同学一个直接可读的审核历史面板，不必切到审计页再手动拼状态。" stamp={`第 ${pageNumber} 页`}>
-        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "minmax(0, 1.8fr) minmax(0, 1.2fr) repeat(4, minmax(0, 0.9fr))" }} gap="12px" mb="12px">
-          <SearchInput value={draftFilters.query} onChange={(value) => updateDraftFilter("query", value)} placeholder="搜索提现单 / 用户地址 / requestId / reviewer" />
-          <Input value={draftFilters.reviewer} onChange={(event) => updateDraftFilter("reviewer", event.target.value)} placeholder="reviewer 邮箱或角色" bg="rgba(255,255,255,0.85)" borderRadius="16px" borderColor="rgba(99,92,82,0.16)" _focusVisible={{ borderColor: "brand.400", boxShadow: "0 0 0 3px rgba(243,106,29,0.16)" }} list="review-history-reviewers" />
-          <datalist id="review-history-reviewers">
-            {reviewers.map((reviewer) => <option key={reviewer} value={reviewer} />)}
-          </datalist>
-          <select value={draftFilters.currentStatus} onChange={(event) => updateDraftFilter("currentStatus", event.target.value)} style={nativeFieldStyle}>
-            <option value="all">全部当前状态</option>
-            {statuses.map((status) => <option key={status} value={status}>{getReviewHistoryStatusLabel(status)}</option>)}
-          </select>
-          <select value={draftFilters.reviewDecision} onChange={(event) => updateDraftFilter("reviewDecision", event.target.value)} style={nativeFieldStyle}>
-            <option value="all">全部处理结论</option>
-            <option value="APPROVE">放行</option>
-            <option value="REJECT">驳回</option>
-          </select>
-          <input type="date" value={draftFilters.reviewedFrom} onChange={(event) => updateDraftFilter("reviewedFrom", event.target.value)} style={nativeFieldStyle} />
-          <input type="date" value={draftFilters.reviewedTo} onChange={(event) => updateDraftFilter("reviewedTo", event.target.value)} style={nativeFieldStyle} />
-        </Grid>
-
-        <Grid templateColumns={{ base: "1fr", md: "180px 180px auto" }} gap="12px" mb="16px">
-          <select value={String(pageSize)} onChange={(event) => {
-            const nextPageSize = Number(event.target.value);
-            setPageSize(nextPageSize);
-            setCursor(null);
-            setCursorHistory([]);
-          }} style={nativeFieldStyle}>
-            <option value="10">每页 10 条</option>
-            <option value="20">每页 20 条</option>
-            <option value="50">每页 50 条</option>
-          </select>
-          <Button size="md" borderRadius="16px" onClick={applySearch} loading={isFetching} alignSelf="stretch">
-            搜索
-          </Button>
-          <Stack direction="row" justify={{ base: "flex-start", md: "flex-end" }} gap="10px">
-            <Button variant="ghost" borderRadius="16px" onClick={goToPreviousPage} disabled={cursorHistory.length === 0 || isFetching}>
-              上一页
-            </Button>
-            <Button variant="ghost" borderRadius="16px" onClick={goToNextPage} disabled={!nextCursor || isFetching}>
-              下一页
-            </Button>
-          </Stack>
-        </Grid>
-
-        {items.length === 0 ? (
+      <ListTableSurface
+        eyebrow="Review Ledger"
+        title="审核结果台账"
+        description="给业务同学一个直接可读的审核历史面板，不必切到审计页再手动拼状态。"
+        stamp={`共 ${totalCount} 条`}
+        filter={(
+          <ListFilterForm
+            onSubmit={applySearch}
+            onReset={resetFilters}
+            loading={isFetching}
+            helperText="支持回车直接搜索；重置筛选会恢复默认条件并回到第一页。"
+          >
+            <ListFilterFields
+              templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "minmax(0, 1.8fr) minmax(0, 1.2fr) repeat(4, minmax(0, 0.9fr))" }}
+              fields={filterFields}
+            />
+          </ListFilterForm>
+        )}
+        table={items.length === 0 ? (
           <EmptyBlock title="当前没有匹配的审核历史" description="调整筛选条件后，这里会展示已处理提现的状态回放。" />
         ) : (
           <DataTable>
@@ -271,7 +308,26 @@ export default function ReviewHistoryPage() {
             </TableBody>
           </DataTable>
         )}
-      </SurfaceCard>
+        pagination={(
+          <ListPaginationBar
+            pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            currentPage={pageNumber}
+            loading={isFetching}
+            canPrevious={cursorHistory.length > 0}
+            canNext={Boolean(nextCursor)}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
+              setCursor(null);
+              setCursorHistory([]);
+            }}
+            onPrevious={goToPreviousPage}
+            onNext={goToNextPage}
+          />
+        )}
+      />
 
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
         <SurfaceCard eyebrow="How To Use" title="什么时候看这里" description="审核台处理当下，历史页负责回放结果，不把两种任务混在一个工作台里。">

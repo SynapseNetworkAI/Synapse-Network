@@ -351,6 +351,8 @@ export type ProviderWithdrawReviewHistoryItem = {
 export type ProviderWithdrawReviewHistoryListResponse = {
   items: ProviderWithdrawReviewHistoryItem[];
   nextCursor: string | null;
+  totalCount: number;
+  totalPages: number;
 };
 
 export type AuditActionItem = {

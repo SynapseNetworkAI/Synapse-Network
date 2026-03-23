@@ -55,6 +55,16 @@
 - New control-plane semantics must come from backend-owned fields or endpoints.
 - Never make frontend invent dashboard or system status semantics from unrelated endpoints.
 
+## Pagination Semantics
+
+- Backend owns pagination truth. Frontend must not infer total pages or total records from the current slice.
+- Paginated read APIs should expose explicit filter params instead of relying on frontend-only filtering for canonical list views.
+- When a list page needs visible pagination metadata, the API should return stable fields such as `totalCount`, `totalPages`, and the next-page primitive such as `nextCursor` or an equivalent page token.
+- Filter changes must reset pagination from the first page on the backend contract path as well as in frontend state.
+- Default filter semantics should be explicit: omitted or empty filter values mean the default unfiltered view.
+- Search submission semantics should be deterministic. The backend should treat search requests triggered by button click and Enter submit identically because both resolve to the same API params.
+- Reset-filter behavior should map cleanly to backend defaults. Do not require the frontend to invent special reset-only endpoints unless there is a documented business need.
+
 ## Coding Rules
 
 - Prefer small service methods over large orchestration blocks.
