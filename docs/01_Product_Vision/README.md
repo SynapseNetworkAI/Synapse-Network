@@ -28,6 +28,8 @@
    对外路演素材。
 8. [slogan.md](./slogan.md)
    品牌语言与传播文案。
+9. [../plan/项目计划.md](../plan/%E9%A1%B9%E7%9B%AE%E8%AE%A1%E5%88%92.md)
+   legacy product-growth memo，保留历史增长战役与路演叙事草稿，不作为标准执行计划使用。
 
 ## 与其他目录的边界
 
@@ -36,6 +38,7 @@
 3. 前端体验与页面 IA：`docs/01_Product_Frontend/` 与 `docs/feature_designs/frontend_product/`。
 4. 充值、扣费、提现、结算：`docs/03_Core_Workflows/` 与 `docs/04_Database_Design/`。
 5. Gateway 架构与生产安全：`docs/02_System_Architecture/` 与 `docs/05_DevOps_Deployment/`。
+6. 多步骤执行计划：`docs/exec-plans/`；`docs/plan/项目计划.md` 仅保留为 legacy 产品策略记录。
 
 ## 维护规则
 
