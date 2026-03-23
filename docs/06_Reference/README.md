@@ -9,7 +9,6 @@
 3. Service Manifest 与 Runtime 对象如何建模
 4. 开发、测试、集成时的最低共识是什么
 
-8. `docs/sdk/README.md`
 ## 真理源
 
 本目录以以下来源为准：
