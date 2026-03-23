@@ -306,6 +306,79 @@ export type ListFilterFieldConfig =
   | ListFilterDateField
   | ListFilterCustomField;
 
+export const ListFilterFieldPresets = {
+  keyword({
+    key = "query",
+    value,
+    onChange,
+    placeholder,
+  }: Readonly<{
+    key?: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+  }>): ListFilterFieldConfig {
+    return {
+      key,
+      kind: "search",
+      value,
+      onChange,
+      placeholder,
+    };
+  },
+  status({
+    key,
+    value,
+    onChange,
+    allLabel,
+    options,
+  }: Readonly<{
+    key: string;
+    value: string;
+    onChange: (value: string) => void;
+    allLabel: string;
+    options: ListFilterFieldOption[];
+  }>): ListFilterFieldConfig {
+    return {
+      key,
+      kind: "select",
+      value,
+      onChange,
+      options: [{ value: "all", label: allLabel }, ...options],
+    };
+  },
+  dateRange({
+    startKey,
+    startValue,
+    onStartChange,
+    endKey,
+    endValue,
+    onEndChange,
+  }: Readonly<{
+    startKey: string;
+    startValue: string;
+    onStartChange: (value: string) => void;
+    endKey: string;
+    endValue: string;
+    onEndChange: (value: string) => void;
+  }>): ListFilterFieldConfig[] {
+    return [
+      {
+        key: startKey,
+        kind: "date",
+        value: startValue,
+        onChange: onStartChange,
+      },
+      {
+        key: endKey,
+        kind: "date",
+        value: endValue,
+        onChange: onEndChange,
+      },
+    ];
+  },
+};
+
 export function ListFilterFields({
   fields,
   templateColumns,

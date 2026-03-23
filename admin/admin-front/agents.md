@@ -166,10 +166,12 @@ To keep all future list pages consistent, list-page structure must be built from
 
 - Use `ListFilterForm` for the search and action area.
 - Use `ListFilterFields` for config-driven filter field rendering instead of repeating page-local `Grid + input/select` markup.
+- Use shared field presets for recurring combinations such as `keyword`, `status`, and `date-range` before defining page-local field configs.
 - Use `ListPaginationBar` for the bottom pagination area.
 - Use `ListTableSurface` as the default page-level list scaffold that composes `筛选区 + 表格区 + 分页区` into one shared surface.
 - Do not hand-assemble `SurfaceCard + custom filter wrapper + custom pagination wrapper` in each list page unless the page has a documented exception.
 - Prefer a field config array when the page only differs by placeholders, options, and bound values.
+- When a page uses common query patterns, compose the field array from shared presets first and add custom fields only for business-specific gaps.
 - If a page needs extra summary text, stamps, or actions, pass them through the shared list surface instead of creating a parallel layout.
 - Empty state content should also stay inside `ListTableSurface`, so users always read filters, results, and pagination as one operational unit.
 
