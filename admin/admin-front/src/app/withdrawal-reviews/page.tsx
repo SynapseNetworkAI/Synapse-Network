@@ -2,11 +2,11 @@
 
 import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 import Link from "next/link";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
-import { DataTable, EmptyBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle, nativeTextAreaStyle } from "@/components/console-ui";
+import { DataTable, EmptyBlock, ListFilterFieldPresets, ListFilterFields, ListFilterForm, ListPaginationBar, ListTableSurface, MessageBanner, MetricCard, OverlayPanel, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeTextAreaStyle } from "@/components/console-ui";
 import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
 import { formatDateTime, formatUsdc, inputText, toneFromStatus } from "@/lib/admin-console";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
@@ -15,6 +15,18 @@ import { useAdminSession } from "@/lib/use-admin-session";
 import { getWithdrawReviewActionButtonLabel, getWithdrawReviewActionNotice } from "@/features/withdrawal-reviews/review-action-feedback";
 
 const PAGE_SIZE = 6;
+
+type WithdrawalReviewFilters = {
+  query: string;
+  riskLevel: string;
+};
+
+const DEFAULT_FILTERS: WithdrawalReviewFilters = {
+  query: "",
+  riskLevel: "all",
+};
+
+const PAGE_SIZE_OPTIONS = [6, 10, 20];
 
 export default function WithdrawalReviewsPage() {
   const { admin, security, token, loading } = useAdminSession();
@@ -37,24 +49,38 @@ export default function WithdrawalReviewsPage() {
     handleDecision,
   } = useProviderWithdrawReviews(token, requestStepUpCode);
   const canDecide = admin?.permissions.includes("approval:decide") ?? false;
-  const [search, setSearch] = useState("");
-  const [riskFilter, setRiskFilter] = useState("all");
+  const [draftFilters, setDraftFilters] = useState<WithdrawalReviewFilters>(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<WithdrawalReviewFilters>(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const deferredSearch = useDeferredValue(search);
 
   const metrics = useMemo(() => buildWithdrawReviewMetrics(items), [items]);
   const riskLevels = useMemo(() => listWithdrawRiskLevels(items), [items]);
   const reasonClusters = useMemo(() => buildWithdrawReasonClusters(items).slice(0, 4), [items]);
   const filteredItems = useMemo(
-    () => sortWithdrawReviewsByPriority(filterWithdrawReviews(items, deferredSearch, riskFilter)),
-    [deferredSearch, items, riskFilter],
+    () => sortWithdrawReviewsByPriority(filterWithdrawReviews(items, appliedFilters.query, appliedFilters.riskLevel)),
+    [appliedFilters, items],
   );
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
   const visibleItems = useMemo(
-    () => paginateWithdrawReviews(filteredItems, currentPage, PAGE_SIZE),
-    [currentPage, filteredItems],
+    () => paginateWithdrawReviews(filteredItems, currentPage, pageSize),
+    [currentPage, filteredItems, pageSize],
   );
+  const filterFields = useMemo(() => ([
+    ListFilterFieldPresets.keyword({
+      value: draftFilters.query,
+      onChange: (value: string) => setDraftFilters((current) => ({ ...current, query: value })),
+      placeholder: "搜索申请编号、用户地址或原因标签",
+    }),
+    ListFilterFieldPresets.status({
+      key: "riskLevel",
+      value: draftFilters.riskLevel,
+      onChange: (value: string) => setDraftFilters((current) => ({ ...current, riskLevel: value })),
+      allLabel: "全部风险等级",
+      options: riskLevels.map((level) => ({ value: level, label: level.toUpperCase() })),
+    }),
+  ]), [draftFilters, riskLevels]);
 
   useEffect(() => {
     if (globalThis.window === undefined) {
@@ -62,8 +88,12 @@ export default function WithdrawalReviewsPage() {
     }
 
     const params = new URLSearchParams(globalThis.window.location.search);
-    setSearch(params.get("q") ?? "");
-    setRiskFilter(params.get("risk") ?? "all");
+    const nextFilters = {
+      query: params.get("q") ?? "",
+      riskLevel: params.get("risk") ?? "all",
+    };
+    setDraftFilters(nextFilters);
+    setAppliedFilters(nextFilters);
   }, []);
 
   useEffect(() => {
@@ -78,7 +108,7 @@ export default function WithdrawalReviewsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [deferredSearch, riskFilter]);
+  }, [appliedFilters, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -99,6 +129,17 @@ export default function WithdrawalReviewsPage() {
     setActiveReviewId(withdrawalId);
     setMessage(null);
     setIsDetailOpen(true);
+  }
+
+  function applySearch() {
+    setAppliedFilters(draftFilters);
+    setCurrentPage(1);
+  }
+
+  function resetFilters() {
+    setDraftFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
+    setCurrentPage(1);
   }
 
   if (loading || !admin) {
@@ -128,58 +169,72 @@ export default function WithdrawalReviewsPage() {
         <MetricCard label="已关联流水" value={metrics.linkedCount} meta={`另有 ${metrics.yellowCount} 笔需要持续关注`} />
       </Grid>
 
-      <SurfaceCard eyebrow="待处理列表" title="提现审核队列" description="这里汇总所有需要人工确认的提现申请，按页查看，避免长列表平铺影响判断效率。" stamp={canDecide ? "可查看并处理" : "仅可查看"}>
-          <Grid templateColumns={{ base: "1fr", xl: "minmax(0, 320px) 180px" }} gap="12px" mb="16px">
-            <SearchInput value={search} onChange={setSearch} placeholder="搜索申请编号、用户地址或原因标签" />
-            <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} style={nativeFieldStyle}>
-              <option value="all">全部风险等级</option>
-              {riskLevels.map((level) => <option key={level} value={level}>{level.toUpperCase()}</option>)}
-            </select>
-          </Grid>
-          {visibleItems.length ? (
-            <DataTable>
-              <TableHeaderRow>
-                <Th>Withdrawal</Th>
-                <Th>Owner</Th>
-                <Th>Amount</Th>
-                <Th>Risk</Th>
-                <Th>Status</Th>
-                <Th>详情</Th>
-              </TableHeaderRow>
-              <TableBody>
-                {visibleItems.map((item) => (
-                  <Box as="tr" key={item.withdrawalId}>
-                    <Td>
-                      <Text fontWeight="700">{item.withdrawalId}</Text>
-                      <Text color="ink.500">{formatDateTime(item.createdAt)}</Text>
-                    </Td>
-                    <Td>
-                      <Text>{item.ownerAddress}</Text>
-                      <Text color="ink.500">{inputText(item.requestId)}</Text>
-                    </Td>
-                    <Td>{formatUsdc(item.amountUsdc)}</Td>
-                    <Td><SentinelStatusChip label={(item.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(item.riskLevel)} /></Td>
-                    <Td><SentinelStatusChip label={item.status} tone={toneFromStatus(item.status)} /></Td>
-                    <Td>
-                      <Button size="sm" borderRadius="full" variant="ghost" onClick={() => openReviewDetail(item.withdrawalId)}>详情</Button>
-                    </Td>
-                  </Box>
-                ))}
-              </TableBody>
-            </DataTable>
-          ) : (
-            <EmptyBlock title="当前筛选条件下没有待处理申请" description="可以调整风险等级或搜索条件，查看其他需要人工确认的提现。" />
-          )}
-          {filteredItems.length ? (
-            <Stack direction={{ base: "column", md: "row" }} justify="space-between" align={{ base: "flex-start", md: "center" }} mt="14px" gap="12px">
-              <Text color="ink.500">第 {currentPage} / {totalPages} 页，当前展示 {visibleItems.length} 笔，本次筛选共 {filteredItems.length} 笔。</Text>
-              <Stack direction="row" gap="10px">
-                <Button variant="ghost" borderRadius="full" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>上一页</Button>
-                <Button bg="#0f1115" color="#f4f7fb" borderRadius="full" _hover={{ bg: "#1b1f26" }} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage >= totalPages}>下一页</Button>
-              </Stack>
-            </Stack>
-          ) : null}
-      </SurfaceCard>
+      <ListTableSurface
+        eyebrow="待处理列表"
+        title="提现审核队列"
+        description="这里汇总所有需要人工确认的提现申请，按页查看，避免长列表平铺影响判断效率。"
+        stamp={canDecide ? "可查看并处理" : "仅可查看"}
+        filter={(
+          <ListFilterForm
+            onSubmit={applySearch}
+            onReset={resetFilters}
+            helperText="支持回车直接搜索；重置筛选会恢复默认条件并回到第一页。"
+          >
+            <ListFilterFields
+              templateColumns={{ base: "1fr", xl: "minmax(0, 320px) 180px" }}
+              fields={filterFields}
+            />
+          </ListFilterForm>
+        )}
+        table={visibleItems.length ? (
+          <DataTable>
+            <TableHeaderRow>
+              <Th>Withdrawal</Th>
+              <Th>Owner</Th>
+              <Th>Amount</Th>
+              <Th>Risk</Th>
+              <Th>Status</Th>
+              <Th>详情</Th>
+            </TableHeaderRow>
+            <TableBody>
+              {visibleItems.map((item) => (
+                <Box as="tr" key={item.withdrawalId}>
+                  <Td>
+                    <Text fontWeight="700">{item.withdrawalId}</Text>
+                    <Text color="ink.500">{formatDateTime(item.createdAt)}</Text>
+                  </Td>
+                  <Td>
+                    <Text>{item.ownerAddress}</Text>
+                    <Text color="ink.500">{inputText(item.requestId)}</Text>
+                  </Td>
+                  <Td>{formatUsdc(item.amountUsdc)}</Td>
+                  <Td><SentinelStatusChip label={(item.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(item.riskLevel)} /></Td>
+                  <Td><SentinelStatusChip label={item.status} tone={toneFromStatus(item.status)} /></Td>
+                  <Td>
+                    <Button size="sm" borderRadius="full" variant="ghost" onClick={() => openReviewDetail(item.withdrawalId)}>详情</Button>
+                  </Td>
+                </Box>
+              ))}
+            </TableBody>
+          </DataTable>
+        ) : (
+          <EmptyBlock title="当前筛选条件下没有待处理申请" description="可以调整风险等级或搜索条件，查看其他需要人工确认的提现。" />
+        )}
+        pagination={filteredItems.length ? (
+          <ListPaginationBar
+            pageSize={pageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            totalPages={totalPages}
+            totalCount={filteredItems.length}
+            currentPage={currentPage}
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPageSizeChange={setPageSize}
+            onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+          />
+        ) : null}
+      />
 
       <Grid templateColumns={{ base: "1fr", xl: "0.92fr 1.08fr" }} gap="16px">
         <SurfaceCard eyebrow="原因分布" title="常见触发原因" description="先看哪些原因最集中，再决定是逐笔处理，还是统一排查某一类问题。">

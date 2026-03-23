@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
-import { DataTable, EmptyBlock, ListFilterFields, ListFilterForm, ListPaginationBar, ListTableSurface, MessageBanner, MetricCard, OverlayPanel, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
+import { DataTable, EmptyBlock, ListFilterFieldPresets, ListFilterFields, ListFilterForm, ListPaginationBar, ListTableSurface, MessageBanner, MetricCard, OverlayPanel, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
 import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import { listProviderWithdrawReviewHistory, type ProviderWithdrawReviewHistoryItem } from "@/services/admin-api";
@@ -74,13 +74,11 @@ export default function ReviewHistoryPage() {
   const pageNumber = cursorHistory.length + 1;
   const pageSizeOptions = [10, 20, 50];
   const filterFields = useMemo(() => ([
-    {
-      key: "query",
-      kind: "search" as const,
+    ListFilterFieldPresets.keyword({
       value: draftFilters.query,
       onChange: (value: string) => updateDraftFilter("query", value),
       placeholder: "搜索提现单 / 用户地址 / requestId / reviewer",
-    },
+    }),
     {
       key: "reviewer",
       kind: "text" as const,
@@ -90,39 +88,31 @@ export default function ReviewHistoryPage() {
       listId: "review-history-reviewers",
       listOptions: reviewers,
     },
-    {
+    ListFilterFieldPresets.status({
       key: "currentStatus",
-      kind: "select" as const,
       value: draftFilters.currentStatus,
       onChange: (value: string) => updateDraftFilter("currentStatus", value),
-      options: [
-        { value: "all", label: "全部当前状态" },
-        ...statuses.map((status) => ({ value: status, label: getReviewHistoryStatusLabel(status) })),
-      ],
-    },
-    {
+      allLabel: "全部当前状态",
+      options: statuses.map((status) => ({ value: status, label: getReviewHistoryStatusLabel(status) })),
+    }),
+    ListFilterFieldPresets.status({
       key: "reviewDecision",
-      kind: "select" as const,
       value: draftFilters.reviewDecision,
       onChange: (value: string) => updateDraftFilter("reviewDecision", value),
+      allLabel: "全部处理结论",
       options: [
-        { value: "all", label: "全部处理结论" },
         { value: "APPROVE", label: "放行" },
         { value: "REJECT", label: "驳回" },
       ],
-    },
-    {
-      key: "reviewedFrom",
-      kind: "date" as const,
-      value: draftFilters.reviewedFrom,
-      onChange: (value: string) => updateDraftFilter("reviewedFrom", value),
-    },
-    {
-      key: "reviewedTo",
-      kind: "date" as const,
-      value: draftFilters.reviewedTo,
-      onChange: (value: string) => updateDraftFilter("reviewedTo", value),
-    },
+    }),
+    ...ListFilterFieldPresets.dateRange({
+      startKey: "reviewedFrom",
+      startValue: draftFilters.reviewedFrom,
+      onStartChange: (value: string) => updateDraftFilter("reviewedFrom", value),
+      endKey: "reviewedTo",
+      endValue: draftFilters.reviewedTo,
+      onEndChange: (value: string) => updateDraftFilter("reviewedTo", value),
+    }),
   ]), [draftFilters, reviewers, statuses]);
 
   useEffect(() => {

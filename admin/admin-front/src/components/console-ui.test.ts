@@ -2,7 +2,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { ListFilterFields, ListFilterForm, ListTableSurface } from "./console-ui";
+import { ListFilterFieldPresets, ListFilterFields, ListFilterForm, ListTableSurface } from "./console-ui";
 
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => React.createElement("a", { href }, children),
@@ -56,13 +56,11 @@ describe("ListFilterFields", () => {
       React.createElement(ListFilterFields, {
         templateColumns: "repeat(3, minmax(0, 1fr))",
         fields: [
-          {
-            key: "query",
-            kind: "search",
+          ListFilterFieldPresets.keyword({
             value: "",
             onChange: () => undefined,
             placeholder: "搜索提现单 / 用户地址 / requestId / reviewer",
-          },
+          }),
           {
             key: "reviewer",
             kind: "text",
@@ -72,16 +70,13 @@ describe("ListFilterFields", () => {
             listId: "reviewers",
             listOptions: ["finance-reviewer@example.com"],
           },
-          {
+          ListFilterFieldPresets.status({
             key: "decision",
-            kind: "select",
             value: "all",
             onChange: () => undefined,
-            options: [
-              { value: "all", label: "全部处理结论" },
-              { value: "APPROVE", label: "放行" },
-            ],
-          },
+            allLabel: "全部处理结论",
+            options: [{ value: "APPROVE", label: "放行" }],
+          }),
         ],
       }),
     );
@@ -90,6 +85,25 @@ describe("ListFilterFields", () => {
     expect(html).toContain("reviewer 邮箱或角色");
     expect(html).toContain("全部处理结论");
     expect(html).toContain("finance-reviewer@example.com");
+  });
+
+  it("builds standard date range fields from the shared preset", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ListFilterFields, {
+        templateColumns: "repeat(2, minmax(0, 1fr))",
+        fields: ListFilterFieldPresets.dateRange({
+          startKey: "reviewedFrom",
+          startValue: "2026-03-20",
+          onStartChange: () => undefined,
+          endKey: "reviewedTo",
+          endValue: "2026-03-23",
+          onEndChange: () => undefined,
+        }),
+      }),
+    );
+
+    expect(html).toContain("2026-03-20");
+    expect(html).toContain("2026-03-23");
   });
 });
 
