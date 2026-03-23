@@ -1,6 +1,7 @@
 "use client";
 
 import { Box, Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
@@ -110,6 +111,7 @@ export default function WithdrawalReviewsPage() {
       eyebrow="提现处理"
       title="提现审核工作台"
       description="集中查看需要人工确认的提现申请，帮助业务、财务和风控同学更快判断该放行、驳回，还是继续跟进。"
+      actions={<Link href="/review-history"><Button size="sm" borderRadius="full">审核历史</Button></Link>}
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       {message ? <MessageBanner kind="success" message={message} /> : null}

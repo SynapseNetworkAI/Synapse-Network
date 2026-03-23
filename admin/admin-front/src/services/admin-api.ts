@@ -328,6 +328,31 @@ export type ProviderWithdrawReviewDecisionResult = {
   ticket: Record<string, unknown>;
 };
 
+export type ProviderWithdrawReviewHistoryItem = {
+  withdrawalId: string;
+  ownerAddress: string | null;
+  amountUsdc: string | null;
+  requestId: string | null;
+  txHash: string | null;
+  riskLevel: string | null;
+  riskReasonCode: string | null;
+  evidenceSummary: string | null;
+  reviewDecision: string;
+  currentStatus: string;
+  reviewerEmail: string | null;
+  reviewerRole: string | null;
+  reviewerNote: string | null;
+  message: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  reviewedAt: string | null;
+};
+
+export type ProviderWithdrawReviewHistoryListResponse = {
+  items: ProviderWithdrawReviewHistoryItem[];
+  nextCursor: string | null;
+};
+
 export type AuditActionItem = {
   auditId: number | null;
   actionType: string;
@@ -662,6 +687,13 @@ export async function listProviderWithdrawReviews(
   params?: { limit?: number },
 ): Promise<ProviderWithdrawReviewListResponse> {
   return request<ProviderWithdrawReviewListResponse>(buildPath("/api/admin/v1/withdrawal-reviews", params));
+}
+
+export async function listProviderWithdrawReviewHistory(
+  token: string,
+  params?: { limit?: number; currentStatus?: string },
+): Promise<ProviderWithdrawReviewHistoryListResponse> {
+  return request<ProviderWithdrawReviewHistoryListResponse>(buildPath("/api/admin/v1/withdrawal-reviews/history", params));
 }
 
 export async function decideProviderWithdrawReview(

@@ -46,6 +46,31 @@ class ProviderWithdrawReviewService:
             "nextCursor": None,
         }
 
+    def list_history_items(self, *, limit: int = 50, current_status: str | None = None) -> dict:
+        normalized_status = (current_status or "").strip().upper() or None
+        audit_rows = self._list_history_audits(limit)
+
+        items: list[dict] = []
+        seen_withdrawal_ids: set[str] = set()
+
+        for audit in audit_rows:
+            history_item = self._build_history_item(audit)
+            if history_item is None:
+                continue
+
+            withdrawal_id = str(history_item["withdrawalId"])
+            if withdrawal_id in seen_withdrawal_ids:
+                continue
+            if normalized_status and history_item["currentStatus"] != normalized_status:
+                continue
+
+            seen_withdrawal_ids.add(withdrawal_id)
+            items.append(history_item)
+            if len(items) >= limit:
+                break
+
+        return {"items": items, "nextCursor": None}
+
     def decide_review(
         self,
         withdrawal_id: str,
@@ -142,3 +167,60 @@ class ProviderWithdrawReviewService:
                 created_at=datetime.now(timezone.utc),
             )
         )
+
+    @staticmethod
+    def _serialize_timestamp(value: datetime | None) -> str | None:
+        return value.isoformat().replace("+00:00", "Z") if value else None
+
+    @staticmethod
+    def _resolve_amount_usdc(item, before: dict) -> str | None:
+        if item is not None:
+            return f"{item.amount_usdc:.2f}"
+        amount = before.get("amountUsdc")
+        if amount is None:
+            return None
+        return str(amount)
+
+    def _list_history_audits(self, limit: int) -> list[AdminActionAudit]:
+        return list(
+            self._store.audit.list_actions(
+                action_type="provider_withdraw_review.decide",
+                result_status=AuditResultStatus.SUCCESS.value,
+                limit=max(limit * 4, limit),
+            )
+        )
+
+    def _build_history_item(self, audit: AdminActionAudit) -> dict | None:
+        withdrawal_id = str(audit.resource_id or "").strip()
+        if not withdrawal_id:
+            return None
+
+        review_item = self._repository.get_review_item(withdrawal_id)
+        return {
+            "withdrawalId": withdrawal_id,
+            "ownerAddress": review_item.owner_address if review_item else audit.before.get("ownerAddress"),
+            "amountUsdc": self._resolve_amount_usdc(review_item, audit.before),
+            "requestId": review_item.request_id if review_item else None,
+            "txHash": review_item.tx_hash if review_item else None,
+            "riskLevel": review_item.risk_level if review_item else None,
+            "riskReasonCode": review_item.risk_reason_code if review_item else None,
+            "evidenceSummary": review_item.evidence_summary if review_item else None,
+            "reviewDecision": str(audit.detail.get("decision") or "UNKNOWN").strip().upper(),
+            "currentStatus": self._resolve_history_status(review_item, audit),
+            "reviewerEmail": audit.operator_email,
+            "reviewerRole": audit.operator_role,
+            "reviewerNote": str(audit.detail.get("reviewerNote") or "").strip() or None,
+            "message": review_item.message if review_item else None,
+            "createdAt": review_item.created_at if review_item else None,
+            "updatedAt": review_item.updated_at if review_item else None,
+            "reviewedAt": self._serialize_timestamp(audit.created_at),
+        }
+
+    @staticmethod
+    def _resolve_history_status(item, audit: AdminActionAudit) -> str:
+        return str(
+            (item.status if item else None)
+            or audit.after.get("status")
+            or audit.before.get("status")
+            or "UNKNOWN"
+        ).strip().upper()

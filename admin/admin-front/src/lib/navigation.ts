@@ -32,6 +32,7 @@ const navLookupById: Record<string, NavLookupRecord> = {
   "menu-config": { label: "菜单配置", description: "后台已发布导航的拓扑与治理。" },
   approvals: { label: "审批中心", description: "高风险动作审批与审核状态流。" },
   "withdrawal-reviews": { label: "提现复核", description: "出金审核与风险复核台。" },
+  "review-history": { label: "审核历史", description: "已审批、已拒绝与已释放结果回看。" },
   finance: { label: "财务控制", description: "充值、扣费、退款与责任敞口。" },
   risk: { label: "风险控制", description: "风险信号、策略与异常处置。" },
   audit: { label: "审计追踪", description: "操作留痕、追踪检索与审计检视。" },

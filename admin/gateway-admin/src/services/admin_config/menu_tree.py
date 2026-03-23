@@ -9,6 +9,7 @@ IDENTITY_ACCESS_DESCRIPTION = "后台用户、角色模板、菜单树与权限�
 OPS_CONTROLS_LABEL = "业务控制"
 OPS_CONTROLS_DESCRIPTION = "审批、资金、风控和系统运维的受控操作入口。"
 DASHBOARD_READ_PERMISSION = "dashboard:read"
+APPROVAL_READ_PERMISSION = "approval:read"
 CONTROL_OVERVIEW_DESCRIPTION = "总览、业务运行态、执行与系统运维。"
 
 
@@ -217,7 +218,7 @@ def build_default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
             parent_item_id="business-control",
             node_type=MENU_NODE_PAGE,
             icon_key="AP",
-            required_permissions=("approval:read",),
+            required_permissions=(APPROVAL_READ_PERMISSION,),
             sort_order=210,
         ),
         AdminMenuConfigItem(
@@ -231,8 +232,23 @@ def build_default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
             parent_item_id="business-control",
             node_type=MENU_NODE_PAGE,
             icon_key="WR",
-            required_permissions=("approval:read",),
+            required_permissions=(APPROVAL_READ_PERMISSION,),
             sort_order=220,
+        ),
+        AdminMenuConfigItem(
+            item_id="review-history",
+            section_id="ops-controls",
+            section_label=OPS_CONTROLS_LABEL,
+            section_description=OPS_CONTROLS_DESCRIPTION,
+            label="审核历史",
+            href="/review-history",
+            description="查看已审批、已拒绝与已释放的提现审核结果，方便业务回溯处理结论。",
+            parent_item_id="business-control",
+            node_type=MENU_NODE_PAGE,
+            icon_key="RH",
+            required_permissions=(APPROVAL_READ_PERMISSION,),
+            sort_order=225,
+            keywords=("review", "history", "withdrawal"),
         ),
         AdminMenuConfigItem(
             item_id="finance",
