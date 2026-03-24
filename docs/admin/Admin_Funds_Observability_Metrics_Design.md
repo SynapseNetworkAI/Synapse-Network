@@ -1,10 +1,18 @@
 # 管理后台资金链路数据观测指标设计
 
+- Status: canonical
+- Code paths: `admin/gateway-admin/src/`, `admin/admin-front/src/`
+- DB sources: admin projection views, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Supersedes: root `docs/平台资金监控方案.md` for admin control-plane metric surfaces
+- Last verified against code: 2026-03-24
+
 本文回答三个问题：
 
 1. 是否应该增加一组按 `Consumer / Platform / Provider` 分层的数据展示卡片。
 2. 这组卡片是否适合放在 `dashboard/overview`。
 3. 整个平台从充值、消费、退款、分账、提现到总账对齐，完整的资金链路观测指标应该如何设计。
+
+这份文档承担 admin control-plane 的 canonical 指标投影语义；运行时观测、indexer、reconciliation 巡检规则以 `docs/05_DevOps_Deployment/03_Observability_Logging_and_Indexer_Operations.md` 为准。former root `docs/平台资金监控方案.md` 已完成退役。
 
 结论先行：
 

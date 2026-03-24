@@ -15,11 +15,11 @@
 
 1. `docs/06_Reference/05_Runtime_API_Contract.md`
 2. `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
-3. `docs/agent/02_Discovery_Quote_Invoke_API_Design.md`
+3. `docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md`
 4. `docs/admin/Admin_API_Contract_Phase1.md`
-5. `docs/agent/03_Service_Manifest_Field_Standard.md`
-6. `docs/agent/04_Credential_Budget_Risk_Model.md`
-7. `docs/agent/07_Agent_SDK_Integration_Guide.md`
+5. `docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md`
+6. `docs/02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md`
+7. `docs/06_Reference/04_Development_Testing_and_Integration_Reference.md`
 8. `docs/04_Database_Design/`
 9. `docs/provider_service/api/README.md`
 10. `../sdk/README.md`

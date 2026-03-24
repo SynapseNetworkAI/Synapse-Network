@@ -40,14 +40,14 @@
 
 1. 主要消费 `gateway/` 的 Agent Runtime API
 2. 与 `provider_service/` 一起组成端到端 demo 调用链
-3. 受根 `docs/agent/07_Agent_SDK_Integration_Guide.md` 与 `docs/sdk/README.md` 约束
+3. 受根 `docs/06_Reference/04_Development_Testing_and_Integration_Reference.md` 与 `docs/sdk/README.md` 约束
 
 ## 5. Canonical 文档入口
 
 1. `docs/sdk/README.md`
-2. `docs/agent/07_Agent_SDK_Integration_Guide.md`
+2. `docs/06_Reference/04_Development_Testing_and_Integration_Reference.md`
 3. `docs/06_Reference/01_API_Contract_Index.md`
-4. `docs/06_Reference/04_Development_Testing_and_Integration_Reference.md`
+4. `docs/06_Reference/05_Runtime_API_Contract.md`
 
 ## 6. 项目内贴身文档
 

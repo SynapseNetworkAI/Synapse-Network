@@ -4,7 +4,7 @@
 
 这些文档的写法遵守两个原则：
 
-1. `docs/agent/` 定义协议、身份和运行时边界。
+1. 官方模块定义协议、身份和运行时边界。
 2. 最新 SQL schema 定义表结构、状态机和持久化真相。
 
 因此，本目录不再重复发明新的对象模型，只回答一个问题：
@@ -55,9 +55,13 @@ flowchart TD
 
 1. API 字段全集：看 `docs/06_Reference/05_Runtime_API_Contract.md`
 2. Error code 全集：看 `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
-3. Manifest 字段标准：看 `docs/agent/03_Service_Manifest_Field_Standard.md`
-4. Credential / Budget 结构：看 `docs/agent/04_Credential_Budget_Risk_Model.md`
+3. Manifest 字段标准：看 `docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md`
+4. Credential / Budget 结构：看 `docs/02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md` 与 `docs/04_Database_Design/03_Balance_Ledger_and_Reservation_Model.md`
 5. SQL 完整表定义：看 `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+
+补充说明：
+
+1. 充值、退款、补偿、提现的主流程 canonical 已分别落在本目录和 `docs/admin/`。
 
 ## 每条链路必须回答的统一问题
 

@@ -2,15 +2,15 @@
 
 ## 1. Purpose
 
-本文件是 `docs/agent/` 专项拆分迁移的执行地图。
+本文件是 former `docs/agent/` 专项拆分迁移的执行地图。
 
-目标不是保留 `agent/` 作为长期独立层，而是把它按主题吸收进 `00-06` 对应模块。
+目标不是保留 `agent/` 作为长期独立层，而是把 former `docs/agent/` 的内容按主题吸收进 `00-06` 对应模块。
 
 ## 2. Migration Rules
 
 1. 每次只迁移一篇或一组强相关文档。
 2. 先迁正文，再补入口链接，再给原文档加 redirect banner。
-3. 迁移完成前，不删除仍被 `docs/README.md`、`llms.txt`、项目页引用的原文件。
+3. 在删除原目录前，先修正 `docs/README.md`、`llms.txt` 和项目页引用。
 4. 迁移后的 canonical 归口必须唯一，禁止一篇拆出两个并列真理源。
 
 ## 3. Mapping
@@ -43,9 +43,11 @@
 
 ## 5. Completion Criteria
 
-`docs/agent/` 可以退为跳转层或移除，需同时满足：
+former `docs/agent/` 可以退为跳转层或移除，需同时满足：
 
 1. `docs/README.md` 不再把 `agent/` 当作长期独立 canonical 层
 2. `llms.txt` 已更新为新入口
 3. `docs/03_Projects/gateway/README.md` 等项目入口已改指向新模块
 4. 原文档全部有替代说明或已迁入 archive
+
+当前状态补记：上述条件已经满足，`docs/agent/` 目录已从仓库移除，本文件与执行计划仅保留历史迁移轨迹。

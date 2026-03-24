@@ -2,9 +2,9 @@
 
 阅读和维护遵守三条规则：
 
-1. 先读 `agent/`、`06_Reference/05_Runtime_API_Contract.md`、`Gateway_Database_Design.md`，建立当前身份、协议和资金模型。
-2. 再进入六个官方模块，按产品、架构、流程、数据库、运维、参考分层阅读。
-3. 专题设计、后台文档、产品愿景保留为补充层，不再承担 Runtime canonical 定义职责。
+1. 先读 `AGENTS.md`、`ARCHITECTURE.md`、`06_Reference/AI_Quick_Reference.md` 与官方模块 README，建立当前系统全貌。
+2. 再按产品、架构、流程、数据库、运维、参考六个官方模块深入阅读。
+3. 专题设计、后台文档、产品愿景保留为补充层；原 `docs/agent/` 目录已经退役，相关历史迁移关系统一回看治理层记录。
 
 AI 协作优先入口新增如下：
 
@@ -25,7 +25,8 @@ AI 协作优先入口新增如下：
 4. [00_Governance/README.md](./00_Governance/README.md)
 5. [Design.md](./Design.md)
 6. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
-7. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
+
+说明：root `docs/` 当前只保留全局入口、治理文件和少量 supplementary 过渡文档，不再作为数据库、测试、监控或审批流程的长期 canonical 落点。
 
 ### Official modules
 
@@ -40,14 +41,12 @@ AI 协作优先入口新增如下：
 
 ### Runtime canonical docs
 
-说明：该层当前仍是过渡中的 runtime canonical 设计源，后续会逐步并入官方模块，不作为长期独立层保留。
+说明：原 `docs/agent/` 迁移层已经完成退役，相关 Runtime canonical 内容已全部回收到官方模块。
 
-1. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
-2. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
-3. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
-4. [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
-5. [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
-6. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
+历史迁移记录：
+
+1. [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)
+2. [exec-plans/completed/2026-03-24_Documentation_Migration_Execution_Plan.md](./exec-plans/completed/2026-03-24_Documentation_Migration_Execution_Plan.md)
 
 ### Project entrypoints
 
@@ -73,9 +72,9 @@ AI 协作优先入口新增如下：
 建议 Agent 读取顺序：
 
 1. 先读 [AGENTS.md](./AGENTS.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[00_Governance/README.md](./00_Governance/README.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
-2. 需要 Runtime 协议时先看官方模块；若目标内容仍在过渡层，再进入 [agent/](./agent/) 与 [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)。
+2. 需要 Runtime 协议时直接看官方模块；若需要追溯旧迁移关系，再进入 [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)。
 3. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
-4. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [Gateway_Database_Design.md](./Gateway_Database_Design.md)。
+4. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [04_Database_Design/01_SQL_Schema_Overview.md](./04_Database_Design/01_SQL_Schema_Overview.md)。
 5. 需要按代码项目定位时进入 [03_Projects/README.md](./03_Projects/README.md)。
 6. 需要补充专题、计划或历史背景时再进入 supplement and archive layers。
 
@@ -89,24 +88,23 @@ AI 协作优先入口新增如下：
 4. [exec-plans/README.md](./exec-plans/README.md)
 5. [06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)
 6. [Design.md](./Design.md)
-7. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
-8. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
+7. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
+8. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
 
 ### 2.2 Runtime 协议与平台 API
 
-1. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
-2. [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
-3. [agent/04_Credential_Budget_Risk_Model.md](./agent/04_Credential_Budget_Risk_Model.md)
-4. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
+1. [03_Core_Workflows/02_Discovery_and_Gateway_Call.md](./03_Core_Workflows/02_Discovery_and_Gateway_Call.md)
+2. [06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md](./06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md)
+3. [02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md](./02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md)
+4. [06_Reference/04_Development_Testing_and_Integration_Reference.md](./06_Reference/04_Development_Testing_and_Integration_Reference.md)
 5. [06_Reference/05_Runtime_API_Contract.md](./06_Reference/05_Runtime_API_Contract.md)
 6. [06_Reference/06_Runtime_Error_Code_Catalog.md](./06_Reference/06_Runtime_Error_Code_Catalog.md)
 
 ### 2.3 数据库与资金真相层
 
-1. [agent/06_Build_For_Agent_Database_Rebuild.md](./agent/06_Build_For_Agent_Database_Rebuild.md)
-2. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
-3. [04_Database_Design/README.md](./04_Database_Design/README.md)
-4. [../docker-compose/postgres/init/gateway/001_synapse_schema.sql](../docker-compose/postgres/init/gateway/001_synapse_schema.sql)
+1. [04_Database_Design/README.md](./04_Database_Design/README.md)
+2. [04_Database_Design/01_SQL_Schema_Overview.md](./04_Database_Design/01_SQL_Schema_Overview.md)
+3. [../docker-compose/postgres/init/gateway/001_synapse_schema.sql](../docker-compose/postgres/init/gateway/001_synapse_schema.sql)
 
 ## 3. 官方六模块
 
@@ -122,10 +120,6 @@ AI 协作优先入口新增如下：
    本地环境、CI/CD、观测、索引器运行、金融事故响应。
 6. [06_Reference/README.md](./06_Reference/README.md)
    API 索引、错误码契约、Manifest 与 Runtime 对象、开发测试参考。
-7. [测试文档.md](./测试文档.md)
-   本地测试、清库 SQL、链路重置与执行前后校验说明。
-8. [平台资金监控方案.md](./平台资金监控方案.md)
-   解释 reconciliation 指标，并定义充值、计费、收入、退款、提现、Vault 总账的监控漏斗方案。
 
 ## 3.1 项目文档集中维护层
 
@@ -174,25 +168,25 @@ AI 协作优先入口新增如下：
 1. [AGENTS.md](./AGENTS.md)
 2. [ARCHITECTURE.md](./ARCHITECTURE.md)
 3. [06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)
-4. [agent/00_Platform_Role_Identity_Model.md](./agent/00_Platform_Role_Identity_Model.md)
-5. [agent/01_Agent_Runtime_Product_Architecture.md](./agent/01_Agent_Runtime_Product_Architecture.md)
-6. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
-7. [04_Database_Design/README.md](./04_Database_Design/README.md)
+4. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
+5. [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)
+6. [04_Database_Design/README.md](./04_Database_Design/README.md)
+7. [06_Reference/README.md](./06_Reference/README.md)
 8. [03_Projects/README.md](./03_Projects/README.md)
 
 ### 5.2 看 Owner 资金与 Agent Runtime 主链路
 
 1. [03_Core_Workflows/01_Deposit_and_Idempotency.md](./03_Core_Workflows/01_Deposit_and_Idempotency.md)
 2. [03_Core_Workflows/06_Deposit_Entry_Architecture_Comparison.md](./03_Core_Workflows/06_Deposit_Entry_Architecture_Comparison.md)
-3. [agent/02_Discovery_Quote_Invoke_API_Design.md](./agent/02_Discovery_Quote_Invoke_API_Design.md)
+3. [03_Core_Workflows/02_Discovery_and_Gateway_Call.md](./03_Core_Workflows/02_Discovery_and_Gateway_Call.md)
 4. [03_Core_Workflows/03_Billing_Settlement_and_Audit.md](./03_Core_Workflows/03_Billing_Settlement_and_Audit.md)
 5. [03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](./03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
-6. [agent/07_Agent_SDK_Integration_Guide.md](./agent/07_Agent_SDK_Integration_Guide.md)
+6. [06_Reference/04_Development_Testing_and_Integration_Reference.md](./06_Reference/04_Development_Testing_and_Integration_Reference.md)
 7. [03_Projects/gateway/README.md](./03_Projects/gateway/README.md)
 
 ### 5.3 看 Provider 注册、转发、收益、提现
 
-1. [agent/03_Service_Manifest_Field_Standard.md](./agent/03_Service_Manifest_Field_Standard.md)
+1. [06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md](./06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md)
 2. [03_Core_Workflows/04_Provider_Registration_and_Agreement.md](./03_Core_Workflows/04_Provider_Registration_and_Agreement.md)
 3. [02_System_Architecture/01_System_Topology_and_Request_Routing.md](./02_System_Architecture/01_System_Topology_and_Request_Routing.md)
 4. [03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](./03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
@@ -200,11 +194,10 @@ AI 协作优先入口新增如下：
 
 ### 5.4 看数据库和持久化真相
 
-1. [agent/06_Build_For_Agent_Database_Rebuild.md](./agent/06_Build_For_Agent_Database_Rebuild.md)
-2. [Gateway_Database_Design.md](./Gateway_Database_Design.md)
-3. [04_Database_Design/02_Core_Tables_and_Relationships.md](./04_Database_Design/02_Core_Tables_and_Relationships.md)
-4. [../docker-compose/postgres/init/gateway/001_synapse_schema.sql](../docker-compose/postgres/init/gateway/001_synapse_schema.sql)
-5. [03_Projects/infra/README.md](./03_Projects/infra/README.md)
+1. [04_Database_Design/01_SQL_Schema_Overview.md](./04_Database_Design/01_SQL_Schema_Overview.md)
+2. [04_Database_Design/02_Core_Tables_and_Relationships.md](./04_Database_Design/02_Core_Tables_and_Relationships.md)
+3. [../docker-compose/postgres/init/gateway/001_synapse_schema.sql](../docker-compose/postgres/init/gateway/001_synapse_schema.sql)
+4. [03_Projects/infra/README.md](./03_Projects/infra/README.md)
 
 ## 6. 目录职责
 
@@ -213,8 +206,8 @@ AI 协作优先入口新增如下：
 只保留这些全局入口：
 
 1. 项目原则
-2. 数据库总览
-3. 总索引
+2. 总索引
+3. 全局治理与少量顶层地图
 
 ### 子目录职责
 
@@ -232,9 +225,7 @@ AI 协作优先入口新增如下：
    官方协议和开发参考模块。
 7. `03_Projects/`
    代码项目集中维护层，负责职责、边界、代码位置、本地开发说明与 project-level rules 聚合。
-8. `agent/`
-   Runtime canonical 设计源。
-9. `admin/`、`feature_designs/`、`01_Product_Vision/`
+8. `admin/`、`feature_designs/`、`01_Product_Vision/`
    补充材料。
 
 ## 7. 目录退役说明
@@ -247,13 +238,13 @@ AI 协作优先入口新增如下：
 4. `05_Frontend_UX/`
 5. `06_Developer_Guides/`
 
-它们承载的当前有效内容已被收敛进六个新官方模块、`agent/`、`06_Reference/05_Runtime_API_Contract.md` 与 `06_Reference/06_Runtime_Error_Code_Catalog.md`。
+它们承载的当前有效内容已被收敛进六个新官方模块、`06_Reference/05_Runtime_API_Contract.md` 与 `06_Reference/06_Runtime_Error_Code_Catalog.md`；原 `docs/agent/` 层也已完成退役。
 
 ## 8. 维护规则
 
 1. 任何 Runtime、API、数据库、前端 IA 变更，优先更新 canonical 文档和对应官方模块 README。
 2. 新文档先决定归属模块，不再向根目录和已退役技术目录散落文件。
-3. `agent/` 已定义的协议、身份、资金模型，其他目录只能解释实现和应用，不能并列重定义。
+3. Runtime 协议、身份、资金模型统一以官方模块为准，其他目录只能解释实现和应用，不能并列重定义。
 4. `plan/` 只保留计划与历史记录，不再作为当前协议入口；当前执行状态以最新专项计划为准。
 
 ## 9. 当前维护基准

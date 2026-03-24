@@ -15,9 +15,12 @@
 
 1. `docs/AGENTS.md`
 2. `docs/06_Reference/05_Runtime_API_Contract.md`
-3. `docs/Gateway_Database_Design.md`
-4. `docs/04_Database_Design/`
-5. `docs/admin/`
+3. `docs/04_Database_Design/`
+4. `docs/admin/`
+
+补充说明：
+
+1. former root `docs/平台资金监控方案.md` 的运行时观测语义已收口到本模块；历史迁移情况统一回看治理记录与 completed plans。
 
 说明：本模块已吸收旧运维与开发指南中的当前有效内容，退役目录不再作为主引用源。
 

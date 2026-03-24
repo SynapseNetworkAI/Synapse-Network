@@ -54,11 +54,11 @@
 
 ## 6. Canonical 文档入口
 
-1. `docs/agent/01_Agent_Runtime_Product_Architecture.md`
-2. `docs/agent/02_Discovery_Quote_Invoke_API_Design.md`
+1. `docs/02_System_Architecture/02_Gateway_Runtime_Architecture.md`
+2. `docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md`
 3. `docs/03_Core_Workflows/README.md`
 4. `docs/04_Database_Design/README.md`
-5. `docs/Gateway_Database_Design.md`
+5. `docs/04_Database_Design/01_SQL_Schema_Overview.md`
 6. `docs/06_Reference/05_Runtime_API_Contract.md`
 7. `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
 

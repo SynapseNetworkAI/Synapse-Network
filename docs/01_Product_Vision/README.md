@@ -8,7 +8,7 @@
 2. 我们要服务什么样的 Agent 经济。
 3. 产品分阶段怎么落地。
 
-它不负责定义 Runtime 协议、数据库字段、Gateway 执行细节。这些 canonical 定义统一回到 `docs/agent/`、`docs/06_Reference/05_Runtime_API_Contract.md` 和数据库文档。
+它不负责定义 Runtime 协议、数据库字段、Gateway 执行细节。这些 canonical 定义统一回到官方模块、`docs/06_Reference/05_Runtime_API_Contract.md` 和数据库文档。
 
 ## 推荐阅读顺序
 
@@ -34,7 +34,7 @@
 ## 与其他目录的边界
 
 1. 产品愿景与品牌表达：本目录。
-2. Agent Runtime 与身份模型：`docs/agent/`。
+2. Agent Runtime 与身份模型：`docs/02_System_Architecture/`、`docs/03_Core_Workflows/`、`docs/06_Reference/`。
 3. 前端体验与页面 IA：`docs/01_Product_Frontend/` 与 `docs/feature_designs/frontend_product/`。
 4. 充值、扣费、提现、结算：`docs/03_Core_Workflows/` 与 `docs/04_Database_Design/`。
 5. Gateway 架构与生产安全：`docs/02_System_Architecture/` 与 `docs/05_DevOps_Deployment/`。
@@ -43,4 +43,4 @@
 ## 维护规则
 
 1. 本目录允许讨论商业和产品方向，但不能覆盖已经落地的 API/数据库事实。
-2. 当商业叙事和当前代码实现不一致时，必须以 `docs/agent/`、`docs/06_Reference/05_Runtime_API_Contract.md` 和数据库文档为准，再反向修正文案。
+2. 当商业叙事和当前代码实现不一致时，必须以官方模块、`docs/06_Reference/05_Runtime_API_Contract.md` 和数据库文档为准，再反向修正文案。

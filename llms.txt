@@ -12,12 +12,21 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 
 ## Core Runtime Docs
 
-- docs/agent/01_Agent_Runtime_Product_Architecture.md
-- docs/agent/02_Discovery_Quote_Invoke_API_Design.md
+- docs/02_System_Architecture/README.md
+- docs/02_System_Architecture/02_Gateway_Runtime_Architecture.md
+- docs/02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md
+- docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md
+- docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md
+- docs/06_Reference/04_Development_Testing_and_Integration_Reference.md
 - docs/03_Core_Workflows/README.md
 - docs/04_Database_Design/README.md
 - docs/06_Reference/05_Runtime_API_Contract.md
 - docs/06_Reference/06_Runtime_Error_Code_Catalog.md
+
+## Historical Migration References
+
+- docs/文档迁移.md - documentation governance and migration strategy, including retired root-shell cleanup decisions
+- docs/00_Governance/Agent_Docs_Migration_Map.md - historical map for retired runtime and root migration layers
 
 ## Project Entry Points
 
@@ -32,7 +41,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
 - docs/06_Reference/Validation_Entry_Points.md - current validation commands and workflow checks
-- docs/00_Governance/Agent_Docs_Migration_Map.md - transition map for merging docs/agent into official modules
+- docs/00_Governance/Agent_Docs_Migration_Map.md - historical map for the retired docs/agent layer and its merge into official modules
 - docs/exec-plans/README.md - plan structure for active and completed work
 
 ## Important Boundaries

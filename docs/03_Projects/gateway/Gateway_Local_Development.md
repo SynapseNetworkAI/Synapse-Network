@@ -79,7 +79,7 @@ cd /Users/cliff/workspace/Synapse-Network/gateway
 ## 相关文档
 
 1. [README.md](./README.md)
-2. [../../agent/01_Agent_Runtime_Product_Architecture.md](../../agent/01_Agent_Runtime_Product_Architecture.md)
-3. [../../agent/02_Discovery_Quote_Invoke_API_Design.md](../../agent/02_Discovery_Quote_Invoke_API_Design.md)
+2. [../../02_System_Architecture/02_Gateway_Runtime_Architecture.md](../../02_System_Architecture/02_Gateway_Runtime_Architecture.md)
+3. [../../03_Core_Workflows/02_Discovery_and_Gateway_Call.md](../../03_Core_Workflows/02_Discovery_and_Gateway_Call.md)
 4. [../../04_Database_Design/README.md](../../04_Database_Design/README.md)
-5. [../../Gateway_Database_Design.md](../../Gateway_Database_Design.md)
+5. [../../04_Database_Design/01_SQL_Schema_Overview.md](../../04_Database_Design/01_SQL_Schema_Overview.md)

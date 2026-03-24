@@ -17,6 +17,13 @@ The architecture is organized around four planes:
 3. risk and settlement plane
 4. admin control plane
 
+The identity model behind those planes is also explicit:
+
+1. owner is the root tenant and control-plane principal
+2. agent is the runtime execution principal
+3. provider is the owner's supply-side business role, not a separate root account system
+4. platform is the internal protocol executor and settlement engine
+
 ## 3. Core Components
 
 ### 3.1 contracts
@@ -94,6 +101,14 @@ Typical path:
 
 `Agent -> discover -> quote -> invoke -> gateway -> provider runtime`
 
+This runtime path is split into a control chain and an execution chain:
+
+1. control chain: `Owner -> frontend -> gateway control API -> credential / budget store`
+2. execution chain: `Agent -> discover -> quote -> invoke -> gateway -> provider runtime`
+
+The control chain can see owner, credential, budget, and audit objects.
+The execution chain must stay limited to agent-facing service, quote, invoke, and receipt semantics.
+
 ### 4.3 Risk And Settlement Plane
 
 Primary systems:
@@ -152,11 +167,12 @@ Read: `docs/03_Core_Workflows/README.md`
 
 1. `docs/AGENTS.md`
 2. `docs/ARCHITECTURE.md`
-3. `docs/agent/01_Agent_Runtime_Product_Architecture.md`
-4. `docs/02_System_Architecture/README.md`
-5. `docs/03_Core_Workflows/README.md`
-6. `docs/04_Database_Design/README.md`
-7. the target project page under `docs/03_Projects/`
+3. `docs/02_System_Architecture/README.md`
+4. `docs/02_System_Architecture/02_Gateway_Runtime_Architecture.md`
+5. `docs/02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md`
+6. `docs/03_Core_Workflows/README.md`
+7. `docs/04_Database_Design/README.md`
+8. the target project page under `docs/03_Projects/`
 
 ## 9. Validation Principle
 

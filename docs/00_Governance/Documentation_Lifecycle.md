@@ -52,9 +52,9 @@
 
 典型位置：
 
-1. `docs/测试文档.md`
-2. `docs/平台资金监控方案.md`
-3. `docs/充值退款审批流程.md`
+1. former root `docs/测试文档.md`
+2. former root `docs/平台资金监控方案.md`
+3. former root `docs/充值退款审批流程.md`
 
 ### 3.3 `incubation`
 

@@ -66,4 +66,4 @@ http://localhost:3000
 2. [Frontend_Agent_Rules.md](./Frontend_Agent_Rules.md)
 3. [../../01_Product_Frontend/README.md](../../01_Product_Frontend/README.md)
 4. [../../Design.md](../../Design.md)
-5. [../../agent/05_Dashboard_IA_and_Onboarding.md](../../agent/05_Dashboard_IA_and_Onboarding.md)
+5. [../../06_Reference/04_Development_Testing_and_Integration_Reference.md](../../06_Reference/04_Development_Testing_and_Integration_Reference.md)

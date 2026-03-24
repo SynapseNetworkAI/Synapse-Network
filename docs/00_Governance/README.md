@@ -21,7 +21,7 @@
 1. 先读 `Documentation_Lifecycle.md`，判断一份文档应该处于哪个状态。
 2. 再读 `Ownership_And_Review_Matrix.md`，判断主题应该归属哪个 canonical 目录。
 3. 在实施 API / DB / 运维 / 架构修改前，读 `Drift_Checklist.md` 做同步检查。
-4. 当处理 `docs/agent/` 专项拆分时，读 `Agent_Docs_Migration_Map.md`。
+4. 当追溯 former `docs/agent/` 专项拆分历史时，读 `Agent_Docs_Migration_Map.md`。
 
 ## 模块边界
 

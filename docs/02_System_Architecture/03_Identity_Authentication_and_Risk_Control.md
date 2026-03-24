@@ -1,12 +1,38 @@
 # Identity, Authentication, and Risk Control
 
+- Status: canonical
+- Code paths: `gateway/src/`, `apps/frontend/src/`, `sdk/python/`, `admin/gateway-admin/src/`
+- DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Supersedes: former `docs/agent/00_Platform_Role_Identity_Model.md` for role layering and identity boundaries; former `docs/agent/04_Credential_Budget_Risk_Model.md` for credential and runtime risk boundaries
+- Last verified against code: 2026-03-24
+
 ## 1. 目标
 
 本文件定义 Synapse 如何把身份、鉴权和风控串成统一控制链，而不是三套彼此割裂的子系统。
 
-## 2. 身份分层
+当前角色与身份边界的 canonical 解释以本文件为准。former `docs/agent/00_Platform_Role_Identity_Model.md` 与 former `docs/agent/04_Credential_Budget_Risk_Model.md` 已完成退役，不再单独定义长期身份模型或风控边界。
 
-### 2.1 Owner Identity
+## 2. 四层角色模型
+
+Synapse 当前最稳定的 build-for-agent 身份边界是四层，而不是简单的 `owner / provider / platform` 三分法。
+
+| 角色 | 身份层级 | 核心职责 | 不该承担的职责 |
+| --- | --- | --- | --- |
+| Owner | 租户根身份 | 充值、创建 Agent、设预算、注册服务、查看账单 | 不应逐次手工批准每次 Agent 调用 |
+| Agent | Owner 授权出来的运行时身份 | Discovery、Quote、Invoke、消耗预算 | 不应接触主钱包私钥或修改控制面资源 |
+| Provider | Owner 的供给侧业务角色 | 维护 Manifest、运营服务、累积收益、提现 | 不是独立于 Owner 的第二套根账户体系 |
+| Platform | 平台内部系统角色 | 鉴权、风控、路由、记账、审计、结算 | 不应被暴露成租户侧业务主体 |
+
+一句话：
+
+1. Owner 是账户根。
+2. Agent 是运行时执行体。
+3. Provider 是 Owner 的 supply-side role。
+4. Platform 是系统执行与结算角色。
+
+## 3. 身份分层
+
+### 3.1 Owner Identity
 
 Owner 是控制面根身份。
 
@@ -18,7 +44,7 @@ Owner 负责：
 4. set budget
 5. provider role operations
 
-### 2.2 Agent Credential
+### 3.2 Agent Credential
 
 Agent credential 是 Runtime 支付身份。
 
@@ -29,34 +55,67 @@ Agent credential 是 Runtime 支付身份。
 3. 限定调用范围
 4. 承担自动调用的最小权限执行面
 
-### 2.3 Provider Role
+当前 runtime 支付身份至少分成三层对象：
+
+1. `AgentProfile`
+2. `AgentCredential`
+3. `BudgetPolicy`
+
+这里的硬边界是：
+
+1. Agent 持有的是运行时 secret 和最小必要上下文。
+2. Owner 与 Gateway 才能看到完整预算策略、吊销状态、风控标签和审计元数据。
+3. `owner_wallet` 之类绑定信息属于平台控制面和审计面，不应成为外部运行时协议字段。
+
+### 3.3 Provider Role
 
 Provider 不是另一套根身份，而是 Owner 的供给侧业务角色。
 
-### 2.4 Platform Admin
+服务注册、收益归属、Provider Console 工作区本质上仍然是 owner-scoped。
+
+### 3.4 Platform Admin
 
 Admin 身份必须和普通 Owner 完全隔离。
 
-## 3. 鉴权原则
+## 4. 同一个 Owner 同时消费和供给
 
-### 3.1 默认拒绝
+同一个 Owner 可以同时拥有：
+
+1. Consumer workspace
+2. Provider workspace
+3. 多个 Agent runtime 身份
+
+这里不会冲突，前提是坚持两条铁律：
+
+1. 身份归属看 Owner。
+2. 记账归类看资金桶和业务动作，不看“这个钱包当前更像买家还是卖家”。
+
+因此退款与提现不会因为同一个钱包地址而打架，真正的隔离来自：
+
+1. `consumer_wallet` 与 `provider_wallet` 分桶
+2. `consumer_refund` 与 `provider_withdrawal` 分动作
+3. owner scope 相同但账本语义不同
+
+## 5. 鉴权原则
+
+### 5.1 默认拒绝
 
 除公开 discover 或网络摘要接口外，所有写路径都要求有效身份。
 
-### 3.2 Owner Binding
+### 5.2 Owner Binding
 
 任何 owner-scoped 行为，都必须由服务端 token subject 推导 owner，而不是信任客户端字段。
 
-### 3.3 Least Privilege
+### 5.3 Least Privilege
 
 1. Owner 控制面只能操作自己资源
 2. Agent credential 只能在被授权 scope 内运行
 3. Provider 只能操作自己归属的 service
 4. Admin 权限必须独立
 
-## 4. 风控分层
+## 6. 风控分层
 
-### 4.1 Funding Risk
+### 6.1 Funding Risk
 
 关注：
 
@@ -65,7 +124,7 @@ Admin 身份必须和普通 Owner 完全隔离。
 3. suspicious funding source
 4. reconciliation mismatches
 
-### 4.2 Runtime Risk
+### 6.2 Runtime Risk
 
 关注：
 
@@ -75,7 +134,21 @@ Admin 身份必须和普通 Owner 完全隔离。
 4. scope denied
 5. abnormal failure spikes
 
-### 4.3 Payout Risk
+Gateway 对 runtime 调用的判定顺序应固定为：
+
+1. Credential 是否存在
+2. Credential 是否有效且未吊销
+3. Quote 是否存在且未过期
+4. Service 是否在允许范围
+5. 单次调用是否超过 `per_invocation_cap_usdc`
+6. 当日累计是否超过 `daily_cap_usdc`
+7. 生命周期累计是否超过 `lifetime_cap_usdc`
+8. RPM / QPS 是否超限
+9. Owner 主账户可用余额是否足够
+
+这套顺序不能乱，先挡最便宜的检查，再做最贵的执行。
+
+### 6.3 Payout Risk
 
 关注：
 
@@ -84,7 +157,7 @@ Admin 身份必须和普通 Owner 完全隔离。
 3. liquidity pressure
 4. payout address anomaly
 
-## 5. 风险等级
+## 7. 风险等级
 
 当前最稳定的分级模型是：
 
@@ -98,9 +171,9 @@ Admin 身份必须和普通 Owner 完全隔离。
 2. `yellow` 进入人工审核或额外检查
 3. `red` 直接拒绝并审计
 
-## 6. 风控执行点
+## 8. 风控执行点
 
-### 6.1 Deposit
+### 8.1 Deposit
 
 在登记和确认阶段检查：
 
@@ -108,7 +181,7 @@ Admin 身份必须和普通 Owner 完全隔离。
 2. amount validity
 3. chain event match
 
-### 6.2 Quote / Invoke
+### 8.2 Quote / Invoke
 
 在执行前检查：
 
@@ -118,7 +191,7 @@ Admin 身份必须和普通 Owner 完全隔离。
 4. service scope
 5. balance sufficiency
 
-### 6.3 Refund / Withdrawal
+### 8.3 Refund / Withdrawal
 
 在出金前检查：
 
@@ -128,7 +201,7 @@ Admin 身份必须和普通 Owner 完全隔离。
 4. manual review threshold
 5. signature / nonce / deadline requirements
 
-## 7. Admin Risk Control Plane
+## 9. Admin Risk Control Plane
 
 Risk control 不应只停留在 Gateway 内部逻辑，还必须在 Admin plane 有可观察性。
 
@@ -140,7 +213,7 @@ Risk control 不应只停留在 Gateway 内部逻辑，还必须在 Admin plane 
 4. deposit reconciliation backlog
 5. abnormal invocation clusters
 
-## 8. 文档结论
+## 10. 文档结论
 
 Synapse 的身份和风控不是“登录之后再补几条校验规则”，而是：
 

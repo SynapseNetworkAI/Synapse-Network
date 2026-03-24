@@ -56,4 +56,4 @@ npx hardhat test
 2. [../../02_System_Architecture/01_System_Topology_and_Request_Routing.md](../../02_System_Architecture/01_System_Topology_and_Request_Routing.md)
 3. [../../03_Core_Workflows/01_Deposit_and_Idempotency.md](../../03_Core_Workflows/01_Deposit_and_Idempotency.md)
 4. [../../03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md](../../03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md)
-5. [../../Gateway_Database_Design.md](../../Gateway_Database_Design.md)
+5. [../../04_Database_Design/01_SQL_Schema_Overview.md](../../04_Database_Design/01_SQL_Schema_Overview.md)
