@@ -116,6 +116,13 @@ class ServiceRegistryRepository:
         return f"{service_id}:ep:{index}:{suffix}"
 
     @staticmethod
+    def _payout_account_id(provider_id: str, payout_address: str, chain_id: int) -> str:
+        suffix = hashlib.sha1(
+            f"{provider_id}:{payout_address.lower()}:{chain_id}".encode("utf-8")
+        ).hexdigest()[:10]
+        return f"{provider_id}:payout:{chain_id}:{suffix}"
+
+    @staticmethod
     def _health_score(status: str) -> int:
         normalized = str(status or "unknown").strip().lower()
         if normalized in {"healthy", "up", "active"}:
@@ -246,6 +253,21 @@ class ServiceRegistryRepository:
             "role": row.role,
             "address": row.address,
             "auth": row.auth.model_dump(by_alias=True, mode="json", exclude_none=True),
+            "providerProfile": row.provider_profile.model_dump(
+                by_alias=True, mode="json", exclude_none=True
+            )
+            if row.provider_profile is not None
+            else None,
+            "payoutAccount": row.payout_account.model_dump(
+                by_alias=True, mode="json", exclude_none=True
+            )
+            if row.payout_account is not None
+            else None,
+            "governance": row.governance.model_dump(
+                by_alias=True, mode="json", exclude_none=True
+            )
+            if row.governance is not None
+            else None,
             "healthCheck": row.health_check.model_dump(by_alias=True, mode="json", exclude_none=True),
             "forwarding": row.forwarding.model_dump(by_alias=True, mode="json", exclude_none=True),
             "metering": row.metering.model_dump(by_alias=True, mode="json", exclude_none=True),
@@ -271,6 +293,7 @@ class ServiceRegistryRepository:
         service_id: object,
         endpoint: object,
         endpoint_id: object,
+        auth_mode: object,
         timeout_ms: object,
         max_payload_bytes: object,
         endpoint_status: object,
@@ -284,6 +307,7 @@ class ServiceRegistryRepository:
             endpointId=str(endpoint_id or self._endpoint_id(str(service_id), endpoint_url, 0)),
             serviceId=str(service_id),
             endpointUrl=endpoint_url,
+            authMode=str(auth_mode or "gateway_forward"),
             timeoutMs=int(timeout_ms or 15000),
             maxPayloadBytes=int(max_payload_bytes or 4194304),
             isPrimary=True,
@@ -413,6 +437,7 @@ class ServiceRegistryRepository:
         self, cur: Any, row: ServiceDefinitionRecord, created_at: str, updated_at: str
     ) -> None:
         self._deactivate_service_endpoints(cur, str(row.service_id), updated_at)
+        auth_mode = str(row.auth.auth_type or "gateway_forward").strip() or "gateway_forward"
         for index, target in enumerate(self._endpoint_targets(row)):
             endpoint_url = str(target.url or "").strip()
             if not endpoint_url:
@@ -425,7 +450,7 @@ class ServiceRegistryRepository:
                     callback_supported, region, weight, is_primary, status,
                     created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, 'gateway_forward', %s,
+                    %s, %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s
@@ -450,6 +475,7 @@ class ServiceRegistryRepository:
                     self._endpoint_id(row.service_id, endpoint_url, index),
                     row.service_id,
                     endpoint_url,
+                    auth_mode,
                     int(row.constraints.timeout_ms or 15000),
                     int(row.constraints.max_request_bytes or 4194304),
                     False,
@@ -463,6 +489,47 @@ class ServiceRegistryRepository:
                     updated_at,
                 ),
             )
+
+    def _upsert_provider_payout_account(
+        self,
+        cur: Any,
+        row: ServiceDefinitionRecord,
+        provider_id: str,
+        created_at: str,
+        updated_at: str,
+    ) -> None:
+        if row.payout_account is None:
+            return
+        payout_address = str(row.payout_account.payout_address or "").strip()
+        chain_id = int(row.payout_account.chain_id or 0)
+        if not payout_address or chain_id <= 0:
+            return
+        cur.execute(
+            """
+            INSERT INTO synapse_provider_payout_accounts (
+                payout_account_id, provider_id, payout_address, chain_id,
+                settlement_currency, status, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s,
+                %s, %s, %s, %s
+            )
+            ON CONFLICT (provider_id, payout_address, chain_id)
+            DO UPDATE SET
+                settlement_currency = EXCLUDED.settlement_currency,
+                status = EXCLUDED.status,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (
+                self._payout_account_id(provider_id, payout_address, chain_id),
+                provider_id,
+                payout_address,
+                chain_id,
+                row.payout_account.settlement_currency,
+                row.payout_account.status,
+                created_at,
+                updated_at,
+            ),
+        )
 
     @staticmethod
     def _search_text(row: ServiceDefinitionRecord) -> str:
@@ -502,11 +569,18 @@ class ServiceRegistryRepository:
 
     def _persist_service_row(self, cur: Any, row: ServiceDefinitionRecord) -> None:
         owner_id, provider_id = self._ensure_owner_and_provider(
-            cur, row.owner_address, row.service_name
+            cur,
+            row.owner_address,
+            row.provider_profile.display_name
+            if row.provider_profile is not None
+            else row.service_name,
         )
         created_at, updated_at = self._manifest_timestamps(row)
         self._upsert_service_manifest(
             cur, row, owner_id, provider_id, created_at, updated_at
+        )
+        self._upsert_provider_payout_account(
+            cur, row, provider_id, created_at, updated_at
         )
         self._upsert_service_endpoints(cur, row, created_at, updated_at)
         self._upsert_search_index(cur, row, updated_at)
@@ -518,7 +592,7 @@ class ServiceRegistryRepository:
         )
 
     def _build_service_definition(self, row: tuple[object, ...]) -> ServiceDefinitionRecord | None:
-        if len(row) != 17:
+        if len(row) != 18:
             return None
 
         (
@@ -539,14 +613,19 @@ class ServiceRegistryRepository:
             endpoint_status,
             max_payload_bytes,
             endpoint_id,
+            endpoint_auth_mode,
         ) = row
 
         metadata = self._payload_dict(metadata_payload)
+        auth_payload = self._normalize_json_object(metadata.get("auth"))
+        if not auth_payload and str(endpoint_auth_mode or "").strip():
+            auth_payload = {"type": str(endpoint_auth_mode).strip()}
         created_at_text, updated_at_text = self._created_updated_text(metadata, created_at, updated_at)
         primary_endpoint = self._primary_endpoint_record(
             service_id,
             endpoint,
             endpoint_id,
+            endpoint_auth_mode,
             timeout_ms,
             max_payload_bytes,
             endpoint_status,
@@ -575,7 +654,10 @@ class ServiceRegistryRepository:
             role=str(metadata.get("role") or "") or None,
             address=str(metadata.get("address") or "") or None,
             tags=self._normalize_json_list(tags_json),
-            auth=ServiceAuthRecord.model_validate(self._normalize_json_object(metadata.get("auth"))),
+            auth=ServiceAuthRecord.model_validate(auth_payload),
+            providerProfile=self._normalize_json_object(metadata.get("providerProfile")) or None,
+            payoutAccount=self._normalize_json_object(metadata.get("payoutAccount")) or None,
+            governance=self._normalize_json_object(metadata.get("governance")) or None,
             healthCheck=ServiceHealthCheckRecord.model_validate(self._normalize_json_object(metadata.get("healthCheck"))),
             forwarding=ServiceForwardingRecord.model_validate(self._normalize_json_object(metadata.get("forwarding"))),
             metering=ServiceMeteringRecord.model_validate(self._normalize_json_object(metadata.get("metering"))),
@@ -613,11 +695,12 @@ class ServiceRegistryRepository:
                     rs.payload,
                     ep.status,
                     ep.max_payload_bytes,
-                    ep.endpoint_id
+                    ep.endpoint_id,
+                    ep.auth_mode
                 FROM synapse_service_manifests AS sm
                 INNER JOIN synapse_owner_accounts AS oa ON oa.owner_id = sm.owner_id
                 LEFT JOIN LATERAL (
-                    SELECT endpoint_id, endpoint_url, timeout_ms, status, max_payload_bytes
+                    SELECT endpoint_id, endpoint_url, auth_mode, timeout_ms, status, max_payload_bytes
                     FROM synapse_service_endpoints
                     WHERE service_id = sm.service_id
                     ORDER BY is_primary DESC, created_at ASC

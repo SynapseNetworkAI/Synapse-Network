@@ -138,6 +138,28 @@ def test_register_service_request_maps_agent_tool_name_to_service_id() -> None:
     assert request.model_dump()["serviceId"] == "famous_quotes_top3"
 
 
+def test_register_service_request_keeps_provider_onboarding_fields() -> None:
+    request = RegisterServiceRequest.model_validate(
+        {
+            **_service_payload("svc_sentiment"),
+            "auth": {"type": "gateway_signed"},
+            "providerProfile": {"displayName": "Sentiment Desk"},
+            "payoutAccount": {
+                "payoutAddress": "0x1234567890abcdef1234567890abcdef12345678",
+                "chainId": 8453,
+                "settlementCurrency": "USDC",
+            },
+            "governance": {"termsAccepted": True, "riskAcknowledged": True},
+        }
+    )
+
+    dumped = request.model_dump()
+    assert dumped["auth"]["type"] == "gateway_signed"
+    assert dumped["providerProfile"]["displayName"] == "Sentiment Desk"
+    assert dumped["payoutAccount"]["chainId"] == 8453
+    assert dumped["governance"]["termsAccepted"] is True
+
+
 def test_registry_service_rejects_duplicate_service_id(monkeypatch) -> None:
     storage = FakeStorage()
     service = RegistryService(cast(BaseStorage, storage))
@@ -214,6 +236,47 @@ def test_delete_service_marks_deleted_and_hides_from_owner_list(monkeypatch) -> 
     assert persisted_rows[0].status == "deleted"
     assert persisted_rows[0].is_active is False
     assert storage.get_data_manager().audit.logs.rows[-1].action == "provider.service.deleted"
+
+
+def test_register_service_audits_provider_onboarding_details(monkeypatch) -> None:
+    storage = FakeStorage()
+    service = RegistryService(cast(BaseStorage, storage))
+
+    async def _no_probe(payload):
+        await asyncio.sleep(0)
+        return payload
+
+    monkeypatch.setattr(service_health_service, "probe_service_health", _no_probe)
+    monkeypatch.setattr(
+        service_health_service,
+        "sync_service_target_health_table",
+        lambda storage_ref, rows: rows,
+    )
+
+    payload = _service_payload("svc_sentiment")
+    payload.update(
+        {
+            "serviceName": "Web3 Sentiment Index",
+            "auth": {"type": "gateway_signed"},
+            "providerProfile": {"displayName": "Sentiment Desk"},
+            "payoutAccount": {
+                "payoutAddress": "0x1234567890abcdef1234567890abcdef12345678",
+                "chainId": 8453,
+                "settlementCurrency": "USDC",
+            },
+            "governance": {"termsAccepted": True, "riskAcknowledged": True},
+        }
+    )
+
+    created = asyncio.run(service.register_service(payload, "0xabc"))
+
+    audit_entry = storage.get_data_manager().audit.logs.rows[-1]
+    assert created["auth"]["type"] == "gateway_signed"
+    assert audit_entry.action == "provider.service.registered"
+    assert audit_entry.details["providerDisplayName"] == "Sentiment Desk"
+    assert audit_entry.details["payoutAccount"]["chainId"] == 8453
+    assert audit_entry.details["payoutAccount"]["payoutAddress"].endswith("5678")
+    assert audit_entry.details["governance"]["termsAccepted"] is True
 
 
 def test_deleted_service_cannot_be_updated(monkeypatch) -> None:

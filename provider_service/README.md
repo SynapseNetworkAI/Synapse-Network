@@ -22,4 +22,5 @@ uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
 ## 说明
 
 本文件现在只保留项目入口信息。
+当前运行时已包含 `Web3 Sentiment Index` provider endpoint：`POST /provider-services/web3-sentiment-index/invoke`。
 完整接口说明、启动方式与扩展建议统一维护在根 `docs/03_Projects/provider-service/`。

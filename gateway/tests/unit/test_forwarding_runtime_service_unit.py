@@ -350,6 +350,20 @@ def _service_definition() -> ServiceDefinitionRecord:
     )
 
 
+def _signed_service_definition() -> ServiceDefinitionRecord:
+    service = _service_definition()
+    return service.model_copy(
+        update={
+            "auth": service.auth.model_copy(update={"auth_type": "gateway_signed"}),
+            "primary_endpoint": service.primary_endpoint.model_copy(
+                update={"auth_mode": "gateway_signed"}
+            )
+            if service.primary_endpoint is not None
+            else None,
+        }
+    )
+
+
 def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     monkeypatch,
 ) -> None:
@@ -732,6 +746,46 @@ def test_agent_runtime_http_contract_uses_persisted_health_snapshot_for_discover
         "headers": {"X-Synapse-Request-Id": "task-http-snapshot-step-1"},
         "timeout": 15.0,
     }
+
+
+def test_call_upstream_adds_gateway_signed_headers(monkeypatch) -> None:
+    invocation = InvocationRecord(
+        invocationId="inv-1",
+        quoteId="quote-1",
+        serviceId="svc.echo",
+        endpointId="svc.echo:ep:0",
+        credentialId="cred-1",
+        agentId="agent-1",
+        idempotencyKey="req-signed-001",
+        requestDigest="digest-1",
+        responseMode="sync",
+        status="RUNNING",
+        createdAt="2026-03-20 10:00:00",
+        updatedAt="2026-03-20 10:00:00",
+    )
+
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(forwarding_upstream.time, "time", lambda: 1710931200)
+
+    result = asyncio.run(
+        forwarding_upstream.call_upstream(
+            _signed_service_definition(),
+            invocation,
+            {"text": "hello typed world"},
+        )
+    )
+
+    assert result.payload["echo"] == "hello typed world"
+    headers = FakeAsyncClient.last_request["headers"]
+    assert headers["X-Synapse-Request-Id"] == "req-signed-001"
+    assert headers["X-Synapse-Service-Id"] == "svc.echo"
+    assert headers["X-Synapse-Signed-At"] == "1710931200"
+    assert len(headers["X-Synapse-Signature"]) == 64
 
 
 def test_agent_discovery_supports_query_or_tag_union_matching(monkeypatch) -> None:

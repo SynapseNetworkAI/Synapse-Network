@@ -18,6 +18,42 @@ from .payload_helpers import (
 )
 
 
+def _masked_payout_address(value: str | None) -> str | None:
+    normalized = str(value or "").strip()
+    if len(normalized) <= 8:
+        return normalized or None
+    return f"{normalized[:6]}...{normalized[-4:]}"
+
+
+def _audit_details(service_payload: Dict[str, Any]) -> Dict[str, Any]:
+    payout_account = service_payload.get("payoutAccount")
+    provider_profile = service_payload.get("providerProfile")
+    governance = service_payload.get("governance")
+    auth_payload = service_payload.get("auth")
+    details: Dict[str, Any] = {
+        "serviceId": service_payload.get("serviceId"),
+        "serviceName": service_payload.get("serviceName"),
+        "status": service_payload.get("status"),
+        "authType": auth_payload.get("type") if isinstance(auth_payload, dict) else None,
+    }
+    if isinstance(provider_profile, dict):
+        details["providerDisplayName"] = provider_profile.get("displayName")
+    if isinstance(payout_account, dict):
+        details["payoutAccount"] = {
+            "payoutAddress": _masked_payout_address(payout_account.get("payoutAddress")),
+            "chainId": payout_account.get("chainId"),
+            "settlementCurrency": payout_account.get("settlementCurrency"),
+            "status": payout_account.get("status"),
+        }
+    if isinstance(governance, dict):
+        details["governance"] = {
+            "termsAccepted": bool(governance.get("termsAccepted", False)),
+            "riskAcknowledged": bool(governance.get("riskAcknowledged", False)),
+            "note": governance.get("note"),
+        }
+    return details
+
+
 async def register_service(
     context: RegistryContext, req_data: Dict[str, Any], owner_wallet: str
 ) -> Dict[str, Any]:
@@ -43,7 +79,14 @@ async def register_service(
         rows.append(new_svc)
         context._save_service_registry_rows(rows)
         service_health_service.sync_service_target_health_table(context.storage, rows)
-        return new_svc.model_dump(by_alias=True, mode="json")
+        response = new_svc.model_dump(by_alias=True, mode="json")
+        credential_service.append_audit_log(
+            context.storage,
+            "provider.service.registered",
+            owner_wallet,
+            _audit_details(response),
+        )
+        return response
 
 
 async def update_service(
@@ -90,7 +133,14 @@ async def update_service(
             service_health_service.sync_service_target_health_table(
                 context.storage, rows
             )
-            return updated.model_dump(by_alias=True, mode="json")
+            response = updated.model_dump(by_alias=True, mode="json")
+            credential_service.append_audit_log(
+                context.storage,
+                "provider.service.updated",
+                owner_wallet,
+                _audit_details(response),
+            )
+            return response
 
     return None
 
