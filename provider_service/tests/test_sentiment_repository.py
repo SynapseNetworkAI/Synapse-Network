@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.schemas.sentiment import SentimentRequest, SentimentResponse  # noqa: E402
+from app.schemas.sentiment import RawFeedRecord, SentimentRequest, SentimentResponse  # noqa: E402
 from app.services.sentiment import repository as sentiment_repository  # noqa: E402
 
 
@@ -124,6 +124,7 @@ def test_repository_factory_returns_file_backend(monkeypatch, tmp_path):
             sentiment_postgres_dsn=None,
             sentiment_postgres_snapshot_table="provider_sentiment_snapshots",
             sentiment_postgres_raw_feed_table="provider_sentiment_raw_feeds",
+            sentiment_postgres_scheduler_job_table="provider_sentiment_scheduler_jobs",
         ),
     )
 
@@ -153,22 +154,26 @@ def test_postgres_repository_persists_snapshot_and_raw_feed_records(monkeypatch)
         "eth__ethereum__24h__narrative_on",
         request,
         [
-            {
-                "symbol": "ETH",
-                "chain": "ethereum",
-                "sourceName": "alternative_me",
-                "success": True,
-                "fetchedAt": "2026-03-24T12:00:00Z",
-                "sourceTimestamp": "2026-03-24T11:59:30Z",
-                "latencyMs": 83,
-                "retryCount": 1,
-                "timeoutMs": 2000,
-                "httpStatus": 200,
-                "payloadHash": "abc123",
-                "payloadExcerpt": {"value": 72},
-                "errorCode": None,
-                "errorMessage": None,
-            }
+            RawFeedRecord(
+                symbol="ETH",
+                chain="ethereum",
+                sourceName="alternative_me",
+                success=True,
+                fetchedAt="2026-03-24T12:00:00Z",
+                sourceTimestamp="2026-03-24T11:59:30Z",
+                latencyMs=83,
+                retryCount=1,
+                timeoutMs=2000,
+                httpStatus=200,
+                payloadHash="abc123",
+                payloadExcerpt={
+                    "value": 72,
+                    "classification": "greed",
+                    "timestamp": 1710931200,
+                },
+                errorCode=None,
+                errorMessage=None,
+            )
         ],
     )
 
@@ -179,15 +184,8 @@ def test_postgres_repository_persists_snapshot_and_raw_feed_records(monkeypatch)
     assert store["raw_feeds"][0][3] == "alternative_me"
     persisted_payload = json.loads(store["snapshots"]["eth__ethereum__24h__narrative_on"])
     assert persisted_payload["result"]["symbol"] == "ETH"
-    assert any(
-        query.startswith("CREATE TABLE IF NOT EXISTS provider_sentiment_snapshots")
-        for query, _ in executed
-    )
-    assert any(
-        "ALTER TABLE provider_sentiment_raw_feeds ADD COLUMN IF NOT EXISTS latency_ms INTEGER"
-        in query
-        for query, _ in executed
-    )
+    assert not any(query.startswith("CREATE TABLE") for query, _ in executed)
+    assert not any(query.startswith("ALTER TABLE") for query, _ in executed)
 
 
 def test_repository_factory_returns_postgres_backend(monkeypatch):
@@ -208,6 +206,7 @@ def test_repository_factory_returns_postgres_backend(monkeypatch):
             sentiment_postgres_dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
             sentiment_postgres_snapshot_table="provider_sentiment_snapshots",
             sentiment_postgres_raw_feed_table="provider_sentiment_raw_feeds",
+            sentiment_postgres_scheduler_job_table="provider_sentiment_scheduler_jobs",
         ),
     )
 
@@ -222,3 +221,146 @@ def test_postgres_repository_requires_safe_table_name():
             dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
             snapshot_table="provider_sentiment_snapshots;drop table users",
         )
+
+
+def test_file_repository_tracks_scheduler_job_lifecycle(tmp_path):
+    repository = sentiment_repository.FileBackedSentimentRepository(tmp_path)
+    request = _build_request()
+    snapshot_key = "eth__ethereum__24h__narrative_on"
+
+    acquired = repository.try_acquire_scheduler_job(
+        snapshot_key,
+        request,
+        job_owner="scheduler-node-a",
+        lease_expires_at="2026-03-24T12:02:00Z",
+        started_at="2026-03-24T12:00:00Z",
+        refresh_reason="scheduler",
+    )
+
+    assert acquired is not None
+    assert acquired.job_status == "running"
+    assert acquired.job_owner == "scheduler-node-a"
+
+    blocked = repository.try_acquire_scheduler_job(
+        snapshot_key,
+        request,
+        job_owner="scheduler-node-b",
+        lease_expires_at="2026-03-24T12:03:00Z",
+        started_at="2026-03-24T12:01:00Z",
+        refresh_reason="scheduler",
+    )
+
+    assert blocked is None
+
+    failed = repository.mark_scheduler_job_failed(
+        snapshot_key,
+        job_owner="scheduler-node-a",
+        finished_at="2026-03-24T12:00:30Z",
+        next_run_at="2026-03-24T12:01:30Z",
+        refresh_reason="scheduler",
+        error_code="SCHEDULER_REFRESH_FAILED",
+        error_message="boom",
+    )
+
+    assert failed is not None
+    assert failed.job_status == "cooldown"
+    assert failed.consecutive_failures == 1
+
+    before_cooldown = repository.try_acquire_scheduler_job(
+        snapshot_key,
+        request,
+        job_owner="scheduler-node-a",
+        lease_expires_at="2026-03-24T12:03:00Z",
+        started_at="2026-03-24T12:01:00Z",
+        refresh_reason="scheduler",
+    )
+
+    assert before_cooldown is None
+
+    reacquired = repository.try_acquire_scheduler_job(
+        snapshot_key,
+        request,
+        job_owner="scheduler-node-a",
+        lease_expires_at="2026-03-24T12:04:00Z",
+        started_at="2026-03-24T12:01:31Z",
+        refresh_reason="scheduler",
+    )
+
+    assert reacquired is not None
+    assert reacquired.job_status == "running"
+
+    succeeded = repository.mark_scheduler_job_succeeded(
+        snapshot_key,
+        job_owner="scheduler-node-a",
+        finished_at="2026-03-24T12:02:00Z",
+        next_run_at="2026-03-24T12:02:30Z",
+        refresh_reason="scheduler",
+    )
+
+    assert succeeded is not None
+    assert succeeded.job_status == "idle"
+    assert succeeded.consecutive_failures == 0
+
+
+def test_file_repository_logs_persistence_events(monkeypatch, tmp_path):
+    entries: list[tuple[str, str]] = []
+
+    class FakeLogger:
+        def info(self, message: str) -> None:
+            entries.append(("info", message))
+
+        def warning(self, message: str) -> None:
+            entries.append(("warning", message))
+
+        def debug(self, message: str) -> None:
+            entries.append(("debug", message))
+
+    monkeypatch.setattr(sentiment_repository, "repository_logger", FakeLogger())
+
+    repository = sentiment_repository.FileBackedSentimentRepository(tmp_path)
+    request = _build_request()
+    response = _build_response()
+    snapshot_key = "eth__ethereum__24h__narrative_on"
+
+    repository.save_snapshot(snapshot_key, request, response)
+    repository.append_raw_feed_records(
+        snapshot_key,
+        request,
+        [
+            RawFeedRecord(
+                symbol="ETH",
+                chain="ethereum",
+                sourceName="alternative_me",
+                success=True,
+                fetchedAt="2026-03-24T12:00:00Z",
+                sourceTimestamp="2026-03-24T11:59:30Z",
+                latencyMs=83,
+                retryCount=1,
+                timeoutMs=2000,
+                httpStatus=200,
+                payloadHash="abc123",
+                payloadExcerpt={
+                    "value": 72,
+                    "classification": "greed",
+                    "timestamp": 1710931200,
+                },
+                errorCode=None,
+                errorMessage=None,
+            )
+        ],
+    )
+    repository.try_acquire_scheduler_job(
+        snapshot_key,
+        request,
+        job_owner="scheduler-node-a",
+        lease_expires_at="2026-03-24T12:02:00Z",
+        started_at="2026-03-24T12:00:00Z",
+        refresh_reason="scheduler",
+    )
+
+    assert any("Sentiment snapshot persisted" in message for _, message in entries)
+    assert any("Sentiment raw feeds persisted" in message for _, message in entries)
+    assert any(
+        "Sentiment scheduler state updated" in message and "transition=acquired" in message
+        for _, message in entries
+    )

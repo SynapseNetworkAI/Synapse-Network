@@ -82,7 +82,8 @@ provider_service/app/
 当前实现状态：
 
 1. 这个流程已经真实落地
-2. 仍然是 request-time fetch，不是后台调度器
+2. 当前前台读路径已经支持 `fresh / stale-but-servable / expired` 三档 freshness policy
+3. `fresh` 和 `stale-but-servable` 会优先返回已有 snapshot；只有 hard-expired 才同步补抓
 3. snapshot 与 raw feed 已进入独立 provider 数据库 `synapse_gateway_providers`
 
 ## 7. 生产抓取策略
@@ -266,7 +267,7 @@ V1 建议用规则聚合，不上机器学习。
 
 当前还没落地的内容：
 
-1. 后台预抓取调度器
+1. 后台预抓取调度器的 lease/state table 仍未完整落地，当前只有 Phase 1 骨架
 2. circuit breaker
 3. 全量 raw payload 对象存储归档
 4. source quality dashboard / replay CLI
@@ -292,6 +293,8 @@ V1 建议用规则聚合，不上机器学习。
 当前状态：Phase 2 的第 1 步已完成，`Binance` adapter 已落地，并开始参与 volatility 计算。
 
 补充：Phase 2 的第 2 步已完成，当前已有 file-backed + PostgreSQL 双实现 repository，可在全源失败时回退最近一次已持久化 snapshot。
+
+补充：Phase 2 的 freshness policy 已完成，前台读路径现在按 `fresh / stale-but-servable / expired` 决定直返、异步 repair 或同步补抓。
 
 ### Phase 3
 

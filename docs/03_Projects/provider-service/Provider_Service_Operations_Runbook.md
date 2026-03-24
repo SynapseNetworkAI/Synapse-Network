@@ -51,6 +51,7 @@ cp .env.example .env
 1. 本地开发默认使用 `provider_service/.env.local`
 2. 生产模式脚本使用 `provider_service/.env.prod`
 3. `provider_service/.env` 仍可保留给手工直跑 `uvicorn` 的兼容路径
+4. `provider_service/.env.example` 为模板文件，现已标注中文用途、是否必填、以及代码默认值
 
 ### 3.2 当前最小配置
 
@@ -65,39 +66,71 @@ SENTIMENT_REPOSITORY_BACKEND=postgres
 SENTIMENT_POSTGRES_DSN=postgresql://synapse:12345678@localhost:5432/synapse_gateway_providers
 SENTIMENT_POSTGRES_SNAPSHOT_TABLE=provider_sentiment_snapshots
 SENTIMENT_POSTGRES_RAW_FEED_TABLE=provider_sentiment_raw_feeds
+SENTIMENT_POSTGRES_SCHEDULER_JOB_TABLE=provider_sentiment_scheduler_jobs
+SENTIMENT_SCHEDULER_ENABLED=false
+SENTIMENT_SCHEDULER_INTERVAL_S=30
+SENTIMENT_SCHEDULER_MAX_CONCURRENT_SNAPSHOTS=2
+SENTIMENT_SCHEDULER_LEASE_TTL_S=120
+SENTIMENT_SCHEDULER_TARGETS_JSON=
+SENTIMENT_SCHEDULER_FRESH_TTL_S=60
+SENTIMENT_SCHEDULER_STALE_TTL_S=300
+SENTIMENT_SCHEDULER_HARD_EXPIRE_S=900
+GATEWAY_PROVIDER_SIGNATURE_ENABLED=true
+GATEWAY_PROVIDER_SIGNATURE_SECRET=replace-this-with-a-provider-signature-secret
 ```
 
 说明：
 
 1. 当前代码路径实际使用本地 JSON 数据源，不依赖 `DEEPSEEK_API_KEY`。
 2. 保留 `DEEPSEEK_*` 变量是为了后续切回真实模型时直接复用。
+3. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 控制是否强制校验 Gateway 签名；生产环境必须保持 `true`。
+4. `GATEWAY_PROVIDER_SIGNATURE_SECRET` 是 Gateway 与 Provider 共享的 HMAC 密钥；只要开启验签就必须配置真实值。
+5. 当前 sentiment scheduler 已支持持久化 lease / cooldown 状态表；本地是否开启取决于调试目标，生产环境可按白名单热点 symbol 开启。
+6. `SENTIMENT_SCHEDULER_LEASE_TTL_S` 控制 per-snapshot lease TTL，默认建议 `120s`。
+7. 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 freshness policy，默认阈值分别是 `60s / 300s / 900s`。
+8. `provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`、`provider_sentiment_scheduler_jobs` 必须通过 `docker-compose/postgres/init/gateway-providers/` 的显式 SQL 链路预创建，runtime repository 不再执行建表或补列。
 
 ## 4. 启动服务
 
 ### 4.1 本地开发模式
 
 ```bash
-./start.sh local
+./scripts/start.local.sh
 ```
+
+启动脚本会额外打印一行配置摘要，至少包括：
+
+1. 当前 backend
+2. scheduler 是否开启
+3. scheduler 轮询周期
+4. gateway 验签是否开启
+5. 当前使用的 env 文件
+6. 当前数据库目标
+
+额外安全护栏：
+
+1. 如果用 `prod` 环境启动，同时 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`，启动脚本默认直接拒绝启动
+2. 只有显式设置 `ALLOW_INSECURE_PROD_START=true`，才会放行这次危险启动
+3. 即使放行，脚本仍会打印红字安全警报，明确提示你当前把生产环境跑成了“关闭验签”的危险状态
 
 停止与重启：
 
 ```bash
-./stop.sh local
-./restart.sh local
+./scripts/stop.local.sh
+./scripts/restart.local.sh
 ```
 
 ### 4.2 生产模式
 
 ```bash
-./start.sh prod
+./scripts/start.prod.sh
 ```
 
 停止与重启：
 
 ```bash
-./stop.sh prod
-./restart.sh prod
+./scripts/stop.prod.sh
+./scripts/restart.prod.sh
 ```
 
 如果需要绕过脚本手工直跑 `uvicorn`，可继续使用：
@@ -162,7 +195,7 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 改端口：修改对应环境文件中的 `SERVICE_PORT`，例如 `provider_service/.env.local`。
 
 ```bash
-./restart.sh local
+./scripts/restart.sh local
 ```
 
 释放占用端口：
@@ -185,7 +218,7 @@ kill -9 <PID>
 2. 激活 `.venv`。
 3. `pip install -r requirements.txt`。
 4. 更新 `provider_service/.env.local` 或 `provider_service/.env.prod`。
-5. 用对应脚本启动服务。
+5. 用对应环境脚本启动服务，例如 `./scripts/start.local.sh` 或 `./scripts/start.prod.sh`。
 6. 先打 `health`，再打业务接口。
 7. 如改了 schema 或数据源，执行 `./.venv/bin/python -m pytest tests -q`。
 

@@ -28,6 +28,10 @@ def _expected_signature(service_id: str, signed_at: str, body: bytes) -> str:
 
 
 async def require_gateway_signature(request: Request, service_id: str) -> None:
+    settings = get_settings()
+    if not settings.gateway_provider_signature_enabled:
+        return
+
     signed_service_id = str(request.headers.get("X-Synapse-Service-Id") or "").strip()
     signed_at = str(request.headers.get("X-Synapse-Signed-At") or "").strip()
     signature = str(request.headers.get("X-Synapse-Signature") or "").strip()

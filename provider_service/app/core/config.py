@@ -1,4 +1,5 @@
 from functools import lru_cache
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -29,6 +30,16 @@ class Settings(BaseSettings):
     sentiment_postgres_dsn: str | None = None
     sentiment_postgres_snapshot_table: str = "provider_sentiment_snapshots"
     sentiment_postgres_raw_feed_table: str = "provider_sentiment_raw_feeds"
+    sentiment_postgres_scheduler_job_table: str = "provider_sentiment_scheduler_jobs"
+    sentiment_scheduler_enabled: bool = False
+    sentiment_scheduler_interval_s: int = 30
+    sentiment_scheduler_max_concurrent_snapshots: int = 2
+    sentiment_scheduler_lease_ttl_s: int = 120
+    sentiment_scheduler_targets_json: str = ""
+    sentiment_scheduler_fresh_ttl_s: int = 60
+    sentiment_scheduler_stale_ttl_s: int = 300
+    sentiment_scheduler_hard_expire_s: int = 900
+    gateway_provider_signature_enabled: bool = True
     gateway_provider_signature_secret: str = (
         "replace-this-with-a-provider-signature-secret"
     )
@@ -42,3 +53,10 @@ def get_settings() -> Settings:
 def resolve_provider_path(relative_path: str) -> Path:
     root_dir = Path(__file__).resolve().parents[2]
     return (root_dir / relative_path).resolve()
+
+
+def parse_json_config(value: str) -> object:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return []
+    return json.loads(normalized)

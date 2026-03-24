@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -83,6 +83,90 @@ class SentimentResult(BaseModel):
 class ErrorRecord(BaseModel):
     code: str
     message: str
+
+
+class EmptyPayloadExcerpt(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AlternativeMePayloadExcerpt(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    value: int
+    classification: str
+    timestamp: int
+
+
+class CoinGeckoPayloadExcerpt(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    price_usd: float = Field(alias="priceUsd")
+    change_24h_pct: float = Field(alias="change24hPct")
+    volume_24h_usd: float = Field(alias="volume24hUsd")
+    market_cap_rank: int | None = Field(alias="marketCapRank")
+
+
+class BinancePayloadExcerpt(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    market_symbol: str = Field(alias="marketSymbol")
+    last_price_usd: float = Field(alias="lastPriceUsd")
+    price_change_pct: float = Field(alias="priceChangePct")
+    quote_volume_usd: float = Field(alias="quoteVolumeUsd")
+    kline_count: int = Field(alias="klineCount")
+
+
+PayloadExcerpt = (
+    AlternativeMePayloadExcerpt
+    | CoinGeckoPayloadExcerpt
+    | BinancePayloadExcerpt
+    | EmptyPayloadExcerpt
+)
+
+
+class RawFeedRecord(BaseModel):
+    symbol: str
+    chain: str
+    source_name: str = Field(alias="sourceName")
+    success: bool
+    fetched_at: str = Field(alias="fetchedAt")
+    source_timestamp: str | None = Field(alias="sourceTimestamp")
+    latency_ms: int | None = Field(alias="latencyMs")
+    retry_count: int = Field(alias="retryCount")
+    timeout_ms: int | None = Field(alias="timeoutMs")
+    http_status: int | None = Field(alias="httpStatus")
+    payload_hash: str | None = Field(alias="payloadHash")
+    freshness_sec: int | None = Field(default=None, alias="freshnessSec")
+    payload_excerpt: PayloadExcerpt = Field(
+        default_factory=EmptyPayloadExcerpt,
+        alias="payloadExcerpt",
+    )
+    error_code: str | None = Field(alias="errorCode")
+    error_message: str | None = Field(alias="errorMessage")
+
+
+SchedulerJobStatus = Literal["idle", "running", "cooldown", "failed"]
+
+
+class SchedulerJobRecord(BaseModel):
+    snapshot_key: str = Field(alias="snapshotKey")
+    symbol: str
+    chain: str
+    lookback_hours: int = Field(alias="lookbackHours")
+    include_narrative: bool = Field(alias="includeNarrative")
+    job_owner: str | None = Field(default=None, alias="jobOwner")
+    job_status: SchedulerJobStatus = Field(default="idle", alias="jobStatus")
+    lease_expires_at: str | None = Field(default=None, alias="leaseExpiresAt")
+    last_started_at: str | None = Field(default=None, alias="lastStartedAt")
+    last_finished_at: str | None = Field(default=None, alias="lastFinishedAt")
+    last_success_at: str | None = Field(default=None, alias="lastSuccessAt")
+    last_failure_at: str | None = Field(default=None, alias="lastFailureAt")
+    last_error_code: str | None = Field(default=None, alias="lastErrorCode")
+    last_error_message: str | None = Field(default=None, alias="lastErrorMessage")
+    consecutive_failures: int = Field(default=0, alias="consecutiveFailures")
+    next_run_at: str | None = Field(default=None, alias="nextRunAt")
+    last_refresh_reason: str | None = Field(default=None, alias="lastRefreshReason")
+    updated_at: str | None = Field(default=None, alias="updatedAt")
 
 
 class SentimentResponse(BaseModel):

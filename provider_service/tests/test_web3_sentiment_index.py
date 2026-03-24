@@ -17,7 +17,14 @@ if str(ROOT) not in sys.path:
 
 from app.main import app  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
-from app.schemas.sentiment import SentimentRequest, SentimentResponse  # noqa: E402
+from app.schemas.sentiment import (  # noqa: E402
+    AlternativeMePayloadExcerpt,
+    BinancePayloadExcerpt,
+    CoinGeckoPayloadExcerpt,
+    RawFeedRecord,
+    SentimentRequest,
+    SentimentResponse,
+)
 from app.services.sentiment.repository import FileBackedSentimentRepository  # noqa: E402
 from app.services.sentiment import adapters as sentiment_adapters  # noqa: E402
 from app.services.sentiment import repository as sentiment_repository  # noqa: E402
@@ -72,7 +79,11 @@ def stub_live_sentiment_sources(monkeypatch, tmp_path):
             retry_count=0,
             timeout_ms=2000,
             payload_hash="alt-hash",
-            payload_excerpt={"value": 72, "classification": "greed"},
+            payload_excerpt=AlternativeMePayloadExcerpt(
+                value=72,
+                classification="greed",
+                timestamp=1710931200,
+            ),
         )
 
     async def _fake_coingecko(symbol: str):
@@ -90,12 +101,12 @@ def stub_live_sentiment_sources(monkeypatch, tmp_path):
             retry_count=0,
             timeout_ms=2000,
             payload_hash="cg-hash",
-            payload_excerpt={
-                "priceUsd": 3520.12,
-                "change24hPct": 4.2,
-                "volume24hUsd": 18_200_000_000.0,
-                "marketCapRank": 2,
-            },
+            payload_excerpt=CoinGeckoPayloadExcerpt(
+                priceUsd=3520.12,
+                change24hPct=4.2,
+                volume24hUsd=18_200_000_000.0,
+                marketCapRank=2,
+            ),
         )
 
     async def _fake_binance(symbol: str):
@@ -114,13 +125,13 @@ def stub_live_sentiment_sources(monkeypatch, tmp_path):
             retry_count=0,
             timeout_ms=1000,
             payload_hash="bn-hash",
-            payload_excerpt={
-                "marketSymbol": f"{symbol}USDT",
-                "lastPriceUsd": 3518.75,
-                "priceChangePct": 4.8,
-                "quoteVolumeUsd": 29_500_000_000.0,
-                "klineCount": 12,
-            },
+            payload_excerpt=BinancePayloadExcerpt(
+                marketSymbol=f"{symbol}USDT",
+                lastPriceUsd=3518.75,
+                priceChangePct=4.8,
+                quoteVolumeUsd=29_500_000_000.0,
+                klineCount=12,
+            ),
         )
 
     monkeypatch.setattr(
@@ -248,6 +259,87 @@ def test_web3_sentiment_index_rejects_invalid_gateway_signature():
     assert response.json()["detail"]["code"] == "GATEWAY_SIGNATURE_INVALID"
 
 
+def test_web3_sentiment_index_allows_unsigned_request_when_signature_check_disabled(monkeypatch):
+    settings = get_settings().model_copy(
+        update={"gateway_provider_signature_enabled": False}
+    )
+    monkeypatch.setattr("app.core.gateway_auth.get_settings", lambda: settings)
+
+    client = TestClient(app)
+
+    response = client.post(
+        "/provider-services/web3-sentiment-index/invoke",
+        json={"symbol": "ETH"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["service"]["serviceId"] == "svc_web3_sentiment_index"
+
+
+def test_refresh_summary_log_tolerates_dict_shaped_errors(monkeypatch):
+    entries: list[str] = []
+
+    class FakeLogger:
+        def info(self, message: str) -> None:
+            entries.append(message)
+
+    monkeypatch.setattr(sentiment_service, "service_logger", FakeLogger())
+
+    response = SentimentResponse.model_validate(
+        {
+            "service": {
+                "serviceId": "svc_web3_sentiment_index",
+                "serviceName": "Web3 Sentiment Index",
+                "version": "1.0.0",
+            },
+            "sources": [{"name": "alternative_me", "freshnessSec": 30}],
+            "freshness": {
+                "generatedAt": "2026-03-24T12:00:00Z",
+                "maxSourceAgeSec": 30,
+                "cacheHit": False,
+            },
+            "result": {
+                "symbol": "ETH",
+                "sentiment_score": 68,
+                "sentiment_label": "greed",
+                "trend_direction": "up",
+                "volatility_signal": "medium",
+                "market_temperature": "risk-on but not overheated",
+                "reasoning_bullets": ["sample 1", "sample 2"],
+                "action_hint": "sample",
+            },
+            "errors": [],
+        }
+    ).model_copy(
+        update={
+            "errors": [
+                {"code": "UPSTREAM_TIMEOUT", "message": "simulated dict error"}
+            ]
+        }
+    )
+
+    sentiment_service._log_refresh_result(
+        snapshot_key="eth__ethereum__24h__narrative_on",
+        payload=SentimentRequest.model_validate(
+            {
+                "symbol": "ETH",
+                "chain": "ethereum",
+                "lookback_hours": 24,
+                "include_narrative": True,
+            }
+        ),
+        response=response,
+        reason=sentiment_service.REFRESH_REASON_SCHEDULER,
+        duration_ms=123,
+        fallback_used=False,
+        live_successful_sources=["alternative_me"],
+        live_failed_sources=["coingecko"],
+    )
+
+    assert len(entries) == 1
+    assert "error_codes=['UPSTREAM_TIMEOUT']" in entries[0]
+
+
 def test_web3_sentiment_index_rejects_unexpected_fields():
     client = TestClient(app)
 
@@ -329,6 +421,23 @@ def test_web3_sentiment_index_uses_persisted_snapshot_when_all_live_sources_fail
     )
     assert first_response.status_code == 200
 
+    snapshot_request = SentimentRequest.model_validate(payload)
+    snapshot_key = sentiment_service._snapshot_key(snapshot_request)
+    repository = sentiment_service.get_sentiment_repository()
+    stored_snapshot = repository.load_snapshot(snapshot_key)
+    assert stored_snapshot is not None
+    repository.save_snapshot(
+        snapshot_key,
+        snapshot_request,
+        stored_snapshot.model_copy(
+            update={
+                "freshness": stored_snapshot.freshness.model_copy(
+                    update={"generated_at": "2026-03-24T00:00:00Z"}
+                )
+            }
+        ),
+    )
+
     sentiment_service._snapshot_cache.clear()
 
     async def _boom_alternative_me():
@@ -390,22 +499,26 @@ def test_web3_sentiment_index_persists_raw_feed_records(tmp_path):
             }
         ),
         [
-            {
-                "symbol": "ETH",
-                "chain": "ethereum",
-                "sourceName": "alternative_me",
-                "success": True,
-                "fetchedAt": "2026-03-24T12:10:00Z",
-                "sourceTimestamp": "2026-03-24T12:00:00Z",
-                "latencyMs": 100,
-                "retryCount": 0,
-                "timeoutMs": 2000,
-                "httpStatus": 200,
-                "payloadHash": "hash-1",
-                "payloadExcerpt": {"value": 72},
-                "errorCode": None,
-                "errorMessage": None,
-            }
+            RawFeedRecord(
+                symbol="ETH",
+                chain="ethereum",
+                sourceName="alternative_me",
+                success=True,
+                fetchedAt="2026-03-24T12:10:00Z",
+                sourceTimestamp="2026-03-24T12:00:00Z",
+                latencyMs=100,
+                retryCount=0,
+                timeoutMs=2000,
+                httpStatus=200,
+                payloadHash="hash-1",
+                payloadExcerpt={
+                    "value": 72,
+                    "classification": "greed",
+                    "timestamp": 1710931200,
+                },
+                errorCode=None,
+                errorMessage=None,
+            )
         ],
     )
 
@@ -444,7 +557,7 @@ def test_web3_sentiment_index_saves_snapshot_before_appending_raw_feed_records(
             self,
             snapshot_key: str,
             payload: SentimentRequest,
-            records: list[dict],
+            records: list[RawFeedRecord],
         ) -> None:
             assert payload.symbol == "ETH"
             assert records
@@ -480,6 +593,48 @@ def test_web3_sentiment_index_saves_snapshot_before_appending_raw_feed_records(
 
     assert response.status_code == 200
     assert events == [
+        ("load", "eth__ethereum__24h__narrative_on"),
         ("save", "eth__ethereum__24h__narrative_on"),
         ("append", "eth__ethereum__24h__narrative_on"),
     ]
+
+
+def test_refresh_sentiment_snapshot_logs_final_result(monkeypatch):
+    entries: list[str] = []
+
+    class FakeLogger:
+        def info(self, message: str) -> None:
+            entries.append(message)
+
+        def warning(self, message: str) -> None:
+            entries.append(message)
+
+        def error(self, message: str) -> None:
+            entries.append(message)
+
+    payload = SentimentRequest.model_validate(
+        {
+            "symbol": "ETH",
+            "chain": "ethereum",
+            "lookback_hours": 24,
+            "include_narrative": True,
+        }
+    )
+
+    monkeypatch.setattr(sentiment_service, "service_logger", FakeLogger())
+
+    response = asyncio.run(
+        sentiment_service.refresh_sentiment_snapshot(
+            payload,
+            reason=sentiment_service.REFRESH_REASON_REQUEST,
+        )
+    )
+
+    assert response.result.symbol == "ETH"
+    result_logs = [message for message in entries if "Sentiment refresh completed" in message]
+    assert len(result_logs) == 1
+    assert "snapshot_key=eth__ethereum__24h__narrative_on" in result_logs[0]
+    assert "reason=request" in result_logs[0]
+    assert "sentiment_score=" in result_logs[0]
+    assert "source_names=['alternative_me', 'coingecko', 'binance_market_data']" in result_logs[0]
+    assert "duration_ms=" in result_logs[0]
