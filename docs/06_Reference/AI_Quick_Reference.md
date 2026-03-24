@@ -25,10 +25,15 @@ Synapse is an agent-first settlement layer. The highest-priority product outcome
 
 1. product doctrine and rule hierarchy: `docs/AGENTS.md`
 2. system architecture map: `docs/ARCHITECTURE.md`
-3. runtime architecture and protocol: `docs/02_System_Architecture/02_Gateway_Runtime_Architecture.md`, `docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md`
-4. workflows: `docs/03_Core_Workflows/README.md`
-5. database and settlement model: `docs/04_Database_Design/README.md`
-6. API and error contracts: `docs/06_Reference/05_Runtime_API_Contract.md`, `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`, `docs/06_Reference/`
+3. docs governance constraints: `docs/00_Governance/Documentation_Constraints.md`
+4. runtime architecture and protocol: `docs/02_System_Architecture/02_Gateway_Runtime_Architecture.md`, `docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md`
+5. workflows: `docs/03_Core_Workflows/README.md`
+6. database and settlement model: `docs/04_Database_Design/README.md`
+7. API and error contracts: `docs/06_Reference/05_Runtime_API_Contract.md`, `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`, `docs/06_Reference/`
+
+Validation shortcut:
+
+1. docs and index hygiene: `npm run ci:docs`
 7. per-project boundaries: `docs/03_Projects/README.md`
 
 ## 5. Finance Warning

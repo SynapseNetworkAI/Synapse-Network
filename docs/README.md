@@ -12,6 +12,8 @@ AI 协作优先入口新增如下：
 2. `ARCHITECTURE.md` 作为全仓顶层结构地图。
 3. `Harness_engineering.md` 作为 AI 文档治理与落地顺序说明。
 4. `exec-plans/` 作为多步骤任务的标准执行计划目录。
+5. `00_Governance/Documentation_Constraints.md` 作为 `docs/` 目录硬边界说明。
+6. `06_Reference/Validation_Entry_Points.md` 作为当前校验入口地图。
 
 ### 1.1 docs/ 文件地图（Agent File Map）
 
@@ -23,8 +25,10 @@ AI 协作优先入口新增如下：
 2. [ARCHITECTURE.md](./ARCHITECTURE.md)
 3. [Harness_engineering.md](./Harness_engineering.md)
 4. [00_Governance/README.md](./00_Governance/README.md)
-5. [Design.md](./Design.md)
-6. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
+5. [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)
+6. [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)
+7. [Design.md](./Design.md)
+8. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
 
 说明：root `docs/` 当前只保留全局入口、治理文件和少量 supplementary 过渡文档，不再作为数据库、测试、监控或审批流程的长期 canonical 落点。
 
@@ -72,11 +76,12 @@ AI 协作优先入口新增如下：
 建议 Agent 读取顺序：
 
 1. 先读 [AGENTS.md](./AGENTS.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[00_Governance/README.md](./00_Governance/README.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
-2. 需要 Runtime 协议时直接看官方模块；若需要追溯旧迁移关系，再进入 [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)。
-3. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
-4. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [04_Database_Design/01_SQL_Schema_Overview.md](./04_Database_Design/01_SQL_Schema_Overview.md)。
-5. 需要按代码项目定位时进入 [03_Projects/README.md](./03_Projects/README.md)。
-6. 需要补充专题、计划或历史背景时再进入 supplement and archive layers。
+2. 若任务涉及文档结构、入口或治理，先读 [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md) 与 [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)。
+3. 需要 Runtime 协议时直接看官方模块；若需要追溯旧迁移关系，再进入 [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)。
+4. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
+5. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [04_Database_Design/01_SQL_Schema_Overview.md](./04_Database_Design/01_SQL_Schema_Overview.md)。
+6. 需要按代码项目定位时进入 [03_Projects/README.md](./03_Projects/README.md)。
+7. 需要补充专题、计划或历史背景时再进入 supplement and archive layers。
 
 ## 2. Canonical Source of Truth
 
@@ -87,9 +92,11 @@ AI 协作优先入口新增如下：
 3. [Harness_engineering.md](./Harness_engineering.md)
 4. [exec-plans/README.md](./exec-plans/README.md)
 5. [06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)
-6. [Design.md](./Design.md)
-7. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
-8. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
+6. [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)
+7. [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)
+8. [Design.md](./Design.md)
+9. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
+10. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
 
 ### 2.2 Runtime 协议与平台 API
 
@@ -246,6 +253,7 @@ AI 协作优先入口新增如下：
 2. 新文档先决定归属模块，不再向根目录和已退役技术目录散落文件。
 3. Runtime 协议、身份、资金模型统一以官方模块为准，其他目录只能解释实现和应用，不能并列重定义。
 4. `plan/` 只保留计划与历史记录，不再作为当前协议入口；当前执行状态以最新专项计划为准。
+5. 任何 `docs/` 结构、入口或治理变更结束前，必须运行 `npm run ci:docs`。
 
 ## 9. 当前维护基准
 

@@ -1,0 +1,255 @@
+#!/usr/bin/env node
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+function findRepoRoot(startDir) {
+  let currentDir = startDir;
+
+  while (true) {
+    const hasDocs = fs.existsSync(path.join(currentDir, "docs"));
+    const hasLlms = fs.existsSync(path.join(currentDir, "llms.txt"));
+    const hasPackageJson = fs.existsSync(path.join(currentDir, "package.json"));
+
+    if (hasDocs && hasLlms && hasPackageJson) {
+      return currentDir;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      throw new Error(`Unable to locate repository root from ${startDir}`);
+    }
+
+    currentDir = parentDir;
+  }
+}
+
+const rootDir = findRepoRoot(__dirname);
+const docsDir = path.join(rootDir, "docs");
+const llmsPath = path.join(rootDir, "llms.txt");
+
+const allowedRootDocs = new Set([
+  "AGENTS.md",
+  "ARCHITECTURE.md",
+  "Design.md",
+  "Harness_engineering.md",
+  "README.md",
+  "文档迁移.md",
+]);
+
+const retiredPaths = [
+  "docs/agent",
+  "docs/api.md",
+  "docs/Gateway_Error_Codes.md",
+  "docs/Gateway_Database_Design.md",
+  "docs/测试文档.md",
+  "docs/平台资金监控方案.md",
+  "docs/充值退款审批流程.md",
+];
+
+const historicalPrefixAllowlist = [
+  "docs/exec-plans/completed/",
+  "docs/plan/",
+];
+
+const historicalFilesAllowlist = new Set([
+  "docs/文档迁移.md",
+  "docs/00_Governance/Agent_Docs_Migration_Map.md",
+]);
+
+const requiredLlmsAnchors = [
+  "docs/AGENTS.md",
+  "docs/README.md",
+  "docs/ARCHITECTURE.md",
+  "docs/Harness_engineering.md",
+  "docs/00_Governance/Documentation_Constraints.md",
+  "docs/06_Reference/Validation_Entry_Points.md",
+  "npm run ci:docs",
+];
+
+const requiredReadmeAnchors = [
+  "[00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)",
+  "[06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)",
+  "`npm run ci:docs`",
+];
+
+const errors = [];
+
+function toRepoPath(targetPath) {
+  return path.relative(rootDir, targetPath).split(path.sep).join("/");
+}
+
+function readFile(filePath) {
+  return fs.readFileSync(filePath, "utf8");
+}
+
+function walkMarkdownFiles(startDir) {
+  const results = [];
+  const entries = fs.readdirSync(startDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(startDir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...walkMarkdownFiles(fullPath));
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith(".md")) {
+      results.push(fullPath);
+    }
+  }
+
+  return results;
+}
+
+function isHistoricalFile(repoPath) {
+  if (historicalFilesAllowlist.has(repoPath)) {
+    return true;
+  }
+  return historicalPrefixAllowlist.some((prefix) => repoPath.startsWith(prefix));
+}
+
+function normalizeLinkTarget(rawTarget) {
+  const withoutAnchor = rawTarget.split("#")[0];
+  if (!withoutAnchor || withoutAnchor.startsWith("http://") || withoutAnchor.startsWith("https://") || withoutAnchor.startsWith("mailto:")) {
+    return null;
+  }
+  return withoutAnchor;
+}
+
+function linkHitsRetiredTarget(rawTarget) {
+  const target = normalizeLinkTarget(rawTarget);
+  if (!target) {
+    return false;
+  }
+  return retiredPaths.some((retiredPath) => {
+    const retiredName = retiredPath.replaceAll("\\", "/");
+    return target.includes(retiredName) || target.includes(path.basename(retiredName));
+  });
+}
+
+function firstLines(content, count) {
+  return content.split(/\r?\n/).slice(0, count);
+}
+
+function checkRootDocs() {
+  const rootEntries = fs.readdirSync(docsDir, { withFileTypes: true });
+  const rootMarkdown = rootEntries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => entry.name);
+
+  for (const fileName of rootMarkdown) {
+    if (!allowedRootDocs.has(fileName)) {
+      errors.push(`Unexpected root docs file: docs/${fileName}. Move it into a canonical module or update Documentation_Constraints.md and the docs gate first.`);
+    }
+  }
+}
+
+function checkRetiredPathsDoNotExist() {
+  for (const retiredPath of retiredPaths) {
+    if (fs.existsSync(path.join(rootDir, retiredPath))) {
+      errors.push(`Retired path exists again: ${retiredPath}`);
+    }
+  }
+}
+
+function checkLlmsAnchors() {
+  const llmsContent = readFile(llmsPath);
+  for (const anchor of requiredLlmsAnchors) {
+    if (!llmsContent.includes(anchor)) {
+      errors.push(`llms.txt is missing required anchor: ${anchor}`);
+    }
+  }
+
+  for (const retiredPath of retiredPaths) {
+    const normalized = retiredPath.replaceAll("\\", "/");
+    if (llmsContent.includes(normalized)) {
+      errors.push(`llms.txt still references retired path: ${normalized}`);
+    }
+  }
+}
+
+function checkReadmeAnchors() {
+  const readmeContent = readFile(path.join(docsDir, "README.md"));
+  for (const anchor of requiredReadmeAnchors) {
+    if (!readmeContent.includes(anchor)) {
+      errors.push(`docs/README.md is missing required anchor: ${anchor}`);
+    }
+  }
+}
+
+function checkCanonicalMetadata() {
+  const files = walkMarkdownFiles(docsDir);
+  const allowedStatuses = new Set(["canonical", "supplementary", "incubation", "legacy", "archive"]);
+
+  for (const filePath of files) {
+    const repoPath = toRepoPath(filePath);
+    if (repoPath.startsWith("docs/exec-plans/")) {
+      continue;
+    }
+
+    const header = firstLines(readFile(filePath), 12);
+    const statusLine = header.find((line) => line.startsWith("- Status: "));
+    if (!statusLine) {
+      continue;
+    }
+
+    const status = statusLine.replace("- Status:", "").trim();
+    if (!allowedStatuses.has(status)) {
+      errors.push(`${repoPath} has unsupported lifecycle status in header: ${status}`);
+      continue;
+    }
+
+    if (status === "canonical") {
+      const hasCodePaths = header.some((line) => line.startsWith("- Code paths: "));
+      const hasLastVerified = header.some((line) => line.startsWith("- Last verified against code: "));
+      if (!hasCodePaths) {
+        errors.push(`${repoPath} is canonical but missing '- Code paths:' in the top metadata block.`);
+      }
+      if (!hasLastVerified) {
+        errors.push(`${repoPath} is canonical but missing '- Last verified against code:' in the top metadata block.`);
+      }
+    }
+  }
+}
+
+function checkRetiredLinks() {
+  const files = walkMarkdownFiles(docsDir);
+  const markdownLinkPattern = /\[[^\]]+\]\(([^)]+)\)/g;
+
+  for (const filePath of files) {
+    const repoPath = toRepoPath(filePath);
+    if (isHistoricalFile(repoPath)) {
+      continue;
+    }
+
+    const content = readFile(filePath);
+    let match;
+    while ((match = markdownLinkPattern.exec(content)) !== null) {
+      const rawTarget = match[1];
+      if (linkHitsRetiredTarget(rawTarget)) {
+        errors.push(`${repoPath} links to retired path: ${rawTarget}`);
+      }
+    }
+  }
+}
+
+function main() {
+  checkRootDocs();
+  checkRetiredPathsDoNotExist();
+  checkLlmsAnchors();
+  checkReadmeAnchors();
+  checkCanonicalMetadata();
+  checkRetiredLinks();
+
+  if (errors.length > 0) {
+    console.error("[ci:docs] documentation validation failed\n");
+    for (const error of errors) {
+      console.error(`- ${error}`);
+    }
+    process.exit(1);
+  }
+
+  console.log("[ci:docs] documentation validation passed");
+}
+
+main();

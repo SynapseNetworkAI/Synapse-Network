@@ -104,6 +104,11 @@
 4. `Supersedes`
 5. `Last verified against code`
 
+当前轻量硬门槛：任何在头部显式声明 `- Status: canonical` 的文档，必须至少同时给出：
+
+1. `Code paths`
+2. `Last verified against code`
+
 所有 `incubation`、`legacy`、`archive` 文档应至少补齐：
 
 1. `Status`
@@ -134,3 +139,15 @@
 3. 再将旧文档改成 `legacy` 或 `archive`
 
 禁止直接删除仍被入口索引引用的文档。
+
+## 7. Root Admission Rule
+
+root `docs/` 不再是自由落点。
+
+新增 root Markdown 文件前，必须先回答：
+
+1. 为什么它不能进入官方模块、`docs/03_Projects/`、`docs/admin/` 或治理目录
+2. 为什么它必须成为长期顶层入口
+3. 是否已同步更新 `Documentation_Constraints.md` 与 docs gate
+
+如果回答不清楚，就说明它不该落在 root。

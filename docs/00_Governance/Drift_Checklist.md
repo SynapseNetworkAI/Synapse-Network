@@ -15,6 +15,7 @@
 3. 对应 canonical 文档是否已更新
 4. `docs/README.md` 和 `llms.txt` 是否仍能把读者带到正确入口
 5. 是否还有旧文档在描述被替代语义
+6. 若改动涉及 `docs/` 结构、入口、规则或校验，是否已通过 `npm run ci:docs`
 
 ## 3. API And Contract Changes
 
@@ -59,3 +60,4 @@
 2. 确认它已经被索引到正确入口
 3. 确认它没有和现有 canonical 文档并列重定义同一主题
 4. 确认旧文档有 redirect、banner 或替代说明
+5. 运行 `npm run ci:docs`，确认没有重新引入 root 膨胀、退役入口复活或 canonical 元信息缺失

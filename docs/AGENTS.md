@@ -96,10 +96,11 @@ Before implementation:
 
 1. Read `docs/AGENTS.md`.
 2. For cross-project or repo-structure tasks, read `docs/ARCHITECTURE.md` and root `llms.txt`.
-3. If the task touches visual or UX work, read `docs/Design.md`.
-4. Rely on `.github/instructions/*.instructions.md` for language-specific coding rules.
-5. Read the target subproject `AGENTS.md` for local commands, runtime boundaries, and validation flow.
-6. If the task is finance-sensitive, admin-console-heavy, or behavior-changing across docs/tests/contracts, expect the finer-grained instructions to apply too.
+3. If the task touches `docs/` structure or canonical entrypoints, read `docs/00_Governance/Documentation_Constraints.md`.
+4. If the task touches visual or UX work, read `docs/Design.md`.
+5. Rely on `.github/instructions/*.instructions.md` for language-specific coding rules.
+6. Read the target subproject `AGENTS.md` for local commands, runtime boundaries, and validation flow.
+7. If the task is finance-sensitive, admin-console-heavy, or behavior-changing across docs/tests/contracts, expect the finer-grained instructions to apply too.
 
 ## 7. Docs-Code-Test Sync
 
@@ -107,6 +108,7 @@ Before implementation:
 - Backend behavior changes must update tests in the same change.
 - Frontend information architecture, wording, and API expectations must stay aligned with the canonical docs.
 - Do not leave stale rules duplicated across root and subproject AGENTS files.
+- If a task changes `docs/` structure, indexes, or governance rules, it must pass `npm run ci:docs` before closing.
 
 ## 8. Design Rule for Future Customization
 
