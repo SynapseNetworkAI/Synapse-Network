@@ -41,8 +41,14 @@ REPOSITORY_BACKEND="${SENTIMENT_REPOSITORY_BACKEND:-file}"
 SCHEDULER_ENABLED="${SENTIMENT_SCHEDULER_ENABLED:-false}"
 SCHEDULER_INTERVAL_S="${SENTIMENT_SCHEDULER_INTERVAL_S:-30}"
 SIGNATURE_ENABLED="${GATEWAY_PROVIDER_SIGNATURE_ENABLED:-true}"
+PROXY_POOL_ENABLED="${SENTIMENT_PROXY_POOL_ENABLED:-false}"
+PROXY_POOL_URLS_JSON="${SENTIMENT_PROXY_POOL_URLS_JSON:-}"
+PROXY_POOL_URLS_NORMALIZED="$(printf '%s' "${PROXY_POOL_URLS_JSON}" | tr -d '[:space:]')"
 ALLOW_INSECURE_PROD_START="${ALLOW_INSECURE_PROD_START:-false}"
 POSTGRES_DSN_VALUE="${SENTIMENT_POSTGRES_DSN:-}"
+SIGNATURE_ENABLED_NORMALIZED="$(printf '%s' "${SIGNATURE_ENABLED}" | tr '[:upper:]' '[:lower:]')"
+PROXY_POOL_ENABLED_NORMALIZED="$(printf '%s' "${PROXY_POOL_ENABLED}" | tr '[:upper:]' '[:lower:]')"
+ALLOW_INSECURE_PROD_START_NORMALIZED="$(printf '%s' "${ALLOW_INSECURE_PROD_START}" | tr '[:upper:]' '[:lower:]')"
 
 if [[ -n "${POSTGRES_DSN_VALUE}" ]]; then
     DATABASE_TARGET="${POSTGRES_DSN_VALUE}"
@@ -52,10 +58,15 @@ fi
 
 echo "=== Starting Provider Service (${ENV_NAME}) ==="
 echo "Tip: prefer ./scripts/start.${ENV_NAME}.sh for explicit environment startup."
-echo "Config summary: backend=${REPOSITORY_BACKEND} | scheduler_enabled=${SCHEDULER_ENABLED} | scheduler_interval_s=${SCHEDULER_INTERVAL_S} | signature_enabled=${SIGNATURE_ENABLED} | env_file=${ENV_FILE} | database=${DATABASE_TARGET}"
+echo "Config summary: backend=${REPOSITORY_BACKEND} | scheduler_enabled=${SCHEDULER_ENABLED} | scheduler_interval_s=${SCHEDULER_INTERVAL_S} | signature_enabled=${SIGNATURE_ENABLED} | proxy_pool_enabled=${PROXY_POOL_ENABLED} | env_file=${ENV_FILE} | database=${DATABASE_TARGET}"
 
-if [[ "${ENV_NAME}" == "prod" && "${SIGNATURE_ENABLED,,}" != "true" ]]; then
-    if [[ "${ALLOW_INSECURE_PROD_START,,}" != "true" ]]; then
+if [[ "${PROXY_POOL_ENABLED_NORMALIZED}" == "true" && ( -z "${PROXY_POOL_URLS_NORMALIZED}" || "${PROXY_POOL_URLS_NORMALIZED}" == "[]" ) ]]; then
+    echo "CONFIG ERROR: SENTIMENT_PROXY_POOL_ENABLED=true but SENTIMENT_PROXY_POOL_URLS_JSON is empty." >&2
+    exit 1
+fi
+
+if [[ "${ENV_NAME}" == "prod" && "${SIGNATURE_ENABLED_NORMALIZED}" != "true" ]]; then
+    if [[ "${ALLOW_INSECURE_PROD_START_NORMALIZED}" != "true" ]]; then
         echo $'\033[31;1mSECURITY BLOCK: refusing to start prod with GATEWAY_PROVIDER_SIGNATURE_ENABLED=false. Set ALLOW_INSECURE_PROD_START=true only for an intentional emergency override. This usually means a local debug config leaked into prod.\033[0m' >&2
         exit 1
     fi

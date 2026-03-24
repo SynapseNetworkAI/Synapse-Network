@@ -144,6 +144,26 @@ def test_scheduler_from_settings_respects_enable_flag(monkeypatch):
     assert sentiment_scheduler.scheduler_from_settings() is None
 
 
+def test_scheduler_from_settings_caps_concurrency_to_proxy_pool(monkeypatch):
+    monkeypatch.setattr(
+        sentiment_scheduler,
+        "get_settings",
+        lambda: SimpleNamespace(
+            sentiment_scheduler_enabled=True,
+            sentiment_scheduler_interval_s=30,
+            sentiment_scheduler_max_concurrent_snapshots=4,
+            sentiment_scheduler_lease_ttl_s=120,
+            sentiment_proxy_pool_enabled=True,
+        ),
+    )
+    monkeypatch.setattr(sentiment_scheduler.sentiment_adapters, "proxy_pool_size", lambda: 1)
+
+    scheduler = sentiment_scheduler.scheduler_from_settings()
+
+    assert scheduler is not None
+    assert scheduler.max_concurrent_snapshots == 1
+
+
 def test_scheduler_skips_target_when_lease_not_acquired(monkeypatch):
     calls: list[str] = []
 

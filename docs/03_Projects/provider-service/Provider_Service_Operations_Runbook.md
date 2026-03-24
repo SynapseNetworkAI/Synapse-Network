@@ -67,6 +67,9 @@ SENTIMENT_POSTGRES_DSN=postgresql://synapse:12345678@localhost:5432/synapse_gate
 SENTIMENT_POSTGRES_SNAPSHOT_TABLE=provider_sentiment_snapshots
 SENTIMENT_POSTGRES_RAW_FEED_TABLE=provider_sentiment_raw_feeds
 SENTIMENT_POSTGRES_SCHEDULER_JOB_TABLE=provider_sentiment_scheduler_jobs
+SENTIMENT_PROXY_POOL_ENABLED=false
+SENTIMENT_PROXY_POOL_URLS_JSON='[]'
+SENTIMENT_PROXY_TIMEOUT_FLOOR_S=8
 SENTIMENT_SCHEDULER_ENABLED=false
 SENTIMENT_SCHEDULER_INTERVAL_S=30
 SENTIMENT_SCHEDULER_MAX_CONCURRENT_SNAPSHOTS=2
@@ -89,6 +92,10 @@ GATEWAY_PROVIDER_SIGNATURE_SECRET=replace-this-with-a-provider-signature-secret
 6. `SENTIMENT_SCHEDULER_LEASE_TTL_S` 控制 per-snapshot lease TTL，默认建议 `120s`。
 7. 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 freshness policy，默认阈值分别是 `60s / 300s / 900s`。
 8. `provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`、`provider_sentiment_scheduler_jobs` 必须通过 `docker-compose/postgres/init/gateway-providers/` 的显式 SQL 链路预创建，runtime repository 不再执行建表或补列。
+9. `SENTIMENT_PROXY_POOL_ENABLED` 控制抓取 worker 是否通过代理池出站；开启后会按 `SENTIMENT_PROXY_POOL_URLS_JSON` 中的 URL 做轮转。
+10. `SENTIMENT_PROXY_POOL_URLS_JSON` 必须是 JSON 数组；如果写在 `.env.*` 文件里，要用单引号包住整串，例如 `'["http://proxy-a.internal:8080","http://proxy-b.internal:8080"]'`。
+11. `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 是代理模式下的最小 timeout floor；单代理环境建议至少 `8` 秒。
+12. 代理模式下 scheduler 刷新并发会自动被限制到代理池大小，避免单代理环境被多快照并发压爆。
 
 ## 4. 启动服务
 
@@ -104,14 +111,16 @@ GATEWAY_PROVIDER_SIGNATURE_SECRET=replace-this-with-a-provider-signature-secret
 2. scheduler 是否开启
 3. scheduler 轮询周期
 4. gateway 验签是否开启
-5. 当前使用的 env 文件
-6. 当前数据库目标
+5. 抓取代理池是否开启
+6. 当前使用的 env 文件
+7. 当前数据库目标
 
 额外安全护栏：
 
 1. 如果用 `prod` 环境启动，同时 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`，启动脚本默认直接拒绝启动
 2. 只有显式设置 `ALLOW_INSECURE_PROD_START=true`，才会放行这次危险启动
 3. 即使放行，脚本仍会打印红字安全警报，明确提示你当前把生产环境跑成了“关闭验签”的危险状态
+4. 如果 `SENTIMENT_PROXY_POOL_ENABLED=true` 但 `SENTIMENT_PROXY_POOL_URLS_JSON` 为空，启动脚本也会直接拒绝启动，避免抓取 worker 假装走代理、实际仍然直连
 
 停止与重启：
 

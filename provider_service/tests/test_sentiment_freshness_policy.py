@@ -138,3 +138,46 @@ def test_build_sentiment_snapshot_sync_refreshes_hard_expired_snapshot(monkeypat
     assert response.freshness.cache_hit is False
     assert calls == [sentiment_service.REFRESH_REASON_REQUEST]
     assert unexpected_schedule == []
+
+
+def test_refresh_sentiment_snapshot_deduplicates_concurrent_refreshes(monkeypatch):
+    payload = _payload()
+    sentiment_service._snapshot_cache.clear()
+    sentiment_service._in_flight_refresh_tasks.clear()
+    calls = {"count": 0}
+
+    class CountingRepository(StubRepository):
+        def __init__(self) -> None:
+            super().__init__(stored_snapshot=None)
+            self.saved = 0
+
+        def save_snapshot(self, snapshot_key: str, payload: SentimentRequest, response: SentimentResponse) -> None:
+            _ = snapshot_key
+            _ = payload
+            self.saved += 1
+            self.stored_snapshot = response
+
+    repository = CountingRepository()
+    monkeypatch.setattr(sentiment_service, "get_sentiment_repository", lambda: repository)
+
+    async def _fake_fetch_live_sources(_payload: SentimentRequest):
+        calls["count"] += 1
+        await asyncio.sleep(0.01)
+        return None, None, None, [], []
+
+    monkeypatch.setattr(sentiment_service, "_fetch_live_sources", _fake_fetch_live_sources)
+
+    async def _run() -> tuple[SentimentResponse, SentimentResponse]:
+        return await asyncio.gather(
+            sentiment_service.refresh_sentiment_snapshot(payload),
+            sentiment_service.refresh_sentiment_snapshot(payload),
+        )
+
+    try:
+        first, second = asyncio.run(_run())
+    finally:
+        sentiment_service._in_flight_refresh_tasks.clear()
+
+    assert calls["count"] == 1
+    assert repository.saved == 1
+    assert first == second

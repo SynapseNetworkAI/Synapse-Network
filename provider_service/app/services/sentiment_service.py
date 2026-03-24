@@ -79,6 +79,7 @@ CHAIN_SCORE_ADJUSTMENTS = {
 _snapshot_cache: dict[tuple[str, str, int, bool], SentimentResponse] = {}
 _in_flight_async_repairs: set[str] = set()
 _background_repair_tasks: set[asyncio.Task[None]] = set()
+_in_flight_refresh_tasks: dict[str, asyncio.Task[SentimentResponse]] = {}
 UTC_OFFSET_SUFFIX = "+00:00"
 service_logger = logger.bind(component="sentiment_refresh")
 
@@ -554,94 +555,111 @@ async def refresh_sentiment_snapshot(
     *,
     reason: Literal["request", "scheduler"] = REFRESH_REASON_REQUEST,
 ) -> SentimentResponse:
-    refresh_started_at = perf_counter()
-    repository = get_sentiment_repository()
-    cache_key = (
-        payload.symbol,
-        payload.chain,
-        payload.lookback_hours,
-        payload.include_narrative,
-    )
     snapshot_key = _snapshot_key(payload)
+    existing_refresh = _in_flight_refresh_tasks.get(snapshot_key)
+    current_task = asyncio.current_task()
+    if existing_refresh is not None and existing_refresh is not current_task:
+        return await asyncio.shield(existing_refresh)
 
-    (
-        alternative_snapshot,
-        coingecko_snapshot,
-        binance_snapshot,
-        raw_feed_records,
-        errors,
-    ) = await _fetch_live_sources(payload)
+    async def _run_refresh() -> SentimentResponse:
+        refresh_started_at = perf_counter()
+        repository = get_sentiment_repository()
+        cache_key = (
+            payload.symbol,
+            payload.chain,
+            payload.lookback_hours,
+            payload.include_narrative,
+        )
 
-    if (
-        alternative_snapshot is None
-        and coingecko_snapshot is None
-        and binance_snapshot is None
-    ):
-        stored_snapshot = repository.load_snapshot(snapshot_key)
-        if stored_snapshot is not None:
-            fallback_errors = [
-                *stored_snapshot.errors,
-                *errors,
-                ErrorRecord(
-                    code="SENTIMENT_SNAPSHOT_FALLBACK_USED",
-                    message=(
-                        "Returning the latest persisted sentiment snapshot "
-                        f"because all live sources failed during {reason} refresh."
+        (
+            alternative_snapshot,
+            coingecko_snapshot,
+            binance_snapshot,
+            raw_feed_records,
+            errors,
+        ) = await _fetch_live_sources(payload)
+
+        if (
+            alternative_snapshot is None
+            and coingecko_snapshot is None
+            and binance_snapshot is None
+        ):
+            stored_snapshot = repository.load_snapshot(snapshot_key)
+            if stored_snapshot is not None:
+                fallback_errors = [
+                    *stored_snapshot.errors,
+                    *errors,
+                    ErrorRecord(
+                        code="SENTIMENT_SNAPSHOT_FALLBACK_USED",
+                        message=(
+                            "Returning the latest persisted sentiment snapshot "
+                            f"because all live sources failed during {reason} refresh."
+                        ),
                     ),
-                ),
-            ]
-            fallback_response = stored_snapshot.model_copy(
-                update={
-                    "freshness": stored_snapshot.freshness.model_copy(
-                        update={"cache_hit": True}
-                    ),
-                    "errors": fallback_errors,
-                }
-            )
-            repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
-            _snapshot_cache[cache_key] = fallback_response
-            _log_refresh_result(
-                snapshot_key=snapshot_key,
-                payload=payload,
-                response=fallback_response,
-                reason=reason,
-                duration_ms=int((perf_counter() - refresh_started_at) * 1000),
-                fallback_used=True,
-                live_successful_sources=[
-                    record.source_name for record in raw_feed_records if record.success
-                ],
-                live_failed_sources=[
-                    record.source_name for record in raw_feed_records if not record.success
-                ],
-            )
-            return fallback_response
+                ]
+                fallback_response = stored_snapshot.model_copy(
+                    update={
+                        "freshness": stored_snapshot.freshness.model_copy(
+                            update={"cache_hit": True}
+                        ),
+                        "errors": fallback_errors,
+                    }
+                )
+                repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
+                _snapshot_cache[cache_key] = fallback_response
+                _log_refresh_result(
+                    snapshot_key=snapshot_key,
+                    payload=payload,
+                    response=fallback_response,
+                    reason=reason,
+                    duration_ms=int((perf_counter() - refresh_started_at) * 1000),
+                    fallback_used=True,
+                    live_successful_sources=[
+                        record.source_name for record in raw_feed_records if record.success
+                    ],
+                    live_failed_sources=[
+                        record.source_name for record in raw_feed_records if not record.success
+                    ],
+                )
+                return fallback_response
 
-    response = _build_response(
-        payload,
-        cache_hit=False,
-        alternative_snapshot=alternative_snapshot,
-        coingecko_snapshot=coingecko_snapshot,
-        binance_snapshot=binance_snapshot,
-        errors=errors,
+        response = _build_response(
+            payload,
+            cache_hit=False,
+            alternative_snapshot=alternative_snapshot,
+            coingecko_snapshot=coingecko_snapshot,
+            binance_snapshot=binance_snapshot,
+            errors=errors,
+        )
+        repository.save_snapshot(snapshot_key, payload, response)
+        repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
+        _snapshot_cache[cache_key] = response
+        _log_refresh_result(
+            snapshot_key=snapshot_key,
+            payload=payload,
+            response=response,
+            reason=reason,
+            duration_ms=int((perf_counter() - refresh_started_at) * 1000),
+            fallback_used=False,
+            live_successful_sources=[
+                record.source_name for record in raw_feed_records if record.success
+            ],
+            live_failed_sources=[
+                record.source_name for record in raw_feed_records if not record.success
+            ],
+        )
+        return response
+
+    refresh_task = asyncio.create_task(
+        _run_refresh(),
+        name=f"sentiment-refresh:{snapshot_key}:{reason}",
     )
-    repository.save_snapshot(snapshot_key, payload, response)
-    repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
-    _snapshot_cache[cache_key] = response
-    _log_refresh_result(
-        snapshot_key=snapshot_key,
-        payload=payload,
-        response=response,
-        reason=reason,
-        duration_ms=int((perf_counter() - refresh_started_at) * 1000),
-        fallback_used=False,
-        live_successful_sources=[
-            record.source_name for record in raw_feed_records if record.success
-        ],
-        live_failed_sources=[
-            record.source_name for record in raw_feed_records if not record.success
-        ],
-    )
-    return response
+    _in_flight_refresh_tasks[snapshot_key] = refresh_task
+    try:
+        return await asyncio.shield(refresh_task)
+    finally:
+        if _in_flight_refresh_tasks.get(snapshot_key) is refresh_task:
+            _in_flight_refresh_tasks.pop(snapshot_key, None)
 
 
 def _log_refresh_result(
