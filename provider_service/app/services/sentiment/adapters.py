@@ -19,15 +19,7 @@ from app.core.log_config import logger
 from app.schemas.sentiment import (
     AlternativeMePayloadExcerpt,
     BinancePayloadExcerpt,
-    CoinGeckoPayloadExcerpt,
 )
-
-
-SYMBOL_TO_COINGECKO_ID = {
-    "BTC": "bitcoin",
-    "ETH": "ethereum",
-    "SOL": "solana",
-}
 
 SYMBOL_TO_BINANCE_MARKET = {
     "BTC": "BTCUSDT",
@@ -92,28 +84,6 @@ class AlternativeMeSentimentSnapshot:
     timeout_ms: int
     payload_hash: str
     payload_excerpt: AlternativeMePayloadExcerpt
-
-    @property
-    def freshness_sec(self) -> int:
-        delta = self.fetched_at - self.source_timestamp
-        return max(0, int(delta.total_seconds()))
-
-
-@dataclass(frozen=True)
-class CoinGeckoMarketSnapshot:
-    symbol: str
-    price_usd: float
-    change_24h_pct: float
-    volume_24h_usd: float
-    market_cap_rank: int | None
-    source_timestamp: datetime
-    fetched_at: datetime
-    http_status: int
-    latency_ms: int
-    retry_count: int
-    timeout_ms: int
-    payload_hash: str
-    payload_excerpt: CoinGeckoPayloadExcerpt
 
     @property
     def freshness_sec(self) -> int:
@@ -363,90 +333,6 @@ async def fetch_alternative_me_sentiment(
         " | source=alternative_me"
         f" | classification={snapshot.classification}"
         f" | value={snapshot.value}"
-        f" | latency_ms={snapshot.latency_ms}"
-        f" | retry_count={snapshot.retry_count}"
-        f" | freshness_sec={snapshot.freshness_sec}"
-        f" | http_status={snapshot.http_status}"
-    )
-    return snapshot
-
-
-async def fetch_coingecko_market_snapshot(
-    symbol: str, *, client: httpx.AsyncClient | None = None
-) -> CoinGeckoMarketSnapshot:
-    settings = get_settings()
-    timeout_s = _effective_timeout_s(
-        settings.coingecko_timeout_s or settings.sentiment_source_timeout_s
-    )
-    coin_id = SYMBOL_TO_COINGECKO_ID[symbol]
-    async def _operation() -> tuple[httpx.Response, list[dict[str, Any]], datetime]:
-        async def _execute(current_client: httpx.AsyncClient) -> tuple[httpx.Response, list[dict[str, Any]], datetime]:
-            fetched_at = _now_utc()
-            response = await current_client.get(
-                "/coins/markets",
-                params={
-                    "vs_currency": "usd",
-                    "ids": coin_id,
-                    "price_change_percentage": "24h",
-                },
-                timeout=timeout_s,
-            )
-            response.raise_for_status()
-            return response, _parse_json_response(response, source_name="coingecko"), fetched_at
-
-        return await _run_with_adapter_client(
-            source_name="coingecko",
-            base_url=settings.coingecko_base_url,
-            timeout_s=timeout_s,
-            client=client,
-            operation=_execute,
-        )
-
-    (response, payload, fetched_at), retry_count, latency_ms, timeout_ms = await _run_with_retry(
-        "coingecko",
-        timeout_s,
-        _operation,
-    )
-    if not payload:
-        raise ValueError(f"CoinGecko returned no market row for {symbol}")
-    item = payload[0]
-    source_timestamp = _parse_datetime(item.get("last_updated"), fallback=fetched_at)
-    excerpt = CoinGeckoPayloadExcerpt(
-        priceUsd=float(item.get("current_price") or 0.0),
-        change24hPct=float(item.get("price_change_percentage_24h_in_currency") or 0.0),
-        volume24hUsd=float(item.get("total_volume") or 0.0),
-        marketCapRank=(
-            int(item["market_cap_rank"])
-            if item.get("market_cap_rank") is not None
-            else None
-        ),
-    )
-    snapshot = CoinGeckoMarketSnapshot(
-        symbol=symbol,
-        price_usd=float(item.get("current_price") or 0.0),
-        change_24h_pct=float(item.get("price_change_percentage_24h_in_currency") or 0.0),
-        volume_24h_usd=float(item.get("total_volume") or 0.0),
-        market_cap_rank=(
-            int(item["market_cap_rank"])
-            if item.get("market_cap_rank") is not None
-            else None
-        ),
-        source_timestamp=source_timestamp,
-        fetched_at=fetched_at,
-        http_status=response.status_code,
-        latency_ms=latency_ms,
-        retry_count=retry_count,
-        timeout_ms=timeout_ms,
-        payload_hash=_payload_hash(payload),
-        payload_excerpt=excerpt,
-    )
-    adapter_logger.info(
-        "Sentiment source fetch succeeded"
-        " | source=coingecko"
-        f" | symbol={snapshot.symbol}"
-        f" | price_usd={snapshot.price_usd:.4f}"
-        f" | change_24h_pct={snapshot.change_24h_pct:.4f}"
-        f" | volume_24h_usd={snapshot.volume_24h_usd:.2f}"
         f" | latency_ms={snapshot.latency_ms}"
         f" | retry_count={snapshot.retry_count}"
         f" | freshness_sec={snapshot.freshness_sec}"

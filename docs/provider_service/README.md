@@ -77,7 +77,7 @@ Marketplace 冷启动的第一原则很简单：
 
 - 建议定价：`$0.01 / 次`
 - 核心价值：把零散的市场情绪、趋势、成交活跃度压成一个 Agent 可消费的结构化结果
-- 免费上游：`Alternative.me Fear & Greed` + `CoinGecko` + `Binance public market data`
+- 当前运行时上游：`Alternative.me Fear & Greed` + `Binance public market data`
 - 典型输入：`symbol`, `lookbackHours`, `chain`, `includeNarrative`
 - 典型输出：
   - `sentimentScore`
@@ -163,7 +163,7 @@ Marketplace 冷启动的第一原则很简单：
 
 | # | 服务名 | 领域 | 免费上游 / 免费能力 | Synapse 封装方式 | 主要需求方 | 需求热度 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Web3 实时情绪指数 | Web3 市场情报 | Alternative.me, CoinGecko, Binance Public API | 多源聚合后输出统一情绪分 | Trading Agent, 投研用户 | 极高 |
+| 1 | Web3 实时情绪指数 | Web3 市场情报 | Alternative.me, Binance Public API | 多源聚合后输出统一情绪分 | Trading Agent, 投研用户 | 极高 |
 | 2 | 智能合约漏洞深度审计模型 | 安全审计 | Slither, Mythril, solc, Etherscan/Blockscout | 静态分析 + 风险总结 + 修复建议 | Security Agent, 开发者 | 极高 |
 | 3 | 链上巨鲸资金异动监控 | 链上监控 | Etherscan, Blockscout, 公共 RPC, DexScreener | 大额转账聚合、标签、事件解释 | Trading Agent, 风控用户 | 极高 |
 | 4 | 协议基本面情报包 | 投研情报 | CoinGecko, DefiLlama | 价格、TVL、收入、风险因子统一输出 | Research Agent, 分析师 | 极高 |
@@ -204,8 +204,7 @@ Agent 需要的是**决策对象**，不是文档对象。
 比如 `Web3 实时情绪指数`：
 
 1. 用 `Alternative.me` 提供情绪基线
-2. 用 `CoinGecko` 提供价格和交易热度
-3. 用 `Binance` 公共行情提供短周期波动
+2. 用 `Binance` 公共行情提供价格、交易热度和短周期波动
 4. 最终由 Synapse 输出统一结构
 
 这样做的价值：
