@@ -54,11 +54,20 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
+./start.sh local
 ```
 
-本地 JSON 模式下无需配置 `DEEPSEEK_API_KEY`。
+本地开发调试默认使用 `local` 环境：
+
+1. 读取 `provider_service/.env.local`
+2. 默认走独立 provider PostgreSQL：`synapse_gateway_providers`
+3. `DEEPSEEK_API_KEY` 仍可留空
+
+如果需要生产模式脚本入口：
+
+```bash
+./start.sh prod
+```
 
 ## 测试调用
 

@@ -13,17 +13,25 @@ INSTALL_MODE="$3"
 shift 3
 EXTRA_PACKAGES=("$@")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
+if [[ -f "${SCRIPT_DIR}/../../scripts/python/resolve_python_311.sh" ]]; then
+  REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+elif [[ -f "${SCRIPT_DIR}/../../../scripts/python/resolve_python_311.sh" ]]; then
+  REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+else
+  echo "unable to locate scripts/python/resolve_python_311.sh from ${SCRIPT_DIR}" >&2
+  exit 1
+fi
 
 VENV_DIR="$PROJECT_DIR/.venv"
-PYTHON_BOOTSTRAP_BIN="$(bash "$REPO_ROOT/scripts/python/resolve_python_311.sh")"
+PYTHON_BIN="$VENV_DIR/bin/python"
 
-if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  PYTHON_BOOTSTRAP_BIN="$(bash "$REPO_ROOT/scripts/python/resolve_python_311.sh")"
   echo "[$LABEL] creating virtual environment in $VENV_DIR"
   "$PYTHON_BOOTSTRAP_BIN" -m venv "$VENV_DIR"
 fi
 
-PYTHON_BIN="$VENV_DIR/bin/python"
 STAMP_FILE="$VENV_DIR/.synapse-ci-deps.sha256"
 
 case "$INSTALL_MODE" in

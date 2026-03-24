@@ -17,6 +17,8 @@ venv/
 *.log
 agent_wallet.json
 .env
+provider_service/.env.local
+provider_service/.env.prod
 gateway/.env.local
 gateway/.env.prod
 

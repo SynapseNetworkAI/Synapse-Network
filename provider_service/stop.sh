@@ -2,11 +2,42 @@
 
 set -euo pipefail
 
-PORT=8100
-echo "=== Stopping Provider Service ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_NAME="${1:-local}"
 
-# Find PID running on the target port
-PID=$(lsof -t -nP -iTCP:$PORT -sTCP:LISTEN | head -n 1 || true)
+case "${ENV_NAME}" in
+    local)
+        ENV_FILE="${SCRIPT_DIR}/.env.local"
+        ;;
+    prod)
+        ENV_FILE="${SCRIPT_DIR}/.env.prod"
+        ;;
+    *)
+        echo "Unsupported environment: ${ENV_NAME}. Use 'local' or 'prod'." >&2
+        exit 1
+        ;;
+esac
+
+if [[ -f "${ENV_FILE}" ]]; then
+    set -a
+    source "${ENV_FILE}"
+    set +a
+fi
+
+PORT="${SERVICE_PORT:-8100}"
+PID_FILE="${SCRIPT_DIR}/run/provider_service.${ENV_NAME}.pid"
+
+echo "=== Stopping Provider Service (${ENV_NAME}) ==="
+
+PID=""
+
+if [[ -f "${PID_FILE}" ]]; then
+    PID="$(cat "${PID_FILE}" 2>/dev/null || true)"
+fi
+
+if [[ -z "$PID" ]]; then
+    PID=$(lsof -t -nP -iTCP:$PORT -sTCP:LISTEN | head -n 1 || true)
+fi
 
 if [[ -n "$PID" ]]; then
     echo "Killing Provider process (PID: $PID) listening on port $PORT..."
@@ -18,7 +49,9 @@ if [[ -n "$PID" ]]; then
         echo "Force killing $PID..."
         kill -9 "$PID" || true
     fi
+    rm -f "$PID_FILE"
     echo "✅ Provider Service stopped."
 else
     echo "No process is currently listening on port $PORT."
+    rm -f "$PID_FILE"
 fi

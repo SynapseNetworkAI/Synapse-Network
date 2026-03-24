@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
@@ -202,6 +203,55 @@ class FakeAsyncClient:
         return FakeResponse({"quote": {"answer": "pong", "echo": json["text"]}})
 
 
+class FakeStructuredAsyncClient:
+    last_request = None
+
+    def __init__(self, timeout: float):
+        self.timeout = timeout
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        _ = (exc_type, exc, tb)
+        return False
+
+    async def post(self, url: str, json: dict, headers: dict):
+        await asyncio.sleep(0)
+        type(self).last_request = {
+            "url": url,
+            "json": dict(json),
+            "headers": dict(headers),
+            "timeout": self.timeout,
+        }
+        return FakeResponse(
+            {
+                "service": {
+                    "serviceId": "svc_web3_sentiment_index",
+                    "serviceName": "Web3 Sentiment Index",
+                    "version": "1.0.0",
+                },
+                "freshness": {
+                    "generatedAt": "2026-03-24T00:00:00Z",
+                    "maxSourceAgeSec": 45,
+                    "cacheHit": False,
+                },
+                "result": {
+                    "symbol": json["symbol"],
+                    "sentiment_score": 68,
+                    "sentiment_label": "greed",
+                    "trend_direction": "up",
+                    "volatility_signal": "medium",
+                    "reasoning_bullets": [
+                        "Fear and Greed baseline is above neutral.",
+                        "Short-term price momentum remains positive.",
+                    ],
+                },
+                "errors": [],
+            }
+        )
+
+
 async def _async_none():
     await asyncio.sleep(0)
     return None
@@ -361,6 +411,57 @@ def _signed_service_definition() -> ServiceDefinitionRecord:
             if service.primary_endpoint is not None
             else None,
         }
+    )
+
+
+def _structured_service_definition() -> ServiceDefinitionRecord:
+    return ServiceDefinitionRecord(
+        serviceId="svc_web3_sentiment_index",
+        ownerAddress="0xdef",
+        serviceName="Web3 Sentiment Index",
+        summary="Structured crypto market sentiment score.",
+        status="active",
+        isActive=True,
+        pricingAmount="0.01",
+        pricingCurrency="USDC",
+        tags=["web3", "sentiment"],
+        auth={"type": "gateway_signed"},
+        constraints={
+            "timeoutMs": 8000,
+            "maxQps": 10,
+            "maxRequestBytes": 131072,
+            "maxResponseBytes": 131072,
+        },
+        forwarding={"requestIdHeader": "X-Synapse-Request-Id"},
+        invoke={
+            "method": "POST",
+            "targets": [
+                {
+                    "url": "https://provider.test/provider-services/web3-sentiment-index/invoke",
+                    "weight": 100,
+                }
+            ],
+            "request": {
+                "contentType": "application/json",
+                "schema": {
+                    "body": {
+                        "type": "object",
+                        "required": ["symbol"],
+                        "properties": {
+                            "symbol": {"type": "string"},
+                            "chain": {"type": "string"},
+                            "lookback_hours": {"type": "integer"},
+                            "include_narrative": {"type": "boolean"},
+                        },
+                        "additionalProperties": False,
+                    }
+                },
+            },
+            "response": {
+                "contentType": "application/json",
+                "schema": {"body": {"type": "object"}},
+            },
+        },
     )
 
 
@@ -786,6 +887,87 @@ def test_call_upstream_adds_gateway_signed_headers(monkeypatch) -> None:
     assert headers["X-Synapse-Service-Id"] == "svc.echo"
     assert headers["X-Synapse-Signed-At"] == "1710931200"
     assert len(headers["X-Synapse-Signature"]) == 64
+
+
+def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_structured_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(
+        forwarding_upstream.httpx, "AsyncClient", FakeStructuredAsyncClient
+    )
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(
+        forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
+    )
+
+    response = asyncio.run(
+        forwarding_service.generate_response_v2(
+            storage,
+            InferenceRequest(
+                serviceId="svc_web3_sentiment_index",
+                payload={"symbol": "ETH", "chain": "ethereum", "lookback_hours": 24},
+            ),
+            "svc_web3_sentiment_index",
+            raw_token,
+            "req-sentiment-001",
+        )
+    )
+
+    assert response["payload"]["data"]["result"]["result"]["symbol"] == "ETH"
+    assert FakeStructuredAsyncClient.last_request["url"] == (
+        "https://provider.test/provider-services/web3-sentiment-index/invoke"
+    )
+    assert FakeStructuredAsyncClient.last_request["json"] == {
+        "symbol": "ETH",
+        "chain": "ethereum",
+        "lookback_hours": 24,
+    }
+    assert FakeStructuredAsyncClient.last_request["headers"][
+        "X-Synapse-Request-Id"
+    ] == "req-sentiment-001"
+    assert FakeStructuredAsyncClient.last_request["headers"][
+        "X-Synapse-Service-Id"
+    ] == "svc_web3_sentiment_index"
+    assert len(
+        FakeStructuredAsyncClient.last_request["headers"]["X-Synapse-Signature"]
+    ) == 64
+    assert FakeStructuredAsyncClient.last_request["timeout"] == 8.0
+
+
+def test_generate_response_v2_returns_required_field_error_for_structured_service(
+    monkeypatch,
+) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_structured_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.generate_response_v2(
+                storage,
+                InferenceRequest(serviceId="svc_web3_sentiment_index"),
+                "svc_web3_sentiment_index",
+                raw_token,
+                "req-sentiment-missing-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == {
+        "code": "REQUEST_REQUIRED_FIELDS_MISSING",
+        "message": "service svc_web3_sentiment_index requires fields: symbol",
+        "serviceId": "svc_web3_sentiment_index",
+        "missingFields": ["symbol"],
+    }
 
 
 def test_agent_discovery_supports_query_or_tag_union_matching(monkeypatch) -> None:

@@ -40,11 +40,17 @@ pip install -r requirements.txt
 
 ## 3. 配置环境变量
 
-### 3.1 复制模板
+### 3.1 环境文件约定
 
 ```bash
 cp .env.example .env
 ```
+
+脚本启动约定：
+
+1. 本地开发默认使用 `provider_service/.env.local`
+2. 生产模式脚本使用 `provider_service/.env.prod`
+3. `provider_service/.env` 仍可保留给手工直跑 `uvicorn` 的兼容路径
 
 ### 3.2 当前最小配置
 
@@ -55,6 +61,10 @@ DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_TIMEOUT_S=30
+SENTIMENT_REPOSITORY_BACKEND=postgres
+SENTIMENT_POSTGRES_DSN=postgresql://synapse:12345678@localhost:5432/synapse_gateway_providers
+SENTIMENT_POSTGRES_SNAPSHOT_TABLE=provider_sentiment_snapshots
+SENTIMENT_POSTGRES_RAW_FEED_TABLE=provider_sentiment_raw_feeds
 ```
 
 说明：
@@ -64,19 +74,33 @@ DEEPSEEK_TIMEOUT_S=30
 
 ## 4. 启动服务
 
-### 4.1 开发模式
+### 4.1 本地开发模式
 
 ```bash
-./.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
+./start.sh local
 ```
 
-如果不在 `provider_service` 目录启动，可显式加 `--app-dir`：
+停止与重启：
 
 ```bash
-/Users/cliff/workspace/Synapse-Network/provider_service/.venv/bin/python -m uvicorn --app-dir /Users/cliff/workspace/Synapse-Network/provider_service app.main:app --host 0.0.0.0 --port 8100 --reload
+./stop.sh local
+./restart.sh local
 ```
 
 ### 4.2 生产模式
+
+```bash
+./start.sh prod
+```
+
+停止与重启：
+
+```bash
+./stop.sh prod
+./restart.sh prod
+```
+
+如果需要绕过脚本手工直跑 `uvicorn`，可继续使用：
 
 ```bash
 ./.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8100
@@ -135,10 +159,10 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 
 ### 问题 3: 端口占用
 
-改端口：
+改端口：修改对应环境文件中的 `SERVICE_PORT`，例如 `provider_service/.env.local`。
 
 ```bash
-./.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8110 --reload
+./restart.sh local
 ```
 
 释放占用端口：
@@ -160,8 +184,8 @@ kill -9 <PID>
 1. 拉取最新代码。
 2. 激活 `.venv`。
 3. `pip install -r requirements.txt`。
-4. 更新 `.env`。
-5. 启动服务。
+4. 更新 `provider_service/.env.local` 或 `provider_service/.env.prod`。
+5. 用对应脚本启动服务。
 6. 先打 `health`，再打业务接口。
 7. 如改了 schema 或数据源，执行 `./.venv/bin/python -m pytest tests -q`。
 

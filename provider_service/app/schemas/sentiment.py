@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 SUPPORTED_SYMBOLS = {"BTC", "ETH", "SOL"}
@@ -10,6 +10,8 @@ SUPPORTED_CHAINS = {"market-wide", "ethereum", "solana", "base"}
 
 
 class SentimentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     symbol: str = Field(
         ...,
         min_length=2,
