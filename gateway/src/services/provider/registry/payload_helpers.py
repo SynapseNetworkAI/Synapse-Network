@@ -25,6 +25,7 @@ from src.domain.service_contract import (
     ServiceRetryPolicyRecord,
 )
 from src.services.platform import service_health_service
+from src.services.provider.runtime_auth import auth_mode_for_endpoint_url
 from src.utils.datetime_utils import to_dt_str
 
 JSON_CONTENT_TYPE = "application/json"
@@ -178,6 +179,21 @@ def normalized_invoke_targets(
     return normalized_targets
 
 
+def resolved_auth_type(
+    targets: List[ServiceInvokeTargetRecord],
+) -> str:
+    auth_modes = {
+        auth_mode_for_endpoint_url(target.url)
+        for target in targets
+        if str(target.url or "").strip()
+    }
+    if not auth_modes:
+        return "gateway_forward"
+    if len(auth_modes) > 1:
+        raise ValueError("invoke.targets must use a consistent auth mode")
+    return next(iter(auth_modes))
+
+
 def normalized_health_check(req_data: Dict[str, Any]) -> Dict[str, Any]:
     health_check = dict_payload(req_data.get("healthCheck"))
     if not health_check:
@@ -234,6 +250,26 @@ def normalized_governance(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
         "termsAccepted": bool(governance.get("termsAccepted", False)),
         "riskAcknowledged": bool(governance.get("riskAcknowledged", False)),
         "note": note,
+    }
+
+
+def normalized_auth_payload(
+    req_data: Dict[str, Any],
+    targets: List[ServiceInvokeTargetRecord],
+) -> Dict[str, Any]:
+    auth_payload = dict_payload(req_data.get("auth"))
+    inferred_type = resolved_auth_type(targets)
+    auth_type = str(auth_payload.get("type") or "").strip()
+    if inferred_type == "gateway_signed" and auth_type and auth_type != inferred_type:
+        raise ValueError("auth.type must be gateway_signed for /provider-services targets")
+    if not auth_type:
+        return {
+            **auth_payload,
+            "type": inferred_type,
+        }
+    return {
+        **auth_payload,
+        "type": auth_type,
     }
 
 
@@ -380,7 +416,6 @@ def service_definition_payload(
 ) -> Dict[str, Any]:
     forwarding_payload = dict_payload(req_data.get("forwarding"))
     metering_payload = dict_payload(req_data.get("metering"))
-    auth_payload = dict_payload(req_data.get("auth"))
     return {
         "id": str(req_data.get("id") or "") or None,
         "serviceId": str(req_data.get("serviceId") or "").strip() or None,
@@ -396,7 +431,7 @@ def service_definition_payload(
         "status": str(req_data.get("status") or ("active" if req_data.get("isActive", True) else "inactive")),
         "isActive": bool(req_data.get("isActive", True)),
         "constraints": constraints,
-        "auth": auth_payload,
+        "auth": normalized_auth_payload(req_data, normalized_targets),
         "providerProfile": normalized_provider_profile(req_data),
         "payoutAccount": normalized_payout_account(req_data),
         "governance": normalized_governance(req_data),

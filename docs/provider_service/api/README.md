@@ -13,7 +13,7 @@
 
 ## 文档索引
 
-1. [Web3 实时情绪指数](./web3-sentiment-index.md)
+1. [Web3 实时情绪指数专题](./web3_sentiment_api/README.md)
 2. [协议基本面情报包](./protocol-fundamental-brief.md)
 3. [链上巨鲸资金异动监控](./whale-flow-monitor.md)
 4. [开源仓库与依赖安全体检](./oss-security-healthcheck.md)

@@ -191,9 +191,15 @@ def test_validate_schema_contract_rejects_legacy_withdraw_status_constraint() ->
 
 def test_withdrawal_status_constraint_matches_bootstrap_sql() -> None:
     repo_root = Path(__file__).resolve().parents[4]
-    bootstrap_sql = (repo_root / "docker-compose/postgres/init/001_synapse_schema.sql").read_text(
-        encoding="utf-8"
+    bootstrap_sql_path_candidates = [
+        repo_root / "docker-compose/postgres/init/gateway/001_synapse_schema.sql",
+        repo_root / "docker-compose/postgres/init/001_synapse_schema.sql",
+    ]
+    bootstrap_sql_path = next(
+        (candidate for candidate in bootstrap_sql_path_candidates if candidate.is_file()),
+        bootstrap_sql_path_candidates[0],
     )
+    bootstrap_sql = bootstrap_sql_path.read_text(encoding="utf-8")
     table_match = re.search(
         r"CREATE TABLE IF NOT EXISTS synapse_vault_withdrawals \((.*?)\);",
         bootstrap_sql,

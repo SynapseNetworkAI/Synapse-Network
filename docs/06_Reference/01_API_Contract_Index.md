@@ -165,7 +165,7 @@
 当前 canonical 入口：
 
 1. [../provider_service/api/README.md](../provider_service/api/README.md)
-2. [../provider_service/api/web3-sentiment-index.md](../provider_service/api/web3-sentiment-index.md)
+2. [../provider_service/api/web3_sentiment_api/web3-sentiment-index.md](../provider_service/api/web3_sentiment_api/web3-sentiment-index.md)
 
 包括：
 

@@ -279,6 +279,102 @@ def test_register_service_audits_provider_onboarding_details(monkeypatch) -> Non
     assert audit_entry.details["governance"]["termsAccepted"] is True
 
 
+def test_register_service_defaults_gateway_signed_for_provider_service_targets(
+    monkeypatch,
+) -> None:
+    storage = FakeStorage()
+    service = RegistryService(cast(BaseStorage, storage))
+
+    async def _no_probe(payload):
+        await asyncio.sleep(0)
+        return payload
+
+    monkeypatch.setattr(service_health_service, "probe_service_health", _no_probe)
+    monkeypatch.setattr(
+        service_health_service,
+        "sync_service_target_health_table",
+        lambda storage_ref, rows: rows,
+    )
+
+    payload = _service_payload("svc_web3_sentiment_index")
+    payload.update(
+        {
+            "serviceName": "Web3 Sentiment Index",
+            "invoke": {
+                "method": "POST",
+                "targets": [
+                    {
+                        "url": "https://provider.test/provider-services/web3-sentiment-index/invoke",
+                        "weight": 100,
+                    }
+                ],
+                "timeoutMs": 15000,
+                "request": {
+                    "contentType": "application/json",
+                    "schema": {"body": {"type": "object"}},
+                },
+                "response": {
+                    "contentType": "application/json",
+                    "schema": {"body": {"type": "object"}},
+                },
+            },
+        }
+    )
+    payload.pop("auth", None)
+
+    created = asyncio.run(service.register_service(payload, "0xabc"))
+
+    assert created["auth"]["type"] == "gateway_signed"
+
+
+def test_register_service_rejects_non_gateway_signed_provider_service_targets(
+    monkeypatch,
+) -> None:
+    storage = FakeStorage()
+    service = RegistryService(cast(BaseStorage, storage))
+
+    async def _no_probe(payload):
+        await asyncio.sleep(0)
+        return payload
+
+    monkeypatch.setattr(service_health_service, "probe_service_health", _no_probe)
+    monkeypatch.setattr(
+        service_health_service,
+        "sync_service_target_health_table",
+        lambda storage_ref, rows: rows,
+    )
+
+    payload = _service_payload("svc_web3_sentiment_index")
+    payload.update(
+        {
+            "auth": {"type": "service_key"},
+            "invoke": {
+                "method": "POST",
+                "targets": [
+                    {
+                        "url": "https://provider.test/provider-services/web3-sentiment-index/invoke",
+                        "weight": 100,
+                    }
+                ],
+                "timeoutMs": 15000,
+                "request": {
+                    "contentType": "application/json",
+                    "schema": {"body": {"type": "object"}},
+                },
+                "response": {
+                    "contentType": "application/json",
+                    "schema": {"body": {"type": "object"}},
+                },
+            },
+        }
+    )
+
+    with pytest.raises(
+        ValueError, match="auth.type must be gateway_signed for /provider-services targets"
+    ):
+        asyncio.run(service.register_service(payload, "0xabc"))
+
+
 def test_deleted_service_cannot_be_updated(monkeypatch) -> None:
     storage = FakeStorage()
     service = RegistryService(cast(BaseStorage, storage))

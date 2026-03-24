@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import httpx
 
 from src.core.config import settings
+from src.services.provider.runtime_auth import auth_mode_for_endpoint_path
 
 
 DEFAULT_PRICE_USDC = "0.01"
@@ -24,15 +25,6 @@ GENERIC_ACTION_SEGMENTS = {"invoke", "generate", "run"}
 
 def _contains_chinese(value: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", value))
-
-
-def _runtime_auth_mode(endpoint_path: str) -> str:
-    normalized = str(endpoint_path or "").strip().lower()
-    if normalized.startswith("/provider-services/"):
-        return "gateway_signed"
-    return "gateway_forward"
-
-
 def _service_manifest_template() -> Dict[str, Any]:
     return {
         "service_id": "",
@@ -377,7 +369,7 @@ def _apply_required_defaults(base: Dict[str, Any], endpoint: str, health_path: s
         base["io_schema"]["output_schema"] = output_schema
     if endpoint:
         runtime_auth_mode = str(base["runtime"].get("auth_mode") or "").strip()
-        expected_auth_mode = _runtime_auth_mode(urlparse(endpoint).path)
+        expected_auth_mode = auth_mode_for_endpoint_path(urlparse(endpoint).path)
         if not runtime_auth_mode or (
             expected_auth_mode == "gateway_signed"
             and runtime_auth_mode == "gateway_forward"
@@ -474,7 +466,7 @@ def _build_fallback_manifest(
         base.get("runtime", {}),
         {
             "endpoint_url": endpoint,
-            "auth_mode": _runtime_auth_mode(endpoint_path),
+            "auth_mode": auth_mode_for_endpoint_path(endpoint_path),
             "timeout_ms": DEFAULT_TIMEOUT_MS,
             "max_payload_bytes": DEFAULT_MAX_REQUEST_BYTES,
         },
