@@ -15,7 +15,7 @@
 
 当前运行时已经具备以下能力：
 
-1. `Alternative.me`、`CoinGecko`、`Binance` 三个 adapter 真实接入
+1. `Alternative.me` 与 `Binance` 两个 adapter 真实接入
 2. 单源 timeout、retry、backoff 已实现
 3. source telemetry 已落库到 `provider_sentiment_raw_feeds`
 4. 聚合结果已落库到 `provider_sentiment_snapshots`
@@ -24,7 +24,7 @@
 但现在仍然存在一个核心瓶颈：
 
 1. 前台请求是 request-time fetch
-2. 只要缓存 miss，就会在请求链路里直接打 3 个上游 source
+2. 只要缓存 miss，就会在请求链路里直接打当前运行时的 2 个上游 source
 3. API latency 与上游 source latency 强耦合
 4. 没有后台 refresh 机制，snapshot 不能被主动保温
 
@@ -150,7 +150,7 @@ V1 scheduler 不应该一上来就抓所有组合，而是只抓白名单。
 
 每个 snapshot 内部仍然复用当前逻辑：
 
-1. 3 个 source 顶层并发
+1. 2 个 source 顶层并发
 2. Binance 内部 `ticker/24hr + klines` 并发
 
 ### 9.3 背压策略

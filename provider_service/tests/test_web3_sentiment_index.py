@@ -20,7 +20,6 @@ from app.core.config import get_settings  # noqa: E402
 from app.schemas.sentiment import (  # noqa: E402
     AlternativeMePayloadExcerpt,
     BinancePayloadExcerpt,
-    CoinGeckoPayloadExcerpt,
     RawFeedRecord,
     SentimentRequest,
     SentimentResponse,
@@ -86,29 +85,6 @@ def stub_live_sentiment_sources(monkeypatch, tmp_path):
             ),
         )
 
-    async def _fake_coingecko(symbol: str):
-        await asyncio.sleep(0)
-        return sentiment_adapters.CoinGeckoMarketSnapshot(
-            symbol=symbol,
-            price_usd=3520.12,
-            change_24h_pct=4.2,
-            volume_24h_usd=18_200_000_000.0,
-            market_cap_rank=2,
-            source_timestamp=datetime(2026, 3, 24, 12, 9, 30, tzinfo=UTC),
-            fetched_at=datetime(2026, 3, 24, 12, 10, tzinfo=UTC),
-            http_status=200,
-            latency_ms=95,
-            retry_count=0,
-            timeout_ms=2000,
-            payload_hash="cg-hash",
-            payload_excerpt=CoinGeckoPayloadExcerpt(
-                priceUsd=3520.12,
-                change24hPct=4.2,
-                volume24hUsd=18_200_000_000.0,
-                marketCapRank=2,
-            ),
-        )
-
     async def _fake_binance(symbol: str):
         await asyncio.sleep(0)
         return sentiment_adapters.BinanceMarketSnapshot(
@@ -141,11 +117,6 @@ def stub_live_sentiment_sources(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         sentiment_adapters,
-        "fetch_coingecko_market_snapshot",
-        _fake_coingecko,
-    )
-    monkeypatch.setattr(
-        sentiment_adapters,
         "fetch_binance_market_snapshot",
         _fake_binance,
     )
@@ -175,7 +146,6 @@ def test_web3_sentiment_index_returns_structured_response_and_cache_hit():
     assert first_body["freshness"]["cacheHit"] is False
     assert {item["name"] for item in first_body["sources"]} == {
         "alternative_me",
-        "coingecko",
         "binance_market_data",
     }
     assert first_body["result"]["symbol"] == "ETH"
@@ -333,7 +303,7 @@ def test_refresh_summary_log_tolerates_dict_shaped_errors(monkeypatch):
         duration_ms=123,
         fallback_used=False,
         live_successful_sources=["alternative_me"],
-        live_failed_sources=["coingecko"],
+        live_failed_sources=["binance_market_data"],
     )
 
     assert len(entries) == 1
@@ -360,10 +330,6 @@ def test_web3_sentiment_index_falls_back_when_live_sources_fail(monkeypatch):
         await asyncio.sleep(0)
         raise RuntimeError("alt source timeout")
 
-    async def _boom_coingecko(symbol: str):
-        await asyncio.sleep(0)
-        raise RuntimeError(f"coingecko unavailable for {symbol}")
-
     async def _boom_binance(symbol: str):
         await asyncio.sleep(0)
         raise RuntimeError(f"binance unavailable for {symbol}")
@@ -372,11 +338,6 @@ def test_web3_sentiment_index_falls_back_when_live_sources_fail(monkeypatch):
         sentiment_adapters,
         "fetch_alternative_me_sentiment",
         _boom_alternative_me,
-    )
-    monkeypatch.setattr(
-        sentiment_adapters,
-        "fetch_coingecko_market_snapshot",
-        _boom_coingecko,
     )
     monkeypatch.setattr(
         sentiment_adapters,
@@ -398,7 +359,6 @@ def test_web3_sentiment_index_falls_back_when_live_sources_fail(monkeypatch):
     assert body["sources"] == []
     assert {entry["code"] for entry in body["errors"]} == {
         "ALTERNATIVE_ME_UNAVAILABLE",
-        "COINGECKO_UNAVAILABLE",
         "BINANCE_UNAVAILABLE",
     }
 
@@ -444,10 +404,6 @@ def test_web3_sentiment_index_uses_persisted_snapshot_when_all_live_sources_fail
         await asyncio.sleep(0)
         raise RuntimeError("alt source timeout")
 
-    async def _boom_coingecko(symbol: str):
-        await asyncio.sleep(0)
-        raise RuntimeError(f"coingecko unavailable for {symbol}")
-
     async def _boom_binance(symbol: str):
         await asyncio.sleep(0)
         raise RuntimeError(f"binance unavailable for {symbol}")
@@ -456,11 +412,6 @@ def test_web3_sentiment_index_uses_persisted_snapshot_when_all_live_sources_fail
         sentiment_adapters,
         "fetch_alternative_me_sentiment",
         _boom_alternative_me,
-    )
-    monkeypatch.setattr(
-        sentiment_adapters,
-        "fetch_coingecko_market_snapshot",
-        _boom_coingecko,
     )
     monkeypatch.setattr(
         sentiment_adapters,
@@ -479,10 +430,92 @@ def test_web3_sentiment_index_uses_persisted_snapshot_when_all_live_sources_fail
     assert body["result"]["symbol"] == "ETH"
     assert {entry["code"] for entry in body["errors"]} >= {
         "ALTERNATIVE_ME_UNAVAILABLE",
-        "COINGECKO_UNAVAILABLE",
         "BINANCE_UNAVAILABLE",
         "SENTIMENT_SNAPSHOT_FALLBACK_USED",
     }
+
+
+def test_web3_sentiment_index_discards_legacy_coingecko_snapshot(monkeypatch, tmp_path):
+    repository = FileBackedSentimentRepository(tmp_path / "sentiment-storage")
+    monkeypatch.setattr(
+        sentiment_repository,
+        "get_sentiment_repository",
+        lambda: repository,
+    )
+    monkeypatch.setattr(
+        sentiment_service,
+        "get_sentiment_repository",
+        lambda: repository,
+    )
+    sentiment_service._snapshot_cache.clear()
+
+    payload = SentimentRequest.model_validate(
+        {
+            "symbol": "BTC",
+            "chain": "market-wide",
+            "lookback_hours": 24,
+            "include_narrative": True,
+        }
+    )
+    snapshot_key = sentiment_service._snapshot_key(payload)
+    repository.save_snapshot(
+        snapshot_key,
+        payload,
+        SentimentResponse.model_validate(
+            {
+                "service": {
+                    "serviceId": "svc_web3_sentiment_index",
+                    "serviceName": "Web3 Sentiment Index",
+                    "version": "1.0.0",
+                },
+                "sources": [
+                    {"name": "alternative_me", "freshnessSec": 60},
+                    {"name": "coingecko", "freshnessSec": 45},
+                ],
+                "freshness": {
+                    "generatedAt": "2026-03-24T12:00:00Z",
+                    "maxSourceAgeSec": 60,
+                    "cacheHit": False,
+                },
+                "result": {
+                    "symbol": "BTC",
+                    "sentiment_score": 50,
+                    "sentiment_label": "neutral",
+                    "trend_direction": "sideways",
+                    "volatility_signal": "low",
+                    "market_temperature": "balanced with selective risk appetite",
+                    "reasoning_bullets": [
+                        "Alternative.me baseline is 50/100 with 'neutral' risk appetite.",
+                        "CoinGecko shows BTC at $50,000.00 with 2.00% 24h change.",
+                    ],
+                    "action_hint": "sample",
+                },
+                "errors": [
+                    {
+                        "code": "COINGECKO_UNAVAILABLE",
+                        "message": "legacy persisted error",
+                    }
+                ],
+            }
+        ),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/provider-services/web3-sentiment-index/invoke",
+        json={"symbol": "BTC"},
+        headers=_signed_headers({"symbol": "BTC"}),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["freshness"]["cacheHit"] is False
+    assert {source["name"] for source in body["sources"]} == {
+        "alternative_me",
+        "binance_market_data",
+    }
+    assert all(error["code"] != "COINGECKO_UNAVAILABLE" for error in body["errors"])
+    assert all("coingecko" not in bullet.lower() for bullet in body["result"]["reasoning_bullets"])
 
 
 def test_web3_sentiment_index_persists_raw_feed_records(tmp_path):
@@ -636,5 +669,5 @@ def test_refresh_sentiment_snapshot_logs_final_result(monkeypatch):
     assert "snapshot_key=eth__ethereum__24h__narrative_on" in result_logs[0]
     assert "reason=request" in result_logs[0]
     assert "sentiment_score=" in result_logs[0]
-    assert "source_names=['alternative_me', 'coingecko', 'binance_market_data']" in result_logs[0]
+    assert "source_names=['alternative_me', 'binance_market_data']" in result_logs[0]
     assert "duration_ms=" in result_logs[0]

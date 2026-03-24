@@ -5,7 +5,7 @@
 先说结论：
 
 1. `POST /provider-services/web3-sentiment-index/invoke` 已经存在，可被 Gateway 签名调用
-2. `Alternative.me`、`CoinGecko`、`Binance public market data` 三个数据源已经真实接入
+2. 当前运行时真实接入的数据源是 `Alternative.me` 与 `Binance public market data`
 3. 当前运行时已经支持 Postgres 持久化、source telemetry 落库、进程内缓存和 persisted snapshot fallback
 4. 当前前台读路径已支持 `fresh / stale-but-servable / expired` 三档 snapshot policy，stale 会返回旧快照并异步 repair
 5. 独立后台 scheduler 已接入 `provider_sentiment_scheduler_jobs` 状态表、per-snapshot lease 和 cooldown backoff，Phase 4 运维增强仍待继续

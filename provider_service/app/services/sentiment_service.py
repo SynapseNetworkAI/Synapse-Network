@@ -31,7 +31,6 @@ FRESHNESS_STATE_STALE = "stale-but-servable"
 FRESHNESS_STATE_EXPIRED = "expired"
 SOURCE_FRESHNESS = {
     "alternative_me": 1800,
-    "coingecko": 45,
     "binance_market_data": 8,
 }
 
@@ -82,6 +81,8 @@ _background_repair_tasks: set[asyncio.Task[None]] = set()
 _in_flight_refresh_tasks: dict[str, asyncio.Task[SentimentResponse]] = {}
 UTC_OFFSET_SUFFIX = "+00:00"
 service_logger = logger.bind(component="sentiment_refresh")
+RETIRED_SOURCE_NAME = "coingecko"
+RETIRED_SOURCE_ERROR_PREFIX = "COINGECKO_"
 
 
 def _error_code_value(error: object) -> str | None:
@@ -96,6 +97,21 @@ def _error_code_value(error: object) -> str | None:
 
 def _response_error_codes(response: SentimentResponse) -> list[str]:
     return [code for error in response.errors if (code := _error_code_value(error))]
+
+
+def _snapshot_compatibility_issues(response: SentimentResponse) -> list[str]:
+    issues: list[str] = []
+    if any(source.name == RETIRED_SOURCE_NAME for source in response.sources):
+        issues.append("retired_source_present")
+    if any(code.startswith(RETIRED_SOURCE_ERROR_PREFIX) for code in _response_error_codes(response)):
+        issues.append("retired_source_error_present")
+    if any("coingecko" in bullet.lower() for bullet in response.result.reasoning_bullets):
+        issues.append("retired_source_reasoning_present")
+    return issues
+
+
+def _is_runtime_compatible_snapshot(response: SentimentResponse) -> bool:
+    return not _snapshot_compatibility_issues(response)
 
 
 def _now_utc() -> datetime:
@@ -182,6 +198,14 @@ def _servable_snapshot_response(
     *,
     now: datetime,
 ) -> SentimentResponse | None:
+    compatibility_issues = _snapshot_compatibility_issues(response)
+    if compatibility_issues:
+        service_logger.info(
+            "Discarding legacy sentiment snapshot"
+            f" | snapshot_key={_snapshot_key(payload)}"
+            f" | compatibility_issues={compatibility_issues}"
+        )
+        return None
     state = _freshness_state(response, now=now)
     if state == FRESHNESS_STATE_EXPIRED:
         return None
@@ -310,7 +334,6 @@ def _build_reasoning_bullets(
     volatility_signal: str,
     *,
     alternative_snapshot: sentiment_adapters.AlternativeMeSentimentSnapshot | None,
-    coingecko_snapshot: sentiment_adapters.CoinGeckoMarketSnapshot | None,
     binance_snapshot: sentiment_adapters.BinanceMarketSnapshot | None,
 ) -> list[str]:
     bullets: list[str] = []
@@ -322,9 +345,9 @@ def _build_reasoning_bullets(
         bullets.append(
             f"{payload.symbol} currently falls back to the provider's internal baseline model because the market baseline feed is unavailable."
         )
-    if coingecko_snapshot is not None:
+    if binance_snapshot is not None:
         bullets.append(
-            f"CoinGecko shows {payload.symbol} at ${coingecko_snapshot.price_usd:,.2f} with {coingecko_snapshot.change_24h_pct:.2f}% 24h change."
+            f"Binance shows {payload.symbol} at ${binance_snapshot.last_price_usd:,.2f} with {binance_snapshot.price_change_pct:.2f}% 24h change."
         )
     else:
         bullets.append(
@@ -374,7 +397,6 @@ async def _fetch_live_sources(
     payload: SentimentRequest,
 ) -> tuple[
     sentiment_adapters.AlternativeMeSentimentSnapshot | None,
-    sentiment_adapters.CoinGeckoMarketSnapshot | None,
     sentiment_adapters.BinanceMarketSnapshot | None,
     list[RawFeedRecord],
     list[ErrorRecord],
@@ -382,18 +404,16 @@ async def _fetch_live_sources(
     snapshot_key = _snapshot_key(payload)
     results = await asyncio.gather(
         sentiment_adapters.fetch_alternative_me_sentiment(),
-        sentiment_adapters.fetch_coingecko_market_snapshot(payload.symbol),
         sentiment_adapters.fetch_binance_market_snapshot(payload.symbol),
         return_exceptions=True,
     )
     alternative_snapshot: sentiment_adapters.AlternativeMeSentimentSnapshot | None = None
-    coingecko_snapshot: sentiment_adapters.CoinGeckoMarketSnapshot | None = None
     binance_snapshot: sentiment_adapters.BinanceMarketSnapshot | None = None
     raw_feed_records: list[RawFeedRecord] = []
     errors: list[ErrorRecord] = []
     settings = get_settings()
 
-    alternative_result, coingecko_result, binance_result = results
+    alternative_result, binance_result = results
     if isinstance(alternative_result, BaseException):
         service_logger.warning(
             "Sentiment source fetch failed"
@@ -433,51 +453,6 @@ async def _fetch_live_sources(
                 payloadHash=alternative_snapshot.payload_hash,
                 freshnessSec=alternative_snapshot.freshness_sec,
                 payloadExcerpt=alternative_snapshot.payload_excerpt,
-                errorCode=None,
-                errorMessage=None,
-            )
-        )
-
-    if isinstance(coingecko_result, BaseException):
-        service_logger.warning(
-            "Sentiment source fetch failed"
-            f" | snapshot_key={snapshot_key}"
-            " | source=coingecko"
-            f" | symbol={payload.symbol}"
-            f" | error={coingecko_result}"
-        )
-        raw_feed_records.append(
-            _error_raw_feed_record(
-                payload=payload,
-                source_name="coingecko",
-                error_code="COINGECKO_UNAVAILABLE",
-                error_message=str(coingecko_result),
-                timeout_ms=int(settings.coingecko_timeout_s * 1000),
-            )
-        )
-        errors.append(
-            ErrorRecord(
-                code="COINGECKO_UNAVAILABLE",
-                message=f"CoinGecko feed unavailable: {coingecko_result}",
-            )
-        )
-    else:
-        coingecko_snapshot = coingecko_result
-        raw_feed_records.append(
-            RawFeedRecord(
-                symbol=payload.symbol,
-                chain=payload.chain,
-                sourceName="coingecko",
-                success=True,
-                fetchedAt=_to_zulu(coingecko_snapshot.fetched_at),
-                sourceTimestamp=_to_zulu(coingecko_snapshot.source_timestamp),
-                latencyMs=coingecko_snapshot.latency_ms,
-                retryCount=coingecko_snapshot.retry_count,
-                timeoutMs=coingecko_snapshot.timeout_ms,
-                httpStatus=coingecko_snapshot.http_status,
-                payloadHash=coingecko_snapshot.payload_hash,
-                freshnessSec=coingecko_snapshot.freshness_sec,
-                payloadExcerpt=coingecko_snapshot.payload_excerpt,
                 errorCode=None,
                 errorMessage=None,
             )
@@ -543,7 +518,6 @@ async def _fetch_live_sources(
 
     return (
         alternative_snapshot,
-        coingecko_snapshot,
         binance_snapshot,
         raw_feed_records,
         errors,
@@ -573,7 +547,6 @@ async def refresh_sentiment_snapshot(
 
         (
             alternative_snapshot,
-            coingecko_snapshot,
             binance_snapshot,
             raw_feed_records,
             errors,
@@ -581,11 +554,10 @@ async def refresh_sentiment_snapshot(
 
         if (
             alternative_snapshot is None
-            and coingecko_snapshot is None
             and binance_snapshot is None
         ):
             stored_snapshot = repository.load_snapshot(snapshot_key)
-            if stored_snapshot is not None:
+            if stored_snapshot is not None and _is_runtime_compatible_snapshot(stored_snapshot):
                 fallback_errors = [
                     *stored_snapshot.errors,
                     *errors,
@@ -627,7 +599,6 @@ async def refresh_sentiment_snapshot(
             payload,
             cache_hit=False,
             alternative_snapshot=alternative_snapshot,
-            coingecko_snapshot=coingecko_snapshot,
             binance_snapshot=binance_snapshot,
             errors=errors,
         )
@@ -697,7 +668,6 @@ def _build_response(
     *,
     cache_hit: bool,
     alternative_snapshot: sentiment_adapters.AlternativeMeSentimentSnapshot | None,
-    coingecko_snapshot: sentiment_adapters.CoinGeckoMarketSnapshot | None,
     binance_snapshot: sentiment_adapters.BinanceMarketSnapshot | None,
     errors: list[ErrorRecord],
 ) -> SentimentResponse:
@@ -707,21 +677,13 @@ def _build_response(
         alternative_snapshot.value if alternative_snapshot is not None else profile.baseline_score
     )
     momentum_adjustment = 0
-    if coingecko_snapshot is not None:
-        momentum_adjustment = _live_momentum_adjustment(
-            coingecko_snapshot.change_24h_pct
-        )
-    elif binance_snapshot is not None:
+    if binance_snapshot is not None:
         momentum_adjustment = _live_momentum_adjustment(
             binance_snapshot.price_change_pct
         )
 
     volume_heat_adjustment = 0
-    if coingecko_snapshot is not None:
-        volume_heat_adjustment = _volume_heat_adjustment(
-            coingecko_snapshot.volume_24h_usd
-        )
-    elif binance_snapshot is not None:
+    if binance_snapshot is not None:
         volume_heat_adjustment = _volume_heat_adjustment(
             binance_snapshot.quote_volume_usd
         )
@@ -744,11 +706,7 @@ def _build_response(
         ),
     )
     trend_direction = _trend_direction(profile, payload.lookback_hours)
-    if coingecko_snapshot is not None:
-        trend_direction = _trend_direction_from_market(
-            coingecko_snapshot.change_24h_pct, payload.lookback_hours
-        )
-    elif binance_snapshot is not None:
+    if binance_snapshot is not None:
         trend_direction = _trend_direction_from_market(
             binance_snapshot.price_change_pct, payload.lookback_hours
         )
@@ -763,13 +721,6 @@ def _build_response(
             SourceRecord(
                 name="alternative_me",
                 freshnessSec=alternative_snapshot.freshness_sec,
-            )
-        )
-    if coingecko_snapshot is not None:
-        sources.append(
-            SourceRecord(
-                name="coingecko",
-                freshnessSec=coingecko_snapshot.freshness_sec,
             )
         )
     if binance_snapshot is not None:
@@ -804,7 +755,6 @@ def _build_response(
                 trend_direction,
                 volatility_signal,
                 alternative_snapshot=alternative_snapshot,
-                coingecko_snapshot=coingecko_snapshot,
                 binance_snapshot=binance_snapshot,
             ),
             action_hint=_action_hint(score, volatility_signal),
@@ -832,8 +782,8 @@ async def build_sentiment_snapshot(payload: SentimentRequest) -> SentimentRespon
 
     stored_snapshot = repository.load_snapshot(snapshot_key)
     if stored_snapshot is not None:
-        _snapshot_cache[cache_key] = stored_snapshot
         stored_response = _servable_snapshot_response(payload, stored_snapshot, now=now)
         if stored_response is not None:
+            _snapshot_cache[cache_key] = stored_snapshot
             return stored_response
     return await refresh_sentiment_snapshot(payload, reason=REFRESH_REASON_REQUEST)

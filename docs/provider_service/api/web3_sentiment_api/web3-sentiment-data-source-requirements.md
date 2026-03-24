@@ -41,33 +41,12 @@ V1 至少要有以下 4 类信号：
 1. 最大容忍源老化时间：`1800s`
 2. 若超时或失败，可继续返回结果，但必须下调结果置信度
 
-### 3.2 CoinGecko
-
-角色：
-
-1. 提供 token 价格、涨跌幅、成交量、market cap 等横截面数据
-2. 支撑 `symbol` 级别的强弱判断
-
-必需字段：
-
-1. 当前价格
-2. `24h` 涨跌幅
-3. `24h` 成交量
-4. market cap 或 rank
-5. 更新时间
-
-要求：
-
-1. 最大容忍源老化时间：`60s`
-2. 必须支持 `BTC`、`ETH`、`SOL`
-3. 后续要预留 symbol 映射层，避免上游 id 和对外 symbol 耦合
-
-### 3.3 Binance Public Market Data
+### 3.2 Binance Public Market Data
 
 角色：
 
 1. 提供更高频的价格波动和成交活跃度
-2. 弥补 `CoinGecko` 在分钟级实时性上的不足
+2. 作为当前 token 级动量、成交热度与短周期波动的主来源
 
 必需字段：
 
@@ -146,8 +125,8 @@ V1 最终统一输出至少包含：
 
 V1 最低要求：
 
-1. `Alternative.me` + `CoinGecko` 任一失败时，可继续返回结果
-2. 只要 `CoinGecko` 和 `Binance` 同时失败，就应该返回降级告警或错误，而不是继续假装“实时”
+1. `Alternative.me` 或 `Binance` 任一失败时，可继续返回结果
+2. 只要 `Alternative.me` 和 `Binance` 同时失败，就应该返回降级告警或错误，而不是继续假装“实时”
 3. 如果所有外部源都失败，可以回退到最近一次快照，但必须显式标记缓存命中和最大老化时间
 
 ## 8. 存储要求
@@ -168,8 +147,7 @@ V1 最低要求：
 ## 9. 实施优先级
 
 1. 先接 `Alternative.me`
-2. 再接 `CoinGecko`
-3. 再接 `Binance`
-4. 最后补 DexScreener / DefiLlama / 社交源增强
+2. 再接 `Binance`
+3. 最后补 DexScreener / DefiLlama / 社交源增强
 
 原因：先把“可用的真实情绪分”打出来，再做更花的 narrative。

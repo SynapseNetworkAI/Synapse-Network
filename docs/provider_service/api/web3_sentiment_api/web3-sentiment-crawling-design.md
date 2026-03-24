@@ -25,7 +25,7 @@
 
 当前实现仍存在 4 个结构性缺口：
 
-1. 三个 V1 数据源都已有真实 adapter 骨架，但聚合规则仍然偏轻量
+1. 两个 V1 运行时数据源都已有真实 adapter，但聚合规则仍然偏轻量
 2. 情绪分仍然是“live source + fallback rule” 的轻量聚合，不是完整实时多源引擎
 3. 虽然已经有 PostgreSQL repository 和初始化 SQL，但 snapshot store 仍只是轻量 runtime persistence，不是完整数据管道
 4. raw feed 现在只保存摘要，不是完整可回放原始 payload
@@ -35,7 +35,7 @@
 建议拆成 5 层：
 
 1. `source adapters`
-   - 每个上游一个 adapter，例如 `alternative_me.py`、`coingecko.py`、`binance_market_data.py`
+   - 每个上游一个 adapter，例如 `alternative_me.py`、`binance_market_data.py`
 2. `fetch orchestrator`
    - 并发请求多个 source，统一收集结果、异常和耗时
 3. `normalizers`
@@ -56,7 +56,6 @@ provider_service/app/
     sentiment/
       adapters/
         alternative_me.py
-        coingecko.py
         binance_market_data.py
       models.py
       normalizers.py
@@ -72,7 +71,7 @@ provider_service/app/
 1. 校验签名与请求 schema
 2. 计算 cache key：`(symbol, chain, lookback_hours, include_narrative)`
 3. 先查快照缓存
-4. 如果缓存未命中或已过期，则并发抓取 3 个 V1 必需来源
+4. 如果缓存未命中或已过期，则并发抓取当前 2 个运行时来源
 5. 将每个来源映射成统一信号对象
 6. 聚合得到最终情绪快照
 7. 先保存 snapshot，再保存 raw feed 记录，避免外键写入顺序错误
@@ -97,11 +96,10 @@ provider_service/app/
 生产级 V1 超时与重试策略：
 
 1. `Alternative.me`: `2s`
-2. `CoinGecko`: `2s`
-3. `Binance`: `1s`
-4. `max_attempts`: `2`
-5. `backoff`: `200ms * attempt`
-6. 如遇区域封锁、统一出口治理或公网抖动，抓取 worker 可开启代理池并对代理 URL 做轮转
+2. `Binance`: `1s`
+3. `max_attempts`: `2`
+4. `backoff`: `200ms * attempt`
+5. 如遇区域封锁、统一出口治理或公网抖动，抓取 worker 可开启代理池并对代理 URL 做轮转
 
 当前实现状态：
 
@@ -118,19 +116,19 @@ provider_service/app/
 
 ```json
 {
-  "source": "coingecko",
+   "source": "binance_market_data",
   "success": true,
   "fetched_at": "2026-03-24T12:00:00Z",
    "latency_ms": 83,
    "retry_count": 1,
-   "timeout_ms": 2000,
+    "timeout_ms": 1000,
    "http_status": 200,
   "staleness_sec": 12,
    "payload_hash": "sha256:...",
   "metrics": {
-    "price": 3520.12,
+      "price": 3518.75,
     "change_24h_pct": 4.2,
-    "volume_24h_usd": 18200000000
+      "volume_24h_usd": 29500000000
    }
 }
 ```
@@ -151,17 +149,17 @@ V1 建议用规则聚合，不上机器学习。
 1. `market_baseline_score`
    - 来自 Fear & Greed
 2. `momentum_score`
-   - 来自 `CoinGecko` 的价格变化和 market rank
+   - 来自 `Binance 24h` 价格变化
 3. `volume_heat_score`
-   - 来自 `CoinGecko` / `Binance` 的成交活跃度
+   - 来自 `Binance` 的成交活跃度
 4. `volatility_penalty`
    - 来自 `Binance` kline 波动率
 
 当前状态：
 
 1. `market_baseline_score` 已接 `Alternative.me`
-2. `momentum_score` 已接 `CoinGecko`，并可在降级时参考 `Binance 24h` 变化
-3. `volume_heat_score` 已开始使用 `CoinGecko total_volume` / `Binance quoteVolume`
+2. `momentum_score` 已接 `Binance 24h` 变化
+3. `volume_heat_score` 已开始使用 `Binance quoteVolume`
 4. `volatility_penalty` 已接 `Binance 5m` kline close 序列的 realized volatility
 
 最终公式建议：
@@ -283,22 +281,22 @@ V1 建议用规则聚合，不上机器学习。
 
 1. 抽出 adapters 目录骨架
 2. 接入 `Alternative.me`
-3. 接入 `CoinGecko`
+3. 接入 `Binance`
 4. 保留进程内缓存
 
-当前状态：Phase 1 已完成，`Alternative.me` 与 `CoinGecko` adapter 骨架和主流程接入已经落地。
+当前状态：Phase 1 已完成，`Alternative.me` 与 `Binance` adapter 和主流程接入已经落地。
 
 ### Phase 2
 
-1. 接入 `Binance`
-2. 引入 snapshot 持久化
-3. 引入 raw feed 摘要留存
+1. 引入 snapshot 持久化
+2. 引入 raw feed 摘要留存
+3. 固化 freshness policy 与 scheduler 协作
 
-当前状态：Phase 2 的第 1 步已完成，`Binance` adapter 已落地，并开始参与 volatility 计算。
+当前状态：Phase 2 的第 1 步已完成，当前已有 file-backed + PostgreSQL 双实现 repository，可在全源失败时回退最近一次已持久化 snapshot。
 
-补充：Phase 2 的第 2 步已完成，当前已有 file-backed + PostgreSQL 双实现 repository，可在全源失败时回退最近一次已持久化 snapshot。
+补充：Phase 2 的第 2 步已完成，当前 raw feed 摘要与 snapshot 都已落到独立 provider 数据库。
 
-补充：Phase 2 的 freshness policy 已完成，前台读路径现在按 `fresh / stale-but-servable / expired` 决定直返、异步 repair 或同步补抓。
+补充：Phase 2 的第 3 步已完成，前台读路径现在按 `fresh / stale-but-servable / expired` 决定直返、异步 repair 或同步补抓。
 
 ### Phase 3
 
@@ -310,7 +308,7 @@ V1 建议用规则聚合，不上机器学习。
 
 只有同时满足以下条件，才能说这项能力真正实现：
 
-1. 至少 3 个 source adapter 真实在线抓取
+1. 当前定义的 source adapter 真实在线抓取
 2. sentiment score 来自实时聚合而不是静态 profile
 3. snapshot 已持久化
 4. raw feed 摘要可追溯

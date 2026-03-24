@@ -19,8 +19,8 @@
 4. 支持的 `symbol` 当前只包含：`BTC`、`ETH`、`SOL`
 5. 支持的 `chain` 当前只包含：`market-wide`、`ethereum`、`solana`、`base`
 6. 返回结构已经稳定为：`service`、`sources`、`freshness`、`result`、`errors`
-7. `Alternative.me` 与 `CoinGecko` 的真实 adapter 骨架已落地，并已接入主流程
-8. `Binance public market data` 的真实 adapter 骨架已落地，并已用于短周期波动计算
+7. `Alternative.me` 的真实 adapter 已落地，并已接入主流程
+8. `Binance public market data` 的真实 adapter 已落地，并已同时承担 token 级动量、成交热度与短周期波动计算
 9. 当前 volatility 已从“24h 涨跌幅猜测”升级为基于 Binance `5m` kline close 序列的 realized volatility
 10. 当外部源不可用时，服务会退回 provider 内部规则模型，不会直接把接口打死
 11. repository 已升级为正式抽象，当前同时支持 file-backed 与 PostgreSQL 两种实现
@@ -79,7 +79,7 @@
 
 当前真实数据来源分两层：
 
-1. 第一层是真实外部市场接口：`Alternative.me`、`CoinGecko`
+1. 第一层是真实外部市场接口：`Alternative.me`、`Binance public market data`
 2. 第二层是 provider 本地 fallback 规则，用于外部源失败时保底
 
 当前 fallback 规则主要来自：
@@ -89,13 +89,12 @@
 
 这里要特别说明：
 
-`sources` 字段不再只是静态声明。对于 `Alternative.me` 和 `CoinGecko`，现在会按真实抓取结果返回 freshness；如果抓取失败，则写入 `errors` 并走 fallback。
+`sources` 字段不再只是静态声明。对于 `Alternative.me` 和 `Binance public market data`，现在会按真实抓取结果返回 freshness；如果抓取失败，则写入 `errors` 并走 fallback。
 
 现在已经真实接入的来源：
 
 1. `alternative_me`
-2. `coingecko`
-3. `binance_market_data`
+2. `binance_market_data`
 
 ## 6. 现阶段从哪里可以获取 Web3 实时情绪指数
 
@@ -105,12 +104,9 @@
    - 适合做全市场风险偏好基线
    - 优点：简单、稳定、认知强
    - 缺点：更偏市场整体，不够 token-specific
-2. `CoinGecko`
-   - 适合拿价格、涨跌幅、成交量、trending、market cap 等横截面数据
-   - 可以支撑 token 级动量与热度评分
-3. `Binance Public Market Data`
+2. `Binance Public Market Data`
    - 适合拿 ticker、kline、成交量、短周期波动
-   - 可补齐短周期实时性
+  - 当前已承担 token 级动量、成交热度和短周期实时性
 
 如果以后要做更强的“实时情绪指数”，还可以追加：
 
@@ -245,7 +241,6 @@ curl -X POST "http://127.0.0.1:8100/provider-services/web3-sentiment-index/invok
   },
   "sources": [
     { "name": "alternative_me", "freshnessSec": 1800 },
-    { "name": "coingecko", "freshnessSec": 45 },
     { "name": "binance_market_data", "freshnessSec": 8 }
   ],
   "freshness": {
