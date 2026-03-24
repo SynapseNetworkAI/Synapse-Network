@@ -40,3 +40,5 @@ gateway/*.egg-info/
 
 logs/
 *.log
+.spec2flow
+spec2flow

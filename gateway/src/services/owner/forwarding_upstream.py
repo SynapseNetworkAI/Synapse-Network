@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 import hashlib
+import hmac
 import json
 import random
+import time
 
 import httpx
 from fastapi import HTTPException
@@ -102,6 +104,18 @@ def _payload_digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _resolved_auth_mode(service: ServiceDefinitionRecord) -> str:
+    if service.primary_endpoint is not None and str(service.primary_endpoint.auth_mode or "").strip():
+        return str(service.primary_endpoint.auth_mode).strip()
+    return str(service.auth.auth_type or "").strip() or "gateway_forward"
+
+
+def _gateway_signature(payload: dict[str, Any], service_id: str, timestamp: int) -> str:
+    canonical = f"{service_id}.{timestamp}.{_payload_digest(payload)}"
+    secret = settings.gateway_provider_signature_secret.encode("utf-8")
+    return hmac.new(secret, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
 async def call_upstream(
     service: ServiceDefinitionRecord,
     invocation: InvocationRecord,
@@ -132,6 +146,19 @@ async def call_upstream(
     async with httpx.AsyncClient(timeout=timeout_sec) as client:
         request_id_header = str(service.forwarding.request_id_header or "X-Request-Id").strip() or "X-Request-Id"
         headers = {request_id_header: invocation.idempotency_key}
+        if _resolved_auth_mode(service) == "gateway_signed":
+            signed_at = int(time.time())
+            headers.update(
+                {
+                    "X-Synapse-Service-Id": str(service.service_id or "").strip(),
+                    "X-Synapse-Signed-At": str(signed_at),
+                    "X-Synapse-Signature": _gateway_signature(
+                        request_payload,
+                        str(service.service_id or "").strip(),
+                        signed_at,
+                    ),
+                }
+            )
         for key, value in service.invoke.headers_template.items():
             if isinstance(key, str) and key.strip() and isinstance(value, str):
                 headers[key] = value

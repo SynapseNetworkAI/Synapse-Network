@@ -148,6 +148,29 @@ class ServiceAuthRecord(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ProviderProfileRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    display_name: str = Field(default="", alias="displayName")
+
+
+class ProviderPayoutAccountRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    payout_address: str = Field(alias="payoutAddress")
+    chain_id: int = Field(alias="chainId")
+    settlement_currency: str = Field(default="USDC", alias="settlementCurrency")
+    status: Literal["active", "paused", "archived"] = "active"
+
+
+class ProviderGovernanceRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    terms_accepted: bool = Field(default=False, alias="termsAccepted")
+    risk_acknowledged: bool = Field(default=False, alias="riskAcknowledged")
+    note: Optional[str] = None
+
+
 class ServiceHealthCheckRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -333,6 +356,13 @@ class ServiceDefinitionRecord(BaseModel):
     address: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     auth: ServiceAuthRecord = Field(default_factory=ServiceAuthRecord)
+    provider_profile: Optional[ProviderProfileRecord] = Field(
+        default=None, alias="providerProfile"
+    )
+    payout_account: Optional[ProviderPayoutAccountRecord] = Field(
+        default=None, alias="payoutAccount"
+    )
+    governance: Optional[ProviderGovernanceRecord] = None
     health_check: ServiceHealthCheckRecord = Field(default_factory=ServiceHealthCheckRecord, alias="healthCheck")
     forwarding: ServiceForwardingRecord = Field(default_factory=ServiceForwardingRecord)
     metering: ServiceMeteringRecord = Field(default_factory=ServiceMeteringRecord)

@@ -506,6 +506,7 @@ def test_service_registry_repository_read_and_write() -> None:
                 "active",
                 4096,
                 "svc-1:ep:0:abcdef0123",
+                "gateway_signed",
             )]],
         }
     )
@@ -527,6 +528,8 @@ def test_service_registry_repository_read_and_write() -> None:
     assert services[0].health_check.path == "/health"
     assert services[0].invoke.method == "POST"
     assert services[0].invoke.targets[0].url == "https://a"
+    assert services[0].primary_endpoint is not None
+    assert services[0].primary_endpoint.auth_mode == "gateway_signed"
 
     target_rows = repo.read_service_target_health_rows()
     assert target_rows[0].consecutive_successes == 3
@@ -556,7 +559,14 @@ def test_service_registry_repository_read_and_write() -> None:
                 "role": "provider",
                 "address": "0xdef",
                 "tags": ["a"],
-                "auth": {"type": "service_key"},
+                "auth": {"type": "gateway_signed"},
+                "providerProfile": {"displayName": "Sentiment Desk"},
+                "payoutAccount": {
+                    "payoutAddress": "0x1234567890abcdef1234567890abcdef12345678",
+                    "chainId": 8453,
+                    "settlementCurrency": "USDC",
+                },
+                "governance": {"termsAccepted": True, "riskAcknowledged": True},
                 "healthCheck": {"path": "/health", "method": "GET"},
                 "forwarding": {"requestIdHeader": "X-Synapse-Request-Id"},
                 "metering": {"billingUnit": "per_call"},
@@ -582,6 +592,7 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%' AND state_key NOT IN" in all_sql
     assert "INSERT INTO synapse_service_search_index" in all_sql
     assert "INSERT INTO synapse_runtime_state" in all_sql
+    assert "INSERT INTO synapse_provider_payout_accounts" in all_sql
 
 
 def test_service_registry_repository_normalizes_datetime_health_timestamps() -> None:

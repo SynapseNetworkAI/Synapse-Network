@@ -18,10 +18,19 @@ DEFAULT_MAX_REQUEST_BYTES = 4096
 DEFAULT_MAX_RESPONSE_BYTES = 4096
 DEFAULT_REQUEST_ID_HEADER = "X-Synapse-Request-Id"
 DEFAULT_HEALTH_PATH = "/health"
+GENERIC_PATH_SEGMENTS = {"api", "v1", "provider-services", "provider_service", "services"}
+GENERIC_ACTION_SEGMENTS = {"invoke", "generate", "run"}
 
 
 def _contains_chinese(value: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", value))
+
+
+def _runtime_auth_mode(endpoint_path: str) -> str:
+    normalized = str(endpoint_path or "").strip().lower()
+    if normalized.startswith("/provider-services/"):
+        return "gateway_signed"
+    return "gateway_forward"
 
 
 def _service_manifest_template() -> Dict[str, Any]:
@@ -194,10 +203,21 @@ def _normalize_path_to_health(path: str) -> str:
     return DEFAULT_HEALTH_PATH
 
 
+def _meaningful_path_segments(path_segments: list[str]) -> list[str]:
+    meaningful = [segment for segment in path_segments if segment]
+    while meaningful and meaningful[0].lower() in GENERIC_PATH_SEGMENTS:
+        meaningful = meaningful[1:]
+    while meaningful and meaningful[-1].lower() in GENERIC_ACTION_SEGMENTS:
+        meaningful = meaningful[:-1]
+    return meaningful or path_segments
+
+
 def _guess_task_category(path_segments: list[str]) -> str:
-    lowered = [segment.lower() for segment in path_segments]
+    lowered = [segment.lower() for segment in _meaningful_path_segments(path_segments)]
     if "quotes" in lowered:
         return "text.quotes"
+    if any("sentiment" in segment for segment in lowered):
+        return "web3.market.sentiment"
     if "ocr" in lowered:
         return "ocr.document"
     if lowered:
@@ -207,12 +227,22 @@ def _guess_task_category(path_segments: list[str]) -> str:
 
 def _guess_capabilities(path_segments: list[str], response_body: Any) -> list[str]:
     capabilities: list[str] = []
-    lowered = [segment.lower() for segment in path_segments]
+    lowered = [segment.lower() for segment in _meaningful_path_segments(path_segments)]
     if "quotes" in lowered:
         capabilities.append("quote_generation")
     if any(segment in lowered for segment in ["top3", "top-3", "top"]):
         capabilities.append("top_n_results")
+    if any("sentiment" in segment for segment in lowered):
+        capabilities.extend(
+            [
+                "market_sentiment_scoring",
+                "trend_summary",
+                "volatility_signal",
+            ]
+        )
     if isinstance(response_body, dict):
+        if "reasoning_bullets" in response_body:
+            capabilities.append("multi_source_reasoning")
         for key in response_body.keys():
             normalized = re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
             if normalized:
@@ -233,16 +263,30 @@ def _slugify(value: str) -> str:
     return re.sub(r"[^a-z0-9_-]+", "-", value.strip().lower()).strip("-_")
 
 
+def _service_id_from_segments(path_segments: list[str]) -> str:
+    joined = "_".join(path_segments)
+    normalized = re.sub(r"[^a-z0-9_]+", "_", joined.strip().lower()).strip("_")
+    return f"svc_{normalized}"[:64] if normalized else "svc_imported_api_service"
+
+
 def _extract_response_payload(raw_text: str, request_payload: Any) -> Optional[Dict[str, Any]]:
     matches = _extract_json_objects_with_positions(raw_text)
     if not matches:
         return None
 
-    for _, payload in reversed(matches):
-        if request_payload is not None and payload == request_payload:
-            continue
-        return payload
-    return None
+    candidates = [
+        payload
+        for _, payload in matches
+        if request_payload is None or payload != request_payload
+    ]
+    if not candidates:
+        return None
+
+    for payload in candidates:
+        if {"service", "result", "errors"}.issubset(payload.keys()):
+            return payload
+
+    return max(candidates, key=lambda payload: len(json.dumps(payload, ensure_ascii=False)))
 
 
 def _derive_service_identity(endpoint: str) -> tuple[str, str, str, list[str], str]:
@@ -257,12 +301,19 @@ def _derive_service_identity(endpoint: str) -> tuple[str, str, str, list[str], s
 
     parsed = urlparse(endpoint)
     path_segments = [seg for seg in parsed.path.split("/") if seg]
-    if path_segments:
+    meaningful_segments = _meaningful_path_segments(path_segments)
+    if meaningful_segments:
         service_name = " ".join(
-            segment.replace("-", " ") for segment in path_segments[-2:]
+            segment.replace("-", " ") for segment in meaningful_segments[-2:]
         ).title()
-        service_id = f"svc_{_slugify('_'.join(path_segments[-3:]))}"[:64]
+        service_id = _service_id_from_segments(meaningful_segments[-3:])
         description = f"Call {parsed.path} and return structured JSON results for the caller."
+        if any("sentiment" in segment.lower() for segment in meaningful_segments):
+            description = (
+                "Return a structured crypto market sentiment score with trend "
+                "direction, volatility signal, and concise reasoning for a token "
+                "or market segment."
+            )
         health_path = _normalize_path_to_health(parsed.path)
 
     return service_id, service_name, description, path_segments, health_path
@@ -324,6 +375,14 @@ def _apply_required_defaults(base: Dict[str, Any], endpoint: str, health_path: s
         base["io_schema"]["input_schema"] = input_schema
     if not base["io_schema"].get("output_schema"):
         base["io_schema"]["output_schema"] = output_schema
+    if endpoint:
+        runtime_auth_mode = str(base["runtime"].get("auth_mode") or "").strip()
+        expected_auth_mode = _runtime_auth_mode(urlparse(endpoint).path)
+        if not runtime_auth_mode or (
+            expected_auth_mode == "gateway_signed"
+            and runtime_auth_mode == "gateway_forward"
+        ):
+            base["runtime"]["auth_mode"] = expected_auth_mode
 
     if endpoint and not base["gateway_extensions"].get("routing_targets"):
         base["gateway_extensions"]["routing_targets"] = [{"url": endpoint, "weight": 100}]
@@ -415,7 +474,7 @@ def _build_fallback_manifest(
         base.get("runtime", {}),
         {
             "endpoint_url": endpoint,
-            "auth_mode": "gateway_forward",
+            "auth_mode": _runtime_auth_mode(endpoint_path),
             "timeout_ms": DEFAULT_TIMEOUT_MS,
             "max_payload_bytes": DEFAULT_MAX_REQUEST_BYTES,
         },
@@ -446,7 +505,7 @@ def _build_messages(
         "Do not include markdown, explanation, or code fences.\n"
         "Output keys must exactly be: "
         "service_id, service_name, service_slug, manifest_version, model_usage, io_schema, billing, runtime, gateway_extensions.\n"
-        "Rules: billing.price_model must be fixed; runtime.auth_mode must be gateway_forward; "
+        "Rules: billing.price_model must be fixed; runtime.auth_mode must be gateway_forward unless the endpoint path starts with /provider-services/, in which case runtime.auth_mode must be gateway_signed; "
         "gateway_extensions.health_check.method must be GET; gateway_extensions.health_check.interval_sec must be 10; "
         "gateway_extensions.health_check.success_codes must be [200]; do not output quality, quote_required, pass_through_headers, or platform-internal settlement fields."
     )

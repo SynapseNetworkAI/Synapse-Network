@@ -191,6 +191,52 @@ def normalized_health_check(req_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def normalized_provider_profile(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
+    provider_profile = dict_payload(req_data.get("providerProfile"))
+    if not provider_profile:
+        return None
+    display_name = str(provider_profile.get("displayName") or "").strip()
+    if not display_name:
+        raise ValueError("providerProfile.displayName is required")
+    return {"displayName": display_name}
+
+
+def normalized_payout_account(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
+    payout_account = dict_payload(req_data.get("payoutAccount"))
+    if not payout_account:
+        return None
+    payout_address = str(payout_account.get("payoutAddress") or "").strip()
+    if not payout_address:
+        raise ValueError("payoutAccount.payoutAddress is required")
+    chain_id = as_int(payout_account.get("chainId"), 0)
+    if chain_id <= 0:
+        raise ValueError("payoutAccount.chainId must be greater than 0")
+    settlement_currency = (
+        str(payout_account.get("settlementCurrency") or "USDC").strip().upper() or "USDC"
+    )
+    status = str(payout_account.get("status") or "active").strip().lower() or "active"
+    if status not in {"active", "paused", "archived"}:
+        raise ValueError("payoutAccount.status must be one of active, paused, archived")
+    return {
+        "payoutAddress": payout_address,
+        "chainId": chain_id,
+        "settlementCurrency": settlement_currency,
+        "status": status,
+    }
+
+
+def normalized_governance(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
+    governance = dict_payload(req_data.get("governance"))
+    if not governance:
+        return None
+    note = str(governance.get("note") or "").strip() or None
+    return {
+        "termsAccepted": bool(governance.get("termsAccepted", False)),
+        "riskAcknowledged": bool(governance.get("riskAcknowledged", False)),
+        "note": note,
+    }
+
+
 def bounded_constraint(
     constraints: Dict[str, Any],
     key: str,
@@ -351,6 +397,9 @@ def service_definition_payload(
         "isActive": bool(req_data.get("isActive", True)),
         "constraints": constraints,
         "auth": auth_payload,
+        "providerProfile": normalized_provider_profile(req_data),
+        "payoutAccount": normalized_payout_account(req_data),
+        "governance": normalized_governance(req_data),
         "healthCheck": ServiceHealthCheckRecord.model_validate(health_check),
         "forwarding": ServiceForwardingRecord.model_validate(
             forwarding_payload or default_forwarding_payload(req_data)

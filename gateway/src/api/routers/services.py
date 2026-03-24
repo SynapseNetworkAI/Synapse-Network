@@ -142,6 +142,23 @@ class InvokeMethod(BaseModel):
     examples: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class ProviderProfileSpec(BaseModel):
+    displayName: str = Field(..., min_length=1, max_length=80)
+
+
+class PayoutAccountSpec(BaseModel):
+    payoutAddress: str = Field(..., min_length=1, max_length=128)
+    chainId: int = Field(..., ge=1)
+    settlementCurrency: str = Field(default="USDC", min_length=1, max_length=16)
+    status: str = Field(default="active")
+
+
+class GovernanceSpec(BaseModel):
+    termsAccepted: bool = False
+    riskAcknowledged: bool = False
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
 class RegisterServiceRequest(BaseModel):
     serviceId: Optional[str] = None
     agentToolName: Optional[str] = None
@@ -153,6 +170,9 @@ class RegisterServiceRequest(BaseModel):
     tags: List[str] = Field(default_factory=list)
     status: str = "active"
     auth: Dict[str, Any] = Field(default_factory=dict)
+    providerProfile: Optional[ProviderProfileSpec] = None
+    payoutAccount: Optional[PayoutAccountSpec] = None
+    governance: Optional[GovernanceSpec] = None
     healthCheck: HealthCheckSpec = Field(default_factory=HealthCheckSpec)
     constraints: ConstraintsSpec = Field(default_factory=ConstraintsSpec)
     forwarding: ForwardingSpec = Field(default_factory=ForwardingSpec)

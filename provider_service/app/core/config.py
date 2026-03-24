@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
     deepseek_timeout_s: float = 30.0
+    gateway_provider_signature_secret: str = (
+        "replace-this-with-a-provider-signature-secret"
+    )
 
 
 @lru_cache

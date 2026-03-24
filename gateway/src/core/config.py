@@ -374,6 +374,10 @@ class Settings:
         "GATEWAY_INTERNAL_JWT_SECRET",
         "replace-this-with-a-separate-32-byte-minimum-internal-jwt-secret",
     )
+    gateway_provider_signature_secret: str = os.getenv(
+        "GATEWAY_PROVIDER_SIGNATURE_SECRET",
+        "replace-this-with-a-provider-signature-secret",
+    ).strip()
     # Expected issuer for internal service tokens.
     gateway_internal_token_issuer: str = os.getenv(
         "GATEWAY_INTERNAL_TOKEN_ISSUER", "gateway-admin"
