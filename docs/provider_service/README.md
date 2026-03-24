@@ -128,7 +128,7 @@ Marketplace 冷启动的第一原则很简单：
 
 - 建议定价：`$0.03 / 次`
 - 核心价值：把 token price、TVL、协议收入、稳定币暴露等信息压缩成一个“可投研、可比较”的结构化摘要
-- 免费上游：`CoinGecko` + `DefiLlama`
+- 免费上游：`DexScreener` + `DefiLlama`
 - 典型输入：`protocol`, `token`, `chain`
 - 典型输出：
   - `priceSummary`
@@ -166,14 +166,14 @@ Marketplace 冷启动的第一原则很简单：
 | 1 | Web3 实时情绪指数 | Web3 市场情报 | Alternative.me, Binance Public API | 多源聚合后输出统一情绪分 | Trading Agent, 投研用户 | 极高 |
 | 2 | 智能合约漏洞深度审计模型 | 安全审计 | Slither, Mythril, solc, Etherscan/Blockscout | 静态分析 + 风险总结 + 修复建议 | Security Agent, 开发者 | 极高 |
 | 3 | 链上巨鲸资金异动监控 | 链上监控 | Etherscan, Blockscout, 公共 RPC, DexScreener | 大额转账聚合、标签、事件解释 | Trading Agent, 风控用户 | 极高 |
-| 4 | 协议基本面情报包 | 投研情报 | CoinGecko, DefiLlama | 价格、TVL、收入、风险因子统一输出 | Research Agent, 分析师 | 极高 |
+| 4 | 协议基本面情报包 | 投研情报 | DexScreener, DefiLlama | 价格、TVL、收入、风险因子统一输出 | Research Agent, 分析师 | 极高 |
 | 5 | Gas 费用与执行窗口建议 | 交易执行 | Etherscan Gas Oracle, 公共 RPC | 返回当前 gas、分位数和执行建议 | Wallet Agent, Bot 开发者 | 高 |
-| 6 | 稳定币脱锚与储备监控 | 风险监控 | CoinGecko, DefiLlama Stablecoins | 输出脱锚状态、流通变化、异常提示 | Treasury Agent, 风控用户 | 高 |
+| 6 | 稳定币脱锚与储备监控 | 风险监控 | DefiLlama Stablecoins, 发行方公开储备披露 | 输出脱锚状态、流通变化、异常提示 | Treasury Agent, 风控用户 | 高 |
 | 7 | 合约源码/ABI 检索与函数解释 | 链上解释 | Etherscan, Blockscout, 4byte.directory | 合约接口语义化、函数说明、可调用示例 | Dev Agent, 钱包用户 | 高 |
 | 8 | 交易解码与意图解释 | 链上解释 | Blockscout, 4byte.directory, 公共 RPC | 把 tx input / logs 解释成人话 | Analyst Agent, 钱包用户 | 高 |
 | 9 | 地址画像与风险标签摘要 | 地址风控 | Blockscout, 公共标签库, 平台自建标签 | 给地址打标签并输出简报 | Compliance Agent, 风控用户 | 高 |
 | 10 | 协议 TVL / 收入变化雷达 | 市场监控 | DefiLlama | 输出近 1d/7d/30d TVL 与收入变化 | Research Agent, 交易员 | 高 |
-| 11 | 代币流动性与交易深度快照 | 交易情报 | DexScreener, CoinGecko | 输出池深度、价差、成交热度 | Trading Agent | 高 |
+| 11 | 代币流动性与交易深度快照 | 交易情报 | DexScreener, Binance Public API | 输出池深度、价差、成交热度 | Trading Agent | 高 |
 | 12 | GitHub 仓库安全体检 | 开源安全 | GitHub REST API, OSV.dev | repo 活跃度、漏洞、维护状态一页总结 | Dev Agent, 采购用户 | 高 |
 | 13 | 开源依赖漏洞扫描 | 开源安全 | OSV.dev, PyPI, npm Registry | 输入依赖列表，输出漏洞和升级建议 | CI Agent, 开发团队 | 高 |
 | 14 | NPM/PyPI 包可信度评估 | 供应链安全 | PyPI JSON API, npm Registry API, GitHub API | 输出下载、维护、漏洞、作者活跃度 | Dev Agent, 安全团队 | 中高 |
@@ -194,7 +194,7 @@ Marketplace 冷启动的第一原则很简单：
 
 举例：
 
-- 错误做法：把 `CoinGecko /coins/markets` 原样返回
+- 错误做法：把第三方价格接口原样返回
 - 正确做法：返回 `sentimentScore`, `marketTemperature`, `riskBullets`, `actionHint`
 
 Agent 需要的是**决策对象**，不是文档对象。

@@ -54,7 +54,7 @@
   },
   "sources": [
     {
-      "name": "coingecko",
+      "name": "alternative_me",
       "freshnessSec": 42
     }
   ],
@@ -192,7 +192,6 @@
   },
   "sources": [
     { "name": "alternative_me", "freshnessSec": 1800 },
-    { "name": "coingecko", "freshnessSec": 45 },
     { "name": "binance_market_data", "freshnessSec": 8 }
   ],
   "freshness": {
@@ -666,7 +665,7 @@
     "version": "1.0.0"
   },
   "sources": [
-    { "name": "coingecko", "freshnessSec": 60 },
+    { "name": "dexscreener", "freshnessSec": 60 },
     { "name": "defillama", "freshnessSec": 90 }
   ],
   "freshness": {
@@ -978,7 +977,7 @@
 
 ### 最小实现建议
 
-1. V1 优先做 DefiLlama + CoinGecko 级别公开数据整合
+1. V1 优先做 DefiLlama + DexScreener 级别公开数据整合
 2. 先不做长篇报告，只做结构化 brief
 3. 每次调用返回 5 到 10 条高价值摘要，不要写成研报生成器
 

@@ -7,7 +7,7 @@
 目标：
 
 1. 把热点 `symbol` 的情绪快照从按请求现抓，升级为后台 warm snapshot 模式
-2. 让 API 请求优先读取新鲜 snapshot，而不是每次都直接打 3 个上游 source
+2. 让 API 请求优先读取新鲜 snapshot，而不是每次都直接打当前运行时的 source plugin
 3. 降低上游免费接口抖动对前台调用延迟的影响
 4. 为后续 source quality dashboard、回放、告警、限频与 circuit breaker 打基础
 
@@ -16,10 +16,11 @@
 当前运行时已经具备以下能力：
 
 1. `Alternative.me` 与 `Binance` 两个 adapter 真实接入
-2. 单源 timeout、retry、backoff 已实现
-3. source telemetry 已落库到 `provider_sentiment_raw_feeds`
-4. 聚合结果已落库到 `provider_sentiment_snapshots`
-5. 全部 live source 失败时可回退到最近一次 persisted snapshot
+2. source plugin 已声明 capability，聚合层不再按 source 名字硬编码分支
+3. 单源 timeout、retry、backoff 已实现
+4. source telemetry 已落库到 `provider_sentiment_raw_feeds`
+5. 聚合结果已落库到 `provider_sentiment_snapshots`
+6. 全部 live source 失败时可回退到最近一次 persisted snapshot
 
 但现在仍然存在一个核心瓶颈：
 

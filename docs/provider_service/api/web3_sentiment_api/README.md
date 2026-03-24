@@ -6,9 +6,10 @@
 
 1. `POST /provider-services/web3-sentiment-index/invoke` 已经存在，可被 Gateway 签名调用
 2. 当前运行时真实接入的数据源是 `Alternative.me` 与 `Binance public market data`
-3. 当前运行时已经支持 Postgres 持久化、source telemetry 落库、进程内缓存和 persisted snapshot fallback
-4. 当前前台读路径已支持 `fresh / stale-but-servable / expired` 三档 snapshot policy，stale 会返回旧快照并异步 repair
-5. 独立后台 scheduler 已接入 `provider_sentiment_scheduler_jobs` 状态表、per-snapshot lease 和 cooldown backoff，Phase 4 运维增强仍待继续
+3. 当前运行时已经改为 capability-based source plugin 结构，聚合层消费 capability signal 而不是硬编码 source 名字
+4. 当前运行时已经支持 Postgres 持久化、source telemetry 落库、进程内缓存和 persisted snapshot fallback
+5. 当前前台读路径已支持 `fresh / stale-but-servable / expired` 三档 snapshot policy，stale 会返回旧快照并异步 repair
+6. 独立后台 scheduler 已接入 `provider_sentiment_scheduler_jobs` 状态表、per-snapshot lease 和 cooldown backoff，Phase 4 运维增强仍待继续
 
 ## 文档索引
 

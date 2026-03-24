@@ -36,12 +36,12 @@
 
 1. `source adapters`
    - 每个上游一个 adapter，例如 `alternative_me.py`、`binance_market_data.py`
-2. `fetch orchestrator`
-   - 并发请求多个 source，统一收集结果、异常和耗时
-3. `normalizers`
-   - 把不同来源映射成内部统一信号对象
+2. `source plugins`
+   - 每个 source 声明自己提供哪些 capability，例如 `baseline_sentiment`、`price_momentum`、`volume_heat`、`realized_volatility`
+3. `fetch orchestrator`
+   - 并发请求多个 source plugin，统一收集结果、异常和耗时
 4. `sentiment aggregator`
-   - 计算最终 `sentiment_score` 与解释字段
+   - 按 capability 选择可用信号，计算最终 `sentiment_score` 与解释字段
 5. `snapshot repository`
    - 写入快照和原始抓取摘要
 
@@ -54,11 +54,8 @@ provider_service/app/
   services/
     sentiment_service.py
     sentiment/
-      adapters/
-        alternative_me.py
-        binance_market_data.py
-      models.py
-      normalizers.py
+         adapters.py
+         plugins.py
       aggregator.py
       repository.py
       cache.py
@@ -112,28 +109,30 @@ provider_service/app/
 
 ## 8. 统一中间结构
 
-每个 source adapter 输出统一内部对象：
+每个 source plugin 输出统一内部对象：
 
 ```json
 {
    "source": "binance_market_data",
+   "capabilities": ["price_momentum", "volume_heat", "realized_volatility"],
   "success": true,
   "fetched_at": "2026-03-24T12:00:00Z",
    "latency_ms": 83,
    "retry_count": 1,
-    "timeout_ms": 1000,
+   "timeout_ms": 1000,
    "http_status": 200,
-  "staleness_sec": 12,
+   "staleness_sec": 12,
    "payload_hash": "sha256:...",
-  "metrics": {
-      "price": 3518.75,
+   "signals": {
+      "last_price_usd": 3518.75,
     "change_24h_pct": 4.2,
-      "volume_24h_usd": 29500000000
+      "volume_24h_usd": 29500000000,
+      "realized_volatility_pct": 1.2
    }
 }
 ```
 
-然后统一交给 aggregator，而不是在 adapter 里直接拼最终 response。
+然后统一交给 aggregator，由 aggregator 按 capability 选 freshest observation，而不是在 adapter 里直接拼最终 response。
 
 当前实现状态：
 
