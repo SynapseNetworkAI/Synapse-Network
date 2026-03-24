@@ -44,8 +44,8 @@
 1. `docs/02_System_Architecture/01_System_Topology_and_Request_Routing.md`
 2. `docs/03_Core_Workflows/01_Deposit_and_Idempotency.md`
 3. `docs/03_Core_Workflows/05_Withdrawal_and_Risk_Gates.md`
-4. `docs/Gateway_Database_Design.md`
-5. `docs/agent/06_Build_For_Agent_Database_Rebuild.md`
+4. `docs/04_Database_Design/README.md`
+5. `docs/04_Database_Design/01_SQL_Schema_Overview.md`
 
 ## 6. 项目内建议补齐
 

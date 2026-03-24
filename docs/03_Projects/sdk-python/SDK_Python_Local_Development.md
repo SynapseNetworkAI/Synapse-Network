@@ -69,5 +69,5 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
 
 1. [README.md](./README.md)
 2. [../../sdk/README.md](../../sdk/README.md)
-3. [../../agent/07_Agent_SDK_Integration_Guide.md](../../agent/07_Agent_SDK_Integration_Guide.md)
+3. [../../06_Reference/04_Development_Testing_and_Integration_Reference.md](../../06_Reference/04_Development_Testing_and_Integration_Reference.md)
 4. [../../06_Reference/01_API_Contract_Index.md](../../06_Reference/01_API_Contract_Index.md)

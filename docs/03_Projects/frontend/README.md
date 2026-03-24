@@ -51,9 +51,8 @@
 
 1. `docs/01_Product_Frontend/README.md`
 2. `docs/Design.md`
-3. `docs/agent/05_Dashboard_IA_and_Onboarding.md`
-4. `docs/agent/07_Agent_SDK_Integration_Guide.md`
-5. `docs/06_Reference/01_API_Contract_Index.md`
+3. `docs/06_Reference/04_Development_Testing_and_Integration_Reference.md`
+4. `docs/06_Reference/01_API_Contract_Index.md`
 
 ## 7. 项目内贴身文档
 

@@ -40,8 +40,7 @@ When working on `apps/frontend`, treat these as the primary design and product s
 
 1. `docs/Design.md`
 2. `docs/01_Product_Frontend/README.md`
-3. `docs/agent/05_Dashboard_IA_and_Onboarding.md`
-4. `docs/agent/07_Agent_SDK_Integration_Guide.md`
+3. `docs/06_Reference/04_Development_Testing_and_Integration_Reference.md`
 
 Frontend must preserve:
 

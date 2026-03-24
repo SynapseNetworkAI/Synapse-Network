@@ -6,7 +6,7 @@
 
 1. 项目导航页：`docs/03_Projects/gateway/README.md`
 2. 本地开发说明：`docs/03_Projects/gateway/Gateway_Local_Development.md`
-3. 系统级 canonical 文档：`docs/agent/`、`docs/03_Core_Workflows/`、`docs/04_Database_Design/`
+3. 系统级 canonical 文档：`docs/02_System_Architecture/`、`docs/03_Core_Workflows/`、`docs/04_Database_Design/`、`docs/06_Reference/`
 
 ## 常用命令
 

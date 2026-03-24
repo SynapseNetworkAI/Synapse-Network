@@ -19,8 +19,8 @@
 
 1. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
 2. [06_Runtime_Error_Code_Catalog.md](./06_Runtime_Error_Code_Catalog.md)
-3. [../agent/02_Discovery_Quote_Invoke_API_Design.md](../agent/02_Discovery_Quote_Invoke_API_Design.md)
-4. [../agent/04_Credential_Budget_Risk_Model.md](../agent/04_Credential_Budget_Risk_Model.md)
+3. [../03_Core_Workflows/02_Discovery_and_Gateway_Call.md](../03_Core_Workflows/02_Discovery_and_Gateway_Call.md)
+4. [../02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md](../02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md)
 5. [../03_Projects/gateway/README.md](../03_Projects/gateway/README.md)
 
 适用范围：
@@ -134,8 +134,8 @@
 当前 canonical 入口：
 
 1. [05_Runtime_API_Contract.md](./05_Runtime_API_Contract.md)
-2. [../agent/02_Discovery_Quote_Invoke_API_Design.md](../agent/02_Discovery_Quote_Invoke_API_Design.md)
-3. [../agent/03_Service_Manifest_Field_Standard.md](../agent/03_Service_Manifest_Field_Standard.md)
+2. [../03_Core_Workflows/02_Discovery_and_Gateway_Call.md](../03_Core_Workflows/02_Discovery_and_Gateway_Call.md)
+3. [03_Service_Manifest_and_Runtime_Object_Reference.md](./03_Service_Manifest_and_Runtime_Object_Reference.md)
 
 包括：
 

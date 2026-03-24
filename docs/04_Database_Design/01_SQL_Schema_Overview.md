@@ -1,5 +1,11 @@
 # SQL Schema Overview
 
+- Status: canonical
+- Code paths: `gateway/src/storage/`, `admin/gateway-admin/src/storage/`
+- DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Supersedes: former `docs/agent/06_Build_For_Agent_Database_Rebuild.md` for schema-layer rebuild rationale and eight-layer truth model
+- Last verified against code: 2026-03-24
+
 ## 1. 目标
 
 最新的 `001_synapse_schema.sql` 不是在旧系统上继续补丁，而是一次明确的建模切换：
@@ -21,6 +27,26 @@
 一句话：
 
 **数据库第一公民已经从钱包和 key，切换成 Runtime commerce objects。**
+
+当前 Agent-first 数据库重建的 canonical 解释以本文件为准。former `docs/agent/06_Build_For_Agent_Database_Rebuild.md` 已完成退役，不再单独定义长期数据库重建真相。
+
+## 1.1 重构边界
+
+这次不是“在旧表上打补丁”，而是换视角重建真相层。
+
+可以复用的是原则，不是大多数旧表本身：
+
+1. PostgreSQL 仍然是资金与调用真相源。
+2. 金额字段继续统一使用 `NUMERIC`。
+3. 关键写操作继续要求幂等、唯一索引、事务、审计。
+4. `synapse_idempotency_keys` 与 `synapse_runtime_state` 的核心思路继续成立。
+
+必须重构的旧建模方向包括：
+
+1. 从 `service registry` 大表拆成 manifest、endpoint、health、search index。
+2. 从历史 `credentials` 桶拆成 agent profile、agent credential、budget policy。
+3. 从历史调用影子表拆成 quote、invocation、budget event、ledger entry。
+4. 从结果态余额表拆成 ledger account、balance snapshot、append-only ledger entry。
 
 ## 2. Schema 的全局设计原则
 

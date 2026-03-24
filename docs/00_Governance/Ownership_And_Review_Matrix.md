@@ -37,16 +37,16 @@
 4. 前端 IA 变更：`01_Product_Frontend/` + 受影响项目页 + adapter / service expectations
 5. 文档结构变更：`docs/README.md` + `llms.txt` + 受影响入口页
 
-## 4. Agent Layer Migration Rule
+## 4. Former Agent Layer Migration Rule
 
-`docs/agent/` 的迁移执行由以下责任域共同复核：
+former `docs/agent/` 的迁移执行由以下责任域共同复核：
 
 1. `02_System_Architecture/` 归口内容：architecture
 2. `03_Core_Workflows/` 归口内容：runtime/backend
 3. `04_Database_Design/` 归口内容：finance/backend
 4. `06_Reference/` 归口内容：runtime/backend + sdk
 
-任何 `docs/agent/*.md` 的拆分迁移，至少要同时检查：
+任何 former `docs/agent/*.md` 的拆分迁移，至少要同时检查：
 
 1. `docs/README.md`
 2. `llms.txt`
