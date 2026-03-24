@@ -3,14 +3,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_NAME="${1:-local}"
 
 case "${ENV_NAME}" in
     local)
-        ENV_FILE="${SCRIPT_DIR}/.env.local"
+        ENV_FILE="${PROJECT_ROOT}/.env.local"
         ;;
     prod)
-        ENV_FILE="${SCRIPT_DIR}/.env.prod"
+        ENV_FILE="${PROJECT_ROOT}/.env.prod"
         ;;
     *)
         echo "Unsupported environment: ${ENV_NAME}. Use 'local' or 'prod'." >&2
@@ -25,9 +26,10 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 PORT="${SERVICE_PORT:-8100}"
-PID_FILE="${SCRIPT_DIR}/run/provider_service.${ENV_NAME}.pid"
+PID_FILE="${PROJECT_ROOT}/run/provider_service.${ENV_NAME}.pid"
 
 echo "=== Stopping Provider Service (${ENV_NAME}) ==="
+echo "Tip: prefer ./scripts/stop.${ENV_NAME}.sh for explicit environment shutdown."
 
 PID=""
 

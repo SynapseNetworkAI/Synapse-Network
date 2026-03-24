@@ -81,6 +81,7 @@
 1. 数据源客户端、规则引擎、缓存适配器、Provider 业务实现，优先封装为清晰对象或服务类。
 2. 路由层不要直接操作底层细节；通过服务对象调用完成业务。
 3. 能用明确类型表达的对象，不要退化成裸 `dict` 和随意拼 JSON。
+4. 存储层输入输出也要保持 typed object，不要把 repository 退化成 JSON 形状的字典中转站。
 
 ### Schema Explicitness
 
@@ -113,6 +114,7 @@
    - Pydantic schema
    - 对应 service / repository 实现
    - Markdown 字段说明或表结构说明
+3. repository 不允许在 runtime 内部偷偷建表、补列或执行自动迁移；初始化 SQL 和迁移脚本必须走显式交付链路。
 
 ## Validation Commands
 

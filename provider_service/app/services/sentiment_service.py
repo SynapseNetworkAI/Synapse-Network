@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from time import perf_counter
 from typing import Literal
-from typing import Any
 
 from app.core.config import get_settings
-from app.schemas.sentiment import ErrorRecord
+from app.core.log_config import logger
+from app.schemas.sentiment import EmptyPayloadExcerpt, ErrorRecord, RawFeedRecord
 from app.services.sentiment import adapters as sentiment_adapters
 from app.services.sentiment.repository import get_sentiment_repository
 from app.schemas.sentiment import (
@@ -23,12 +24,16 @@ from app.schemas.sentiment import (
 SERVICE_ID = "svc_web3_sentiment_index"
 SERVICE_NAME = "Web3 Sentiment Index"
 SERVICE_VERSION = "1.0.0"
+REFRESH_REASON_REQUEST = "request"
+REFRESH_REASON_SCHEDULER = "scheduler"
+FRESHNESS_STATE_FRESH = "fresh"
+FRESHNESS_STATE_STALE = "stale-but-servable"
+FRESHNESS_STATE_EXPIRED = "expired"
 SOURCE_FRESHNESS = {
     "alternative_me": 1800,
     "coingecko": 45,
     "binance_market_data": 8,
 }
-CACHE_TTL_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -71,8 +76,25 @@ CHAIN_SCORE_ADJUSTMENTS = {
     "base": 1,
 }
 
-_snapshot_cache: dict[tuple[str, str, int, bool], tuple[datetime, SentimentResponse]] = {}
+_snapshot_cache: dict[tuple[str, str, int, bool], SentimentResponse] = {}
+_in_flight_async_repairs: set[str] = set()
+_background_repair_tasks: set[asyncio.Task[None]] = set()
 UTC_OFFSET_SUFFIX = "+00:00"
+service_logger = logger.bind(component="sentiment_refresh")
+
+
+def _error_code_value(error: object) -> str | None:
+    if isinstance(error, ErrorRecord):
+        return error.code
+    if isinstance(error, dict):
+        code = error.get("code")
+        return str(code) if code is not None else None
+    code = getattr(error, "code", None)
+    return str(code) if code is not None else None
+
+
+def _response_error_codes(response: SentimentResponse) -> list[str]:
+    return [code for error in response.errors if (code := _error_code_value(error))]
 
 
 def _now_utc() -> datetime:
@@ -83,10 +105,88 @@ def _to_zulu(value: datetime) -> str:
     return value.isoformat().replace(UTC_OFFSET_SUFFIX, "Z")
 
 
+def _parse_zulu(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", UTC_OFFSET_SUFFIX))
+
+
 def _snapshot_key(payload: SentimentRequest) -> str:
     chain_slug = payload.chain.replace("-", "_")
     narrative_flag = "narrative_on" if payload.include_narrative else "narrative_off"
     return f"{payload.symbol.lower()}__{chain_slug}__{payload.lookback_hours}h__{narrative_flag}"
+
+
+def _freshness_windows() -> tuple[int, int, int]:
+    settings = get_settings()
+    fresh_ttl_s = max(0, settings.sentiment_scheduler_fresh_ttl_s)
+    stale_ttl_s = max(fresh_ttl_s, settings.sentiment_scheduler_stale_ttl_s)
+    hard_expire_s = max(stale_ttl_s, settings.sentiment_scheduler_hard_expire_s)
+    return fresh_ttl_s, stale_ttl_s, hard_expire_s
+
+
+def _snapshot_age(response: SentimentResponse, *, now: datetime | None = None) -> timedelta:
+    current_time = now or _now_utc()
+    generated_at = _parse_zulu(response.freshness.generated_at)
+    age = current_time - generated_at
+    if age < timedelta(0):
+        return timedelta(0)
+    return age
+
+
+def _freshness_state(
+    response: SentimentResponse, *, now: datetime | None = None
+) -> Literal["fresh", "stale-but-servable", "expired"]:
+    age_seconds = _snapshot_age(response, now=now).total_seconds()
+    fresh_ttl_s, stale_ttl_s, _ = _freshness_windows()
+    if age_seconds <= fresh_ttl_s:
+        return FRESHNESS_STATE_FRESH
+    if age_seconds <= stale_ttl_s:
+        return FRESHNESS_STATE_STALE
+    return FRESHNESS_STATE_EXPIRED
+
+
+def _cache_hit_response(response: SentimentResponse) -> SentimentResponse:
+    return response.model_copy(
+        update={
+            "freshness": response.freshness.model_copy(update={"cache_hit": True})
+        }
+    )
+
+
+def _schedule_async_refresh(payload: SentimentRequest) -> None:
+    snapshot_key = _snapshot_key(payload)
+    if snapshot_key in _in_flight_async_repairs:
+        return
+    _in_flight_async_repairs.add(snapshot_key)
+
+    async def _run() -> None:
+        try:
+            await refresh_sentiment_snapshot(payload, reason=REFRESH_REASON_REQUEST)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Asynchronous stale snapshot repair failed"
+                f" | snapshot_key={snapshot_key}"
+                f" | error={exc}"
+            )
+        finally:
+            _in_flight_async_repairs.discard(snapshot_key)
+
+    task = asyncio.create_task(_run(), name=f"sentiment-stale-repair:{snapshot_key}")
+    _background_repair_tasks.add(task)
+    task.add_done_callback(_background_repair_tasks.discard)
+
+
+def _servable_snapshot_response(
+    payload: SentimentRequest,
+    response: SentimentResponse,
+    *,
+    now: datetime,
+) -> SentimentResponse | None:
+    state = _freshness_state(response, now=now)
+    if state == FRESHNESS_STATE_EXPIRED:
+        return None
+    if state == FRESHNESS_STATE_STALE:
+        _schedule_async_refresh(payload)
+    return _cache_hit_response(response)
 
 
 def _score_to_label(
@@ -250,23 +350,23 @@ def _error_raw_feed_record(
     error_code: str,
     error_message: str,
     timeout_ms: int,
-) -> dict[str, Any]:
-    return {
-        "symbol": payload.symbol,
-        "chain": payload.chain,
-        "sourceName": source_name,
-        "success": False,
-        "fetchedAt": _to_zulu(_now_utc()),
-        "sourceTimestamp": None,
-        "latencyMs": None,
-        "retryCount": max(0, get_settings().sentiment_source_max_attempts - 1),
-        "timeoutMs": timeout_ms,
-        "httpStatus": None,
-        "payloadHash": None,
-        "payloadExcerpt": {},
-        "errorCode": error_code,
-        "errorMessage": error_message,
-    }
+) -> RawFeedRecord:
+    return RawFeedRecord(
+        symbol=payload.symbol,
+        chain=payload.chain,
+        sourceName=source_name,
+        success=False,
+        fetchedAt=_to_zulu(_now_utc()),
+        sourceTimestamp=None,
+        latencyMs=None,
+        retryCount=max(0, get_settings().sentiment_source_max_attempts - 1),
+        timeoutMs=timeout_ms,
+        httpStatus=None,
+        payloadHash=None,
+        payloadExcerpt=EmptyPayloadExcerpt(),
+        errorCode=error_code,
+        errorMessage=error_message,
+    )
 
 
 async def _fetch_live_sources(
@@ -275,9 +375,10 @@ async def _fetch_live_sources(
     sentiment_adapters.AlternativeMeSentimentSnapshot | None,
     sentiment_adapters.CoinGeckoMarketSnapshot | None,
     sentiment_adapters.BinanceMarketSnapshot | None,
-    list[dict[str, Any]],
+    list[RawFeedRecord],
     list[ErrorRecord],
 ]:
+    snapshot_key = _snapshot_key(payload)
     results = await asyncio.gather(
         sentiment_adapters.fetch_alternative_me_sentiment(),
         sentiment_adapters.fetch_coingecko_market_snapshot(payload.symbol),
@@ -287,12 +388,18 @@ async def _fetch_live_sources(
     alternative_snapshot: sentiment_adapters.AlternativeMeSentimentSnapshot | None = None
     coingecko_snapshot: sentiment_adapters.CoinGeckoMarketSnapshot | None = None
     binance_snapshot: sentiment_adapters.BinanceMarketSnapshot | None = None
-    raw_feed_records: list[dict[str, Any]] = []
+    raw_feed_records: list[RawFeedRecord] = []
     errors: list[ErrorRecord] = []
     settings = get_settings()
 
     alternative_result, coingecko_result, binance_result = results
     if isinstance(alternative_result, BaseException):
+        service_logger.warning(
+            "Sentiment source fetch failed"
+            f" | snapshot_key={snapshot_key}"
+            " | source=alternative_me"
+            f" | error={alternative_result}"
+        )
         raw_feed_records.append(
             _error_raw_feed_record(
                 payload=payload,
@@ -311,26 +418,33 @@ async def _fetch_live_sources(
     else:
         alternative_snapshot = alternative_result
         raw_feed_records.append(
-            {
-                "symbol": payload.symbol,
-                "chain": payload.chain,
-                "sourceName": "alternative_me",
-                "success": True,
-                "fetchedAt": _to_zulu(alternative_snapshot.fetched_at),
-                "sourceTimestamp": _to_zulu(alternative_snapshot.source_timestamp),
-                "latencyMs": alternative_snapshot.latency_ms,
-                "retryCount": alternative_snapshot.retry_count,
-                "timeoutMs": alternative_snapshot.timeout_ms,
-                "httpStatus": alternative_snapshot.http_status,
-                "payloadHash": alternative_snapshot.payload_hash,
-                "freshnessSec": alternative_snapshot.freshness_sec,
-                "payloadExcerpt": alternative_snapshot.payload_excerpt,
-                "errorCode": None,
-                "errorMessage": None,
-            }
+            RawFeedRecord(
+                symbol=payload.symbol,
+                chain=payload.chain,
+                sourceName="alternative_me",
+                success=True,
+                fetchedAt=_to_zulu(alternative_snapshot.fetched_at),
+                sourceTimestamp=_to_zulu(alternative_snapshot.source_timestamp),
+                latencyMs=alternative_snapshot.latency_ms,
+                retryCount=alternative_snapshot.retry_count,
+                timeoutMs=alternative_snapshot.timeout_ms,
+                httpStatus=alternative_snapshot.http_status,
+                payloadHash=alternative_snapshot.payload_hash,
+                freshnessSec=alternative_snapshot.freshness_sec,
+                payloadExcerpt=alternative_snapshot.payload_excerpt,
+                errorCode=None,
+                errorMessage=None,
+            )
         )
 
     if isinstance(coingecko_result, BaseException):
+        service_logger.warning(
+            "Sentiment source fetch failed"
+            f" | snapshot_key={snapshot_key}"
+            " | source=coingecko"
+            f" | symbol={payload.symbol}"
+            f" | error={coingecko_result}"
+        )
         raw_feed_records.append(
             _error_raw_feed_record(
                 payload=payload,
@@ -349,26 +463,33 @@ async def _fetch_live_sources(
     else:
         coingecko_snapshot = coingecko_result
         raw_feed_records.append(
-            {
-                "symbol": payload.symbol,
-                "chain": payload.chain,
-                "sourceName": "coingecko",
-                "success": True,
-                "fetchedAt": _to_zulu(coingecko_snapshot.fetched_at),
-                "sourceTimestamp": _to_zulu(coingecko_snapshot.source_timestamp),
-                "latencyMs": coingecko_snapshot.latency_ms,
-                "retryCount": coingecko_snapshot.retry_count,
-                "timeoutMs": coingecko_snapshot.timeout_ms,
-                "httpStatus": coingecko_snapshot.http_status,
-                "payloadHash": coingecko_snapshot.payload_hash,
-                "freshnessSec": coingecko_snapshot.freshness_sec,
-                "payloadExcerpt": coingecko_snapshot.payload_excerpt,
-                "errorCode": None,
-                "errorMessage": None,
-            }
+            RawFeedRecord(
+                symbol=payload.symbol,
+                chain=payload.chain,
+                sourceName="coingecko",
+                success=True,
+                fetchedAt=_to_zulu(coingecko_snapshot.fetched_at),
+                sourceTimestamp=_to_zulu(coingecko_snapshot.source_timestamp),
+                latencyMs=coingecko_snapshot.latency_ms,
+                retryCount=coingecko_snapshot.retry_count,
+                timeoutMs=coingecko_snapshot.timeout_ms,
+                httpStatus=coingecko_snapshot.http_status,
+                payloadHash=coingecko_snapshot.payload_hash,
+                freshnessSec=coingecko_snapshot.freshness_sec,
+                payloadExcerpt=coingecko_snapshot.payload_excerpt,
+                errorCode=None,
+                errorMessage=None,
+            )
         )
 
     if isinstance(binance_result, BaseException):
+        service_logger.warning(
+            "Sentiment source fetch failed"
+            f" | snapshot_key={snapshot_key}"
+            " | source=binance_market_data"
+            f" | symbol={payload.symbol}"
+            f" | error={binance_result}"
+        )
         raw_feed_records.append(
             _error_raw_feed_record(
                 payload=payload,
@@ -387,24 +508,37 @@ async def _fetch_live_sources(
     else:
         binance_snapshot = binance_result
         raw_feed_records.append(
-            {
-                "symbol": payload.symbol,
-                "chain": payload.chain,
-                "sourceName": "binance_market_data",
-                "success": True,
-                "fetchedAt": _to_zulu(binance_snapshot.fetched_at),
-                "sourceTimestamp": _to_zulu(binance_snapshot.source_timestamp),
-                "latencyMs": binance_snapshot.latency_ms,
-                "retryCount": binance_snapshot.retry_count,
-                "timeoutMs": binance_snapshot.timeout_ms,
-                "httpStatus": binance_snapshot.http_status,
-                "payloadHash": binance_snapshot.payload_hash,
-                "freshnessSec": binance_snapshot.freshness_sec,
-                "payloadExcerpt": binance_snapshot.payload_excerpt,
-                "errorCode": None,
-                "errorMessage": None,
-            }
+            RawFeedRecord(
+                symbol=payload.symbol,
+                chain=payload.chain,
+                sourceName="binance_market_data",
+                success=True,
+                fetchedAt=_to_zulu(binance_snapshot.fetched_at),
+                sourceTimestamp=_to_zulu(binance_snapshot.source_timestamp),
+                latencyMs=binance_snapshot.latency_ms,
+                retryCount=binance_snapshot.retry_count,
+                timeoutMs=binance_snapshot.timeout_ms,
+                httpStatus=binance_snapshot.http_status,
+                payloadHash=binance_snapshot.payload_hash,
+                freshnessSec=binance_snapshot.freshness_sec,
+                payloadExcerpt=binance_snapshot.payload_excerpt,
+                errorCode=None,
+                errorMessage=None,
+            )
         )
+
+    successful_sources = [record.source_name for record in raw_feed_records if record.success]
+    failed_sources = [record.source_name for record in raw_feed_records if not record.success]
+    service_logger.info(
+        "Sentiment live source collection finished"
+        f" | snapshot_key={snapshot_key}"
+        f" | symbol={payload.symbol}"
+        f" | chain={payload.chain}"
+        f" | successful_sources={successful_sources}"
+        f" | failed_sources={failed_sources}"
+        f" | source_count={len(successful_sources)}"
+        f" | error_count={len(errors)}"
+    )
 
     return (
         alternative_snapshot,
@@ -412,6 +546,131 @@ async def _fetch_live_sources(
         binance_snapshot,
         raw_feed_records,
         errors,
+    )
+
+
+async def refresh_sentiment_snapshot(
+    payload: SentimentRequest,
+    *,
+    reason: Literal["request", "scheduler"] = REFRESH_REASON_REQUEST,
+) -> SentimentResponse:
+    refresh_started_at = perf_counter()
+    repository = get_sentiment_repository()
+    cache_key = (
+        payload.symbol,
+        payload.chain,
+        payload.lookback_hours,
+        payload.include_narrative,
+    )
+    snapshot_key = _snapshot_key(payload)
+
+    (
+        alternative_snapshot,
+        coingecko_snapshot,
+        binance_snapshot,
+        raw_feed_records,
+        errors,
+    ) = await _fetch_live_sources(payload)
+
+    if (
+        alternative_snapshot is None
+        and coingecko_snapshot is None
+        and binance_snapshot is None
+    ):
+        stored_snapshot = repository.load_snapshot(snapshot_key)
+        if stored_snapshot is not None:
+            fallback_errors = [
+                *stored_snapshot.errors,
+                *errors,
+                ErrorRecord(
+                    code="SENTIMENT_SNAPSHOT_FALLBACK_USED",
+                    message=(
+                        "Returning the latest persisted sentiment snapshot "
+                        f"because all live sources failed during {reason} refresh."
+                    ),
+                ),
+            ]
+            fallback_response = stored_snapshot.model_copy(
+                update={
+                    "freshness": stored_snapshot.freshness.model_copy(
+                        update={"cache_hit": True}
+                    ),
+                    "errors": fallback_errors,
+                }
+            )
+            repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
+            _snapshot_cache[cache_key] = fallback_response
+            _log_refresh_result(
+                snapshot_key=snapshot_key,
+                payload=payload,
+                response=fallback_response,
+                reason=reason,
+                duration_ms=int((perf_counter() - refresh_started_at) * 1000),
+                fallback_used=True,
+                live_successful_sources=[
+                    record.source_name for record in raw_feed_records if record.success
+                ],
+                live_failed_sources=[
+                    record.source_name for record in raw_feed_records if not record.success
+                ],
+            )
+            return fallback_response
+
+    response = _build_response(
+        payload,
+        cache_hit=False,
+        alternative_snapshot=alternative_snapshot,
+        coingecko_snapshot=coingecko_snapshot,
+        binance_snapshot=binance_snapshot,
+        errors=errors,
+    )
+    repository.save_snapshot(snapshot_key, payload, response)
+    repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
+    _snapshot_cache[cache_key] = response
+    _log_refresh_result(
+        snapshot_key=snapshot_key,
+        payload=payload,
+        response=response,
+        reason=reason,
+        duration_ms=int((perf_counter() - refresh_started_at) * 1000),
+        fallback_used=False,
+        live_successful_sources=[
+            record.source_name for record in raw_feed_records if record.success
+        ],
+        live_failed_sources=[
+            record.source_name for record in raw_feed_records if not record.success
+        ],
+    )
+    return response
+
+
+def _log_refresh_result(
+    *,
+    snapshot_key: str,
+    payload: SentimentRequest,
+    response: SentimentResponse,
+    reason: Literal["request", "scheduler"],
+    duration_ms: int,
+    fallback_used: bool,
+    live_successful_sources: list[str],
+    live_failed_sources: list[str],
+) -> None:
+    service_logger.info(
+        "Sentiment refresh completed"
+        f" | snapshot_key={snapshot_key}"
+        f" | symbol={payload.symbol}"
+        f" | chain={payload.chain}"
+        f" | reason={reason}"
+        f" | sentiment_score={response.result.sentiment_score}"
+        f" | sentiment_label={response.result.sentiment_label}"
+        f" | trend_direction={response.result.trend_direction}"
+        f" | volatility_signal={response.result.volatility_signal}"
+        f" | source_names={[source.name for source in response.sources]}"
+        f" | live_successful_sources={live_successful_sources}"
+        f" | live_failed_sources={live_failed_sources}"
+        f" | fallback_used={fallback_used}"
+        f" | error_codes={_response_error_codes(response)}"
+        f" | duration_ms={duration_ms}"
     )
 
 
@@ -537,7 +796,6 @@ def _build_response(
 
 
 async def build_sentiment_snapshot(payload: SentimentRequest) -> SentimentResponse:
-    repository = get_sentiment_repository()
     cache_key = (
         payload.symbol,
         payload.chain,
@@ -545,63 +803,19 @@ async def build_sentiment_snapshot(payload: SentimentRequest) -> SentimentRespon
         payload.include_narrative,
     )
     snapshot_key = _snapshot_key(payload)
+    repository = get_sentiment_repository()
     cached = _snapshot_cache.get(cache_key)
     now = _now_utc()
     if cached is not None:
-        created_at, response = cached
-        if now - created_at <= timedelta(seconds=CACHE_TTL_SECONDS):
-            return response.model_copy(
-                update={
-                    "freshness": response.freshness.model_copy(
-                        update={"cache_hit": True}
-                    )
-                }
-            )
+        cached_response = _servable_snapshot_response(payload, cached, now=now)
+        if cached_response is not None:
+            return cached_response
+        _snapshot_cache.pop(cache_key, None)
 
-    (
-        alternative_snapshot,
-        coingecko_snapshot,
-        binance_snapshot,
-        raw_feed_records,
-        errors,
-    ) = await _fetch_live_sources(payload)
-
-    if (
-        alternative_snapshot is None
-        and coingecko_snapshot is None
-        and binance_snapshot is None
-    ):
-        stored_snapshot = repository.load_snapshot(snapshot_key)
-        if stored_snapshot is not None:
-            fallback_errors = [
-                *stored_snapshot.errors,
-                *errors,
-                ErrorRecord(
-                    code="SENTIMENT_SNAPSHOT_FALLBACK_USED",
-                    message="Returning the latest persisted sentiment snapshot because all live sources failed.",
-                ),
-            ]
-            fallback_response = stored_snapshot.model_copy(
-                update={
-                    "freshness": stored_snapshot.freshness.model_copy(
-                        update={"cache_hit": True}
-                    ),
-                    "errors": fallback_errors,
-                }
-            )
-            repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
-            _snapshot_cache[cache_key] = (now, fallback_response)
-            return fallback_response
-
-    response = _build_response(
-        payload,
-        cache_hit=False,
-        alternative_snapshot=alternative_snapshot,
-        coingecko_snapshot=coingecko_snapshot,
-        binance_snapshot=binance_snapshot,
-        errors=errors,
-    )
-    repository.save_snapshot(snapshot_key, payload, response)
-    repository.append_raw_feed_records(snapshot_key, payload, raw_feed_records)
-    _snapshot_cache[cache_key] = (now, response)
-    return response
+    stored_snapshot = repository.load_snapshot(snapshot_key)
+    if stored_snapshot is not None:
+        _snapshot_cache[cache_key] = stored_snapshot
+        stored_response = _servable_snapshot_response(payload, stored_snapshot, now=now)
+        if stored_response is not None:
+            return stored_response
+    return await refresh_sentiment_snapshot(payload, reason=REFRESH_REASON_REQUEST)

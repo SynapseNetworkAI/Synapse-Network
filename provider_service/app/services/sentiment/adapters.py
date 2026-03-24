@@ -13,6 +13,12 @@ from typing import Any, Awaitable, Callable, TypeVar
 import httpx
 
 from app.core.config import get_settings
+from app.core.log_config import logger
+from app.schemas.sentiment import (
+    AlternativeMePayloadExcerpt,
+    BinancePayloadExcerpt,
+    CoinGeckoPayloadExcerpt,
+)
 
 
 SYMBOL_TO_COINGECKO_ID = {
@@ -28,6 +34,7 @@ SYMBOL_TO_BINANCE_MARKET = {
 }
 
 T = TypeVar("T")
+adapter_logger = logger.bind(component="sentiment_source_adapter")
 
 
 def _now_utc() -> datetime:
@@ -57,7 +64,7 @@ class AlternativeMeSentimentSnapshot:
     retry_count: int
     timeout_ms: int
     payload_hash: str
-    payload_excerpt: dict[str, Any]
+    payload_excerpt: AlternativeMePayloadExcerpt
 
     @property
     def freshness_sec(self) -> int:
@@ -79,7 +86,7 @@ class CoinGeckoMarketSnapshot:
     retry_count: int
     timeout_ms: int
     payload_hash: str
-    payload_excerpt: dict[str, Any]
+    payload_excerpt: CoinGeckoPayloadExcerpt
 
     @property
     def freshness_sec(self) -> int:
@@ -102,7 +109,7 @@ class BinanceMarketSnapshot:
     retry_count: int
     timeout_ms: int
     payload_hash: str
-    payload_excerpt: dict[str, Any]
+    payload_excerpt: BinancePayloadExcerpt
 
     @property
     def freshness_sec(self) -> int:
@@ -193,12 +200,12 @@ async def fetch_alternative_me_sentiment(
         value = int(item["value"])
         classification = str(item.get("value_classification") or "unknown").strip().lower()
         timestamp = datetime.fromtimestamp(int(item["timestamp"]), tz=UTC)
-        excerpt = {
-            "value": value,
-            "classification": classification,
-            "timestamp": item["timestamp"],
-        }
-        return AlternativeMeSentimentSnapshot(
+        excerpt = AlternativeMePayloadExcerpt(
+            value=value,
+            classification=classification,
+            timestamp=int(item["timestamp"]),
+        )
+        snapshot = AlternativeMeSentimentSnapshot(
             value=value,
             classification=classification,
             source_timestamp=timestamp,
@@ -210,6 +217,17 @@ async def fetch_alternative_me_sentiment(
             payload_hash=_payload_hash(payload),
             payload_excerpt=excerpt,
         )
+        adapter_logger.info(
+            "Sentiment source fetch succeeded"
+            " | source=alternative_me"
+            f" | classification={snapshot.classification}"
+            f" | value={snapshot.value}"
+            f" | latency_ms={snapshot.latency_ms}"
+            f" | retry_count={snapshot.retry_count}"
+            f" | freshness_sec={snapshot.freshness_sec}"
+            f" | http_status={snapshot.http_status}"
+        )
+        return snapshot
     finally:
         if close_client:
             await current_client.aclose()
@@ -250,13 +268,17 @@ async def fetch_coingecko_market_snapshot(
             raise ValueError(f"CoinGecko returned no market row for {symbol}")
         item = payload[0]
         source_timestamp = _parse_datetime(item.get("last_updated"), fallback=fetched_at)
-        excerpt = {
-            "priceUsd": float(item.get("current_price") or 0.0),
-            "change24hPct": float(item.get("price_change_percentage_24h_in_currency") or 0.0),
-            "volume24hUsd": float(item.get("total_volume") or 0.0),
-            "marketCapRank": item.get("market_cap_rank"),
-        }
-        return CoinGeckoMarketSnapshot(
+        excerpt = CoinGeckoPayloadExcerpt(
+            priceUsd=float(item.get("current_price") or 0.0),
+            change24hPct=float(item.get("price_change_percentage_24h_in_currency") or 0.0),
+            volume24hUsd=float(item.get("total_volume") or 0.0),
+            marketCapRank=(
+                int(item["market_cap_rank"])
+                if item.get("market_cap_rank") is not None
+                else None
+            ),
+        )
+        snapshot = CoinGeckoMarketSnapshot(
             symbol=symbol,
             price_usd=float(item.get("current_price") or 0.0),
             change_24h_pct=float(item.get("price_change_percentage_24h_in_currency") or 0.0),
@@ -275,6 +297,19 @@ async def fetch_coingecko_market_snapshot(
             payload_hash=_payload_hash(payload),
             payload_excerpt=excerpt,
         )
+        adapter_logger.info(
+            "Sentiment source fetch succeeded"
+            " | source=coingecko"
+            f" | symbol={snapshot.symbol}"
+            f" | price_usd={snapshot.price_usd:.4f}"
+            f" | change_24h_pct={snapshot.change_24h_pct:.4f}"
+            f" | volume_24h_usd={snapshot.volume_24h_usd:.2f}"
+            f" | latency_ms={snapshot.latency_ms}"
+            f" | retry_count={snapshot.retry_count}"
+            f" | freshness_sec={snapshot.freshness_sec}"
+            f" | http_status={snapshot.http_status}"
+        )
+        return snapshot
     finally:
         if close_client:
             await current_client.aclose()
@@ -332,14 +367,14 @@ async def fetch_binance_market_snapshot(
 
         close_prices = [float(row[4]) for row in kline_payload]
         source_timestamp = datetime.fromtimestamp(int(kline_payload[-1][6]) / 1000, tz=UTC)
-        excerpt = {
-            "marketSymbol": market_symbol,
-            "lastPriceUsd": float(ticker_payload.get("lastPrice") or 0.0),
-            "priceChangePct": float(ticker_payload.get("priceChangePercent") or 0.0),
-            "quoteVolumeUsd": float(ticker_payload.get("quoteVolume") or 0.0),
-            "klineCount": len(kline_payload),
-        }
-        return BinanceMarketSnapshot(
+        excerpt = BinancePayloadExcerpt(
+            marketSymbol=market_symbol,
+            lastPriceUsd=float(ticker_payload.get("lastPrice") or 0.0),
+            priceChangePct=float(ticker_payload.get("priceChangePercent") or 0.0),
+            quoteVolumeUsd=float(ticker_payload.get("quoteVolume") or 0.0),
+            klineCount=len(kline_payload),
+        )
+        snapshot = BinanceMarketSnapshot(
             symbol=symbol,
             market_symbol=market_symbol,
             last_price_usd=float(ticker_payload.get("lastPrice") or 0.0),
@@ -355,6 +390,20 @@ async def fetch_binance_market_snapshot(
             payload_hash=_payload_hash({"ticker": ticker_payload, "klines": kline_payload}),
             payload_excerpt=excerpt,
         )
+        adapter_logger.info(
+            "Sentiment source fetch succeeded"
+            " | source=binance_market_data"
+            f" | symbol={snapshot.symbol}"
+            f" | market_symbol={snapshot.market_symbol}"
+            f" | last_price_usd={snapshot.last_price_usd:.4f}"
+            f" | change_pct={snapshot.price_change_pct:.4f}"
+            f" | realized_volatility_pct={snapshot.realized_volatility_pct:.4f}"
+            f" | latency_ms={snapshot.latency_ms}"
+            f" | retry_count={snapshot.retry_count}"
+            f" | freshness_sec={snapshot.freshness_sec}"
+            f" | http_status={snapshot.http_status}"
+        )
+        return snapshot
     finally:
         if close_client:
             await current_client.aclose()

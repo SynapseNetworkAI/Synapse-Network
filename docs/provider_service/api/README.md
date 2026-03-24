@@ -19,6 +19,10 @@
 4. [开源仓库与依赖安全体检](./oss-security-healthcheck.md)
 5. [智能合约漏洞深度审计模型](./smart-contract-audit.md)
 
+如果你要直接联调 `Web3 Sentiment Index`，参数说明与签名 `curl` 示例已经补到：
+
+1. [web3_sentiment_api/web3-sentiment-index.md](./web3_sentiment_api/web3-sentiment-index.md)
+
 ## 统一接口约定
 
 所有服务默认遵守以下统一接口边界：

@@ -54,7 +54,7 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-./start.sh local
+./scripts/start.local.sh
 ```
 
 本地开发调试默认使用 `local` 环境：
@@ -62,12 +62,22 @@ pip install -r requirements.txt
 1. 读取 `provider_service/.env.local`
 2. 默认走独立 provider PostgreSQL：`synapse_gateway_providers`
 3. `DEEPSEEK_API_KEY` 仍可留空
+4. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 本地可设为 `false`，便于直接用 curl 调试 provider 接口
+5. `SENTIMENT_SCHEDULER_ENABLED` 是否开启按本地需要决定
+6. `SENTIMENT_SCHEDULER_LEASE_TTL_S` 默认建议保持 `120`
+7. freshness policy 默认阈值为 `60s / 300s / 900s`
+8. PostgreSQL 表结构需先由 `docker-compose/postgres/init/gateway-providers/` 初始化，provider runtime 不会自动建表；scheduler state 依赖 `provider_sentiment_scheduler_jobs`
 
 如果需要生产模式脚本入口：
 
 ```bash
-./start.sh prod
+./scripts/start.prod.sh
 ```
+
+如果要本地直接调 `Web3 Sentiment Index`，有两种方式：
+
+1. 保持 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=true`，按 API 文档生成签名头
+2. 把 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`，然后直接用普通 curl 调试
 
 ## 测试调用
 

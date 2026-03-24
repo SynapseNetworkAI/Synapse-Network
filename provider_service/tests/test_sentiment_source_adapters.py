@@ -49,6 +49,8 @@ def test_alternative_me_adapter_parses_live_shape():
     assert snapshot.http_status == 200
     assert snapshot.retry_count == 0
     assert snapshot.timeout_ms == 2000
+    assert snapshot.payload_excerpt.value == 74
+    assert snapshot.payload_excerpt.classification == "greed"
     assert snapshot.payload_hash
     assert snapshot.freshness_sec >= 0
 
@@ -88,6 +90,8 @@ def test_coingecko_adapter_parses_market_snapshot():
     assert snapshot.market_cap_rank == 2
     assert snapshot.http_status == 200
     assert snapshot.retry_count == 0
+    assert snapshot.payload_excerpt.price_usd == pytest.approx(3520.12)
+    assert snapshot.payload_excerpt.market_cap_rank == 2
     assert snapshot.payload_hash
     assert snapshot.freshness_sec >= 0
 
@@ -136,6 +140,8 @@ def test_binance_adapter_parses_ticker_and_klines_for_volatility():
     assert snapshot.http_status == 200
     assert snapshot.retry_count == 0
     assert snapshot.timeout_ms == 1000
+    assert snapshot.payload_excerpt.market_symbol == "ETHUSDT"
+    assert snapshot.payload_excerpt.kline_count == 4
     assert snapshot.payload_hash
     assert snapshot.freshness_sec >= 0
 

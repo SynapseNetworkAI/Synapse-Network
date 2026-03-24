@@ -120,6 +120,109 @@
 
 ## 7. 当前接口骨架
 
+### 7.1 请求参数说明
+
+| 参数 | 类型 | 必填 | 默认值 | 当前允许值 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `symbol` | `string` | 是 | 无 | `BTC` `ETH` `SOL` | 目标币种。服务当前只支持这三个 symbol。 |
+| `chain` | `string` | 否 | `market-wide` | `market-wide` `ethereum` `solana` `base` | 情绪分析的链或市场范围。 |
+| `lookback_hours` | `integer` | 否 | `24` | `1` 到 `168` | 回看窗口，单位小时。窗口越长，结果越偏稳态。 |
+| `include_narrative` | `boolean` | 否 | `true` | `true` `false` | 是否返回 narrative 解释文本。 |
+
+参数语义补充：
+
+1. `symbol` 非法会直接返回 `422`。
+2. `chain` 非法会直接返回 `422`。
+3. `lookback_hours` 超出 `1-168` 会直接返回 `422`。
+4. 该接口要求 Gateway 签名头；缺少签名头返回 `401 / GATEWAY_SIGNATURE_REQUIRED`。
+5. 签名不匹配返回 `401 / GATEWAY_SIGNATURE_INVALID`。
+6. 如果 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`，本地可跳过验签直接调试。
+
+### 7.2 本地调试 curl
+
+这个接口不是裸调接口，必须带三项签名头：
+
+1. `X-Synapse-Service-Id`
+2. `X-Synapse-Signed-At`
+3. `X-Synapse-Signature`
+
+签名规则：
+
+1. 先把请求 JSON 做 canonical 序列化：`sort_keys=True` + `separators=(",", ":")`
+2. 对 canonical body 做 `sha256`
+3. 拼接 canonical string：`{service_id}.{signed_at}.{body_sha256}`
+4. 使用 `GATEWAY_PROVIDER_SIGNATURE_SECRET` 做 `HMAC-SHA256`
+
+如果本地只是调试 provider 逻辑，也可以在 `provider_service/.env.local` 里设置：
+
+```env
+GATEWAY_PROVIDER_SIGNATURE_ENABLED=false
+```
+
+关闭后，可直接使用无签名 curl：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/web3-sentiment-index/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"ETH","chain":"ethereum","lookback_hours":24,"include_narrative":true}'
+```
+
+本地调试示例：
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/provider_service
+
+export GATEWAY_PROVIDER_SIGNATURE_SECRET="replace-this-with-a-provider-signature-secret"
+export SIGNED_AT="1710931200"
+export BODY='{"symbol":"ETH","chain":"ethereum","lookback_hours":24,"include_narrative":true}'
+export SIGNATURE=$(python - <<'PY'
+import hashlib
+import hmac
+import json
+import os
+
+service_id = "svc_web3_sentiment_index"
+signed_at = os.environ["SIGNED_AT"]
+secret = os.environ["GATEWAY_PROVIDER_SIGNATURE_SECRET"].encode("utf-8")
+payload = json.loads(os.environ["BODY"])
+canonical_body = json.dumps(
+    payload,
+    ensure_ascii=False,
+    sort_keys=True,
+    separators=(",", ":"),
+)
+digest = hashlib.sha256(canonical_body.encode("utf-8")).hexdigest()
+canonical = f"{service_id}.{signed_at}.{digest}"
+print(hmac.new(secret, canonical.encode("utf-8"), hashlib.sha256).hexdigest())
+PY
+)
+
+curl -X POST "http://127.0.0.1:8100/provider-services/web3-sentiment-index/invoke" \
+  -H "Content-Type: application/json" \
+  -H "X-Synapse-Service-Id: svc_web3_sentiment_index" \
+  -H "X-Synapse-Signed-At: ${SIGNED_AT}" \
+  -H "X-Synapse-Signature: ${SIGNATURE}" \
+  -d "${BODY}"
+```
+
+最小请求体示例：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/web3-sentiment-index/invoke" \
+  -H "Content-Type: application/json" \
+  -H "X-Synapse-Service-Id: svc_web3_sentiment_index" \
+  -H "X-Synapse-Signed-At: ${SIGNED_AT}" \
+  -H "X-Synapse-Signature: ${SIGNATURE}" \
+  -d '{"symbol":"BTC"}'
+```
+
+### 7.3 参数组合示例
+
+1. 全市场 BTC 情绪：`{"symbol":"BTC"}`
+2. Ethereum 范围 ETH 情绪：`{"symbol":"ETH","chain":"ethereum"}`
+3. Solana 范围 SOL 情绪：`{"symbol":"SOL","chain":"solana","lookback_hours":12}`
+4. 关闭 narrative：`{"symbol":"ETH","include_narrative":false}`
+
 ### Request
 
 ```json
