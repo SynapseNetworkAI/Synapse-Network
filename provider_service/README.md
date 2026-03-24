@@ -60,6 +60,11 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 3. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 可控制是否校验 Gateway 签名；建议 `local=false`、`prod=true`
 4. 启动 `prod` 且 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false` 时，脚本默认拒绝启动
 5. 只有显式设置 `ALLOW_INSECURE_PROD_START=true`，才允许带着关闭验签的 prod 继续启动，并打印红字安全警报
+6. `SENTIMENT_PROXY_POOL_ENABLED` 可控制抓取 worker 是否走代理池；代理地址通过 `SENTIMENT_PROXY_POOL_URLS_JSON` 配置 JSON 数组
+7. 因为启动脚本会 `source` 环境文件，`SENTIMENT_PROXY_POOL_URLS_JSON` 在 `.env.*` 里必须写成带单引号的整串 JSON，例如 `'["http://127.0.0.1:7890"]'`
+8. 启动脚本会把 `proxy_pool_enabled` 打进启动摘要；如果开启代理池却没配代理地址，脚本会直接拒绝启动，避免误以为已经通过代理出站
+9. `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 会在代理模式下抬高单源最小 timeout，避免单代理场景被过低的 connect/read timeout 打穿
+10. 代理模式下 scheduler 会自动把刷新并发限制到代理池大小，避免一个本地代理同时扛过多快照刷新
 
 ## 说明
 

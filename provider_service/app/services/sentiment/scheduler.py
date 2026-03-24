@@ -15,6 +15,7 @@ from app.core.log_config import logger
 from app.schemas.sentiment import SentimentRequest
 from app.services.sentiment.repository import get_sentiment_repository
 from app.services import sentiment_service
+from app.services.sentiment import adapters as sentiment_adapters
 
 
 DEFAULT_SCHEDULER_TARGETS = [
@@ -252,10 +253,19 @@ def scheduler_from_settings() -> SentimentScheduler | None:
     settings = get_settings()
     if not settings.sentiment_scheduler_enabled:
         return None
+    max_concurrent_snapshots = max(
+        1, settings.sentiment_scheduler_max_concurrent_snapshots
+    )
+    if settings.sentiment_proxy_pool_enabled:
+        try:
+            max_concurrent_snapshots = min(
+                max_concurrent_snapshots,
+                max(1, sentiment_adapters.proxy_pool_size()),
+            )
+        except sentiment_adapters.ProxyPoolConfigurationError:
+            max_concurrent_snapshots = 1
     return SentimentScheduler(
         interval_s=max(1, settings.sentiment_scheduler_interval_s),
-        max_concurrent_snapshots=max(
-            1, settings.sentiment_scheduler_max_concurrent_snapshots
-        ),
+        max_concurrent_snapshots=max_concurrent_snapshots,
         lease_ttl_s=max(1, settings.sentiment_scheduler_lease_ttl_s),
     )

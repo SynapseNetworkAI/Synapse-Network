@@ -17,12 +17,15 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
     deepseek_timeout_s: float = 30.0
     sentiment_source_timeout_s: float = 2.0
+    sentiment_proxy_timeout_floor_s: float = 8.0
     alternative_me_timeout_s: float = 2.0
     alternative_me_base_url: str = "https://api.alternative.me"
     coingecko_timeout_s: float = 2.0
     coingecko_base_url: str = "https://api.coingecko.com/api/v3"
     binance_timeout_s: float = 1.0
     binance_base_url: str = "https://api.binance.com"
+    sentiment_proxy_pool_enabled: bool = False
+    sentiment_proxy_pool_urls_json: str = ""
     sentiment_source_max_attempts: int = 2
     sentiment_source_backoff_ms: int = 200
     sentiment_repository_backend: Literal["file", "postgres"] = "file"

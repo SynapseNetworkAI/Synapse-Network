@@ -101,12 +101,16 @@ provider_service/app/
 3. `Binance`: `1s`
 4. `max_attempts`: `2`
 5. `backoff`: `200ms * attempt`
+6. 如遇区域封锁、统一出口治理或公网抖动，抓取 worker 可开启代理池并对代理 URL 做轮转
 
 当前实现状态：
 
 1. 已支持 per-source timeout
 2. 已支持统一 `max_attempts` + 线性 backoff
 3. `Binance` 仍然是 source 内部双请求并发：`ticker/24hr` + `klines`
+4. 已支持 `SENTIMENT_PROXY_POOL_ENABLED` + `SENTIMENT_PROXY_POOL_URLS_JSON` 控制抓取 worker 代理池出站；每次独立抓取尝试会轮转选择代理
+5. `.env.*` 中的 `SENTIMENT_PROXY_POOL_URLS_JSON` 需要使用 shell-safe quoting，例如 `'["http://127.0.0.1:7890"]'`，否则启动脚本 `source` 后会把 JSON 字符串内部双引号剥掉
+6. 代理模式会引入 `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 作为最小 timeout floor，并把 scheduler 刷新并发限制到代理池大小，减少单代理部署下的连接超时和重复刷新风暴
 
 ## 8. 统一中间结构
 
