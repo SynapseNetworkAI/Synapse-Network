@@ -9,7 +9,7 @@ from typing import Literal
 from app.core.config import get_settings
 from app.core.log_config import logger
 from app.schemas.sentiment import EmptyPayloadExcerpt, ErrorRecord, RawFeedRecord
-from app.services.sentiment import adapters as sentiment_adapters
+from app.services.sentiment import plugins as sentiment_plugins
 from app.services.sentiment.repository import get_sentiment_repository
 from app.schemas.sentiment import (
     FreshnessRecord,
@@ -29,10 +29,6 @@ REFRESH_REASON_SCHEDULER = "scheduler"
 FRESHNESS_STATE_FRESH = "fresh"
 FRESHNESS_STATE_STALE = "stale-but-servable"
 FRESHNESS_STATE_EXPIRED = "expired"
-SOURCE_FRESHNESS = {
-    "alternative_me": 1800,
-    "binance_market_data": 8,
-}
 
 
 @dataclass(frozen=True)
@@ -81,8 +77,21 @@ _background_repair_tasks: set[asyncio.Task[None]] = set()
 _in_flight_refresh_tasks: dict[str, asyncio.Task[SentimentResponse]] = {}
 UTC_OFFSET_SUFFIX = "+00:00"
 service_logger = logger.bind(component="sentiment_refresh")
-RETIRED_SOURCE_NAME = "coingecko"
-RETIRED_SOURCE_ERROR_PREFIX = "COINGECKO_"
+
+
+def _supported_live_source_names() -> frozenset[str]:
+    return frozenset(
+        plugin.source_name for plugin in sentiment_plugins.list_sentiment_source_plugins()
+    )
+
+
+def _supported_error_prefixes() -> tuple[str, ...]:
+    plugin_prefixes = tuple(
+        plugin.error_code.replace("UNAVAILABLE", "")
+        for plugin in sentiment_plugins.list_sentiment_source_plugins()
+        if plugin.error_code.endswith("UNAVAILABLE")
+    )
+    return (*plugin_prefixes, "SENTIMENT_SNAPSHOT_")
 
 
 def _error_code_value(error: object) -> str | None:
@@ -101,12 +110,15 @@ def _response_error_codes(response: SentimentResponse) -> list[str]:
 
 def _snapshot_compatibility_issues(response: SentimentResponse) -> list[str]:
     issues: list[str] = []
-    if any(source.name == RETIRED_SOURCE_NAME for source in response.sources):
-        issues.append("retired_source_present")
-    if any(code.startswith(RETIRED_SOURCE_ERROR_PREFIX) for code in _response_error_codes(response)):
-        issues.append("retired_source_error_present")
-    if any("coingecko" in bullet.lower() for bullet in response.result.reasoning_bullets):
-        issues.append("retired_source_reasoning_present")
+    supported_source_names = _supported_live_source_names()
+    if any(source.name not in supported_source_names for source in response.sources):
+        issues.append("unsupported_source_present")
+    supported_error_prefixes = _supported_error_prefixes()
+    if any(
+        not code.startswith(supported_error_prefixes)
+        for code in _response_error_codes(response)
+    ):
+        issues.append("unsupported_error_present")
     return issues
 
 
@@ -333,29 +345,45 @@ def _build_reasoning_bullets(
     trend_direction: str,
     volatility_signal: str,
     *,
-    alternative_snapshot: sentiment_adapters.AlternativeMeSentimentSnapshot | None,
-    binance_snapshot: sentiment_adapters.BinanceMarketSnapshot | None,
+    baseline_observation: sentiment_plugins.SentimentSourceObservation | None,
+    momentum_observation: sentiment_plugins.SentimentSourceObservation | None,
+    volume_observation: sentiment_plugins.SentimentSourceObservation | None,
+    volatility_observation: sentiment_plugins.SentimentSourceObservation | None,
 ) -> list[str]:
     bullets: list[str] = []
-    if alternative_snapshot is not None:
+    if (
+        baseline_observation is not None
+        and baseline_observation.baseline_score is not None
+        and baseline_observation.baseline_classification is not None
+    ):
         bullets.append(
-            f"Alternative.me baseline is {alternative_snapshot.value}/100 with '{alternative_snapshot.classification}' risk appetite."
+            f"{baseline_observation.display_name} baseline is {baseline_observation.baseline_score}/100 with '{baseline_observation.baseline_classification}' risk appetite."
         )
     else:
         bullets.append(
             f"{payload.symbol} currently falls back to the provider's internal baseline model because the market baseline feed is unavailable."
         )
-    if binance_snapshot is not None:
+    if (
+        momentum_observation is not None
+        and momentum_observation.last_price_usd is not None
+        and momentum_observation.price_change_pct is not None
+    ):
         bullets.append(
-            f"Binance shows {payload.symbol} at ${binance_snapshot.last_price_usd:,.2f} with {binance_snapshot.price_change_pct:.2f}% 24h change."
+            f"{momentum_observation.display_name} shows {payload.symbol} at ${momentum_observation.last_price_usd:,.2f} with {momentum_observation.price_change_pct:.2f}% 24h change."
         )
     else:
         bullets.append(
             f"Trend direction is {trend_direction} using fallback rules because token-level live market data is unavailable."
         )
-    if binance_snapshot is not None and payload.include_narrative:
+    narrative_market_observation = volatility_observation or volume_observation
+    if (
+        narrative_market_observation is not None
+        and narrative_market_observation.realized_volatility_pct is not None
+        and narrative_market_observation.quote_volume_usd is not None
+        and payload.include_narrative
+    ):
         bullets.append(
-            f"Binance 5m kline realized volatility is {binance_snapshot.realized_volatility_pct:.2f}% with {binance_snapshot.quote_volume_usd:,.0f} quote volume over the 24h ticker window."
+            f"{narrative_market_observation.display_name} realized volatility is {narrative_market_observation.realized_volatility_pct:.2f}% with {narrative_market_observation.quote_volume_usd:,.0f} quote volume over the latest market window."
         )
     if payload.include_narrative:
         bullets.extend(
@@ -370,25 +398,23 @@ def _build_reasoning_bullets(
 def _error_raw_feed_record(
     *,
     payload: SentimentRequest,
-    source_name: str,
-    error_code: str,
+    plugin: sentiment_plugins.SentimentSourcePlugin,
     error_message: str,
-    timeout_ms: int,
 ) -> RawFeedRecord:
     return RawFeedRecord(
         symbol=payload.symbol,
         chain=payload.chain,
-        sourceName=source_name,
+        sourceName=plugin.source_name,
         success=False,
         fetchedAt=_to_zulu(_now_utc()),
         sourceTimestamp=None,
         latencyMs=None,
         retryCount=max(0, get_settings().sentiment_source_max_attempts - 1),
-        timeoutMs=timeout_ms,
+        timeoutMs=plugin.timeout_ms(),
         httpStatus=None,
         payloadHash=None,
         payloadExcerpt=EmptyPayloadExcerpt(),
-        errorCode=error_code,
+        errorCode=plugin.error_code,
         errorMessage=error_message,
     )
 
@@ -396,112 +422,45 @@ def _error_raw_feed_record(
 async def _fetch_live_sources(
     payload: SentimentRequest,
 ) -> tuple[
-    sentiment_adapters.AlternativeMeSentimentSnapshot | None,
-    sentiment_adapters.BinanceMarketSnapshot | None,
+    list[sentiment_plugins.SentimentSourceObservation],
     list[RawFeedRecord],
     list[ErrorRecord],
 ]:
     snapshot_key = _snapshot_key(payload)
+    plugins = sentiment_plugins.list_sentiment_source_plugins()
     results = await asyncio.gather(
-        sentiment_adapters.fetch_alternative_me_sentiment(),
-        sentiment_adapters.fetch_binance_market_snapshot(payload.symbol),
+        *(plugin.fetch(payload) for plugin in plugins),
         return_exceptions=True,
     )
-    alternative_snapshot: sentiment_adapters.AlternativeMeSentimentSnapshot | None = None
-    binance_snapshot: sentiment_adapters.BinanceMarketSnapshot | None = None
+    observations: list[sentiment_plugins.SentimentSourceObservation] = []
     raw_feed_records: list[RawFeedRecord] = []
     errors: list[ErrorRecord] = []
-    settings = get_settings()
 
-    alternative_result, binance_result = results
-    if isinstance(alternative_result, BaseException):
-        service_logger.warning(
-            "Sentiment source fetch failed"
-            f" | snapshot_key={snapshot_key}"
-            " | source=alternative_me"
-            f" | error={alternative_result}"
-        )
-        raw_feed_records.append(
-            _error_raw_feed_record(
-                payload=payload,
-                source_name="alternative_me",
-                error_code="ALTERNATIVE_ME_UNAVAILABLE",
-                error_message=str(alternative_result),
-                timeout_ms=int(settings.alternative_me_timeout_s * 1000),
+    for plugin, result in zip(plugins, results, strict=True):
+        if isinstance(result, BaseException):
+            service_logger.warning(
+                "Sentiment source fetch failed"
+                f" | snapshot_key={snapshot_key}"
+                f" | source={plugin.source_name}"
+                f" | symbol={payload.symbol}"
+                f" | error={result}"
             )
-        )
-        errors.append(
-            ErrorRecord(
-                code="ALTERNATIVE_ME_UNAVAILABLE",
-                message=f"Alternative.me feed unavailable: {alternative_result}",
+            raw_feed_records.append(
+                _error_raw_feed_record(
+                    payload=payload,
+                    plugin=plugin,
+                    error_message=str(result),
+                )
             )
-        )
-    else:
-        alternative_snapshot = alternative_result
-        raw_feed_records.append(
-            RawFeedRecord(
-                symbol=payload.symbol,
-                chain=payload.chain,
-                sourceName="alternative_me",
-                success=True,
-                fetchedAt=_to_zulu(alternative_snapshot.fetched_at),
-                sourceTimestamp=_to_zulu(alternative_snapshot.source_timestamp),
-                latencyMs=alternative_snapshot.latency_ms,
-                retryCount=alternative_snapshot.retry_count,
-                timeoutMs=alternative_snapshot.timeout_ms,
-                httpStatus=alternative_snapshot.http_status,
-                payloadHash=alternative_snapshot.payload_hash,
-                freshnessSec=alternative_snapshot.freshness_sec,
-                payloadExcerpt=alternative_snapshot.payload_excerpt,
-                errorCode=None,
-                errorMessage=None,
+            errors.append(
+                ErrorRecord(
+                    code=plugin.error_code,
+                    message=f"{plugin.error_message_prefix}: {result}",
+                )
             )
-        )
-
-    if isinstance(binance_result, BaseException):
-        service_logger.warning(
-            "Sentiment source fetch failed"
-            f" | snapshot_key={snapshot_key}"
-            " | source=binance_market_data"
-            f" | symbol={payload.symbol}"
-            f" | error={binance_result}"
-        )
-        raw_feed_records.append(
-            _error_raw_feed_record(
-                payload=payload,
-                source_name="binance_market_data",
-                error_code="BINANCE_UNAVAILABLE",
-                error_message=str(binance_result),
-                timeout_ms=int(settings.binance_timeout_s * 1000),
-            )
-        )
-        errors.append(
-            ErrorRecord(
-                code="BINANCE_UNAVAILABLE",
-                message=f"Binance market feed unavailable: {binance_result}",
-            )
-        )
-    else:
-        binance_snapshot = binance_result
-        raw_feed_records.append(
-            RawFeedRecord(
-                symbol=payload.symbol,
-                chain=payload.chain,
-                sourceName="binance_market_data",
-                success=True,
-                fetchedAt=_to_zulu(binance_snapshot.fetched_at),
-                sourceTimestamp=_to_zulu(binance_snapshot.source_timestamp),
-                latencyMs=binance_snapshot.latency_ms,
-                retryCount=binance_snapshot.retry_count,
-                timeoutMs=binance_snapshot.timeout_ms,
-                httpStatus=binance_snapshot.http_status,
-                payloadHash=binance_snapshot.payload_hash,
-                freshnessSec=binance_snapshot.freshness_sec,
-                payloadExcerpt=binance_snapshot.payload_excerpt,
-                errorCode=None,
-                errorMessage=None,
-            )
-        )
+            continue
+        observations.append(result)
+        raw_feed_records.append(result.to_raw_feed_record(payload))
 
     successful_sources = [record.source_name for record in raw_feed_records if record.success]
     failed_sources = [record.source_name for record in raw_feed_records if not record.success]
@@ -516,12 +475,19 @@ async def _fetch_live_sources(
         f" | error_count={len(errors)}"
     )
 
-    return (
-        alternative_snapshot,
-        binance_snapshot,
-        raw_feed_records,
-        errors,
-    )
+    return (observations, raw_feed_records, errors)
+
+
+def _select_observation_for_capability(
+    observations: list[sentiment_plugins.SentimentSourceObservation],
+    capability: sentiment_plugins.SentimentCapability,
+) -> sentiment_plugins.SentimentSourceObservation | None:
+    candidates = [
+        observation for observation in observations if observation.supports(capability)
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda observation: observation.freshness_sec)
 
 
 async def refresh_sentiment_snapshot(
@@ -545,17 +511,9 @@ async def refresh_sentiment_snapshot(
             payload.include_narrative,
         )
 
-        (
-            alternative_snapshot,
-            binance_snapshot,
-            raw_feed_records,
-            errors,
-        ) = await _fetch_live_sources(payload)
+        observations, raw_feed_records, errors = await _fetch_live_sources(payload)
 
-        if (
-            alternative_snapshot is None
-            and binance_snapshot is None
-        ):
+        if not observations:
             stored_snapshot = repository.load_snapshot(snapshot_key)
             if stored_snapshot is not None and _is_runtime_compatible_snapshot(stored_snapshot):
                 fallback_errors = [
@@ -598,8 +556,7 @@ async def refresh_sentiment_snapshot(
         response = _build_response(
             payload,
             cache_hit=False,
-            alternative_snapshot=alternative_snapshot,
-            binance_snapshot=binance_snapshot,
+            observations=observations,
             errors=errors,
         )
         repository.save_snapshot(snapshot_key, payload, response)
@@ -667,30 +624,47 @@ def _build_response(
     payload: SentimentRequest,
     *,
     cache_hit: bool,
-    alternative_snapshot: sentiment_adapters.AlternativeMeSentimentSnapshot | None,
-    binance_snapshot: sentiment_adapters.BinanceMarketSnapshot | None,
+    observations: list[sentiment_plugins.SentimentSourceObservation],
     errors: list[ErrorRecord],
 ) -> SentimentResponse:
     profile = SYMBOL_PROFILES[payload.symbol]
     lookback_penalty = min(8, max(0, (payload.lookback_hours - 24) // 24))
+    baseline_observation = _select_observation_for_capability(
+        observations, "baseline_sentiment"
+    )
+    momentum_observation = _select_observation_for_capability(
+        observations, "price_momentum"
+    )
+    volume_observation = _select_observation_for_capability(observations, "volume_heat")
+    volatility_observation = _select_observation_for_capability(
+        observations, "realized_volatility"
+    )
     baseline_score = (
-        alternative_snapshot.value if alternative_snapshot is not None else profile.baseline_score
+        baseline_observation.baseline_score
+        if baseline_observation is not None and baseline_observation.baseline_score is not None
+        else profile.baseline_score
     )
     momentum_adjustment = 0
-    if binance_snapshot is not None:
+    if (
+        momentum_observation is not None
+        and momentum_observation.price_change_pct is not None
+    ):
         momentum_adjustment = _live_momentum_adjustment(
-            binance_snapshot.price_change_pct
+            momentum_observation.price_change_pct
         )
 
     volume_heat_adjustment = 0
-    if binance_snapshot is not None:
+    if volume_observation is not None and volume_observation.quote_volume_usd is not None:
         volume_heat_adjustment = _volume_heat_adjustment(
-            binance_snapshot.quote_volume_usd
+            volume_observation.quote_volume_usd
         )
 
     volatility_penalty = (
-        _volatility_penalty(binance_snapshot.realized_volatility_pct)
-        if binance_snapshot is not None
+        _volatility_penalty(volatility_observation.realized_volatility_pct)
+        if (
+            volatility_observation is not None
+            and volatility_observation.realized_volatility_pct is not None
+        )
         else 0
     )
     score = max(
@@ -706,30 +680,25 @@ def _build_response(
         ),
     )
     trend_direction = _trend_direction(profile, payload.lookback_hours)
-    if binance_snapshot is not None:
+    if (
+        momentum_observation is not None
+        and momentum_observation.price_change_pct is not None
+    ):
         trend_direction = _trend_direction_from_market(
-            binance_snapshot.price_change_pct, payload.lookback_hours
+            momentum_observation.price_change_pct, payload.lookback_hours
         )
     volatility_signal = (
-        _volatility_signal_from_market(binance_snapshot.realized_volatility_pct)
-        if binance_snapshot is not None
+        _volatility_signal_from_market(volatility_observation.realized_volatility_pct)
+        if (
+            volatility_observation is not None
+            and volatility_observation.realized_volatility_pct is not None
+        )
         else _volatility_signal(profile, payload.lookback_hours)
     )
-    sources: list[SourceRecord] = []
-    if alternative_snapshot is not None:
-        sources.append(
-            SourceRecord(
-                name="alternative_me",
-                freshnessSec=alternative_snapshot.freshness_sec,
-            )
-        )
-    if binance_snapshot is not None:
-        sources.append(
-            SourceRecord(
-                name="binance_market_data",
-                freshnessSec=binance_snapshot.freshness_sec,
-            )
-        )
+    sources = [
+        SourceRecord(name=observation.source_name, freshnessSec=observation.freshness_sec)
+        for observation in observations
+    ]
     now = _now_utc()
     return SentimentResponse(
         service=ServiceDescriptor(
@@ -754,8 +723,10 @@ def _build_response(
                 payload,
                 trend_direction,
                 volatility_signal,
-                alternative_snapshot=alternative_snapshot,
-                binance_snapshot=binance_snapshot,
+                baseline_observation=baseline_observation,
+                momentum_observation=momentum_observation,
+                volume_observation=volume_observation,
+                volatility_observation=volatility_observation,
             ),
             action_hint=_action_hint(score, volatility_signal),
         ),

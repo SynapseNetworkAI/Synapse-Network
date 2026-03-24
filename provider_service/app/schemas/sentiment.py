@@ -97,15 +97,6 @@ class AlternativeMePayloadExcerpt(BaseModel):
     timestamp: int
 
 
-class CoinGeckoPayloadExcerpt(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    price_usd: float = Field(alias="priceUsd")
-    change_24h_pct: float = Field(alias="change24hPct")
-    volume_24h_usd: float = Field(alias="volume24hUsd")
-    market_cap_rank: int | None = Field(alias="marketCapRank")
-
-
 class BinancePayloadExcerpt(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -118,7 +109,6 @@ class BinancePayloadExcerpt(BaseModel):
 
 PayloadExcerpt = (
     AlternativeMePayloadExcerpt
-    | CoinGeckoPayloadExcerpt
     | BinancePayloadExcerpt
     | EmptyPayloadExcerpt
 )

@@ -4,6 +4,11 @@ from .adapters import (
     fetch_alternative_me_sentiment,
     fetch_binance_market_snapshot,
 )
+from .plugins import (
+    SentimentSourceObservation,
+    SentimentSourcePlugin,
+    list_sentiment_source_plugins,
+)
 from .repository import (
     FileBackedSentimentRepository,
     PostgresSentimentRepository,
@@ -16,8 +21,11 @@ __all__ = [
     "BinanceMarketSnapshot",
     "FileBackedSentimentRepository",
     "PostgresSentimentRepository",
+    "SentimentSourceObservation",
+    "SentimentSourcePlugin",
     "SentimentRepository",
     "fetch_alternative_me_sentiment",
     "fetch_binance_market_snapshot",
     "get_sentiment_repository",
+    "list_sentiment_source_plugins",
 ]
