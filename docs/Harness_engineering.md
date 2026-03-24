@@ -47,7 +47,7 @@ The remaining gaps are now maintenance-oriented rather than foundational:
 
 1. some top-level indexes are still dense and can be compressed further for faster first-read navigation
 2. reference-layer boundaries still need occasional cleanup as contracts evolve across `gateway`, `gateway-admin`, and `provider_service`
-3. there is still no automated freshness enforcement for docs, instructions, and indexes
+3. lightweight freshness enforcement now exists through a repository docs gate, but it is still narrower than a full doc-governance CI system
 4. ADR and decision-log workflows are still lightweight and mostly manual
 
 ## 4. Design Goals
@@ -140,8 +140,8 @@ The foundation pass does not try to solve everything at once.
 
 Still not included after the current landing sequence:
 
-1. automated doc freshness linting
-2. doc-gardening bots or CI jobs
+1. semantic freshness checks against code behavior beyond the current lightweight docs gate
+2. doc-gardening bots or broader CI automation
 3. per-workflow deep acceptance pages for every business chain
 4. broad instruction proliferation beyond the current layering model
 
@@ -174,4 +174,5 @@ This harness-engineering pass is complete when:
 Current status:
 
 1. this completion criteria set is satisfied as of 2026-03-24
-2. follow-on work should now focus on index compression, reference-boundary hygiene, and lightweight freshness enforcement rather than more entrypoint creation
+2. a lightweight docs gate now exists to constrain root growth, retired-path regressions, and canonical metadata drift
+3. follow-on work should now focus on index compression, reference-boundary hygiene, and stronger freshness automation rather than more entrypoint creation

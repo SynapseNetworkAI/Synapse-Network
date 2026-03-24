@@ -6,6 +6,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 
 - docs/AGENTS.md - canonical workspace rules, product doctrine, architecture invariants, security baseline, and instruction layering
 - docs/00_Governance/README.md - documentation lifecycle, ownership, drift prevention, and agent-docs migration governance
+- docs/00_Governance/Documentation_Constraints.md - hard boundaries for root docs, canonical placement, retired paths, and docs gate enforcement
 - docs/README.md - full documentation map and recommended reading order
 - docs/ARCHITECTURE.md - top-level architecture summary across runtime, settlement, control plane, and provider systems
 - docs/Harness_engineering.md - repository-level AI collaboration and documentation landing plan
@@ -41,7 +42,8 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
 - docs/06_Reference/Validation_Entry_Points.md - current validation commands and workflow checks
-- docs/00_Governance/Agent_Docs_Migration_Map.md - historical map for the retired docs/agent layer and its merge into official modules
+- npm run ci:docs - lightweight docs governance gate for root growth, retired-path regressions, and canonical metadata minimums
+- docs/00_Governance/Agent_Docs_Migration_Map.md - historical map for the retired agent-doc layer and its merge into official modules
 - docs/exec-plans/README.md - plan structure for active and completed work
 
 ## Important Boundaries

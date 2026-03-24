@@ -10,14 +10,15 @@ Rule: start with the narrowest relevant check, then escalate to repo-level CI on
 
 From repository root:
 
-1. `npm run ci:frontend`
-2. `npm run ci:admin-front`
-3. `npm run ci:admin-gateway`
-4. `npm run ci:gateway`
-5. `npm run ci:provider-service`
-6. `npm run ci:sdk-python`
-7. `npm run ci:contracts`
-8. `npm run ci:pr`
+1. `npm run ci:docs`
+2. `npm run ci:frontend`
+3. `npm run ci:admin-front`
+4. `npm run ci:admin-gateway`
+5. `npm run ci:gateway`
+6. `npm run ci:provider-service`
+7. `npm run ci:sdk-python`
+8. `npm run ci:contracts`
+9. `npm run ci:pr`
 
 Use these wrappers when final integration confidence is required.
 
@@ -106,6 +107,15 @@ Before finishing:
 
 1. ensure new files are linked from existing canonical indexes
 2. ensure no stale guidance remains in AGENTS, instructions, or README files
+3. run `npm run ci:docs`
+
+### Docs governance or structure work
+
+Before finishing:
+
+1. update `docs/README.md` and `llms.txt` if entrypoints moved
+2. update `docs/00_Governance/Documentation_Constraints.md` if hard boundaries changed
+3. run `npm run ci:docs`
 
 ## 5. When To Escalate Validation
 
