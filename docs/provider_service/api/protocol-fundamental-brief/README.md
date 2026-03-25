@@ -28,8 +28,8 @@
 
 ## 当前边界
 
-1. 当前文档状态仍是 `draft`
-2. 当前 `provider_service` 已经落地 `Phase 2` 的 signed endpoint + source adapter/plugin wiring
-3. 当前建议的 V1 主来源是 `DefiLlama + DexScreener`
-4. 当前 `sources`、`freshness`、`errors` 已反映真实上游采集结果，但 `result` 仍是 preview 级聚合输出
+1. 当前专题仍处于实现迭代期，但 `provider_service` 已经落地 signed endpoint、source adapter/plugin wiring，以及 Phase 3 的规则驱动聚合输出
+2. 当前建议的 V1 主来源是 `DefiLlama + DexScreener`
+3. 当前 `sources`、`freshness`、`errors` 反映真实上游采集结果，`result` 已切换为 alias-normalized、规则驱动的结构化 brief
+4. `peer_set` 会优先基于 DefiLlama protocol-level observation 生成相对比较，不会退化成自由文本 prompt
 5. 后续如要增强 `revenue_signal_summary` 与 `risk_flagging`，应继续沿用 capability-based source plugin 结构，而不是把所有上游逻辑塞回一个 service 文件

@@ -7,13 +7,13 @@ from app.core.config import get_settings
 from app.schemas.protocol_fundamental_brief import (
     ProtocolFundamentalBriefRequest,
     ProtocolFundamentalBriefResponse,
-    ProtocolFundamentalBriefResult,
 )
 from app.schemas.sentiment import ErrorRecord, FreshnessRecord, ServiceDescriptor
+from app.services.protocol_fundamental_brief import aggregator as brief_aggregator
+from app.services.protocol_fundamental_brief.aliases import normalize_protocol_query
 from app.services.protocol_fundamental_brief.cache import ProtocolBriefSnapshotCache
 from app.services.protocol_fundamental_brief.domain import (
     DefiLlamaProtocolObservation,
-    DexScreenerMarketObservation,
     ProtocolBriefObservation,
     ProtocolBriefRawFeedRecord,
     ProtocolBriefSnapshotKey,
@@ -38,16 +38,19 @@ def _now_utc() -> datetime:
     return datetime.now(UTC)
 
 
-def _format_usd(value: float | None) -> str:
-    if value is None:
-        return "n/a"
-    if value >= 1_000_000_000:
-        return f"${value / 1_000_000_000:.2f}B"
-    if value >= 1_000_000:
-        return f"${value / 1_000_000:.2f}M"
-    if value >= 1_000:
-        return f"${value / 1_000:.2f}K"
-    return f"${value:.2f}"
+def _normalized_request(
+    payload: ProtocolFundamentalBriefRequest,
+) -> ProtocolFundamentalBriefRequest:
+    normalized_protocol = normalize_protocol_query(payload.protocol)
+    normalized_peers = [normalize_protocol_query(peer) for peer in payload.peer_set]
+    if normalized_protocol == payload.protocol and normalized_peers == payload.peer_set:
+        return payload
+    return payload.model_copy(
+        update={
+            "protocol": normalized_protocol,
+            "peer_set": normalized_peers,
+        }
+    )
 
 
 async def _collect_live_observations(
@@ -59,8 +62,9 @@ async def _collect_live_observations(
 ]:
     plugins = brief_plugins.list_protocol_source_plugins()
     snapshot_key = ProtocolBriefSnapshotKey.from_request(payload)
+    fetch_payload = _normalized_request(payload)
     results = await asyncio.gather(
-        *(plugin.fetch(payload) for plugin in plugins),
+        *(plugin.fetch(fetch_payload) for plugin in plugins),
         return_exceptions=True,
     )
     observations: list[ProtocolBriefObservation] = []
@@ -94,110 +98,34 @@ async def _collect_live_observations(
     return tuple(observations), raw_feed_records, errors
 
 
-def _observation_by_source(
-    observations: tuple[ProtocolBriefObservation, ...],
-    source_name: str,
-) -> ProtocolBriefObservation | None:
-    for observation in observations:
-        if observation.source_name == source_name:
-            return observation
+def _defillama_plugin() -> brief_plugins.ProtocolSourcePlugin | None:
+    for plugin in brief_plugins.list_protocol_source_plugins():
+        if plugin.source_name == "defillama_protocol":
+            return plugin
     return None
 
 
-def _price_preview(
+async def _collect_peer_observations(
     payload: ProtocolFundamentalBriefRequest,
-    market_observation: DexScreenerMarketObservation | None,
-) -> str:
-    if market_observation is None:
-        return (
-            "Phase 2 preview: DexScreener market context is not available yet for this request, "
-            f"so live price preview for {payload.protocol} remains unavailable."
-        )
-
-    spot_price = _format_usd(market_observation.spot_price_usd)
-    liquidity = _format_usd(market_observation.liquidity_usd)
-    volume_24h = _format_usd(market_observation.volume_24h_usd)
-    return (
-        "Phase 2 preview: DexScreener selected "
-        f"{market_observation.base_token_symbol}/{market_observation.quote_token_symbol} on {market_observation.dex_id} "
-        f"({market_observation.chain_id}) at {spot_price}, with liquidity {liquidity} and 24h volume {volume_24h}."
-    )
-
-
-def _tvl_preview(
-    payload: ProtocolFundamentalBriefRequest,
-    defillama_observation: DefiLlamaProtocolObservation | None,
-) -> str:
-    if defillama_observation is None:
-        return (
-            "Phase 2 preview: DefiLlama protocol context is not available yet for this request, "
-            f"so live TVL preview for {payload.protocol} remains unavailable."
-        )
-
-    tvl = _format_usd(defillama_observation.tvl_usd_current)
-    category = defillama_observation.category or "unknown category"
-    change_7d = defillama_observation.tvl_change_7d_pct
-    change_text = (
-        f"7d change {change_7d:.2f}%" if isinstance(change_7d, (int, float)) else "7d change unavailable"
-    )
-    return (
-        "Phase 2 preview: DefiLlama resolved "
-        f"{defillama_observation.protocol_display_name or payload.protocol} as {category}, with current TVL {tvl} and {change_text}."
-    )
-
-
-def _revenue_preview(
-    defillama_observation: DefiLlamaProtocolObservation | None,
-    market_observation: DexScreenerMarketObservation | None,
-) -> list[str]:
-    signals: list[str] = []
-    if defillama_observation is not None:
-        signals.append(
-            "Phase 2 preview: DefiLlama fee/revenue signals are connected "
-            f"(fees 24h {_format_usd(defillama_observation.fees_24h_usd)}, "
-            f"revenue 24h {_format_usd(defillama_observation.revenue_24h_usd)})."
-        )
-    if market_observation is not None:
-        signals.append(
-            "Phase 2 preview: DexScreener trading activity proxy is connected "
-            f"(24h volume {_format_usd(market_observation.volume_24h_usd)}, "
-            f"buys {market_observation.buy_txn_24h}, sells {market_observation.sell_txn_24h})."
-        )
-    if not signals:
-        signals.append(
-            "Phase 2 preview: live revenue and activity sources are unavailable, so this request remains on degraded preview mode."
-        )
-    return signals[:5]
-
-
-def _peer_preview(payload: ProtocolFundamentalBriefRequest) -> list[str]:
+) -> tuple[DefiLlamaProtocolObservation, ...]:
     if not payload.peer_set:
-        return []
-    peer_list = ", ".join(payload.peer_set)
-    return [
-        "Phase 2 preview: peer comparison scaffolding is preserved, but full peer-set aggregation lands in Phase 3; "
-        f"requested peers: {peer_list}."
-    ]
-
-
-def _risk_preview(
-    observations: tuple[ProtocolBriefObservation, ...],
-    errors: list[ErrorRecord],
-) -> list[str]:
-    risk_flags = [
-        "Phase 2 preview only: source adapters and plugin registry are live, but final rule-based risk aggregation has not landed yet."
-    ]
-    if errors:
-        failed_codes = ", ".join(error.code for error in errors)
-        risk_flags.append(
-            f"One or more upstream sources degraded during this request: {failed_codes}."
-        )
-    if observations:
-        connected_sources = ", ".join(observation.source_name for observation in observations)
-        risk_flags.append(
-            f"Connected preview sources for this request: {connected_sources}."
-        )
-    return risk_flags[:5]
+        return ()
+    plugin = _defillama_plugin()
+    if plugin is None:
+        return ()
+    peer_requests = tuple(
+        payload.model_copy(update={"protocol": peer, "peer_set": []})
+        for peer in _normalized_request(payload).peer_set
+    )
+    results = await asyncio.gather(
+        *(plugin.fetch(peer_payload) for peer_payload in peer_requests),
+        return_exceptions=True,
+    )
+    return tuple(
+        result
+        for result in results
+        if isinstance(result, DefiLlamaProtocolObservation)
+    )
 
 
 def _build_response(
@@ -206,10 +134,15 @@ def _build_response(
     cache_hit: bool,
     observations: tuple[ProtocolBriefObservation, ...],
     errors: list[ErrorRecord],
+    peer_observations: tuple[DefiLlamaProtocolObservation, ...] = (),
 ) -> ProtocolFundamentalBriefResponse:
-    defillama_observation = _observation_by_source(observations, "defillama_protocol")
-    market_observation = _observation_by_source(observations, "dexscreener_market")
     sources = [observation.to_source_record() for observation in observations]
+    brief_result = brief_aggregator.build_structured_brief_result(
+        payload,
+        observations=observations,
+        errors=errors,
+        peer_observations=peer_observations,
+    )
 
     return ProtocolFundamentalBriefResponse(
         service=ServiceDescriptor(
@@ -223,35 +156,7 @@ def _build_response(
             maxSourceAgeSec=max((source.freshness_sec for source in sources), default=0),
             cacheHit=cache_hit,
         ),
-        result=ProtocolFundamentalBriefResult(
-            protocol=payload.protocol,
-            price_summary=_price_preview(
-                payload,
-                market_observation
-                if isinstance(market_observation, DexScreenerMarketObservation)
-                else None,
-            ),
-            tvl_summary=_tvl_preview(
-                payload,
-                defillama_observation
-                if isinstance(defillama_observation, DefiLlamaProtocolObservation)
-                else None,
-            ),
-            revenue_signals=_revenue_preview(
-                defillama_observation
-                if isinstance(defillama_observation, DefiLlamaProtocolObservation)
-                else None,
-                market_observation
-                if isinstance(market_observation, DexScreenerMarketObservation)
-                else None,
-            ),
-            peer_comparison=_peer_preview(payload),
-            risk_flags=_risk_preview(observations, errors),
-            operator_view=(
-                "Phase 2 is live: source adapters and capability plugins are connected, sources/freshness/errors now reflect upstream collection, "
-                "and protocol brief snapshots now support typed repository persistence plus cache-backed fallback while the response body remains a preview contract until Phase 3 aggregation lands."
-            ),
-        ),
+        result=brief_result,
         errors=errors,
     )
 
@@ -268,6 +173,7 @@ async def refresh_protocol_fundamental_brief(
     async def _run_refresh() -> ProtocolFundamentalBriefResponse:
         repository = get_protocol_brief_repository()
         observations, raw_feed_records, errors = await _collect_live_observations(payload)
+        peer_observations = await _collect_peer_observations(payload)
         if not observations:
             stored_snapshot = repository.load_snapshot(snapshot_key.value)
             repository.append_raw_feed_records(raw_feed_records)
@@ -294,6 +200,7 @@ async def refresh_protocol_fundamental_brief(
             cache_hit=False,
             observations=observations,
             errors=errors,
+            peer_observations=peer_observations,
         )
         record = ProtocolBriefSnapshotRecord.from_live_response(
             snapshot_key=snapshot_key,
