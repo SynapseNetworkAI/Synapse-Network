@@ -17,7 +17,7 @@
 对应拆分后的单服务接口文档见：
 
 1. [Web3 实时情绪指数](./api/web3_sentiment_api/web3-sentiment-index.md)
-2. [协议基本面情报包](./api/protocol-fundamental-brief.md)
+2. [协议基本面情报包](./api/protocol-fundamental-brief/README.md)
 3. [链上巨鲸资金异动监控](./api/whale-flow-monitor.md)
 4. [开源仓库与依赖安全体检](./api/oss-security-healthcheck.md)
 5. [智能合约漏洞深度审计模型](./api/smart-contract-audit.md)

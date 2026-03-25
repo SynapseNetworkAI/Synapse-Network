@@ -9,6 +9,8 @@
 3. `001_provider_sentiment_schema.sql`
 4. `002_apply_provider_sentiment_observability_upgrade.sh`
 5. `002_provider_sentiment_observability_upgrade.sql`
+6. `004_apply_provider_protocol_brief_schema.sh`
+7. `004_provider_protocol_brief_schema.sql`
 
 当前 provider 独立数据库：
 
@@ -18,8 +20,12 @@
 
 1. `provider_sentiment_snapshots`
 2. `provider_sentiment_raw_feeds`
+3. `provider_protocol_briefs`
+4. `provider_protocol_brief_raw_feeds`
 
 其中 `002_*` 用于对已经存在的 provider sentiment 表执行 production-v1 observability 字段升级，补齐 source timeout/retry/http status/payload hash 等落库能力。
+
+`004_*` 用于给 `svc_protocol_fundamental_brief` 增加显式初始化的 brief snapshot / raw feed 表，继续保持 runtime repository 无 DDL 副作用。
 
 canonical 说明文档已经迁到：
 
