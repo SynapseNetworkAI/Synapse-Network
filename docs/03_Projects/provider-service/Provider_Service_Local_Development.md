@@ -73,7 +73,8 @@ pip install -r requirements.txt
 12. 单代理本地联调建议把 `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 设为至少 `8`，否则代理 connect/read latency 很容易打穿默认单源 timeout
 13. 代理模式下 scheduler 会自动按代理池大小收敛刷新并发，避免同一个本地代理被多份快照刷新同时压爆
 14. `Protocol Fundamental Brief` 的 Phase 4 缓存策略当前采用 `in-memory hot cache + persisted snapshot fallback`：单机本地调试默认不需要 Redis，只有在多实例共享热缓存时才建议引入
-15. 如果要验证 protocol brief 持久化回退链路，优先把 `PROTOCOL_BRIEF_REPOSITORY_BACKEND=postgres` 并确保 `docker-compose/postgres/init/gateway-providers/004_provider_protocol_brief_schema.sql` 已初始化
+15. `provider_service` 现在统一使用 `PROVIDER_SERVICE_POSTGRES_DSN` 作为共享数据库连接串；只保留各自的 backend 开关，不再为 sentiment / protocol brief 分别配置独立 DSN
+16. 如果要验证 protocol brief 持久化回退链路，优先把 `PROTOCOL_BRIEF_REPOSITORY_BACKEND=postgres` 并确保 `PROVIDER_SERVICE_POSTGRES_DSN` 指向已初始化的 `synapse_gateway_providers`，同时确认 `docker-compose/postgres/init/gateway-providers/004_provider_protocol_brief_schema.sql` 已执行
 
 如果需要生产模式脚本入口：
 

@@ -188,7 +188,7 @@ def test_repository_factory_returns_file_backend(monkeypatch, tmp_path):
         lambda: SimpleNamespace(
             protocol_brief_repository_backend="file",
             protocol_brief_storage_dir=str(tmp_path / "protocol-brief-storage"),
-            protocol_brief_postgres_dsn=None,
+            provider_service_postgres_dsn=None,
             protocol_brief_postgres_snapshot_table="provider_protocol_briefs",
             protocol_brief_postgres_raw_feed_table="provider_protocol_brief_raw_feeds",
         ),
@@ -284,7 +284,7 @@ def test_repository_factory_returns_postgres_backend(monkeypatch):
         lambda: SimpleNamespace(
             protocol_brief_repository_backend="postgres",
             protocol_brief_storage_dir="logs/protocol_brief",
-            protocol_brief_postgres_dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
+            provider_service_postgres_dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
             protocol_brief_postgres_snapshot_table="provider_protocol_briefs",
             protocol_brief_postgres_raw_feed_table="provider_protocol_brief_raw_feeds",
         ),
@@ -293,6 +293,24 @@ def test_repository_factory_returns_postgres_backend(monkeypatch):
     repository = brief_repository.get_protocol_brief_repository()
 
     assert isinstance(repository, brief_repository.PostgresProtocolBriefRepository)
+
+
+def test_postgres_repository_requires_shared_provider_dsn(monkeypatch):
+    brief_repository.get_protocol_brief_repository.cache_clear()
+    monkeypatch.setattr(
+        brief_repository,
+        "get_settings",
+        lambda: SimpleNamespace(
+            protocol_brief_repository_backend="postgres",
+            protocol_brief_storage_dir="logs/protocol_brief",
+            provider_service_postgres_dsn=None,
+            protocol_brief_postgres_snapshot_table="provider_protocol_briefs",
+            protocol_brief_postgres_raw_feed_table="provider_protocol_brief_raw_feeds",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="PROVIDER_SERVICE_POSTGRES_DSN"):
+        brief_repository.get_protocol_brief_repository()
 
 
 def test_postgres_repository_requires_safe_table_name():

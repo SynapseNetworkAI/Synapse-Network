@@ -63,7 +63,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_TIMEOUT_S=30
 SENTIMENT_REPOSITORY_BACKEND=postgres
-SENTIMENT_POSTGRES_DSN=postgresql://synapse:12345678@localhost:5432/synapse_gateway_providers
+PROVIDER_SERVICE_POSTGRES_DSN=postgresql://synapse:12345678@localhost:5432/synapse_gateway_providers
 SENTIMENT_POSTGRES_SNAPSHOT_TABLE=provider_sentiment_snapshots
 SENTIMENT_POSTGRES_RAW_FEED_TABLE=provider_sentiment_raw_feeds
 SENTIMENT_POSTGRES_SCHEDULER_JOB_TABLE=provider_sentiment_scheduler_jobs
@@ -86,8 +86,9 @@ GATEWAY_PROVIDER_SIGNATURE_SECRET=replace-this-with-a-provider-signature-secret
 
 1. 当前代码路径实际使用本地 JSON 数据源，不依赖 `DEEPSEEK_API_KEY`。
 2. 保留 `DEEPSEEK_*` 变量是为了后续切回真实模型时直接复用。
-3. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 控制是否强制校验 Gateway 签名；生产环境必须保持 `true`。
-4. `GATEWAY_PROVIDER_SIGNATURE_SECRET` 是 Gateway 与 Provider 共享的 HMAC 密钥；只要开启验签就必须配置真实值。
+3. postgres repository 现在统一复用 `PROVIDER_SERVICE_POSTGRES_DSN`，不再为 sentiment / protocol brief 维护两套 DSN。
+4. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 控制是否强制校验 Gateway 签名；生产环境必须保持 `true`。
+5. `GATEWAY_PROVIDER_SIGNATURE_SECRET` 是 Gateway 与 Provider 共享的 HMAC 密钥；只要开启验签就必须配置真实值。
 5. 当前 sentiment scheduler 已支持持久化 lease / cooldown 状态表；本地是否开启取决于调试目标，生产环境可按白名单热点 symbol 开启。
 6. `SENTIMENT_SCHEDULER_LEASE_TTL_S` 控制 per-snapshot lease TTL，默认建议 `120s`。
 7. 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 freshness policy，默认阈值分别是 `60s / 300s / 900s`。

@@ -27,6 +27,7 @@ gateway/.env.prod
 temp_check.js
 test_agents.js
 admin/gateway-admin/run/
+provider_service/run/
 
 # Agent SDK local build artifacts
 sdk/python/agentpay_agent_sdk.egg-info/
