@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/domain/`, `gateway/src/services/provider/`, `sdk/python/`
+- Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: former `docs/agent/03_Service_Manifest_Field_Standard.md` for manifest field standards
 - Last verified against code: 2026-03-24
