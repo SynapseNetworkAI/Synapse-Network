@@ -107,6 +107,12 @@ provider_service/app/
 5. `.env.*` 中的 `SENTIMENT_PROXY_POOL_URLS_JSON` 需要使用 shell-safe quoting，例如 `'["http://127.0.0.1:7890"]'`，否则启动脚本 `source` 后会把 JSON 字符串内部双引号剥掉
 6. 代理模式会引入 `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 作为最小 timeout floor，并把 scheduler 刷新并发限制到代理池大小，减少单代理部署下的连接超时和重复刷新风暴
 
+页面型候选源补充结论：
+
+1. `Coinglass Fear & Greed`、`CoinMarketCap Fear & Greed`、`Bitget Fear & Greed` 都可以作为研究参考页面
+2. 但它们不适合作为当前 runtime 直接页面爬取主干，因为 capability 覆盖不完整，而且页面渲染、授权与 anti-bot 风险更高
+3. `Bitget Fear & Greed` 还明确标注 `指数来源 Alternative.me`，不能把镜像页当成独立多源
+
 ## 8. 统一中间结构
 
 每个 source plugin 输出统一内部对象：
@@ -160,6 +166,12 @@ V1 建议用规则聚合，不上机器学习。
 2. `momentum_score` 已接 `Binance 24h` 变化
 3. `volume_heat_score` 已开始使用 `Binance quoteVolume`
 4. `volatility_penalty` 已接 `Binance 5m` kline close 序列的 realized volatility
+
+新增 source 的准入规则也要写死：
+
+1. 如果一个候选页面只公开 `Fear & Greed` 综合值，而没有稳定结构化字段支撑其他 capability，就只能竞争 `baseline_sentiment`
+2. 如果一个候选页面只是别家指数镜像页，例如 `Bitget Fear & Greed` 引用 `Alternative.me`，则不能作为独立 source plugin
+3. 如果一个站点真正可用的是商业 API，而不是页面本身，就应在设计上标记为 `licensed API candidate`，不要偷换成 `page crawler candidate`
 
 最终公式建议：
 
