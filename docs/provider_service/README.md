@@ -1,5 +1,9 @@
 # Provider Service 冷启动免费 API 方案设计
 
+- Status: supplementary
+- Canonical counterpart: `docs/03_Projects/provider-service/README.md`, `docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md`
+- Why retained: 保留 provider 冷启动服务货架、策略和契约草案，不重复承担项目导航和本地开发入口
+
 关联执行排期见：[Provider Service 冷启动实施路线图（7/14/30 天）](./IMPLEMENTATION_ROADMAP.md)
 
 首批 5 个样板服务的 Manifest / Schema / Demo 草案见：[Provider Service 首批 5 个服务契约草案](./SERVICE_DRAFTS.md)

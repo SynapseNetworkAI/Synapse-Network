@@ -1,5 +1,9 @@
 # contracts
 
+- Status: canonical
+- Code paths: `contracts/`, `hardhat.config.js`, `docs/03_Projects/contracts/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `contracts/` 承载 Synapse 的链上金库合约与本地链路测试合约。

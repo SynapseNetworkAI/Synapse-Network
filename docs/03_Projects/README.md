@@ -1,5 +1,9 @@
 # Project Navigation
 
+- Status: canonical
+- Code paths: `gateway/`, `contracts/`, `apps/frontend/`, `admin/gateway-admin/`, `admin/admin-front/`, `provider_service/`, `sdk/python/`, `docker-compose/`, `scripts/`, `tools/`
+- Last verified against code: 2026-03-25
+
 本目录不是复制各项目自己的 `README.md`，而是给整个 Synapse 仓库提供一层稳定的“按项目阅读”入口。
 
 它回答 6 个固定问题：

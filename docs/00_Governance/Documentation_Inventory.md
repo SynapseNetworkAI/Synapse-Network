@@ -240,6 +240,19 @@ inventory 中每条记录都必须至少声明：
     "validation": ["npm run ci:docs"]
   },
   {
+    "path": "docs/exec-plans/README.md",
+    "tier": "governance-entrypoint",
+    "status": "canonical",
+    "owner": "repo governance",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "docs/exec-plans",
+      "tools/scripts/validate_docs.js"
+    ],
+    "validation": ["npm run ci:docs"]
+  },
+  {
     "path": "docs/03_Core_Workflows/README.md",
     "tier": "canonical-module",
     "status": "canonical",

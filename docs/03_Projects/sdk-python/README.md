@@ -1,5 +1,9 @@
 # sdk-python
 
+- Status: canonical
+- Code paths: `sdk/python/`, `docs/03_Projects/sdk-python/`, `docs/sdk/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `sdk/python/` 是 Synapse 的官方 Python SDK 分发与联调目录。

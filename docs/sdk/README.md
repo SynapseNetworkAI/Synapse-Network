@@ -1,5 +1,9 @@
 # Synapse Python SDK Testing and Operations
 
+- Status: supplementary
+- Canonical counterpart: `docs/03_Projects/sdk-python/README.md`, `docs/06_Reference/04_Development_Testing_and_Integration_Reference.md`
+- Why retained: 保留 SDK 测试与运行细节，避免把长篇操作说明塞进项目导航页或公共 reference 总索引
+
 本目录只回答两个问题：
 
 1. 如何正确测试 `sdk/python/synapse_client`

@@ -1,5 +1,9 @@
 # 管理后台文档
 
+- Status: canonical
+- Code paths: `admin/gateway-admin/src/`, `admin/admin-front/src/`, `docs/admin/`
+- Last verified against code: 2026-03-25
+
 该目录用于沉淀平台管理后台的独立设计文档，与交易网关文档做边界隔离。
 
 当前文档：

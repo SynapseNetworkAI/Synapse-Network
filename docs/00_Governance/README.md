@@ -1,5 +1,9 @@
 # Documentation Governance
 
+- Status: canonical
+- Code paths: `docs/00_Governance/`, `tools/scripts/validate_docs.js`
+- Last verified against code: 2026-03-25
+
 本目录收敛 Synapse 文档体系的治理规则，而不是业务语义本身。
 
 它回答四个问题：

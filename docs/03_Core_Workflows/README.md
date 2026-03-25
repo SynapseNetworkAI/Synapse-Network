@@ -1,5 +1,9 @@
 # Core Workflows
 
+- Status: canonical
+- Code paths: `gateway/src/`, `admin/gateway-admin/src/`, `contracts/`, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Last verified against code: 2026-03-25
+
 本目录定义 Synapse Network 当前最重要的五条业务链路，以及少量直接服务这些链路的架构取舍专题。
 
 这些文档的写法遵守两个原则：

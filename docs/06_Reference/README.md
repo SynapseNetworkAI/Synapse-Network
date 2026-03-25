@@ -1,5 +1,9 @@
 # Reference
 
+- Status: canonical
+- Code paths: `gateway/src/api/`, `gateway/src/services/`, `sdk/python/`, `provider_service/`, `docs/06_Reference/`
+- Last verified against code: 2026-03-25
+
 本目录收敛 Synapse 面向实现者和集成者必须稳定理解的参考契约。
 
 这里不承担产品叙事和流程说明，而是聚焦“稳定机器语义与开发事实”：

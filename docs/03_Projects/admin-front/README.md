@@ -1,5 +1,9 @@
 # admin-front
 
+- Status: canonical
+- Code paths: `admin/admin-front/`, `docs/03_Projects/admin-front/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `admin/admin-front/` 是 Synapse 的平台管理员前端控制台。
