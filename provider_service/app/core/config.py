@@ -22,8 +22,6 @@ class Settings(BaseSettings):
     protocol_brief_source_max_attempts: int = 2
     protocol_brief_source_backoff_ms: int = 250
     provider_service_postgres_dsn: str | None = None
-    protocol_brief_repository_backend: Literal["file", "postgres"] = "file"
-    protocol_brief_storage_dir: str = "logs/protocol_brief"
     protocol_brief_postgres_snapshot_table: str = "provider_protocol_briefs"
     protocol_brief_postgres_raw_feed_table: str = "provider_protocol_brief_raw_feeds"
     protocol_brief_cache_ttl_s: int = 300
