@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/`, `sdk/python/`, `apps/frontend/src/`
+- Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:frontend`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: former `docs/agent/02_Discovery_Quote_Invoke_API_Design.md` for workflow semantics of discover, quote, and invoke
 - Last verified against code: 2026-03-24

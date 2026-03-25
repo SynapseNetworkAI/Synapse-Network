@@ -31,6 +31,11 @@ const inventoryPath = path.join(docsDir, "00_Governance", "Documentation_Invento
 const packageJsonPath = path.join(rootDir, "package.json");
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 const availableNpmScripts = new Set(Object.keys(packageJson.scripts ?? {}));
+const requiredVerifiedWithCanonicalDocs = new Set([
+  "docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md",
+  "docs/04_Database_Design/01_SQL_Schema_Overview.md",
+  "docs/06_Reference/05_Runtime_API_Contract.md",
+]);
 
 const allowedRootDocs = new Set([
   "AGENTS.md",
@@ -289,11 +294,29 @@ function validateCanonicalReadmeMetadata(repoPath, header) {
     errors.push(`${repoPath} is canonical but missing '- Last verified against code:' in the top metadata block.`);
   }
 
+  validateVerifiedWithScripts(repoPath, verifiedWith);
+}
+
+function validateVerifiedWithScripts(repoPath, verifiedWith) {
   for (const scriptName of npmScriptsFromMetadataValue(verifiedWith)) {
     if (!availableNpmScripts.has(scriptName)) {
       errors.push(`${repoPath} references missing npm script in '- Verified with:': ${scriptName}`);
     }
   }
+}
+
+function validateRequiredDeepCanonicalMetadata(repoPath, header) {
+  if (!requiredVerifiedWithCanonicalDocs.has(repoPath)) {
+    return;
+  }
+
+  const verifiedWith = metadataValueFromHeader(header, "- Verified with: ");
+  if (!verifiedWith) {
+    errors.push(`${repoPath} is a high-value canonical truth page but missing '- Verified with:' in the top metadata block.`);
+    return;
+  }
+
+  validateVerifiedWithScripts(repoPath, verifiedWith);
 }
 
 function validateNonCanonicalReadmeMetadata(repoPath, header, status) {
@@ -380,6 +403,7 @@ function checkCanonicalMetadata() {
       if (!hasLastVerified) {
         errors.push(`${repoPath} is canonical but missing '- Last verified against code:' in the top metadata block.`);
       }
+      validateRequiredDeepCanonicalMetadata(repoPath, header);
     }
   }
 }
