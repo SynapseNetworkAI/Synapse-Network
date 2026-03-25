@@ -163,7 +163,7 @@ def test_refresh_sentiment_snapshot_deduplicates_concurrent_refreshes(monkeypatc
     async def _fake_fetch_live_sources(_payload: SentimentRequest):
         calls["count"] += 1
         await asyncio.sleep(0.01)
-        return None, None, None, [], []
+        return [], [], []
 
     monkeypatch.setattr(sentiment_service, "_fetch_live_sources", _fake_fetch_live_sources)
 
