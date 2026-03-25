@@ -26,9 +26,10 @@ AI 协作优先入口新增如下：
 3. [Harness_engineering.md](./Harness_engineering.md)
 4. [00_Governance/README.md](./00_Governance/README.md)
 5. [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)
-6. [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)
-7. [Design.md](./Design.md)
-8. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
+6. [00_Governance/Documentation_Inventory.md](./00_Governance/Documentation_Inventory.md)
+7. [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)
+8. [Design.md](./Design.md)
+9. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
 
 说明：root `docs/` 当前只保留全局入口、治理文件和少量 supplementary 过渡文档，不再作为数据库、测试、监控或审批流程的长期 canonical 落点。
 
@@ -76,7 +77,7 @@ AI 协作优先入口新增如下：
 建议 Agent 读取顺序：
 
 1. 先读 [AGENTS.md](./AGENTS.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[00_Governance/README.md](./00_Governance/README.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
-2. 若任务涉及文档结构、入口或治理，先读 [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md) 与 [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)。
+2. 若任务涉及文档结构、入口或治理，先读 [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)、[00_Governance/Documentation_Inventory.md](./00_Governance/Documentation_Inventory.md) 与 [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)。
 3. 需要 Runtime 协议时直接看官方模块；若需要追溯旧迁移关系，再进入 [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)。
 4. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
 5. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [04_Database_Design/01_SQL_Schema_Overview.md](./04_Database_Design/01_SQL_Schema_Overview.md)。
@@ -94,9 +95,10 @@ AI 协作优先入口新增如下：
 5. [06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)
 6. [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)
 7. [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)
-8. [Design.md](./Design.md)
-9. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
-10. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
+8. [00_Governance/Documentation_Inventory.md](./00_Governance/Documentation_Inventory.md)
+9. [Design.md](./Design.md)
+10. [02_System_Architecture/README.md](./02_System_Architecture/README.md)
+11. [01_Product_Frontend/README.md](./01_Product_Frontend/README.md)
 
 ### 2.2 Runtime 协议与平台 API
 

@@ -27,6 +27,7 @@ function findRepoRoot(startDir) {
 const rootDir = findRepoRoot(__dirname);
 const docsDir = path.join(rootDir, "docs");
 const llmsPath = path.join(rootDir, "llms.txt");
+const inventoryPath = path.join(docsDir, "00_Governance", "Documentation_Inventory.md");
 
 const allowedRootDocs = new Set([
   "AGENTS.md",
@@ -63,15 +64,36 @@ const requiredLlmsAnchors = [
   "docs/ARCHITECTURE.md",
   "docs/Harness_engineering.md",
   "docs/00_Governance/Documentation_Constraints.md",
+  "docs/00_Governance/Documentation_Inventory.md",
   "docs/06_Reference/Validation_Entry_Points.md",
   "npm run ci:docs",
 ];
 
 const requiredReadmeAnchors = [
   "[00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)",
+  "[00_Governance/Documentation_Inventory.md](./00_Governance/Documentation_Inventory.md)",
   "[06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)",
   "`npm run ci:docs`",
 ];
+
+const allowedInventoryTiers = new Set([
+  "root-entrypoint",
+  "governance-entrypoint",
+  "canonical-module",
+]);
+
+const allowedInventoryOwners = new Set([
+  "repo governance",
+  "architecture",
+  "runtime/backend",
+  "runtime/backend + sdk",
+  "finance/backend",
+  "devops",
+  "admin control plane",
+  "frontend/product",
+]);
+
+const allowedLifecycleStatuses = new Set(["canonical", "supplementary", "incubation", "legacy", "archive"]);
 
 const errors = [];
 
@@ -131,6 +153,61 @@ function firstLines(content, count) {
   return content.split(/\r?\n/).slice(0, count);
 }
 
+function normalizeMetadataValue(rawValue) {
+  let normalized = rawValue.trim();
+  while (normalized.startsWith("`")) {
+    normalized = normalized.slice(1);
+  }
+  while (normalized.endsWith("`")) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
+}
+
+function parseIsoDate(rawValue, fieldName) {
+  if (typeof rawValue !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    throw new TypeError(`${fieldName} must use YYYY-MM-DD format, received: ${rawValue}`);
+  }
+
+  const parsed = new Date(`${rawValue}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new TypeError(`${fieldName} is not a valid UTC calendar date: ${rawValue}`);
+  }
+
+  return parsed;
+}
+
+function diffDays(laterDate, earlierDate) {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.floor((laterDate.getTime() - earlierDate.getTime()) / msPerDay);
+}
+
+function extractInventoryEntries() {
+  if (!fs.existsSync(inventoryPath)) {
+    errors.push("Missing documentation inventory: docs/00_Governance/Documentation_Inventory.md");
+    return [];
+  }
+
+  const content = readFile(inventoryPath);
+  const match = content.match(/<!-- docs-inventory:start -->\s*```json\s*([\s\S]*?)```\s*<!-- docs-inventory:end -->/);
+  if (!match) {
+    errors.push("Documentation_Inventory.md is missing the machine-readable docs inventory JSON block.");
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (!Array.isArray(parsed)) {
+      errors.push("Documentation inventory JSON block must be an array.");
+      return [];
+    }
+    return parsed;
+  } catch (error) {
+    errors.push(`Documentation inventory JSON block is invalid: ${error.message}`);
+    return [];
+  }
+}
+
 function checkRootDocs() {
   const rootEntries = fs.readdirSync(docsDir, { withFileTypes: true });
   const rootMarkdown = rootEntries
@@ -179,7 +256,6 @@ function checkReadmeAnchors() {
 
 function checkCanonicalMetadata() {
   const files = walkMarkdownFiles(docsDir);
-  const allowedStatuses = new Set(["canonical", "supplementary", "incubation", "legacy", "archive"]);
 
   for (const filePath of files) {
     const repoPath = toRepoPath(filePath);
@@ -193,8 +269,8 @@ function checkCanonicalMetadata() {
       continue;
     }
 
-    const status = statusLine.replace("- Status:", "").trim();
-    if (!allowedStatuses.has(status)) {
+    const status = normalizeMetadataValue(statusLine.replace("- Status:", ""));
+    if (!allowedLifecycleStatuses.has(status)) {
       errors.push(`${repoPath} has unsupported lifecycle status in header: ${status}`);
       continue;
     }
@@ -233,6 +309,215 @@ function checkRetiredLinks() {
   }
 }
 
+function explicitCanonicalDocs() {
+  const files = walkMarkdownFiles(docsDir);
+  const results = [];
+
+  for (const filePath of files) {
+    const header = firstLines(readFile(filePath), 12);
+    const statusLine = header.find((line) => line.startsWith("- Status: "));
+    if (!statusLine) {
+      continue;
+    }
+
+    const status = normalizeMetadataValue(statusLine.replace("- Status:", ""));
+    if (status === "canonical") {
+      results.push(toRepoPath(filePath));
+    }
+  }
+
+  return results;
+}
+
+function requiredInventoryPaths() {
+  const rootDocs = Array.from(allowedRootDocs).map((fileName) => `docs/${fileName}`);
+  return new Set([
+    ...rootDocs,
+    "docs/00_Governance/README.md",
+    "docs/00_Governance/Documentation_Constraints.md",
+    "docs/00_Governance/Documentation_Lifecycle.md",
+    "docs/00_Governance/Ownership_And_Review_Matrix.md",
+    "docs/00_Governance/Drift_Checklist.md",
+    "docs/00_Governance/Documentation_Inventory.md",
+    "docs/06_Reference/Validation_Entry_Points.md",
+    ...explicitCanonicalDocs(),
+  ]);
+}
+
+function inventoryRequiredFields() {
+  return [
+    "path",
+    "tier",
+    "status",
+    "owner",
+    "lastReviewed",
+    "reviewCadenceDays",
+    "codePaths",
+    "validation",
+  ];
+}
+
+function ensureInventoryEntryFields(entry) {
+  for (const fieldName of inventoryRequiredFields()) {
+    if (!(fieldName in entry)) {
+      errors.push(`Documentation inventory entry is missing required field '${fieldName}'.`);
+    }
+  }
+}
+
+function validateInventoryCodePaths(entry) {
+  if (!Array.isArray(entry.codePaths) || entry.codePaths.length === 0) {
+    errors.push(`${entry.path} must declare at least one codePaths entry.`);
+    return;
+  }
+
+  for (const codePath of entry.codePaths) {
+    if (typeof codePath !== "string") {
+      errors.push(`${entry.path} contains a non-string codePaths entry.`);
+      continue;
+    }
+
+    const fullPath = path.join(rootDir, codePath);
+    if (!fs.existsSync(fullPath)) {
+      errors.push(`${entry.path} references missing code path in inventory: ${codePath}`);
+    }
+  }
+}
+
+function validateInventoryValidationAnchors(entry) {
+  if (!Array.isArray(entry.validation) || entry.validation.length === 0) {
+    errors.push(`${entry.path} must declare at least one validation anchor.`);
+  }
+}
+
+function validateInventoryLifecycleFields(entry) {
+  if (!allowedInventoryTiers.has(entry.tier)) {
+    errors.push(`${entry.path} has unsupported inventory tier: ${entry.tier}`);
+  }
+
+  if (!allowedInventoryOwners.has(entry.owner)) {
+    errors.push(`${entry.path} has unsupported inventory owner: ${entry.owner}`);
+  }
+
+  if (!allowedLifecycleStatuses.has(entry.status)) {
+    errors.push(`${entry.path} has unsupported inventory status: ${entry.status}`);
+  }
+
+  if (!Number.isInteger(entry.reviewCadenceDays) || entry.reviewCadenceDays <= 0) {
+    errors.push(`${entry.path} must use a positive integer reviewCadenceDays.`);
+  }
+}
+
+function validateInventoryFreshness(entry, today) {
+  let lastReviewedDate;
+  try {
+    lastReviewedDate = parseIsoDate(entry.lastReviewed, `${entry.path} lastReviewed`);
+  } catch (error) {
+    errors.push(error.message);
+    return;
+  }
+
+  if (lastReviewedDate.getTime() > today.getTime()) {
+    errors.push(`${entry.path} has future lastReviewed date: ${entry.lastReviewed}`);
+    return;
+  }
+
+  if (["legacy", "archive"].includes(entry.status)) {
+    return;
+  }
+
+  const ageInDays = diffDays(today, lastReviewedDate);
+  if (ageInDays > entry.reviewCadenceDays) {
+    errors.push(
+      `${entry.path} review freshness expired: lastReviewed=${entry.lastReviewed}, age=${ageInDays}d, cadence=${entry.reviewCadenceDays}d.`
+    );
+  }
+}
+
+function validateInventoryDocumentAlignment(entry) {
+  const fullDocPath = path.join(rootDir, entry.path);
+  if (!fs.existsSync(fullDocPath)) {
+    errors.push(`Documentation inventory references missing document: ${entry.path}`);
+    return;
+  }
+
+  const header = firstLines(readFile(fullDocPath), 12);
+  const statusLine = header.find((line) => line.startsWith("- Status: "));
+  const lastVerifiedLine = header.find((line) => line.startsWith("- Last verified against code: "));
+
+  if (statusLine) {
+    const docStatus = normalizeMetadataValue(statusLine.replace("- Status:", ""));
+    if (docStatus !== entry.status) {
+      errors.push(`${entry.path} status mismatch between document header (${docStatus}) and inventory (${entry.status}).`);
+    }
+  }
+
+  if (lastVerifiedLine) {
+    const docLastVerified = normalizeMetadataValue(
+      lastVerifiedLine.replace("- Last verified against code:", "")
+    );
+    if (docLastVerified !== entry.lastReviewed) {
+      errors.push(
+        `${entry.path} last review mismatch between document header (${docLastVerified}) and inventory (${entry.lastReviewed}).`
+      );
+    }
+  }
+}
+
+function validateInventoryEntry(entry, seenPaths, inventoryMap, today) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    errors.push("Documentation inventory contains a non-object entry.");
+    return;
+  }
+
+  ensureInventoryEntryFields(entry);
+
+  if (typeof entry.path !== "string" || !entry.path.endsWith(".md")) {
+    errors.push(`Documentation inventory entry has invalid path: ${entry.path}`);
+    return;
+  }
+
+  if (seenPaths.has(entry.path)) {
+    errors.push(`Documentation inventory contains duplicate path: ${entry.path}`);
+    return;
+  }
+
+  seenPaths.add(entry.path);
+  inventoryMap.set(entry.path, entry);
+
+  validateInventoryLifecycleFields(entry);
+  validateInventoryCodePaths(entry);
+  validateInventoryValidationAnchors(entry);
+  validateInventoryFreshness(entry, today);
+  validateInventoryDocumentAlignment(entry);
+}
+
+function ensureRequiredInventoryCoverage(inventoryMap) {
+  for (const requiredPath of requiredInventoryPaths()) {
+    if (!inventoryMap.has(requiredPath)) {
+      errors.push(`Documentation inventory is missing required document: ${requiredPath}`);
+    }
+  }
+}
+
+function checkInventory() {
+  const entries = extractInventoryEntries();
+  if (entries.length === 0) {
+    return;
+  }
+
+  const seenPaths = new Set();
+  const inventoryMap = new Map();
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  for (const entry of entries) {
+    validateInventoryEntry(entry, seenPaths, inventoryMap, today);
+  }
+
+  ensureRequiredInventoryCoverage(inventoryMap);
+}
+
 function main() {
   checkRootDocs();
   checkRetiredPathsDoNotExist();
@@ -240,6 +525,7 @@ function main() {
   checkReadmeAnchors();
   checkCanonicalMetadata();
   checkRetiredLinks();
+  checkInventory();
 
   if (errors.length > 0) {
     console.error("[ci:docs] documentation validation failed\n");
