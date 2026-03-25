@@ -15,13 +15,15 @@
 
 这不是全仓 140+ Markdown 的平铺清单。
 
-当前 inventory 只覆盖三类高价值文档：
+当前 inventory 主要覆盖五类文档：
 
 1. root `docs/` 入口文件
 2. governance 层强约束文档
-3. 当前已经显式声明或实际承担 canonical truth 的核心文档
+3. official module `README.md` 入口
+4. `docs/03_Projects/*/README.md` 项目入口页
+5. 当前已经显式声明或实际承担 canonical truth 的核心文档
 
-补充性专题、草案、legacy archive 和 completed execution plans 不要求全部进 inventory，除非它们升级为长期入口或 canonical 语义源。
+补充性专题、草案、legacy archive 和 completed execution plans 不要求全部进 inventory，除非它们升级为长期入口、项目导航入口或 canonical 语义源。
 
 ## 3. Review Rules
 
@@ -41,7 +43,7 @@ inventory 中每条记录都必须至少声明：
 1. JSON 结构是否合法
 2. path 是否存在且唯一
 3. owner / tier / status 是否在允许集合内
-4. root entrypoints 和显式 canonical 文档是否全部纳入 inventory
+4. root entrypoints、official module READMEs、project entrypoints 和显式 canonical 文档是否全部纳入 inventory
 5. 文档头部若声明了 `Status` 或 `Last verified against code`，是否和 inventory 对齐
 6. 非 `legacy` / `archive` 文档是否超过 review cadence
 
@@ -51,9 +53,10 @@ inventory 中每条记录都必须至少声明：
 
 1. 新增 root entrypoint
 2. 新增 governance hard rule
-3. 某文档升级为 canonical
-4. canonical 文档 owner 变化
-5. canonical 文档完成新的 code verification
+3. official module README 或 project entrypoint 发生新增、删除、改名
+4. 某文档升级为 canonical
+5. canonical 文档 owner 变化
+6. canonical 文档完成新的 code verification
 
 ## 5. Machine Inventory
 
@@ -231,8 +234,45 @@ inventory 中每条记录都必须至少声明：
     "reviewCadenceDays": 14,
     "codePaths": [
       "docs/00_Governance/Documentation_Inventory.md",
-      "scripts/validate_docs.js",
+      "tools/scripts/validate_docs.js",
       "llms.txt"
+    ],
+    "validation": ["npm run ci:docs"]
+  },
+  {
+    "path": "docs/03_Core_Workflows/README.md",
+    "tier": "canonical-module",
+    "status": "canonical",
+    "owner": "runtime/backend",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "gateway/src",
+      "contracts",
+      "admin/gateway-admin/src",
+      "docker-compose/postgres/init/gateway/001_synapse_schema.sql"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:gateway", "npm run ci:admin-gateway"]
+  },
+  {
+    "path": "docs/03_Projects/README.md",
+    "tier": "canonical-module",
+    "status": "canonical",
+    "owner": "repo governance",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "docs/03_Projects",
+      "gateway",
+      "contracts",
+      "apps/frontend",
+      "admin/gateway-admin",
+      "admin/admin-front",
+      "provider_service",
+      "sdk/python",
+      "docker-compose",
+      "scripts",
+      "tools"
     ],
     "validation": ["npm run ci:docs"]
   },
@@ -351,6 +391,36 @@ inventory 中每条记录都必须至少声明：
     "validation": ["npm run ci:docs"]
   },
   {
+    "path": "docs/05_DevOps_Deployment/README.md",
+    "tier": "canonical-module",
+    "status": "canonical",
+    "owner": "devops",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "docker-compose",
+      "scripts",
+      "tools",
+      "package.json"
+    ],
+    "validation": ["npm run ci:docs"]
+  },
+  {
+    "path": "docs/06_Reference/README.md",
+    "tier": "canonical-module",
+    "status": "canonical",
+    "owner": "runtime/backend + sdk",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "gateway/src/api",
+      "sdk/python",
+      "provider_service",
+      "docs/06_Reference"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:gateway", "npm run ci:sdk-python"]
+  },
+  {
     "path": "docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md",
     "tier": "canonical-module",
     "status": "canonical",
@@ -449,6 +519,129 @@ inventory 中每条记录都必须至少声明：
       "gateway/src"
     ],
     "validation": ["npm run ci:docs", "npm run ci:admin-gateway", "npm run ci:admin-front"]
+  },
+  {
+    "path": "docs/admin/README.md",
+    "tier": "canonical-module",
+    "status": "canonical",
+    "owner": "admin control plane",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "docs/admin",
+      "admin/gateway-admin/src",
+      "admin/admin-front/src"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:admin-gateway", "npm run ci:admin-front"]
+  },
+  {
+    "path": "docs/03_Projects/gateway/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "runtime/backend",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "gateway",
+      "docs/03_Projects/gateway"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:gateway"]
+  },
+  {
+    "path": "docs/03_Projects/contracts/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "finance/backend",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "contracts",
+      "docs/03_Projects/contracts",
+      "hardhat.config.js"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:contracts"]
+  },
+  {
+    "path": "docs/03_Projects/frontend/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "frontend/product",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "apps/frontend",
+      "docs/03_Projects/frontend"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:frontend"]
+  },
+  {
+    "path": "docs/03_Projects/gateway-admin/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "admin control plane",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "admin/gateway-admin",
+      "docs/03_Projects/gateway-admin"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:admin-gateway"]
+  },
+  {
+    "path": "docs/03_Projects/admin-front/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "admin control plane",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "admin/admin-front",
+      "docs/03_Projects/admin-front"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:admin-front"]
+  },
+  {
+    "path": "docs/03_Projects/provider-service/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "runtime/backend",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 21,
+    "codePaths": [
+      "provider_service",
+      "docs/03_Projects/provider-service",
+      "docs/provider_service"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:provider-service"]
+  },
+  {
+    "path": "docs/03_Projects/sdk-python/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "runtime/backend + sdk",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "sdk/python",
+      "docs/03_Projects/sdk-python",
+      "docs/sdk"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:sdk-python"]
+  },
+  {
+    "path": "docs/03_Projects/infra/README.md",
+    "tier": "project-entrypoint",
+    "status": "canonical",
+    "owner": "devops",
+    "lastReviewed": "2026-03-25",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "docker-compose",
+      "scripts",
+      "tools",
+      "docs/03_Projects/infra"
+    ],
+    "validation": ["npm run ci:docs"]
   }
 ]
 ```

@@ -6,6 +6,8 @@
 
 Provider Console 表单字段映射与简化版 `synapse_providers` 数据库设计见：[Provider Console 字段映射与简化数据库设计](./PROVIDER_CONSOLE_FIELD_MAPPING.md)
 
+边界说明：本目录负责冷启动服务策略、服务契约草案和 API 专题，不重复承担 `provider_service/` 项目导航、本地开发和运维入口；后者统一收口到 `docs/03_Projects/provider-service/README.md` 及其贴身文档。
+
 ## 1. 目标
 
 Synapse 不是一个“先把支付修好，市场自然会有货”的平台。
