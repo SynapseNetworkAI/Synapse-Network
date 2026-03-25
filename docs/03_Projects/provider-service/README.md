@@ -22,13 +22,19 @@
 
 ## 3. 当前状态
 
-当前运行时还是本地 JSON 名言 demo：
+当前运行时已经从早期 quotes demo 扩展为多 endpoint Provider Runtime：
 
 1. `GET /health`
-2. `POST /api/v1/quotes/famous`
-3. `POST /api/v1/quotes/famous/top3`
+2. `POST /provider-services/web3-sentiment-index/invoke`
+3. `POST /provider-services/protocol-fundamental-brief/invoke`
+4. `POST /api/v1/quotes/famous`
+5. `POST /api/v1/quotes/famous/top3`
 
-未来目标则是演进为标准化 Provider Runtime，承接首批 5 个样板服务设计。
+其中：
+
+1. `provider-services/*` 是当前面向 Gateway 签名调用的主运行时入口
+2. `quotes/*` 仍保留为早期 demo / smoke path，不再代表 provider_service 的主要产品方向
+3. 当前目标是继续把 Provider Runtime 演进为标准化样板服务宿主，而不是停留在单一 quotes demo
 
 ## 4. 职责边界
 
@@ -53,7 +59,7 @@
 
 ## 6. Canonical 文档入口
 
-1. `docs/provider_service/README.md`
+1. `docs/provider_service/README.md`：冷启动服务策略、服务货架与专题入口，不承担项目导航
 2. `docs/provider_service/SERVICE_DRAFTS.md`
 3. `docs/provider_service/api/README.md`
 4. `docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md`

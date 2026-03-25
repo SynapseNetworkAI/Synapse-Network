@@ -80,6 +80,7 @@ const allowedInventoryTiers = new Set([
   "root-entrypoint",
   "governance-entrypoint",
   "canonical-module",
+  "project-entrypoint",
 ]);
 
 const allowedInventoryOwners = new Set([
@@ -329,17 +330,51 @@ function explicitCanonicalDocs() {
   return results;
 }
 
+function officialModuleReadmes() {
+  return new Set([
+    "docs/00_Governance/README.md",
+    "docs/01_Product_Frontend/README.md",
+    "docs/02_System_Architecture/README.md",
+    "docs/03_Core_Workflows/README.md",
+    "docs/03_Projects/README.md",
+    "docs/04_Database_Design/README.md",
+    "docs/05_DevOps_Deployment/README.md",
+    "docs/06_Reference/README.md",
+    "docs/admin/README.md",
+  ]);
+}
+
+function projectEntrypointDocs() {
+  const projectsDir = path.join(docsDir, "03_Projects");
+  const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+  const results = new Set();
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const readmePath = path.join(projectsDir, entry.name, "README.md");
+    if (fs.existsSync(readmePath)) {
+      results.add(toRepoPath(readmePath));
+    }
+  }
+
+  return results;
+}
+
 function requiredInventoryPaths() {
   const rootDocs = Array.from(allowedRootDocs).map((fileName) => `docs/${fileName}`);
   return new Set([
     ...rootDocs,
-    "docs/00_Governance/README.md",
     "docs/00_Governance/Documentation_Constraints.md",
     "docs/00_Governance/Documentation_Lifecycle.md",
     "docs/00_Governance/Ownership_And_Review_Matrix.md",
     "docs/00_Governance/Drift_Checklist.md",
     "docs/00_Governance/Documentation_Inventory.md",
     "docs/06_Reference/Validation_Entry_Points.md",
+    ...officialModuleReadmes(),
+    ...projectEntrypointDocs(),
     ...explicitCanonicalDocs(),
   ]);
 }
