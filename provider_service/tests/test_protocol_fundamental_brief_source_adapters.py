@@ -96,6 +96,70 @@ def test_defillama_adapter_parses_protocol_identity_and_tvl_shape():
     assert snapshot.payload_hash
 
 
+def test_defillama_adapter_prefers_canonical_slug_when_symbol_is_ambiguous():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/protocols":
+            return httpx.Response(
+                200,
+                request=request,
+                json=[
+                    {
+                        "name": "Aave V3",
+                        "slug": "aave-v3",
+                        "symbol": "AAVE",
+                        "category": "Lending",
+                        "chains": ["Ethereum", "Arbitrum"],
+                        "tvl": 5_200_000_000,
+                    },
+                    {
+                        "name": "Aave V2",
+                        "slug": "aave-v2",
+                        "symbol": "AAVE",
+                        "category": "Lending",
+                        "chains": ["Ethereum"],
+                        "tvl": 120_000_000,
+                    },
+                ],
+            )
+        if request.url.path == "/protocol/aave-v3":
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "name": "Aave V3",
+                    "slug": "aave-v3",
+                    "symbol": "AAVE",
+                    "chains": ["Ethereum", "Arbitrum"],
+                    "category": "Lending",
+                    "tvl": 5_200_000_000,
+                    "totalDataChart": [
+                        [1708300800000, 4_960_000_000],
+                        [1710892800000, 5_200_000_000],
+                    ],
+                },
+            )
+        if request.url.path == "/summary/fees/aave-v3":
+            return httpx.Response(
+                200,
+                request=request,
+                json={"total24h": 320_000, "total24hRevenue": 180_000},
+            )
+        raise AssertionError(f"Unexpected DefiLlama path: {request.url.path}")
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.llama.fi",
+    )
+    try:
+        snapshot = asyncio.run(fetch_defillama_protocol_snapshot("Aave", client=client))
+    finally:
+        asyncio.run(client.aclose())
+
+    assert snapshot.protocol_slug == "aave-v3"
+    assert snapshot.display_name == "Aave V3"
+    assert snapshot.tvl_usd_current == pytest.approx(5_200_000_000)
+
+
 def test_dexscreener_adapter_selects_highest_liquidity_pair_on_requested_chain():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/latest/dex/search"

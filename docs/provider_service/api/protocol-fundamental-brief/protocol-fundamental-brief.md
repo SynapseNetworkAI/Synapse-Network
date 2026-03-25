@@ -18,10 +18,11 @@
 3. 请求与响应 schema 已落地，支持 `protocol`、`chain`、`peer_set`、`lookback_days`
 4. `DefiLlama + DexScreener` 的 source adapter 与 capability-based plugin registry 已落地
 5. 常见协议 alias 归一化已落地，例如 `aave protocol`、`uni`、`Lido Finance`
-6. `price_summary`、`tvl_summary`、`revenue_signals`、`peer_comparison`、`risk_flags`、`operator_view` 已切换为规则驱动模板聚合
-7. `peer_set` 当前会优先基于 DefiLlama protocol-level observation 生成 TVL / revenue 相对比较
-8. 已接入进程内 in-memory cache、typed snapshot repository、snapshot fallback 与 raw feed record 留存
-9. source 全挂时会回退到最近一次持久化 snapshot，并在 `errors` 中追加 `PROTOCOL_BRIEF_SNAPSHOT_FALLBACK_USED`
+6. `DefiLlama` 协议识别现在会优先走 canonical slug 解析，避免 `Aave`、`Maker`、`Uniswap` 这类同 symbol 多候选时直接退化成歧义错误
+7. `price_summary`、`tvl_summary`、`revenue_signals`、`peer_comparison`、`risk_flags`、`operator_view` 已切换为规则驱动模板聚合
+8. `peer_set` 当前会优先基于 DefiLlama protocol-level observation 生成 TVL / revenue 相对比较
+9. 已接入进程内 in-memory cache、typed snapshot repository、snapshot fallback 与 raw feed record 留存
+10. source 全挂时会回退到最近一次持久化 snapshot，并在 `errors` 中追加 `PROTOCOL_BRIEF_SNAPSHOT_FALLBACK_USED`
 
 当前没有做满的部分：
 
