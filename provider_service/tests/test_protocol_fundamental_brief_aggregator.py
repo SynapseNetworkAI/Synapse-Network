@@ -117,9 +117,11 @@ def test_normalize_protocol_query_handles_common_aliases():
 
 
 def test_canonical_defillama_slug_handles_common_aliases():
-    assert canonical_defillama_slug("Aave") == "aave"
-    assert canonical_defillama_slug("uni") == "uniswap"
-    assert canonical_defillama_slug("Maker") == "makerdao"
+    assert canonical_defillama_slug("Aave") == "aave-v3"
+    assert canonical_defillama_slug("Compound") == "compound-v3"
+    assert canonical_defillama_slug("Morpho") == "morpho-v1"
+    assert canonical_defillama_slug("Maker") == "sky-lending"
+    assert canonical_defillama_slug("Sky") == "sky-lending"
 
 
 def test_build_structured_brief_result_generates_peer_comparison_and_operator_view():

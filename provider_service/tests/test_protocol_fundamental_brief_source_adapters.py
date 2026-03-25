@@ -160,6 +160,134 @@ def test_defillama_adapter_prefers_canonical_slug_when_symbol_is_ambiguous():
     assert snapshot.tvl_usd_current == pytest.approx(5_200_000_000)
 
 
+def test_defillama_adapter_prefers_morpho_v1_over_legacy_morpho_variants():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/protocols":
+            return httpx.Response(
+                200,
+                request=request,
+                json=[
+                    {
+                        "name": "Morpho V1",
+                        "slug": "morpho-v1",
+                        "symbol": "MORPHO",
+                        "category": "Lending",
+                        "chains": ["Ethereum", "Base"],
+                        "tvl": 6_754_000_000,
+                    },
+                    {
+                        "name": "Morpho V0 AaveV2",
+                        "slug": "morpho-v0-aavev2",
+                        "symbol": "MORPHO",
+                        "category": "Lending",
+                        "chains": ["Ethereum"],
+                        "tvl": 172_000,
+                    },
+                ],
+            )
+        if request.url.path == "/protocol/morpho-v1":
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "name": "Morpho V1",
+                    "slug": "morpho-v1",
+                    "symbol": "MORPHO",
+                    "chains": ["Ethereum", "Base"],
+                    "category": "Lending",
+                    "tvl": 6_754_000_000,
+                    "totalDataChart": [
+                        [1708300800000, 6_200_000_000],
+                        [1710892800000, 6_754_000_000],
+                    ],
+                },
+            )
+        if request.url.path == "/summary/fees/morpho-v1":
+            return httpx.Response(
+                200,
+                request=request,
+                json={"total24h": 250_000, "total24hRevenue": 120_000},
+            )
+        raise AssertionError(f"Unexpected DefiLlama path: {request.url.path}")
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.llama.fi",
+    )
+    try:
+        snapshot = asyncio.run(fetch_defillama_protocol_snapshot("Morpho", client=client))
+    finally:
+        asyncio.run(client.aclose())
+
+    assert snapshot.protocol_slug == "morpho-v1"
+    assert snapshot.display_name == "Morpho V1"
+    assert snapshot.tvl_usd_current == pytest.approx(6_754_000_000)
+
+
+def test_defillama_adapter_prefers_sky_lending_for_maker_alias():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/protocols":
+            return httpx.Response(
+                200,
+                request=request,
+                json=[
+                    {
+                        "name": "Sky Lending",
+                        "slug": "sky-lending",
+                        "symbol": "SKY",
+                        "category": "CDP",
+                        "chains": ["Ethereum"],
+                        "tvl": 7_106_000_000,
+                    },
+                    {
+                        "name": "Sky RWA",
+                        "slug": "sky-rwa",
+                        "symbol": "SKY",
+                        "category": "RWA",
+                        "chains": ["Ethereum"],
+                        "tvl": 91_000_000,
+                    },
+                ],
+            )
+        if request.url.path == "/protocol/sky-lending":
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "name": "Sky Lending",
+                    "slug": "sky-lending",
+                    "symbol": "SKY",
+                    "chains": ["Ethereum"],
+                    "category": "CDP",
+                    "tvl": 7_106_000_000,
+                    "totalDataChart": [
+                        [1708300800000, 7_000_000_000],
+                        [1710892800000, 7_106_000_000],
+                    ],
+                },
+            )
+        if request.url.path == "/summary/fees/sky-lending":
+            return httpx.Response(
+                200,
+                request=request,
+                json={"total24h": 180_000, "total24hRevenue": 90_000},
+            )
+        raise AssertionError(f"Unexpected DefiLlama path: {request.url.path}")
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.llama.fi",
+    )
+    try:
+        snapshot = asyncio.run(fetch_defillama_protocol_snapshot("Maker", client=client))
+    finally:
+        asyncio.run(client.aclose())
+
+    assert snapshot.protocol_slug == "sky-lending"
+    assert snapshot.display_name == "Sky Lending"
+    assert snapshot.category == "CDP"
+
+
 def test_dexscreener_adapter_selects_highest_liquidity_pair_on_requested_chain():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/latest/dex/search"
