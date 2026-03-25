@@ -4,10 +4,9 @@ import json
 import re
 from abc import ABC, abstractmethod
 from functools import lru_cache
-from pathlib import Path
 from typing import Any, cast
 
-from app.core.config import get_settings, resolve_provider_path
+from app.core.config import get_settings
 from app.core.log_config import logger
 from app.schemas.protocol_fundamental_brief import (
     ProtocolFundamentalBriefRequest,
@@ -37,62 +36,6 @@ class ProtocolBriefRepository(ABC):
     @abstractmethod
     def append_raw_feed_records(self, records: list[ProtocolBriefRawFeedRecord]) -> None:
         raise NotImplementedError
-
-
-class FileBackedProtocolBriefRepository(ProtocolBriefRepository):
-    def __init__(self, base_dir: Path) -> None:
-        self.base_dir = base_dir
-        self.snapshots_dir = self.base_dir / "snapshots"
-        self.raw_feeds_dir = self.base_dir / "raw_feeds"
-        self.snapshots_dir.mkdir(parents=True, exist_ok=True)
-        self.raw_feeds_dir.mkdir(parents=True, exist_ok=True)
-
-    def save_snapshot(self, record: ProtocolBriefSnapshotRecord) -> None:
-        snapshot_path = self.snapshots_dir / f"{record.brief_key}.json"
-        snapshot_path.write_text(
-            json.dumps(
-                record.model_dump(mode="json", by_alias=True),
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        repository_logger.info(
-            "Protocol brief snapshot persisted"
-            " | backend=file"
-            f" | brief_key={record.brief_key}"
-            f" | protocol={record.request.protocol}"
-            f" | chain={record.request.chain or 'all'}"
-            f" | source_count={len(record.response.sources)}"
-        )
-
-    def load_snapshot(self, brief_key: str) -> ProtocolBriefSnapshotRecord | None:
-        snapshot_path = self.snapshots_dir / f"{brief_key}.json"
-        if not snapshot_path.exists():
-            return None
-        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
-        return _validate_snapshot_record(payload)
-
-    def append_raw_feed_records(self, records: list[ProtocolBriefRawFeedRecord]) -> None:
-        if not records:
-            return
-        raw_feed_path = self.raw_feeds_dir / f"{records[0].brief_key}.jsonl"
-        with raw_feed_path.open("a", encoding="utf-8") as handle:
-            for record in records:
-                handle.write(
-                    json.dumps(
-                        record.model_dump(mode="json", by_alias=True),
-                        ensure_ascii=False,
-                    )
-                )
-                handle.write("\n")
-        repository_logger.info(
-            "Protocol brief raw feeds persisted"
-            " | backend=file"
-            f" | brief_key={records[0].brief_key}"
-            f" | protocol={records[0].protocol}"
-            f" | record_count={len(records)}"
-        )
 
 
 class PostgresProtocolBriefRepository(ProtocolBriefRepository):
@@ -273,14 +216,6 @@ def _load_psycopg():
     return psycopg
 
 
-def _validate_snapshot_record(payload: object) -> ProtocolBriefSnapshotRecord:
-    return ProtocolBriefSnapshotRecord.model_validate(
-        payload,
-        by_alias=True,
-        by_name=True,
-    )
-
-
 def _validate_response_payload(payload: object) -> ProtocolFundamentalBriefResponse:
     return ProtocolFundamentalBriefResponse.model_validate(
         payload,
@@ -292,17 +227,13 @@ def _validate_response_payload(payload: object) -> ProtocolFundamentalBriefRespo
 @lru_cache
 def get_protocol_brief_repository() -> ProtocolBriefRepository:
     settings = get_settings()
-    if settings.protocol_brief_repository_backend == "postgres":
-        if not settings.provider_service_postgres_dsn:
-            raise ValueError(
-                "PROVIDER_SERVICE_POSTGRES_DSN must be configured when "
-                "PROTOCOL_BRIEF_REPOSITORY_BACKEND=postgres"
-            )
-        return PostgresProtocolBriefRepository(
-            dsn=settings.provider_service_postgres_dsn,
-            snapshot_table=settings.protocol_brief_postgres_snapshot_table,
-            raw_feed_table=settings.protocol_brief_postgres_raw_feed_table,
+    if not settings.provider_service_postgres_dsn:
+        raise ValueError(
+            "PROVIDER_SERVICE_POSTGRES_DSN must be configured for "
+            "protocol brief repository"
         )
-    return FileBackedProtocolBriefRepository(
-        resolve_provider_path(settings.protocol_brief_storage_dir)
+    return PostgresProtocolBriefRepository(
+        dsn=settings.provider_service_postgres_dsn,
+        snapshot_table=settings.protocol_brief_postgres_snapshot_table,
+        raw_feed_table=settings.protocol_brief_postgres_raw_feed_table,
     )
