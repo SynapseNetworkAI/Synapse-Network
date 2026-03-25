@@ -199,6 +199,55 @@ def test_repository_factory_returns_file_backend(monkeypatch, tmp_path):
     assert isinstance(repository, brief_repository.FileBackedProtocolBriefRepository)
 
 
+def test_file_repository_loads_legacy_snake_case_snapshot(tmp_path):
+    repository = brief_repository.FileBackedProtocolBriefRepository(tmp_path)
+    request = _build_request()
+    snapshot_key = ProtocolBriefSnapshotKey.from_request(request).value
+    legacy_payload = {
+        "brief_key": snapshot_key,
+        "request": {
+            "protocol": "Aave",
+            "chain": "ethereum",
+            "peer_set": ["Compound", "Morpho"],
+            "lookback_days": 30,
+        },
+        "response": {
+            "service": {
+                "service_id": protocol_fundamental_brief_service.SERVICE_ID,
+                "service_name": protocol_fundamental_brief_service.SERVICE_NAME,
+                "version": protocol_fundamental_brief_service.SERVICE_VERSION,
+            },
+            "sources": [{"name": "defillama_protocol", "freshness_sec": 240}],
+            "freshness": {
+                "generated_at": "2026-03-24T12:00:00Z",
+                "max_source_age_sec": 240,
+                "cache_hit": False,
+            },
+            "result": {
+                "protocol": "Aave",
+                "price_summary": "price",
+                "tvl_summary": "tvl",
+                "revenue_signals": ["revenue"],
+                "peer_comparison": ["peer"],
+                "risk_flags": ["risk"],
+                "operator_view": "view",
+            },
+            "errors": [],
+        },
+        "source_generated_at": "2026-03-24T11:59:30Z",
+        "expires_at": "2026-03-24T12:05:00Z",
+    }
+    snapshot_path = repository.snapshots_dir / f"{snapshot_key}.json"
+    snapshot_path.write_text(json.dumps(legacy_payload), encoding="utf-8")
+
+    loaded = repository.load_snapshot(snapshot_key)
+
+    assert loaded is not None
+    assert loaded.response.service.service_id == protocol_fundamental_brief_service.SERVICE_ID
+    assert loaded.response.sources[0].freshness_sec == 240
+    assert loaded.response.freshness.generated_at == "2026-03-24T12:00:00Z"
+
+
 def test_postgres_repository_persists_snapshot_and_raw_feed_records(monkeypatch):
     store = {"snapshots": {}, "raw_feeds": []}
     executed: list[tuple[str, object]] = []
