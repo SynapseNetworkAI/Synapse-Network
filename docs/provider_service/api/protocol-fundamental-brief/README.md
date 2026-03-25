@@ -1,5 +1,9 @@
 # 协议基本面情报包专题
 
+- Status: supplementary
+- Canonical counterpart: `docs/03_Projects/provider-service/README.md`
+- Why retained: 保留 Protocol Fundamental Brief 的接口契约、实现设计与阶段计划深链，不重复承担 provider-service 项目入口职责
+
 本专题收敛 `Protocol Fundamental Brief` 的接口契约、实现设计与落地计划。
 
 先说结论：

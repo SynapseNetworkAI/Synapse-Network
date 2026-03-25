@@ -25,6 +25,8 @@
 
 补充性专题、草案、legacy archive 和 completed execution plans 不要求全部进 inventory，除非它们升级为长期入口、项目导航入口或 canonical 语义源。
 
+注意：不进 inventory 不代表可以没有治理。所有 `docs/**/README.md` 入口页即使不进入 inventory，也必须声明显式生命周期状态，避免深层目录重新长出无状态入口壳。
+
 ## 3. Review Rules
 
 inventory 中每条记录都必须至少声明：

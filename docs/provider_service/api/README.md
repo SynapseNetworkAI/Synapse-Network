@@ -1,5 +1,9 @@
 # Provider Service API 拆分文档
 
+- Status: supplementary
+- Canonical counterpart: `docs/03_Projects/provider-service/README.md`
+- Why retained: 保留 provider-service 细粒度服务专题导航和 API 设计深链，不重复承担项目导航与运行边界真相
+
 本目录将首批 5 个 Provider API 的接口设计按服务拆分为独立文档，便于：
 
 1. 单服务评审与迭代

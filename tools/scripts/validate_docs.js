@@ -154,6 +154,15 @@ function firstLines(content, count) {
   return content.split(/\r?\n/).slice(0, count);
 }
 
+function metadataValueFromHeader(header, prefix) {
+  const line = header.find((candidate) => candidate.startsWith(prefix));
+  if (!line) {
+    return null;
+  }
+
+  return normalizeMetadataValue(line.slice(prefix.length));
+}
+
 function normalizeMetadataValue(rawValue) {
   let normalized = rawValue.trim();
   while (normalized.startsWith("`")) {
@@ -252,6 +261,71 @@ function checkReadmeAnchors() {
     if (!readmeContent.includes(anchor)) {
       errors.push(`docs/README.md is missing required anchor: ${anchor}`);
     }
+  }
+}
+
+function validateCanonicalReadmeMetadata(repoPath, header) {
+  const hasCodePaths = header.some((line) => line.startsWith("- Code paths: "));
+  const hasLastVerified = header.some((line) => line.startsWith("- Last verified against code: "));
+  if (!hasCodePaths) {
+    errors.push(`${repoPath} is canonical but missing '- Code paths:' in the top metadata block.`);
+  }
+  if (!hasLastVerified) {
+    errors.push(`${repoPath} is canonical but missing '- Last verified against code:' in the top metadata block.`);
+  }
+}
+
+function validateNonCanonicalReadmeMetadata(repoPath, header, status) {
+  const hasWhyRetained = header.some((line) => line.startsWith("- Why retained: "));
+  if (!hasWhyRetained) {
+    errors.push(`${repoPath} is ${status} but missing '- Why retained:' in the top metadata block.`);
+  }
+
+  if (status === "incubation") {
+    const hasCanonicalTarget = header.some((line) => line.startsWith("- Canonical target: "));
+    if (!hasCanonicalTarget) {
+      errors.push(`${repoPath} is incubation but missing '- Canonical target:' in the top metadata block.`);
+    }
+    return;
+  }
+
+  const hasCanonicalCounterpart = header.some((line) => line.startsWith("- Canonical counterpart: "));
+  const hasSupersededBy = header.some((line) => line.startsWith("- Superseded by: "));
+  if (!hasCanonicalCounterpart && !hasSupersededBy) {
+    errors.push(
+      `${repoPath} is ${status} but missing '- Canonical counterpart:' or '- Superseded by:' in the top metadata block.`
+    );
+  }
+}
+
+function validateReadmeLifecycleMetadata(repoPath, header) {
+  const status = metadataValueFromHeader(header, "- Status: ");
+
+  if (!status) {
+    errors.push(`${repoPath} is a README entrypoint but missing '- Status:' in the top metadata block.`);
+    return;
+  }
+
+  if (!allowedLifecycleStatuses.has(status)) {
+    errors.push(`${repoPath} has unsupported lifecycle status in header: ${status}`);
+    return;
+  }
+
+  if (status === "canonical") {
+    validateCanonicalReadmeMetadata(repoPath, header);
+    return;
+  }
+
+  validateNonCanonicalReadmeMetadata(repoPath, header, status);
+}
+
+function checkReadmeLifecycleMetadata() {
+  const files = walkMarkdownFiles(docsDir).filter((filePath) => path.basename(filePath) === "README.md");
+
+  for (const filePath of files) {
+    const repoPath = toRepoPath(filePath);
+    const header = firstLines(readFile(filePath), 12);
+    validateReadmeLifecycleMetadata(repoPath, header);
   }
 }
 
@@ -558,6 +632,7 @@ function main() {
   checkRetiredPathsDoNotExist();
   checkLlmsAnchors();
   checkReadmeAnchors();
+  checkReadmeLifecycleMetadata();
   checkCanonicalMetadata();
   checkRetiredLinks();
   checkInventory();
