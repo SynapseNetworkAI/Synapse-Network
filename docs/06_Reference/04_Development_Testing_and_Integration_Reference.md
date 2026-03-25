@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/tests/`, `admin/gateway-admin/tests/`, `apps/frontend/`, `sdk/python/`
+- Verified with: `npm run ci:gateway`, `npm run ci:admin-gateway`, `npm run ci:frontend`, `npm run ci:sdk-python`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: root `docs/测试文档.md` as primary testing and reset entrypoint; former `docs/agent/07_Agent_SDK_Integration_Guide.md` for runtime SDK integration posture
 - Last verified against code: 2026-03-24

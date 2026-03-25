@@ -111,8 +111,10 @@ README 的最小要求如下：
 1. Runtime 总体架构文档
 2. 身份、鉴权与风控主文档
 3. 核心工作流主链路文档
-4. Runtime API 合约与错误码总表
-5. SQL schema 总览页
+4. Service Manifest 与 Runtime Object 总表
+5. Development / Testing / Integration 总表
+6. Runtime API 合约与错误码总表
+7. SQL schema 总览页
 
 所有 `canonical` 文档应逐步补齐以下元信息：
 
