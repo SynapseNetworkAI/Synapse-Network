@@ -24,21 +24,21 @@ _PROTOCOL_ALIASES = {
 }
 
 _DEFILLAMA_PROTOCOL_SLUGS = {
-    "aave": "aave",
-    "aave protocol": "aave",
+    "aave": "aave-v3",
+    "aave protocol": "aave-v3",
     "uni": "uniswap",
     "uniswap": "uniswap",
     "uniswap protocol": "uniswap",
     "lido": "lido",
     "lido finance": "lido",
-    "makerdao": "makerdao",
-    "maker": "makerdao",
-    "sky": "makerdao",
+    "makerdao": "sky-lending",
+    "maker": "sky-lending",
+    "sky": "sky-lending",
     "rocketpool": "rocket-pool",
     "rocket pool": "rocket-pool",
     "compound": "compound-v3",
     "compound finance": "compound-v3",
-    "morpho": "morpho-blue",
+    "morpho": "morpho-v1",
 }
 
 
