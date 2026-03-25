@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `docs/exec-plans/`, `tools/scripts/validate_docs.js`
+- Verified with: `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 This directory stores multi-step execution plans that should survive beyond a single chat session.

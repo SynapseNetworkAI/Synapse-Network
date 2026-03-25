@@ -83,7 +83,34 @@ Canonical gate:
 
 1. `npm run ci:sdk-python`
 
-## 4. Finish Checklist
+## 4. Document Metadata Rule
+
+Synapse 不要求每一份 Markdown 都写满验证元信息，但以下文档必须把验证锚点写进文档头部：
+
+1. `docs/**/README.md` 中声明 `- Status: canonical` 的入口页
+2. 其他显式承担当前 stable truth 的 canonical 文档，推荐逐步补齐同样字段
+
+当前 canonical README 的推荐头部格式：
+
+1. `- Status: canonical`
+2. `- Code paths: ...`
+3. `- Verified with: ...`
+4. `- Last verified against code: YYYY-MM-DD`
+
+规则解释：
+
+1. `Status` 解决文档分层问题
+2. `Code paths` 对应 source-of-truth 范围，告诉 AI 去哪里看真实实现
+3. `Verified with` 对应最小验证命令，优先写 root `npm run ci:*` 锚点
+4. `Last verified against code` 记录最近一次人工按代码核对的日期
+
+不需要强制补齐完整验证元信息的文档：
+
+1. `supplementary` / `legacy` / `archive` 文档
+2. 已完成执行计划、历史迁移记录、归档草案
+3. 不承担入口职责的深层专题页
+
+## 5. Finish Checklist
 
 ### Finance-sensitive backend or admin work
 
@@ -118,7 +145,7 @@ Before finishing:
 3. update `docs/00_Governance/Documentation_Inventory.md` if root entrypoints, governance docs, or canonical owners / review dates changed
 4. run `npm run ci:docs`
 
-## 5. When To Escalate Validation
+## 6. When To Escalate Validation
 
 Escalate from project-local checks to repo-level checks when:
 

@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `contracts/`, `hardhat.config.js`, `docs/03_Projects/contracts/`
+- Verified with: `npm run ci:contracts`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位

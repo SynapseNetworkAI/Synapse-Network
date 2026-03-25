@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `apps/frontend/src/`, `admin/admin-front/src/`
+- Verified with: `npm run ci:frontend`, `npm run ci:admin-front`, `npm run ci:docs`
 - Supersedes: former `docs/agent/05_Dashboard_IA_and_Onboarding.md` for owner console responsibilities and activation loop
 - Last verified against code: 2026-03-24
 

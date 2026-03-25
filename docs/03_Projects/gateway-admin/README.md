@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `admin/gateway-admin/`, `docs/03_Projects/gateway-admin/`
+- Verified with: `npm run ci:admin-gateway`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位

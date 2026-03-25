@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `docker-compose/`, `scripts/`, `tools/`, `package.json`
+- Verified with: `npm run ci:pr`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 本目录定义 Synapse 的本地环境、CI/CD、生产运维、观测、索引器运行与金融事故响应基线。

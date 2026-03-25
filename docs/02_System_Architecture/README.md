@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/`, `apps/frontend/`, `admin/gateway-admin/`, `provider_service/`, `sdk/python/`
+- Verified with: `npm run ci:pr`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: former `docs/agent/00_Platform_Role_Identity_Model.md` and former `docs/agent/01_Agent_Runtime_Product_Architecture.md` as standalone architecture truth sources
 - Last verified against code: 2026-03-24

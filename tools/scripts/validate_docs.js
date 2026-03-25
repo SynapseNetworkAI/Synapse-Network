@@ -28,6 +28,9 @@ const rootDir = findRepoRoot(__dirname);
 const docsDir = path.join(rootDir, "docs");
 const llmsPath = path.join(rootDir, "llms.txt");
 const inventoryPath = path.join(docsDir, "00_Governance", "Documentation_Inventory.md");
+const packageJsonPath = path.join(rootDir, "package.json");
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+const availableNpmScripts = new Set(Object.keys(packageJson.scripts ?? {}));
 
 const allowedRootDocs = new Set([
   "AGENTS.md",
@@ -163,6 +166,14 @@ function metadataValueFromHeader(header, prefix) {
   return normalizeMetadataValue(line.slice(prefix.length));
 }
 
+function npmScriptsFromMetadataValue(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+
+  return Array.from(rawValue.matchAll(/npm run ([a-z0-9:-]+)/gi), (match) => match[1]).filter(Boolean);
+}
+
 function normalizeMetadataValue(rawValue) {
   let normalized = rawValue.trim();
   while (normalized.startsWith("`")) {
@@ -267,11 +278,21 @@ function checkReadmeAnchors() {
 function validateCanonicalReadmeMetadata(repoPath, header) {
   const hasCodePaths = header.some((line) => line.startsWith("- Code paths: "));
   const hasLastVerified = header.some((line) => line.startsWith("- Last verified against code: "));
+  const verifiedWith = metadataValueFromHeader(header, "- Verified with: ");
   if (!hasCodePaths) {
     errors.push(`${repoPath} is canonical but missing '- Code paths:' in the top metadata block.`);
   }
+  if (!verifiedWith) {
+    errors.push(`${repoPath} is canonical but missing '- Verified with:' in the top metadata block.`);
+  }
   if (!hasLastVerified) {
     errors.push(`${repoPath} is canonical but missing '- Last verified against code:' in the top metadata block.`);
+  }
+
+  for (const scriptName of npmScriptsFromMetadataValue(verifiedWith)) {
+    if (!availableNpmScripts.has(scriptName)) {
+      errors.push(`${repoPath} references missing npm script in '- Verified with:': ${scriptName}`);
+    }
   }
 }
 

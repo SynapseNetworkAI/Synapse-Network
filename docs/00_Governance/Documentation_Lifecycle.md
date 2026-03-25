@@ -100,22 +100,26 @@
 
 README 的最小要求如下：
 
-1. `canonical` README 必须提供 `Status`、`Code paths`、`Last verified against code`
+1. `canonical` README 必须提供 `Status`、`Code paths`、`Verified with`、`Last verified against code`
 2. `supplementary` / `legacy` / `archive` README 必须提供 `Status`、`Canonical counterpart` 或 `Superseded by`、`Why retained`
 3. `incubation` README 必须提供 `Status`、`Canonical target`、`Why retained`
+
+这里的 `Verified with` 是文档内的验证锚点。它不是要求每份文档都列出完整 CI 流水线，而是要求当前 active 的 canonical 入口页明确告诉 AI 和维护者：最小应该跑哪些 root 级校验命令。
 
 所有 `canonical` 文档应逐步补齐以下元信息：
 
 1. `Status`
 2. `Code paths`
-3. `DB sources`
-4. `Supersedes`
-5. `Last verified against code`
+3. `Verified with`
+4. `DB sources`
+5. `Supersedes`
+6. `Last verified against code`
 
 当前轻量硬门槛：任何在头部显式声明 `- Status: canonical` 的文档，必须至少同时给出：
 
 1. `Code paths`
-2. `Last verified against code`
+2. `Verified with`
+3. `Last verified against code`
 
 另外，承担 root entrypoint、governance entrypoint 或 canonical truth 职责的高价值文档，必须登记到 `Documentation_Inventory.md`，由 inventory 提供 owner、review cadence 与最近 review 时间。
 
