@@ -106,6 +106,12 @@ README 的最小要求如下：
 
 这里的 `Verified with` 是文档内的验证锚点。它不是要求每份文档都列出完整 CI 流水线，而是要求当前 active 的 canonical 入口页明确告诉 AI 和维护者：最小应该跑哪些 root 级校验命令。
 
+目前除了 canonical README 之外，以下高价值 deep truth 页面也应该补齐 `Verified with`，并由 docs gate 持续兜住：
+
+1. 核心工作流主链路文档
+2. Runtime API 合约总表
+3. SQL schema 总览页
+
 所有 `canonical` 文档应逐步补齐以下元信息：
 
 1. `Status`

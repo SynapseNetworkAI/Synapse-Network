@@ -82,6 +82,12 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 2. `Verified with`
 3. `Last verified against code`
 
+当前还对一小组高价值深层 canonical 页面做同样要求，因为它们直接定义 Agent 改功能时最容易命中的稳定真相层：
+
+1. 核心工作流真相页
+2. API 合约真相页
+3. 数据库 schema 真相页
+
 推荐同时提供：
 
 1. `DB sources`
@@ -126,8 +132,9 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 4. `llms.txt` 是否重新暴露退役入口
 5. `docs/**/README.md` 入口页是否缺少生命周期元信息
 6. canonical README 的 `Verified with` 是否缺失或引用失效的 root `npm run` 脚本
-7. canonical 文档的最小元信息是否缺失
-8. `docs/00_Governance/Documentation_Inventory.md` 是否覆盖 root entrypoints 和显式 canonical 文档
-9. inventory freshness 是否超过 review cadence
+7. 高价值深层 canonical 真相页是否缺少 `Verified with`
+8. canonical 文档的最小元信息是否缺失
+9. `docs/00_Governance/Documentation_Inventory.md` 是否覆盖 root entrypoints 和显式 canonical 文档
+10. inventory freshness 是否超过 review cadence
 
 这不是最终形态的 doc freshness system，但已经足够把最容易复发的膨胀和漂移挡在门外。

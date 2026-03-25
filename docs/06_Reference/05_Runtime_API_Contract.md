@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/`, `gateway/tests/`, `apps/frontend/src/`, `sdk/python/`
+- Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:frontend`, `npm run ci:docs`
 - DB sources: `docs/04_Database_Design/`, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: `docs/api.md`
 - Last verified against code: `2026-03-24`
