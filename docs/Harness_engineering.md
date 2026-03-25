@@ -175,4 +175,6 @@ Current status:
 
 1. this completion criteria set is satisfied as of 2026-03-24
 2. a lightweight docs gate now exists to constrain root growth, retired-path regressions, and canonical metadata drift
-3. follow-on work should now focus on index compression, reference-boundary hygiene, and stronger freshness automation rather than more entrypoint creation
+3. `docs/00_Governance/Documentation_Inventory.md` now provides an explicit review inventory for root entrypoints, governance docs, and high-value canonical docs
+4. the docs gate now also checks inventory completeness and review freshness, not just root growth and retired-path regressions
+5. follow-on work should now focus on index compression, reference-boundary hygiene, and stronger semantic freshness automation rather than more entrypoint creation

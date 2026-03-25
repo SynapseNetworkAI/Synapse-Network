@@ -113,5 +113,7 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 3. 活跃 Markdown 导航是否重新链接到退役入口
 4. `llms.txt` 是否重新暴露退役入口
 5. canonical 文档的最小元信息是否缺失
+6. `docs/00_Governance/Documentation_Inventory.md` 是否覆盖 root entrypoints 和显式 canonical 文档
+7. inventory freshness 是否超过 review cadence
 
 这不是最终形态的 doc freshness system，但已经足够把最容易复发的膨胀和漂移挡在门外。

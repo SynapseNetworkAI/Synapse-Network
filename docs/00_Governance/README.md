@@ -13,17 +13,19 @@
 
 1. `Documentation_Lifecycle.md`
 2. `Documentation_Constraints.md`
-3. `Ownership_And_Review_Matrix.md`
-4. `Drift_Checklist.md`
-5. `Agent_Docs_Migration_Map.md`
+3. `Documentation_Inventory.md`
+4. `Ownership_And_Review_Matrix.md`
+5. `Drift_Checklist.md`
+6. `Agent_Docs_Migration_Map.md`
 
 ## 使用顺序
 
 1. 先读 `Documentation_Lifecycle.md`，判断一份文档应该处于哪个状态。
 2. 再读 `Documentation_Constraints.md`，确认 root、canonical、retired path 和索引同步边界。
-3. 再读 `Ownership_And_Review_Matrix.md`，判断主题应该归属哪个 canonical 目录。
-4. 在实施 API / DB / 运维 / 架构修改前，读 `Drift_Checklist.md` 做同步检查。
-5. 当追溯 former `docs/agent/` 专项拆分历史时，读 `Agent_Docs_Migration_Map.md`。
+3. 再读 `Documentation_Inventory.md`，确认关键文档 owner、review cadence 和最近一次 review 时间。
+4. 再读 `Ownership_And_Review_Matrix.md`，判断主题应该归属哪个 canonical 目录。
+5. 在实施 API / DB / 运维 / 架构修改前，读 `Drift_Checklist.md` 做同步检查。
+6. 当追溯 former `docs/agent/` 专项拆分历史时，读 `Agent_Docs_Migration_Map.md`。
 
 ## 校验入口
 
@@ -36,6 +38,8 @@
 1. root `docs/` 再次长出散点正文
 2. 退役路径被重新挂回活跃导航
 3. canonical 文档缺少最小元信息
+4. 高价值 entrypoint / canonical 文档未进入 inventory
+5. inventory freshness 超过 review cadence
 
 ## 模块边界
 

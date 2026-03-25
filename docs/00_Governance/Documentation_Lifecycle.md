@@ -109,6 +109,8 @@
 1. `Code paths`
 2. `Last verified against code`
 
+另外，承担 root entrypoint、governance entrypoint 或 canonical truth 职责的高价值文档，必须登记到 `Documentation_Inventory.md`，由 inventory 提供 owner、review cadence 与最近 review 时间。
+
 所有 `incubation`、`legacy`、`archive` 文档应至少补齐：
 
 1. `Status`

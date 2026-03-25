@@ -115,7 +115,8 @@ Before finishing:
 
 1. update `docs/README.md` and `llms.txt` if entrypoints moved
 2. update `docs/00_Governance/Documentation_Constraints.md` if hard boundaries changed
-3. run `npm run ci:docs`
+3. update `docs/00_Governance/Documentation_Inventory.md` if root entrypoints, governance docs, or canonical owners / review dates changed
+4. run `npm run ci:docs`
 
 ## 5. When To Escalate Validation
 
