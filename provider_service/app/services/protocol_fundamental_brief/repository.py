@@ -277,13 +277,13 @@ def _load_psycopg():
 def get_protocol_brief_repository() -> ProtocolBriefRepository:
     settings = get_settings()
     if settings.protocol_brief_repository_backend == "postgres":
-        if not settings.protocol_brief_postgres_dsn:
+        if not settings.provider_service_postgres_dsn:
             raise ValueError(
-                "PROTOCOL_BRIEF_POSTGRES_DSN must be configured when "
+                "PROVIDER_SERVICE_POSTGRES_DSN must be configured when "
                 "PROTOCOL_BRIEF_REPOSITORY_BACKEND=postgres"
             )
         return PostgresProtocolBriefRepository(
-            dsn=settings.protocol_brief_postgres_dsn,
+            dsn=settings.provider_service_postgres_dsn,
             snapshot_table=settings.protocol_brief_postgres_snapshot_table,
             raw_feed_table=settings.protocol_brief_postgres_raw_feed_table,
         )

@@ -37,7 +37,8 @@ set +a
 PORT="${SERVICE_PORT:-8100}"
 PID_FILE="${RUN_DIR}/provider_service.${ENV_NAME}.pid"
 LOG_FILE="${LOG_DIR}/provider_service.${ENV_NAME}.log"
-REPOSITORY_BACKEND="${SENTIMENT_REPOSITORY_BACKEND:-file}"
+SENTIMENT_REPOSITORY_BACKEND="${SENTIMENT_REPOSITORY_BACKEND:-file}"
+PROTOCOL_BRIEF_REPOSITORY_BACKEND="${PROTOCOL_BRIEF_REPOSITORY_BACKEND:-file}"
 SCHEDULER_ENABLED="${SENTIMENT_SCHEDULER_ENABLED:-false}"
 SCHEDULER_INTERVAL_S="${SENTIMENT_SCHEDULER_INTERVAL_S:-30}"
 SIGNATURE_ENABLED="${GATEWAY_PROVIDER_SIGNATURE_ENABLED:-true}"
@@ -45,7 +46,7 @@ PROXY_POOL_ENABLED="${SENTIMENT_PROXY_POOL_ENABLED:-false}"
 PROXY_POOL_URLS_JSON="${SENTIMENT_PROXY_POOL_URLS_JSON:-}"
 PROXY_POOL_URLS_NORMALIZED="$(printf '%s' "${PROXY_POOL_URLS_JSON}" | tr -d '[:space:]')"
 ALLOW_INSECURE_PROD_START="${ALLOW_INSECURE_PROD_START:-false}"
-POSTGRES_DSN_VALUE="${SENTIMENT_POSTGRES_DSN:-}"
+POSTGRES_DSN_VALUE="${PROVIDER_SERVICE_POSTGRES_DSN:-}"
 SIGNATURE_ENABLED_NORMALIZED="$(printf '%s' "${SIGNATURE_ENABLED}" | tr '[:upper:]' '[:lower:]')"
 PROXY_POOL_ENABLED_NORMALIZED="$(printf '%s' "${PROXY_POOL_ENABLED}" | tr '[:upper:]' '[:lower:]')"
 ALLOW_INSECURE_PROD_START_NORMALIZED="$(printf '%s' "${ALLOW_INSECURE_PROD_START}" | tr '[:upper:]' '[:lower:]')"
@@ -58,7 +59,7 @@ fi
 
 echo "=== Starting Provider Service (${ENV_NAME}) ==="
 echo "Tip: prefer ./scripts/start.${ENV_NAME}.sh for explicit environment startup."
-echo "Config summary: backend=${REPOSITORY_BACKEND} | scheduler_enabled=${SCHEDULER_ENABLED} | scheduler_interval_s=${SCHEDULER_INTERVAL_S} | signature_enabled=${SIGNATURE_ENABLED} | proxy_pool_enabled=${PROXY_POOL_ENABLED} | env_file=${ENV_FILE} | database=${DATABASE_TARGET}"
+echo "Config summary: sentiment_backend=${SENTIMENT_REPOSITORY_BACKEND} | protocol_brief_backend=${PROTOCOL_BRIEF_REPOSITORY_BACKEND} | scheduler_enabled=${SCHEDULER_ENABLED} | scheduler_interval_s=${SCHEDULER_INTERVAL_S} | signature_enabled=${SIGNATURE_ENABLED} | proxy_pool_enabled=${PROXY_POOL_ENABLED} | env_file=${ENV_FILE} | database=${DATABASE_TARGET}"
 
 if [[ "${PROXY_POOL_ENABLED_NORMALIZED}" == "true" && ( -z "${PROXY_POOL_URLS_NORMALIZED}" || "${PROXY_POOL_URLS_NORMALIZED}" == "[]" ) ]]; then
     echo "CONFIG ERROR: SENTIMENT_PROXY_POOL_ENABLED=true but SENTIMENT_PROXY_POOL_URLS_JSON is empty." >&2

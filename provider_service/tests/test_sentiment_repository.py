@@ -121,7 +121,7 @@ def test_repository_factory_returns_file_backend(monkeypatch, tmp_path):
         lambda: SimpleNamespace(
             sentiment_repository_backend="file",
             sentiment_storage_dir=str(tmp_path / "sentiment-storage"),
-            sentiment_postgres_dsn=None,
+            provider_service_postgres_dsn=None,
             sentiment_postgres_snapshot_table="provider_sentiment_snapshots",
             sentiment_postgres_raw_feed_table="provider_sentiment_raw_feeds",
             sentiment_postgres_scheduler_job_table="provider_sentiment_scheduler_jobs",
@@ -203,7 +203,7 @@ def test_repository_factory_returns_postgres_backend(monkeypatch):
         lambda: SimpleNamespace(
             sentiment_repository_backend="postgres",
             sentiment_storage_dir="logs/sentiment",
-            sentiment_postgres_dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
+            provider_service_postgres_dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
             sentiment_postgres_snapshot_table="provider_sentiment_snapshots",
             sentiment_postgres_raw_feed_table="provider_sentiment_raw_feeds",
             sentiment_postgres_scheduler_job_table="provider_sentiment_scheduler_jobs",
@@ -213,6 +213,25 @@ def test_repository_factory_returns_postgres_backend(monkeypatch):
     repository = sentiment_repository.get_sentiment_repository()
 
     assert isinstance(repository, sentiment_repository.PostgresSentimentRepository)
+
+
+def test_postgres_repository_requires_shared_provider_dsn(monkeypatch):
+    sentiment_repository.get_sentiment_repository.cache_clear()
+    monkeypatch.setattr(
+        sentiment_repository,
+        "get_settings",
+        lambda: SimpleNamespace(
+            sentiment_repository_backend="postgres",
+            sentiment_storage_dir="logs/sentiment",
+            provider_service_postgres_dsn=None,
+            sentiment_postgres_snapshot_table="provider_sentiment_snapshots",
+            sentiment_postgres_raw_feed_table="provider_sentiment_raw_feeds",
+            sentiment_postgres_scheduler_job_table="provider_sentiment_scheduler_jobs",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="PROVIDER_SERVICE_POSTGRES_DSN"):
+        sentiment_repository.get_sentiment_repository()
 
 
 def test_postgres_repository_requires_safe_table_name():

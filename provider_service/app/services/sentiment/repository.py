@@ -768,13 +768,13 @@ def _load_psycopg():
 def get_sentiment_repository() -> SentimentRepository:
     settings = get_settings()
     if settings.sentiment_repository_backend == "postgres":
-        if not settings.sentiment_postgres_dsn:
+        if not settings.provider_service_postgres_dsn:
             raise ValueError(
-                "SENTIMENT_POSTGRES_DSN must be configured when "
+                "PROVIDER_SERVICE_POSTGRES_DSN must be configured when "
                 "SENTIMENT_REPOSITORY_BACKEND=postgres"
             )
         return PostgresSentimentRepository(
-            dsn=settings.sentiment_postgres_dsn,
+            dsn=settings.provider_service_postgres_dsn,
             snapshot_table=settings.sentiment_postgres_snapshot_table,
             raw_feed_table=settings.sentiment_postgres_raw_feed_table,
             scheduler_job_table=settings.sentiment_postgres_scheduler_job_table,

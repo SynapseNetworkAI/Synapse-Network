@@ -59,7 +59,7 @@
   - 默认目录：`provider_service/logs/sentiment/snapshots/`
   - 作用：进程重启后仍可回退最近一次 snapshot
 3. PostgreSQL repository
-  - 通过 `SENTIMENT_REPOSITORY_BACKEND=postgres` + `SENTIMENT_POSTGRES_DSN` 启用
+  - 通过 `SENTIMENT_REPOSITORY_BACKEND=postgres` + `PROVIDER_SERVICE_POSTGRES_DSN` 启用
   - 默认表：`provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`
   - 作用：把 snapshot 与 source 摘要落到正式数据库，而不是只写本地文件
 4. 本地 raw feed 摘要文件
