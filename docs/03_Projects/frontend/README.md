@@ -1,5 +1,9 @@
 # frontend
 
+- Status: canonical
+- Code paths: `apps/frontend/`, `docs/03_Projects/frontend/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `apps/frontend/` 是 Synapse 面向 Owner / Developer 的主前端控制台。

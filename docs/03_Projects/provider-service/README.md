@@ -1,5 +1,9 @@
 # provider-service
 
+- Status: canonical
+- Code paths: `provider_service/`, `docs/03_Projects/provider-service/`, `docs/provider_service/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `provider_service/` 是 Synapse 用来演示与验证 Provider Runtime 接入路径的独立微服务样板工程。

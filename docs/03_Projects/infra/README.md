@@ -1,5 +1,9 @@
 # infra
 
+- Status: canonical
+- Code paths: `docker-compose/`, `scripts/`, `tools/`, `docs/03_Projects/infra/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `infra` 不是单一代码目录，而是对 Synapse 基础设施支撑层的项目导航聚合。

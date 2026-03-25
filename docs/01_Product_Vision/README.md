@@ -1,5 +1,9 @@
 # Product Vision Map
 
+- Status: supplementary
+- Canonical counterpart: `docs/01_Product_Frontend/README.md`, `docs/02_System_Architecture/README.md`, `docs/03_Core_Workflows/README.md`
+- Why retained: 保留商业定位、路线图与对外叙事，不与已落地协议、数据库和运行时真理竞争
+
 本目录承载 Synapse 的商业定位、产品愿景、路线图与对外叙事。
 
 它回答的是：

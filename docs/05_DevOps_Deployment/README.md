@@ -1,5 +1,9 @@
 # DevOps and Deployment
 
+- Status: canonical
+- Code paths: `docker-compose/`, `scripts/`, `tools/`, `package.json`
+- Last verified against code: 2026-03-25
+
 本目录定义 Synapse 的本地环境、CI/CD、生产运维、观测、索引器运行与金融事故响应基线。
 
 这里不再用“脚本散落 + 历史 runbook 混排”的方式组织，而是按真正的交付问题组织：

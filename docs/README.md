@@ -65,14 +65,18 @@ AI 协作优先入口新增如下：
 8. [03_Projects/sdk-python/README.md](./03_Projects/sdk-python/README.md)
 9. [03_Projects/infra/README.md](./03_Projects/infra/README.md)
 
-### Supplement and archive layers
+### Supplement layers
 
 1. [01_Product_Vision/README.md](./01_Product_Vision/README.md)
 2. [admin/README.md](./admin/README.md)
 3. [feature_designs/README.md](./feature_designs/README.md)
 4. [exec-plans/README.md](./exec-plans/README.md)
-5. [plan/README.md](./plan/README.md)
-6. [sdk/README.md](./sdk/README.md)
+5. [sdk/README.md](./sdk/README.md)
+
+### Archive and on-demand layers
+
+1. [plan/README.md](./plan/README.md)
+2. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
 
 建议 Agent 读取顺序：
 
@@ -82,7 +86,7 @@ AI 协作优先入口新增如下：
 4. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
 5. 需要数据库真相时进入 [04_Database_Design/README.md](./04_Database_Design/README.md) 与 [04_Database_Design/01_SQL_Schema_Overview.md](./04_Database_Design/01_SQL_Schema_Overview.md)。
 6. 需要按代码项目定位时进入 [03_Projects/README.md](./03_Projects/README.md)。
-7. 需要补充专题、计划或历史背景时再进入 supplement and archive layers。
+7. 需要补充专题或活跃执行计划时再进入 supplement layers；只有在追溯历史迁移、旧计划或归档背景时才进入 archive and on-demand layers。
 
 ## 2. Canonical Source of Truth
 
@@ -161,13 +165,11 @@ AI 协作优先入口新增如下：
    管理后台代码工作区入口壳，系统级后台文档以 `docs/admin/` 为准。
 4. [feature_designs/README.md](./feature_designs/README.md)
    前端和后台专题深化设计。
-5. [exec-plans/completed/2026-03-23_Project_Docs_Centralization_Migration_Plan.md](./exec-plans/completed/2026-03-23_Project_Docs_Centralization_Migration_Plan.md)
-   项目目录文档统一迁入根 `docs/` 的专项迁移与合并方案。
-6. [plan/README.md](./plan/README.md)
+5. [plan/README.md](./plan/README.md)
    旧 `docs/plan/` 目录的 legacy archive 入口，仅保留未标准化的历史计划材料与增长/路演草稿，不再承担执行计划职责。
-7. [竞品调研/](./竞品调研/)
+6. [竞品调研/](./竞品调研/)
    市场和竞品研究材料。
-8. [sdk/README.md](./sdk/README.md)
+7. [sdk/README.md](./sdk/README.md)
    Python SDK 的测试、联调、发布前检查与常见故障排查。
 
 ## 5. 推荐阅读路径

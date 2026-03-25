@@ -1,5 +1,9 @@
 # gateway
 
+- Status: canonical
+- Code paths: `gateway/`, `docs/03_Projects/gateway/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `gateway/` 是 Synapse 的运行时结算与调用主链路。

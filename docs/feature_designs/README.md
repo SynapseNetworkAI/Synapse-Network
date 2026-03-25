@@ -1,5 +1,9 @@
 # Feature Design Map
 
+- Status: supplementary
+- Canonical counterpart: `docs/01_Product_Frontend/README.md`, `docs/02_System_Architecture/README.md`, `docs/03_Core_Workflows/README.md`, `docs/04_Database_Design/README.md`, `docs/06_Reference/README.md`
+- Why retained: 保留专题深化设计，避免把仍有价值的落地细节塞回官方模块正文
+
 本目录只放“专题深化设计”，不放整个平台的 canonical 主协议。
 
 换句话说：

@@ -1,5 +1,9 @@
 # gateway-admin
 
+- Status: canonical
+- Code paths: `admin/gateway-admin/`, `docs/03_Projects/gateway-admin/`
+- Last verified against code: 2026-03-25
+
 ## 1. 项目定位
 
 `admin/gateway-admin/` 是 Synapse 的平台管理员后端控制面。

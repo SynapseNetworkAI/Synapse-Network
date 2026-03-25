@@ -1,5 +1,9 @@
 # Legacy Plan Archive
 
+- Status: archive
+- Canonical counterpart: `docs/exec-plans/README.md`
+- Why retained: 保留未标准化的历史产品与增长计划材料，避免它们继续充当当前执行计划入口
+
 This directory is no longer the canonical home for execution plans.
 
 Current rule:
