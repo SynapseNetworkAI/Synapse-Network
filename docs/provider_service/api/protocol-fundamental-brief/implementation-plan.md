@@ -97,6 +97,12 @@
 2. `peer_set` 生效时能给出相对比较
 3. 结果文本稳定，不依赖自由 prompt
 
+当前实现状态：
+
+1. `provider_service` 已落地常见协议 alias 归一化
+2. `price_summary`、`tvl_summary`、`revenue_signals`、`peer_comparison`、`risk_flags` 已切换为规则驱动模板聚合
+3. `peer_set` 当前优先使用 DefiLlama protocol-level observation 做 TVL / revenue 相对比较
+
 ### Phase 4. 缓存、持久化与降级
 
 目标：
@@ -117,6 +123,13 @@
 1. 缓存命中时 freshness 正确
 2. source 全挂时可回退到最近 snapshot
 3. 错误路径可测试、可解释
+
+当前实现状态：
+
+1. 热路径缓存当前采用进程内 in-memory snapshot cache，命中顺序为 `in-memory -> persisted snapshot -> live refresh`
+2. 持久化层已支持 `file` 与 `postgres` backend；生产推荐 `postgres`，本地开发可用 `file`
+3. source 全挂时已优先回退到最近一次持久化 snapshot，并追加 `PROTOCOL_BRIEF_SNAPSHOT_FALLBACK_USED` 错误标记
+4. 当前 V1 不强制引入 Redis；只有在多实例共享热缓存、跨实例失效控制或预热广播成为刚需时，再把 Redis 提升为共享 cache 层
 
 ### Phase 5. 测试与文档闭环
 

@@ -74,5 +74,6 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 本地默认运行配置已切到独立 provider PostgreSQL：`synapse_gateway_providers`。
 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 snapshot freshness policy，scheduler 在开启时已接入持久化 lease / cooldown 状态表。
 `Protocol Fundamental Brief` 现在已接入 typed repository + in-memory cache：未过期快照会优先走内存或持久化缓存，全源失败时会退回最近一次已持久化快照。
+`Protocol Fundamental Brief` 当前缓存策略明确采用 `in-memory hot cache + persisted snapshot fallback`；V1 不默认引入 Redis，避免在单实例或低并发阶段把简单问题做重，只有在多实例共享热缓存成为瓶颈时再升级为 Redis。
 PostgreSQL 表结构需要通过 `docker-compose/postgres/init/gateway-providers/` 的显式 SQL 初始化，`provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`、`provider_sentiment_scheduler_jobs`、`provider_protocol_briefs`、`provider_protocol_brief_raw_feeds` 都不由 runtime repository 自动建表。
 完整接口说明、启动方式与扩展建议统一维护在根 `docs/03_Projects/provider-service/`。
