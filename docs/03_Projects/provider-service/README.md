@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `provider_service/`, `docs/03_Projects/provider-service/`, `docs/provider_service/`
+- Verified with: `npm run ci:provider-service`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位

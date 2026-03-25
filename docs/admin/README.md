@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `admin/gateway-admin/src/`, `admin/admin-front/src/`, `docs/admin/`
+- Verified with: `npm run ci:admin-gateway`, `npm run ci:admin-front`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 该目录用于沉淀平台管理后台的独立设计文档，与交易网关文档做边界隔离。

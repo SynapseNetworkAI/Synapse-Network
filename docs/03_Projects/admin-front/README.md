@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `admin/admin-front/`, `docs/03_Projects/admin-front/`
+- Verified with: `npm run ci:admin-front`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位

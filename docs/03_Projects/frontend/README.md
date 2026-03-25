@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `apps/frontend/`, `docs/03_Projects/frontend/`
+- Verified with: `npm run ci:frontend`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位

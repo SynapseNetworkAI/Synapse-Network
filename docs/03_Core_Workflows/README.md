@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/`, `admin/gateway-admin/src/`, `contracts/`, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Verified with: `npm run ci:gateway`, `npm run ci:admin-gateway`, `npm run ci:contracts`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 本目录定义 Synapse Network 当前最重要的五条业务链路，以及少量直接服务这些链路的架构取舍专题。

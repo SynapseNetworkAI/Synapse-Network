@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `docker-compose/`, `scripts/`, `tools/`, `docs/03_Projects/infra/`
+- Verified with: `npm run ci:contracts`, `npm run ci:gateway`, `npm run ci:provider-service`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位

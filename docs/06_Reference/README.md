@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/api/`, `gateway/src/services/`, `sdk/python/`, `provider_service/`, `docs/06_Reference/`
+- Verified with: `npm run ci:pr`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 本目录收敛 Synapse 面向实现者和集成者必须稳定理解的参考契约。

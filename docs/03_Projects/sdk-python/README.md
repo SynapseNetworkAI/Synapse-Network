@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `sdk/python/`, `docs/03_Projects/sdk-python/`, `docs/sdk/`
+- Verified with: `npm run ci:sdk-python`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位

@@ -70,7 +70,7 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 
 规则如下：
 
-1. `canonical` README 必须同时提供 `Code paths` 与 `Last verified against code`
+1. `canonical` README 必须同时提供 `Code paths`、`Verified with` 与 `Last verified against code`
 2. `supplementary` / `legacy` / `archive` README 必须同时提供 `Canonical counterpart` 或 `Superseded by`，以及 `Why retained`
 3. `incubation` README 必须同时提供 `Canonical target` 与 `Why retained`
 
@@ -79,14 +79,15 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 任何在文档头部声明 `- Status: canonical` 的文档，必须在同一段元信息内同时提供：
 
 1. `Code paths`
-2. `Last verified against code`
+2. `Verified with`
+3. `Last verified against code`
 
 推荐同时提供：
 
 1. `DB sources`
 2. `Supersedes`
 
-原因很简单：canonical 文档如果不能告诉 AI “对应哪里”和“最近按什么代码核过”，它就不够稳定。
+原因很简单：canonical 文档如果不能告诉 AI “对应哪里”、“用什么校验它” 和 “最近按什么代码核过”，它就不够稳定。
 
 ## 6. Index Sync Rule
 
@@ -124,8 +125,9 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 3. 活跃 Markdown 导航是否重新链接到退役入口
 4. `llms.txt` 是否重新暴露退役入口
 5. `docs/**/README.md` 入口页是否缺少生命周期元信息
-6. canonical 文档的最小元信息是否缺失
-7. `docs/00_Governance/Documentation_Inventory.md` 是否覆盖 root entrypoints 和显式 canonical 文档
-8. inventory freshness 是否超过 review cadence
+6. canonical README 的 `Verified with` 是否缺失或引用失效的 root `npm run` 脚本
+7. canonical 文档的最小元信息是否缺失
+8. `docs/00_Governance/Documentation_Inventory.md` 是否覆盖 root entrypoints 和显式 canonical 文档
+9. inventory freshness 是否超过 review cadence
 
 这不是最终形态的 doc freshness system，但已经足够把最容易复发的膨胀和漂移挡在门外。

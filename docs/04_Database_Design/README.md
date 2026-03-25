@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/storage/`, `admin/gateway-admin/src/storage/`
+- Verified with: `npm run ci:gateway`, `npm run ci:admin-gateway`, `npm run ci:provider-service`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: root `docs/Gateway_Database_Design.md` as standalone database truth source
 - Last verified against code: 2026-03-24
