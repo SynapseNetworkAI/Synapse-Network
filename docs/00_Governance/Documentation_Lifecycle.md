@@ -108,9 +108,11 @@ README 的最小要求如下：
 
 目前除了 canonical README 之外，以下高价值 deep truth 页面也应该补齐 `Verified with`，并由 docs gate 持续兜住：
 
-1. 核心工作流主链路文档
-2. Runtime API 合约总表
-3. SQL schema 总览页
+1. Runtime 总体架构文档
+2. 身份、鉴权与风控主文档
+3. 核心工作流主链路文档
+4. Runtime API 合约与错误码总表
+5. SQL schema 总览页
 
 所有 `canonical` 文档应逐步补齐以下元信息：
 

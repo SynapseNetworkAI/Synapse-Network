@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/`, `sdk/python/`, `provider_service/`
+- Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:provider-service`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: former `docs/agent/01_Agent_Runtime_Product_Architecture.md` for runtime topology, five-layer model, and control-vs-execution split
 - Last verified against code: 2026-03-24

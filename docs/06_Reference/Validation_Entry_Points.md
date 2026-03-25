@@ -88,7 +88,7 @@ Canonical gate:
 Synapse 不要求每一份 Markdown 都写满验证元信息，但以下文档必须把验证锚点写进文档头部：
 
 1. `docs/**/README.md` 中声明 `- Status: canonical` 的入口页
-2. 少量高价值深层 canonical 真相页：核心工作流主链路、Runtime API 合约总表、SQL schema 总览页
+2. 少量高价值深层 canonical 真相页：Runtime 总体架构、身份/鉴权/风控主文档、核心工作流主链路、Runtime API 合约与错误码总表、SQL schema 总览页
 3. 其他显式承担当前 stable truth 的 canonical 文档，推荐逐步补齐同样字段
 
 当前 canonical README 的推荐头部格式：

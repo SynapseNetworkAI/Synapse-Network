@@ -32,9 +32,12 @@ const packageJsonPath = path.join(rootDir, "package.json");
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 const availableNpmScripts = new Set(Object.keys(packageJson.scripts ?? {}));
 const requiredVerifiedWithCanonicalDocs = new Set([
+  "docs/02_System_Architecture/02_Gateway_Runtime_Architecture.md",
+  "docs/02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md",
   "docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md",
   "docs/04_Database_Design/01_SQL_Schema_Overview.md",
   "docs/06_Reference/05_Runtime_API_Contract.md",
+  "docs/06_Reference/06_Runtime_Error_Code_Catalog.md",
 ]);
 
 const allowedRootDocs = new Set([

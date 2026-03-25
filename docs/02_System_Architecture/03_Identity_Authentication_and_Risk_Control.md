@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Code paths: `gateway/src/`, `apps/frontend/src/`, `sdk/python/`, `admin/gateway-admin/src/`
+- Verified with: `npm run ci:gateway`, `npm run ci:frontend`, `npm run ci:sdk-python`, `npm run ci:admin-gateway`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: former `docs/agent/00_Platform_Role_Identity_Model.md` for role layering and identity boundaries; former `docs/agent/04_Credential_Budget_Risk_Model.md` for credential and runtime risk boundaries
 - Last verified against code: 2026-03-24
