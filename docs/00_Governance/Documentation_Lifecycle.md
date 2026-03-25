@@ -96,6 +96,14 @@
 
 ## 4. Required Metadata
 
+所有 `docs/**/README.md` 入口页都必须在文档头部显式声明生命周期状态。
+
+README 的最小要求如下：
+
+1. `canonical` README 必须提供 `Status`、`Code paths`、`Last verified against code`
+2. `supplementary` / `legacy` / `archive` README 必须提供 `Status`、`Canonical counterpart` 或 `Superseded by`、`Why retained`
+3. `incubation` README 必须提供 `Status`、`Canonical target`、`Why retained`
+
 所有 `canonical` 文档应逐步补齐以下元信息：
 
 1. `Status`
@@ -116,6 +124,8 @@
 1. `Status`
 2. `Superseded by`
 3. `Why retained`
+
+如果它本身是 README 入口页，则也可以使用 `Canonical counterpart` 代替 `Superseded by`，只要当前真相源指向明确且不制造并列定义。
 
 ## 5. Graduation Rules
 

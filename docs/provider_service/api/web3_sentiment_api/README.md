@@ -1,5 +1,9 @@
 # Web3 Sentiment API 专题
 
+- Status: supplementary
+- Canonical counterpart: `docs/03_Projects/provider-service/README.md`
+- Why retained: 保留 Web3 Sentiment Index 的实现深链、数据源设计与专题阅读顺序，不重复承担 provider-service 项目入口职责
+
 本目录收敛 `Web3 Sentiment Index` 的当前实现真相、未来数据来源要求，以及后续爬取与聚合设计。
 
 先说结论：

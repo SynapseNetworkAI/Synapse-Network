@@ -8,7 +8,8 @@
 
 1. root `docs/` 散落正文
 2. 退役入口复活
-3. canonical 文档缺少可机读元信息
+3. README 入口页重新变回无状态壳文件
+4. canonical 文档缺少可机读元信息
 4. 索引文件和真实入口逐步漂移
 
 ## 2. Root Docs Admission Rule
@@ -65,6 +66,16 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 
 ## 5. Canonical Metadata Minimum
 
+任何位于 `docs/**/README.md` 的入口页，都必须在文档头部显式声明生命周期状态。
+
+规则如下：
+
+1. `canonical` README 必须同时提供 `Code paths` 与 `Last verified against code`
+2. `supplementary` / `legacy` / `archive` README 必须同时提供 `Canonical counterpart` 或 `Superseded by`，以及 `Why retained`
+3. `incubation` README 必须同时提供 `Canonical target` 与 `Why retained`
+
+原因很简单：README 在 Synapse 文档体系里天然承担导航和首屏入口职责，如果没有状态，AI 和维护者都会把它当作未分层的默认真相源。
+
 任何在文档头部声明 `- Status: canonical` 的文档，必须在同一段元信息内同时提供：
 
 1. `Code paths`
@@ -112,8 +123,9 @@ root `docs/` 只允许保留全局入口、治理地图和稳定顶层说明。
 2. 退役路径是否被重新创建
 3. 活跃 Markdown 导航是否重新链接到退役入口
 4. `llms.txt` 是否重新暴露退役入口
-5. canonical 文档的最小元信息是否缺失
-6. `docs/00_Governance/Documentation_Inventory.md` 是否覆盖 root entrypoints 和显式 canonical 文档
-7. inventory freshness 是否超过 review cadence
+5. `docs/**/README.md` 入口页是否缺少生命周期元信息
+6. canonical 文档的最小元信息是否缺失
+7. `docs/00_Governance/Documentation_Inventory.md` 是否覆盖 root entrypoints 和显式 canonical 文档
+8. inventory freshness 是否超过 review cadence
 
 这不是最终形态的 doc freshness system，但已经足够把最容易复发的膨胀和漂移挡在门外。

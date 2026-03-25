@@ -1,3 +1,9 @@
+# Documentation Map
+
+- Status: canonical
+- Code paths: `docs/`, `llms.txt`, `tools/scripts/validate_docs.js`
+- Last verified against code: 2026-03-25
+
 ## 1. 先理解这套文档怎么组织
 
 阅读和维护遵守三条规则：
