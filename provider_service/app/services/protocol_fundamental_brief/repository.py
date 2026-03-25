@@ -71,7 +71,7 @@ class FileBackedProtocolBriefRepository(ProtocolBriefRepository):
         if not snapshot_path.exists():
             return None
         payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
-        return ProtocolBriefSnapshotRecord.model_validate(payload)
+        return _validate_snapshot_record(payload)
 
     def append_raw_feed_records(self, records: list[ProtocolBriefRawFeedRecord]) -> None:
         if not records:
@@ -201,7 +201,7 @@ class PostgresProtocolBriefRepository(ProtocolBriefRepository):
                 "peer_set": peer_set_payload,
             }
         )
-        response = ProtocolFundamentalBriefResponse.model_validate(response_payload)
+        response = _validate_response_payload(response_payload)
         return ProtocolBriefSnapshotRecord(
             brief_key=brief_key,
             request=request,
@@ -271,6 +271,22 @@ def _load_psycopg():
     import psycopg
 
     return psycopg
+
+
+def _validate_snapshot_record(payload: object) -> ProtocolBriefSnapshotRecord:
+    return ProtocolBriefSnapshotRecord.model_validate(
+        payload,
+        by_alias=True,
+        by_name=True,
+    )
+
+
+def _validate_response_payload(payload: object) -> ProtocolFundamentalBriefResponse:
+    return ProtocolFundamentalBriefResponse.model_validate(
+        payload,
+        by_alias=True,
+        by_name=True,
+    )
 
 
 @lru_cache
