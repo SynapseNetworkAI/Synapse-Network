@@ -11,7 +11,10 @@ from app.schemas.protocol_fundamental_brief import ProtocolFundamentalBriefReque
 from app.services.protocol_fundamental_brief.aggregator import (  # noqa: E402
     build_structured_brief_result,
 )
-from app.services.protocol_fundamental_brief.aliases import normalize_protocol_query  # noqa: E402
+from app.services.protocol_fundamental_brief.aliases import (  # noqa: E402
+    canonical_defillama_slug,
+    normalize_protocol_query,
+)
 from app.services.protocol_fundamental_brief.domain import (  # noqa: E402
     ChainTvlSlice,
     DefiLlamaProtocolObservation,
@@ -111,6 +114,12 @@ def test_normalize_protocol_query_handles_common_aliases():
     assert normalize_protocol_query("aave protocol") == "Aave"
     assert normalize_protocol_query("uni") == "Uniswap"
     assert normalize_protocol_query("Lido Finance") == "Lido"
+
+
+def test_canonical_defillama_slug_handles_common_aliases():
+    assert canonical_defillama_slug("Aave") == "aave"
+    assert canonical_defillama_slug("uni") == "uniswap"
+    assert canonical_defillama_slug("Maker") == "makerdao"
 
 
 def test_build_structured_brief_result_generates_peer_comparison_and_operator_view():

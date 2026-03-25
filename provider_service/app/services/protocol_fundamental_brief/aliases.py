@@ -23,6 +23,24 @@ _PROTOCOL_ALIASES = {
     "morpho": "Morpho",
 }
 
+_DEFILLAMA_PROTOCOL_SLUGS = {
+    "aave": "aave",
+    "aave protocol": "aave",
+    "uni": "uniswap",
+    "uniswap": "uniswap",
+    "uniswap protocol": "uniswap",
+    "lido": "lido",
+    "lido finance": "lido",
+    "makerdao": "makerdao",
+    "maker": "makerdao",
+    "sky": "makerdao",
+    "rocketpool": "rocket-pool",
+    "rocket pool": "rocket-pool",
+    "compound": "compound-v3",
+    "compound finance": "compound-v3",
+    "morpho": "morpho-blue",
+}
+
 
 def protocol_alias_key(value: str | None) -> str:
     normalized = _NORMALIZE_PATTERN.sub(" ", str(value or "").strip().lower())
@@ -35,3 +53,10 @@ def normalize_protocol_query(value: str | None) -> str:
         return ""
     alias_key = protocol_alias_key(raw_value)
     return _PROTOCOL_ALIASES.get(alias_key, raw_value)
+
+
+def canonical_defillama_slug(value: str | None) -> str | None:
+    alias_key = protocol_alias_key(value)
+    if not alias_key:
+        return None
+    return _DEFILLAMA_PROTOCOL_SLUGS.get(alias_key)

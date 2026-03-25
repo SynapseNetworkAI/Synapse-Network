@@ -16,6 +16,7 @@ from app.schemas.protocol_fundamental_brief import (
     DefiLlamaPayloadExcerpt,
     DexScreenerPayloadExcerpt,
 )
+from app.services.protocol_fundamental_brief.aliases import canonical_defillama_slug
 
 
 T = TypeVar("T")
@@ -168,6 +169,25 @@ def _normalize_key(value: Any) -> str:
     return _normalize_text(value).lower()
 
 
+def _candidate_tvl(item: dict[str, Any]) -> float:
+    return _parse_float(item.get("tvl")) or 0.0
+
+
+def _preferred_slug_family_matches(
+    protocols: list[dict[str, Any]],
+    preferred_slug: str,
+) -> list[dict[str, Any]]:
+    normalized_preferred_slug = _normalize_key(preferred_slug)
+    return [
+        item
+        for item in protocols
+        if (
+            _normalize_key(item.get("slug")) == normalized_preferred_slug
+            or _normalize_key(item.get("slug")).startswith(f"{normalized_preferred_slug}-")
+        )
+    ]
+
+
 def _create_async_client(*, base_url: str, timeout_s: float) -> httpx.AsyncClient:
     return httpx.AsyncClient(base_url=base_url, timeout=timeout_s)
 
@@ -218,6 +238,12 @@ async def _run_with_retry(
 
 def _find_protocol_candidate(protocols: list[dict[str, Any]], query: str) -> dict[str, Any]:
     normalized_query = _normalize_key(query)
+    preferred_slug = _normalize_key(canonical_defillama_slug(query))
+    if preferred_slug:
+        preferred_slug_matches = _preferred_slug_family_matches(protocols, preferred_slug)
+        if preferred_slug_matches:
+            return max(preferred_slug_matches, key=_candidate_tvl)
+
     exact_slug_matches = [
         item for item in protocols if _normalize_key(item.get("slug")) == normalized_query
     ]
@@ -236,6 +262,13 @@ def _find_protocol_candidate(protocols: list[dict[str, Any]], query: str) -> dic
     if len(exact_symbol_matches) == 1:
         return exact_symbol_matches[0]
     if len(exact_symbol_matches) > 1:
+        if preferred_slug:
+            preferred_symbol_matches = _preferred_slug_family_matches(
+                exact_symbol_matches,
+                preferred_slug,
+            )
+            if preferred_symbol_matches:
+                return max(preferred_symbol_matches, key=_candidate_tvl)
         raise ValueError(
             "DefiLlama protocol lookup is ambiguous; matched multiple protocols by symbol"
         )
