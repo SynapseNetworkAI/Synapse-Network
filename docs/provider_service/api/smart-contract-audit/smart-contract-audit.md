@@ -1,5 +1,14 @@
 # 智能合约漏洞深度审计模型 API 设计
 
+- Status: supplementary
+- Runtime endpoint: `POST /provider-services/smart-contract-audit/invoke`
+
+当前 `provider_service` 已经落地 V1 可调用实现：
+
+1. `source_bundle` 模式可直接使用
+2. `contract_address + chain` 模式当前按 `Sourcify -> Blockscout -> Etherscan` 顺序拉取 verified source
+3. 返回骨架已经与其他 Provider runtime 服务保持一致：`service`、`sources`、`freshness`、`result`、`errors`
+
 ## 1. 服务定位
 
 - `service_id`: `svc_smart_contract_audit`
@@ -171,7 +180,7 @@
 ## 6. Provider 侧实现逻辑
 
 1. 校验是 `contract_address + chain` 还是 `source_bundle`
-2. 如果是链上地址，先获取已验证源码
+2. 如果是链上地址，先通过 `Sourcify` 获取已验证源码，失败后回退 `Blockscout / Etherscan`
 3. 调用开源静态分析工具或规则引擎做扫描
 4. 归并扫描结果为 `critical_findings`
 5. 计算 `risk_score` 和 `risk_level`
@@ -182,8 +191,28 @@
 ## 7. 最小实现建议
 
 1. V1 不做超重型全链路审计编排
-2. 先做静态分析 + 已验证源码拉取
+2. 先做静态分析 + `Sourcify` 已验证源码拉取
 3. 这是 5 个里最重的服务，放最后落地是对的
+
+## 9. 当前 V1 调用示例
+
+如本地关闭 Gateway 验签：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/smart-contract-audit/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_bundle": "pragma solidity ^0.8.20; contract RiskyVault { function exec(address target, bytes calldata data) external { (bool ok, ) = target.delegatecall(data); require(ok); } }",
+    "analysis_depth": "standard",
+    "include_evidence": true
+  }'
+```
+
+如保持 Gateway 验签开启，则需额外带上：
+
+1. `X-Synapse-Service-Id: svc_smart_contract_audit`
+2. `X-Synapse-Signed-At`
+3. `X-Synapse-Signature`
 
 ## 8. 数据落地建议
 
