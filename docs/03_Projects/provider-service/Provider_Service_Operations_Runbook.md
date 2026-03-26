@@ -80,6 +80,13 @@ SENTIMENT_SCHEDULER_STALE_TTL_S=300
 SENTIMENT_SCHEDULER_HARD_EXPIRE_S=900
 GATEWAY_PROVIDER_SIGNATURE_ENABLED=true
 GATEWAY_PROVIDER_SIGNATURE_SECRET=replace-this-with-a-provider-signature-secret
+SOURCIFY_BASE_URL=https://sourcify.dev
+SOURCIFY_TIMEOUT_S=6
+BLOCKSCOUT_BASE_URLS_JSON='{"ethereum":"https://eth.blockscout.com/api","arbitrum":"https://arbitrum.blockscout.com/api","optimism":"https://optimism.blockscout.com/api","base":"https://base.blockscout.com/api"}'
+BLOCKSCOUT_TIMEOUT_S=6
+ETHERSCAN_BASE_URL=https://api.etherscan.io/v2/api
+ETHERSCAN_TIMEOUT_S=6
+ETHERSCAN_API_KEY=
 ```
 
 说明：
@@ -97,6 +104,10 @@ GATEWAY_PROVIDER_SIGNATURE_SECRET=replace-this-with-a-provider-signature-secret
 10. `SENTIMENT_PROXY_POOL_URLS_JSON` 必须是 JSON 数组；如果写在 `.env.*` 文件里，要用单引号包住整串，例如 `'["http://proxy-a.internal:8080","http://proxy-b.internal:8080"]'`。
 11. `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 是代理模式下的最小 timeout floor；单代理环境建议至少 `8` 秒。
 12. 代理模式下 scheduler 刷新并发会自动被限制到代理池大小，避免单代理环境被多快照并发压爆。
+13. `Smart Contract Audit Model` 的地址模式当前按 `Sourcify -> Blockscout -> Etherscan` 顺序回退。
+14. `SOURCIFY_BASE_URL` 默认官方服务地址，`SOURCIFY_TIMEOUT_S` 控制单次 Sourcify verified-source 抓取超时。
+15. `BLOCKSCOUT_BASE_URLS_JSON` 是链到 explorer API base URL 的 JSON 映射；写在 `.env.*` 时要用单引号包住整串 JSON。
+16. `ETHERSCAN_API_KEY` 为空时，Etherscan fallback 会自动跳过，不会阻塞主链。
 
 ## 4. 启动服务
 

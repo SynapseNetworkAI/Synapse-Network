@@ -22,6 +22,18 @@ class Settings(BaseSettings):
     protocol_brief_source_max_attempts: int = 2
     protocol_brief_source_backoff_ms: int = 250
     provider_service_postgres_dsn: str | None = None
+    sourcify_base_url: str = "https://sourcify.dev"
+    sourcify_timeout_s: float = 6.0
+    blockscout_base_urls_json: str = (
+        '{"ethereum":"https://eth.blockscout.com/api",'
+        '"arbitrum":"https://arbitrum.blockscout.com/api",'
+        '"optimism":"https://optimism.blockscout.com/api",'
+        '"base":"https://base.blockscout.com/api"}'
+    )
+    blockscout_timeout_s: float = 6.0
+    etherscan_base_url: str = "https://api.etherscan.io/v2/api"
+    etherscan_timeout_s: float = 6.0
+    etherscan_api_key: str | None = None
     protocol_brief_postgres_snapshot_table: str = "provider_protocol_briefs"
     protocol_brief_postgres_raw_feed_table: str = "provider_protocol_brief_raw_feeds"
     protocol_brief_cache_ttl_s: int = 300

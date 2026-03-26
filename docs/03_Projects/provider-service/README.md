@@ -32,8 +32,9 @@
 1. `GET /health`
 2. `POST /provider-services/web3-sentiment-index/invoke`
 3. `POST /provider-services/protocol-fundamental-brief/invoke`
-4. `POST /api/v1/quotes/famous`
-5. `POST /api/v1/quotes/famous/top3`
+4. `POST /provider-services/smart-contract-audit/invoke`
+5. `POST /api/v1/quotes/famous`
+6. `POST /api/v1/quotes/famous/top3`
 
 其中：
 
