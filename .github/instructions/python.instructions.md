@@ -69,7 +69,10 @@ Recommended split for backend services:
 - Gateway and finance-sensitive code paths must favor consistency and auditability over convenience.
 - Provider runtimes should not absorb gateway settlement or admin-control-plane responsibilities.
 
-## ⚠️ Gotchas — Known Python / FastAPI Failure Patterns
+## ⚠️ Gotchas
+
+- **[`2026-03-26-synapse-002`]** 持久化 Pydantic 模型时，若将来可能改 alias 或字段名， 要么在序列化时固定字段名（禁用 alias），要么在反序列化层加兼容性适配。 不要假设历史数据与当前 schema 格式永远一致。
+  <!-- auto-synced from agents-memory --> — Known Python / FastAPI Failure Patterns
 
 **Layering leaks**
 - Raw SQL or `session.execute()` calls inside a router function — these belong exclusively in repository/storage modules.
