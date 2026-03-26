@@ -66,3 +66,19 @@ Do not place pagination controls above the list body unless the workflow explici
 - Admin UI should feel operational, calm, and high-signal.
 - Favor clear hierarchy and dense usefulness over decorative dashboard noise.
 - Keep stitch alignment for auth, control-plane, and operations surfaces where those prototypes exist.
+
+## ⚠️ Gotchas — Known Admin Console Failure Patterns
+
+**Pagination total invention**
+- Computing `totalPages = Math.ceil(items.length / pageSize)` from the current page slice — this is always wrong. Total must come from the backend `total` field in the response envelope.
+- Showing "page X of Y" when Y is inferred from the current slice — causes flickering and overcounting when the user is not on the first page.
+
+**Status chip overload**
+- Adding a new status variant directly as a hardcoded color string in the component table, detached from the backend enum. Define variant mappings from the canonical backend status list.
+- Using status chips for non-state labels (e.g., feature flags, type categories) — chips are for lifecycle states only.
+
+**Filter reset bug**
+- A reset handler that clears form values but does not reset the page to 1, leaving the user on an empty page with stale pagination state.
+
+**Backend-owned wording drift**
+- Renaming a backend status or approval type in the UI display label without verifying the backend contract — the display map must stay synchronized with the backend enum definition.

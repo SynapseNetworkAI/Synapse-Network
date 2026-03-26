@@ -65,3 +65,24 @@ name: "Synapse Frontend Rules"
 - Any meaningful presenter, utility, API adapter, or component change should update tests.
 - Test observable behavior instead of implementation details.
 - Use the dev server for iteration. Only run full build or CI-style checks when the subproject AGENTS or task context calls for it.
+
+## ⚠️ Gotchas — Known Frontend Failure Patterns
+
+**Backend truth invented in the frontend**
+- Deriving approval status, withdrawal review state, or pagination totals from frontend-local logic when these must come from the backend.
+- String-matching on display labels to infer state — always use the raw backend status field.
+
+**TypeScript safety bypasses**
+- Using `as any` or casting API responses to silence TypeScript. Define a typed adapter that validates the shape at the boundary.
+- Optional-chaining through deeply nested API responses without a null-check guard on the first use of the result.
+
+**React hooks traps**
+- `useEffect` with an empty dependency array that reads a ref or prop that can change — causes stale-closure bugs that are hard to reproduce.
+- Missing `key` prop in list renders, or using array index as `key` for reorderable lists — causes DOM reconciliation identity bugs.
+
+**Wallet / Web3 UX errors**
+- Showing a loading state indefinitely when a wallet extension is not installed — add a detection guard and a fallback message.
+- Blocking all UI interaction during an on-chain op without giving the user a cancel or dismiss path.
+
+**i18n drift**
+- Adding new user-facing copy directly as a string literal instead of through the i18n resource file — breaks localization silently.

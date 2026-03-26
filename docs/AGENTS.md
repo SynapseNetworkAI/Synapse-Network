@@ -47,6 +47,7 @@ AI-readable repository entrypoints now also include:
 - `.github/instructions/finance-admin.instructions.md`
 - `.github/instructions/admin-console.instructions.md`
 - `.github/instructions/docs-sync.instructions.md`
+- `.github/instructions/safety-guard.instructions.md`
 - Purpose: language and framework rules that should auto-attach by file type.
 - These files should carry coding style, layering, framework conventions, version baselines, and test expectations.
 
@@ -58,8 +59,7 @@ Recommended split:
 - `finance-admin.instructions.md`: `gateway-admin` finance review, approval, withdraw-review, refund, and reconciliation control-plane rules
 - `admin-console.instructions.md`: admin-front list, pagination, state, and ops UI rules
 - `docs-sync.instructions.md`: behavior-change sync rules for code, tests, docs, and instructions
-
-### 4.3 Subproject Local Layer
+- `safety-guard.instructions.md`: pre-flight safety checklist and blocked-patterns gate for production deployments, migrations, destructive DB ops, and irreversible operations\n\n### 4.3 Subproject Local Layer
 
 - `apps/frontend/AGENTS.md`
 - `admin/admin-front/AGENTS.md`
