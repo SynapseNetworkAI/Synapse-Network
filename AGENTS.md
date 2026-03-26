@@ -26,7 +26,8 @@ Canonical workspace rules live in `docs/AGENTS.md`.
 8. `.github/instructions/finance-admin.instructions.md` for `admin/gateway-admin` finance approval, withdraw-review, refund, and reconciliation control-plane work
 9. `.github/instructions/admin-console.instructions.md` for `admin/admin-front` list, pagination, and control-plane UI work
 10. `.github/instructions/docs-sync.instructions.md` for behavior-changing work that must update docs, tests, and instructions together
-11. The target subproject's `AGENTS.md` for local commands and role boundaries
+11. `.github/instructions/safety-guard.instructions.md` for production deployments, migrations, destructive DB ops, contract deploys, or any irreversible operation
+12. The target subproject's `AGENTS.md` for local commands and role boundaries
 
 ## Root-Level Expectations
 
