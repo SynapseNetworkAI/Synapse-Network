@@ -19,6 +19,7 @@
 11. 表：`provider_oss_security_reports`
 12. 表：`provider_twitter_video_assets`
 13. 表：`provider_youtube_video_assets`
+14. 表：`provider_tiktok_video_assets`
 
 对应执行入口：
 
@@ -39,6 +40,8 @@
 15. `docker-compose/postgres/init/gateway-providers/008_apply_provider_twitter_video_schema.sh`
 16. `docker-compose/postgres/init/gateway-providers/009_provider_youtube_video_schema.sql`
 17. `docker-compose/postgres/init/gateway-providers/009_apply_provider_youtube_video_schema.sh`
+18. `docker-compose/postgres/init/gateway-providers/010_provider_tiktok_video_schema.sql`
+19. `docker-compose/postgres/init/gateway-providers/010_apply_provider_tiktok_video_schema.sh`
 
 `002_*` 的职责不是重复建表，而是把已经存在的 `provider_sentiment_snapshots` / `provider_sentiment_raw_feeds` 平滑升级到 production-v1 schema，补齐以下观测字段：
 
@@ -67,3 +70,6 @@
 
 
 `009_*` 用于新增 `provider_youtube_video_assets`，支撑 youtube 视频下载服务的 MinIO 对象映射与元数据持久化。
+
+
+`010_*` 用于新增 `provider_tiktok_video_assets`，支撑 tiktok 视频下载服务的 MinIO 对象映射与元数据持久化。
