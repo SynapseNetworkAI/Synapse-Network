@@ -1,5 +1,1 @@
-import { redirect } from "next/navigation";
-
-export default function AgentWorkspaceRedirect() {
-  redirect("/dashboard/overview");
-}
+export { default } from "@/components/dashboard-workspace/DashboardAgentsHubPage";

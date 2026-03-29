@@ -36,6 +36,12 @@ Deposit 完成后，Agent Runtime 才能在后续 Quote / Invoke 中消耗这笔
 | `synapse_idempotency_keys` | 保存 API 级幂等键 |
 | `synapse_audit_events` | 保存入金登记、确认、失败、回放等审计事件 |
 
+补充约束：
+
+1. 每张核心表都带数据库内部用的自增 `id` 作为 surrogate key，便于运维排障、分页和后续分区。
+2. 对外业务语义仍然以 `deposit_id / owner_id / tx_hash` 这些业务键为准，不能把数据库自增 `id` 暴露成业务合同字段。
+3. `synapse_vault_deposits` 除主资金字段外，还要持久化 `owner_address / target_account_id / client_request_id / client_ip / user_agent`，否则审计和重复请求排查会断链。
+
 ## 4. 状态机
 
 `synapse_vault_deposits.status` 只允许三种状态：
@@ -101,6 +107,14 @@ Gateway 收到 `txHash + amount + owner scope + idempotency key` 后，必须先
 3. 更新 `synapse_account_balances.pending_balance += amount_usdc`
 4. 写入一条或多条 `synapse_audit_events`
 
+这里的落库最少要包含：
+
+1. `deposit_id` 作为业务主键
+2. `owner_id + owner_address` 同时保留，保证租户绑定和审计可读性
+3. `target_account_id` 指向 Owner 的 `consumer_wallet`
+4. `tx_hash UNIQUE` 作为链上事实防重放主锚点
+5. `client_request_id / client_ip / user_agent` 作为请求侧证据链
+
 ### 5.3 Step C: Indexer 确认链上事实
 
 Deposit Indexer 异步校验：
@@ -121,6 +135,14 @@ Deposit Indexer 异步校验：
 3. `available_balance += amount_usdc`
 4. 写入对应的 `synapse_ledger_entries`
 5. 写入 `synapse_audit_events`
+
+确认审计事件至少要带上：
+
+1. `owner_id = owner:<wallet>` 作为统一租户主键，禁止只写裸钱包地址
+2. `ownerAddress` 继续放在 `detail_json`，保证人类可读
+3. `depositIntentId / txHash / requestId / eventKey`
+4. `amount_delta / before_balance / after_balance`
+5. `result_status = CONFIRMED` 与确认次数等证据字段
 
 这一步完成后，这笔钱才真正成为 Owner 可供 Agent Runtime 消费的资金。
 
@@ -174,6 +196,7 @@ Deposit 链路必须同时做 API 级幂等和链上事实级防重放。
 
 1. 如果首个请求已成功登记，后续相同请求直接返回原记录
 2. 不重复增加 `pending_balance`
+3. 同一 `tx_hash` 在 replay window 内再次命中时，服务端必须返回已存在的 deposit intent，而不是抛 409
 
 ## 8. 数据一致性原则
 
@@ -206,3 +229,19 @@ Deposit 的职责只是把 Owner 的钱送进平台资金层。
 Deposit 是一条 **Owner funding workflow**，不是一条 Agent execution workflow。
 
 只有把入金确认、幂等、pending/available 分层和 ledger 审计全部做实，后面的 Quote / Invoke 才不会建立在假余额之上。
+
+## 11. Entry Path Trade-Off
+
+当前文档默认按 `permit + depositWithPermit + txHash intent registration` 描述主流程。
+
+如果需要评估是否把 Owner 充值入口切换成更接近普通钱包转账的模式，请继续阅读：
+
+`06_Deposit_Entry_Architecture_Comparison.md`
+
+那篇专题会集中比较：
+
+1. 合约层语义差异
+2. 前端钱包交互差异
+3. 索引器确认事实差异
+4. 审计证据链差异
+5. 为什么“直接转账”必须区分受控直转和非受控直转

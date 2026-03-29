@@ -35,9 +35,7 @@ Synapse-Network/
 │       ├── test/
 │       ├── hardhat.config.js
 │       └── package.json
-├── infra/
-│   ├── docker/                # 原 docker-compose 及 postgres init
-│   └── env/                   # env 模板与说明（不放密钥）
+├── docker-compose/            # canonical compose entry + postgres bootstrap SQL
 ├── docs/                      # 原 doc/
 ├── tools/                     # 运维/开发脚本（原 scripts/）
 
@@ -87,15 +85,86 @@ yarn install
 yarn dev
 ```
 
+### 4.1) Frontend CI gate
+
+From repo root:
+
+```bash
+npm run ci:frontend
+```
+
+This runs the frontend quality checks currently enforced in the repository CI chain:
+
+- `yarn lint`
+- `yarn test`
+- `yarn build`
+
+### 4.2) Pull request CI gate
+
+From repo root:
+
+```bash
+npm run ci:pr
+```
+
+This aggregates the repository PR checks currently wired in:
+
+- `apps/frontend`: lint / test / build
+- `admin/admin-front`: lint / build
+- `gateway`: create `gateway/.venv`, install dependencies, run pytest
+- `admin/gateway-admin`: create `admin/gateway-admin/.venv`, install dependencies, run pytest
+- `provider_service`: create `provider_service/.venv`, install dependencies, run pytest
+- `sdk/python`: create `sdk/python/.venv`, install editable package dependencies, run pytest unit coverage + `python -m build`; live gateway demo test is opt-in
+- root contracts: hardhat compile, plus hardhat test when root contract tests exist
+
+Current Python packaging target in this repository:
+
+- `sdk/python`: distributable Python SDK package (`pyproject.toml` present)
+
+Current Python service projects that do not run `python -m build` in CI:
+
+- `gateway`
+- `admin/gateway-admin`
+- `provider_service`
+
+These three are runtime service processes, not Python distribution packages today.
+
 ### 5) Python backend only
 
 ```bash
 cd gateway
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 provider_fastapi.py
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+.venv/bin/python provider_fastapi.py
 ```
+
+### 6) Gateway env templates
+
+Gateway env templates live under `gateway/`:
+
+- `.env.local.example`: local bootstrap template
+- `.env.prod.example`: production bootstrap template
+- `.env.example`: full variable catalog
+
+If you want Provider withdrawals to work, these are hard requirements:
+
+- `PRIVATE_KEY`: gateway-side withdraw signer private key used to issue EIP-712 withdrawal tickets
+- `RPC_URL`: chain RPC used by withdraw signing, deposit sync, and reconciliation
+- `ROUTER_ADDRESS`: deployed SynapseCore contract address
+
+Recommended local flow:
+
+1. Copy `gateway/.env.local.example` to `gateway/.env.local`.
+2. Fill `PRIVATE_KEY`, `RPC_URL`, `ROUTER_ADDRESS`, `POSTGRES_DSN`, `JWT_SECRET`.
+3. Restart the gateway with `sh scripts/local/restart_gateway.sh`.
+
+Where does `PRIVATE_KEY` come from?
+
+- Local dev: use a private key from your local chain test accounts. Anvil / Hardhat usually prints funded dev accounts and their private keys at startup.
+- Production: use a dedicated withdraw signer account managed by your infra stack, ideally injected via Secret Manager, KMS, or HSM-backed workflows.
+
+Do not use a personal browser-wallet mnemonic or commit a real production private key into the repository.
 
 ## Documentation Map
 
@@ -170,6 +239,6 @@ Synapse-Network/
 
 ## Notes
 
-- Runtime JSON files are centralized under `gateway/runtime_storage/` and ignored from Git.
+- Gateway runtime state is stored in PostgreSQL; `runtime_storage/` is no longer part of the active persistence path.
 - For architecture and protocol details, start from [docs/README.md](docs/README.md).
 

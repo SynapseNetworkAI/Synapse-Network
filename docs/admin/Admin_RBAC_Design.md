@@ -423,7 +423,29 @@
 - 发起人审批自己的单
 - 规则制定人批准自己的例外放行
 
-## 10. 最终建议
+## 10. 菜单树权限设计
+
+后台导航现在不是平面菜单，而是三类节点组成的树：
+
+- `category`：只负责信息架构分组，本身不代表页面路由。
+- `page`：真正可导航的页面节点，必须有 `href`。
+- `panel`：页面内二级信息面板，用来承接不单独落路由的子视图元数据；像 `dashboard/overview`、`dashboard/runtime`、`dashboard/health` 这种已经升级成可点击页面的节点，应改用 `page`。
+
+权限规则必须按下面的顺序执行：
+
+1. 先判断 `page` 节点本身的 `requiredRoles / requiredPermissions`。
+2. `panel` 节点不单独放大权限面，它只能依附于已可见的父 `page` 返回。
+3. `category` 节点只有在自己可见且至少有一个可见子节点时才返回，避免壳子渲染空分组。
+
+推荐约束：
+
+- `control-overview` 分类默认公开给所有后台角色，但它下面的 `dashboard / execution / system` 页面分别按 `dashboard:read`、`execution:read` 控制。
+- `dashboard` 节点本身只作为可展开导航菜单返回，不直接承载页面跳转；它下面的 `overview / runtime / health` 子页面继续沿用 `dashboard:read`，不额外扩张权限面，只做信息架构拆分。
+- `identity-access` 下的 `users / role-permissions / menu-config` 只给 `super_admin` 与 `platform_ops_admin`，避免财务和风控角色看到控制面治理入口。
+- `business-control` 作为审批与资金域根节点，是否出现由 `approvals / finance / risk / withdrawal-reviews` 这些子页面实际权限决定。
+- `panel` 只承担 IA 和搜索，不承载额外 SoD 决策；真正的命令权限仍然落在页面接口和按钮级权限上。
+
+## 11. 最终建议
 
 1. 第一版后台角色建议固定为九类，不要一开始就做无限自定义角色。
 2. 所有高危资金动作必须拆成“发起”和“审批/执行”两段权限。

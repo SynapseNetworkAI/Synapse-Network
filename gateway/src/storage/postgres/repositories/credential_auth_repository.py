@@ -179,6 +179,59 @@ class CredentialAuthRepository:
             ),
         )
 
+    @staticmethod
+    def _scalar_not_in_clause(value_count: int) -> str:
+        return ", ".join(["%s"] * max(1, value_count))
+
+    def _delete_obsolete_runtime_credential_state(
+        self, cur: Any, credential_type: str, credential_ids: list[str]
+    ) -> None:
+        if not credential_ids:
+            cur.execute(
+                "DELETE FROM synapse_runtime_state WHERE state_key LIKE %s",
+                (f"credential_meta::{credential_type}::%",),
+            )
+            return
+
+        state_keys = [
+            self._credential_state_key(credential_type, credential_id)
+            for credential_id in credential_ids
+        ]
+        placeholders = self._scalar_not_in_clause(len(state_keys))
+        cur.execute(
+            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE %s AND state_key NOT IN ({placeholders})",
+            (f"credential_meta::{credential_type}::%", *state_keys),
+        )
+
+    def _delete_obsolete_runtime_budget_policies(
+        self, cur: Any, credential_type: str, credential_ids: list[str]
+    ) -> None:
+        if not credential_ids:
+            cur.execute(
+                """
+                DELETE FROM synapse_budget_policies AS bp
+                USING synapse_agent_credentials AS ac, synapse_agent_profiles AS ap
+                WHERE bp.credential_id = ac.credential_id
+                  AND ac.agent_id = ap.agent_id
+                  AND ap.runtime_label = %s
+                """,
+                (credential_type,),
+            )
+            return
+
+        placeholders = self._scalar_not_in_clause(len(credential_ids))
+        cur.execute(
+            f"""
+            DELETE FROM synapse_budget_policies AS bp
+            USING synapse_agent_credentials AS ac, synapse_agent_profiles AS ap
+            WHERE bp.credential_id = ac.credential_id
+              AND ac.agent_id = ap.agent_id
+              AND ap.runtime_label = %s
+              AND ac.credential_id NOT IN ({placeholders})
+            """,
+            (credential_type, *credential_ids),
+        )
+
     def _delete_runtime_credentials(self, cur: Any, credential_type: str) -> None:
         cur.execute(
             "DELETE FROM synapse_runtime_state WHERE state_key LIKE %s",
@@ -271,6 +324,16 @@ class CredentialAuthRepository:
                 credential_id, agent_id, secret_hash, secret_prefix, status,
                 issued_at, expires_at, revoked_at, last_used_at
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (credential_id)
+            DO UPDATE SET
+                agent_id = EXCLUDED.agent_id,
+                secret_hash = EXCLUDED.secret_hash,
+                secret_prefix = EXCLUDED.secret_prefix,
+                status = EXCLUDED.status,
+                issued_at = EXCLUDED.issued_at,
+                expires_at = EXCLUDED.expires_at,
+                revoked_at = EXCLUDED.revoked_at,
+                last_used_at = EXCLUDED.last_used_at
             """,
             (
                 credential_id,
@@ -292,6 +355,18 @@ class CredentialAuthRepository:
                 allowed_service_tags, allowed_service_ids, blocked_service_ids,
                 created_at, updated_at
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s)
+            ON CONFLICT (policy_id)
+            DO UPDATE SET
+                credential_id = EXCLUDED.credential_id,
+                lifetime_cap_usdc = EXCLUDED.lifetime_cap_usdc,
+                daily_cap_usdc = EXCLUDED.daily_cap_usdc,
+                per_invocation_cap_usdc = EXCLUDED.per_invocation_cap_usdc,
+                rpm_limit = EXCLUDED.rpm_limit,
+                qps_limit = EXCLUDED.qps_limit,
+                allowed_service_tags = EXCLUDED.allowed_service_tags,
+                allowed_service_ids = EXCLUDED.allowed_service_ids,
+                blocked_service_ids = EXCLUDED.blocked_service_ids,
+                updated_at = EXCLUDED.updated_at
             """,
             (
                 str(policy.policy_id or self._policy_id(credential_id)),
@@ -504,8 +579,18 @@ class CredentialAuthRepository:
             )
             for row in rows
         ]
+        credential_ids = [
+            str(row.credential.credential_id or "").strip()
+            for row in normalized_rows
+            if str(row.credential.credential_id or "").strip()
+        ]
         with self._db.tx_cursor() as cur:
-            self._delete_runtime_credentials(cur, normalized_type)
+            self._delete_obsolete_runtime_credential_state(
+                cur, normalized_type, credential_ids
+            )
+            self._delete_obsolete_runtime_budget_policies(
+                cur, normalized_type, credential_ids
+            )
             for row in normalized_rows:
                 self._insert_credential_row(cur, row)
 

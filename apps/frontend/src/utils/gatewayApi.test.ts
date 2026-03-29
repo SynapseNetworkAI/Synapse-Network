@@ -1,0 +1,47 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+
+function setWindowLocation(location: { hostname: string; origin: string }) {
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      location,
+    },
+  });
+}
+
+describe("getGatewayBaseUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    Reflect.deleteProperty(globalThis, "window");
+  });
+
+  it("uses NEXT_PUBLIC_GATEWAY_BASE_URL when configured", () => {
+    vi.stubEnv("NEXT_PUBLIC_GATEWAY_BASE_URL", "https://gateway.synapse.local///");
+
+    expect(getGatewayBaseUrl()).toBe("https://gateway.synapse.local");
+  });
+
+  it("falls back to localhost port 8000 during local browser development", () => {
+    setWindowLocation({
+      hostname: "localhost",
+      origin: "http://localhost:3000",
+    });
+
+    expect(getGatewayBaseUrl()).toBe("http://localhost:8000");
+  });
+
+  it("falls back to same-origin for non-local browser hosts", () => {
+    setWindowLocation({
+      hostname: "console.synapse.network",
+      origin: "https://console.synapse.network",
+    });
+
+    expect(getGatewayBaseUrl()).toBe("https://console.synapse.network");
+  });
+
+  it("uses 127.0.0.1 fallback outside the browser", () => {
+    expect(getGatewayBaseUrl()).toBe("http://127.0.0.1:8000");
+  });
+});

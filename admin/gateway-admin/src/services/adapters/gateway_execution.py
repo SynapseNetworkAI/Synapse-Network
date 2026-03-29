@@ -1,24 +1,23 @@
 import hashlib
 import json
-import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 import httpx
-import jwt
 
 from src.domain import AdminExecutionJob
+from src.services.adapters.internal_gateway_auth import build_internal_service_token, payload_digest
 from src.services.auth.service import AdminIdentity
 
 
 def _resolve_command(job: AdminExecutionJob) -> dict[str, str]:
     resource_id = str(job.request_payload.get("resourceId") or "").strip()
     if job.execution_type == "deposit_repair":
-        return {"name": "deposit_replay", "path": "/api/v1/admin/deposits/replay"}
+        return {"name": "deposit_replay", "path": "/api/v1/admin/deposits/replay", "scope": "deposit.replay"}
     if job.execution_type == "refund_approve":
-        return {"name": "refund_complete", "path": f"/api/v1/admin/refunds/{resource_id}/complete"}
+        return {"name": "refund_complete", "path": f"/api/v1/admin/refunds/{resource_id}/complete", "scope": "refund.complete"}
     if job.execution_type == "withdrawal_approve":
-        return {"name": "withdrawal_complete", "path": f"/api/v1/admin/providers/withdrawals/{resource_id}/complete"}
+        return {"name": "withdrawal_complete", "path": f"/api/v1/admin/providers/withdrawals/{resource_id}/complete", "scope": "provider_withdraw.complete"}
     raise GatewayExecutionError(
         code="UNSUPPORTED_EXECUTION_TYPE",
         message=f"Execution type {job.execution_type} is not wired to a gateway command.",
@@ -116,15 +115,20 @@ class HttpGatewayExecutionAdapter:
         base_url: str,
         admin_wallet: str,
         jwt_secret: str,
+        token_issuer: str,
+        token_audience: str,
+        service_subject: str,
         timeout_sec: float,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._admin_wallet = admin_wallet.strip().lower()
         self._jwt_secret = jwt_secret
+        self._token_issuer = token_issuer
+        self._token_audience = token_audience
+        self._service_subject = service_subject
         self._timeout_sec = timeout_sec
 
     def execute_job(self, job: AdminExecutionJob, operator: AdminIdentity) -> dict[str, Any]:
-        _ = operator
         command = _resolve_command(job)
         if not self._admin_wallet:
             raise GatewayExecutionError(
@@ -134,10 +138,10 @@ class HttpGatewayExecutionAdapter:
             )
 
         request_payload = _build_request_payload(job, command, self._admin_wallet)
+        request_id = f"exec:{job.approval_id}:{job.job_id}:{job.retry_count}"
         headers = {
-            "Authorization": f"Bearer {self._build_gateway_token()}",
-            "X-User-Address": self._admin_wallet,
-            "X-Request-Id": f"exec:{job.approval_id}:{job.job_id}:{job.retry_count}",
+            "Authorization": f"Bearer {self._build_gateway_token(operator, command['scope'], request_payload, request_id)}",
+            "X-Request-Id": request_id,
         }
         try:
             response = httpx.post(
@@ -177,17 +181,23 @@ class HttpGatewayExecutionAdapter:
     def build_response_digest(payload: dict[str, Any]) -> str:
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
-    def _build_gateway_token(self) -> str:
-        now = int(time.time())
-        return jwt.encode(
-            {
-                "sub": self._admin_wallet,
-                "role": "admin",
-                "iat": now,
-                "exp": now + 300,
-            },
-            self._jwt_secret,
-            algorithm="HS256",
+    def _build_gateway_token(
+        self,
+        operator: AdminIdentity,
+        scope: str,
+        payload: dict[str, Any],
+        request_id: str,
+    ) -> str:
+        return build_internal_service_token(
+            jwt_secret=self._jwt_secret,
+            issuer=self._token_issuer,
+            audience=self._token_audience,
+            service_subject=self._service_subject,
+            admin_wallet=self._admin_wallet,
+            scope=scope,
+            request_id=request_id,
+            body_sha256=payload_digest(payload),
+            actor=operator,
         )
 
     @staticmethod

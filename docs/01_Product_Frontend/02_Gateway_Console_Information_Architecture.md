@@ -1,8 +1,19 @@
 # Gateway Console Information Architecture
 
+> Status: archived IA snapshot.
+>
+> This file records an earlier dashboard IA and is no longer the canonical route or naming source for the current Provider workspace.
+> Current canonical frontend design documents are:
+>
+> 1. `docs/feature_designs/frontend_product/Provider_Console_IA_V3.md`
+> 2. `docs/feature_designs/frontend_product/Wallet_Auth_Challenge_Session_Design.md`
+> 3. `docs/feature_designs/frontend_product/Homepage_V2_Functional_Design.md`
+
 ## 1. 目标
 
 Gateway Console 是 Owner 的控制台，不是 Agent 的执行界面，也不是后台管理员大盘。
+
+但当前实现已经把 Provider Workspace 的 canonical 入口收敛到 `/provider/**`，不再建议把本文件里的旧 `dashboard` 词汇和旧 IA 文案当成当前路由真相。
 
 它的核心作用只有四个：
 
@@ -32,15 +43,28 @@ flowchart TD
 2. `Agents`
 3. `Discovery`
 4. `Invocations`
-5. `Billing`
+5. `Treasury`
 6. `Risk & Audit`
-7. `Developer`
+7. `Developer Resources`
+
+历史兼容路径说明：
+
+1. `/dashboard/router` 是旧 owner finance alias，当前应收口到 `/dashboard/billing`（Treasury）。
+2. `/dashboard/logs` 是旧审计 alias，当前应收口到 `/dashboard/audit`。
+3. `/dashboard/settlement` 只保留为过渡期 reconciliation preview，不再作为主导航入口。
+4. `/dashboard/console` 是旧 owner mixed console alias，当前应跳转到 `/dashboard/developer`；资金与凭据操作分别归属 `/dashboard/billing` 与 `/dashboard/credentials`。
 
 ### 3.2 Provider Role
 
-1. `Service Manifests`
-2. `Earnings Summary`
-3. `Withdrawals`
+当前 canonical Provider Space 应理解为：
+
+1. `My Services` / `/provider/sell`
+2. `API Services` / `/provider/services`
+3. `Access Keys` / `/provider/secrets`
+4. `Settlements` / `/provider/settlements`
+5. `Revenue Analytics` / `/provider/usage`
+
+Provider 不再单独暴露 `/provider/billing`。Owner 资金账本保留在 `/dashboard/billing`，Provider 财务面拆分为 `/provider/settlements` 与 `/provider/usage`。
 
 这组拆分的意义是：
 
@@ -74,7 +98,7 @@ Overview 只负责三件事：
 1. `Add Funds`
 2. `Create Agent Credential`
 3. `Run First Paid Invocation`
-4. `Publish Service Manifest`
+4. `Create API Service`
 
 ## 5. Agent Workspace
 
@@ -132,7 +156,7 @@ Developer 区域必须直接推动集成，而不是写成长教程仓库。
 
 Provider Workspace 的目标是一站式解决“挂服务、看收益、提收益”。
 
-### 6.1 Service Manifests
+### 6.1 API Services / Service Definitions
 
 展示：
 
@@ -161,6 +185,9 @@ Provider Workspace 的目标是一站式解决“挂服务、看收益、提收�
 2. provider locked
 3. withdrawal history
 4. pending ticket status
+5. 若已存在 `APPROVED_AUTO` 的 pending ticket，`Generate & Claim` 需要直接复用现有 ticket 继续链上提现，而不是要求用户手动切到 `Resume Pending`
+6. `Generate & Claim` / `Resume Pending` 在发起链上提现前，前端必须先校验 ticket 的目标链、ticket 内合约地址、ticket 过期时间和钱包原生 gas 余额；若当前钱包网络不对或没有 gas，必须先给出可读错误，不能把用户直接推进黑盒钱包弹窗
+7. withdrawal history 必须显式展示 `CANCELLED`，并把它解释为“ticket 已过期，locked receivable 已释放回 available”；历史区需要提供状态筛选，便于用户单独查看 `COMPLETED` / `REJECTED` / `CANCELLED` 等生命周期结果
 
 ## 7. 首次 Onboarding 五步
 
@@ -191,3 +218,9 @@ Gateway Console 的信息架构必须服务三个结果：
 3. Provider 快速形成服务供给和收益闭环
 
 一切偏离这三点的导航和页面堆叠，都是控制台噪音。
+
+补充说明：
+
+1. 当前数据库和协议主模型仍使用 `Service Manifest` 作为 canonical contract term。
+2. 当前 UI 文案已经收敛到 `API Service` / `Service Definition`，这是产品层命名，不是数据库层 rename。
+3. 看到旧 `Service Manifests` / `Provider Management` / `nodes` 的地方，应优先以当前 Provider Space 文档和实际页面为准。

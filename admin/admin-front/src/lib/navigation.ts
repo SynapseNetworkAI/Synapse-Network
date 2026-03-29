@@ -1,186 +1,244 @@
-import type { AdminMenuConfigItem, AdminProfile } from "@/services/admin-api";
+import type { AdminMenuConfigItem } from "@/services/admin-api";
 
-
-export type AdminNavNode = {
+export type NavItem = {
   id: string;
-  href: string;
-  label: string;
-  description: string;
-  badge?: string;
-  requiredPermissions?: string[];
-  requiredRoles?: string[];
+  title: string;
+  icon: string;
+  path?: string;
+  description?: string;
+  nodeType?: "category" | "page" | "panel";
+  searchKeywords?: string[];
+  children?: NavItem[];
 };
 
-export type AdminNavSection = {
-  id: string;
+type NavLookupRecord = {
   label: string;
   description: string;
-  children: AdminNavNode[];
 };
 
+const hiddenNavigationItemIds = new Set(["dashboard-system-health"]);
 
-export const adminNavigationTree: AdminNavSection[] = [
-  {
-    id: "overview",
-    label: "控制总览",
-    description: "稳定读模型、控制台总览与核心运营信号。",
-    children: [
-      {
-        id: "dashboard",
-        href: "/dashboard",
-        label: "控制台",
-        description: "总览 finance、activity、operations 3 个稳定读模型。",
-        requiredPermissions: ["dashboard:read"],
-      },
-    ],
-  },
-  {
-    id: "identity-access",
-    label: "身份与权限",
-    description: "后台用户、角色模板、菜单树与权限矩阵。",
-    children: [
-      {
-        id: "users",
-        href: "/users",
-        label: "后台用户",
-        description: "创建管理员、分配角色、查看权限模板与启用状态。",
-        requiredRoles: ["super_admin", "platform_ops_admin"],
-      },
-      {
-        id: "role-permissions",
-        href: "/role-permissions",
-        label: "角色权限",
-        description: "查看角色权限矩阵、模块权限边界与 reviewer 分工。",
-        requiredRoles: ["super_admin", "platform_ops_admin"],
-      },
-      {
-        id: "menu-config",
-        href: "/menu-config",
-        label: "菜单配置",
-        description: "菜单树、路由、可见性和权限依赖的配置视图。",
-        requiredRoles: ["super_admin", "platform_ops_admin"],
-      },
-      {
-        id: "execution",
-        href: "/execution",
-        label: "执行队列",
-        description: "查看 execution jobs、失败重试与网关执行结果。",
-        requiredPermissions: ["execution:read"],
-      },
-    ],
-  },
-  {
-    id: "ops-controls",
-    label: "业务控制",
-    description: "审批、资金、风控和系统运维的受控操作入口。",
-    children: [
-      {
-        id: "approvals",
-        href: "/approvals",
-        label: "审批中心",
-        description: "高风险动作审批流、reviewer 决策与执行前守门。",
-        badge: "flow",
-        requiredPermissions: ["approval:read"],
-      },
-      {
-        id: "finance",
-        href: "/finance",
-        label: "资金运营",
-        description: "充值异常、退款与提现控制面，聚焦受控动作。",
-        requiredPermissions: ["dashboard:read"],
-      },
-      {
-        id: "risk",
-        href: "/risk",
-        label: "风控工作台",
-        description: "风险规则、工单分流、黑白名单与风险标签处置。",
-        requiredPermissions: ["dashboard:read"],
-      },
-      {
-        id: "system",
-        href: "/system",
-        label: "系统运维",
-        description: "gateway、indexer、reconciliation 与运行时参数快照。",
-        requiredPermissions: ["dashboard:read"],
-      },
-    ],
-  },
-  {
-    id: "audit-ledger",
-    label: "审计合规",
-    description: "操作日志、审计回放与高风险动作追踪。",
-    children: [
-      {
-        id: "audit",
-        href: "/audit",
-        label: "操作日志",
-        description: "管理员操作日志、审批链路和失败告警审计检索。",
-        requiredPermissions: ["audit:read"],
-      },
-    ],
-  },
-];
+const legacyPathByItemId: Record<string, string> = {
+  "dashboard-overview": "/dashboard/overview",
+  "dashboard-runtime": "/dashboard/runtime",
+};
 
+const navLookupById: Record<string, NavLookupRecord> = {
+  dashboard: { label: "控制台", description: "总览与业务运行态入口。" },
+  execution: { label: "执行队列", description: "审批后的任务排队、重试与执行状态。" },
+  system: { label: "系统运维", description: "Gateway、Indexer 与对账运行态。" },
+  users: { label: "后台用户", description: "管理员目录、状态与 MFA 要求。" },
+  "role-permissions": { label: "角色权限", description: "权限矩阵、模块边界与 reviewer 分工。" },
+  "menu-config": { label: "菜单配置", description: "后台已发布导航的拓扑与治理。" },
+  approvals: { label: "审批中心", description: "高风险动作审批与审核状态流。" },
+  "withdrawal-reviews": { label: "提现复核", description: "出金审核与风险复核台。" },
+  "review-history": { label: "审核历史", description: "已审批、已拒绝与已释放结果回看。" },
+  finance: { label: "财务控制", description: "充值、扣费、退款与责任敞口。" },
+  risk: { label: "风险控制", description: "风险信号、策略与异常处置。" },
+  audit: { label: "审计追踪", description: "操作留痕、追踪检索与审计检视。" },
+};
 
-function canAccessItem(admin: AdminProfile, item: AdminNavNode): boolean {
-  const roleAllowed = !item.requiredRoles || item.requiredRoles.includes(admin.role);
-  const permissionAllowed = !item.requiredPermissions || item.requiredPermissions.every((permission) => admin.permissions.includes(permission));
-  return roleAllowed && permissionAllowed;
+function normalizeQuery(value: string): string {
+  return value.trim().toLowerCase();
 }
 
+type ResolveExpandedNavigationIdsOptions = {
+  manualExpandedIds: string[];
+  manualCollapsedIds: string[];
+  activePath: string[];
+  filteredExpandedIds: string[];
+  query: string;
+};
 
-function buildSectionsFromConfig(items: AdminMenuConfigItem[], fallback: AdminNavSection[]): AdminNavSection[] {
-  if (items.length === 0) {
-    return fallback;
+const defaultExpandedNavigationIds = ["control-overview"];
+
+function mergeLookup(item: NavItem): NavItem {
+  return {
+    ...item,
+    title: item.title,
+    description: item.description,
+  };
+}
+
+function compareMenuItems(left: AdminMenuConfigItem, right: AdminMenuConfigItem): number {
+  const sortDifference = left.sortOrder - right.sortOrder;
+  if (sortDifference !== 0) {
+    return sortDifference;
+  }
+  const sectionDifference = left.sectionLabel.localeCompare(right.sectionLabel);
+  if (sectionDifference !== 0) {
+    return sectionDifference;
+  }
+  const parentDifference = (left.parentItemId ?? "").localeCompare(right.parentItemId ?? "");
+  if (parentDifference !== 0) {
+    return parentDifference;
+  }
+  return left.label.localeCompare(right.label);
+}
+
+function toNavItem(item: AdminMenuConfigItem): NavItem {
+  const visual = getNavVisual(item.itemId);
+  return mergeLookup({
+    id: item.itemId,
+    title: item.label,
+    icon: item.iconKey || visual.icon,
+    path: item.href ?? legacyPathByItemId[item.itemId],
+    description: item.description || item.sectionDescription || visual.kicker,
+    nodeType: item.nodeType,
+    searchKeywords: [item.sectionLabel, item.sectionDescription, item.label, item.description, ...item.keywords].filter(Boolean),
+  });
+}
+
+function buildFallbackItems(items: AdminMenuConfigItem[]): NavItem[] {
+  const fallbackChildren = [...items].sort(compareMenuItems).map((item) => toNavItem(item));
+
+  if (fallbackChildren.length === 0) {
+    return [];
   }
 
-  const sections = new Map<string, AdminNavSection>();
+  return [
+    {
+      id: "other-modules",
+      title: "其他模块",
+      icon: "OT",
+      description: "来自服务端配置但未在 Sentinel IA 中显式建模的页面。",
+      children: fallbackChildren,
+    },
+  ];
+}
 
-  items
-    .slice()
-    .sort((left, right) => left.sortOrder - right.sortOrder)
-    .forEach((item) => {
-      const currentSection = sections.get(item.sectionId);
-      const node: AdminNavNode = {
-        id: item.itemId,
-        href: item.href,
-        label: item.label,
-        description: item.description,
-        requiredRoles: item.requiredRoles,
-        requiredPermissions: item.requiredPermissions,
-      };
+export function buildAdminNavigation(items: AdminMenuConfigItem[]): NavItem[] {
+  if (items.length === 0) {
+    return [];
+  }
 
-      if (currentSection) {
-        currentSection.children.push(node);
-        return;
+  const sortedItems = items
+    .filter((item) => !hiddenNavigationItemIds.has(item.itemId))
+    .sort(compareMenuItems);
+  const byId = new Map(sortedItems.map((item) => [item.itemId, toNavItem(item)]));
+  const roots: NavItem[] = [];
+  const fallbackItems: AdminMenuConfigItem[] = [];
+
+  sortedItems.forEach((item) => {
+    const navItem = byId.get(item.itemId);
+    if (!navItem) {
+      return;
+    }
+
+    if (!item.parentItemId) {
+      roots.push(navItem);
+      return;
+    }
+
+    const parent = byId.get(item.parentItemId);
+    if (!parent) {
+      fallbackItems.push(item);
+      return;
+    }
+
+    parent.children = [...(parent.children ?? []), navItem];
+  });
+
+  return roots.concat(buildFallbackItems(fallbackItems));
+}
+
+export function findNavPathByPath(items: NavItem[], pathname: string): string[] {
+  for (const item of items) {
+    const childPath = item.children ? findNavPathByPath(item.children, pathname) : [];
+    if (childPath.length > 0) {
+      return [item.id, ...childPath];
+    }
+
+    if (item.path === pathname) {
+      return [item.id];
+    }
+  }
+
+  return [];
+}
+
+export function findNavItemByPath(items: NavItem[], pathname: string): NavItem | null {
+  for (const item of items) {
+    if (item.path === pathname) {
+      return item;
+    }
+
+    if (item.children) {
+      const childItem = findNavItemByPath(item.children, pathname);
+      if (childItem) {
+        return childItem;
       }
+    }
+  }
 
-      sections.set(item.sectionId, {
-        id: item.sectionId,
-        label: item.sectionLabel,
-        description: item.sectionDescription,
-        children: [node],
-      });
-    });
-
-  return Array.from(sections.values());
+  return null;
 }
 
+export function filterNavigation(items: NavItem[], query: string): { filtered: NavItem[]; expandedIds: string[] } {
+  const normalizedQuery = normalizeQuery(query);
 
-export function getVisibleAdminNavigation(admin: AdminProfile): AdminNavSection[] {
-  return getVisibleAdminNavigationFromConfig(admin, [], adminNavigationTree);
+  if (!normalizedQuery) {
+    return { filtered: items, expandedIds: [] };
+  }
+
+  const expandedIds = new Set<string>();
+
+  function visit(node: NavItem): NavItem | null {
+    const haystack = [node.title, node.description, node.path, ...(node.searchKeywords ?? [])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const directMatch = haystack.includes(normalizedQuery);
+    const filteredChildren = node.children
+      ?.map((child) => visit(child))
+      .filter((child): child is NavItem => child !== null);
+
+    if (!directMatch && (!filteredChildren || filteredChildren.length === 0)) {
+      return null;
+    }
+
+    if (filteredChildren && filteredChildren.length > 0) {
+      expandedIds.add(node.id);
+    }
+
+    return {
+      ...node,
+      children: filteredChildren,
+    };
+  }
+
+  return {
+    filtered: items.map((item) => visit(item)).filter((item): item is NavItem => item !== null),
+    expandedIds: Array.from(expandedIds),
+  };
 }
 
+export function resolveExpandedNavigationIds({
+  manualExpandedIds,
+  manualCollapsedIds,
+  activePath,
+  filteredExpandedIds,
+  query,
+}: ResolveExpandedNavigationIdsOptions): string[] {
+  const expandedIds = new Set<string>([
+    ...defaultExpandedNavigationIds,
+    ...manualExpandedIds,
+    ...activePath.slice(0, -1),
+    ...filteredExpandedIds,
+  ]);
 
-export function getVisibleAdminNavigationFromConfig(
-  admin: AdminProfile,
-  items: AdminMenuConfigItem[],
-  fallback: AdminNavSection[] = adminNavigationTree,
-): AdminNavSection[] {
-  return buildSectionsFromConfig(items, fallback)
-    .map((section) => ({
-      ...section,
-      children: section.children.filter((item) => canAccessItem(admin, item)),
-    }))
-    .filter((section) => section.children.length > 0);
+  if (!normalizeQuery(query)) {
+    for (const id of manualCollapsedIds) {
+      expandedIds.delete(id);
+    }
+  }
+
+  return Array.from(expandedIds);
+}
+
+export function getNavVisual(itemId: string): { icon: string; kicker: string } {
+  const lookup = navLookupById[itemId];
+  return lookup
+    ? { icon: itemId.slice(0, 2).toUpperCase(), kicker: lookup.description }
+    : { icon: "SN", kicker: "control module" };
 }

@@ -438,6 +438,7 @@ class FinanceAtomicRepository:
             InvocationBillingState(
                 ownerAddress=row.consumer_address or owner,
                 providerAddress=row.provider_address or provider,
+                agentId=(command.invocation.agent_id if command.invocation is not None else row.agent_id),
                 requestId=row.request_id,
                 originRequestId=row.origin_request_id,
                 originTxHash=row.origin_tx_hash,
@@ -445,6 +446,7 @@ class FinanceAtomicRepository:
                 protocolFee=row.protocol_fee or Decimal("0"),
                 routingTax=row.routing_tax or Decimal("0"),
                 totalCharge=row.total_charge or Decimal("0"),
+                latencyMs=row.latency_ms,
                 businessType=row.business_type,
                 riskLevel=row.risk_level,
             ).model_dump(by_alias=True, mode="json"),
@@ -614,28 +616,42 @@ class FinanceAtomicRepository:
         self, cur: Any, owner: str, row: DepositIntentRow, now_text: str
     ) -> None:
         owner_id = self._ensure_owner_account(cur, owner, now_text)
+        target_account_id = self._ensure_ledger_account(
+            cur, owner, "consumer", now_text
+        )
         cur.execute(
             """
             INSERT INTO synapse_vault_deposits (
-                deposit_id, owner_id, tx_hash, amount_usdc, status,
-                block_number, request_id, created_at, updated_at
-            ) VALUES (%s, %s, %s, %s, %s, NULL, %s, %s, %s)
+                deposit_id, owner_id, owner_address, target_account_id, tx_hash,
+                amount_usdc, status, block_number, request_id, client_request_id,
+                client_ip, user_agent, created_at, updated_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (deposit_id)
             DO UPDATE SET
                 owner_id = EXCLUDED.owner_id,
+                owner_address = EXCLUDED.owner_address,
+                target_account_id = EXCLUDED.target_account_id,
                 tx_hash = EXCLUDED.tx_hash,
                 amount_usdc = EXCLUDED.amount_usdc,
                 status = EXCLUDED.status,
                 request_id = EXCLUDED.request_id,
+                client_request_id = EXCLUDED.client_request_id,
+                client_ip = EXCLUDED.client_ip,
+                user_agent = EXCLUDED.user_agent,
                 updated_at = EXCLUDED.updated_at
             """,
             (
                 row.id,
                 owner_id,
+                owner,
+                target_account_id,
                 row.tx_hash,
                 str(row.amount_usdc),
                 row.status,
                 row.request_id,
+                row.client_request_id,
+                row.client_ip,
+                row.user_agent,
                 row.created_at,
                 row.updated_at,
             ),
@@ -662,7 +678,7 @@ class FinanceAtomicRepository:
                 self._event_id("audit"),
                 row.action_type,
                 row.business_type,
-                row.owner_address,
+                self._owner_id(row.owner_address),
                 str(row.amount_delta) if row.amount_delta is not None else None,
                 row.result_status,
                 row.error_code,
@@ -739,7 +755,9 @@ class FinanceAtomicRepository:
         risk_reason_code: Optional[str],
         result_status: str,
         message: str,
+        evidence: Optional[dict[str, Any]] = None,
     ) -> None:
+        evidence = evidence or {}
         self._append_finance_audit_row(
             cur,
             AuditLogRow(
@@ -749,9 +767,14 @@ class FinanceAtomicRepository:
                 ownerAddress=owner,
                 requestId=request_id,
                 amountDelta=amount,
+                beforeBalance=evidence.get("beforeBalance"),
+                afterBalance=evidence.get("afterBalance"),
                 resultStatus=result_status,
                 errorCode=risk_reason_code,
                 message=message,
+                txHash=evidence.get("txHash"),
+                ledgerId=evidence.get("ledgerId"),
+                traceId=evidence.get("traceId"),
                 status=result_status,
             ),
         )
@@ -764,6 +787,14 @@ class FinanceAtomicRepository:
         if is_high_risk:
             return "HIGH_RISK_PROVIDER_TAGGED"
         return None
+
+    @staticmethod
+    def _run_withdraw_pre_reserve_check(
+        command: WithdrawalAtomicRequestCommand, amount: Decimal
+    ) -> None:
+        if command.pre_reserve_check is None:
+            return
+        command.pre_reserve_check(amount)
 
     def process_withdrawal_request_atomic(
         self,
@@ -836,6 +867,8 @@ class FinanceAtomicRepository:
                             message=_WITHDRAWAL_BLOCKED_MESSAGE,
                         )
 
+                    self._run_withdraw_pre_reserve_check(command, amount)
+
                     is_yellow = amount >= self._q6(command.single_limit_usdc) or (
                         rolling_24h + amount
                     ) >= self._q6(command.rolling_24h_limit_usdc)
@@ -852,7 +885,9 @@ class FinanceAtomicRepository:
                             now_text,
                         )
                         ticket = {}
-                        message = "Withdrawal requested. Amounts over $100 require manual security review (ETA: 12-24 hrs)."
+                        message = (
+                            f"Withdrawal requested. Amounts at or above ${command.single_limit_usdc:g} require manual security review (ETA: 12-24 hrs)."
+                        )
                         risk_level = "yellow"
                     else:
                         status = "APPROVED_AUTO"
@@ -966,10 +1001,7 @@ class FinanceAtomicRepository:
         with self._db.connect() as conn:
             with conn.cursor() as cur:
                 try:
-                    cur.execute(
-                        "INSERT INTO synapse_deposit_dedup (tx_hash, owner_address, request_id) VALUES (%s, %s, %s)",
-                        (tx, owner, command.request_id or None),
-                    )
+                    self._persist_deposit_intent(cur, owner, row, now_text)
                 except _INTEGRITY_ERRORS:
                     conn.rollback()
                     existing = self._read_existing_deposit_intent_by_tx(
@@ -991,8 +1023,6 @@ class FinanceAtomicRepository:
                     frozen_balance,
                     now_text,
                 )
-
-                self._persist_deposit_intent(cur, owner, row, now_text)
             conn.commit()
         return row
 
@@ -1071,6 +1101,13 @@ class FinanceAtomicRepository:
                             risk_reason_code="DEPOSIT_CONFIRM_REPAIR",
                             result_status="CONFIRMED",
                             message="repair_pending_to_available",
+                            evidence={
+                                "txHash": row.tx_hash,
+                                "beforeBalance": available_balance,
+                                "afterBalance": next_available,
+                                "ledgerId": row.id,
+                                "traceId": command.event_key,
+                            },
                         )
                         conn.commit()
                         return DepositIntentRow(
@@ -1118,7 +1155,14 @@ class FinanceAtomicRepository:
                     risk_level="green",
                     risk_reason_code=None,
                     result_status="CONFIRMED",
-                            message=f"confirmations={int(command.confirmations)}",
+                        message=f"confirmations={int(command.confirmations)}",
+                    evidence={
+                        "txHash": row.tx_hash,
+                        "beforeBalance": available_balance,
+                        "afterBalance": next_available,
+                        "ledgerId": row.id,
+                        "traceId": command.event_key,
+                    },
                 )
             conn.commit()
         return DepositIntentRow(

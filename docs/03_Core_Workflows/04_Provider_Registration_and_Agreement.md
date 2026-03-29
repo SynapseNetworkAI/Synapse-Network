@@ -108,23 +108,27 @@ Platform 要把它落成：
 
 至少包括：
 
-1. `service_name`
-2. `description_for_model`
-3. `input_schema`
-4. `output_schema`
-5. `price_model`
-6. `base_price_usdc`
-7. `endpoint_url`
-8. `timeout_ms`
-9. `status`
+1. `service_id` 或 `agent_tool_name`
+2. `service_name`
+3. `description_for_model`
+4. `input_schema`
+5. `output_schema`
+6. `price_model`
+7. `base_price_usdc`
+8. `endpoint_url`
+9. `timeout_ms`
+10. `status`
 
 ### 7.2 Gateway 必做的校验
 
 1. `service_id` 全局唯一
-2. input / output schema 合法
-3. 价格模型在白名单内
-4. endpoint 通过 URL 和健康检查约束
-5. timeout、payload 大小、QPS 等约束可被平台执行
+2. Build Service Manifest 场景里，如果请求只提交 `agentToolName`，Gateway 会把它绑定到 `serviceId`
+3. 如果 `serviceId` 与 `agentToolName` 同时提交但不一致，注册直接拒绝
+4. 如果两者都缺失，当前后端会回退生成随机 `SVC_*` 标识，但这不适合 Agent 侧稳定引用
+5. input / output schema 合法
+6. 价格模型在白名单内
+7. endpoint 通过 URL 和健康检查约束
+8. timeout、payload 大小、QPS 等约束可被平台执行
 
 ## 8. 协议签订在当前系统里的真实落点
 
@@ -157,6 +161,17 @@ Platform 要把它落成：
 6. 审计事件已落库
 
 只有这样，服务才应该出现在 Discovery 结果中。
+
+### 9.1 当前代码真相
+
+当前实现还没有独立的“服务注册人工审核”状态机。
+
+也就是说：
+
+1. `POST /api/v1/services` 校验通过后会直接写入 owner scope 的 service registry
+2. 请求里的 `status=active` 只代表控制面状态，不等于一定可被 discover
+3. Public discover 还要额外满足运行健康检查通过
+4. “review or activation” 目前仍是目标态产品语义，不是已落地工作流
 
 ## 10. 风险边界
 

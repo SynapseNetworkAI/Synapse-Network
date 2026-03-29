@@ -34,13 +34,21 @@ Withdrawal 链路定义 Provider 如何把已经结算的离链收益提现到�
 
 ## 4. 状态机
 
-`synapse_vault_withdrawals.status` 当前允许：
+当前 Gateway 对 `provider_withdrawal` 暴露的业务状态为：
 
-1. `REQUESTED`
-2. `SIGNED`
-3. `BROADCASTED`
-4. `CONFIRMED`
-5. `FAILED`
+1. `APPROVED_AUTO`
+2. `PENDING_MANUAL_REVIEW`
+3. `REJECTED`
+4. `COMPLETED`
+5. `CANCELLED`
+
+其中：
+
+1. `APPROVED_AUTO` 表示风控已放行，ticket 已签发，资金已进入 `provider pending / locked`。
+2. `PENDING_MANUAL_REVIEW` 表示资金已冻结在 `provider frozen`，等待平台审核。
+3. `REJECTED` 表示人工审核拒绝，冻结金额已释放回 `provider available`。
+4. `COMPLETED` 表示链上 withdraw 已完成并被 Gateway 收口。
+5. `CANCELLED` 表示已签发 ticket 过期失效，原先锁定在 `provider pending / locked` 的金额已释放回 `provider available`。
 
 `withdrawal_kind` 当前允许：
 
@@ -67,10 +75,10 @@ Provider 提现必须先过三道门，而不是先签名再说。
 
 在签发链上票据前，Platform 必须先把收益锁住：
 
-1. `available_balance -= amount_usdc`
-2. `frozen_balance += amount_usdc`
+1. 自动通过单：`available_balance -= amount_usdc`，`pending_balance += amount_usdc`
+2. 人工审核单：`available_balance -= amount_usdc`，`frozen_balance += amount_usdc`
 3. 写对应 `synapse_ledger_entries`
-4. 写 `synapse_vault_withdrawals(status = REQUESTED)`
+4. 写 `synapse_vault_withdrawals`
 
 没有锁仓，就不允许继续往下走。
 
@@ -101,16 +109,21 @@ sequenceDiagram
 
     O->>G: Create provider withdrawal intent
     G->>DB: Validate provider balance and account
-    G->>DB: Freeze funds
-    G->>DB: Create synapse_vault_withdrawals(status=REQUESTED)
-    G->>DB: Write ledger entries + audit
-    G->>G: Generate EIP-712 signature
-    G->>DB: Update status=SIGNED, nonce, deadline, signature
+   G->>DB: Freeze or lock funds
+   G->>DB: Create synapse_vault_withdrawals(status=APPROVED_AUTO or PENDING_MANUAL_REVIEW)
+   G->>DB: Write ledger entries + audit
+   alt Auto-approved
+      G->>G: Generate EIP-712 signature immediately
+      G->>DB: Move funds to pending / locked bucket
+   else Manual review required
+      G->>DB: Keep funds in frozen bucket
+      Note over G,DB: Admin approve => frozen -> pending + issue ticket\nAdmin reject => frozen -> available
+   end
     O->>V: Call withdraw(...) with signed payload
     V-->>O: txHash
     O->>G: Report broadcast / completion
-    G->>DB: Update status=BROADCASTED / CONFIRMED
-    G->>DB: Release frozen balance and finalize ledger
+   G->>DB: Update status=COMPLETED
+   G->>DB: Consume pending / locked balance and finalize ledger
     G->>DB: Write audit events
 ```
 
@@ -131,10 +144,14 @@ Gateway 收到提现请求后，至少要先做：
 
 因此平台必须保证：
 
-1. `provider_wallet.available_balance` 减少
-2. `provider_wallet.frozen_balance` 增加
-3. 锁仓金额与 withdrawal.amount 完全一致
-4. 对应 ledger entry 可审计可回放
+1. 创建提现时，`provider_wallet.available_balance` 一定减少
+2. 自动通过单进入 `provider_wallet.pending_balance`
+3. 人工审核单进入 `provider_wallet.frozen_balance`
+4. 审核通过后，金额从 `frozen_balance -> pending_balance`
+5. 审核拒绝后，金额从 `frozen_balance -> available_balance`
+6. 锁仓金额与 withdrawal.amount 完全一致
+7. 对应 ledger entry / audit 证据可追溯
+8. Provider 自定义提现金额输入统一按 USDC 金额校验，最多允许小数点后 2 位；空值代表按当前可提现余额整额创建 intent
 
 ## 9. Step C: 生成 EIP-712 提现票据
 
@@ -145,6 +162,8 @@ Platform 在离链生成：
 3. `signature`
 
 这些值进入 `synapse_vault_withdrawals`，成为链上提现前必须持有的授权材料。
+
+对于人工审核单，这一步发生在 `APPROVE` 之后，而不是创建 intent 当下。
 
 ### 9.1 为什么一定要走 EIP-712
 
@@ -158,24 +177,40 @@ Platform 在离链生成：
 
 Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
 
-1. `SIGNED -> BROADCASTED`
+1. `APPROVED_AUTO -> COMPLETED`
 2. 记录 `tx_hash`
-3. receipt 成功后推进到 `CONFIRMED`
-4. 完成最终冻结释放和分录闭环
+3. 消耗 `provider pending / locked` 金额
+4. 完成最终分录与审计闭环
+
+### 10.1 人工审核子流程
+
+当提现进入 `PENDING_MANUAL_REVIEW` 时：
+
+1. Admin `APPROVE`：
+   - `frozen_balance -= amount`
+   - `pending_balance += amount`
+   - 生成 EIP-712 ticket
+   - 状态推进到 `APPROVED_AUTO`
+2. Admin `REJECT`：
+   - `frozen_balance -= amount`
+   - `available_balance += amount`
+   - 状态推进到 `REJECTED`
 
 ## 11. 失败路径
 
 ### 11.1 签名前失败
 
-1. `REQUESTED -> FAILED`
-2. 释放冻结金额
-3. 写失败审计
+1. 审核拒绝：`PENDING_MANUAL_REVIEW -> REJECTED`
+2. 释放冻结金额回 `available`
+3. 写失败 / review audit
 
 ### 11.2 链上失败或过期
 
-1. `SIGNED` 或 `BROADCASTED` 最终转 `FAILED`
-2. 释放 `frozen_balance`
+1. 已签票但未完成的单据最终需要可回收 / 可失效
+2. 释放对应的 `pending / locked` 金额
 3. 写逆向 ledger / audit 证据
+4. 业务状态推进到 `CANCELLED`，前端应允许用户基于释放后的 `available` 重新生成新 ticket
+5. 如果历史脏数据导致 `pending / locked` 已被其他补偿路径提前清空，过期清理也不能报错打断列表接口；系统应把单据推进到 `CANCELLED`，并在 audit 中记录 `releasedAmountUsdc` 与 `releaseShortfallUsdc`
 
 ### 11.3 严禁的行为
 
@@ -201,6 +236,6 @@ Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
 
 Provider withdrawal 的正确顺序不是“先提现，再补风控”，而是：
 
-**资格校验 -> 收益锁仓 -> EIP-712 签名 -> 链上广播 -> 状态确认 -> 审计闭环**
+**资格校验 -> 收益锁仓 -> 自动签票或人工审核 -> 链上广播 -> 状态确认 -> 审计闭环**
 
 这就是 Synapse 在供给侧收益出金上的金融级最小闭环。

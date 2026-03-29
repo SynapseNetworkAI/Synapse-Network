@@ -86,6 +86,8 @@
 
 预算事件使用 `synapse_budget_events` 表达。
 
+这里的预算边界与 runtime risk 文档需要一起理解：`reserve / capture / release` 不是余额字段上的临时减法，而是 Credential / Budget Policy 在数据库中的显式事件流。
+
 ### 5.1 `reserve`
 
 用途：

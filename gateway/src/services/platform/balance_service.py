@@ -81,6 +81,13 @@ class BalanceService(
     async def list_deposit_intents(self, owner_wallet: str) -> list:
         return await self.owner_finance_service.list_deposit_intents(owner_wallet)
 
+    async def get_deposit_sync_status(
+        self, owner_wallet: str, tx_hash: str
+    ) -> Dict[str, Any]:
+        return await self.owner_finance_service.get_deposit_sync_status(
+            owner_wallet, tx_hash
+        )
+
     async def confirm_deposit_intent(
         self,
         *,
@@ -163,6 +170,27 @@ class BalanceService(
             tx_hash=tx_hash,
             request_meta=request_meta,
         )
+
+    async def review_provider_withdrawal(
+        self,
+        owner_wallet: str,
+        withdrawal_id: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return await self.provider_withdraw_service.review_provider_withdrawal(
+            owner_wallet=owner_wallet,
+            withdrawal_id=withdrawal_id,
+            request_meta=request_meta,
+        )
+
+    async def get_provider_withdraw_capability(
+        self, owner_wallet: str
+    ) -> Dict[str, Any]:
+        _ = owner_wallet
+        return self.provider_withdraw_capability()
+
+    async def expire_stale_provider_withdrawals(self) -> int:
+        return await self.provider_withdraw_service.expire_stale_provider_withdrawals()
 
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         return await self.platform_finance_service.get_router_config(owner_wallet)

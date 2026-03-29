@@ -68,25 +68,23 @@ def _load_usdc_address_from_contract_config() -> str:
         return ""
 
 
-def _default_runtime_storage_dir() -> str:
-    # Shared runtime storage root for all JSON persistence artifacts.
-    return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "runtime_storage")
-    )
+def _gateway_root_dir() -> str:
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-def _sdk_root_dir() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-
-
-def _runtime_path(filename: str) -> str:
-    return os.path.join(_default_runtime_storage_dir(), filename)
+def _repo_root_dir() -> str:
+    return os.path.abspath(os.path.join(_gateway_root_dir(), ".."))
 
 
 def _resolve_env_file_path(env_file: str) -> str:
     if os.path.isabs(env_file):
         return env_file
-    return os.path.join(_sdk_root_dir(), env_file)
+
+    gateway_path = os.path.join(_gateway_root_dir(), env_file)
+    if os.path.exists(gateway_path):
+        return gateway_path
+
+    return os.path.join(_repo_root_dir(), env_file)
 
 
 def _load_environment_files() -> None:
@@ -101,9 +99,17 @@ def _load_environment_files() -> None:
             load_dotenv(explicit_path, override=False)
         return
 
-    sdk_root = _sdk_root_dir()
-    base_env_path = os.path.join(sdk_root, ".env")
-    load_dotenv(base_env_path, override=False)
+    repo_root = _repo_root_dir()
+    gateway_root = _gateway_root_dir()
+
+    base_env_candidates = [
+        os.path.join(gateway_root, ".env"),
+        os.path.join(repo_root, ".env"),
+    ]
+    for base_env_path in base_env_candidates:
+        if os.path.exists(base_env_path):
+            load_dotenv(base_env_path, override=False)
+            break
 
     runtime_env = str(os.getenv("ENVIRONMENT", "local") or "local").strip().lower()
     env_aliases = {
@@ -119,7 +125,7 @@ def _load_environment_files() -> None:
     candidates = env_aliases.get(runtime_env, [f".env.{runtime_env}"])
 
     for env_file in candidates:
-        env_path = os.path.join(sdk_root, env_file)
+        env_path = _resolve_env_file_path(env_file)
         if os.path.exists(env_path):
             # Override values from base .env so per-environment file wins.
             load_dotenv(env_path, override=True)
@@ -330,13 +336,12 @@ class Settings:
         or _load_usdc_address_from_contract_config()
         or ""
     )
-    # Optional signer key for legacy or maintenance chain operations.
+    # Gateway withdraw signer used to issue EIP-712 provider withdrawal tickets.
+    # Provider settlements require this key to be configured in the runtime environment.
     private_key: str = os.getenv("PRIVATE_KEY", "")
     # Optional contract address used by compatibility paths.
     contract_address: str = os.getenv("CONTRACT_ADDRESS", "")
 
-    # Runtime artifact directory is fixed to sdk/runtime_storage (not env-configurable).
-    runtime_storage_dir: str = _default_runtime_storage_dir()
     # Storage backend switch. Only "postgres" is supported.
     storage_backend: str = (
         os.getenv("STORAGE_BACKEND", "postgres").strip().lower() or "postgres"
@@ -364,6 +369,31 @@ class Settings:
     jwt_secret: str = os.getenv(
         "JWT_SECRET", "replace-this-with-a-32-byte-minimum-jwt-secret"
     )
+    # Dedicated secret for admin -> gateway internal command tokens.
+    gateway_internal_jwt_secret: str = os.getenv(
+        "GATEWAY_INTERNAL_JWT_SECRET",
+        "replace-this-with-a-separate-32-byte-minimum-internal-jwt-secret",
+    )
+    gateway_provider_signature_secret: str = os.getenv(
+        "GATEWAY_PROVIDER_SIGNATURE_SECRET",
+        "replace-this-with-a-provider-signature-secret",
+    ).strip()
+    # Expected issuer for internal service tokens.
+    gateway_internal_token_issuer: str = os.getenv(
+        "GATEWAY_INTERNAL_TOKEN_ISSUER", "gateway-admin"
+    ).strip() or "gateway-admin"
+    # Expected audience for internal service tokens.
+    gateway_internal_token_audience: str = os.getenv(
+        "GATEWAY_INTERNAL_TOKEN_AUDIENCE", "gateway-internal"
+    ).strip() or "gateway-internal"
+    # Allow-list of service subjects permitted to execute internal admin commands.
+    gateway_internal_service_subjects: set[str] = {
+        value.strip()
+        for value in os.getenv(
+            "GATEWAY_INTERNAL_SERVICE_SUBJECTS", "service:gateway-admin"
+        ).split(",")
+        if value.strip()
+    } or {"service:gateway-admin"}
     # Optional Redis URL and fields for distributed counters and rate limits.
     redis_host: str = os.getenv("REDIS_HOST", "").strip()
     redis_port: int = _env_int("REDIS_PORT", 6379)
@@ -499,7 +529,14 @@ class Settings:
     gateway_default_service_qps: int = _env_int("GATEWAY_DEFAULT_SERVICE_QPS", 50)
     # Provider withdraw ticket expiry seconds for EIP-712 signed claim payload.
     provider_withdraw_deadline_sec: int = _env_int(
-        "PROVIDER_WITHDRAW_DEADLINE_SEC", 900
+        "PROVIDER_WITHDRAW_DEADLINE_SEC", 300
+    )
+    # Background reaper that periodically releases expired provider withdrawal tickets.
+    provider_withdraw_expiry_reaper_enabled: bool = _env_bool(
+        "PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED", True
+    )
+    provider_withdraw_expiry_reaper_interval_sec: float = _env_float(
+        "PROVIDER_WITHDRAW_EXPIRY_REAPER_INTERVAL_SEC", 30.0
     )
     # Withdrawal risk-engine thresholds.
     withdrawal_auto_single_limit_usdc: float = max(
@@ -554,51 +591,6 @@ class Settings:
     # Dedicated port for gateway/provider_fastapi.py launcher compatibility.
     provider_api_port: int = _env_int("PROVIDER_API_PORT", 8000)
 
-    # Runtime JSON path: service registry.
-    service_registry_path: str = os.getenv(
-        "SERVICE_REGISTRY_PATH", _runtime_path("service_registry.json")
-    )
-    # Runtime JSON path: agent registry.
-    agent_registry_path: str = os.getenv(
-        "AGENT_REGISTRY_PATH", _runtime_path("agent_registry.json")
-    )
-    # Runtime JSON path: agent credential records.
-    agent_credentials_path: str = os.getenv(
-        "AGENT_CREDENTIALS_PATH", _runtime_path("agent_credentials.json")
-    )
-    # Runtime JSONL path: audit events.
-    audit_log_path: str = os.getenv("AUDIT_LOG_PATH", _runtime_path("audit_log.jsonl"))
-    # Runtime JSON path: consumer/provider/platform balances.
-    balance_ledger_path: str = os.getenv(
-        "BALANCE_LEDGER_PATH", _runtime_path("balance_ledger.json")
-    )
-    # Runtime JSON path: usage logs.
-    usage_log_path: str = os.getenv("USAGE_LOG_PATH", _runtime_path("usage_log.json"))
-    # Runtime JSON path: deposit intents.
-    deposit_intents_path: str = os.getenv(
-        "DEPOSIT_INTENTS_PATH", _runtime_path("deposit_intents.json")
-    )
-    # Runtime JSON path: legacy deposit cursor.
-    deposit_event_cursor_path: str = os.getenv(
-        "DEPOSIT_EVENT_CURSOR_PATH", _runtime_path("deposit_event_cursor.json")
-    )
-    # Runtime JSON path: processed deposit event keys.
-    deposit_event_processed_path: str = os.getenv(
-        "DEPOSIT_EVENT_PROCESSED_PATH", _runtime_path("deposit_event_processed.json")
-    )
-    # Runtime JSON path: refund intents.
-    refund_intents_path: str = os.getenv(
-        "REFUND_INTENTS_PATH", _runtime_path("refund_intents.json")
-    )
-    # Runtime JSON path: router owner configs.
-    router_config_path: str = os.getenv(
-        "ROUTER_CONFIG_PATH", _runtime_path("router_config.json")
-    )
-    # Runtime JSON path: provider secrets.
-    provider_secrets_path: str = os.getenv(
-        "PROVIDER_SECRETS_PATH", _runtime_path("provider_secrets.json")
-    )
-
     # Standardized payment-layer error metadata.
     error_responses: dict[int, dict[str, str]] = {
         402: {"description": "Payment required or invalid payment proof"},
@@ -632,6 +624,3 @@ class Settings:
 
 
 settings = Settings()
-
-# Ensure runtime artifact directory exists.
-os.makedirs(settings.runtime_storage_dir, exist_ok=True)

@@ -10,7 +10,10 @@ from .base import (
     SystemDomain,
 )
 from .postgres.database_manager import DatabaseManager
-from .postgres.schema_contracts import POSTGRES_TABLE_SCHEMA_CONTRACTS, TableSchemaContract
+from .postgres.schema_contracts import (
+    POSTGRES_TABLE_SCHEMA_CONTRACTS,
+    TableSchemaContract,
+)
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.balance_repository import BalanceRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
@@ -185,7 +188,7 @@ class PostgresStorage(BaseStorage):
         if missing:
             raise RuntimeError(
                 f"PostgreSQL schema mismatch: {table_name} is missing required indexes "
-                f"{', '.join(missing)}. Reapply the bootstrap SQL in infra/docker/postgres/init/."
+                f"{', '.join(missing)}. Reapply the bootstrap SQL in docker-compose/postgres/init/."
             )
 
     def _validate_required_constraints(self, contract: TableSchemaContract) -> None:
@@ -210,7 +213,7 @@ class PostgresStorage(BaseStorage):
         if missing:
             raise RuntimeError(
                 f"PostgreSQL schema mismatch: {contract.table_name} is missing required constraints "
-                f"{', '.join(missing)}. Reapply the bootstrap SQL in infra/docker/postgres/init/."
+                f"{', '.join(missing)}. Reapply the bootstrap SQL in docker-compose/postgres/init/."
             )
 
     def _validate_required_columns(
@@ -233,10 +236,12 @@ class PostgresStorage(BaseStorage):
             raise RuntimeError(
                 f"PostgreSQL schema mismatch: {table_name} is missing required columns "
                 f"{', '.join(missing)}. "
-                "Reapply the bootstrap SQL in infra/docker/postgres/init/."
+                "Reapply the bootstrap SQL in docker-compose/postgres/init/."
             )
 
     def _connect(self):
+        if psycopg is None:
+            raise RuntimeError("psycopg is not installed")
         return psycopg.connect(self.dsn)
 
     def get_database_manager(self) -> DatabaseManager:

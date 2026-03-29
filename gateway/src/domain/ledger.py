@@ -38,6 +38,9 @@ class DepositIntentRow(BaseModel):
     )
     amount_usdc: Decimal = Field(default=Decimal("0"), alias="amountUsdc")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
+    client_request_id: Optional[str] = Field(default=None, alias="clientRequestId")
+    client_ip: Optional[str] = Field(default=None, alias="clientIp")
+    user_agent: Optional[str] = Field(default=None, alias="userAgent")
     status: str = "PENDING_CONFIRMATION"
     event_key: Optional[str] = Field(default=None, alias="eventKey")
     confirmations: Optional[int] = None
@@ -55,7 +58,7 @@ class WithdrawalIntentRow(BaseModel):
     owner_address: str = Field(alias="ownerAddress")
     tx_hash: Optional[str] = Field(default=None, alias="txHash")
     status: Literal[
-        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED"
+        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED", "CANCELLED"
     ] = "REQUESTED"
     request_id: Optional[str] = Field(default=None, alias="requestId")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")

@@ -1,16 +1,44 @@
+from contextlib import asynccontextmanager
 import time
 from uuid import uuid4
 from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.router import api_v1_router
+from app.services.sentiment.scheduler import scheduler_from_settings
 from app.core.log_config import logger
 
-app = FastAPI(
-    title="Provider Service",
-    version="0.1.0",
-    description="Standalone provider API service for AgentPay integration testing",
-)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    scheduler = scheduler_from_settings()
+    if scheduler is not None:
+        await scheduler.start()
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            await scheduler.stop()
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Provider Service",
+        version="0.1.0",
+        description="Standalone provider API service for AgentPay integration testing",
+        lifespan=lifespan,
+    )
+
+    app.add_middleware(RequestLoggingMiddleware)
+
+    @app.get("/health")
+    async def health(request: Request) -> dict[str, str]:
+        req_logger = logger.bind(request_id=request.state.request_id)
+        req_logger.debug("Health check requested")
+        return {"status": "ok"}
+
+    app.include_router(api_v1_router)
+    return app
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -35,12 +63,5 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             req_logger.error(f"<== Provider Server Error: {str(e)} in {process_time_ms}ms")
             raise
 
-app.add_middleware(RequestLoggingMiddleware)
 
-@app.get("/health")
-async def health(request: Request) -> dict[str, str]:
-    req_logger = logger.bind(request_id=request.state.request_id)
-    req_logger.debug("Health check requested")
-    return {"status": "ok"}
-
-app.include_router(api_v1_router)
+app = create_app()

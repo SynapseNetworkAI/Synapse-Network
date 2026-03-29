@@ -38,8 +38,14 @@ class BalanceAuditMixin:
     def _finance_audit_actions(self) -> set[str]:
         return {
             "DEPOSIT_INTENT_REGISTERED",
+            "DEPOSIT_REPLAY_RETURNED_EXISTING",
+            "DEPOSIT_INTENT_CONFIRMED",
+            "CONSUMER_DEPOSIT_CONFIRMED",
+            "CONSUMER_DEPOSIT_CONFIRMED_REPAIRED",
             "REFUND_INTENT_CREATED",
             "PROVIDER_WITHDRAW_INTENT_CREATED",
+            "PROVIDER_WITHDRAW_REVIEW_APPROVED",
+            "PROVIDER_WITHDRAW_REVIEW_REJECTED",
             "PROVIDER_WITHDRAW_COMPLETED",
             "PROVIDER_WITHDRAW_CANCELLED",
             "ROUTER_CONFIG_UPDATED",

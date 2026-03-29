@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
 import { useEffect } from "react";
+import type { MouseEvent } from "react";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAuth } from "@/components/WalletAuthGuard";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { 
-  ShieldAlert, 
   LayoutGrid,
   Wallet,
   Bot,
   Compass,
   Box,
+  Key,
   AreaChart,
   Clock,
   ShieldCheck,
@@ -22,22 +25,29 @@ import {
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { address } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { isConnected, isSessionAuthenticated, authorize } = useAuth();
+  const { t } = useLanguage();
 
   const providerRoot = "/provider";
+  const providerConsoleRoute = `${providerRoot}/console`;
+  const providerSettlementsRoute = `${providerRoot}/settlements`;
 
   useEffect(() => {
     const allRoutes = [
       "/dashboard/overview",
       "/dashboard/agents",
+      "/dashboard/agents/workspace",
       "/dashboard/discovery",
       "/dashboard/invocations",
       "/dashboard/billing",
       "/dashboard/audit",
       "/dashboard/developer",
+      providerConsoleRoute,
+      `${providerRoot}/secrets`,
       `${providerRoot}/services`,
-      `${providerRoot}/earnings`,
-      `${providerRoot}/withdrawals`,
+      `${providerRoot}/usage`,
+      `${providerRoot}/settlements`,
     ];
 
     const warmup = () => {
@@ -53,10 +63,7 @@ export default function DashboardSidebar() {
 
     const timeoutId = globalThis.setTimeout(warmup, 200);
     return () => globalThis.clearTimeout(timeoutId);
-  }, [router, providerRoot]);
-
-  // Admin address logic
-  const isAdminAddress = address?.toLowerCase() === "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".toLowerCase();
+  }, [router, providerConsoleRoute, providerRoot]);
 
   const getLinkClasses = (paths: string | string[], exact = false) => {
     const candidates = Array.isArray(paths) ? paths : [paths];
@@ -73,6 +80,40 @@ export default function DashboardSidebar() {
       : "ml-auto bg-white/5 text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-mono flex items-center justify-center min-w-[20px]";
   };
 
+  const getSubLinkClasses = (path: string) => {
+    const active = pathname === path;
+    if (active) {
+      return "ml-12 mr-2 mt-1 flex items-center rounded-lg border-l-2 border-blue-400 bg-blue-500/[0.08] px-4 py-2 text-[12px] font-semibold text-blue-200 transition-all";
+    }
+    return "ml-12 mr-2 mt-1 flex items-center rounded-lg border-l-2 border-transparent px-4 py-2 text-[12px] font-medium text-gray-500 transition-all hover:bg-white/[0.02] hover:text-gray-200";
+  };
+
+  const shouldBypassNavGuard = (event: MouseEvent<HTMLAnchorElement>) => {
+    return event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+  };
+
+  const handleSettlementsNavigation = async (event: MouseEvent<HTMLAnchorElement>) => {
+    if (shouldBypassNavGuard(event)) {
+      return;
+    }
+
+    if (!isConnected) {
+      event.preventDefault();
+      openConnectModal?.();
+      return;
+    }
+
+    if (isSessionAuthenticated) {
+      return;
+    }
+
+    event.preventDefault();
+    const authorized = await authorize();
+    if (authorized) {
+      router.push(providerSettlementsRoute);
+    }
+  };
+
   return (
     <aside className="w-[260px] bg-[#0a0a0c] border-r border-white/5 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)] pb-12 font-sans tracking-tight">
       
@@ -80,37 +121,40 @@ export default function DashboardSidebar() {
       <div className="mb-6">
         <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-gray-500 uppercase flex items-center gap-2">
           <ShieldCheck className="w-3 h-3" />
-          Owner Control
+          {t("sidebar.ownerControl")}
         </h3>
         <nav className="flex flex-col gap-0.5">
           <Link href="/dashboard/overview" className={getLinkClasses(["/dashboard/overview"], true)}>
             <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
-            Overview
+            {t("sidebar.overview")}
           </Link>
-          <Link href="/dashboard/agents" className={getLinkClasses("/dashboard/agents", false)}>
+          <Link href="/dashboard/agents" className={getLinkClasses(["/dashboard/agents", "/dashboard/agents/workspace"], false)}>
             <Bot className="w-4 h-4 mr-3 opacity-80" />
-            Agents
+            {t("sidebar.agents")}
             <span className={getBadgeClasses(pathname.startsWith("/dashboard/agents"))}>3</span>
+          </Link>
+          <Link href="/dashboard/agents/workspace" className={getSubLinkClasses("/dashboard/agents/workspace")}>
+            {t("sidebar.agentsWorkspace")}
           </Link>
           <Link href="/dashboard/discovery" className={getLinkClasses("/dashboard/discovery", false)}>
             <Compass className="w-4 h-4 mr-3 opacity-80" />
-            Discovery
+            {t("sidebar.discovery")}
           </Link>
           <Link href="/dashboard/invocations" className={getLinkClasses("/dashboard/invocations", false)}>
             <History className="w-4 h-4 mr-3 opacity-80" />
-            Invocations
+            {t("sidebar.invocations")}
           </Link>
           <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing"], false)}>
             <Wallet className="w-4 h-4 mr-3 opacity-80" />
-            Billing
+            {t("sidebar.treasury")}
           </Link>
           <Link href="/dashboard/audit" className={getLinkClasses(["/dashboard/audit"], false)}>
             <AlertTriangle className="w-4 h-4 mr-3 opacity-80" />
-            Risk & Audit
+            {t("sidebar.riskAudit")}
           </Link>
           <Link href="/dashboard/developer" className={getLinkClasses(["/dashboard/developer"], false)}>
             <Terminal className="w-4 h-4 mr-3 opacity-80" />
-            Developer
+            {t("sidebar.developerResources")}
           </Link>
         </nav>
       </div>
@@ -119,38 +163,39 @@ export default function DashboardSidebar() {
       <div className="mb-6">
         <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-gray-500 uppercase flex items-center gap-2">
           <Box className="w-3 h-3" />
-          Provider Role
+          {t("sidebar.providerRole")}
         </h3>
         <nav className="flex flex-col gap-0.5">
+          <Link href={providerConsoleRoute} className={getLinkClasses([providerConsoleRoute, `${providerRoot}/sell`], false)}>
+            <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
+            {t("sidebar.providerConsole")}
+          </Link>
+          <Link href={`${providerRoot}/secrets`} className={getLinkClasses([`${providerRoot}/secrets`], false)}>
+            <Key className="w-4 h-4 mr-3 opacity-80" />
+            {t("sidebar.providerCredentials")}
+          </Link>
           <Link href={`${providerRoot}/services`} className={getLinkClasses([`${providerRoot}/services`], false)}>
             <Box className="w-4 h-4 mr-3 opacity-80" />
-            Service Manifests
+            {t("sidebar.myServices")}
             <span className={getBadgeClasses(pathname.startsWith(`${providerRoot}/services`))}>2</span>
           </Link>
-          <Link href={`${providerRoot}/earnings`} className={getLinkClasses([`${providerRoot}/earnings`], false)}>
+          <Link href={`${providerRoot}/usage`} className={getLinkClasses([`${providerRoot}/usage`], false)}>
             <AreaChart className="w-4 h-4 mr-3 opacity-80" />
-            Earnings Summary
+            {t("sidebar.usageAnalytics")}
           </Link>
-          <Link href={`${providerRoot}/withdrawals`} className={getLinkClasses([`${providerRoot}/withdrawals`], false)}>
+          <Link
+            href={providerSettlementsRoute}
+            className={getLinkClasses([providerSettlementsRoute], false)}
+            onClick={(event) => {
+              void handleSettlementsNavigation(event);
+            }}
+          >
             <Clock className="w-4 h-4 mr-3 opacity-80" />
-            Withdrawals
+            {t("sidebar.settlements")}
           </Link>
         </nav>
       </div>
 
-      {(isAdminAddress) && (
-        <div className="mb-6 mt-auto">
-          <h3 className="px-6 mb-2 text-[11px] font-bold tracking-widest text-red-500/60 uppercase">
-            Platform Operator
-          </h3>
-          <nav className="flex flex-col gap-0.5">
-            <Link href="/dashboard/admin" className={getLinkClasses("/dashboard/admin", true)}>
-              <ShieldAlert className="w-4 h-4 mr-3 opacity-80" />
-              Global Settlement
-            </Link>
-          </nav>
-        </div>
-      )}
     </aside>
   );
 }

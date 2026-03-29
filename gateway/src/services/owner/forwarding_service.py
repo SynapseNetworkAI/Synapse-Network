@@ -83,9 +83,9 @@ def _validate_service_id(
     return forwarding_validation.validate_service_id(x_service_id, request_service_id)
 
 
-def _validate_prompt(prompt: str) -> str:
+def _validate_prompt(prompt: Optional[str]) -> str:
     """Validate generate prompt content and max length contract."""
-    return forwarding_validation.validate_prompt(prompt)
+    return forwarding_validation.validate_prompt(str(prompt or ""))
 
 
 def _validate_credential_token(credential_token: Optional[str]) -> str:
@@ -131,8 +131,22 @@ async def _call_upstream(
     return await forwarding_upstream.call_upstream(service, invocation, request_payload)
 
 
-def _request_payload(prompt: str) -> Dict[str, Any]:
-    return {"text": prompt}
+def _request_payload(
+    request: InferenceRequest, service: ServiceDefinitionRecord
+) -> Dict[str, Any]:
+    payload = dict(request.payload or {})
+    if payload:
+        return payload
+
+    prompt = str(request.prompt or "")
+    if prompt.strip():
+        return {"text": _validate_prompt(prompt)}
+
+    schema = dict(service.invoke.request.schema_document.body or {})
+    required = schema.get("required") if isinstance(schema.get("required"), list) else []
+    if any(str(field) == "text" for field in required):
+        _validate_prompt(prompt)
+    return {}
 
 
 def _execution_repo(storage: BaseStorage) -> Any:
@@ -518,6 +532,7 @@ async def _execute_invocation_pipeline(
         usage_row=UsageLogRow(
             id=invocation.invocation_id,
             ts=credential_service.now_ts(),
+            agentId=credential.agent.agent_id,
             requestId=trace_request_id,
             serviceId=service.service_id,
             consumerAddress=credential_service.credential_owner_wallet(credential),
@@ -931,25 +946,21 @@ def _log_upstream_failure(
     error_message: Optional[str] = None,
 ) -> None:
     """Write one failed_upstream usage event with either error code or raw message."""
-    row: Dict[str, Any] = {
-        "request_id": request_id,
-        "consumer": owner_wallet,
-        "provider": provider_wallet,
-        "service_id": service_id,
-        "status": "failed_upstream",
-        "unit_price": settlement["unit_price"],
-        "fee_rate": settlement["fee_rate"],
-        "protocol_fee": settlement["protocol_fee"],
-        "routing_tax": settlement["routing_tax"],
-        "platform_fee_total": settlement["platform_fee_total"],
-        "provider_net": settlement["provider_net"],
-        "total_charge": settlement["total_charge"],
-        "created_at": credential_service.now_ts(),
-    }
-    if error_code:
-        row["error_code"] = error_code
-    if error_message:
-        row["error_msg"] = error_message
+    row = UsageLogRow(
+        id=f"{request_id}:failed_upstream",
+        ts=credential_service.now_ts(),
+        requestId=request_id,
+        serviceId=service_id,
+        consumerAddress=owner_wallet,
+        providerAddress=provider_wallet,
+        status="failed_upstream",
+        unitPrice=round(settlement["unit_price"], 6),
+        protocolFee=round(settlement["protocol_fee"], 6),
+        routingTax=round(settlement["routing_tax"], 6),
+        totalCharge=round(settlement["total_charge"], 6),
+        businessType="charge",
+        riskLevel="green",
+    )
     _append_usage_log(storage, row)
 
 
@@ -961,7 +972,6 @@ async def generate_response_v2(
     x_request_id: Optional[str],
 ) -> Dict[str, Any]:
     """Orchestrate full generate pipeline: validate, rate-limit, charge, proxy, audit, and respond."""
-    prompt = _validate_prompt(request.prompt)
     service_id = _validate_service_id(x_service_id, request.serviceId)
     token = _validate_credential_token(credential_token)
     request_id = _resolve_request_id(x_request_id)
@@ -969,7 +979,8 @@ async def generate_response_v2(
     credential = credential_service.resolve_active_credential(storage, token)
     service = _find_active_service(storage, service_id)
     unit_price = _parse_service_price_usdc(service)
-    request_payload = _request_payload(prompt)
+    request_payload = _request_payload(request, service)
+    _validate_invoke_request_contract(service, request_payload)
     quote = _build_service_quote(service, credential, request_payload, unit_price)
     _persist_quote(storage, quote)
     succeeded_invocation, consumer_after, settlement = await _execute_invocation_pipeline(

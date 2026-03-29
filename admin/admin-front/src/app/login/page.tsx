@@ -1,24 +1,56 @@
 "use client";
 
-import Link from "next/link";
+import { Box, Button, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
-import { clearAdminSession, persistAdminSession, readAdminToken } from "@/lib/admin-session";
-import { loginAdmin } from "@/services/admin-api";
+import { AuthProtocolShell } from "@/components/auth-protocol-shell";
+import { buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "@/features/auth/login-presenters";
+import { clearPendingMfaEnrollment, savePendingMfaEnrollment } from "@/lib/admin-mfa-enrollment";
+import {
+  getAdminAuthPolicy,
+  getCurrentAdmin,
+  isAdminApiError,
+  loginAdmin,
+  type AdminAuthSecurityPolicy,
+  type MfaEnrollmentRequiredData,
+} from "@/services/admin-api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("super@synapse.network");
-  const [otpCode, setOtpCode] = useState("123456");
+  const [otpCode, setOtpCode] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [security, setSecurity] = useState<AdminAuthSecurityPolicy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const showLoginTotp = isLoginTotpEnabled(security);
 
   useEffect(() => {
-    if (readAdminToken()) {
-      router.replace("/dashboard");
-    }
+    let cancelled = false;
+
+    clearPendingMfaEnrollment();
+
+    void getAdminAuthPolicy()
+      .then((policy) => {
+        if (!cancelled) {
+          setSecurity(policy);
+        }
+      })
+      .catch(() => undefined);
+
+    void getCurrentAdmin("cookie-session")
+      .then(() => {
+        if (!cancelled) {
+          router.replace("/dashboard");
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -26,73 +58,80 @@ export default function LoginPage() {
     setError(null);
     startTransition(async () => {
       try {
-        clearAdminSession();
-        const response = await loginAdmin({ email, password, otpCode });
-        persistAdminSession(response.accessToken, response.admin);
+        await loginAdmin({
+          email,
+          password,
+          otpCode: security?.loginTotpRequired ? otpCode : undefined,
+        });
         router.push("/dashboard");
       } catch (submitError) {
+        if (isAdminApiError(submitError) && submitError.code === "MFA_ENROLLMENT_REQUIRED") {
+          const enrollment = submitError.data as MfaEnrollmentRequiredData | undefined;
+          if (enrollment?.enrollmentToken) {
+            savePendingMfaEnrollment(enrollment);
+            router.push("/login/mfa-enroll");
+            return;
+          }
+        }
         setError(submitError instanceof Error ? submitError.message : "登录失败");
       }
     });
   }
 
   return (
-    <main className="login-page">
-      <section className="login-hero">
-        <p className="hero-chip">Synapse Admin Front</p>
-        <h1>把高风险运营动作从交易流量里拆出去。</h1>
-        <p>
-          管理后台仅承载控制面职责：管理员认证、审批流、审计查询、财务受控操作。
-        </p>
-        <div className="hero-actions">
-          <Link href="/dashboard" className="button button--primary">
-            进入控制台样例
-          </Link>
-          <Link href="/users" className="button button--secondary">
-            查看后台模块树
-          </Link>
-        </div>
-      </section>
-      <section className="login-card">
-        <div>
-          <p className="login-card__eyebrow">管理员登录</p>
-          <h2>SSO + MFA</h2>
-          <p className="login-card__text">当前为骨架页面，后续接入企业 SSO、设备校验和二次认证。</p>
-        </div>
-        <form className="login-form" onSubmit={handleSubmit}>
-          <label>
-            <span>邮箱</span>
-            <input
-              type="email"
-              placeholder="admin@synapse.network"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>初始密码</span>
-            <input
-              type="password"
-              placeholder="Init@StrongPassword"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>一次性验证码</span>
-            <input
-              type="text"
-              placeholder="123456"
-              value={otpCode}
-              onChange={(event) => setOtpCode(event.target.value)}
-            />
-          </label>
-          {error ? <p className="form-message form-message--error">{error}</p> : null}
-          <button type="submit" className="button button--primary button--full" disabled={isPending}>
-            {isPending ? "登录中..." : "登录并进入控制台"}
-          </button>
-        </form>
-      </section>
-    </main>
+    <AuthProtocolShell
+      eyebrow="System Authorization"
+      title="System Authorization"
+      versionLabel="Gateway Control Plane v4.0.8"
+      statusLabel="NODE_ACTIVE :: ENCRYPTED_LINK"
+      railTitle="管理员登录控制台。"
+      railDescription={buildLoginRailDescription(security)}
+      railFacts={buildLoginRailFacts(security)}
+      layout="centered"
+      panelMaxW="460px"
+    >
+      <form onSubmit={handleSubmit}>
+        <Stack gap="6">
+          <Stack gap="2">
+            <Text fontSize="10px" fontWeight="800" letterSpacing="0.2em" textTransform="uppercase" color="rgba(103, 232, 249, 0.68)">Operator Identification</Text>
+            <Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="EMAIL_UID" fontFamily="mono" h="14" borderRadius="6px" bg="rgba(15,23,42,0.5)" borderColor="rgba(30,41,59,0.95)" color="#f8fafc" _placeholder={{ color: "rgba(100, 116, 139, 0.9)" }} _hover={{ borderColor: "rgba(34, 211, 238, 0.35)" }} _focusVisible={{ borderColor: "rgba(34, 211, 238, 0.55)", boxShadow: "0 0 0 1px rgba(34, 211, 238, 0.28)" }} />
+          </Stack>
+
+          <Stack gap="2">
+            <Flex justify="space-between" align="center">
+              <Text fontSize="10px" fontWeight="800" letterSpacing="0.2em" textTransform="uppercase" color="rgba(103, 232, 249, 0.68)">Access Cipher</Text>
+              <Button variant="ghost" size="sm" color="rgba(148, 163, 184, 0.85)" _hover={{ color: "#67e8f9", bg: "transparent" }} onClick={() => setPassword("")}>Recover Key</Button>
+            </Flex>
+            <Flex gap="2">
+              <Input value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? "text" : "password"} placeholder="PASSWORD" fontFamily="mono" h="14" borderRadius="6px" bg="rgba(15,23,42,0.5)" borderColor="rgba(30,41,59,0.95)" color="#f8fafc" _placeholder={{ color: "rgba(100, 116, 139, 0.9)" }} _hover={{ borderColor: "rgba(34, 211, 238, 0.35)" }} _focusVisible={{ borderColor: "rgba(34, 211, 238, 0.55)", boxShadow: "0 0 0 1px rgba(34, 211, 238, 0.28)" }} />
+              <Button variant="outline" minW="92px" h="14" borderRadius="6px" borderColor="rgba(30,41,59,0.95)" color="rgba(226, 232, 240, 0.92)" _hover={{ borderColor: "rgba(34, 211, 238, 0.35)", color: "#67e8f9", bg: "rgba(15,23,42,0.58)" }} onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Hide" : "Reveal"}</Button>
+            </Flex>
+          </Stack>
+
+          {showLoginTotp ? (
+            <Stack gap="2">
+              <Text fontSize="10px" fontWeight="800" letterSpacing="0.2em" textTransform="uppercase" color="rgba(103, 232, 249, 0.68)">Google Authenticator Token</Text>
+              <Flex gap="2">
+                <Box flex="1" position="relative">
+                  <Box position="absolute" left="4" top="50%" transform="translateY(-50%)" pointerEvents="none">
+                    <Text color="rgba(103, 232, 249, 0.52)" fontSize="lg" fontWeight="800">⌁</Text>
+                  </Box>
+                  <Input value={otpCode} onChange={(event) => setOtpCode(event.target.value.replaceAll(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="000000" fontFamily="mono" letterSpacing="0.5em" pl="11" h="14" borderRadius="6px" bg="rgba(15,23,42,0.5)" borderColor="rgba(30,41,59,0.95)" color="#f8fafc" _placeholder={{ color: "rgba(100, 116, 139, 0.9)" }} _hover={{ borderColor: "rgba(34, 211, 238, 0.35)" }} _focusVisible={{ borderColor: "rgba(34, 211, 238, 0.55)", boxShadow: "0 0 0 1px rgba(34, 211, 238, 0.28)" }} />
+                </Box>
+                <Box minW="12" h="14" display="grid" placeItems="center" borderRadius="6px" bg="rgba(15,23,42,0.3)" border="1px solid rgba(30,41,59,0.95)">
+                  <Text color="rgba(103, 232, 249, 0.7)" fontSize="xs" fontWeight="800">OTP</Text>
+                </Box>
+              </Flex>
+            </Stack>
+          ) : null}
+
+          <Button type="submit" mt={showLoginTotp ? "0" : "3"} h="16" borderRadius="6px" bg="#22d3ee" color="#082f49" fontWeight="900" fontFamily="mono" fontSize="sm" letterSpacing="0.2em" textTransform="uppercase" _hover={{ bg: "#f8fafc", boxShadow: "0 0 24px rgba(34, 211, 238, 0.34)" }} disabled={isPending}>
+            {isPending ? "Executing..." : "Execute Initialization"}
+          </Button>
+
+          {error ? <Box borderRadius="14px" p="4" bg="rgba(127, 29, 29, 0.22)" border="1px solid rgba(248, 113, 113, 0.24)" color="#fecaca">{error}</Box> : null}
+        </Stack>
+      </form>
+    </AuthProtocolShell>
   );
 }

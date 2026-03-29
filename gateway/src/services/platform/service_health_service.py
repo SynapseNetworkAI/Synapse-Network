@@ -79,23 +79,30 @@ def _service_targets(service: ServiceDefinitionRecord) -> List[ServiceInvokeTarg
 
 def public_health_summary(service: ServiceDefinitionRecord) -> Dict[str, Any]:
     health = _runtime_health(service)
+    raw_status = str(health.overall_status or "unknown")
+    stale = is_health_stale(service)
+    runtime_available = is_service_discoverable(service)
+    health = _runtime_health(service)
     return {
-        "overallStatus": str(health.overall_status or "unknown"),
+        "overallStatus": effective_runtime_status(service),
+        "probeStatus": raw_status,
         "healthyTargets": int(health.healthy_targets or 0),
         "totalTargets": int(health.total_targets or len(_service_targets(service))),
         "lastCheckedAt": health.last_checked_at,
+        "isStale": stale,
+        "runtimeAvailable": runtime_available,
     }
 
 
 def public_discover_status(service: ServiceDefinitionRecord) -> str:
-    return str(public_health_summary(service).get("overallStatus") or "unknown")
+    return effective_runtime_status(service)
 
 
-def get_healthy_target_urls(
+def is_health_stale(
     service: ServiceDefinitionRecord,
     now_ms: Optional[int] = None,
     stale_after_sec: Optional[int] = None,
-) -> List[str]:
+) -> bool:
     now = int(now_ms if now_ms is not None else _now_ms())
     stale_sec = int(
         stale_after_sec
@@ -103,10 +110,43 @@ def get_healthy_target_urls(
         else settings.service_health_stale_after_sec
     )
     stale_after_ms = max(1000, stale_sec * 1000)
+    last_checked = int(_runtime_health(service).last_checked_at or 0)
+    return last_checked <= 0 or now - last_checked > stale_after_ms
 
-    health = _runtime_health(service)
-    last_checked = int(health.last_checked_at or 0)
-    if last_checked <= 0 or now - last_checked > stale_after_ms:
+
+def effective_runtime_status(
+    service: ServiceDefinitionRecord,
+    now_ms: Optional[int] = None,
+    stale_after_sec: Optional[int] = None,
+) -> str:
+    if not bool(service.is_active):
+        return "inactive"
+    if str(service.status or "active").lower() != "active":
+        return "inactive"
+    if is_health_stale(service, now_ms=now_ms, stale_after_sec=stale_after_sec):
+        return "stale"
+
+    healthy_target_urls = get_healthy_target_urls(
+        service,
+        now_ms=now_ms,
+        stale_after_sec=stale_after_sec,
+    )
+    raw_status = str(_runtime_health(service).overall_status or "unknown").strip().lower()
+    if healthy_target_urls:
+        if raw_status in {"healthy", "degraded"}:
+            return raw_status
+        return "healthy"
+    if raw_status in {"degraded", "unhealthy", "unknown", "pending"}:
+        return raw_status
+    return "unknown"
+
+
+def get_healthy_target_urls(
+    service: ServiceDefinitionRecord,
+    now_ms: Optional[int] = None,
+    stale_after_sec: Optional[int] = None,
+) -> List[str]:
+    if is_health_stale(service, now_ms=now_ms, stale_after_sec=stale_after_sec):
         return []
 
     target_health = _target_health_map(service)
@@ -140,6 +180,7 @@ def _service_health_row(
         return None
 
     row = target_health.get(target_url) or {}
+    constraint_timeout_ms = int(getattr(service.constraints, "timeout_ms", None) or 15000)
     return ServiceTargetHealth(
         serviceId=service_id,
         ownerAddress=str(service.owner_address or "").strip(),
@@ -155,6 +196,7 @@ def _service_health_row(
         probeUrl=getattr(row, "probe_url", None),
         lastCheckedAt=getattr(row, "last_checked_at", None),
         lastHealthyAt=getattr(row, "last_healthy_at", None),
+        timeoutMs=max(300, min(60000, constraint_timeout_ms)),
         error=getattr(row, "error", None),
     )
 
@@ -164,6 +206,8 @@ def _build_service_target_health_rows(
 ) -> List[ServiceTargetHealth]:
     rows: List[ServiceTargetHealth] = []
     for service in services:
+        if str(service.status or "").strip().lower() == "deleted":
+            continue
         target_health = _target_health_map(service)
         for target in _service_targets(service):
             next_row = _service_health_row(service, target, target_health)
@@ -292,6 +336,12 @@ def _seed_service_health_from_persisted_rows(
         )
         for service in services
     ]
+
+
+def seed_service_health_from_persisted_rows(
+    storage: BaseStorage, services: List[ServiceDefinitionRecord]
+) -> List[ServiceDefinitionRecord]:
+    return _seed_service_health_from_persisted_rows(storage, services)
 
 
 def sync_service_target_health_table(
@@ -637,10 +687,9 @@ async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
                 appended_history += append_health_history_rows(storage, history_rows)
             next_rows.append(next_row)
 
-    if updated > 0:
-        repo = storage.get_data_manager().system.registry
-        repo.write_service_registry_rows(next_rows)
-
+    # Discovery hydrates runtime health from the health snapshot tables, so the
+    # monitor only needs to sync health rows here. Rewriting manifests on every
+    # probe tick can break quote foreign keys and silently starve discovery.
     synced_rows = sync_service_target_health_table(storage, next_rows)
     valid_service_ids = {
         str(row.service_id or "").strip()

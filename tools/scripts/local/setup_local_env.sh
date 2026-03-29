@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
+PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_311.sh"
 
 find_pid_by_port() {
 	local port="$1"
@@ -16,8 +17,8 @@ if ! command -v npm >/dev/null 2>&1; then
 	exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-	echo "Error: python3 is not installed."
+if [[ ! -f "$PYTHON_RESOLVER" ]]; then
+	echo "Error: Python resolver script not found at ${PYTHON_RESOLVER}"
 	exit 1
 fi
 
@@ -36,7 +37,7 @@ ensure_hardhat_local() {
 		echo "Installing local contract toolchain dependencies..."
 		(
 			cd "${ROOT_DIR}"
-			npm install
+			yarn install
 		)
 	fi
 }
@@ -81,13 +82,15 @@ fi
 ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore)")
 PROVIDER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
-echo "3) Starting gateway/provider_fastapi.py in background (local profile)..."
+echo "3) Starting gateway/gateway_fastapi.py in background (local profile)..."
 cd "${ROOT_DIR}/gateway"
 
-if [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
+if [[ -x "${ROOT_DIR}/gateway/.venv/bin/python" ]]; then
+	PYTHON_BIN="${ROOT_DIR}/gateway/.venv/bin/python"
+elif [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
 	PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
 else
-	PYTHON_BIN="python3"
+	PYTHON_BIN="$(bash "$PYTHON_RESOLVER")"
 fi
 
 echo "Using Python interpreter: ${PYTHON_BIN}"
@@ -120,7 +123,7 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" provider_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
+	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
@@ -128,7 +131,7 @@ else
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
 	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
 	EXPECTED_PRICE="1000000000000000000" \
-	"$PYTHON_BIN" provider_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
+	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
 fi
 PROVIDER_PID=$!
 sleep 3
@@ -152,10 +155,10 @@ if [[ -n "$EXISTING_FRONTEND_PID" ]]; then
 else
 	if [[ ! -d "${ROOT_DIR}/apps/frontend/node_modules" ]]; then
 		echo "apps/frontend/node_modules not found. Installing npm dependencies..."
-		npm install
+		yarn install
 	fi
 
-	npm run dev > "${ROOT_DIR}/apps/frontend/frontend_dev.log" 2>&1 &
+	yarn dev > "${ROOT_DIR}/apps/frontend/frontend_dev.log" 2>&1 &
 	FRONTEND_PID=$!
 	FRONTEND_OWNED_BY_SCRIPT=1
 	sleep 5

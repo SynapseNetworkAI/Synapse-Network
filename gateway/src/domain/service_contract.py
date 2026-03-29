@@ -32,9 +32,12 @@ class PublicHealthSummaryRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     overall_status: str = Field(default="unknown", alias="overallStatus")
+    probe_status: str = Field(default="unknown", alias="probeStatus")
     healthy_targets: int = Field(default=0, alias="healthyTargets")
     total_targets: int = Field(default=0, alias="totalTargets")
     last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
+    is_stale: bool = Field(default=True, alias="isStale")
+    runtime_available: bool = Field(default=False, alias="runtimeAvailable")
 
 
 class QuoteInputPreviewRecord(BaseModel):
@@ -58,11 +61,26 @@ class AgentDiscoveryQueryRecord(BaseModel):
 
     query: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
-    max_price_usdc: Optional[Decimal] = Field(default=None, alias="maxPriceUsdc")
-    requires_structured_output: bool = Field(default=False, alias="requiresStructuredOutput")
-    region: Optional[str] = None
-    limit: int = 10
+    page: int = 1
+    page_size: int = Field(default=10, alias="pageSize")
     sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
+
+    @property
+    def normalized_query(self) -> Optional[str]:
+        value = str(self.query or "").strip()
+        return value or None
+
+    @property
+    def normalized_tags(self) -> list[str]:
+        return [str(tag).strip() for tag in self.tags if str(tag).strip()]
+
+    @property
+    def effective_page(self) -> int:
+        return max(1, int(self.page or 1))
+
+    @property
+    def effective_page_size(self) -> int:
+        return max(1, int(self.page_size or 10))
 
 
 class PublicServiceDiscoveryRecord(BaseModel):
@@ -128,6 +146,29 @@ class ServiceAuthRecord(BaseModel):
     auth_type: str = Field(default="", alias="type")
     header_name: Optional[str] = Field(default=None, alias="headerName")
     config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProviderProfileRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    display_name: str = Field(default="", alias="displayName")
+
+
+class ProviderPayoutAccountRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    payout_address: str = Field(alias="payoutAddress")
+    chain_id: int = Field(alias="chainId")
+    settlement_currency: str = Field(default="USDC", alias="settlementCurrency")
+    status: Literal["active", "paused", "archived"] = "active"
+
+
+class ProviderGovernanceRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    terms_accepted: bool = Field(default=False, alias="termsAccepted")
+    risk_acknowledged: bool = Field(default=False, alias="riskAcknowledged")
+    note: Optional[str] = None
 
 
 class ServiceHealthCheckRecord(BaseModel):
@@ -315,6 +356,13 @@ class ServiceDefinitionRecord(BaseModel):
     address: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     auth: ServiceAuthRecord = Field(default_factory=ServiceAuthRecord)
+    provider_profile: Optional[ProviderProfileRecord] = Field(
+        default=None, alias="providerProfile"
+    )
+    payout_account: Optional[ProviderPayoutAccountRecord] = Field(
+        default=None, alias="payoutAccount"
+    )
+    governance: Optional[ProviderGovernanceRecord] = None
     health_check: ServiceHealthCheckRecord = Field(default_factory=ServiceHealthCheckRecord, alias="healthCheck")
     forwarding: ServiceForwardingRecord = Field(default_factory=ServiceForwardingRecord)
     metering: ServiceMeteringRecord = Field(default_factory=ServiceMeteringRecord)

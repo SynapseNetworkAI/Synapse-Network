@@ -1,14 +1,26 @@
 from .client import SynapseClient
-from .exceptions import SynapseClientError, DiscoveryError, InvokeError, InsufficientFundsError, AuthenticationError
-from .models import SynapseResponse, DiscoveryResponse
+from .exceptions import (
+    AuthenticationError,
+    BudgetExceededError,
+    DiscoveryError,
+    InsufficientFundsError,
+    InvokeError,
+    QuoteError,
+    SynapseClientError,
+)
+from .models import DiscoveryResponse, InvocationResponse, QuoteResponse, SynapseResponse
 
 __all__ = [
     "SynapseClient",
     "SynapseClientError",
+    "BudgetExceededError",
     "DiscoveryError",
+    "QuoteError",
     "InvokeError",
     "InsufficientFundsError",
     "AuthenticationError",
     "SynapseResponse",
-    "DiscoveryResponse"
+    "DiscoveryResponse",
+    "QuoteResponse",
+    "InvocationResponse",
 ]

@@ -12,21 +12,29 @@ from src.services.adapters import (
     GatewayExecutionAdapter,
     HttpGatewayExecutionAdapter,
     InMemoryGatewayExecutionAdapter,
+    HttpProviderWithdrawReviewAdapter,
+    InMemoryProviderWithdrawReviewAdapter,
+    ProviderWithdrawReviewAdapter,
 )
 from src.services.audit.service import AuditService
 from src.services.auth.service import AdminAuthService, AdminIdentity
 from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService, ExecutionWorker
+from src.services.finance_admin import ProviderWithdrawReviewService
 from src.storage.analytics import (
     GatewayDashboardProjectionRepository,
     InMemoryGatewayDashboardProjectionRepository,
+    InMemoryProviderWithdrawReviewRepository,
     PostgresGatewayDashboardProjectionRepository,
+    PostgresProviderWithdrawReviewRepository,
+    ProviderWithdrawReviewRepository,
 )
 from src.storage import InMemoryAdminStore, PostgresAdminStore
 from src.storage.base import AdminStore
 
 AuthorizationHeader = Annotated[str | None, Header(alias="Authorization")]
 RequestIdHeader = Annotated[str | None, Header(alias="X-Request-Id")]
+AdminOtpHeader = Annotated[str | None, Header(alias="X-Admin-OTP-Code")]
 
 
 @lru_cache(maxsize=1)
@@ -54,7 +62,11 @@ def get_admin_config_service() -> AdminConfigService:
 
 @lru_cache(maxsize=1)
 def get_approval_service() -> ApprovalService:
-    return ApprovalService(get_store())
+    return ApprovalService(
+        get_store(),
+        get_provider_withdraw_review_repository(),
+        get_provider_withdraw_review_service(),
+    )
 
 
 @lru_cache(maxsize=1)
@@ -67,7 +79,46 @@ def get_gateway_dashboard_projection_repository() -> GatewayDashboardProjectionR
 
 @lru_cache(maxsize=1)
 def get_dashboard_service() -> DashboardService:
-    return DashboardService(get_store(), get_gateway_dashboard_projection_repository())
+    return DashboardService(
+        get_store(),
+        get_gateway_dashboard_projection_repository(),
+        get_provider_withdraw_review_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_provider_withdraw_review_repository() -> ProviderWithdrawReviewRepository:
+    settings = get_settings()
+    if settings.use_inmemory_store:
+        return InMemoryProviderWithdrawReviewRepository.seed_demo()
+    return PostgresProviderWithdrawReviewRepository(settings.gateway_readonly_dsn)
+
+
+@lru_cache(maxsize=1)
+def get_provider_withdraw_review_adapter() -> ProviderWithdrawReviewAdapter:
+    settings = get_settings()
+    if settings.use_inmemory_store:
+        repository = get_provider_withdraw_review_repository()
+        if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
+            return InMemoryProviderWithdrawReviewAdapter(repository)
+    return HttpProviderWithdrawReviewAdapter(
+        base_url=settings.gateway_internal_base_url,
+        admin_wallet=settings.gateway_internal_admin_wallet,
+        jwt_secret=settings.gateway_internal_jwt_secret,
+        token_issuer=settings.gateway_internal_token_issuer,
+        token_audience=settings.gateway_internal_token_audience,
+        service_subject=settings.gateway_internal_service_subject,
+        timeout_sec=settings.gateway_internal_timeout_sec,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_provider_withdraw_review_service() -> ProviderWithdrawReviewService:
+    return ProviderWithdrawReviewService(
+        get_store(),
+        get_provider_withdraw_review_repository(),
+        get_provider_withdraw_review_adapter(),
+    )
 
 
 @lru_cache(maxsize=1)
@@ -99,6 +150,9 @@ def get_gateway_execution_adapter() -> GatewayExecutionAdapter:
         base_url=settings.gateway_internal_base_url,
         admin_wallet=settings.gateway_internal_admin_wallet,
         jwt_secret=settings.gateway_internal_jwt_secret,
+        token_issuer=settings.gateway_internal_token_issuer,
+        token_audience=settings.gateway_internal_token_audience,
+        service_subject=settings.gateway_internal_service_subject,
         timeout_sec=settings.gateway_internal_timeout_sec,
     )
 
@@ -108,15 +162,25 @@ def get_request_id(request: Request, request_id: RequestIdHeader = None) -> str:
     return request_state_id or request_id or "req_demo"
 
 
+def get_admin_token(request: Request, authorization: AuthorizationHeader = None) -> str:
+    if authorization:
+        scheme, _, raw_token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not raw_token:
+            raise AuthenticationError("Invalid Authorization header")
+        return raw_token
+    cookie_name = get_settings().admin_session_cookie_name
+    token = request.cookies.get(cookie_name)
+    if not token:
+        raise AuthenticationError("Missing admin session")
+    return token
+
+
 def require_admin(
+    request: Request,
     authorization: AuthorizationHeader = None,
     auth_service: Annotated[AdminAuthService, Depends(get_auth_service)] = None,
 ) -> AdminIdentity:
-    if not authorization:
-        raise AuthenticationError("Missing Authorization header")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise AuthenticationError("Invalid Authorization header")
+    token = get_admin_token(request, authorization)
     return auth_service.get_current_admin(token)
 
 
@@ -126,6 +190,18 @@ def require_permission(permission: str):
     ) -> AdminIdentity:
         if permission not in admin.permissions:
             raise AuthorizationError(f"Missing permission: {permission}")
+        return admin
+
+    return dependency
+
+
+def require_high_risk_permission(permission: str):
+    def dependency(
+        otp_code: AdminOtpHeader = None,
+        admin: Annotated[AdminIdentity, Depends(require_permission(permission))] = None,
+        auth_service: Annotated[AdminAuthService, Depends(get_auth_service)] = None,
+    ) -> AdminIdentity:
+        auth_service.verify_high_risk_otp(admin.admin_id, otp_code)
         return admin
 
     return dependency

@@ -2,43 +2,33 @@
 
 import { useEffect, useState } from "react";
 
-import { readAdminToken } from "@/lib/admin-session";
 import {
-  getVisibleAdminNavigation,
-  getVisibleAdminNavigationFromConfig,
-  adminNavigationTree,
-  type AdminNavSection,
+  buildAdminNavigation,
+  type NavItem,
 } from "@/lib/navigation";
-import { getAdminMenuConfig, type AdminProfile } from "@/services/admin-api";
+import { getVisibleAdminMenuConfig, type AdminProfile } from "@/services/admin-api";
 
 
 type UseAdminNavigationResult = {
-  navigation: AdminNavSection[];
+  navigation: NavItem[];
 };
 
 
 export function useAdminNavigation(admin: AdminProfile): UseAdminNavigationResult {
-  const [navigation, setNavigation] = useState<AdminNavSection[]>(() => getVisibleAdminNavigation(admin));
+  const [navigation, setNavigation] = useState<NavItem[]>([]);
 
   useEffect(() => {
-    const token = readAdminToken();
     let cancelled = false;
 
     async function loadNavigation() {
-      if (!token) {
-        if (!cancelled) {
-          setNavigation(getVisibleAdminNavigation(admin));
-        }
-        return;
-      }
       try {
-        const response = await getAdminMenuConfig(token, { stage: "published" });
+        const response = await getVisibleAdminMenuConfig("cookie-session");
         if (!cancelled) {
-          setNavigation(getVisibleAdminNavigationFromConfig(admin, response.items));
+          setNavigation(buildAdminNavigation(response.items));
         }
       } catch {
         if (!cancelled) {
-          setNavigation(getVisibleAdminNavigationFromConfig(admin, [], adminNavigationTree));
+          setNavigation([]);
         }
       }
     }
@@ -47,7 +37,7 @@ export function useAdminNavigation(admin: AdminProfile): UseAdminNavigationResul
     return () => {
       cancelled = true;
     };
-  }, [admin]);
+  }, [admin.adminId]);
 
   return { navigation };
 }

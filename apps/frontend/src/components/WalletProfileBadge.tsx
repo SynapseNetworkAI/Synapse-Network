@@ -5,6 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Coins, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCallback } from "react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { clearAuthSession, buildAuthedHeaders } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import contractConfig from "@/contract-config.json";
@@ -13,6 +14,7 @@ import { parseAbi } from "viem";
 export default function WalletProfileBadge() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
+  const { t } = useLanguage();
 
   const { data: walletUsdcBalanceRaw, refetch } = useReadContract({
     address: contractConfig.MockUSDC as `0x${string}`,
@@ -55,8 +57,8 @@ export default function WalletProfileBadge() {
     }
     clearAuthSession();
     disconnect();
-    toast.success("Wallet disconnected");
-  }, [address, disconnect]);
+    toast.success(t("nav.walletDisconnected"));
+  }, [address, disconnect, t]);
 
   if (!isConnected) {
     return <ConnectButton />;
@@ -78,10 +80,10 @@ export default function WalletProfileBadge() {
       <button
         onClick={handleLogout}
         className="flex items-center px-4 py-2 text-sm font-bold text-red-400 transition-colors bg-gray-900 border border-red-900/50 rounded-lg hover:bg-red-950/30"
-        title="Disconnect Wallet"
+        title={t("nav.disconnectWallet")}
       >
         <LogOut className="w-4 h-4 mr-2" />
-        Disconnect
+        {t("nav.disconnect")}
       </button>
     </div>
   );

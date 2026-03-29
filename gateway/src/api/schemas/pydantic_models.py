@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field, field_validator
+from decimal import Decimal
 from typing import Any, Dict, Literal, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 from src.domain.service_contract import (
     QuoteInputPreviewRecord,
@@ -56,18 +58,25 @@ class CredentialQuotaUpdateRequest(BaseModel):
 
 
 class InferenceRequest(BaseModel):
-    prompt: str
+    prompt: Optional[str] = None
     serviceId: Optional[str] = None
+    payload: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentDiscoverySearchRequest(BaseModel):
     query: Optional[str] = Field(default=None, max_length=256)
     tags: list[str] = Field(default_factory=list)
-    maxPriceUsdc: Optional[float] = Field(default=None, gt=0)
-    requiresStructuredOutput: bool = False
-    region: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    limit: int = Field(default=10, ge=1, le=50)
+    page: int = Field(default=1, ge=1)
+    pageSize: int = Field(default=10, ge=1, le=50)
     sort: Literal["best_match", "lowest_price", "fastest", "highest_reliability"] = "best_match"
+
+    @field_validator("query")
+    @classmethod
+    def normalize_query(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
 
 
 class AgentQuoteRequest(BaseModel):
@@ -188,7 +197,16 @@ class AdminRefundCompleteRequest(RefundCompleteRequest):
 
 
 class ProviderWithdrawIntentRequest(BaseModel):
-    amountUsdc: Optional[float] = Field(default=None, gt=0)
+    amountUsdc: Optional[Decimal] = Field(default=None, gt=0)
+
+    @field_validator("amountUsdc")
+    @classmethod
+    def validate_amount_usdc(cls, value: Optional[Decimal]) -> Optional[Decimal]:
+        if value is None:
+            return None
+        if value != value.quantize(Decimal("0.01")):
+            raise ValueError("amountUsdc supports up to 2 decimal places")
+        return value
 
 
 class ProviderWithdrawCompleteRequest(BaseModel):
@@ -210,6 +228,13 @@ class ProviderWithdrawCompleteRequest(BaseModel):
 
 class AdminProviderWithdrawCompleteRequest(ProviderWithdrawCompleteRequest):
     ownerAddress: str = Field(..., min_length=1, max_length=64)
+
+
+class AdminProviderWithdrawReviewRequest(BaseModel):
+    ownerAddress: str = Field(..., min_length=1, max_length=64)
+    reviewDecision: str = Field(..., min_length=7, max_length=16)
+    reviewerAddress: Optional[str] = Field(default=None, max_length=64)
+    reviewerNote: Optional[str] = Field(default=None, max_length=512)
 
 
 class RouterConfigRequest(BaseModel):

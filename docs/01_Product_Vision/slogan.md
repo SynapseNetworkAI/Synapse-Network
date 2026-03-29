@@ -2,7 +2,6 @@
 
 ## 文件命名说明
 - 正确拼写是：slogan.md
-- solgen.md 不正确。
 
 ## 一句话定位（推荐对外）
 - Stripe for AI Agents.

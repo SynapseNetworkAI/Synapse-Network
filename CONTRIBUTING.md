@@ -39,6 +39,45 @@ A backend PR is considered complete only when all three are aligned:
 
 If one side is missing, the change is incomplete.
 
+## Frontend Change Checklist
+
+When you modify frontend files under `apps/frontend/src/`:
+1. Update or add tests for any shared logic or behavior that changed.
+2. Run the repository frontend CI gate from repo root.
+
+That gate currently executes frontend `lint + test + build`.
+
+Suggested command:
+
+```bash
+npm run ci:frontend
+```
+
+## Repository PR Gate
+
+Use the repository PR aggregate command before pushing cross-cutting changes:
+
+```bash
+npm run ci:pr
+```
+
+Current `ci:pr` coverage:
+1. `apps/frontend`: lint, test, build
+2. `admin/admin-front`: lint, build
+3. `gateway`: create `gateway/.venv`, install project deps, run pytest
+4. `admin/gateway-admin`: create `admin/gateway-admin/.venv`, install project deps, run pytest
+5. `provider_service`: create `provider_service/.venv`, install project deps, run pytest
+6. `sdk/python`: create `sdk/python/.venv`, install editable package deps, run pytest unit coverage and `python -m build`
+7. root contracts: hardhat compile, and hardhat test when root test files exist
+
+Current Python packaging scope in this repository:
+1. `sdk/python` is the only Python project that is currently packaged and validated with `python -m build`.
+2. `gateway`, `admin/gateway-admin`, and `provider_service` are service runtimes, not distribution packages.
+
+CI Python environment rule:
+1. The Python CI scripts do not rely on an externally activated interpreter anymore.
+2. Each Python project bootstraps and uses its own directory-local `.venv` during the check.
+
 ## Commit Hygiene
 
 1. Keep commits focused and reviewable.

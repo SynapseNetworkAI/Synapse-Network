@@ -1,1 +1,1 @@
-export { default } from "../../dashboard/usage/page";
+export { default } from "@/components/provider-workspace/ProviderUsagePage";

@@ -19,6 +19,7 @@ from .persistence import (
     _load_backfill_state,
     _load_balance_ledger,
     _load_deposit_intents,
+    _persist_indexer_runtime_state,
     _load_processed_deposit_event_keys,
     _save_backfill_state,
 )
@@ -139,6 +140,7 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
                 "lastError": None,
             }
         )
+        _persist_indexer_runtime_state(storage)
         return {
             "enabled": True,
             "scanned": 0,
@@ -218,6 +220,7 @@ def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
             "lastError": None,
         }
     )
+    _persist_indexer_runtime_state(storage)
     logger.info(
         "deposit backfill done start_block=%s end_block=%s scanned=%s candidate_txs=%s recovered=%s",
         start_block,

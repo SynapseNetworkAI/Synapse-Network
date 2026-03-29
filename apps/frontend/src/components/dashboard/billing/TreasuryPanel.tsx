@@ -1,14 +1,17 @@
 import { Wallet, Coins, RefreshCw } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export default function TreasuryPanel({
   vaultBalance,
   walletBalance,
   onRefresh,
-}: {
+}: Readonly<{
   vaultBalance: string;
   walletBalance: string;
   onRefresh: () => void;
-}) {
+}>) {
+  const { t } = useLanguage();
+
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* Vault Balance Card */}
@@ -19,13 +22,18 @@ export default function TreasuryPanel({
         <div className="relative z-10 flex items-start justify-between">
           <div>
              <h3 className="text-sm font-medium tracking-wider text-green-400 uppercase">
-                Synapse Vault Balance
+                {t("billingPage.vaultBalanceTitle")}
              </h3>
              <p className="mt-1 text-xs text-gray-400">
-                可用于 API 消费或提现的真实核心资产
+                {t("billingPage.vaultBalanceDescription")}
              </p>
           </div>
-          <button onClick={onRefresh} className="p-1.5 transition-colors bg-gray-800 border border-gray-700 rounded-md hover:bg-gray-700 hover:text-green-400">
+          <button
+            onClick={onRefresh}
+            aria-label={t("billingPage.refreshBalances")}
+            title={t("billingPage.refreshBalances")}
+            className="p-1.5 transition-colors bg-gray-800 border border-gray-700 rounded-md hover:bg-gray-700 hover:text-green-400"
+          >
             <RefreshCw className="w-4 h-4 text-gray-400" />
           </button>
         </div>
@@ -44,10 +52,10 @@ export default function TreasuryPanel({
         </div>
         <div className="relative z-10">
            <h3 className="text-sm font-medium tracking-wider text-gray-400 uppercase">
-              Connected Wallet Balance
+              {t("billingPage.walletBalanceTitle")}
            </h3>
            <p className="mt-1 text-xs text-gray-500">
-              当前链上钱包内的可用 USDC
+              {t("billingPage.walletBalanceDescription")}
            </p>
         </div>
         <div className="relative z-10 flex items-baseline mt-6 space-x-2">

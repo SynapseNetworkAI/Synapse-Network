@@ -1,178 +1,46 @@
 import type { I18nMessages } from "@/i18n/schema";
+import aboutPage from "@/i18n/resources/en/aboutPage";
+import agentsPage from "@/i18n/resources/en/agentsPage";
+import auditPage from "@/i18n/resources/en/auditPage";
+import billingPage from "@/i18n/resources/en/billingPage";
+import blogPage from "@/i18n/resources/en/blogPage";
+import buyPage from "@/i18n/resources/en/buyPage";
+import developerPage from "@/i18n/resources/en/developerPage";
+import discoveryPage from "@/i18n/resources/en/discoveryPage";
+import home from "@/i18n/resources/en/home";
+import invocationsPage from "@/i18n/resources/en/invocationsPage";
+import marketplacePage from "@/i18n/resources/en/marketplacePage";
+import overviewPage from "@/i18n/resources/en/overviewPage";
+import providerConsolePage from "@/i18n/resources/en/providerConsolePage";
+import providerSecretsPage from "@/i18n/resources/en/providerSecretsPage";
+import providerServicesPage from "@/i18n/resources/en/providerServicesPage";
+import providerSettlements from "@/i18n/resources/en/providerSettlements";
+import providerUsagePage from "@/i18n/resources/en/providerUsagePage";
+import settlementPage from "@/i18n/resources/en/settlementPage";
+import servicesPage from "@/i18n/resources/en/servicesPage";
+import shared from "@/i18n/resources/en/shared";
 
 const en: I18nMessages = {
-  language: {
-    en: "English",
-    zh: "Chinese",
-  },
-  nav: {
-    apiMarketplace: "API Marketplace",
-    blog: "Blog",
-    about: "About",
-    gatewayNode: "Gateway Node",
-    online: "Online",
-    offline: "Offline",
-    checking: "Checking...",
-  },
-  home: {
-    heroEyebrow: "Agent Commerce Infrastructure",
-    heroTitlePart1: "Fund once. ",
-    heroTitlePart2: "Agents",
-    heroTitlePart3: " discover and ",
-    heroTitlePart4: "pay for APIs.",
-    heroTitleLead: "Fund once. Agents discover and",
-    heroTitleAccent: "pay for APIs.",
-    heroTitle: "Fund once. Agents discover and pay for APIs.",
-    heroSubtitle: "Financial Layer for Autonomous Agents.",
-    heroTagline: "Agents can talk. But now, they can trade.",
-    heroMechanism: "On-chain collateral. Off-chain charging. Zero gas per API call.",
-    heroCommandLabel: "Payment rail",
-    heroCommandBody: "Owner-funded vault. Budgeted runtime. Per-call settlement.",
-    heroCommandPrimary: "Start with Discovery",
-    heroCommandSecondary: "Open Marketplace",
-    liveStatsLabel: "Live network stats",
-    totalCallsLabel: "API calls",
-    registeredServicesLabel: "registered services",
-    connectedAgentsLabel: "connected agents",
-    agentWorkspaceBtn: "Start with Discovery",
-    providerWorkspaceBtn: "Open Provider Workspace",
-    heroProofItems: [
-      "USDC-backed owner vault",
-      "Zero gas per API call",
-      "Millisecond off-chain settlement",
-    ],
-    heroPanelTitle: "What the network gives you",
-    heroPanelBody:
-      "Not another dashboard. A runtime rail for machine-to-machine commerce.",
-    heroPanelItems: [
-      "Fund an owner wallet once and keep collateral on-chain.",
-      "Issue agent credentials and budget policies for autonomous execution.",
-      "Route paid API calls through the gateway with per-call charging.",
-      "Accrue provider revenue and withdraw with signed tickets.",
-    ],
-    agentRuntimeTag: "Runtime",
-    agentRuntimeTitle: "Agent Workspace",
-    agentRuntimeBody:
-      "Discover services, understand pricing, attach credentials, and trigger paid invocations without making a human approve every call.",
-    ownerControlTag: "Overview",
-    ownerControlTitle: "Owner Wallet + Budget Policy",
-    ownerControlBody:
-      "Humans fund the vault, issue credentials, and set spend boundaries. The runtime belongs to the agent.",
-    providerRoleTag: "Supply Side",
-    providerRoleTitle: "Provider Revenue Workspace",
-    providerRoleBody:
-      "Publish service manifests, meter usage, collect receivables, and withdraw revenue without leaking settlement internals to agents.",
-    explore: "Explore",
-    rolesEyebrow: "Runtime Roles",
-    rolesTitle: "One owner funds the rail. Agents execute on it. Providers earn from it.",
-    rolesBody:
-      "Humans set collateral and policy once. Agents discover and invoke paid services autonomously. Providers publish endpoints and receive settlement through the same network rail.",
-    ownerRoleName: "Owner",
-    ownerRoleNarrativeBody: "Funds vault. Sets policy.",
-    agentRoleName: "Agent",
-    agentRoleNarrativeBody: "Discovers. Pays. Invokes.",
-    providerRoleName: "Provider",
-    providerRoleNarrativeBody: "Publishes. Serves. Withdraws.",
-    rolesClosing: "Everything is optimized for the first autonomous paid invocation.",
-    flowEyebrow: "How it works",
-    flowTitle: "From vault funding to paid invocation in four steps",
-    flowBody:
-      "The first paid call should feel inevitable. Fund once, issue runtime identity, invoke services, and settle every event on the same rail.",
-    flowFundTitle: "1. Fund Vault",
-    flowFundBody:
-      "Owner deposits USDC collateral on-chain once. This becomes the trust anchor for downstream calls.",
-    flowIssueTitle: "2. Issue Agent Credentials",
-    flowIssueBody:
-      "Create runtime credentials and budget policies so agents can act inside explicit spending boundaries.",
-    flowInvokeTitle: "3. Discover + Invoke Paid APIs",
-    flowInvokeBody:
-      "Agents read service metadata, call endpoints, and get charged per request through the gateway.",
-    flowWithdrawTitle: "4. Settle + Withdraw",
-    flowWithdrawBody:
-      "Providers accrue receivables instantly. The gateway records audit trails and issues withdrawal tickets when revenue is ready.",
-    capabilitiesEyebrow: "Protocol Capabilities",
-    capabilitiesTitle: "Three capabilities. One execution rail.",
-    capabilitiesBody:
-      "Synapse gives agents the minimum set of powers required to complete a paid invocation autonomously.",
-    discoveryTitle: "Discover",
-    discoveryBody:
-      "Read paid services, pricing, and callable endpoints from one machine-readable registry.",
-    budgetTitle: "Pay",
-    budgetBody:
-      "Execute purchases with budgeted runtime identity instead of manual wallet approval.",
-    settlementTitle: "Invoke",
-    settlementBody:
-      "Route every paid API call through instant metering and settlement on one rail.",
-    registryTitle: "Live Service Inventory",
-    registryBody:
-      "A machine-readable preview of what agents can call right now. Open the full registry when you need the protocol surface.",
-    registryTerminalCommand: "GET /registry/services?status=active&limit=8",
-    registryTerminalStatus: "active registry",
-    registryTerminalProtocol: "protocol",
-    registryTerminalUpdated: "updated just now",
-    registryTerminalEndpoint: "endpoint",
-    registryTerminalPricing: "pricing",
-    registryTerminalRole: "role",
-    registryEmpty: "No active services yet. Publish one from the Provider Workspace to appear here.",
-    loadingServices: "Loading service registry...",
-    registryCta: "Open full registry",
-    finalLine:
-      "Synapse is the settlement rail that turns AI agents from API callers into autonomous economic actors.",
-    finalCta: "Start with Discovery",
-    serviceIdLabel: "serviceId",
-  },
-  marketplacePage: {
-    eyebrow: "Machine-readable service registry",
-    title: "API Marketplace",
-    description:
-      "Every registered interface on Synapse, organized for agent consumption. Search the registry, inspect callable endpoints, and verify which services are ready for autonomous paid invocation.",
-    totalServices: "registered services",
-    activeServices: "active now",
-    runtimeReadyCount: "runtime ready",
-    registryTitle: "Registry Feed",
-    registryBody:
-      "This page is not a product shelf. It is the agent-facing registry surface: service identity, invocation endpoint, pricing model, and runtime readiness in one machine-readable feed.",
-    searchPlaceholder: "Search by serviceId, summary, endpoint, role, or tag...",
-    activeOnly: "active only",
-    allServicesFilter: "all services",
-    allTags: "all tags",
-    loading: "Loading marketplace registry...",
-    emptyBody: "No services match the current query. Adjust the filters or publish a new service from the Provider Workspace.",
-    serviceIdLabel: "serviceId",
-    endpointLabel: "endpoint",
-    pricingLabel: "pricing",
-    roleLabel: "role",
-    runtimeLabel: "runtime",
-    authLabel: "auth",
-    updatedLabel: "updated",
-    methodLabel: "method",
-    noSummary: "No summary provided for this service yet.",
-    runtimeReady: "runtime ready",
-    runtimePending: "runtime pending",
-    copyServiceId: "copy serviceId",
-    copyEndpoint: "copy endpoint",
-    copyServiceIdSuccess: "Service ID copied",
-    copyEndpointSuccess: "Endpoint copied",
-    copyFailed: "Copy failed",
-    updatedUnavailable: "Unavailable",
-    justUpdated: "just updated",
-    jsonFeed: "json feed",
-    copyFeedUrl: "copy feed url",
-    feedUrlCopied: "Feed URL copied",
-    closingLine:
-      "Build for agent means the registry itself must be legible to machines before it is persuasive to humans.",
-    discoveryCta: "Open Discovery Workspace",
-    providerCta: "Publish a Service",
-  },
-  blogPage: {
-    title: "Blog",
-    description: "Product updates, architecture notes, and launch logs for Synapse Network will be published here.",
-  },
-  aboutPage: {
-    title: "About Synapse Network",
-    description:
-      "Synapse Network is the settlement infrastructure for AI agents: on-chain USDC collateral, off-chain millisecond charging, and audit-ready machine-to-machine commerce.",
-  },
+  ...shared,
+  overviewPage,
+  agentsPage,
+  home,
+  marketplacePage,
+  discoveryPage,
+  invocationsPage,
+  billingPage,
+  auditPage,
+  developerPage,
+  buyPage,
+  servicesPage,
+  settlementPage,
+  providerConsolePage,
+  providerSecretsPage,
+  providerServicesPage,
+  providerUsagePage,
+  providerSettlements,
+  blogPage,
+  aboutPage,
 };
 
 export default en;

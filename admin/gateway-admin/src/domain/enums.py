@@ -26,6 +26,13 @@ class MfaFactorStatus(StrEnum):
     REVOKED = "revoked"
 
 
+class MfaEnrollmentChallengeStatus(StrEnum):
+    ISSUED = "issued"
+    VERIFIED = "verified"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
 class AdminSessionStatus(StrEnum):
     ACTIVE = "active"
     REVOKED = "revoked"

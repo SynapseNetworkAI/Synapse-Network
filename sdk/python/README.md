@@ -1,81 +1,29 @@
-# Synapse Client
-The official Python client for interacting with the Synapse Network AI services.
-`synapse-client` lets you programmatically call decentralized AI tasks through Synapse Agent network with automatic billing and seamless API integrations.
+# sdk-python
 
-## Installation
+`sdk/python/` 是 Synapse 的官方 Python SDK 分发与联调目录。
+
+## 文档入口
+
+1. 项目导航页：`docs/03_Projects/sdk-python/README.md`
+2. 本地开发说明：`docs/03_Projects/sdk-python/SDK_Python_Local_Development.md`
+3. 系统级 SDK 文档：`docs/sdk/README.md`
+
+## 常用命令
 
 ```bash
-pip install synapse-client
+cd /Users/cliff/workspace/Synapse-Network/sdk/python
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --query "名人名言"
 ```
 
-*(If you are developing locally, install via `pip install -e .` from within the root directory)*
+## 说明
 
-## Usage
-
-### Mode 1: Hardcoded Service ID (Direct Invoke)
-Call a specific service when you know its `Service ID`:
-```python
-from synapse_client import SynapseClient
-import os
-
-client = SynapseClient(api_key="agt_xxxxx...") # You can find your API key dynamically
-
-response = client.call_service(
-    service_id="SVC_WEATHER_001",
-    payload={
-        "location": "Kuala Lumpur",
-        "days": 3
-    }
-)
-
-print(response.content)
-print(f"Cost Deducted: {response.fee_deducted} USDC")
-print(f"Transaction Hash: {response.tx_hash}")
-```
-
-### Mode 2: Semantic Discovery
-Find the best model dynamically based on your intent:
-```python
-client = SynapseClient(api_key="agt_xxxxx...")
-
-discovery = client.discover_services(intent="image-generation", max_price=0.2)
-if discovery.services:
-    best_service = discovery.services[0].serviceId
-    print(f"Available: {best_service}")
-    
-    res = client.call_service(
-        service_id=best_service,
-        payload={"prompt": "A futuristic cyberpunk city"}
-    )
-```
-
-### Mode 3: OpenAI Drop-in (Universal API Proxy)
-If you already have an Agent using OpenAI's library, you can instantly integrate with Synapse by simply changing the base URL.
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    api_key="agt_xxxxx...", 
-    base_url="http://127.0.0.1:8000/v1" # Target the Synapse Gateway
-)
-
-response = client.chat.completions.create(
-    model="DeepSeek-R1-2501", # Equivalent to Synapse Service ID
-    messages=[{"role": "user", "content": "Hello, decentralized AI!"}]
-)
-```
-
----
-
-## Environment Variables
-
-You can inject configuration via environment variables without hardcoding them:
-
-- `SYNAPSE_API_KEY`: Set your agent auth key.
-- `SYNAPSE_GATEWAY`: Override the gateway endpoint URL.
-
-## Exceptions & Error Handling
-
-- `InsufficientFundsError`: Catch this to notify user that their on-chain Vault USDC balance is out.
+本文件现在只保留项目入口信息。
+完整安装、smoke test、端到端联调与环境变量说明统一维护在根 `docs/03_Projects/sdk-python/`。
+- `QuoteError`: Quote creation failed.
+- `BudgetExceededError`: Credential budget, daily cap, or policy guard blocked the call.
+- `InsufficientFundsError`: Remaining budget or credit is exhausted.
 - `AuthenticationError`: When API key is disabled or revoked.
-- `InvokeError`: Execution failed on the provider side.
+- `InvokeError`: Execution failed or receipt polling timed out.
