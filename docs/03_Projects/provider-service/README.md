@@ -39,6 +39,7 @@
 8. `POST /provider-services/youtube-video-download/invoke`
 9. `POST /api/v1/quotes/famous`
 10. `POST /api/v1/quotes/famous/top3`
+11. `POST /provider-services/tiktok-video-download/invoke`
 
 其中：
 
@@ -50,6 +51,8 @@
 6. `youtube-video-download` 已支持 YouTube 链接下载 + MinIO 存储 + 元数据落库
 7. YouTube 下载服务上线前闸门与红线清单见 `docs/provider_service/api/youtube-video-download-service-design.md` 第 12 节
 8. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
+8. TikTok 视频下载方案设计见 `docs/provider_service/api/tiktok-video-download-service-design.md`
+9. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
 
 ## 4. 职责边界
 
