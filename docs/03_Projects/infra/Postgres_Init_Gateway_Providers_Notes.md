@@ -9,8 +9,18 @@
 1. 数据库：`synapse_gateway_providers`
 2. app role：`synapse_provider_app`
 3. readonly role：`synapse_provider_ro`
-1. `provider_sentiment_snapshots`
-2. `provider_sentiment_raw_feeds`
+4. 表：`provider_sentiment_snapshots`
+5. 表：`provider_sentiment_raw_feeds`
+6. 表：`provider_api_invocations`
+7. 表：`provider_protocol_briefs`
+8. 表：`provider_protocol_brief_raw_feeds`
+9. 表：`provider_contract_audit_reports`
+10. 表：`provider_whale_flow_snapshots`
+11. 表：`provider_oss_security_reports`
+12. 表：`provider_twitter_video_assets`
+13. 表：`provider_youtube_video_assets`
+14. 表：`provider_tiktok_video_assets`
+15. 表：`provider_reddit_media_assets`
 
 对应执行入口：
 
@@ -19,6 +29,22 @@
 3. `docker-compose/postgres/init/gateway-providers/001_apply_provider_sentiment_schema.sh`
 4. `docker-compose/postgres/init/gateway-providers/002_provider_sentiment_observability_upgrade.sql`
 5. `docker-compose/postgres/init/gateway-providers/002_apply_provider_sentiment_observability_upgrade.sh`
+6. `docker-compose/postgres/init/gateway-providers/004_provider_protocol_brief_schema.sql`
+7. `docker-compose/postgres/init/gateway-providers/004_apply_provider_protocol_brief_schema.sh`
+8. `docker-compose/postgres/init/gateway-providers/005_provider_contract_audit_schema.sql`
+9. `docker-compose/postgres/init/gateway-providers/005_apply_provider_contract_audit_schema.sh`
+10. `docker-compose/postgres/init/gateway-providers/006_provider_contract_audit_observability_upgrade.sql`
+11. `docker-compose/postgres/init/gateway-providers/006_apply_provider_contract_audit_observability_upgrade.sh`
+12. `docker-compose/postgres/init/gateway-providers/007_provider_whale_oss_schema.sql`
+13. `docker-compose/postgres/init/gateway-providers/007_apply_provider_whale_oss_schema.sh`
+14. `docker-compose/postgres/init/gateway-providers/008_provider_twitter_video_schema.sql`
+15. `docker-compose/postgres/init/gateway-providers/008_apply_provider_twitter_video_schema.sh`
+16. `docker-compose/postgres/init/gateway-providers/009_provider_youtube_video_schema.sql`
+17. `docker-compose/postgres/init/gateway-providers/009_apply_provider_youtube_video_schema.sh`
+18. `docker-compose/postgres/init/gateway-providers/010_provider_tiktok_video_schema.sql`
+19. `docker-compose/postgres/init/gateway-providers/010_apply_provider_tiktok_video_schema.sh`
+20. `docker-compose/postgres/init/gateway-providers/011_provider_reddit_media_schema.sql`
+21. `docker-compose/postgres/init/gateway-providers/011_apply_provider_reddit_media_schema.sh`
 
 `002_*` 的职责不是重复建表，而是把已经存在的 `provider_sentiment_snapshots` / `provider_sentiment_raw_feeds` 平滑升级到 production-v1 schema，补齐以下观测字段：
 
@@ -39,3 +65,17 @@
 1. 顶层目录负责调度，不要把 provider 初始化逻辑散落到其他 bootstrap 目录。
 2. provider-side 数据库对象一旦落地，相关 SQL 与 shell 初始化说明同步更新本文档。
 3. 如果只是执行型占位说明，项目目录内保留短入口即可，canonical 内容统一维护在根 `docs/03_Projects/infra/`。
+
+`007_*` 用于新增 `provider_whale_flow_snapshots` 与 `provider_oss_security_reports`，支撑 `whale-flow-monitor` 与 `oss-security-healthcheck` 两个服务的快照缓存和降级回退。
+
+
+`008_*` 用于新增 `provider_twitter_video_assets`，支撑 twitter 视频下载服务的 MinIO 对象映射与元数据持久化。
+
+
+`009_*` 用于新增 `provider_youtube_video_assets`，支撑 youtube 视频下载服务的 MinIO 对象映射与元数据持久化。
+
+
+`010_*` 用于新增 `provider_tiktok_video_assets`，支撑 tiktok 视频下载服务的 MinIO 对象映射与元数据持久化。
+
+
+`011_*` 用于新增 `provider_reddit_media_assets`，支撑 reddit 媒体下载服务的 MinIO 对象映射与元数据持久化。

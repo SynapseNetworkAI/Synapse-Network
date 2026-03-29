@@ -4,3 +4,4 @@ out
 coverage
 .DS_Store
 .env.local
+.yarn/install-state.gz
