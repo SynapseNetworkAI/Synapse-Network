@@ -20,8 +20,17 @@
 1. [Web3 实时情绪指数专题](./web3_sentiment_api/README.md)
 2. [协议基本面情报包](./protocol-fundamental-brief/README.md)
 3. [链上巨鲸资金异动监控](./whale-flow-monitor.md)
-4. [开源仓库与依赖安全体检](./oss-security-healthcheck.md)
+4. [开源仓库与依赖安全体检](./smart-contract-audit/oss-security-healthcheck.md)
 5. [智能合约漏洞深度审计模型](./smart-contract-audit/README.md)
+6. [Twitter 视频下载服务设计](./twitter-video-download-service-design.md)
+7. [YouTube 视频下载服务设计](./youtube-video-download-service-design.md)
+8. [下载类接口扩展需求挖掘（Agent 生态）](./agent-download-demand-expansion.md)
+
+实现设计（已落地）：
+
+1. [Whale Flow Monitor 实现设计](./whale-flow-monitor-implementation-design.md)
+2. [OSS Security Healthcheck 实现设计](./oss-security-healthcheck-implementation-design.md)
+3. [Whale + OSS 数据库设计](./provider-runtime-whale-oss-db-design.md)
 
 如果你要直接联调 `Web3 Sentiment Index`，参数说明与签名 `curl` 示例已经补到：
 
