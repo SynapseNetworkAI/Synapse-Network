@@ -190,6 +190,56 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
   -d '{"text":"关于坚持"}'
 ```
 
+### 5.4 测试 TikTok 下载接口
+
+前提：
+
+1. 本地若只做 endpoint / schema / replay 联调，可保留 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`
+2. 若保持验签开启，则按 Gateway HMAC 约定补齐签名头
+
+请求体样例：
+
+```json
+{
+  "videoUrl": "https://www.tiktok.com/@openai/video/7499999999999999999",
+  "preferredQuality": "best",
+  "maxDurationSec": 300,
+  "withSubtitle": false
+}
+```
+
+### 5.5 测试 Reddit 下载接口
+
+请求体样例：
+
+```json
+{
+  "postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/",
+  "maxFileSizeMb": 512
+}
+```
+
+### 5.6 TikTok / Reddit Phase A 错误码矩阵
+
+| Service | Error code | 含义 | 运维动作 |
+| --- | --- | --- | --- |
+| TikTok | `TIKTOK_VIDEO_DURATION_EXCEEDED` | 请求声明的 `maxDurationSec` 小于目标视频时长 | 调整调用方阈值或拒绝该素材 |
+| TikTok | `TIKTOK_VIDEO_DOWNLOAD_FAILED` | live 下载失败且没有可回放 snapshot | 检查上游可达性、yt-dlp 能力和目标 URL 可用性 |
+| TikTok | `TIKTOK_VIDEO_SNAPSHOT_FALLBACK_USED` | live 下载失败，但已回放最近未过期 snapshot | 视为降级成功，重点排查上游抖动与下载链路健康 |
+| Reddit | `REDDIT_MEDIA_SIZE_EXCEEDED` | 目标媒体超过 `maxFileSizeMb` 限制 | 提高阈值或改为异步/离线处理大文件 |
+| Reddit | `REDDIT_MEDIA_DOWNLOAD_FAILED` | live 下载失败且没有可回放 snapshot | 检查 Reddit 帖子可见性、资源可达性和下载器状态 |
+| Reddit | `REDDIT_MEDIA_SNAPSHOT_FALLBACK_USED` | live 下载失败，但已回放最近未过期 snapshot | 视为降级成功，重点排查上游抖动与下载链路健康 |
+
+### 5.7 幂等回放 / snapshot 行为
+
+1. TikTok / Reddit 都以请求字段生成稳定 `asset_key`。
+2. 同请求在 TTL 内再次调用时，runtime 直接回放已持久化结果，不再重复下载。
+3. 幂等回放时：
+   - `freshness.cacheHit=true`
+   - `errors` 保持空数组
+   - `provider_api_invocations` 审计记录标记 `cache_hit=true`
+4. 若 live 下载失败但历史 snapshot 仍有效，则返回 `*_SNAPSHOT_FALLBACK_USED`，表示这是“失败后降级回放”，不是“正常幂等命中”。
+
 ## 6. 常见问题排查
 
 ### 问题 1: 想接真实模型，但 `DEEPSEEK_API_KEY` 为空

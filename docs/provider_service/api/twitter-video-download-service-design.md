@@ -1,6 +1,6 @@
 # Provider 需求设计：通过帖子链接下载 Twitter/X 视频
 
-- Status: implemented-v1
+- Status: supplementary
 - Owner: provider_service
 - Service id (proposed): `svc_twitter_video_download`
 - Service name (proposed): `Twitter Video Downloader`

@@ -15,6 +15,7 @@ from app.schemas.tiktok_video_download import (
     TikTokVideoDownloadResponse,
     TikTokVideoDownloadResult,
 )
+from app.services.download_snapshot_replay import replay_cached_snapshot_if_available
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
 from app.services.tiktok_video_download.domain import TikTokVideoAssetRecord, asset_key_from_request
 from app.services.tiktok_video_download.downloader import download_tiktok_video
@@ -58,6 +59,20 @@ async def execute_tiktok_video_download(
     storage = build_video_storage()
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
+    serialized_payload = payload.model_dump(by_alias=True, mode="json")
+
+    replay = replay_cached_snapshot_if_available(
+        repository=repository,
+        asset_key=asset_key,
+        now=_now_utc(),
+        service_id=SERVICE_ID,
+        payload=serialized_payload,
+        request_id=request_id,
+        gateway_request_id=gateway_request_id,
+        start_time=start,
+    )
+    if replay is not None:
+        return replay
 
     try:
         downloaded = await download_tiktok_video(payload, target_dir=_download_dir())
@@ -113,7 +128,7 @@ async def execute_tiktok_video_download(
         repository.append_invocation(
             ProviderInvocationRecord.build(
                 service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
+                input_payload=serialized_payload,
                 response_status=200,
                 request_id=request_id,
                 gateway_request_id=gateway_request_id,
@@ -148,7 +163,7 @@ async def execute_tiktok_video_download(
         repository.append_invocation(
             ProviderInvocationRecord.build(
                 service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
+                input_payload=serialized_payload,
                 response_status=200,
                 request_id=request_id,
                 gateway_request_id=gateway_request_id,
