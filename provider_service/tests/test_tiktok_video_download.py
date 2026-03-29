@@ -20,6 +20,7 @@ from app.services.tiktok_video_download.downloader import DownloadedVideo  # noq
 from app.services.tiktok_video_download.repository import (  # noqa: E402
     InMemoryTikTokVideoDownloadRepository,
 )
+from tests.helpers.download_replay import ReplayAwareRepository  # noqa: E402
 from app.services.twitter_video_download.storage import StoredObject  # noqa: E402
 
 
@@ -276,24 +277,6 @@ def test_tiktok_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
         )
     )
     assert first.result.status == "downloaded"
-
-    class ReplayAwareRepository:
-        def __init__(self, stored_repo: InMemoryTikTokVideoDownloadRepository) -> None:
-            self._stored_repo = stored_repo
-            self.invocations = stored_repo.invocations
-            self._first_lookup = True
-
-        def save_asset(self, record) -> None:
-            self._stored_repo.save_asset(record)
-
-        def load_asset(self, asset_key: str):
-            if self._first_lookup:
-                self._first_lookup = False
-                return None
-            return self._stored_repo.load_asset(asset_key)
-
-        def append_invocation(self, record) -> None:
-            self._stored_repo.append_invocation(record)
 
     async def _boom(_payload, *, target_dir):
         _ = target_dir
