@@ -15,6 +15,14 @@
 9. `005_provider_contract_audit_schema.sql`
 10. `006_apply_provider_contract_audit_observability_upgrade.sh`
 11. `006_provider_contract_audit_observability_upgrade.sql`
+12. `007_apply_provider_whale_oss_schema.sh`
+13. `007_provider_whale_oss_schema.sql`
+14. `008_apply_provider_twitter_video_schema.sh`
+15. `008_provider_twitter_video_schema.sql`
+16. `009_apply_provider_youtube_video_schema.sh`
+17. `009_provider_youtube_video_schema.sql`
+18. `010_apply_provider_tiktok_video_schema.sh`
+19. `010_provider_tiktok_video_schema.sql`
 
 当前 provider 独立数据库：
 
@@ -28,6 +36,11 @@
 4. `provider_protocol_brief_raw_feeds`
 5. `provider_api_invocations`
 6. `provider_contract_audit_reports`
+7. `provider_whale_flow_snapshots`
+8. `provider_oss_security_reports`
+9. `provider_twitter_video_assets`
+10. `provider_youtube_video_assets`
+11. `provider_tiktok_video_assets`
 
 其中 `002_*` 用于对已经存在的 provider sentiment 表执行 production-v1 observability 字段升级，补齐 source timeout/retry/http status/payload hash 等落库能力。
 
@@ -42,3 +55,11 @@ canonical 说明文档已经迁到：
 1. `docs/03_Projects/infra/Postgres_Init_Gateway_Providers_Notes.md`
 
 本目录保留直接执行型脚本与最短入口说明。
+
+`007_*` 用于给 `svc_whale_flow_monitor` 与 `svc_oss_security_healthcheck` 增加显式初始化快照表，继续保持 runtime repository 无 DDL 副作用。
+
+`008_*` 用于给 `svc_twitter_video_download` 增加视频资产元数据表，配合 MinIO 存储实现可落库可回放。
+
+`009_*` 用于给 `svc_youtube_video_download` 增加视频资产元数据表，配合 MinIO 存储实现可落库可回放。
+
+`010_*` 用于给 `svc_tiktok_video_download` 增加视频资产元数据表，配合 MinIO 存储实现可落库可回放。
