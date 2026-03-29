@@ -4,6 +4,17 @@
 - Owner: provider_service
 - Last updated: 2026-03-29
 
+## 0. 实施状态（2026-03-29）
+
+1. Phase A 已落地：
+   - `POST /provider-services/tiktok-video-download/invoke`
+   - `POST /provider-services/reddit-media-download/invoke`
+2. 两个服务均已接入：
+   - Provider API 验签链路
+   - MinIO 存储与资产元数据落库
+   - 快照回放降级（snapshot fallback）
+3. Phase B / Phase C 仍保持提案状态，待后续迭代。
+
 ## 1. 目标
 
 在现有 `twitter-video-download` 与 `youtube-video-download` 的基础上，继续扩展“可被其他 Agent 直接调用”的下载能力，优先覆盖：

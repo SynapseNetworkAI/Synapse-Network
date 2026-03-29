@@ -3,7 +3,7 @@
 - Status: canonical
 - Code paths: `provider_service/`, `docs/03_Projects/provider-service/`, `docs/provider_service/`
 - Verified with: `npm run ci:provider-service`, `npm run ci:docs`
-- Last verified against code: 2026-03-25
+- Last verified against code: 2026-03-29
 
 ## 1. 项目定位
 
@@ -37,8 +37,10 @@
 6. `POST /provider-services/oss-security-healthcheck/invoke`
 7. `POST /provider-services/twitter-video-download/invoke`
 8. `POST /provider-services/youtube-video-download/invoke`
-9. `POST /api/v1/quotes/famous`
-10. `POST /api/v1/quotes/famous/top3`
+9. `POST /provider-services/tiktok-video-download/invoke`
+10. `POST /provider-services/reddit-media-download/invoke`
+11. `POST /api/v1/quotes/famous`
+12. `POST /api/v1/quotes/famous/top3`
 
 其中：
 
@@ -50,6 +52,7 @@
 6. `youtube-video-download` 已支持 YouTube 链接下载 + MinIO 存储 + 元数据落库
 7. YouTube 下载服务上线前闸门与红线清单见 `docs/provider_service/api/youtube-video-download-service-design.md` 第 12 节
 8. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
+9. Phase A 已落地：TikTok + Reddit 两个下载接口（可落库 + MinIO 存储 + 回放降级）
 
 ## 4. 职责边界
 
