@@ -23,7 +23,7 @@ from app.services.paper_pdf_download.repository import (
     get_paper_pdf_download_repository,
 )
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
-from app.services.twitter_video_download.storage import build_asset_storage
+from app.services.asset_storage import build_asset_storage
 
 
 SERVICE_ID = "svc_paper_pdf_download"
@@ -45,6 +45,7 @@ def _download_dir() -> Path:
 
 def _storage_key(source: str, paper_id: str | None, filename: str) -> str:
     now = _now_utc()
+    # `video_storage_key_prefix` is a legacy shared storage prefix setting reused by all asset types.
     prefix = get_settings().video_storage_key_prefix.strip("/") or "paper_pdf"
     paper_segment = (paper_id or "paper").replace("/", "__")
     return f"{prefix}/{now:%Y/%m/%d}/{source}/{paper_segment}/{filename}".strip("/")

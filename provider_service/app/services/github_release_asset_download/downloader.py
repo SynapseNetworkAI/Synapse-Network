@@ -14,6 +14,7 @@ from app.schemas.github_release_asset_download import GitHubReleaseAssetDownload
 GITHUB_API_BASE_URL = "https://api.github.com"
 GITHUB_DOWNLOAD_TIMEOUT_S = 30.0
 MAX_ASSET_SIZE_BYTES = 2 * 1024 * 1024 * 1024
+# Security boundary: this path only trusts canonical GitHub release download hosts.
 ALLOWED_GITHUB_DOWNLOAD_HOSTS = {"github.com", "www.github.com"}
 
 
@@ -92,6 +93,9 @@ async def download_github_release_asset(
         if (
             parsed_download_url.scheme.lower() != "https"
             or parsed_download_url.netloc.lower() not in ALLOWED_GITHUB_DOWNLOAD_HOSTS
+            or parsed_download_url.username is not None
+            or parsed_download_url.password is not None
+            or parsed_download_url.port not in (None, 443)
         ):
             raise ValueError("GITHUB_ASSET_DOWNLOAD_FAILED")
 

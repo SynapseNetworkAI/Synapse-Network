@@ -17,12 +17,16 @@ from app.schemas.paper_pdf_download import PaperPdfDownloadRequest
 
 PAPER_DOWNLOAD_TIMEOUT_S = 30.0
 MAX_PDF_SIZE_BYTES = 128 * 1024 * 1024
+MIN_VALID_PUBLICATION_YEAR = 1900
 ARXIV_ID_PATTERN = re.compile(r"(?P<id>(?:\d{4}\.\d{4,5}|[a-z-]+/\d{7})(?:v\d+)?)")
 OPENALEX_ID_PATTERN = re.compile(r"(?P<id>W\d+)", re.IGNORECASE)
 DOI_PATTERN = re.compile(r"(?P<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", re.IGNORECASE)
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 OPENALEX_API_URL = "https://api.openalex.org/works"
 CROSSREF_API_URL = "https://api.crossref.org/works"
+# Security boundary: only explicitly reviewed scholarly distribution hosts may serve direct PDF bytes.
+# Keep this list exact-match only; no wildcard or suffix matching, so spoofed hosts like
+# `arxiv.org.evil.com` are rejected even if they contain a trusted name fragment.
 TRUSTED_PDF_HOSTS = {
     "aclanthology.org",
     "arxiv.org",
@@ -72,7 +76,7 @@ def _normalize_year(value: int | None) -> int | None:
     if value is None:
         return None
     max_year = datetime.now(UTC).year + 1
-    if 1900 <= value <= max_year:
+    if MIN_VALID_PUBLICATION_YEAR <= value <= max_year:
         return value
     return None
 
@@ -83,6 +87,10 @@ def _normalize_https_url(value: str | None) -> str | None:
     normalized = str(value).strip()
     parsed = urlparse(normalized)
     if parsed.scheme.lower() != "https" or not parsed.netloc:
+        return None
+    if parsed.username or parsed.password:
+        return None
+    if parsed.port not in (None, 443):
         return None
     return normalized
 
@@ -193,9 +201,9 @@ async def _fetch_openalex_locator(
         author_name = _normalize_whitespace(((authorship or {}).get("author") or {}).get("display_name"))
         if author_name:
             authors.append(author_name)
-    title = _normalize_whitespace(str(data.get("title") or data.get("display_name") or "").strip() or None)
-    doi = _normalize_whitespace(str(data.get("doi") or "").strip() or None)
-    source_url = payload.paper_url or _normalize_https_url(str(data.get("id") or "").strip()) or f"https://openalex.org/{work_id}"
+    title = _normalize_whitespace(data.get("title") or data.get("display_name"))
+    doi = _normalize_whitespace(data.get("doi"))
+    source_url = payload.paper_url or _normalize_https_url(data.get("id")) or f"https://openalex.org/{work_id}"
     return ResolvedPaperLocator(
         source=payload.source,
         paper_id=work_id,
@@ -258,7 +266,7 @@ async def _fetch_crossref_locator(
         title=title,
         authors=authors,
         year=year,
-        doi=_normalize_whitespace(str(message.get("DOI") or doi).strip() or None),
+        doi=_normalize_whitespace(message.get("DOI") or doi),
     )
 
 
@@ -295,6 +303,7 @@ async def _download_pdf(
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise ValueError("PAPER_PDF_DOWNLOAD_FAILED") from exc
+        # Fast-fail optimization only; the streaming counter below is the authoritative size guard.
         expected_size = int(response.headers.get("Content-Length") or 0)
         if expected_size > MAX_PDF_SIZE_BYTES:
             raise ValueError("PAPER_PDF_SIZE_EXCEEDED")
