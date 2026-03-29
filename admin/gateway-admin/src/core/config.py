@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,43 @@ class Settings(BaseSettings):
         alias="ADMIN_GATEWAY_ALLOWED_ORIGINS",
     )
     token_prefix: str = Field(default="adm_demo_", alias="ADMIN_GATEWAY_TOKEN_PREFIX")
+    admin_session_ttl_sec: int = Field(default=3600, alias="ADMIN_SESSION_TTL_SEC")
+    admin_session_cookie_name: str = Field(
+        default="synapse_admin_session",
+        alias="ADMIN_SESSION_COOKIE_NAME",
+    )
+    admin_session_cookie_secure: bool = Field(
+        default=False,
+        alias="ADMIN_SESSION_COOKIE_SECURE",
+    )
+    admin_session_cookie_samesite: str = Field(
+        default="lax",
+        alias="ADMIN_SESSION_COOKIE_SAMESITE",
+    )
+    admin_session_cookie_domain: Optional[str] = Field(
+        default=None,
+        alias="ADMIN_SESSION_COOKIE_DOMAIN",
+    )
+    admin_csrf_secret: str = Field(
+        default="replace-this-with-a-dedicated-admin-csrf-secret",
+        alias="ADMIN_CSRF_SECRET",
+    )
+    admin_google_authenticator_login_enabled: bool = Field(
+        default=True,
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED",
+    )
+    admin_google_authenticator_high_risk_enabled: bool = Field(
+        default=True,
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED",
+    )
+    admin_google_authenticator_issuer: str = Field(
+        default="Synapse Gateway Admin",
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_ISSUER",
+    )
+    admin_google_authenticator_window: int = Field(
+        default=1,
+        alias="ADMIN_GOOGLE_AUTHENTICATOR_WINDOW",
+    )
     admin_database_dsn: str = Field(
         default="postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin",
         alias="ADMIN_DATABASE_DSN",
@@ -51,6 +89,18 @@ class Settings(BaseSettings):
     gateway_internal_jwt_secret: str = Field(
         default="replace-this-with-a-32-byte-minimum-jwt-secret",
         alias="GATEWAY_INTERNAL_JWT_SECRET",
+    )
+    gateway_internal_token_issuer: str = Field(
+        default="gateway-admin",
+        alias="GATEWAY_INTERNAL_TOKEN_ISSUER",
+    )
+    gateway_internal_token_audience: str = Field(
+        default="gateway-internal",
+        alias="GATEWAY_INTERNAL_TOKEN_AUDIENCE",
+    )
+    gateway_internal_service_subject: str = Field(
+        default="service:gateway-admin",
+        alias="GATEWAY_INTERNAL_SERVICE_SUBJECT",
     )
     gateway_internal_timeout_sec: float = Field(
         default=10.0,

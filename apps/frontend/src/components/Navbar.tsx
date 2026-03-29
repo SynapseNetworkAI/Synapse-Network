@@ -231,7 +231,11 @@ export default function Navbar() {
           </div>
         </div>
       ) : (
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <LanguageSwitcher className="h-10 appearance-none rounded-full border border-white/12 bg-white/[0.04] px-3 pr-9 text-[11px] font-semibold tracking-[0.12em] text-white/90 outline-none transition hover:border-white/20 hover:bg-white/[0.08] focus:border-white/30 sm:px-4 sm:text-xs" />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/45" />
+          </div>
           <WalletProfileBadge />
         </div>
       )}

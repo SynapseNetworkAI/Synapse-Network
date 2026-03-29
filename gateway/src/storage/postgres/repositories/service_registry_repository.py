@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from collections import defaultdict
 from typing import Any, List
 
@@ -66,6 +67,30 @@ class ServiceRegistryRepository:
         return {}
 
     @staticmethod
+    def _epoch_ms(value: Any) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            normalized = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+            return int(normalized.astimezone(timezone.utc).timestamp() * 1000)
+        if isinstance(value, (int, float)):
+            epoch = float(value)
+            if epoch <= 0:
+                return None
+            if epoch < 1_000_000_000_000:
+                epoch *= 1000
+            return int(epoch)
+
+        normalized = to_dt_str(value)
+        if not normalized:
+            return None
+        try:
+            parsed = datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+        return int(parsed.timestamp() * 1000)
+
+    @staticmethod
     def _service_meta_state_key(service_id: str) -> str:
         return f"service_meta::{service_id}"
 
@@ -89,6 +114,13 @@ class ServiceRegistryRepository:
     def _endpoint_id(service_id: str, endpoint_url: str, index: int) -> str:
         suffix = hashlib.sha1(endpoint_url.encode("utf-8")).hexdigest()[:10]
         return f"{service_id}:ep:{index}:{suffix}"
+
+    @staticmethod
+    def _payout_account_id(provider_id: str, payout_address: str, chain_id: int) -> str:
+        suffix = hashlib.sha1(
+            f"{provider_id}:{payout_address.lower()}:{chain_id}".encode("utf-8")
+        ).hexdigest()[:10]
+        return f"{provider_id}:payout:{chain_id}:{suffix}"
 
     @staticmethod
     def _health_score(status: str) -> int:
@@ -221,6 +253,21 @@ class ServiceRegistryRepository:
             "role": row.role,
             "address": row.address,
             "auth": row.auth.model_dump(by_alias=True, mode="json", exclude_none=True),
+            "providerProfile": row.provider_profile.model_dump(
+                by_alias=True, mode="json", exclude_none=True
+            )
+            if row.provider_profile is not None
+            else None,
+            "payoutAccount": row.payout_account.model_dump(
+                by_alias=True, mode="json", exclude_none=True
+            )
+            if row.payout_account is not None
+            else None,
+            "governance": row.governance.model_dump(
+                by_alias=True, mode="json", exclude_none=True
+            )
+            if row.governance is not None
+            else None,
             "healthCheck": row.health_check.model_dump(by_alias=True, mode="json", exclude_none=True),
             "forwarding": row.forwarding.model_dump(by_alias=True, mode="json", exclude_none=True),
             "metering": row.metering.model_dump(by_alias=True, mode="json", exclude_none=True),
@@ -246,6 +293,7 @@ class ServiceRegistryRepository:
         service_id: object,
         endpoint: object,
         endpoint_id: object,
+        auth_mode: object,
         timeout_ms: object,
         max_payload_bytes: object,
         endpoint_status: object,
@@ -259,6 +307,7 @@ class ServiceRegistryRepository:
             endpointId=str(endpoint_id or self._endpoint_id(str(service_id), endpoint_url, 0)),
             serviceId=str(service_id),
             endpointUrl=endpoint_url,
+            authMode=str(auth_mode or "gateway_forward"),
             timeoutMs=int(timeout_ms or 15000),
             maxPayloadBytes=int(max_payload_bytes or 4194304),
             isPrimary=True,
@@ -303,20 +352,10 @@ class ServiceRegistryRepository:
         )
 
     @staticmethod
-    def _reset_service_tables(cur: Any) -> None:
-        cur.execute("DELETE FROM synapse_service_health_snapshots")
-        cur.execute("DELETE FROM synapse_service_endpoints")
-        cur.execute("DELETE FROM synapse_service_search_index")
-        cur.execute("DELETE FROM synapse_service_manifests")
-        cur.execute(
-            "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_meta::%' OR state_key LIKE 'service_health_meta::%' OR state_key LIKE 'service_health_history::%'"
-        )
-
-    @staticmethod
     def _manifest_timestamps(row: ServiceDefinitionRecord) -> tuple[str, str]:
         return (to_dt_str(row.created_at, now_dt_str()), to_dt_str(row.updated_at, now_dt_str()))
 
-    def _insert_service_manifest(
+    def _upsert_service_manifest(
         self,
         cur: Any,
         row: ServiceDefinitionRecord,
@@ -340,6 +379,21 @@ class ServiceRegistryRepository:
                 'fixed', %s, TRUE,
                 %s, %s, %s
             )
+            ON CONFLICT (service_id)
+            DO UPDATE SET
+                owner_id = EXCLUDED.owner_id,
+                provider_id = EXCLUDED.provider_id,
+                service_name = EXCLUDED.service_name,
+                manifest_version = EXCLUDED.manifest_version,
+                status = EXCLUDED.status,
+                description_for_model = EXCLUDED.description_for_model,
+                task_category = EXCLUDED.task_category,
+                capabilities_json = EXCLUDED.capabilities_json,
+                price_model = EXCLUDED.price_model,
+                base_price_usdc = EXCLUDED.base_price_usdc,
+                quote_required = EXCLUDED.quote_required,
+                settlement_currency = EXCLUDED.settlement_currency,
+                updated_at = EXCLUDED.updated_at
             """,
             (
                 row.service_id,
@@ -365,9 +419,25 @@ class ServiceRegistryRepository:
             return [ServiceInvokeTargetRecord(url=row.endpoint, weight=100, region=None)]
         return endpoint_targets
 
-    def _insert_service_endpoints(
+    def _deactivate_service_endpoints(
+        self, cur: Any, service_id: str, updated_at: str
+    ) -> None:
+        cur.execute(
+            """
+            UPDATE synapse_service_endpoints
+            SET is_primary = FALSE,
+                status = 'paused',
+                updated_at = %s
+            WHERE service_id = %s
+            """,
+            (updated_at, service_id),
+        )
+
+    def _upsert_service_endpoints(
         self, cur: Any, row: ServiceDefinitionRecord, created_at: str, updated_at: str
     ) -> None:
+        self._deactivate_service_endpoints(cur, str(row.service_id), updated_at)
+        auth_mode = str(row.auth.auth_type or "gateway_forward").strip() or "gateway_forward"
         for index, target in enumerate(self._endpoint_targets(row)):
             endpoint_url = str(target.url or "").strip()
             if not endpoint_url:
@@ -380,16 +450,32 @@ class ServiceRegistryRepository:
                     callback_supported, region, weight, is_primary, status,
                     created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, 'gateway_forward', %s,
+                    %s, %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s
                 )
+                ON CONFLICT (endpoint_id)
+                DO UPDATE SET
+                    service_id = EXCLUDED.service_id,
+                    endpoint_url = EXCLUDED.endpoint_url,
+                    auth_mode = EXCLUDED.auth_mode,
+                    timeout_ms = EXCLUDED.timeout_ms,
+                    max_payload_bytes = EXCLUDED.max_payload_bytes,
+                    streaming_supported = EXCLUDED.streaming_supported,
+                    async_supported = EXCLUDED.async_supported,
+                    callback_supported = EXCLUDED.callback_supported,
+                    region = EXCLUDED.region,
+                    weight = EXCLUDED.weight,
+                    is_primary = EXCLUDED.is_primary,
+                    status = EXCLUDED.status,
+                    updated_at = EXCLUDED.updated_at
                 """,
                 (
                     self._endpoint_id(row.service_id, endpoint_url, index),
                     row.service_id,
                     endpoint_url,
+                    auth_mode,
                     int(row.constraints.timeout_ms or 15000),
                     int(row.constraints.max_request_bytes or 4194304),
                     False,
@@ -404,11 +490,53 @@ class ServiceRegistryRepository:
                 ),
             )
 
+    def _upsert_provider_payout_account(
+        self,
+        cur: Any,
+        row: ServiceDefinitionRecord,
+        provider_id: str,
+        created_at: str,
+        updated_at: str,
+    ) -> None:
+        if row.payout_account is None:
+            return
+        payout_address = str(row.payout_account.payout_address or "").strip()
+        chain_id = int(row.payout_account.chain_id or 0)
+        if not payout_address or chain_id <= 0:
+            return
+        cur.execute(
+            """
+            INSERT INTO synapse_provider_payout_accounts (
+                payout_account_id, provider_id, payout_address, chain_id,
+                settlement_currency, status, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s,
+                %s, %s, %s, %s
+            )
+            ON CONFLICT (provider_id, payout_address, chain_id)
+            DO UPDATE SET
+                settlement_currency = EXCLUDED.settlement_currency,
+                status = EXCLUDED.status,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (
+                self._payout_account_id(provider_id, payout_address, chain_id),
+                provider_id,
+                payout_address,
+                chain_id,
+                row.payout_account.settlement_currency,
+                row.payout_account.status,
+                created_at,
+                updated_at,
+            ),
+        )
+
     @staticmethod
     def _search_text(row: ServiceDefinitionRecord) -> str:
         return " ".join(
             value
             for value in [
+                str(row.service_id or ""),
                 str(row.service_name or ""),
                 str(row.summary or ""),
                 " ".join(str(tag) for tag in row.tags or []),
@@ -416,7 +544,7 @@ class ServiceRegistryRepository:
             if value
         ).strip()
 
-    def _insert_search_index(
+    def _upsert_search_index(
         self, cur: Any, row: ServiceDefinitionRecord, updated_at: str
     ) -> None:
         cur.execute(
@@ -425,6 +553,11 @@ class ServiceRegistryRepository:
                 service_id, tags_json, search_text, embedding_ref,
                 reliability_tier, health_score, p95_latency_ms, success_rate_24h, updated_at
             ) VALUES (%s, %s::jsonb, %s, NULL, NULL, NULL, NULL, NULL, %s)
+            ON CONFLICT (service_id)
+            DO UPDATE SET
+                tags_json = EXCLUDED.tags_json,
+                search_text = EXCLUDED.search_text,
+                updated_at = EXCLUDED.updated_at
             """,
             (
                 row.service_id,
@@ -436,14 +569,21 @@ class ServiceRegistryRepository:
 
     def _persist_service_row(self, cur: Any, row: ServiceDefinitionRecord) -> None:
         owner_id, provider_id = self._ensure_owner_and_provider(
-            cur, row.owner_address, row.service_name
+            cur,
+            row.owner_address,
+            row.provider_profile.display_name
+            if row.provider_profile is not None
+            else row.service_name,
         )
         created_at, updated_at = self._manifest_timestamps(row)
-        self._insert_service_manifest(
+        self._upsert_service_manifest(
             cur, row, owner_id, provider_id, created_at, updated_at
         )
-        self._insert_service_endpoints(cur, row, created_at, updated_at)
-        self._insert_search_index(cur, row, updated_at)
+        self._upsert_provider_payout_account(
+            cur, row, provider_id, created_at, updated_at
+        )
+        self._upsert_service_endpoints(cur, row, created_at, updated_at)
+        self._upsert_search_index(cur, row, updated_at)
         self._upsert_runtime_state(
             cur,
             self._service_meta_state_key(row.service_id),
@@ -452,7 +592,7 @@ class ServiceRegistryRepository:
         )
 
     def _build_service_definition(self, row: tuple[object, ...]) -> ServiceDefinitionRecord | None:
-        if len(row) != 17:
+        if len(row) != 18:
             return None
 
         (
@@ -473,14 +613,19 @@ class ServiceRegistryRepository:
             endpoint_status,
             max_payload_bytes,
             endpoint_id,
+            endpoint_auth_mode,
         ) = row
 
         metadata = self._payload_dict(metadata_payload)
+        auth_payload = self._normalize_json_object(metadata.get("auth"))
+        if not auth_payload and str(endpoint_auth_mode or "").strip():
+            auth_payload = {"type": str(endpoint_auth_mode).strip()}
         created_at_text, updated_at_text = self._created_updated_text(metadata, created_at, updated_at)
         primary_endpoint = self._primary_endpoint_record(
             service_id,
             endpoint,
             endpoint_id,
+            endpoint_auth_mode,
             timeout_ms,
             max_payload_bytes,
             endpoint_status,
@@ -509,7 +654,10 @@ class ServiceRegistryRepository:
             role=str(metadata.get("role") or "") or None,
             address=str(metadata.get("address") or "") or None,
             tags=self._normalize_json_list(tags_json),
-            auth=ServiceAuthRecord.model_validate(self._normalize_json_object(metadata.get("auth"))),
+            auth=ServiceAuthRecord.model_validate(auth_payload),
+            providerProfile=self._normalize_json_object(metadata.get("providerProfile")) or None,
+            payoutAccount=self._normalize_json_object(metadata.get("payoutAccount")) or None,
+            governance=self._normalize_json_object(metadata.get("governance")) or None,
             healthCheck=ServiceHealthCheckRecord.model_validate(self._normalize_json_object(metadata.get("healthCheck"))),
             forwarding=ServiceForwardingRecord.model_validate(self._normalize_json_object(metadata.get("forwarding"))),
             metering=ServiceMeteringRecord.model_validate(self._normalize_json_object(metadata.get("metering"))),
@@ -547,11 +695,12 @@ class ServiceRegistryRepository:
                     rs.payload,
                     ep.status,
                     ep.max_payload_bytes,
-                    ep.endpoint_id
+                    ep.endpoint_id,
+                    ep.auth_mode
                 FROM synapse_service_manifests AS sm
                 INNER JOIN synapse_owner_accounts AS oa ON oa.owner_id = sm.owner_id
                 LEFT JOIN LATERAL (
-                    SELECT endpoint_id, endpoint_url, timeout_ms, status, max_payload_bytes
+                    SELECT endpoint_id, endpoint_url, auth_mode, timeout_ms, status, max_payload_bytes
                     FROM synapse_service_endpoints
                     WHERE service_id = sm.service_id
                     ORDER BY is_primary DESC, created_at ASC
@@ -574,9 +723,67 @@ class ServiceRegistryRepository:
 
     def write_service_registry_rows(self, rows: List[ServiceDefinitionRecord]) -> None:
         with self._db.tx_cursor() as cur:
-            self._reset_service_tables(cur)
             for row in rows:
                 self._persist_service_row(cur, row)
+
+    @staticmethod
+    def _composite_not_in_clause(row_count: int) -> str:
+        return ", ".join(["(%s, %s)"] * max(1, row_count))
+
+    @staticmethod
+    def _scalar_not_in_clause(value_count: int) -> str:
+        return ", ".join(["%s"] * max(1, value_count))
+
+    def _delete_obsolete_service_health_snapshots(
+        self, cur: Any, rows: List[ServiceTargetHealth]
+    ) -> None:
+        valid_rows = [
+            row
+            for row in rows
+            if str(row.service_id or "").strip() and str(row.target_url or "").strip()
+        ]
+        if not valid_rows:
+            cur.execute("DELETE FROM synapse_service_health_snapshots")
+            return
+
+        params: list[Any] = []
+        for row in valid_rows:
+            params.extend(
+                [
+                    str(row.service_id or "").strip(),
+                    self._endpoint_id(str(row.service_id or "").strip(), str(row.target_url or "").strip(), 0),
+                ]
+            )
+        placeholders = self._composite_not_in_clause(len(valid_rows))
+        cur.execute(
+            f"DELETE FROM synapse_service_health_snapshots WHERE (service_id, endpoint_id) NOT IN ({placeholders})",
+            tuple(params),
+        )
+
+    def _delete_obsolete_service_health_meta(
+        self, cur: Any, rows: List[ServiceTargetHealth]
+    ) -> None:
+        valid_rows = [
+            row
+            for row in rows
+            if str(row.service_id or "").strip() and str(row.target_url or "").strip()
+        ]
+        if not valid_rows:
+            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%'")
+            return
+
+        state_keys = [
+            self._health_meta_state_key(
+                str(row.service_id or "").strip(),
+                str(row.target_url or "").strip(),
+            )
+            for row in valid_rows
+        ]
+        placeholders = self._scalar_not_in_clause(len(state_keys))
+        cur.execute(
+            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%' AND state_key NOT IN ({placeholders})",
+            tuple(state_keys),
+        )
 
     def read_service_target_health_rows(self) -> List[ServiceTargetHealth]:
         with self._db.readonly_cursor() as cur:
@@ -605,6 +812,8 @@ class ServiceRegistryRepository:
         result: List[ServiceTargetHealth] = []
         for service_id, owner, target_url, payload_raw, health_score, latency_ms, _, last_checked_at, error_code in rows:
             payload = self._payload_dict(payload_raw)
+            normalized_last_checked_at = self._epoch_ms(payload.get("lastCheckedAt")) or self._epoch_ms(last_checked_at)
+            normalized_last_healthy_at = self._epoch_ms(payload.get("lastHealthyAt")) or self._epoch_ms(last_checked_at)
             result.append(
                 ServiceTargetHealth(
                     serviceId=service_id,
@@ -619,8 +828,8 @@ class ServiceRegistryRepository:
                     consecutiveSuccesses=int(payload.get("consecutiveSuccesses") or 0),
                     consecutiveFailures=int(payload.get("consecutiveFailures") or 0),
                     probeUrl=payload.get("probeUrl"),
-                    lastCheckedAt=int(payload.get("lastCheckedAt") or 0) or None,
-                    lastHealthyAt=payload.get("lastHealthyAt") or last_checked_at,
+                    lastCheckedAt=normalized_last_checked_at,
+                    lastHealthyAt=normalized_last_healthy_at,
                     error=payload.get("error") or error_code,
                 )
             )
@@ -628,8 +837,8 @@ class ServiceRegistryRepository:
 
     def write_service_target_health_rows(self, rows: List[ServiceTargetHealth]) -> None:
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_service_health_snapshots")
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%'")
+            self._delete_obsolete_service_health_snapshots(cur, rows)
+            self._delete_obsolete_service_health_meta(cur, rows)
             for row in rows:
                 if not row.service_id or not row.target_url:
                     continue
@@ -659,7 +868,7 @@ class ServiceRegistryRepository:
                         endpoint_id,
                         row.service_id,
                         row.target_url,
-                        int(row.latency_ms or 15000),
+                        int(row.timeout_ms or 15000),
                         row.region,
                         int(row.weight or 100),
                         now_dt_str(),
@@ -672,6 +881,14 @@ class ServiceRegistryRepository:
                         service_id, endpoint_id, health_score, p95_latency_ms,
                         success_rate_24h, last_checked_at, error_code, updated_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (service_id, endpoint_id)
+                    DO UPDATE SET
+                        health_score = EXCLUDED.health_score,
+                        p95_latency_ms = EXCLUDED.p95_latency_ms,
+                        success_rate_24h = EXCLUDED.success_rate_24h,
+                        last_checked_at = EXCLUDED.last_checked_at,
+                        error_code = EXCLUDED.error_code,
+                        updated_at = EXCLUDED.updated_at
                     """,
                     (
                         row.service_id,
@@ -706,7 +923,7 @@ class ServiceRegistryRepository:
     def read_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
-                "SELECT state_key, payload FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%' ORDER BY state_key ASC"
+                "SELECT state_key, payload FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%%' ORDER BY state_key ASC"
             )
             rows = cur.fetchall()
         result: List[ServiceTargetHealthHistory] = []
@@ -729,7 +946,7 @@ class ServiceRegistryRepository:
             grouped[service_id].append(payload)
 
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%'")
+            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%%'")
             for service_id, payload_rows in grouped.items():
                 self._upsert_runtime_state(
                     cur,

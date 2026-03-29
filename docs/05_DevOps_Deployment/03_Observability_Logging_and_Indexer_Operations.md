@@ -1,5 +1,11 @@
 # Observability, Logging, and Indexer Operations
 
+- Status: canonical
+- Code paths: `gateway/src/`, `admin/gateway-admin/src/`, `tools/scripts/`
+- DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`, admin projection views
+- Supersedes: root `docs/平台资金监控方案.md` for runtime observability and reconciliation semantics
+- Last verified against code: 2026-03-24
+
 ## 1. 目标
 
 本文件定义 Synapse 如何在运行中观察请求、扣费、风控和链上入金同步状态。
@@ -19,7 +25,19 @@
 5. Withdrawal 风险队列
 6. Admin 审批积压
 
-## 3. 应用日志标准
+## 3. 资金链路指标与对账口径
+
+本模块已经收口 root `docs/平台资金监控方案.md` 中属于 runtime observability、reconciliation 和运维巡检的当前语义。
+
+统一规则如下：
+
+1. 先按 `Consumer / Platform / Provider / Treasury` 责任面观察，再看单点余额。
+2. `Ledger obligation` 表示平台对买家侧消费资金桶的账本义务，不等于用户当前可退款金额。
+3. `Signed difference` 用来表达链上 vault 与链下账本的带方向差额；`absolute delta` 用于值班与告警阈值判断。
+4. `Capital Pulse` 摘要面板属于 admin control-plane 投影语义，具体展示口径以 `docs/admin/Admin_Funds_Observability_Metrics_Design.md` 为准。
+5. 生产值班先看本模块定义的观测和巡检纪律，再进入 admin 页面做调查与审批。
+
+## 4. 应用日志标准
 
 ### 3.1 最低能力要求
 
@@ -53,7 +71,7 @@
 8. `risk_decision`
 9. `request_exit`
 
-## 4. 日志与安全边界
+## 5. 日志与安全边界
 
 生产日志必须遵守：
 
@@ -61,7 +79,7 @@
 2. 不暴露内部 SQL、堆栈或 schema 细节给外部表面
 3. 对外错误表面与内部日志表面分层
 
-## 5. Deposit Indexer 运行原则
+## 6. Deposit Indexer 运行原则
 
 ### 5.1 模块职责
 
@@ -88,7 +106,7 @@
 
 修改它的意义是允许重新扫描，不代表系统可以绕过正式修复路径直接补账。
 
-## 6. 生产修复原则
+## 7. 生产修复原则
 
 当充值同步异常时，优先级应该是：
 
@@ -99,7 +117,7 @@
 
 禁止把“手工改余额”当作标准修复方式。
 
-## 7. 最小巡检面板
+## 8. 最小巡检面板
 
 生产环境至少要有以下面板或聚合视图：
 
@@ -110,7 +128,7 @@
 5. withdrawal risk queue size
 6. nightly ops check status
 
-## 8. 文档结论
+## 9. 文档结论
 
 观测体系的目标，不是“多打一堆日志”，而是让平台能快速回答：
 

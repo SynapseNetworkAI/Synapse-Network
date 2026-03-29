@@ -1,9 +1,12 @@
 "use client";
 
-import { FormEvent, useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
+import { Box, Button, Flex, Grid, Heading, Input, Stack, Text } from "@chakra-ui/react";
+import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
-import { CrudDrawer, CrudField, CrudSection, CrudTable, CrudToolbar, CrudToolbarFilters } from "@/components/crud";
+import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
+import { DataTable, FieldBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, StatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
+import { buildPermissionGroups, buildRoleDomainCards, buildRoleMetrics, buildRoleRiskCards, filterRoles, sortRolesByPriority } from "@/features/rbac/role-presenters";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
   createAdminRole,
@@ -23,34 +26,6 @@ type RoleFormState = {
   permissions: string[];
 };
 
-function buildPermissionGroups(permissions: AdminPermissionCatalogItem[]) {
-  const groups = new Map<string, AdminPermissionCatalogItem[]>();
-  permissions.forEach((permission) => {
-    const current = groups.get(permission.resourceDomain) ?? [];
-    current.push(permission);
-    groups.set(permission.resourceDomain, current);
-  });
-  return Array.from(groups.entries())
-    .map(([domain, items]) => {
-      const sortedItems = [...items].sort((left, right) => left.permissionKey.localeCompare(right.permissionKey));
-      return {
-        domain,
-        items: sortedItems,
-      };
-    })
-    .sort((left, right) => left.domain.localeCompare(right.domain));
-}
-
-function getRoleSubmitLabel(isPending: boolean, editingRole: AdminRoleCatalogItem | null): string {
-  if (isPending) {
-    return "提交中...";
-  }
-  if (editingRole) {
-    return "保存角色";
-  }
-  return "创建角色";
-}
-
 function createEmptyRoleForm(): RoleFormState {
   return {
     roleKey: "",
@@ -67,13 +42,12 @@ export default function RolePermissionsPage() {
   const [permissions, setPermissions] = useState<AdminPermissionCatalogItem[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AdminRoleCatalogItem | null>(null);
+  const [isOpen, setOpen] = useState(false);
   const [form, setForm] = useState<RoleFormState>(createEmptyRoleForm());
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [deletingKey, setDeletingKey] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [bootstrapping, setBootstrapping] = useState(true);
   const deferredSearch = useDeferredValue(search);
 
   async function loadData(activeToken: string) {
@@ -91,15 +65,24 @@ export default function RolePermissionsPage() {
     }
     const activeToken = token;
     let cancelled = false;
+
     async function load() {
       try {
         await loadData(activeToken);
+        if (!cancelled) {
+          setError(null);
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "加载角色权限矩阵失败");
         }
+      } finally {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
       }
     }
+
     void load();
     return () => {
       cancelled = true;
@@ -107,37 +90,28 @@ export default function RolePermissionsPage() {
   }, [token]);
 
   const permissionGroups = useMemo(() => buildPermissionGroups(permissions), [permissions]);
-  const filteredRoles = useMemo(() => {
-    const normalizedSearch = deferredSearch.trim().toLowerCase();
-    return roles.filter((role) => {
-      const matchesSearch = !normalizedSearch
-        || role.roleKey.toLowerCase().includes(normalizedSearch)
-        || role.roleName.toLowerCase().includes(normalizedSearch);
-      const matchesStatus = statusFilter === "all" || role.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [deferredSearch, roles, statusFilter]);
+  const metrics = useMemo(() => buildRoleMetrics(roles, permissions), [roles, permissions]);
+  const filteredRoles = useMemo(() => sortRolesByPriority(filterRoles(roles, deferredSearch, statusFilter)), [deferredSearch, roles, statusFilter]);
+  const domainCards = useMemo(() => buildRoleDomainCards(roles, permissions), [roles, permissions]);
+  const riskCards = useMemo(() => buildRoleRiskCards(roles), [roles]);
 
-  if (loading || !admin) {
-    return <main className="state-screen">正在载入角色权限矩阵...</main>;
+  if (loading || !admin || bootstrapping) {
+    return <ControlPlaneLoadingScreen title="RBAC Matrix Hydration" message="正在载入角色权限矩阵..." />;
   }
 
   const canManage = admin.role === "super_admin";
-  const submitLabel = getRoleSubmitLabel(isPending, editingRole);
 
   function resetForm() {
     setEditingRole(null);
     setForm(createEmptyRoleForm());
-    setMessage(null);
-    setError(null);
   }
 
-  function openCreateDrawer() {
+  function openCreate() {
     resetForm();
-    setDrawerOpen(true);
+    setOpen(true);
   }
 
-  function openEditDrawer(role: AdminRoleCatalogItem) {
+  function openEdit(role: AdminRoleCatalogItem) {
     setEditingRole(role);
     setForm({
       roleKey: role.roleKey,
@@ -146,14 +120,7 @@ export default function RolePermissionsPage() {
       status: role.status,
       permissions: role.permissions,
     });
-    setMessage(null);
-    setError(null);
-    setDrawerOpen(true);
-  }
-
-  function closeDrawer() {
-    setDrawerOpen(false);
-    resetForm();
+    setOpen(true);
   }
 
   function togglePermission(permissionKey: string) {
@@ -165,65 +132,41 @@ export default function RolePermissionsPage() {
     }));
   }
 
-  function updateField<Key extends keyof RoleFormState>(key: Key, value: RoleFormState[Key]) {
-    setForm((current) => ({ ...current, [key]: value }));
+  async function handleDelete(roleKey: string) {
+    if (!token || !canManage) {
+      return;
+    }
+    await deleteAdminRole(token, roleKey);
+    await loadData(token);
+    setMessage("角色已禁用。");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(null);
-    setError(null);
-    startTransition(async () => {
-      try {
-        if (!token) {
-          throw new Error("Missing admin token");
-        }
-        if (editingRole) {
-          await updateAdminRole(token, editingRole.roleKey, {
-            roleName: form.roleName,
-            description: form.description,
-            status: form.status,
-            permissions: form.permissions,
-          });
-          setMessage("角色权限已更新。");
-        } else {
-          await createAdminRole(token, {
-            roleKey: form.roleKey,
-            roleName: form.roleName,
-            description: form.description,
-            status: form.status,
-            permissions: form.permissions,
-          });
-          setMessage("角色已创建。");
-        }
-        await loadData(token);
-        globalThis.setTimeout(() => closeDrawer(), 140);
-      } catch (submitError) {
-        setError(submitError instanceof Error ? submitError.message : "提交角色失败");
-      }
-    });
-  }
-
-  async function handleDelete(role: AdminRoleCatalogItem) {
-    if (!canManage || !token) {
+    if (!token) {
       return;
     }
-    const confirmed = globalThis.confirm(`确认禁用角色 ${role.roleName} 吗？`);
-    if (!confirmed) {
-      return;
+    if (editingRole) {
+      await updateAdminRole(token, editingRole.roleKey, {
+        roleName: form.roleName,
+        description: form.description,
+        status: form.status,
+        permissions: form.permissions,
+      });
+      setMessage("角色权限已更新。");
+    } else {
+      await createAdminRole(token, {
+        roleKey: form.roleKey,
+        roleName: form.roleName,
+        description: form.description,
+        status: form.status,
+        permissions: form.permissions,
+      });
+      setMessage("角色已创建。");
     }
-    setDeletingKey(role.roleKey);
-    setMessage(null);
-    setError(null);
-    try {
-      await deleteAdminRole(token, role.roleKey);
-      await loadData(token);
-      setMessage(`角色 ${role.roleName} 已禁用。`);
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "禁用角色失败");
-    } finally {
-      setDeletingKey(null);
-    }
+    await loadData(token);
+    setOpen(false);
+    resetForm();
   }
 
   return (
@@ -231,156 +174,157 @@ export default function RolePermissionsPage() {
       admin={admin}
       eyebrow="Role Matrix"
       title="角色权限管理"
-      description="把角色定义、权限映射和状态管理收拢成标准 CRUD 页面，后续所有配置型后台页都按这个骨架走。"
+      description="把角色模板、权限边界和高风险提权信号收拢成标准治理工作台。"
+      actions={canManage ? <Button borderRadius="full" bg="brand.500" color="white" _hover={{ bg: "brand.600" }} onClick={openCreate}>创建角色</Button> : undefined}
     >
-      <CrudSection
-        eyebrow="Role Catalog"
-        title="角色目录与权限边界"
-        description="列表负责检索与操作，表单收进右侧抽屉。兄弟，这才是中后台该有的体面，不是把权限芯片平铺成一堵墙。"
-        stamp={`${filteredRoles.length}/${roles.length} roles`}
-        toolbar={(
-          <CrudToolbar>
-            <CrudToolbarFilters>
-              <CrudField label="搜索角色">
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索 role key / role name" />
-              </CrudField>
-              <CrudField label="状态筛选" compact>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                  <option value="all">全部状态</option>
-                  <option value="active">active</option>
-                  <option value="disabled">disabled</option>
-                </select>
-              </CrudField>
-            </CrudToolbarFilters>
-            {canManage ? <button type="button" className="button button--primary crud-toolbar__create" onClick={openCreateDrawer}>+ 创建角色</button> : null}
-          </CrudToolbar>
-        )}
-        message={message ? <p className="form-message form-message--success">{message}</p> : null}
-        error={error ? <p className="form-message form-message--error">{error}</p> : null}
-      >
-        <CrudTable>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>角色</th>
-                <th>状态</th>
-                <th>权限数</th>
-                <th>说明</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRoles.map((role) => (
-                <tr key={role.roleKey}>
-                  <td>
-                    <strong>{role.roleName}</strong>
-                    <div className="table-subtext table-subtext--mono">{role.roleKey}</div>
-                  </td>
-                  <td><span className={`status-pill ${role.status === "active" ? "status-pill--healthy" : "status-pill--alert"}`}>{role.status}</span></td>
-                  <td><span className="table-subtext table-subtext--mono">{role.permissions.length}</span></td>
-                  <td><span className="table-subtext">{role.description ?? "No description"}</span></td>
-                  <td>
-                    <div className="table-actions">
-                      <button type="button" className="ghost-button" onClick={() => openEditDrawer(role)} disabled={!canManage}>编辑</button>
-                      <button
-                        type="button"
-                        className="ghost-button ghost-button--danger"
-                        onClick={() => void handleDelete(role)}
-                        disabled={!canManage || deletingKey === role.roleKey || role.status === "disabled"}
-                      >
-                        {deletingKey === role.roleKey ? "处理中..." : "删除"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CrudTable>
-      </CrudSection>
+      {error ? <MessageBanner kind="error" message={error} /> : null}
+      {message ? <MessageBanner kind="success" message={message} /> : null}
 
-      <section className="panel">
-        <div className="panel__header">
-          <div>
-            <p className="panel__eyebrow">Permission Domains</p>
-            <h3 className="panel__title">权限域索引</h3>
-          </div>
-          <span className="dashboard-section__stamp">{permissions.length} permissions</span>
-        </div>
-        <div className="catalog-list catalog-list--three">
+      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap="16px">
+        <MetricCard label="Role catalog" value={metrics.totalRoles} meta={`${metrics.activeCount} active / ${metrics.disabledCount} disabled`} />
+        <MetricCard label="Permission coverage" value={`${metrics.coveredPermissionCount}/${permissions.length}`} meta={`${metrics.uncoveredPermissionCount} still uncovered`} />
+        <MetricCard label="Max privilege span" value={metrics.maxPermissionCount} meta="widest single-role permission surface" accent="linear-gradient(180deg, rgba(255,251,244,0.98) 0%, rgba(255,242,226,0.96) 100%)" />
+        <MetricCard label="Governance mode" value={canManage ? "WRITE" : "READ"} meta={canManage ? "super_admin can grant/revoke" : "session is read-only"} />
+      </Grid>
+
+      <Grid templateColumns={{ base: "1fr", xl: "0.96fr 1.04fr" }} gap="16px">
+        <SurfaceCard eyebrow="Elevation Risk" title="高风险角色面" description="角色治理的核心不是建表，而是快速识别谁拥有过宽权限面，谁具备提权能力。">
+          <Stack gap="12px">
+            {riskCards.map((card) => (
+              <Box key={card.key} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+                <Stack direction="row" justify="space-between" align="center">
+                  <Stack gap="4px">
+                    <Heading size="sm">{card.label}</Heading>
+                    <Text color="ink.500">{card.roleKey}</Text>
+                  </Stack>
+                  <SentinelStatusChip label={`${card.permissionCount} perms`} tone={card.tone} />
+                </Stack>
+                <Text mt="8px" color="ink.500">{card.description}</Text>
+              </Box>
+            ))}
+            <Box borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+              <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="ink.500">RBAC Guardrail</Text>
+              <Text mt="8px" color="ink.500">前端不能只做菜单隐藏。角色页要明确区分可读、可发起、可审批和可执行的边界，尤其是 `admin_role:grant` 这类高风险能力。</Text>
+            </Box>
+          </Stack>
+        </SurfaceCard>
+
+        <SurfaceCard eyebrow="Role Catalog" title="角色目录与权限边界" description="通过角色模板管理权限边界，再由菜单配置和受控动作共同消费。" stamp={`${filteredRoles.length}/${roles.length} roles`}>
+        <Grid templateColumns={{ base: "1fr", md: "320px 180px" }} gap="12px" mb="16px">
+          <SearchInput value={search} onChange={setSearch} placeholder="搜索 role key / role name" />
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={nativeFieldStyle}>
+            <option value="all">全部状态</option>
+            <option value="active">active</option>
+            <option value="disabled">disabled</option>
+          </select>
+        </Grid>
+        <DataTable>
+          <TableHeaderRow>
+            <Th>Role</Th>
+            <Th>Status</Th>
+            <Th>Permissions</Th>
+            <Th>Description</Th>
+            <Th>Actions</Th>
+          </TableHeaderRow>
+          <TableBody>
+            {filteredRoles.map((role) => (
+              <Box as="tr" key={role.roleKey}>
+                <Td>
+                  <Text fontWeight="700">{role.roleName}</Text>
+                  <Text color="ink.500">{role.roleKey}</Text>
+                </Td>
+                <Td><StatusChip value={role.status} /></Td>
+                <Td>{role.permissions.length}</Td>
+                <Td>{role.description ?? "No description"}</Td>
+                <Td>
+                  <Flex gap="8px" wrap="wrap">
+                    <Button size="sm" borderRadius="full" onClick={() => openEdit(role)} disabled={!canManage}>编辑</Button>
+                    <Button size="sm" borderRadius="full" variant="outline" onClick={() => void handleDelete(role.roleKey)} disabled={!canManage || role.status === "disabled"}>禁用</Button>
+                  </Flex>
+                </Td>
+              </Box>
+            ))}
+          </TableBody>
+        </DataTable>
+      </SurfaceCard>
+      </Grid>
+
+      <Grid templateColumns={{ base: "1fr", xl: "1.04fr 0.96fr" }} gap="16px">
+      <SurfaceCard eyebrow="Permission Domains" title="权限域索引" description="按 resource domain 展示完整 permission catalog，便于角色建模时快速核对。" stamp={`${permissions.length} permissions`}>
+        <Grid templateColumns={{ base: "1fr", lg: "repeat(3, 1fr)" }} gap="12px">
           {permissionGroups.map((group) => (
-            <div key={group.domain} className="catalog-card">
-              <div className="catalog-card__header">
-                <strong>{group.domain}</strong>
-                <span className="sidebar__badge">{group.items.length}</span>
-              </div>
-              <div className="pill-row">
-                {group.items.map((item) => (
-                  <span key={item.permissionKey} className="permission-chip">{item.permissionKey}</span>
+            <Box key={group.domain} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+              <Heading size="sm">{group.domain}</Heading>
+              <Stack gap="8px" mt="10px">
+                {group.items.map((permission) => (
+                  <Box key={permission.permissionKey} borderRadius="14px" p="10px" bg="rgba(247,241,233,0.80)">
+                    <Text fontWeight="700">{permission.permissionKey}</Text>
+                    <Text color="ink.500">{permission.action} · {permission.riskLevel}</Text>
+                  </Box>
                 ))}
-              </div>
-            </div>
+              </Stack>
+            </Box>
           ))}
-        </div>
-      </section>
-
-      <CrudDrawer
-        open={isDrawerOpen}
-        eyebrow={editingRole ? "Edit Role" : "Create Role"}
-        title={editingRole ? "编辑角色" : "创建角色"}
-        description="角色信息与权限勾选都放进抽屉，不再污染主列表视野。"
-        onClose={closeDrawer}
-      >
-        <form className="admin-form crud-drawer__form" onSubmit={handleSubmit}>
-          <label>
-            <span>Role Key</span>
-            <input value={form.roleKey} onChange={(event) => updateField("roleKey", event.target.value)} disabled={Boolean(editingRole)} placeholder="ops_shift_manager" />
-          </label>
-          <label>
-            <span>Role Name</span>
-            <input value={form.roleName} onChange={(event) => updateField("roleName", event.target.value)} placeholder="Ops Shift Manager" />
-          </label>
-          <label>
-            <span>Description</span>
-            <input value={form.description} onChange={(event) => updateField("description", event.target.value)} placeholder="Role description" />
-          </label>
-          <label>
-            <span>Status</span>
-            <select value={form.status} onChange={(event) => updateField("status", event.target.value)}>
-              <option value="active">active</option>
-              <option value="disabled">disabled</option>
-            </select>
-          </label>
-          <div className="permission-selector">
-            <span className="crud-field__label">权限选择</span>
-            <div className="permission-selector__grid">
-              {permissionGroups.map((group) => (
-                <section key={group.domain} className="permission-selector__group">
-                  <strong>{group.domain}</strong>
-                  {group.items.map((item) => (
-                    <label key={item.permissionKey} className="permission-selector__item">
-                      <input
-                        type="checkbox"
-                        aria-label={item.permissionKey}
-                        checked={form.permissions.includes(item.permissionKey)}
-                        onChange={() => togglePermission(item.permissionKey)}
-                      />
-                      <span>
-                        <span className="table-subtext table-subtext--mono">{item.permissionKey}</span>
-                        <small className="table-subtext">{item.riskLevel}</small>
-                      </span>
-                    </label>
-                  ))}
-                </section>
-              ))}
-            </div>
-          </div>
-          <div className="crud-drawer__actions">
-            <button type="button" className="button button--secondary" onClick={closeDrawer}>取消</button>
-            <button type="submit" className="button button--primary" disabled={isPending}>{submitLabel}</button>
-          </div>
+        </Grid>
+      </SurfaceCard>
+      <SurfaceCard eyebrow="Domain Coverage" title="资源域覆盖率" description="先看哪些权限域已经被活动角色覆盖，哪些仍然裸露，才能判断当前 RBAC 是否成体系。">
+        <Stack gap="12px">
+          {domainCards.map((card) => (
+            <Box key={card.key} borderRadius="22px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+              <Stack direction="row" justify="space-between" align="center">
+                <Heading size="sm">{card.label}</Heading>
+                <SentinelStatusChip label={`${card.coveredCount}/${card.permissionCount}`} tone={card.coveredCount === card.permissionCount ? "green" : "orange"} />
+              </Stack>
+              <Text mt="8px" color="ink.500">active roles {card.activeRoleCount}</Text>
+            </Box>
+          ))}
+        </Stack>
+      </SurfaceCard>
+      </Grid>
+      <OverlayPanel open={isOpen} title={editingRole ? "编辑角色" : "创建角色"} description="角色会影响可见菜单、审批能力和高风险动作边界。" onClose={() => { setOpen(false); resetForm(); }}>
+        <form onSubmit={(event) => void handleSubmit(event)}>
+          <Stack gap="16px">
+            <FieldBlock label="Role Key">
+              <Input value={form.roleKey} onChange={(event) => setForm((current) => ({ ...current, roleKey: event.target.value }))} disabled={editingRole !== null} borderRadius="16px" h="50px" bg="rgba(255,255,255,0.88)" borderColor="rgba(99,92,82,0.16)" />
+            </FieldBlock>
+            <FieldBlock label="Role Name">
+              <Input value={form.roleName} onChange={(event) => setForm((current) => ({ ...current, roleName: event.target.value }))} borderRadius="16px" h="50px" bg="rgba(255,255,255,0.88)" borderColor="rgba(99,92,82,0.16)" />
+            </FieldBlock>
+            <FieldBlock label="Description">
+              <Input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} borderRadius="16px" h="50px" bg="rgba(255,255,255,0.88)" borderColor="rgba(99,92,82,0.16)" />
+            </FieldBlock>
+            <FieldBlock label="Status">
+              <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} style={nativeFieldStyle}>
+                <option value="active">active</option>
+                <option value="disabled">disabled</option>
+              </select>
+            </FieldBlock>
+            <FieldBlock label="Permissions">
+              <Stack gap="12px" maxH="360px" overflowY="auto" pr="6px">
+                {permissionGroups.map((group) => (
+                  <Box key={group.domain} borderRadius="18px" p="14px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
+                    <Text fontWeight="700" mb="10px">{group.domain}</Text>
+                    <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="8px">
+                      {group.items.map((permission) => (
+                        <Box as="label" key={permission.permissionKey} display="flex" gap="8px" alignItems="flex-start">
+                          <input type="checkbox" checked={form.permissions.includes(permission.permissionKey)} onChange={() => togglePermission(permission.permissionKey)} />
+                          <span>
+                            <strong>{permission.permissionKey}</strong>
+                            <span style={{ display: "block", color: "#635c52" }}>{permission.description ?? `${permission.action} · ${permission.riskLevel}`}</span>
+                          </span>
+                        </Box>
+                      ))}
+                    </Grid>
+                  </Box>
+                ))}
+              </Stack>
+            </FieldBlock>
+            <Button type="submit" bg="brand.500" color="white" borderRadius="18px" h="52px" _hover={{ bg: "brand.600" }}>
+              {editingRole ? "保存角色" : "创建角色"}
+            </Button>
+          </Stack>
         </form>
-      </CrudDrawer>
+      </OverlayPanel>
     </AdminShell>
   );
 }

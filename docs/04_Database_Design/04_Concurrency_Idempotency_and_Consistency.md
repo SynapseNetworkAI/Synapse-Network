@@ -151,15 +151,19 @@ SQL 通过 `synapse_idempotency_keys` 提供统一幂等设施。
 
 只允许：
 
-1. `REQUESTED -> SIGNED`
-2. `SIGNED -> BROADCASTED`
-3. `BROADCASTED -> CONFIRMED`
-4. 任一前态在必要时转 `FAILED`
+1. `REQUESTED -> APPROVED_AUTO`
+2. `REQUESTED -> PENDING_MANUAL_REVIEW`
+3. `PENDING_MANUAL_REVIEW -> APPROVED_AUTO`
+4. `PENDING_MANUAL_REVIEW -> REJECTED`
+5. `APPROVED_AUTO -> COMPLETED`
+6. `APPROVED_AUTO -> CANCELLED`
+7. `REQUESTED -> CANCELLED` 仅允许发生在历史兼容清理把旧 `PENDING` 归一后命中过期释放时
 
 状态机单向推进的意义是：
 
 1. 审计可解释
 2. 回放和修复有边界
+3. 过期释放在 `CANCELLED` 落库成功后天然幂等，不会重复把同一笔 locked receivable 释放回 available
 3. 不会靠“修改历史状态”掩盖事故
 
 ## 6. 对账一致性

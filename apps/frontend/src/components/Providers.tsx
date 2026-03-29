@@ -6,6 +6,7 @@ import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { hardhat, sepolia, baseSepolia, arbitrumSepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { isIgnorableWalletExtensionError, toWalletExtensionErrorDetails } from "@/utils/walletExtensionErrors";
 import "@rainbow-me/rainbowkit/styles.css";
 
 const chains = [hardhat, sepolia, baseSepolia, arbitrumSepolia] as const;
@@ -24,7 +25,7 @@ const config = walletConnectProjectId
   : createConfig({
       chains,
       ssr: false,
-      connectors: [injected()],
+      connectors: [injected({ shimDisconnect: true, unstable_shimAsyncInject: 2_000 })],
       transports: {
         [hardhat.id]: http(),
         [sepolia.id]: http(),
@@ -71,18 +72,36 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
       );
     }
 
-    // 拦截全局的 Promise 报错，过滤掉来自钱包插件(MetaMask)静默重连失败的幽灵报错
-    // 防止触发 Next.js 的红底全屏崩溃页面
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const reasonStr = event.reason?.message || event.reason?.toString() || "";
-      if (reasonStr.includes("MetaMask") || reasonStr.includes("Failed to connect")) {
-        console.warn("Ignored browser wallet extension connection error.");
-        event.preventDefault(); // 核心：阻止 Next.js 捕获并渲染这个错误
+      const details = toWalletExtensionErrorDetails(event.reason);
+      if (!isIgnorableWalletExtensionError(details)) {
+        return;
       }
+
+      console.warn("Ignored browser wallet extension rejection.", details.message);
+      event.preventDefault();
     };
 
-    globalThis.window.addEventListener("unhandledrejection", handleUnhandledRejection);
-    return () => globalThis.window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    const handleWindowError = (event: ErrorEvent) => {
+      if (!isIgnorableWalletExtensionError({
+        message: event.message,
+        filename: event.filename,
+        stack: event.error instanceof Error ? event.error.stack : null,
+      })) {
+        return;
+      }
+
+      console.warn("Ignored browser wallet extension error.", event.message);
+      event.preventDefault();
+    };
+
+    globalThis.window.addEventListener("unhandledrejection", handleUnhandledRejection, { capture: true });
+    globalThis.window.addEventListener("error", handleWindowError, { capture: true });
+
+    return () => {
+      globalThis.window.removeEventListener("unhandledrejection", handleUnhandledRejection, { capture: true });
+      globalThis.window.removeEventListener("error", handleWindowError, { capture: true });
+    };
   }, []);
 
   if (!mounted) {

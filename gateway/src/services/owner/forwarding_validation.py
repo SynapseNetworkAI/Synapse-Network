@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from src.core.config import settings
 from src.domain.service_contract import ServiceConstraintRecord, ServiceDefinitionRecord
+from src.services.platform import service_health_service
 from src.storage import BaseStorage
 
 _REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]+$")
@@ -68,6 +69,7 @@ def find_active_service(storage: BaseStorage, service_id: str) -> ServiceDefinit
         if isinstance(raw_rows, list)
         else []
     )
+    rows = service_health_service.seed_service_health_from_persisted_rows(storage, rows)
 
     target = next((r for r in rows if str(r.service_id or "").strip() == service_id), None)
     if target is None:

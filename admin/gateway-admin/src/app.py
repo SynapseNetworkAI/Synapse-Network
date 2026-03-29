@@ -1,13 +1,15 @@
 from contextlib import asynccontextmanager
 import asyncio
+import hmac
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.routers import admin_auth, admin_config, admin_users, approval, audit, dashboard, execution
+from src.api.routers import admin_auth, admin_config, admin_users, approval, audit, dashboard, execution, provider_withdraw_review
 from src.api import deps
+from src.core.csrf import build_admin_csrf_token
 from src.core.config import get_settings
 from src.core.errors import AppError
 from src.core.middleware import RequestContextMiddleware
@@ -15,61 +17,44 @@ from src.core.middleware import RequestContextMiddleware
 settings = get_settings()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-	app.state.settings = settings
-	worker_task = None
-	worker_stop_event = asyncio.Event()
-	if settings.execution_worker_enabled:
-		worker = deps.get_execution_worker()
-		worker_task = asyncio.create_task(worker.run(worker_stop_event))
-		app.state.execution_worker = worker
-		app.state.execution_worker_task = worker_task
-		app.state.execution_worker_stop_event = worker_stop_event
-	try:
-		yield
-	finally:
-		worker_stop_event.set()
-		if worker_task is not None:
-			await worker_task
+def _should_enforce_csrf(request: Request) -> bool:
+	if request.method in {"GET", "HEAD", "OPTIONS"}:
+		return False
+	if not request.url.path.startswith("/api/admin/v1/"):
+		return False
+	if request.url.path == "/api/admin/v1/auth/login":
+		return False
+	if request.headers.get("Authorization"):
+		return False
+	return bool(request.cookies.get(settings.admin_session_cookie_name))
 
 
-def create_app() -> FastAPI:
-	app = FastAPI(
-		title=settings.app_name,
-		description="Synapse admin control plane.",
-		version="0.1.0",
-		lifespan=lifespan,
+def _invalid_csrf_response(request: Request) -> JSONResponse:
+	request_id = getattr(request.state, "request_id", "req_unknown")
+	return JSONResponse(
+		status_code=403,
+		content={
+			"success": False,
+			"error": {"code": "FORBIDDEN", "message": "Invalid CSRF token"},
+			"requestId": request_id,
+		},
 	)
 
-	app.add_middleware(RequestContextMiddleware)
 
-	app.add_middleware(
-		CORSMiddleware,
-		allow_origins=settings.cors_origins(),
-		allow_credentials=True,
-		allow_methods=["*"],
-		allow_headers=["*"],
-	)
-
-	app.include_router(admin_auth.router)
-	app.include_router(admin_config.router)
-	app.include_router(admin_users.router)
-	app.include_router(dashboard.router)
-	app.include_router(approval.router)
-	app.include_router(audit.router)
-	app.include_router(execution.router)
-
+def _register_exception_handlers(app: FastAPI) -> None:
 	@app.exception_handler(AppError)
 	async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
 		request_id = getattr(request.state, "request_id", "req_unknown")
+		content = {
+			"success": False,
+			"error": {"code": exc.code, "message": exc.message},
+			"requestId": request_id,
+		}
+		if exc.data is not None:
+			content["data"] = exc.data
 		return JSONResponse(
 			status_code=exc.status_code,
-			content={
-				"success": False,
-				"error": {"code": exc.code, "message": exc.message},
-				"requestId": request_id,
-			},
+			content=content,
 		)
 
 	@app.exception_handler(HTTPException)
@@ -114,6 +99,66 @@ def create_app() -> FastAPI:
 				"requestId": request_id,
 			},
 		)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+	app.state.settings = settings
+	worker_task = None
+	worker_stop_event = asyncio.Event()
+	if settings.execution_worker_enabled:
+		worker = deps.get_execution_worker()
+		worker_task = asyncio.create_task(worker.run(worker_stop_event))
+		app.state.execution_worker = worker
+		app.state.execution_worker_task = worker_task
+		app.state.execution_worker_stop_event = worker_stop_event
+	try:
+		yield
+	finally:
+		worker_stop_event.set()
+		if worker_task is not None:
+			await worker_task
+
+
+def create_app() -> FastAPI:
+	app = FastAPI(
+		title=settings.app_name,
+		description="Synapse admin control plane.",
+		version="0.1.0",
+		lifespan=lifespan,
+	)
+
+	app.add_middleware(RequestContextMiddleware)
+
+	app.add_middleware(
+		CORSMiddleware,
+		allow_origins=settings.cors_origins(),
+		allow_credentials=True,
+		allow_methods=["*"],
+		allow_headers=["*"],
+	)
+
+	@app.middleware("http")
+	async def enforce_cookie_csrf(request: Request, call_next):
+		if not _should_enforce_csrf(request):
+			return await call_next(request)
+		session_token = request.cookies.get(settings.admin_session_cookie_name)
+		csrf_token = request.headers.get("X-CSRF-Token")
+		expected_token = build_admin_csrf_token(session_token)
+		if not csrf_token or not hmac.compare_digest(csrf_token, expected_token):
+			return _invalid_csrf_response(request)
+		return await call_next(request)
+
+	app.include_router(admin_auth.router)
+	app.include_router(admin_config.router)
+	app.include_router(admin_users.router)
+	app.include_router(dashboard.router)
+	app.include_router(approval.router)
+	app.include_router(audit.router)
+	app.include_router(execution.router)
+	app.include_router(provider_withdraw_review.router)
+
+	_register_exception_handlers(app)
 
 	@app.get("/health")
 	async def health_check() -> dict[str, str]:

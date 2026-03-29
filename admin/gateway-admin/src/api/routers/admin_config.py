@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from src.api.deps import get_admin_config_service, get_request_id, require_admin
+from src.api.deps import get_admin_config_service, get_request_id, require_admin, require_high_risk_permission
 from src.api.schemas.admin_config import (
     AdminMenuConfigItemModel,
     AdminMenuConfigMetaModel,
@@ -32,6 +32,16 @@ def list_menu_items(
     stage: Annotated[str, Query()] = "draft",
 ):
     payload = admin_config_service.list_menu_items(operator=admin, stage=stage)
+    return ApiResponse(data=_build_response(payload), request_id=request_id)
+
+
+@router.get("/menu-items/visible", response_model=ApiResponse)
+def list_visible_menu_items(
+    admin: Annotated[AdminIdentity, Depends(require_admin)],
+    request_id: Annotated[str, Depends(get_request_id)],
+    admin_config_service: Annotated[AdminConfigService, Depends(get_admin_config_service)],
+):
+    payload = admin_config_service.list_visible_menu_items(operator=admin)
     return ApiResponse(data=_build_response(payload), request_id=request_id)
 
 
@@ -71,7 +81,7 @@ def delete_menu_item(
 
 @router.post("/menu-items/publish", response_model=ApiResponse)
 def publish_menu_config(
-    admin: Annotated[AdminIdentity, Depends(require_admin)],
+    admin: Annotated[AdminIdentity, Depends(require_high_risk_permission("dashboard:read"))],
     request_id: Annotated[str, Depends(get_request_id)],
     admin_config_service: Annotated[AdminConfigService, Depends(get_admin_config_service)],
 ):

@@ -1,10 +1,15 @@
 # Core Workflows
 
-本目录定义 Synapse Network 当前最重要的五条业务链路。
+- Status: canonical
+- Code paths: `gateway/src/`, `admin/gateway-admin/src/`, `contracts/`, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Verified with: `npm run ci:gateway`, `npm run ci:admin-gateway`, `npm run ci:contracts`, `npm run ci:docs`
+- Last verified against code: 2026-03-25
+
+本目录定义 Synapse Network 当前最重要的五条业务链路，以及少量直接服务这些链路的架构取舍专题。
 
 这些文档的写法遵守两个原则：
 
-1. `docs/agent/` 定义协议、身份和运行时边界。
+1. 官方模块定义协议、身份和运行时边界。
 2. 最新 SQL schema 定义表结构、状态机和持久化真相。
 
 因此，本目录不再重复发明新的对象模型，只回答一个问题：
@@ -23,6 +28,8 @@
 	再看 Provider 如何注册服务、绑定收款账户并把能力挂到网络里。
 5. `05_Withdrawal_and_Risk_Gates.md`
 	最后看 Provider 如何提现，以及为什么必须经过风险三段阀门和 EIP-712 票据。
+6. `06_Deposit_Entry_Architecture_Comparison.md`
+	当需要决定 Owner 入金入口到底走 `permit + depositWithPermit` 还是 `ERC20 transfer(vault)` 时，读这篇对比专题。
 
 ## 总体关系图
 
@@ -51,11 +58,15 @@ flowchart TD
 
 本目录只描述核心流程，不重复承载：
 
-1. API 字段全集：看 `docs/api.md`
-2. Error code 全集：看 `docs/Gateway_Error_Codes.md`
-3. Manifest 字段标准：看 `docs/agent/03_Service_Manifest_Field_Standard.md`
-4. Credential / Budget 结构：看 `docs/agent/04_Credential_Budget_Risk_Model.md`
-5. SQL 完整表定义：看 `docker-compose/postgres/init/001_synapse_schema.sql`
+1. API 字段全集：看 `docs/06_Reference/05_Runtime_API_Contract.md`
+2. Error code 全集：看 `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
+3. Manifest 字段标准：看 `docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md`
+4. Credential / Budget 结构：看 `docs/02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md` 与 `docs/04_Database_Design/03_Balance_Ledger_and_Reservation_Model.md`
+5. SQL 完整表定义：看 `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+
+补充说明：
+
+1. 充值、退款、补偿、提现的主流程 canonical 已分别落在本目录和 `docs/admin/`。
 
 ## 每条链路必须回答的统一问题
 

@@ -25,9 +25,9 @@ export function SummaryCards({ metrics }: Readonly<SummaryCardsProps>) {
       hint: "单个管理员在 10 分钟内连续触发敏感配置查看",
     },
     {
-      label: "账本对账差额",
+      label: "Vault 资金偏差",
       value: `${metrics.vaultLedgerDelta} USDC`,
-      hint: "该值来自 gateway 兼容聚合视图，超出阈值时应立即升级排查",
+      hint: "该值来自 gateway 兼容聚合视图，用于提示是否需要进入资金调查工作台",
     },
   ];
 

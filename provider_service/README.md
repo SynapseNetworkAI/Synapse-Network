@@ -1,154 +1,83 @@
-# Provider Service (Standalone Python API)
+# provider_service
 
-用于测试“平台接入第三方服务”场景的独立 Python 微服务。
-当前提供 2 个接口（本地测试模式）：
-- 输入字符串，返回 1 条名人名言
-- 输入字符串，返回 3 条名人名言
+`provider_service/` 是用于测试“平台接入第三方服务”场景的独立 Python 微服务。
 
-## 为什么单独新建一个文件夹
+## 文档入口
 
-这里采用仓库根目录下独立目录 `provider_service/`，而不是混到 `gateway/` 或 `sdk/python/`：
-- `gateway` 是核心结算网关，`sdk/python` 是开发者客户端代码。
-- `provider_service` 是“可独立部署的服务进程”，职责边界更清晰。
-- 未来新增更多测试接口时，可直接按模块扩展，不影响 SDK。
+1. 项目导航页：`docs/03_Projects/provider-service/README.md`
+2. 本地开发说明：`docs/03_Projects/provider-service/Provider_Service_Local_Development.md`
+3. 项目运维手册：`docs/03_Projects/provider-service/Provider_Service_Operations_Runbook.md`
+4. 子项目规则：`provider_service/AGENTS.md`
 
-## 目录结构
-
-```text
-provider_service/
-  app/
-    main.py                       # FastAPI 入口
-    core/
-      config.py                   # 配置加载（.env）
-    api/
-      v1/
-        router.py                 # v1 聚合路由
-        endpoints/
-          quotes.py               # 名言接口
-    schemas/
-      quote.py                    # 请求/响应模型
-    services/
-      deepseek_client.py          # 本地名言数据源封装（JSON 轮询）
-    data/
-      famous_quotes_100.json      # 100 条名言测试数据
-  .env.example
-  requirements.txt
-  README.md
-```
-
-## 接口说明
-
-### 1) 健康检查
-
-- `GET /health`
-
-### 2) 名人名言
-
-- `POST /api/v1/quotes/famous`
-- 请求体：
-
-```json
-{
-  "text": "关于勇气"
-}
-```
-
-- 响应示例：
-
-```json
-{
-  "input_text": "关于勇气",
-  "quote": "勇气是压力下的优雅。—— 海明威",
-  "model": "local-json-100",
-  "source": "local_json"
-}
-```
-
-### 3) 名人名言 Top3
-
-- `POST /api/v1/quotes/famous/top3`
-- 请求体：
-
-```json
-{
-  "text": "关于坚持"
-}
-```
-
-- 响应示例：
-
-```json
-{
-  "input_text": "关于坚持",
-  "quotes": [
-    "天才是百分之一的灵感加百分之九十九的汗水。—— 爱迪生",
-    "滴水穿石，不是力量大，而是功夫深。—— 佚名",
-    "千里之行，始于足下。—— 老子"
-  ],
-  "model": "local-json-100",
-  "source": "local_json"
-}
-```
-
-## 快速启动
-
-1. 进入目录
+## 常用命令
 
 ```bash
-cd provider_service
-```
-
-2. 创建虚拟环境并安装依赖
-
-```bash
-python3 -m venv .venv
+cd /Users/cliff/workspace/Synapse-Network/provider_service
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+./scripts/start.local.sh
 ```
 
-3. 配置环境变量
+## 环境模式
+
+当前脚本支持两套运行环境：
+
+1. `local`
+	- 本地开发调试默认使用该环境
+	- 读取 `provider_service/.env.local`
+	- 默认走独立 provider PostgreSQL：`synapse_gateway_providers`
+2. `prod`
+	- 读取 `provider_service/.env.prod`
+	- 可选开启 sentiment scheduler 做热点 snapshot 后台预热
+
+常用脚本：
 
 ```bash
-cp .env.example .env
-# 本地 JSON 模式下无需配置 DEEPSEEK_API_KEY
+cd /Users/cliff/workspace/Synapse-Network/provider_service
+
+./scripts/start.local.sh
+./scripts/stop.local.sh
+./scripts/restart.local.sh
+
+./scripts/start.prod.sh
+./scripts/stop.prod.sh
+./scripts/restart.prod.sh
 ```
 
-4. 启动服务
+兼容入口仍保留：
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
+./scripts/start.sh local
+./scripts/stop.sh local
+./scripts/restart.sh local
 ```
 
-5. 测试调用
+环境变量模板说明：
 
-```bash
-curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous" \
-  -H "Content-Type: application/json" \
-  -d '{"text":"关于坚持"}'
+1. `provider_service/.env.example` 现在为每个配置项标注了中文用途说明
+2. 同时标注了哪些是条件必填项、哪些可以留空，以及代码默认值
+3. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 可控制是否校验 Gateway 签名；建议 `local=false`、`prod=true`
+4. 启动 `prod` 且 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false` 时，脚本默认拒绝启动
+5. 只有显式设置 `ALLOW_INSECURE_PROD_START=true`，才允许带着关闭验签的 prod 继续启动，并打印红字安全警报
+6. `SENTIMENT_PROXY_POOL_ENABLED` 可控制抓取 worker 是否走代理池；代理地址通过 `SENTIMENT_PROXY_POOL_URLS_JSON` 配置 JSON 数组
+7. 因为启动脚本会 `source` 环境文件，`SENTIMENT_PROXY_POOL_URLS_JSON` 在 `.env.*` 里必须写成带单引号的整串 JSON，例如 `'["http://127.0.0.1:7890"]'`
+8. 启动脚本会把 `proxy_pool_enabled` 打进启动摘要；如果开启代理池却没配代理地址，脚本会直接拒绝启动，避免误以为已经通过代理出站
+9. `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 会在代理模式下抬高单源最小 timeout，避免单代理场景被过低的 connect/read timeout 打穿
+10. 代理模式下 scheduler 会自动把刷新并发限制到代理池大小，避免一个本地代理同时扛过多快照刷新
+11. 所有 postgres repository 现在共用 `PROVIDER_SERVICE_POSTGRES_DSN`；`Protocol Fundamental Brief` 已固定走 postgres，不再保留本地 file snapshot 路径；只有 `SENTIMENT_REPOSITORY_BACKEND` 还用于决定 sentiment 走 file 还是 postgres
 
-curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
-  -H "Content-Type: application/json" \
-  -d '{"text":"关于坚持"}'
-```
+## 说明
 
-## 后续扩展建议
-
-按同样分层扩展：
-- 新接口：`app/api/v1/endpoints/*.py`
-- 新模型：`app/schemas/*.py`
-- 新外部服务适配：`app/services/*.py`
-- 新版本路由：`app/api/v1/`
-
-建议每个新接口保持：
-- 独立 schema
-- 独立 service 封装
-- 路由层只做参数校验与错误映射
-
-## 本地测试数据说明
-
-- 数据文件：`app/data/famous_quotes_100.json`
-- 数据量：100 条
-- 行为：
-  - `/famous` 每次返回 1 条（轮询）
-  - `/famous/top3` 每次连续返回 3 条（轮询）
-- 目的：联调与压测阶段稳定复现，不依赖外部模型服务可用性
+本文件现在只保留项目入口信息。
+当前运行时已包含 `Web3 Sentiment Index` provider endpoint：`POST /provider-services/web3-sentiment-index/invoke`。
+当前运行时已包含 `Protocol Fundamental Brief` provider endpoint：`POST /provider-services/protocol-fundamental-brief/invoke`。
+当前运行时已包含 `Smart Contract Audit Model` provider endpoint：`POST /provider-services/smart-contract-audit/invoke`。
+本地默认运行配置已切到独立 provider PostgreSQL：`synapse_gateway_providers`。
+当前读路径已支持 `fresh / stale-but-servable / expired` 三档 snapshot freshness policy，scheduler 在开启时已接入持久化 lease / cooldown 状态表。
+`Protocol Fundamental Brief` 现在已接入 typed repository + in-memory cache：未过期快照会优先走内存或 PostgreSQL 持久化缓存，全源失败时会退回最近一次已持久化快照。
+`Protocol Fundamental Brief` 当前缓存策略明确采用 `in-memory hot cache + persisted snapshot fallback`；V1 不默认引入 Redis，避免在单实例或低并发阶段把简单问题做重，只有在多实例共享热缓存成为瓶颈时再升级为 Redis。
+Provider 侧 postgres 配置现在已统一收敛到单一环境变量 `PROVIDER_SERVICE_POSTGRES_DSN`，避免 sentiment / protocol brief 分别维护重复 DSN；protocol brief 本地不再依赖 file snapshot。
+PostgreSQL 表结构需要通过 `docker-compose/postgres/init/gateway-providers/` 的显式 SQL 初始化，`provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`、`provider_sentiment_scheduler_jobs`、`provider_protocol_briefs`、`provider_protocol_brief_raw_feeds` 都不由 runtime repository 自动建表。
+`Smart Contract Audit Model` 相关表现在也走同一条显式初始化链路：`provider_api_invocations`、`provider_contract_audit_reports`。
+完整接口说明、启动方式与扩展建议统一维护在根 `docs/03_Projects/provider-service/`。

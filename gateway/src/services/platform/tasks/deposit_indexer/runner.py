@@ -15,7 +15,9 @@ from .persistence import (
     _load_backfill_state,
     _load_balance_ledger,
     _load_deposit_intents,
+    _load_indexer_runtime_state,
     _load_processed_deposit_event_keys,
+    _persist_indexer_runtime_state,
     _load_runtime_state,
 )
 from .processing import (
@@ -214,7 +216,8 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]
             changed_processed=changed_processed,
         )
 
-    _set_status(lastCounters=counters, lastProcessedAt=now, lastError=None)
+    _set_status(lastCounters=counters, lastProcessedAt=now, heartbeatAt=now, lastError=None)
+    _persist_indexer_runtime_state(storage)
     if any(int(value) > 0 for value in counters.values()):
         logger.info(
             "deposit pending cycle credited=%s failed=%s pending=%s intent_count=%s",
@@ -228,15 +231,27 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]
 
 def _hydrate_runtime_status(storage: BaseStorage) -> None:
     """启动时从数据库恢复 backfill/reconciliation 游标，避免状态只存在内存。"""
+    indexer_state = _load_indexer_runtime_state(storage)
     backfill_state = _load_backfill_state(storage)
     reconciliation_state = _load_runtime_state(storage, "deposit_reconciliation_state")
     _set_status(
+        lastCounters=dict(
+            indexer_state.get("lastCounters")
+            or INDEXER_STATUS.get("lastCounters")
+            or {"credited": 0, "failed": 0, "pending": 0}
+        ),
+        lastProcessedAt=indexer_state.get("lastProcessedAt"),
+        heartbeatAt=indexer_state.get("heartbeatAt"),
+        lastError=indexer_state.get("lastError"),
         backfill={
             "enabled": bool(settings.v2_backfill_enabled),
             "lastScannedBlock": backfill_state.get("lastScannedBlock"),
             "lastScanAt": backfill_state.get("lastScanAt"),
-            "lastRecovered": INDEXER_STATUS.get("backfill", {}).get("lastRecovered", 0),
-            "lastError": None,
+            "lastRecovered": int(
+                (indexer_state.get("backfill") or {}).get("lastRecovered")
+                or INDEXER_STATUS.get("backfill", {}).get("lastRecovered", 0)
+            ),
+            "lastError": (indexer_state.get("backfill") or {}).get("lastError"),
         },
         reconciliation={
             "enabled": bool(settings.v2_reconciliation_enabled),
@@ -245,7 +260,7 @@ def _hydrate_runtime_status(storage: BaseStorage) -> None:
             "ledgerObligationUsdc": float(reconciliation_state.get("ledgerObligationUsdc") or 0.0),
             "deltaUsdc": float(reconciliation_state.get("deltaUsdc") or 0.0),
             "alert": bool(reconciliation_state.get("alert") or False),
-            "lastError": None,
+            "lastError": (indexer_state.get("reconciliation") or {}).get("lastError"),
         },
     )
     logger.info(
@@ -294,6 +309,7 @@ def _run_backfill_if_enabled(storage: BaseStorage) -> None:
         run_backfill_scan_once(storage)
     except Exception:
         _mark_backfill_failure()
+        _persist_indexer_runtime_state(storage)
 
 
 def _run_reconciliation_if_due(
@@ -310,6 +326,7 @@ def _run_reconciliation_if_due(
         return now
     except Exception:
         _mark_reconciliation_failure(now)
+        _persist_indexer_runtime_state(storage)
         return last_reconciliation_at
 
 
@@ -317,8 +334,13 @@ async def run_v2_deposit_indexer(
     stop_event: asyncio.Event, storage: BaseStorage
 ) -> None:
     """常驻 indexer 主循环：补扫区块、推进 intent、周期对账。"""
-    _set_status(running=True, listenerAddress=normalize_wallet(settings.router_address))
     _hydrate_runtime_status(storage)
+    _set_status(
+        running=True,
+        listenerAddress=normalize_wallet(settings.router_address),
+        heartbeatAt=_now(),
+    )
+    _persist_indexer_runtime_state(storage)
     logger.info(
         "deposit indexer started listener=%s poll_interval_sec=%s",
         normalize_wallet(settings.router_address),
@@ -334,12 +356,17 @@ async def run_v2_deposit_indexer(
             )
         except Exception:
             logger.exception("deposit indexer loop failed")
-            _set_status(lastError=_INDEXER_LOOP_ERROR_CODE, lastProcessedAt=_now())
+            now = _now()
+            _set_status(lastError=_INDEXER_LOOP_ERROR_CODE, lastProcessedAt=now, heartbeatAt=now)
+            _persist_indexer_runtime_state(storage)
+        _set_status(heartbeatAt=_now())
+        _persist_indexer_runtime_state(storage)
         try:
             await asyncio.wait_for(
                 stop_event.wait(), timeout=settings.v2_indexer_poll_interval_sec
             )
         except asyncio.TimeoutError:
             continue
-    _set_status(running=False)
+    _set_status(running=False, heartbeatAt=_now())
+    _persist_indexer_runtime_state(storage)
     logger.info("deposit indexer stopped")

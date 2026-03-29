@@ -114,12 +114,15 @@ Homepage V2 的功能目标不是展示炫技，而是形成可转化、可探�
 
 字段：
 - `registeredServices`
+- `discoverableServices`
+- `staleServices`
 - `runtimeReadyServices`
 - `totalCalls`
 - `connectedAgents`
 
 展示策略：
-- 首页显示 `API calls / registered services / connected agents`，并与三句核心文案置于同一英雄区
+- 首页主展示仍显示 `API calls / registered services / connected agents`，但 `registered services` 必须取真正注册中的 active 服务数，而不是 discoverable 子集
+- 如后续扩展 tooltip / 二级说明，优先使用 `discoverableServices` 与 `staleServices` 做运行态分层解释，避免把 catalog 规模和 runtime 可发现性混成一个数字
 - 数字在客户端做短时 count-up，形成动态变化感
 - 轮询节奏保持低频，避免首页变成 noisy dashboard
 - 视觉形式保持轻量，不使用厚重 dashboard 卡片语言

@@ -1,6 +1,14 @@
 # 管理后台审批流设计
 
+- Status: canonical
+- Code paths: `admin/gateway-admin/src/`, `admin/admin-front/src/`
+- DB sources: admin approval tables, admin projection views, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Supersedes: root `docs/充值退款审批流程.md` for control-plane approval semantics
+- Last verified against code: 2026-03-24
+
 本文定义平台管理后台中高风险动作的审批模型、状态机、执行边界和与 `gateway` 的交互方式。
+
+当前充值补偿、退款审批、提现审核等控制面语义，以本文件为 canonical 入口。former root `docs/充值退款审批流程.md` 已完成退役。
 
 目标是保证：
 

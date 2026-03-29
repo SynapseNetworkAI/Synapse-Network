@@ -13,7 +13,7 @@ export type ServiceRegistryPayload = {
   isActive: boolean;
   summary?: string;
   tags?: string[];
-  status?: "active" | "inactive" | "archived";
+  status?: "draft" | "active" | "paused" | "inactive" | "archived" | "deleted";
   auth?: {
     type?: string;
     headerName?: string;
@@ -84,8 +84,10 @@ export type ServiceRegistryRecord = {
   pricing: string | { currency?: string; amount?: string | number };
   endpoint: string;
   isActive: boolean;
-  status?: "active" | "inactive" | "archived" | "healthy" | "degraded" | "unhealthy" | "unknown";
+  status?: "active" | "inactive" | "archived" | "deleted" | "healthy" | "degraded" | "unhealthy" | "unknown";
   runtimeAvailable?: boolean;
+  invocationCount?: number;
+  totalRevenueUsdc?: string;
   health?: {
     overallStatus?: "healthy" | "degraded" | "unhealthy" | "unknown";
     healthyTargets?: number;
@@ -164,6 +166,8 @@ type ServiceRegistryApiRecord = Partial<ServiceRegistryRecord> & {
     lastCheckedAt?: number | null;
   };
   runtimeAvailable?: boolean;
+  invocationCount?: number;
+  totalRevenueUsdc?: string;
 };
 
 const DEFAULT_SERVICE_LIST_CACHE_TTL_MS = 20_000;
@@ -296,6 +300,8 @@ function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryR
     isActive: typeof raw.isActive === "boolean" ? raw.isActive : raw.status === "active",
     status: raw.status,
     runtimeAvailable: typeof raw.runtimeAvailable === "boolean" ? raw.runtimeAvailable : undefined,
+    invocationCount: typeof raw.invocationCount === "number" ? raw.invocationCount : 0,
+    totalRevenueUsdc: typeof raw.totalRevenueUsdc === "string" ? raw.totalRevenueUsdc : "0",
     health: raw.health || raw.serviceHealth,
     summary: raw.summary,
     tags: raw.tags || [],
@@ -316,6 +322,19 @@ function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryR
 }
 
 const API_BASE_URL = `${getGatewayBaseUrl()}/api/v1/services`;
+
+function buildGatewayNetworkErrorMessage(fallback: string): string {
+  return `${fallback}. Gateway unreachable at ${getGatewayBaseUrl()}. Start the gateway or set NEXT_PUBLIC_GATEWAY_BASE_URL in apps/frontend/.env.local.`;
+}
+
+async function fetchServiceApi(input: string, init: RequestInit, fallback: string): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? ` ${error.message}` : "";
+    throw new Error(`${buildGatewayNetworkErrorMessage(fallback)}${reason}`.trim());
+  }
+}
 
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
@@ -338,11 +357,15 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
 }
 
 export async function createServiceRegistry(payload: ServiceRegistryPayload, userAddress: string): Promise<ServiceRegistryRecord> {
-  const response = await fetch(API_BASE_URL, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify(payload),
-  });
+  const response = await fetchServiceApi(
+    API_BASE_URL,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify(payload),
+    },
+    "Backend service registration failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend service registration failed"));
@@ -365,11 +388,15 @@ export async function updateServiceRegistry(payload: ServiceRegistryPayload, use
     throw new Error("Missing service identifier");
   }
 
-  const response = await fetch(`${API_BASE_URL}/${identifier}`, {
-    method: "PUT",
-    headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify(payload),
-  });
+  const response = await fetchServiceApi(
+    `${API_BASE_URL}/${identifier}`,
+    {
+      method: "PUT",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify(payload),
+    },
+    "Backend service update failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend service update failed"));
@@ -378,10 +405,14 @@ export async function updateServiceRegistry(payload: ServiceRegistryPayload, use
 
 export async function deleteServiceRegistry(serviceId: string, userAddress: string): Promise<void> {
   invalidateServiceRegistryListCache(userAddress);
-  const response = await fetch(`${API_BASE_URL}/${serviceId}`, {
-    method: "DELETE",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchServiceApi(
+    `${API_BASE_URL}/${serviceId}`,
+    {
+      method: "DELETE",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Backend service delete failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend service delete failed"));
@@ -404,10 +435,14 @@ export async function listServiceRegistry(
   }
 
   const query = ownerAddress ? `?ownerAddress=${encodeURIComponent(ownerAddress)}` : "";
-  const response = await fetch(`${API_BASE_URL}${query}`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchServiceApi(
+    `${API_BASE_URL}${query}`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Backend service list failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend service list failed"));
@@ -430,15 +465,35 @@ export async function listServiceRegistry(
   return rows;
 }
 
-export async function discoverServices(intent?: string): Promise<ServiceRegistryRecord[]> {
-  const query = intent ? `?intent=${encodeURIComponent(intent)}` : "";
-  const response = await fetch(`${API_BASE_URL}/discover${query}`, {
-    method: "GET",
-    // Public endpoint, no auth headers needed
-    headers: {
-      "Content-Type": "application/json",
+export async function discoverServices(
+  intent?: string,
+  options?: {
+    sortBy?: "best_match" | "price" | "health" | "invocation_count" | "revenue" | "service_name";
+    sortOrder?: "asc" | "desc";
+  },
+): Promise<ServiceRegistryRecord[]> {
+  const query = new URLSearchParams();
+  if (intent) {
+    query.set("intent", intent);
+  }
+  if (options?.sortBy) {
+    query.set("sortBy", options.sortBy);
+  }
+  if (options?.sortOrder) {
+    query.set("sortOrder", options.sortOrder);
+  }
+  const queryText = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetchServiceApi(
+    `${API_BASE_URL}/discover${queryText}`,
+    {
+      method: "GET",
+      // Public endpoint, no auth headers needed
+      headers: {
+        "Content-Type": "application/json",
+      },
     },
-  });
+    "Backend service discovery failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend service discovery failed"));
@@ -452,10 +507,14 @@ export async function discoverServices(intent?: string): Promise<ServiceRegistry
 }
 
 export async function testServicePing(serviceId: string, userAddress: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/${serviceId}/ping`, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress),
-  });
+  const response = await fetchServiceApi(
+    `${API_BASE_URL}/${serviceId}/ping`,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress),
+    },
+    "Service ping failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Service ping failed"));
@@ -496,10 +555,14 @@ export async function getServiceHealthHistory(
     limitPerTarget: String(limitPerTarget),
     hours: String(hours),
   });
-  const response = await fetch(`${API_BASE_URL}/${serviceId}/health/history?${query.toString()}`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchServiceApi(
+    `${API_BASE_URL}/${serviceId}/health/history?${query.toString()}`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Service health history fetch failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Service health history fetch failed"));
@@ -523,10 +586,14 @@ export type ProviderSecret = {
 };
 
 export async function listApiSecrets(userAddress: string): Promise<ProviderSecret[]> {
-  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/provider/list`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchServiceApi(
+    `${getGatewayBaseUrl()}/api/v1/secrets/provider/list`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Backend secrets list failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend secrets list failed"));
@@ -544,11 +611,15 @@ export async function createApiSecret(
   expiration: number | null = null,
   rpm: number | null = null,
 ): Promise<ProviderSecret> {
-  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/provider/issue`, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify({ name, creditLimit, resetInterval, expiration, rpm }),
-  });
+  const response = await fetchServiceApi(
+    `${getGatewayBaseUrl()}/api/v1/secrets/provider/issue`,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify({ name, creditLimit, resetInterval, expiration, rpm }),
+    },
+    "Backend secret creation failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend secret creation failed"));
@@ -562,10 +633,14 @@ export async function createApiSecret(
 }
 
 export async function deleteApiSecret(secretId: string, userAddress: string): Promise<void> {
-  const response = await fetch(`${getGatewayBaseUrl()}/api/v1/secrets/provider/${secretId}`, {
-    method: "DELETE",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchServiceApi(
+    `${getGatewayBaseUrl()}/api/v1/secrets/provider/${secretId}`,
+    {
+      method: "DELETE",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Backend secret delete failed",
+  );
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Backend secret delete failed"));

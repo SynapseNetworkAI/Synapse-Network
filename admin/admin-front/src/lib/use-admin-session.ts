@@ -3,17 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import {
-  clearAdminSession,
-  persistAdminSession,
-  readAdminProfile,
-  readAdminToken,
-} from "@/lib/admin-session";
-import { getCurrentAdmin, type AdminProfile } from "@/services/admin-api";
+import { getCurrentAdmin, type AdminAuthSecurityPolicy, type AdminProfile } from "@/services/admin-api";
 
 
 type UseAdminSessionResult = {
   admin: AdminProfile | null;
+  security: AdminAuthSecurityPolicy | null;
   token: string | null;
   loading: boolean;
 };
@@ -22,40 +17,30 @@ type UseAdminSessionResult = {
 export function useAdminSession(): UseAdminSessionResult {
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminProfile | null>(null);
+  const [security, setSecurity] = useState<AdminAuthSecurityPolicy | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const currentToken = readAdminToken();
-    const cachedProfile = readAdminProfile();
-    if (!currentToken) {
-      router.replace("/login");
-      setLoading(false);
-      return;
-    }
-    const activeToken = currentToken;
-
-    setToken(activeToken);
-    if (cachedProfile) {
-      setAdmin(cachedProfile);
-    }
-
     let cancelled = false;
 
     async function loadProfile() {
       try {
-        const profile = await getCurrentAdmin(activeToken);
+        const session = await getCurrentAdmin("cookie-session");
         if (cancelled) {
           return;
         }
-        setAdmin(profile);
-        persistAdminSession(activeToken, profile);
+        setAdmin(session.admin);
+        setSecurity(session.security);
+        setToken("cookie-session");
         setLoading(false);
       } catch {
         if (cancelled) {
           return;
         }
-        clearAdminSession();
+        setAdmin(null);
+        setSecurity(null);
+        setToken(null);
         setLoading(false);
         router.replace("/login");
       }
@@ -67,5 +52,5 @@ export function useAdminSession(): UseAdminSessionResult {
     };
   }, [router]);
 
-  return { admin, token, loading };
+  return { admin, security, token, loading };
 }

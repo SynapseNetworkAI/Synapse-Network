@@ -5,18 +5,21 @@ from src.core.errors import AuthorizationError, BadRequestError, ResourceNotFoun
 from src.domain import AdminActionAudit
 from src.domain.admin_config import AdminMenuConfigItem, AdminMenuConfigSnapshot
 from src.domain.enums import AuditResultStatus
+from src.services.admin_config.menu_tree import (
+    DASHBOARD_READ_PERMISSION,
+    MENU_NODE_CATEGORY,
+    MENU_NODE_PANEL,
+    MENU_NODE_PAGE,
+    build_default_menu_items,
+)
 from src.services.auth.service import AdminIdentity
 from src.storage.base import AdminStore
 
 
 MENU_CONFIG_KEY = "admin_menu_config"
+DEFAULT_MENU_MIGRATION_ITEM_IDS = {"review-history"}
 DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}
-IDENTITY_ACCESS_LABEL = "身份与权限"
-IDENTITY_ACCESS_DESCRIPTION = "后台用户、角色模板、菜单树与权限矩阵。"
-OPS_CONTROLS_LABEL = "业务控制"
-OPS_CONTROLS_DESCRIPTION = "审批、资金、风控和系统运维的受控操作入口。"
-DASHBOARD_READ_PERMISSION = "dashboard:read"
 
 
 def _serialize_timestamp(value: datetime | None) -> str | None:
@@ -24,18 +27,7 @@ def _serialize_timestamp(value: datetime | None) -> str | None:
 
 
 def _default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
-    return (
-        AdminMenuConfigItem("dashboard", "overview", "控制总览", "稳定读模型、控制台总览与核心运营信号。", "控制台", "/dashboard", "总览 finance、activity、operations 3 个稳定读模型。", required_permissions=(DASHBOARD_READ_PERMISSION,), sort_order=10),
-        AdminMenuConfigItem("users", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "后台用户", "/users", "创建管理员、分配角色、查看权限模板与启用状态。", required_roles=("super_admin", "platform_ops_admin"), sort_order=20),
-        AdminMenuConfigItem("role-permissions", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "角色权限", "/role-permissions", "查看角色权限矩阵、模块权限边界与 reviewer 分工。", required_roles=("super_admin", "platform_ops_admin"), sort_order=30),
-        AdminMenuConfigItem("menu-config", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "菜单配置", "/menu-config", "菜单树、路由、可见性和权限依赖的配置视图。", required_roles=("super_admin", "platform_ops_admin"), sort_order=40),
-        AdminMenuConfigItem("execution", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "执行队列", "/execution", "查看 execution jobs、失败重试与网关执行结果。", required_permissions=("execution:read",), sort_order=50),
-        AdminMenuConfigItem("approvals", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "审批中心", "/approvals", "高风险动作审批流、reviewer 决策与执行前守门。", required_permissions=("approval:read",), sort_order=60),
-        AdminMenuConfigItem("finance", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "资金运营", "/finance", "充值异常、退款与提现控制面，聚焦受控动作。", required_permissions=(DASHBOARD_READ_PERMISSION,), sort_order=70),
-        AdminMenuConfigItem("risk", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "风控工作台", "/risk", "风险规则、工单分流、黑白名单与风险标签处置。", required_permissions=(DASHBOARD_READ_PERMISSION,), sort_order=80),
-        AdminMenuConfigItem("system", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "系统运维", "/system", "gateway、indexer、reconciliation 与运行时参数快照。", required_permissions=(DASHBOARD_READ_PERMISSION,), sort_order=90),
-        AdminMenuConfigItem("audit", "audit-ledger", "审计合规", "操作日志、审计回放与高风险动作追踪。", "操作日志", "/audit", "管理员操作日志、审批链路和失败告警审计检索。", required_permissions=("audit:read",), sort_order=100),
-    )
+    return build_default_menu_items()
 
 
 class AdminConfigService:
@@ -46,19 +38,23 @@ class AdminConfigService:
         normalized_stage = stage.strip().lower() if stage else "draft"
         if normalized_stage not in {"draft", "published"}:
             raise BadRequestError("Unsupported config stage")
-        if normalized_stage == "draft":
-            self._ensure_role(operator, DRAFT_READ_ROLES)
+        self._ensure_role(operator, DRAFT_READ_ROLES)
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         items = snapshot.draft_items if normalized_stage == "draft" else snapshot.published_items
         return self._serialize_snapshot(snapshot, items)
+
+    def list_visible_menu_items(self, operator: AdminIdentity) -> dict:
+        snapshot = self._get_or_create_snapshot(operator.admin_id)
+        return self._serialize_snapshot(snapshot, self._filter_visible_items(snapshot.published_items, operator))
 
     def create_menu_item(self, operator: AdminIdentity, payload: dict) -> dict:
         self._ensure_role(operator, WRITE_ROLES)
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         item = self._build_item(payload, fallback_sort_order=len(snapshot.draft_items) + 1)
+        self._validate_parent(snapshot.draft_items, item)
         if any(existing.item_id == item.item_id for existing in snapshot.draft_items):
             raise BadRequestError("Menu item id already exists")
-        if any(existing.href == item.href for existing in snapshot.draft_items):
+        if item.href and any(existing.href == item.href for existing in snapshot.draft_items):
             raise BadRequestError("Menu href already exists")
         now = datetime.now(timezone.utc)
         saved = self._save_snapshot(replace(snapshot, draft_items=self._sort_items((*snapshot.draft_items, item)), draft_version=snapshot.draft_version + 1, updated_at=now, updated_by=operator.admin_id))
@@ -72,8 +68,9 @@ class AdminConfigService:
         if current is None:
             raise ResourceNotFoundError("Menu item does not exist")
         next_item = self._build_item(payload, fallback_sort_order=current.sort_order, item_id=item_id)
+        self._validate_parent(snapshot.draft_items, next_item)
         for existing in snapshot.draft_items:
-            if existing.item_id != item_id and existing.href == next_item.href:
+            if next_item.href and existing.item_id != item_id and existing.href == next_item.href:
                 raise BadRequestError("Menu href already exists")
         now = datetime.now(timezone.utc)
         updated_items = self._sort_items(tuple(next_item if item.item_id == item_id else item for item in snapshot.draft_items))
@@ -87,9 +84,10 @@ class AdminConfigService:
         current = next((item for item in snapshot.draft_items if item.item_id == item_id), None)
         if current is None:
             raise ResourceNotFoundError("Menu item does not exist")
+        deleted_item_ids = self._collect_descendant_ids(snapshot.draft_items, item_id)
         now = datetime.now(timezone.utc)
-        saved = self._save_snapshot(replace(snapshot, draft_items=tuple(item for item in snapshot.draft_items if item.item_id != item_id), draft_version=snapshot.draft_version + 1, updated_at=now, updated_by=operator.admin_id))
-        self._append_audit(operator, "admin_menu_config.delete_item", self._serialize_item(current), {})
+        saved = self._save_snapshot(replace(snapshot, draft_items=tuple(item for item in snapshot.draft_items if item.item_id not in deleted_item_ids), draft_version=snapshot.draft_version + 1, updated_at=now, updated_by=operator.admin_id))
+        self._append_audit(operator, "admin_menu_config.delete_item", {"deletedItems": [self._serialize_item(item) for item in snapshot.draft_items if item.item_id in deleted_item_ids]}, {})
         return self._serialize_snapshot(saved, saved.draft_items)
 
     def publish_menu_config(self, operator: AdminIdentity) -> dict:
@@ -103,13 +101,48 @@ class AdminConfigService:
     def _get_or_create_snapshot(self, operator_id: str | None) -> AdminMenuConfigSnapshot:
         snapshot = self._store.config.get_menu_config(MENU_CONFIG_KEY)
         if snapshot is not None:
-            return snapshot
+            return self._merge_missing_default_items(snapshot, operator_id)
         now = datetime.now(timezone.utc)
         items = self._sort_items(_default_menu_items())
         return self._save_snapshot(AdminMenuConfigSnapshot(config_key=MENU_CONFIG_KEY, draft_items=items, published_items=items, draft_version=1, published_version=1, created_at=now, updated_at=now, updated_by=operator_id or "system_seed", published_at=now, published_by=operator_id or "system_seed"))
 
     def _save_snapshot(self, snapshot: AdminMenuConfigSnapshot) -> AdminMenuConfigSnapshot:
         return self._store.config.save_menu_config(snapshot)
+
+    def _merge_missing_default_items(self, snapshot: AdminMenuConfigSnapshot, operator_id: str | None) -> AdminMenuConfigSnapshot:
+        default_items_by_id = {item.item_id: item for item in _default_menu_items()}
+        draft_item_ids = {item.item_id for item in snapshot.draft_items}
+        published_item_ids = {item.item_id for item in snapshot.published_items}
+
+        draft_additions = tuple(
+            default_items_by_id[item_id]
+            for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
+            if item_id in default_items_by_id and item_id not in draft_item_ids
+        )
+        published_additions = tuple(
+            default_items_by_id[item_id]
+            for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
+            if item_id in default_items_by_id and item_id not in published_item_ids
+        )
+
+        if not draft_additions and not published_additions:
+            return snapshot
+
+        now = datetime.now(timezone.utc)
+        actor_id = operator_id or snapshot.updated_by or snapshot.published_by or "system_seed"
+        return self._save_snapshot(
+            replace(
+                snapshot,
+                draft_items=self._sort_items((*snapshot.draft_items, *draft_additions)),
+                published_items=self._sort_items((*snapshot.published_items, *published_additions)),
+                draft_version=snapshot.draft_version + (1 if draft_additions else 0),
+                published_version=snapshot.published_version + (1 if published_additions else 0),
+                updated_at=now,
+                updated_by=actor_id,
+                published_at=now if published_additions else snapshot.published_at,
+                published_by=actor_id if published_additions else snapshot.published_by,
+            )
+        )
 
     def _serialize_snapshot(self, snapshot: AdminMenuConfigSnapshot, items: tuple[AdminMenuConfigItem, ...]) -> dict:
         return {
@@ -126,8 +159,102 @@ class AdminConfigService:
         }
 
     @staticmethod
+    def _filter_visible_items(items: tuple[AdminMenuConfigItem, ...], operator: AdminIdentity) -> tuple[AdminMenuConfigItem, ...]:
+        if operator.role == "super_admin":
+            return items
+        permissions = set(operator.permissions)
+        children_by_parent = AdminConfigService._group_children_by_parent(items)
+
+        visible_items: list[AdminMenuConfigItem] = []
+        for root_item in children_by_parent.get(None, []):
+            visible_items.extend(
+                AdminConfigService._flatten_visible_branch(
+                    root_item,
+                    children_by_parent,
+                    operator.role,
+                    permissions,
+                    True,
+                )
+            )
+        return tuple(visible_items)
+
+    @staticmethod
     def _sort_items(items: tuple[AdminMenuConfigItem, ...] | list[AdminMenuConfigItem]) -> tuple[AdminMenuConfigItem, ...]:
-        return tuple(sorted(items, key=lambda item: (item.sort_order, item.section_id, item.href, item.item_id)))
+        return tuple(sorted(items, key=lambda item: (item.sort_order, item.parent_item_id or "", item.section_id, item.href or "", item.item_id)))
+
+    @staticmethod
+    def _validate_parent(items: tuple[AdminMenuConfigItem, ...], candidate: AdminMenuConfigItem) -> None:
+        if candidate.parent_item_id is None:
+            return
+        items_by_id = {item.item_id: item for item in items}
+        parent = items_by_id.get(candidate.parent_item_id)
+        if parent is None:
+            raise BadRequestError("Parent menu item does not exist")
+        cursor: AdminMenuConfigItem | None = parent
+        while cursor is not None:
+            if cursor.item_id == candidate.item_id:
+                raise BadRequestError("Menu tree cannot contain cycles")
+            cursor = items_by_id.get(cursor.parent_item_id) if cursor.parent_item_id else None
+
+    @staticmethod
+    def _collect_descendant_ids(items: tuple[AdminMenuConfigItem, ...], root_item_id: str) -> set[str]:
+        children_by_parent = AdminConfigService._group_children_by_parent(items)
+
+        descendant_ids: set[str] = set()
+
+        def visit(item_id: str) -> None:
+            descendant_ids.add(item_id)
+            for child in children_by_parent.get(item_id, []):
+                visit(child.item_id)
+
+        visit(root_item_id)
+        return descendant_ids
+
+    @staticmethod
+    def _group_children_by_parent(items: tuple[AdminMenuConfigItem, ...]) -> dict[str | None, list[AdminMenuConfigItem]]:
+        children_by_parent: dict[str | None, list[AdminMenuConfigItem]] = {}
+        for item in items:
+            children_by_parent.setdefault(item.parent_item_id, []).append(item)
+        for child_items in children_by_parent.values():
+            child_items.sort(key=lambda item: (item.sort_order, item.section_id, item.href or "", item.item_id))
+        return children_by_parent
+
+    @staticmethod
+    def _passes_gate(item: AdminMenuConfigItem, operator_role: str, permissions: set[str]) -> bool:
+        if item.required_roles and operator_role not in item.required_roles:
+            return False
+        if item.required_permissions and not all(permission in permissions for permission in item.required_permissions):
+            return False
+        return True
+
+    @staticmethod
+    def _flatten_visible_branch(
+        item: AdminMenuConfigItem,
+        children_by_parent: dict[str | None, list[AdminMenuConfigItem]],
+        operator_role: str,
+        permissions: set[str],
+        ancestor_visible: bool,
+    ) -> list[AdminMenuConfigItem]:
+        direct_visible = ancestor_visible and AdminConfigService._passes_gate(item, operator_role, permissions)
+        child_items = children_by_parent.get(item.item_id, [])
+        visible_children: list[AdminMenuConfigItem] = []
+
+        for child in child_items:
+            visible_children.extend(
+                AdminConfigService._flatten_visible_branch(
+                    child,
+                    children_by_parent,
+                    operator_role,
+                    permissions,
+                    direct_visible if item.node_type == MENU_NODE_CATEGORY else True,
+                )
+            )
+
+        if item.node_type == MENU_NODE_CATEGORY:
+            return [item, *visible_children] if direct_visible and visible_children else []
+        if not direct_visible:
+            return []
+        return [item, *visible_children]
 
     @staticmethod
     def _serialize_item(item: AdminMenuConfigItem) -> dict:
@@ -139,9 +266,13 @@ class AdminConfigService:
             "label": item.label,
             "href": item.href,
             "description": item.description,
+            "parentItemId": item.parent_item_id,
+            "nodeType": item.node_type,
+            "iconKey": item.icon_key,
             "requiredRoles": list(item.required_roles),
             "requiredPermissions": list(item.required_permissions),
             "sortOrder": item.sort_order,
+            "keywords": list(item.keywords),
         }
 
     @staticmethod
@@ -149,14 +280,17 @@ class AdminConfigService:
         resolved_item_id = (item_id or payload.get("itemId") or "").strip()
         if not resolved_item_id:
             raise BadRequestError("Menu item id is required")
-        href = str(payload.get("href") or "").strip()
-        if not href.startswith("/"):
-            raise BadRequestError("Menu href must start with /")
         section_id = str(payload.get("sectionId") or "").strip()
         section_label = str(payload.get("sectionLabel") or "").strip()
         label = str(payload.get("label") or "").strip()
         if not section_id or not section_label or not label:
             raise BadRequestError("Menu item section and label are required")
+        node_type = AdminConfigService._normalize_node_type(payload)
+        href = AdminConfigService._normalize_href(payload, node_type)
+        parent_item_id = AdminConfigService._normalize_parent_item_id(payload, resolved_item_id)
+        icon_key = AdminConfigService._normalize_icon_key(payload, resolved_item_id)
+        if parent_item_id == resolved_item_id:
+            raise BadRequestError("Menu item cannot be its own parent")
         return AdminMenuConfigItem(
             item_id=resolved_item_id,
             section_id=section_id,
@@ -165,10 +299,41 @@ class AdminConfigService:
             label=label,
             href=href,
             description=str(payload.get("description") or "").strip(),
+            parent_item_id=parent_item_id,
+            node_type=node_type,
+            icon_key=icon_key,
             required_roles=tuple(AdminConfigService._parse_list(payload.get("requiredRoles", []))),
             required_permissions=tuple(AdminConfigService._parse_list(payload.get("requiredPermissions", []))),
             sort_order=int(payload.get("sortOrder") or fallback_sort_order),
+            keywords=tuple(AdminConfigService._parse_list(payload.get("keywords", []))),
         )
+
+    @staticmethod
+    def _normalize_node_type(payload: dict) -> str:
+        node_type = str(payload.get("nodeType") or MENU_NODE_PAGE).strip().lower()
+        if node_type not in {MENU_NODE_CATEGORY, MENU_NODE_PAGE, MENU_NODE_PANEL}:
+            raise BadRequestError("Unsupported menu node type")
+        return node_type
+
+    @staticmethod
+    def _normalize_href(payload: dict, node_type: str) -> str | None:
+        href_raw = payload.get("href")
+        href = str(href_raw).strip() if href_raw else None
+        if node_type == MENU_NODE_PAGE and (href is None or not href.startswith("/")):
+            raise BadRequestError("Page node href must start with /")
+        return href
+
+    @staticmethod
+    def _normalize_parent_item_id(payload: dict, resolved_item_id: str) -> str | None:
+        parent_item_id = str(payload.get("parentItemId") or "").strip() or None
+        if parent_item_id == resolved_item_id:
+            raise BadRequestError("Menu item cannot be its own parent")
+        return parent_item_id
+
+    @staticmethod
+    def _normalize_icon_key(payload: dict, resolved_item_id: str) -> str:
+        icon_key = str(payload.get("iconKey") or resolved_item_id[:2].upper()).strip()
+        return icon_key or "SN"
 
     @staticmethod
     def _parse_list(raw_value: list[str] | tuple[str, ...] | str) -> list[str]:

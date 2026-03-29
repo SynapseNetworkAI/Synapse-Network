@@ -17,6 +17,8 @@ venv/
 *.log
 agent_wallet.json
 .env
+provider_service/.env.local
+provider_service/.env.prod
 gateway/.env.local
 gateway/.env.prod
 
@@ -25,16 +27,21 @@ gateway/.env.prod
 temp_check.js
 test_agents.js
 admin/gateway-admin/run/
+provider_service/run/
 
 # Agent SDK local build artifacts
 sdk/python/agentpay_agent_sdk.egg-info/
+sdk/python/.ci-tools/
+sdk/python/dist/
+sdk/python/*.egg-info/
 
 # gateway runtime/generated files
 gateway/agent_credentials.json
 gateway/audit_log.jsonl
 gateway/service_registry.json
-gateway/runtime_storage/
 gateway/*.egg-info/
 
 logs/
 *.log
+.spec2flow
+spec2flow

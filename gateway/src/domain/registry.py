@@ -31,6 +31,7 @@ class ServiceTargetHealth(BaseModel):
     probe_url: Optional[str] = Field(default=None, alias="probeUrl")
     last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
     last_healthy_at: Optional[int] = Field(default=None, alias="lastHealthyAt")
+    timeout_ms: Optional[int] = Field(default=None, alias="timeoutMs")
     error: Optional[str] = None
 
 

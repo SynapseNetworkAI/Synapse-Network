@@ -63,6 +63,7 @@ async function parseError(response: Response, fallback: string): Promise<string>
 export async function issueAgentCredential(
   userAddress: string,
   payload: {
+    ownerAddress?: string;
     name?: string;
     expiresInSec?: number;
     maxCalls?: number;
@@ -114,7 +115,14 @@ export async function revokeAgentCredential(userAddress: string, credentialId: s
 export async function updateAgentCredentialQuota(
   userAddress: string,
   credentialId: string,
-  payload: { maxCalls?: number; rpm?: number; expiresAt?: number }
+  payload: {
+    maxCalls?: number;
+    rpm?: number;
+    expiresAt?: number;
+    creditLimit?: number;
+    resetInterval?: "hourly" | "daily" | "weekly" | "monthly" | "never";
+    expiration?: number;
+  }
 ): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/credentials/agent/${encodeURIComponent(credentialId)}/quota`, {
     method: "PATCH",

@@ -10,6 +10,7 @@ from src.domain import (
     AdminAuditExport,
     AdminExecutionAttempt,
     AdminExecutionJob,
+    AdminMfaEnrollmentChallenge,
     AdminMfaFactor,
     AdminMenuConfigItem,
     AdminMenuConfigSnapshot,
@@ -30,6 +31,7 @@ from src.domain.enums import (
     AuditResultStatus,
     ExecutionAttemptStatus,
     ExecutionJobStatus,
+    MfaEnrollmentChallengeStatus,
     MfaFactorStatus,
     MfaFactorType,
     PermissionRiskLevel,
@@ -37,6 +39,7 @@ from src.domain.enums import (
     RoleBindingStatus,
     RoleStatus,
 )
+from src.services.admin_config.menu_tree import build_default_menu_items
 
 
 def _utcnow() -> datetime:
@@ -50,10 +53,6 @@ APPROVAL_DECIDE = "approval:decide"
 AUDIT_READ = "audit:read"
 EXECUTION_READ = "execution:read"
 EXECUTION_RETRY = "execution:retry"
-IDENTITY_ACCESS_LABEL = "身份与权限"
-IDENTITY_ACCESS_DESCRIPTION = "后台用户、角色模板、菜单树与权限矩阵。"
-OPS_CONTROLS_LABEL = "业务控制"
-OPS_CONTROLS_DESCRIPTION = "审批、资金、风控和系统运维的受控操作入口。"
 
 
 class InMemoryAdminConfigRepository:
@@ -71,9 +70,16 @@ class InMemoryAdminConfigRepository:
 
 
 class InMemoryAdminIdentityRepository:
-    def __init__(self, users: dict[str, AdminUser], factors: list[AdminMfaFactor], sessions: dict[str, AdminSession]) -> None:
+    def __init__(
+        self,
+        users: dict[str, AdminUser],
+        factors: list[AdminMfaFactor],
+        challenges: dict[str, AdminMfaEnrollmentChallenge],
+        sessions: dict[str, AdminSession],
+    ) -> None:
         self._users = users
         self._factors = factors
+        self._challenges = challenges
         self._sessions = sessions
 
     def get_user_by_id(self, admin_id: str) -> AdminUser | None:
@@ -114,6 +120,45 @@ class InMemoryAdminIdentityRepository:
 
     def list_mfa_factors(self, admin_id: str) -> list[AdminMfaFactor]:
         return [factor for factor in self._factors if factor.admin_id == admin_id]
+
+    def get_mfa_factor_by_id(self, factor_id: str) -> AdminMfaFactor | None:
+        for factor in self._factors:
+            if factor.factor_id == factor_id:
+                return factor
+        return None
+
+    def get_mfa_factor_by_identity(self, admin_id: str, factor_type: str, factor_label: str) -> AdminMfaFactor | None:
+        for factor in self._factors:
+            if factor.admin_id != admin_id:
+                continue
+            if factor.factor_type.value != factor_type:
+                continue
+            if factor.factor_label != factor_label:
+                continue
+            return factor
+        return None
+
+    def upsert_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
+        for index, current in enumerate(self._factors):
+            if current.factor_id == factor.factor_id:
+                self._factors[index] = factor
+                break
+        else:
+            self._factors.append(factor)
+        return factor
+
+    def list_mfa_enrollment_challenges(self, admin_id: str) -> list[AdminMfaEnrollmentChallenge]:
+        return [challenge for challenge in self._challenges.values() if challenge.admin_id == admin_id]
+
+    def get_mfa_enrollment_challenge_by_token_hash(self, token_hash: str) -> AdminMfaEnrollmentChallenge | None:
+        for challenge in self._challenges.values():
+            if challenge.challenge_token_hash == token_hash:
+                return challenge
+        return None
+
+    def upsert_mfa_enrollment_challenge(self, challenge: AdminMfaEnrollmentChallenge) -> AdminMfaEnrollmentChallenge:
+        self._challenges[challenge.challenge_id] = challenge
+        return challenge
 
     def get_session_by_id(self, session_id: str) -> AdminSession | None:
         return self._sessions.get(session_id)
@@ -456,9 +501,18 @@ class InMemoryAdminStore:
             "adm_readonly_analyst": AdminUser("adm_readonly_analyst", "readonly@synapse.network", "Readonly Analyst", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
         }
         factors = [
-            AdminMfaFactor(f"mfa_{user.admin_id}", user.admin_id, MfaFactorType.TOTP, "bootstrap_totp", status=MfaFactorStatus.ACTIVE, secret_ref=f"kms://{user.admin_id}")
+            AdminMfaFactor(
+                f"mfa_{user.admin_id}",
+                user.admin_id,
+                MfaFactorType.TOTP,
+                "bootstrap_totp",
+                status=MfaFactorStatus.ACTIVE,
+                secret_ref=f"kms://{user.admin_id}",
+                payload={"totpSecret": "JBSWY3DPEHPK3PXP"},
+            )
             for user in users.values()
         ]
+        challenges: dict[str, AdminMfaEnrollmentChallenge] = {}
         role_bindings = [
             AdminUserRoleBinding("bind_super_admin", "adm_super_admin", "super_admin", status=RoleBindingStatus.ACTIVE),
             AdminUserRoleBinding("bind_platform_ops_admin", "adm_platform_ops_admin", "platform_ops_admin", status=RoleBindingStatus.ACTIVE),
@@ -469,18 +523,7 @@ class InMemoryAdminStore:
             AdminUserRoleBinding("bind_compliance_auditor", "adm_compliance_auditor", "compliance_auditor", status=RoleBindingStatus.ACTIVE),
             AdminUserRoleBinding("bind_readonly_analyst", "adm_readonly_analyst", "readonly_analyst", status=RoleBindingStatus.ACTIVE),
         ]
-        menu_items = (
-            AdminMenuConfigItem("dashboard", "overview", "控制总览", "稳定读模型、控制台总览与核心运营信号。", "控制台", "/dashboard", "总览 finance、activity、operations 3 个稳定读模型。", required_permissions=(DASHBOARD_READ,), sort_order=10),
-            AdminMenuConfigItem("users", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "后台用户", "/users", "创建管理员、分配角色、查看权限模板与启用状态。", required_roles=("super_admin", "platform_ops_admin"), sort_order=20),
-            AdminMenuConfigItem("role-permissions", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "角色权限", "/role-permissions", "查看角色权限矩阵、模块权限边界与 reviewer 分工。", required_roles=("super_admin", "platform_ops_admin"), sort_order=30),
-            AdminMenuConfigItem("menu-config", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "菜单配置", "/menu-config", "菜单树、路由、可见性和权限依赖的配置视图。", required_roles=("super_admin", "platform_ops_admin"), sort_order=40),
-            AdminMenuConfigItem("execution", "identity-access", IDENTITY_ACCESS_LABEL, IDENTITY_ACCESS_DESCRIPTION, "执行队列", "/execution", "查看 execution jobs、失败重试与网关执行结果。", required_permissions=(EXECUTION_READ,), sort_order=50),
-            AdminMenuConfigItem("approvals", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "审批中心", "/approvals", "高风险动作审批流、reviewer 决策与执行前守门。", required_permissions=(APPROVAL_READ,), sort_order=60),
-            AdminMenuConfigItem("finance", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "资金运营", "/finance", "充值异常、退款与提现控制面，聚焦受控动作。", required_permissions=(DASHBOARD_READ,), sort_order=70),
-            AdminMenuConfigItem("risk", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "风控工作台", "/risk", "风险规则、工单分流、黑白名单与风险标签处置。", required_permissions=(DASHBOARD_READ,), sort_order=80),
-            AdminMenuConfigItem("system", "ops-controls", OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION, "系统运维", "/system", "gateway、indexer、reconciliation 与运行时参数快照。", required_permissions=(DASHBOARD_READ,), sort_order=90),
-            AdminMenuConfigItem("audit", "audit-ledger", "审计合规", "操作日志、审计回放与高风险动作追踪。", "操作日志", "/audit", "管理员操作日志、审批链路和失败告警审计检索。", required_permissions=(AUDIT_READ,), sort_order=100),
-        )
+        menu_items = build_default_menu_items()
         menu_snapshot = AdminMenuConfigSnapshot(
             config_key="admin_menu_config",
             draft_items=menu_items,
@@ -503,8 +546,11 @@ class InMemoryAdminStore:
                 resource_type="refund_intent",
                 resource_id="ref_001",
                 reason="refund pending manual review",
+                owner_address="0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
                 amount_usdc=Decimal("150.00"),
                 risk_level=RiskLevel.YELLOW,
+                request_id="refund-review-001",
+                tx_hash="0xref001",
                 created_at=now - timedelta(hours=1),
                 submitted_at=now - timedelta(hours=1),
                 updated_at=now - timedelta(hours=1),
@@ -534,9 +580,11 @@ class InMemoryAdminStore:
                 resource_type="deposit_intent",
                 resource_id="dep_003",
                 reason="replay deposit ledger repair",
+                owner_address="0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
                 amount_usdc=Decimal("42.50"),
                 risk_level=RiskLevel.YELLOW,
                 tx_hash="0xdep003",
+                request_id="dep-repair-003",
                 created_at=now - timedelta(minutes=20),
                 submitted_at=now - timedelta(minutes=20),
                 updated_at=now - timedelta(minutes=5),
@@ -634,7 +682,7 @@ class InMemoryAdminStore:
             ),
         ]
         return cls(
-            identity=InMemoryAdminIdentityRepository(users, factors, {}),
+            identity=InMemoryAdminIdentityRepository(users, factors, challenges, {}),
             authorization=InMemoryAdminAuthorizationRepository(roles, permissions, role_permissions, role_bindings),
             approval=InMemoryAdminApprovalRepository(approvals, steps, {}, jobs, attempts),
             audit=InMemoryAdminAuditRepository(actions, []),

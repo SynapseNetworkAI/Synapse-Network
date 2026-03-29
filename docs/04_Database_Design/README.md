@@ -1,6 +1,15 @@
 # Database Design
 
+- Status: canonical
+- Code paths: `gateway/src/storage/`, `admin/gateway-admin/src/storage/`
+- Verified with: `npm run ci:gateway`, `npm run ci:admin-gateway`, `npm run ci:provider-service`, `npm run ci:docs`
+- DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Supersedes: root `docs/Gateway_Database_Design.md` as standalone database truth source
+- Last verified against code: 2026-03-24
+
 本目录是 Synapse Network 的数据库官方说明层。
+
+当前数据库 canonical 内容已收口到本目录。former root `docs/Gateway_Database_Design.md` 已完成退役，不再作为补充入口保留。
 
 这里不再沿用旧的 wallet / api key / buyer / seller 时代叙事，而是严格以最新 SQL schema 为准，解释：
 
@@ -13,10 +22,14 @@
 
 本目录的最高优先级来源只有两个：
 
-1. `docker-compose/postgres/init/001_synapse_schema.sql`
-2. `docs/agent/06_Build_For_Agent_Database_Rebuild.md`
+1. `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+2. `docs/04_Database_Design/01_SQL_Schema_Overview.md`
 
-如果本目录和 SQL 不一致，以 SQL 为准；如果本目录和 `docs/agent/` 的对象模型冲突，以 `docs/agent/` 为准。
+如果本目录和 SQL 不一致，以 SQL 为准；如果子文档之间有解释冲突，以本目录和 SQL 为准。
+
+补充参考：
+
+1. former `docs/agent/06_Build_For_Agent_Database_Rebuild.md` 的迁移关系已收敛进 `docs/00_Governance/Agent_Docs_Migration_Map.md`。
 
 ## 阅读顺序
 

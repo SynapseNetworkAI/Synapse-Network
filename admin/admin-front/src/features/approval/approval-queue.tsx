@@ -12,6 +12,13 @@ const statusLabelMap: Record<string, string> = {
   EXECUTED: "已执行",
 };
 
+const approvalTypeLabelMap: Record<string, string> = {
+  provider_withdraw_review: "Provider 提现人工审核",
+  withdrawal_approve: "提现执行审批",
+  refund_approve: "退款审批",
+  deposit_repair: "充值修复审批",
+};
+
 export function ApprovalQueue({ items }: Readonly<ApprovalQueueProps>) {
   return (
     <section className="panel">
@@ -27,7 +34,7 @@ export function ApprovalQueue({ items }: Readonly<ApprovalQueueProps>) {
           <article key={item.approvalId} className="queue__item">
             <div>
               <p className="queue__id">{item.approvalId}</p>
-              <p className="queue__meta">{item.approvalType} · {item.requesterRole}</p>
+              <p className="queue__meta">{approvalTypeLabelMap[item.approvalType] ?? item.approvalType} · {item.requesterRole}</p>
             </div>
             <div className="queue__right">
               <span className="queue__level">{item.approvalLevel}</span>

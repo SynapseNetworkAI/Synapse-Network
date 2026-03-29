@@ -13,6 +13,8 @@ const HOMEPAGE_STATS_POLL_MS = 12000;
 const EMPTY_NETWORK_STATS: PublicNetworkStats = {
   totalCalls: 0,
   registeredServices: 0,
+  discoverableServices: 0,
+  staleServices: 0,
   connectedAgents: 0,
   runtimeReadyServices: 0,
 };
@@ -191,10 +193,10 @@ export default function Home() {
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
                 <button
-                  onClick={() => router.push("/dashboard/console")}
+                  onClick={() => router.push("/dashboard/developer")}
                   className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/50 px-8 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-all hover:bg-zinc-800 hover:text-zinc-200"
                 >
-                  Read Documentation
+                  Open Developer Resources
                 </button>
               </div>
 
@@ -256,14 +258,14 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
               <button
-                onClick={() => handleEnterRole("CONSUMER", "/dashboard/discover")}
+                onClick={() => handleEnterRole("CONSUMER", "/dashboard/discovery")}
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-[#7ff7be] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#6ae5ac]"
               >
                 {t("home.finalCta")}
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
-                onClick={() => handleEnterRole("PROVIDER", "/dashboard/sell")}
+                onClick={() => handleEnterRole("PROVIDER", "/provider/console")}
                 className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
               >
                 {t("home.providerWorkspaceBtn")}

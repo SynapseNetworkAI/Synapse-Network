@@ -11,6 +11,17 @@ type ExecutionJobsProps = {
 };
 
 
+function getJobStatusTone(status: string): string {
+  if (status === "SUCCEEDED") {
+    return "status-pill status-pill--healthy";
+  }
+  if (status === "FAILED") {
+    return "status-pill status-pill--alert";
+  }
+  return "status-pill status-pill--degraded";
+}
+
+
 export function ExecutionJobs({ items, onRetry }: Readonly<ExecutionJobsProps>) {
   const [isPending, startTransition] = useTransition();
 
@@ -34,7 +45,7 @@ export function ExecutionJobs({ items, onRetry }: Readonly<ExecutionJobsProps>) 
                 <p className="queue__meta">approval: {job.approvalId} · target: {job.targetSystem} · retry {job.retryCount}/{job.maxRetryCount}</p>
               </div>
               <div className="pill-row">
-                <span className={`status-pill ${job.status === "SUCCEEDED" ? "status-pill--healthy" : job.status === "FAILED" ? "status-pill--alert" : "status-pill--degraded"}`}>
+                <span className={getJobStatusTone(job.status)}>
                   {job.status}
                 </span>
                 {job.errorCode ? <span className="permission-chip">{job.errorCode}</span> : null}

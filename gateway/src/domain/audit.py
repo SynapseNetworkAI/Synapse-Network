@@ -32,7 +32,7 @@ class AuditLogRow(BaseModel):
     id: Optional[int] = None
     action_type: str = Field(default="", alias="actionType")
     business_type: Literal[
-        "deposit", "charge", "refund", "withdraw", "freeze", "unfreeze"
+        "deposit", "charge", "refund", "withdraw", "freeze", "unfreeze", "anomaly"
     ] = Field(default="charge", alias="businessType")
     risk_level: Literal["green", "yellow", "red"] = Field(
         default="green", alias="riskLevel"
@@ -62,6 +62,7 @@ class AuditLogRow(BaseModel):
     result_status: Optional[str] = Field(default=None, alias="resultStatus")
     error_code: Optional[str] = Field(default=None, alias="errorCode")
     message: Optional[str] = None
+    detail_json: Dict[str, Any] = Field(default_factory=dict, alias="detailJson")
     created_at: Optional[str] = Field(default=None, alias="createdAt")
 
 

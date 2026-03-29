@@ -1,5 +1,12 @@
 # Discovery and Gateway Call
 
+- Status: canonical
+- Code paths: `gateway/src/`, `sdk/python/`, `apps/frontend/src/`
+- Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:frontend`, `npm run ci:docs`
+- DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
+- Supersedes: former `docs/agent/02_Discovery_Quote_Invoke_API_Design.md` for workflow semantics of discover, quote, and invoke
+- Last verified against code: 2026-03-24
+
 ## 1. 目标
 
 这条链路定义 Agent Runtime 如何完成：
@@ -11,7 +18,26 @@
 
 Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预算下自动完成 `discover -> quote -> invoke`。
 
-## 2. 参与者
+当前 discover / quote / invoke 的主流程语义以本文件为 canonical。former `docs/agent/02_Discovery_Quote_Invoke_API_Design.md` 已完成退役，不再单独定义长期流程真相。
+
+## 2. Agent-facing 协议分层
+
+这三类 API 优先服务 Agent Runtime，而不是前端页面。
+
+统一边界如下：
+
+1. Discovery 负责给 Agent 返回结构化决策输入，而不是营销卡片。
+2. Quote 负责做价格与预算预检查，而不是最终扣费。
+3. Invoke 才是正式执行与记账入口。
+4. Agent-facing 协议默认不暴露卖家钱包、平台分账明细、内部路由节点或内部账本主键。
+
+控制台 Discovery 与 Agent Discovery 必须分层：
+
+1. 面向控制台与公开浏览页的 discover 结果可以更偏人类阅读和页面排序。
+2. 面向 Agent Runtime / SDK 的 discover 结果必须保持字段稳定、语义稳定、错误码稳定。
+3. 底层 ranking / filtering / discoverability 逻辑必须复用同一套 registry service，禁止维护两套 discover 真相。
+
+## 3. 参与者
 
 1. `Agent`
    真正做 discover、选择服务、发起调用的运行时主体。
@@ -24,7 +50,7 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
 5. `PostgreSQL`
    保存 Service Catalog、Quote、Invocation、Budget Event 和 Audit Event。
 
-## 3. 核心表
+## 4. 核心表
 
 | 表 | 作用 |
 | --- | --- |
@@ -37,7 +63,7 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
 | `synapse_budget_events` | reserve / capture / release 预算事件 |
 | `synapse_audit_events` | discover、quote、invoke 过程中的关键审计事件 |
 
-## 4. 主流程总览
+## 5. 主流程总览
 
 ```mermaid
 sequenceDiagram
@@ -61,13 +87,33 @@ sequenceDiagram
     G-->>A: Structured result or stable error
 ```
 
-## 5. Discovery
+## 6. Discovery
 
 Discovery 只做一件事：
 
 **让 Agent 得到足够结构化的服务决策输入，而不是营销卡片。**
 
-### 5.1 Discovery 读取的数据
+### 6.0 Provider Service 生命周期
+
+Provider 侧注册服务必须走明确状态机，不能用物理删除破坏审计链路。
+
+1. `draft`
+   刚创建或尚未完成发布收敛，不对外承载流量。
+2. `active`
+   Provider 明确启用，且只有健康检查存在可用 target 时，才会进入 discover / invoke 候选。
+3. `inactive`
+   Provider 主动下线。Gateway 不再允许新的 discovery 命中或新的转发调用，但保留配置、历史健康数据与审计上下文。
+4. `deleted`
+   逻辑删除终态。记录保留在注册表中用于审计、归因与问题追溯；默认不再出现在 Provider 日常服务列表，也不会参与探活、发现或调用。
+
+V1 删除规则：
+
+1. 只有服务 owner 可以删除自己的 service
+2. `active` 不能直接删除，必须先切到 `inactive`
+3. 删除必须是逻辑删除，禁止物理删除注册记录
+4. 删除动作必须追加 audit event
+
+### 6.1 Discovery 读取的数据
 
 Gateway 至少要组合：
 
@@ -75,7 +121,7 @@ Gateway 至少要组合：
 2. `synapse_service_manifests`
 3. `synapse_service_health_snapshots`
 
-### 5.2 必须返回给 Agent 的最小信息
+### 6.2 必须返回给 Agent 的最小信息
 
 1. `service_id`
 2. `service_name`
@@ -87,7 +133,7 @@ Gateway 至少要组合：
 8. `success_rate_24h`
 9. `quote_required`
 
-### 5.3 不允许暴露给 Agent 的信息
+### 6.3 不允许暴露给 Agent 的信息
 
 1. `provider_wallet`
 2. `payout_account_id`
@@ -95,18 +141,18 @@ Gateway 至少要组合：
 4. 路由权重和真实 target 列表
 5. 平台内部账本主键
 
-## 6. Quote
+## 7. Quote
 
 Quote 是调用前的商业和风控闸门，不是最终扣费点。
 
-### 6.1 Quote 必须解决的问题
+### 7.1 Quote 必须解决的问题
 
 1. 当前 credential 是否有权调用这个 service
 2. 当前预算是否允许承担这次调用
 3. 当前价格和约束在短窗口内是否锁定
 4. 后续 invoke 是否有足够的信息直接执行
 
-### 6.2 Quote 写入的真相
+### 7.2 Quote 写入的真相
 
 在最新 schema 中，Quote 至少会落两类记录：
 
@@ -115,7 +161,7 @@ Quote 是调用前的商业和风控闸门，不是最终扣费点。
 2. `synapse_budget_events`
    以 `reserve` 形式预占预算窗口
 
-### 6.3 Quote 状态机
+### 7.3 Quote 状态机
 
 `synapse_quote_status` 只允许：
 
@@ -126,11 +172,11 @@ Quote 是调用前的商业和风控闸门，不是最终扣费点。
 
 任何已经 `CONSUMED` 或 `EXPIRED` 的 quote，不能再次被 invoke。
 
-## 7. Invoke
+## 8. Invoke
 
 Invoke 是 Discovery / Quote / Call 这条链路的执行点。
 
-### 7.1 Invoke 前的校验顺序
+### 8.1 Invoke 前的校验顺序
 
 Gateway 必须按成本从低到高执行：
 
@@ -142,7 +188,15 @@ Gateway 必须按成本从低到高执行：
 6. Owner 资金池是否足以支撑 quote 金额
 7. Idempotency key 是否冲突
 
-### 7.2 Invocation 记录
+其中第 4 条的服务可调用状态，至少要同时满足：
+
+1. `is_active = true`
+2. `status = active`
+3. 至少一个 target 在健康窗口内为 `healthy`
+
+只要 Provider 把服务切到 `inactive`，或者平台把服务标记为 `deleted`，调用链就必须在进入上游转发前被网关硬拦截。
+
+### 8.2 Invocation 记录
 
 Gateway 在转发前先写 `synapse_invocations`，至少包含：
 
@@ -163,7 +217,7 @@ Gateway 在转发前先写 `synapse_invocations`，至少包含：
 4. `FAILED_FINAL`
 5. `SETTLED`
 
-### 7.3 Gateway 转发原则
+### 8.3 Gateway 转发原则
 
 Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层**。
 
@@ -174,9 +228,9 @@ Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层
 3. 执行 timeout、payload 限制和 response mode 约束
 4. 把上游原始 HTTP 成败映射成平台的执行结果
 
-## 8. 成功与失败映射
+## 9. 成功与失败映射
 
-### 8.1 成功路径
+### 9.1 成功路径
 
 如果上游完成有效交付：
 
@@ -185,7 +239,7 @@ Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层
 3. 预算事件从 `reserve` 走向 `capture`
 4. 进入后续结算流程
 
-### 8.2 失败路径
+### 9.2 失败路径
 
 如果上游失败、超时、连接错误或返回不可接受结果：
 
@@ -194,7 +248,7 @@ Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层
 3. 预算执行 `release`
 4. 写稳定错误码和 `error_action`
 
-### 8.3 为什么不能直接把 Provider 响应原封不动吐给 Agent
+### 9.3 为什么不能直接把 Provider 响应原封不动吐给 Agent
 
 因为 Platform 还必须统一处理：
 
@@ -204,7 +258,7 @@ Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层
 4. 风险审计
 5. 不泄露 Provider 内部拓扑和结算字段
 
-## 9. 幂等
+## 10. 幂等
 
 Invoke 的业务幂等由 `synapse_invocations UNIQUE (credential_id, idempotency_key)` 保证。
 
@@ -214,7 +268,18 @@ Invoke 的业务幂等由 `synapse_invocations UNIQUE (credential_id, idempotenc
 2. 网络重试不会导致重复扣费
 3. 平台可以稳定返回同一次调用的最终状态
 
-## 10. 数据边界结论
+## 11. 数据边界结论
+
+## 12. 为什么删除必须是逻辑删除
+
+物理删除看起来干净，实际上会把生产系统最关键的证据链直接抹掉。
+
+逻辑删除更符合 Synapse 的注册-发现-调用-审计闭环：
+
+1. 保留 `service_id` 与 owner 的历史绑定关系，避免账单、审计、告警和历史调用失去归因
+2. 保留状态迁移轨迹，支持回答“这个服务何时下线、何时删除、删除前是否仍在被调用”
+3. 避免因为注册行被物理移除而造成 health history、invocation、quote、budget event 的孤儿记录
+4. 允许控制面默认隐藏 `deleted`，同时让审计面继续可追溯
 
 这条链路必须永远守住两条边界：
 

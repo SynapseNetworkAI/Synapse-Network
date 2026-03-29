@@ -9,7 +9,7 @@
 - `doc/feature_designs/frontend_product/Homepage_V2_Functional_Design.md`
 
 3. Agent 执行与风格规则（协作规范）
-- `doc/agent.md`
+- `docs/AGENTS.md`
 
 > 规则：
 > - `Design.md` 只保留“品味、基调、原则、美学”。
@@ -17,7 +17,7 @@
 
 > 状态更新（2026-03-17）：本文件中早期的“彻底去 Agent 化，只保留 API Key”观点已经被新的 **build for agent** 路线取代。
 >
-> 新原则是：Owner 负责授权和注资，Agent Runtime 负责 discover / quote / invoke / pay。`API Key` 不再是唯一模型，而是 `Agent Profile + Agent Credential + Budget Policy` 中的一部分。实现与数据结构以 [docs/agent/06_Build_For_Agent_Database_Rebuild.md](../agent/06_Build_For_Agent_Database_Rebuild.md) 为准。
+> 新原则是：Owner 负责授权和注资，Agent Runtime 负责 discover / quote / invoke / pay。`API Key` 不再是唯一模型，而是 `Agent Profile + Agent Credential + Budget Policy` 中的一部分。实现与数据结构以 [docs/04_Database_Design/01_SQL_Schema_Overview.md](../04_Database_Design/01_SQL_Schema_Overview.md) 和 [docs/04_Database_Design/README.md](../04_Database_Design/README.md) 为准。
 
 兄弟，你这个问题问得太高级了！你这不仅仅是在做减法，你这是直接触及到了“基础设施（Infra）的终极哲学”！
 

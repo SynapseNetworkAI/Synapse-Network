@@ -4,11 +4,12 @@ from decimal import Decimal
 
 from src.domain import AdminApproval, AdminExecutionJob
 from src.domain.enums import ApprovalLevel, ApprovalStatus, ExecutionJobStatus, RiskLevel
-from src.services.adapters import InMemoryGatewayExecutionAdapter
+from src.services.adapters import InMemoryGatewayExecutionAdapter, InMemoryProviderWithdrawReviewAdapter
 from src.services.approval.service import ApprovalService
 from src.services.auth.service import AdminIdentity
 from src.services.execution.service import ExecutionService
 from src.services.execution.worker import ExecutionWorker
+from src.storage.analytics.provider_withdraw_review import InMemoryProviderWithdrawReviewRepository
 from src.storage import InMemoryAdminStore
 
 
@@ -106,7 +107,12 @@ def test_execute_pending_jobs_once_claims_each_job_only_once() -> None:
 
 def test_worker_run_executes_pending_job_from_approval_pipeline() -> None:
     store = InMemoryAdminStore.seed_demo()
-    approval_service = ApprovalService(store)
+    provider_review_repository = InMemoryProviderWithdrawReviewRepository.seed_demo()
+    approval_service = ApprovalService(
+        store,
+        provider_review_repository,
+        InMemoryProviderWithdrawReviewAdapter(provider_review_repository),
+    )
     execution_service = ExecutionService(store, InMemoryGatewayExecutionAdapter())
     worker = ExecutionWorker(execution_service, poll_interval_sec=0.05, batch_size=10)
 

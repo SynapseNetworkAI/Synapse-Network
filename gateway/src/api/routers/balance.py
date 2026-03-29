@@ -3,6 +3,7 @@ from typing import Dict, Any, Annotated, Optional
 
 from src.api.deps import get_balance_service, get_provider_analytics_service
 from src.api.schemas.pydantic_models import (
+    AdminProviderWithdrawReviewRequest,
     AdminProviderWithdrawCompleteRequest,
     AdminRefundCompleteRequest,
     DepositIntentRequest,
@@ -14,10 +15,13 @@ from src.api.schemas.pydantic_models import (
     RouterConfigRequest,
     ProviderWithdrawIntentRequest,
     ProviderWithdrawCompleteRequest,
+    TX_HASH_FORMAT_ERROR,
+    TX_HASH_PREFIX_ERROR,
 )
 from src.services.platform.balance_service import BalanceService
 from src.services.provider.provider_analytics_service import ProviderAnalyticsService
 from src.services.platform import credential_service
+from src.services.platform.internal_auth import InternalServicePrincipal, require_internal_scope
 from src.services.platform.tasks.deposit_indexer import (
     get_indexer_status,
     replay_deposit_tx,
@@ -47,6 +51,22 @@ def _extract_request_meta(request: Request) -> Dict[str, Any]:
         "clientIp": client_host,
         "userAgent": request.headers.get("User-Agent") or "",
     }
+
+
+def _normalize_tx_hash_or_400(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if not normalized.startswith("0x"):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_TX_HASH", "message": TX_HASH_PREFIX_ERROR},
+        )
+    hex_part = normalized[2:]
+    if len(hex_part) != 64 or any(ch not in "0123456789abcdef" for ch in hex_part):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_TX_HASH", "message": TX_HASH_FORMAT_ERROR},
+        )
+    return normalized
 
 
 def _ensure_fee_policy_admin(owner_wallet: str) -> str:
@@ -110,6 +130,81 @@ def _clamp_rate(value: Any, fallback: Optional[float] = None) -> float:
     if rate < 0 or rate > 1:
         raise ValueError("rate must be within [0,1]")
     return float(rate)
+
+
+def _usage_log_sort_key(row: UsageLogRow) -> tuple[int, str]:
+    return (int(row.ts or 0), str(row.id or ""))
+
+
+def _usage_log_matches_query(row: UsageLogRow, query: str) -> bool:
+    needle = str(query or "").strip().lower()
+    if not needle:
+        return True
+    haystacks = [
+        str(row.id or "").lower(),
+        str(row.agent_id or "").lower(),
+        str(row.request_id or "").lower(),
+        str(row.origin_request_id or "").lower(),
+        str(row.service_id or "").lower(),
+        str(row.consumer_address or "").lower(),
+        str(row.provider_address or "").lower(),
+        str(row.status or "").lower(),
+    ]
+    return any(needle in value for value in haystacks if value)
+
+
+def _normalize_usage_log_rows(raw_rows: Any) -> list[UsageLogRow]:
+    rows: list[UsageLogRow] = []
+    if not isinstance(raw_rows, list):
+        return rows
+    for row in raw_rows:
+        if isinstance(row, UsageLogRow):
+            rows.append(row)
+        elif isinstance(row, dict):
+            rows.append(UsageLogRow.model_validate(row))
+    return rows
+
+
+def _filter_owner_usage_logs(
+    rows: list[UsageLogRow],
+    owner_wallet: str,
+    status: Optional[str],
+    query: Optional[str],
+) -> list[UsageLogRow]:
+    owner = str(owner_wallet or "").lower()
+    normalized_status = str(status or "").strip().lower()
+    filtered: list[UsageLogRow] = []
+    for row in rows:
+        owner_address = str(row.consumer_address or "").lower()
+        provider_address = str(row.provider_address or "").lower()
+        if owner_address != owner and provider_address != owner:
+            continue
+        if normalized_status and str(row.status or "").strip().lower() != normalized_status:
+            continue
+        if not _usage_log_matches_query(row, str(query or "")):
+            continue
+        filtered.append(row)
+    filtered.sort(key=_usage_log_sort_key, reverse=True)
+    return filtered
+
+
+def _build_usage_logs_response(
+    rows: list[UsageLogRow],
+    *,
+    total: int,
+    page: int,
+    page_size: int,
+    has_more: bool,
+) -> dict[str, Any]:
+    return {
+        "status": "success",
+        "logs": [row.model_dump(by_alias=True, mode="json") for row in rows],
+        "count": len(rows),
+        "total": total,
+        "page": page,
+        "pageSize": page_size,
+        "hasMore": has_more,
+    }
 
 
 def _normalize_fee_policy_payload(
@@ -200,6 +295,24 @@ async def list_deposit_intents(
     return {"status": "success", "intents": intents[:limit]}
 
 
+@router.get(
+    "/v1/balance/deposit/sync",
+    responses={400: {"description": "Invalid txHash"}},
+)
+async def get_deposit_sync_status(
+    tx_hash: Annotated[
+        str, Query(alias="txHash", min_length=66, max_length=66)
+    ],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    sync_status = await service.get_deposit_sync_status(
+        owner_wallet,
+        _normalize_tx_hash_or_400(tx_hash),
+    )
+    return {"status": "success", "sync": sync_status}
+
+
 @router.post("/v1/balance/deposit/intents/{deposit_intent_id}/confirm")
 async def confirm_deposit_intent(
     deposit_intent_id: str,
@@ -280,10 +393,10 @@ async def complete_refund_as_admin(
     refund_id: str,
     payload: AdminRefundCompleteRequest,
     request: Request,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("refund.complete"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
     request_meta = _extract_request_meta(request)
     request_meta["review"] = {
@@ -291,11 +404,16 @@ async def complete_refund_as_admin(
         "reviewerAddress": str(payload.reviewerAddress or admin_wallet).strip().lower(),
         "reviewerNote": str(payload.reviewerNote or "").strip(),
         "requestedBy": admin_wallet,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
     }
     request_meta["adminExecution"] = {
         "requestedBy": admin_wallet,
         "targetOwner": target_owner,
         "resourceId": refund_id,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+        "serviceSubject": principal.service_subject,
     }
     result = await service.complete_refund_intent(
         owner_wallet=target_owner,
@@ -354,29 +472,36 @@ async def list_finance_audit_logs(
 async def get_usage_logs(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     storage: Annotated[BaseStorage, Depends(get_storage)],
-    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    limit: Annotated[Optional[int], Query(ge=1, le=500)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
+    status: Annotated[Optional[str], Query(min_length=1, max_length=32)] = None,
+    query: Annotated[Optional[str], Query(min_length=1, max_length=128)] = None,
 ):
     raw_rows = storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
-    rows = []
-    if isinstance(raw_rows, list):
-        for row in raw_rows:
-            if isinstance(row, UsageLogRow):
-                rows.append(row)
-            elif isinstance(row, dict):
-                rows.append(UsageLogRow.model_validate(row))
-    owner = owner_wallet.lower()
-    filtered = []
-    for row in rows:
-        owner_address = str(row.consumer_address or "").lower()
-        provider_address = str(row.provider_address or "").lower()
-        if owner_address == owner or provider_address == owner:
-            filtered.append(row.model_dump(by_alias=True, mode="json"))
+    rows = _normalize_usage_log_rows(raw_rows)
+    filtered = _filter_owner_usage_logs(rows, owner_wallet, status, query)
 
-    return {
-        "status": "success",
-        "logs": filtered[:limit],
-        "count": len(filtered[:limit]),
-    }
+    if limit is not None:
+        page_rows = filtered[:limit]
+        return _build_usage_logs_response(
+            page_rows,
+            total=len(filtered),
+            page=1,
+            page_size=limit,
+            has_more=len(filtered) > limit,
+        )
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_rows = filtered[start:end]
+    return _build_usage_logs_response(
+        page_rows,
+        total=len(filtered),
+        page=page,
+        page_size=page_size,
+        has_more=end < len(filtered),
+    )
 
 
 @router.get("/v1/providers/earnings/summary")
@@ -427,6 +552,19 @@ async def list_provider_withdrawals(
     }
 
 
+@router.get("/v1/providers/withdrawals/capability")
+async def get_provider_withdraw_capability(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    capability = await service.get_provider_withdraw_capability(owner_wallet)
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        **capability,
+    }
+
+
 @router.post("/v1/providers/withdrawals/{withdrawal_id}/complete")
 async def complete_provider_withdrawal(
     withdrawal_id: str,
@@ -452,16 +590,19 @@ async def complete_provider_withdrawal_as_admin(
     withdrawal_id: str,
     payload: AdminProviderWithdrawCompleteRequest,
     request: Request,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("provider_withdraw.complete"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
     request_meta = _extract_request_meta(request)
     request_meta["adminExecution"] = {
         "requestedBy": admin_wallet,
         "targetOwner": target_owner,
         "resourceId": withdrawal_id,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+        "serviceSubject": principal.service_subject,
     }
     result = await service.complete_provider_withdrawal(
         owner_wallet=target_owner,
@@ -476,6 +617,49 @@ async def complete_provider_withdrawal_as_admin(
         "withdrawalId": result.get("withdrawalId"),
         "withdrawalStatus": result.get("status"),
         "txHash": result.get("txHash"),
+    }
+
+
+@router.post(
+    "/v1/admin/providers/withdrawals/{withdrawal_id}/review",
+    responses={403: {"description": "Forbidden or fee admin not configured"}},
+)
+async def review_provider_withdrawal_as_admin(
+    withdrawal_id: str,
+    payload: AdminProviderWithdrawReviewRequest,
+    request: Request,
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("provider_withdraw.review"))],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
+    target_owner = normalize_wallet(payload.ownerAddress)
+    request_meta = _extract_request_meta(request)
+    request_meta["review"] = {
+        "decision": str(payload.reviewDecision or "").strip().upper(),
+        "reviewerAddress": str(payload.reviewerAddress or admin_wallet).strip().lower(),
+        "reviewerNote": str(payload.reviewerNote or "").strip(),
+        "requestedBy": admin_wallet,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+    }
+    request_meta["adminExecution"] = {
+        "requestedBy": admin_wallet,
+        "targetOwner": target_owner,
+        "resourceId": withdrawal_id,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+        "serviceSubject": principal.service_subject,
+    }
+    result = await service.review_provider_withdrawal(
+        owner_wallet=target_owner,
+        withdrawal_id=withdrawal_id,
+        request_meta=request_meta,
+    )
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "ownerAddress": target_owner,
+        **result,
     }
 
 
@@ -498,10 +682,10 @@ async def get_v2_indexer_status(
     responses={403: {"description": "Forbidden or fee admin not configured"}},
 )
 async def get_fee_policy(
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("fee_policy.read"))],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
     normalized = _normalize_fee_policy_payload(
@@ -529,10 +713,10 @@ async def get_fee_policy(
 )
 async def set_fee_policy(
     payload: Dict[str, Any],
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("fee_policy.write"))],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     try:
         normalized = _normalize_fee_policy_payload(
             payload if isinstance(payload, dict) else {}, settings.platform_fee_rate
@@ -573,10 +757,10 @@ async def set_fee_policy(
 )
 async def replay_deposit_by_tx_hash(
     payload: AdminDepositReplayRequest,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("deposit.replay"))],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
-    admin_wallet = _ensure_fee_policy_admin(owner_wallet)
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     try:
         summary = replay_deposit_tx(storage, payload.txHash, admin_wallet)
     except ValueError as exc:

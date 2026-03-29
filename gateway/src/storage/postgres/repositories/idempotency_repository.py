@@ -15,6 +15,25 @@ class IdempotencyRepository:
         self._db = db
 
     @staticmethod
+    def _owner_id(wallet: str) -> str:
+        return f"owner:{str(wallet or '').strip().lower()}"
+
+    def _ensure_owner_account(self, cur: Any, wallet: str, updated_at: str) -> str:
+        normalized_wallet = str(wallet or "").strip().lower()
+        owner_id = self._owner_id(normalized_wallet)
+        cur.execute(
+            """
+            INSERT INTO synapse_owner_accounts (
+                owner_id, owner_wallet, status, default_currency, created_at, updated_at
+            ) VALUES (%s, %s, 'active', 'USDC', %s, %s)
+            ON CONFLICT (owner_id)
+            DO UPDATE SET owner_wallet = EXCLUDED.owner_wallet, updated_at = EXCLUDED.updated_at
+            """,
+            (owner_id, normalized_wallet, updated_at, updated_at),
+        )
+        return owner_id
+
+    @staticmethod
     def _normalize_idempotency_row(row: Any) -> IdempotencyKeyRow | None:
         if isinstance(row, IdempotencyKeyRow):
             return row
@@ -55,9 +74,10 @@ class IdempotencyRepository:
         with self._db.readonly_cursor() as cur:
             cur.execute(
                 """
-                SELECT id, scope, owner_address, idempotency_key, request_hash,
-                       response_code, response_digest, created_at, expires_at
-                FROM synapse_idempotency_keys
+                SELECT ik.id, ik.scope, COALESCE(oa.owner_wallet, ''), ik.idempotency_key, ik.request_hash,
+                       ik.response_code, ik.response_digest, ik.created_at, ik.expires_at
+                FROM synapse_idempotency_keys ik
+                LEFT JOIN synapse_owner_accounts oa ON oa.owner_id = ik.owner_id
                 ORDER BY created_at DESC
                 """
             )
@@ -125,22 +145,24 @@ class IdempotencyRepository:
                     or not entity.request_hash
                 ):
                     continue
+                timestamp = to_dt_str(entity.created_at or updated_at, now_dt_str())
+                owner_id = self._ensure_owner_account(cur, entity.owner_address, timestamp)
                 cur.execute(
                     """
                     INSERT INTO synapse_idempotency_keys (
-                        id, scope, owner_address, idempotency_key, request_hash,
+                        id, scope, owner_id, idempotency_key, request_hash,
                         response_code, response_digest, created_at, expires_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         row_id,
                         entity.scope,
-                        entity.owner_address.lower(),
+                        owner_id,
                         entity.idempotency_key,
                         entity.request_hash,
                         entity.response_code,
                         entity.response_digest,
-                        to_dt_str(entity.created_at or updated_at, now_dt_str()),
+                        timestamp,
                         int(entity.expires_at or int(time.time())),
                     ),
                 )
@@ -148,7 +170,11 @@ class IdempotencyRepository:
     def read_rate_limit_rows(self) -> List[FinanceRateLimitRow]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
-                "SELECT id, owner_address, action, window_start, count, updated_at FROM synapse_finance_rate_limit"
+                """
+                SELECT rl.id, COALESCE(oa.owner_wallet, ''), rl.action, rl.window_start, rl.count, rl.updated_at
+                FROM synapse_finance_rate_limit rl
+                LEFT JOIN synapse_owner_accounts oa ON oa.owner_id = rl.owner_id
+                """
             )
             rows = cur.fetchall()
         return [
@@ -173,14 +199,16 @@ class IdempotencyRepository:
                 if not entity.owner_address or not entity.action:
                     continue
                 row_id = entity.id or f"rl-{int(time.time() * 1000)}"
+                timestamp = to_dt_str(entity.updated_at or updated_at, now_dt_str())
+                owner_id = self._ensure_owner_account(cur, entity.owner_address, timestamp)
                 cur.execute(
-                    "INSERT INTO synapse_finance_rate_limit (id, owner_address, action, window_start, count, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO synapse_finance_rate_limit (id, owner_id, action, window_start, count, updated_at) VALUES (%s, %s, %s, %s, %s, %s)",
                     (
                         row_id,
-                        entity.owner_address.lower(),
+                        owner_id,
                         entity.action,
                         int(entity.window_start or updated_at),
                         int(entity.count or 0),
-                        to_dt_str(entity.updated_at or updated_at, now_dt_str()),
+                        timestamp,
                     ),
                 )

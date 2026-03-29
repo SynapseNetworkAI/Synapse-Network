@@ -111,7 +111,7 @@ Gateway 不是 UI 用户，但前端必须正确表现 Gateway 的角色：
 以下叙事都必须彻底废弃：
 
 1. “Buyer 和 Seller 是两套根账户体系”
-2. “Developer Console 的核心是人工申请 API key”
+2. “Owner 需要一个 Developer Console，把充值、凭据签发、文档入口全部塞进同一页”
 3. “Provider 的本质是公开钱包地址和手工填商品页”
 4. “Dashboard 首屏应该堆所有表格和所有细节”
 
@@ -145,6 +145,9 @@ Gateway 不是 UI 用户，但前端必须正确表现 Gateway 的角色：
 
 服务对象：Platform 内部管理员。
 
+当前实现边界必须明确：Admin Control Plane 不属于 `apps/frontend` 这套 Gateway Console / Provider Workspace 前端。
+它应落在独立的 `admin/admin-front` + `admin/gateway-admin` 体系中。
+
 核心目标：
 
 1. 审批
@@ -174,3 +177,9 @@ Synapse 的产品建模已经非常明确：
 4. Platform 是内部执行和结算层
 
 所有前端页面、产品文案和 IA 设计，都必须围绕这个角色模型组织，而不是再回到旧时代的用户角色混战。
+
+补充约束：
+
+1. `apps/frontend` 只承载 Owner Gateway Console 和 Provider Workspace。
+2. 平台管理员前端属于 `admin/admin-front`，后台治理 API 属于 `admin/gateway-admin`。
+3. 不要再把 admin workflow 作为 `dashboard/*` 的隐藏入口来设计。

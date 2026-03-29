@@ -5,12 +5,16 @@ from typing import Optional, Dict, Any, List, Annotated, Union
 from uuid import uuid4
 from src.api.deps import get_registry_service
 from src.api.schemas.pydantic_models import AgentDiscoverySearchRequest
-from src.services.provider.registry_service import RegistryService
+from src.services.provider.registry_service import (
+    RegistryService,
+    SERVICE_ALREADY_DELETED,
+    SERVICE_DELETE_ACTIVE_CONFLICT,
+)
 from src.services.platform import credential_service
 from src.services.provider.manifest_parser_service import parse_manifest_from_curl
 from src.core.config import settings
 from src.domain.service_contract import AgentDiscoveryQueryRecord
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 router = APIRouter()
 
@@ -138,7 +142,26 @@ class InvokeMethod(BaseModel):
     examples: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class ProviderProfileSpec(BaseModel):
+    displayName: str = Field(..., min_length=1, max_length=80)
+
+
+class PayoutAccountSpec(BaseModel):
+    payoutAddress: str = Field(..., min_length=1, max_length=128)
+    chainId: int = Field(..., ge=1)
+    settlementCurrency: str = Field(default="USDC", min_length=1, max_length=16)
+    status: str = Field(default="active")
+
+
+class GovernanceSpec(BaseModel):
+    termsAccepted: bool = False
+    riskAcknowledged: bool = False
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
 class RegisterServiceRequest(BaseModel):
+    serviceId: Optional[str] = None
+    agentToolName: Optional[str] = None
     serviceName: str
     role: str = "Provider"
     address: Optional[str] = None
@@ -147,12 +170,31 @@ class RegisterServiceRequest(BaseModel):
     tags: List[str] = Field(default_factory=list)
     status: str = "active"
     auth: Dict[str, Any] = Field(default_factory=dict)
+    providerProfile: Optional[ProviderProfileSpec] = None
+    payoutAccount: Optional[PayoutAccountSpec] = None
+    governance: Optional[GovernanceSpec] = None
     healthCheck: HealthCheckSpec = Field(default_factory=HealthCheckSpec)
     constraints: ConstraintsSpec = Field(default_factory=ConstraintsSpec)
     forwarding: ForwardingSpec = Field(default_factory=ForwardingSpec)
     metering: MeteringSpec = Field(default_factory=MeteringSpec)
     invoke: InvokeMethod
     isActive: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def bind_service_id_from_agent_tool_name(cls, raw: Any) -> Any:
+        if not isinstance(raw, dict):
+            return raw
+
+        payload = dict(raw)
+        service_id = str(payload.get("serviceId") or "").strip()
+        agent_tool_name = str(payload.get("agentToolName") or "").strip()
+        if not service_id and agent_tool_name:
+            payload["serviceId"] = agent_tool_name
+            return payload
+        if service_id and agent_tool_name and service_id != agent_tool_name:
+            raise ValueError("serviceId must match agentToolName when both are provided")
+        return payload
 
 
 class ParseCurlRequest(BaseModel):
@@ -163,21 +205,28 @@ class ParseCurlRequest(BaseModel):
 
 @router.get("/v1/services/discover")
 async def discover_services(
+    request: Request,
     intent: Optional[str] = Query(
         None, description="Search keyword for service discovery"
     ),
-    request: Request = None,
+    sort_by: str = Query(
+        "best_match", alias="sortBy", description="Sort field for console discovery list"
+    ),
+    sort_order: str = Query(
+        "desc", alias="sortOrder", description="Sort order for console discovery list"
+    ),
     service: RegistryService = Depends(get_registry_service),
 ):
     """
     Public endpoint for owner-scoped AI agents to discover available services.
     Returns only active services.
     """
-    gateway_url = None
-    if request is not None:
-        gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
+    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
     public_services = await service.discover_services(
-        intent, public_gateway_url=gateway_url
+        intent,
+        public_gateway_url=gateway_url,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     return {
         "status": "success",
@@ -205,16 +254,23 @@ async def search_agent_discovery(
 ):
     gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
     query = AgentDiscoveryQueryRecord.model_validate(payload.model_dump(by_alias=True))
+    total_count = await service.count_agent_discovery_results(query)
     results = await service.search_agent_discovery(
         query, public_gateway_url=gateway_url
     )
     request_id = str(request.headers.get("X-Request-Id") or "").strip() or f"disc_{uuid4().hex}"
+    page = query.effective_page
+    page_size = query.effective_page_size
     return {
         "requestId": request_id,
         "results": [
             row.model_dump(by_alias=True, exclude_none=True) for row in results
         ],
         "count": len(results),
+        "page": page,
+        "pageSize": page_size,
+        "totalCount": total_count,
+        "hasMore": (page * page_size) < total_count,
     }
 
 
@@ -331,6 +387,14 @@ async def update_service(
     try:
         updated = await service.update_service(service_record_id, req, owner)
     except ValueError as exc:
+        if str(exc) == SERVICE_ALREADY_DELETED:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": SERVICE_ALREADY_DELETED,
+                    "message": "Deleted services cannot be edited.",
+                },
+            )
         raise HTTPException(
             status_code=422,
             detail={
@@ -351,7 +415,18 @@ async def delete_service(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    success = await service.delete_service(service_record_id, owner)
+    try:
+        success = await service.delete_service(service_record_id, owner)
+    except ValueError as exc:
+        if str(exc) == SERVICE_DELETE_ACTIVE_CONFLICT:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": SERVICE_DELETE_ACTIVE_CONFLICT,
+                    "message": "Active services must be set to inactive before deletion.",
+                },
+            )
+        raise
     if not success:
         raise HTTPException(status_code=404, detail="Service not found")
     return {"status": "success", "message": "Service deleted"}

@@ -93,7 +93,7 @@ export default function MarketplacePage() {
       return;
     }
 
-    const candidate = changedService || selectMostRecentService(rows);
+    const candidate = changedService ?? selectMostRecentService(rows);
     if (!candidate) {
       return;
     }
@@ -384,7 +384,7 @@ export default function MarketplacePage() {
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
             <button
               type="button"
-              onClick={() => router.push("/dashboard/discover")}
+              onClick={() => router.push("/dashboard/discovery")}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-[#7ff7be] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#6ae5ac]"
             >
               {t("marketplacePage.discoveryCta")}
@@ -392,7 +392,7 @@ export default function MarketplacePage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push("/dashboard/sell")}
+              onClick={() => router.push("/provider/console")}
               className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
             >
               {t("marketplacePage.providerCta")}
