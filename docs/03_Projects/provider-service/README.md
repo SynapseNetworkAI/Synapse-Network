@@ -56,6 +56,7 @@
 8. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
 9. Phase A 已落地：TikTok + Reddit 两个下载接口（可落库 + MinIO 存储 + 回放降级）
 10. Phase B 骨架已落地：GitHub Releases 资产下载 + Paper PDF 下载（统一 storageKey/metadata、快照回放、调用审计）
+11. `paper-pdf-download` 现已支持 `arxiv|openalex|crossref` 三种 source，但 `openalex|crossref` 只接受 trusted scholarly PDF host
 
 ## 4. 职责边界
 

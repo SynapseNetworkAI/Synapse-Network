@@ -17,7 +17,7 @@
    - `github-release-asset-download`
    - `paper-pdf-download`
    - 已落地：request / response schema、endpoint wiring、typed repository、MinIO 存储、snapshot replay、调用审计、Postgres 表结构。
-   - 当前边界：`signatureVerified` 已出现在 GitHub 响应里，但骨架阶段默认 `false`；Paper 入口当前优先支持 arXiv，`openalex|crossref` 解析器留待后续接入。
+   - 当前边界：`signatureVerified` 已出现在 GitHub 响应里，但骨架阶段默认 `false`；Paper 入口现已支持 `arxiv|openalex|crossref`，其中后两者只接受解析到受信任学术 PDF Host 的下载地址。
 4. **Phase C 尚未开工**
    - 还没有平台级 `DownloadPolicy`、`DownloadJob`、`MediaAsset`、`SnapshotRepository`、`StorageGateway`、`ComplianceGuard` 抽象。
    - 当前复用仍以 Twitter / YouTube / TikTok / Reddit 各自 service + repository 组合为主，离“平台下载框架”还有一层基础设施收敛工作。
@@ -212,6 +212,7 @@
    - 状态：**已完成（骨架）**
 2. **Paper 下载：`paperUrl/paperId/source` 统一入口**
    - 状态：**已完成（骨架）**
+   - 说明：`arxiv|openalex|crossref` 三种 source 已接到统一 resolver，后两者带 trusted PDF host 白名单。
 3. **加哈希 / 签名校验字段（`sha256`, `signatureVerified`）**
    - 状态：**部分完成**
    - 说明：`sha256` 与 `signatureVerified` 已落在响应契约；签名验证逻辑仍待后续 hardening。

@@ -249,8 +249,9 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 
 说明：
 
-1. 当前骨架优先支持 arXiv `paperId` / `paperUrl`；`openalex|crossref` 入口先保留契约位，等待后续解析器接入。
-2. 返回体统一包含 `pdf.storageKey` 与 `metadata`（title/authors/year/doi）。
+1. 当前骨架支持 `arxiv|openalex|crossref` 三种 source。
+2. `openalex|crossref` 当前只会接受解析后命中的受信任学术 PDF Host（例如 arXiv / OpenReview / ACL Anthology 等），避免任意外部 URL 直拉。
+3. 返回体统一包含 `pdf.storageKey` 与 `metadata`（title/authors/year/doi）。
 
 ### 5.8 TikTok / Reddit Phase A 错误码矩阵
 
