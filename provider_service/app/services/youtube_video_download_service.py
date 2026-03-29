@@ -14,8 +14,9 @@ from app.schemas.youtube_video_download import (
     YouTubeVideoDownloadResponse,
     YouTubeVideoDownloadResult,
 )
+from app.services.asset_storage import build_storage_gateway
+from app.services.download_abstractions import DownloadPolicy, MediaAsset
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
-from app.services.twitter_video_download.storage import build_video_storage
 from app.services.youtube_video_download.domain import (
     YouTubeVideoAssetRecord,
     asset_key_from_request,
@@ -25,6 +26,8 @@ from app.services.youtube_video_download.repository import (
     asset_expiry,
     get_youtube_video_download_repository,
 )
+
+build_video_storage = build_storage_gateway
 
 
 SERVICE_ID = "svc_youtube_video_download"
@@ -40,14 +43,21 @@ def _to_zulu(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _download_dir() -> Path:
-    return Path(get_settings().youtube_video_tmp_dir).resolve()
-
-
-def _storage_key(video_id: str, filename: str) -> str:
+def _download_policy(payload: YouTubeVideoDownloadRequest) -> DownloadPolicy:
+    settings = get_settings()
     now = _now_utc()
-    prefix = get_settings().video_storage_key_prefix.strip("/") or "youtube"
-    return f"{prefix}/{now:%Y/%m/%d}/{video_id}/{filename}".strip("/")
+    prefix = settings.video_storage_key_prefix.strip("/") or "youtube"
+    return DownloadPolicy(
+        temp_dir=Path(settings.youtube_video_tmp_dir).resolve(),
+        storage_prefix=f"{prefix}/{now:%Y/%m/%d}",
+        default_storage_namespace="youtube",
+        max_duration_sec=payload.max_duration_sec,
+        max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+    )
+
+
+def _storage_key(policy: DownloadPolicy, video_id: str, filename: str) -> str:
+    return policy.build_storage_key(video_id, filename=filename)
 
 
 async def execute_youtube_video_download(
@@ -58,16 +68,24 @@ async def execute_youtube_video_download(
 ) -> YouTubeVideoDownloadResponse:
     repository = get_youtube_video_download_repository()
     storage = build_video_storage()
+    policy = _download_policy(payload)
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
 
     try:
-        downloaded = await download_youtube_video(payload, target_dir=_download_dir())
-        key = _storage_key(downloaded.video_id, downloaded.file_path.name)
+        downloaded = await download_youtube_video(payload, target_dir=policy.resolved_tmp_dir())
+        key = _storage_key(policy, downloaded.video_id, downloaded.file_path.name)
         stored = storage.put_file(
             source_path=downloaded.file_path,
             target_key=key,
             content_type=downloaded.mime_type,
+        )
+        media_asset = MediaAsset.from_stored(
+            stored,
+            sha256=downloaded.sha256,
+            duration_sec=downloaded.duration_sec,
+            width=downloaded.width,
+            height=downloaded.height,
         )
         response = YouTubeVideoDownloadResponse(
             service=ServiceDescriptor(
@@ -85,16 +103,7 @@ async def execute_youtube_video_download(
                 videoUrl=payload.video_url,
                 videoId=downloaded.video_id,
                 status="downloaded",
-                video=YouTubeVideoAsset(
-                    storageKey=stored.key,
-                    storageBackend=stored.backend,
-                    mimeType=stored.content_type,
-                    sizeBytes=stored.size_bytes,
-                    durationSec=downloaded.duration_sec,
-                    width=downloaded.width,
-                    height=downloaded.height,
-                    sha256=downloaded.sha256,
-                ),
+                video=YouTubeVideoAsset(**media_asset.as_video_payload()),
             ),
             errors=[],
         )

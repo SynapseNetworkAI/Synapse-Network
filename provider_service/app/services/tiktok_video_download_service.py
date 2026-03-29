@@ -15,6 +15,8 @@ from app.schemas.tiktok_video_download import (
     TikTokVideoDownloadResponse,
     TikTokVideoDownloadResult,
 )
+from app.services.asset_storage import build_storage_gateway
+from app.services.download_abstractions import DownloadPolicy, MediaAsset
 from app.services.download_snapshot_replay import replay_cached_snapshot_if_available
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
 from app.services.tiktok_video_download.domain import TikTokVideoAssetRecord, asset_key_from_request
@@ -23,7 +25,8 @@ from app.services.tiktok_video_download.repository import (
     asset_expiry,
     get_tiktok_video_download_repository,
 )
-from app.services.twitter_video_download.storage import build_video_storage
+
+build_video_storage = build_storage_gateway
 
 
 SERVICE_ID = "svc_tiktok_video_download"
@@ -39,14 +42,20 @@ def _to_zulu(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _download_dir() -> Path:
-    return Path(get_settings().tiktok_video_tmp_dir).resolve()
-
-
-def _storage_key(video_id: str, filename: str) -> str:
+def _download_policy(payload: TikTokVideoDownloadRequest) -> DownloadPolicy:
+    settings = get_settings()
     now = _now_utc()
-    prefix = get_settings().video_storage_key_prefix.strip("/") or "tiktok"
-    return f"{prefix}/{now:%Y/%m/%d}/{video_id}/{filename}".strip("/")
+    prefix = settings.video_storage_key_prefix.strip("/") or "tiktok"
+    return DownloadPolicy(
+        temp_dir=Path(settings.tiktok_video_tmp_dir).resolve(),
+        storage_prefix=f"{prefix}/{now:%Y/%m/%d}",
+        default_storage_namespace="tiktok",
+        max_duration_sec=payload.max_duration_sec,
+    )
+
+
+def _storage_key(policy: DownloadPolicy, video_id: str, filename: str) -> str:
+    return policy.build_storage_key(video_id, filename=filename)
 
 
 async def execute_tiktok_video_download(
@@ -57,6 +66,7 @@ async def execute_tiktok_video_download(
 ) -> TikTokVideoDownloadResponse:
     repository = get_tiktok_video_download_repository()
     storage = build_video_storage()
+    policy = _download_policy(payload)
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
     serialized_payload = payload.model_dump(by_alias=True, mode="json")
@@ -75,12 +85,19 @@ async def execute_tiktok_video_download(
         return replay
 
     try:
-        downloaded = await download_tiktok_video(payload, target_dir=_download_dir())
-        key = _storage_key(downloaded.video_id, downloaded.file_path.name)
+        downloaded = await download_tiktok_video(payload, target_dir=policy.resolved_tmp_dir())
+        key = _storage_key(policy, downloaded.video_id, downloaded.file_path.name)
         stored = storage.put_file(
             source_path=downloaded.file_path,
             target_key=key,
             content_type=downloaded.mime_type,
+        )
+        media_asset = MediaAsset.from_stored(
+            stored,
+            sha256=downloaded.sha256,
+            duration_sec=downloaded.duration_sec,
+            width=downloaded.width,
+            height=downloaded.height,
         )
 
         response = TikTokVideoDownloadResponse(
@@ -99,16 +116,7 @@ async def execute_tiktok_video_download(
                 videoUrl=payload.video_url,
                 videoId=downloaded.video_id,
                 status="downloaded",
-                video=TikTokVideoAsset(
-                    storageKey=stored.key,
-                    storageBackend=stored.backend,
-                    mimeType=stored.content_type,
-                    sizeBytes=stored.size_bytes,
-                    durationSec=downloaded.duration_sec,
-                    width=downloaded.width,
-                    height=downloaded.height,
-                    sha256=downloaded.sha256,
-                ),
+                video=TikTokVideoAsset(**media_asset.as_video_payload()),
                 subtitle=None,
                 downloadTrace=TikTokDownloadTrace(
                     sourcePlatform="tiktok", fallbackUsed=False

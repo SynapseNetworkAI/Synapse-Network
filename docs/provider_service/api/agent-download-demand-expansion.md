@@ -18,8 +18,8 @@
    - `paper-pdf-download`
    - 已落地：request / response schema、endpoint wiring、typed repository、MinIO 存储、snapshot replay、调用审计、Postgres 表结构。
    - 当前边界：`signatureVerified` 已出现在 GitHub 响应里，但骨架阶段默认 `false`；Paper 入口现已支持 `arxiv|openalex|crossref`，其中后两者只接受解析到受信任学术 PDF Host 的下载地址。
-4. **Phase C 尚未开工**
-   - 还没有平台级 `DownloadPolicy`、`DownloadJob`、`MediaAsset`、`SnapshotRepository`、`StorageGateway`、`ComplianceGuard` 抽象。
+4. **Phase C 已启动抽象层骨架**
+   - `DownloadPolicy`、`MediaAsset`、`StorageGateway` 已接入现有下载服务，`DownloadJob`、`SnapshotRepository`、`ComplianceGuard` 仍待后续收敛。
    - 当前复用仍以 Twitter / YouTube / TikTok / Reddit 各自 service + repository 组合为主，离“平台下载框架”还有一层基础设施收敛工作。
 
 ## 1. 目标
@@ -253,15 +253,18 @@
 基础设施抽象与当前状态：
 
 1. `DownloadPolicy`
-   - 状态：**未实现**
+   - 状态：**已实现（骨架）**
+   - 说明：现有下载服务已使用统一 policy 承载 tmp dir、storage prefix、大小/时长阈值等运行时约束。
 2. `DownloadJob`
    - 状态：**未实现**
 3. `MediaAsset`
-   - 状态：**未实现**（当前只有各服务私有 asset schema / record）
+   - 状态：**已实现（骨架）**
+   - 说明：统一存储类资产元模型已收敛共享字段（hash、mime、size、duration、dimensions），再映射回各接口 schema。
 4. `SnapshotRepository`
    - 状态：**未实现**（当前只有按服务拆开的 repository）
 5. `StorageGateway`
-   - 状态：**未实现**（当前主要复用视频下载存储封装，还不是统一下载基础设施）
+   - 状态：**已实现（骨架）**
+   - 说明：MinIO 存储入口已收敛到统一 gateway / builder，视频、GitHub 资产、Paper PDF 共用同一存储边界。
 6. `ComplianceGuard`
    - 状态：**未实现**
 

@@ -15,6 +15,8 @@ from app.schemas.reddit_media_download import (
     RedditPostMeta,
 )
 from app.schemas.sentiment import ErrorRecord, FreshnessRecord, ServiceDescriptor, SourceRecord
+from app.services.asset_storage import build_storage_gateway
+from app.services.download_abstractions import DownloadPolicy, MediaAsset
 from app.services.download_snapshot_replay import replay_cached_snapshot_if_available
 from app.services.reddit_media_download.domain import RedditMediaAssetRecord, asset_key_from_request
 from app.services.reddit_media_download.downloader import download_reddit_media
@@ -23,7 +25,8 @@ from app.services.reddit_media_download.repository import (
     get_reddit_media_download_repository,
 )
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
-from app.services.twitter_video_download.storage import build_video_storage
+
+build_video_storage = build_storage_gateway
 
 
 SERVICE_ID = "svc_reddit_media_download"
@@ -39,14 +42,20 @@ def _to_zulu(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _download_dir() -> Path:
-    return Path(get_settings().reddit_media_tmp_dir).resolve()
-
-
-def _storage_key(post_id: str, filename: str) -> str:
+def _download_policy(payload: RedditMediaDownloadRequest) -> DownloadPolicy:
+    settings = get_settings()
     now = _now_utc()
-    prefix = get_settings().video_storage_key_prefix.strip("/") or "reddit"
-    return f"{prefix}/{now:%Y/%m/%d}/{post_id}/{filename}".strip("/")
+    prefix = settings.video_storage_key_prefix.strip("/") or "reddit"
+    return DownloadPolicy(
+        temp_dir=Path(settings.reddit_media_tmp_dir).resolve(),
+        storage_prefix=f"{prefix}/{now:%Y/%m/%d}",
+        default_storage_namespace="reddit",
+        max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+    )
+
+
+def _storage_key(policy: DownloadPolicy, post_id: str, filename: str) -> str:
+    return policy.build_storage_key(post_id, filename=filename)
 
 
 async def execute_reddit_media_download(
@@ -57,6 +66,7 @@ async def execute_reddit_media_download(
 ) -> RedditMediaDownloadResponse:
     repository = get_reddit_media_download_repository()
     storage = build_video_storage()
+    policy = _download_policy(payload)
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
     serialized_payload = payload.model_dump(by_alias=True, mode="json")
@@ -75,13 +85,14 @@ async def execute_reddit_media_download(
         return replay
 
     try:
-        downloaded = await download_reddit_media(payload, target_dir=_download_dir())
-        key = _storage_key(downloaded.post_id, downloaded.file_path.name)
+        downloaded = await download_reddit_media(payload, target_dir=policy.resolved_tmp_dir())
+        key = _storage_key(policy, downloaded.post_id, downloaded.file_path.name)
         stored = storage.put_file(
             source_path=downloaded.file_path,
             target_key=key,
             content_type=downloaded.mime_type,
         )
+        media_asset = MediaAsset.from_stored(stored, sha256=downloaded.sha256)
         response = RedditMediaDownloadResponse(
             service=ServiceDescriptor(
                 serviceId=SERVICE_ID,
@@ -98,13 +109,7 @@ async def execute_reddit_media_download(
                 postUrl=payload.post_url,
                 mediaType=downloaded.media_type,
                 status="downloaded",
-                media=RedditMediaAsset(
-                    storageKey=stored.key,
-                    storageBackend=stored.backend,
-                    mimeType=stored.content_type,
-                    sizeBytes=stored.size_bytes,
-                    sha256=downloaded.sha256,
-                ),
+                media=RedditMediaAsset(**media_asset.as_stored_payload()),
                 postMeta=RedditPostMeta(
                     subreddit=downloaded.subreddit,
                     postId=downloaded.post_id,

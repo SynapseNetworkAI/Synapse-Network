@@ -15,6 +15,8 @@ from app.schemas.github_release_asset_download import (
     GitHubReleaseStoredAsset,
 )
 from app.schemas.sentiment import ErrorRecord, FreshnessRecord, ServiceDescriptor, SourceRecord
+from app.services.asset_storage import build_storage_gateway
+from app.services.download_abstractions import DownloadPolicy, MediaAsset
 from app.services.download_snapshot_replay import replay_cached_snapshot_if_available
 from app.services.github_release_asset_download.domain import (
     GitHubReleaseAssetRecord,
@@ -28,7 +30,8 @@ from app.services.github_release_asset_download.repository import (
     get_github_release_asset_download_repository,
 )
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
-from app.services.asset_storage import build_asset_storage
+
+build_asset_storage = build_storage_gateway
 
 
 SERVICE_ID = "svc_github_release_asset_download"
@@ -44,17 +47,22 @@ def _to_zulu(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _download_dir() -> Path:
-    return Path(get_settings().github_release_asset_tmp_dir).resolve()
-
-
-def _storage_key(repo: str, release_tag: str, filename: str) -> str:
+def _download_policy() -> DownloadPolicy:
+    settings = get_settings()
     now = _now_utc()
     # `video_storage_key_prefix` is a legacy shared storage prefix setting reused by all asset types.
-    prefix = get_settings().video_storage_key_prefix.strip("/") or "github_release_assets"
+    prefix = settings.video_storage_key_prefix.strip("/") or "github_release_assets"
+    return DownloadPolicy(
+        temp_dir=Path(settings.github_release_asset_tmp_dir).resolve(),
+        storage_prefix=f"{prefix}/{now:%Y/%m/%d}",
+        default_storage_namespace="github_release_assets",
+    )
+
+
+def _storage_key(policy: DownloadPolicy, repo: str, release_tag: str, filename: str) -> str:
     repo_segment = repo.replace("/", "__")
     tag_segment = release_tag.replace("/", "__")
-    return f"{prefix}/{now:%Y/%m/%d}/{repo_segment}/{tag_segment}/{filename}".strip("/")
+    return policy.build_storage_key(repo_segment, tag_segment, filename=filename)
 
 
 async def execute_github_release_asset_download(
@@ -65,6 +73,7 @@ async def execute_github_release_asset_download(
 ) -> GitHubReleaseAssetDownloadResponse:
     repository = get_github_release_asset_download_repository()
     storage = build_asset_storage()
+    policy = _download_policy()
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
     serialized_payload = payload.model_dump(by_alias=True, mode="json")
@@ -83,13 +92,14 @@ async def execute_github_release_asset_download(
         return replay
 
     try:
-        downloaded = await download_github_release_asset(payload, target_dir=_download_dir())
-        key = _storage_key(downloaded.repo, downloaded.release_tag, downloaded.file_path.name)
+        downloaded = await download_github_release_asset(payload, target_dir=policy.resolved_tmp_dir())
+        key = _storage_key(policy, downloaded.repo, downloaded.release_tag, downloaded.file_path.name)
         stored = storage.put_file(
             source_path=downloaded.file_path,
             target_key=key,
             content_type=downloaded.mime_type,
         )
+        media_asset = MediaAsset.from_stored(stored, sha256=downloaded.sha256)
         response = GitHubReleaseAssetDownloadResponse(
             service=ServiceDescriptor(
                 serviceId=SERVICE_ID,
@@ -108,13 +118,7 @@ async def execute_github_release_asset_download(
                 status="downloaded",
                 assetName=downloaded.asset_name,
                 signatureVerified=downloaded.signature_verified,
-                asset=GitHubReleaseStoredAsset(
-                    storageKey=stored.key,
-                    storageBackend=stored.backend,
-                    mimeType=stored.content_type,
-                    sizeBytes=stored.size_bytes,
-                    sha256=downloaded.sha256,
-                ),
+                asset=GitHubReleaseStoredAsset(**media_asset.as_stored_payload()),
                 metadata=GitHubReleaseAssetMetadata(
                     repo=payload.repo,
                     releaseTag=downloaded.release_tag,

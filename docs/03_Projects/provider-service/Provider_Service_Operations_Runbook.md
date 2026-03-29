@@ -252,6 +252,7 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 1. 当前骨架支持 `arxiv|openalex|crossref` 三种 source。
 2. `openalex|crossref` 当前只会接受解析后命中的受信任学术 PDF Host（例如 arXiv / OpenReview / ACL Anthology 等），避免任意外部 URL 直拉。
 3. 返回体统一包含 `pdf.storageKey` 与 `metadata`（title/authors/year/doi）。
+4. 下载基础设施已开始共享 `DownloadPolicy` / `MediaAsset` / `StorageGateway`，后续新增下载服务优先复用这三层，而不是再各写一套 tmp dir / storage key / asset 映射逻辑。
 
 ### 5.8 TikTok / Reddit Phase A 错误码矩阵
 
