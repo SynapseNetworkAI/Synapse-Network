@@ -15,6 +15,7 @@ from app.schemas.tiktok_video_download import (
     TikTokVideoDownloadResponse,
     TikTokVideoDownloadResult,
 )
+from app.services.download_snapshot_replay import replay_cached_snapshot_if_available
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
 from app.services.tiktok_video_download.domain import TikTokVideoAssetRecord, asset_key_from_request
 from app.services.tiktok_video_download.downloader import download_tiktok_video
@@ -58,28 +59,19 @@ async def execute_tiktok_video_download(
     storage = build_video_storage()
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
-    cached_snapshot = repository.load_asset(asset_key)
-    now = _now_utc()
+    serialized_payload = payload.model_dump(by_alias=True, mode="json")
 
-    if cached_snapshot is not None and not cached_snapshot.is_expired(now=now):
-        replay = cached_snapshot.as_cache_hit_response()
-        repository.append_invocation(
-            ProviderInvocationRecord.build(
-                service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
-                response_status=200,
-                request_id=request_id,
-                gateway_request_id=gateway_request_id,
-                error_code=None,
-                upstream_status=None,
-                latency_ms=int((perf_counter() - start) * 1000),
-                cache_hit=True,
-                observability_payload={
-                    "assetKey": asset_key,
-                    "replayReason": "IDEMPOTENT_SNAPSHOT_REPLAY",
-                },
-            )
-        )
+    replay = replay_cached_snapshot_if_available(
+        repository=repository,
+        asset_key=asset_key,
+        now=_now_utc(),
+        service_id=SERVICE_ID,
+        payload=serialized_payload,
+        request_id=request_id,
+        gateway_request_id=gateway_request_id,
+        start_time=start,
+    )
+    if replay is not None:
         return replay
 
     try:
@@ -136,7 +128,7 @@ async def execute_tiktok_video_download(
         repository.append_invocation(
             ProviderInvocationRecord.build(
                 service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
+                input_payload=serialized_payload,
                 response_status=200,
                 request_id=request_id,
                 gateway_request_id=gateway_request_id,
@@ -171,7 +163,7 @@ async def execute_tiktok_video_download(
         repository.append_invocation(
             ProviderInvocationRecord.build(
                 service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
+                input_payload=serialized_payload,
                 response_status=200,
                 request_id=request_id,
                 gateway_request_id=gateway_request_id,
