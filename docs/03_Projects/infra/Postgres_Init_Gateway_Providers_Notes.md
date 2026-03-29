@@ -20,6 +20,7 @@
 12. 表：`provider_twitter_video_assets`
 13. 表：`provider_youtube_video_assets`
 14. 表：`provider_tiktok_video_assets`
+15. 表：`provider_reddit_media_assets`
 
 对应执行入口：
 
@@ -42,6 +43,8 @@
 17. `docker-compose/postgres/init/gateway-providers/009_apply_provider_youtube_video_schema.sh`
 18. `docker-compose/postgres/init/gateway-providers/010_provider_tiktok_video_schema.sql`
 19. `docker-compose/postgres/init/gateway-providers/010_apply_provider_tiktok_video_schema.sh`
+20. `docker-compose/postgres/init/gateway-providers/011_provider_reddit_media_schema.sql`
+21. `docker-compose/postgres/init/gateway-providers/011_apply_provider_reddit_media_schema.sh`
 
 `002_*` 的职责不是重复建表，而是把已经存在的 `provider_sentiment_snapshots` / `provider_sentiment_raw_feeds` 平滑升级到 production-v1 schema，补齐以下观测字段：
 
@@ -73,3 +76,6 @@
 
 
 `010_*` 用于新增 `provider_tiktok_video_assets`，支撑 tiktok 视频下载服务的 MinIO 对象映射与元数据持久化。
+
+
+`011_*` 用于新增 `provider_reddit_media_assets`，支撑 reddit 媒体下载服务的 MinIO 对象映射与元数据持久化。
