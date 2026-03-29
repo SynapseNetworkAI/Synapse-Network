@@ -26,7 +26,7 @@ class PaperPdfDownloadRequest(BaseModel):
         normalized = str(value).strip()
         parsed = urlparse(normalized)
         if parsed.scheme.lower() != "https":
-            raise ValueError("paperUrl must use https")
+            raise ValueError(f"paperUrl must use https, got: {parsed.scheme or 'missing'}")
         if not parsed.netloc:
             raise ValueError("paperUrl must include a host")
         return normalized

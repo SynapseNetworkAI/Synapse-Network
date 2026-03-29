@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import hashlib
 
 from app.schemas.github_release_asset_download import (
     GitHubReleaseAssetDownloadRequest,

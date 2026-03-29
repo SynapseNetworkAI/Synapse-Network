@@ -78,7 +78,7 @@ def stub_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         )
 
     monkeypatch.setattr(paper_pdf_download_service, "download_paper_pdf", _fake_download)
-    monkeypatch.setattr(paper_pdf_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(paper_pdf_download_service, "build_asset_storage", lambda: FakeStorage())
     monkeypatch.setattr(
         paper_pdf_download_service,
         "get_paper_pdf_download_repository",
@@ -140,7 +140,7 @@ def test_paper_pdf_download_size_limit_returns_502(
         raise ValueError("PAPER_PDF_SIZE_EXCEEDED")
 
     monkeypatch.setattr(paper_pdf_download_service, "download_paper_pdf", _too_big)
-    monkeypatch.setattr(paper_pdf_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(paper_pdf_download_service, "build_asset_storage", lambda: FakeStorage())
     monkeypatch.setattr(
         paper_pdf_download_service,
         "get_paper_pdf_download_repository",
@@ -169,7 +169,7 @@ def test_paper_pdf_download_failure_without_snapshot_returns_502(
         raise ValueError("PAPER_PDF_DOWNLOAD_FAILED")
 
     monkeypatch.setattr(paper_pdf_download_service, "download_paper_pdf", _boom)
-    monkeypatch.setattr(paper_pdf_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(paper_pdf_download_service, "build_asset_storage", lambda: FakeStorage())
     monkeypatch.setattr(
         paper_pdf_download_service,
         "get_paper_pdf_download_repository",
@@ -217,7 +217,7 @@ def test_paper_pdf_download_idempotent_replay_hits_snapshot(
         )
 
     monkeypatch.setattr(paper_pdf_download_service, "download_paper_pdf", _fake_download)
-    monkeypatch.setattr(paper_pdf_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(paper_pdf_download_service, "build_asset_storage", lambda: FakeStorage())
     monkeypatch.setattr(
         paper_pdf_download_service,
         "get_paper_pdf_download_repository",
@@ -273,7 +273,7 @@ def test_paper_pdf_download_snapshot_fallback(
         )
 
     monkeypatch.setattr(paper_pdf_download_service, "download_paper_pdf", _ok_download)
-    monkeypatch.setattr(paper_pdf_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(paper_pdf_download_service, "build_asset_storage", lambda: FakeStorage())
     monkeypatch.setattr(
         paper_pdf_download_service,
         "get_paper_pdf_download_repository",

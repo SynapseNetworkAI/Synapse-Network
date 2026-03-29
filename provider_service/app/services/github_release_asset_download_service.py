@@ -28,7 +28,7 @@ from app.services.github_release_asset_download.repository import (
     get_github_release_asset_download_repository,
 )
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
-from app.services.twitter_video_download.storage import build_video_storage
+from app.services.twitter_video_download.storage import build_asset_storage
 
 
 SERVICE_ID = "svc_github_release_asset_download"
@@ -63,7 +63,7 @@ async def execute_github_release_asset_download(
     gateway_request_id: str | None,
 ) -> GitHubReleaseAssetDownloadResponse:
     repository = get_github_release_asset_download_repository()
-    storage = build_video_storage()
+    storage = build_asset_storage()
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
     serialized_payload = payload.model_dump(by_alias=True, mode="json")

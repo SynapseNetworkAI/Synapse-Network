@@ -17,7 +17,7 @@
    - `github-release-asset-download`
    - `paper-pdf-download`
    - 已落地：request / response schema、endpoint wiring、typed repository、MinIO 存储、snapshot replay、调用审计、Postgres 表结构。
-   - 当前边界：`signatureVerified` 已出现在 GitHub 响应里，但骨架阶段默认 `false`；Paper 入口优先支持 arXiv 与直接 PDF URL。
+   - 当前边界：`signatureVerified` 已出现在 GitHub 响应里，但骨架阶段默认 `false`；Paper 入口当前优先支持 arXiv，`openalex|crossref` 解析器留待后续接入。
 4. **Phase C 尚未开工**
    - 还没有平台级 `DownloadPolicy`、`DownloadJob`、`MediaAsset`、`SnapshotRepository`、`StorageGateway`、`ComplianceGuard` 抽象。
    - 当前复用仍以 Twitter / YouTube / TikTok / Reddit 各自 service + repository 组合为主，离“平台下载框架”还有一层基础设施收敛工作。
