@@ -219,7 +219,40 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 }
 ```
 
-### 5.6 TikTok / Reddit Phase A 错误码矩阵
+### 5.6 测试 GitHub Release Asset 下载接口
+
+请求体样例：
+
+```json
+{
+  "repo": "openai/openai-python",
+  "tag": "v1.0.0",
+  "assetPattern": "*.tar.gz"
+}
+```
+
+说明：
+
+1. `tag` 与 `latest=true` 二选一。
+2. 当前 Phase B 骨架会返回统一 `asset.storageKey + metadata`，并保留 `signatureVerified` 字段；验签值当前默认 `false`，后续再补校验链路。
+
+### 5.7 测试 Paper PDF 下载接口
+
+请求体样例：
+
+```json
+{
+  "paperId": "2401.00001",
+  "source": "arxiv"
+}
+```
+
+说明：
+
+1. 当前骨架优先支持 arXiv `paperId` / `paperUrl`，以及 `openalex|crossref` 下直接 PDF URL。
+2. 返回体统一包含 `pdf.storageKey` 与 `metadata`（title/authors/year/doi）。
+
+### 5.8 TikTok / Reddit Phase A 错误码矩阵
 
 | Service | Error code | 含义 | 运维动作 |
 | --- | --- | --- | --- |
@@ -230,7 +263,7 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 | Reddit | `REDDIT_MEDIA_DOWNLOAD_FAILED` | live 下载失败且没有可回放 snapshot | 检查 Reddit 帖子可见性、资源可达性和下载器状态 |
 | Reddit | `REDDIT_MEDIA_SNAPSHOT_FALLBACK_USED` | live 下载失败，但已回放最近未过期 snapshot | 视为降级成功，重点排查上游抖动与下载链路健康 |
 
-### 5.7 幂等回放 / snapshot 行为
+### 5.9 幂等回放 / snapshot 行为
 
 1. TikTok / Reddit 都以请求字段生成稳定 `asset_key`。
 2. 同请求在 TTL 内再次调用时，runtime 直接回放已持久化结果，不再重复下载。
