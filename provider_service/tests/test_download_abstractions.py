@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from app.services.asset_storage import StoredAsset
 from app.services.download_abstractions import DownloadPolicy, MediaAsset
 
@@ -52,3 +54,14 @@ def test_media_asset_payloads_include_shared_and_video_fields():
         "width": 1280,
         "height": 720,
     }
+
+
+def test_download_policy_rejects_path_traversal_filename(tmp_path: Path):
+    policy = DownloadPolicy(
+        temp_dir=tmp_path,
+        storage_prefix="downloads",
+        default_storage_namespace="downloads",
+    )
+
+    with pytest.raises(ValueError, match="single path segment"):
+        policy.build_storage_key("github", filename="../asset.tar.gz")

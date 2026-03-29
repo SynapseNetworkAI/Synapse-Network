@@ -83,6 +83,7 @@ def build_storage_gateway() -> StorageGateway:
     )
 
 
+# Legacy aliases kept so existing download services and tests can migrate to the Phase C names incrementally.
 StoredObject = StoredAsset
 AssetStorage = StorageGateway
 MinioAssetStorage = MinioStorageGateway

@@ -27,6 +27,7 @@ from app.services.twitter_video_download.repository import (
     get_twitter_video_download_repository,
 )
 
+# Compatibility alias for existing tests / patches during the Phase C rollout.
 build_video_storage = build_storage_gateway
 
 

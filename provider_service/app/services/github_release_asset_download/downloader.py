@@ -15,6 +15,7 @@ GITHUB_API_BASE_URL = "https://api.github.com"
 GITHUB_DOWNLOAD_TIMEOUT_S = 30.0
 MAX_ASSET_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 # Security boundary: this path only trusts canonical GitHub release download hosts.
+# Keep `www.github.com` because some release links arrive after browser-style redirect normalization.
 ALLOWED_GITHUB_DOWNLOAD_HOSTS = {"github.com", "www.github.com"}
 
 

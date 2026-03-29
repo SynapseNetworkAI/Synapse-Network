@@ -11,6 +11,7 @@ class DownloadPolicy:
     temp_dir: Path
     storage_prefix: str
     default_storage_namespace: str
+    # Reserved for the next Phase C steps: host gating, timeout shaping, and async scheduling.
     allowed_hosts: frozenset[str] = frozenset()
     timeout_s: float | None = None
     max_size_bytes: int | None = None
@@ -21,9 +22,20 @@ class DownloadPolicy:
         return Path(self.temp_dir).resolve()
 
     def build_storage_key(self, *segments: str, filename: str) -> str:
+        normalized_filename = filename.strip()
+        if (
+            not normalized_filename
+            or normalized_filename in {".", ".."}
+            or "/" in normalized_filename
+            or "\\" in normalized_filename
+        ):
+            raise ValueError("filename must be a single path segment")
         normalized_prefix = self.storage_prefix.strip("/") or self.default_storage_namespace
         normalized_segments = [segment.strip("/") for segment in segments if segment and segment.strip("/")]
-        return "/".join([normalized_prefix, *normalized_segments, filename]).strip("/")
+        storage_key = "/".join([normalized_prefix, *normalized_segments, normalized_filename]).strip("/")
+        if storage_key.startswith("/") or "//" in storage_key:
+            raise ValueError("storage key must be normalized")
+        return storage_key
 
 
 @dataclass(frozen=True)
