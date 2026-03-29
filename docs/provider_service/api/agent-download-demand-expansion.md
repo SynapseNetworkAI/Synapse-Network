@@ -3,6 +3,7 @@
 - Status: proposed-v1
 - Owner: provider_service
 - Last updated: 2026-03-29
+- Framework progress: shared download executor (`app/services/download_runtime/executor.py`) 已落地，Twitter/YouTube/TikTok 已迁移到统一执行骨架
 
 ## 1. 目标
 
