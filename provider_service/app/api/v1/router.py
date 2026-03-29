@@ -20,6 +20,9 @@ from app.api.v1.endpoints.twitter_video_download import (
 from app.api.v1.endpoints.tiktok_video_download import (
     router as tiktok_video_download_router,
 )
+from app.api.v1.endpoints.reddit_media_download import (
+    router as reddit_media_download_router,
+)
 from app.api.v1.endpoints.youtube_video_download import (
     router as youtube_video_download_router,
 )
@@ -33,4 +36,5 @@ api_v1_router.include_router(whale_flow_monitor_router)
 api_v1_router.include_router(oss_security_healthcheck_router)
 api_v1_router.include_router(twitter_video_download_router)
 api_v1_router.include_router(tiktok_video_download_router)
+api_v1_router.include_router(reddit_media_download_router)
 api_v1_router.include_router(youtube_video_download_router)
