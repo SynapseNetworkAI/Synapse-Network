@@ -50,9 +50,9 @@
 5. `twitter-video-download` 已支持帖子链接下载 + MinIO 存储 + 元数据落库
 6. `youtube-video-download` 已支持 YouTube 链接下载 + MinIO 存储 + 元数据落库
 7. YouTube 下载服务上线前闸门与红线清单见 `docs/provider_service/api/youtube-video-download-service-design.md` 第 12 节
-8. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
 8. TikTok 视频下载方案设计见 `docs/provider_service/api/tiktok-video-download-service-design.md`
 9. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
+10. 下载能力已引入统一执行骨架：`provider_service/app/services/download_runtime/executor.py`（Twitter/YouTube/TikTok 共用）
 
 ## 4. 职责边界
 

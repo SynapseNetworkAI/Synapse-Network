@@ -2,12 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from time import perf_counter
-
-from fastapi import HTTPException
 
 from app.core.config import get_settings
-from app.schemas.sentiment import ErrorRecord, FreshnessRecord, ServiceDescriptor, SourceRecord
+from app.schemas.sentiment import FreshnessRecord, ServiceDescriptor, SourceRecord
 from app.schemas.tiktok_video_download import (
     TikTokVideoAsset,
     TikTokVideoDownloadRequest,
@@ -15,7 +12,10 @@ from app.schemas.tiktok_video_download import (
     TikTokVideoDownloadResult,
     TikTokVideoMeta,
 )
-from app.services.smart_contract_audit.domain import ProviderInvocationRecord
+from app.services.download_runtime.executor import (
+    DownloadExecutionContext,
+    execute_download_with_repository,
+)
 from app.services.tiktok_video_download.domain import (
     TikTokVideoAssetRecord,
     asset_key_from_request,
@@ -59,10 +59,9 @@ async def execute_tiktok_video_download(
 ) -> TikTokVideoDownloadResponse:
     repository = get_tiktok_video_download_repository()
     storage = build_video_storage()
-    start = perf_counter()
     asset_key = asset_key_from_request(payload)
 
-    try:
+    async def _run_live_download() -> tuple[TikTokVideoDownloadResponse, dict[str, str]]:
         downloaded = await download_tiktok_video(payload, target_dir=_download_dir())
         key = _storage_key(downloaded.post_id, downloaded.file_path.name)
         stored = storage.put_file(
@@ -105,65 +104,29 @@ async def execute_tiktok_video_download(
             ),
             errors=[],
         )
+        return response, {"assetKey": asset_key, "storageKey": stored.key}
 
-        repository.save_asset(
-            TikTokVideoAssetRecord(
-                asset_key=asset_key,
-                request=payload,
-                response=response,
-                expires_at=asset_expiry(get_settings().tiktok_video_cache_ttl_s),
-            )
+    def _build_record(response: TikTokVideoDownloadResponse) -> TikTokVideoAssetRecord:
+        return TikTokVideoAssetRecord(
+            asset_key=asset_key,
+            request=payload,
+            response=response,
+            expires_at=asset_expiry(get_settings().tiktok_video_cache_ttl_s),
         )
 
-        repository.append_invocation(
-            ProviderInvocationRecord.build(
-                service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
-                response_status=200,
-                request_id=request_id,
-                gateway_request_id=gateway_request_id,
-                error_code=None,
-                upstream_status=None,
-                latency_ms=int((perf_counter() - start) * 1000),
-                cache_hit=False,
-                observability_payload={"assetKey": asset_key, "storageKey": stored.key},
-            )
-        )
-        return response
-    except ValueError as exc:
-        message = str(exc)
-        code = message if message.isupper() else "TIKTOK_DOWNLOAD_FAILED"
-    except Exception as exc:  # noqa: BLE001
-        code = "TIKTOK_DOWNLOAD_FAILED"
-        message = str(exc)
-
-    snapshot = repository.load_asset(asset_key)
-    if snapshot is not None and not snapshot.is_expired(now=_now_utc()):
-        replay = snapshot.as_cache_hit_response().model_copy(
-            update={
-                "errors": [
-                    *snapshot.response.errors,
-                    ErrorRecord(
-                        code="TIKTOK_SNAPSHOT_FALLBACK_USED",
-                        message="Returning persisted tiktok video asset due to live download failure.",
-                    ),
-                ]
-            }
-        )
-        repository.append_invocation(
-            ProviderInvocationRecord.build(
-                service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
-                response_status=200,
-                request_id=request_id,
-                gateway_request_id=gateway_request_id,
-                error_code=code,
-                upstream_status=None,
-                latency_ms=int((perf_counter() - start) * 1000),
-                cache_hit=True,
-                observability_payload={"assetKey": asset_key, "fallbackReason": message},
-            )
-        )
-        return replay
-
-    raise HTTPException(status_code=502, detail={"code": code, "message": message})
+    return await execute_download_with_repository(
+        context=DownloadExecutionContext(
+            service_id=SERVICE_ID,
+            request_id=request_id,
+            gateway_request_id=gateway_request_id,
+            input_payload=payload.model_dump(by_alias=True, mode="json"),
+            asset_key=asset_key,
+            fallback_error_code="TIKTOK_SNAPSHOT_FALLBACK_USED",
+            fallback_error_message="Returning persisted tiktok video asset due to live download failure.",
+            default_error_code="TIKTOK_DOWNLOAD_FAILED",
+        ),
+        repository=repository,
+        run_live_download=_run_live_download,
+        build_record=_build_record,
+        now_utc=_now_utc,
+    )
