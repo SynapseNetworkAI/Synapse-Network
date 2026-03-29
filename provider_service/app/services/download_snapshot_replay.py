@@ -11,12 +11,25 @@ ResponseT = TypeVar("ResponseT")
 
 
 class ReplaySnapshotRecord(Protocol[ResponseT]):
+    """Persisted snapshot contract used by idempotent replay.
+
+    `is_expired` should apply the service-specific TTL semantics for the given `now`.
+    `as_cache_hit_response` should return a response object marked as a cache hit without mutating the stored snapshot in place.
+    """
+
     def is_expired(self, *, now: datetime) -> bool: ...
 
     def as_cache_hit_response(self) -> ResponseT: ...
 
 
 class ReplayCapableRepository(Protocol[ResponseT]):
+    """Repository contract required by download replay.
+
+    `load_asset` should return `None` when the asset does not exist and the stored snapshot record otherwise.
+    Expired snapshots may still be returned, because expiry filtering is owned by the caller.
+    `append_invocation` is expected to durably record the replayed invocation on the normal audit path.
+    """
+
     def load_asset(self, asset_key: str) -> ReplaySnapshotRecord[ResponseT] | None: ...
 
     def append_invocation(self, record: ProviderInvocationRecord) -> None: ...
