@@ -2,10 +2,12 @@ from __future__ import annotations
 
 
 class ReplayAwareRepository:
-    def __init__(self, stored_repo) -> None:
+    """Test helper that forces a cache miss on the first lookup, then replays the stored snapshot."""
+
+    def __init__(self, stored_repo, *, miss_first_lookup: bool = True) -> None:
         self._stored_repo = stored_repo
         self.invocations = stored_repo.invocations
-        self._first_lookup = True
+        self._first_lookup = miss_first_lookup
 
     def save_asset(self, record) -> None:
         self._stored_repo.save_asset(record)
