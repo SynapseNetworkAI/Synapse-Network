@@ -87,7 +87,7 @@ inventory 中每条记录都必须至少声明：
     "tier": "root-entrypoint",
     "status": "canonical",
     "owner": "architecture",
-    "lastReviewed": "2026-03-25",
+    "lastReviewed": "2026-03-29",
     "reviewCadenceDays": 30,
     "codePaths": [
       "gateway",
