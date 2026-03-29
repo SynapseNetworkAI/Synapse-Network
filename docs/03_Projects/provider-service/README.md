@@ -33,14 +33,25 @@
 2. `POST /provider-services/web3-sentiment-index/invoke`
 3. `POST /provider-services/protocol-fundamental-brief/invoke`
 4. `POST /provider-services/smart-contract-audit/invoke`
-5. `POST /api/v1/quotes/famous`
-6. `POST /api/v1/quotes/famous/top3`
+5. `POST /provider-services/whale-flow-monitor/invoke`
+6. `POST /provider-services/oss-security-healthcheck/invoke`
+7. `POST /provider-services/twitter-video-download/invoke`
+8. `POST /provider-services/youtube-video-download/invoke`
+9. `POST /api/v1/quotes/famous`
+10. `POST /api/v1/quotes/famous/top3`
+11. `POST /provider-services/tiktok-video-download/invoke`
 
 其中：
 
 1. `provider-services/*` 是当前面向 Gateway 签名调用的主运行时入口
 2. `quotes/*` 仍保留为早期 demo / smoke path，不再代表 provider_service 的主要产品方向
 3. 当前目标是继续把 Provider Runtime 演进为标准化样板服务宿主，而不是停留在单一 quotes demo
+4. `whale-flow-monitor` 与 `oss-security-healthcheck` 已升级为可落库可回放形态（快照+调用审计）
+5. `twitter-video-download` 已支持帖子链接下载 + MinIO 存储 + 元数据落库
+6. `youtube-video-download` 已支持 YouTube 链接下载 + MinIO 存储 + 元数据落库
+7. YouTube 下载服务上线前闸门与红线清单见 `docs/provider_service/api/youtube-video-download-service-design.md` 第 12 节
+8. TikTok 视频下载方案设计见 `docs/provider_service/api/tiktok-video-download-service-design.md`
+9. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
 
 ## 4. 职责边界
 
