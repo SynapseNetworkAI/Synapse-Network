@@ -11,8 +11,8 @@
    - `POST /provider-services/reddit-media-download/invoke`
    - 已完成 request / response schema、endpoint wiring、service 编排、Gateway 验签、MinIO 存储、资产元数据落库、调用审计记录、snapshot fallback。
 2. **Phase A 仍有收口项未完成**
-   - TikTok / Reddit 当前自动化测试已覆盖 `成功`、`URL 非法`、`snapshot fallback`，但还没补齐 `资源超限`、`无快照时下载失败`、`同请求幂等回放` 的回归断言。
-   - 运行手册和失败码矩阵还没有把 TikTok / Reddit 两条下载链路系统化收进来，目前主要入口仍停留在项目 README / 本地开发文档。
+   - 已补齐 TikTok / Reddit 的 `资源超限`、`无快照时下载失败`、`同请求幂等回放` 回归断言。
+   - 运行手册与失败码矩阵已补齐 TikTok / Reddit Phase A 闭环说明。
 3. **Phase B 尚未开工**
    - `github-release-asset-download`
    - `paper-pdf-download`
@@ -173,9 +173,9 @@
 落地步骤与当前状态：
 
 1. **新增 schema（request / response / error code）**
-   - 状态：**部分完成**
+   - 状态：**已完成**
    - 已实现：TikTok / Reddit request / response schema 已落地。
-   - 未完成：面向文档的失败码矩阵还没单独整理，测试也没把全部失败码打满。
+   - 已补齐：面向 Phase A 的失败码矩阵已在本页与运行手册同步。
 2. **新增 endpoint：`app/api/v1/endpoints/*`，并在 `router.py` 注册**
    - 状态：**已完成**
    - 已落地：
@@ -192,13 +192,11 @@
    - 状态：**已完成**
    - 已落地：两条链路都复用 `build_video_storage()`、Postgres / in-memory repository、snapshot fallback 形态
 5. **加测试：成功、URL 非法、资源超限、下载失败、幂等回放**
-   - 状态：**部分完成**
-   - 已完成：成功、URL 非法、snapshot fallback
-   - 未完成：资源超限、无快照下载失败、同请求幂等回放
+   - 状态：**已完成**
+   - 已完成：成功、URL 非法、资源超限、无快照下载失败、幂等回放、snapshot fallback
 6. **文档同步：接口说明 + 运行手册 + 失败码矩阵**
-   - 状态：**部分完成**
-   - 已完成：项目 README、本地开发文档、下载扩展专题文档已声明 TikTok / Reddit 可用
-   - 未完成：运维手册与失败码矩阵尚未系统补齐
+   - 状态：**已完成**
+   - 已完成：项目 README、本地开发文档、下载扩展专题文档、运维手册、失败码矩阵同步收敛
 
 ### Phase B（14 天）
 
@@ -219,6 +217,26 @@
    - 状态：**未实现**
 5. **回放 / 降级策略接入（失败可观测）**
    - 状态：**未实现**
+
+### Phase A 失败码矩阵（当前已落地）
+
+| Service | Error code | 触发条件 | 当前行为 |
+| --- | --- | --- | --- |
+| `svc_tiktok_video_download` | `TIKTOK_VIDEO_DURATION_EXCEEDED` | 下载资源时长超过 `maxDurationSec` | 返回 `502` 结构化错误 |
+| `svc_tiktok_video_download` | `TIKTOK_VIDEO_DOWNLOAD_FAILED` | live 下载失败且无可用 snapshot | 返回 `502` 结构化错误 |
+| `svc_tiktok_video_download` | `TIKTOK_VIDEO_SNAPSHOT_FALLBACK_USED` | live 下载失败但命中未过期 snapshot | 返回 `200`，`freshness.cacheHit=true`，并在 `errors` 追加 fallback 标记 |
+| `svc_reddit_media_download` | `REDDIT_MEDIA_SIZE_EXCEEDED` | 媒体大小超过 `maxFileSizeMb` | 返回 `502` 结构化错误 |
+| `svc_reddit_media_download` | `REDDIT_MEDIA_DOWNLOAD_FAILED` | live 下载失败且无可用 snapshot | 返回 `502` 结构化错误 |
+| `svc_reddit_media_download` | `REDDIT_MEDIA_SNAPSHOT_FALLBACK_USED` | live 下载失败但命中未过期 snapshot | 返回 `200`，`freshness.cacheHit=true`，并在 `errors` 追加 fallback 标记 |
+
+### Phase A 幂等回放口径（当前已落地）
+
+1. TikTok / Reddit 均使用 request canonical fields 计算 `asset_key`。
+2. 当同请求再次到达且命中未过期 snapshot 时，直接返回已持久化响应，不再触发 live 下载。
+3. 幂等回放响应表现为：
+   - `freshness.cacheHit=true`
+   - `errors=[]`
+   - 调用审计记录保留 `cache_hit=true` 与 `replayReason=IDEMPOTENT_SNAPSHOT_REPLAY`
 
 ### Phase C（30 天）
 
