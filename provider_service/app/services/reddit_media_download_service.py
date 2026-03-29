@@ -26,6 +26,7 @@ from app.services.reddit_media_download.repository import (
 )
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
 
+# Compatibility alias for existing tests / patches during the Phase C rollout.
 build_video_storage = build_storage_gateway
 
 

@@ -18,8 +18,8 @@ from app.schemas.paper_pdf_download import PaperPdfDownloadRequest
 PAPER_DOWNLOAD_TIMEOUT_S = 30.0
 MAX_PDF_SIZE_BYTES = 128 * 1024 * 1024
 MIN_VALID_PUBLICATION_YEAR = 1900
-ARXIV_ID_PATTERN = re.compile(r"(?P<id>(?:\d{4}\.\d{4,5}|[a-z-]+/\d{7})(?:v\d+)?)")
-OPENALEX_ID_PATTERN = re.compile(r"(?P<id>W\d+)", re.IGNORECASE)
+ARXIV_ID_PATTERN = re.compile(r"(?P<arxiv_id>(?:\d{4}\.\d{4,5}|[a-z-]+/\d{7})(?:v\d+)?)")
+OPENALEX_ID_PATTERN = re.compile(r"(?P<openalex_id>W\d+)", re.IGNORECASE)
 DOI_PATTERN = re.compile(r"(?P<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", re.IGNORECASE)
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 OPENALEX_API_URL = "https://api.openalex.org/works"
@@ -117,11 +117,11 @@ def _extract_arxiv_id(payload: PaperPdfDownloadRequest) -> str:
     if payload.paper_id:
         match = ARXIV_ID_PATTERN.search(payload.paper_id)
         if match:
-            return match.group("id")
+            return match.group("arxiv_id")
     if payload.paper_url:
         match = ARXIV_ID_PATTERN.search(payload.paper_url)
         if match:
-            return match.group("id")
+            return match.group("arxiv_id")
     raise ValueError("PAPER_NOT_FOUND")
 
 
@@ -131,7 +131,7 @@ def _extract_openalex_id(payload: PaperPdfDownloadRequest) -> str:
             continue
         match = OPENALEX_ID_PATTERN.search(raw)
         if match:
-            return match.group("id").upper()
+            return match.group("openalex_id").upper()
     raise ValueError("PAPER_NOT_FOUND")
 
 
@@ -303,22 +303,25 @@ async def _download_pdf(
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise ValueError("PAPER_PDF_DOWNLOAD_FAILED") from exc
-        # Fast-fail optimization only; the streaming counter below is the authoritative size guard.
+        # Intentional short-circuit: if upstream already declares an oversized payload, fail early;
+        # otherwise the streaming counter below remains the authoritative size guard.
         expected_size = int(response.headers.get("Content-Length") or 0)
         if expected_size > MAX_PDF_SIZE_BYTES:
             raise ValueError("PAPER_PDF_SIZE_EXCEEDED")
         size_bytes = 0
-        with file_path.open("wb") as handle:
-            async for chunk in response.aiter_bytes():
-                if not chunk:
-                    continue
-                size_bytes += len(chunk)
-                if size_bytes > MAX_PDF_SIZE_BYTES:
-                    handle.close()
-                    file_path.unlink(missing_ok=True)
-                    raise ValueError("PAPER_PDF_SIZE_EXCEEDED")
-                handle.write(chunk)
-                digest.update(chunk)
+        try:
+            with file_path.open("wb") as handle:
+                async for chunk in response.aiter_bytes():
+                    if not chunk:
+                        continue
+                    size_bytes += len(chunk)
+                    if size_bytes > MAX_PDF_SIZE_BYTES:
+                        raise ValueError("PAPER_PDF_SIZE_EXCEEDED")
+                    handle.write(chunk)
+                    digest.update(chunk)
+        except Exception:
+            file_path.unlink(missing_ok=True)
+            raise
     if not file_path.exists():
         raise ValueError("PAPER_PDF_DOWNLOAD_FAILED")
     size_bytes = file_path.stat().st_size

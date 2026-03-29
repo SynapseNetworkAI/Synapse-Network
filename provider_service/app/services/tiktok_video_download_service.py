@@ -26,6 +26,7 @@ from app.services.tiktok_video_download.repository import (
     get_tiktok_video_download_repository,
 )
 
+# Compatibility alias for existing tests / patches during the Phase C rollout.
 build_video_storage = build_storage_gateway
 
 
