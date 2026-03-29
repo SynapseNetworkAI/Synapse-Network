@@ -24,7 +24,7 @@
 5. [智能合约漏洞深度审计模型](./smart-contract-audit/README.md)
 6. [Twitter 视频下载服务设计](./twitter-video-download-service-design.md)
 7. [YouTube 视频下载服务设计](./youtube-video-download-service-design.md)
-8. [下载类接口扩展需求挖掘（Agent 生态）](./agent-download-demand-expansion.md)
+8. 下载类接口扩展需求挖掘与实施状态跟踪：`docs/provider_service/api/agent-download-demand-expansion.md`
 
 实现设计（已落地）：
 
