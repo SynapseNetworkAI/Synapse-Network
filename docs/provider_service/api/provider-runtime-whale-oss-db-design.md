@@ -1,6 +1,6 @@
 # Provider Runtime 数据库设计：Whale Flow Monitor + OSS Security Healthcheck
 
-- Status: canonical-for-implementation
+- Status: supplementary
 - Scope: `svc_whale_flow_monitor`, `svc_oss_security_healthcheck`
 - Database: `synapse_gateway_providers`
 
