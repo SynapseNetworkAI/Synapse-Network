@@ -21,6 +21,8 @@
 15. `008_provider_twitter_video_schema.sql`
 16. `009_apply_provider_youtube_video_schema.sh`
 17. `009_provider_youtube_video_schema.sql`
+18. `010_apply_provider_tiktok_reddit_schema.sh`
+19. `010_provider_tiktok_reddit_schema.sql`
 
 当前 provider 独立数据库：
 
@@ -38,6 +40,8 @@
 8. `provider_oss_security_reports`
 9. `provider_twitter_video_assets`
 10. `provider_youtube_video_assets`
+11. `provider_tiktok_video_assets`
+12. `provider_reddit_media_assets`
 
 其中 `002_*` 用于对已经存在的 provider sentiment 表执行 production-v1 observability 字段升级，补齐 source timeout/retry/http status/payload hash 等落库能力。
 
@@ -58,3 +62,5 @@ canonical 说明文档已经迁到：
 `008_*` 用于给 `svc_twitter_video_download` 增加视频资产元数据表，配合 MinIO 存储实现可落库可回放。
 
 `009_*` 用于给 `svc_youtube_video_download` 增加视频资产元数据表，配合 MinIO 存储实现可落库可回放。
+
+`010_*` 用于给 `svc_tiktok_video_download` 与 `svc_reddit_media_download` 增加资产元数据表，配合 MinIO 存储实现可落库可回放。

@@ -73,6 +73,8 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 当前运行时已包含 `Web3 Sentiment Index` provider endpoint：`POST /provider-services/web3-sentiment-index/invoke`。
 当前运行时已包含 `Protocol Fundamental Brief` provider endpoint：`POST /provider-services/protocol-fundamental-brief/invoke`。
 当前运行时已包含 `Smart Contract Audit Model` provider endpoint：`POST /provider-services/smart-contract-audit/invoke`。
+当前运行时已包含 `TikTok Video Download` provider endpoint：`POST /provider-services/tiktok-video-download/invoke`。
+当前运行时已包含 `Reddit Media Download` provider endpoint：`POST /provider-services/reddit-media-download/invoke`。
 本地默认运行配置已切到独立 provider PostgreSQL：`synapse_gateway_providers`。
 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 snapshot freshness policy，scheduler 在开启时已接入持久化 lease / cooldown 状态表。
 `Protocol Fundamental Brief` 现在已接入 typed repository + in-memory cache：未过期快照会优先走内存或 PostgreSQL 持久化缓存，全源失败时会退回最近一次已持久化快照。

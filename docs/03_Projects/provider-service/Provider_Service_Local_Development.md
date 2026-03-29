@@ -8,8 +8,14 @@
 2. `POST /provider-services/web3-sentiment-index/invoke`
 3. `POST /provider-services/protocol-fundamental-brief/invoke`
 4. `POST /provider-services/smart-contract-audit/invoke`
-5. `POST /api/v1/quotes/famous`
-6. `POST /api/v1/quotes/famous/top3`
+5. `POST /provider-services/whale-flow-monitor/invoke`
+6. `POST /provider-services/oss-security-healthcheck/invoke`
+7. `POST /provider-services/twitter-video-download/invoke`
+8. `POST /provider-services/youtube-video-download/invoke`
+9. `POST /provider-services/tiktok-video-download/invoke`
+10. `POST /provider-services/reddit-media-download/invoke`
+11. `POST /api/v1/quotes/famous`
+12. `POST /api/v1/quotes/famous/top3`
 
 ## 为什么单独新建一个文件夹
 
