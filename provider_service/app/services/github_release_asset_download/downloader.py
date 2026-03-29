@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import fnmatch
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 
@@ -12,7 +13,8 @@ from app.schemas.github_release_asset_download import GitHubReleaseAssetDownload
 
 GITHUB_API_BASE_URL = "https://api.github.com"
 GITHUB_DOWNLOAD_TIMEOUT_S = 30.0
-MAX_ASSET_BYTES = 2 * 1024 * 1024 * 1024
+MAX_ASSET_SIZE_BYTES = 2 * 1024 * 1024 * 1024
+ALLOWED_GITHUB_DOWNLOAD_HOSTS = {"github.com", "www.github.com"}
 
 
 @dataclass(frozen=True)
@@ -75,16 +77,23 @@ async def download_github_release_asset(
             asset_pattern=payload.asset_pattern,
         )
         expected_size = int(asset.get("size") or 0)
-        if expected_size > MAX_ASSET_BYTES:
+        if expected_size > MAX_ASSET_SIZE_BYTES:
             raise ValueError("GITHUB_ASSET_SIZE_EXCEEDED")
 
-        asset_name = Path(str(asset.get("name") or "release-asset.bin")).name or "release-asset.bin"
+        asset_name = Path(str(asset.get("name") or "release-asset.bin")).name
         file_path = target_dir / asset_name
         digest = hashlib.sha256()
+        size_bytes = 0
 
         download_url = str(asset.get("browser_download_url") or "").strip()
         if not download_url:
             raise ValueError("GITHUB_ASSET_NOT_FOUND")
+        parsed_download_url = urlparse(download_url)
+        if (
+            parsed_download_url.scheme.lower() != "https"
+            or parsed_download_url.netloc.lower() not in ALLOWED_GITHUB_DOWNLOAD_HOSTS
+        ):
+            raise ValueError("GITHUB_ASSET_DOWNLOAD_FAILED")
 
         async with client.stream(
             "GET",
@@ -101,14 +110,17 @@ async def download_github_release_asset(
                 async for chunk in download_response.aiter_bytes():
                     if not chunk:
                         continue
+                    size_bytes += len(chunk)
+                    if size_bytes > MAX_ASSET_SIZE_BYTES:
+                        handle.close()
+                        file_path.unlink(missing_ok=True)
+                        raise ValueError("GITHUB_ASSET_SIZE_EXCEEDED")
                     handle.write(chunk)
                     digest.update(chunk)
 
         if not file_path.exists():
             raise ValueError("GITHUB_ASSET_DOWNLOAD_FAILED")
         size_bytes = file_path.stat().st_size
-        if size_bytes > MAX_ASSET_BYTES:
-            raise ValueError("GITHUB_ASSET_SIZE_EXCEEDED")
 
         return DownloadedGitHubReleaseAsset(
             repo=payload.repo,

@@ -23,7 +23,7 @@ from app.services.paper_pdf_download.repository import (
     get_paper_pdf_download_repository,
 )
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
-from app.services.twitter_video_download.storage import build_video_storage
+from app.services.twitter_video_download.storage import build_asset_storage
 
 
 SERVICE_ID = "svc_paper_pdf_download"
@@ -57,7 +57,7 @@ async def execute_paper_pdf_download(
     gateway_request_id: str | None,
 ) -> PaperPdfDownloadResponse:
     repository = get_paper_pdf_download_repository()
-    storage = build_video_storage()
+    storage = build_asset_storage()
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
     serialized_payload = payload.model_dump(by_alias=True, mode="json")

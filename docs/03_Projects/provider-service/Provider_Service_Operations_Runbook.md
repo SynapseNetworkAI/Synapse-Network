@@ -249,7 +249,7 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
 
 说明：
 
-1. 当前骨架优先支持 arXiv `paperId` / `paperUrl`，以及 `openalex|crossref` 下直接 PDF URL。
+1. 当前骨架优先支持 arXiv `paperId` / `paperUrl`；`openalex|crossref` 入口先保留契约位，等待后续解析器接入。
 2. 返回体统一包含 `pdf.storageKey` 与 `metadata`（title/authors/year/doi）。
 
 ### 5.8 TikTok / Reddit Phase A 错误码矩阵

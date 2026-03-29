@@ -85,7 +85,7 @@ def stub_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     )
     monkeypatch.setattr(
         github_release_asset_download_service,
-        "build_video_storage",
+        "build_asset_storage",
         lambda: FakeStorage(),
     )
     monkeypatch.setattr(
@@ -159,7 +159,7 @@ def test_github_release_asset_download_size_limit_returns_502(
     )
     monkeypatch.setattr(
         github_release_asset_download_service,
-        "build_video_storage",
+        "build_asset_storage",
         lambda: FakeStorage(),
     )
     monkeypatch.setattr(
@@ -196,7 +196,7 @@ def test_github_release_asset_download_failure_without_snapshot_returns_502(
     )
     monkeypatch.setattr(
         github_release_asset_download_service,
-        "build_video_storage",
+        "build_asset_storage",
         lambda: FakeStorage(),
     )
     monkeypatch.setattr(
@@ -251,7 +251,7 @@ def test_github_release_asset_download_idempotent_replay_hits_snapshot(
     )
     monkeypatch.setattr(
         github_release_asset_download_service,
-        "build_video_storage",
+        "build_asset_storage",
         lambda: FakeStorage(),
     )
     monkeypatch.setattr(
@@ -314,7 +314,7 @@ def test_github_release_asset_download_snapshot_fallback(
     )
     monkeypatch.setattr(
         github_release_asset_download_service,
-        "build_video_storage",
+        "build_asset_storage",
         lambda: FakeStorage(),
     )
     monkeypatch.setattr(

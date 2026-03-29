@@ -79,3 +79,7 @@ def build_video_storage() -> VideoStorage:
         bucket=settings.video_storage_minio_bucket,
         secure=settings.video_storage_minio_secure,
     )
+
+
+def build_asset_storage() -> VideoStorage:
+    return build_video_storage()
