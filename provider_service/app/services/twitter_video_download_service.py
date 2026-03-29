@@ -14,6 +14,8 @@ from app.schemas.twitter_video_download import (
     TwitterVideoDownloadResponse,
     TwitterVideoDownloadResult,
 )
+from app.services.asset_storage import build_storage_gateway
+from app.services.download_abstractions import DownloadPolicy, MediaAsset
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
 from app.services.twitter_video_download.domain import (
     TwitterVideoAssetRecord,
@@ -24,7 +26,9 @@ from app.services.twitter_video_download.repository import (
     asset_expiry,
     get_twitter_video_download_repository,
 )
-from app.services.twitter_video_download.storage import build_video_storage
+
+# Compatibility alias for existing tests / patches during the Phase C rollout.
+build_video_storage = build_storage_gateway
 
 
 SERVICE_ID = "svc_twitter_video_download"
@@ -40,14 +44,19 @@ def _to_zulu(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _download_dir() -> Path:
-    return Path(get_settings().twitter_video_tmp_dir).resolve()
-
-
-def _storage_key(tweet_id: str, filename: str) -> str:
+def _download_policy() -> DownloadPolicy:
+    settings = get_settings()
     now = _now_utc()
-    prefix = get_settings().video_storage_key_prefix.strip("/")
-    return f"{prefix}/{now:%Y/%m/%d}/{tweet_id}/{filename}".strip("/")
+    prefix = settings.video_storage_key_prefix.strip("/") or "twitter"
+    return DownloadPolicy(
+        temp_dir=Path(settings.twitter_video_tmp_dir).resolve(),
+        storage_prefix=f"{prefix}/{now:%Y/%m/%d}",
+        default_storage_namespace="twitter",
+    )
+
+
+def _storage_key(policy: DownloadPolicy, tweet_id: str, filename: str) -> str:
+    return policy.build_storage_key(tweet_id, filename=filename)
 
 
 async def execute_twitter_video_download(
@@ -58,16 +67,24 @@ async def execute_twitter_video_download(
 ) -> TwitterVideoDownloadResponse:
     repository = get_twitter_video_download_repository()
     storage = build_video_storage()
+    policy = _download_policy()
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
 
     try:
-        downloaded = await download_twitter_video(payload, target_dir=_download_dir())
-        key = _storage_key(downloaded.tweet_id, downloaded.file_path.name)
+        downloaded = await download_twitter_video(payload, target_dir=policy.resolved_tmp_dir())
+        key = _storage_key(policy, downloaded.tweet_id, downloaded.file_path.name)
         stored = storage.put_file(
             source_path=downloaded.file_path,
             target_key=key,
             content_type=downloaded.mime_type,
+        )
+        media_asset = MediaAsset.from_stored(
+            stored,
+            sha256=downloaded.sha256,
+            duration_sec=downloaded.duration_sec,
+            width=downloaded.width,
+            height=downloaded.height,
         )
 
         response = TwitterVideoDownloadResponse(
@@ -86,16 +103,7 @@ async def execute_twitter_video_download(
                 postUrl=payload.post_url,
                 tweetId=downloaded.tweet_id,
                 status="downloaded",
-                video=TwitterVideoAsset(
-                    storageKey=stored.key,
-                    storageBackend=stored.backend,
-                    mimeType=stored.content_type,
-                    sizeBytes=stored.size_bytes,
-                    durationSec=downloaded.duration_sec,
-                    width=downloaded.width,
-                    height=downloaded.height,
-                    sha256=downloaded.sha256,
-                ),
+                video=TwitterVideoAsset(**media_asset.as_video_payload()),
                 previewImage=None,
             ),
             errors=[],

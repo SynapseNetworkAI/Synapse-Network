@@ -3,6 +3,12 @@ from fastapi import APIRouter
 from app.api.v1.endpoints.oss_security_healthcheck import (
     router as oss_security_healthcheck_router,
 )
+from app.api.v1.endpoints.github_release_asset_download import (
+    router as github_release_asset_download_router,
+)
+from app.api.v1.endpoints.paper_pdf_download import (
+    router as paper_pdf_download_router,
+)
 from app.api.v1.endpoints.protocol_fundamental_brief import (
 	router as protocol_fundamental_brief_router,
 )
@@ -38,3 +44,5 @@ api_v1_router.include_router(twitter_video_download_router)
 api_v1_router.include_router(youtube_video_download_router)
 api_v1_router.include_router(tiktok_video_download_router)
 api_v1_router.include_router(reddit_media_download_router)
+api_v1_router.include_router(github_release_asset_download_router)
+api_v1_router.include_router(paper_pdf_download_router)
