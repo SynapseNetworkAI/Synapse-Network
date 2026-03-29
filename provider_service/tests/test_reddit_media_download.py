@@ -131,8 +131,7 @@ def test_reddit_media_download_size_limit_returns_502(
 ):
     repo = InMemoryRedditMediaDownloadRepository()
 
-    async def _too_big(payload, *, target_dir):
-        _ = payload
+    async def _too_big(_, *, target_dir):
         _ = target_dir
         raise ValueError("REDDIT_MEDIA_SIZE_EXCEEDED")
 
@@ -161,8 +160,7 @@ def test_reddit_media_download_failure_without_snapshot_returns_502(
 ):
     repo = InMemoryRedditMediaDownloadRepository()
 
-    async def _boom(payload, *, target_dir):
-        _ = payload
+    async def _boom(_, *, target_dir):
         _ = target_dir
         raise ValueError("REDDIT_MEDIA_DOWNLOAD_FAILED")
 
@@ -196,9 +194,8 @@ def test_reddit_media_download_idempotent_replay_hits_snapshot(
     media_file.write_bytes(b"reddit-media")
     call_count = 0
 
-    async def _fake_download(payload, *, target_dir):
+    async def _fake_download(_, *, target_dir):
         nonlocal call_count
-        _ = payload
         _ = target_dir
         call_count += 1
         return DownloadedMedia(

@@ -130,8 +130,7 @@ def test_tiktok_video_download_duration_limit_returns_502(
 ):
     repo = InMemoryTikTokVideoDownloadRepository()
 
-    async def _too_long(payload, *, target_dir):
-        _ = payload
+    async def _too_long(_, *, target_dir):
         _ = target_dir
         raise ValueError("TIKTOK_VIDEO_DURATION_EXCEEDED")
 
@@ -160,8 +159,7 @@ def test_tiktok_video_download_failure_without_snapshot_returns_502(
 ):
     repo = InMemoryTikTokVideoDownloadRepository()
 
-    async def _boom(payload, *, target_dir):
-        _ = payload
+    async def _boom(_, *, target_dir):
         _ = target_dir
         raise ValueError("TIKTOK_VIDEO_DOWNLOAD_FAILED")
 
@@ -195,9 +193,8 @@ def test_tiktok_video_download_idempotent_replay_hits_snapshot(
     video_file.write_bytes(b"demo-video")
     call_count = 0
 
-    async def _fake_download(payload, *, target_dir):
+    async def _fake_download(_, *, target_dir):
         nonlocal call_count
-        _ = payload
         _ = target_dir
         call_count += 1
         return DownloadedVideo(
