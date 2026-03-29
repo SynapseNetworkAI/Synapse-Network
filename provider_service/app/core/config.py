@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     twitter_video_postgres_asset_table: str = "provider_twitter_video_assets"
     twitter_video_cache_ttl_s: int = 86400
     twitter_video_tmp_dir: str = "storage/twitter_videos/tmp"
+    tiktok_video_postgres_asset_table: str = "provider_tiktok_video_assets"
+    tiktok_video_cache_ttl_s: int = 86400
+    tiktok_video_tmp_dir: str = "storage/tiktok_videos/tmp"
     youtube_video_postgres_asset_table: str = "provider_youtube_video_assets"
     youtube_video_cache_ttl_s: int = 86400
     youtube_video_tmp_dir: str = "storage/youtube_videos/tmp"
