@@ -46,6 +46,14 @@ def replay_cached_snapshot_if_available(
     gateway_request_id: str | None,
     start_time: float,
 ) -> ResponseT | None:
+    """Return a cache-hit response when an unexpired snapshot already exists.
+
+    The helper returns `None` when the repository has no snapshot for `asset_key`
+    or when the stored snapshot is already expired for the provided `now`.
+    When a valid snapshot exists, it returns the replayed response and appends a
+    normal invocation audit record with `cache_hit=True`.
+    """
+
     cached_snapshot = repository.load_asset(asset_key)
     if cached_snapshot is None or cached_snapshot.is_expired(now=now):
         return None

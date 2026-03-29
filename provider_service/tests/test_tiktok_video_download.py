@@ -193,12 +193,13 @@ def test_tiktok_video_download_idempotent_replay_hits_snapshot(
     repo = InMemoryTikTokVideoDownloadRepository()
     video_file = tmp_path / "video.mp4"
     video_file.write_bytes(b"demo-video")
-    calls = {"count": 0}
+    call_count = 0
 
     async def _fake_download(payload, *, target_dir):
+        nonlocal call_count
         _ = payload
         _ = target_dir
-        calls["count"] += 1
+        call_count += 1
         return DownloadedVideo(
             video_id="7499999999999999999",
             file_path=video_file,
@@ -232,7 +233,7 @@ def test_tiktok_video_download_idempotent_replay_hits_snapshot(
 
     assert first.status_code == 200
     assert second.status_code == 200
-    assert calls["count"] == 1
+    assert call_count == 1
     assert second.json()["freshness"]["cacheHit"] is True
     assert second.json()["errors"] == []
     assert len(repo.invocations) == 2

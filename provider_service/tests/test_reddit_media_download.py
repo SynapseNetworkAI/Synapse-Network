@@ -194,12 +194,13 @@ def test_reddit_media_download_idempotent_replay_hits_snapshot(
     repo = InMemoryRedditMediaDownloadRepository()
     media_file = tmp_path / "media.mp4"
     media_file.write_bytes(b"reddit-media")
-    calls = {"count": 0}
+    call_count = 0
 
     async def _fake_download(payload, *, target_dir):
+        nonlocal call_count
         _ = payload
         _ = target_dir
-        calls["count"] += 1
+        call_count += 1
         return DownloadedMedia(
             post_id="2abcde",
             subreddit="openai",
@@ -234,7 +235,7 @@ def test_reddit_media_download_idempotent_replay_hits_snapshot(
 
     assert first.status_code == 200
     assert second.status_code == 200
-    assert calls["count"] == 1
+    assert call_count == 1
     assert second.json()["freshness"]["cacheHit"] is True
     assert second.json()["errors"] == []
     assert len(repo.invocations) == 2
