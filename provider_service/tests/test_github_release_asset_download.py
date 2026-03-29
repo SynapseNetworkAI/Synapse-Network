@@ -16,13 +16,13 @@ if str(ROOT) not in sys.path:
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services import github_release_asset_download_service  # noqa: E402
+from app.services.asset_storage import StoredObject  # noqa: E402
 from app.services.github_release_asset_download.downloader import (  # noqa: E402
     DownloadedGitHubReleaseAsset,
 )
 from app.services.github_release_asset_download.repository import (  # noqa: E402
     InMemoryGitHubReleaseAssetDownloadRepository,
 )
-from app.services.twitter_video_download.storage import StoredObject  # noqa: E402
 from tests.helpers.download_replay import ReplayAwareRepository  # noqa: E402
 
 

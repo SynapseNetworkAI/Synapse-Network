@@ -19,6 +19,7 @@ from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.schemas.paper_pdf_download import PaperPdfDownloadRequest  # noqa: E402
 from app.services import paper_pdf_download_service  # noqa: E402
+from app.services.asset_storage import StoredObject  # noqa: E402
 from app.services.paper_pdf_download.downloader import (  # noqa: E402
     DownloadedPaperPdf,
     download_paper_pdf,
@@ -26,7 +27,6 @@ from app.services.paper_pdf_download.downloader import (  # noqa: E402
 from app.services.paper_pdf_download.repository import (  # noqa: E402
     InMemoryPaperPdfDownloadRepository,
 )
-from app.services.twitter_video_download.storage import StoredObject  # noqa: E402
 from tests.helpers.download_replay import ReplayAwareRepository  # noqa: E402
 
 
@@ -465,6 +465,43 @@ def test_paper_pdf_download_crossref_rejects_untrusted_pdf_host(tmp_path: Path):
                     PaperPdfDownloadRequest(
                         paperId=doi,
                         source="crossref",
+                    ),
+                    target_dir=tmp_path,
+                    client=client,
+                )
+            )
+    finally:
+        asyncio.run(client.aclose())
+
+
+def test_paper_pdf_download_openalex_rejects_untrusted_pdf_host(tmp_path: Path):
+    work_id = "W999999999"
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if request.url == httpx.URL(f"https://api.openalex.org/works/{work_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "id": f"https://openalex.org/{work_id}",
+                    "title": "Spoofed Host Paper",
+                    "publication_year": 2025,
+                    "authorships": [],
+                    "best_oa_location": {
+                        "pdf_url": "https://arxiv.org.evil.com/paper.pdf",
+                    },
+                },
+            )
+        raise AssertionError(f"Unexpected request: {request.url}")
+
+    transport = httpx.MockTransport(_handler)
+    client = httpx.AsyncClient(transport=transport)
+    try:
+        with pytest.raises(ValueError, match="PAPER_METADATA_EXTRACTION_FAILED"):
+            asyncio.run(
+                download_paper_pdf(
+                    PaperPdfDownloadRequest(
+                        paperId=work_id,
+                        source="openalex",
                     ),
                     target_dir=tmp_path,
                     client=client,
