@@ -1,5 +1,6 @@
 # pyright: reportMissingImports=false
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -7,6 +8,7 @@ import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+import httpx
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,8 +17,12 @@ if str(ROOT) not in sys.path:
 
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
+from app.schemas.paper_pdf_download import PaperPdfDownloadRequest  # noqa: E402
 from app.services import paper_pdf_download_service  # noqa: E402
-from app.services.paper_pdf_download.downloader import DownloadedPaperPdf  # noqa: E402
+from app.services.paper_pdf_download.downloader import (  # noqa: E402
+    DownloadedPaperPdf,
+    download_paper_pdf,
+)
 from app.services.paper_pdf_download.repository import (  # noqa: E402
     InMemoryPaperPdfDownloadRepository,
 )
@@ -314,3 +320,155 @@ def test_paper_pdf_download_snapshot_fallback(
     assert body["freshness"]["cacheHit"] is True
     assert body["errors"][-1]["code"] == "PAPER_PDF_SNAPSHOT_FALLBACK_USED"
     assert replay_repo.invocations[-1].cache_hit is True
+
+
+def test_paper_pdf_download_openalex_resolver_success(tmp_path: Path):
+    work_id = "W1234567890"
+    pdf_bytes = b"%PDF-1.7 openalex paper"
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if request.url == httpx.URL(f"https://api.openalex.org/works/{work_id}"):
+            return httpx.Response(
+                200,
+                json={
+                    "id": f"https://openalex.org/{work_id}",
+                    "title": "OpenAlex Paper",
+                    "publication_year": 2025,
+                    "doi": "https://doi.org/10.5555/openalex.paper",
+                    "authorships": [
+                        {"author": {"display_name": "Ada Lovelace"}},
+                        {"author": {"display_name": "Alan Turing"}},
+                    ],
+                    "best_oa_location": {
+                        "pdf_url": "https://arxiv.org/pdf/2401.00001.pdf",
+                    },
+                },
+            )
+        if request.url == httpx.URL("https://arxiv.org/pdf/2401.00001.pdf"):
+            return httpx.Response(
+                200,
+                headers={"Content-Length": str(len(pdf_bytes))},
+                content=pdf_bytes,
+            )
+        raise AssertionError(f"Unexpected request: {request.url}")
+
+    transport = httpx.MockTransport(_handler)
+    client = httpx.AsyncClient(transport=transport)
+    try:
+        result = asyncio.run(
+            download_paper_pdf(
+                PaperPdfDownloadRequest(
+                    paperId=work_id,
+                    source="openalex",
+                ),
+                target_dir=tmp_path,
+                client=client,
+            )
+        )
+    finally:
+        asyncio.run(client.aclose())
+
+    assert result.source == "openalex"
+    assert result.paper_id == work_id
+    assert result.title == "OpenAlex Paper"
+    assert result.authors == ["Ada Lovelace", "Alan Turing"]
+    assert result.doi == "https://doi.org/10.5555/openalex.paper"
+    assert result.file_path.exists()
+
+
+def test_paper_pdf_download_crossref_resolver_success(tmp_path: Path):
+    doi = "10.1145/1234567.8901234"
+    pdf_bytes = b"%PDF-1.7 crossref paper"
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if request.url == httpx.URL(f"https://api.crossref.org/works/10.1145%2F1234567.8901234"):
+            return httpx.Response(
+                200,
+                json={
+                    "message": {
+                        "DOI": doi,
+                        "title": ["Crossref Paper"],
+                        "author": [
+                            {"given": "Grace", "family": "Hopper"},
+                            {"given": "Barbara", "family": "Liskov"},
+                        ],
+                        "issued": {"date-parts": [[2024, 7, 1]]},
+                        "link": [
+                            {
+                                "URL": "https://openreview.net/pdf/crossref-paper.pdf",
+                                "content-type": "application/pdf",
+                            }
+                        ],
+                    }
+                },
+            )
+        if request.url == httpx.URL("https://openreview.net/pdf/crossref-paper.pdf"):
+            return httpx.Response(
+                200,
+                headers={"Content-Length": str(len(pdf_bytes))},
+                content=pdf_bytes,
+            )
+        raise AssertionError(f"Unexpected request: {request.url}")
+
+    transport = httpx.MockTransport(_handler)
+    client = httpx.AsyncClient(transport=transport)
+    try:
+        result = asyncio.run(
+            download_paper_pdf(
+                PaperPdfDownloadRequest(
+                    paperId=doi,
+                    source="crossref",
+                ),
+                target_dir=tmp_path,
+                client=client,
+            )
+        )
+    finally:
+        asyncio.run(client.aclose())
+
+    assert result.source == "crossref"
+    assert result.paper_id == doi
+    assert result.title == "Crossref Paper"
+    assert result.authors == ["Grace Hopper", "Barbara Liskov"]
+    assert result.year == 2024
+    assert result.file_path.exists()
+
+
+def test_paper_pdf_download_crossref_rejects_untrusted_pdf_host(tmp_path: Path):
+    doi = "10.1145/1111111.2222222"
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        if request.url == httpx.URL(f"https://api.crossref.org/works/10.1145%2F1111111.2222222"):
+            return httpx.Response(
+                200,
+                json={
+                    "message": {
+                        "DOI": doi,
+                        "title": ["Blocked Paper"],
+                        "link": [
+                            {
+                                "URL": "https://evil.example.com/paper.pdf",
+                                "content-type": "application/pdf",
+                            }
+                        ],
+                    }
+                },
+            )
+        raise AssertionError(f"Unexpected request: {request.url}")
+
+    transport = httpx.MockTransport(_handler)
+    client = httpx.AsyncClient(transport=transport)
+    try:
+        with pytest.raises(ValueError, match="PAPER_METADATA_EXTRACTION_FAILED"):
+            asyncio.run(
+                download_paper_pdf(
+                    PaperPdfDownloadRequest(
+                        paperId=doi,
+                        source="crossref",
+                    ),
+                    target_dir=tmp_path,
+                    client=client,
+                )
+            )
+    finally:
+        asyncio.run(client.aclose())
