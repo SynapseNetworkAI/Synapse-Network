@@ -8,19 +8,19 @@ from app.core.config import get_settings
 
 
 @dataclass(frozen=True)
-class StoredObject:
+class StoredAsset:
     key: str
     backend: str
     content_type: str
     size_bytes: int
 
 
-class AssetStorage(Protocol):
-    def put_file(self, *, source_path: Path, target_key: str, content_type: str) -> StoredObject:
+class StorageGateway(Protocol):
+    def put_file(self, *, source_path: Path, target_key: str, content_type: str) -> StoredAsset:
         raise NotImplementedError
 
 
-class MinioAssetStorage:
+class MinioStorageGateway:
     def __init__(
         self,
         *,
@@ -41,7 +41,7 @@ class MinioAssetStorage:
             secure=secure,
         )
 
-    def put_file(self, *, source_path: Path, target_key: str, content_type: str) -> StoredObject:
+    def put_file(self, *, source_path: Path, target_key: str, content_type: str) -> StoredAsset:
         if not self._client.bucket_exists(self.bucket):
             self._client.make_bucket(self.bucket)
         self._client.fput_object(
@@ -51,7 +51,7 @@ class MinioAssetStorage:
             content_type=content_type,
         )
         size_bytes = source_path.stat().st_size
-        return StoredObject(
+        return StoredAsset(
             key=target_key,
             backend=self.backend,
             content_type=content_type,
@@ -59,7 +59,7 @@ class MinioAssetStorage:
         )
 
 
-def build_asset_storage() -> AssetStorage:
+def build_storage_gateway() -> StorageGateway:
     settings = get_settings()
     # Backward-compatible reuse: VIDEO_STORAGE_* remains the canonical env surface even though
     # the storage backend is now shared by video, GitHub release, and paper assets.
@@ -74,10 +74,19 @@ def build_asset_storage() -> AssetStorage:
     if not settings.video_storage_minio_bucket:
         raise ValueError("VIDEO_STORAGE_MINIO_BUCKET is required")
 
-    return MinioAssetStorage(
+    return MinioStorageGateway(
         endpoint=settings.video_storage_minio_endpoint,
         access_key=settings.video_storage_minio_access_key,
         secret_key=settings.video_storage_minio_secret_key,
         bucket=settings.video_storage_minio_bucket,
         secure=settings.video_storage_minio_secure,
     )
+
+
+StoredObject = StoredAsset
+AssetStorage = StorageGateway
+MinioAssetStorage = MinioStorageGateway
+
+
+def build_asset_storage() -> StorageGateway:
+    return build_storage_gateway()
