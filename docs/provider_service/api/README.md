@@ -25,7 +25,8 @@
 6. [Twitter 视频下载服务设计](./twitter-video-download-service-design.md)
 7. [YouTube 视频下载服务设计](./youtube-video-download-service-design.md)
 8. [TikTok 视频下载服务设计](./tiktok-video-download-service-design.md)
-9. [下载类接口扩展需求挖掘（Agent 生态）](./agent-download-demand-expansion.md)
+9. [Reddit 媒体下载服务设计](./reddit-media-download-service-design.md)
+10. [下载类接口扩展需求挖掘（Agent 生态）](./agent-download-demand-expansion.md)
 
 实现设计（已落地）：
 

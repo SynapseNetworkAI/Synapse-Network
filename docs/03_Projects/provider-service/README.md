@@ -40,6 +40,7 @@
 9. `POST /api/v1/quotes/famous`
 10. `POST /api/v1/quotes/famous/top3`
 11. `POST /provider-services/tiktok-video-download/invoke`
+12. `POST /provider-services/reddit-media-download/invoke`
 
 其中：
 
@@ -52,7 +53,7 @@
 7. YouTube 下载服务上线前闸门与红线清单见 `docs/provider_service/api/youtube-video-download-service-design.md` 第 12 节
 8. TikTok 视频下载方案设计见 `docs/provider_service/api/tiktok-video-download-service-design.md`
 9. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
-10. 下载能力已引入统一执行骨架：`provider_service/app/services/download_runtime/executor.py`（Twitter/YouTube/TikTok 共用）
+10. 下载能力已引入统一执行骨架：`provider_service/app/services/download_runtime/executor.py`（Twitter/YouTube/TikTok/Reddit 共用）
 
 ## 4. 职责边界
 
@@ -89,6 +90,7 @@
 1. [Provider_Service_Local_Development.md](./Provider_Service_Local_Development.md)
 2. [Provider_Service_Operations_Runbook.md](./Provider_Service_Operations_Runbook.md)
 3. [Provider_Service_Agent_Rules.md](./Provider_Service_Agent_Rules.md)
+4. [Zero_Conflict_PR_Playbook.md](./Zero_Conflict_PR_Playbook.md)
 
 当前项目目录内只保留：
 
