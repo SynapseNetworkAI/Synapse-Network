@@ -58,6 +58,29 @@ async def execute_reddit_media_download(
     storage = build_video_storage()
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
+    cached_snapshot = repository.load_asset(asset_key)
+    now = _now_utc()
+
+    if cached_snapshot is not None and not cached_snapshot.is_expired(now=now):
+        replay = cached_snapshot.as_cache_hit_response()
+        repository.append_invocation(
+            ProviderInvocationRecord.build(
+                service_id=SERVICE_ID,
+                input_payload=payload.model_dump(by_alias=True, mode="json"),
+                response_status=200,
+                request_id=request_id,
+                gateway_request_id=gateway_request_id,
+                error_code=None,
+                upstream_status=None,
+                latency_ms=int((perf_counter() - start) * 1000),
+                cache_hit=True,
+                observability_payload={
+                    "assetKey": asset_key,
+                    "replayReason": "IDEMPOTENT_SNAPSHOT_REPLAY",
+                },
+            )
+        )
+        return replay
 
     try:
         downloaded = await download_reddit_media(payload, target_dir=_download_dir())

@@ -125,8 +125,124 @@ def test_reddit_media_download_invalid_url_rejected(stub_runtime):
     assert response.status_code == 422
 
 
-def test_reddit_media_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_reddit_media_download_size_limit_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
     repo = InMemoryRedditMediaDownloadRepository()
+
+    async def _too_big(payload, *, target_dir):
+        _ = payload
+        _ = target_dir
+        raise ValueError("REDDIT_MEDIA_SIZE_EXCEEDED")
+
+    monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _too_big)
+    monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
+    response = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "REDDIT_MEDIA_SIZE_EXCEEDED"
+
+
+def test_reddit_media_download_failure_without_snapshot_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo = InMemoryRedditMediaDownloadRepository()
+
+    async def _boom(payload, *, target_dir):
+        _ = payload
+        _ = target_dir
+        raise ValueError("REDDIT_MEDIA_DOWNLOAD_FAILED")
+
+    monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _boom)
+    monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
+    response = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "REDDIT_MEDIA_DOWNLOAD_FAILED"
+    assert len(repo.invocations) == 0
+
+
+def test_reddit_media_download_idempotent_replay_hits_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    repo = InMemoryRedditMediaDownloadRepository()
+    media_file = tmp_path / "media.mp4"
+    media_file.write_bytes(b"reddit-media")
+    calls = {"count": 0}
+
+    async def _fake_download(payload, *, target_dir):
+        _ = payload
+        _ = target_dir
+        calls["count"] += 1
+        return DownloadedMedia(
+            post_id="2abcde",
+            subreddit="openai",
+            author="agentbro",
+            created_utc=1710931200,
+            media_type="video",
+            file_path=media_file,
+            mime_type="video/mp4",
+            sha256="abc123",
+        )
+
+    monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _fake_download)
+    monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
+    first = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+    second = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert calls["count"] == 1
+    assert second.json()["freshness"]["cacheHit"] is True
+    assert second.json()["errors"] == []
+    assert len(repo.invocations) == 2
+    assert repo.invocations[-1].cache_hit is True
+    assert repo.invocations[-1].observability_payload["replayReason"] == "IDEMPOTENT_SNAPSHOT_REPLAY"
+
+
+def test_reddit_media_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    backing_repo = InMemoryRedditMediaDownloadRepository()
     media_file = tmp_path / "fallback.mp4"
     media_file.write_bytes(b"fallback-media")
 
@@ -149,7 +265,7 @@ def test_reddit_media_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(
         reddit_media_download_service,
         "get_reddit_media_download_repository",
-        lambda: repo,
+        lambda: backing_repo,
     )
 
     payload = reddit_media_download_service.RedditMediaDownloadRequest.model_validate(
@@ -164,11 +280,34 @@ def test_reddit_media_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
     )
     assert first.result.status == "downloaded"
 
+    class ReplayAwareRepository:
+        def __init__(self, stored_repo: InMemoryRedditMediaDownloadRepository) -> None:
+            self._stored_repo = stored_repo
+            self.invocations = stored_repo.invocations
+            self._first_lookup = True
+
+        def save_asset(self, record) -> None:
+            self._stored_repo.save_asset(record)
+
+        def load_asset(self, asset_key: str):
+            if self._first_lookup:
+                self._first_lookup = False
+                return None
+            return self._stored_repo.load_asset(asset_key)
+
+        def append_invocation(self, record) -> None:
+            self._stored_repo.append_invocation(record)
+
     async def _boom(_payload, *, target_dir):
         _ = target_dir
         raise ValueError("REDDIT_MEDIA_DOWNLOAD_FAILED")
 
     monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _boom)
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: ReplayAwareRepository(backing_repo),
+    )
 
     replayed = __import__("asyncio").run(
         reddit_media_download_service.execute_reddit_media_download(
