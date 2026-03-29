@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     reddit_media_postgres_asset_table: str = "provider_reddit_media_assets"
     reddit_media_cache_ttl_s: int = 86400
     reddit_media_tmp_dir: str = "storage/reddit_media/tmp"
+    github_release_asset_postgres_asset_table: str = "provider_github_release_assets"
+    github_release_asset_cache_ttl_s: int = 86400
+    github_release_asset_tmp_dir: str = "storage/github_release_assets/tmp"
+    paper_pdf_postgres_asset_table: str = "provider_paper_pdf_assets"
+    paper_pdf_cache_ttl_s: int = 86400
+    paper_pdf_tmp_dir: str = "storage/paper_pdfs/tmp"
     video_storage_backend: Literal["minio"] = "minio"
     video_storage_key_prefix: str = "twitter"
     video_storage_minio_endpoint: str | None = None

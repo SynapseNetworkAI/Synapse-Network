@@ -14,8 +14,10 @@
 8. `POST /provider-services/youtube-video-download/invoke`
 9. `POST /provider-services/tiktok-video-download/invoke`
 10. `POST /provider-services/reddit-media-download/invoke`
-11. `POST /api/v1/quotes/famous`
-12. `POST /api/v1/quotes/famous/top3`
+11. `POST /provider-services/github-release-asset-download/invoke`
+12. `POST /provider-services/paper-pdf-download/invoke`
+13. `POST /api/v1/quotes/famous`
+14. `POST /api/v1/quotes/famous/top3`
 
 ## 为什么单独新建一个文件夹
 
