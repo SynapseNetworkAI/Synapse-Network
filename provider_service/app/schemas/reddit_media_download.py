@@ -12,17 +12,17 @@ _ALLOWED_HOSTS = {
     "www.reddit.com",
     "old.reddit.com",
     "redd.it",
+    "v.redd.it",
+    "i.redd.it",
 }
-
-_ALLOWED_MEDIA_TYPE = {"video", "image_set", "gif", "auto"}
 
 
 class RedditMediaDownloadRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     post_url: str = Field(alias="postUrl")
-    media_type: str = Field(default="auto", alias="mediaType")
-    max_file_size_mb: int = Field(default=200, ge=10, le=2048, alias="maxFileSizeMb")
+    max_file_size_mb: int = Field(default=512, ge=5, le=4096, alias="maxFileSizeMb")
+    save_mode: str = Field(default="store_and_return", alias="saveMode")
 
     @field_validator("post_url")
     @classmethod
@@ -32,17 +32,18 @@ class RedditMediaDownloadRequest(BaseModel):
         if parsed.scheme.lower() != "https":
             raise ValueError("postUrl must use https")
         if parsed.netloc.lower() not in _ALLOWED_HOSTS:
-            raise ValueError("postUrl host must be reddit.com or redd.it")
-        if "/comments/" not in parsed.path and parsed.netloc.lower() != "redd.it":
-            raise ValueError("postUrl must include /comments/<post_id>")
+            raise ValueError("postUrl host must be a reddit domain")
+        if parsed.netloc.lower() in {"reddit.com", "www.reddit.com", "old.reddit.com"}:
+            if not parsed.path.startswith("/r/"):
+                raise ValueError("postUrl must be a reddit post path")
         return normalized
 
-    @field_validator("media_type")
+    @field_validator("save_mode")
     @classmethod
-    def validate_media_type(cls, value: str) -> str:
+    def validate_save_mode(cls, value: str) -> str:
         normalized = str(value or "").strip().lower()
-        if normalized not in _ALLOWED_MEDIA_TYPE:
-            raise ValueError("mediaType must be one of auto, video, image_set, gif")
+        if normalized != "store_and_return":
+            raise ValueError("saveMode currently supports only store_and_return")
         return normalized
 
 
@@ -54,18 +55,19 @@ class RedditMediaAsset(BaseModel):
     sha256: str
 
 
-class RedditMediaMeta(BaseModel):
+class RedditPostMeta(BaseModel):
+    subreddit: str
     post_id: str = Field(alias="postId")
-    subreddit: str | None = None
-    author: str | None = None
-    media_kind: str = Field(alias="mediaKind")
+    author: str
+    created_utc: int = Field(alias="createdUtc")
 
 
 class RedditMediaDownloadResult(BaseModel):
     post_url: str = Field(alias="postUrl")
+    media_type: str = Field(alias="mediaType")
     status: str
-    asset: RedditMediaAsset
-    meta: RedditMediaMeta
+    media: RedditMediaAsset
+    post_meta: RedditPostMeta = Field(alias="postMeta")
 
 
 class RedditMediaDownloadResponse(BaseModel):

@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     youtube_video_postgres_asset_table: str = "provider_youtube_video_assets"
     youtube_video_cache_ttl_s: int = 86400
     youtube_video_tmp_dir: str = "storage/youtube_videos/tmp"
+    github_release_asset_postgres_asset_table: str = "provider_github_release_assets"
+    github_release_asset_cache_ttl_s: int = 86400
+    github_release_asset_tmp_dir: str = "storage/github_release_assets/tmp"
+    paper_pdf_postgres_asset_table: str = "provider_paper_pdf_assets"
+    paper_pdf_cache_ttl_s: int = 86400
+    paper_pdf_tmp_dir: str = "storage/paper_pdfs/tmp"
     video_storage_backend: Literal["minio"] = "minio"
     video_storage_key_prefix: str = "twitter"
     video_storage_minio_endpoint: str | None = None

@@ -1,6 +1,6 @@
 # Provider 需求设计：通过 YouTube 视频地址下载视频
 
-- Status: implemented-v1
+- Status: supplementary
 - Owner: provider_service
 - Service id (proposed): `svc_youtube_video_download`
 - Service name (proposed): `YouTube Video Downloader`

@@ -20,6 +20,7 @@ from app.services.reddit_media_download.downloader import DownloadedMedia  # noq
 from app.services.reddit_media_download.repository import (  # noqa: E402
     InMemoryRedditMediaDownloadRepository,
 )
+from tests.helpers.download_replay import ReplayAwareRepository  # noqa: E402
 from app.services.twitter_video_download.storage import StoredObject  # noqa: E402
 
 
@@ -56,18 +57,18 @@ def _signed_headers(payload: dict) -> dict[str, str]:
 @pytest.fixture
 def stub_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     repo = InMemoryRedditMediaDownloadRepository()
-
     media_file = tmp_path / "media.mp4"
-    media_file.write_bytes(b"demo-media")
+    media_file.write_bytes(b"reddit-media")
 
     async def _fake_download(payload, *, target_dir):
         _ = payload
         _ = target_dir
         return DownloadedMedia(
-            post_id="abc123",
-            subreddit="MachineLearning",
-            author="u/example",
-            media_kind="video",
+            post_id="2abcde",
+            subreddit="openai",
+            author="agentbro",
+            created_utc=1710931200,
+            media_type="video",
             file_path=media_file,
             mime_type="video/mp4",
             sha256="abc123",
@@ -75,13 +76,17 @@ def stub_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
     monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _fake_download)
     monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
-    monkeypatch.setattr(reddit_media_download_service, "get_reddit_media_download_repository", lambda: repo)
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: repo,
+    )
     return repo
 
 
 def test_reddit_media_download_success(stub_runtime):
     client = TestClient(app)
-    payload = {"postUrl": "https://www.reddit.com/r/MachineLearning/comments/abc123/sample_post/"}
+    payload = {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
 
     response = client.post(
         "/provider-services/reddit-media-download/invoke",
@@ -93,7 +98,7 @@ def test_reddit_media_download_success(stub_runtime):
     body = response.json()
     assert body["service"]["serviceId"] == "svc_reddit_media_download"
     assert body["result"]["status"] == "downloaded"
-    assert body["result"]["meta"]["postId"] == "abc123"
+    assert body["result"]["media"]["storageBackend"] == "minio"
     assert len(stub_runtime.assets) == 1
     assert len(stub_runtime.invocations) == 1
 
@@ -102,7 +107,7 @@ def test_reddit_media_download_requires_signature():
     client = TestClient(app)
     response = client.post(
         "/provider-services/reddit-media-download/invoke",
-        json={"postUrl": "https://www.reddit.com/r/MachineLearning/comments/abc123/sample_post/"},
+        json={"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"},
     )
 
     assert response.status_code == 401
@@ -110,7 +115,7 @@ def test_reddit_media_download_requires_signature():
 
 def test_reddit_media_download_invalid_url_rejected(stub_runtime):
     client = TestClient(app)
-    payload = {"postUrl": "https://example.com/not-reddit"}
+    payload = {"postUrl": "http://example.com/not-reddit"}
 
     response = client.post(
         "/provider-services/reddit-media-download/invoke",
@@ -121,30 +126,149 @@ def test_reddit_media_download_invalid_url_rejected(stub_runtime):
     assert response.status_code == 422
 
 
-def test_reddit_media_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_reddit_media_download_size_limit_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
     repo = InMemoryRedditMediaDownloadRepository()
-    file_path = tmp_path / "fallback.mp4"
-    file_path.write_bytes(b"fallback-media")
+
+    async def _too_big(_, *, target_dir):
+        _ = target_dir
+        raise ValueError("REDDIT_MEDIA_SIZE_EXCEEDED")
+
+    monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _too_big)
+    monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
+    response = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "REDDIT_MEDIA_SIZE_EXCEEDED"
+
+
+def test_reddit_media_download_failure_without_snapshot_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo = InMemoryRedditMediaDownloadRepository()
+
+    async def _boom(_, *, target_dir):
+        _ = target_dir
+        raise ValueError("REDDIT_MEDIA_DOWNLOAD_FAILED")
+
+    monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _boom)
+    monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
+    response = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "REDDIT_MEDIA_DOWNLOAD_FAILED"
+    assert len(repo.invocations) == 0
+
+
+def test_reddit_media_download_idempotent_replay_hits_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    repo = InMemoryRedditMediaDownloadRepository()
+    media_file = tmp_path / "media.mp4"
+    media_file.write_bytes(b"reddit-media")
+    call_count = 0
+
+    async def _fake_download(_, *, target_dir):
+        nonlocal call_count
+        _ = target_dir
+        call_count += 1
+        return DownloadedMedia(
+            post_id="2abcde",
+            subreddit="openai",
+            author="agentbro",
+            created_utc=1710931200,
+            media_type="video",
+            file_path=media_file,
+            mime_type="video/mp4",
+            sha256="abc123",
+        )
+
+    monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _fake_download)
+    monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
+    first = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+    second = client.post(
+        "/provider-services/reddit-media-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert call_count == 1
+    assert second.json()["freshness"]["cacheHit"] is True
+    assert second.json()["errors"] == []
+    assert len(repo.invocations) == 2
+    assert repo.invocations[-1].cache_hit is True
+    assert repo.invocations[-1].observability_payload["replayReason"] == "IDEMPOTENT_SNAPSHOT_REPLAY"
+
+
+def test_reddit_media_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    backing_repo = InMemoryRedditMediaDownloadRepository()
+    media_file = tmp_path / "fallback.mp4"
+    media_file.write_bytes(b"fallback-media")
 
     async def _ok_download(payload, *, target_dir):
         _ = payload
         _ = target_dir
         return DownloadedMedia(
-            post_id="abc123",
-            subreddit="MachineLearning",
-            author="u/example",
-            media_kind="video",
-            file_path=file_path,
+            post_id="2abcde",
+            subreddit="openai",
+            author="agentbro",
+            created_utc=1710931200,
+            media_type="video",
+            file_path=media_file,
             mime_type="video/mp4",
             sha256="zxy123",
         )
 
     monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _ok_download)
     monkeypatch.setattr(reddit_media_download_service, "build_video_storage", lambda: FakeStorage())
-    monkeypatch.setattr(reddit_media_download_service, "get_reddit_media_download_repository", lambda: repo)
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: backing_repo,
+    )
 
     payload = reddit_media_download_service.RedditMediaDownloadRequest.model_validate(
-        {"postUrl": "https://www.reddit.com/r/MachineLearning/comments/abc123/sample_post/"}
+        {"postUrl": "https://www.reddit.com/r/openai/comments/2abcde/test_post/"}
     )
     first = __import__("asyncio").run(
         reddit_media_download_service.execute_reddit_media_download(
@@ -160,6 +284,11 @@ def test_reddit_media_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
         raise ValueError("REDDIT_MEDIA_DOWNLOAD_FAILED")
 
     monkeypatch.setattr(reddit_media_download_service, "download_reddit_media", _boom)
+    monkeypatch.setattr(
+        reddit_media_download_service,
+        "get_reddit_media_download_repository",
+        lambda: ReplayAwareRepository(backing_repo),
+    )
 
     replayed = __import__("asyncio").run(
         reddit_media_download_service.execute_reddit_media_download(

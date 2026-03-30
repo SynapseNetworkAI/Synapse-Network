@@ -72,7 +72,7 @@ inventory 中每条记录都必须至少声明：
     "tier": "root-entrypoint",
     "status": "canonical",
     "owner": "repo governance",
-    "lastReviewed": "2026-03-25",
+    "lastReviewed": "2026-03-29",
     "reviewCadenceDays": 30,
     "codePaths": [
       ".github/instructions",
@@ -87,7 +87,7 @@ inventory 中每条记录都必须至少声明：
     "tier": "root-entrypoint",
     "status": "canonical",
     "owner": "architecture",
-    "lastReviewed": "2026-03-25",
+    "lastReviewed": "2026-03-29",
     "reviewCadenceDays": 30,
     "codePaths": [
       "gateway",
@@ -620,7 +620,7 @@ inventory 中每条记录都必须至少声明：
     "tier": "project-entrypoint",
     "status": "canonical",
     "owner": "runtime/backend",
-    "lastReviewed": "2026-03-25",
+    "lastReviewed": "2026-03-29",
     "reviewCadenceDays": 21,
     "codePaths": [
       "provider_service",

@@ -23,8 +23,11 @@
 17. `009_provider_youtube_video_schema.sql`
 18. `010_apply_provider_tiktok_video_schema.sh`
 19. `010_provider_tiktok_video_schema.sql`
-20. `011_apply_provider_reddit_media_schema.sh`
-21. `011_provider_reddit_media_schema.sql`
+20. `010_apply_provider_tiktok_reddit_schema.sh`
+21. `010_provider_tiktok_reddit_schema.sql`
+22. `011_apply_provider_reddit_media_schema.sh`
+23. `011_provider_reddit_media_schema.sql`
+24. `011_provider_github_paper_schema.sql`
 
 当前 provider 独立数据库：
 
@@ -68,3 +71,8 @@ canonical 说明文档已经迁到：
 `010_*` 用于给 `svc_tiktok_video_download` 增加视频资产元数据表，配合 MinIO 存储实现可落库可回放。
 
 `011_*` 用于给 `svc_reddit_media_download` 增加媒体资产元数据表，配合 MinIO 存储实现可落库可回放。
+
+联合初始化脚本同时保留：
+
+1. `010_*_tiktok_reddit_*`：给 `svc_tiktok_video_download` 与 `svc_reddit_media_download` 提供联合 schema 初始化入口。
+2. `011_provider_github_paper_schema.sql`：给 GitHub Releases 资产下载与 Paper PDF 下载预留 provider-side 资产表。

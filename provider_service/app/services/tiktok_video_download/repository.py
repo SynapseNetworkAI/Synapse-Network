@@ -52,12 +52,7 @@ class InMemoryTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
 
 
 class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
-    def __init__(
-        self,
-        dsn: str,
-        asset_table: str,
-        invocation_table: str,
-    ) -> None:
+    def __init__(self, dsn: str, asset_table: str, invocation_table: str) -> None:
         self.dsn = dsn
         self.asset_table = self._validate_table_name(asset_table)
         self.invocation_table = self._validate_table_name(invocation_table)
@@ -67,7 +62,6 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
         response = record.response
         result = response.result
         video = result.video
-        meta = result.meta
         response_json = json.dumps(response.model_dump(by_alias=True, mode="json"), ensure_ascii=False)
         expires_at = parse_zulu_datetime(record.expires_at) if record.expires_at else None
 
@@ -78,13 +72,16 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
                         Any,
                         (
                             f"INSERT INTO {self.asset_table} "
-                            "(asset_key, post_id, post_url, author_handle, storage_backend, storage_key, mime_type, "
-                            "size_bytes, duration_sec, width, height, sha256, watermark, download_status, generated_at, expires_at, response_json) "
-                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
+                            "(asset_key, video_id, video_url, preferred_quality, max_duration_sec, with_subtitle, "
+                            "storage_backend, storage_key, mime_type, size_bytes, duration_sec, width, height, sha256, "
+                            "download_status, generated_at, expires_at, response_json) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
                             "ON CONFLICT (asset_key) DO UPDATE SET "
-                            "post_id=EXCLUDED.post_id, "
-                            "post_url=EXCLUDED.post_url, "
-                            "author_handle=EXCLUDED.author_handle, "
+                            "video_id=EXCLUDED.video_id, "
+                            "video_url=EXCLUDED.video_url, "
+                            "preferred_quality=EXCLUDED.preferred_quality, "
+                            "max_duration_sec=EXCLUDED.max_duration_sec, "
+                            "with_subtitle=EXCLUDED.with_subtitle, "
                             "storage_backend=EXCLUDED.storage_backend, "
                             "storage_key=EXCLUDED.storage_key, "
                             "mime_type=EXCLUDED.mime_type, "
@@ -93,7 +90,6 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
                             "width=EXCLUDED.width, "
                             "height=EXCLUDED.height, "
                             "sha256=EXCLUDED.sha256, "
-                            "watermark=EXCLUDED.watermark, "
                             "download_status=EXCLUDED.download_status, "
                             "generated_at=EXCLUDED.generated_at, "
                             "expires_at=EXCLUDED.expires_at, "
@@ -103,9 +99,11 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
                     ),
                     (
                         record.asset_key,
-                        meta.post_id,
-                        payload.post_url,
-                        meta.author_handle,
+                        result.video_id,
+                        payload.video_url,
+                        payload.preferred_quality,
+                        payload.max_duration_sec,
+                        payload.with_subtitle,
                         video.storage_backend,
                         video.storage_key,
                         video.mime_type,
@@ -114,7 +112,6 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
                         video.width,
                         video.height,
                         video.sha256,
-                        meta.watermark,
                         result.status,
                         parse_zulu_datetime(response.freshness.generated_at),
                         expires_at,
@@ -129,8 +126,8 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
                     cast(
                         Any,
                         (
-                            f"SELECT post_url, response_json, expires_at FROM {self.asset_table} "
-                            "WHERE asset_key = %s"
+                            f"SELECT video_url, preferred_quality, max_duration_sec, with_subtitle, response_json, expires_at "
+                            f"FROM {self.asset_table} WHERE asset_key = %s"
                         ),
                     ),
                     (asset_key,),
@@ -138,15 +135,20 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
                 row = cursor.fetchone()
         if row is None:
             return None
-        payload = row[1]
+        payload = row[4]
         if isinstance(payload, str):
             payload = json.loads(payload)
         response = TikTokVideoDownloadResponse.model_validate(payload, by_alias=True, by_name=True)
         return TikTokVideoAssetRecord(
             asset_key=asset_key,
-            request={"postUrl": row[0]},
+            request={
+                "videoUrl": row[0],
+                "preferredQuality": row[1],
+                "maxDurationSec": row[2],
+                "withSubtitle": row[3],
+            },
             response=response,
-            expires_at=None if row[2] is None else to_zulu(row[2]),
+            expires_at=None if row[5] is None else to_zulu(row[5]),
         )
 
     def append_invocation(self, record: ProviderInvocationRecord) -> None:
