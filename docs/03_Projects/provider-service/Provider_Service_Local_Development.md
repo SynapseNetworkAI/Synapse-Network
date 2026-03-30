@@ -215,6 +215,119 @@ curl -X POST "http://127.0.0.1:8100/provider-services/paper-pdf-download/invoke"
 1. 本地联调时把 `provider_service/.env.local` 的 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`
 2. 或者改走真实 `gateway -> provider_service` 链路，由 gateway 代你签名
 
+## 下载类接口如何测试
+
+如果你要测 `twitter / youtube / tiktok / reddit` 这些下载接口，建议分成两层：
+
+1. `curl` 手工打接口，确认路由、校验、响应骨架都通
+2. `pytest` 跑对应测试文件，确认成功路径、验签、非法 URL、fallback replay 都正常
+
+前提还是一样：
+
+1. 本地手工 `curl` 时，建议在 `provider_service/.env.local` 里设 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`
+2. 如果不关验签，就不要直接 `curl provider_service`，改走 `gateway -> provider_service`
+
+### Twitter / X Video Download
+
+手工调用：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/twitter-video-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"postUrl":"https://x.com/openai/status/1900000000000000000","preferredQuality":"best","maxDurationSec":300,"saveMode":"store_and_return","includePreviewImage":true}'
+```
+
+自动化回归：
+
+```bash
+cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+./.venv/bin/python -m pytest tests/test_twitter_video_download.py -q
+```
+
+重点验证：
+
+1. 合法 `x.com/twitter.com` 链接返回 `200`
+2. 非法 URL 返回 `422`
+3. 未签名请求在验签开启时返回 `401`
+4. 下载失败时 snapshot fallback 能否回放
+
+### TikTok Video Download
+
+手工调用：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/tiktok-video-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"videoUrl":"https://www.tiktok.com/@openai/video/7499999999999999999","preferredQuality":"best","maxDurationSec":300,"withSubtitle":false,"saveMode":"store_and_return"}'
+```
+
+自动化回归：
+
+```bash
+cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+./.venv/bin/python -m pytest tests/test_tiktok_video_download.py -q
+```
+
+重点验证：
+
+1. `videoUrl` 必须是 `https`
+2. host 必须是 TikTok 域名
+3. 路径必须带 `/video/<id>`
+4. 下载超时或时长超限时返回预期错误码
+
+### Reddit Media Download
+
+手工调用：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/reddit-media-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"postUrl":"https://www.reddit.com/r/openai/comments/2abcde/test_post/","maxFileSizeMb":512,"saveMode":"store_and_return"}'
+```
+
+自动化回归：
+
+```bash
+cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+./.venv/bin/python -m pytest tests/test_reddit_media_download.py -q
+```
+
+重点验证：
+
+1. `postUrl` 必须是 Reddit 合法帖子地址
+2. 文件过大时返回 `REDDIT_MEDIA_SIZE_EXCEEDED`
+3. 失败后是否能正确走 snapshot fallback
+
+### YouTube Video Download
+
+手工调用：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/youtube-video-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"videoUrl":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","preferredQuality":"best","maxDurationSec":1800,"maxFileSizeMb":500,"saveMode":"store_and_return"}'
+```
+
+自动化回归：
+
+```bash
+cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+./.venv/bin/python -m pytest tests/test_youtube_video_download.py -q
+```
+
+重点验证：
+
+1. 支持 `youtube.com/watch` 和 `youtu.be/<id>`
+2. 非 YouTube 域名返回 `422`
+3. 下载失败时能否回放未过期快照
+
+### 测试这些下载接口时最容易踩的坑
+
+1. 直接 `curl` 但忘了把 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`
+2. 贴了 `http://` 链接，schema 直接拒绝
+3. URL host 对了，但路径不对，比如 Twitter 缺 `/status/`、TikTok 缺 `/video/`
+4. 本地没配对象存储 / 下载依赖时，真实下载链路可能失败，这时优先先跑对应 `pytest` 文件确认业务骨架
+
 ## 扩展建议
 
 按同样分层扩展：
