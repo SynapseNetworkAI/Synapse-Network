@@ -60,8 +60,10 @@ cd /Users/cliff/workspace/Synapse-Network/gateway
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network
-sh scripts/local/restart_gateway.sh
+bash scripts/local/restart_gateway.sh
 ```
+
+这个脚本现在会在返回成功前主动等待 `http://127.0.0.1:8000/health`，避免“父进程还活着但 gateway 实际没起来”的假启动。
 
 ## 最小验证
 
