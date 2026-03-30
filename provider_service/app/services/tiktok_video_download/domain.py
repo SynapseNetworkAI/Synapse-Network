@@ -36,6 +36,7 @@ def asset_key_from_request(payload: TikTokVideoDownloadRequest) -> str:
             payload.video_url,
             payload.preferred_quality,
             str(payload.max_duration_sec),
+            str(payload.max_file_size_mb),
             str(payload.with_subtitle),
         ]
     )

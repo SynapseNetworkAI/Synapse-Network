@@ -44,6 +44,7 @@
   "postUrl": "https://x.com/<user>/status/<tweet_id>",
   "preferredQuality": "best",
   "maxDurationSec": 300,
+  "maxFileSizeMb": 250,
   "saveMode": "store_and_return",
   "includePreviewImage": true
 }
@@ -54,8 +55,9 @@
 1. `postUrl`：必填，帖子链接。
 2. `preferredQuality`：`best | medium | low`。
 3. `maxDurationSec`：防止超长视频。
-4. `saveMode`：V1 固定 `store_and_return`。
-5. `includePreviewImage`：是否带封面图信息。
+4. `maxFileSizeMb`：文件大小保护阈值，避免超大媒体打爆带宽与存储。
+5. `saveMode`：V1 固定 `store_and_return`。
+6. `includePreviewImage`：是否带封面图信息。
 
 ## 3.3 Response Schema (draft)
 

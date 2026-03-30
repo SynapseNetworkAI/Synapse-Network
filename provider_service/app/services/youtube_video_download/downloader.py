@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 
 from app.schemas.youtube_video_download import YouTubeVideoDownloadRequest
+from app.services.download_abstractions import enforce_media_limits
 
 
 @dataclass(frozen=True)
@@ -43,10 +44,23 @@ def _download_sync(payload: YouTubeVideoDownloadRequest, target_dir: Path) -> Do
     }
 
     with YoutubeDL(options) as ydl:
+        info = ydl.extract_info(payload.video_url, download=False)
+        enforce_media_limits(
+            info=info,
+            max_duration_sec=payload.max_duration_sec,
+            max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+            duration_error_code="YOUTUBE_VIDEO_DURATION_EXCEEDED",
+            size_error_code="YOUTUBE_VIDEO_SIZE_EXCEEDED",
+        )
         info = ydl.extract_info(payload.video_url, download=True)
 
-    if info.get("duration") and int(info["duration"]) > payload.max_duration_sec:
-        raise ValueError("YOUTUBE_VIDEO_DURATION_EXCEEDED")
+    enforce_media_limits(
+        info=info,
+        max_duration_sec=payload.max_duration_sec,
+        max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+        duration_error_code="YOUTUBE_VIDEO_DURATION_EXCEEDED",
+        size_error_code="YOUTUBE_VIDEO_SIZE_EXCEEDED",
+    )
 
     requested_downloads = info.get("requested_downloads") or []
     file_path = None

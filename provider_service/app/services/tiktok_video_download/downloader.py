@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 
 from app.schemas.tiktok_video_download import TikTokVideoDownloadRequest
+from app.services.download_abstractions import enforce_media_limits
 
 
 @dataclass(frozen=True)
@@ -43,10 +44,23 @@ def _download_sync(payload: TikTokVideoDownloadRequest, target_dir: Path) -> Dow
     }
 
     with YoutubeDL(options) as ydl:
+        info = ydl.extract_info(payload.video_url, download=False)
+        enforce_media_limits(
+            info=info,
+            max_duration_sec=payload.max_duration_sec,
+            max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+            duration_error_code="TIKTOK_VIDEO_DURATION_EXCEEDED",
+            size_error_code="TIKTOK_VIDEO_SIZE_EXCEEDED",
+        )
         info = ydl.extract_info(payload.video_url, download=True)
 
-    if info.get("duration") and int(info["duration"]) > payload.max_duration_sec:
-        raise ValueError("TIKTOK_VIDEO_DURATION_EXCEEDED")
+    enforce_media_limits(
+        info=info,
+        max_duration_sec=payload.max_duration_sec,
+        max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+        duration_error_code="TIKTOK_VIDEO_DURATION_EXCEEDED",
+        size_error_code="TIKTOK_VIDEO_SIZE_EXCEEDED",
+    )
 
     requested_downloads = info.get("requested_downloads") or []
     file_path = None
@@ -59,6 +73,9 @@ def _download_sync(payload: TikTokVideoDownloadRequest, target_dir: Path) -> Dow
     path = Path(file_path)
     if not path.exists():
         raise ValueError("TIKTOK_VIDEO_DOWNLOAD_FAILED")
+    size_mb = path.stat().st_size / (1024 * 1024)
+    if size_mb > payload.max_file_size_mb:
+        raise ValueError("TIKTOK_VIDEO_SIZE_EXCEEDED")
 
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     return DownloadedVideo(

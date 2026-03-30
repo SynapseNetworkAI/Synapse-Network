@@ -22,6 +22,7 @@ class TwitterVideoDownloadRequest(BaseModel):
     post_url: str = Field(alias="postUrl")
     preferred_quality: str = Field(default="best", alias="preferredQuality")
     max_duration_sec: int = Field(default=300, ge=10, le=1800, alias="maxDurationSec")
+    max_file_size_mb: int = Field(default=250, ge=10, le=1024, alias="maxFileSizeMb")
     save_mode: str = Field(default="store_and_return", alias="saveMode")
     include_preview_image: bool = Field(default=True, alias="includePreviewImage")
 
