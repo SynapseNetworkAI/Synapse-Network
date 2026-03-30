@@ -158,7 +158,7 @@ function linkHitsRetiredTarget(rawTarget) {
     return false;
   }
   return retiredPaths.some((retiredPath) => {
-    const retiredName = retiredPath.replaceAll("\\", "/");
+    const retiredName = retiredPath.replace(/\\/g, "/");
     return target.includes(retiredName) || target.includes(path.basename(retiredName));
   });
 }
@@ -269,7 +269,7 @@ function checkLlmsAnchors() {
   }
 
   for (const retiredPath of retiredPaths) {
-    const normalized = retiredPath.replaceAll("\\", "/");
+    const normalized = retiredPath.replace(/\\/g, "/");
     if (llmsContent.includes(normalized)) {
       errors.push(`llms.txt still references retired path: ${normalized}`);
     }
