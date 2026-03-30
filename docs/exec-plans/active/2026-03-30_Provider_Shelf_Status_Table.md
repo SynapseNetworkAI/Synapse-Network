@@ -47,9 +47,9 @@
 
 | Service | Service ID | Discover | Invoke | Pricing | Demo response | Repo evidence | Gap | This-week next action |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `web3 sentiment` | `svc_web3_sentiment_index` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/sentiment.py`, `provider_service/tests/test_web3_sentiment_index.py`, `docs/provider_service/api/web3_sentiment_api/web3-sentiment-index.md` | 缺确认已进入 gateway discover 结果；定价只有 manifest/pricing 建议，没有正式对外价目登记 | 在 gateway 或 demo catalog 里登记正式 service manifest，并锁 `base_price_usdc` |
-| `smart contract audit` | `svc_smart_contract_audit` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/smart_contract_audit.py`, `provider_service/tests/test_smart_contract_audit.py`, `docs/provider_service/api/smart-contract-audit/smart-contract-audit.md` | endpoint 和 demo response 已有，但 discover 接入与正式 price card 仍未看到运行时证明 | 把 manifest 注册路径和对外 price card 补到 demo 环境 |
-| `whale-flow monitor` | `svc_whale_flow_monitor` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/whale_flow_monitor.py`, `provider_service/tests/test_whale_flow_monitor.py`, `docs/provider_service/api/whale-flow-monitor.md` | 有 invoke、快照、调用审计和 demo response，但 discover 与正式定价仍像文档草案 | 补 discover 展示页与正式 per-call 定价 |
+| `web3 sentiment` | `svc_web3_sentiment_index` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/sentiment.py`, `provider_service/tests/test_web3_sentiment_index.py`, `docs/provider_service/api/web3_sentiment_api/web3-sentiment-index.md` | 已有注册种子脚本，但仍缺确认它已进入 gateway discover 结果；定价还没变成真实 registry 记录 | 运行 `gateway/examples/register_provider_shelf_services.py`，并验证 discover 输出 |
+| `smart contract audit` | `svc_smart_contract_audit` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/smart_contract_audit.py`, `provider_service/tests/test_smart_contract_audit.py`, `docs/provider_service/api/smart-contract-audit/smart-contract-audit.md` | endpoint 和 demo response 已有，且已有注册种子脚本；但 discover 接入与正式 price card 仍未看到运行时证明 | 运行注册脚本并核验 price card / discover 结果 |
+| `whale-flow monitor` | `svc_whale_flow_monitor` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/whale_flow_monitor.py`, `provider_service/tests/test_whale_flow_monitor.py`, `docs/provider_service/api/whale-flow-monitor.md` | 有 invoke、快照、调用审计和 demo response，且已有注册种子脚本；但 discover 与正式定价仍像文档草案 | 运行注册脚本并核验 discover 展示页与正式 per-call 定价 |
 
 ## 4. What This Means
 
@@ -84,4 +84,4 @@
 
 - Check: 对照 `provider_service` endpoint、测试、API 契约文档以及 Week 1 checklist 的货架审计要求
 - Result: 已形成三项样板服务的首版 shelf audit table
-- Follow-up: 下一步要把 `partial` 的 discover / pricing 变成真实运行时事实
+- Follow-up: 已补 `gateway/examples/register_provider_shelf_services.py` 作为注册种子，下一步要把 `partial` 的 discover / pricing 变成真实运行时事实
