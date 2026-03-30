@@ -41,10 +41,24 @@ NEXT_PUBLIC_GATEWAY_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=20000
 ```
 
+也可以先从示例文件起步：
+
+```bash
+cp apps/frontend/.env.example apps/frontend/.env.local
+```
+
+如果当前就是准备切到 `Arbitrum Sepolia`，再补一步：
+
+```bash
+cp apps/frontend/src/contract-config.arbitrum-sepolia.example.json apps/frontend/src/contract-config.json
+```
+
 含义：
 
 1. `NEXT_PUBLIC_GATEWAY_BASE_URL`: 前端请求 gateway 的基地址。
 2. `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS`: 服务列表缓存 TTL，推荐 15000-30000ms。
+3. `NEXT_PUBLIC_REOWN_PROJECT_ID` / `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`: 钱包连接项目 ID，可选。
+4. `contract-config.json`: 填入目标测试网的 `MockUSDC / Treasury / SynapseCore` 地址。
 
 ## 本地访问
 

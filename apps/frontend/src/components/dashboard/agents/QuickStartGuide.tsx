@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
-import { useAccount, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { parseAbi, parseUnits, type Hex } from "viem";
 import { ChevronRight, Zap, Lock, Rocket, CheckCircle2, RefreshCw, AlertCircle } from "lucide-react";
 import contractConfig from "@/contract-config.json";
 import { createDepositIntent } from "@/utils/balanceApi";
+import { resolvePermitDomainChainId } from "@/utils/permitChain";
 import toast from "react-hot-toast";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
@@ -30,6 +31,7 @@ const STEPS: Array<{ step: QuickStartStep; label: string; icon: typeof Zap }> = 
 
 export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: Readonly<QuickStartGuideProps>) {
   const { address: userAddress, isConnected } = useAccount();
+  const chainId = useChainId();
   const [currentStep, setCurrentStep] = useState<QuickStartStep>("deposit");
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("10");
@@ -85,11 +87,18 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
       const amount = parseUnits(depositAmount, 18);
       const deadline = Math.floor(Date.now() / 1000) + 3600;
       const nonce = usdcNonce ?? BigInt(0);
+      const permitChainId = resolvePermitDomainChainId(chainId);
+
+      if (!permitChainId) {
+        setDepositError("Unable to determine wallet network. Please switch to the target testnet and retry.");
+        setDepositStep("input");
+        return;
+      }
 
       const domain = {
         name: "MockUSDC",
         version: "1",
-        chainId: 1,
+        chainId: permitChainId,
         verifyingContract: contractConfig.MockUSDC as `0x${string}`,
       };
 
