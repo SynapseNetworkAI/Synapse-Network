@@ -44,6 +44,7 @@ async def invoke_reddit_media_download(
         payload,
         request_id=request.state.request_id,
         gateway_request_id=_gateway_request_id(request),
+        disconnect_checker=request.is_disconnected,
     )
 
     req_logger.info(

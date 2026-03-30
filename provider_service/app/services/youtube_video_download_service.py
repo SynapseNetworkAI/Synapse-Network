@@ -68,6 +68,7 @@ async def execute_youtube_video_download(
     *,
     request_id: str | None,
     gateway_request_id: str | None,
+    disconnect_checker=None,
 ) -> YouTubeVideoDownloadResponse:
     repository = get_youtube_video_download_repository()
     storage = build_video_storage()
@@ -79,11 +80,13 @@ async def execute_youtube_video_download(
     try:
         try:
             downloaded = await run_guarded_download(
-                service_key=SERVICE_ID,
-                policy=policy,
-                timeout_error_code="YOUTUBE_VIDEO_DOWNLOAD_TIMEOUT",
-                operation=lambda: download_youtube_video(payload, target_dir=policy.resolved_tmp_dir()),
-            )
+            service_key=SERVICE_ID,
+            policy=policy,
+            timeout_error_code="YOUTUBE_VIDEO_DOWNLOAD_TIMEOUT",
+            disconnect_error_code="YOUTUBE_VIDEO_DOWNLOAD_CANCELLED",
+            disconnect_checker=disconnect_checker,
+            operation=lambda: download_youtube_video(payload, target_dir=policy.resolved_tmp_dir()),
+        )
             key = _storage_key(policy, downloaded.video_id, downloaded.file_path.name)
             stored = storage.put_file(
                 source_path=downloaded.file_path,
@@ -146,6 +149,12 @@ async def execute_youtube_video_download(
         except Exception as exc:  # noqa: BLE001
             code = "YOUTUBE_VIDEO_DOWNLOAD_FAILED"
             message = str(exc)
+
+        if code == "YOUTUBE_VIDEO_DOWNLOAD_CANCELLED":
+            raise HTTPException(
+                status_code=499,
+                detail={"code": code, "message": "Request disconnected during youtube video download."},
+            )
 
         snapshot = repository.load_asset(asset_key)
         if snapshot is not None and not snapshot.is_expired(now=_now_utc()):

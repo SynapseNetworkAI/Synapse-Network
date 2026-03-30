@@ -230,10 +230,12 @@
 | `svc_tiktok_video_download` | `TIKTOK_VIDEO_DURATION_EXCEEDED` | 下载资源时长超过 `maxDurationSec` | 返回 `502` 结构化错误 |
 | `svc_tiktok_video_download` | `TIKTOK_VIDEO_SIZE_EXCEEDED` | 下载资源大小超过 `maxFileSizeMb` | 返回 `502` 结构化错误 |
 | `svc_tiktok_video_download` | `TIKTOK_VIDEO_DOWNLOAD_TIMEOUT` | 总下载时间超过 provider 侧 timeout gate | 返回 `502` 结构化错误 |
+| `svc_tiktok_video_download` | `TIKTOK_VIDEO_DOWNLOAD_CANCELLED` | client / gateway 提前断开，provider 主动取消下载 subprocess | 返回 `499` |
 | `svc_tiktok_video_download` | `TIKTOK_VIDEO_DOWNLOAD_FAILED` | live 下载失败且无可用 snapshot | 返回 `502` 结构化错误 |
 | `svc_tiktok_video_download` | `TIKTOK_VIDEO_SNAPSHOT_FALLBACK_USED` | live 下载失败但命中未过期 snapshot | 返回 `200`，`freshness.cacheHit=true`，并在 `errors` 追加 fallback 标记 |
 | `svc_reddit_media_download` | `REDDIT_MEDIA_SIZE_EXCEEDED` | 媒体大小超过 `maxFileSizeMb` | 返回 `502` 结构化错误 |
 | `svc_reddit_media_download` | `REDDIT_MEDIA_DOWNLOAD_TIMEOUT` | 总下载时间超过 provider 侧 timeout gate | 返回 `502` 结构化错误 |
+| `svc_reddit_media_download` | `REDDIT_MEDIA_DOWNLOAD_CANCELLED` | client / gateway 提前断开，provider 主动取消下载 subprocess | 返回 `499` |
 | `svc_reddit_media_download` | `REDDIT_MEDIA_DOWNLOAD_FAILED` | live 下载失败且无可用 snapshot | 返回 `502` 结构化错误 |
 | `svc_reddit_media_download` | `REDDIT_MEDIA_SNAPSHOT_FALLBACK_USED` | live 下载失败但命中未过期 snapshot | 返回 `200`，`freshness.cacheHit=true`，并在 `errors` 追加 fallback 标记 |
 

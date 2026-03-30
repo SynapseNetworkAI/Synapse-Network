@@ -59,6 +59,12 @@
 5. `saveMode`：V1 固定 `store_and_return`。
 6. `includePreviewImage`：是否带封面图信息。
 
+当前运行时保护：
+
+1. 下载前会先做 metadata preflight，尽量在真正拉流前拦住超长/超大资源
+2. 下载执行已经从线程模式切到独立 `yt_dlp` subprocess，timeout / disconnect 会终止底层子进程
+3. provider 侧仍保留总超时和并发闸门，避免瞬时下载把机器打爆
+
 ## 3.3 Response Schema (draft)
 
 ```json

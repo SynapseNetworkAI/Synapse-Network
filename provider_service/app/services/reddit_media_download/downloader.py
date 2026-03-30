@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 
 from app.schemas.reddit_media_download import RedditMediaDownloadRequest
 from app.services.download_abstractions import enforce_media_limits
+from app.services.yt_dlp_subprocess import YtDlpSubprocessSpec, run_yt_dlp_subprocess
 
 
 @dataclass(frozen=True)
@@ -21,40 +21,37 @@ class DownloadedMedia:
     sha256: str
 
 
-def _download_sync(payload: RedditMediaDownloadRequest, target_dir: Path) -> DownloadedMedia:
-    from yt_dlp import YoutubeDL
-
+async def download_reddit_media(
+    payload: RedditMediaDownloadRequest,
+    *,
+    target_dir: Path,
+) -> DownloadedMedia:
     target_dir.mkdir(parents=True, exist_ok=True)
-    outtmpl = str(target_dir / "%(id)s.%(ext)s")
-    options = {
-        "outtmpl": outtmpl,
-        "format": "best",
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-        "socket_timeout": 20,
-    }
-
-    with YoutubeDL(options) as ydl:
-        info = ydl.extract_info(payload.post_url, download=False)
-        enforce_media_limits(
-            info=info,
-            max_duration_sec=None,
-            max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
-            duration_error_code="REDDIT_MEDIA_DOWNLOAD_FAILED",
-            size_error_code="REDDIT_MEDIA_SIZE_EXCEEDED",
+    preflight = await run_yt_dlp_subprocess(
+        YtDlpSubprocessSpec(
+            url=payload.post_url,
+            target_dir=target_dir,
+            format_selector="best",
+            download=False,
         )
-        info = ydl.extract_info(payload.post_url, download=True)
+    )
+    enforce_media_limits(
+        info=preflight,
+        max_duration_sec=None,
+        max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+        duration_error_code="REDDIT_MEDIA_DOWNLOAD_FAILED",
+        size_error_code="REDDIT_MEDIA_SIZE_EXCEEDED",
+    )
+    info = await run_yt_dlp_subprocess(
+        YtDlpSubprocessSpec(
+            url=payload.post_url,
+            target_dir=target_dir,
+            format_selector="best",
+            download=True,
+        )
+    )
 
-    requested_downloads = info.get("requested_downloads") or []
-    file_path = None
-    if requested_downloads:
-        file_path = requested_downloads[0].get("filepath")
-    if not file_path:
-        ext = info.get("ext") or "bin"
-        file_path = str(target_dir / f"{info.get('id')}.{ext}")
-
-    path = Path(file_path)
+    path = Path(str(info.get("filepath") or ""))
     if not path.exists():
         raise ValueError("REDDIT_MEDIA_DOWNLOAD_FAILED")
 
@@ -84,11 +81,3 @@ def _download_sync(payload: RedditMediaDownloadRequest, target_dir: Path) -> Dow
         mime_type=mime_type,
         sha256=digest,
     )
-
-
-async def download_reddit_media(
-    payload: RedditMediaDownloadRequest,
-    *,
-    target_dir: Path,
-) -> DownloadedMedia:
-    return await asyncio.to_thread(_download_sync, payload, target_dir)
