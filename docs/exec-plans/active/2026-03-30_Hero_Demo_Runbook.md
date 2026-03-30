@@ -183,9 +183,10 @@
 
 ## 6.1 Proven Local Runtime Path
 
-2026-03-30 已在本地跑通一条真实链路，当前最稳的 demo service 是：
+2026-03-30 已在本地跑通两条真实链路，当前最稳的 demo services 是：
 
 1. `svc_web3_sentiment_index`
+2. `svc_smart_contract_audit`
 
 本地验证环境：
 
@@ -198,11 +199,17 @@
 2. `quote`
 3. `invoke`
 
-关键结果：
+第一条链关键结果：
 
 1. `quoteId`: `quote-38ff2534b4cb4c8ba722bd34f262245d`
 2. `invocationId`: `inv-18dc99a37d124ac7bb0326d2e5609579`
 3. `chargedUsdc`: `0.0101`
+
+第二条链关键结果：
+
+1. `quoteId`: `quote-907fd1bbc4fa49b5924ceb610c7ffdb9`
+2. `invocationId`: `inv-9b2a498c8f984680af8629ea172743ae`
+3. `chargedUsdc`: `0.5001`
 
 ## 6.2 Recommended Live Demo Sequence
 
@@ -213,19 +220,29 @@
 3. 最后执行 `invoke`
 4. 同步展示 owner balance 从 `5.0` 下降
 
+如果要做第二条备选链：
+
+1. 切到 `discover?intent=audit`
+2. 展示 `Smart Contract Audit Model`
+3. 展示 `quote` 返回 `0.5 USDC`
+4. 发送一个带 `delegatecall` 的 `source_bundle`
+5. 展示返回的 `riskScore / riskLevel / criticalFindings`
+
 ## 6.3 Demo Notes From Real Run
 
-这次真实联调暴露出的 3 个要点：
+这次真实联调暴露出的 4 个要点：
 
 1. `web3 sentiment` 是当前最稳的首发 demo 服务
 2. owner balance 必须先有可用余额，否则 `invoke` 会返回 `INSUFFICIENT_BALANCE`
 3. 当前 agent credential 存在本地时区偏差问题，刚签发后可能被误判 `CREDENTIAL_EXPIRED`
+4. `smart contract audit` 是当前最强的第二条“可讲价值”链，因为输出更像高客单价服务
 
 建议现场录屏前：
 
 1. 先确认 credential 可用
 2. 先确认 owner balance 大于 `1 USDC`
 3. 先确认 `discover` 能查到 `svc_web3_sentiment_index`
+4. 如果做双链 demo，先确认 `discover?intent=audit` 能查到 `svc_smart_contract_audit`
 
 ## 7. Demo Readiness Checklist
 
@@ -259,3 +276,9 @@
 - Check: 本地完成 `discover -> quote -> invoke` 端到端联调
 - Result: `svc_web3_sentiment_index` 已完成真实成功调用，`chargedUsdc=0.0101`
 - Follow-up: 把这条本地成功链路录成 Hero Demo V1，并把 owner balance / provider income 画面一起录进去
+
+### 2026-03-30 Second Demo Chain Verification
+
+- Check: 本地完成 `svc_smart_contract_audit` 的 `discover -> quote -> invoke`
+- Result: 第二条 demo 链真实成功，`chargedUsdc=0.5001`，并返回 `riskScore / riskLevel / criticalFindings`
+- Follow-up: 把这条链整理成 Hero Demo 备选剧本，用于投资人或高客单价服务场景

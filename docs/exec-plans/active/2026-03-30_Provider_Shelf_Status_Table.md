@@ -98,3 +98,9 @@
 - Check: 以 `svc_web3_sentiment_index` 跑通本地 `discover -> quote -> invoke`
 - Result: 本地真实成功返回 `invocationId=inv-18dc99a37d124ac7bb0326d2e5609579`，实际扣费 `0.0101 USDC`
 - Follow-up: 下一步把这条链路录成正式 Hero Demo，并补 provider income / owner balance 的镜头切换
+
+### 2026-03-30 Second End-to-End Demo Update
+
+- Check: 以 `svc_smart_contract_audit` 跑通本地 `discover -> quote -> invoke`
+- Result: 本地真实成功返回 `invocationId=inv-9b2a498c8f984680af8629ea172743ae`，实际扣费 `0.5001 USDC`
+- Follow-up: 下一步把 audit 结果页压缩成更适合录屏的输出视图
