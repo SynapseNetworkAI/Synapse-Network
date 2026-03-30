@@ -9,6 +9,8 @@
 - Related docs:
   - `docs/exec-plans/active/2026-03-30_Readiness_Gap_List.md`
   - `docs/exec-plans/active/2026-03-30_Week1_Today_Checklist.md`
+  - `docs/exec-plans/active/2026-03-30_Public_Deployment_Checklist.md`
+  - `docs/exec-plans/active/2026-03-30_Testnet_Selection_and_Config_Checklist.md`
 
 ## 1. Purpose
 
@@ -30,7 +32,7 @@
 | `database` | `partial` | `internal` | Founder / CTO | Postgres/MinIO 等内部资源待登记 |
 | `contracts` | `partial` | `TBD` | Founder / CTO | 合约地址与 explorer 链接待登记 |
 | `domain` | `missing` | `TBD` | Founder / CTO | demo 域名未登记 |
-| `testnet` | `partial` | `Arbitrum Sepolia or Base Sepolia` | Founder / CTO | 需在本周锁定唯一主链 |
+| `testnet` | `partial` | `Arbitrum Sepolia (recommended) / Base Sepolia (backup)` | Founder / CTO | 当前建议优先锁定 `Arbitrum Sepolia` |
 
 ## 3. Required Fields To Fill This Week
 
@@ -88,3 +90,14 @@
 - Result: 已创建首版状态登记表
 - Follow-up: 目前多数字段仍是 `TBD`，需要真实环境值补齐
 
+### 2026-03-30 Deployment Checklist Update
+
+- Check: 为 `frontend / gateway / provider_service` 补部署配置和上线清单
+- Result: 已有统一 deployment checklist 与三份 Dockerfile 骨架可承接公网部署
+- Follow-up: 下一步填入真实公网 URL、域名、测试链与合约地址
+
+### 2026-03-30 Testnet Recommendation Update
+
+- Check: 收口测试网选择与配置改动边界
+- Result: 已新增 testnet selection checklist，当前推荐 `Arbitrum Sepolia`
+- Follow-up: 下一步回填真实测试网合约地址与 explorer 链接

@@ -1,0 +1,5 @@
+{
+  "MockUSDC": "0xYourArbitrumSepoliaUsdcAddress",
+  "Treasury": "0xYourArbitrumSepoliaTreasuryAddress",
+  "SynapseCore": "0xYourArbitrumSepoliaSynapseCoreAddress"
+}
