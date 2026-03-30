@@ -24,7 +24,7 @@
 - 入口文件：`gateway/gateway_fastapi.py`
 - 核心目录：`gateway/src/`
 - 测试目录：`gateway/tests/`
-- 环境模板：`gateway/.env.example`、`gateway/.env.local.example`、`gateway/.env.prod.example`
+- 环境模板：`gateway/.env.example`、`gateway/.env.local.example`、`gateway/.env.staging.example`、`gateway/.env.prod.example`
 
 ## 3. 项目内建议阅读顺序
 

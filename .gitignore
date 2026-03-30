@@ -20,9 +20,15 @@ provider_service/.venv/
 agent_wallet.json
 .env
 provider_service/.env.local
+provider_service/.env.staging
 provider_service/.env.prod
 gateway/.env.local
+gateway/.env.staging
 gateway/.env.prod
+apps/frontend/.env.local
+apps/frontend/.env.staging
+apps/frontend/.env.prod
+admin/gateway-admin/.env.staging
 
 # Local runtime artifacts
 .local_env.pids

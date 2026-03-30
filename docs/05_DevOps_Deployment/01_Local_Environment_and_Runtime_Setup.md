@@ -265,7 +265,23 @@ npx hardhat run scripts/fund_usdc.js --network localhost -- \
 2. 适合改了 Gateway 代码或 `.env.local` 之后快速重载
 3. 用法：`bash scripts/local/restart_gateway.sh`
 
-#### D. 生产 profile 脚本
+#### D. 共享测试网 / 生产 profile 脚本
+
+`scripts/staging/start_staging_env.sh`
+
+1. 用途：按 `staging` profile 启动 `gateway/provider_fastapi.py`
+2. 优先读取 `gateway/.env.staging`
+3. 用法：`bash scripts/staging/start_staging_env.sh`
+
+`scripts/staging/stop_staging_env.sh`
+
+1. 用途：停止 staging profile 的 Gateway 进程
+2. 用法：`bash scripts/staging/stop_staging_env.sh`
+
+`scripts/staging/restart_staging_env.sh`
+
+1. 用途：先停后起 staging profile
+2. 用法：`bash scripts/staging/restart_staging_env.sh`
 
 `scripts/prod/start_prod_env.sh`
 
@@ -355,8 +371,9 @@ Gateway 至少要显式配置：
 模板位置：
 
 1. `gateway/.env.local.example` 用于本地开发
-2. `gateway/.env.prod.example` 用于生产部署模板
-3. `gateway/.env.example` 是完整变量总表
+2. `gateway/.env.staging.example` 用于共享测试网 / 演示环境
+3. `gateway/.env.prod.example` 用于生产部署模板
+4. `gateway/.env.example` 是完整变量总表
 
 `PRIVATE_KEY` 的语义必须明确：
 

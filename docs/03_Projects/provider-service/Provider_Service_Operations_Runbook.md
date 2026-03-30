@@ -49,9 +49,10 @@ cp .env.example .env
 脚本启动约定：
 
 1. 本地开发默认使用 `provider_service/.env.local`
-2. 生产模式脚本使用 `provider_service/.env.prod`
-3. `provider_service/.env` 仍可保留给手工直跑 `uvicorn` 的兼容路径
-4. `provider_service/.env.example` 为模板文件，现已标注中文用途、是否必填、以及代码默认值
+2. 共享测试网脚本使用 `provider_service/.env.staging`
+3. 生产模式脚本使用 `provider_service/.env.prod`
+4. `provider_service/.env` 仍可保留给手工直跑 `uvicorn` 的兼容路径
+5. `provider_service/.env.example` 为模板文件，现已标注中文用途、是否必填、以及代码默认值
 
 ### 3.2 当前最小配置
 
@@ -94,20 +95,20 @@ ETHERSCAN_API_KEY=
 1. 当前代码路径实际使用本地 JSON 数据源，不依赖 `DEEPSEEK_API_KEY`。
 2. 保留 `DEEPSEEK_*` 变量是为了后续切回真实模型时直接复用。
 3. postgres repository 现在统一复用 `PROVIDER_SERVICE_POSTGRES_DSN`，不再为 sentiment / protocol brief 维护两套 DSN。
-4. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 控制是否强制校验 Gateway 签名；生产环境必须保持 `true`。
+4. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 控制是否强制校验 Gateway 签名；`staging/prod` 必须保持 `true`。
 5. `GATEWAY_PROVIDER_SIGNATURE_SECRET` 是 Gateway 与 Provider 共享的 HMAC 密钥；只要开启验签就必须配置真实值。
-5. 当前 sentiment scheduler 已支持持久化 lease / cooldown 状态表；本地是否开启取决于调试目标，生产环境可按白名单热点 symbol 开启。
-6. `SENTIMENT_SCHEDULER_LEASE_TTL_S` 控制 per-snapshot lease TTL，默认建议 `120s`。
-7. 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 freshness policy，默认阈值分别是 `60s / 300s / 900s`。
-8. `provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`、`provider_sentiment_scheduler_jobs` 必须通过 `docker-compose/postgres/init/gateway-providers/` 的显式 SQL 链路预创建，runtime repository 不再执行建表或补列。
-9. `SENTIMENT_PROXY_POOL_ENABLED` 控制抓取 worker 是否通过代理池出站；开启后会按 `SENTIMENT_PROXY_POOL_URLS_JSON` 中的 URL 做轮转。
-10. `SENTIMENT_PROXY_POOL_URLS_JSON` 必须是 JSON 数组；如果写在 `.env.*` 文件里，要用单引号包住整串，例如 `'["http://proxy-a.internal:8080","http://proxy-b.internal:8080"]'`。
-11. `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 是代理模式下的最小 timeout floor；单代理环境建议至少 `8` 秒。
-12. 代理模式下 scheduler 刷新并发会自动被限制到代理池大小，避免单代理环境被多快照并发压爆。
-13. `Smart Contract Audit Model` 的地址模式当前按 `Sourcify -> Blockscout -> Etherscan` 顺序回退。
-14. `SOURCIFY_BASE_URL` 默认官方服务地址，`SOURCIFY_TIMEOUT_S` 控制单次 Sourcify verified-source 抓取超时。
-15. `BLOCKSCOUT_BASE_URLS_JSON` 是链到 explorer API base URL 的 JSON 映射；写在 `.env.*` 时要用单引号包住整串 JSON。
-16. `ETHERSCAN_API_KEY` 为空时，Etherscan fallback 会自动跳过，不会阻塞主链。
+6. 当前 sentiment scheduler 已支持持久化 lease / cooldown 状态表；本地是否开启取决于调试目标，生产环境可按白名单热点 symbol 开启。
+7. `SENTIMENT_SCHEDULER_LEASE_TTL_S` 控制 per-snapshot lease TTL，默认建议 `120s`。
+8. 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 freshness policy，默认阈值分别是 `60s / 300s / 900s`。
+9. `provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`、`provider_sentiment_scheduler_jobs` 必须通过 `docker-compose/postgres/init/gateway-providers/` 的显式 SQL 链路预创建，runtime repository 不再执行建表或补列。
+10. `SENTIMENT_PROXY_POOL_ENABLED` 控制抓取 worker 是否通过代理池出站；开启后会按 `SENTIMENT_PROXY_POOL_URLS_JSON` 中的 URL 做轮转。
+11. `SENTIMENT_PROXY_POOL_URLS_JSON` 必须是 JSON 数组；如果写在 `.env.*` 文件里，要用单引号包住整串，例如 `'["http://proxy-a.internal:8080","http://proxy-b.internal:8080"]'`。
+12. `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 是代理模式下的最小 timeout floor；单代理环境建议至少 `8` 秒。
+13. 代理模式下 scheduler 刷新并发会自动被限制到代理池大小，避免单代理环境被多快照并发压爆。
+14. `Smart Contract Audit Model` 的地址模式当前按 `Sourcify -> Blockscout -> Etherscan` 顺序回退。
+15. `SOURCIFY_BASE_URL` 默认官方服务地址，`SOURCIFY_TIMEOUT_S` 控制单次 Sourcify verified-source 抓取超时。
+16. `BLOCKSCOUT_BASE_URLS_JSON` 是链到 explorer API base URL 的 JSON 映射；写在 `.env.*` 时要用单引号包住整串 JSON。
+17. `ETHERSCAN_API_KEY` 为空时，Etherscan fallback 会自动跳过，不会阻塞主链。
 
 ## 4. 启动服务
 
@@ -129,9 +130,9 @@ ETHERSCAN_API_KEY=
 
 额外安全护栏：
 
-1. 如果用 `prod` 环境启动，同时 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`，启动脚本默认直接拒绝启动
+1. 如果用 `staging` 或 `prod` 环境启动，同时 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`，启动脚本默认直接拒绝启动
 2. 只有显式设置 `ALLOW_INSECURE_PROD_START=true`，才会放行这次危险启动
-3. 即使放行，脚本仍会打印红字安全警报，明确提示你当前把生产环境跑成了“关闭验签”的危险状态
+3. 即使放行，脚本仍会打印红字安全警报，明确提示你当前把共享环境跑成了“关闭验签”的危险状态
 4. 如果 `SENTIMENT_PROXY_POOL_ENABLED=true` 但 `SENTIMENT_PROXY_POOL_URLS_JSON` 为空，启动脚本也会直接拒绝启动，避免抓取 worker 假装走代理、实际仍然直连
 
 停止与重启：
@@ -141,7 +142,20 @@ ETHERSCAN_API_KEY=
 ./scripts/restart.local.sh
 ```
 
-### 4.2 生产模式
+### 4.2 共享测试网模式
+
+```bash
+./scripts/start.staging.sh
+```
+
+停止与重启：
+
+```bash
+./scripts/stop.staging.sh
+./scripts/restart.staging.sh
+```
+
+### 4.3 生产模式
 
 ```bash
 ./scripts/start.prod.sh
@@ -323,8 +337,8 @@ kill -9 <PID>
 1. 拉取最新代码。
 2. 激活 `.venv`。
 3. `pip install -r requirements.txt`。
-4. 更新 `provider_service/.env.local` 或 `provider_service/.env.prod`。
-5. 用对应环境脚本启动服务，例如 `./scripts/start.local.sh` 或 `./scripts/start.prod.sh`。
+4. 更新 `provider_service/.env.local` / `provider_service/.env.staging` / `provider_service/.env.prod`。
+5. 用对应环境脚本启动服务，例如 `./scripts/start.local.sh`、`./scripts/start.staging.sh` 或 `./scripts/start.prod.sh`。
 6. 先打 `health`，再打业务接口。
 7. 如改了 schema 或数据源，执行 `./.venv/bin/python -m pytest tests -q`。
 

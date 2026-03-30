@@ -18,6 +18,46 @@ ENV_FILE_STAGING = ".env.staging"
 ENV_FILE_TEST = ".env.test"
 
 
+def _canonical_environment_name(raw_environment: str | None) -> str:
+    normalized = str(raw_environment or "local").strip().lower()
+    aliases = {
+        "local": "local",
+        "dev": "local",
+        "development": "local",
+        "stage": "staging",
+        "staging": "staging",
+        "prod": "prod",
+        "production": "prod",
+        "test": "test",
+    }
+    return aliases.get(normalized, normalized or "local")
+
+
+def _environment_file_candidates(raw_environment: str | None) -> list[str]:
+    normalized = str(raw_environment or "local").strip().lower()
+    alias_candidates = {
+        "local": [ENV_FILE_LOCAL],
+        "development": [ENV_FILE_DEVELOPMENT, ENV_FILE_DEV, ENV_FILE_LOCAL],
+        "dev": [ENV_FILE_DEV, ENV_FILE_DEVELOPMENT, ENV_FILE_LOCAL],
+        "staging": [ENV_FILE_STAGING, ENV_FILE_STAGE],
+        "stage": [ENV_FILE_STAGE, ENV_FILE_STAGING],
+        "prod": [ENV_FILE_PROD, ENV_FILE_PRODUCTION],
+        "production": [ENV_FILE_PRODUCTION, ENV_FILE_PROD],
+        "test": [ENV_FILE_TEST],
+    }
+    if normalized in alias_candidates:
+        return alias_candidates[normalized]
+
+    canonical = _canonical_environment_name(normalized)
+    canonical_candidates = {
+        "local": [ENV_FILE_LOCAL],
+        "staging": [ENV_FILE_STAGING, ENV_FILE_STAGE],
+        "prod": [ENV_FILE_PROD, ENV_FILE_PRODUCTION],
+        "test": [ENV_FILE_TEST],
+    }
+    return canonical_candidates.get(canonical, [f".env.{normalized}"])
+
+
 def _load_router_address_from_contract_config() -> str:
     """Fallback: read deployed router/core address from frontend contract config."""
     try:
@@ -111,18 +151,8 @@ def _load_environment_files() -> None:
             load_dotenv(base_env_path, override=False)
             break
 
-    runtime_env = str(os.getenv("ENVIRONMENT", "local") or "local").strip().lower()
-    env_aliases = {
-        "local": [ENV_FILE_LOCAL],
-        "development": [ENV_FILE_DEVELOPMENT, ENV_FILE_LOCAL],
-        "dev": [ENV_FILE_DEV, ENV_FILE_LOCAL],
-        "prod": [ENV_FILE_PROD, ENV_FILE_PRODUCTION],
-        "production": [ENV_FILE_PRODUCTION, ENV_FILE_PROD],
-        "stage": [ENV_FILE_STAGE, ENV_FILE_STAGING],
-        "staging": [ENV_FILE_STAGING, ENV_FILE_STAGE],
-        "test": [ENV_FILE_TEST],
-    }
-    candidates = env_aliases.get(runtime_env, [f".env.{runtime_env}"])
+    runtime_env = os.getenv("ENVIRONMENT", "local")
+    candidates = _environment_file_candidates(runtime_env)
 
     for env_file in candidates:
         env_path = _resolve_env_file_path(env_file)
@@ -297,7 +327,7 @@ _service_health_history_retention_hours_default = max(
 
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
-    environment: str = os.getenv("ENVIRONMENT", "local")
+    environment: str = _canonical_environment_name(os.getenv("ENVIRONMENT", "local"))
     # RPC endpoint used by chain-facing flows (deposit indexer, receipt checks).
     rpc_url: str = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     # Listener contract for deposit events; falls back to frontend contract config.

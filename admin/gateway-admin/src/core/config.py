@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Optional
 
 from pydantic import Field
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,7 +25,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Synapse Gateway Admin"
-    environment: str = "development"
+    environment: str = "local"
     host: str = Field(default="0.0.0.0", alias="ADMIN_GATEWAY_HOST")
     port: int = Field(default=8300, alias="ADMIN_GATEWAY_PORT")
     debug: bool = Field(default=True, alias="ADMIN_GATEWAY_DEBUG")
@@ -120,9 +121,24 @@ class Settings(BaseSettings):
     )
     use_inmemory_store: bool = Field(default=False, alias="ADMIN_GATEWAY_USE_INMEMORY_STORE")
 
+    @field_validator("environment", mode="before")
+    @classmethod
+    def normalize_environment(cls, value: object) -> str:
+        normalized = str(value or "local").strip().lower()
+        aliases = {
+            "development": "local",
+            "dev": "local",
+            "local": "local",
+            "staging": "staging",
+            "stage": "staging",
+            "production": "prod",
+            "prod": "prod",
+        }
+        return aliases.get(normalized, normalized or "local")
+
     def cors_origins(self) -> list[str]:
         origins = [item.strip() for item in self.allowed_origins.split(",") if item.strip()]
-        if self.environment.lower() == "development":
+        if self.environment.lower() == "local":
             for origin in DEVELOPMENT_CORS_ORIGINS:
                 if origin not in origins:
                     origins.append(origin)

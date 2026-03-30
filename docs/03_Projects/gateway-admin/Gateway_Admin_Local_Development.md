@@ -33,13 +33,14 @@ sh scripts/ops/start-local.sh
 cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
 sh scripts/ops/start-local.sh
 sh scripts/ops/stop.sh
-sh scripts/ops/restart.sh
+sh scripts/ops/restart.sh local
+sh scripts/ops/start-staging.sh
 sh scripts/ops/status.sh
 ```
 
 ## 数据库与迁移说明
 
-1. `start-local.sh` / `start-prod.sh` 不再自动补跑 admin bootstrap SQL。
+1. `start-local.sh` / `start-staging.sh` / `start-prod.sh` 不再自动补跑 admin bootstrap SQL。
 2. 如果旧 PostgreSQL volume 缺表，手动执行 `./.venv/bin/python scripts/apply_migrations.py`。
 3. 如果 `ADMIN_DATABASE_DSN` 没有 schema 变更权限，额外配置 `ADMIN_DATABASE_MIGRATION_DSN`。
 

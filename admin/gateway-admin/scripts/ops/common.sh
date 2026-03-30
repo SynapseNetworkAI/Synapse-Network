@@ -10,6 +10,7 @@ RUN_DIR="${APP_DIR}/run"
 PID_FILE="${RUN_DIR}/gateway-admin.pid"
 LOG_FILE="${LOG_DIR}/gateway-admin.log"
 ENV_FILE_DEFAULT="${APP_DIR}/.env.local"
+STAGING_ENV_FILE_DEFAULT="${APP_DIR}/.env.staging"
 ENV_FILE_FALLBACK="${APP_DIR}/.env"
 PROD_ENV_FILE_DEFAULT="/etc/synapse/gateway-admin.env"
 APP_MODULE="src.app:app"
@@ -69,6 +70,22 @@ resolve_env_file() {
 resolve_local_env_file() {
   if [[ -f "${ENV_FILE_DEFAULT}" ]]; then
     echo "${ENV_FILE_DEFAULT}"
+    return 0
+  fi
+  if [[ -f "${ENV_FILE_FALLBACK}" ]]; then
+    echo "${ENV_FILE_FALLBACK}"
+    return 0
+  fi
+  echo ""
+}
+
+resolve_staging_env_file() {
+  if [[ -n "${ADMIN_GATEWAY_ENV_FILE:-}" ]]; then
+    echo "${ADMIN_GATEWAY_ENV_FILE}"
+    return 0
+  fi
+  if [[ -f "${STAGING_ENV_FILE_DEFAULT}" ]]; then
+    echo "${STAGING_ENV_FILE_DEFAULT}"
     return 0
   fi
   if [[ -f "${ENV_FILE_FALLBACK}" ]]; then
