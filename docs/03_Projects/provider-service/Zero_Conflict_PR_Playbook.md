@@ -1,6 +1,6 @@
 # Provider Service 零冲突节奏模板（Zero-Conflict PR Playbook）
 
-- Status: active
+- Status: supplementary
 - Scope: `provider_service` / `docs/provider_service` / `docker-compose/postgres/init/gateway-providers`
 
 ## 1) 分支命名模板

@@ -1,6 +1,6 @@
 # Reddit 媒体下载服务设计（Provider Service）
 
-- Status: implemented (runtime + schema + tests)
+- Status: supplementary
 - Service key: `svc_reddit_media_download`
 - Endpoint: `POST /provider-services/reddit-media-download/invoke`
 - Storage: MinIO（通过统一 `build_video_storage`）

@@ -1,6 +1,6 @@
 # TikTok 视频下载服务设计（Provider Service）
 
-- Status: implemented (runtime + schema + tests)
+- Status: supplementary
 - Service key: `svc_tiktok_video_download`
 - API family: `provider-services/*`
 - Storage baseline: MinIO（V1）
