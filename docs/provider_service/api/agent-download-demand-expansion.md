@@ -1,9 +1,27 @@
 # Provider Service 需求挖掘：下载类接口扩展（Twitter / YouTube 之外）
 
-- Status: proposed-v1
+- Status: supplementary
 - Owner: provider_service
 - Last updated: 2026-03-29
 - Framework progress: shared download executor (`app/services/download_runtime/executor.py`) 已落地，Twitter/YouTube/TikTok/Reddit 已迁移到统一执行骨架
+
+## 0. 实施状态（2026-03-29）
+
+1. **Phase A 核心链路已落地**
+   - `POST /provider-services/tiktok-video-download/invoke`
+   - `POST /provider-services/reddit-media-download/invoke`
+   - 已完成 request / response schema、endpoint wiring、service 编排、Gateway 验签、MinIO 存储、资产元数据落库、调用审计记录、snapshot fallback。
+2. **Phase A 仍有收口项未完成**
+   - 已补齐 TikTok / Reddit 的 `资源超限`、`无快照时下载失败`、`同请求幂等回放` 回归断言。
+   - 运行手册与失败码矩阵已补齐 TikTok / Reddit Phase A 闭环说明。
+3. **Phase B 骨架已落地**
+   - `github-release-asset-download`
+   - `paper-pdf-download`
+   - 已落地：request / response schema、endpoint wiring、typed repository、MinIO 存储、snapshot replay、调用审计、Postgres 表结构。
+   - 当前边界：`signatureVerified` 已出现在 GitHub 响应里，但骨架阶段默认 `false`；Paper 入口现已支持 `arxiv|openalex|crossref`，其中后两者只接受解析到受信任学术 PDF Host 的下载地址。
+4. **Phase C 已启动抽象层骨架**
+   - `DownloadPolicy`、`MediaAsset`、`StorageGateway` 已接入现有下载服务，`DownloadJob`、`SnapshotRepository`、`ComplianceGuard` 仍待后续收敛。
+   - 当前复用仍以 Twitter / YouTube / TikTok / Reddit 各自 service + repository 组合为主，离“平台下载框架”还有一层基础设施收敛工作。
 
 ## 1. 目标
 
@@ -145,21 +163,111 @@
 5. `StorageGateway`：MinIO/S3 后端切换统一
 6. `ComplianceGuard`：平台条款、robots、区域策略控制
 
-## 6. 实施优先级（建议）
+## 6. 实现计划（可直接开工版本，与当前状态对齐）
 
 ### Phase A（7 天）
+
+目标接口：
 
 1. `svc_tiktok_video_download`
 2. `svc_reddit_media_download`
 
+落地步骤与当前状态：
+
+1. **新增 schema（request / response / error code）**
+   - 状态：**已完成**
+   - 已实现：TikTok / Reddit request / response schema 已落地。
+   - 已补齐：面向 Phase A 的失败码矩阵已在本页与运行手册同步。
+2. **新增 endpoint：`app/api/v1/endpoints/*`，并在 `router.py` 注册**
+   - 状态：**已完成**
+   - 已落地：
+     - `app/api/v1/endpoints/tiktok_video_download.py`
+     - `app/api/v1/endpoints/reddit_media_download.py`
+     - `app/api/v1/router.py` 已完成注册
+3. **新增 service：下载编排 + 元数据提取 + 审计记录**
+   - 状态：**已完成**
+   - 已落地：
+     - `app/services/tiktok_video_download_service.py`
+     - `app/services/reddit_media_download_service.py`
+     - 均已写入调用审计记录并落库存档快照
+4. **复用现有 MinIO + 元数据落库模式（对齐 Twitter / YouTube 已有路径）**
+   - 状态：**已完成**
+   - 已落地：两条链路都复用 `build_video_storage()`、Postgres / in-memory repository、snapshot fallback 形态
+5. **加测试：成功、URL 非法、资源超限、下载失败、幂等回放**
+   - 状态：**已完成**
+   - 已完成：成功、URL 非法、资源超限、无快照下载失败、幂等回放、snapshot fallback
+6. **文档同步：接口说明 + 运行手册 + 失败码矩阵**
+   - 状态：**已完成**
+   - 已完成：项目 README、本地开发文档、下载扩展专题文档、运维手册、失败码矩阵同步收敛
+
 ### Phase B（14 天）
 
-3. `svc_github_release_asset_download`
-4. `svc_paper_pdf_download`
+目标接口：
+
+1. `svc_github_release_asset_download`
+2. `svc_paper_pdf_download`
+
+落地步骤与当前状态：
+
+1. **GitHub 资产下载：`repo/tag/assetPattern` 解析与校验**
+   - 状态：**已完成（骨架）**
+2. **Paper 下载：`paperUrl/paperId/source` 统一入口**
+   - 状态：**已完成（骨架）**
+   - 说明：`arxiv|openalex|crossref` 三种 source 已接到统一 resolver，后两者带 trusted PDF host 白名单。
+3. **加哈希 / 签名校验字段（`sha256`, `signatureVerified`）**
+   - 状态：**部分完成**
+   - 说明：`sha256` 与 `signatureVerified` 已落在响应契约；签名验证逻辑仍待后续 hardening。
+4. **输出统一 `storageKey + metadata` 对象**
+   - 状态：**已完成（骨架）**
+5. **回放 / 降级策略接入（失败可观测）**
+   - 状态：**已完成（骨架）**
+
+### Phase A 失败码矩阵（当前已落地）
+
+| Service | Error code | 触发条件 | 当前行为 |
+| --- | --- | --- | --- |
+| `svc_tiktok_video_download` | `TIKTOK_VIDEO_DURATION_EXCEEDED` | 下载资源时长超过 `maxDurationSec` | 返回 `502` 结构化错误 |
+| `svc_tiktok_video_download` | `TIKTOK_VIDEO_DOWNLOAD_FAILED` | live 下载失败且无可用 snapshot | 返回 `502` 结构化错误 |
+| `svc_tiktok_video_download` | `TIKTOK_VIDEO_SNAPSHOT_FALLBACK_USED` | live 下载失败但命中未过期 snapshot | 返回 `200`，`freshness.cacheHit=true`，并在 `errors` 追加 fallback 标记 |
+| `svc_reddit_media_download` | `REDDIT_MEDIA_SIZE_EXCEEDED` | 媒体大小超过 `maxFileSizeMb` | 返回 `502` 结构化错误 |
+| `svc_reddit_media_download` | `REDDIT_MEDIA_DOWNLOAD_FAILED` | live 下载失败且无可用 snapshot | 返回 `502` 结构化错误 |
+| `svc_reddit_media_download` | `REDDIT_MEDIA_SNAPSHOT_FALLBACK_USED` | live 下载失败但命中未过期 snapshot | 返回 `200`，`freshness.cacheHit=true`，并在 `errors` 追加 fallback 标记 |
+
+### Phase A 幂等回放口径（当前已落地）
+
+1. TikTok / Reddit 均使用 request canonical fields 计算 `asset_key`。
+2. 当同请求再次到达且命中未过期 snapshot 时，直接返回已持久化响应，不再触发 live 下载。
+3. 幂等回放响应表现为：
+   - `freshness.cacheHit=true`
+   - `errors=[]`
+   - 调用审计记录保留 `cache_hit=true` 与 `replayReason=IDEMPOTENT_SNAPSHOT_REPLAY`
 
 ### Phase C（30 天）
 
-5. 字幕抽取、音频提取、批量下载异步化、去重缓存层
+目标：
+
+1. 字幕抽取
+2. 音频提取
+3. 批量异步
+4. 去重缓存
+
+基础设施抽象与当前状态：
+
+1. `DownloadPolicy`
+   - 状态：**已实现（骨架）**
+   - 说明：现有下载服务已使用统一 policy 承载 tmp dir、storage prefix、大小/时长阈值等运行时约束。
+2. `DownloadJob`
+   - 状态：**未实现**
+3. `MediaAsset`
+   - 状态：**已实现（骨架）**
+   - 说明：统一存储类资产元模型已收敛共享字段（hash、mime、size、duration、dimensions），再映射回各接口 schema。
+4. `SnapshotRepository`
+   - 状态：**未实现**（当前只有按服务拆开的 repository）
+5. `StorageGateway`
+   - 状态：**已实现（骨架）**
+   - 说明：MinIO 存储入口已收敛到统一 gateway / builder，视频、GitHub 资产、Paper PDF 共用同一存储边界。
+6. `ComplianceGuard`
+   - 状态：**未实现**
 
 ## 7. 验收口径（面向 Gateway / Agent 调用）
 

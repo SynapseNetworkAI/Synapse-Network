@@ -3,7 +3,7 @@
 - Status: canonical
 - Code paths: `provider_service/`, `docs/03_Projects/provider-service/`, `docs/provider_service/`
 - Verified with: `npm run ci:provider-service`, `npm run ci:docs`
-- Last verified against code: 2026-03-25
+- Last verified against code: 2026-03-29
 
 ## 1. 项目定位
 
@@ -41,6 +41,8 @@
 10. `POST /api/v1/quotes/famous/top3`
 11. `POST /provider-services/tiktok-video-download/invoke`
 12. `POST /provider-services/reddit-media-download/invoke`
+13. `POST /provider-services/github-release-asset-download/invoke`
+14. `POST /provider-services/paper-pdf-download/invoke`
 
 其中：
 
@@ -54,6 +56,10 @@
 8. TikTok 视频下载方案设计见 `docs/provider_service/api/tiktok-video-download-service-design.md`
 9. 下载类接口扩展需求挖掘（TikTok / Reddit / GitHub Releases / arXiv）见 `docs/provider_service/api/agent-download-demand-expansion.md`
 10. 下载能力已引入统一执行骨架：`provider_service/app/services/download_runtime/executor.py`（Twitter/YouTube/TikTok/Reddit 共用）
+11. Phase A 已落地：TikTok + Reddit 两个下载接口（可落库 + MinIO 存储 + 回放降级）
+12. Phase B 骨架已落地：GitHub Releases 资产下载 + Paper PDF 下载（统一 storageKey/metadata、快照回放、调用审计）
+13. `paper-pdf-download` 现已支持 `arxiv|openalex|crossref` 三种 source，但 `openalex|crossref` 只接受 trusted scholarly PDF host
+14. Phase C 抽象层已起骨架：下载服务开始共享 `DownloadPolicy`、`MediaAsset`、`StorageGateway`
 
 ## 4. 职责边界
 

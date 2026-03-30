@@ -61,8 +61,7 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
         payload = record.request
         response = record.response
         result = response.result
-        asset = result.asset
-        meta = result.meta
+        media = result.media
         response_json = json.dumps(response.model_dump(by_alias=True, mode="json"), ensure_ascii=False)
         expires_at = parse_zulu_datetime(record.expires_at) if record.expires_at else None
 
@@ -73,27 +72,42 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
                         Any,
                         (
                             f"INSERT INTO {self.asset_table} "
-                            "(asset_key, post_id, post_url, subreddit, author, media_kind, storage_backend, storage_key, mime_type, size_bytes, sha256, download_status, generated_at, expires_at, response_json) "
-                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
+                            "(asset_key, post_id, post_url, subreddit, author, created_utc, media_type, storage_backend, storage_key, mime_type, "
+                            "size_bytes, sha256, download_status, generated_at, expires_at, response_json) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
                             "ON CONFLICT (asset_key) DO UPDATE SET "
-                            "post_id=EXCLUDED.post_id, post_url=EXCLUDED.post_url, subreddit=EXCLUDED.subreddit, author=EXCLUDED.author, media_kind=EXCLUDED.media_kind, "
-                            "storage_backend=EXCLUDED.storage_backend, storage_key=EXCLUDED.storage_key, mime_type=EXCLUDED.mime_type, size_bytes=EXCLUDED.size_bytes, "
-                            "sha256=EXCLUDED.sha256, download_status=EXCLUDED.download_status, generated_at=EXCLUDED.generated_at, expires_at=EXCLUDED.expires_at, "
-                            "response_json=EXCLUDED.response_json, updated_at=NOW()"
+                            "post_id=EXCLUDED.post_id, "
+                            "post_url=EXCLUDED.post_url, "
+                            "subreddit=EXCLUDED.subreddit, "
+                            "author=EXCLUDED.author, "
+                            "created_utc=EXCLUDED.created_utc, "
+                            "media_type=EXCLUDED.media_type, "
+                            "storage_backend=EXCLUDED.storage_backend, "
+                            "storage_key=EXCLUDED.storage_key, "
+                            "mime_type=EXCLUDED.mime_type, "
+                            "size_bytes=EXCLUDED.size_bytes, "
+                            "sha256=EXCLUDED.sha256, "
+                            "download_status=EXCLUDED.download_status, "
+                            "generated_at=EXCLUDED.generated_at, "
+                            "expires_at=EXCLUDED.expires_at, "
+                            "response_json=EXCLUDED.response_json, "
+                            "updated_at=NOW()"
                         ),
                     ),
                     (
                         record.asset_key,
-                        meta.post_id,
+                        result.post_meta.post_id,
                         payload.post_url,
-                        meta.subreddit,
-                        meta.author,
-                        meta.media_kind,
-                        asset.storage_backend,
-                        asset.storage_key,
-                        asset.mime_type,
-                        asset.size_bytes,
-                        asset.sha256,
+                        payload.max_file_size_mb,
+                        result.post_meta.subreddit,
+                        result.post_meta.author,
+                        result.post_meta.created_utc,
+                        result.media_type,
+                        media.storage_backend,
+                        media.storage_key,
+                        media.mime_type,
+                        media.size_bytes,
+                        media.sha256,
                         result.status,
                         parse_zulu_datetime(response.freshness.generated_at),
                         expires_at,
@@ -105,21 +119,30 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
         with self._connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
-                    cast(Any, (f"SELECT post_url, response_json, expires_at FROM {self.asset_table} WHERE asset_key = %s")),
+                    cast(
+                        Any,
+                        (
+                            f"SELECT post_url, max_file_size_mb, response_json, expires_at "
+                            f"FROM {self.asset_table} WHERE asset_key = %s"
+                        ),
+                    ),
                     (asset_key,),
                 )
                 row = cursor.fetchone()
         if row is None:
             return None
-        payload = row[1]
+        payload = row[2]
         if isinstance(payload, str):
             payload = json.loads(payload)
         response = RedditMediaDownloadResponse.model_validate(payload, by_alias=True, by_name=True)
         return RedditMediaAssetRecord(
             asset_key=asset_key,
-            request={"postUrl": row[0]},
+            request={
+                "postUrl": row[0],
+                "maxFileSizeMb": row[1],
+            },
             response=response,
-            expires_at=None if row[2] is None else to_zulu(row[2]),
+            expires_at=None if row[3] is None else to_zulu(row[3]),
         )
 
     def append_invocation(self, record: ProviderInvocationRecord) -> None:
@@ -132,7 +155,8 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
                         Any,
                         (
                             f"INSERT INTO {self.invocation_table} "
-                            "(invocation_id, service_id, request_id, gateway_request_id, caller_type, input_payload, response_status, error_code, upstream_status, latency_ms, cache_hit, observability_json) "
+                            "(invocation_id, service_id, request_id, gateway_request_id, caller_type, "
+                            "input_payload, response_status, error_code, upstream_status, latency_ms, cache_hit, observability_json) "
                             "VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s::jsonb)"
                         ),
                     ),

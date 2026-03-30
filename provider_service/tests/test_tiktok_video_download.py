@@ -20,6 +20,7 @@ from app.services.tiktok_video_download.downloader import DownloadedVideo  # noq
 from app.services.tiktok_video_download.repository import (  # noqa: E402
     InMemoryTikTokVideoDownloadRepository,
 )
+from tests.helpers.download_replay import ReplayAwareRepository  # noqa: E402
 from app.services.twitter_video_download.storage import StoredObject  # noqa: E402
 
 
@@ -56,7 +57,6 @@ def _signed_headers(payload: dict) -> dict[str, str]:
 @pytest.fixture
 def stub_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     repo = InMemoryTikTokVideoDownloadRepository()
-
     video_file = tmp_path / "video.mp4"
     video_file.write_bytes(b"demo-video")
 
@@ -64,11 +64,9 @@ def stub_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         _ = payload
         _ = target_dir
         return DownloadedVideo(
-            post_id="7499999999999999999",
-            author_handle="@creator",
-            watermark=True,
+            video_id="7499999999999999999",
             file_path=video_file,
-            duration_sec=31,
+            duration_sec=36,
             width=1080,
             height=1920,
             mime_type="video/mp4",
@@ -77,13 +75,17 @@ def stub_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
     monkeypatch.setattr(tiktok_video_download_service, "download_tiktok_video", _fake_download)
     monkeypatch.setattr(tiktok_video_download_service, "build_video_storage", lambda: FakeStorage())
-    monkeypatch.setattr(tiktok_video_download_service, "get_tiktok_video_download_repository", lambda: repo)
+    monkeypatch.setattr(
+        tiktok_video_download_service,
+        "get_tiktok_video_download_repository",
+        lambda: repo,
+    )
     return repo
 
 
 def test_tiktok_video_download_success(stub_runtime):
     client = TestClient(app)
-    payload = {"postUrl": "https://www.tiktok.com/@creator/video/7499999999999999999"}
+    payload = {"videoUrl": "https://www.tiktok.com/@openai/video/7499999999999999999"}
 
     response = client.post(
         "/provider-services/tiktok-video-download/invoke",
@@ -96,7 +98,6 @@ def test_tiktok_video_download_success(stub_runtime):
     assert body["service"]["serviceId"] == "svc_tiktok_video_download"
     assert body["result"]["status"] == "downloaded"
     assert body["result"]["video"]["storageBackend"] == "minio"
-    assert body["result"]["meta"]["postId"] == "7499999999999999999"
     assert len(stub_runtime.assets) == 1
     assert len(stub_runtime.invocations) == 1
 
@@ -105,7 +106,7 @@ def test_tiktok_video_download_requires_signature():
     client = TestClient(app)
     response = client.post(
         "/provider-services/tiktok-video-download/invoke",
-        json={"postUrl": "https://www.tiktok.com/@creator/video/7499999999999999999"},
+        json={"videoUrl": "https://www.tiktok.com/@openai/video/7499999999999999999"},
     )
 
     assert response.status_code == 401
@@ -113,7 +114,7 @@ def test_tiktok_video_download_requires_signature():
 
 def test_tiktok_video_download_invalid_url_rejected(stub_runtime):
     client = TestClient(app)
-    payload = {"postUrl": "https://example.com/not-tiktok"}
+    payload = {"videoUrl": "http://example.com/not-tiktok"}
 
     response = client.post(
         "/provider-services/tiktok-video-download/invoke",
@@ -124,8 +125,121 @@ def test_tiktok_video_download_invalid_url_rejected(stub_runtime):
     assert response.status_code == 422
 
 
-def test_tiktok_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_tiktok_video_download_duration_limit_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
     repo = InMemoryTikTokVideoDownloadRepository()
+
+    async def _too_long(_, *, target_dir):
+        _ = target_dir
+        raise ValueError("TIKTOK_VIDEO_DURATION_EXCEEDED")
+
+    monkeypatch.setattr(tiktok_video_download_service, "download_tiktok_video", _too_long)
+    monkeypatch.setattr(tiktok_video_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        tiktok_video_download_service,
+        "get_tiktok_video_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"videoUrl": "https://www.tiktok.com/@openai/video/7499999999999999999"}
+    response = client.post(
+        "/provider-services/tiktok-video-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "TIKTOK_VIDEO_DURATION_EXCEEDED"
+
+
+def test_tiktok_video_download_failure_without_snapshot_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo = InMemoryTikTokVideoDownloadRepository()
+
+    async def _boom(_, *, target_dir):
+        _ = target_dir
+        raise ValueError("TIKTOK_VIDEO_DOWNLOAD_FAILED")
+
+    monkeypatch.setattr(tiktok_video_download_service, "download_tiktok_video", _boom)
+    monkeypatch.setattr(tiktok_video_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        tiktok_video_download_service,
+        "get_tiktok_video_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"videoUrl": "https://www.tiktok.com/@openai/video/7499999999999999999"}
+    response = client.post(
+        "/provider-services/tiktok-video-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "TIKTOK_VIDEO_DOWNLOAD_FAILED"
+    assert len(repo.invocations) == 0
+
+
+def test_tiktok_video_download_idempotent_replay_hits_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    repo = InMemoryTikTokVideoDownloadRepository()
+    video_file = tmp_path / "video.mp4"
+    video_file.write_bytes(b"demo-video")
+    call_count = 0
+
+    async def _fake_download(_, *, target_dir):
+        nonlocal call_count
+        _ = target_dir
+        call_count += 1
+        return DownloadedVideo(
+            video_id="7499999999999999999",
+            file_path=video_file,
+            duration_sec=36,
+            width=1080,
+            height=1920,
+            mime_type="video/mp4",
+            sha256="abc123",
+        )
+
+    monkeypatch.setattr(tiktok_video_download_service, "download_tiktok_video", _fake_download)
+    monkeypatch.setattr(tiktok_video_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        tiktok_video_download_service,
+        "get_tiktok_video_download_repository",
+        lambda: repo,
+    )
+
+    client = TestClient(app)
+    payload = {"videoUrl": "https://www.tiktok.com/@openai/video/7499999999999999999"}
+    first = client.post(
+        "/provider-services/tiktok-video-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+    second = client.post(
+        "/provider-services/tiktok-video-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert call_count == 1
+    assert second.json()["freshness"]["cacheHit"] is True
+    assert second.json()["errors"] == []
+    assert len(repo.invocations) == 2
+    assert repo.invocations[-1].cache_hit is True
+    assert repo.invocations[-1].observability_payload["replayReason"] == "IDEMPOTENT_SNAPSHOT_REPLAY"
+
+
+def test_tiktok_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    backing_repo = InMemoryTikTokVideoDownloadRepository()
     file_path = tmp_path / "fallback.mp4"
     file_path.write_bytes(b"fallback-video")
 
@@ -133,11 +247,9 @@ def test_tiktok_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
         _ = payload
         _ = target_dir
         return DownloadedVideo(
-            post_id="7499999999999999999",
-            author_handle="@creator",
-            watermark=True,
+            video_id="7499999999999999999",
             file_path=file_path,
-            duration_sec=35,
+            duration_sec=36,
             width=1080,
             height=1920,
             mime_type="video/mp4",
@@ -146,10 +258,14 @@ def test_tiktok_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(tiktok_video_download_service, "download_tiktok_video", _ok_download)
     monkeypatch.setattr(tiktok_video_download_service, "build_video_storage", lambda: FakeStorage())
-    monkeypatch.setattr(tiktok_video_download_service, "get_tiktok_video_download_repository", lambda: repo)
+    monkeypatch.setattr(
+        tiktok_video_download_service,
+        "get_tiktok_video_download_repository",
+        lambda: backing_repo,
+    )
 
     payload = tiktok_video_download_service.TikTokVideoDownloadRequest.model_validate(
-        {"postUrl": "https://www.tiktok.com/@creator/video/7499999999999999999"}
+        {"videoUrl": "https://www.tiktok.com/@openai/video/7499999999999999999"}
     )
     first = __import__("asyncio").run(
         tiktok_video_download_service.execute_tiktok_video_download(
@@ -162,9 +278,14 @@ def test_tiktok_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
 
     async def _boom(_payload, *, target_dir):
         _ = target_dir
-        raise ValueError("TIKTOK_DOWNLOAD_FAILED")
+        raise ValueError("TIKTOK_VIDEO_DOWNLOAD_FAILED")
 
     monkeypatch.setattr(tiktok_video_download_service, "download_tiktok_video", _boom)
+    monkeypatch.setattr(
+        tiktok_video_download_service,
+        "get_tiktok_video_download_repository",
+        lambda: ReplayAwareRepository(backing_repo),
+    )
 
     replayed = __import__("asyncio").run(
         tiktok_video_download_service.execute_tiktok_video_download(
@@ -175,4 +296,4 @@ def test_tiktok_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatch
     )
 
     assert replayed.freshness.cache_hit is True
-    assert replayed.errors[-1].code == "TIKTOK_SNAPSHOT_FALLBACK_USED"
+    assert replayed.errors[-1].code == "TIKTOK_VIDEO_SNAPSHOT_FALLBACK_USED"

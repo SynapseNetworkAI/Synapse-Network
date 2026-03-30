@@ -73,6 +73,10 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 当前运行时已包含 `Web3 Sentiment Index` provider endpoint：`POST /provider-services/web3-sentiment-index/invoke`。
 当前运行时已包含 `Protocol Fundamental Brief` provider endpoint：`POST /provider-services/protocol-fundamental-brief/invoke`。
 当前运行时已包含 `Smart Contract Audit Model` provider endpoint：`POST /provider-services/smart-contract-audit/invoke`。
+当前运行时已包含 `TikTok Video Download` provider endpoint：`POST /provider-services/tiktok-video-download/invoke`。
+当前运行时已包含 `Reddit Media Download` provider endpoint：`POST /provider-services/reddit-media-download/invoke`。
+当前运行时已包含 `GitHub Release Asset Download` provider endpoint：`POST /provider-services/github-release-asset-download/invoke`。
+当前运行时已包含 `Paper PDF Download` provider endpoint：`POST /provider-services/paper-pdf-download/invoke`。
 本地默认运行配置已切到独立 provider PostgreSQL：`synapse_gateway_providers`。
 当前读路径已支持 `fresh / stale-but-servable / expired` 三档 snapshot freshness policy，scheduler 在开启时已接入持久化 lease / cooldown 状态表。
 `Protocol Fundamental Brief` 现在已接入 typed repository + in-memory cache：未过期快照会优先走内存或 PostgreSQL 持久化缓存，全源失败时会退回最近一次已持久化快照。
@@ -80,4 +84,5 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 Provider 侧 postgres 配置现在已统一收敛到单一环境变量 `PROVIDER_SERVICE_POSTGRES_DSN`，避免 sentiment / protocol brief 分别维护重复 DSN；protocol brief 本地不再依赖 file snapshot。
 PostgreSQL 表结构需要通过 `docker-compose/postgres/init/gateway-providers/` 的显式 SQL 初始化，`provider_sentiment_snapshots`、`provider_sentiment_raw_feeds`、`provider_sentiment_scheduler_jobs`、`provider_protocol_briefs`、`provider_protocol_brief_raw_feeds` 都不由 runtime repository 自动建表。
 `Smart Contract Audit Model` 相关表现在也走同一条显式初始化链路：`provider_api_invocations`、`provider_contract_audit_reports`。
+Phase B 下载骨架已接入 `provider_github_release_assets`、`provider_paper_pdf_assets` 两张资产表，并继续复用统一 MinIO 存储与 snapshot replay。
 完整接口说明、启动方式与扩展建议统一维护在根 `docs/03_Projects/provider-service/`。

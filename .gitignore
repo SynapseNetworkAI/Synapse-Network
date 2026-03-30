@@ -48,5 +48,4 @@ logs/
 *.log
 .spec2flow
 spec2flow
-
 .vscode/
