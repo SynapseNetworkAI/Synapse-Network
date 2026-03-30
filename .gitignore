@@ -12,6 +12,7 @@ cache/
 __pycache__/
 *.pyc
 *.pyo
+.venv/
 venv/
 provider_service/.venv/
 *.db
@@ -47,3 +48,5 @@ logs/
 *.log
 .spec2flow
 spec2flow
+
+.vscode/
