@@ -181,6 +181,52 @@
 2. 输出必须好看
 3. 不要让观众看太多内部实现细节
 
+## 6.1 Proven Local Runtime Path
+
+2026-03-30 已在本地跑通一条真实链路，当前最稳的 demo service 是：
+
+1. `svc_web3_sentiment_index`
+
+本地验证环境：
+
+1. `gateway`: `http://127.0.0.1:8000`
+2. `provider_service`: `http://127.0.0.1:8100`
+
+已验证成功的链路：
+
+1. `discover`
+2. `quote`
+3. `invoke`
+
+关键结果：
+
+1. `quoteId`: `quote-38ff2534b4cb4c8ba722bd34f262245d`
+2. `invocationId`: `inv-18dc99a37d124ac7bb0326d2e5609579`
+3. `chargedUsdc`: `0.0101`
+
+## 6.2 Recommended Live Demo Sequence
+
+建议现场按这个顺序打：
+
+1. 先展示 `discover?intent=web3`
+2. 再展示 `quote` 返回 `0.01 USDC`
+3. 最后执行 `invoke`
+4. 同步展示 owner balance 从 `5.0` 下降
+
+## 6.3 Demo Notes From Real Run
+
+这次真实联调暴露出的 3 个要点：
+
+1. `web3 sentiment` 是当前最稳的首发 demo 服务
+2. owner balance 必须先有可用余额，否则 `invoke` 会返回 `INSUFFICIENT_BALANCE`
+3. 当前 agent credential 存在本地时区偏差问题，刚签发后可能被误判 `CREDENTIAL_EXPIRED`
+
+建议现场录屏前：
+
+1. 先确认 credential 可用
+2. 先确认 owner balance 大于 `1 USDC`
+3. 先确认 `discover` 能查到 `svc_web3_sentiment_index`
+
 ## 7. Demo Readiness Checklist
 
 - [ ] 买家、Agent、Provider 三角色隔离
@@ -208,3 +254,8 @@
 - Result: 已落首版 Hero Demo runbook
 - Follow-up: 下一步需要补真实命令、真实 credential、真实录屏链接
 
+### 2026-03-30 Runtime Verification
+
+- Check: 本地完成 `discover -> quote -> invoke` 端到端联调
+- Result: `svc_web3_sentiment_index` 已完成真实成功调用，`chargedUsdc=0.0101`
+- Follow-up: 把这条本地成功链路录成 Hero Demo V1，并把 owner balance / provider income 画面一起录进去

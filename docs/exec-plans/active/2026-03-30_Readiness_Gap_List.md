@@ -40,9 +40,9 @@
 
 | Service | Discover | Invoke | Pricing | Demo response | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `web3 sentiment` | `partial` | `ready` | `partial` | `ready` | 已有独立 shelf table；endpoint 与文档齐，是否已进入 gateway discover 还需核实 |
-| `smart contract audit` | `partial` | `ready` | `partial` | `ready` | 已有独立 shelf table；runtime 与 tests 存在，discover 和对外定价仍需收口 |
-| `whale-flow-monitor` | `partial` | `ready` | `partial` | `ready` | 已有独立 shelf table；invoke 已有，需补对外货架表达 |
+| `web3 sentiment` | `ready` | `ready` | `ready` | `ready` | 已有独立 shelf table；本地 gateway discover 已核实 |
+| `smart contract audit` | `ready` | `ready` | `ready` | `ready` | 已有独立 shelf table；本地 gateway discover 已核实 |
+| `whale-flow-monitor` | `ready` | `ready` | `ready` | `ready` | 已有独立 shelf table；本地 gateway discover 已核实 |
 
 判定规则：
 
@@ -56,7 +56,7 @@
 | --- | --- | --- | --- |
 | `Python SDK Quickstart` | `partial` | `sdk/python/`, `sdk/python/synapse_client/`, `gateway/examples/synapse_client_quickstart.py` | 缺面向外部开发者的最短接入闭环证明 |
 | `MCP skeleton` | `missing` | 当前只见文档和前端文案提到 MCP，未见独立实现入口 | 需要最小可用 server/adapter |
-| `Hero Demo script` | `partial` | 已有 `2026-03-30_Hero_Demo_Runbook.md` 首版 runbook | 缺真实命令、真实 credential、真实录屏链接 |
+| `Hero Demo script` | `partial` | 已有 `2026-03-30_Hero_Demo_Runbook.md`，且已本地跑通 `discover -> quote -> invoke` 成功链路 | 缺正式录屏链接、三角色同屏演示和稳定公网环境复现 |
 | `three-role isolation` | `missing` | 文档要求存在，但仓库未见正式演练记录 | 需要买家/卖家/平台三角色操作记录 |
 | `demo video` | `missing` | 仓库未见 demo video 产物或登记 | 需要录屏 V1 和备用录屏 |
 
@@ -66,8 +66,8 @@
 
 1. 确认 demo 用测试链和合约地址
 2. 形成公网环境状态表并确认哪些服务已经有公共访问入口
-3. 把 `web3 sentiment / smart contract audit / whale-flow-monitor` 三个服务从货架表推进到真实 discover + pricing
-4. 把 `Hero Demo` runbook 填成真实命令、真实角色和录屏链接
+3. 把 `web3 sentiment / smart contract audit / whale-flow-monitor` 三个服务接进稳定公网 demo 环境
+4. 把 `Hero Demo` runbook 填成正式录屏版本、真实角色和公开演示脚本
 5. 明确 `MCP` 当前是 `missing`，不要继续把它当“好像已经有”
 
 ## 6. P1 Next Two Weeks
@@ -89,9 +89,9 @@
 
 如果按当前差距排明天 Top 3，建议是：
 
-1. 给 `Hero Demo runbook` 补真实命令和录屏入口
+1. 把已跑通的 `web3 sentiment` 录成 Hero Demo V1
 2. 给 `公网环境 / testnet / domain` 现状表填真实 URL 与链上地址
-3. 给 `三服务货架状态表` 补真实 discover 结果和定价卡
+3. 把本地 `discover -> quote -> invoke` 成功链路迁移到稳定公网环境
 
 ## 9. Validation Log
 
@@ -100,3 +100,9 @@
 - Check: 对照 `Week1_Today_Checklist`、`Synapse_Execution_Boards` 与仓库代码路径
 - Result: 已形成首版 readiness 审计与优先级清单
 - Follow-up: `Hero Demo runbook`、`Public Environment Status Register` 和 `Provider Shelf Status Table` 已补首版，后续进入 `ready` 的项应继续把状态从 `partial/missing` 更新掉
+
+### 2026-03-30 Runtime Demo Update
+
+- Check: 本地完成 `svc_web3_sentiment_index` 的 `discover -> quote -> invoke`
+- Result: Hero Demo 核心执行链已在本地真实成功，当前主要缺口转为录屏、公网环境和三角色镜头
+- Follow-up: 下一步直接产出 Hero Demo V1 录屏

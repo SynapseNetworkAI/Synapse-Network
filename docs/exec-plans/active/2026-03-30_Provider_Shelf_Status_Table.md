@@ -47,36 +47,37 @@
 
 | Service | Service ID | Discover | Invoke | Pricing | Demo response | Repo evidence | Gap | This-week next action |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `web3 sentiment` | `svc_web3_sentiment_index` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/sentiment.py`, `provider_service/tests/test_web3_sentiment_index.py`, `docs/provider_service/api/web3_sentiment_api/web3-sentiment-index.md` | 已有注册种子脚本，但仍缺确认它已进入 gateway discover 结果；定价还没变成真实 registry 记录 | 运行 `gateway/examples/register_provider_shelf_services.py`，并验证 discover 输出 |
-| `smart contract audit` | `svc_smart_contract_audit` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/smart_contract_audit.py`, `provider_service/tests/test_smart_contract_audit.py`, `docs/provider_service/api/smart-contract-audit/smart-contract-audit.md` | endpoint 和 demo response 已有，且已有注册种子脚本；但 discover 接入与正式 price card 仍未看到运行时证明 | 运行注册脚本并核验 price card / discover 结果 |
-| `whale-flow monitor` | `svc_whale_flow_monitor` | `partial` | `ready` | `partial` | `ready` | `provider_service/app/api/v1/endpoints/whale_flow_monitor.py`, `provider_service/tests/test_whale_flow_monitor.py`, `docs/provider_service/api/whale-flow-monitor.md` | 有 invoke、快照、调用审计和 demo response，且已有注册种子脚本；但 discover 与正式定价仍像文档草案 | 运行注册脚本并核验 discover 展示页与正式 per-call 定价 |
+| `web3 sentiment` | `svc_web3_sentiment_index` | `ready` | `ready` | `ready` | `ready` | `provider_service/app/api/v1/endpoints/sentiment.py`, `provider_service/tests/test_web3_sentiment_index.py`, `docs/provider_service/api/web3_sentiment_api/web3-sentiment-index.md`, `gateway/examples/register_provider_shelf_services.py` | 已在本地 gateway registry 注册成功，`/api/v1/services/discover?intent=web3` 可见，价格已落库为 `0.01 USDC` | 下一步把它塞进 Hero Demo 主链路 |
+| `smart contract audit` | `svc_smart_contract_audit` | `ready` | `ready` | `ready` | `ready` | `provider_service/app/api/v1/endpoints/smart_contract_audit.py`, `provider_service/tests/test_smart_contract_audit.py`, `docs/provider_service/api/smart-contract-audit/smart-contract-audit.md`, `gateway/examples/register_provider_shelf_services.py` | 已在本地 gateway registry 注册成功，`/api/v1/services/discover?intent=audit` 可见，价格已落库为 `0.50 USDC` | 下一步补 audit 用例到演示剧本 |
+| `whale-flow monitor` | `svc_whale_flow_monitor` | `ready` | `ready` | `ready` | `ready` | `provider_service/app/api/v1/endpoints/whale_flow_monitor.py`, `provider_service/tests/test_whale_flow_monitor.py`, `docs/provider_service/api/whale-flow-monitor.md`, `gateway/examples/register_provider_shelf_services.py` | 已在本地 gateway registry 注册成功，`/api/v1/services/discover?intent=web3` 可见，价格已落库为 `0.10 USDC` | 下一步补对外展示和 Hero Demo 备选用例 |
 
 ## 4. What This Means
 
-这三项服务现在已经不是“没有东西”，而是：
+这三项服务现在已经不是“只有 runtime 能跑”，而是：
 
-1. `invoke` 维度已经能打
-2. `demo response` 维度已经能讲
-3. 真正还没收口的是 `discover` 和 `pricing`
+1. `discover` 已有真实返回
+2. `invoke` 已有真实 endpoint 和健康探测
+3. `pricing` 已落进 gateway registry
+4. `demo response` 已有文档和 schema 证据
 
 一句话：
 
-**现在最缺的不是再写一个新服务，而是把现有三项服务从运行时能力，抬成真正的市场货架。**
+**三项样板服务已经被抬成真实市场货架，下一步该打的是 demo 串联和首批真实调用。**
 
 ## 5. Go / No-Go For Week 1
 
-如果按 Week 1 的标准，这张表已经满足“货架现状审计已存在”。
+如果按 Week 1 的标准，这张表已经从“审计完成”进一步推进到了“本地 discover 注册完成”。
 
-但如果按对外 demo 和融资标准，这张表还不够，因为下面两件事仍未完成：
+但如果按对外 demo 和融资标准，仍然还有两件事要补：
 
-1. 至少一个真实 discover 画面或 discover API 输出
-2. 至少一版正式 price card 或 manifest 注册结果
+1. 把这三项服务至少一项塞进 Hero Demo 正式录屏
+2. 把本地注册结果抬成稳定公网 demo 环境事实
 
 ## 6. Tomorrow Top 3
 
-1. 让三项服务至少一项真实出现在 discover 结果里
-2. 锁三项服务的首版对外价格
-3. 把其中一项服务塞进 Hero Demo 录屏链路
+1. 把 `web3 sentiment` 塞进 Hero Demo 录屏链路
+2. 把本地 registry 结果迁到稳定 demo 环境
+3. 跑一轮 discover -> invoke 的端到端演示验证
 
 ## 7. Validation Log
 
@@ -85,3 +86,15 @@
 - Check: 对照 `provider_service` endpoint、测试、API 契约文档以及 Week 1 checklist 的货架审计要求
 - Result: 已形成三项样板服务的首版 shelf audit table
 - Follow-up: 已补 `gateway/examples/register_provider_shelf_services.py` 作为注册种子，下一步要把 `partial` 的 discover / pricing 变成真实运行时事实
+
+### 2026-03-30 Runtime Update
+
+- Check: 本地启动 `gateway`，生成 owner JWT，并把三项服务真实注册进 registry
+- Result: `svc_web3_sentiment_index`、`svc_smart_contract_audit`、`svc_whale_flow_monitor` 已进入本地 discover 结果
+- Follow-up: 把当前本地运行时事实迁移到稳定 demo 环境，并补 Hero Demo 串联
+
+### 2026-03-30 End-to-End Demo Update
+
+- Check: 以 `svc_web3_sentiment_index` 跑通本地 `discover -> quote -> invoke`
+- Result: 本地真实成功返回 `invocationId=inv-18dc99a37d124ac7bb0326d2e5609579`，实际扣费 `0.0101 USDC`
+- Follow-up: 下一步把这条链路录成正式 Hero Demo，并补 provider income / owner balance 的镜头切换

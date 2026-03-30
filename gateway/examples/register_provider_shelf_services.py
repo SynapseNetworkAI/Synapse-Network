@@ -67,7 +67,7 @@ def common_registration_fields(
             "method": "GET",
             "timeoutMs": 3000,
             "successCodes": [200],
-            "healthyThreshold": 2,
+            "healthyThreshold": 1,
             "unhealthyThreshold": 3,
         },
     }
@@ -149,9 +149,9 @@ def build_registration_payloads(
             "summary": "Analyze a Solidity contract address or source bundle and return structured findings, risk score, and fix suggestions.",
             "tags": ["security", "smart-contract", "audit"],
             "constraints": {
-                "timeoutMs": 30000,
-                "maxResponseBytes": 524288,
-                "maxRequestBytes": 5242880,
+                "timeoutMs": 15000,
+                "maxResponseBytes": 262144,
+                "maxRequestBytes": 262144,
                 "maxQps": 10,
             },
             "invoke": {
@@ -164,7 +164,7 @@ def build_registration_payloads(
                         "weight": 100,
                     }
                 ],
-                "timeoutMs": 30000,
+                "timeoutMs": 15000,
                 "request": {
                     "contentType": CONTENT_TYPE_JSON,
                     "schema": {
