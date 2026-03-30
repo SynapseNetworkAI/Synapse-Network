@@ -8,6 +8,7 @@
 - Related systems: `apps/frontend`, `gateway`, `provider_service`, `sdk/python`, `contracts`
 - Related docs:
   - `docs/exec-plans/active/2026-03-30_Readiness_Gap_List.md`
+  - `docs/exec-plans/active/2026-03-30_3_Minute_Demo_Recording_Script.md`
   - `docs/01_Product_Vision/Pitch_Deck_Material.md`
   - `docs/feature_designs/路演准备.md`
 
@@ -255,6 +256,18 @@
 - [ ] 录屏版本可离线播放
 - [ ] 如果链上步骤失败，有备用录屏
 
+## 7.1 Recording Script
+
+正式录屏脚本见：
+
+1. `docs/exec-plans/active/2026-03-30_3_Minute_Demo_Recording_Script.md`
+
+建议执行策略：
+
+1. 主镜头用 `web3 sentiment`
+2. 第二镜头用 `smart contract audit`
+3. 结尾固定回到 settlement reveal
+
 ## 8. Failure Recovery
 
 如果现场出问题，按这个顺序降级：
@@ -282,3 +295,9 @@
 - Check: 本地完成 `svc_smart_contract_audit` 的 `discover -> quote -> invoke`
 - Result: 第二条 demo 链真实成功，`chargedUsdc=0.5001`，并返回 `riskScore / riskLevel / criticalFindings`
 - Follow-up: 把这条链整理成 Hero Demo 备选剧本，用于投资人或高客单价服务场景
+
+### 2026-03-30 Recording Script Lock
+
+- Check: 把两条本地已成功链路压缩成正式 `3-minute` 录屏脚本
+- Result: 已新增独立录屏脚本，可直接用于 Hero Demo V1 录制
+- Follow-up: 下一步按脚本录制 V1，并登记公开视频与备用离线视频
