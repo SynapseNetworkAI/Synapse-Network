@@ -15,7 +15,7 @@ from app.schemas.youtube_video_download import (
     YouTubeVideoDownloadResult,
 )
 from app.services.asset_storage import build_storage_gateway
-from app.services.download_abstractions import DownloadPolicy, MediaAsset
+from app.services.download_abstractions import DownloadPolicy, MediaAsset, run_guarded_download
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
 from app.services.youtube_video_download.domain import (
     YouTubeVideoAssetRecord,
@@ -52,8 +52,10 @@ def _download_policy(payload: YouTubeVideoDownloadRequest) -> DownloadPolicy:
         temp_dir=Path(settings.youtube_video_tmp_dir).resolve(),
         storage_prefix=f"{prefix}/{now:%Y/%m/%d}",
         default_storage_namespace="youtube",
+        timeout_s=settings.youtube_video_download_timeout_s,
         max_duration_sec=payload.max_duration_sec,
         max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+        concurrency_limit=settings.youtube_video_max_concurrency,
     )
 
 
@@ -72,99 +74,109 @@ async def execute_youtube_video_download(
     policy = _download_policy(payload)
     start = perf_counter()
     asset_key = asset_key_from_request(payload)
+    downloaded = None
 
     try:
-        downloaded = await download_youtube_video(payload, target_dir=policy.resolved_tmp_dir())
-        key = _storage_key(policy, downloaded.video_id, downloaded.file_path.name)
-        stored = storage.put_file(
-            source_path=downloaded.file_path,
-            target_key=key,
-            content_type=downloaded.mime_type,
-        )
-        media_asset = MediaAsset.from_stored(
-            stored,
-            sha256=downloaded.sha256,
-            duration_sec=downloaded.duration_sec,
-            width=downloaded.width,
-            height=downloaded.height,
-        )
-        response = YouTubeVideoDownloadResponse(
-            service=ServiceDescriptor(
-                serviceId=SERVICE_ID,
-                serviceName=SERVICE_NAME,
-                version=SERVICE_VERSION,
-            ),
-            sources=[SourceRecord(name="youtube_public_web", freshnessSec=0)],
-            freshness=FreshnessRecord(
-                generatedAt=_to_zulu(_now_utc()),
-                maxSourceAgeSec=0,
-                cacheHit=False,
-            ),
-            result=YouTubeVideoDownloadResult(
-                videoUrl=payload.video_url,
-                videoId=downloaded.video_id,
-                status="downloaded",
-                video=YouTubeVideoAsset(**media_asset.as_video_payload()),
-            ),
-            errors=[],
-        )
-        repository.save_asset(
-            YouTubeVideoAssetRecord(
-                asset_key=asset_key,
-                request=payload,
-                response=response,
-                expires_at=asset_expiry(get_settings().youtube_video_cache_ttl_s),
+        try:
+            downloaded = await run_guarded_download(
+                service_key=SERVICE_ID,
+                policy=policy,
+                timeout_error_code="YOUTUBE_VIDEO_DOWNLOAD_TIMEOUT",
+                operation=lambda: download_youtube_video(payload, target_dir=policy.resolved_tmp_dir()),
             )
-        )
-        repository.append_invocation(
-            ProviderInvocationRecord.build(
-                service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
-                response_status=200,
-                request_id=request_id,
-                gateway_request_id=gateway_request_id,
-                error_code=None,
-                upstream_status=None,
-                latency_ms=int((perf_counter() - start) * 1000),
-                cache_hit=False,
-                observability_payload={"assetKey": asset_key, "storageKey": stored.key},
+            key = _storage_key(policy, downloaded.video_id, downloaded.file_path.name)
+            stored = storage.put_file(
+                source_path=downloaded.file_path,
+                target_key=key,
+                content_type=downloaded.mime_type,
             )
-        )
-        return response
-    except ValueError as exc:
-        message = str(exc)
-        code = message if message.isupper() else "YOUTUBE_VIDEO_DOWNLOAD_FAILED"
-    except Exception as exc:  # noqa: BLE001
-        code = "YOUTUBE_VIDEO_DOWNLOAD_FAILED"
-        message = str(exc)
+            media_asset = MediaAsset.from_stored(
+                stored,
+                sha256=downloaded.sha256,
+                duration_sec=downloaded.duration_sec,
+                width=downloaded.width,
+                height=downloaded.height,
+            )
+            response = YouTubeVideoDownloadResponse(
+                service=ServiceDescriptor(
+                    serviceId=SERVICE_ID,
+                    serviceName=SERVICE_NAME,
+                    version=SERVICE_VERSION,
+                ),
+                sources=[SourceRecord(name="youtube_public_web", freshnessSec=0)],
+                freshness=FreshnessRecord(
+                    generatedAt=_to_zulu(_now_utc()),
+                    maxSourceAgeSec=0,
+                    cacheHit=False,
+                ),
+                result=YouTubeVideoDownloadResult(
+                    videoUrl=payload.video_url,
+                    videoId=downloaded.video_id,
+                    status="downloaded",
+                    video=YouTubeVideoAsset(**media_asset.as_video_payload()),
+                ),
+                errors=[],
+            )
+            repository.save_asset(
+                YouTubeVideoAssetRecord(
+                    asset_key=asset_key,
+                    request=payload,
+                    response=response,
+                    expires_at=asset_expiry(get_settings().youtube_video_cache_ttl_s),
+                )
+            )
+            repository.append_invocation(
+                ProviderInvocationRecord.build(
+                    service_id=SERVICE_ID,
+                    input_payload=payload.model_dump(by_alias=True, mode="json"),
+                    response_status=200,
+                    request_id=request_id,
+                    gateway_request_id=gateway_request_id,
+                    error_code=None,
+                    upstream_status=None,
+                    latency_ms=int((perf_counter() - start) * 1000),
+                    cache_hit=False,
+                    observability_payload={"assetKey": asset_key, "storageKey": stored.key},
+                )
+            )
+            return response
+        except ValueError as exc:
+            message = str(exc)
+            code = message if message.isupper() else "YOUTUBE_VIDEO_DOWNLOAD_FAILED"
+        except Exception as exc:  # noqa: BLE001
+            code = "YOUTUBE_VIDEO_DOWNLOAD_FAILED"
+            message = str(exc)
 
-    snapshot = repository.load_asset(asset_key)
-    if snapshot is not None and not snapshot.is_expired(now=_now_utc()):
-        replay = snapshot.as_cache_hit_response().model_copy(
-            update={
-                "errors": [
-                    *snapshot.response.errors,
-                    ErrorRecord(
-                        code="YOUTUBE_VIDEO_SNAPSHOT_FALLBACK_USED",
-                        message="Returning persisted youtube video asset due to live download failure.",
-                    ),
-                ]
-            }
-        )
-        repository.append_invocation(
-            ProviderInvocationRecord.build(
-                service_id=SERVICE_ID,
-                input_payload=payload.model_dump(by_alias=True, mode="json"),
-                response_status=200,
-                request_id=request_id,
-                gateway_request_id=gateway_request_id,
-                error_code=code,
-                upstream_status=None,
-                latency_ms=int((perf_counter() - start) * 1000),
-                cache_hit=True,
-                observability_payload={"assetKey": asset_key, "fallbackReason": message},
+        snapshot = repository.load_asset(asset_key)
+        if snapshot is not None and not snapshot.is_expired(now=_now_utc()):
+            replay = snapshot.as_cache_hit_response().model_copy(
+                update={
+                    "errors": [
+                        *snapshot.response.errors,
+                        ErrorRecord(
+                            code="YOUTUBE_VIDEO_SNAPSHOT_FALLBACK_USED",
+                            message="Returning persisted youtube video asset due to live download failure.",
+                        ),
+                    ]
+                }
             )
-        )
-        return replay
+            repository.append_invocation(
+                ProviderInvocationRecord.build(
+                    service_id=SERVICE_ID,
+                    input_payload=payload.model_dump(by_alias=True, mode="json"),
+                    response_status=200,
+                    request_id=request_id,
+                    gateway_request_id=gateway_request_id,
+                    error_code=code,
+                    upstream_status=None,
+                    latency_ms=int((perf_counter() - start) * 1000),
+                    cache_hit=True,
+                    observability_payload={"assetKey": asset_key, "fallbackReason": message},
+                )
+            )
+            return replay
 
-    raise HTTPException(status_code=502, detail={"code": code, "message": message})
+        raise HTTPException(status_code=502, detail={"code": code, "message": message})
+    finally:
+        if downloaded is not None:
+            downloaded.file_path.unlink(missing_ok=True)

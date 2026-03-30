@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 
 from app.schemas.reddit_media_download import RedditMediaDownloadRequest
+from app.services.download_abstractions import enforce_media_limits
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,14 @@ def _download_sync(payload: RedditMediaDownloadRequest, target_dir: Path) -> Dow
     }
 
     with YoutubeDL(options) as ydl:
+        info = ydl.extract_info(payload.post_url, download=False)
+        enforce_media_limits(
+            info=info,
+            max_duration_sec=None,
+            max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+            duration_error_code="REDDIT_MEDIA_DOWNLOAD_FAILED",
+            size_error_code="REDDIT_MEDIA_SIZE_EXCEEDED",
+        )
         info = ydl.extract_info(payload.post_url, download=True)
 
     requested_downloads = info.get("requested_downloads") or []

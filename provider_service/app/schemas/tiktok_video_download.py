@@ -22,6 +22,7 @@ class TikTokVideoDownloadRequest(BaseModel):
     video_url: str = Field(alias="videoUrl")
     preferred_quality: str = Field(default="best", alias="preferredQuality")
     max_duration_sec: int = Field(default=300, ge=10, le=1800, alias="maxDurationSec")
+    max_file_size_mb: int = Field(default=250, ge=10, le=1024, alias="maxFileSizeMb")
     with_subtitle: bool = Field(default=False, alias="withSubtitle")
     save_mode: str = Field(default="store_and_return", alias="saveMode")
 

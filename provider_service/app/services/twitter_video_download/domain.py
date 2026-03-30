@@ -20,7 +20,10 @@ def parse_zulu_datetime(value: str) -> datetime:
 
 
 def asset_key_from_request(payload: TwitterVideoDownloadRequest) -> str:
-    raw = f"{payload.post_url}:{payload.preferred_quality}:{payload.max_duration_sec}"
+    raw = (
+        f"{payload.post_url}:{payload.preferred_quality}:"
+        f"{payload.max_duration_sec}:{payload.max_file_size_mb}"
+    )
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
     return f"twvid__{digest}"
 

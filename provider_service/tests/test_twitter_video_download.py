@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import sys
+import types
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -189,3 +190,44 @@ def test_twitter_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatc
 
     assert replayed.freshness.cache_hit is True
     assert replayed.errors[-1].code == "TWITTER_VIDEO_SNAPSHOT_FALLBACK_USED"
+
+
+def test_twitter_video_download_timeout_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo = InMemoryTwitterVideoDownloadRepository()
+
+    async def _slow_download(_, *, target_dir):
+        _ = target_dir
+        await __import__("asyncio").sleep(0.05)
+        raise AssertionError("should have timed out before download completed")
+
+    monkeypatch.setattr(twitter_video_download_service, "download_twitter_video", _slow_download)
+    monkeypatch.setattr(twitter_video_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        twitter_video_download_service,
+        "get_twitter_video_download_repository",
+        lambda: repo,
+    )
+    monkeypatch.setattr(
+        twitter_video_download_service,
+        "get_settings",
+        lambda: types.SimpleNamespace(
+            twitter_video_cache_ttl_s=86400,
+            twitter_video_tmp_dir="storage/twitter_videos/tmp",
+            twitter_video_download_timeout_s=0.001,
+            twitter_video_max_concurrency=1,
+            video_storage_key_prefix="twitter",
+        ),
+    )
+
+    client = TestClient(app)
+    payload = {"postUrl": "https://x.com/openai/status/1900000000000000000"}
+    response = client.post(
+        "/provider-services/twitter-video-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "TWITTER_VIDEO_DOWNLOAD_TIMEOUT"

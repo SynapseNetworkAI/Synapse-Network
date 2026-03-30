@@ -234,7 +234,7 @@ curl -X POST "http://127.0.0.1:8100/provider-services/paper-pdf-download/invoke"
 ```bash
 curl -X POST "http://127.0.0.1:8100/provider-services/twitter-video-download/invoke" \
   -H "Content-Type: application/json" \
-  -d '{"postUrl":"https://x.com/openai/status/1900000000000000000","preferredQuality":"best","maxDurationSec":300,"saveMode":"store_and_return","includePreviewImage":true}'
+  -d '{"postUrl":"https://x.com/openai/status/1900000000000000000","preferredQuality":"best","maxDurationSec":300,"maxFileSizeMb":250,"saveMode":"store_and_return","includePreviewImage":true}'
 ```
 
 自动化回归：
@@ -249,7 +249,8 @@ cd /home/alex/Documents/cliff/Synapse-Network/provider_service
 1. 合法 `x.com/twitter.com` 链接返回 `200`
 2. 非法 URL 返回 `422`
 3. 未签名请求在验签开启时返回 `401`
-4. 下载失败时 snapshot fallback 能否回放
+4. 超长/超大资源会在 metadata preflight 或落盘校验阶段被拦住
+5. 下载失败时 snapshot fallback 能否回放
 
 ### TikTok Video Download
 
@@ -258,7 +259,7 @@ cd /home/alex/Documents/cliff/Synapse-Network/provider_service
 ```bash
 curl -X POST "http://127.0.0.1:8100/provider-services/tiktok-video-download/invoke" \
   -H "Content-Type: application/json" \
-  -d '{"videoUrl":"https://www.tiktok.com/@openai/video/7499999999999999999","preferredQuality":"best","maxDurationSec":300,"withSubtitle":false,"saveMode":"store_and_return"}'
+  -d '{"videoUrl":"https://www.tiktok.com/@openai/video/7499999999999999999","preferredQuality":"best","maxDurationSec":300,"maxFileSizeMb":250,"withSubtitle":false,"saveMode":"store_and_return"}'
 ```
 
 自动化回归：
@@ -273,7 +274,8 @@ cd /home/alex/Documents/cliff/Synapse-Network/provider_service
 1. `videoUrl` 必须是 `https`
 2. host 必须是 TikTok 域名
 3. 路径必须带 `/video/<id>`
-4. 下载超时或时长超限时返回预期错误码
+4. `maxFileSizeMb` 生效，超大资源会被 preflight 或落盘后校验拦住
+5. 下载超时或时长超限时返回预期错误码
 
 ### Reddit Media Download
 
@@ -327,6 +329,15 @@ cd /home/alex/Documents/cliff/Synapse-Network/provider_service
 2. 贴了 `http://` 链接，schema 直接拒绝
 3. URL host 对了，但路径不对，比如 Twitter 缺 `/status/`、TikTok 缺 `/video/`
 4. 本地没配对象存储 / 下载依赖时，真实下载链路可能失败，这时优先先跑对应 `pytest` 文件确认业务骨架
+
+### 新增的防爆闸门
+
+这批下载接口现在都补了四层保护：
+
+1. metadata preflight：先探测时长/大小，再决定是否真正下载
+2. 文件大小限制：Twitter/TikTok 也补上了 `maxFileSizeMb`
+3. 总超时：超时后返回结构化 `*_DOWNLOAD_TIMEOUT`
+4. 并发限制：每类下载服务都有独立 semaphore，避免带宽和 CPU 被瞬间打满
 
 ## 扩展建议
 

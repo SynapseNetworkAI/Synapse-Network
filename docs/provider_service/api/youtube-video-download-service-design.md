@@ -58,6 +58,12 @@
 4. `maxFileSizeMb`：最大文件大小限制。
 5. `saveMode`：V1 固定 `store_and_return`。
 
+当前运行时保护：
+
+1. 下载前会先做 metadata preflight，尽量在真正拉流前拦住超长/超大资源
+2. Provider 侧有总超时闸门，避免单请求长时间占住 worker
+3. Provider 侧有并发限制，避免瞬时下载把带宽和 CPU 打满
+
 ## 3.3 Response Schema (draft)
 
 ```json

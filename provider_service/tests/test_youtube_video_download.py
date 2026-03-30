@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import sys
+import types
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -171,3 +172,44 @@ def test_youtube_video_download_snapshot_fallback(monkeypatch: pytest.MonkeyPatc
 
     assert replayed.freshness.cache_hit is True
     assert replayed.errors[-1].code == "YOUTUBE_VIDEO_SNAPSHOT_FALLBACK_USED"
+
+
+def test_youtube_video_download_timeout_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repo = InMemoryYouTubeVideoDownloadRepository()
+
+    async def _slow_download(_, *, target_dir):
+        _ = target_dir
+        await __import__("asyncio").sleep(0.05)
+        raise AssertionError("should have timed out before download completed")
+
+    monkeypatch.setattr(youtube_video_download_service, "download_youtube_video", _slow_download)
+    monkeypatch.setattr(youtube_video_download_service, "build_video_storage", lambda: FakeStorage())
+    monkeypatch.setattr(
+        youtube_video_download_service,
+        "get_youtube_video_download_repository",
+        lambda: repo,
+    )
+    monkeypatch.setattr(
+        youtube_video_download_service,
+        "get_settings",
+        lambda: types.SimpleNamespace(
+            youtube_video_cache_ttl_s=86400,
+            youtube_video_tmp_dir="storage/youtube_videos/tmp",
+            youtube_video_download_timeout_s=0.001,
+            youtube_video_max_concurrency=1,
+            video_storage_key_prefix="youtube",
+        ),
+    )
+
+    client = TestClient(app)
+    payload = {"videoUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}
+    response = client.post(
+        "/provider-services/youtube-video-download/invoke",
+        json=payload,
+        headers=_signed_headers(payload),
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "YOUTUBE_VIDEO_DOWNLOAD_TIMEOUT"

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Awaitable, Callable, TypeVar
 
 from app.services.asset_storage import StoredAsset
+
+_T = TypeVar("_T")
+_DOWNLOAD_SEMAPHORES: dict[tuple[int, str, int], asyncio.Semaphore] = {}
 
 
 @dataclass(frozen=True)
@@ -36,6 +41,78 @@ class DownloadPolicy:
         if storage_key.startswith("/") or "//" in storage_key:
             raise ValueError("storage key must be normalized")
         return storage_key
+
+
+def estimate_yt_dlp_size_bytes(info: dict[str, Any]) -> int | None:
+    for key in ("filesize", "filesize_approx"):
+        value = info.get(key)
+        if isinstance(value, (int, float)) and value > 0:
+            return int(value)
+
+    requested_formats = info.get("requested_formats") or []
+    total_size = 0
+    saw_candidate = False
+    for item in requested_formats:
+        if not isinstance(item, dict):
+            continue
+        for key in ("filesize", "filesize_approx"):
+            value = item.get(key)
+            if isinstance(value, (int, float)) and value > 0:
+                total_size += int(value)
+                saw_candidate = True
+                break
+    if saw_candidate:
+        return total_size
+    return None
+
+
+def enforce_media_limits(
+    *,
+    info: dict[str, Any],
+    max_duration_sec: int | None,
+    max_size_bytes: int | None,
+    duration_error_code: str,
+    size_error_code: str,
+) -> None:
+    duration_value = info.get("duration")
+    if max_duration_sec and isinstance(duration_value, (int, float)) and int(duration_value) > max_duration_sec:
+        raise ValueError(duration_error_code)
+
+    estimated_size_bytes = estimate_yt_dlp_size_bytes(info)
+    if max_size_bytes and estimated_size_bytes is not None and estimated_size_bytes > max_size_bytes:
+        raise ValueError(size_error_code)
+
+
+def _download_semaphore(service_key: str, concurrency_limit: int) -> asyncio.Semaphore:
+    loop_id = id(asyncio.get_running_loop())
+    normalized_limit = max(1, concurrency_limit)
+    key = (loop_id, service_key, normalized_limit)
+    semaphore = _DOWNLOAD_SEMAPHORES.get(key)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(normalized_limit)
+        _DOWNLOAD_SEMAPHORES[key] = semaphore
+    return semaphore
+
+
+async def run_guarded_download(
+    *,
+    service_key: str,
+    policy: DownloadPolicy,
+    timeout_error_code: str,
+    operation: Callable[[], Awaitable[_T]],
+) -> _T:
+    async def _run() -> _T:
+        if policy.timeout_s and policy.timeout_s > 0:
+            try:
+                return await asyncio.wait_for(operation(), timeout=policy.timeout_s)
+            except asyncio.TimeoutError as exc:
+                raise ValueError(timeout_error_code) from exc
+        return await operation()
+
+    if policy.concurrency_limit and policy.concurrency_limit > 0:
+        async with _download_semaphore(service_key, policy.concurrency_limit):
+            return await _run()
+    return await _run()
 
 
 @dataclass(frozen=True)
