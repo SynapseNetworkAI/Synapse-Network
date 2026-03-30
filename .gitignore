@@ -13,6 +13,7 @@ __pycache__/
 *.pyc
 *.pyo
 venv/
+provider_service/.venv/
 *.db
 *.log
 agent_wallet.json
@@ -28,6 +29,7 @@ temp_check.js
 test_agents.js
 admin/gateway-admin/run/
 provider_service/run/
+provider_service/storage/
 
 # Agent SDK local build artifacts
 sdk/python/agentpay_agent_sdk.egg-info/
