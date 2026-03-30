@@ -10,6 +10,10 @@
   - `docs/exec-plans/active/2026-03-30_Malaysia_AI_Event_and_Portfolio_GTM_Plan.md`
   - `docs/exec-plans/active/2026-03-30_Synapse_12_Week_Execution_Plan.md`
   - `docs/exec-plans/active/2026-03-30_Synapse_Execution_Boards.md`
+  - `docs/exec-plans/active/2026-03-30_Readiness_Gap_List.md`
+  - `docs/exec-plans/active/2026-03-30_Event_Action_List.md`
+  - `docs/exec-plans/active/2026-03-30_Investor_Sheet_V0.md`
+  - `docs/exec-plans/active/2026-03-30_Provider_Shelf_Status_Table.md`
 
 ## 1. Background
 
@@ -153,3 +157,13 @@ Week 1 的目标已经明确：
 这份文档就是今天的清单，不是长期文档博物馆。
 
 今天打完这 5 个产物，Week 1 才算真正起飞。
+
+本轮已落地的后续承接文档：
+
+1. `docs/exec-plans/active/2026-03-30_Readiness_Gap_List.md`
+2. `docs/exec-plans/active/2026-03-30_Event_Action_List.md`
+3. `docs/exec-plans/active/2026-03-30_Investor_Sheet_V0.md`
+4. `docs/exec-plans/active/2026-03-30_Hero_Demo_Runbook.md`
+5. `docs/exec-plans/active/2026-03-30_Public_Environment_Status_Register.md`
+6. `docs/exec-plans/active/2026-03-30_Pitch_Scripts.md`
+7. `docs/exec-plans/active/2026-03-30_Provider_Shelf_Status_Table.md`
