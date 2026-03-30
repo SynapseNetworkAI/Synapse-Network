@@ -99,6 +99,15 @@ python examples/register_provider_shelf_services.py
 5. `SYNAPSE_PAYOUT_CHAIN_ID`: 可选，默认 `421614`（Arbitrum Sepolia）
 6. `SYNAPSE_REGISTER_DRY_RUN`: 设为 `true` 时只打印 payload，不实际提交
 
+## 本地 RPC 缺失时的行为
+
+如果本地没有起链节点，`gateway` 现在会把 deposit backfill 标记为 `INDEXER_BACKFILL_RPC_UNAVAILABLE`，但不会持续刷异常墙，也不会阻断 `discover / quote / invoke` 主链路。
+
+想把本地链路跑满，有两个选择：
+
+1. 给 `RPC_URL` 指向一个真实可用节点
+2. 在纯本地 demo 场景把 `V2_BACKFILL_ENABLED=false`
+
 ## 相关文档
 
 1. [README.md](./README.md)

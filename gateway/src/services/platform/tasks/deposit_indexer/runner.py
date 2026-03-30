@@ -9,7 +9,12 @@ from src.domain.finance import BalanceLedger
 from src.storage import BaseStorage
 
 from .backfill import run_backfill_scan_once
-from .chain import _decode_deposit_events_from_receipt, _get_confirmed_receipt_or_none, _normalize_tx_hash
+from .chain import (
+    DepositIndexerRpcUnavailable,
+    _decode_deposit_events_from_receipt,
+    _get_confirmed_receipt_or_none,
+    _normalize_tx_hash,
+)
 from .persistence import (
     _append_audit_log,
     _load_backfill_state,
@@ -32,6 +37,7 @@ from .reconciliation import run_reconciliation_check_once
 from .shared import (
     INDEXER_STATUS,
     _BACKFILL_ERROR_CODE,
+    _BACKFILL_RPC_UNAVAILABLE_CODE,
     _INDEXER_LOOP_ERROR_CODE,
     _RECONCILIATION_ERROR_CODE,
     _now,
@@ -285,6 +291,25 @@ def _mark_backfill_failure() -> None:
     )
 
 
+def _mark_backfill_rpc_unavailable(now: int) -> None:
+    """本地缺少 RPC 时，记录降级状态但避免刷异常墙。"""
+    current = dict(INDEXER_STATUS.get("backfill") or {})
+    if current.get("lastError") != _BACKFILL_RPC_UNAVAILABLE_CODE:
+        logger.warning(
+            "deposit backfill skipped because rpc is unavailable rpc_url=%s",
+            settings.rpc_url,
+        )
+    _set_status(
+        backfill={
+            "enabled": True,
+            "lastScannedBlock": current.get("lastScannedBlock"),
+            "lastScanAt": now,
+            "lastRecovered": int(current.get("lastRecovered") or 0),
+            "lastError": _BACKFILL_RPC_UNAVAILABLE_CODE,
+        }
+    )
+
+
 def _mark_reconciliation_failure(now: int) -> None:
     """记录 reconciliation 失败状态，但不让主循环崩掉。"""
     logger.exception("deposit reconciliation check failed")
@@ -307,6 +332,9 @@ def _run_backfill_if_enabled(storage: BaseStorage) -> None:
         return
     try:
         run_backfill_scan_once(storage)
+    except DepositIndexerRpcUnavailable:
+        _mark_backfill_rpc_unavailable(_now())
+        _persist_indexer_runtime_state(storage)
     except Exception:
         _mark_backfill_failure()
         _persist_indexer_runtime_state(storage)

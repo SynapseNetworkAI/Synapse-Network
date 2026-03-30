@@ -1,5 +1,10 @@
 import asyncio
+import os
+import time
+from datetime import datetime, timezone
 from types import SimpleNamespace
+
+import pytest
 
 from src.api.schemas.pydantic_models import (
     CredentialIssueRequest,
@@ -10,6 +15,7 @@ from src.domain.identity import RuntimeCredentialRecord
 from src.domain.runtime_state import AuthSessionState, WalletRoleState
 from src.services.platform import credential_service
 from src.services.provider import secret_service
+from src.utils.datetime_utils import to_dt_str
 
 
 class InMemoryCredentialAuthRepository:
@@ -104,6 +110,28 @@ def test_agent_credential_service_uses_runtime_models() -> None:
     )
     assert revoked["credential"]["status"] == "revoked"
     assert len(storage.audit_logs.rows) == 3
+
+
+def test_agent_credential_datetime_round_trip_treats_naive_strings_as_utc() -> None:
+    if not hasattr(time, "tzset"):
+        pytest.skip("tzset is not available on this platform")
+
+    original_tz = os.environ.get("TZ")
+    target_epoch = 1_743_328_800
+
+    try:
+        os.environ["TZ"] = "Asia/Kuala_Lumpur"
+        time.tzset()
+        assert credential_service._dt_str_to_epoch(to_dt_str(target_epoch)) == target_epoch
+        assert credential_service._dt_str_to_epoch("2026-03-30T12:00:00Z") == int(
+            datetime(2026, 3, 30, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+        )
+    finally:
+        if original_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original_tz
+        time.tzset()
 
 
 def test_provider_secret_service_uses_runtime_models() -> None:

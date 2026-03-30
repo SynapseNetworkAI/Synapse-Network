@@ -10,6 +10,10 @@ from src.core.config import settings
 from .shared import TOKEN_DECIMALS_CACHE, get_transfer_topic, get_web3, get_web3_class
 
 
+class DepositIndexerRpcUnavailable(RuntimeError):
+    """Raised when backfill cannot reach the configured RPC endpoint."""
+
+
 def _legacy_deposit_sender_key() -> str:
     return "".join(("bu", "yer"))
 
@@ -282,8 +286,19 @@ def _resolve_matched_event(
 
 def _confirmed_head_block() -> int:
     """返回满足确认数门槛后的安全扫描上界。"""
-    w3 = get_web3()
-    latest = int(w3.eth.block_number or 0)
+    try:
+        w3 = get_web3()
+        is_connected = getattr(w3, "is_connected", None)
+        if callable(is_connected) and not bool(is_connected()):
+            raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")
+        legacy_is_connected = getattr(w3, "isConnected", None)
+        if callable(legacy_is_connected) and not bool(legacy_is_connected()):
+            raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")
+        latest = int(w3.eth.block_number or 0)
+    except DepositIndexerRpcUnavailable:
+        raise
+    except Exception as exc:
+        raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE") from exc
     confirmations = max(1, int(settings.v2_deposit_confirmations))
     return max(0, latest - confirmations + 1)
 

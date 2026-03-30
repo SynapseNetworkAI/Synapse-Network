@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from types import SimpleNamespace
 
+from src.services.platform.tasks.deposit_indexer.chain import DepositIndexerRpcUnavailable
+from src.services.platform.tasks.deposit_indexer.runner import _run_backfill_if_enabled
 from src.services.platform.tasks.deposit_indexer.persistence import _persist_indexer_runtime_state
-from src.services.platform.tasks.deposit_indexer.shared import INDEXER_STATUS, _set_status
+from src.services.platform.tasks.deposit_indexer.shared import (
+    INDEXER_STATUS,
+    _BACKFILL_RPC_UNAVAILABLE_CODE,
+    _set_status,
+)
 
 
 class _FakeGatewayStateRepository:
@@ -69,6 +76,43 @@ def test_persist_indexer_runtime_state_writes_unified_task_snapshot() -> None:
         assert payload["reconciliation"]["lastCheckAt"] == 1711111090
         assert payload["reconciliation"]["alert"] is True
         assert payload["reconciliation"]["lastError"] == "INDEXER_RECONCILIATION_FAILED"
+    finally:
+        INDEXER_STATUS.clear()
+        INDEXER_STATUS.update(original_status)
+
+
+def test_run_backfill_if_enabled_marks_rpc_unavailable_without_raising(monkeypatch) -> None:
+    original_status = deepcopy(INDEXER_STATUS)
+    gateway_state_repo = _FakeGatewayStateRepository()
+    storage = _FakeStorage(gateway_state_repo)
+
+    monkeypatch.setattr(
+        "src.services.platform.tasks.deposit_indexer.runner.run_backfill_scan_once",
+        lambda _storage: (_ for _ in ()).throw(DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")),
+    )
+    monkeypatch.setattr(
+        "src.services.platform.tasks.deposit_indexer.runner.settings",
+        SimpleNamespace(v2_backfill_enabled=True, rpc_url="http://127.0.0.1:8545"),
+    )
+
+    try:
+        _set_status(
+            backfill={
+                "enabled": True,
+                "lastScannedBlock": 19450321,
+                "lastScanAt": 1711111100,
+                "lastRecovered": 2,
+                "lastError": None,
+            }
+        )
+
+        _run_backfill_if_enabled(storage)
+
+        assert gateway_state_repo.calls
+        _, payload = gateway_state_repo.calls[-1]
+        assert payload["backfill"]["lastScannedBlock"] == 19450321
+        assert payload["backfill"]["lastRecovered"] == 2
+        assert payload["backfill"]["lastError"] == _BACKFILL_RPC_UNAVAILABLE_CODE
     finally:
         INDEXER_STATUS.clear()
         INDEXER_STATUS.update(original_status)

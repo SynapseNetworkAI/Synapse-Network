@@ -5,7 +5,6 @@ import os
 import secrets
 import time
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
@@ -29,7 +28,7 @@ from src.domain.identity import (
 )
 from src.domain.runtime_state import CredentialMetadataState
 from src.storage import BaseStorage
-from src.utils.datetime_utils import now_dt_str, to_dt_str
+from src.utils.datetime_utils import now_dt_str, to_dt_str, to_epoch_seconds
 
 write_lock = asyncio.Lock()
 
@@ -68,12 +67,7 @@ def _policy_id(credential_id: str) -> str:
 
 
 def _dt_str_to_epoch(value: Optional[str]) -> int:
-    if not value:
-        return 0
-    try:
-        return int(datetime.strptime(value, "%Y-%m-%d %H:%M:%S").timestamp())
-    except Exception:
-        return 0
+    return to_epoch_seconds(value, default=0)
 
 
 def now_ts() -> int:
