@@ -11,6 +11,7 @@
   - `docs/exec-plans/active/2026-03-30_Synapse_Execution_Boards.md`
   - `docs/exec-plans/active/2026-03-30_Synapse_12_Week_Execution_Plan.md`
   - `docs/exec-plans/active/2026-03-30_Hero_Demo_Runbook.md`
+  - `docs/exec-plans/active/2026-03-30_3_Minute_Demo_Recording_Script.md`
   - `docs/exec-plans/active/2026-03-30_Public_Environment_Status_Register.md`
   - `docs/exec-plans/active/2026-03-30_Provider_Shelf_Status_Table.md`
 
@@ -56,7 +57,7 @@
 | --- | --- | --- | --- |
 | `Python SDK Quickstart` | `partial` | `sdk/python/`, `sdk/python/synapse_client/`, `gateway/examples/synapse_client_quickstart.py` | 缺面向外部开发者的最短接入闭环证明 |
 | `MCP skeleton` | `missing` | 当前只见文档和前端文案提到 MCP，未见独立实现入口 | 需要最小可用 server/adapter |
-| `Hero Demo script` | `partial` | 已有 `2026-03-30_Hero_Demo_Runbook.md`，且已本地跑通 `web3 sentiment` 与 `smart contract audit` 两条成功链路 | 缺正式录屏链接、三角色同屏演示和稳定公网环境复现 |
+| `Hero Demo script` | `ready` | 已有 `2026-03-30_Hero_Demo_Runbook.md` 与 `2026-03-30_3_Minute_Demo_Recording_Script.md`，且已本地跑通 `web3 sentiment` 与 `smart contract audit` 两条成功链路 | 仍缺正式录屏链接、三角色同屏演示和稳定公网环境复现 |
 | `three-role isolation` | `missing` | 文档要求存在，但仓库未见正式演练记录 | 需要买家/卖家/平台三角色操作记录 |
 | `demo video` | `missing` | 仓库未见 demo video 产物或登记 | 需要录屏 V1 和备用录屏 |
 
@@ -112,3 +113,9 @@
 - Check: 本地完成 `svc_smart_contract_audit` 的 `discover -> quote -> invoke`
 - Result: 第二条可讲 demo 链已真实成功，Hero Demo 现在有双链备选
 - Follow-up: 下一步把两条链压缩成 3 分钟内的录屏脚本
+
+### 2026-03-30 Recording Script Update
+
+- Check: 产出双链版 3 分钟录屏脚本
+- Result: `Hero Demo script` 已从 `partial` 进入 `ready`
+- Follow-up: 下一步把脚本变成公开视频和备用离线录屏
