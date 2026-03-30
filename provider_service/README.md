@@ -21,13 +21,17 @@ pip install -r requirements.txt
 
 ## 环境模式
 
-当前脚本支持两套运行环境：
+当前脚本支持三套运行环境：
 
 1. `local`
 	- 本地开发调试默认使用该环境
 	- 读取 `provider_service/.env.local`
 	- 默认走独立 provider PostgreSQL：`synapse_gateway_providers`
-2. `prod`
+2. `staging`
+	- 读取 `provider_service/.env.staging`
+	- 用于共享测试网、联调、活动 demo、投资人预演
+	- 默认要求开启 Gateway 请求验签
+3. `prod`
 	- 读取 `provider_service/.env.prod`
 	- 可选开启 sentiment scheduler 做热点 snapshot 后台预热
 
@@ -39,6 +43,10 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 ./scripts/start.local.sh
 ./scripts/stop.local.sh
 ./scripts/restart.local.sh
+
+./scripts/start.staging.sh
+./scripts/stop.staging.sh
+./scripts/restart.staging.sh
 
 ./scripts/start.prod.sh
 ./scripts/stop.prod.sh
@@ -57,9 +65,9 @@ cd /Users/cliff/workspace/Synapse-Network/provider_service
 
 1. `provider_service/.env.example` 现在为每个配置项标注了中文用途说明
 2. 同时标注了哪些是条件必填项、哪些可以留空，以及代码默认值
-3. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 可控制是否校验 Gateway 签名；建议 `local=false`、`prod=true`
-4. 启动 `prod` 且 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false` 时，脚本默认拒绝启动
-5. 只有显式设置 `ALLOW_INSECURE_PROD_START=true`，才允许带着关闭验签的 prod 继续启动，并打印红字安全警报
+3. `GATEWAY_PROVIDER_SIGNATURE_ENABLED` 可控制是否校验 Gateway 签名；建议 `local=false`、`staging/prod=true`
+4. 启动 `staging` 或 `prod` 且 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false` 时，脚本默认拒绝启动
+5. 只有显式设置 `ALLOW_INSECURE_PROD_START=true`，才允许带着关闭验签的共享环境继续启动，并打印红字安全警报
 6. `SENTIMENT_PROXY_POOL_ENABLED` 可控制抓取 worker 是否走代理池；代理地址通过 `SENTIMENT_PROXY_POOL_URLS_JSON` 配置 JSON 数组
 7. 因为启动脚本会 `source` 环境文件，`SENTIMENT_PROXY_POOL_URLS_JSON` 在 `.env.*` 里必须写成带单引号的整串 JSON，例如 `'["http://127.0.0.1:7890"]'`
 8. 启动脚本会把 `proxy_pool_enabled` 打进启动摘要；如果开启代理池却没配代理地址，脚本会直接拒绝启动，避免误以为已经通过代理出站

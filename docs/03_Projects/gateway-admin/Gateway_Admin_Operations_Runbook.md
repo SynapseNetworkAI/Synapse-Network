@@ -15,6 +15,7 @@ admin/gateway-admin/
 ├── scripts/ops/
 │   ├── common.sh
 │   ├── start-local.sh
+│   ├── start-staging.sh
 │   ├── start-prod.sh
 │   ├── stop.sh
 │   ├── restart.sh
@@ -45,6 +46,8 @@ pip install -r requirements.txt
 ### 2.2 环境变量
 
 推荐在 `admin/gateway-admin/.env.local` 中维护本地或单机部署配置。
+
+共享测试网 / 演示环境建议使用 `admin/gateway-admin/.env.staging`。
 
 最小建议配置：
 
@@ -177,6 +180,16 @@ sh scripts/ops/start-local.sh
 
 ### 3.2 生产启动服务
 
+### 3.2 Staging 启动服务
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cp .env.staging.example .env.staging
+sh scripts/ops/start-staging.sh
+```
+
+### 3.3 生产启动服务
+
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
 ADMIN_GATEWAY_ENV_FILE=/etc/synapse/gateway-admin.env sh scripts/ops/start-prod.sh
@@ -184,12 +197,14 @@ ADMIN_GATEWAY_ENV_FILE=/etc/synapse/gateway-admin.env sh scripts/ops/start-prod.
 
 模板文件见 [Gateway_Admin_Systemd_Deployment_Example.md](./Gateway_Admin_Systemd_Deployment_Example.md)。
 
-### 3.3 停止与重启
+### 3.4 停止与重启
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
 sh scripts/ops/stop.sh
 sh scripts/ops/restart.sh local
+sh scripts/ops/restart.sh staging
+sh scripts/ops/restart.sh prod
 sh scripts/ops/status.sh
 ```
 
@@ -237,9 +252,10 @@ curl http://127.0.0.1:8300/health
 ## 7. 生产建议
 
 1. 单机或开发机优先使用 `start-local.sh`。
-2. 正式生产优先使用 `start-prod.sh + systemd`，不要长期手工 `nohup`。
-3. `EXECUTION_WORKER_ENABLED=true` 时，至少保持一个稳定实例常驻。
-4. `.env.local` 不要提交到仓库，敏感配置必须由部署机注入。
+2. 共享测试网优先使用 `start-staging.sh`，不要拿 `prod` 代替。
+3. 正式生产优先使用 `start-prod.sh + systemd`，不要长期手工 `nohup`。
+4. `EXECUTION_WORKER_ENABLED=true` 时，至少保持一个稳定实例常驻。
+5. `.env.local` / `.env.staging` 不要提交到仓库，敏感配置必须由部署机注入。
 
 ## 8. 推荐操作流程
 

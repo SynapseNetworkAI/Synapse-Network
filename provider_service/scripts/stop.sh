@@ -12,11 +12,14 @@ case "${ENV_NAME}" in
     local)
         ENV_FILE="${PROJECT_ROOT}/.env.local"
         ;;
+    staging)
+        ENV_FILE="${PROJECT_ROOT}/.env.staging"
+        ;;
     prod)
         ENV_FILE="${PROJECT_ROOT}/.env.prod"
         ;;
     *)
-        echo "Unsupported environment: ${ENV_NAME}. Use 'local' or 'prod'." >&2
+        echo "Unsupported environment: ${ENV_NAME}. Use 'local', 'staging', or 'prod'." >&2
         exit 1
         ;;
 esac

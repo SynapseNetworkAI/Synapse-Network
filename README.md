@@ -62,9 +62,24 @@ chmod +x scripts/local/stop_local_env.sh
 ./scripts/local/stop_local_env.sh
 ```
 
-### 3) Prod backend scripts (provider_fastapi only)
+### 3) Staging backend scripts (provider_fastapi only)
 
-Prod scripts only manage `gateway/provider_fastapi.py` and do not start local Anvil or deploy localhost contracts.
+Staging scripts only manage `gateway/provider_fastapi.py` and do not start local Anvil or deploy localhost contracts.
+
+```bash
+chmod +x scripts/staging/start_staging_env.sh
+./scripts/staging/start_staging_env.sh
+
+chmod +x scripts/staging/restart_staging_env.sh
+./scripts/staging/restart_staging_env.sh
+
+chmod +x scripts/staging/stop_staging_env.sh
+./scripts/staging/stop_staging_env.sh
+```
+
+### 3.1) Prod backend scripts (provider_fastapi only)
+
+Prod scripts manage the final public profile after staging is stable.
 
 ```bash
 chmod +x scripts/prod/start_prod_env.sh
@@ -144,6 +159,7 @@ python -m pip install -r requirements.txt
 Gateway env templates live under `gateway/`:
 
 - `.env.local.example`: local bootstrap template
+- `.env.staging.example`: shared testnet / demo template
 - `.env.prod.example`: production bootstrap template
 - `.env.example`: full variable catalog
 
@@ -162,7 +178,7 @@ Recommended local flow:
 Where does `PRIVATE_KEY` come from?
 
 - Local dev: use a private key from your local chain test accounts. Anvil / Hardhat usually prints funded dev accounts and their private keys at startup.
-- Production: use a dedicated withdraw signer account managed by your infra stack, ideally injected via Secret Manager, KMS, or HSM-backed workflows.
+- Staging / production: use a dedicated withdraw signer account managed by your infra stack, ideally injected via Secret Manager, KMS, or HSM-backed workflows.
 
 Do not use a personal browser-wallet mnemonic or commit a real production private key into the repository.
 
@@ -241,4 +257,3 @@ Synapse-Network/
 
 - Gateway runtime state is stored in PostgreSQL; `runtime_storage/` is no longer part of the active persistence path.
 - For architecture and protocol details, start from [docs/README.md](docs/README.md).
-

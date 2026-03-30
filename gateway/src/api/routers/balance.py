@@ -83,14 +83,14 @@ def _ensure_fee_policy_admin(owner_wallet: str) -> str:
             )
         return owner
 
-    # Developer fallback for local environments: if allow-list is empty,
-    # permit authenticated owner in development only.
-    if str(settings.environment).lower() != "development":
+    # Developer fallback stays local-only. Shared staging and prod must
+    # always configure an explicit allow-list.
+    if str(settings.environment).lower() != "local":
         raise HTTPException(
             status_code=403,
             detail={
                 "code": "FEE_ADMIN_NOT_CONFIGURED",
-                "message": "PLATFORM_FEE_ADMIN_WALLETS must be configured in non-development environments",
+                "message": "PLATFORM_FEE_ADMIN_WALLETS must be configured in non-local environments",
             },
         )
     return owner

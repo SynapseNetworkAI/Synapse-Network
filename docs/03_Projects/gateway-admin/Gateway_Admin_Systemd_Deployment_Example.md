@@ -35,7 +35,7 @@ sudo chmod 600 /etc/synapse/gateway-admin.env
 
 同时保证：
 
-1. `environment=production`
+1. `environment=prod`
 2. `ADMIN_GATEWAY_DEBUG=false`
 3. `ADMIN_GATEWAY_USE_INMEMORY_STORE=false`
 

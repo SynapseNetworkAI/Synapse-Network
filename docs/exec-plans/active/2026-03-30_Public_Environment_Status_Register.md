@@ -27,8 +27,8 @@
 | Surface | Current status | Public URL / identifier | Owner | Notes |
 | --- | --- | --- | --- | --- |
 | `frontend` | `partial` | `TBD` | Founder / CTO | 代码存在，公网地址待登记 |
-| `gateway` | `partial` | `TBD` | Founder / CTO | API 运行时存在，公网 base URL 待登记 |
-| `provider_service` | `partial` | `TBD` | Founder / CTO | provider runtime 存在，公网入口待登记 |
+| `gateway` | `partial` | `TBD` | Founder / CTO | API 运行时存在，优先登记 `staging` base URL |
+| `provider_service` | `partial` | `TBD` | Founder / CTO | provider runtime 存在，优先登记 `staging` 入口 |
 | `database` | `partial` | `internal` | Founder / CTO | Postgres/MinIO 等内部资源待登记 |
 | `contracts` | `partial` | `TBD` | Founder / CTO | 合约地址与 explorer 链接待登记 |
 | `domain` | `missing` | `TBD` | Founder / CTO | demo 域名未登记 |
@@ -75,6 +75,7 @@
 3. provider_service 可达
 4. 合约地址可查
 5. 当前测试链唯一明确
+6. 当前演示环境必须明确写是 `staging` 还是 `prod`
 
 ## 5. Tomorrow Top 3
 

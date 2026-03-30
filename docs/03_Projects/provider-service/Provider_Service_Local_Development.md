@@ -80,7 +80,7 @@ pip install -r requirements.txt
 7. freshness policy 默认阈值为 `60s / 300s / 900s`
 8. PostgreSQL 表结构需先由 `docker-compose/postgres/init/gateway-providers/` 初始化，provider runtime 不会自动建表；scheduler state 依赖 `provider_sentiment_scheduler_jobs`
 9. 如果抓取 worker 需要走代理池，设置 `SENTIMENT_PROXY_POOL_ENABLED=true`，并把 `SENTIMENT_PROXY_POOL_URLS_JSON` 配成代理 URL 的 JSON 数组
-10. 在 `.env.local` / `.env.prod` 里要写成 shell-safe 形式，例如 `SENTIMENT_PROXY_POOL_URLS_JSON='["http://127.0.0.1:7890"]'`，否则脚本 `source` 后会把内部双引号吃掉
+10. 在 `.env.local` / `.env.staging` / `.env.prod` 里要写成 shell-safe 形式，例如 `SENTIMENT_PROXY_POOL_URLS_JSON='["http://127.0.0.1:7890"]'`，否则脚本 `source` 后会把内部双引号吃掉
 11. 开启代理池但没填代理地址时，启动脚本会拒绝启动，避免误配后仍然直连外网
 12. 单代理本地联调建议把 `SENTIMENT_PROXY_TIMEOUT_FLOOR_S` 设为至少 `8`，否则代理 connect/read latency 很容易打穿默认单源 timeout
 13. 代理模式下 scheduler 会自动按代理池大小收敛刷新并发，避免同一个本地代理被多份快照刷新同时压爆
@@ -96,6 +96,13 @@ pip install -r requirements.txt
 
 ```bash
 ./scripts/start.prod.sh
+```
+
+如果要跑共享测试网 / 联调环境：
+
+```bash
+cp .env.staging.example .env.staging
+./scripts/start.staging.sh
 ```
 
 如果要本地直接调 `Web3 Sentiment Index`，有两种方式：

@@ -11,11 +11,14 @@ case "${MODE}" in
 	local)
 		bash "${SCRIPT_DIR}/start-local.sh"
 		;;
+	staging)
+		bash "${SCRIPT_DIR}/start-staging.sh"
+		;;
 	prod)
 		bash "${SCRIPT_DIR}/start-prod.sh"
 		;;
 	*)
-		echo "Unsupported restart mode: ${MODE}. Use 'local' or 'prod'."
+		echo "Unsupported restart mode: ${MODE}. Use 'local', 'staging', or 'prod'."
 		exit 1
 		;;
 esac

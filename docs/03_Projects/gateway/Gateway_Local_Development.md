@@ -21,6 +21,7 @@ gateway/
 ├── pytest.ini
 ├── .env.example
 ├── .env.local.example
+├── .env.staging.example
 └── .env.prod.example
 ```
 
@@ -64,6 +65,24 @@ bash scripts/local/restart_gateway.sh
 ```
 
 这个脚本现在会在返回成功前主动等待 `http://127.0.0.1:8000/health`，避免“父进程还活着但 gateway 实际没起来”的假启动。
+
+## 共享测试网 / 预发环境
+
+如果要跑共享测试网环境，统一使用 `staging`，不要拿 `prod` 代替：
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/gateway
+cp .env.staging.example .env.staging
+
+cd /Users/cliff/workspace/Synapse-Network
+bash scripts/staging/start_staging_env.sh
+```
+
+当前约定：
+
+1. `local` 只对应本地链、本地端口和本地数据库假设
+2. `staging` 对应共享测试网 / demo / 联调环境
+3. `prod` 只对应正式公网环境
 
 ## 最小验证
 

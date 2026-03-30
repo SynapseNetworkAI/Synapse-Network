@@ -15,8 +15,9 @@
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
 sh scripts/ops/start-local.sh
+sh scripts/ops/start-staging.sh
 sh scripts/ops/stop.sh
-sh scripts/ops/restart.sh
+sh scripts/ops/restart.sh local
 sh scripts/ops/status.sh
 ```
 

@@ -47,8 +47,10 @@
 
 1. `apps/frontend/Dockerfile`
 2. `apps/frontend/.env.example`
-3. `gateway/Dockerfile`
-4. `provider_service/Dockerfile`
+3. `apps/frontend/.env.staging.example`
+4. `apps/frontend/.env.prod.example`
+5. `gateway/Dockerfile`
+6. `provider_service/Dockerfile`
 
 ## 4. Service-Specific Launch Checklist
 
@@ -61,12 +63,13 @@
 3. 如需 WalletConnect，已配置 `NEXT_PUBLIC_REOWN_PROJECT_ID` 或 `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`
 4. `apps/frontend/src/contract-config.json` 已与 `Arbitrum Sepolia` 保持一致
 5. 可直接从 `apps/frontend/src/contract-config.arbitrum-sepolia.example.json` 复制为首版模板
+6. 共享测试网优先使用 `apps/frontend/.env.staging.example`，正式公网再切 `apps/frontend/.env.prod.example`
 
 容器入口：
 
 ```bash
 docker build -t synapse-frontend ./apps/frontend
-docker run --rm -p 3000:3000 --env-file apps/frontend/.env.example synapse-frontend
+docker run --rm -p 3000:3000 --env-file apps/frontend/.env.staging synapse-frontend
 ```
 
 上线后最小验收：
@@ -86,12 +89,13 @@ docker run --rm -p 3000:3000 --env-file apps/frontend/.env.example synapse-front
 5. `PRIVATE_KEY` 已替换成独立 withdraw signer
 6. `INDEXER_ADMIN_WALLETS` 与 `PLATFORM_FEE_ADMIN_WALLETS` 已配置
 7. 如需 Redis 限流，`REDIS_URL` 已配置
+8. 共享测试网部署优先读取 `gateway/.env.staging`，正式公网再切 `gateway/.env.prod`
 
 容器入口：
 
 ```bash
 docker build -t synapse-gateway ./gateway
-docker run --rm -p 8000:8000 --env-file gateway/.env.prod synapse-gateway
+docker run --rm -p 8000:8000 --env-file gateway/.env.staging synapse-gateway
 ```
 
 上线后最小验收：
@@ -111,12 +115,13 @@ docker run --rm -p 8000:8000 --env-file gateway/.env.prod synapse-gateway
 4. 如启用 sentiment 持久化，`SENTIMENT_REPOSITORY_BACKEND=postgres`
 5. 如启用媒体下载，`VIDEO_STORAGE_MINIO_*` 已配置
 6. 如启用链上源码审计，`ETHERSCAN_API_KEY` 已配置
+7. 共享测试网部署优先读取 `provider_service/.env.staging`，正式公网再切 `provider_service/.env.prod`
 
 容器入口：
 
 ```bash
 docker build -t synapse-provider-service ./provider_service
-docker run --rm -p 8100:8100 --env-file provider_service/.env.prod synapse-provider-service
+docker run --rm -p 8100:8100 --env-file provider_service/.env.staging synapse-provider-service
 ```
 
 上线后最小验收：
@@ -142,8 +147,8 @@ docker run --rm -p 8100:8100 --env-file provider_service/.env.prod synapse-provi
 
 建议按这个顺序推进：
 
-1. 先把 `gateway` 上线
-2. 再把 `provider_service` 挂到公网
+1. 先把 `gateway` 上到 `staging`
+2. 再把 `provider_service` 挂到 `staging`
 3. 最后把 `frontend` 指向公网 `gateway`
 4. 成功后立刻回填 `Public_Environment_Status_Register`
 

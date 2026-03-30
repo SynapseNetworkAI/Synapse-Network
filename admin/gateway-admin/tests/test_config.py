@@ -6,10 +6,10 @@ from src.core.config import Settings
 from src.core.db_migrations import apply_sql_file, apply_sql_files, grant_admin_schema_access
 
 
-def test_cors_origins_include_common_local_ports_in_development() -> None:
+def test_cors_origins_include_common_local_ports_in_local_mode() -> None:
     settings = Settings(
         ADMIN_GATEWAY_ALLOWED_ORIGINS="http://localhost:3000",
-        environment="development",
+        environment="local",
     )
 
     assert "http://localhost:3000" in settings.cors_origins()
@@ -17,13 +17,19 @@ def test_cors_origins_include_common_local_ports_in_development() -> None:
     assert "http://127.0.0.1:4000" in settings.cors_origins()
 
 
-def test_cors_origins_do_not_expand_in_production() -> None:
+def test_cors_origins_do_not_expand_in_prod() -> None:
     settings = Settings(
         ADMIN_GATEWAY_ALLOWED_ORIGINS="https://admin.synapse.network",
-        environment="production",
+        environment="prod",
     )
 
     assert settings.cors_origins() == ["https://admin.synapse.network"]
+
+
+def test_environment_aliases_normalize_to_three_profiles() -> None:
+    assert Settings(environment="development").environment == "local"
+    assert Settings(environment="stage").environment == "staging"
+    assert Settings(environment="production").environment == "prod"
 
 
 def test_apply_sql_files_executes_all_files_and_commits(tmp_path: Path) -> None:

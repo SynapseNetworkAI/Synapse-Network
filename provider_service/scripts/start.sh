@@ -17,12 +17,15 @@ case "${ENV_NAME}" in
     local)
         ENV_FILE="${PROJECT_ROOT}/.env.local"
         ;;
+    staging)
+        ENV_FILE="${PROJECT_ROOT}/.env.staging"
+        ;;
     prod)
         ENV_FILE="${PROJECT_ROOT}/.env.prod"
         ;;
     *)
-        echo "Unsupported environment: ${ENV_NAME}. Use 'local' or 'prod'." >&2
-        echo "Recommended entrypoints: ./scripts/start.local.sh or ./scripts/start.prod.sh" >&2
+        echo "Unsupported environment: ${ENV_NAME}. Use 'local', 'staging', or 'prod'." >&2
+        echo "Recommended entrypoints: ./scripts/start.local.sh / ./scripts/start.staging.sh / ./scripts/start.prod.sh" >&2
         exit 1
         ;;
 esac
@@ -67,12 +70,12 @@ if [[ "${PROXY_POOL_ENABLED_NORMALIZED}" == "true" && ( -z "${PROXY_POOL_URLS_NO
     exit 1
 fi
 
-if [[ "${ENV_NAME}" == "prod" && "${SIGNATURE_ENABLED_NORMALIZED}" != "true" ]]; then
+if [[ ( "${ENV_NAME}" == "staging" || "${ENV_NAME}" == "prod" ) && "${SIGNATURE_ENABLED_NORMALIZED}" != "true" ]]; then
     if [[ "${ALLOW_INSECURE_PROD_START_NORMALIZED}" != "true" ]]; then
-        echo $'\033[31;1mSECURITY BLOCK: refusing to start prod with GATEWAY_PROVIDER_SIGNATURE_ENABLED=false. Set ALLOW_INSECURE_PROD_START=true only for an intentional emergency override. This usually means a local debug config leaked into prod.\033[0m' >&2
+        echo $'\033[31;1mSECURITY BLOCK: refusing to start staging/prod with GATEWAY_PROVIDER_SIGNATURE_ENABLED=false. Set ALLOW_INSECURE_PROD_START=true only for an intentional emergency override. This usually means a local debug config leaked into a shared environment.\033[0m' >&2
         exit 1
     fi
-    echo $'\033[31;1mSECURITY WARNING: prod is starting with GATEWAY_PROVIDER_SIGNATURE_ENABLED=false under ALLOW_INSECURE_PROD_START=true. Gateway request signature verification is disabled. This is unsafe for production and should be temporary only.\033[0m' >&2
+    echo $'\033[31;1mSECURITY WARNING: staging/prod is starting with GATEWAY_PROVIDER_SIGNATURE_ENABLED=false under ALLOW_INSECURE_PROD_START=true. Gateway request signature verification is disabled. This is unsafe for any shared environment and should be temporary only.\033[0m' >&2
 fi
 
 mkdir -p "${LOG_DIR}" "${RUN_DIR}"
