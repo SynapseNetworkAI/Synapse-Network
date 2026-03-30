@@ -184,7 +184,7 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py \
 如果你的目标是验证“SDK + 网关 + 服务”整条调用链，不要东拼西凑命令，直接按这个顺序：
 
 ```bash
-sh /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
+bash /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
 
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
 export SYNAPSE_API_KEY='agt_xxx_your_real_key'
@@ -319,7 +319,7 @@ http://127.0.0.1:8000
 常见命令：
 
 ```bash
-sh /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
+bash /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
 ```
 
 然后重新跑 SDK demo。

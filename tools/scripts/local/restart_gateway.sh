@@ -1,12 +1,14 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-set -eu
+set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 LOG_FILE="${ROOT_DIR}/gateway/logs/provider_api.log"
 CONFIG_FILE="${ROOT_DIR}/apps/frontend/src/contract-config.json"
+HEALTH_URL="http://127.0.0.1:8000/health"
+STARTUP_TIMEOUT_SEC="${STARTUP_TIMEOUT_SEC:-20}"
 
 find_pid_by_port() {
   port="$1"
@@ -31,6 +33,22 @@ stop_pid() {
       echo "${name}: stopped (${pid})"
     fi
   fi
+}
+
+wait_for_gateway_health() {
+  health_url="$1"
+  timeout_sec="$2"
+  elapsed=0
+
+  while [ "$elapsed" -lt "$timeout_sec" ]; do
+    if curl -fsS "$health_url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  return 1
 }
 
 if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_311.sh" ]]; then
@@ -105,10 +123,14 @@ else
 fi
 
 NEW_PROVIDER_PID=$!
-sleep 3
-
-if ! kill -0 "$NEW_PROVIDER_PID" >/dev/null 2>&1; then
-  echo "Error: gateway failed to start. Check ${LOG_FILE}"
+if ! wait_for_gateway_health "$HEALTH_URL" "$STARTUP_TIMEOUT_SEC"; then
+  echo "Error: gateway failed health check within ${STARTUP_TIMEOUT_SEC}s. Check ${LOG_FILE}"
+  stop_pid "ProviderAPI" "$NEW_PROVIDER_PID"
+  LISTENER_PID="$(find_pid_by_port 8000)"
+  if [ -n "$LISTENER_PID" ] && [ "$LISTENER_PID" != "$NEW_PROVIDER_PID" ]; then
+    stop_pid "ProviderAPIListener" "$LISTENER_PID"
+  fi
+  tail -n 40 "$LOG_FILE" || true
   exit 1
 fi
 
@@ -125,5 +147,5 @@ fi
 echo "Gateway restarted successfully"
 echo "Gateway PID  : ${NEW_PROVIDER_PID}"
 echo "PID file     : ${PID_FILE}"
-echo "Health check : http://127.0.0.1:8000/health"
+echo "Health check : ${HEALTH_URL}"
 echo "Log file     : ${LOG_FILE}"

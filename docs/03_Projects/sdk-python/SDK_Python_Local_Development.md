@@ -48,7 +48,7 @@ PYTHONPATH="$PWD" .venv/bin/python examples/smoke_test.py --service-id svc_quote
 ## 端到端本地联调
 
 ```bash
-sh /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
+bash /Users/cliff/workspace/Synapse-Network/scripts/local/restart_gateway.sh
 
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
 export SYNAPSE_API_KEY="agt_xxxxx..."
