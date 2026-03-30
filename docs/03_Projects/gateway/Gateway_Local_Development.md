@@ -76,6 +76,29 @@ cd /Users/cliff/workspace/Synapse-Network/gateway
 .venv/bin/python -m pytest -q
 ```
 
+## Provider Shelf Seeding
+
+如果要把 `web3 sentiment`、`smart contract audit`、`whale-flow monitor` 三个样板服务一次性注册进 gateway registry，可直接使用：
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/gateway
+export SYNAPSE_GATEWAY_API_BASE="http://127.0.0.1:8000"
+export SYNAPSE_OWNER_ADDRESS="0xYourOwnerWallet"
+export SYNAPSE_OWNER_BEARER_TOKEN="owner-jwt-token"
+export SYNAPSE_PROVIDER_BASE_URL="http://127.0.0.1:8100"
+export SYNAPSE_REGISTER_DRY_RUN="true"
+python examples/register_provider_shelf_services.py
+```
+
+常用变量：
+
+1. `SYNAPSE_OWNER_BEARER_TOKEN`: 注册接口必需的 owner JWT
+2. `SYNAPSE_OWNER_ADDRESS`: 与 JWT `sub` 对齐的钱包地址
+3. `SYNAPSE_PROVIDER_BASE_URL`: provider runtime 地址
+4. `SYNAPSE_PAYOUT_ADDRESS`: 可选，默认复用 owner 地址
+5. `SYNAPSE_PAYOUT_CHAIN_ID`: 可选，默认 `421614`（Arbitrum Sepolia）
+6. `SYNAPSE_REGISTER_DRY_RUN`: 设为 `true` 时只打印 payload，不实际提交
+
 ## 相关文档
 
 1. [README.md](./README.md)
