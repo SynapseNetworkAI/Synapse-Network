@@ -122,6 +122,99 @@ curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
   -d '{"text":"关于坚持"}'
 ```
 
+## 本地 curl 冒烟测试
+
+如果你是直接手工 `curl` 调 provider 接口，而不是通过 `gateway -> provider_service` 调用链，建议先在 `provider_service/.env.local` 里确认：
+
+```env
+GATEWAY_PROVIDER_SIGNATURE_ENABLED=false
+SERVICE_PORT=8100
+```
+
+然后重启本地服务：
+
+```bash
+cd /Users/cliff/workspace/Synapse-Network/provider_service
+./scripts/restart.local.sh
+```
+
+推荐按下面顺序测，先测 `health`，再测简单接口，最后测 provider service invoke 接口。
+
+### 1. 健康检查
+
+```bash
+curl http://127.0.0.1:8100/health
+```
+
+### 2. Quotes
+
+```bash
+curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"关于坚持"}'
+
+curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"关于坚持"}'
+```
+
+### 3. Web3 Sentiment Index
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/web3-sentiment-index/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"ETH","chain":"ethereum","lookback_hours":24,"include_narrative":true}'
+```
+
+### 4. Smart Contract Audit
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/smart-contract-audit/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"source_bundle":"pragma solidity ^0.8.24; contract Demo { function ping() external pure returns (uint256) { return 1; } }","analysis_depth":"fast","include_evidence":true}'
+```
+
+### 5. Whale Flow Monitor
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/whale-flow-monitor/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"ETH","chain":"ethereum","window_minutes":60,"min_usd_value":100000,"limit":10}'
+```
+
+### 6. Protocol Fundamental Brief
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/protocol-fundamental-brief/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"protocol":"aave","chain":"ethereum","peer_set":["compound","morpho"],"lookback_days":30}'
+```
+
+### 7. GitHub Release Asset Download
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/github-release-asset-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"repo":"openai/openai-python","tag":"v1.0.0","assetPattern":"*.tar.gz","saveMode":"store_and_return"}'
+```
+
+### 8. Paper PDF Download
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/paper-pdf-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"paperId":"2401.00001","source":"arxiv","saveMode":"store_and_return"}'
+```
+
+### 9. 如果你要保持验签开启
+
+`/provider-services/*/invoke` 这批接口默认会做 `Gateway` 请求验签；如果 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=true`，普通 `curl` 会直接失败。
+
+这时有两种选择：
+
+1. 本地联调时把 `provider_service/.env.local` 的 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`
+2. 或者改走真实 `gateway -> provider_service` 链路，由 gateway 代你签名
+
 ## 扩展建议
 
 按同样分层扩展：
