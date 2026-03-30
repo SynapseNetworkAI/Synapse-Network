@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 
 from app.schemas.tiktok_video_download import TikTokVideoDownloadRequest
 from app.services.download_abstractions import enforce_media_limits
+from app.services.yt_dlp_subprocess import YtDlpSubprocessSpec, run_yt_dlp_subprocess
 
 
 @dataclass(frozen=True)
@@ -28,32 +28,35 @@ def _quality_to_format(quality: str) -> str:
     return "bestvideo+bestaudio/best"
 
 
-def _download_sync(payload: TikTokVideoDownloadRequest, target_dir: Path) -> DownloadedVideo:
-    from yt_dlp import YoutubeDL
-
+async def download_tiktok_video(
+    payload: TikTokVideoDownloadRequest,
+    *,
+    target_dir: Path,
+) -> DownloadedVideo:
     target_dir.mkdir(parents=True, exist_ok=True)
-    outtmpl = str(target_dir / "%(id)s.%(ext)s")
-    options = {
-        "outtmpl": outtmpl,
-        "format": _quality_to_format(payload.preferred_quality),
-        "merge_output_format": "mp4",
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-        "socket_timeout": 20,
-    }
-
-    with YoutubeDL(options) as ydl:
-        info = ydl.extract_info(payload.video_url, download=False)
-        enforce_media_limits(
-            info=info,
-            max_duration_sec=payload.max_duration_sec,
-            max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
-            duration_error_code="TIKTOK_VIDEO_DURATION_EXCEEDED",
-            size_error_code="TIKTOK_VIDEO_SIZE_EXCEEDED",
+    preflight = await run_yt_dlp_subprocess(
+        YtDlpSubprocessSpec(
+            url=payload.video_url,
+            target_dir=target_dir,
+            format_selector=_quality_to_format(payload.preferred_quality),
+            download=False,
         )
-        info = ydl.extract_info(payload.video_url, download=True)
-
+    )
+    enforce_media_limits(
+        info=preflight,
+        max_duration_sec=payload.max_duration_sec,
+        max_size_bytes=payload.max_file_size_mb * 1024 * 1024,
+        duration_error_code="TIKTOK_VIDEO_DURATION_EXCEEDED",
+        size_error_code="TIKTOK_VIDEO_SIZE_EXCEEDED",
+    )
+    info = await run_yt_dlp_subprocess(
+        YtDlpSubprocessSpec(
+            url=payload.video_url,
+            target_dir=target_dir,
+            format_selector=_quality_to_format(payload.preferred_quality),
+            download=True,
+        )
+    )
     enforce_media_limits(
         info=info,
         max_duration_sec=payload.max_duration_sec,
@@ -62,15 +65,7 @@ def _download_sync(payload: TikTokVideoDownloadRequest, target_dir: Path) -> Dow
         size_error_code="TIKTOK_VIDEO_SIZE_EXCEEDED",
     )
 
-    requested_downloads = info.get("requested_downloads") or []
-    file_path = None
-    if requested_downloads:
-        file_path = requested_downloads[0].get("filepath")
-    if not file_path:
-        ext = info.get("ext") or "mp4"
-        file_path = str(target_dir / f"{info.get('id')}.{ext}")
-
-    path = Path(file_path)
+    path = Path(str(info.get("filepath") or ""))
     if not path.exists():
         raise ValueError("TIKTOK_VIDEO_DOWNLOAD_FAILED")
     size_mb = path.stat().st_size / (1024 * 1024)
@@ -87,11 +82,3 @@ def _download_sync(payload: TikTokVideoDownloadRequest, target_dir: Path) -> Dow
         mime_type="video/mp4",
         sha256=digest,
     )
-
-
-async def download_tiktok_video(
-    payload: TikTokVideoDownloadRequest,
-    *,
-    target_dir: Path,
-) -> DownloadedVideo:
-    return await asyncio.to_thread(_download_sync, payload, target_dir)

@@ -339,6 +339,12 @@ cd /home/alex/Documents/cliff/Synapse-Network/provider_service
 3. 总超时：超时后返回结构化 `*_DOWNLOAD_TIMEOUT`
 4. 并发限制：每类下载服务都有独立 semaphore，避免带宽和 CPU 被瞬间打满
 
+下载执行模型也已经从 `asyncio.to_thread(...)` 升级成独立 `yt_dlp` subprocess：
+
+1. timeout 触发时，会终止底层下载子进程，不再只是请求侧“放弃等待”
+2. client / gateway 提前断开连接时，会触发 provider 侧取消，并终止底层下载子进程
+3. 当前取消错误码形态是 `*_DOWNLOAD_CANCELLED`
+
 ## 扩展建议
 
 按同样分层扩展：

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic
 from typing import Any, Awaitable, Callable, TypeVar
 
 from app.services.asset_storage import StoredAsset
@@ -99,15 +101,40 @@ async def run_guarded_download(
     service_key: str,
     policy: DownloadPolicy,
     timeout_error_code: str,
+    disconnect_error_code: str | None = None,
+    disconnect_checker: Callable[[], Awaitable[bool]] | None = None,
     operation: Callable[[], Awaitable[_T]],
 ) -> _T:
     async def _run() -> _T:
-        if policy.timeout_s and policy.timeout_s > 0:
-            try:
-                return await asyncio.wait_for(operation(), timeout=policy.timeout_s)
-            except asyncio.TimeoutError as exc:
-                raise ValueError(timeout_error_code) from exc
-        return await operation()
+        task = asyncio.create_task(operation())
+        deadline = monotonic() + policy.timeout_s if policy.timeout_s and policy.timeout_s > 0 else None
+        poll_interval_s = 0.1
+        try:
+            while True:
+                wait_timeout = poll_interval_s
+                if deadline is not None:
+                    remaining = deadline - monotonic()
+                    if remaining <= 0:
+                        task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await task
+                        raise ValueError(timeout_error_code)
+                    wait_timeout = min(wait_timeout, remaining)
+
+                done, _ = await asyncio.wait({task}, timeout=wait_timeout)
+                if task in done:
+                    return await task
+
+                if disconnect_checker is not None and await disconnect_checker():
+                    task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await task
+                    raise ValueError(disconnect_error_code or timeout_error_code)
+        finally:
+            if not task.done():
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
 
     if policy.concurrency_limit and policy.concurrency_limit > 0:
         async with _download_semaphore(service_key, policy.concurrency_limit):
