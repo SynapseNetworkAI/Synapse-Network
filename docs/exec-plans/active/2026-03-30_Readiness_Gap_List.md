@@ -56,7 +56,7 @@
 | --- | --- | --- | --- |
 | `Python SDK Quickstart` | `partial` | `sdk/python/`, `sdk/python/synapse_client/`, `gateway/examples/synapse_client_quickstart.py` | 缺面向外部开发者的最短接入闭环证明 |
 | `MCP skeleton` | `missing` | 当前只见文档和前端文案提到 MCP，未见独立实现入口 | 需要最小可用 server/adapter |
-| `Hero Demo script` | `partial` | 已有 `2026-03-30_Hero_Demo_Runbook.md`，且已本地跑通 `discover -> quote -> invoke` 成功链路 | 缺正式录屏链接、三角色同屏演示和稳定公网环境复现 |
+| `Hero Demo script` | `partial` | 已有 `2026-03-30_Hero_Demo_Runbook.md`，且已本地跑通 `web3 sentiment` 与 `smart contract audit` 两条成功链路 | 缺正式录屏链接、三角色同屏演示和稳定公网环境复现 |
 | `three-role isolation` | `missing` | 文档要求存在，但仓库未见正式演练记录 | 需要买家/卖家/平台三角色操作记录 |
 | `demo video` | `missing` | 仓库未见 demo video 产物或登记 | 需要录屏 V1 和备用录屏 |
 
@@ -89,7 +89,7 @@
 
 如果按当前差距排明天 Top 3，建议是：
 
-1. 把已跑通的 `web3 sentiment` 录成 Hero Demo V1
+1. 把已跑通的 `web3 sentiment + smart contract audit` 录成 Hero Demo V1
 2. 给 `公网环境 / testnet / domain` 现状表填真实 URL 与链上地址
 3. 把本地 `discover -> quote -> invoke` 成功链路迁移到稳定公网环境
 
@@ -106,3 +106,9 @@
 - Check: 本地完成 `svc_web3_sentiment_index` 的 `discover -> quote -> invoke`
 - Result: Hero Demo 核心执行链已在本地真实成功，当前主要缺口转为录屏、公网环境和三角色镜头
 - Follow-up: 下一步直接产出 Hero Demo V1 录屏
+
+### 2026-03-30 Second Runtime Demo Update
+
+- Check: 本地完成 `svc_smart_contract_audit` 的 `discover -> quote -> invoke`
+- Result: 第二条可讲 demo 链已真实成功，Hero Demo 现在有双链备选
+- Follow-up: 下一步把两条链压缩成 3 分钟内的录屏脚本
