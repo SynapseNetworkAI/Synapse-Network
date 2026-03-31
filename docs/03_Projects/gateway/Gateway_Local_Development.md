@@ -60,11 +60,12 @@ cd /Users/cliff/workspace/Synapse-Network/gateway
 如果希望按仓库标准脚本重启本地 gateway：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network
-bash scripts/local/restart_gateway.sh
+cd /home/alex/Documents/cliff/Synapse-Network
+./scripts/local/restart_gateway.sh
 ```
 
 这个脚本现在会在返回成功前主动等待 `http://127.0.0.1:8000/health`，避免“父进程还活着但 gateway 实际没起来”的假启动。
+如果误用了 `sh scripts/local/restart_gateway.sh`，脚本也会自动切回 `bash` 继续执行。
 
 ## 共享测试网 / 预发环境
 

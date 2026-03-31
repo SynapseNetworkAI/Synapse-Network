@@ -246,24 +246,25 @@ npx hardhat run scripts/fund_usdc.js --network localhost -- \
 `scripts/local/setup_local_env.sh`
 
 1. 用途：一键启动本地链、部署合约、补 ETH/USDC、启动 gateway 与前端
-2. 用法：`bash scripts/local/setup_local_env.sh`
+2. 用法：`./scripts/local/setup_local_env.sh` 或 `bash scripts/local/setup_local_env.sh`
 
 `scripts/local/stop_local_env.sh`
 
 1. 用途：基于 `.local_env.pids` 或端口扫描，停止本地 Anvil、gateway、frontend
-2. 用法：`bash scripts/local/stop_local_env.sh`
+2. 用法：`./scripts/local/stop_local_env.sh` 或 `bash scripts/local/stop_local_env.sh`
 
 `scripts/local/restart_local_env.sh`
 
 1. 用途：先停再起整套本地环境
 2. 默认跳过 V2 smoke；设置 `SKIP_V2_SMOKE=0` 时会额外跑 `gateway/examples/v2_daily_limit_regression.py`
-3. 用法：`bash scripts/local/restart_local_env.sh`
+3. 用法：`./scripts/local/restart_local_env.sh` 或 `bash scripts/local/restart_local_env.sh`
 
 `scripts/local/restart_gateway.sh`
 
 1. 用途：只重启 `gateway/gateway_fastapi.py`，不重启前端和 Anvil
 2. 适合改了 Gateway 代码或 `.env.local` 之后快速重载
-3. 用法：`bash scripts/local/restart_gateway.sh`
+3. 用法：`./scripts/local/restart_gateway.sh` 或 `bash scripts/local/restart_gateway.sh`
+4. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
 
 #### D. 共享测试网 / 生产 profile 脚本
 

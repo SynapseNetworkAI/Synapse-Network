@@ -173,7 +173,7 @@ Recommended local flow:
 
 1. Copy `gateway/.env.local.example` to `gateway/.env.local`.
 2. Fill `PRIVATE_KEY`, `RPC_URL`, `ROUTER_ADDRESS`, `POSTGRES_DSN`, `JWT_SECRET`.
-3. Restart the gateway with `sh scripts/local/restart_gateway.sh`.
+3. Restart the gateway with `./scripts/local/restart_gateway.sh` or `bash scripts/local/restart_gateway.sh`.
 
 Where does `PRIVATE_KEY` come from?
 
