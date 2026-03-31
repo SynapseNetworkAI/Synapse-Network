@@ -48,6 +48,32 @@ cd /Users/cliff/workspace/Synapse-Network
 bash scripts/local/setup_local_env.sh
 ```
 
+如果脚本提示 `anvil is not installed. Please install Foundry first.`，先安装 Foundry：
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+source ~/.bashrc
+foundryup
+anvil --version
+```
+
+如果当前 shell 还找不到 `anvil`，补一条 PATH 再验一次：
+
+```bash
+export PATH="$HOME/.foundry/bin:$PATH"
+which anvil
+anvil --version
+```
+
+本地一键脚本现在还会自动尝试切到 `Node.js 20.19.0`。
+如果当前 shell 还是旧的 `Node 14`，但机器上装了 `nvm`，脚本会自动执行 `nvm install 20.19.0 && nvm use 20.19.0`，避免 Hardhat 因为旧运行时直接报错。
+
+安装完成后，再回到仓库根目录执行：
+
+```bash
+./scripts/local/setup_local_env.sh
+```
+
 这条命令会串起下面几步真实动作：
 
 1. 启动或复用 `anvil` 本地 RPC（默认 `127.0.0.1:8545`）
