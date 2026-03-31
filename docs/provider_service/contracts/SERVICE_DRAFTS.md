@@ -16,13 +16,13 @@
 
 对应拆分后的单服务接口文档见：
 
-1. [Web3 实时情绪指数](./api/web3_sentiment_api/web3-sentiment-index.md)
-2. [协议基本面情报包](./api/protocol-fundamental-brief/README.md)
-3. [链上巨鲸资金异动监控](./api/whale-flow-monitor.md)
-4. [开源仓库与依赖安全体检](./api/oss-security-healthcheck.md)
-5. [智能合约漏洞深度审计模型](./api/smart-contract-audit/README.md)
+1. [Web3 实时情绪指数](../api/web3_sentiment_api/web3-sentiment-index.md)
+2. [协议基本面情报包](../api/protocol-fundamental-brief/README.md)
+3. [链上巨鲸资金异动监控](../api/whale-flow-monitor.md)
+4. [开源仓库与依赖安全体检](../api/oss-security-healthcheck.md)
+5. [智能合约漏洞深度审计模型](../api/smart-contract-audit/README.md)
 
-如果要把这些 Manifest 草案继续落成 Provider Console 表单字段，请继续看：[Provider Console 字段映射与简化数据库设计](./PROVIDER_CONSOLE_FIELD_MAPPING.md)
+如果要把这些 Manifest 草案继续落成 Provider Console 表单字段，请继续看：[Provider Console 字段映射与简化数据库设计](../PROVIDER_CONSOLE_FIELD_MAPPING.md)
 
 默认假设：
 

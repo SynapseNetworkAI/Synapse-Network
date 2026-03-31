@@ -247,6 +247,23 @@ curl -X POST "http://127.0.0.1:8100/provider-services/paper-pdf-download/invoke"
 3. 如果你把 `Consumer Key / Secret` 暴露在聊天记录、截图、共享文档里，应该立刻去 X Developer Portal 重新生成
 4. 你的 X app 至少需要具备读公开帖子的权限；否则 provider 会返回 `TWITTER_X_API_AUTH_FAILED`
 
+推荐直接写进 `provider_service/.env.local` 的配置块：
+
+```env
+TWITTER_X_API_BASE_URL=https://api.x.com
+TWITTER_X_API_TIMEOUT_S=20
+TWITTER_X_API_BEARER_TOKEN=
+TWITTER_X_API_KEY=replace-with-regenerated-consumer-key
+TWITTER_X_API_SECRET=replace-with-regenerated-consumer-secret
+TWITTER_X_API_USER_AGENT=synapse-provider-service
+```
+
+说明：
+
+1. 如果你已经在 X Developer Console 里手动生成了 app-only bearer，优先填 `TWITTER_X_API_BEARER_TOKEN`
+2. 如果没有 bearer，就保留 `TWITTER_X_API_BEARER_TOKEN=` 为空，只填 `TWITTER_X_API_KEY` 和 `TWITTER_X_API_SECRET`
+3. 不要同时把旧的、已暴露的 Key/Secret 继续留在 `.env.local` 里
+
 手工调用：
 
 ```bash
@@ -404,6 +421,68 @@ curl -X POST "http://127.0.0.1:8100/provider-services/reddit-media-download/invo
 Reddit 这类失败更像上游平台对匿名抓取的限制，不是 `provider_service` 本地进程、schema、timeout、subprocess 协议这几层的回归。
 3. URL host 对了，但路径不对，比如 Twitter 缺 `/status/`、TikTok 缺 `/video/`
 4. 本地没配对象存储 / 下载依赖时，真实下载链路可能失败，这时优先先跑对应 `pytest` 文件确认业务骨架
+
+## 本地如何查看已下载的视频 / 媒体
+
+下载类接口当前都会把文件写进 `MinIO`，不是直接落到宿主机可见目录。
+所以你拿到响应里的 `result.video.storageKey` / `result.media.storageKey` / `result.asset.storageKey` 之后，应该按下面两种方式看文件。
+
+### 方式 1：直接打开 MinIO Console
+
+本地默认配置：
+
+1. S3 API：`http://127.0.0.1:9000`
+2. MinIO Console：`http://127.0.0.1:9001`
+3. 默认账号：`minioadmin`
+4. 默认密码：`minioadmin`
+5. 默认 bucket：看 `provider_service/.env.local` 里的 `VIDEO_STORAGE_MINIO_BUCKET`，当前默认是 `synapse-twitter-videos`
+
+操作步骤：
+
+1. 打开 `http://127.0.0.1:9001`
+2. 登录 MinIO Console
+3. 进入 bucket，例如 `synapse-twitter-videos`
+4. 按响应里的 `storageKey` 打开对象路径
+5. 点击下载或预览
+
+你刚才这条 Twitter 下载的实际对象路径就是：
+
+```text
+bucket: synapse-twitter-videos
+storageKey: twitter/2026/03/31/2038533942328914324/2038533942328914324.mp4
+```
+
+### 方式 2：用 `mc` 命令行把对象拷出来
+
+如果你本机装了 `mc`，可以直接把 MinIO 里的对象下载到本地再用播放器打开：
+
+```bash
+mc alias set synapse-local http://127.0.0.1:9000 minioadmin minioadmin
+mc cp \
+  "synapse-local/synapse-twitter-videos/twitter/2026/03/31/2038533942328914324/2038533942328914324.mp4" \
+  /tmp/2038533942328914324.mp4
+xdg-open /tmp/2038533942328914324.mp4
+```
+
+### 怎么从接口响应里拿查看路径
+
+以 Twitter 为例，返回体里这几个字段最关键：
+
+1. `result.video.storageBackend`
+2. `result.video.storageKey`
+3. `result.video.sizeBytes`
+4. `result.video.mimeType`
+
+只要 `storageBackend=minio` 且 `storageKey` 有值，就说明文件已经落到对象存储里了。
+
+### 为什么本地目录里看不到视频文件
+
+下载服务会先把文件写到临时目录，再上传到 MinIO，最后清掉本地临时文件。
+所以：
+
+1. `provider_service/storage/.../tmp` 不是长期查看入口
+2. 真正的长期对象位置是 MinIO bucket + `storageKey`
+3. 想看文件内容，就去 MinIO Console 或用 `mc cp` 把对象拉出来
 
 ### 新增的防爆闸门
 

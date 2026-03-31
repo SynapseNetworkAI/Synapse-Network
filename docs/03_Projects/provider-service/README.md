@@ -85,7 +85,7 @@
 ## 6. Canonical 文档入口
 
 1. `docs/provider_service/README.md`：冷启动服务策略、服务货架与专题入口，不承担项目导航
-2. `docs/provider_service/SERVICE_DRAFTS.md`
+2. `docs/provider_service/contracts/SERVICE_DRAFTS.md`
 3. `docs/provider_service/api/README.md`
 4. `docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md`
 

@@ -12,8 +12,13 @@
 
 通用约束与统一骨架仍以以下文档为主：
 
-1. [Provider Service 首批 5 个服务契约草案](../SERVICE_DRAFTS.md)
+1. [Provider Service 首批 5 个服务契约草案](../contracts/SERVICE_DRAFTS.md)
 2. [Provider Service 冷启动免费 API 方案设计](../README.md)
+
+如果你在找本地开发或运维，不要在本目录继续翻：
+
+1. [Provider Service 本地开发说明](../../03_Projects/provider-service/Provider_Service_Local_Development.md)
+2. [Provider Service 运维手册](../../03_Projects/provider-service/Provider_Service_Operations_Runbook.md)
 
 ## 文档索引
 

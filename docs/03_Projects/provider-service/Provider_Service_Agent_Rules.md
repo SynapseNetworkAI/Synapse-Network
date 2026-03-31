@@ -28,7 +28,7 @@
 2. `docs/03_Projects/provider-service/Provider_Service_Local_Development.md`
 3. `docs/03_Projects/provider-service/Provider_Service_Operations_Runbook.md`
 4. `docs/provider_service/README.md`
-5. `docs/provider_service/SERVICE_DRAFTS.md`
+5. `docs/provider_service/contracts/SERVICE_DRAFTS.md`
 6. `docs/provider_service/api/*.md`
 
 ### Application Layout
