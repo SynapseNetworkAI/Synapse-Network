@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { AlertCircle, Bot, Check, Copy, MinusCircle, PencilLine, Plus, ShieldCheck } from "lucide-react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -107,6 +108,13 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const [dailyBudget, setDailyBudget] = useState("10.00");
   const [maxCalls, setMaxCalls] = useState("1000");
   const ownerAddress = userAddress?.toLowerCase() ?? "";
+  const isAnyModalOpen = Boolean(
+    isCreateModalOpen
+    || pendingDangerAction
+    || pendingDeleteAgent
+    || newCredential
+    || isEditModalOpen,
+  );
 
   const fetchCredentials = useCallback(async () => {
     if (!userAddress || !isSessionAuthenticated) {
@@ -166,6 +174,29 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   useEffect(() => {
     void fetchServices();
   }, [fetchServices]);
+
+  useEffect(() => {
+    if (!isAnyModalOpen) {
+      return;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyPaddingRight = document.body.style.paddingRight;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.paddingRight = previousBodyPaddingRight;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isAnyModalOpen]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -867,15 +898,10 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       {isGuideMode ? guideContent : workspaceContent}
 
       {isCreateModalOpen && (
-        <dialog
-          open
-          className="x-dialog-shell x-modal-overlay"
-          aria-labelledby="create-agent-title"
-        >
+        <ModalLayer ariaLabelledby="create-agent-title">
           <section className="x-modal-flat x-modal-surface max-w-[560px]">
             <header className="x-modal-header x-divider">
-              <h2 className="x-modal-title flex items-center gap-2 text-white">
-                <span id="create-agent-title" className="sr-only">{t("agentsPage.createAgentProfile")}</span>
+              <h2 id="create-agent-title" className="x-modal-title flex items-center gap-2 text-white">
                 <Plus className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.createAgentProfile")}
               </h2>
@@ -955,15 +981,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </div>
             </form>
           </section>
-        </dialog>
+        </ModalLayer>
       )}
 
       {pendingDangerAction && (
-        <dialog
-          open
-          className="x-dialog-shell x-modal-overlay"
-          aria-labelledby="danger-agent-title"
-        >
+        <ModalLayer ariaLabelledby="danger-agent-title">
           <section className="x-modal-flat x-modal-surface max-w-[560px]">
             <header className="x-modal-header x-divider">
               <div className="x-modal-header-copy">
@@ -1046,11 +1068,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </div>
             </section>
           </section>
-        </dialog>
+        </ModalLayer>
       )}
 
       {pendingDeleteAgent && (
-        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="delete-agent-title">
+        <ModalLayer ariaLabelledby="delete-agent-title">
           <section className="x-modal-flat x-modal-surface max-w-[560px]">
             <header className="x-modal-header x-divider">
               <div className="x-modal-header-copy">
@@ -1118,11 +1140,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </div>
             </section>
           </section>
-        </dialog>
+        </ModalLayer>
       )}
 
       {issuedCredential && (
-        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="issued-agent-title">
+        <ModalLayer ariaLabelledby="issued-agent-title">
           <section className="x-modal-flat x-modal-surface max-w-lg border border-emerald-500/15 shadow-[0_0_70px_rgba(16,185,129,0.08)]">
             <header className="x-modal-header border-b border-emerald-500/10">
               <div className="x-modal-header-copy">
@@ -1176,11 +1198,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </button>
             </section>
           </section>
-        </dialog>
+        </ModalLayer>
       )}
 
       {isEditModalOpen && (
-        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="edit-agent-title">
+        <ModalLayer ariaLabelledby="edit-agent-title">
           <section className="x-modal-flat x-modal-surface max-w-md">
             <header className="x-modal-header x-divider">
               <h2 id="edit-agent-title" className="x-modal-title flex items-center gap-2 text-white">
@@ -1237,9 +1259,38 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </div>
             </section>
           </section>
-        </dialog>
+        </ModalLayer>
       )}
     </main>
+  );
+}
+
+type ModalLayerProps = {
+  ariaLabelledby: string;
+  children: React.ReactNode;
+};
+
+function ModalLayer({ ariaLabelledby, children }: Readonly<ModalLayerProps>) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      className="x-dialog-shell x-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={ariaLabelledby}
+    >
+      {children}
+    </div>,
+    document.body,
   );
 }
 
