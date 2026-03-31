@@ -253,7 +253,7 @@ function CredentialsContent() {
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-screen text-gray-200">
-      <header className="flex-none px-6 py-8 border-b border-gray-800 lg:px-8">
+      <header className="x-divider flex-none border-b px-6 py-8 lg:px-8">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-2xl font-black tracking-tight text-white mb-1.5 flex items-center gap-2">
@@ -267,7 +267,7 @@ function CredentialsContent() {
           <div className="flex items-center gap-3">
              <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center px-4 py-2.5 text-sm font-bold text-black transition-all bg-green-500 rounded-lg hover:bg-green-400 hover:scale-105 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+              className="x-button-primary inline-flex items-center rounded-full px-4 py-2.5 text-sm font-bold"
             >
               <Plus className="w-4 h-4 mr-2" />
               Issue Credential
@@ -281,8 +281,8 @@ function CredentialsContent() {
         <div className="space-y-6">
         {/* Wallet Overview Panel */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 border border-gray-800 rounded-xl bg-[#0a0a0a] flex items-center gap-4 hover:border-gray-700 transition">
-             <div className="p-3 bg-gray-900 rounded-lg">
+           <div className="x-tile-flat x-tile-flat-hover flex items-center gap-4 rounded-xl p-5">
+             <div className="x-panel-muted rounded-lg p-3">
                 <KeyRound className="w-6 h-6 text-gray-400" />
              </div>
              <div>
@@ -291,8 +291,8 @@ function CredentialsContent() {
              </div>
           </div>
           
-          <div className="p-5 border border-gray-800 rounded-xl bg-[#0a0a0a] flex items-center gap-4 hover:border-gray-700 transition">
-             <div className="p-3 bg-indigo-900/30 rounded-lg">
+           <div className="x-tile-flat x-tile-flat-hover flex items-center gap-4 rounded-xl p-5">
+             <div className="rounded-lg bg-indigo-900/30 p-3 shadow-[inset_0_0_0_1px_rgba(129,140,248,0.12)]">
                 <Activity className="w-6 h-6 text-indigo-400" />
              </div>
              <div>
@@ -301,8 +301,8 @@ function CredentialsContent() {
              </div>
           </div>
 
-          <div className="p-5 border border-gray-800 rounded-xl bg-[#0a0a0a] flex items-center gap-4 hover:border-gray-700 transition">
-             <div className="p-3 bg-yellow-900/30 rounded-lg">
+           <div className="x-tile-flat x-tile-flat-hover flex items-center gap-4 rounded-xl p-5">
+             <div className="rounded-lg bg-yellow-900/30 p-3 shadow-[inset_0_0_0_1px_rgba(250,204,21,0.12)]">
                 <Zap className="w-6 h-6 text-yellow-400" />
              </div>
              <div>
@@ -319,15 +319,15 @@ function CredentialsContent() {
              <input
               type="text"
               placeholder="Search credential ID..."
-              className="w-full py-2 pl-9 pr-4 text-sm text-white bg-[#0a0a0a] border border-gray-800 rounded-lg focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 outline-none transition-all"
+              className="x-input-flat w-full rounded-lg py-2 pl-9 pr-4 text-sm text-white"
              />
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border border-gray-800 rounded-lg">
+           <div className="x-panel-muted flex items-center gap-2 rounded-lg px-3 py-1.5">
              <Filter className="w-3.5 h-3.5 text-gray-500" />
              <select
                value={serviceFilter}
                onChange={(e) => setServiceFilter(e.target.value)}
-               className="bg-transparent text-sm text-gray-300 outline-none cursor-pointer appearance-none pr-4"
+               className="x-select-flat cursor-pointer appearance-none bg-transparent pr-4 text-sm text-gray-300"
              >
                <option value="">All Services (Universal)</option>
                {services.map((srv) => (
@@ -340,10 +340,10 @@ function CredentialsContent() {
         </div>
 
         {/* Credentials Table */}
-        <div className="overflow-hidden border border-gray-800 rounded-xl bg-[#080808]">
+        <div className="x-panel-flat overflow-hidden rounded-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-400 uppercase border-b border-gray-800 bg-[#0a0a0a]">
+              <thead className="x-divider border-b bg-black/20 text-xs uppercase text-gray-400">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Credential Prefix</th>
                   <th className="px-4 py-3 font-semibold">Scope</th>
@@ -382,10 +382,10 @@ function CredentialsContent() {
                         {cred.rpm > 0 ? `${cred.rpm}/min` : "No Limit"}
                       </td>
                       <td className="px-4 py-3">
-                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                         <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${
                            cred.status === "active" 
-                             ? "bg-green-500/10 text-green-400 border border-green-500/20" 
-                             : "bg-red-500/10 text-red-400 border border-red-500/20"
+                             ? "bg-green-500/10 text-green-400" 
+                             : "bg-red-500/10 text-red-400"
                          }`}>
                            {cred.status.toUpperCase()}
                          </span>
@@ -432,7 +432,7 @@ function CredentialsContent() {
       {/* Creation Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg p-6 border border-gray-800 bg-[#0a0a0a] rounded-xl shadow-2xl">
+          <div className="x-modal-flat w-full max-w-lg rounded-xl p-6 shadow-2xl">
              <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl flex items-center gap-2 font-bold text-white">
                   <KeyRound className="w-5 h-5 text-green-400" /> Issue Credential
@@ -444,15 +444,15 @@ function CredentialsContent() {
 
              {latestIssued === null ? (
                <div className="space-y-5">
-                  <div className="space-y-4 border p-4 rounded-lg border-gray-800/60 bg-gray-900/30">
+                  <div className="x-panel-muted space-y-4 rounded-lg p-4">
                     <div className="grid grid-cols-2 gap-4">
                        <div>
                          <label htmlFor="create-max-calls" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Max Calls</label>
-                         <input id="create-max-calls" type="number" value={maxCalls} onChange={e => setMaxCalls(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:border-green-500/50 focus:outline-none" placeholder="1000"/>
+                         <input id="create-max-calls" type="number" value={maxCalls} onChange={e => setMaxCalls(e.target.value)} className="x-input-flat w-full rounded-lg px-3 py-2 text-sm font-mono text-white" placeholder="1000"/>
                        </div>
                        <div>
                          <label htmlFor="create-rpm" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Rate Limit (RPM)</label>
-                         <input id="create-rpm" type="number" value={rpm} onChange={e => setRpm(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:border-green-500/50 focus:outline-none" placeholder="600"/>
+                         <input id="create-rpm" type="number" value={rpm} onChange={e => setRpm(e.target.value)} className="x-input-flat w-full rounded-lg px-3 py-2 text-sm font-mono text-white" placeholder="600"/>
                        </div>
                     </div>
                     <div>
@@ -462,7 +462,7 @@ function CredentialsContent() {
                            <button
                              key={sec}
                              onClick={() => { setExpiresInSec(sec); setExpiresAtLocal(""); }}
-                             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition ${expiresInSec === sec && !expiresAtLocal ? "border-green-500/50 text-green-400 bg-green-500/10" : "border-gray-800 text-gray-400 hover:border-gray-600"}`}
+                             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${expiresInSec === sec && !expiresAtLocal ? "bg-green-500/10 text-green-400 shadow-[inset_0_0_0_1px_rgba(34,197,94,0.24)]" : "x-button-ghost text-gray-400"}`}
                            >
                              {getDurationLabel(sec)}
                            </button>
@@ -472,8 +472,8 @@ function CredentialsContent() {
                   </div>
 
                   <div className="flex justify-end gap-3 mt-8">
-                     <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800">Cancel</button>
-                    <button onClick={handleIssue} className="px-5 py-2 text-sm font-bold text-black bg-green-500 rounded-lg hover:bg-green-400">Issue Credential</button>
+                     <button onClick={() => setIsCreateModalOpen(false)} className="x-button-ghost rounded-full px-4 py-2 text-sm font-medium">Cancel</button>
+                    <button onClick={handleIssue} className="x-button-primary rounded-full px-5 py-2 text-sm font-bold">Issue Credential</button>
                   </div>
                </div>
              ) : (
@@ -487,21 +487,21 @@ function CredentialsContent() {
                  <div>
                    <label htmlFor="issued-secret-token" className="block mb-2 text-xs font-bold text-gray-500 uppercase">Secret API Key</label>
                    <div className="flex items-center gap-2">
-                      <input id="issued-secret-token" readOnly value={latestIssued.token} className="w-full px-3 py-2.5 text-sm font-mono text-gray-300 bg-black border border-gray-800 rounded-lg outline-none selection:bg-gray-800" />
+                     <input id="issued-secret-token" readOnly value={latestIssued.token} className="x-input-flat w-full rounded-lg px-3 py-2.5 text-sm font-mono text-gray-300 outline-none selection:bg-gray-800" />
                       <button 
                         onClick={() => { 
                           navigator.clipboard.writeText(latestIssued.token);
                           setCopiedToken(true);
                           setTimeout(() => setCopiedToken(false), 2000);
                         }} 
-                        className="p-2.5 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition"
+                        className="x-icon-button rounded-lg p-2.5 text-gray-300"
                       >
                          {copiedToken ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
                       </button>
                    </div>
                  </div>
 
-                 <button onClick={() => { setIsCreateModalOpen(false); setLatestIssued(null); }} className="w-full py-2.5 text-sm font-medium text-white border border-gray-700 rounded-lg hover:bg-gray-800">
+                  <button onClick={() => { setIsCreateModalOpen(false); setLatestIssued(null); }} className="x-button-ghost w-full rounded-full py-2.5 text-sm font-medium">
                     Done
                  </button>
                </div>
@@ -513,7 +513,7 @@ function CredentialsContent() {
       {/* Edit Quota Modal */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-sm p-6 border border-gray-800 bg-[#0a0a0a] rounded-xl shadow-2xl">
+          <div className="x-modal-flat w-full max-w-sm rounded-xl p-6 shadow-2xl">
              <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-400" /> Override Quota
              </h3>
@@ -521,26 +521,26 @@ function CredentialsContent() {
              <div className="space-y-4">
                 <div>
                   <label htmlFor="quota-max-calls" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Max Calls (-1 for infinite)</label>
-                  <input id="quota-max-calls" type="number" value={quotaMaxCalls} onChange={e => setQuotaMaxCalls(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                  <input id="quota-max-calls" type="number" value={quotaMaxCalls} onChange={e => setQuotaMaxCalls(e.target.value)} className="x-input-flat w-full rounded-lg px-3 py-2 text-sm font-mono text-white"/>
                 </div>
                 <div>
                   <label htmlFor="quota-rpm" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Rate Limit (RPM)</label>
-                  <input id="quota-rpm" type="number" value={quotaRpm} onChange={e => setQuotaRpm(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                  <input id="quota-rpm" type="number" value={quotaRpm} onChange={e => setQuotaRpm(e.target.value)} className="x-input-flat w-full rounded-lg px-3 py-2 text-sm font-mono text-white"/>
                 </div>
                 <div>
                   <label htmlFor="quota-daily-budget" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Daily Budget (USDC)</label>
-                  <input id="quota-daily-budget" type="number" step="0.01" min="0.01" value={quotaDailyBudget} onChange={e => setQuotaDailyBudget(e.target.value)} className="w-full px-3 py-2 text-sm font-mono text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                  <input id="quota-daily-budget" type="number" step="0.01" min="0.01" value={quotaDailyBudget} onChange={e => setQuotaDailyBudget(e.target.value)} className="x-input-flat w-full rounded-lg px-3 py-2 text-sm font-mono text-white"/>
                 </div>
                 <div>
                   <label htmlFor="quota-expiration-local" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Expiration (Local Time)</label>
-                  <input id="quota-expiration-local" type="datetime-local" value={quotaExpiresAtLocal} onChange={e => setQuotaExpiresAtLocal(e.target.value)} className="w-full px-3 py-2 text-sm text-white bg-black border border-gray-800 rounded-lg focus:outline-none"/>
+                  <input id="quota-expiration-local" type="datetime-local" value={quotaExpiresAtLocal} onChange={e => setQuotaExpiresAtLocal(e.target.value)} className="x-input-flat w-full rounded-lg px-3 py-2 text-sm text-white"/>
                   <span className="text-[10px] text-gray-600 mt-1 block">Leave empty or clear to use raw timestamp.</span>
                 </div>
              </div>
 
              <div className="flex justify-end gap-3 mt-6">
-                <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800">Cancel</button>
-                <button onClick={handleUpdateQuota} className="px-5 py-2 text-sm font-bold text-black bg-blue-500 rounded-lg hover:bg-blue-400">Save</button>
+                <button onClick={() => setIsEditModalOpen(false)} className="x-button-ghost rounded-full px-4 py-2 text-sm font-medium">Cancel</button>
+                <button onClick={handleUpdateQuota} className="x-button-primary rounded-full px-5 py-2 text-sm font-bold">Save</button>
              </div>
           </div>
         </div>
