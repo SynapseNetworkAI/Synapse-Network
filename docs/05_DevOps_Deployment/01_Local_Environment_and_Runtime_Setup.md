@@ -312,7 +312,44 @@ npx hardhat run scripts/fund_usdc.js --network localhost -- \
 1. 这个脚本依赖 `contract-config.json` 已经存在且包含 `MockUSDC`
 2. 因此通常要先执行 `scripts/deploy_anvil.js` 或 `scripts/local/setup_local_env.sh`
 
-### 3.3.3 scripts/ 目录脚本索引
+### 3.3.3 scripts/fund_current_wallet.js 如何执行
+
+这个脚本是给 MetaMask 联调准备的快捷入口。
+当你已经把本地 Anvil 链加进 MetaMask，但当前钱包地址没有 ETH 和 MockUSDC 时，用这一条命令最省事。
+
+作用：
+
+1. 给指定钱包地址补 `10 ETH`
+2. 给同一个地址补 `1000 MockUSDC`
+3. 打印补币后的 ETH 和 MockUSDC 余额
+
+执行方式：
+
+```bash
+cd /home/alex/Documents/cliff/Synapse-Network
+TARGET_WALLET=0x你的MetaMask钱包地址 \
+  npx hardhat run scripts/fund_current_wallet.js --network localhost
+```
+
+如果你要一次补多个地址，也可以一起传：
+
+```bash
+cd /home/alex/Documents/cliff/Synapse-Network
+TARGET_WALLET=0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222 \
+  npx hardhat run scripts/fund_current_wallet.js --network localhost
+```
+
+注意：
+
+1. 这个脚本依赖本地链已经启动
+2. 这个脚本依赖 `apps/frontend/src/contract-config.json` 里已经有最新的 `MockUSDC` 地址
+3. 最稳的前置步骤还是先跑一次：
+
+```bash
+./scripts/local/setup_local_env.sh
+```
+
+### 3.3.4 scripts/ 目录脚本索引
 
 仓库根目录 `scripts/` 不是一堆散弹文件，而是 6 类能力：
 
