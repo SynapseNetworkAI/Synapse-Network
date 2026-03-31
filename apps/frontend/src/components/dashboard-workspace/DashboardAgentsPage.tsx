@@ -1,23 +1,16 @@
 "use client";
 
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { AlertCircle, Bot, Check, Copy, PencilLine, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertCircle, Bot, Check, Copy, PencilLine, Plus, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ActivationRunway from "@/components/dashboard/agents/ActivationRunway";
 import ActivationStatusStrip from "@/components/dashboard/agents/ActivationStatusStrip";
-import WorkspaceOnboardingRail from "@/components/dashboard/agents/WorkspaceOnboardingRail";
 import FirstInvocationPanel, { type FirstInvocationResult } from "@/components/dashboard/agents/FirstInvocationPanel";
-import {
-  buildAgentWorkspaceHighlights,
-  buildAgentWorkspaceSummary,
-  filterAgentWorkspaceCredentials,
-  formatAgentBudget,
-  getAgentUsagePercent,
-} from "@/components/dashboard/agents/agentWorkspacePresenters";
+import { formatAgentBudget, getAgentUsagePercent } from "@/components/dashboard/agents/agentWorkspacePresenters";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import {
   issueAgentCredential,
@@ -28,6 +21,7 @@ import {
   type AgentCredentialRecord,
 } from "@/utils/agentCredentialApi";
 import { setCredentialForService } from "@/utils/agentCredentialStore";
+import { clearAuthSession, WALLET_SESSION_MISSING_MESSAGE } from "@/utils/authSession";
 import { invokePaidService } from "@/utils/invokePaidService";
 import { payForServiceWithApproval } from "@/utils/payForService";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
@@ -87,20 +81,19 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCredential, setNewCredential] = useState<AgentCredentialIssueResponse | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "revoked">("all");
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null);
   const [quotaMaxCalls, setQuotaMaxCalls] = useState("1000");
   const [quotaRpm, setQuotaRpm] = useState("600");
   const [quotaDailyBudget, setQuotaDailyBudget] = useState("10.00");
   const [quotaExpiresAtLocal, setQuotaExpiresAtLocal] = useState("");
+  const [isRegeneratingCredential, setIsRegeneratingCredential] = useState(false);
 
   const [agentName, setAgentName] = useState("");
   const [dailyBudget, setDailyBudget] = useState("10.00");
   const [maxCalls, setMaxCalls] = useState("1000");
   const ownerAddress = userAddress?.toLowerCase() ?? "";
-  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const fetchCredentials = useCallback(async () => {
     if (!userAddress || !isSessionAuthenticated) {
@@ -115,7 +108,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setCredentials(data);
     } catch (err) {
       console.error("Failed to fetch credentials:", err);
-      setError(t("agentsPage.loadCredentialsFailed"));
+      const message = err instanceof Error ? err.message : t("agentsPage.loadCredentialsFailed");
+      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+        clearAuthSession();
+      }
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -290,137 +287,69 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   };
 
   const activeAgentsCount = credentials.filter((credential) => credential.status === "active").length;
-  const workspaceSummary = useMemo(() => buildAgentWorkspaceSummary(credentials), [credentials]);
-  const visibleCredentials = useMemo(
-    () => filterAgentWorkspaceCredentials(credentials, deferredSearchQuery, statusFilter),
-    [credentials, deferredSearchQuery, statusFilter],
-  );
-  const workspaceHighlights = useMemo(() => buildAgentWorkspaceHighlights(credentials, t), [credentials, t]);
+  const visibleCredentials = useMemo(() => credentials, [credentials]);
   const latestCredential = credentials[0] ?? null;
-  const allocatedCredits = useMemo(
-    () => credentials.filter((credential) => credential.status === "active").reduce((sum, credential) => sum + Math.max(0, credential.creditLimit ?? 0), 0),
-    [credentials],
-  );
-  let registryContent: React.ReactNode;
+  const selectedAgent = useMemo(() => {
+    if (visibleCredentials.length === 0) {
+      return null;
+    }
+    return visibleCredentials.find((agent) => agent.id === selectedAgentId) ?? visibleCredentials[0];
+  }, [selectedAgentId, visibleCredentials]);
 
-  if (isLoading && credentials.length === 0) {
-    registryContent = (
-      <div className="space-y-3">
-        {[1, 2, 3].map((index) => (
-          <div key={index} className="h-20 animate-pulse rounded-2xl border border-white/5 bg-white/[0.03]" />
-        ))}
-      </div>
-    );
-  } else if (visibleCredentials.length === 0) {
-    registryContent = (
-      <section className="flex flex-col items-center justify-center space-y-4 rounded-3xl border border-dashed border-white/10 bg-white/[0.01] py-16 text-center">
-        <span className="rounded-full bg-white/[0.03] p-4" aria-hidden="true">
-          <Bot className="h-10 w-10 text-gray-600" />
-        </span>
-        <header>
-          <h3 className="text-lg font-bold text-white">{t("agentsPage.workspaceNoMatchingAgents")}</h3>
-          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{t("agentsPage.workspaceNoMatchingAgentsDescription")}</p>
-        </header>
-        <button
-          type="button"
-          onClick={() => {
-            void handleOpenCreateModal();
-          }}
-          className="rounded-full bg-white px-6 py-2 text-xs font-bold text-black transition-colors hover:bg-gray-200"
-        >
-          {t("agentsPage.workspaceCreateAgentCta")}
-        </button>
-      </section>
-    );
-  } else {
-    registryContent = (
-      <div className="overflow-hidden rounded-3xl border border-white/8 bg-black/30">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm text-gray-300">
-            <thead className="border-b border-white/8 bg-white/[0.03] text-[11px] font-bold uppercase tracking-[0.2em] text-gray-500">
-              <tr>
-                <th className="px-4 py-3">{t("agentsPage.workspaceTableAgent")}</th>
-                <th className="px-4 py-3">{t("agentsPage.workspaceTableBudget")}</th>
-                <th className="px-4 py-3">{t("agentsPage.workspaceTableUsage")}</th>
-                <th className="px-4 py-3">{t("agentsPage.workspaceTableRateLimit")}</th>
-                <th className="px-4 py-3">{t("agentsPage.workspaceTableStatus")}</th>
-                <th className="px-4 py-3">{t("agentsPage.workspaceTableUpdated")}</th>
-                <th className="px-4 py-3 text-right">{t("agentsPage.workspaceTableActions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleCredentials.map((agent) => {
-                const usagePercent = getAgentUsagePercent(agent);
-                const statusClasses = agent.status === "active"
-                  ? "border-blue-400/20 bg-blue-500/10 text-blue-300"
-                  : "border-slate-400/20 bg-slate-500/10 text-slate-300";
+  useEffect(() => {
+    if (visibleCredentials.length === 0) {
+      if (selectedAgentId !== null) {
+        setSelectedAgentId(null);
+      }
+      return;
+    }
 
-                return (
-                  <tr key={agent.id} className="border-b border-white/6 last:border-b-0 hover:bg-white/[0.02]">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <span className={`rounded-xl border p-3 ${agent.status === "active" ? "border-blue-500/20 bg-blue-500/10" : "border-gray-500/20 bg-gray-500/10"}`} aria-hidden="true">
-                          <Bot className={`h-4 w-4 ${agent.status === "active" ? "text-blue-400" : "text-gray-500"}`} />
-                        </span>
-                        <div>
-                          <p className="font-semibold text-white">{agent.name || t("agentsPage.unnamedAgent")}</p>
-                          <p className="mt-1 font-mono text-xs text-gray-500">{agent.tokenPrefix || agent.id.slice(0, 12)}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="font-semibold text-emerald-400">{formatAgentBudget(agent.creditLimit)}</p>
-                      <p className="mt-1 text-xs text-gray-500">{t("agentsPage.workspaceBudgetIssuedHint")}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="font-semibold text-white">{agent.callsUsed} / {agent.maxCalls || "∞"}</p>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.04]">
-                        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" style={{ width: `${usagePercent}%` }} />
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500">{t("agentsPage.workspaceUsageCapHint", { percent: usagePercent })}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="font-mono text-sm text-white">{agent.rpm > 0 ? `${agent.rpm}/min` : t("agentsPage.workspaceUnlimited")}</p>
-                      <p className="mt-1 text-xs text-gray-500">{t("agentsPage.workspaceRateLimitHint")}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${statusClasses}`}>
-                        {agent.status === "active" ? t("agentsPage.workspaceFilterActive") : t("agentsPage.workspaceToneRevoked")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-xs text-gray-400">
-                      {agent.updatedAt || agent.createdAt ? new Date((agent.updatedAt ?? agent.createdAt) as string | number).toLocaleString() : t("agentsPage.workspacePending")}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(agent)}
-                          disabled={agent.status === "revoked"}
-                          className="inline-flex items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-300 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <PencilLine className="h-3.5 w-3.5" />
-                          {t("agentsPage.workspaceEdit")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleRevoke(agent.id)}
-                          className="rounded-xl bg-red-500/5 p-2 transition-colors hover:bg-red-500/10"
-                          title={t("agentsPage.workspaceRevokeTitle")}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-400" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
+    if (!selectedAgentId || !visibleCredentials.some((agent) => agent.id === selectedAgentId)) {
+      setSelectedAgentId(visibleCredentials[0].id);
+    }
+  }, [selectedAgentId, visibleCredentials]);
+
+  const handleRegenerateCredential = useCallback(async (agent: AgentCredentialRecord) => {
+    const boundOwner = await ensureOwnerReady();
+    if (!boundOwner) {
+      return;
+    }
+
+    try {
+      setIsRegeneratingCredential(true);
+      setError(null);
+
+      const result = await issueAgentCredential(boundOwner, {
+        name: agent.name || t("agentsPage.unnamedAgent"),
+        ownerAddress: boundOwner,
+        creditLimit: agent.creditLimit ?? undefined,
+        maxCalls: agent.maxCalls || undefined,
+        rpm: agent.rpm || undefined,
+        resetInterval: agent.resetInterval,
+        expiration: agent.expiration ?? undefined,
+      });
+
+      if (agent.status === "active") {
+        await revokeAgentCredential(boundOwner, agent.id);
+      }
+
+      setNewCredential(result);
+      setSandboxCredential(result.token);
+      setSelectedAgentId(result.id);
+      toast.success(t("agentsPage.workspaceCredentialRegeneratedToast"));
+      await fetchCredentials();
+    } catch (err) {
+      console.error("Failed to regenerate credential:", err);
+      toast.error(err instanceof Error ? err.message : t("agentsPage.workspaceCredentialRegeneratedFailed"));
+    } finally {
+      setIsRegeneratingCredential(false);
+    }
+  }, [ensureOwnerReady, fetchCredentials, t]);
+
+  const selectedAgentUsagePercent = selectedAgent ? getAgentUsagePercent(selectedAgent) : 0;
+  const selectedAgentRemainingCalls = selectedAgent
+    ? Math.max(0, (selectedAgent.maxCalls || 0) - selectedAgent.callsUsed)
+    : 0;
   const latestSuccessfulInvocation = logs
     .filter((log) => (log.status === "accepted" || log.status === "succeeded") && typeof log.created_at === "number")
     .sort((left, right) => (right.created_at ?? 0) - (left.created_at ?? 0))[0];
@@ -457,7 +386,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
     }
 
     await handleRefresh();
-  }, [activeAgentsCount, authorize, handleOpenCreateModal, handleRefresh, hasSuccessfulInvocation, isConnected, isSessionAuthenticated, openConnectModal, stats.ownerBalance]);
+  }, [activeAgentsCount, authorize, handleOpenCreateModal, handleRefresh, hasSuccessfulInvocation, isConnected, isSessionAuthenticated, openConnectModal, stats.ownerBalance, t]);
 
   const handlePersistSandboxCredential = useCallback(() => {
     if (!selectedService || !sandboxCredential.trim()) {
@@ -610,140 +539,254 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
   const workspaceContent = (
     <>
-      <WorkspaceOnboardingRail
-        treasuryBalance={Number(stats.ownerBalance)}
-        allocatedCredits={allocatedCredits}
-        activeAgents={activeAgentsCount}
-        hasCredential={Boolean(latestCredential?.tokenPrefix)}
-        hasSuccessfulInvocation={hasSuccessfulInvocation}
-        onCreateAgent={() => {
-          void handleOpenCreateModal();
-        }}
-      />
-
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.workspaceSummaryTotalAgents")}</p>
-          <p className="mt-3 text-3xl font-black tracking-tight text-white">{workspaceSummary.totalAgents}</p>
-          <p className="mt-2 text-sm text-gray-500">{t("agentsPage.workspaceSummaryActiveAgents", { count: workspaceSummary.activeAgents })}</p>
-        </article>
-        <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(36,99,235,0.14),rgba(15,23,42,0.22))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-300/70">{t("agentsPage.workspaceSummaryBudgetEnvelope")}</p>
-          <p className="mt-3 text-3xl font-black tracking-tight text-white">{formatAgentBudget(workspaceSummary.totalBudget)}</p>
-          <p className="mt-2 text-sm text-blue-100/70">{t("agentsPage.workspaceSummaryBudgetEnvelopeDescription")}</p>
-        </article>
-        <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(245,158,11,0.12),rgba(15,23,42,0.22))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-amber-300/80">{t("agentsPage.workspaceSummaryNeedsAttention")}</p>
-          <p className="mt-3 text-3xl font-black tracking-tight text-white">{workspaceSummary.attentionAgents}</p>
-          <p className="mt-2 text-sm text-amber-100/70">{t("agentsPage.workspaceSummaryNeedsAttentionDescription")}</p>
-        </article>
-        <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(148,163,184,0.10),rgba(15,23,42,0.22))] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-300/80">{t("agentsPage.workspaceSummaryRemainingCalls")}</p>
-          <p className="mt-3 text-3xl font-black tracking-tight text-white">{workspaceSummary.remainingCalls}</p>
-          <p className="mt-2 text-sm text-slate-300/70">{t("agentsPage.workspaceSummaryRemainingCallsDescription")}</p>
-        </article>
-      </section>
-
-      <header className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+      <header className="border-b border-white/8 pb-8">
         <section>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-white">
+          <h1 className="flex items-center gap-2 text-[2.2rem] font-bold tracking-tight text-white">
             <Bot className="h-6 w-6 text-blue-400" />
-            {t("agentsPage.workspaceTitle")}
+            {t("agentsPage.workspaceSimpleTitle")}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-500">{t("agentsPage.workspaceDescription")}</p>
+          <p className="mt-3 max-w-3xl text-lg text-gray-400">{t("agentsPage.workspaceSimpleDescription")}</p>
         </section>
-
-        <menu className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              void handleRefresh();
-            }}
-            disabled={isRefreshing}
-            className="rounded-lg border border-white/10 bg-white/5 p-2 transition-colors hover:bg-white/10 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 text-gray-400 ${isRefreshing ? "animate-spin" : ""}`} />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void handleOpenCreateModal();
-            }}
-            className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-400"
-          >
-            <Plus className="h-4 w-4" />
-            {t("agentsPage.workspaceCreateNewAgent")}
-          </button>
-        </menu>
       </header>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <article className="rounded-3xl border border-white/8 bg-white/[0.02] p-6">
-          <header className="mb-5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.workspaceHighlightsEyebrow")}</p>
-            <h2 className="mt-2 text-xl font-bold text-white">{t("agentsPage.workspaceHighlightsTitle")}</h2>
-            <p className="mt-2 text-sm text-gray-500">{t("agentsPage.workspaceHighlightsDescription")}</p>
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.88fr_1.12fr]">
+        <article className="rounded-[28px] border border-white/8 bg-[#0f0f10] p-6">
+          <header className="mb-6 flex flex-col gap-4 border-b border-white/8 pb-6">
+            <div>
+              <h2 className="mt-2 text-[1.75rem] font-bold text-white">{t("agentsPage.workspaceYourAgentsTitle")}</h2>
+              <p className="mt-2 text-sm text-gray-400">{t("agentsPage.workspaceYourAgentsDescription")}</p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleOpenCreateModal();
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-200"
+              >
+                <Plus className="h-4 w-4" />
+                {t("agentsPage.workspaceCreateAgentCompact")}
+              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleRefresh();
+                  }}
+                  disabled={isRefreshing}
+                  className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 transition hover:border-white/20 hover:bg-white/[0.04] disabled:opacity-50"
+                >
+                  {isRefreshing ? t("agentsPage.workspaceManaging") : t("agentsPage.workspaceManageAgents")}
+                </button>
+              </div>
+            </div>
+
           </header>
-          <div className="space-y-3">
-            {workspaceHighlights.map((highlight) => {
-              let toneClasses = "border-slate-400/20 bg-slate-500/5 text-slate-300";
-              let toneLabel = t("agentsPage.workspaceToneRevoked");
 
-              if (highlight.tone === "amber") {
-                toneClasses = "border-amber-400/20 bg-amber-500/5 text-amber-300";
-                toneLabel = t("agentsPage.workspaceToneReview");
-              } else if (highlight.tone === "blue") {
-                toneClasses = "border-blue-400/20 bg-blue-500/5 text-blue-300";
-                toneLabel = t("agentsPage.workspaceToneHealthy");
-              }
+          <div className="space-y-4">
+            {isLoading && credentials.length === 0 ? (
+              [1, 2, 3].map((index) => (
+                <div key={index} className="h-28 animate-pulse rounded-[24px] border border-white/5 bg-white/[0.03]" />
+              ))
+            ) : visibleCredentials.length === 0 ? (
+              <section className="flex min-h-[420px] flex-col items-center justify-center space-y-4 rounded-[28px] border border-dashed border-white/10 bg-[#121213] p-8 text-center">
+                <span className="rounded-full bg-white/[0.03] p-4" aria-hidden="true">
+                  <Bot className="h-10 w-10 text-gray-600" />
+                </span>
+                <header>
+                  <h3 className="text-lg font-bold text-white">{t("agentsPage.workspaceNoMatchingAgents")}</h3>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{t("agentsPage.workspaceNoMatchingAgentsDescription")}</p>
+                </header>
+              </section>
+            ) : (
+              visibleCredentials.map((agent) => {
+                const usagePercent = getAgentUsagePercent(agent);
+                const isSelected = selectedAgent?.id === agent.id;
+                const statusClasses = agent.status === "active"
+                  ? "bg-emerald-500/12 text-emerald-300"
+                  : "bg-white/[0.06] text-gray-300";
 
-              return (
-                <article key={highlight.id} className="rounded-2xl border border-white/6 bg-black/30 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-semibold text-white">{highlight.name}</h3>
-                      <p className="mt-2 text-sm leading-6 text-gray-400">{highlight.detail}</p>
+                return (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => setSelectedAgentId(agent.id)}
+                    className={[
+                      "w-full rounded-[24px] border p-5 text-left transition-all",
+                      isSelected
+                        ? "border-blue-400/30 bg-[#151922] shadow-[0_0_0_1px_rgba(96,165,250,0.18)]"
+                        : "border-white/8 bg-[#121213] hover:border-white/14 hover:bg-[#151516]",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <span className={`rounded-2xl border p-3 ${agent.status === "active" ? "border-blue-500/20 bg-blue-500/10" : "border-gray-500/20 bg-gray-500/10"}`} aria-hidden="true">
+                          <Bot className={`h-5 w-5 ${agent.status === "active" ? "text-blue-400" : "text-gray-500"}`} />
+                        </span>
+                        <div>
+                          <h3 className="text-xl font-semibold tracking-tight text-white">{agent.name || t("agentsPage.unnamedAgent")}</h3>
+                          <p className="mt-2 text-sm text-gray-400">{t("agentsPage.workspaceAgentCardDescription")}</p>
+                          <div className="mt-4 flex items-center gap-3">
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses}`}>
+                              {agent.status === "active" ? t("agentsPage.workspaceFilterActive") : t("agentsPage.workspaceToneRevoked")}
+                            </span>
+                            <span className="font-mono text-xs text-gray-500">{agent.tokenPrefix || agent.id.slice(0, 12)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-500">{usagePercent}%</span>
                     </div>
-                    <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] ${toneClasses}`}>
-                      {toneLabel}
-                    </span>
-                  </div>
-                </article>
-              );
-            })}
+                  </button>
+                );
+              })
+            )}
           </div>
         </article>
 
-        <article className="rounded-3xl border border-white/8 bg-white/[0.02] p-6">
-          <header className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.workspaceRegistryEyebrow")}</p>
-              <h2 className="mt-2 text-xl font-bold text-white">{t("agentsPage.workspaceRegistryTitle")}</h2>
-              <p className="mt-2 text-sm text-gray-500">{t("agentsPage.workspaceRegistryDescription")}</p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <label className="relative min-w-[220px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={t("agentsPage.workspaceSearchPlaceholder")}
-                  className="w-full rounded-2xl border border-white/10 bg-black/30 py-2.5 pl-9 pr-4 text-sm text-white outline-none transition focus:border-blue-400/40"
-                />
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "revoked")}
-                className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white outline-none transition focus:border-blue-400/40"
-              >
-                <option value="all">{t("agentsPage.workspaceFilterAll")}</option>
-                <option value="active">{t("agentsPage.workspaceFilterActive")}</option>
-                <option value="revoked">{t("agentsPage.workspaceFilterRevoked")}</option>
-              </select>
-            </div>
-          </header>
+        <article className="rounded-[28px] border border-white/8 bg-[#0f0f10]">
+          {!selectedAgent ? (
+            <section className="flex min-h-[720px] flex-col items-center justify-center px-8 text-center">
+              <span className="rounded-[22px] bg-blue-500/10 p-5" aria-hidden="true">
+                <Bot className="h-10 w-10 text-blue-300" />
+              </span>
+              <h2 className="mt-6 text-4xl font-bold tracking-tight text-white">{t("agentsPage.workspaceDetailEmptyTitle")}</h2>
+              <p className="mt-4 max-w-md text-lg leading-8 text-gray-400">{t("agentsPage.workspaceDetailEmptyDescription")}</p>
+            </section>
+          ) : (
+            <>
+              <header className="flex items-start justify-between gap-4 border-b border-white/8 px-6 py-6">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-[2rem] font-bold tracking-tight text-white">{selectedAgent.name || t("agentsPage.unnamedAgent")}</h2>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(selectedAgent.id, `agent-id-${selectedAgent.id}`)}
+                      className="rounded-lg border border-white/10 p-2 text-gray-400 transition hover:border-white/20 hover:text-white"
+                      title={t("agentsPage.workspaceCopyAgentId")}
+                    >
+                      {copiedId === `agent-id-${selectedAgent.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="mt-3 text-base text-gray-400">{t("agentsPage.workspaceDetailDescription")}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAgentId(null)}
+                  className="text-gray-500 transition hover:text-white"
+                  aria-label={t("agentsPage.workspaceCloseDetail")}
+                >
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </header>
 
-          {registryContent}
+              <section className="space-y-8 px-6 py-6">
+                <section>
+                  <h3 className="text-2xl font-bold text-white">{t("agentsPage.workspaceCredentialPanelTitle")}</h3>
+                  <p className="mt-2 text-base text-gray-400">{t("agentsPage.workspaceCredentialPanelDescription")}</p>
+                </section>
+
+                <section className="space-y-5">
+                  <article className="rounded-2xl bg-white/[0.04] p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">{t("agentsPage.workspaceCredentialPrefixLabel")}</p>
+                        <p className="mt-2 font-mono text-lg text-white">{selectedAgent.tokenPrefix || selectedAgent.id.slice(0, 18)}</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleRegenerateCredential(selectedAgent)}
+                          disabled={selectedAgent.status !== "active" || isRegeneratingCredential}
+                          className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isRegeneratingCredential ? t("agentsPage.workspaceRegenerating") : t("agentsPage.workspaceRegenerateCredential")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleRevoke(selectedAgent.id)}
+                          className="rounded-full bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-400"
+                        >
+                          {t("agentsPage.workspaceRevokeShort")}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article className="rounded-2xl bg-white/[0.04] p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">{t("agentsPage.workspaceQuotaPanelTitle")}</p>
+                        <p className="mt-2 text-base text-gray-400">{t("agentsPage.workspaceQuotaPanelDescription")}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(selectedAgent)}
+                        disabled={selectedAgent.status !== "active"}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/14 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/24 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <PencilLine className="h-4 w-4" />
+                        {t("agentsPage.workspaceEdit")}
+                      </button>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-black/30 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.workspaceBudgetTile")}</p>
+                        <p className="mt-3 text-2xl font-bold text-emerald-400">{formatAgentBudget(selectedAgent.creditLimit)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-black/30 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.workspaceUsageTile")}</p>
+                        <p className="mt-3 text-2xl font-bold text-white">{selectedAgent.callsUsed} / {selectedAgent.maxCalls || "∞"}</p>
+                      </div>
+                      <div className="rounded-2xl bg-black/30 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.workspaceRateLimitTile")}</p>
+                        <p className="mt-3 text-2xl font-bold text-white">{selectedAgent.rpm > 0 ? `${selectedAgent.rpm}/min` : t("agentsPage.workspaceUnlimited")}</p>
+                      </div>
+                      <div className="rounded-2xl bg-black/30 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.workspaceRemainingCallsTile")}</p>
+                        <p className="mt-3 text-2xl font-bold text-white">{selectedAgentRemainingCalls}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <div className="flex items-center justify-between text-sm text-gray-400">
+                        <span>{t("agentsPage.workspaceUsageBarLabel")}</span>
+                        <span>{selectedAgentUsagePercent}%</span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                        <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" style={{ width: `${selectedAgentUsagePercent}%` }} />
+                      </div>
+                    </div>
+                  </article>
+
+                  <article className="rounded-2xl bg-white/[0.04] p-5">
+                    <h3 className="text-lg font-semibold text-white">{t("agentsPage.workspaceDetailMetaTitle")}</h3>
+                    <dl className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-black/30 p-4">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.workspaceStatusTile")}</dt>
+                        <dd className="mt-3 text-base font-semibold text-white">{selectedAgent.status === "active" ? t("agentsPage.workspaceFilterActive") : t("agentsPage.workspaceToneRevoked")}</dd>
+                      </div>
+                      <div className="rounded-2xl bg-black/30 p-4">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.workspaceUpdatedTile")}</dt>
+                        <dd className="mt-3 text-base font-semibold text-white">
+                          {selectedAgent.updatedAt || selectedAgent.createdAt ? new Date((selectedAgent.updatedAt ?? selectedAgent.createdAt) as string | number).toLocaleString() : t("agentsPage.workspacePending")}
+                        </dd>
+                      </div>
+                      <div className="rounded-2xl bg-black/30 p-4 sm:col-span-2">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.boundOwnerValueLabel")}</dt>
+                        <dd className="mt-3 break-all font-mono text-sm text-blue-300">{selectedAgent.ownerAddress}</dd>
+                      </div>
+                      <div className="rounded-2xl bg-black/30 p-4 sm:col-span-2">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-gray-500">{t("agentsPage.workspaceSecretVisibilityTitle")}</dt>
+                        <dd className="mt-3 text-sm leading-7 text-gray-400">{t("agentsPage.workspaceSecretVisibilityDescription")}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                </section>
+              </section>
+            </>
+          )}
         </article>
       </section>
     </>

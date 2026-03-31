@@ -29,11 +29,12 @@ If these two are mixed into one number, users will ask the wrong question:
 
 ## 2. Core UX Goal
 
-When the user enters Agent Workspace, the page must teach one sentence:
+When the user enters Agent Workspace, the page should feel like a clean app manager:
 
-`Fund treasury -> allocate credits -> issue credential -> run agent`
+`Agents -> open detail -> manage API keys and runtime limits`
 
-The page should stop feeling like a static registry backend and start behaving like an activation runway plus operating console.
+This surface should no longer behave like a setup checklist or a dense registry backend.
+It should behave like a simple two-panel operating console.
 
 ## 3. Information Architecture
 
@@ -88,97 +89,83 @@ This gives users a clean map:
 
 ## 5. Agent Workspace Structure
 
-### 5.1 Required top strip
+### 5.1 Header
 
-Top strip should answer current readiness in one glance:
+The header should stay minimal:
 
-1. `Treasury Available`
-2. `Credits Unallocated`
-3. `Active Agents`
-4. `Needs Action`
-5. `Last Successful Invocation`
-6. Primary CTA
+1. `Agents`
+2. helper copy: `Manage agents and API keys`
 
-Primary CTA logic:
+No setup rail.
+No activation strip.
+No status summary cards.
 
-1. if treasury empty -> `Deposit USDC`
-2. if treasury funded but no agent -> `Create Agent`
-3. if agent exists but zero credits -> `Allocate Credits`
-4. if credits exist but no credential -> `Issue Credential`
-5. if credential exists but no successful invocation -> `Run First Invocation`
+### 5.2 Left panel
 
-### 5.2 Setup progress rail
+The left panel should be a simple agent list.
 
-This should sit above the registry.
+Header:
 
-Steps:
+1. `Your Agents`
+2. `Create Agent +`
+3. `Manage`
 
-1. `Fund Treasury`
-2. `Create Agent`
-3. `Allocate Credits`
-4. `Issue Credential`
-5. `Run First Invocation`
+Each card should show:
 
-Each step must have:
+1. agent name
+2. short description
+3. runtime status
+4. credential prefix or short id
 
-1. status: `LOCKED | READY | DONE | BLOCKED`
-2. one-line summary
-3. primary action
-4. blocker hint
+Do not add:
 
-### 5.3 Registry layer
+1. search
+2. status filter
+3. top KPI cards
 
-Registry remains the main operating surface after activation.
+### 5.3 Right panel
 
-Each row should show:
+The right panel is the detail surface for the selected agent.
 
-1. Agent
-2. Credit allocation
-3. Used
-4. Remaining
-5. Rate limit
-6. Credential status
-7. Last invocation
-8. Actions
+It should show:
 
-Actions:
+1. agent title
+2. brief description
+3. credential card
+4. quota / runtime limits card
+5. metadata card
 
-1. `Edit`
-2. `Allocate Credits`
-3. `Issue / Rotate Credential`
-4. `Run Test Invocation`
-5. `Disable`
+Primary actions:
+
+1. `Regenerate Credential`
+2. `Edit`
+3. `Revoke`
+
+`Regenerate Credential` is the user-facing version of rotating the runtime secret.
 
 ## 6. Agent Workspace Wireframe
 
 ```text
 +--------------------------------------------------------------------------------------------------+
-| Agent Workspace                                                                                  |
-| [Treasury Available] [Unallocated Credits] [Active Agents] [Needs Action] [Last Invocation]    |
-|                                                           [Deposit] [Allocate Credits] [Create] |
+| Agents                                                                                           |
+| Manage agents and API keys                                                                       |
 +--------------------------------------------------------------------------------------------------+
-| Setup Progress                                                                                    |
-| [1 Fund Treasury] -> [2 Create Agent] -> [3 Allocate Credits] -> [4 Issue Credential] -> [5 Run]|
-| each card: status / one-line summary / action / blocker                                          |
-+--------------------------------------------------------------------------------------------------+
-| Workspace State Panel                                                                            |
-| if empty: explain next step                                                                       |
-| if partial: explain blocker                                                                       |
-| if active: show brief operating hint                                                              |
-+--------------------------------------------------------------------------------------------------+
-| Agent Registry                                                                        [Search]   |
-|--------------------------------------------------------------------------------------------------|
-| Agent        Credits     Used      Remaining    Rate Limit    Credential    Last Invoke  Actions |
-| buyer-01     $10.00      $1.40     $8.60        600/min       ACTIVE        2m ago       [...]   |
-| research-02  $0.00       $0.00     $0.00        300/min       NONE          never        [...]   |
-+--------------------------------------------------------------------------------------------------+
-| Right-side helper / sticky panel                                                                  |
-| How it works                                                                                      |
-| 1. Fund treasury                                                                                  |
-| 2. Allocate credits                                                                               |
-| 3. Issue credential                                                                               |
-| 4. Invoke providers                                                                               |
-| [Open Credits] [Try Demo Invocation]                                                              |
+| Your Agents                                      | Agent Detail                                  |
+| [Create Agent +]                     [Manage]    |----------------------------------------------|
+|--------------------------------------------------| buyer-agent-01                               |
+| [buyer-agent-01                    ACTIVE ]      | Manage API keys and authentication            |
+| Owner-bound runtime profile                      |                                               |
+| prefix: agt_8e90de                               | [Regenerate Credential] [Revoke]              |
+|                                                  |                                               |
+| [research-agent-02                 REVOKED]      | Credential Prefix                             |
+| Owner-bound runtime profile                      | agt_xxx...                                    |
+| prefix: agt_5521af                               |                                               |
+|                                                  | Runtime Limits                                |
+| [ops-agent-03                      ACTIVE ]      | budget / usage / rate limit / remaining       |
+| Owner-bound runtime profile                      | [Edit]                                        |
+| prefix: agt_74bb0a                               |                                               |
+|                                                  | Runtime Metadata                              |
+|                                                  | owner / updated / status                      |
 +--------------------------------------------------------------------------------------------------+
 ```
 

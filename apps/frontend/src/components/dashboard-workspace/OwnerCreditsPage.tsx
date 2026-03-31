@@ -8,6 +8,7 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { listAgentCredentials, type AgentCredentialRecord } from "@/utils/agentCredentialApi";
+import { clearAuthSession, WALLET_SESSION_MISSING_MESSAGE } from "@/utils/authSession";
 import { formatAgentBudget, isAgentNeedingAttention } from "@/components/dashboard/agents/agentWorkspacePresenters";
 
 function formatUsd(value: number): string {
@@ -43,7 +44,11 @@ export default function OwnerCreditsPage() {
       setCredentials(rows);
     } catch (err) {
       console.error("Failed to load credits page:", err);
-      setError(err instanceof Error ? err.message : "Failed to load credits page");
+      const message = err instanceof Error ? err.message : "Failed to load credits page";
+      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+        clearAuthSession();
+      }
+      setError(message);
     } finally {
       setIsLoading(false);
     }
