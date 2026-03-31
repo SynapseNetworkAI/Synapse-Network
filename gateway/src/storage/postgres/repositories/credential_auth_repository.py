@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Callable, Optional, TypeVar
 
@@ -63,6 +64,19 @@ class CredentialAuthRepository:
         return {}
 
     @classmethod
+    def _normalize_state_value(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                str(key): cls._normalize_state_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [cls._normalize_state_value(item) for item in value]
+        if isinstance(value, datetime):
+            return to_dt_str(value, "") or ""
+        return value
+
+    @classmethod
     def _parse_state_model(
         cls,
         value: Any,
@@ -70,11 +84,11 @@ class CredentialAuthRepository:
         fallback: Optional[dict[str, Any]] = None,
     ) -> Optional[StateModel]:
         payload = cls._json_object(value)
-        merged = dict(fallback or {})
+        merged = cls._normalize_state_value(dict(fallback or {}))
         merged.update(payload)
         if not merged:
             return None
-        return model_cls.model_validate(merged)
+        return model_cls.model_validate(cls._normalize_state_value(merged))
 
     @classmethod
     def _string_list(cls, value: Any) -> list[str]:
@@ -230,6 +244,45 @@ class CredentialAuthRepository:
               AND ac.credential_id NOT IN ({placeholders})
             """,
             (credential_type, *credential_ids),
+        )
+
+    def _delete_obsolete_runtime_credentials(
+        self, cur: Any, credential_type: str, credential_ids: list[str]
+    ) -> None:
+        if not credential_ids:
+            cur.execute(
+                """
+                DELETE FROM synapse_agent_credentials AS ac
+                USING synapse_agent_profiles AS ap
+                WHERE ac.agent_id = ap.agent_id
+                  AND ap.runtime_label = %s
+                """,
+                (credential_type,),
+            )
+        else:
+            placeholders = self._scalar_not_in_clause(len(credential_ids))
+            cur.execute(
+                f"""
+                DELETE FROM synapse_agent_credentials AS ac
+                USING synapse_agent_profiles AS ap
+                WHERE ac.agent_id = ap.agent_id
+                  AND ap.runtime_label = %s
+                  AND ac.credential_id NOT IN ({placeholders})
+                """,
+                (credential_type, *credential_ids),
+            )
+
+        cur.execute(
+            """
+            DELETE FROM synapse_agent_profiles AS ap
+            WHERE ap.runtime_label = %s
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM synapse_agent_credentials AS ac
+                  WHERE ac.agent_id = ap.agent_id
+              )
+            """,
+            (credential_type,),
         )
 
     def _delete_runtime_credentials(self, cur: Any, credential_type: str) -> None:
@@ -589,6 +642,9 @@ class CredentialAuthRepository:
                 cur, normalized_type, credential_ids
             )
             self._delete_obsolete_runtime_budget_policies(
+                cur, normalized_type, credential_ids
+            )
+            self._delete_obsolete_runtime_credentials(
                 cur, normalized_type, credential_ids
             )
             for row in normalized_rows:

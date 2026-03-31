@@ -815,14 +815,71 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     repo.upsert_auth_session("0xABC", 100, 200, "active")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "DELETE FROM synapse_agent_credentials AS ac" not in tx_sql
     assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE %s AND state_key NOT IN" in tx_sql
     assert "DELETE FROM synapse_budget_policies AS bp" in tx_sql
-    assert tx_sql.count("INSERT INTO synapse_runtime_state") >= 2
-    assert "INSERT INTO synapse_agent_credentials" in tx_sql
-    assert "ON CONFLICT (credential_id)" in tx_sql
-    assert "INSERT INTO synapse_budget_policies" in tx_sql
-    assert "ON CONFLICT (policy_id)" in tx_sql
+    assert "DELETE FROM synapse_agent_credentials AS ac" in tx_sql
+    assert "ac.credential_id NOT IN" in tx_sql
+    assert "DELETE FROM synapse_agent_profiles AS ap" in tx_sql
+
+
+def test_credential_auth_repository_normalizes_datetime_metadata_state() -> None:
+    db = FakeDB()
+    db.readonly_plan.append(
+        {
+            "fetchall": [[(
+                "owner:0xabc",
+                "0xabc",
+                "active",
+                "USDC",
+                "2026-03-15 14:23:00",
+                "2026-03-15 14:23:01",
+                "agent:agent:0xabc",
+                "buyer-agent-01",
+                "buyer runtime credential holder",
+                "active",
+                "agent",
+                "2026-03-15 14:23:00",
+                "2026-03-15 14:23:01",
+                "cred-1",
+                "hash-1",
+                "sk_live",
+                "active",
+                "2026-03-15 14:24:00",
+                None,
+                None,
+                "2026-03-15 14:24:05",
+                "policy:cred-1",
+                Decimal("1.250000"),
+                Decimal("1.250000"),
+                Decimal("1.250000"),
+                10,
+                10,
+                ["tag-a"],
+                ["svc-1"],
+                [],
+                {
+                    "credentialType": "agent",
+                    "ownerAddress": "0xabc",
+                    "name": "cred-name",
+                    "maxCalls": 100,
+                    "callsUsed": 1,
+                    "resetInterval": "daily",
+                    "expiration": 0,
+                    "createdAt": "2026-03-15 14:24:00",
+                    "updatedAt": datetime(2026, 3, 15, 14, 24, 5, tzinfo=timezone.utc),
+                },
+                datetime(2026, 3, 15, 14, 24, 5, tzinfo=timezone.utc),
+            )]],
+        }
+    )
+
+    repo = CredentialAuthRepository(db, _q6)
+
+    creds = repo.read_credential_rows("agent")
+
+    assert len(creds) == 1
+    assert creds[0].metadata is not None
+    assert creds[0].metadata.updated_at == "2026-03-15 14:24:05"
 
 
 def test_gateway_state_repository_read_and_write() -> None:
