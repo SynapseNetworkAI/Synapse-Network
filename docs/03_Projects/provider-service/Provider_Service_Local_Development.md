@@ -335,6 +335,54 @@ cd provider_service
 
 1. 直接 `curl` 但忘了把 `GATEWAY_PROVIDER_SIGNATURE_ENABLED=false`
 2. 贴了 `http://` 链接，schema 直接拒绝
+3. `twitter / reddit` 的公开网页经常会因为上游平台策略、区域限制、帖子失效而失败；先区分“样例 URL 无效”还是“provider runtime 真炸了”
+4. `youtube` 的 `best` 画质可能会把下载时间和文件体积拉得很高，本地 smoke 建议优先用 `preferredQuality=low`
+
+## 2026-03-31 实际验收样例
+
+下面这些是已经在本地 `provider_service` 上实际打过的样例，方便你快速区分“平台侧问题”还是“我们自己代码问题”。
+
+### 已验证成功
+
+TikTok：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/tiktok-video-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"videoUrl":"https://www.tiktok.com/@sky_shop99/video/7622280119977135381","preferredQuality":"best","maxDurationSec":300,"maxFileSizeMb":250,"withSubtitle":false,"saveMode":"store_and_return"}'
+```
+
+YouTube：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/youtube-video-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"videoUrl":"https://www.youtube.com/watch?v=aqz-KE-bpKQ","preferredQuality":"low","maxDurationSec":1800,"maxFileSizeMb":200,"saveMode":"store_and_return"}'
+```
+
+### 当前失败但不属于本地 runtime 回归
+
+Twitter / X：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/twitter-video-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"postUrl":"https://x.com/openai/status/1900000000000000000","preferredQuality":"best","maxDurationSec":300,"maxFileSizeMb":250,"saveMode":"store_and_return","includePreviewImage":true}'
+```
+
+当前返回：`ERROR: [twitter] ... No video could be found in this tweet`
+
+Reddit：
+
+```bash
+curl -X POST "http://127.0.0.1:8100/provider-services/reddit-media-download/invoke" \
+  -H "Content-Type: application/json" \
+  -d '{"postUrl":"https://www.reddit.com/r/pics/comments/1s2t3so/teenagelooking_ice_agents_walking_around/","maxFileSizeMb":512,"saveMode":"store_and_return"}'
+```
+
+当前返回：`HTTP Error 403: Blocked`
+
+这两类失败更像上游平台对匿名抓取的限制，不是 `provider_service` 本地进程、schema、timeout、subprocess 协议这几层的回归。
 3. URL host 对了，但路径不对，比如 Twitter 缺 `/status/`、TikTok 缺 `/video/`
 4. 本地没配对象存储 / 下载依赖时，真实下载链路可能失败，这时优先先跑对应 `pytest` 文件确认业务骨架
 
