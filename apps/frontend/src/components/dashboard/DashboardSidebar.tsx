@@ -117,7 +117,7 @@ export default function DashboardSidebar() {
   };
 
   return (
-    <aside className="w-[260px] bg-[#0a0a0c] border-r border-white/5 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)] pb-12 font-sans tracking-tight">
+    <aside className="w-[270px] shrink-0 bg-[#0a0a0c] border-r border-white/5 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)] pb-12 font-sans tracking-tight">
       
       {/* OWNER CONTROL PLANE */}
       <div className="mb-6">

@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { AlertCircle, Bot, Check, Copy, MinusCircle, PencilLine, Plus, ShieldCheck } from "lucide-react";
-import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -28,6 +27,19 @@ import { clearAuthSession, WALLET_SESSION_MISSING_MESSAGE } from "@/utils/authSe
 import { invokePaidService } from "@/utils/invokePaidService";
 import { payForServiceWithApproval } from "@/utils/payForService";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
+import { XButton } from "@/components/xui/XButton";
+import {
+  XDialog,
+  XDialogBody,
+  XDialogCloseButton,
+  XDialogFooter,
+  XDialogHeader,
+  XDialogHeaderCopy,
+  XDialogSurface,
+} from "@/components/xui/XDialog";
+import { XInput } from "@/components/xui/XInput";
+import { XPanel } from "@/components/xui/XPanel";
+import { cx } from "@/components/xui/cx";
 
 function scrollToSection(sectionId: string) {
   document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -362,10 +374,10 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const visibleCredentials = useMemo(() => credentials, [credentials]);
   const latestCredential = credentials[0] ?? null;
   const selectedAgent = useMemo(() => {
-    if (visibleCredentials.length === 0) {
+    if (!selectedAgentId || visibleCredentials.length === 0) {
       return null;
     }
-    return visibleCredentials.find((agent) => agent.id === selectedAgentId) ?? visibleCredentials[0];
+    return visibleCredentials.find((agent) => agent.id === selectedAgentId) ?? null;
   }, [selectedAgentId, visibleCredentials]);
 
   useEffect(() => {
@@ -376,8 +388,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       return;
     }
 
-    if (!selectedAgentId || !visibleCredentials.some((agent) => agent.id === selectedAgentId)) {
-      setSelectedAgentId(visibleCredentials[0].id);
+    if (selectedAgentId && !visibleCredentials.some((agent) => agent.id === selectedAgentId)) {
+      setSelectedAgentId(null);
     }
   }, [selectedAgentId, visibleCredentials]);
 
@@ -624,7 +636,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
   const workspaceContent = (
     <>
-      <header className="x-divider mx-auto w-full border-b pb-7 xl:max-w-[1318px]">
+      <header className="x-divider w-full max-w-[1040px] border-b pb-7">
         <section>
           <h1 className="x-page-title flex items-center gap-2 text-white">
             <Bot className="h-6 w-6 text-blue-400" />
@@ -634,8 +646,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         </section>
       </header>
 
-      <section className="mx-auto grid w-full grid-cols-1 gap-4 xl:max-w-[1318px] xl:justify-center xl:grid-cols-[35.5rem_45rem]">
-        <article className="x-panel-flat rounded-[24px] p-5">
+      <section className="grid w-full max-w-[1040px] grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+        <XPanel as="article" variant="flat" className="min-w-0 rounded-[24px] p-5">
           <header className="x-divider mb-4 flex flex-col gap-4 border-b pb-4">
             <div>
               <h2 className="x-section-title mt-1 text-white">{t("agentsPage.workspaceYourAgentsTitle")}</h2>
@@ -643,52 +655,55 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
+              <XButton
+                variant="primary"
+                size="pill"
                 onClick={() => {
                   void handleOpenCreateModal();
                 }}
-                className="x-button-primary x-action-label inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-semibold"
+                className="px-5"
               >
                 <Plus className="h-4 w-4" />
                 {t("agentsPage.workspaceCreateAgentCompact")}
-              </button>
+              </XButton>
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
+                <XButton
+                  variant="ghost"
+                  size="pill"
                   onClick={() => {
                     setIsManageMode((current) => !current);
                   }}
-                  className={[
-                    "x-action-label inline-flex items-center gap-2 rounded-full px-4 py-2.5 font-medium transition",
+                  className={cx(
+                    "px-4 font-medium transition",
                     isManageMode
                       ? "text-white shadow-[inset_0_0_0_1px_rgba(96,165,250,0.85),0_0_0_1px_rgba(37,99,235,0.16)] bg-[rgba(29,155,240,0.08)]"
-                      : "x-button-ghost disabled:opacity-50",
-                  ].join(" ")}
+                      : "",
+                  )}
+                  aria-pressed={isManageMode}
                 >
                   {isManageMode ? <Check className="h-4 w-4" /> : null}
                   {isManageMode ? t("agentsPage.workspaceDoneManaging") : t("agentsPage.workspaceManageAgents")}
-                </button>
+                </XButton>
               </div>
             </div>
 
           </header>
 
-          <div className="space-y-2.5 xl:max-w-[530px]">
+          <div className="space-y-2.5">
             {isLoading && credentials.length === 0 ? (
               [1, 2, 3].map((index) => (
-                <div key={index} className="x-panel-muted h-[128px] animate-pulse rounded-[20px]" />
+                <XPanel key={index} variant="muted" className="h-[128px] animate-pulse rounded-[20px]" />
               ))
             ) : visibleCredentials.length === 0 ? (
-              <section className="x-panel-muted flex min-h-[420px] flex-col items-center justify-center space-y-4 rounded-[24px] p-8 text-center">
-                <span className="x-panel-muted rounded-full p-4" aria-hidden="true">
+              <XPanel as="section" variant="muted" className="flex min-h-[420px] flex-col items-center justify-center space-y-4 rounded-[24px] p-8 text-center">
+                <XPanel variant="muted" className="rounded-full p-4" aria-hidden="true">
                   <Bot className="h-10 w-10 text-gray-600" />
-                </span>
+                </XPanel>
                 <header>
                   <h3 className="x-card-title text-white">{t("agentsPage.workspaceNoMatchingAgents")}</h3>
                   <p className="x-body-copy mx-auto mt-2 max-w-md">{t("agentsPage.workspaceNoMatchingAgentsDescription")}</p>
                 </header>
-              </section>
+              </XPanel>
             ) : (
               visibleCredentials.map((agent) => {
                 const usagePercent = getAgentUsagePercent(agent);
@@ -710,16 +725,16 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                         setSelectedAgentId(agent.id);
                       }
                     }}
-                    className={[
+                    className={cx(
                       "x-list-card block w-full cursor-pointer p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0]/60",
                       isSelected
                         ? "x-tile-active"
                         : "x-tile-flat x-tile-flat-hover",
-                    ].join(" ")}
+                    )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 flex-1 items-start gap-3">
-                        <span className={`rounded-[16px] p-2.5 ${agent.status === "active" ? "x-icon-chip" : "x-panel-muted"}`} aria-hidden="true">
+                        <span className={cx("rounded-[16px] p-2.5", agent.status === "active" ? "x-icon-chip" : "x-panel-muted")} aria-hidden="true">
                           <Bot className={`h-5 w-5 ${agent.status === "active" ? "text-blue-400" : "text-gray-500"}`} />
                         </span>
                         <div className="min-w-0 flex-1">
@@ -736,20 +751,21 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                       <div className="x-agent-rail flex flex-col items-end justify-between gap-4">
                         <span className="x-agent-usage">{usagePercent}%</span>
                         {isManageMode ? (
-                          <button
-                            type="button"
+                          <XButton
+                            variant="icon"
+                            size="icon"
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
                               setPendingDeleteAgent(agent);
                               setDeleteConfirmationName("");
                             }}
-                            className="x-manage-delete"
+                            className="x-manage-delete rounded-full p-0"
                             aria-label={t("agentsPage.workspaceDeleteAgentLabel")}
                             title={t("agentsPage.workspaceDeleteAgentLabel")}
                           >
                             <MinusCircle className="h-4 w-4" />
-                          </button>
+                          </XButton>
                         ) : null}
                       </div>
                     </div>
@@ -758,9 +774,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               })
             )}
           </div>
-        </article>
+        </XPanel>
 
-        <article className="x-panel-flat rounded-[24px] xl:w-[720px]">
+        <XPanel as="article" variant="flat" className="min-w-0 rounded-[24px]">
           {!selectedAgent ? (
             <section className="flex flex-col items-center justify-center px-8 py-20 text-center">
               <span className="x-icon-chip rounded-[22px] p-5" aria-hidden="true">
@@ -775,25 +791,27 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="x-detail-title text-white">{selectedAgent.name || t("agentsPage.unnamedAgent")}</h2>
-                    <button
-                      type="button"
+                    <XButton
+                      variant="icon"
+                      size="icon"
                       onClick={() => copyToClipboard(selectedAgent.id, `agent-id-${selectedAgent.id}`)}
-                      className="x-icon-button rounded-lg p-2"
+                      className="rounded-lg"
                       title={t("agentsPage.workspaceCopyAgentId")}
                     >
                       {copiedId === `agent-id-${selectedAgent.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                    </button>
+                    </XButton>
                   </div>
                   <p className="x-body-copy mt-4 max-w-2xl">{t("agentsPage.workspaceDetailDescription")}</p>
                 </div>
-                <button
-                  type="button"
+                <XButton
+                  variant="icon"
+                  size="icon"
                   onClick={() => setSelectedAgentId(null)}
-                  className="x-icon-button rounded-lg p-2"
+                  className="rounded-lg"
                   aria-label={t("agentsPage.workspaceCloseDetail")}
                 >
                   <XCircle className="h-5 w-5" />
-                </button>
+                </XButton>
               </header>
 
               <section className="space-y-5 px-6 py-6">
@@ -803,7 +821,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 </section>
 
                 <section className="space-y-4">
-                  <article className="x-panel-muted rounded-[20px] p-5">
+                  <XPanel as="article" variant="muted" className="rounded-[20px] p-5">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="x-meta-label">{t("agentsPage.workspaceCredentialPrefixLabel")}</p>
@@ -811,70 +829,74 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                       </div>
                       {selectedAgent.status === "active" ? (
                         <div className="flex items-center gap-2.5">
-                          <button
-                            type="button"
+                          <XButton
+                            variant="danger"
+                            size="credential"
                             onClick={() => setPendingDangerAction({ type: "revoke", agent: selectedAgent })}
                             disabled={isRevokingCredential}
-                            className="x-button-danger x-credential-action x-credential-action-danger disabled:cursor-not-allowed disabled:opacity-50"
+                            className="x-credential-action-danger"
                           >
                             {t("agentsPage.workspaceRevokeShort")}
-                          </button>
-                          <button
-                            type="button"
+                          </XButton>
+                          <XButton
+                            variant="primary"
+                            size="credential"
                             onClick={() => setPendingDangerAction({ type: "regenerate", agent: selectedAgent })}
                             disabled={isRegeneratingCredential}
-                            className="x-button-primary x-credential-action x-credential-action-primary disabled:cursor-not-allowed disabled:opacity-50"
+                            className="x-credential-action-primary"
                           >
                             {isRegeneratingCredential ? t("agentsPage.workspaceRegenerating") : t("agentsPage.workspaceRegenerateShort")}
-                          </button>
+                          </XButton>
                         </div>
                       ) : (
-                        <button
-                          type="button"
+                        <XButton
+                          variant="primary"
+                          size="credential"
                           onClick={() => setPendingDangerAction({ type: "generate", agent: selectedAgent })}
                           disabled={isRegeneratingCredential}
-                          className="x-button-primary x-credential-action x-credential-action-generate disabled:cursor-not-allowed disabled:opacity-50"
+                          className="x-credential-action-generate"
                         >
                           {isRegeneratingCredential ? t("agentsPage.workspaceGenerating") : t("agentsPage.workspaceGenerateCredential")}
-                        </button>
+                        </XButton>
                       )}
                     </div>
-                  </article>
+                  </XPanel>
 
-                  <article className="x-panel-muted rounded-[20px] p-5">
+                  <XPanel as="article" variant="muted" className="rounded-[20px] p-5">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="x-meta-label">{t("agentsPage.workspaceQuotaPanelTitle")}</p>
                         <p className="x-body-copy mt-2 max-w-[40rem]">{t("agentsPage.workspaceQuotaPanelDescription")}</p>
                       </div>
-                      <button
-                        type="button"
+                      <XButton
+                        variant="ghost"
+                        size="pill"
                         onClick={() => openEditModal(selectedAgent)}
                         disabled={selectedAgent.status !== "active"}
-                        className="x-button-ghost x-action-label inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                        className="px-4 py-2"
                       >
                         <PencilLine className="h-4 w-4" />
                         {t("agentsPage.workspaceEdit")}
-                      </button>
+                      </XButton>
                     </div>
 
                     <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="x-tile-flat rounded-[18px] p-4">
+                      <XPanel variant="tile" className="rounded-[18px] p-4">
                         <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceBudgetTile")}</p>
                         <p className="x-metric-value mt-3 text-emerald-400">{formatAgentBudget(selectedAgent.creditLimit)}</p>
-                      </div>
-                      <div className="x-tile-flat rounded-[18px] p-4">
+                      </XPanel>
+                      <XPanel variant="tile" className="rounded-[18px] p-4">
                         <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceUsageTile")}</p>
                         <p className="x-metric-value mt-3 text-white">{selectedAgent.callsUsed} / {selectedAgent.maxCalls || "∞"}</p>
-                      </div>
-                      <div className="x-tile-flat rounded-[18px] p-4">
+                      </XPanel>
+                      <XPanel variant="tile" className="rounded-[18px] p-4">
                         <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceRateLimitTile")}</p>
                         <p className="x-metric-value mt-3 text-white">{selectedAgent.rpm > 0 ? `${selectedAgent.rpm}/min` : t("agentsPage.workspaceUnlimited")}</p>
-                      </div>
-                      <div className="x-tile-flat rounded-[18px] p-4">
+                      </XPanel>
+                      <XPanel variant="tile" className="rounded-[18px] p-4">
                         <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceRemainingCallsTile")}</p>
                         <p className="x-metric-value mt-3 text-white">{selectedAgentRemainingCalls}</p>
-                      </div>
+                      </XPanel>
                     </div>
 
                     <div className="mt-5">
@@ -886,18 +908,18 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                         <div className="x-progress-fill h-full rounded-full" style={{ width: `${selectedAgentUsagePercent}%` }} />
                       </div>
                     </div>
-                  </article>
+                  </XPanel>
                 </section>
               </section>
             </div>
           )}
-        </article>
+        </XPanel>
       </section>
     </>
   );
 
   return (
-    <main className="x-workspace-shell mx-auto max-w-[1318px] space-y-8 px-6 py-7 transition duration-200 lg:px-8">
+    <main className="x-workspace-shell mr-auto w-full max-w-[1040px] space-y-8 px-6 py-8 transition duration-200 lg:px-8 xl:px-10">
       {error && (
         <aside role="alert" className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
           <AlertCircle className="h-5 w-5" />
@@ -908,97 +930,95 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       {isGuideMode ? guideContent : workspaceContent}
 
       {isCreateModalOpen && (
-        <ModalLayer ariaLabelledby="create-agent-title">
-          <section className="x-modal-flat x-modal-surface max-w-[560px]">
-            <header className="x-modal-header x-divider">
+        <XDialog open={isCreateModalOpen} ariaLabelledby="create-agent-title">
+          <XDialogSurface className="max-w-[560px]">
+            <XDialogHeader>
               <h2 id="create-agent-title" className="x-modal-title flex items-center gap-2 text-white">
                 <Plus className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.createAgentProfile")}
               </h2>
-              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="x-modal-close">
-                <XCircle className="h-5 w-5" />
-              </button>
-            </header>
-            <form onSubmit={handleCreateCredential} className="x-modal-body space-y-6">
+              <XDialogCloseButton onClick={() => setIsCreateModalOpen(false)} />
+            </XDialogHeader>
+            <form onSubmit={handleCreateCredential} className="space-y-6">
+              <XDialogBody className="space-y-6">
               <label htmlFor="agent-name" className="block space-y-2.5 text-left">
                 <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.agentNameLabel")}</span>
-                <input
+                <XInput
                   id="agent-name"
                   type="text"
                   value={agentName}
                   onChange={(event) => setAgentName(event.target.value)}
                   placeholder={t("agentsPage.agentNamePlaceholder")}
-                  className="x-input-flat w-full rounded-2xl px-4 py-3.5 text-base text-white placeholder:text-gray-500"
                   required
                 />
               </label>
               <label htmlFor="bound-owner" className="block space-y-2.5 text-left">
                 <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.boundOwnerLabel")}</span>
-                <input
+                <XInput
                   id="bound-owner"
                   type="text"
                   readOnly
                   value={ownerAddress || t("agentsPage.walletSessionRequired")}
-                  className="x-input-flat w-full rounded-2xl px-4 py-3.5 text-sm font-mono text-blue-300"
+                  className="text-sm font-mono text-blue-300"
                 />
               </label>
               <section className="grid grid-cols-2 gap-4">
                 <label htmlFor="daily-budget" className="block space-y-2.5 text-left">
                   <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
-                  <input
+                  <XInput
                     id="daily-budget"
                     type="number"
                     step="0.01"
                     value={dailyBudget}
                     onChange={(event) => setDailyBudget(event.target.value)}
-                    className="x-input-flat w-full rounded-2xl px-4 py-3.5 text-base text-white"
                     required
                   />
                 </label>
                 <label htmlFor="max-calls" className="block space-y-2.5 text-left">
                   <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
-                  <input
+                  <XInput
                     id="max-calls"
                     type="number"
                     value={maxCalls}
                     onChange={(event) => setMaxCalls(event.target.value)}
-                    className="x-input-flat w-full rounded-2xl px-4 py-3.5 text-base text-white"
                     required
                   />
                 </label>
               </section>
-              <aside className="x-panel-muted flex items-start gap-3 rounded-[24px] p-4 shadow-[inset_0_0_0_1px_rgba(29,155,240,0.14)]">
+              <XPanel as="aside" variant="muted" className="flex items-start gap-3 rounded-[24px] p-4 shadow-[inset_0_0_0_1px_rgba(29,155,240,0.14)]">
                 <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-400" />
                 <p className="x-overline-label leading-relaxed text-gray-400">
                   {t("agentsPage.createAgentHint")}
                 </p>
-              </aside>
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <button
-                  type="button"
+              </XPanel>
+              </XDialogBody>
+              <XDialogFooter className="justify-center border-t-0 pt-0">
+                <XButton
+                  variant="ghost"
+                  size="modal"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="x-button-ghost x-modal-action x-modal-action-secondary"
                 >
                   {t("agentsPage.cancel")}
-                </button>
-                <button
+                </XButton>
+                <XButton
+                  variant="primary"
+                  size="modal"
                   type="submit"
                   disabled={isLoading}
-                  className="x-button-primary x-modal-action x-modal-action-primary disabled:opacity-50"
                 >
                   {isLoading ? t("agentsPage.creating") : t("agentsPage.createAgentProfile")}
-                </button>
-              </div>
+                </XButton>
+              </XDialogFooter>
             </form>
-          </section>
-        </ModalLayer>
+          </XDialogSurface>
+        </XDialog>
       )}
 
       {pendingDangerAction && (
-        <ModalLayer ariaLabelledby="danger-agent-title">
-          <section className="x-modal-flat x-modal-surface max-w-[560px]">
-            <header className="x-modal-header x-divider">
-              <div className="x-modal-header-copy">
+        <XDialog open={Boolean(pendingDangerAction)} ariaLabelledby="danger-agent-title">
+          <XDialogSurface className="max-w-[560px]">
+            <XDialogHeader>
+              <XDialogHeaderCopy>
                 <h2 id="danger-agent-title" className="x-modal-title text-white">
                   {pendingDangerAction.type === "generate"
                     ? t("agentsPage.workspaceDangerGenerateTitle")
@@ -1013,21 +1033,15 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                     ? t("agentsPage.workspaceDangerRegenerateQuestion")
                     : t("agentsPage.workspaceDangerRevokeQuestion")}
                 </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPendingDangerAction(null)}
-                className="x-modal-close"
-              >
-                <XCircle className="h-5 w-5" />
-              </button>
-            </header>
+              </XDialogHeaderCopy>
+              <XDialogCloseButton onClick={() => setPendingDangerAction(null)} />
+            </XDialogHeader>
 
-            <section className="x-modal-body space-y-6">
-              <article className="x-panel-muted rounded-[24px] p-5">
+            <XDialogBody className="space-y-6">
+              <XPanel as="article" variant="muted" className="rounded-[24px] p-5">
                 <h3 className="x-card-title text-white">{pendingDangerAction.agent.name || t("agentsPage.unnamedAgent")}</h3>
                 <p className="x-data-label mt-2 font-mono text-gray-400">{pendingDangerAction.agent.tokenPrefix || pendingDangerAction.agent.id}</p>
-              </article>
+              </XPanel>
 
               <p className="x-body-copy max-w-xl leading-8 text-gray-400">
                 {pendingDangerAction.type === "generate"
@@ -1036,17 +1050,16 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   ? t("agentsPage.workspaceDangerRegenerateDescription")
                   : t("agentsPage.workspaceDangerRevokeDescription")}
               </p>
+            </XDialogBody>
 
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPendingDangerAction(null)}
-                  className="x-button-ghost x-modal-action x-modal-action-secondary"
-                >
+            <XDialogFooter className="justify-center border-t-0 pt-0">
+                <XButton variant="ghost" size="modal" onClick={() => setPendingDangerAction(null)}>
                   {t("agentsPage.cancel")}
-                </button>
-                <button
+                </XButton>
+                <XButton
                   type="button"
+                  variant={pendingDangerAction.type === "revoke" ? "danger" : "primary"}
+                  size="modal"
                   onClick={async () => {
                     const action = pendingDangerAction;
                     setPendingDangerAction(null);
@@ -1063,29 +1076,23 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                     }
                     await handleRevoke(action.agent.id);
                   }}
-                  className={[
-                    pendingDangerAction.type === "revoke" ? "x-button-danger" : "x-button-primary",
-                    "x-modal-action",
-                    "x-modal-action-primary",
-                  ].join(" ")}
                 >
                   {pendingDangerAction.type === "generate"
                     ? t("agentsPage.workspaceDangerConfirmGenerate")
                     : pendingDangerAction.type === "regenerate"
                     ? t("agentsPage.workspaceDangerConfirmRegenerate")
                     : t("agentsPage.workspaceDangerConfirmRevoke")}
-                </button>
-              </div>
-            </section>
-          </section>
-        </ModalLayer>
+                </XButton>
+            </XDialogFooter>
+          </XDialogSurface>
+        </XDialog>
       )}
 
       {pendingDeleteAgent && (
-        <ModalLayer ariaLabelledby="delete-agent-title">
-          <section className="x-modal-flat x-modal-surface max-w-[560px]">
-            <header className="x-modal-header x-divider">
-              <div className="x-modal-header-copy">
+        <XDialog open={Boolean(pendingDeleteAgent)} ariaLabelledby="delete-agent-title">
+          <XDialogSurface className="max-w-[560px]">
+            <XDialogHeader>
+              <XDialogHeaderCopy>
                 <h2 id="delete-agent-title" className="x-modal-title text-white">
                   {t("agentsPage.workspaceDeleteAgentTitle")}
                 </h2>
@@ -1094,78 +1101,71 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                     name: pendingDeleteAgent.name || t("agentsPage.unnamedAgent"),
                   })}
                 </p>
-              </div>
-              <button
-                type="button"
+              </XDialogHeaderCopy>
+              <XDialogCloseButton
                 onClick={() => {
                   setPendingDeleteAgent(null);
                   setDeleteConfirmationName("");
                 }}
-                className="x-modal-close"
-              >
-                <XCircle className="h-5 w-5" />
-              </button>
-            </header>
+              />
+            </XDialogHeader>
 
-            <section className="x-modal-body space-y-6">
+            <XDialogBody className="space-y-6">
               <div className="space-y-3">
                 <p className="x-body-copy text-gray-400">
                   {t("agentsPage.workspaceDeleteAgentConfirmInstruction", {
                     name: pendingDeleteAgent.name || t("agentsPage.unnamedAgent"),
                   })}
                 </p>
-                <input
+                <XInput
                   type="text"
                   value={deleteConfirmationName}
                   onChange={(event) => setDeleteConfirmationName(event.target.value)}
                   placeholder={t("agentsPage.workspaceDeleteAgentPlaceholder", {
                     name: pendingDeleteAgent.name || t("agentsPage.unnamedAgent"),
                   })}
-                  className="x-input-flat w-full rounded-2xl px-4 py-3.5 text-base text-white placeholder:text-gray-500"
                 />
                 <p className="x-meta-label text-gray-500">
                   {t("agentsPage.workspaceDeleteAgentTypingMismatch")}
                 </p>
               </div>
+            </XDialogBody>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
+            <XDialogFooter className="border-t-0 pt-0">
+                <XButton
+                  variant="ghost"
+                  size="modal"
                   onClick={() => {
                     setPendingDeleteAgent(null);
                     setDeleteConfirmationName("");
                   }}
-                  className="x-button-ghost x-modal-action x-modal-action-secondary"
                 >
                   {t("agentsPage.cancel")}
-                </button>
-                <button
-                  type="button"
+                </XButton>
+                <XButton
+                  variant="danger"
+                  size="modal"
                   onClick={() => void handleDeleteAgent(pendingDeleteAgent)}
                   disabled={isDeletingAgent || deleteConfirmationName !== (pendingDeleteAgent.name || t("agentsPage.unnamedAgent"))}
-                  className="x-button-danger x-modal-action x-modal-action-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isDeletingAgent ? t("agentsPage.workspaceManaging") : t("agentsPage.workspaceDeleteAgentConfirm")}
-                </button>
-              </div>
-            </section>
-          </section>
-        </ModalLayer>
+                </XButton>
+            </XDialogFooter>
+          </XDialogSurface>
+        </XDialog>
       )}
 
       {issuedCredential && (
-        <ModalLayer ariaLabelledby="issued-agent-title">
-          <section className="x-modal-flat x-modal-surface max-w-lg border border-emerald-500/15 shadow-[0_0_70px_rgba(16,185,129,0.08)]">
-            <header className="x-modal-header border-b border-emerald-500/10">
-              <div className="x-modal-header-copy">
+        <XDialog open={Boolean(issuedCredential)} ariaLabelledby="issued-agent-title">
+          <XDialogSurface className="max-w-lg border border-emerald-500/15 shadow-[0_0_70px_rgba(16,185,129,0.08)]">
+            <XDialogHeader className="border-b border-emerald-500/10">
+              <XDialogHeaderCopy>
                 <h2 id="issued-agent-title" className="x-modal-title text-white">{t("agentsPage.credentialIssuedTitle")}</h2>
                 <p className="x-body-copy mt-2 text-gray-500">{t("agentsPage.credentialIssuedDescription")}</p>
-              </div>
-              <button type="button" onClick={() => setNewCredential(null)} className="x-modal-close">
-                <XCircle className="h-5 w-5" />
-              </button>
-            </header>
-            <section className="x-modal-body space-y-6 text-center">
+              </XDialogHeaderCopy>
+              <XDialogCloseButton onClick={() => setNewCredential(null)} />
+            </XDialogHeader>
+            <XDialogBody className="space-y-6 text-center">
               <span className="mx-auto block w-fit rounded-full border border-emerald-500/20 bg-emerald-500/10 p-4 shadow-[0_10px_30px_rgba(16,185,129,0.1)]" aria-hidden="true">
                 <ShieldCheck className="h-10 w-10 text-emerald-400" />
               </span>
@@ -1174,24 +1174,25 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <code className="x-panel-muted block break-all rounded-[24px] p-4 pr-12 text-left font-mono text-sm text-emerald-400">
                   {issuedCredential.token}
                 </code>
-                <button
-                  type="button"
+                <XButton
+                  variant="icon"
+                  size="icon"
                   onClick={() => copyToClipboard(issuedCredential.token, "new-token")}
-                  className="x-icon-button absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2.5 text-gray-400"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2.5 text-gray-400"
                 >
                   {copiedId === "new-token" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                </button>
+                </XButton>
               </section>
 
               <dl className="grid grid-cols-2 gap-4 text-left">
-                <div className="x-panel-muted rounded-[22px] p-4">
+                <XPanel variant="muted" className="rounded-[22px] p-4">
                   <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.agentNameLabel")}</dt>
                   <dd className="text-sm font-bold text-white">{issuedCredential.name}</dd>
-                </div>
-                <div className="x-panel-muted rounded-[22px] p-4">
+                </XPanel>
+                <XPanel variant="muted" className="rounded-[22px] p-4">
                   <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</dt>
                   <dd className="text-sm font-bold text-emerald-400">${(issuedCredential.creditLimit ?? 0).toFixed(2)}</dd>
-                </div>
+                </XPanel>
               </dl>
 
               <dl className="x-panel-muted rounded-[22px] p-4 text-left">
@@ -1199,108 +1200,78 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <dd className="break-all font-mono text-sm text-blue-300">{issuedCredential.ownerAddress}</dd>
               </dl>
 
-              <button
-                type="button"
+              <XButton
+                variant="primary"
+                size="modal"
                 onClick={() => setNewCredential(null)}
-                className="x-button-primary x-modal-action w-full"
+                fullWidth
               >
                 {t("agentsPage.savedTokenCta")}
-              </button>
-            </section>
-          </section>
-        </ModalLayer>
+              </XButton>
+            </XDialogBody>
+          </XDialogSurface>
+        </XDialog>
       )}
 
       {isEditModalOpen && (
-        <ModalLayer ariaLabelledby="edit-agent-title">
-          <section className="x-modal-flat x-modal-surface max-w-md">
-            <header className="x-modal-header x-divider">
+        <XDialog open={isEditModalOpen} ariaLabelledby="edit-agent-title">
+          <XDialogSurface className="max-w-md">
+            <XDialogHeader>
               <h2 id="edit-agent-title" className="x-modal-title flex items-center gap-2 text-white">
                 <PencilLine className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.editAgentLimitsTitle")}
               </h2>
-              <button type="button" onClick={() => setIsEditModalOpen(false)} className="x-modal-close">
-                <XCircle className="h-5 w-5" />
-              </button>
-            </header>
-            <section className="x-modal-body space-y-5">
+              <XDialogCloseButton onClick={() => setIsEditModalOpen(false)} />
+            </XDialogHeader>
+            <XDialogBody className="space-y-5">
               <p className="x-body-copy leading-6 text-gray-400">{t("agentsPage.editAgentLimitsDescription")}</p>
               <label className="block space-y-2">
                 <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
-                <input
+                <XInput
                   type="number"
                   value={quotaMaxCalls}
                   onChange={(event) => setQuotaMaxCalls(event.target.value)}
-                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
+                  className="rounded-xl py-3 text-sm"
                 />
               </label>
               <label className="block space-y-2">
                 <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.rateLimitLabel")}</span>
-                <input
+                <XInput
                   type="number"
                   value={quotaRpm}
                   onChange={(event) => setQuotaRpm(event.target.value)}
-                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
+                  className="rounded-xl py-3 text-sm"
                 />
               </label>
               <label className="block space-y-2">
                 <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
-                <input
+                <XInput
                   type="number"
                   step="0.01"
                   min="0.01"
                   value={quotaDailyBudget}
                   onChange={(event) => setQuotaDailyBudget(event.target.value)}
-                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
+                  className="rounded-xl py-3 text-sm"
                 />
               </label>
               <label className="block space-y-2">
                 <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.expirationLabel")}</span>
-                <input
+                <XInput
                   type="datetime-local"
                   value={quotaExpiresAtLocal}
                   onChange={(event) => setQuotaExpiresAtLocal(event.target.value)}
-                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
+                  className="rounded-xl py-3 text-sm"
                 />
               </label>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="x-button-ghost x-modal-action x-modal-action-secondary">{t("agentsPage.cancel")}</button>
-                <button type="button" onClick={() => void handleUpdateQuota()} className="x-button-primary x-modal-action x-modal-action-primary">{t("agentsPage.save")}</button>
-              </div>
-            </section>
-          </section>
-        </ModalLayer>
+            </XDialogBody>
+            <XDialogFooter className="border-t-0 pt-0">
+                <XButton variant="ghost" size="modal" onClick={() => setIsEditModalOpen(false)}>{t("agentsPage.cancel")}</XButton>
+                <XButton variant="primary" size="modal" onClick={() => void handleUpdateQuota()}>{t("agentsPage.save")}</XButton>
+            </XDialogFooter>
+          </XDialogSurface>
+        </XDialog>
       )}
     </main>
-  );
-}
-
-type ModalLayerProps = {
-  ariaLabelledby: string;
-  children: React.ReactNode;
-};
-
-function ModalLayer({ ariaLabelledby, children }: Readonly<ModalLayerProps>) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return null;
-  }
-
-  return createPortal(
-    <div
-      className="x-dialog-shell x-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={ariaLabelledby}
-    >
-      {children}
-    </div>,
-    document.body,
   );
 }
 
