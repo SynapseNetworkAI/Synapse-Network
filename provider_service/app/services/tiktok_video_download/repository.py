@@ -10,6 +10,11 @@ from typing import Any, cast
 from app.core.config import get_settings
 from app.core.log_config import logger
 from app.schemas.tiktok_video_download import TikTokVideoDownloadResponse
+from app.services.postgres_schema_compat import (
+    add_column_if_missing,
+    fetch_table_columns,
+    rename_column_if_needed,
+)
 from app.services.smart_contract_audit.domain import ProviderInvocationRecord
 from app.services.tiktok_video_download.domain import (
     TikTokVideoAssetRecord,
@@ -56,6 +61,7 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
         self.dsn = dsn
         self.asset_table = self._validate_table_name(asset_table)
         self.invocation_table = self._validate_table_name(invocation_table)
+        self._asset_schema_checked = False
 
     def save_asset(self, record: TikTokVideoAssetRecord) -> None:
         payload = record.request
@@ -67,6 +73,7 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
 
         with self._connect() as connection:
             with connection.cursor() as cursor:
+                self._ensure_asset_table_schema(cursor)
                 cursor.execute(
                     cast(
                         Any,
@@ -122,6 +129,7 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
     def load_asset(self, asset_key: str) -> TikTokVideoAssetRecord | None:
         with self._connect() as connection:
             with connection.cursor() as cursor:
+                self._ensure_asset_table_schema(cursor)
                 cursor.execute(
                     cast(
                         Any,
@@ -186,6 +194,59 @@ class PostgresTikTokVideoDownloadRepository(TikTokVideoDownloadRepository):
         import psycopg
 
         return psycopg.connect(self.dsn, autocommit=True)
+
+    def _ensure_asset_table_schema(self, cursor) -> None:
+        if self._asset_schema_checked:
+            return
+
+        columns = fetch_table_columns(cursor, table_name=self.asset_table)
+        if not columns:
+            self._asset_schema_checked = True
+            return
+
+        legacy_layout_detected = "video_url" not in columns and "post_url" in columns
+        if legacy_layout_detected:
+            repository_logger.warning(
+                "Repairing legacy TikTok asset table schema before use",
+                asset_table=self.asset_table,
+            )
+
+        columns = rename_column_if_needed(
+            cursor,
+            table_name=self.asset_table,
+            columns=columns,
+            old_name="post_id",
+            new_name="video_id",
+        )
+        columns = rename_column_if_needed(
+            cursor,
+            table_name=self.asset_table,
+            columns=columns,
+            old_name="post_url",
+            new_name="video_url",
+        )
+        columns = add_column_if_missing(
+            cursor,
+            table_name=self.asset_table,
+            columns=columns,
+            column_name="preferred_quality",
+            definition_sql="TEXT NOT NULL DEFAULT 'best'",
+        )
+        columns = add_column_if_missing(
+            cursor,
+            table_name=self.asset_table,
+            columns=columns,
+            column_name="max_duration_sec",
+            definition_sql="INTEGER NOT NULL DEFAULT 300 CHECK (max_duration_sec >= 0)",
+        )
+        add_column_if_missing(
+            cursor,
+            table_name=self.asset_table,
+            columns=columns,
+            column_name="with_subtitle",
+            definition_sql="BOOLEAN NOT NULL DEFAULT FALSE",
+        )
+        self._asset_schema_checked = True
 
     @staticmethod
     def _validate_table_name(table_name: str) -> str:
