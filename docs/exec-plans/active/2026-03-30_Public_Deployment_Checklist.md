@@ -10,6 +10,7 @@
   - `docs/exec-plans/active/2026-03-30_Public_Environment_Status_Register.md`
   - `docs/exec-plans/active/2026-03-30_Readiness_Gap_List.md`
   - `docs/exec-plans/active/2026-03-30_Hero_Demo_Runbook.md`
+  - `docs/exec-plans/active/2026-03-31_GCP_Staging_Deployment_Blueprint.md`
   - `docs/03_Projects/frontend/Frontend_Local_Development.md`
   - `docs/03_Projects/gateway/Gateway_Local_Development.md`
   - `docs/03_Projects/provider-service/Provider_Service_Local_Development.md`

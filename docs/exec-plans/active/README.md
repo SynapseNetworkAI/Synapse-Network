@@ -7,3 +7,7 @@
 Store currently executing multi-step plans here.
 
 Only keep plans in this directory while they still have open acceptance or validation work.
+
+Current active infra planning of note:
+
+1. `2026-03-31_GCP_Staging_Deployment_Blueprint.md`
