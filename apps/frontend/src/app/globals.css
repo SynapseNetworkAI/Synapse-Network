@@ -4,6 +4,12 @@
 
 :root {
   color-scheme: dark;
+  --x-surface-1: #0f1012;
+  --x-surface-2: #14171a;
+  --x-surface-3: #1b1f24;
+  --x-line-soft: rgba(255, 255, 255, 0.05);
+  --x-line-strong: rgba(255, 255, 255, 0.08);
+  --x-accent: #1d9bf0;
 }
 
 html {
@@ -17,6 +23,170 @@ body {
     linear-gradient(180deg, #060606 0%, #050505 44%, #090909 100%);
   color: #f5f5f7;
   font-family: var(--font-geist-sans), sans-serif;
+}
+
+@layer components {
+  .x-workspace-shell {
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .x-page-title {
+    font-size: 2.0625rem;
+    line-height: 1.05;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .x-page-subtitle {
+    font-size: 0.9375rem;
+    line-height: 1.35;
+    color: #71767b;
+  }
+
+  .x-section-title {
+    font-size: 2rem;
+    line-height: 1.08;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .x-card-title {
+    font-size: 1.0625rem;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .x-body-copy {
+    font-size: 0.9375rem;
+    line-height: 1.35;
+    color: #71767b;
+  }
+
+  .x-meta-label {
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    color: #71767b;
+  }
+
+  .x-divider {
+    border-color: var(--x-line-soft);
+  }
+
+  .x-panel-flat {
+    background: linear-gradient(180deg, rgba(15, 16, 18, 0.98), rgba(10, 11, 13, 0.98));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+  }
+
+  .x-panel-muted {
+    background: rgba(255, 255, 255, 0.024);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  }
+
+  .x-tile-flat {
+    background: var(--x-surface-2);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+    transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  .x-tile-flat-hover:hover {
+    background: var(--x-surface-3);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+  }
+
+  .x-tile-active {
+    background: linear-gradient(180deg, rgba(16, 20, 25, 0.98), rgba(18, 22, 28, 0.98));
+    box-shadow: inset 0 0 0 1px rgba(29, 155, 240, 0.26);
+  }
+
+  .x-list-card {
+    height: 142px;
+  }
+
+  .x-icon-chip {
+    background: rgba(29, 155, 240, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(29, 155, 240, 0.16);
+  }
+
+  .x-button-primary {
+    background: #ffffff;
+    color: #050505;
+    transition: background-color 160ms ease, transform 160ms ease;
+  }
+
+  .x-button-primary:hover {
+    background: #e7e7e8;
+  }
+
+  .x-button-ghost {
+    color: #e5e7eb;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+  }
+
+  .x-button-ghost:hover {
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.13);
+    color: #ffffff;
+  }
+
+  .x-button-danger {
+    background: #f4212e;
+    color: #ffffff;
+    transition: background-color 160ms ease;
+  }
+
+  .x-button-danger:hover {
+    background: #d91f2a;
+  }
+
+  .x-icon-button {
+    color: #71767b;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+  }
+
+  .x-icon-button:hover {
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.13);
+    color: #ffffff;
+  }
+
+  .x-status-inline {
+    font-size: 0.8125rem;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+
+  .x-input-flat,
+  .x-select-flat {
+    border: none;
+    background: #0a0b0d;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: #ffffff;
+    transition: box-shadow 160ms ease, background-color 160ms ease;
+  }
+
+  .x-input-flat:focus,
+  .x-select-flat:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgba(29, 155, 240, 0.6);
+  }
+
+  .x-modal-flat {
+    background: rgba(18, 18, 20, 0.96);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 24px 120px rgba(0, 0, 0, 0.55);
+  }
+
+  .x-progress-track {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .x-progress-fill {
+    background: linear-gradient(90deg, #1d9bf0 0%, #5ab2ff 100%);
+  }
 }
 
 ::selection {

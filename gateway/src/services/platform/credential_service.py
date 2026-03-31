@@ -386,7 +386,7 @@ def _build_credential_response(record: RuntimeCredentialRecord) -> Dict[str, Any
         "expiresAt": _dt_str_to_epoch(record.credential.expires_at),
         "createdAt": record.metadata.created_at if record.metadata is not None else record.credential.issued_at,
         "updatedAt": record.metadata.updated_at if record.metadata is not None else record.credential.last_used_at,
-        "revokedAt": int(record.credential.revoked_at) if record.credential.revoked_at else None,
+        "revokedAt": _dt_str_to_epoch(record.credential.revoked_at),
     }
 
 

@@ -134,6 +134,35 @@ def test_agent_credential_datetime_round_trip_treats_naive_strings_as_utc() -> N
         time.tzset()
 
 
+def test_list_credentials_by_owner_supports_revoked_at_datetime_strings() -> None:
+    storage = FakeStorage()
+
+    issued = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xABC",
+            CredentialIssueRequest(name="Revoked Agent"),
+        )
+    )
+
+    credential_id = issued["credential"]["id"]
+    asyncio.run(
+        credential_service.revoke_credential_for_owner(
+            storage,
+            "0xabc",
+            credential_id,
+            "CREDENTIAL_NOT_FOUND",
+        )
+    )
+
+    rows = credential_service.list_credentials_by_owner(storage, "0xabc")
+
+    assert len(rows) == 1
+    assert rows[0]["status"] == "revoked"
+    assert isinstance(rows[0]["revokedAt"], int)
+    assert rows[0]["revokedAt"] > 0
+
+
 def test_provider_secret_service_uses_runtime_models() -> None:
     storage = FakeStorage()
 
