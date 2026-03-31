@@ -58,6 +58,10 @@ type DashboardAgentsPageProps = {
   mode?: "guide" | "workspace";
 };
 
+type PendingDangerAction =
+  | { type: "revoke"; agent: AgentCredentialRecord }
+  | { type: "regenerate"; agent: AgentCredentialRecord };
+
 export default function DashboardAgentsPage({ mode = "guide" }: Readonly<DashboardAgentsPageProps>) {
   const { address: userAddress, isConnected } = useAccount();
   const { isSessionAuthenticated, authorize } = useAuth();
@@ -89,6 +93,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const [quotaDailyBudget, setQuotaDailyBudget] = useState("10.00");
   const [quotaExpiresAtLocal, setQuotaExpiresAtLocal] = useState("");
   const [isRegeneratingCredential, setIsRegeneratingCredential] = useState(false);
+  const [isRevokingCredential, setIsRevokingCredential] = useState(false);
+  const [pendingDangerAction, setPendingDangerAction] = useState<PendingDangerAction | null>(null);
 
   const [agentName, setAgentName] = useState("");
   const [dailyBudget, setDailyBudget] = useState("10.00");
@@ -226,16 +232,19 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   };
 
   const handleRevoke = async (id: string) => {
-    if (!userAddress || !confirm(t("agentsPage.confirmRevoke"))) {
+    if (!userAddress) {
       return;
     }
 
     try {
+      setIsRevokingCredential(true);
       await revokeAgentCredential(userAddress, id);
       await fetchCredentials();
     } catch (err) {
       console.error("Failed to revoke credential:", err);
-      alert(t("agentsPage.revokeFailed"));
+      toast.error(err instanceof Error ? err.message : t("agentsPage.revokeFailed"));
+    } finally {
+      setIsRevokingCredential(false);
     }
   };
 
@@ -696,7 +705,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => void handleRegenerateCredential(selectedAgent)}
+                          onClick={() => setPendingDangerAction({ type: "regenerate", agent: selectedAgent })}
                           disabled={selectedAgent.status !== "active" || isRegeneratingCredential}
                           className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -704,8 +713,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                         </button>
                         <button
                           type="button"
-                          onClick={() => void handleRevoke(selectedAgent.id)}
-                          className="rounded-full bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-400"
+                          onClick={() => setPendingDangerAction({ type: "revoke", agent: selectedAgent })}
+                          disabled={isRevokingCredential}
+                          className="rounded-full bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {t("agentsPage.workspaceRevokeShort")}
                         </button>
@@ -793,7 +803,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   );
 
   return (
-    <main className="mx-auto max-w-[1400px] space-y-10 p-8">
+    <main className="mx-auto max-w-[1400px] space-y-10 p-8 transition duration-200">
       {error && (
         <aside role="alert" className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
           <AlertCircle className="h-5 w-5" />
@@ -804,80 +814,168 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       {isGuideMode ? guideContent : workspaceContent}
 
       {isCreateModalOpen && (
-        <dialog open className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" aria-labelledby="create-agent-title">
-          <section className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0c] shadow-2xl">
-            <header className="flex items-center justify-between border-b border-white/5 p-6">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+        <dialog
+          open
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,18,22,0.58)] p-4 backdrop-brightness-50"
+          aria-labelledby="create-agent-title"
+        >
+          <section className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-white/12 bg-[rgba(24,24,28,0.92)] shadow-[0_24px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <header className="flex items-center justify-between border-b border-white/8 px-7 py-6">
+              <h2 className="flex items-center gap-2 text-[1.95rem] font-semibold tracking-tight text-white">
                 <span id="create-agent-title" className="sr-only">{t("agentsPage.createAgentProfile")}</span>
                 <Plus className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.createAgentProfile")}
               </h2>
-              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="text-gray-500 hover:text-white">
+              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="text-gray-500 transition hover:text-white">
                 <XCircle className="h-5 w-5" />
               </button>
             </header>
-            <form onSubmit={handleCreateCredential} className="space-y-6 p-6">
-              <label htmlFor="agent-name" className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.agentNameLabel")}</span>
+            <form onSubmit={handleCreateCredential} className="space-y-6 px-7 py-6">
+              <label htmlFor="agent-name" className="block space-y-2.5 text-left">
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.agentNameLabel")}</span>
                 <input
                   id="agent-name"
                   type="text"
                   value={agentName}
                   onChange={(event) => setAgentName(event.target.value)}
                   placeholder={t("agentsPage.agentNamePlaceholder")}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-base text-white placeholder:text-gray-500 focus:border-blue-500/50 focus:outline-none"
                   required
                 />
               </label>
-              <label htmlFor="bound-owner" className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.boundOwnerLabel")}</span>
+              <label htmlFor="bound-owner" className="block space-y-2.5 text-left">
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.boundOwnerLabel")}</span>
                 <input
                   id="bound-owner"
                   type="text"
                   readOnly
                   value={ownerAddress || t("agentsPage.walletSessionRequired")}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-mono text-blue-300"
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm font-mono text-blue-300"
                 />
               </label>
               <section className="grid grid-cols-2 gap-4">
-                <label htmlFor="daily-budget" className="block space-y-2">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
+                <label htmlFor="daily-budget" className="block space-y-2.5 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
                   <input
                     id="daily-budget"
                     type="number"
                     step="0.01"
                     value={dailyBudget}
                     onChange={(event) => setDailyBudget(event.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-base text-white focus:border-blue-500/50 focus:outline-none"
                     required
                   />
                 </label>
-                <label htmlFor="max-calls" className="block space-y-2">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
+                <label htmlFor="max-calls" className="block space-y-2.5 text-left">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
                   <input
                     id="max-calls"
                     type="number"
                     value={maxCalls}
                     onChange={(event) => setMaxCalls(event.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-base text-white focus:border-blue-500/50 focus:outline-none"
                     required
                   />
                 </label>
               </section>
-              <aside className="flex items-start gap-3 rounded-xl border border-blue-500/10 bg-blue-500/5 p-4">
+              <aside className="flex items-start gap-3 rounded-2xl border border-blue-500/12 bg-blue-500/[0.06] p-4">
                 <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-400" />
                 <p className="text-[11px] leading-relaxed text-gray-400">
                   {t("agentsPage.createAgentHint")}
                 </p>
               </aside>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full rounded-xl bg-blue-500 py-4 text-sm font-bold text-white transition-all hover:bg-blue-400 disabled:opacity-50"
-              >
-                {isLoading ? t("agentsPage.creating") : t("agentsPage.issueCredential")}
-              </button>
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                >
+                  {t("agentsPage.cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-gray-200 disabled:opacity-50"
+                >
+                  {isLoading ? t("agentsPage.creating") : t("agentsPage.createAgentProfile")}
+                </button>
+              </div>
             </form>
+          </section>
+        </dialog>
+      )}
+
+      {pendingDangerAction && (
+        <dialog
+          open
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(5,6,10,0.62)] p-4 backdrop-blur-[10px]"
+          aria-labelledby="danger-agent-title"
+        >
+          <section className="w-full max-w-[580px] overflow-hidden rounded-[28px] border border-white/12 bg-[rgba(24,24,28,0.94)] shadow-[0_24px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <header className="flex items-center justify-between border-b border-white/8 px-7 py-6">
+              <div>
+                <h2 id="danger-agent-title" className="text-[1.9rem] font-semibold tracking-tight text-white">
+                  {pendingDangerAction.type === "regenerate"
+                    ? t("agentsPage.workspaceDangerRegenerateTitle")
+                    : t("agentsPage.workspaceDangerRevokeTitle")}
+                </h2>
+                <p className="mt-3 text-base text-gray-400">
+                  {pendingDangerAction.type === "regenerate"
+                    ? t("agentsPage.workspaceDangerRegenerateQuestion")
+                    : t("agentsPage.workspaceDangerRevokeQuestion")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingDangerAction(null)}
+                className="text-gray-500 transition hover:text-white"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </header>
+
+            <section className="space-y-6 px-7 py-6">
+              <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <h3 className="text-lg font-semibold text-white">{pendingDangerAction.agent.name || t("agentsPage.unnamedAgent")}</h3>
+                <p className="mt-2 font-mono text-sm text-gray-400">{pendingDangerAction.agent.tokenPrefix || pendingDangerAction.agent.id}</p>
+              </article>
+
+              <p className="max-w-xl text-base leading-8 text-gray-400">
+                {pendingDangerAction.type === "regenerate"
+                  ? t("agentsPage.workspaceDangerRegenerateDescription")
+                  : t("agentsPage.workspaceDangerRevokeDescription")}
+              </p>
+
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPendingDangerAction(null)}
+                  className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                >
+                  {t("agentsPage.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const action = pendingDangerAction;
+                    setPendingDangerAction(null);
+                    if (!action) {
+                      return;
+                    }
+                    if (action.type === "regenerate") {
+                      await handleRegenerateCredential(action.agent);
+                      return;
+                    }
+                    await handleRevoke(action.agent.id);
+                  }}
+                  className="rounded-full bg-red-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-400"
+                >
+                  {pendingDangerAction.type === "regenerate"
+                    ? t("agentsPage.workspaceDangerConfirmRegenerate")
+                    : t("agentsPage.workspaceDangerConfirmRevoke")}
+                </button>
+              </div>
+            </section>
           </section>
         </dialog>
       )}
