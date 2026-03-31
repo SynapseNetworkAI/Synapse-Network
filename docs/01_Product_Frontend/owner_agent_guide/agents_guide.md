@@ -194,6 +194,7 @@ Example:
   - summary: `Token not issued yet` or `Token prefix: ag_xxxx`
   - CTA when no active credential: `Generate`
   - CTA when active credential exists: `Regenerate` or `Revoke`
+  - `Generate` and `Regenerate` both operate on the same runtime record instead of creating a second agent row
   - success modal: reveal full credential exactly once and require immediate secure copy
   - tooltip: explain one-time credential copy and secure storage
 4. Run First Paid Invocation

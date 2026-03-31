@@ -146,6 +146,27 @@ export async function revokeAgentCredential(userAddress: string, credentialId: s
   }
 }
 
+export async function rotateAgentCredential(
+  userAddress: string,
+  credentialId: string,
+): Promise<AgentCredentialIssueResponse> {
+  const response = await fetchAgentCredentialApi(
+    `/credentials/agent/${encodeURIComponent(credentialId)}/rotate`,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Failed to rotate credential",
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to rotate credential"));
+  }
+
+  const data = (await response.json()) as { credential: AgentCredentialIssueResponse };
+  return data.credential;
+}
+
 export async function updateAgentCredentialQuota(
   userAddress: string,
   credentialId: string,
