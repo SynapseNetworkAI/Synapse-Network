@@ -330,6 +330,14 @@ export type I18nMessages = {
     workspaceRegenerateCredential: string;
     workspaceRegenerating: string;
     workspaceRevokeShort: string;
+    workspaceDangerRegenerateTitle: string;
+    workspaceDangerRegenerateQuestion: string;
+    workspaceDangerRegenerateDescription: string;
+    workspaceDangerRevokeTitle: string;
+    workspaceDangerRevokeQuestion: string;
+    workspaceDangerRevokeDescription: string;
+    workspaceDangerConfirmRegenerate: string;
+    workspaceDangerConfirmRevoke: string;
     workspaceCredentialRegeneratedToast: string;
     workspaceCredentialRegeneratedFailed: string;
     workspaceBudgetTile: string;
