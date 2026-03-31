@@ -70,6 +70,40 @@ Synapse 的前端设计不是营销装饰层，而是基础设施可信度的可
 5. Accessibility Matters
 - 字重、对比、可点击区域必须保证可用性
 
+## Modal / Dialog System
+
+前端所有业务弹窗必须使用同一套 modal token，不允许页面私自定义一套新的圆角、遮罩、头部高度或关闭按钮尺寸。
+
+1. Centering & Overlay
+- 统一使用 `x-dialog-shell` + `x-modal-overlay`
+- 所有弹窗默认全局水平居中、垂直居中
+- 不允许出现页面局部偏移、顶部吸附、或只靠局部容器居中的实现
+
+2. Surface Token
+- 统一使用 `x-modal-flat` + `x-modal-surface`
+- 标准圆角固定为 `28px`
+- surface 默认 `overflow: hidden`，由 token 负责边框和基础层次
+
+3. Header Token
+- 统一使用 `x-modal-header`
+- header 最小高度固定为 `80px`
+- 标题、副标题、关闭按钮必须在同一条 header 语义层内组织
+
+4. Close Button Token
+- 统一使用 `x-modal-close`
+- 关闭按钮命中区域固定为 `40px × 40px`
+- 不允许在业务组件内再次写一套 `p-2` / `rounded-lg` / 自定义 hover 来破坏一致性
+
+5. Body & Footer Token
+- 内容区统一使用 `x-modal-body`
+- 底部动作区统一使用 `x-modal-footer` 或 `x-modal-action*`
+- 高风险确认、生成、保存动作的按钮尺寸必须稳定，不能因文案或页面不同而漂移
+
+6. Governance
+- 页面需要例外样式时，先更新本设计基线，再改实现
+- 新增 modal 时，先复用 token，再考虑业务特例
+- 任何新增的一次性 modal 样式都视为设计债务
+
 ## 页面审美执行清单
 
 每次前端页面改版前，先检查以下五项：

@@ -59,6 +59,7 @@ type DashboardAgentsPageProps = {
 };
 
 type PendingDangerAction =
+  | { type: "generate"; agent: AgentCredentialRecord }
   | { type: "revoke"; agent: AgentCredentialRecord }
   | { type: "regenerate"; agent: AgentCredentialRecord };
 
@@ -355,6 +356,39 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
     }
   }, [ensureOwnerReady, fetchCredentials, t]);
 
+  const handleGenerateCredential = useCallback(async (agent: AgentCredentialRecord) => {
+    const boundOwner = await ensureOwnerReady();
+    if (!boundOwner) {
+      return;
+    }
+
+    try {
+      setIsRegeneratingCredential(true);
+      setError(null);
+
+      const result = await issueAgentCredential(boundOwner, {
+        name: agent.name || t("agentsPage.unnamedAgent"),
+        ownerAddress: boundOwner,
+        creditLimit: agent.creditLimit ?? undefined,
+        maxCalls: agent.maxCalls || undefined,
+        rpm: agent.rpm || undefined,
+        resetInterval: agent.resetInterval,
+        expiration: agent.expiration ?? undefined,
+      });
+
+      setNewCredential(result);
+      setSandboxCredential(result.token);
+      setSelectedAgentId(result.id);
+      toast.success(t("agentsPage.workspaceCredentialGeneratedToast"));
+      await fetchCredentials();
+    } catch (err) {
+      console.error("Failed to generate credential:", err);
+      toast.error(err instanceof Error ? err.message : t("agentsPage.workspaceCredentialGeneratedFailed"));
+    } finally {
+      setIsRegeneratingCredential(false);
+    }
+  }, [ensureOwnerReady, fetchCredentials, t]);
+
   const selectedAgentUsagePercent = selectedAgent ? getAgentUsagePercent(selectedAgent) : 0;
   const selectedAgentRemainingCalls = selectedAgent
     ? Math.max(0, (selectedAgent.maxCalls || 0) - selectedAgent.callsUsed)
@@ -548,7 +582,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
   const workspaceContent = (
     <>
-      <header className="x-divider border-b pb-7">
+      <header className="x-divider mx-auto w-full border-b pb-7 xl:max-w-[1318px]">
         <section>
           <h1 className="x-page-title flex items-center gap-2 text-white">
             <Bot className="h-6 w-6 text-blue-400" />
@@ -558,7 +592,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         </section>
       </header>
 
-      <section className="grid grid-cols-1 gap-5 xl:justify-center xl:grid-cols-[36.125rem_45rem]">
+      <section className="mx-auto grid w-full grid-cols-1 gap-5 xl:max-w-[1318px] xl:justify-center xl:grid-cols-[36.125rem_45rem]">
         <article className="x-panel-flat rounded-[24px] p-6">
           <header className="x-divider mb-5 flex flex-col gap-4 border-b pb-5">
             <div>
@@ -702,24 +736,35 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                         <p className="x-meta-label">{t("agentsPage.workspaceCredentialPrefixLabel")}</p>
                         <p className="mt-2 font-mono text-[2rem] font-semibold tracking-[-0.03em] text-white">{selectedAgent.tokenPrefix || selectedAgent.id.slice(0, 18)}</p>
                       </div>
-                      <div className="flex gap-3">
+                      {selectedAgent.status === "active" ? (
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setPendingDangerAction({ type: "revoke", agent: selectedAgent })}
+                            disabled={isRevokingCredential}
+                            className="x-button-danger x-credential-action x-credential-action-danger disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {t("agentsPage.workspaceRevokeShort")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPendingDangerAction({ type: "regenerate", agent: selectedAgent })}
+                            disabled={isRegeneratingCredential}
+                            className="x-button-primary x-credential-action x-credential-action-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isRegeneratingCredential ? t("agentsPage.workspaceRegenerating") : t("agentsPage.workspaceRegenerateShort")}
+                          </button>
+                        </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => setPendingDangerAction({ type: "regenerate", agent: selectedAgent })}
-                          disabled={selectedAgent.status !== "active" || isRegeneratingCredential}
-                          className="x-button-primary rounded-full px-5 py-2.5 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => setPendingDangerAction({ type: "generate", agent: selectedAgent })}
+                          disabled={isRegeneratingCredential}
+                          className="x-button-primary x-credential-action x-credential-action-generate disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {isRegeneratingCredential ? t("agentsPage.workspaceRegenerating") : t("agentsPage.workspaceRegenerateCredential")}
+                          {isRegeneratingCredential ? t("agentsPage.workspaceGenerating") : t("agentsPage.workspaceGenerateCredential")}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setPendingDangerAction({ type: "revoke", agent: selectedAgent })}
-                          disabled={isRevokingCredential}
-                          className="x-button-danger rounded-full px-5 py-2.5 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {t("agentsPage.workspaceRevokeShort")}
-                        </button>
-                      </div>
+                      )}
                     </div>
                   </article>
 
@@ -792,21 +837,21 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       {isCreateModalOpen && (
         <dialog
           open
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,18,22,0.58)] p-4 backdrop-brightness-50"
+          className="x-dialog-shell x-modal-overlay"
           aria-labelledby="create-agent-title"
         >
-          <section className="x-modal-flat w-full max-w-[560px] overflow-hidden rounded-[28px] backdrop-blur-xl">
-            <header className="x-divider flex items-center justify-between border-b px-7 py-6">
+          <section className="x-modal-flat x-modal-surface max-w-[560px]">
+            <header className="x-modal-header x-divider">
               <h2 className="flex items-center gap-2 text-[1.95rem] font-semibold tracking-tight text-white">
                 <span id="create-agent-title" className="sr-only">{t("agentsPage.createAgentProfile")}</span>
                 <Plus className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.createAgentProfile")}
               </h2>
-              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="x-icon-button rounded-lg p-2">
+              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="x-modal-close">
                 <XCircle className="h-5 w-5" />
               </button>
             </header>
-            <form onSubmit={handleCreateCredential} className="space-y-6 px-7 py-6">
+            <form onSubmit={handleCreateCredential} className="x-modal-body space-y-6">
               <label htmlFor="agent-name" className="block space-y-2.5 text-left">
                 <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.agentNameLabel")}</span>
                 <input
@@ -854,7 +899,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   />
                 </label>
               </section>
-              <aside className="flex items-start gap-3 rounded-2xl bg-[#0f1722] p-4 shadow-[inset_0_0_0_1px_rgba(29,155,240,0.14)]">
+              <aside className="x-panel-muted flex items-start gap-3 rounded-[24px] p-4 shadow-[inset_0_0_0_1px_rgba(29,155,240,0.14)]">
                 <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-400" />
                 <p className="text-[11px] leading-relaxed text-gray-400">
                   {t("agentsPage.createAgentHint")}
@@ -864,14 +909,14 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="x-button-ghost rounded-full px-6 py-3 text-sm font-semibold"
+                  className="x-button-ghost x-modal-action x-modal-action-secondary"
                 >
                   {t("agentsPage.cancel")}
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="x-button-primary rounded-full px-6 py-3 text-sm font-semibold disabled:opacity-50"
+                  className="x-button-primary x-modal-action x-modal-action-primary disabled:opacity-50"
                 >
                   {isLoading ? t("agentsPage.creating") : t("agentsPage.createAgentProfile")}
                 </button>
@@ -884,19 +929,23 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       {pendingDangerAction && (
         <dialog
           open
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(5,6,10,0.62)] p-4 backdrop-blur-[10px]"
+          className="x-dialog-shell x-modal-overlay"
           aria-labelledby="danger-agent-title"
         >
-          <section className="x-modal-flat w-full max-w-[580px] overflow-hidden rounded-[28px] backdrop-blur-xl">
-            <header className="x-divider flex items-center justify-between border-b px-7 py-6">
-              <div>
+          <section className="x-modal-flat x-modal-surface max-w-[560px]">
+            <header className="x-modal-header x-divider">
+              <div className="x-modal-header-copy">
                 <h2 id="danger-agent-title" className="text-[1.9rem] font-semibold tracking-tight text-white">
-                  {pendingDangerAction.type === "regenerate"
+                  {pendingDangerAction.type === "generate"
+                    ? t("agentsPage.workspaceDangerGenerateTitle")
+                    : pendingDangerAction.type === "regenerate"
                     ? t("agentsPage.workspaceDangerRegenerateTitle")
                     : t("agentsPage.workspaceDangerRevokeTitle")}
                 </h2>
                 <p className="mt-3 text-base text-gray-400">
-                  {pendingDangerAction.type === "regenerate"
+                  {pendingDangerAction.type === "generate"
+                    ? t("agentsPage.workspaceDangerGenerateQuestion")
+                    : pendingDangerAction.type === "regenerate"
                     ? t("agentsPage.workspaceDangerRegenerateQuestion")
                     : t("agentsPage.workspaceDangerRevokeQuestion")}
                 </p>
@@ -904,20 +953,22 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               <button
                 type="button"
                 onClick={() => setPendingDangerAction(null)}
-                className="text-gray-500 transition hover:text-white"
+                className="x-modal-close"
               >
                 <XCircle className="h-5 w-5" />
               </button>
             </header>
 
-            <section className="space-y-6 px-7 py-6">
-              <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <section className="x-modal-body space-y-6">
+              <article className="x-panel-muted rounded-[24px] p-5">
                 <h3 className="text-lg font-semibold text-white">{pendingDangerAction.agent.name || t("agentsPage.unnamedAgent")}</h3>
                 <p className="mt-2 font-mono text-sm text-gray-400">{pendingDangerAction.agent.tokenPrefix || pendingDangerAction.agent.id}</p>
               </article>
 
               <p className="max-w-xl text-base leading-8 text-gray-400">
-                {pendingDangerAction.type === "regenerate"
+                {pendingDangerAction.type === "generate"
+                  ? t("agentsPage.workspaceDangerGenerateDescription")
+                  : pendingDangerAction.type === "regenerate"
                   ? t("agentsPage.workspaceDangerRegenerateDescription")
                   : t("agentsPage.workspaceDangerRevokeDescription")}
               </p>
@@ -926,7 +977,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <button
                   type="button"
                   onClick={() => setPendingDangerAction(null)}
-                  className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                  className="x-button-ghost x-modal-action x-modal-action-secondary"
                 >
                   {t("agentsPage.cancel")}
                 </button>
@@ -938,15 +989,25 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                     if (!action) {
                       return;
                     }
+                    if (action.type === "generate") {
+                      await handleGenerateCredential(action.agent);
+                      return;
+                    }
                     if (action.type === "regenerate") {
                       await handleRegenerateCredential(action.agent);
                       return;
                     }
                     await handleRevoke(action.agent.id);
                   }}
-                  className="rounded-full bg-red-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-400"
+                  className={[
+                    pendingDangerAction.type === "revoke" ? "x-button-danger" : "x-button-primary",
+                    "x-modal-action",
+                    "x-modal-action-primary",
+                  ].join(" ")}
                 >
-                  {pendingDangerAction.type === "regenerate"
+                  {pendingDangerAction.type === "generate"
+                    ? t("agentsPage.workspaceDangerConfirmGenerate")
+                    : pendingDangerAction.type === "regenerate"
                     ? t("agentsPage.workspaceDangerConfirmRegenerate")
                     : t("agentsPage.workspaceDangerConfirmRevoke")}
                 </button>
@@ -957,42 +1018,47 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       )}
 
       {issuedCredential && (
-        <dialog open className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md" aria-labelledby="issued-agent-title">
-          <section className="w-full max-w-lg overflow-hidden rounded-3xl border border-emerald-500/20 bg-[#0a0a0c] shadow-[0_0_50px_rgba(16,185,129,0.1)]">
-            <section className="space-y-6 p-8 text-center">
-              <span className="mx-auto block w-fit rounded-full border border-emerald-500/20 bg-emerald-500/10 p-4" aria-hidden="true">
-                <ShieldCheck className="h-10 w-10 text-emerald-400" />
-              </span>
-              <header>
+        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="issued-agent-title">
+          <section className="x-modal-flat x-modal-surface max-w-lg border border-emerald-500/15 shadow-[0_0_70px_rgba(16,185,129,0.08)]">
+            <header className="x-modal-header border-b border-emerald-500/10">
+              <div className="x-modal-header-copy">
                 <h2 id="issued-agent-title" className="text-2xl font-bold text-white">{t("agentsPage.credentialIssuedTitle")}</h2>
                 <p className="mt-2 text-sm text-gray-500">{t("agentsPage.credentialIssuedDescription")}</p>
-              </header>
+              </div>
+              <button type="button" onClick={() => setNewCredential(null)} className="x-modal-close">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </header>
+            <section className="x-modal-body space-y-6 text-center">
+              <span className="mx-auto block w-fit rounded-full border border-emerald-500/20 bg-emerald-500/10 p-4 shadow-[0_10px_30px_rgba(16,185,129,0.1)]" aria-hidden="true">
+                <ShieldCheck className="h-10 w-10 text-emerald-400" />
+              </span>
 
               <section className="group relative">
-                <code className="block break-all rounded-2xl border border-white/10 bg-black p-4 pr-12 text-left font-mono text-sm text-emerald-400">
+                <code className="x-panel-muted block break-all rounded-[24px] p-4 pr-12 text-left font-mono text-sm text-emerald-400">
                   {issuedCredential.token}
                 </code>
                 <button
                   type="button"
                   onClick={() => copyToClipboard(issuedCredential.token, "new-token")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-white/5 p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                  className="x-icon-button absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2.5 text-gray-400"
                 >
                   {copiedId === "new-token" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                 </button>
               </section>
 
               <dl className="grid grid-cols-2 gap-4 text-left">
-                <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
+                <div className="x-panel-muted rounded-[22px] p-4">
                   <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.agentNameLabel")}</dt>
                   <dd className="text-sm font-bold text-white">{issuedCredential.name}</dd>
                 </div>
-                <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
+                <div className="x-panel-muted rounded-[22px] p-4">
                   <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</dt>
                   <dd className="text-sm font-bold text-emerald-400">${(issuedCredential.creditLimit ?? 0).toFixed(2)}</dd>
                 </div>
               </dl>
 
-              <dl className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left">
+              <dl className="x-panel-muted rounded-[22px] p-4 text-left">
                 <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.boundOwnerValueLabel")}</dt>
                 <dd className="break-all font-mono text-sm text-blue-300">{issuedCredential.ownerAddress}</dd>
               </dl>
@@ -1000,7 +1066,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               <button
                 type="button"
                 onClick={() => setNewCredential(null)}
-                className="w-full rounded-xl bg-white py-4 text-sm font-bold text-black transition-all hover:bg-gray-200"
+                className="x-button-primary x-modal-action w-full"
               >
                 {t("agentsPage.savedTokenCta")}
               </button>
@@ -1010,18 +1076,18 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       )}
 
       {isEditModalOpen && (
-        <dialog open className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" aria-labelledby="edit-agent-title">
-          <section className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0c] shadow-2xl">
-            <header className="flex items-center justify-between border-b border-white/5 p-6">
+        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="edit-agent-title">
+          <section className="x-modal-flat x-modal-surface max-w-md">
+            <header className="x-modal-header x-divider">
               <h2 id="edit-agent-title" className="flex items-center gap-2 text-lg font-bold text-white">
                 <PencilLine className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.editAgentLimitsTitle")}
               </h2>
-              <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-gray-500 hover:text-white">
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="x-modal-close">
                 <XCircle className="h-5 w-5" />
               </button>
             </header>
-            <section className="space-y-5 p-6">
+            <section className="x-modal-body space-y-5">
               <p className="text-sm leading-6 text-gray-400">{t("agentsPage.editAgentLimitsDescription")}</p>
               <label className="block space-y-2">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
@@ -1029,7 +1095,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   type="number"
                   value={quotaMaxCalls}
                   onChange={(event) => setQuotaMaxCalls(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
                 />
               </label>
               <label className="block space-y-2">
@@ -1038,7 +1104,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   type="number"
                   value={quotaRpm}
                   onChange={(event) => setQuotaRpm(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
                 />
               </label>
               <label className="block space-y-2">
@@ -1049,7 +1115,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   min="0.01"
                   value={quotaDailyBudget}
                   onChange={(event) => setQuotaDailyBudget(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
                 />
               </label>
               <label className="block space-y-2">
@@ -1058,12 +1124,12 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   type="datetime-local"
                   value={quotaExpiresAtLocal}
                   onChange={(event) => setQuotaExpiresAtLocal(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-blue-500/50 focus:outline-none"
+                  className="x-input-flat w-full rounded-xl px-4 py-3 text-sm text-white"
                 />
               </label>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5">{t("agentsPage.cancel")}</button>
-                <button type="button" onClick={() => void handleUpdateQuota()} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-400">{t("agentsPage.save")}</button>
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="x-button-ghost x-modal-action x-modal-action-secondary">{t("agentsPage.cancel")}</button>
+                <button type="button" onClick={() => void handleUpdateQuota()} className="x-button-primary x-modal-action x-modal-action-primary">{t("agentsPage.save")}</button>
               </div>
             </section>
           </section>

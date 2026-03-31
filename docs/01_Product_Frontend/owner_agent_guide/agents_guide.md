@@ -44,7 +44,7 @@ The current production page already includes these implemented capabilities:
 5. create modal shows bound owner address
 6. newly issued credential is shown once and only once in a success modal
 7. `FirstInvocationPanel` shows discovery / quote / invoke snippets plus a real paid sandbox invocation path
-8. existing agents render as cards with budget, calls, usage bar, created date, copy token prefix, and revoke action
+8. existing agents render as cards with budget, calls, usage bar, created date, copy token prefix, and credential lifecycle actions driven by backend status truth
 
 ### 2.1 What the current page still does not solve well enough
 
@@ -192,7 +192,9 @@ Example:
   - tooltip: explain runtime identity, budget, and call limits
 3. Issue Credential
   - summary: `Token not issued yet` or `Token prefix: ag_xxxx`
-  - CTA: `Copy Credential` or `Rotate Credential`
+  - CTA when no active credential: `Generate`
+  - CTA when active credential exists: `Regenerate` or `Revoke`
+  - success modal: reveal full credential exactly once and require immediate secure copy
   - tooltip: explain one-time credential copy and secure storage
 4. Run First Paid Invocation
   - summary: `No successful invocation yet`
@@ -291,8 +293,9 @@ Quick actions:
 1. `Copy Token Prefix`
 2. `Open SDK Snippet`
 3. `Open Discovery`
-4. `Rotate Credential`
-5. `Revoke`
+4. `Generate Credential`
+5. `Regenerate Credential`
+6. `Revoke`
 
 ### 5.5 Recent Invocation Preview
 
@@ -366,7 +369,7 @@ Recommended v3 component structure under the agents feature:
    - one card per agent
 
 12. `CredentialLifecyclePanel.tsx`
-   - copy / rotate / revoke / masked display concerns
+  - generate / regenerate / revoke / masked token-prefix display concerns
 
 13. `RecentInvocationsPreview.tsx`
    - latest invocation rows
