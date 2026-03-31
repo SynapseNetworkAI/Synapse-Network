@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, RefreshCw, X } from "lucide-react";
 
 type DepositUsdcModalProps = {
   isOpen: boolean;
@@ -45,14 +45,20 @@ export default function DepositUsdcModal({
   const isBusy = step !== "input" || isPending || isConfirming;
 
   return (
-    <dialog open className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" aria-labelledby="deposit-usdc-title">
-      <section className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0a0a0c] p-6 shadow-2xl">
-        <header>
-          <h3 id="deposit-usdc-title" className="text-xl font-bold text-white">{title}</h3>
-          <p className="mt-4 text-sm text-gray-400">{description}</p>
+    <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="deposit-usdc-title">
+      <section className="x-modal-flat x-modal-surface max-w-md shadow-2xl">
+        <header className="x-modal-header">
+          <div className="x-modal-header-copy">
+            <h3 id="deposit-usdc-title" className="text-xl font-bold text-white">{title}</h3>
+            <p className="mt-2 text-sm text-gray-400">{description}</p>
+          </div>
+          <button type="button" onClick={onClose} className="x-modal-close" aria-label="Close deposit dialog">
+            <X className="h-5 w-5" />
+          </button>
         </header>
 
-        <label className="mt-6 block">
+        <div className="x-modal-body">
+        <label className="block">
           <span className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Amount (USDC)</span>
           <div className="relative mt-1">
             <input
@@ -139,6 +145,7 @@ export default function DepositUsdcModal({
             {(isPending || isConfirming) ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
             {isBusy ? "Processing..." : `Confirm Deposit ${normalizedAmount} USDC`}
           </button>
+        </div>
         </div>
       </section>
     </dialog>

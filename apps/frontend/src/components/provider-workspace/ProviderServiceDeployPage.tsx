@@ -1711,24 +1711,24 @@ export default function DeployManifestPage() {
             </SectionCard>
 
             {showAIModal ? (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="x-dialog-shell x-modal-overlay">
                 <button
                   type="button"
                   aria-label="Close AI parser"
                   onClick={closeParser}
                   className="absolute inset-0"
                 />
-                <div className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-green-900/40 bg-[#0a0d11] shadow-[0_0_50px_rgba(34,197,94,0.12)]">
-                  <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
-                    <div>
+                <div className="x-modal-flat x-modal-surface relative z-10 flex max-h-[92vh] max-w-6xl flex-col border border-green-900/40 shadow-[0_0_50px_rgba(34,197,94,0.12)]">
+                  <div className="x-modal-header border-b border-white/8">
+                    <div className="x-modal-header-copy">
                       <h3 className="text-xl font-semibold text-white">AI Service Definition Parser</h3>
                       <p className="mt-1 text-sm text-zinc-500">Paste a complete API example block: raw cURL command plus the returned JSON result. The parser will infer the current V1 service definition fields and fill the form.</p>
                     </div>
-                    <button type="button" onClick={closeParser} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-white">
+                    <button type="button" onClick={closeParser} className="x-modal-close">
                       <X className="h-5 w-5" />
                     </button>
                   </div>
-                  <div className="grid gap-5 overflow-y-auto p-6 xl:grid-cols-2">
+                  <div className="x-modal-body grid gap-5 overflow-y-auto xl:grid-cols-2">
                     <div>
                       <label htmlFor="ai-curl-command" className="mb-1.5 block text-sm font-medium text-zinc-200">Raw cURL Command + Result</label>
                       <textarea
@@ -1756,7 +1756,7 @@ export default function DeployManifestPage() {
                       {aiResponse.trim() && !parsedAiResponse ? <p className="mt-2 text-xs text-amber-300">Generated service definition must be a valid JSON object.</p> : <p className="mt-2 text-xs text-zinc-500">You can manually refine the service definition JSON before applying the override.</p>}
                     </div>
                   </div>
-                  <div className="flex items-center justify-end gap-3 border-t border-white/8 px-6 py-4">
+                  <div className="x-modal-footer border-t border-white/8">
                     <button
                       type="button"
                       onClick={autofillAIMagic}

@@ -176,8 +176,156 @@ body {
   }
 
   .x-modal-flat {
-    background: rgba(18, 18, 20, 0.96);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 24px 120px rgba(0, 0, 0, 0.55);
+    background:
+      linear-gradient(180deg, rgba(26, 27, 31, 0.94), rgba(16, 17, 20, 0.97)),
+      radial-gradient(circle at top, rgba(255, 255, 255, 0.045), transparent 48%);
+    backdrop-filter: blur(28px) saturate(118%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 36px 120px rgba(0, 0, 0, 0.62);
+  }
+
+  .x-modal-overlay {
+    background:
+      radial-gradient(circle at center, rgba(70, 78, 92, 0.16), transparent 26%),
+      rgba(5, 7, 12, 0.72);
+    backdrop-filter: blur(18px) saturate(115%) brightness(0.68);
+  }
+
+  .x-dialog-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    min-height: 100svh;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .x-modal-surface {
+    width: 100%;
+    overflow: hidden;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  .x-modal-header {
+    display: flex;
+    min-height: 80px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .x-modal-header-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .x-modal-close {
+    display: inline-flex;
+    height: 40px;
+    width: 40px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    color: #9ca3af;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transition:
+      background-color 160ms ease,
+      box-shadow 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .x-modal-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+  }
+
+  .x-modal-close:active {
+    transform: scale(0.97);
+  }
+
+  .x-modal-body {
+    padding: 1.5rem;
+  }
+
+  .x-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  dialog.x-dialog-shell {
+    margin: 0;
+    border: 0;
+    background: transparent;
+    max-width: none;
+    max-height: none;
+  }
+
+  dialog.x-dialog-shell::backdrop {
+    background: transparent;
+  }
+
+  .x-modal-action {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    padding: 0 20px;
+    font-size: 0.9375rem;
+    line-height: 1;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .x-modal-action-primary {
+    min-width: 124px;
+  }
+
+  .x-modal-action-secondary {
+    min-width: 112px;
+  }
+
+  .x-credential-action {
+    display: inline-flex;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    padding: 0;
+    font-size: 0.875rem;
+    line-height: 1;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .x-credential-action-danger {
+    width: 86px;
+  }
+
+  .x-credential-action-primary {
+    width: 114px;
+  }
+
+  .x-credential-action-generate {
+    width: 96px;
   }
 
   .x-progress-track {

@@ -431,19 +431,19 @@ function CredentialsContent() {
 
       {/* Creation Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="x-modal-flat w-full max-w-lg rounded-xl p-6 shadow-2xl">
-             <div className="flex items-center justify-between mb-6">
+        <div className="x-dialog-shell x-modal-overlay">
+          <div className="x-modal-flat x-modal-surface max-w-lg shadow-2xl">
+             <div className="x-modal-header mb-0">
                 <h3 className="text-xl flex items-center gap-2 font-bold text-white">
                   <KeyRound className="w-5 h-5 text-green-400" /> Issue Credential
                 </h3>
-                <button onClick={() => { setIsCreateModalOpen(false); setLatestIssued(null); }} className="text-gray-500 hover:text-white transition">
+                <button onClick={() => { setIsCreateModalOpen(false); setLatestIssued(null); }} className="x-modal-close">
                   <X className="w-5 h-5" />
                 </button>
              </div>
 
              {latestIssued === null ? (
-               <div className="space-y-5">
+               <div className="x-modal-body space-y-5">
                   <div className="x-panel-muted space-y-4 rounded-lg p-4">
                     <div className="grid grid-cols-2 gap-4">
                        <div>
@@ -472,12 +472,12 @@ function CredentialsContent() {
                   </div>
 
                   <div className="flex justify-end gap-3 mt-8">
-                     <button onClick={() => setIsCreateModalOpen(false)} className="x-button-ghost rounded-full px-4 py-2 text-sm font-medium">Cancel</button>
-                    <button onClick={handleIssue} className="x-button-primary rounded-full px-5 py-2 text-sm font-bold">Issue Credential</button>
+                     <button onClick={() => setIsCreateModalOpen(false)} className="x-button-ghost x-modal-action x-modal-action-secondary text-sm font-medium">Cancel</button>
+                    <button onClick={handleIssue} className="x-button-primary x-modal-action x-modal-action-primary text-sm font-bold">Issue Credential</button>
                   </div>
                </div>
              ) : (
-               <div className="space-y-6">
+               <div className="x-modal-body space-y-6">
                  <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
                    <Check className="w-8 h-8 text-green-400 mx-auto mb-2" />
                    <h4 className="text-green-400 font-bold mb-1">Credential Issued</h4>
@@ -512,13 +512,18 @@ function CredentialsContent() {
 
       {/* Edit Quota Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="x-modal-flat w-full max-w-sm rounded-xl p-6 shadow-2xl">
-             <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-400" /> Override Quota
-             </h3>
+        <div className="x-dialog-shell x-modal-overlay">
+          <div className="x-modal-flat x-modal-surface max-w-sm shadow-2xl">
+             <div className="x-modal-header mb-0">
+               <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-400" /> Override Quota
+               </h3>
+               <button onClick={() => setIsEditModalOpen(false)} className="x-modal-close">
+                 <X className="w-5 h-5" />
+               </button>
+             </div>
              
-             <div className="space-y-4">
+             <div className="x-modal-body space-y-4">
                 <div>
                   <label htmlFor="quota-max-calls" className="block mb-1.5 text-xs font-bold text-gray-500 uppercase">Max Calls (-1 for infinite)</label>
                   <input id="quota-max-calls" type="number" value={quotaMaxCalls} onChange={e => setQuotaMaxCalls(e.target.value)} className="x-input-flat w-full rounded-lg px-3 py-2 text-sm font-mono text-white"/>
@@ -539,8 +544,8 @@ function CredentialsContent() {
              </div>
 
              <div className="flex justify-end gap-3 mt-6">
-                <button onClick={() => setIsEditModalOpen(false)} className="x-button-ghost rounded-full px-4 py-2 text-sm font-medium">Cancel</button>
-                <button onClick={handleUpdateQuota} className="x-button-primary rounded-full px-5 py-2 text-sm font-bold">Save</button>
+           <button onClick={() => setIsEditModalOpen(false)} className="x-button-ghost x-modal-action x-modal-action-secondary text-sm font-medium">Cancel</button>
+           <button onClick={handleUpdateQuota} className="x-button-primary x-modal-action x-modal-action-primary text-sm font-bold">Save</button>
              </div>
           </div>
         </div>

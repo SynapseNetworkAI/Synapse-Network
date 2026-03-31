@@ -309,16 +309,16 @@ export default function SecretsPage() {
   return (
     <>
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-xl border border-gray-800 bg-[#1C1C1C] shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-gray-800 p-5">
+        <div className="x-dialog-shell x-modal-overlay">
+          <div className="x-modal-flat x-modal-surface max-w-md border border-gray-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="x-modal-header border-b border-gray-800">
               <h2 className="text-lg font-semibold text-white">{t("providerSecretsPage.modalTitle")}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 transition-colors hover:text-white">
+              <button onClick={() => setIsModalOpen(false)} className="x-modal-close">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-5 p-6">
+            <div className="x-modal-body space-y-5">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <label htmlFor="secret-name" className="text-sm font-medium text-gray-200">{t("providerSecretsPage.modalNameLabel")}</label>
@@ -382,7 +382,7 @@ export default function SecretsPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-gray-800 bg-gray-900/50 p-5">
+            <div className="x-modal-footer border-t border-gray-800 bg-gray-900/50">
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="px-4 py-2 text-sm text-gray-300 transition-colors hover:text-white"

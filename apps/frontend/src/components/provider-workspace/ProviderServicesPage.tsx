@@ -426,30 +426,29 @@ export default function ProviderServicesPage() { // NOSONAR
 
   const editModal = editing && draft && typeof document !== "undefined"
     ? createPortal(
-      <div className="fixed inset-0 z-[120] overflow-y-auto bg-black/70 p-4 backdrop-blur-[2px]">
-        <div className="flex min-h-full items-start justify-center py-6">
-          <div className="w-full max-w-6xl rounded-2xl border border-[#2a2a2a] bg-[#0a0a0a] p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between border-b border-[#1d1d1d] pb-4">
-              <div>
+      <div className="x-dialog-shell x-modal-overlay z-[120]">
+          <div className="x-modal-flat x-modal-surface max-w-6xl border border-[#2a2a2a] shadow-2xl">
+            <div className="x-modal-header border-b border-[#1d1d1d]">
+              <div className="x-modal-header-copy">
                 <h2 className="text-xl font-bold text-white">{t("providerServicesPage.modalTitle")}</h2>
                 <p className="mt-1 font-mono text-xs text-[#86868b]">{editing.serviceId}</p>
                 <p className="mt-2 text-xs text-[#86868b]">{t("providerServicesPage.modalDescription")}</p>
               </div>
               <button
                 onClick={closeModal}
-                className="rounded-lg border border-[#333333] p-2 text-[#86868b] hover:border-white hover:text-white"
+                className="x-modal-close"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {!editValidation.isValid && (
-              <div className="mb-4 rounded-lg border border-[#7f1d1d] bg-[#2a0f12] px-4 py-3 text-sm text-[#fca5a5]">
-                {t("providerServicesPage.validationBanner")}
-              </div>
-            )}
+            <div className="x-modal-body space-y-6">
+              {!editValidation.isValid && (
+                <div className="rounded-lg border border-[#7f1d1d] bg-[#2a0f12] px-4 py-3 text-sm text-[#fca5a5]">
+                  {t("providerServicesPage.validationBanner")}
+                </div>
+              )}
 
-            <div className="space-y-6">
               <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
                 <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">{t("providerServicesPage.sectionBasicProfile")}</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -693,7 +692,7 @@ export default function ProviderServicesPage() { // NOSONAR
               </section>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3">
+            <div className="x-modal-footer">
               <button
                 onClick={closeModal}
                 className="rounded-lg border border-[#333333] px-4 py-2 text-sm text-[#c6c6c9] hover:border-white hover:text-white"
@@ -709,7 +708,6 @@ export default function ProviderServicesPage() { // NOSONAR
               </button>
             </div>
           </div>
-        </div>
       </div>,
       document.body,
     )

@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from "react";
 import { useAccount, useChainId, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { parseAbi, parseUnits, type Hex } from "viem";
-import { ChevronRight, Zap, Lock, Rocket, CheckCircle2, RefreshCw, AlertCircle } from "lucide-react";
+import { ChevronRight, Zap, Lock, Rocket, CheckCircle2, RefreshCw, AlertCircle, X } from "lucide-react";
 import contractConfig from "@/contract-config.json";
 import { createDepositIntent } from "@/utils/balanceApi";
 import { resolvePermitDomainChainId } from "@/utils/permitChain";
@@ -362,19 +362,19 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
       {/* DEPOSIT MODAL */}
       {isDepositModalOpen && (
-        <dialog open className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" aria-labelledby="deposit-modal-title">
-          <section className="w-full max-w-md bg-[#0a0a0c] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-            <header className="p-6 border-b border-white/5 flex items-center justify-between">
+        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="deposit-modal-title">
+          <section className="x-modal-flat x-modal-surface max-w-md shadow-2xl">
+            <header className="x-modal-header">
               <h2 id="deposit-modal-title" className="text-lg font-bold text-white">Deposit USDC</h2>
               <button
                 onClick={() => setIsDepositModalOpen(false)}
-                className="text-gray-500 hover:text-white"
+                className="x-modal-close"
               >
-                ✕
+                <X className="h-5 w-5" />
               </button>
             </header>
 
-            <section className="p-6 space-y-6">
+            <section className="x-modal-body space-y-6">
               <p className="space-y-2 block">
                 <label htmlFor="deposit-amount" className="text-xs font-bold text-gray-500 uppercase">Amount (USDC)</label>
                 <input
