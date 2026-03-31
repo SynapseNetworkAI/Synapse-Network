@@ -6,9 +6,11 @@ provider_app_user="${SYNAPSE_PROVIDER_APP_USER:-synapse_provider_app}"
 provider_app_password="${SYNAPSE_PROVIDER_APP_PASSWORD:-12345678}"
 provider_ro_user="${SYNAPSE_PROVIDER_READONLY_USER:-synapse_provider_ro}"
 provider_ro_password="${SYNAPSE_PROVIDER_READONLY_PASSWORD:-12345678}"
+postgres_host="${PGHOST:-127.0.0.1}"
+postgres_port="${PGPORT:-5432}"
 
 run_psql() {
-    PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" "$@"
+    PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 --host "${postgres_host}" --port "${postgres_port}" --username "${POSTGRES_USER}" "$@"
 }
 
 run_psql \

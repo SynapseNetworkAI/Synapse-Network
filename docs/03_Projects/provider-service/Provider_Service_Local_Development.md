@@ -93,7 +93,7 @@ curl http://127.0.0.1:8100/health
 13. 代理模式下 scheduler 会自动按代理池大小收敛刷新并发，避免同一个本地代理被多份快照刷新同时压爆
 14. `Protocol Fundamental Brief` 的 Phase 4 缓存策略当前采用 `in-memory hot cache + persisted snapshot fallback`：单机本地调试默认不需要 Redis，只有在多实例共享热缓存时才建议引入
 15. `provider_service` 现在统一使用 `PROVIDER_SERVICE_POSTGRES_DSN` 作为共享数据库连接串；protocol brief repository 固定走 postgres，本地不再依赖 file snapshot
-16. 如果要验证 protocol brief 持久化回退链路，直接确保 `PROVIDER_SERVICE_POSTGRES_DSN` 指向已初始化的 `synapse_gateway_providers`，同时确认 `docker-compose/postgres/init/gateway-providers/004_provider_protocol_brief_schema.sql` 已执行
+16. 如果要验证 protocol brief 持久化回退链路，直接确保 `PROVIDER_SERVICE_POSTGRES_DSN` 指向已初始化的 `synapse_gateway_providers`，同时确认 `docker-compose/postgres/init/gateway-providers/001_provider_schema.sql` 已执行
 17. `Smart Contract Audit Model` 的地址模式当前默认走 `Sourcify -> Blockscout -> Etherscan` fallback 链
 18. `SOURCIFY_BASE_URL` / `SOURCIFY_TIMEOUT_S` 控制 Sourcify 拉取
 19. `BLOCKSCOUT_BASE_URLS_JSON` / `BLOCKSCOUT_TIMEOUT_S` 控制链级 Blockscout explorer fallback

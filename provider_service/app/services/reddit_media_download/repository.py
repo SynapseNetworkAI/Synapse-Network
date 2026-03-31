@@ -10,11 +10,6 @@ from typing import Any, cast
 from app.core.config import get_settings
 from app.core.log_config import logger
 from app.schemas.reddit_media_download import RedditMediaDownloadResponse
-from app.services.postgres_schema_compat import (
-    add_column_if_missing,
-    fetch_table_columns,
-    rename_column_if_needed,
-)
 from app.services.reddit_media_download.domain import (
     RedditMediaAssetRecord,
     parse_zulu_datetime,
@@ -61,7 +56,6 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
         self.dsn = dsn
         self.asset_table = self._validate_table_name(asset_table)
         self.invocation_table = self._validate_table_name(invocation_table)
-        self._asset_schema_checked = False
 
     def save_asset(self, record: RedditMediaAssetRecord) -> None:
         payload = record.request
@@ -73,7 +67,6 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
 
         with self._connect() as connection:
             with connection.cursor() as cursor:
-                self._ensure_asset_table_schema(cursor)
                 cursor.execute(
                     cast(
                         Any,
@@ -126,7 +119,6 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
     def load_asset(self, asset_key: str) -> RedditMediaAssetRecord | None:
         with self._connect() as connection:
             with connection.cursor() as cursor:
-                self._ensure_asset_table_schema(cursor)
                 cursor.execute(
                     cast(
                         Any,
@@ -189,45 +181,6 @@ class PostgresRedditMediaDownloadRepository(RedditMediaDownloadRepository):
         import psycopg
 
         return psycopg.connect(self.dsn, autocommit=True)
-
-    def _ensure_asset_table_schema(self, cursor) -> None:
-        if self._asset_schema_checked:
-            return
-
-        columns = fetch_table_columns(cursor, table_name=self.asset_table)
-        if not columns:
-            self._asset_schema_checked = True
-            return
-
-        legacy_layout_detected = "max_file_size_mb" not in columns or "media_kind" in columns
-        if legacy_layout_detected:
-            repository_logger.warning(
-                "Repairing legacy Reddit asset table schema before use",
-                asset_table=self.asset_table,
-            )
-
-        columns = rename_column_if_needed(
-            cursor,
-            table_name=self.asset_table,
-            columns=columns,
-            old_name="media_kind",
-            new_name="media_type",
-        )
-        columns = add_column_if_missing(
-            cursor,
-            table_name=self.asset_table,
-            columns=columns,
-            column_name="max_file_size_mb",
-            definition_sql="INTEGER NOT NULL DEFAULT 250 CHECK (max_file_size_mb >= 0)",
-        )
-        add_column_if_missing(
-            cursor,
-            table_name=self.asset_table,
-            columns=columns,
-            column_name="created_utc",
-            definition_sql="BIGINT NOT NULL DEFAULT 0 CHECK (created_utc >= 0)",
-        )
-        self._asset_schema_checked = True
 
     @staticmethod
     def _validate_table_name(table_name: str) -> str:
