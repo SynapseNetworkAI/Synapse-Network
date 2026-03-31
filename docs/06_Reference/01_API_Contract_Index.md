@@ -47,7 +47,7 @@
 主真理源：
 
 1. [../provider_service/api/README.md](../provider_service/api/README.md)
-2. [../provider_service/SERVICE_DRAFTS.md](../provider_service/SERVICE_DRAFTS.md)
+2. [../provider_service/contracts/SERVICE_DRAFTS.md](../provider_service/contracts/SERVICE_DRAFTS.md)
 3. [../03_Projects/provider-service/README.md](../03_Projects/provider-service/README.md)
 
 适用范围：

@@ -4,13 +4,42 @@
 - Canonical counterpart: `docs/03_Projects/provider-service/README.md`, `docs/06_Reference/03_Service_Manifest_and_Runtime_Object_Reference.md`
 - Why retained: 保留 provider 冷启动服务货架、策略和契约草案，不重复承担项目导航和本地开发入口
 
-关联执行排期见：[Provider Service 冷启动实施路线图（7/14/30 天）](./IMPLEMENTATION_ROADMAP.md)
+如果你要找本地开发和运维入口，先看这里：
 
-首批 5 个样板服务的 Manifest / Schema / Demo 草案见：[Provider Service 首批 5 个服务契约草案](./SERVICE_DRAFTS.md)
+1. [Provider Service 项目导航](../03_Projects/provider-service/README.md)
+2. [Provider Service 本地开发说明](../03_Projects/provider-service/Provider_Service_Local_Development.md)
+3. [Provider Service 运维手册](../03_Projects/provider-service/Provider_Service_Operations_Runbook.md)
+
+如果你要找冷启动规划、服务契约和 API 设计，按这条路径走：
+
+1. [冷启动规划与执行板](./planning/README.md)
+2. [首批服务契约草案](./contracts/README.md)
+3. [API 专题与单服务设计](./api/README.md)
+
+关联执行排期见：[Provider Service 冷启动实施路线图（7/14/30 天）](./planning/IMPLEMENTATION_ROADMAP.md)
+
+首批 5 个样板服务的 Manifest / Schema / Demo 草案见：[Provider Service 首批 5 个服务契约草案](./contracts/SERVICE_DRAFTS.md)
 
 Provider Console 表单字段映射与简化版 `synapse_providers` 数据库设计见：[Provider Console 字段映射与简化数据库设计](./PROVIDER_CONSOLE_FIELD_MAPPING.md)
 
 边界说明：本目录负责冷启动服务策略、服务契约草案和 API 专题，不重复承担 `provider_service/` 项目导航、本地开发和运维入口；后者统一收口到 `docs/03_Projects/provider-service/README.md` 及其贴身文档。
+
+## 0. 目录导航
+
+### 0.1 我该去哪看什么
+
+1. 看本地开发：`docs/03_Projects/provider-service/Provider_Service_Local_Development.md`
+2. 看运维排障：`docs/03_Projects/provider-service/Provider_Service_Operations_Runbook.md`
+3. 看冷启动路线图：`docs/provider_service/planning/IMPLEMENTATION_ROADMAP.md`
+4. 看首批服务总契约：`docs/provider_service/contracts/SERVICE_DRAFTS.md`
+5. 看单个 API 设计：`docs/provider_service/api/README.md`
+
+### 0.2 本目录的结构
+
+1. `planning/`：冷启动排期、任务板、执行节奏
+2. `contracts/`：首批服务的 manifest / input / output / demo response 总表
+3. `api/`：按服务拆开的设计文档、实现草案和专题说明
+4. 根目录保留总入口和少量横向总表，不再堆执行细节
 
 ## 1. 目标
 
