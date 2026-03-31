@@ -163,6 +163,80 @@ def test_list_credentials_by_owner_supports_revoked_at_datetime_strings() -> Non
     assert rows[0]["revokedAt"] > 0
 
 
+def test_rotate_credential_for_owner_updates_same_runtime_record() -> None:
+    storage = FakeStorage()
+
+    issued = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xABC",
+            CredentialIssueRequest(name="Rotate Me", maxCalls=7, rpm=13, creditLimit=9.9),
+        )
+    )
+
+    credential_id = issued["credential"]["id"]
+    old_token = issued["credential"]["token"]
+    old_prefix = issued["credential"]["tokenPrefix"]
+
+    rotated = asyncio.run(
+        credential_service.rotate_credential_for_owner(
+            storage,
+            "0xabc",
+            credential_id,
+        )
+    )
+
+    rows = credential_service.load_credential_rows(storage)
+    assert len(rows) == 1
+    assert rotated["credential"]["id"] == credential_id
+    assert rotated["credential"]["token"] != old_token
+    assert rotated["credential"]["tokenPrefix"] != old_prefix
+    assert rotated["credential"]["status"] == "active"
+    assert rows[0].credential.credential_id == credential_id
+    assert rows[0].credential.status == "active"
+    assert rows[0].credential.revoked_at is None
+    assert rows[0].policy.rpm_limit == 13
+    assert rows[0].metadata.max_calls == 7
+
+
+def test_rotate_credential_for_owner_reactivates_revoked_record_in_place() -> None:
+    storage = FakeStorage()
+
+    issued = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xABC",
+            CredentialIssueRequest(name="Revive Me"),
+        )
+    )
+    credential_id = issued["credential"]["id"]
+
+    asyncio.run(
+        credential_service.revoke_credential_for_owner(
+            storage,
+            "0xabc",
+            credential_id,
+            "CREDENTIAL_NOT_FOUND",
+        )
+    )
+
+    rotated = asyncio.run(
+        credential_service.rotate_credential_for_owner(
+            storage,
+            "0xabc",
+            credential_id,
+        )
+    )
+
+    rows = credential_service.load_credential_rows(storage)
+    assert len(rows) == 1
+    assert rotated["credential"]["id"] == credential_id
+    assert rotated["credential"]["status"] == "active"
+    assert rows[0].credential.credential_id == credential_id
+    assert rows[0].credential.status == "active"
+    assert rows[0].credential.revoked_at is None
+
+
 def test_provider_secret_service_uses_runtime_models() -> None:
     storage = FakeStorage()
 

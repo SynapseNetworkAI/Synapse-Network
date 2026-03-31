@@ -286,14 +286,18 @@ def clone_runtime_credential(
     *,
     calls_used: Optional[int] = None,
     status: Optional[str] = None,
+    secret_hash: Optional[str] = None,
+    secret_prefix: Optional[str] = None,
     credit_limit: Optional[float] = None,
     rpm: Optional[int] = None,
     max_calls: Optional[int] = None,
     reset_interval: Optional[str] = None,
     expiration: Optional[int] = None,
     expires_at: Optional[int] = None,
+    issued_at: Optional[str] = None,
     updated_at: Optional[str] = None,
     revoked_at: Optional[int] = None,
+    clear_revoked_at: bool = False,
 ) -> RuntimeCredentialRecord:
     metadata = _metadata_state(record)
     policy = _policy_state(record)
@@ -326,9 +330,14 @@ def clone_runtime_credential(
             "agent": record.agent.model_copy(update={"updated_at": effective_updated_at}),
             "credential": record.credential.model_copy(
                 update={
+                    "secret_hash": secret_hash or record.credential.secret_hash,
+                    "secret_prefix": secret_prefix or record.credential.secret_prefix,
                     "status": status or record.credential.status,
+                    "issued_at": issued_at or record.credential.issued_at,
                     "expires_at": to_dt_str(effective_expires_at),
-                    "revoked_at": str(revoked_at) if revoked_at is not None else record.credential.revoked_at,
+                    "revoked_at": None
+                    if clear_revoked_at
+                    else (str(revoked_at) if revoked_at is not None else record.credential.revoked_at),
                     "last_used_at": effective_updated_at,
                 }
             ),
@@ -755,6 +764,69 @@ async def revoke_credential_for_owner(
         storage, audit_action, owner_wallet, {"credentialId": credential_id}
     )
     return {"status": "success", "credential": _build_credential_response(updated)}
+
+
+async def rotate_credential_for_owner(
+    storage: BaseStorage,
+    owner_wallet: str,
+    credential_id: str,
+    audit_action: str = "CREDENTIAL_REGENERATED",
+) -> Dict[str, Any]:
+    now = now_ts()
+    now_str = now_dt_str()
+    plain_token = issue_token()
+
+    async with write_lock:
+        rows = load_credential_rows(storage)
+        index = find_runtime_credential_index(rows, credential_id)
+        if index < 0:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "CREDENTIAL_NOT_FOUND",
+                    "message": "Credential not found",
+                },
+            )
+
+        found = rows[index]
+        if credential_owner_wallet(found) != owner_wallet:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "FORBIDDEN",
+                    "message": "Credential does not belong to current wallet",
+                },
+            )
+
+        updated = clone_runtime_credential(
+            found,
+            secret_hash=hash_token(plain_token),
+            secret_prefix=token_prefix(plain_token),
+            status="active",
+            issued_at=now_str,
+            updated_at=now_str,
+            revoked_at=None,
+            clear_revoked_at=True,
+        )
+        rows[index] = updated
+        save_credential_rows(storage, rows)
+
+    response_payload = _build_credential_response(updated)
+    append_audit_log(
+        storage,
+        audit_action,
+        owner_wallet,
+        {
+            "credentialId": credential_id,
+            "previousStatus": found.credential.status,
+            "status": updated.credential.status,
+            "expiresAt": response_payload["expiresAt"],
+        },
+    )
+    return {
+        "status": "success",
+        "credential": {**response_payload, "token": plain_token},
+    }
 
 
 def _update_if_present(

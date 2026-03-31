@@ -16,6 +16,7 @@ import {
   issueAgentCredential,
   listAgentCredentials,
   revokeAgentCredential,
+  rotateAgentCredential,
   updateAgentCredentialQuota,
   type AgentCredentialIssueResponse,
   type AgentCredentialRecord,
@@ -329,23 +330,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setIsRegeneratingCredential(true);
       setError(null);
 
-      const result = await issueAgentCredential(boundOwner, {
-        name: agent.name || t("agentsPage.unnamedAgent"),
-        ownerAddress: boundOwner,
-        creditLimit: agent.creditLimit ?? undefined,
-        maxCalls: agent.maxCalls || undefined,
-        rpm: agent.rpm || undefined,
-        resetInterval: agent.resetInterval,
-        expiration: agent.expiration ?? undefined,
-      });
-
-      if (agent.status === "active") {
-        await revokeAgentCredential(boundOwner, agent.id);
-      }
+      const result = await rotateAgentCredential(boundOwner, agent.id);
 
       setNewCredential(result);
       setSandboxCredential(result.token);
-      setSelectedAgentId(result.id);
+      setSelectedAgentId(agent.id);
       toast.success(t("agentsPage.workspaceCredentialRegeneratedToast"));
       await fetchCredentials();
     } catch (err) {
@@ -366,19 +355,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setIsRegeneratingCredential(true);
       setError(null);
 
-      const result = await issueAgentCredential(boundOwner, {
-        name: agent.name || t("agentsPage.unnamedAgent"),
-        ownerAddress: boundOwner,
-        creditLimit: agent.creditLimit ?? undefined,
-        maxCalls: agent.maxCalls || undefined,
-        rpm: agent.rpm || undefined,
-        resetInterval: agent.resetInterval,
-        expiration: agent.expiration ?? undefined,
-      });
+      const result = await rotateAgentCredential(boundOwner, agent.id);
 
       setNewCredential(result);
       setSandboxCredential(result.token);
-      setSelectedAgentId(result.id);
+      setSelectedAgentId(agent.id);
       toast.success(t("agentsPage.workspaceCredentialGeneratedToast"));
       await fetchCredentials();
     } catch (err) {
