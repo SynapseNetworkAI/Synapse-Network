@@ -7,7 +7,7 @@ fi
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_311.sh"
 REQUIRED_NODE_VERSION="20.19.0"

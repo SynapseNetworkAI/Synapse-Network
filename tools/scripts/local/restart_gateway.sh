@@ -7,7 +7,7 @@ fi
 set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 LOG_FILE="${ROOT_DIR}/gateway/logs/provider_api.log"
 CONFIG_FILE="${ROOT_DIR}/apps/frontend/src/contract-config.json"
@@ -98,6 +98,12 @@ if [ -n "$EXISTING_PROVIDER_PID" ]; then
   stop_pid "ProviderAPI" "$EXISTING_PROVIDER_PID"
 fi
 
+LISTENER_PID_AFTER_STOP="$(find_pid_by_port 8000)"
+if [ -n "$LISTENER_PID_AFTER_STOP" ] && [ "$LISTENER_PID_AFTER_STOP" != "$EXISTING_PROVIDER_PID" ]; then
+  echo "Stopping stale gateway listener on 8000: PID ${LISTENER_PID_AFTER_STOP}"
+  stop_pid "ProviderAPIListener" "$LISTENER_PID_AFTER_STOP"
+fi
+
 ROUTER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore || c.A2APaySyncRouter || '')")"
 PROVIDER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury || '')")"
 
@@ -140,6 +146,11 @@ if ! wait_for_gateway_health "$HEALTH_URL" "$STARTUP_TIMEOUT_SEC"; then
   fi
   tail -n 40 "$LOG_FILE" || true
   exit 1
+fi
+
+ACTIVE_PROVIDER_PID="$(find_pid_by_port 8000)"
+if [ -n "$ACTIVE_PROVIDER_PID" ]; then
+  NEW_PROVIDER_PID="$ACTIVE_PROVIDER_PID"
 fi
 
 if [ -f "$PID_FILE" ]; then
