@@ -119,6 +119,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const fetchCredentials = useCallback(async () => {
     if (!userAddress || !isSessionAuthenticated) {
       setCredentials([]);
+      setError(null);
       setIsLoading(false);
       return;
     }
@@ -133,7 +134,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       if (message === WALLET_SESSION_MISSING_MESSAGE) {
         clearAuthSession();
       }
-      setError(message);
+      setCredentials([]);
+      setError(null);
     } finally {
       setIsLoading(false);
     }
@@ -696,12 +698,20 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   : "bg-white/[0.06] text-gray-300";
 
                 return (
-                  <button
+                  <div
                     key={agent.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={isSelected}
                     onClick={() => setSelectedAgentId(agent.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedAgentId(agent.id);
+                      }
+                    }}
                     className={[
-                      "x-list-card block w-full p-4 text-left transition-all",
+                      "x-list-card block w-full cursor-pointer p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0]/60",
                       isSelected
                         ? "x-tile-active"
                         : "x-tile-flat x-tile-flat-hover",
@@ -743,7 +753,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                         ) : null}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}
