@@ -85,6 +85,10 @@ The page should be split into two layers:
 1. Activation Runway
 2. Agent Workspace
 
+For the Credits extension, state model, and next-slice wireframe, see:
+
+1. `docs/01_Product_Frontend/owner_agent_guide/agent_workspace_credits_ia_wireframe.md`
+
 Activation Runway answers:
 
 1. where the user is stuck

@@ -40,6 +40,7 @@
 当前唯一有效的 Agents 页面说明迁移到：
 
 1. `docs/01_Product_Frontend/owner_agent_guide/agents_guide.md`
+2. `docs/01_Product_Frontend/owner_agent_guide/agent_workspace_credits_ia_wireframe.md`
 
 清理原则：
 
