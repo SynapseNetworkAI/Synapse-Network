@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+import { getGatewayBaseUrl, getGatewayBaseUrlCandidates } from "@/utils/gatewayApi";
 
-function setWindowLocation(location: { hostname: string; origin: string }) {
+function setWindowLocation(location: {
+  hostname: string;
+  origin: string;
+  port: string;
+  protocol: string;
+}) {
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {
@@ -27,18 +32,42 @@ describe("getGatewayBaseUrl", () => {
     setWindowLocation({
       hostname: "localhost",
       origin: "http://localhost:3000",
+      port: "3000",
+      protocol: "http:",
     });
 
     expect(getGatewayBaseUrl()).toBe("http://localhost:8000");
+    expect(getGatewayBaseUrlCandidates()).toEqual([
+      "http://localhost:8000",
+      "http://127.0.0.1:8000",
+    ]);
   });
 
   it("falls back to same-origin for non-local browser hosts", () => {
     setWindowLocation({
       hostname: "console.synapse.network",
       origin: "https://console.synapse.network",
+      port: "",
+      protocol: "https:",
     });
 
     expect(getGatewayBaseUrl()).toBe("https://console.synapse.network");
+  });
+
+  it("uses the same host with port 8000 during custom local dev hostnames", () => {
+    setWindowLocation({
+      hostname: "alex-inspiron.local",
+      origin: "http://alex-inspiron.local:3000",
+      port: "3000",
+      protocol: "http:",
+    });
+
+    expect(getGatewayBaseUrl()).toBe("http://alex-inspiron.local:8000");
+    expect(getGatewayBaseUrlCandidates()).toEqual([
+      "http://alex-inspiron.local:8000",
+      "http://127.0.0.1:8000",
+      "http://localhost:8000",
+    ]);
   });
 
   it("uses 127.0.0.1 fallback outside the browser", () => {

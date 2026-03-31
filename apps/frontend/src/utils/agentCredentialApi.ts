@@ -1,7 +1,29 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
-import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+import { getGatewayBaseUrl, getGatewayBaseUrlCandidates } from "@/utils/gatewayApi";
 
-const API_BASE_URL = `${getGatewayBaseUrl()}/api/v1`;
+function buildGatewayNetworkErrorMessage(fallback: string): string {
+  return `${fallback}. Gateway unreachable at ${getGatewayBaseUrl()}. Start the gateway or set NEXT_PUBLIC_GATEWAY_BASE_URL in apps/frontend/.env.local.`;
+}
+
+async function fetchAgentCredentialApi(
+  path: string,
+  init: RequestInit,
+  fallback: string,
+): Promise<Response> {
+  const baseCandidates = getGatewayBaseUrlCandidates();
+  let lastError: unknown = null;
+
+  for (const baseUrl of baseCandidates) {
+    try {
+      return await fetch(`${baseUrl}/api/v1${path}`, init);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  const reason = lastError instanceof Error && lastError.message ? ` ${lastError.message}` : "";
+  throw new Error(`${buildGatewayNetworkErrorMessage(fallback)}${reason}`.trim());
+}
 
 export type AgentCredentialRecord = {
   id: string;
@@ -73,11 +95,15 @@ export async function issueAgentCredential(
     expiration?: number;
   }
 ): Promise<AgentCredentialIssueResponse> {
-  const response = await fetch(`${API_BASE_URL}/credentials/agent/issue`, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify(payload),
-  });
+  const response = await fetchAgentCredentialApi(
+    "/credentials/agent/issue",
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify(payload),
+    },
+    "Failed to issue credential",
+  );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to issue credential"));
@@ -88,10 +114,14 @@ export async function issueAgentCredential(
 }
 
 export async function listAgentCredentials(userAddress: string): Promise<AgentCredentialRecord[]> {
-  const response = await fetch(`${API_BASE_URL}/credentials/agent/list`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchAgentCredentialApi(
+    "/credentials/agent/list",
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Failed to list credentials",
+  );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to list credentials"));
@@ -102,10 +132,14 @@ export async function listAgentCredentials(userAddress: string): Promise<AgentCr
 }
 
 export async function revokeAgentCredential(userAddress: string, credentialId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/credentials/agent/${encodeURIComponent(credentialId)}/revoke`, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchAgentCredentialApi(
+    `/credentials/agent/${encodeURIComponent(credentialId)}/revoke`,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Failed to revoke credential",
+  );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to revoke credential"));
@@ -124,11 +158,15 @@ export async function updateAgentCredentialQuota(
     expiration?: number;
   }
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/credentials/agent/${encodeURIComponent(credentialId)}/quota`, {
-    method: "PATCH",
-    headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify(payload),
-  });
+  const response = await fetchAgentCredentialApi(
+    `/credentials/agent/${encodeURIComponent(credentialId)}/quota`,
+    {
+      method: "PATCH",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify(payload),
+    },
+    "Failed to update credential quota",
+  );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to update credential quota"));
@@ -136,10 +174,14 @@ export async function updateAgentCredentialQuota(
 }
 
 export async function listAuditLogs(userAddress: string, limit: number = 100): Promise<AuditLogRecord[]> {
-  const response = await fetch(`${API_BASE_URL}/credentials/agent/audit-logs?limit=${encodeURIComponent(String(limit))}`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+  const response = await fetchAgentCredentialApi(
+    `/credentials/agent/audit-logs?limit=${encodeURIComponent(String(limit))}`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Failed to list audit logs",
+  );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to list audit logs"));

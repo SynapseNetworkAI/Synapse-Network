@@ -7,7 +7,7 @@ fi
 set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 LOG_FILE="${ROOT_DIR}/gateway/logs/provider_api.log"
 CONFIG_FILE="${ROOT_DIR}/apps/frontend/src/contract-config.json"
@@ -108,22 +108,26 @@ LOCAL_POSTGRES_DSN="$(printf '%s' "$LOCAL_POSTGRES_DSN" | sed 's/@postgres:/@127
 cd "${ROOT_DIR}/gateway"
 
 if [ -f "${ROOT_DIR}/gateway/.env.local" ]; then
-  ENVIRONMENT=local \
-  ENV_FILE=.env.local \
-  POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
-  RPC_URL="http://127.0.0.1:8545" \
-  ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-  PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
-  EXPECTED_PRICE="1000000000000000000" \
-  "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 &
+  nohup env \
+    ENVIRONMENT=local \
+    ENV_FILE=.env.local \
+    GATEWAY_RELOAD=false \
+    POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
+    RPC_URL="http://127.0.0.1:8545" \
+    ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+    PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
+    EXPECTED_PRICE="1000000000000000000" \
+    "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 < /dev/null &
 else
-  ENVIRONMENT=local \
-  POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
-  RPC_URL="http://127.0.0.1:8545" \
-  ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-  PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
-  EXPECTED_PRICE="1000000000000000000" \
-  "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 &
+  nohup env \
+    ENVIRONMENT=local \
+    GATEWAY_RELOAD=false \
+    POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
+    RPC_URL="http://127.0.0.1:8545" \
+    ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+    PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
+    EXPECTED_PRICE="1000000000000000000" \
+    "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 < /dev/null &
 fi
 
 NEW_PROVIDER_PID=$!

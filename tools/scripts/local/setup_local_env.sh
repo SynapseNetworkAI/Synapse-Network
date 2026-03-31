@@ -7,7 +7,7 @@ fi
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_311.sh"
 REQUIRED_NODE_VERSION="20.19.0"
@@ -170,6 +170,7 @@ LOCAL_POSTGRES_DSN="${LOCAL_POSTGRES_DSN/@postgres:/@127.0.0.1:}"
 if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	ENVIRONMENT=local \
 	ENV_FILE=.env.local \
+	GATEWAY_RELOAD=false \
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
@@ -178,6 +179,7 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/gateway/logs/provider_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
+	GATEWAY_RELOAD=false \
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
