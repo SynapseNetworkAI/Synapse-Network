@@ -312,6 +312,7 @@ export type I18nMessages = {
     workspaceYourAgentsTitle: string;
     workspaceYourAgentsDescription: string;
     workspaceManageAgents: string;
+    workspaceDoneManaging: string;
     workspaceManaging: string;
     workspaceSimpleTitle: string;
     workspaceSimpleDescription: string;
@@ -349,6 +350,15 @@ export type I18nMessages = {
     workspaceCredentialGeneratedFailed: string;
     workspaceCredentialRegeneratedToast: string;
     workspaceCredentialRegeneratedFailed: string;
+    workspaceDeleteAgentLabel: string;
+    workspaceDeleteAgentTitle: string;
+    workspaceDeleteAgentDescription: string;
+    workspaceDeleteAgentConfirmInstruction: string;
+    workspaceDeleteAgentPlaceholder: string;
+    workspaceDeleteAgentConfirm: string;
+    workspaceDeleteAgentTypingMismatch: string;
+    workspaceDeleteAgentDeletedToast: string;
+    workspaceDeleteAgentDeletedFailed: string;
     workspaceBudgetTile: string;
     workspaceUsageTile: string;
     workspaceRateLimitTile: string;

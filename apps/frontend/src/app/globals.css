@@ -10,6 +10,17 @@
   --x-line-soft: rgba(255, 255, 255, 0.05);
   --x-line-strong: rgba(255, 255, 255, 0.08);
   --x-accent: #1d9bf0;
+  --x-type-page: clamp(1.875rem, 1.79rem + 0.34vw, 2.125rem);
+  --x-type-detail: clamp(1.75rem, 1.67rem + 0.28vw, 2rem);
+  --x-type-pane: clamp(1.375rem, 1.33rem + 0.16vw, 1.5rem);
+  --x-type-modal: clamp(1.5rem, 1.43rem + 0.22vw, 1.75rem);
+  --x-type-card: clamp(1.0625rem, 1.05rem + 0.04vw, 1.125rem);
+  --x-type-body: clamp(0.9375rem, 0.93rem + 0.03vw, 0.96875rem);
+  --x-type-action: clamp(0.9375rem, 0.93rem + 0.03vw, 0.96875rem);
+  --x-type-meta: clamp(0.8125rem, 0.807rem + 0.02vw, 0.84375rem);
+  --x-type-overline: clamp(0.6875rem, 0.68rem + 0.02vw, 0.75rem);
+  --x-type-data: clamp(0.8125rem, 0.807rem + 0.02vw, 0.875rem);
+  --x-type-metric: clamp(1.625rem, 1.55rem + 0.24vw, 1.8125rem);
 }
 
 html {
@@ -31,42 +42,78 @@ body {
   }
 
   .x-page-title {
-    font-size: 2.0625rem;
+    font-size: var(--x-type-page);
     line-height: 1.05;
     font-weight: 800;
     letter-spacing: -0.03em;
   }
 
   .x-page-subtitle {
-    font-size: 0.9375rem;
-    line-height: 1.35;
+    font-size: var(--x-type-body);
+    line-height: 1.45;
     color: #71767b;
   }
 
   .x-section-title {
-    font-size: 2rem;
+    font-size: var(--x-type-pane);
     line-height: 1.08;
     font-weight: 800;
     letter-spacing: -0.03em;
   }
 
+  .x-detail-title {
+    font-size: var(--x-type-detail);
+    line-height: 1.05;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
   .x-card-title {
-    font-size: 1.0625rem;
+    font-size: var(--x-type-card);
     line-height: 1.2;
     font-weight: 700;
     letter-spacing: -0.01em;
   }
 
   .x-body-copy {
-    font-size: 0.9375rem;
-    line-height: 1.35;
+    font-size: var(--x-type-body);
+    line-height: 1.45;
     color: #71767b;
   }
 
   .x-meta-label {
-    font-size: 0.8125rem;
-    line-height: 1.25;
+    font-size: var(--x-type-meta);
+    line-height: 1.3;
     color: #71767b;
+  }
+
+  .x-action-label {
+    font-size: var(--x-type-action);
+    line-height: 1.2;
+  }
+
+  .x-overline-label {
+    font-size: var(--x-type-overline);
+    line-height: 1.2;
+  }
+
+  .x-data-label {
+    font-size: var(--x-type-data);
+    line-height: 1.25;
+  }
+
+  .x-metric-value {
+    font-size: var(--x-type-metric);
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .x-modal-title {
+    font-size: var(--x-type-modal);
+    line-height: 1.08;
+    font-weight: 700;
+    letter-spacing: -0.03em;
   }
 
   .x-divider {
@@ -154,8 +201,35 @@ body {
     color: #ffffff;
   }
 
+  .x-manage-delete {
+    display: inline-flex;
+    height: 2rem;
+    width: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #f87171;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.28);
+    transition:
+      background-color 160ms ease,
+      box-shadow 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .x-manage-delete:hover {
+    background: rgba(248, 113, 113, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.48);
+    color: #fca5a5;
+  }
+
+  .x-manage-delete:active {
+    transform: scale(0.96);
+  }
+
   .x-status-inline {
-    font-size: 0.8125rem;
+    font-size: var(--x-type-meta);
     line-height: 1.2;
     font-weight: 700;
   }
@@ -289,7 +363,7 @@ body {
     justify-content: center;
     border-radius: 9999px;
     padding: 0 20px;
-    font-size: 0.9375rem;
+    font-size: var(--x-type-action);
     line-height: 1;
     font-weight: 600;
     white-space: nowrap;
@@ -310,7 +384,7 @@ body {
     justify-content: center;
     border-radius: 9999px;
     padding: 0;
-    font-size: 0.875rem;
+    font-size: var(--x-type-action);
     line-height: 1;
     font-weight: 600;
     white-space: nowrap;

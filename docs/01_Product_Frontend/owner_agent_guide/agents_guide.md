@@ -197,6 +197,8 @@ Example:
   - `Generate` and `Regenerate` both operate on the same runtime record instead of creating a second agent row
   - success modal: reveal full credential exactly once and require immediate secure copy
   - tooltip: explain one-time credential copy and secure storage
+  - manage mode: clicking `Manage agents` exposes per-card delete affordances
+  - delete flow: user must type the exact agent name before destructive delete is enabled
 4. Run First Paid Invocation
   - summary: `No successful invocation yet`
   - CTA: `Run Example`
@@ -297,6 +299,7 @@ Quick actions:
 4. `Generate Credential`
 5. `Regenerate Credential`
 6. `Revoke`
+7. `Delete Agent` via manage mode with exact-name confirmation
 
 ### 5.5 Recent Invocation Preview
 

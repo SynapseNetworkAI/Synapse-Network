@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { AlertCircle, Bot, Check, Copy, PencilLine, Plus, ShieldCheck } from "lucide-react";
+import { AlertCircle, Bot, Check, Copy, MinusCircle, PencilLine, Plus, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -13,6 +13,7 @@ import FirstInvocationPanel, { type FirstInvocationResult } from "@/components/d
 import { formatAgentBudget, getAgentUsagePercent } from "@/components/dashboard/agents/agentWorkspacePresenters";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import {
+  deleteAgentCredential,
   issueAgentCredential,
   listAgentCredentials,
   revokeAgentCredential,
@@ -96,7 +97,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const [quotaExpiresAtLocal, setQuotaExpiresAtLocal] = useState("");
   const [isRegeneratingCredential, setIsRegeneratingCredential] = useState(false);
   const [isRevokingCredential, setIsRevokingCredential] = useState(false);
+  const [isDeletingAgent, setIsDeletingAgent] = useState(false);
+  const [isManageMode, setIsManageMode] = useState(false);
   const [pendingDangerAction, setPendingDangerAction] = useState<PendingDangerAction | null>(null);
+  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<AgentCredentialRecord | null>(null);
+  const [deleteConfirmationName, setDeleteConfirmationName] = useState("");
 
   const [agentName, setAgentName] = useState("");
   const [dailyBudget, setDailyBudget] = useState("10.00");
@@ -249,6 +254,29 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setIsRevokingCredential(false);
     }
   };
+
+  const handleDeleteAgent = useCallback(async (agent: AgentCredentialRecord) => {
+    if (!userAddress) {
+      return;
+    }
+
+    try {
+      setIsDeletingAgent(true);
+      await deleteAgentCredential(userAddress, agent.id);
+      if (selectedAgentId === agent.id) {
+        setSelectedAgentId(null);
+      }
+      setPendingDeleteAgent(null);
+      setDeleteConfirmationName("");
+      toast.success(t("agentsPage.workspaceDeleteAgentDeletedToast"));
+      await fetchCredentials();
+    } catch (err) {
+      console.error("Failed to delete agent:", err);
+      toast.error(err instanceof Error ? err.message : t("agentsPage.workspaceDeleteAgentDeletedFailed"));
+    } finally {
+      setIsDeletingAgent(false);
+    }
+  }, [fetchCredentials, selectedAgentId, t, userAddress]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -587,7 +615,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 onClick={() => {
                   void handleOpenCreateModal();
                 }}
-                className="x-button-primary inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[15px] font-semibold"
+                className="x-button-primary x-action-label inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-semibold"
               >
                 <Plus className="h-4 w-4" />
                 {t("agentsPage.workspaceCreateAgentCompact")}
@@ -596,12 +624,17 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <button
                   type="button"
                   onClick={() => {
-                    void handleRefresh();
+                    setIsManageMode((current) => !current);
                   }}
-                  disabled={isRefreshing}
-                  className="x-button-ghost rounded-full px-4 py-2.5 text-[15px] font-medium disabled:opacity-50"
+                  className={[
+                    "x-action-label inline-flex items-center gap-2 rounded-full px-4 py-2.5 font-medium transition",
+                    isManageMode
+                      ? "text-white shadow-[inset_0_0_0_1px_rgba(96,165,250,0.85),0_0_0_1px_rgba(37,99,235,0.16)] bg-[rgba(29,155,240,0.08)]"
+                      : "x-button-ghost disabled:opacity-50",
+                  ].join(" ")}
                 >
-                  {isRefreshing ? t("agentsPage.workspaceManaging") : t("agentsPage.workspaceManageAgents")}
+                  {isManageMode ? <Check className="h-4 w-4" /> : null}
+                  {isManageMode ? t("agentsPage.workspaceDoneManaging") : t("agentsPage.workspaceManageAgents")}
                 </button>
               </div>
             </div>
@@ -655,11 +688,29 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                             <span className={`x-status-inline ${statusClasses}`}>
                               {agent.status === "active" ? t("agentsPage.workspaceFilterActive") : t("agentsPage.workspaceToneRevoked")}
                             </span>
-                            <span className="font-mono text-[13px] text-gray-500">{agent.tokenPrefix || agent.id.slice(0, 12)}</span>
+                            <span className="x-data-label font-mono text-gray-500">{agent.tokenPrefix || agent.id.slice(0, 12)}</span>
                           </div>
                         </div>
                       </div>
-                      <span className="text-[13px] font-medium text-[#6e88b4]">{usagePercent}%</span>
+                      <div className="flex flex-col items-end gap-4">
+                        <span className="x-data-label font-medium text-[#6e88b4]">{usagePercent}%</span>
+                        {isManageMode ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setPendingDeleteAgent(agent);
+                              setDeleteConfirmationName("");
+                            }}
+                            className="x-manage-delete"
+                            aria-label={t("agentsPage.workspaceDeleteAgentLabel")}
+                            title={t("agentsPage.workspaceDeleteAgentLabel")}
+                          >
+                            <MinusCircle className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   </button>
                 );
@@ -682,7 +733,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               <header className="x-divider flex items-start justify-between gap-4 border-b px-6 py-6">
                 <div>
                   <div className="flex items-center gap-3">
-                    <h2 className="x-section-title text-white">{selectedAgent.name || t("agentsPage.unnamedAgent")}</h2>
+                    <h2 className="x-detail-title text-white">{selectedAgent.name || t("agentsPage.unnamedAgent")}</h2>
                     <button
                       type="button"
                       onClick={() => copyToClipboard(selectedAgent.id, `agent-id-${selectedAgent.id}`)}
@@ -706,7 +757,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
               <section className="space-y-5 px-6 py-6">
                 <section>
-                  <h3 className="text-[2rem] font-extrabold tracking-[-0.03em] text-white">{t("agentsPage.workspaceCredentialPanelTitle")}</h3>
+                  <h3 className="x-section-title text-white">{t("agentsPage.workspaceCredentialPanelTitle")}</h3>
                   <p className="x-body-copy mt-2">{t("agentsPage.workspaceCredentialPanelDescription")}</p>
                 </section>
 
@@ -715,7 +766,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="x-meta-label">{t("agentsPage.workspaceCredentialPrefixLabel")}</p>
-                        <p className="mt-2 font-mono text-[2rem] font-semibold tracking-[-0.03em] text-white">{selectedAgent.tokenPrefix || selectedAgent.id.slice(0, 18)}</p>
+                        <p className="x-metric-value mt-2 font-mono text-white">{selectedAgent.tokenPrefix || selectedAgent.id.slice(0, 18)}</p>
                       </div>
                       {selectedAgent.status === "active" ? (
                         <div className="flex items-center gap-2.5">
@@ -759,7 +810,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                         type="button"
                         onClick={() => openEditModal(selectedAgent)}
                         disabled={selectedAgent.status !== "active"}
-                        className="x-button-ghost inline-flex items-center gap-2 rounded-full px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                        className="x-button-ghost x-action-label inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <PencilLine className="h-4 w-4" />
                         {t("agentsPage.workspaceEdit")}
@@ -768,25 +819,25 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
                     <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="x-tile-flat rounded-[18px] p-4">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceBudgetTile")}</p>
-                        <p className="mt-3 text-[2rem] font-extrabold tracking-[-0.03em] text-emerald-400">{formatAgentBudget(selectedAgent.creditLimit)}</p>
+                        <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceBudgetTile")}</p>
+                        <p className="x-metric-value mt-3 text-emerald-400">{formatAgentBudget(selectedAgent.creditLimit)}</p>
                       </div>
                       <div className="x-tile-flat rounded-[18px] p-4">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceUsageTile")}</p>
-                        <p className="mt-3 text-[2rem] font-extrabold tracking-[-0.03em] text-white">{selectedAgent.callsUsed} / {selectedAgent.maxCalls || "∞"}</p>
+                        <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceUsageTile")}</p>
+                        <p className="x-metric-value mt-3 text-white">{selectedAgent.callsUsed} / {selectedAgent.maxCalls || "∞"}</p>
                       </div>
                       <div className="x-tile-flat rounded-[18px] p-4">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceRateLimitTile")}</p>
-                        <p className="mt-3 text-[2rem] font-extrabold tracking-[-0.03em] text-white">{selectedAgent.rpm > 0 ? `${selectedAgent.rpm}/min` : t("agentsPage.workspaceUnlimited")}</p>
+                        <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceRateLimitTile")}</p>
+                        <p className="x-metric-value mt-3 text-white">{selectedAgent.rpm > 0 ? `${selectedAgent.rpm}/min` : t("agentsPage.workspaceUnlimited")}</p>
                       </div>
                       <div className="x-tile-flat rounded-[18px] p-4">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceRemainingCallsTile")}</p>
-                        <p className="mt-3 text-[2rem] font-extrabold tracking-[-0.03em] text-white">{selectedAgentRemainingCalls}</p>
+                        <p className="x-overline-label uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.workspaceRemainingCallsTile")}</p>
+                        <p className="x-metric-value mt-3 text-white">{selectedAgentRemainingCalls}</p>
                       </div>
                     </div>
 
                     <div className="mt-5">
-                      <div className="flex items-center justify-between text-[13px] text-gray-400">
+                      <div className="x-data-label flex items-center justify-between text-gray-400">
                         <span>{t("agentsPage.workspaceUsageBarLabel")}</span>
                         <span>{selectedAgentUsagePercent}%</span>
                       </div>
@@ -823,7 +874,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         >
           <section className="x-modal-flat x-modal-surface max-w-[560px]">
             <header className="x-modal-header x-divider">
-              <h2 className="flex items-center gap-2 text-[1.95rem] font-semibold tracking-tight text-white">
+              <h2 className="x-modal-title flex items-center gap-2 text-white">
                 <span id="create-agent-title" className="sr-only">{t("agentsPage.createAgentProfile")}</span>
                 <Plus className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.createAgentProfile")}
@@ -834,7 +885,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
             </header>
             <form onSubmit={handleCreateCredential} className="x-modal-body space-y-6">
               <label htmlFor="agent-name" className="block space-y-2.5 text-left">
-                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.agentNameLabel")}</span>
+                <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.agentNameLabel")}</span>
                 <input
                   id="agent-name"
                   type="text"
@@ -846,7 +897,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <label htmlFor="bound-owner" className="block space-y-2.5 text-left">
-                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.boundOwnerLabel")}</span>
+                <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.boundOwnerLabel")}</span>
                 <input
                   id="bound-owner"
                   type="text"
@@ -857,7 +908,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </label>
               <section className="grid grid-cols-2 gap-4">
                 <label htmlFor="daily-budget" className="block space-y-2.5 text-left">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
+                  <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
                   <input
                     id="daily-budget"
                     type="number"
@@ -869,7 +920,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                   />
                 </label>
                 <label htmlFor="max-calls" className="block space-y-2.5 text-left">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
+                  <span className="x-overline-label font-bold uppercase tracking-[0.18em] text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
                   <input
                     id="max-calls"
                     type="number"
@@ -882,7 +933,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </section>
               <aside className="x-panel-muted flex items-start gap-3 rounded-[24px] p-4 shadow-[inset_0_0_0_1px_rgba(29,155,240,0.14)]">
                 <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-400" />
-                <p className="text-[11px] leading-relaxed text-gray-400">
+                <p className="x-overline-label leading-relaxed text-gray-400">
                   {t("agentsPage.createAgentHint")}
                 </p>
               </aside>
@@ -916,14 +967,14 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
           <section className="x-modal-flat x-modal-surface max-w-[560px]">
             <header className="x-modal-header x-divider">
               <div className="x-modal-header-copy">
-                <h2 id="danger-agent-title" className="text-[1.9rem] font-semibold tracking-tight text-white">
+                <h2 id="danger-agent-title" className="x-modal-title text-white">
                   {pendingDangerAction.type === "generate"
                     ? t("agentsPage.workspaceDangerGenerateTitle")
                     : pendingDangerAction.type === "regenerate"
                     ? t("agentsPage.workspaceDangerRegenerateTitle")
                     : t("agentsPage.workspaceDangerRevokeTitle")}
                 </h2>
-                <p className="mt-3 text-base text-gray-400">
+                <p className="x-body-copy mt-3 text-gray-400">
                   {pendingDangerAction.type === "generate"
                     ? t("agentsPage.workspaceDangerGenerateQuestion")
                     : pendingDangerAction.type === "regenerate"
@@ -942,11 +993,11 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
             <section className="x-modal-body space-y-6">
               <article className="x-panel-muted rounded-[24px] p-5">
-                <h3 className="text-lg font-semibold text-white">{pendingDangerAction.agent.name || t("agentsPage.unnamedAgent")}</h3>
-                <p className="mt-2 font-mono text-sm text-gray-400">{pendingDangerAction.agent.tokenPrefix || pendingDangerAction.agent.id}</p>
+                <h3 className="x-card-title text-white">{pendingDangerAction.agent.name || t("agentsPage.unnamedAgent")}</h3>
+                <p className="x-data-label mt-2 font-mono text-gray-400">{pendingDangerAction.agent.tokenPrefix || pendingDangerAction.agent.id}</p>
               </article>
 
-              <p className="max-w-xl text-base leading-8 text-gray-400">
+              <p className="x-body-copy max-w-xl leading-8 text-gray-400">
                 {pendingDangerAction.type === "generate"
                   ? t("agentsPage.workspaceDangerGenerateDescription")
                   : pendingDangerAction.type === "regenerate"
@@ -998,13 +1049,85 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         </dialog>
       )}
 
+      {pendingDeleteAgent && (
+        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="delete-agent-title">
+          <section className="x-modal-flat x-modal-surface max-w-[560px]">
+            <header className="x-modal-header x-divider">
+              <div className="x-modal-header-copy">
+                <h2 id="delete-agent-title" className="x-modal-title text-white">
+                  {t("agentsPage.workspaceDeleteAgentTitle")}
+                </h2>
+                <p className="x-body-copy mt-3 text-gray-400">
+                  {t("agentsPage.workspaceDeleteAgentDescription", {
+                    name: pendingDeleteAgent.name || t("agentsPage.unnamedAgent"),
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingDeleteAgent(null);
+                  setDeleteConfirmationName("");
+                }}
+                className="x-modal-close"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </header>
+
+            <section className="x-modal-body space-y-6">
+              <div className="space-y-3">
+                <p className="x-body-copy text-gray-400">
+                  {t("agentsPage.workspaceDeleteAgentConfirmInstruction", {
+                    name: pendingDeleteAgent.name || t("agentsPage.unnamedAgent"),
+                  })}
+                </p>
+                <input
+                  type="text"
+                  value={deleteConfirmationName}
+                  onChange={(event) => setDeleteConfirmationName(event.target.value)}
+                  placeholder={t("agentsPage.workspaceDeleteAgentPlaceholder", {
+                    name: pendingDeleteAgent.name || t("agentsPage.unnamedAgent"),
+                  })}
+                  className="x-input-flat w-full rounded-2xl px-4 py-3.5 text-base text-white placeholder:text-gray-500"
+                />
+                <p className="x-meta-label text-gray-500">
+                  {t("agentsPage.workspaceDeleteAgentTypingMismatch")}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingDeleteAgent(null);
+                    setDeleteConfirmationName("");
+                  }}
+                  className="x-button-ghost x-modal-action x-modal-action-secondary"
+                >
+                  {t("agentsPage.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteAgent(pendingDeleteAgent)}
+                  disabled={isDeletingAgent || deleteConfirmationName !== (pendingDeleteAgent.name || t("agentsPage.unnamedAgent"))}
+                  className="x-button-danger x-modal-action x-modal-action-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isDeletingAgent ? t("agentsPage.workspaceManaging") : t("agentsPage.workspaceDeleteAgentConfirm")}
+                </button>
+              </div>
+            </section>
+          </section>
+        </dialog>
+      )}
+
       {issuedCredential && (
         <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="issued-agent-title">
           <section className="x-modal-flat x-modal-surface max-w-lg border border-emerald-500/15 shadow-[0_0_70px_rgba(16,185,129,0.08)]">
             <header className="x-modal-header border-b border-emerald-500/10">
               <div className="x-modal-header-copy">
-                <h2 id="issued-agent-title" className="text-2xl font-bold text-white">{t("agentsPage.credentialIssuedTitle")}</h2>
-                <p className="mt-2 text-sm text-gray-500">{t("agentsPage.credentialIssuedDescription")}</p>
+                <h2 id="issued-agent-title" className="x-modal-title text-white">{t("agentsPage.credentialIssuedTitle")}</h2>
+                <p className="x-body-copy mt-2 text-gray-500">{t("agentsPage.credentialIssuedDescription")}</p>
               </div>
               <button type="button" onClick={() => setNewCredential(null)} className="x-modal-close">
                 <XCircle className="h-5 w-5" />
@@ -1030,17 +1153,17 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
               <dl className="grid grid-cols-2 gap-4 text-left">
                 <div className="x-panel-muted rounded-[22px] p-4">
-                  <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.agentNameLabel")}</dt>
+                  <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.agentNameLabel")}</dt>
                   <dd className="text-sm font-bold text-white">{issuedCredential.name}</dd>
                 </div>
                 <div className="x-panel-muted rounded-[22px] p-4">
-                  <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</dt>
+                  <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</dt>
                   <dd className="text-sm font-bold text-emerald-400">${(issuedCredential.creditLimit ?? 0).toFixed(2)}</dd>
                 </div>
               </dl>
 
               <dl className="x-panel-muted rounded-[22px] p-4 text-left">
-                <dt className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.boundOwnerValueLabel")}</dt>
+                <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.boundOwnerValueLabel")}</dt>
                 <dd className="break-all font-mono text-sm text-blue-300">{issuedCredential.ownerAddress}</dd>
               </dl>
 
@@ -1060,7 +1183,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="edit-agent-title">
           <section className="x-modal-flat x-modal-surface max-w-md">
             <header className="x-modal-header x-divider">
-              <h2 id="edit-agent-title" className="flex items-center gap-2 text-lg font-bold text-white">
+              <h2 id="edit-agent-title" className="x-modal-title flex items-center gap-2 text-white">
                 <PencilLine className="h-5 w-5 text-blue-400" />
                 {t("agentsPage.editAgentLimitsTitle")}
               </h2>
@@ -1069,9 +1192,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </button>
             </header>
             <section className="x-modal-body space-y-5">
-              <p className="text-sm leading-6 text-gray-400">{t("agentsPage.editAgentLimitsDescription")}</p>
+              <p className="x-body-copy leading-6 text-gray-400">{t("agentsPage.editAgentLimitsDescription")}</p>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
+                <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.maxCallsLabel")}</span>
                 <input
                   type="number"
                   value={quotaMaxCalls}
@@ -1080,7 +1203,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.rateLimitLabel")}</span>
+                <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.rateLimitLabel")}</span>
                 <input
                   type="number"
                   value={quotaRpm}
@@ -1089,7 +1212,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
+                <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.dailyBudgetLabel")}</span>
                 <input
                   type="number"
                   step="0.01"
@@ -1100,7 +1223,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 />
               </label>
               <label className="block space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.expirationLabel")}</span>
+                <span className="x-overline-label font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.expirationLabel")}</span>
                 <input
                   type="datetime-local"
                   value={quotaExpiresAtLocal}

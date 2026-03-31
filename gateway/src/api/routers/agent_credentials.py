@@ -67,6 +67,19 @@ async def rotate_agent_credential(
     )
 
 
+@router.delete("/v1/credentials/agent/{credential_id}")
+async def delete_agent_credential(
+    credential_id: str,
+    storage: StorageDep,
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    owner = credential_service.require_owner_wallet(authorization, x_user_address)
+    return await credential_service.delete_credential_for_owner(
+        storage, owner, credential_id
+    )
+
+
 @router.patch("/v1/credentials/agent/{credential_id}/quota")
 async def update_agent_credential_quota(
     credential_id: str,

@@ -38,6 +38,53 @@ Synapse 的前端设计不是营销装饰层，而是基础设施可信度的可
 - 荧光绿只用于状态与资金流信号
 - 不作为大面积背景色使用
 
+4. Typography Scale
+- 页面不能继续混用大量 `text-[11px]`、`text-[13px]`、`text-[15px]`、`text-[2rem]` 这类局部硬编码字号
+- 统一通过共享 typography token 输出层级，当前基线包括：`x-page-title`、`x-section-title`、`x-card-title`、`x-body-copy`、`x-meta-label`、`x-action-label`、`x-overline-label`、`x-data-label`、`x-metric-value`、`x-modal-title`
+- 页面标题、分区标题、正文、按钮文案、标签、数据值必须落到固定语义层级，不能按单个组件临时拍脑袋定字号
+- 需要例外字号时，先补 token，再落实现，不允许直接继续扩散任意 `text-[Npx]`
+
+### X Desktop Reference
+
+Agents workspace 的 typography 基线以 X 桌面 Apps / API keys 页面为参考，不是照搬它的私有字体文件，而是提取它的字号层级关系。
+
+1440px 桌面 viewport 下的目标参考值：
+
+1. 页面主标题：34px，约占 viewport 宽度的 2.36%
+2. 详情实体标题：32px，约占 viewport 宽度的 2.22%
+3. 面板标题：24px，约占 viewport 宽度的 1.67%
+4. Modal 标题：26px，约占 viewport 宽度的 1.81%
+5. 卡片标题：18px，约占 viewport 宽度的 1.25%
+6. 正文与按钮文案：15px，约占 viewport 宽度的 1.04%
+7. Meta / 数据标签：13px，约占 viewport 宽度的 0.90%
+8. Overline / 全大写辅助标签：11px 到 12px，约占 viewport 宽度的 0.76% 到 0.83%
+9. KPI / Token Prefix / 关键数值：26px 到 29px，约占 viewport 宽度的 1.81% 到 2.01%
+
+5. Responsive Type Strategy
+- 字号缩放一律使用 `rem + clamp()`，而不是纯 `vw` 或按设备分辨率写死像素
+- `clamp(min, fluid, max)` 只允许温和参与 viewport 宽度，确保大屏不失控、小屏不挤爆
+- 字号比例依赖语义层级和容器宽度，不依赖物理屏幕分辨率；真正影响排版的是 CSS viewport，不是显示器标称 2K / 4K
+- 版心宽度必须有上限，例如 workspace 主容器的 `max-width`，否则文字会在超宽屏上显得过小
+- 数据大数字和标题可以参与更明显的 fluid scaling，正文和标签只允许极弱缩放，保证可读性稳定
+
+6. Current Baseline
+- Page title: `x-page-title`，用于页面主标题
+- Detail title: `x-detail-title`，用于详情页实体标题
+- Section title: `x-section-title`，用于模块标题和详情页内部区块标题
+- Modal title: `x-modal-title`，用于 create / danger / success / edit dialog 的标题
+- Body copy: `x-body-copy`，用于说明文案
+- Action label: `x-action-label`，用于主要按钮、次级按钮、工具动作
+- Overline/meta: `x-overline-label` 与 `x-meta-label`，用于全大写标签、辅助标注
+- Metric value: `x-metric-value`，用于预算、额度、token prefix 等高权重数字信息
+
+7. Constraint Rules
+- `x-page-title` 只能用于页面一级标题，不允许拿去做卡片标题
+- `x-detail-title` 只用于右侧详情头部实体名这类高权重标题
+- `x-section-title` 只用于面板和内容分区标题，不允许冒充页面标题
+- `x-body-copy` 与 `x-action-label` 默认锁定在 15px 基线附近，只允许非常轻微的 fluid scaling
+- `x-meta-label` / `x-overline-label` 必须保持比正文至少低一个层级，不允许和正文同号
+- `x-metric-value` 只能用于高权重数值或 token prefix，不允许泛滥到普通文案
+
 ## 交互美学原则（Interaction Aesthetics）
 
 1. 动效是功能，不是装饰
@@ -69,6 +116,7 @@ Synapse 的前端设计不是营销装饰层，而是基础设施可信度的可
 
 5. Accessibility Matters
 - 字重、对比、可点击区域必须保证可用性
+- 字号系统要保证在 390px 级移动端、1440px 常规桌面、1920px 宽屏下都维持相同层级关系，而不是每个断点重新发明一套比例
 
 ## Modal / Dialog System
 
