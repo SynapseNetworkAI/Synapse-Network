@@ -7,13 +7,14 @@
 
 ## 1. 背景与目标
 
-新增一个 Provider 服务能力：输入帖子链接（tweet/x post URL），由 Provider 侧拉取并下载可用视频资源，返回可访问的文件信息与元数据。
+新增一个 Provider 服务能力：输入帖子链接（tweet/x post URL），由 Provider 侧通过官方 `X API` 解析媒体，再下载可用视频资源，返回可访问的文件信息与元数据。
 
 目标：
 
 1. Agent 通过标准 `invoke` 直接请求下载。
 2. 下载文件先落本地存储（V1）。
 3. 存储层抽象为可切换适配器，后续可平滑切换到开源对象存储（MinIO/Ceph）或云厂商付费平台（GCS/S3）。
+4. Twitter / X 不再依赖匿名网页抓取；运行时需要有效的 `X API` app-only 凭证。
 
 ## 2. 服务边界
 
@@ -61,8 +62,8 @@
 
 当前运行时保护：
 
-1. 下载前会先做 metadata preflight，尽量在真正拉流前拦住超长/超大资源
-2. 下载执行已经从线程模式切到独立 `yt_dlp` subprocess，timeout / disconnect 会终止底层子进程
+1. 下载前会先通过 `X API` 读取 tweet/media metadata，尽量在真正拉流前拦住非视频或超长资源
+2. 视频字节流改成 provider 自己直连官方 media variant URL，按响应头和流式累计字节一起做大小闸门
 3. provider 侧仍保留总超时和并发闸门，避免瞬时下载把机器打爆
 
 ## 3.3 Response Schema (draft)
@@ -75,7 +76,7 @@
     "version": "1.0.0"
   },
   "sources": [
-    { "name": "x_public_web", "freshnessSec": 0 }
+    { "name": "x_api_v2", "freshnessSec": 0 }
   ],
   "freshness": {
     "generatedAt": "2026-03-29T12:00:00Z",
@@ -111,7 +112,7 @@
 API Endpoint
   -> Download Service (orchestrator)
     -> URL Parser / Validator
-    -> Source Resolver (tweet -> media url)
+    -> X API Resolver (tweet -> media variant url)
     -> Downloader (streaming HTTP)
     -> Storage Adapter (local/minio/gcs...)
     -> Metadata Repository (postgres)
@@ -188,6 +189,10 @@ VIDEO_STORAGE_GCS_CREDENTIALS_JSON=
 5. `VIDEO_DOWNLOAD_FAILED`
 6. `STORAGE_WRITE_FAILED`
 7. `TWITTER_VIDEO_SNAPSHOT_FALLBACK_USED`（如果后续引入回放）
+8. `TWITTER_X_API_CREDENTIALS_MISSING`
+9. `TWITTER_X_API_AUTH_FAILED`
+10. `TWITTER_X_API_RATE_LIMITED`
+11. `TWITTER_X_API_LOOKUP_FAILED`
 
 ## 8. 安全与合规
 
@@ -227,6 +232,6 @@ VIDEO_STORAGE_GCS_CREDENTIALS_JSON=
 ## 11. V1 实现落地说明
 
 1. 已落地 endpoint：`POST /provider-services/twitter-video-download/invoke`。
-2. 下载器实现基于 `yt-dlp`，存储适配器当前落地 `MinIO`。
+2. 下载器实现基于 `X API app-only auth + direct media variant download`，存储适配器当前落地 `MinIO`。
 3. 结果写入 `provider_twitter_video_assets`，调用审计写入 `provider_api_invocations`。
 4. live 下载失败时，若存在未过期快照则回放并返回 fallback 错误标记。

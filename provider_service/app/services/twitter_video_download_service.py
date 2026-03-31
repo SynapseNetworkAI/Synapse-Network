@@ -80,13 +80,13 @@ async def execute_twitter_video_download(
     try:
         try:
             downloaded = await run_guarded_download(
-            service_key=SERVICE_ID,
-            policy=policy,
-            timeout_error_code="TWITTER_VIDEO_DOWNLOAD_TIMEOUT",
-            disconnect_error_code="TWITTER_VIDEO_DOWNLOAD_CANCELLED",
-            disconnect_checker=disconnect_checker,
-            operation=lambda: download_twitter_video(payload, target_dir=policy.resolved_tmp_dir()),
-        )
+                service_key=SERVICE_ID,
+                policy=policy,
+                timeout_error_code="TWITTER_VIDEO_DOWNLOAD_TIMEOUT",
+                disconnect_error_code="TWITTER_VIDEO_DOWNLOAD_CANCELLED",
+                disconnect_checker=disconnect_checker,
+                operation=lambda: download_twitter_video(payload, target_dir=policy.resolved_tmp_dir()),
+            )
             key = _storage_key(policy, downloaded.tweet_id, downloaded.file_path.name)
             stored = storage.put_file(
                 source_path=downloaded.file_path,
@@ -107,7 +107,7 @@ async def execute_twitter_video_download(
                     serviceName=SERVICE_NAME,
                     version=SERVICE_VERSION,
                 ),
-                sources=[SourceRecord(name="x_public_web", freshnessSec=0)],
+                sources=[SourceRecord(name="x_api_v2", freshnessSec=0)],
                 freshness=FreshnessRecord(
                     generatedAt=_to_zulu(_now_utc()),
                     maxSourceAgeSec=0,
