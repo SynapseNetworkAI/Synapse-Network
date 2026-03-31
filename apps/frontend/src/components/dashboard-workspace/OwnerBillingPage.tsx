@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import TreasuryPanel from "@/components/dashboard/billing/TreasuryPanel";
 import FundsLedgerTable from "@/components/dashboard/billing/FundsLedgerTable";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
@@ -21,6 +22,12 @@ export default function OwnerBillingPage() {
             {t("billingPage.note")}
           </p>
         </div>
+        <Link
+          href="/dashboard/billing/credits"
+          className="inline-flex items-center gap-2 rounded-lg border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-bold text-blue-300 transition hover:bg-blue-500/20"
+        >
+          {t("billingPage.openCredits")}
+        </Link>
       </div>
 
       <div className="space-y-8">

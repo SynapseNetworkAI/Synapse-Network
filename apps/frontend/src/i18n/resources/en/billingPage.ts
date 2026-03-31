@@ -4,6 +4,7 @@ const billingPage: I18nMessages["billingPage"] = {
   title: "Owner Treasury",
   description: "Owner-scoped funds center for deposits, withdrawals, refunds, and wallet-to-vault balances.",
   note: "Provider earnings and payout operations live in Provider Settlements and Revenue Analytics, not in this owner treasury view.",
+  openCredits: "Open Credits",
   vaultBalanceTitle: "Synapse Vault Balance",
   vaultBalanceDescription: "Real core assets available for API spend or withdrawal.",
   walletBalanceTitle: "Connected Wallet Balance",

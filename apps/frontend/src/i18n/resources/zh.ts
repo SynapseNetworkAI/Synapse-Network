@@ -5,6 +5,7 @@ import auditPage from "@/i18n/resources/zh/auditPage";
 import billingPage from "@/i18n/resources/zh/billingPage";
 import blogPage from "@/i18n/resources/zh/blogPage";
 import buyPage from "@/i18n/resources/zh/buyPage";
+import creditsPage from "@/i18n/resources/zh/creditsPage";
 import developerPage from "@/i18n/resources/zh/developerPage";
 import discoveryPage from "@/i18n/resources/zh/discoveryPage";
 import home from "@/i18n/resources/zh/home";
@@ -29,6 +30,7 @@ const zh: I18nMessages = {
   discoveryPage,
   invocationsPage,
   billingPage,
+  creditsPage,
   auditPage,
   developerPage,
   buyPage,

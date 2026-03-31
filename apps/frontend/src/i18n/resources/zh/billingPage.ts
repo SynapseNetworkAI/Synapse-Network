@@ -4,6 +4,7 @@ const billingPage: I18nMessages["billingPage"] = {
   title: "Owner 资金金库",
   description: "Owner 维度的资金中枢，统一查看充值、提现、退款以及钱包到金库余额。",
   note: "Provider 收益和 payout 操作归属 Provider Settlements 与 Revenue Analytics，不在这个 owner treasury 视图内。",
+  openCredits: "打开 Credits",
   vaultBalanceTitle: "Synapse 金库余额",
   vaultBalanceDescription: "可用于 API 消费或提现的真实核心资产。",
   walletBalanceTitle: "已连接钱包余额",

@@ -9,6 +9,22 @@ type RelativeTime = {
   count: number;
 };
 
+type AuditAlert = {
+  id: string;
+  type: string;
+  severity: "low" | "medium" | "high";
+  message: string;
+  time: RelativeTime;
+};
+
+type AuditTrailRecord = {
+  id: string;
+  action: string;
+  actor: string;
+  target: string;
+  time: RelativeTime;
+};
+
 function formatRelativeTime(
   value: RelativeTime,
   t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string,
@@ -25,13 +41,13 @@ function formatRelativeTime(
 export default function RiskAuditPage() {
   const { t } = useLanguage();
 
-  const alerts = [
+  const alerts: AuditAlert[] = [
     { id: "alt_1", type: t("auditPage.alertBudgetWarningType"), severity: "medium", message: t("auditPage.alertBudgetWarningMessage"), time: { unit: "minutes", count: 10 } },
     { id: "alt_2", type: t("auditPage.alertRateLimitType"), severity: "low", message: t("auditPage.alertRateLimitMessage"), time: { unit: "minutes", count: 45 } },
     { id: "alt_3", type: t("auditPage.alertSecurityAlertType"), severity: "high", message: t("auditPage.alertSecurityAlertMessage"), time: { unit: "hours", count: 2 } },
   ];
 
-  const auditLogs = [
+  const auditLogs: AuditTrailRecord[] = [
     { id: "aud_1", action: t("auditPage.auditActionCredentialCreated"), actor: t("auditPage.auditActorOwner"), target: "ResearchBot-01", time: { unit: "days", count: 1 } },
     { id: "aud_2", action: t("auditPage.auditActionBudgetUpdated"), actor: t("auditPage.auditActorOwner"), target: "CreativeAgent", time: { unit: "days", count: 2 } },
     { id: "aud_3", action: t("auditPage.auditActionVaultDeposit"), actor: t("auditPage.auditActorOwner"), target: t("auditPage.auditTargetVaultContract"), time: { unit: "days", count: 3 } },

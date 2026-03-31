@@ -165,7 +165,7 @@ export default function ProviderServicesPage() { // NOSONAR
   }, [address, isSessionAuthenticated, t]);
 
   useEffect(() => {
-    const editServiceId = searchParams.get("edit");
+    const editServiceId = searchParams?.get("edit");
     if (!editServiceId || services.length === 0) {
       return;
     }
