@@ -171,14 +171,27 @@ export async function deleteAgentCredential(
   userAddress: string,
   credentialId: string,
 ): Promise<void> {
-  const response = await fetchAgentCredentialApi(
-    `/credentials/agent/${encodeURIComponent(credentialId)}`,
+  const deletePath = `/credentials/agent/${encodeURIComponent(credentialId)}`;
+  const headers = buildAuthedHeaders(userAddress, false);
+  let response = await fetchAgentCredentialApi(
+    deletePath,
     {
       method: "DELETE",
-      headers: buildAuthedHeaders(userAddress, false),
+      headers,
     },
     "Failed to delete agent",
   );
+
+  if (response.status === 404 || response.status === 405) {
+    response = await fetchAgentCredentialApi(
+      `${deletePath}/delete`,
+      {
+        method: "POST",
+        headers,
+      },
+      "Failed to delete agent",
+    );
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to delete agent"));

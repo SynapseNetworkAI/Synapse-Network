@@ -601,9 +601,9 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         </section>
       </header>
 
-      <section className="mx-auto grid w-full grid-cols-1 gap-5 xl:max-w-[1318px] xl:justify-center xl:grid-cols-[36.125rem_45rem]">
-        <article className="x-panel-flat rounded-[24px] p-6">
-          <header className="x-divider mb-5 flex flex-col gap-4 border-b pb-5">
+      <section className="mx-auto grid w-full grid-cols-1 gap-4 xl:max-w-[1318px] xl:justify-center xl:grid-cols-[35.5rem_45rem]">
+        <article className="x-panel-flat rounded-[24px] p-5">
+          <header className="x-divider mb-4 flex flex-col gap-4 border-b pb-4">
             <div>
               <h2 className="x-section-title mt-1 text-white">{t("agentsPage.workspaceYourAgentsTitle")}</h2>
               <p className="x-body-copy mt-3">{t("agentsPage.workspaceYourAgentsDescription")}</p>
@@ -641,10 +641,10 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
           </header>
 
-          <div className="space-y-3.5 xl:max-w-[530px]">
+          <div className="space-y-2.5 xl:max-w-[530px]">
             {isLoading && credentials.length === 0 ? (
               [1, 2, 3].map((index) => (
-                <div key={index} className="x-panel-muted h-[142px] animate-pulse rounded-[22px]" />
+                <div key={index} className="x-panel-muted h-[128px] animate-pulse rounded-[20px]" />
               ))
             ) : visibleCredentials.length === 0 ? (
               <section className="x-panel-muted flex min-h-[420px] flex-col items-center justify-center space-y-4 rounded-[24px] p-8 text-center">
@@ -670,21 +670,21 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                     type="button"
                     onClick={() => setSelectedAgentId(agent.id)}
                     className={[
-                      "x-list-card block w-full rounded-[22px] p-5 text-left transition-all",
+                      "x-list-card block w-full p-4 text-left transition-all",
                       isSelected
                         ? "x-tile-active"
                         : "x-tile-flat x-tile-flat-hover",
                     ].join(" ")}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <span className={`rounded-[18px] p-3 ${agent.status === "active" ? "x-icon-chip" : "x-panel-muted"}`} aria-hidden="true">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <span className={`rounded-[16px] p-2.5 ${agent.status === "active" ? "x-icon-chip" : "x-panel-muted"}`} aria-hidden="true">
                           <Bot className={`h-5 w-5 ${agent.status === "active" ? "text-blue-400" : "text-gray-500"}`} />
                         </span>
                         <div className="min-w-0 flex-1">
                           <h3 className="x-card-title truncate text-white">{agent.name || t("agentsPage.unnamedAgent")}</h3>
-                          <p className="x-body-copy mt-2 pr-3">{t("agentsPage.workspaceAgentCardDescription")}</p>
-                          <div className="mt-5 flex items-center gap-3">
+                          <p className="x-body-copy mt-1.5 max-w-[24rem] pr-2">{t("agentsPage.workspaceAgentCardDescription")}</p>
+                          <div className="mt-4 flex flex-wrap items-center gap-2.5">
                             <span className={`x-status-inline ${statusClasses}`}>
                               {agent.status === "active" ? t("agentsPage.workspaceFilterActive") : t("agentsPage.workspaceToneRevoked")}
                             </span>
@@ -692,8 +692,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-4">
-                        <span className="x-data-label font-medium text-[#6e88b4]">{usagePercent}%</span>
+                      <div className="x-agent-rail flex flex-col items-end justify-between gap-4">
+                        <span className="x-agent-usage">{usagePercent}%</span>
                         {isManageMode ? (
                           <button
                             type="button"

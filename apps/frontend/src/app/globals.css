@@ -122,7 +122,9 @@ body {
 
   .x-panel-flat {
     background: linear-gradient(180deg, rgba(15, 16, 18, 0.98), rgba(10, 11, 13, 0.98));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+      0 10px 40px rgba(0, 0, 0, 0.18);
   }
 
   .x-panel-muted {
@@ -133,21 +135,31 @@ body {
   .x-tile-flat {
     background: var(--x-surface-2);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
-    transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    transition:
+      background-color 160ms ease,
+      box-shadow 160ms ease,
+      transform 160ms ease,
+      border-color 160ms ease;
   }
 
   .x-tile-flat-hover:hover {
-    background: var(--x-surface-3);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+    background: rgba(20, 23, 27, 0.98);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.055),
+      0 8px 24px rgba(0, 0, 0, 0.16);
+    transform: translateY(-1px);
   }
 
   .x-tile-active {
     background: linear-gradient(180deg, rgba(16, 20, 25, 0.98), rgba(18, 22, 28, 0.98));
-    box-shadow: inset 0 0 0 1px rgba(29, 155, 240, 0.26);
+    box-shadow:
+      inset 0 0 0 1px rgba(29, 155, 240, 0.3),
+      inset 3px 0 0 rgba(29, 155, 240, 0.82);
   }
 
   .x-list-card {
-    height: 142px;
+    min-height: 128px;
+    border-radius: 20px;
   }
 
   .x-icon-chip {
@@ -203,29 +215,47 @@ body {
 
   .x-manage-delete {
     display: inline-flex;
-    height: 2rem;
-    width: 2rem;
+    height: 1.875rem;
+    width: 1.875rem;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #f87171;
+    color: rgba(248, 113, 113, 0.9);
     background: transparent;
-    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.22);
+    opacity: 0.88;
     transition:
       background-color 160ms ease,
       box-shadow 160ms ease,
       color 160ms ease,
-      transform 160ms ease;
+      transform 160ms ease,
+      opacity 160ms ease;
   }
 
   .x-manage-delete:hover {
-    background: rgba(248, 113, 113, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.48);
+    background: rgba(248, 113, 113, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.5);
     color: #fca5a5;
+    opacity: 1;
   }
 
   .x-manage-delete:active {
     transform: scale(0.96);
+  }
+
+  .x-agent-rail {
+    min-width: 4.5rem;
+    align-self: stretch;
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    padding-left: 0.875rem;
+  }
+
+  .x-agent-usage {
+    font-size: 1.125rem;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #d8e7ff;
   }
 
   .x-status-inline {
@@ -262,21 +292,22 @@ body {
 
   .x-modal-overlay {
     background:
-      radial-gradient(circle at center, rgba(70, 78, 92, 0.16), transparent 26%),
-      rgba(5, 7, 12, 0.72);
-    backdrop-filter: blur(18px) saturate(115%) brightness(0.68);
+      radial-gradient(circle at 50% 16%, rgba(70, 78, 92, 0.18), transparent 28%),
+      linear-gradient(180deg, rgba(3, 5, 9, 0.84), rgba(3, 5, 9, 0.88));
+    backdrop-filter: blur(22px) saturate(118%) brightness(0.58);
   }
 
   .x-dialog-shell {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: 120;
     display: flex;
-    min-height: 100svh;
+    min-height: 100dvh;
+    height: 100dvh;
     width: 100%;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: clamp(0.75rem, 2vw, 1.25rem);
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -353,7 +384,10 @@ body {
   }
 
   dialog.x-dialog-shell::backdrop {
-    background: transparent;
+    background:
+      radial-gradient(circle at 50% 18%, rgba(79, 88, 103, 0.18), transparent 30%),
+      linear-gradient(180deg, rgba(2, 4, 8, 0.84), rgba(2, 4, 8, 0.9));
+    backdrop-filter: blur(22px) saturate(118%) brightness(0.56);
   }
 
   .x-modal-action {
