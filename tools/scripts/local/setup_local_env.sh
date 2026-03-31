@@ -10,15 +10,60 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_311.sh"
+REQUIRED_NODE_VERSION="20.19.0"
+REQUIRED_YARN_VERSION="1.22.22"
+export HARDHAT_DISABLE_TELEMETRY_PROMPT="${HARDHAT_DISABLE_TELEMETRY_PROMPT:-true}"
+export HARDHAT_DISABLE_TELEMETRY="${HARDHAT_DISABLE_TELEMETRY:-true}"
 
 find_pid_by_port() {
 	local port="$1"
 	lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
-if ! command -v npm >/dev/null 2>&1; then
-	echo "Error: npm is not installed. Please install Node.js first."
-	exit 1
+ensure_node_runtime() {
+	local needs_node20=0
+
+	if ! command -v node >/dev/null 2>&1; then
+		needs_node20=1
+	elif ! node -e "const [major, minor, patch] = process.versions.node.split('.').map(Number); process.exit((major > 20 || (major === 20 && (minor > 19 || (minor === 19 && patch >= 0)))) ? 0 : 1)" >/dev/null 2>&1; then
+		needs_node20=1
+	fi
+
+	if [[ "$needs_node20" -eq 1 ]]; then
+		if [[ -f "${HOME}/.nvm/nvm.sh" ]]; then
+			export NVM_DIR="${HOME}/.nvm"
+			# shellcheck source=/dev/null
+			source "${NVM_DIR}/nvm.sh"
+			nvm install "${REQUIRED_NODE_VERSION}" >/dev/null
+			nvm use "${REQUIRED_NODE_VERSION}" >/dev/null
+		else
+			echo "Error: Node.js >= ${REQUIRED_NODE_VERSION} is required. Install nvm or a newer Node.js runtime first."
+			exit 1
+		fi
+	fi
+
+	if ! command -v npm >/dev/null 2>&1; then
+		echo "Error: npm is not installed after activating Node.js ${REQUIRED_NODE_VERSION}."
+		exit 1
+	fi
+}
+
+ensure_yarn_runtime() {
+	local yarn_version=""
+
+	yarn_version="$(command yarn --version 2>/dev/null || true)"
+	if [[ ! "$yarn_version" =~ ^1\.22\.22$ ]]; then
+		echo "Installing Yarn ${REQUIRED_YARN_VERSION} for the active Node.js runtime..."
+		npm install -g "yarn@${REQUIRED_YARN_VERSION}" >/dev/null
+		hash -r
+	fi
+}
+
+ensure_node_runtime
+ensure_yarn_runtime
+
+if [[ -d "${HOME}/.foundry/bin" ]]; then
+	export PATH="${HOME}/.foundry/bin:${PATH}"
 fi
 
 if [[ ! -f "$PYTHON_RESOLVER" ]]; then
@@ -49,6 +94,9 @@ ensure_hardhat_local() {
 cd "${ROOT_DIR}"
 
 echo "=== Synapse Local Environment Setup ==="
+echo "Using Node.js: $(node -v)"
+echo "Using npm    : $(npm -v)"
+echo "Using yarn   : $(yarn --version)"
 
 ensure_hardhat_local
 

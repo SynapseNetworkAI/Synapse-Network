@@ -51,6 +51,23 @@ chmod +x scripts/local/setup_local_env.sh
 ```
 
 This script will start local chain, deploy contracts, start backend, and run frontend.
+It now auto-activates `Node.js 20.19.0` through `nvm` when the current shell is still on an older Node runtime.
+
+If the script says `anvil is not installed`, install Foundry first:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+source ~/.bashrc
+foundryup
+anvil --version
+```
+
+If `anvil` is still not found in the current shell, run:
+
+```bash
+export PATH="$HOME/.foundry/bin:$PATH"
+anvil --version
+```
 
 ### 2) Restart / stop
 
