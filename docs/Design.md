@@ -152,6 +152,46 @@ Agents workspace 的 typography 基线以 X 桌面 Apps / API keys 页面为参�
 - 新增 modal 时，先复用 token，再考虑业务特例
 - 任何新增的一次性 modal 样式都视为设计债务
 
+## X Primitive Component Layer
+
+从 2026-04-01 开始，Synapse 的 X 风格控制台不再只停留在 CSS token 层，必须落到真实 React 原语组件。
+
+### 从 X Console 页面可抽取的稳定对象
+
+1. pill / ghost / danger / icon buttons
+2. dialog overlay / surface / header / footer
+3. dark inputs
+4. flat / muted / tile / active panels
+5. status pills
+6. empty states
+7. inspector panes
+
+### 本轮已经正式收口的原语
+
+1. `XButton`
+2. `XDialog`
+3. `XInput`
+4. `XPanel`
+
+代码入口在：
+
+1. `apps/frontend/src/components/xui/XButton.tsx`
+2. `apps/frontend/src/components/xui/XDialog.tsx`
+3. `apps/frontend/src/components/xui/XInput.tsx`
+4. `apps/frontend/src/components/xui/XPanel.tsx`
+
+### 强约束
+
+1. 业务页不再允许直接手写 `x-button-*` 代替 `XButton`
+2. 业务页不再允许直接手写 `x-modal-*` 结构代替 `XDialog`
+3. 业务页不再允许直接手写 `x-input-flat` 代替 `XInput`
+4. 业务页不再允许直接手写 `x-panel-*` 代替 `XPanel`
+5. 页面需要例外样式时，先补原语，再落业务页
+
+详细组件治理看：
+
+1. `docs/01_Product_Frontend/05_X_Component_System_Contract.md`
+
 ## 页面审美执行清单
 
 每次前端页面改版前，先检查以下五项：

@@ -306,6 +306,20 @@ inventory 中每条记录都必须至少声明：
     "validation": ["npm run ci:docs", "npm run ci:frontend", "npm run ci:admin-front"]
   },
   {
+    "path": "docs/01_Product_Frontend/05_X_Component_System_Contract.md",
+    "tier": "canonical-module",
+    "status": "supplementary",
+    "owner": "frontend/product",
+    "lastReviewed": "2026-03-31",
+    "reviewCadenceDays": 30,
+    "codePaths": [
+      "apps/frontend/src/components/xui",
+      "apps/frontend/src/components/dashboard-workspace",
+      "apps/frontend/src/app/globals.css"
+    ],
+    "validation": ["npm run ci:docs", "npm run ci:frontend"]
+  },
+  {
     "path": "docs/02_System_Architecture/README.md",
     "tier": "canonical-module",
     "status": "canonical",

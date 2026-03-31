@@ -32,6 +32,7 @@
 2. `02_Gateway_Console_Information_Architecture.md`
 3. `03_Admin_Control_Plane_Architecture.md`
 4. `04_Frontend_Design_System_Application.md`
+5. `05_X_Component_System_Contract.md`
 
 ## 迁移说明
 
