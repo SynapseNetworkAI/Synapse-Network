@@ -109,6 +109,114 @@ anvil --version
 2. Withdraw 签名链路验证
 3. Indexer / backfill / reconciliation 行为调试
 
+### 3.3.1 如何把本地 Anvil 链加到 MetaMask
+
+如果你已经执行过：
+
+```bash
+./scripts/local/setup_local_env.sh
+```
+
+那本地链默认就是：
+
+1. RPC URL：`http://127.0.0.1:8545`
+2. Chain ID：`31337`
+3. 原生币符号：`ETH`
+4. 区块浏览器 URL：留空即可
+
+在 MetaMask 里手动添加自定义网络时，填写：
+
+```text
+网络名称: Synapse Local Anvil
+默认 RPC URL: http://127.0.0.1:8545
+链 ID: 31337
+货币符号: ETH
+区块浏览器 URL: 留空
+```
+
+注意：
+
+1. MetaMask 运行在浏览器扩展里，`127.0.0.1:8545` 可以直接访问你本机的 Anvil。
+2. 如果你前端页面开在同一台机器上，不要把 RPC 改成局域网 IP，先用 `127.0.0.1` 最稳。
+3. 每次重启全新的 Anvil，如果你没有固定 mnemonic，测试账户和余额可能会重置。
+
+### 3.3.2 如何导入 Anvil 测试账户到 MetaMask
+
+默认本地部署脚本会使用 Anvil 第 1 个账号作为 Owner，第 2 个账号作为 backend signer。
+Anvil 的默认测试私钥可以直接导入 MetaMask 做本地联调。
+
+最常用的是第 1 个账号：
+
+```text
+地址: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+私钥: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+```
+
+导入方式：
+
+1. 打开 MetaMask
+2. 点右上角账户菜单
+3. 选择“导入账户”
+4. 粘贴上面的私钥
+5. 切换到 `Synapse Local Anvil`
+
+导入后，你应该能看到本地 ETH 余额。
+
+如果你已经运行过：
+
+```bash
+npx hardhat run scripts/fund_eth.js --network localhost
+npx hardhat run scripts/fund_usdc.js --network localhost
+```
+
+或者直接跑过：
+
+```bash
+./scripts/local/setup_local_env.sh
+```
+
+那测试账户还会拿到本地 ETH 和 MockUSDC，方便演示充值和支付链路。
+
+### 3.3.3 本地联调时要用到的合约地址在哪里看
+
+本地合约部署完成后，前端会自动更新：
+
+`apps/frontend/src/contract-config.json`
+
+当前仓库这台机器最近一次本地部署结果是：
+
+```json
+{
+  "MockUSDC": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+  "Treasury": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "SynapseCore": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
+}
+```
+
+如果你重新执行一次本地部署，这些地址可能变化，所以联调时应该以当前文件内容为准，而不是死记旧地址。
+
+### 3.3.4 MetaMask 常见坑
+
+1. 看不到本地链余额
+原因：MetaMask 还停在别的网络，或者导入了错误账户。
+
+2. 钱包已连上，但前端签名/充值失败
+原因：当前链不是 `31337`，或者前端合约地址还是旧部署结果。
+
+3. MetaMask 无法连接 `127.0.0.1:8545`
+原因：Anvil 没启动。先执行：
+
+```bash
+export PATH="$HOME/.foundry/bin:$PATH"
+anvil
+```
+
+或直接：
+
+```bash
+./scripts/local/setup_local_env.sh
+```
+
 如果要做区块浏览和链上调试，推荐使用支持本地扩展 RPC 的链节点与浏览器组合，而不是把 Hardhat 节点当成长期运维工具。
 
 ### 3.3.1 scripts/fund_eth.js 如何执行
