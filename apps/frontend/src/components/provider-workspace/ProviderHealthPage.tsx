@@ -30,7 +30,7 @@ export default function ProviderHealthPage() {
   const { address } = useAccount();
   const { isSessionAuthenticated } = useAuth();
   const searchParams = useSearchParams();
-  const queryServiceId = searchParams.get("serviceId") || "";
+  const queryServiceId = searchParams?.get("serviceId") || "";
 
   const [services, setServices] = useState<Array<{ serviceId: string; name: string }>>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");

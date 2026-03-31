@@ -13,7 +13,8 @@ type TopNavHref = "/marketplace" | "/blog" | "/about";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const isMarketingPage = pathname === "/" || pathname === "/marketplace" || pathname === "/blog" || pathname === "/about";
+  const activePath = pathname ?? "/";
+  const isMarketingPage = activePath === "/" || activePath === "/marketplace" || activePath === "/blog" || activePath === "/about";
   const { t, lang } = useLanguage();
 
   const [gatewayStatus, setGatewayStatus] = useState<"online" | "offline" | "checking">("checking");
@@ -80,11 +81,11 @@ export default function Navbar() {
   }, []);
 
   const getActiveTopNavHref = useCallback((): TopNavHref => {
-    if (pathname === "/marketplace" || pathname.startsWith("/marketplace/")) return "/marketplace";
-    if (pathname === "/blog" || pathname.startsWith("/blog/")) return "/blog";
-    if (pathname === "/about" || pathname.startsWith("/about/")) return "/about";
+    if (activePath === "/marketplace" || activePath.startsWith("/marketplace/")) return "/marketplace";
+    if (activePath === "/blog" || activePath.startsWith("/blog/")) return "/blog";
+    if (activePath === "/about" || activePath.startsWith("/about/")) return "/about";
     return "/marketplace";
-  }, [pathname]);
+  }, [activePath]);
 
   const getTopNavLinkClasses = (href: TopNavHref) => {
     const isHighlighted = (hoveredTopNavHref ?? getActiveTopNavHref()) === href;

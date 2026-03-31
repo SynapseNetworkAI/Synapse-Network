@@ -22,6 +22,7 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     overview: "Overview",
     agents: "Agents",
     agentsWorkspace: "Agents Workspace",
+    credits: "Credits",
     discovery: "Discovery",
     invocations: "Invocations",
     treasury: "Treasury",

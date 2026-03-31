@@ -9,6 +9,7 @@ import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ActivationRunway from "@/components/dashboard/agents/ActivationRunway";
 import ActivationStatusStrip from "@/components/dashboard/agents/ActivationStatusStrip";
+import WorkspaceOnboardingRail from "@/components/dashboard/agents/WorkspaceOnboardingRail";
 import FirstInvocationPanel, { type FirstInvocationResult } from "@/components/dashboard/agents/FirstInvocationPanel";
 import {
   buildAgentWorkspaceHighlights,
@@ -296,6 +297,10 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   );
   const workspaceHighlights = useMemo(() => buildAgentWorkspaceHighlights(credentials, t), [credentials, t]);
   const latestCredential = credentials[0] ?? null;
+  const allocatedCredits = useMemo(
+    () => credentials.filter((credential) => credential.status === "active").reduce((sum, credential) => sum + Math.max(0, credential.creditLimit ?? 0), 0),
+    [credentials],
+  );
   let registryContent: React.ReactNode;
 
   if (isLoading && credentials.length === 0) {
@@ -605,6 +610,17 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
   const workspaceContent = (
     <>
+      <WorkspaceOnboardingRail
+        treasuryBalance={Number(stats.ownerBalance)}
+        allocatedCredits={allocatedCredits}
+        activeAgents={activeAgentsCount}
+        hasCredential={Boolean(latestCredential?.tokenPrefix)}
+        hasSuccessfulInvocation={hasSuccessfulInvocation}
+        onCreateAgent={() => {
+          void handleOpenCreateModal();
+        }}
+      />
+
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5">
           <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.workspaceSummaryTotalAgents")}</p>

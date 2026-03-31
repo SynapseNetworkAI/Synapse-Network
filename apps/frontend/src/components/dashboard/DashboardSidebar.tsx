@@ -24,6 +24,7 @@ import {
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
+  const activePath = pathname ?? "";
   const router = useRouter();
   const { openConnectModal } = useConnectModal();
   const { isConnected, isSessionAuthenticated, authorize } = useAuth();
@@ -41,6 +42,7 @@ export default function DashboardSidebar() {
       "/dashboard/discovery",
       "/dashboard/invocations",
       "/dashboard/billing",
+      "/dashboard/billing/credits",
       "/dashboard/audit",
       "/dashboard/developer",
       providerConsoleRoute,
@@ -67,7 +69,7 @@ export default function DashboardSidebar() {
 
   const getLinkClasses = (paths: string | string[], exact = false) => {
     const candidates = Array.isArray(paths) ? paths : [paths];
-    const active = candidates.some((path) => (exact ? pathname === path : pathname.startsWith(path)));
+    const active = candidates.some((path) => (exact ? activePath === path : activePath.startsWith(path)));
     if (active) {
       return "flex items-center px-4 py-[10px] mx-2 mt-1 text-[13px] font-semibold text-blue-300 bg-white/[0.04] border-l-2 border-blue-400 rounded-lg shadow-[0_0_12px_rgba(59,130,246,0.08)] transition-all";
     }
@@ -81,7 +83,7 @@ export default function DashboardSidebar() {
   };
 
   const getSubLinkClasses = (path: string) => {
-    const active = pathname === path;
+    const active = activePath === path;
     if (active) {
       return "ml-12 mr-2 mt-1 flex items-center rounded-lg border-l-2 border-blue-400 bg-blue-500/[0.08] px-4 py-2 text-[12px] font-semibold text-blue-200 transition-all";
     }
@@ -131,7 +133,7 @@ export default function DashboardSidebar() {
           <Link href="/dashboard/agents" className={getLinkClasses(["/dashboard/agents", "/dashboard/agents/workspace"], false)}>
             <Bot className="w-4 h-4 mr-3 opacity-80" />
             {t("sidebar.agents")}
-            <span className={getBadgeClasses(pathname.startsWith("/dashboard/agents"))}>3</span>
+            <span className={getBadgeClasses(activePath.startsWith("/dashboard/agents"))}>3</span>
           </Link>
           <Link href="/dashboard/agents/workspace" className={getSubLinkClasses("/dashboard/agents/workspace")}>
             {t("sidebar.agentsWorkspace")}
@@ -147,6 +149,9 @@ export default function DashboardSidebar() {
           <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing"], false)}>
             <Wallet className="w-4 h-4 mr-3 opacity-80" />
             {t("sidebar.treasury")}
+          </Link>
+          <Link href="/dashboard/billing/credits" className={getSubLinkClasses("/dashboard/billing/credits")}>
+            {t("sidebar.credits")}
           </Link>
           <Link href="/dashboard/audit" className={getLinkClasses(["/dashboard/audit"], false)}>
             <AlertTriangle className="w-4 h-4 mr-3 opacity-80" />
@@ -177,7 +182,7 @@ export default function DashboardSidebar() {
           <Link href={`${providerRoot}/services`} className={getLinkClasses([`${providerRoot}/services`], false)}>
             <Box className="w-4 h-4 mr-3 opacity-80" />
             {t("sidebar.myServices")}
-            <span className={getBadgeClasses(pathname.startsWith(`${providerRoot}/services`))}>2</span>
+            <span className={getBadgeClasses(activePath.startsWith(`${providerRoot}/services`))}>2</span>
           </Link>
           <Link href={`${providerRoot}/usage`} className={getLinkClasses([`${providerRoot}/usage`], false)}>
             <AreaChart className="w-4 h-4 mr-3 opacity-80" />
