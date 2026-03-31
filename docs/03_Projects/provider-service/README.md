@@ -50,7 +50,7 @@
 2. `quotes/*` 仍保留为早期 demo / smoke path，不再代表 provider_service 的主要产品方向
 3. 当前目标是继续把 Provider Runtime 演进为标准化样板服务宿主，而不是停留在单一 quotes demo
 4. `whale-flow-monitor` 与 `oss-security-healthcheck` 已升级为可落库可回放形态（快照+调用审计）
-5. `twitter-video-download` 已支持帖子链接下载 + MinIO 存储 + 元数据落库
+5. `twitter-video-download` 已切到 `X API app-only auth + mp4 variant download`，支持帖子链接下载 + MinIO 存储 + 元数据落库
 6. `youtube-video-download` 已支持 YouTube 链接下载 + MinIO 存储 + 元数据落库
 7. YouTube 下载服务上线前闸门与红线清单见 `docs/provider_service/api/youtube-video-download-service-design.md` 第 12 节
 8. TikTok 视频下载方案设计见 `docs/provider_service/api/tiktok-video-download-service-design.md`

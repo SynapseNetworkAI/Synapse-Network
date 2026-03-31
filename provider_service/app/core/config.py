@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     twitter_video_tmp_dir: str = "storage/twitter_videos/tmp"
     twitter_video_download_timeout_s: float = 90.0
     twitter_video_max_concurrency: int = 2
+    twitter_x_api_base_url: str = "https://api.x.com"
+    twitter_x_api_timeout_s: float = 20.0
+    twitter_x_api_bearer_token: str | None = None
+    twitter_x_api_key: str | None = None
+    twitter_x_api_secret: str | None = None
+    twitter_x_api_user_agent: str = "synapse-provider-service"
     tiktok_video_postgres_asset_table: str = "provider_tiktok_video_assets"
     tiktok_video_cache_ttl_s: int = 86400
     tiktok_video_tmp_dir: str = "storage/tiktok_videos/tmp"

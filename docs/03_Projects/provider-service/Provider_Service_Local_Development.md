@@ -237,6 +237,16 @@ curl -X POST "http://127.0.0.1:8100/provider-services/paper-pdf-download/invoke"
 
 ### Twitter / X Video Download
 
+前提配置：
+
+1. 现在 Twitter / X 下载已经不再走匿名网页抓取，必须配置官方 `X API` 凭证
+2. 二选一即可：
+   `TWITTER_X_API_BEARER_TOKEN=<app bearer token>`
+   或
+   `TWITTER_X_API_KEY=<consumer key>` + `TWITTER_X_API_SECRET=<consumer secret>`
+3. 如果你把 `Consumer Key / Secret` 暴露在聊天记录、截图、共享文档里，应该立刻去 X Developer Portal 重新生成
+4. 你的 X app 至少需要具备读公开帖子的权限；否则 provider 会返回 `TWITTER_X_API_AUTH_FAILED`
+
 手工调用：
 
 ```bash
@@ -258,7 +268,8 @@ cd provider_service
 2. 非法 URL 返回 `422`
 3. 未签名请求在验签开启时返回 `401`
 4. 超长/超大资源会在 metadata preflight 或落盘校验阶段被拦住
-5. 下载失败时 snapshot fallback 能否回放
+5. 未配置或配置错误的 X API 凭证时，是否返回 `TWITTER_X_API_CREDENTIALS_MISSING / TWITTER_X_API_AUTH_FAILED`
+6. 下载失败时 snapshot fallback 能否回放
 
 ### TikTok Video Download
 
@@ -360,17 +371,25 @@ curl -X POST "http://127.0.0.1:8100/provider-services/youtube-video-download/inv
   -d '{"videoUrl":"https://www.youtube.com/watch?v=aqz-KE-bpKQ","preferredQuality":"low","maxDurationSec":1800,"maxFileSizeMb":200,"saveMode":"store_and_return"}'
 ```
 
-### 当前失败但不属于本地 runtime 回归
+### 需要上游凭证的平台说明
 
 Twitter / X：
 
 ```bash
+export TWITTER_X_API_KEY=replace-me
+export TWITTER_X_API_SECRET=replace-me
 curl -X POST "http://127.0.0.1:8100/provider-services/twitter-video-download/invoke" \
   -H "Content-Type: application/json" \
   -d '{"postUrl":"https://x.com/openai/status/1900000000000000000","preferredQuality":"best","maxDurationSec":300,"maxFileSizeMb":250,"saveMode":"store_and_return","includePreviewImage":true}'
 ```
 
-当前返回：`ERROR: [twitter] ... No video could be found in this tweet`
+当前实现说明：
+
+1. Twitter / X 现在走官方 `X API`，没有凭证就不会再尝试匿名网页抓取
+2. 如果 app 权限不足、token 无效、额度打满，会返回结构化错误码：
+   `TWITTER_X_API_CREDENTIALS_MISSING`
+   `TWITTER_X_API_AUTH_FAILED`
+   `TWITTER_X_API_RATE_LIMITED`
 
 Reddit：
 
@@ -382,7 +401,7 @@ curl -X POST "http://127.0.0.1:8100/provider-services/reddit-media-download/invo
 
 当前返回：`HTTP Error 403: Blocked`
 
-这两类失败更像上游平台对匿名抓取的限制，不是 `provider_service` 本地进程、schema、timeout、subprocess 协议这几层的回归。
+Reddit 这类失败更像上游平台对匿名抓取的限制，不是 `provider_service` 本地进程、schema、timeout、subprocess 协议这几层的回归。
 3. URL host 对了，但路径不对，比如 Twitter 缺 `/status/`、TikTok 缺 `/video/`
 4. 本地没配对象存储 / 下载依赖时，真实下载链路可能失败，这时优先先跑对应 `pytest` 文件确认业务骨架
 
