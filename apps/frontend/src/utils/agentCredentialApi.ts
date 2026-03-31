@@ -167,6 +167,24 @@ export async function rotateAgentCredential(
   return data.credential;
 }
 
+export async function deleteAgentCredential(
+  userAddress: string,
+  credentialId: string,
+): Promise<void> {
+  const response = await fetchAgentCredentialApi(
+    `/credentials/agent/${encodeURIComponent(credentialId)}`,
+    {
+      method: "DELETE",
+      headers: buildAuthedHeaders(userAddress, false),
+    },
+    "Failed to delete agent",
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to delete agent"));
+  }
+}
+
 export async function updateAgentCredentialQuota(
   userAddress: string,
   credentialId: string,

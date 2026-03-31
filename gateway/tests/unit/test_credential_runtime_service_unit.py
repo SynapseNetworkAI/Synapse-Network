@@ -237,6 +237,34 @@ def test_rotate_credential_for_owner_reactivates_revoked_record_in_place() -> No
     assert rows[0].credential.revoked_at is None
 
 
+def test_delete_credential_for_owner_removes_runtime_record() -> None:
+    storage = FakeStorage()
+
+    issued = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xABC",
+            CredentialIssueRequest(name="Delete Me"),
+        )
+    )
+
+    credential_id = issued["credential"]["id"]
+
+    deleted = asyncio.run(
+        credential_service.delete_credential_for_owner(
+            storage,
+            "0xabc",
+            credential_id,
+        )
+    )
+
+    rows = credential_service.load_credential_rows(storage)
+    assert deleted["credential"]["id"] == credential_id
+    assert deleted["credential"]["name"] == "Delete Me"
+    assert rows == []
+    assert storage.audit_logs.rows[-1].action == "CREDENTIAL_DELETED"
+
+
 def test_provider_secret_service_uses_runtime_models() -> None:
     storage = FakeStorage()
 

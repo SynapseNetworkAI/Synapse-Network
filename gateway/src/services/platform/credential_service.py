@@ -829,6 +829,52 @@ async def rotate_credential_for_owner(
     }
 
 
+async def delete_credential_for_owner(
+    storage: BaseStorage,
+    owner_wallet: str,
+    credential_id: str,
+    audit_action: str = "CREDENTIAL_DELETED",
+) -> Dict[str, Any]:
+    async with write_lock:
+        rows = load_credential_rows(storage)
+        index = find_runtime_credential_index(rows, credential_id)
+        if index < 0:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "CREDENTIAL_NOT_FOUND",
+                    "message": "Credential not found",
+                },
+            )
+
+        found = rows[index]
+        if credential_owner_wallet(found) != owner_wallet:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "FORBIDDEN",
+                    "message": "Credential does not belong to current wallet",
+                },
+            )
+
+        deleted_payload = _build_credential_response(found)
+        del rows[index]
+        save_credential_rows(storage, rows)
+
+    append_audit_log(
+        storage,
+        audit_action,
+        owner_wallet,
+        {
+            "credentialId": credential_id,
+            "name": deleted_payload["name"],
+            "status": deleted_payload["status"],
+            "tokenPrefix": deleted_payload["tokenPrefix"],
+        },
+    )
+    return {"status": "success", "credential": deleted_payload}
+
+
 def _update_if_present(
     record: RuntimeCredentialRecord,
     field: str,
