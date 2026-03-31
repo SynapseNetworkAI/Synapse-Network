@@ -199,7 +199,7 @@ brief aggregator 不应让 LLM 自由生成整份结果，而应先基于规则�
 
 落地约束：
 
-1. 表结构通过 `docker-compose/postgres/init/gateway-providers/004_provider_protocol_brief_schema.sql` 显式初始化
+1. 表结构通过 `docker-compose/postgres/init/gateway-providers/001_provider_schema.sql` 显式初始化
 2. runtime repository 不允许隐式执行 `CREATE TABLE` / `ALTER TABLE`
 
 ## 11. 推荐目录结构

@@ -345,7 +345,7 @@ V1 不一定要接 Prometheus，但至少要通过结构化日志和状态表把
 
 目标：为多实例和失败恢复做准备。
 
-当前实现状态：已落地 `provider_sentiment_scheduler_jobs`、per-snapshot lease、`next_run_at / consecutive_failures / last_error_*` 持久化，以及 `60s / 180s / 600s` cooldown backoff。runtime repository 仍保持无 DDL 副作用，表结构通过 `docker-compose/postgres/init/gateway-providers/003_provider_sentiment_scheduler_jobs.sql` 显式初始化。
+当前实现状态：已落地 `provider_sentiment_scheduler_jobs`、per-snapshot lease、`next_run_at / consecutive_failures / last_error_*` 持久化，以及 `60s / 180s / 600s` cooldown backoff。runtime repository 仍保持无 DDL 副作用，表结构通过 `docker-compose/postgres/init/gateway-providers/001_provider_schema.sql` 显式初始化。
 
 实现项：
 

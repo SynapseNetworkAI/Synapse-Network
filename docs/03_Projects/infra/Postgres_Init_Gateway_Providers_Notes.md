@@ -25,36 +25,10 @@
 对应执行入口：
 
 1. `docker-compose/postgres/init/gateway-providers/000_create_provider_database_and_roles.sh`
-2. `docker-compose/postgres/init/gateway-providers/001_provider_sentiment_schema.sql`
-3. `docker-compose/postgres/init/gateway-providers/001_apply_provider_sentiment_schema.sh`
-4. `docker-compose/postgres/init/gateway-providers/002_provider_sentiment_observability_upgrade.sql`
-5. `docker-compose/postgres/init/gateway-providers/002_apply_provider_sentiment_observability_upgrade.sh`
-6. `docker-compose/postgres/init/gateway-providers/004_provider_protocol_brief_schema.sql`
-7. `docker-compose/postgres/init/gateway-providers/004_apply_provider_protocol_brief_schema.sh`
-8. `docker-compose/postgres/init/gateway-providers/005_provider_contract_audit_schema.sql`
-9. `docker-compose/postgres/init/gateway-providers/005_apply_provider_contract_audit_schema.sh`
-10. `docker-compose/postgres/init/gateway-providers/006_provider_contract_audit_observability_upgrade.sql`
-11. `docker-compose/postgres/init/gateway-providers/006_apply_provider_contract_audit_observability_upgrade.sh`
-12. `docker-compose/postgres/init/gateway-providers/007_provider_whale_oss_schema.sql`
-13. `docker-compose/postgres/init/gateway-providers/007_apply_provider_whale_oss_schema.sh`
-14. `docker-compose/postgres/init/gateway-providers/008_provider_twitter_video_schema.sql`
-15. `docker-compose/postgres/init/gateway-providers/008_apply_provider_twitter_video_schema.sh`
-16. `docker-compose/postgres/init/gateway-providers/009_provider_youtube_video_schema.sql`
-17. `docker-compose/postgres/init/gateway-providers/009_apply_provider_youtube_video_schema.sh`
-18. `docker-compose/postgres/init/gateway-providers/010_provider_tiktok_video_schema.sql`
-19. `docker-compose/postgres/init/gateway-providers/010_apply_provider_tiktok_video_schema.sh`
-20. `docker-compose/postgres/init/gateway-providers/010_provider_tiktok_reddit_schema.sql`
-21. `docker-compose/postgres/init/gateway-providers/010_apply_provider_tiktok_reddit_schema.sh`
-22. `docker-compose/postgres/init/gateway-providers/011_provider_reddit_media_schema.sql`
-23. `docker-compose/postgres/init/gateway-providers/011_apply_provider_reddit_media_schema.sh`
-24. `docker-compose/postgres/init/gateway-providers/011_provider_github_paper_schema.sql`
+2. `docker-compose/postgres/init/gateway-providers/001_provider_schema.sql`
+3. `docker-compose/postgres/init/gateway-providers/001_apply_provider_schema.sh`
 
-`002_*` 的职责不是重复建表，而是把已经存在的 `provider_sentiment_snapshots` / `provider_sentiment_raw_feeds` 平滑升级到 production-v1 schema，补齐以下观测字段：
-
-1. snapshot 侧的 `symbol`、`chain`、`lookback_hours`、`source_count`、`generated_at`、`sentiment_score`、`market_temperature` 等业务元数据。
-2. raw feed 侧的 `fetched_at`、`source_timestamp`、`latency_ms`、`retry_count`、`timeout_ms`、`http_status`、`payload_hash`、`error_code`、`error_message` 等抓取观测元数据。
-
-如果后续 `provider_service` 再新增 schema 版本，继续按 `00x_*.sql + 00x_apply_*.sh` 的顺序追加，不要回写旧脚本，保持部署链路可审计、可重放。
+`001_provider_schema.sql` 现在是 provider-side PostgreSQL 的唯一权威 schema，直接包含所有当前表的最终形态，不再追加零碎 upgrade SQL。
 
 ## 相关目录
 
@@ -69,20 +43,8 @@
 2. provider-side 数据库对象一旦落地，相关 SQL 与 shell 初始化说明同步更新本文档。
 3. 如果只是执行型占位说明，项目目录内保留短入口即可，canonical 内容统一维护在根 `docs/03_Projects/infra/`。
 
-`007_*` 用于新增 `provider_whale_flow_snapshots` 与 `provider_oss_security_reports`，支撑 `whale-flow-monitor` 与 `oss-security-healthcheck` 两个服务的快照缓存和降级回退。
+现在的维护规则更硬：
 
-
-`008_*` 用于新增 `provider_twitter_video_assets`，支撑 twitter 视频下载服务的 MinIO 对象映射与元数据持久化。
-
-
-`009_*` 用于新增 `provider_youtube_video_assets`，支撑 youtube 视频下载服务的 MinIO 对象映射与元数据持久化。
-
-`010_*` 用于新增 `provider_tiktok_video_assets`，支撑 tiktok 视频下载服务的 MinIO 对象映射与元数据持久化。
-
-
-`011_*` 用于新增 `provider_reddit_media_assets`，支撑 reddit 媒体下载服务的 MinIO 对象映射与元数据持久化。
-
-合并后的初始化树里还额外保留：
-
-1. `010_*_tiktok_reddit_*`：给 Phase A 的 TikTok / Reddit 下载服务提供联合 schema 初始化入口。
-2. `011_provider_github_paper_schema.sql`：给 GitHub Releases 资产下载与 Paper PDF 下载准备 provider-side 资产表。
+1. repository/runtime 不允许自动建表、补列或偷偷迁移。
+2. provider schema 变化必须直接修改 `001_provider_schema.sql`。
+3. 如果要本地重建 provider 库，先跑 `000_create_provider_database_and_roles.sh`，再跑 `001_apply_provider_schema.sh`。

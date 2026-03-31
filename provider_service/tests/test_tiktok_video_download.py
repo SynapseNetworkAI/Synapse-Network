@@ -20,7 +20,6 @@ from app.services import tiktok_video_download_service  # noqa: E402
 from app.services.tiktok_video_download.downloader import DownloadedVideo  # noqa: E402
 from app.services.tiktok_video_download.repository import (  # noqa: E402
     InMemoryTikTokVideoDownloadRepository,
-    PostgresTikTokVideoDownloadRepository,
 )
 from tests.helpers.download_replay import ReplayAwareRepository  # noqa: E402
 from app.services.twitter_video_download.storage import StoredObject  # noqa: E402
@@ -36,40 +35,6 @@ class FakeStorage:
             size_bytes=source_path.stat().st_size,
         )
 
-
-class SchemaCursor:
-    def __init__(self, columns: set[str]) -> None:
-        self.columns = columns
-        self.executed: list[str] = []
-        self._fetchall: list[tuple[str]] = []
-
-    def execute(self, query: str, params=None) -> None:
-        normalized = " ".join(query.split())
-        self.executed.append(normalized)
-        if normalized.startswith("SELECT column_name FROM information_schema.columns"):
-            self._fetchall = [(column,) for column in sorted(self.columns)]
-            return
-        if normalized.startswith("ALTER TABLE provider_tiktok_video_assets RENAME COLUMN post_id TO video_id"):
-            self.columns.discard("post_id")
-            self.columns.add("video_id")
-            return
-        if normalized.startswith("ALTER TABLE provider_tiktok_video_assets RENAME COLUMN post_url TO video_url"):
-            self.columns.discard("post_url")
-            self.columns.add("video_url")
-            return
-        if normalized.startswith("ALTER TABLE provider_tiktok_video_assets ADD COLUMN preferred_quality"):
-            self.columns.add("preferred_quality")
-            return
-        if normalized.startswith("ALTER TABLE provider_tiktok_video_assets ADD COLUMN max_duration_sec"):
-            self.columns.add("max_duration_sec")
-            return
-        if normalized.startswith("ALTER TABLE provider_tiktok_video_assets ADD COLUMN with_subtitle"):
-            self.columns.add("with_subtitle")
-            return
-        raise AssertionError(f"unexpected query: {normalized}")
-
-    def fetchall(self):
-        return self._fetchall
 
 
 def _signed_headers(payload: dict) -> dict[str, str]:
@@ -219,46 +184,6 @@ def test_tiktok_video_download_failure_without_snapshot_returns_502(
     assert response.status_code == 502
     assert response.json()["detail"]["code"] == "TIKTOK_VIDEO_DOWNLOAD_FAILED"
     assert len(repo.invocations) == 0
-
-
-def test_tiktok_repository_repairs_legacy_schema_columns():
-    cursor = SchemaCursor(
-        {
-            "asset_key",
-            "post_id",
-            "post_url",
-            "author_handle",
-            "storage_backend",
-            "storage_key",
-            "mime_type",
-            "size_bytes",
-            "duration_sec",
-            "width",
-            "height",
-            "sha256",
-            "watermark",
-            "download_status",
-            "generated_at",
-            "expires_at",
-            "response_json",
-            "created_at",
-            "updated_at",
-        }
-    )
-    repository = PostgresTikTokVideoDownloadRepository(
-        dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
-        asset_table="provider_tiktok_video_assets",
-        invocation_table="provider_api_invocations",
-    )
-
-    repository._ensure_asset_table_schema(cursor)
-
-    assert "video_id" in cursor.columns
-    assert "video_url" in cursor.columns
-    assert "preferred_quality" in cursor.columns
-    assert "max_duration_sec" in cursor.columns
-    assert "with_subtitle" in cursor.columns
-    assert any("RENAME COLUMN post_id TO video_id" in query for query in cursor.executed)
 
 
 def test_tiktok_video_download_idempotent_replay_hits_snapshot(
