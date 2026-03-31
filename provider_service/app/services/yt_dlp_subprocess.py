@@ -42,6 +42,24 @@ def _worker_command() -> list[str]:
     return [sys.executable, "-m", "app.services.yt_dlp_worker"]
 
 
+def _parse_worker_response(raw_output: str) -> dict[str, object] | None:
+    normalized = raw_output.strip()
+    if not normalized:
+        return None
+
+    for line in reversed(normalized.splitlines()):
+        candidate = line.strip()
+        if not candidate or not candidate.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
 async def _terminate_process(process: Process) -> None:
     if process.returncode is not None:
         return
@@ -83,14 +101,9 @@ async def run_yt_dlp_subprocess(spec: YtDlpSubprocessSpec) -> dict[str, object]:
 
     stdout_text = stdout.decode("utf-8").strip()
     stderr_text = stderr.decode("utf-8").strip()
-    response: dict[str, object] | None = None
-    if stdout_text:
-        try:
-            parsed = json.loads(stdout_text)
-            if isinstance(parsed, dict):
-                response = parsed
-        except json.JSONDecodeError:
-            response = None
+    response = _parse_worker_response(stdout_text)
+    if response is None:
+        response = _parse_worker_response(stderr_text)
 
     if process.returncode != 0:
         error_message = stderr_text

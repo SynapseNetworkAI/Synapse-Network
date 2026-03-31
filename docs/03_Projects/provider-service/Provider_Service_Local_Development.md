@@ -98,6 +98,7 @@ curl http://127.0.0.1:8100/health
 18. `SOURCIFY_BASE_URL` / `SOURCIFY_TIMEOUT_S` 控制 Sourcify 拉取
 19. `BLOCKSCOUT_BASE_URLS_JSON` / `BLOCKSCOUT_TIMEOUT_S` 控制链级 Blockscout explorer fallback
 20. `ETHERSCAN_API_KEY`、`ETHERSCAN_BASE_URL`、`ETHERSCAN_TIMEOUT_S` 控制 Etherscan fallback；未配置 API key 时会自动跳过这一层
+21. 如果你本地 provider PostgreSQL 里还留着早期 TikTok / Reddit 下载表，runtime 第一次访问会自动补列并兼容旧 schema，不需要手工 drop 表重建
 
 如果需要生产模式脚本入口：
 

@@ -20,6 +20,7 @@ from app.services import reddit_media_download_service  # noqa: E402
 from app.services.reddit_media_download.downloader import DownloadedMedia  # noqa: E402
 from app.services.reddit_media_download.repository import (  # noqa: E402
     InMemoryRedditMediaDownloadRepository,
+    PostgresRedditMediaDownloadRepository,
 )
 from tests.helpers.download_replay import ReplayAwareRepository  # noqa: E402
 from app.services.twitter_video_download.storage import StoredObject  # noqa: E402
@@ -34,6 +35,34 @@ class FakeStorage:
             content_type=content_type,
             size_bytes=source_path.stat().st_size,
         )
+
+
+class SchemaCursor:
+    def __init__(self, columns: set[str]) -> None:
+        self.columns = columns
+        self.executed: list[str] = []
+        self._fetchall: list[tuple[str]] = []
+
+    def execute(self, query: str, params=None) -> None:
+        normalized = " ".join(query.split())
+        self.executed.append(normalized)
+        if normalized.startswith("SELECT column_name FROM information_schema.columns"):
+            self._fetchall = [(column,) for column in sorted(self.columns)]
+            return
+        if normalized.startswith("ALTER TABLE provider_reddit_media_assets RENAME COLUMN media_kind TO media_type"):
+            self.columns.discard("media_kind")
+            self.columns.add("media_type")
+            return
+        if normalized.startswith("ALTER TABLE provider_reddit_media_assets ADD COLUMN max_file_size_mb"):
+            self.columns.add("max_file_size_mb")
+            return
+        if normalized.startswith("ALTER TABLE provider_reddit_media_assets ADD COLUMN created_utc"):
+            self.columns.add("created_utc")
+            return
+        raise AssertionError(f"unexpected query: {normalized}")
+
+    def fetchall(self):
+        return self._fetchall
 
 
 def _signed_headers(payload: dict) -> dict[str, str]:
@@ -125,6 +154,41 @@ def test_reddit_media_download_invalid_url_rejected(stub_runtime):
     )
 
     assert response.status_code == 422
+
+
+def test_reddit_repository_repairs_legacy_schema_columns():
+    cursor = SchemaCursor(
+        {
+            "asset_key",
+            "post_id",
+            "post_url",
+            "subreddit",
+            "author",
+            "media_kind",
+            "storage_backend",
+            "storage_key",
+            "mime_type",
+            "size_bytes",
+            "sha256",
+            "download_status",
+            "generated_at",
+            "expires_at",
+            "response_json",
+            "created_at",
+            "updated_at",
+        }
+    )
+    repository = PostgresRedditMediaDownloadRepository(
+        dsn="postgresql://postgres:postgres@localhost:5432/provider_service",
+        asset_table="provider_reddit_media_assets",
+        invocation_table="provider_api_invocations",
+    )
+
+    repository._ensure_asset_table_schema(cursor)
+
+    assert "media_type" in cursor.columns
+    assert "max_file_size_mb" in cursor.columns
+    assert "created_utc" in cursor.columns
 
 
 def test_reddit_media_download_size_limit_returns_502(

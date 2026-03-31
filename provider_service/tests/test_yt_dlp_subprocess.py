@@ -72,6 +72,38 @@ def test_run_yt_dlp_subprocess_success(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert result["filepath"] == str(target_path)
 
 
+def test_run_yt_dlp_subprocess_parses_json_after_progress_noise(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    script = (
+        "import json,sys;"
+        "json.loads(sys.stdin.read());"
+        "sys.stdout.write('[download] 100% complete\\r');"
+        "sys.stdout.write(json.dumps({'ok': True, 'info': {'id': 'demo', 'filepath': sys.argv[1]}}) + '\\n')"
+    )
+    target_path = tmp_path / "demo.mp4"
+
+    monkeypatch.setattr(
+        "app.services.yt_dlp_subprocess._worker_command",
+        lambda: [sys.executable, "-c", script, str(target_path)],
+    )
+
+    result = asyncio.run(
+        run_yt_dlp_subprocess(
+            YtDlpSubprocessSpec(
+                url="https://example.com/video",
+                target_dir=tmp_path,
+                format_selector="best",
+                download=True,
+            )
+        )
+    )
+
+    assert result["id"] == "demo"
+    assert result["filepath"] == str(target_path)
+
+
 def test_run_yt_dlp_subprocess_cancel_terminates_worker(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

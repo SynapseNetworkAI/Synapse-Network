@@ -74,6 +74,7 @@ def main() -> int:
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
+            "noprogress": True,
             "socket_timeout": int(payload.get("socketTimeoutSec", 20)),
         }
 
