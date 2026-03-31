@@ -1,4 +1,5 @@
-const fs = require('fs');
+const fs = require("fs");
+const path = require("path");
 
 const content = `
 "use client";
@@ -208,5 +209,19 @@ export default function SellDashboard() {
 }
 `;
 
-fs.writeFileSync("/Users/cliff/workspace/A2A-pay/frontend/src/app/dashboard/sell/page.tsx", content);
-console.log("Successfully wrote clean React file");
+const repoRoot = path.resolve(__dirname, "..", "..");
+const defaultTargetPath = path.join(
+  repoRoot,
+  "apps",
+  "frontend",
+  "src",
+  "app",
+  "dashboard",
+  "sell",
+  "page.tsx",
+);
+const targetPath = path.resolve(process.argv[2] || defaultTargetPath);
+
+fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+fs.writeFileSync(targetPath, content);
+console.log(`Successfully wrote clean React file to ${targetPath}`);

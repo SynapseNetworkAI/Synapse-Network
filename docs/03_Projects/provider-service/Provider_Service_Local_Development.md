@@ -62,11 +62,18 @@ provider_service/
 ## 快速启动
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/provider_service
+cd provider_service
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ./scripts/start.local.sh
+```
+
+本地启动脚本现在会主动等待 `http://127.0.0.1:8100/health` 变绿，只有健康检查通过才算启动成功。
+如果你要手工验证：
+
+```bash
+curl http://127.0.0.1:8100/health
 ```
 
 本地开发调试默认使用 `local` 环境：
@@ -134,7 +141,7 @@ SERVICE_PORT=8100
 然后重启本地服务：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/provider_service
+cd provider_service
 ./scripts/restart.local.sh
 ```
 
@@ -240,7 +247,7 @@ curl -X POST "http://127.0.0.1:8100/provider-services/twitter-video-download/inv
 自动化回归：
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+cd provider_service
 ./.venv/bin/python -m pytest tests/test_twitter_video_download.py -q
 ```
 
@@ -265,7 +272,7 @@ curl -X POST "http://127.0.0.1:8100/provider-services/tiktok-video-download/invo
 自动化回归：
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+cd provider_service
 ./.venv/bin/python -m pytest tests/test_tiktok_video_download.py -q
 ```
 
@@ -290,7 +297,7 @@ curl -X POST "http://127.0.0.1:8100/provider-services/reddit-media-download/invo
 自动化回归：
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+cd provider_service
 ./.venv/bin/python -m pytest tests/test_reddit_media_download.py -q
 ```
 
@@ -313,7 +320,7 @@ curl -X POST "http://127.0.0.1:8100/provider-services/youtube-video-download/inv
 自动化回归：
 
 ```bash
-cd /home/alex/Documents/cliff/Synapse-Network/provider_service
+cd provider_service
 ./.venv/bin/python -m pytest tests/test_youtube_video_download.py -q
 ```
 
