@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, createContext, useContext, useRef, useMemo } from "react";
 import { useAccount, useAccountEffect, useDisconnect, useSignMessage } from "wagmi";
 import { toHex } from "viem";
-import toast from "react-hot-toast";
 import { getAppRole } from "@/utils/roleStore";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
@@ -13,6 +12,7 @@ import {
   storeAuthSession,
   verifyAuthSignature,
 } from "@/utils/authSession";
+import { showWalletStatusErrorToast, showWalletStatusToast } from "@/utils/walletToast";
 
 interface AuthContextType {
   isConnected: boolean;
@@ -52,9 +52,7 @@ function isWalletUnstableError(msg: string): boolean {
   );
 }
 
-const SESSION_EXPIRED_TOAST_ID = "session-expired-reconnect";
 const SESSION_EXPIRED_TOAST_COOLDOWN_MS = 2500;
-const WALLET_SELECTION_TOAST_ID = "wallet-selection-single-account";
 
 async function readInjectedAccounts(): Promise<string[]> {
   const ethereum = (globalThis as { ethereum?: { request: (args: { method: string }) => Promise<unknown> } }).ethereum;
@@ -98,9 +96,8 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
     const withinCooldown = now - lastSessionExpiredToastAtRef.current < SESSION_EXPIRED_TOAST_COOLDOWN_MS;
     if (!withinCooldown) {
       lastSessionExpiredToastAtRef.current = now;
-      toast("Session expired. Please reconnect wallet to continue.", {
+      showWalletStatusToast("Session expired. Please reconnect wallet to continue.", {
         icon: "🔁",
-        id: SESSION_EXPIRED_TOAST_ID,
       });
     }
 
@@ -169,21 +166,20 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
 
     if (errorMsg.includes("unavailable while reconnecting")) {
       setAuthError("Wallet is still reconnecting. Please try again shortly or manually reconnect.");
-      toast("Wallet reconnecting, please wait a moment.", { icon: "⏳" });
+      showWalletStatusToast("Wallet reconnecting, please wait a moment.", { icon: "⏳" });
       return;
     }
 
     if (errorMsg.includes("Connector not connected")) {
       setAuthError("Wallet connector is not ready. Please reconnect wallet and try authorize again.");
-      toast("Wallet not fully connected yet. Please reconnect and retry.", { icon: "🔌" });
+      showWalletStatusToast("Wallet not fully connected yet. Please reconnect and retry.", { icon: "🔌" });
       return;
     }
 
     if (errorMsg.includes("Multiple wallet accounts selected")) {
       setAuthError("Please select only one wallet account, then reconnect.");
-      toast("Please select only one account in wallet, then reconnect.", {
+      showWalletStatusToast("Please select only one account in wallet, then reconnect.", {
         icon: "1️⃣",
-        id: WALLET_SELECTION_TOAST_ID,
       });
       forceReconnectIfNeeded();
       return;
@@ -191,17 +187,17 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
 
     if (isWalletUnstableError(errorMsg)) {
       setAuthError("Wallet connection is unstable. Please disconnect and reconnect your wallet, then try again.");
-      toast("Wallet connection unstable. Please reconnect wallet and retry.", { icon: "⚠️" });
+      showWalletStatusToast("Wallet connection unstable. Please reconnect wallet and retry.", { icon: "⚠️" });
       return;
     }
 
     setAuthError(errorMsg);
     if (errorMsg.includes("User rejected") || String(error).includes("4001") || String(error).includes("4100")) {
-      toast("Signature request cancelled by user.", { icon: "ℹ️" });
+      showWalletStatusToast("Signature request cancelled by user.", { icon: "ℹ️" });
       return;
     }
 
-    toast.error("Auth failed: " + errorMsg);
+    showWalletStatusErrorToast("Auth failed: " + errorMsg);
   }, [forceReconnectIfNeeded]);
 
   const authorize = useCallback(async (): Promise<boolean> => {

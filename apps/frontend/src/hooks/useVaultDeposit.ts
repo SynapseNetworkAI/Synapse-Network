@@ -26,6 +26,7 @@ import {
   recordDepositAttempt,
   type DepositAttemptStage,
 } from "@/utils/balanceApi";
+import { showWalletStatusToast } from "@/utils/walletToast";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 
@@ -95,6 +96,41 @@ function buildDepositFailureMessage(error: unknown): string {
     return "Deposit failed because the wallet transaction nonce is out of date. Please retry from the wallet.";
   }
   return rawMessage;
+}
+
+function getWalletConnectionFailureMessage(error: unknown): string | null {
+  const normalizedMessage = toSafeErrorMessage(error, "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedMessage) {
+    return null;
+  }
+
+  if (
+    normalizedMessage.includes("requested method and/or account has not been authorized")
+    || normalizedMessage.includes("requested account and/or method has not been authorized")
+    || normalizedMessage.includes("not been authorized by the user")
+    || normalizedMessage.includes("connector not connected")
+    || normalizedMessage.includes("wallet provider unavailable")
+    || normalizedMessage.includes("unavailable while reconnecting")
+  ) {
+    return "Wallet not fully connected yet. Please reconnect and retry.";
+  }
+
+  if (normalizedMessage.includes("multiple wallet accounts selected")) {
+    return "Please select only one wallet account, then reconnect.";
+  }
+
+  if (
+    normalizedMessage.includes("cannot read properties of undefined")
+    || normalizedMessage.includes("reading 'length'")
+    || normalizedMessage.includes("reading 'raw'")
+  ) {
+    return "Wallet connection unstable. Please reconnect wallet and retry.";
+  }
+
+  return null;
 }
 
 function shortAddress(address?: string): string {
@@ -378,12 +414,17 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     } catch (error: unknown) {
       setDepositStep("input");
       const message = error instanceof Error ? error.message : String(error);
+      const walletConnectionMessage = getWalletConnectionFailureMessage(error);
 
       let failureReason = "Unknown Error";
       if (message.includes("User rejected") || message.toLowerCase().includes("rejected")) {
         failureReason = "User rejected";
         setDepositError("Deposit was cancelled in wallet. No funds were charged.");
         toast("Sign/Transaction cancelled by user", { icon: "ℹ️" });
+      } else if (walletConnectionMessage) {
+        failureReason = walletConnectionMessage;
+        setDepositError(walletConnectionMessage);
+        showWalletStatusToast(walletConnectionMessage, { icon: "🔌" });
       } else if (message.includes("Insufficient Balance") || message.includes("insufficient funds") || message.includes("gas required exceeds allowance")) {
         failureReason = "Insufficient Gas/Funds";
         setDepositError("USDC or ETH 余额不足，请检查钱包");

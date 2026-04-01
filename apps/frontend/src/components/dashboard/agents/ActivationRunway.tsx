@@ -290,7 +290,6 @@ export default function ActivationRunway({
       if (!isSessionAuthenticated) {
         const ok = await authorize();
         if (!ok) {
-          toast.error(t("agentsPage.signInToDepositFunds"));
           return;
         }
       }
