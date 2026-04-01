@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CircleAlert } from "lucide-react";
 import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useOwnerData } from "@/hooks/useOwnerData";
+import { useVaultDeposit } from "@/hooks/useVaultDeposit";
 import { listAgentCredentials, type AgentCredentialRecord } from "@/utils/agentCredentialApi";
 import { clearAuthSession, WALLET_SESSION_MISSING_MESSAGE } from "@/utils/authSession";
 
@@ -36,8 +38,9 @@ function formatPercent(value: number): string {
 export default function OwnerCreditsPage() {
   const { t } = useLanguage();
   const { address: userAddress, isConnected } = useAccount();
-  const { isSessionAuthenticated } = useAuth();
-  const { stats, logs } = useOwnerData();
+  const { openConnectModal } = useConnectModal();
+  const { isSessionAuthenticated, authorize } = useAuth();
+  const { stats, logs, handleRefresh } = useOwnerData();
   const [credentials, setCredentials] = useState<AgentCredentialRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +85,51 @@ export default function OwnerCreditsPage() {
   }, [credentials, logs, stats.ownerBalance]);
 
   const billingCycle = useMemo(() => getBillingCycleWindow(), []);
+  const {
+    isOpen: isDepositModalOpen,
+    openModal: openDepositModal,
+    closeModal: closeDepositModal,
+    depositAmount,
+    setDepositAmount,
+    depositError,
+    depositStep,
+    handleDeposit,
+    isPending,
+    isConfirming,
+    walletUsdcBalance,
+    vaultAddress,
+    walletAddress,
+    shortAddress,
+  } = useVaultDeposit({
+    initialAmount: "20",
+    onDepositSynced: async () => {
+      await Promise.all([handleRefresh(), fetchCredits()]);
+    },
+  });
+
+  const handleOpenPurchaseCredits = useCallback(async () => {
+    setError(null);
+
+    if (!isConnected) {
+      openConnectModal?.();
+      return;
+    }
+
+    if (!userAddress) {
+      setError(t("creditsPage.walletUnavailable"));
+      return;
+    }
+
+    if (!isSessionAuthenticated) {
+      const ok = await authorize();
+      if (!ok) {
+        setError(t("creditsPage.signInBeforePurchase"));
+        return;
+      }
+    }
+
+    openDepositModal();
+  }, [authorize, isConnected, isSessionAuthenticated, openConnectModal, openDepositModal, t, userAddress]);
 
   return (
     <div className="mx-auto w-full max-w-[1040px] px-8 py-10">
@@ -108,12 +156,15 @@ export default function OwnerCreditsPage() {
                 <CircleAlert className="mt-1 h-4 w-4 text-[#8b98b4]" />
               </div>
             </div>
-            <Link
-              href="/dashboard/billing"
+            <button
+              type="button"
+              onClick={() => {
+                void handleOpenPurchaseCredits();
+              }}
               className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-[15px] font-medium text-black transition hover:bg-white/90"
             >
               {t("creditsPage.purchaseCredits")}
-            </Link>
+            </button>
           </div>
         </section>
 
@@ -180,6 +231,26 @@ export default function OwnerCreditsPage() {
           </button>
         </section>
       </div>
+
+      <DepositUsdcModal
+        isOpen={isDepositModalOpen}
+        title={t("creditsPage.depositModalTitle")}
+        description={t("creditsPage.depositModalDescription")}
+        amount={depositAmount}
+        onAmountChange={setDepositAmount}
+        error={depositError}
+        step={depositStep}
+        isPending={isPending}
+        isConfirming={isConfirming}
+        walletAddress={walletAddress}
+        vaultAddress={vaultAddress}
+        walletUsdcBalance={walletUsdcBalance}
+        shortAddress={shortAddress}
+        onClose={closeDepositModal}
+        onConfirm={() => {
+          void handleDeposit();
+        }}
+      />
     </div>
   );
 }

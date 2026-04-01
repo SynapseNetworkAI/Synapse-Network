@@ -185,6 +185,8 @@ The Credits page should now mirror the X billing surface much more closely.
 2. stacked cards, not dashboard grids
 3. white pill CTAs on the right
 4. no `Auto Recharge unavailable` block
+5. `Purchase credits` opens an in-place USDC deposit modal instead of routing away from Credits
+6. deposit modal should expose X-style preset amount chips above the freeform amount input
 
 ### 7.3 Content rule
 
@@ -214,6 +216,8 @@ Use:
 2. `View all billing transactions and payment history for your account`
 3. narrow centered content column
 4. one large card with date-range filters and payment-history table
+5. X-style dark date picker surface
+6. future dates disabled
 
 Avoid:
 
