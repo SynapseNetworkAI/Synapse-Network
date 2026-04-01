@@ -7,6 +7,7 @@ type DepositUsdcModalProps = {
   title?: string;
   description?: string;
   amount: string;
+  presetAmounts?: number[];
   onAmountChange: (value: string) => void;
   error: string;
   step: "input" | "signing_permit" | "executing_tx";
@@ -25,6 +26,7 @@ export default function DepositUsdcModal({
   title = "Deposit USDC",
   description = "Deposit USDC into your vault to pay for Synapse calls without signing each request.",
   amount,
+  presetAmounts = [5, 25, 100, 250, 500],
   onAmountChange,
   error,
   step,
@@ -59,6 +61,30 @@ export default function DepositUsdcModal({
 
         <div className="x-modal-body">
         <label className="block">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {presetAmounts.map((preset) => {
+              const presetLabel = `$${preset.toFixed(2)}`;
+              const isSelected = Number(amount) === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => onAmountChange(String(preset))}
+                  disabled={isBusy}
+                  className={[
+                    "inline-flex h-9 items-center justify-center rounded-full px-4 text-[14px] font-medium transition",
+                    isSelected
+                      ? "bg-white text-black"
+                      : "bg-white/[0.04] text-[#f5f5f7] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-white/[0.08]",
+                    isBusy ? "cursor-not-allowed opacity-50" : "",
+                  ].join(" ")}
+                >
+                  {presetLabel}
+                </button>
+              );
+            })}
+          </div>
+
           <span className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Amount (USDC)</span>
           <div className="relative mt-1">
             <input

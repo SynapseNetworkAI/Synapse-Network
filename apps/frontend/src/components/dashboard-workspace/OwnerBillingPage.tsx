@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { XDatePicker } from "@/components/xui/XDatePicker";
 import { useFundsData } from "@/hooks/useFundsData";
 
 function formatDateInput(date: Date): string {
@@ -39,14 +40,29 @@ function transactionIdForRecord(id: string): string {
 export default function OwnerBillingPage() {
   const { t, lang } = useLanguage();
   const { records, loading } = useFundsData();
+  const today = useMemo(() => formatDateInput(new Date()), []);
   const [fromDate, setFromDate] = useState("2026-01-01");
-  const [toDate, setToDate] = useState(formatDateInput(new Date()));
+  const [toDate, setToDate] = useState(today);
 
   const filteredRecords = useMemo(() => {
     const from = new Date(`${fromDate}T00:00:00`).getTime();
     const to = new Date(`${toDate}T23:59:59`).getTime();
     return records.filter((row) => row.timestamp >= from && row.timestamp <= to);
   }, [fromDate, records, toDate]);
+
+  const handleFromDateChange = (nextValue: string) => {
+    setFromDate(nextValue);
+    if (nextValue > toDate) {
+      setToDate(nextValue);
+    }
+  };
+
+  const handleToDateChange = (nextValue: string) => {
+    setToDate(nextValue);
+    if (nextValue < fromDate) {
+      setFromDate(nextValue);
+    }
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1040px] px-8 py-10">
@@ -60,35 +76,30 @@ export default function OwnerBillingPage() {
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_320px_1fr] lg:items-end">
             <div>
               <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">{t("billingPage.fromLabel")}</p>
-              <label className="flex h-11 items-center gap-3 rounded-[10px] border border-white/12 bg-transparent px-4 text-[15px] text-white">
-                <CalendarDays className="h-4 w-4 text-[#d6d9db]" />
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(event) => setFromDate(event.target.value)}
-                  className="w-full bg-transparent text-white outline-none [color-scheme:dark]"
-                />
-              </label>
+              <XDatePicker
+                value={fromDate}
+                onChange={handleFromDateChange}
+                max={today}
+                ariaLabel={t("billingPage.fromLabel")}
+              />
             </div>
 
             <div>
               <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">{t("billingPage.toLabel")}</p>
-              <label className="flex h-11 items-center gap-3 rounded-[10px] border border-white/12 bg-transparent px-4 text-[15px] text-white">
-                <CalendarDays className="h-4 w-4 text-[#d6d9db]" />
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(event) => setToDate(event.target.value)}
-                  className="w-full bg-transparent text-white outline-none [color-scheme:dark]"
-                />
-              </label>
+              <XDatePicker
+                value={toDate}
+                onChange={handleToDateChange}
+                min={fromDate}
+                max={today}
+                ariaLabel={t("billingPage.toLabel")}
+              />
             </div>
 
             <button
               type="button"
               onClick={() => {
                 setFromDate("2026-01-01");
-                setToDate(formatDateInput(new Date()));
+                setToDate(today);
               }}
               className="h-11 justify-self-start text-[14px] font-medium text-[#5f6468] transition hover:text-[#8b98b4] lg:justify-self-end lg:text-right"
             >

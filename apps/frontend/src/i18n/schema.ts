@@ -628,6 +628,10 @@ export type I18nMessages = {
     description: string;
     remainingBalanceLabel: string;
     purchaseCredits: string;
+    walletUnavailable: string;
+    signInBeforePurchase: string;
+    depositModalTitle: string;
+    depositModalDescription: string;
     currentBillingCycle: string;
     daysRemaining: string;
     manageSpendCapTitle: string;

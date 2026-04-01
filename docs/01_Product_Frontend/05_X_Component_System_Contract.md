@@ -31,19 +31,21 @@ Synapse 当前已经有一套 `x-*` 视觉 token，但还停留在 CSS class 层
 2. `x-dialog`
 3. `x-input`
 4. `x-panel`
-5. `x-status-pill`
-6. `x-page-header`
-7. `x-empty-state`
-8. `x-inspector-pane`
+5. `x-date-picker`
+6. `x-status-pill`
+7. `x-page-header`
+8. `x-empty-state`
+9. `x-inspector-pane`
 
-本轮先把最底层四个原语正式收口：
+本轮先把最底层五个原语正式收口：
 
 1. `XButton`
 2. `XDialog`
 3. `XInput`
 4. `XPanel`
+5. `XDatePicker`
 
-其余对象必须建立在这四个之上，不允许跳过原语直接页面手搓。
+其余对象必须建立在这五个之上，不允许跳过原语直接页面手搓。
 
 ## 3. 当前代码真理源
 
@@ -53,6 +55,7 @@ Synapse 当前已经有一套 `x-*` 视觉 token，但还停留在 CSS class 层
 2. `apps/frontend/src/components/xui/XDialog.tsx`
 3. `apps/frontend/src/components/xui/XInput.tsx`
 4. `apps/frontend/src/components/xui/XPanel.tsx`
+5. `apps/frontend/src/components/xui/XDatePicker.tsx`
 
 ### 3.2 First Rollout Page
 
@@ -123,6 +126,22 @@ Agents 页是第一块样板地。后续 Credits、Payments、Usage、Provider W
 2. 图表内容
 3. 业务语义本身
 
+### 4.5 `XDatePicker`
+
+负责：
+
+1. X 风格暗色日期触发器
+2. 月历弹层尺寸和留白基线
+3. 月份切换
+4. `min` / `max` 日期禁用规则
+5. 账单与表单页的统一日期选择体验
+
+不负责：
+
+1. 业务页自己决定未来日期是否可选
+2. 页面里直接手写新的日期弹层 DOM
+3. 另一页重新造一套日历样式
+
 ## 5. 强约束
 
 从现在开始，下面这些做法属于违规：
@@ -131,7 +150,8 @@ Agents 页是第一块样板地。后续 Credits、Payments、Usage、Provider W
 2. 在业务页直接组合 `x-button-*` class 代替 `XButton`
 3. 在业务页直接组合 `x-input-flat` 代替 `XInput`
 4. 在业务页直接组合 `x-panel-flat` / `x-panel-muted` 代替 `XPanel`
-5. 为了赶进度在页面里复制另一页的按钮或弹窗结构
+5. 在业务页直接手写日期弹层代替 `XDatePicker`
+6. 为了赶进度在页面里复制另一页的按钮或弹窗结构
 
 允许的例外只有一种：
 
