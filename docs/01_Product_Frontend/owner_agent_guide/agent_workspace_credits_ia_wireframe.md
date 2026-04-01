@@ -204,6 +204,24 @@ Avoid:
 2. recent ledger list
 3. treasury/runtime jargon in the main copy
 
+### 7.4 Payments page rule
+
+`Billing > Payments` should mirror the X payment-history page, not the old owner treasury dashboard.
+
+Use:
+
+1. `Payments`
+2. `View all billing transactions and payment history for your account`
+3. narrow centered content column
+4. one large card with date-range filters and payment-history table
+
+Avoid:
+
+1. owner treasury language
+2. vault balance cards
+3. wallet balance cards
+4. funds-flow empty-state panels
+
 ## 8. Credits Page Wireframe
 
 ```text
