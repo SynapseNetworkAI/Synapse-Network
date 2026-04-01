@@ -64,15 +64,16 @@ Why:
 2. `Credits` is the runtime allocation surface
 3. `Transactions` is the ledger truth
 
-### 3.3 Agent sub-navigation
+### 3.3 Agent navigation rule
 
-Recommended Agents sub-menu:
+Recommended rule:
 
-1. `Agent Workspace`
-2. `Credentials`
+1. `Agents` is a single primary nav item
+2. route canonical: `/dashboard/agents`
+3. no `Agents Workspace` nested sidebar item
 
 `Credits` should not live under Agents as the canonical truth source.
-It should be controlled under Treasury, then surfaced back into Agent Workspace as actions and health state.
+It should be controlled under Treasury, then surfaced back into the Agents page as actions and health state.
 
 ## 4. Mental Model
 

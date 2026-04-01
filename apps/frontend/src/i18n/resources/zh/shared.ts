@@ -21,7 +21,6 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     ownerControl: "Owner 控制面",
     overview: "总览",
     agents: "Agents",
-    agentsWorkspace: "Agents Workspace",
     credits: "Credits",
     discovery: "服务发现",
     invocations: "调用记录",

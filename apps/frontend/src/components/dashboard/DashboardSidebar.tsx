@@ -38,7 +38,6 @@ export default function DashboardSidebar() {
     const allRoutes = [
       "/dashboard/overview",
       "/dashboard/agents",
-      "/dashboard/agents/workspace",
       "/dashboard/discovery",
       "/dashboard/invocations",
       "/dashboard/billing",
@@ -130,13 +129,10 @@ export default function DashboardSidebar() {
             <LayoutGrid className="w-4 h-4 mr-3 opacity-80" />
             {t("sidebar.overview")}
           </Link>
-          <Link href="/dashboard/agents" className={getLinkClasses(["/dashboard/agents", "/dashboard/agents/workspace"], false)}>
+          <Link href="/dashboard/agents" className={getLinkClasses("/dashboard/agents", false)}>
             <Bot className="w-4 h-4 mr-3 opacity-80" />
             {t("sidebar.agents")}
             <span className={getBadgeClasses(activePath.startsWith("/dashboard/agents"))}>3</span>
-          </Link>
-          <Link href="/dashboard/agents/workspace" className={getSubLinkClasses("/dashboard/agents/workspace")}>
-            {t("sidebar.agentsWorkspace")}
           </Link>
           <Link href="/dashboard/discovery" className={getLinkClasses("/dashboard/discovery", false)}>
             <Compass className="w-4 h-4 mr-3 opacity-80" />

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "clean": "rm -rf .next",
+    "build": "yarn clean && NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run"

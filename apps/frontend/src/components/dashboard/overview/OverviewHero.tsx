@@ -23,7 +23,7 @@ export default function OverviewHero() {
 
         <div className="flex flex-wrap gap-4">
           <Link 
-            href="/dashboard/agents/workspace" 
+            href="/dashboard/agents" 
             className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-black bg-white rounded-xl hover:bg-gray-200 transition-all active:scale-95"
           >
             {t("overviewPage.heroOpenAgentWorkspace")}

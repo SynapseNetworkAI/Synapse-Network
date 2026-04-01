@@ -7,18 +7,15 @@ import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import OverviewHero from "@/components/dashboard/overview/OverviewHero";
 import WorkflowSection from "@/components/dashboard/overview/WorkflowSection";
-import TreasurySection from "@/components/dashboard/overview/TreasurySection";
-import AnalyticsCards from "@/components/dashboard/overview/AnalyticsCards";
-import EventStreamTable from "@/components/dashboard/overview/EventStreamTable";
 import CapabilityCards from "@/components/dashboard/overview/CapabilityCards";
 import FeeTransparencyPanel from "@/components/dashboard/overview/FeeTransparencyPanel";
-import { RefreshCw, Activity, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu, History, Wallet, Terminal } from "lucide-react";
+import { RefreshCw, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu, History, Wallet, Terminal } from "lucide-react";
 import Link from "next/link";
 
 export default function OverviewPage() {
   const { isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
-  const { stats, handleRefresh, isRefreshing, userAddress } = useOwnerData();
+  const { stats, handleRefresh, isRefreshing } = useOwnerData();
   const { t } = useLanguage();
 
   const currentBalance = isConnected && isSessionAuthenticated ? stats?.ownerBalance || "0.00" : "0.00";
@@ -156,28 +153,6 @@ export default function OverviewPage() {
           </div>
         </section>
 
-        {/* FINANCIAL INFRASTRUCTURE */}
-        <section className="space-y-8">
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-white/5" />
-            <div className="flex items-center gap-2 px-4 py-1 rounded-full border border-white/5 bg-white/[0.02]">
-              <ShieldCheck className="w-3 h-3 text-amber-400/60" />
-              <span className="text-[10px] font-bold tracking-widest text-gray-500 uppercase">{t("overviewPage.financialInfrastructure")}</span>
-            </div>
-            <div className="h-px flex-1 bg-white/5" />
-          </div>
-          
-          <TreasurySection masterBalance={currentBalance} userAddress={userAddress} />
-          
-          <AnalyticsCards
-            servicesCount={0}
-            serviceWalletTotal="0.00"
-            totalEarned={0}
-            totalFees={0}
-            paidCount24h={0}
-          />
-        </section>
-
         {/* CORE CAPABILITIES */}
         <section>
           <div className="mb-8">
@@ -187,24 +162,9 @@ export default function OverviewPage() {
           <CapabilityCards />
         </section>
 
-        {/* ACTIVITY & TRANSPARENCY */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5">
-                  <Activity className="w-4 h-4 text-gray-400" />
-                </div>
-                <h2 className="text-lg font-bold text-white tracking-tight">{t("overviewPage.realTimeActivity")}</h2>
-              </div>
-              <Link href="/dashboard/audit" className="text-[10px] font-bold text-gray-500 hover:text-white transition-colors uppercase tracking-widest">
-                {t("overviewPage.openAuditTrail")}
-              </Link>
-            </div>
-            <EventStreamTable paidEvents={[]} />
-          </div>
-
-          <div className="lg:col-span-4">
+        {/* FEE TRANSPARENCY */}
+        <section className="grid grid-cols-1">
+          <div className="lg:max-w-[420px]">
             <div className="mb-6">
               <h2 className="text-lg font-bold text-white tracking-tight">{t("overviewPage.feeTransparency")}</h2>
               <p className="text-xs text-gray-500 mt-1">{t("overviewPage.feeTransparencyDescription")}</p>

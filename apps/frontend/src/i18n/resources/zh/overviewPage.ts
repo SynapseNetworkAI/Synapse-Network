@@ -26,8 +26,6 @@ const overviewPage: I18nMessages["overviewPage"] = {
   financialInfrastructure: "金融基础设施",
   coreCapabilities: "核心能力",
   coreCapabilitiesDescription: "构成 Synapse M2M 经济的关键能力支柱。",
-  realTimeActivity: "实时活动",
-  openAuditTrail: "打开审计轨迹",
   feeTransparency: "费率透明度",
   feeTransparencyDescription: "实时展示协议费计算结果。",
   protocolEfficiency: "协议效率",
@@ -93,13 +91,6 @@ const overviewPage: I18nMessages["overviewPage"] = {
   capabilityAtomicSettlementDescription: "网关负责实时扣费与请求路由，并在失败时自动回滚。",
   capabilityUnifiedLedgerTitle: "统一账本",
   capabilityUnifiedLedgerDescription: "为调用方和服务方同时提供透明审计与结算，并支持免 Gas 提现。",
-  eventStreamTitle: "ServicePaid 事件流",
-  eventStreamServiceId: "服务 ID",
-  eventStreamOwner: "Owner",
-  eventStreamAmountUsdc: "金额 (USDC)",
-  eventStreamFeeUsdc: "手续费 (USDC)",
-  eventStreamTxHash: "交易哈希",
-  eventStreamEmpty: "当前 Owner 范围下还没有找到 ServicePaid 事件。",
 };
 
 export default overviewPage;

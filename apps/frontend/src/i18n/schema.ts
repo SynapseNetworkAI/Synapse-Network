@@ -19,7 +19,6 @@ export type I18nMessages = {
     ownerControl: string;
     overview: string;
     agents: string;
-    agentsWorkspace: string;
     credits: string;
     discovery: string;
     invocations: string;
@@ -59,8 +58,6 @@ export type I18nMessages = {
     financialInfrastructure: string;
     coreCapabilities: string;
     coreCapabilitiesDescription: string;
-    realTimeActivity: string;
-    openAuditTrail: string;
     feeTransparency: string;
     feeTransparencyDescription: string;
     protocolEfficiency: string;
@@ -126,13 +123,6 @@ export type I18nMessages = {
     capabilityAtomicSettlementDescription: string;
     capabilityUnifiedLedgerTitle: string;
     capabilityUnifiedLedgerDescription: string;
-    eventStreamTitle: string;
-    eventStreamServiceId: string;
-    eventStreamOwner: string;
-    eventStreamAmountUsdc: string;
-    eventStreamFeeUsdc: string;
-    eventStreamTxHash: string;
-    eventStreamEmpty: string;
   };
   agentsPage: {
     loadCredentialsFailed: string;

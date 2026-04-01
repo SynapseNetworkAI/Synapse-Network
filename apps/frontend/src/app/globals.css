@@ -158,7 +158,7 @@ body {
   }
 
   .x-list-card {
-    min-height: 128px;
+    min-height: 140px;
     border-radius: 20px;
   }
 
@@ -241,21 +241,6 @@ body {
 
   .x-manage-delete:active {
     transform: scale(0.96);
-  }
-
-  .x-agent-rail {
-    min-width: 4.5rem;
-    align-self: stretch;
-    border-left: 1px solid rgba(255, 255, 255, 0.06);
-    padding-left: 0.875rem;
-  }
-
-  .x-agent-usage {
-    font-size: 1.125rem;
-    line-height: 1;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: #d8e7ff;
   }
 
   .x-status-inline {
@@ -909,4 +894,3 @@ body {
     animation: none !important;
   }
 }
-
