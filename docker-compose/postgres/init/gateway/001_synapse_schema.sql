@@ -483,6 +483,17 @@ CREATE TABLE IF NOT EXISTS synapse_router_config (
     CHECK (daily_limit_usdc >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS synapse_owner_spend_limits (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_address TEXT NOT NULL UNIQUE,
+    spending_limit_usdc NUMERIC(36, 6),
+    cycle_interval TEXT NOT NULL DEFAULT 'monthly',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (spending_limit_usdc IS NULL OR spending_limit_usdc > 0),
+    CHECK (cycle_interval IN ('monthly'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_synapse_provider_profiles_owner
 ON synapse_provider_profiles (owner_id, updated_at DESC);
 
@@ -566,6 +577,9 @@ ON synapse_withdraw_tx_dedup (owner_address, tx_hash, kind);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_router_config_updated_at
 ON synapse_router_config (updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_owner_spend_limits_updated_at
+ON synapse_owner_spend_limits (updated_at DESC);
 
 -- Reconcile legacy lowercase withdrawal statuses into the target uppercase contract.
 

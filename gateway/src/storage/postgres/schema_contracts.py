@@ -240,4 +240,14 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
             _constraint("unique owner address router config row", "unique", "owner_address"),
         ),
     ),
+    TableSchemaContract(
+        table_name="synapse_owner_spend_limits",
+        required_columns=frozenset({"id", "owner_address", "spending_limit_usdc", "cycle_interval", "created_at", "updated_at"}),
+        required_indexes=frozenset({"idx_synapse_owner_spend_limits_updated_at"}),
+        required_constraints=(
+            _constraint("primary key on owner spend limit id", PRIMARY_KEY_FRAGMENT, "id"),
+            _constraint("unique owner address spend limit row", "unique", "owner_address"),
+            _constraint("monthly cycle interval check", "check", "cycle_interval", "monthly"),
+        ),
+    ),
 )

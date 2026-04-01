@@ -125,9 +125,10 @@
 3. refund
 4. provider withdrawals
 5. router config
-6. finance audit logs
-7. usage logs
-8. service control APIs
+6. owner spending limit
+7. finance audit logs
+8. usage logs
+9. service control APIs
 
 ### 4.3 Public or Runtime APIs
 

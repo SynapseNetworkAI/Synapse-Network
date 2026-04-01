@@ -13,6 +13,7 @@ from src.api.schemas.pydantic_models import (
     RefundIntentRequest,
     RefundCompleteRequest,
     RouterConfigRequest,
+    OwnerSpendLimitUpdateRequest,
     ProviderWithdrawIntentRequest,
     ProviderWithdrawCompleteRequest,
     TX_HASH_FORMAT_ERROR,
@@ -451,6 +452,39 @@ async def set_router_config(
         owner_wallet, config.dailyLimitUsdc, _extract_request_meta(request)
     )
     return {"status": "success", "ownerAddress": owner_wallet, "config": saved}
+
+
+@router.get("/v1/balance/spending-limit")
+async def get_owner_spending_limit(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    spending_limit = await service.get_owner_spending_limit(owner_wallet)
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        "spendingLimit": spending_limit,
+    }
+
+
+@router.put("/v1/balance/spending-limit")
+async def set_owner_spending_limit(
+    payload: OwnerSpendLimitUpdateRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    saved = await service.set_owner_spending_limit(
+        owner_wallet=owner_wallet,
+        spending_limit_usdc=payload.spendingLimitUsdc,
+        allow_unlimited=payload.allowUnlimited,
+        request_meta=_extract_request_meta(request),
+    )
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        "spendingLimit": saved,
+    }
 
 
 @router.get("/v1/finance/audit-logs")

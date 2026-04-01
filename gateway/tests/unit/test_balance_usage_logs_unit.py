@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from src import app as gateway_app
+from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.finance import UsageLogRow
 from src.services.platform import credential_service
 from src.services.platform.balance_service import BalanceService
@@ -17,9 +18,13 @@ from src.services.platform.balance_service import BalanceService
 class InMemoryGatewayStateRepo:
     def __init__(self, usage_rows: list[UsageLogRow]) -> None:
         self.usage_rows = list(usage_rows)
+        self.owner_spend_limit_rows: list[OwnerSpendLimitRow] = []
 
     def read_invocation_billing_rows(self):
         return list(self.usage_rows)
+
+    def read_owner_spend_limit_rows(self):
+        return list(self.owner_spend_limit_rows)
 
 
 class FakeStorage:
@@ -277,3 +282,75 @@ def test_usage_logs_limit_mode_stays_backward_compatible() -> None:
     assert payload["pageSize"] == 1
     assert payload["hasMore"] is True
     assert [row["id"] for row in payload["logs"]] == ["inv-21"]
+
+
+def test_get_owner_spending_limit_endpoint_returns_owner_level_payload(monkeypatch) -> None:
+    storage = FakeStorage([])
+
+    async def fake_get_owner_spending_limit(self, owner_wallet: str):
+        _ = self
+        return {
+            "ownerAddress": owner_wallet,
+            "spendingLimitUsdc": 25.0,
+            "allowUnlimited": False,
+            "cycleInterval": "monthly",
+            "currentCycleSpendUsdc": 7.5,
+            "remainingSpendUsdc": 17.5,
+            "updatedAt": "2026-04-01 12:00:00",
+        }
+
+    monkeypatch.setattr(
+        BalanceService, "get_owner_spending_limit", fake_get_owner_spending_limit
+    )
+
+    with _http_client(storage) as client:
+        response = client.get(
+            "/api/v1/balance/spending-limit",
+            headers={"X-User-Address": "0xowner", "Authorization": "Bearer test"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["spendingLimit"]["spendingLimitUsdc"] == 25.0
+    assert payload["spendingLimit"]["currentCycleSpendUsdc"] == 7.5
+
+
+def test_set_owner_spending_limit_endpoint_accepts_unlimited_payload(monkeypatch) -> None:
+    storage = FakeStorage([])
+
+    async def fake_set_owner_spending_limit(
+        self,
+        owner_wallet: str,
+        *,
+        spending_limit_usdc: float | None,
+        allow_unlimited: bool,
+        request_meta,
+    ):
+        _ = (self, request_meta)
+        return {
+            "ownerAddress": owner_wallet,
+            "spendingLimitUsdc": spending_limit_usdc,
+            "allowUnlimited": allow_unlimited,
+            "cycleInterval": "monthly",
+            "currentCycleSpendUsdc": 0.0,
+            "remainingSpendUsdc": None,
+            "updatedAt": "2026-04-01 12:30:00",
+        }
+
+    monkeypatch.setattr(
+        BalanceService, "set_owner_spending_limit", fake_set_owner_spending_limit
+    )
+
+    with _http_client(storage) as client:
+        response = client.put(
+            "/api/v1/balance/spending-limit",
+            json={"allowUnlimited": True},
+            headers={"X-User-Address": "0xowner", "Authorization": "Bearer test"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["spendingLimit"]["allowUnlimited"] is True
+    assert payload["spendingLimit"]["spendingLimitUsdc"] is None

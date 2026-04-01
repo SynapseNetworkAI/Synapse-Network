@@ -195,6 +195,24 @@ class BalanceService(
     async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
         return await self.platform_finance_service.get_router_config(owner_wallet)
 
+    async def get_owner_spending_limit(self, owner_wallet: str) -> Dict[str, Any]:
+        return await self.platform_finance_service.get_owner_spending_limit(owner_wallet)
+
+    async def set_owner_spending_limit(
+        self,
+        owner_wallet: str,
+        *,
+        spending_limit_usdc: Optional[float],
+        allow_unlimited: bool,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return await self.platform_finance_service.set_owner_spending_limit(
+            owner_wallet=owner_wallet,
+            spending_limit_usdc=spending_limit_usdc,
+            allow_unlimited=allow_unlimited,
+            request_meta=request_meta,
+        )
+
     async def set_router_config(
         self,
         owner_wallet: str,

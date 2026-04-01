@@ -5,34 +5,32 @@ import { CalendarDays, CircleAlert } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
+import ManageSpendCapModal from "@/components/dashboard-workspace/ManageSpendCapModal";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useVaultDeposit } from "@/hooks/useVaultDeposit";
-import { listAgentCredentials, type AgentCredentialRecord } from "@/utils/agentCredentialApi";
-import { clearAuthSession, WALLET_SESSION_MISSING_MESSAGE } from "@/utils/authSession";
+import {
+  clearAuthSession,
+  WALLET_SESSION_MISSING_MESSAGE,
+} from "@/utils/authSession";
+import {
+  getOwnerSpendingLimit,
+  type OwnerSpendingLimit,
+} from "@/utils/balanceApi";
+import {
+  calculateSpendRatio,
+  getBillingCycleWindow,
+} from "@/utils/creditsSpendCap";
 
 function formatUsd(value: number): string {
   return `$${Math.max(0, value).toFixed(2)}`;
 }
 
-function getBillingCycleWindow(now = new Date()) {
-  const cycleStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const cycleEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const daysRemaining = Math.max(0, Math.round((cycleEnd.getTime() - todayStart.getTime()) / msPerDay));
-
-  return {
-    cycleLabel: `${cycleStart.toLocaleString(undefined, { month: "short" })} ${cycleStart.getDate()} - ${cycleEnd.toLocaleString(undefined, {
-      month: "short",
-    })} ${cycleEnd.getDate()}, ${cycleEnd.getFullYear()}`,
-    daysRemaining,
-  };
-}
-
 function formatPercent(value: number): string {
-  return `${Math.max(0, Math.min(100, value)).toFixed(1).replace(/\\.0$/, "")}%`;
+  return `${Math.max(0, Math.min(100, value))
+    .toFixed(1)
+    .replace(/\\.0$/, "")}%`;
 }
 
 export default function OwnerCreditsPage() {
@@ -40,23 +38,27 @@ export default function OwnerCreditsPage() {
   const { address: userAddress, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated, authorize } = useAuth();
-  const { stats, logs, handleRefresh } = useOwnerData();
-  const [credentials, setCredentials] = useState<AgentCredentialRecord[]>([]);
+  const { stats, handleRefresh } = useOwnerData();
+  const [spendingLimit, setSpendingLimit] = useState<OwnerSpendingLimit | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
+  const [isSpendCapModalOpen, setIsSpendCapModalOpen] = useState(false);
 
-  const fetchCredits = useCallback(async () => {
+  const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
-      setCredentials([]);
+      setSpendingLimit(null);
       return;
     }
 
     try {
       setError(null);
-      const rows = await listAgentCredentials(userAddress);
-      setCredentials(rows);
+      const nextLimit = await getOwnerSpendingLimit(userAddress);
+      setSpendingLimit(nextLimit);
     } catch (err) {
       console.error("Failed to load credits page:", err);
-      const message = err instanceof Error ? err.message : "Failed to load credits page";
+      const message =
+        err instanceof Error ? err.message : "Failed to load credits page";
       if (message === WALLET_SESSION_MISSING_MESSAGE) {
         clearAuthSession();
       }
@@ -65,26 +67,32 @@ export default function OwnerCreditsPage() {
   }, [isConnected, isSessionAuthenticated, userAddress]);
 
   useEffect(() => {
-    void fetchCredits();
-  }, [fetchCredits]);
+    void fetchSpendingLimit();
+  }, [fetchSpendingLimit]);
+
+  const billingCycle = useMemo(() => getBillingCycleWindow(), []);
 
   const creditSummary = useMemo(() => {
-    const allocated = credentials.reduce((sum, agent) => sum + Math.max(0, agent.creditLimit ?? 0), 0);
     const treasuryAvailable = Number.parseFloat(stats.ownerBalance) || 0;
-    const remainingBalance = treasuryAvailable + allocated;
-    const currentSpend = logs.reduce((sum, row) => sum + Math.max(0, row.total_charge ?? row.unit_price ?? 0), 0);
-    const billingCycleCap = Math.max(remainingBalance, currentSpend, 0);
-    const spendRatio = billingCycleCap > 0 ? (currentSpend / billingCycleCap) * 100 : 0;
+    const currentSpend = Number(spendingLimit?.currentCycleSpendUsdc ?? 0);
+    const billingCycleCap =
+      typeof spendingLimit?.spendingLimitUsdc === "number"
+        ? spendingLimit.spendingLimitUsdc
+        : null;
+    const spendRatio = calculateSpendRatio(currentSpend, billingCycleCap);
 
     return {
-      remainingBalance,
+      remainingBalance: treasuryAvailable,
       currentSpend,
       billingCycleCap,
       spendRatio,
+      remainingSpend:
+        typeof spendingLimit?.remainingSpendUsdc === "number"
+          ? spendingLimit.remainingSpendUsdc
+          : null,
     };
-  }, [credentials, logs, stats.ownerBalance]);
+  }, [spendingLimit, stats.ownerBalance]);
 
-  const billingCycle = useMemo(() => getBillingCycleWindow(), []);
   const {
     isOpen: isDepositModalOpen,
     openModal: openDepositModal,
@@ -103,39 +111,66 @@ export default function OwnerCreditsPage() {
   } = useVaultDeposit({
     initialAmount: "20",
     onDepositSynced: async () => {
-      await Promise.all([handleRefresh(), fetchCredits()]);
+      await Promise.all([handleRefresh(), fetchSpendingLimit()]);
     },
   });
 
-  const handleOpenPurchaseCredits = useCallback(async () => {
+  const ensureBillingControlReady = useCallback(async (): Promise<boolean> => {
     setError(null);
 
     if (!isConnected) {
       openConnectModal?.();
-      return;
+      return false;
     }
 
     if (!userAddress) {
       setError(t("creditsPage.walletUnavailable"));
-      return;
+      return false;
     }
 
     if (!isSessionAuthenticated) {
       const ok = await authorize();
       if (!ok) {
         setError(t("creditsPage.signInBeforePurchase"));
-        return;
+        return false;
       }
     }
 
+    return true;
+  }, [
+    authorize,
+    isConnected,
+    isSessionAuthenticated,
+    openConnectModal,
+    t,
+    userAddress,
+  ]);
+
+  const handleOpenPurchaseCredits = useCallback(async () => {
+    const ready = await ensureBillingControlReady();
+    if (!ready) {
+      return;
+    }
     openDepositModal();
-  }, [authorize, isConnected, isSessionAuthenticated, openConnectModal, openDepositModal, t, userAddress]);
+  }, [ensureBillingControlReady, openDepositModal]);
+
+  const handleOpenManageSpendCap = useCallback(async () => {
+    const ready = await ensureBillingControlReady();
+    if (!ready) {
+      return;
+    }
+    setIsSpendCapModalOpen(true);
+  }, [ensureBillingControlReady]);
 
   return (
     <div className="mx-auto w-full max-w-[1040px] px-8 py-10">
       <div className="border-b border-white/8 pb-9">
-        <h1 className="text-[43px] font-semibold tracking-[-0.04em] text-white">{t("creditsPage.title")}</h1>
-        <p className="mt-3 text-[18px] text-[#8b98b4]">{t("creditsPage.description")}</p>
+        <h1 className="text-[43px] font-semibold tracking-[-0.04em] text-white">
+          {t("creditsPage.title")}
+        </h1>
+        <p className="mt-3 text-[18px] text-[#8b98b4]">
+          {t("creditsPage.description")}
+        </p>
       </div>
 
       <div className="mt-12 space-y-7">
@@ -148,7 +183,9 @@ export default function OwnerCreditsPage() {
         <section className="rounded-[18px] border border-white/10 bg-[#141414] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
           <div className="flex flex-col gap-5 rounded-[12px] border border-white/10 bg-[#1d1d1d] px-6 py-7 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-[14px] text-[#8b98b4]">{t("creditsPage.remainingBalanceLabel")}</p>
+              <p className="text-[14px] text-[#8b98b4]">
+                {t("creditsPage.remainingBalanceLabel")}
+              </p>
               <div className="mt-2 flex items-center gap-2">
                 <p className="text-[44px] font-semibold leading-none tracking-[-0.04em] text-white">
                   {formatUsd(creditSummary.remainingBalance)}
@@ -173,13 +210,21 @@ export default function OwnerCreditsPage() {
             <div className="flex items-start gap-3">
               <CalendarDays className="mt-1 h-4 w-4 text-[#8b98b4]" />
               <div>
-                <p className="text-[14px] text-[#8b98b4]">{t("creditsPage.currentBillingCycle")}</p>
-                <p className="mt-1 text-[18px] font-semibold text-white">{billingCycle.cycleLabel}</p>
+                <p className="text-[14px] text-[#8b98b4]">
+                  {t("creditsPage.currentBillingCycle")}
+                </p>
+                <p className="mt-1 text-[18px] font-semibold text-white">
+                  {billingCycle.cycleLabel}
+                </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[14px] text-[#8b98b4]">{t("creditsPage.daysRemaining")}</p>
-              <p className="mt-1 text-[18px] font-semibold text-white">{billingCycle.daysRemaining}</p>
+              <p className="text-[14px] text-[#8b98b4]">
+                {t("creditsPage.daysRemaining")}
+              </p>
+              <p className="mt-1 text-[18px] font-semibold text-white">
+                {billingCycle.daysRemaining}
+              </p>
             </div>
           </div>
         </section>
@@ -187,11 +232,18 @@ export default function OwnerCreditsPage() {
         <section className="rounded-[18px] border border-white/10 bg-[#1f1f1f] px-6 py-7 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div className="max-w-[640px]">
-              <h2 className="text-[18px] font-semibold text-white">{t("creditsPage.manageSpendCapTitle")}</h2>
-              <p className="mt-3 text-[15px] leading-7 text-[#8b98b4]">{t("creditsPage.manageSpendCapDescription")}</p>
+              <h2 className="text-[18px] font-semibold text-white">
+                {t("creditsPage.manageSpendCapTitle")}
+              </h2>
+              <p className="mt-3 text-[15px] leading-7 text-[#8b98b4]">
+                {t("creditsPage.manageSpendCapDescription")}
+              </p>
             </div>
             <button
               type="button"
+              onClick={() => {
+                void handleOpenManageSpendCap();
+              }}
               className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-[15px] font-medium text-black transition hover:bg-white/90"
             >
               {t("creditsPage.manageSpendCap")}
@@ -200,28 +252,65 @@ export default function OwnerCreditsPage() {
 
           <div className="mt-14 grid grid-cols-1 gap-8 md:grid-cols-2">
             <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">{t("creditsPage.currentSpend")}</p>
-              <p className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-white">{formatUsd(creditSummary.currentSpend)}</p>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">
+                {t("creditsPage.currentSpend")}
+              </p>
+              <p className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-white">
+                {formatUsd(creditSummary.currentSpend)}
+              </p>
             </div>
             <div className="text-left md:text-right">
-              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">{t("creditsPage.billingCycleCap")}</p>
-              <p className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-white">{formatUsd(creditSummary.billingCycleCap)}</p>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">
+                {t("creditsPage.billingCycleCap")}
+              </p>
+              <p className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-white">
+                {creditSummary.billingCycleCap !== null
+                  ? formatUsd(creditSummary.billingCycleCap)
+                  : t("creditsPage.billingCycleCapNotConfigured")}
+              </p>
             </div>
           </div>
 
           <div className="mt-7 h-2 rounded-full bg-white/10">
             <div
-              className="h-2 rounded-full bg-[#4f8df7] transition-[width]"
-              style={{ width: `${Math.max(1.5, creditSummary.spendRatio)}%` }}
+              className={`h-2 rounded-full transition-[width] ${
+                creditSummary.spendRatio !== null
+                  ? "bg-[#4f8df7]"
+                  : "bg-white/20"
+              }`}
+              style={{
+                width: `${
+                  creditSummary.spendRatio !== null
+                    ? Math.max(1.5, creditSummary.spendRatio)
+                    : 100
+                }%`,
+              }}
             />
           </div>
-          <p className="mt-3 text-[14px] text-[#8b98b4]">{t("creditsPage.usedPercent", { percent: formatPercent(creditSummary.spendRatio) })}</p>
+          <p className="mt-3 text-[14px] text-[#8b98b4]">
+            {creditSummary.spendRatio !== null
+              ? t("creditsPage.usedPercent", {
+                  percent: formatPercent(creditSummary.spendRatio),
+                })
+              : t("creditsPage.manageSpendCapCoverageHint")}
+          </p>
+          {creditSummary.remainingSpend !== null ? (
+            <p className="mt-2 text-[14px] text-[#8b98b4]">
+              {t("creditsPage.manageSpendCapRemainingBudget", {
+                amount: formatUsd(creditSummary.remainingSpend),
+              })}
+            </p>
+          ) : null}
         </section>
 
         <section className="flex flex-col gap-6 rounded-[18px] border border-white/10 bg-[#1f1f1f] px-6 py-8 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] md:flex-row md:items-start md:justify-between">
           <div className="max-w-[600px]">
-            <h2 className="text-[18px] font-semibold text-white">{t("creditsPage.freeCreditsVoucherTitle")}</h2>
-            <p className="mt-3 text-[15px] leading-7 text-[#8b98b4]">{t("creditsPage.freeCreditsVoucherDescription")}</p>
+            <h2 className="text-[18px] font-semibold text-white">
+              {t("creditsPage.freeCreditsVoucherTitle")}
+            </h2>
+            <p className="mt-3 text-[15px] leading-7 text-[#8b98b4]">
+              {t("creditsPage.freeCreditsVoucherDescription")}
+            </p>
           </div>
           <button
             type="button"
@@ -249,6 +338,17 @@ export default function OwnerCreditsPage() {
         onClose={closeDepositModal}
         onConfirm={() => {
           void handleDeposit();
+        }}
+      />
+
+      <ManageSpendCapModal
+        open={isSpendCapModalOpen}
+        userAddress={userAddress}
+        spendingLimit={spendingLimit}
+        onClose={() => setIsSpendCapModalOpen(false)}
+        onSaved={async (nextLimit) => {
+          setSpendingLimit(nextLimit);
+          await handleRefresh();
         }}
       />
     </div>

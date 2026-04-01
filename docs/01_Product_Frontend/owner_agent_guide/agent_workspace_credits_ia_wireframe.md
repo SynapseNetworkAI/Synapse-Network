@@ -206,6 +206,29 @@ Avoid:
 2. recent ledger list
 3. treasury/runtime jargon in the main copy
 
+### 7.5 Current backend contract
+
+Gateway now supports a true owner-level billing-cycle spend cap.
+
+What exists now:
+
+1. owner-scoped spend-cap row in `synapse_owner_spend_limits`
+2. owner-scoped read/write API at `/api/v1/balance/spending-limit`
+3. runtime enforcement before quote consumption and before invocation charge
+4. support for clearing a configured owner cap back to unlimited
+
+What still remains credential-scoped:
+
+1. runtime credential `creditLimit`
+2. runtime credential `resetInterval`
+3. credential-local rate and call-count policy
+
+Frontend rule:
+
+1. `Manage Spend Cap` should stay in account-billing language
+2. the modal should not expose credential selectors
+3. saved state should read and write the owner account spend cap only
+
 ### 7.4 Payments page rule
 
 `Billing > Payments` should mirror the X payment-history page, not the old owner treasury dashboard.
@@ -238,7 +261,7 @@ Avoid:
 | [ Current Billing Cycle: Mar 31 - Apr 30, 2026 ]                 [Days Remaining 29]        |
 +----------------------------------------------------------------------------------------------+
 | Manage Spend Cap                                                       [Manage Spend Cap]    |
-| Set a maximum amount you can spend in a billing cycle...                                     |
+| X-style shell, but backed by credential monthly limits until owner policy exists             |
 |                                                                                              |
 | CURRENT SPEND                             BILLING CYCLE CAP                                  |
 | 0.01                                      5.00                                               |

@@ -32,7 +32,7 @@ from src.domain.execution import (
 )
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
-from src.domain.gateway import RouterConfigRow
+from src.domain.gateway import OwnerSpendLimitRow, RouterConfigRow
 from src.domain.finance import (
     ChargeConsumerUsageCommand,
     DepositAttemptRow,
@@ -1099,6 +1099,67 @@ def test_gateway_state_repository_write_paths() -> None:
     assert "agent-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "875" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_processed_deposit_events" in tx_sql
+
+
+def test_gateway_state_repository_reads_owner_spend_limit_rows() -> None:
+    db = FakeDB()
+    db.readonly_plan.append(
+        {
+            "fetchall": [
+                [
+                    (
+                        "0xabc",
+                        Decimal("25.500000"),
+                        "monthly",
+                        "2026-04-01 00:00:00",
+                        "2026-04-01 12:00:00",
+                    )
+                ]
+            ]
+        }
+    )
+    repo = GatewayStateRepository(db, _q6)
+
+    rows = repo.read_owner_spend_limit_rows()
+
+    assert len(rows) == 1
+    assert rows[0].owner_address == "0xabc"
+    assert rows[0].spending_limit_usdc == Decimal("25.500000")
+    assert rows[0].cycle_interval == "monthly"
+
+
+def test_gateway_state_repository_writes_owner_spend_limit_rows() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+
+    repo.write_owner_spend_limit_rows(
+        [
+            OwnerSpendLimitRow(
+                ownerAddress="0xA",
+                spendingLimitUsdc=Decimal("12.500000"),
+                cycleInterval="monthly",
+                createdAt="2026-04-01 00:00:00",
+                updatedAt="2026-04-01 12:00:00",
+            ),
+            OwnerSpendLimitRow(
+                ownerAddress="0xB",
+                spendingLimitUsdc=None,
+                cycleInterval="monthly",
+                createdAt="2026-04-01 00:00:00",
+                updatedAt="2026-04-01 12:00:00",
+            ),
+        ],
+        updated_at="2026-04-01 12:00:00",
+    )
+
+    tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
+    tx_params = [
+        params for cur in db.tx_cursors for _, params in cur.executed if params is not None
+    ]
+    assert "DELETE FROM synapse_owner_spend_limits" in tx_sql
+    assert "INSERT INTO synapse_owner_spend_limits" in tx_sql
+    assert any(params[0] == "0xa" and params[1] == "12.500000" for params in tx_params)
+    assert any(params[0] == "0xb" and params[1] is None for params in tx_params)
 
 
 def test_gateway_state_repository_skips_invalid_deposit_intents() -> None:

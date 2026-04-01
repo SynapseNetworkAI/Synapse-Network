@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import json
 from typing import Any, Callable, List
 
-from src.domain.gateway import RouterConfigRow
+from src.domain.gateway import OwnerSpendLimitRow, RouterConfigRow
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
 from src.domain.finance import (
     RefundIntentRow,
@@ -743,6 +743,56 @@ class GatewayStateRepository:
                     (
                         owner,
                         str(self._q6(row.daily_limit_usdc)),
+                        to_dt_str(row.created_at or updated_at, now_dt_str()),
+                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
+                    ),
+                )
+
+    def read_owner_spend_limit_rows(self) -> List[OwnerSpendLimitRow]:
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT owner_address, spending_limit_usdc, cycle_interval, created_at, updated_at
+                FROM synapse_owner_spend_limits
+                ORDER BY updated_at DESC
+                """
+            )
+            rows = cur.fetchall()
+        return [
+            OwnerSpendLimitRow(
+                ownerAddress=str(owner),
+                spendingLimitUsdc=self._q6(limit) if limit is not None else None,
+                cycleInterval=str(cycle_interval or "monthly"),
+                createdAt=to_dt_str(created, "") or "",
+                updatedAt=to_dt_str(updated, "") or "",
+            )
+            for owner, limit, cycle_interval, created, updated in rows
+        ]
+
+    def write_owner_spend_limit_rows(
+        self, rows: List[OwnerSpendLimitRow], updated_at: str | int
+    ) -> None:
+        with self._db.tx_cursor() as cur:
+            cur.execute("DELETE FROM synapse_owner_spend_limits")
+            for row in rows:
+                owner = row.owner_address.lower()
+                if not owner:
+                    continue
+                spending_limit = (
+                    str(self._q6(row.spending_limit_usdc))
+                    if row.spending_limit_usdc is not None
+                    else None
+                )
+                cur.execute(
+                    """
+                    INSERT INTO synapse_owner_spend_limits (
+                        owner_address, spending_limit_usdc, cycle_interval, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        owner,
+                        spending_limit,
+                        str(row.cycle_interval or "monthly"),
                         to_dt_str(row.created_at or updated_at, now_dt_str()),
                         to_dt_str(row.updated_at or updated_at, now_dt_str()),
                     ),

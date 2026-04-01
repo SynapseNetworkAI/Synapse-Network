@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from src.core.config import settings
+from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.execution import PreparedWithdrawTicket
 from src.domain.finance import BalanceLedger, RefundIntentRow, UsageLogRow
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
@@ -45,6 +46,7 @@ class InMemoryGatewayStateRepo:
         self.deposit_rows: list[DepositIntentRow] = []
         self.refund_rows: list[RefundIntentRow] = []
         self.withdraw_rows: list[WithdrawalIntentRow] = []
+        self.owner_spend_limit_rows: list[OwnerSpendLimitRow] = []
         self.usage_rows = []
 
     def read_deposit_intents(self):
@@ -72,6 +74,14 @@ class InMemoryGatewayStateRepo:
 
     def read_invocation_billing_rows(self):
         return list(self.usage_rows)
+
+    def read_owner_spend_limit_rows(self):
+        return list(self.owner_spend_limit_rows)
+
+    def write_owner_spend_limit_rows(self, rows, updated_at):
+        _ = updated_at
+        assert all(isinstance(row, OwnerSpendLimitRow) for row in rows)
+        self.owner_spend_limit_rows = list(rows)
 
 
 class InMemoryAuditRepo:
@@ -975,3 +985,100 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
         "platformFeeAccrued": 0.4,
         "updatedAt": "2026-03-17 12:00:00",
     }
+
+
+def test_platform_finance_service_persists_owner_spending_limit() -> None:
+    storage = FakeStorage()
+    service = PlatformFinanceService(storage, DummyLockManager())
+    service._enforce_owner_write_rate_limit = _async_none
+
+    saved = asyncio.run(
+        service.set_owner_spending_limit(
+            "0xabc",
+            spending_limit_usdc=Decimal("25"),
+            allow_unlimited=False,
+            request_meta={"requestId": "req-owner-cap-1"},
+        )
+    )
+
+    assert saved["ownerAddress"] == "0xabc"
+    assert saved["spendingLimitUsdc"] == 25.0
+    assert saved["allowUnlimited"] is False
+    assert saved["cycleInterval"] == "monthly"
+    assert len(storage.gateway_state.owner_spend_limit_rows) == 1
+    assert storage.gateway_state.owner_spend_limit_rows[0].spending_limit_usdc == Decimal(
+        "25.000000"
+    )
+    assert storage.audit.rows[-1].action == "OWNER_SPEND_LIMIT_UPDATED"
+
+
+def test_platform_finance_service_reports_current_cycle_owner_spend_limit_budget() -> None:
+    storage = FakeStorage()
+    storage.gateway_state.owner_spend_limit_rows = [
+        OwnerSpendLimitRow(
+            ownerAddress="0xabc",
+            spendingLimitUsdc=Decimal("10"),
+            cycleInterval="monthly",
+            createdAt="2026-04-01 00:00:00",
+            updatedAt="2026-04-01 00:00:00",
+        )
+    ]
+    storage.gateway_state.usage_rows = [
+        UsageLogRow(
+            id="usage-1",
+            ts=credential_service.now_ts(),
+            consumerAddress="0xabc",
+            providerAddress="0xdef",
+            status="accepted",
+            totalCharge=Decimal("3.250000"),
+            businessType="charge",
+            riskLevel="green",
+        ),
+        UsageLogRow(
+            id="usage-2",
+            ts=credential_service.now_ts(),
+            consumerAddress="0xabc",
+            providerAddress="0xdef",
+            status="failed",
+            totalCharge=Decimal("9.000000"),
+            businessType="charge",
+            riskLevel="green",
+        ),
+    ]
+
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    summary = asyncio.run(service.get_owner_spending_limit("0xabc"))
+
+    assert summary["spendingLimitUsdc"] == 10.0
+    assert summary["currentCycleSpendUsdc"] == 3.25
+    assert summary["remainingSpendUsdc"] == 6.75
+    assert summary["allowUnlimited"] is False
+
+
+def test_platform_finance_service_can_clear_owner_spending_limit_to_unlimited() -> None:
+    storage = FakeStorage()
+    storage.gateway_state.owner_spend_limit_rows = [
+        OwnerSpendLimitRow(
+            ownerAddress="0xabc",
+            spendingLimitUsdc=Decimal("9"),
+            cycleInterval="monthly",
+            createdAt="2026-04-01 00:00:00",
+            updatedAt="2026-04-01 00:00:00",
+        )
+    ]
+    service = PlatformFinanceService(storage, DummyLockManager())
+    service._enforce_owner_write_rate_limit = _async_none
+
+    saved = asyncio.run(
+        service.set_owner_spending_limit(
+            "0xabc",
+            spending_limit_usdc=None,
+            allow_unlimited=True,
+            request_meta={"requestId": "req-owner-cap-clear"},
+        )
+    )
+
+    assert saved["spendingLimitUsdc"] is None
+    assert saved["allowUnlimited"] is True
+    assert storage.gateway_state.owner_spend_limit_rows[0].spending_limit_usdc is None

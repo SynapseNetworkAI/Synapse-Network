@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import contextmanager
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Optional
 
@@ -17,6 +18,7 @@ from src.api.schemas.pydantic_models import (
     AgentQuoteRequest,
     InferenceRequest,
 )
+from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.execution import InvocationRecord, ServiceQuoteRecord
 from src.domain.finance import BalanceLedger, FeePolicyEntity, UsageLogRow
 from src.domain.registry import ServiceTargetHealth
@@ -52,6 +54,7 @@ class InMemoryFeePolicyRepo:
 class InMemoryGatewayStateRepo:
     def __init__(self) -> None:
         self.usage_rows: list[UsageLogRow] = []
+        self.owner_spend_limit_rows: list[OwnerSpendLimitRow] = []
 
     def read_invocation_billing_rows(self):
         return list(self.usage_rows)
@@ -59,6 +62,9 @@ class InMemoryGatewayStateRepo:
     def write_invocation_billing_rows(self, rows):
         assert all(isinstance(row, UsageLogRow) for row in rows)
         self.usage_rows = list(rows)
+
+    def read_owner_spend_limit_rows(self):
+        return list(self.owner_spend_limit_rows)
 
 
 class InMemoryRegistryRepo:
@@ -276,6 +282,7 @@ class BudgetCheckResponse(BaseModel):
     allowed: bool
     remainingBudgetUsdc: Optional[float] = None
     remainingDailyLimitUsdc: Optional[float] = None
+    remainingBillingCycleLimitUsdc: Optional[float] = None
 
 
 class InvokeConstraintsResponse(BaseModel):
@@ -619,6 +626,82 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
         )
     )
     assert replay_response["invocationId"] == invocation_id
+
+
+def test_owner_billing_cycle_limit_blocks_quote_and_invocation(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
+    storage.gateway_state.owner_spend_limit_rows = [
+        OwnerSpendLimitRow(
+            ownerAddress="0xabc",
+            spendingLimitUsdc=Decimal("1.000000"),
+            cycleInterval="monthly",
+            createdAt="2026-04-01 00:00:00",
+            updatedAt="2026-04-01 00:00:00",
+        )
+    ]
+    storage.gateway_state.usage_rows = [
+        UsageLogRow(
+            id="usage-owner-cap-1",
+            ts=credential_service.now_ts(),
+            consumerAddress="0xabc",
+            providerAddress="0xdef",
+            status="accepted",
+            totalCharge=Decimal("0.600000"),
+            businessType="charge",
+            riskLevel="green",
+        )
+    ]
+
+    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(
+        forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
+    )
+
+    quote_response = asyncio.run(
+        forwarding_service.create_quote_v1(
+            storage,
+            AgentQuoteRequest(
+                serviceId="svc.echo",
+                inputPreview=QuoteInputPreviewRecord(
+                    sample=RuntimePayloadRecord(body={"textLength": 17})
+                ),
+                responseMode="sync",
+            ),
+            raw_token,
+            "req-owner-cap-quote-001",
+        )
+    )
+
+    assert quote_response["budgetCheck"]["allowed"] is False
+    assert quote_response["budgetCheck"]["remainingBillingCycleLimitUsdc"] == pytest.approx(
+        0.4
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.create_invocation_v1(
+                storage,
+                AgentInvocationRequest(
+                    quoteId=quote_response["quoteId"],
+                    idempotencyKey="task-owner-cap-step-1",
+                    payload=RuntimePayloadRecord(body={"text": "hello typed world"}),
+                    responseMode="sync",
+                ),
+                raw_token,
+                "req-owner-cap-invoke-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.detail["code"] == "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED"
 
 
 def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypatch) -> None:

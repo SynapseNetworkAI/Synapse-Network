@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
 
@@ -321,16 +322,87 @@ def _charge_amount_from_unit_price(
     return settlement, total_charge
 
 
+def _q6(value: Decimal | str | int | float) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+
+def _billing_cycle_start(now_ts: Optional[int] = None) -> int:
+    now_dt = datetime.fromtimestamp(now_ts or credential_service.now_ts(), tz=timezone.utc)
+    cycle_start = datetime(
+        year=now_dt.year,
+        month=now_dt.month,
+        day=1,
+        tzinfo=timezone.utc,
+    )
+    return int(cycle_start.timestamp())
+
+
+def _is_billable_usage_status(status: Any) -> bool:
+    normalized = str(status or "").strip().lower()
+    return normalized in {"accepted", "succeeded"}
+
+
+def _owner_billing_cycle_remaining_budget(
+    storage: BaseStorage, owner_wallet: str
+) -> Optional[float]:
+    gateway_state = storage.get_data_manager().system.gateway_state
+    read_owner_spend_limit_rows = getattr(gateway_state, "read_owner_spend_limit_rows", None)
+    if read_owner_spend_limit_rows is None:
+        return None
+
+    owner = normalize_wallet(owner_wallet)
+    spend_limit_rows = read_owner_spend_limit_rows()
+    found = next(
+        (
+            row
+            for row in spend_limit_rows
+            if normalize_wallet(str(row.owner_address or "")) == owner
+        ),
+        None,
+    )
+    if found is None or found.spending_limit_usdc is None:
+        return None
+
+    cycle_start = _billing_cycle_start()
+    current_spend = Decimal("0")
+    for row in gateway_state.read_invocation_billing_rows():
+        if normalize_wallet(str(row.consumer_address or "")) != owner:
+            continue
+        if int(row.ts or 0) < cycle_start:
+            continue
+        if not _is_billable_usage_status(row.status):
+            continue
+        charge = row.total_charge if row.total_charge is not None else row.unit_price
+        if charge is None:
+            continue
+        current_spend += Decimal(str(charge))
+
+    remaining = max(Decimal("0"), _q6(found.spending_limit_usdc) - _q6(current_spend))
+    return round(float(_q6(remaining)), 6)
+
+
 async def _budget_check(
-    credential: RuntimeCredentialRecord, charge_amount: float
+    storage: BaseStorage,
+    credential: RuntimeCredentialRecord,
+    charge_amount: float,
 ) -> dict[str, Any]:
     policy = credential.policy
+    remaining_owner_billing = _owner_billing_cycle_remaining_budget(
+        storage, credential_service.credential_owner_wallet(credential)
+    )
     if policy is None:
+        error_code = (
+            "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED"
+            if remaining_owner_billing is not None
+            and charge_amount > remaining_owner_billing + 1e-9
+            else None
+        )
         return {
-            "allowed": True,
+            "allowed": error_code is None,
             "remainingBudgetUsdc": None,
             "remainingDailyLimitUsdc": None,
-            "errorCode": None,
+            "remainingBillingCycleLimitUsdc": remaining_owner_billing,
+            "errorCode": error_code,
         }
 
     remaining_budget, per_invocation_code = _per_invocation_budget(policy, charge_amount)
@@ -339,6 +411,7 @@ async def _budget_check(
         charge_amount,
         remaining_lifetime,
         remaining_daily,
+        remaining_owner_billing,
         per_invocation_code,
     )
 
@@ -346,6 +419,7 @@ async def _budget_check(
         "allowed": error_code is None,
         "remainingBudgetUsdc": remaining_lifetime if remaining_lifetime is not None else remaining_budget,
         "remainingDailyLimitUsdc": remaining_daily,
+        "remainingBillingCycleLimitUsdc": remaining_owner_billing,
         "errorCode": error_code,
     }
 
@@ -383,6 +457,7 @@ def _budget_error_code(
     charge_amount: float,
     remaining_lifetime: Optional[float],
     remaining_daily: Optional[float],
+    remaining_owner_billing: Optional[float],
     per_invocation_code: Optional[str],
 ) -> Optional[str]:
     if per_invocation_code is not None:
@@ -391,6 +466,8 @@ def _budget_error_code(
         return "BUDGET_EXHAUSTED"
     if remaining_daily is not None and charge_amount > remaining_daily + 1e-9:
         return "DAILY_LIMIT_EXCEEDED"
+    if remaining_owner_billing is not None and charge_amount > remaining_owner_billing + 1e-9:
+        return "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED"
     return None
 
 
@@ -398,11 +475,16 @@ def _raise_for_budget_check(budget_check: dict[str, Any]) -> None:
     if budget_check.get("allowed"):
         return
     error_code = str(budget_check.get("errorCode") or "BUDGET_EXHAUSTED")
+    message = (
+        "Owner billing cycle spend limit does not allow this invocation"
+        if error_code == "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED"
+        else "Credential budget does not allow this invocation"
+    )
     raise HTTPException(
         status_code=402,
         detail={
             "code": error_code,
-            "message": "Credential budget does not allow this invocation",
+            "message": message,
         },
     )
 
@@ -422,6 +504,7 @@ def _quote_response(
             "allowed": bool(budget_check.get("allowed")),
             "remainingBudgetUsdc": budget_check.get("remainingBudgetUsdc"),
             "remainingDailyLimitUsdc": budget_check.get("remainingDailyLimitUsdc"),
+            "remainingBillingCycleLimitUsdc": budget_check.get("remainingBillingCycleLimitUsdc"),
         },
         "expiresAt": quote.expires_at,
         "idempotencyScope": "quoteId",
@@ -490,7 +573,7 @@ async def _execute_invocation_pipeline(
     settlement, total_charge = _charge_amount_from_unit_price(
         storage, provider_wallet, unit_price
     )
-    budget_check = await _budget_check(credential, total_charge)
+    budget_check = await _budget_check(storage, credential, total_charge)
     _raise_for_budget_check(budget_check)
 
     existing_invocation = _read_invocation_by_idempotency(
@@ -1028,7 +1111,7 @@ async def create_quote_v1(
     settlement, total_charge = _charge_amount_from_unit_price(
         storage, _service_wallet(service), unit_price
     )
-    budget_check = await _budget_check(credential, total_charge)
+    budget_check = await _budget_check(storage, credential, total_charge)
     _ = settlement
     return _quote_response(trace_request_id, quote, budget_check)
 

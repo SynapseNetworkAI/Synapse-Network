@@ -85,9 +85,10 @@ Agent、SDK、前端和测试断言都应优先依赖 `detail.code`，而不是�
 1. budget exhausted
 2. daily limit exceeded
 3. per invocation cap exceeded
-4. service unavailable
-5. upstream error
-6. insufficient balance
+4. owner billing cycle limit exceeded
+5. service unavailable
+6. upstream error
+7. insufficient balance
 
 这些分类是消费侧的稳定理解框架，不等于当前对外已发布的完整错误码表。
 
@@ -101,7 +102,8 @@ Agent、SDK、前端和测试断言都应优先依赖 `detail.code`，而不是�
 2. budget exhausted
 3. daily limit exceeded
 4. per invocation cap exceeded
-5. idempotency conflict
+5. owner billing cycle limit exceeded
+6. idempotency conflict
 
 ### 5.2 应先修复请求再重试的错误
 
