@@ -2,7 +2,7 @@
 
 > Status: proposed next-slice design
 >
-> Scope: Owner Control Plane / Agent Workspace / Treasury Credits
+> Scope: Owner Control Plane / Agent Workspace / Billing / Credits / Payments
 >
 > Companion docs:
 >
@@ -46,23 +46,21 @@ Recommended owner-side IA:
 2. `Agents`
 3. `Discovery`
 4. `Invocations`
-5. `Treasury`
+5. `Billing`
 6. `Risk & Audit`
 7. `Developer Resources`
 
-### 3.2 Treasury sub-navigation
+### 3.2 Billing sub-navigation
 
-Recommended Treasury sub-menu:
+Recommended Billing sub-menu:
 
-1. `Balance`
-2. `Credits`
-3. `Transactions`
+1. `Credits`
+2. `Payments`
 
 Why:
 
-1. `Balance` is the money source
-2. `Credits` is the runtime allocation surface
-3. `Transactions` is the ledger truth
+1. `Credits` is the runtime allocation surface
+2. `Payments` is the ledger and payment-history surface
 
 ### 3.3 Agent navigation rule
 
@@ -73,20 +71,20 @@ Recommended rule:
 3. no `Agents Workspace` nested sidebar item
 
 `Credits` should not live under Agents as the canonical truth source.
-It should be controlled under Treasury, then surfaced back into the Agents page as actions and health state.
+It should be controlled under Billing, then surfaced back into the Agents page as actions and health state.
 
 ## 4. Mental Model
 
 The product needs to visually separate these 4 objects:
 
 1. `Wallet`
-2. `Treasury`
+2. `Billing`
 3. `Agent Credit Allocation`
 4. `Invocation Spend`
 
 This gives users a clean map:
 
-`Wallet` -> `Treasury` -> `Credits` -> `Invocations`
+`Wallet` -> `Billing` -> `Credits / Payments` -> `Invocations`
 
 ## 5. Agent Workspace Structure
 
@@ -172,70 +170,62 @@ Primary actions:
 
 ## 7. Credits Page Structure
 
-The Credits page should feel like a runtime budget manager, not a generic billing page.
+The Credits page should now mirror the X billing surface much more closely.
 
-### 7.1 Top metrics
+### 7.1 Card order
 
-1. `Treasury Available`
-2. `Allocated to Agents`
-3. `Unallocated Credits`
-4. `This Cycle Spend`
+1. `Remaining balance`
+2. `Current Billing Cycle`
+3. `Manage Spend Cap`
+4. `Free Credits Voucher`
 
-### 7.2 Primary actions
+### 7.2 Layout rule
 
-1. `Deposit / Top up`
-2. `Allocate Credits`
-3. `Rebalance`
-4. `Set Spend Guardrail`
+1. narrow centered billing column
+2. stacked cards, not dashboard grids
+3. white pill CTAs on the right
+4. no `Auto Recharge unavailable` block
 
-### 7.3 Core tables
+### 7.3 Content rule
 
-Table 1: `Agent Credit Allocation`
+Keep the page in account-billing language, not runtime-ops language.
 
-Columns:
+Use:
 
-1. Agent
-2. Allocated
-3. Used
-4. Remaining
-5. Burn Rate
-6. Status
-7. Adjust
+1. `Remaining balance`
+2. `Current Billing Cycle`
+3. `Days Remaining`
+4. `Manage Spend Cap`
+5. `Free Credits Voucher`
 
-Table 2: `Credit Ledger`
+Avoid:
 
-Columns:
-
-1. Time
-2. Type
-3. Amount
-4. Source
-5. Agent
-6. Reference
+1. agent allocation table
+2. recent ledger list
+3. treasury/runtime jargon in the main copy
 
 ## 8. Credits Page Wireframe
 
 ```text
-+--------------------------------------------------------------------------------------------------+
-| Credits                                                                                          |
-| Manage runtime spending power for owner-funded agents                                             |
-+--------------------------------------------------------------------------------------------------+
-| [Treasury Available] [Allocated to Agents] [Unallocated] [This Cycle Spend]                     |
-|                                                 [Deposit] [Allocate Credits] [Set Guardrail]    |
-+--------------------------------------------------------------------------------------------------+
-| Allocation Manager                                                                                |
-|--------------------------------------------------------------------------------------------------|
-| Agent        Allocated    Used      Remaining    Burn Rate      Status          Action           |
-| buyer-01     $10.00       $1.40     $8.60        low            HEALTHY         Adjust           |
-| ops-01       $25.00       $24.20    $0.80        high           NEEDS ATTN      Top Up           |
-+--------------------------------------------------------------------------------------------------+
-| Credit Ledger                                                                                     |
-|--------------------------------------------------------------------------------------------------|
-| Time            Type          Amount      Source          Agent         Reference                |
-| 08:10           Allocation    $10.00      Treasury        buyer-01      alloc_...               |
-| 08:14           Invocation     $0.03      Service Spend   buyer-01      inv_...                 |
-| 08:20           Rebalance      $5.00      Credit Move     ops-01        alloc_...               |
-+--------------------------------------------------------------------------------------------------+
++----------------------------------------------------------------------------------------------+
+| Credits                                                                                      |
+| Manage your free and prepaid credits                                                         |
++----------------------------------------------------------------------------------------------+
+| [ Remaining balance: $4.99                                   ] [Purchase credits]            |
++----------------------------------------------------------------------------------------------+
+| [ Current Billing Cycle: Mar 31 - Apr 30, 2026 ]                 [Days Remaining 29]        |
++----------------------------------------------------------------------------------------------+
+| Manage Spend Cap                                                       [Manage Spend Cap]    |
+| Set a maximum amount you can spend in a billing cycle...                                     |
+|                                                                                              |
+| CURRENT SPEND                             BILLING CYCLE CAP                                  |
+| 0.01                                      5.00                                               |
+| [progress bar...........................................................................]    |
+| 0.2% used                                                                                   |
++----------------------------------------------------------------------------------------------+
+| Free Credits Voucher                                                    [Redeem Voucher]     |
+| X may give out free credits to developers to build with the API...                           |
++----------------------------------------------------------------------------------------------+
 ```
 
 ## 9. Empty / Partial / Active States
@@ -244,12 +234,12 @@ Columns:
 
 Condition:
 
-1. no treasury funds
+1. no billing funds
 2. no agents
 
 Hero copy:
 
-`Fund your treasury to activate the first agent.`
+`Fund your billing balance to activate the first agent.`
 
 CTA:
 
@@ -260,7 +250,7 @@ CTA:
 
 Condition:
 
-1. treasury funded
+1. billing funded
 2. no agents
 
 Hero copy:
@@ -324,14 +314,11 @@ CTA:
 Suggested UI modules:
 
 1. `WorkspaceStatusStrip`
-2. `WorkspaceSetupRail`
-3. `WorkspaceStatePanel`
-4. `AgentRegistryTable`
-5. `CreditsOverviewCards`
-6. `CreditAllocationTable`
-7. `CreditLedgerTable`
-8. `AllocateCreditsModal`
-9. `DepositCreditsCta`
+2. `WorkspaceStatePanel`
+3. `CreditsBalanceCard`
+4. `CreditsBillingCycleCard`
+5. `CreditsSpendCapCard`
+6. `CreditsVoucherCard`
 
 ## 11. CTA Language
 
@@ -364,7 +351,7 @@ They are also runtime authorization objects.
 
 So Synapse must additionally show:
 
-1. treasury source of truth
+1. billing source of truth
 2. agent-level budget allocation
 3. credential readiness
 4. invocation readiness
@@ -381,7 +368,7 @@ Ship this as two coordinated surfaces:
 
 1. `Agent Workspace`
    - activation + runtime operations
-2. `Treasury > Credits`
+2. `Billing > Credits`
    - budget allocation + runtime spend management
 
 The user should always be able to move between them with one click:

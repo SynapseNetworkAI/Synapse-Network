@@ -42,6 +42,7 @@ export default function DashboardSidebar() {
       "/dashboard/invocations",
       "/dashboard/billing",
       "/dashboard/billing/credits",
+      "/dashboard/billing/payments",
       "/dashboard/audit",
       "/dashboard/developer",
       providerConsoleRoute,
@@ -144,10 +145,13 @@ export default function DashboardSidebar() {
           </Link>
           <Link href="/dashboard/billing" className={getLinkClasses(["/dashboard/billing"], false)}>
             <Wallet className="w-4 h-4 mr-3 opacity-80" />
-            {t("sidebar.treasury")}
+            {t("sidebar.billing")}
           </Link>
           <Link href="/dashboard/billing/credits" className={getSubLinkClasses("/dashboard/billing/credits")}>
             {t("sidebar.credits")}
+          </Link>
+          <Link href="/dashboard/billing" className={getSubLinkClasses("/dashboard/billing")}>
+            {t("sidebar.payments")}
           </Link>
           <Link href="/dashboard/audit" className={getLinkClasses(["/dashboard/audit"], false)}>
             <AlertTriangle className="w-4 h-4 mr-3 opacity-80" />
