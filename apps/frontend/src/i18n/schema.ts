@@ -642,6 +642,7 @@ export type I18nMessages = {
     billingCycleCapNotConfigured: string;
     usedPercent: string;
     manageSpendCapCoverageHint: string;
+    manageSpendCapUnavailable: string;
     manageSpendCapRemainingBudget: string;
     manageSpendCapModalTitle: string;
     manageSpendCapModalEyebrow: string;

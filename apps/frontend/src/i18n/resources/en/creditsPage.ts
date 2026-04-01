@@ -22,6 +22,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   usedPercent: "{{percent}} used",
   manageSpendCapCoverageHint:
     "No billing cycle cap is configured. Your account can continue spending until available balance is exhausted.",
+  manageSpendCapUnavailable:
+    "Spending-limit controls are temporarily unavailable in this environment. Credits can still be purchased and used normally.",
   manageSpendCapRemainingBudget: "{{amount}} remaining in this billing cycle.",
   manageSpendCapModalTitle: "Manage Spending Limit",
   manageSpendCapModalEyebrow: "Billing Cycle Spending Limit",

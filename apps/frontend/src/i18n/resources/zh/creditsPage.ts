@@ -22,6 +22,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   usedPercent: "已使用 {{percent}}",
   manageSpendCapCoverageHint:
     "当前没有配置 billing 周期上限。只要账户还有可用余额，就会继续扣费。",
+  manageSpendCapUnavailable:
+    "当前环境还没有提供 spending limit 控制能力。你仍然可以正常购买和使用 credits。",
   manageSpendCapRemainingBudget: "本 billing 周期还可消费 {{amount}}。",
   manageSpendCapModalTitle: "管理消费上限",
   manageSpendCapModalEyebrow: "Billing Cycle Spending Limit",

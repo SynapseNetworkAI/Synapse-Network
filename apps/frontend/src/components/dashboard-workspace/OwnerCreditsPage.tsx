@@ -43,11 +43,13 @@ export default function OwnerCreditsPage() {
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const [isSpendCapAvailable, setIsSpendCapAvailable] = useState(true);
   const [isSpendCapModalOpen, setIsSpendCapModalOpen] = useState(false);
 
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
       setSpendingLimit(null);
+      setIsSpendCapAvailable(true);
       return;
     }
 
@@ -55,14 +57,21 @@ export default function OwnerCreditsPage() {
       setError(null);
       const nextLimit = await getOwnerSpendingLimit(userAddress);
       setSpendingLimit(nextLimit);
+      setIsSpendCapAvailable(true);
     } catch (err) {
-      console.error("Failed to load credits page:", err);
       const message =
         err instanceof Error ? err.message : "Failed to load credits page";
       if (message === WALLET_SESSION_MISSING_MESSAGE) {
         clearAuthSession();
+        setError(message);
+        return;
       }
-      setError(message);
+      console.warn(
+        "Owner spending limit endpoint unavailable, falling back to no-cap UI:",
+        err
+      );
+      setSpendingLimit(null);
+      setIsSpendCapAvailable(false);
     }
   }, [isConnected, isSessionAuthenticated, userAddress]);
 
@@ -241,10 +250,11 @@ export default function OwnerCreditsPage() {
             </div>
             <button
               type="button"
+              disabled={!isSpendCapAvailable}
               onClick={() => {
                 void handleOpenManageSpendCap();
               }}
-              className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-[15px] font-medium text-black transition hover:bg-white/90"
+              className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-[15px] font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/45"
             >
               {t("creditsPage.manageSpendCap")}
             </button>
@@ -294,6 +304,11 @@ export default function OwnerCreditsPage() {
                 })
               : t("creditsPage.manageSpendCapCoverageHint")}
           </p>
+          {!isSpendCapAvailable ? (
+            <p className="mt-2 text-[14px] text-[#d5a35b]">
+              {t("creditsPage.manageSpendCapUnavailable")}
+            </p>
+          ) : null}
           {creditSummary.remainingSpend !== null ? (
             <p className="mt-2 text-[14px] text-[#8b98b4]">
               {t("creditsPage.manageSpendCapRemainingBudget", {
