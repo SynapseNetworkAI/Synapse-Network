@@ -140,7 +140,9 @@ describe("ProviderSettlementsPage", () => {
     const amountInput = await screen.findByPlaceholderText("提现金额（留空 = 全部 12.000000 USDC）");
     await user.type(amountInput, "8.5");
 
-    const createButton = screen.getByRole("button", { name: "生成并提现" });
+    const createButton = screen.getByRole("button", {
+      name: "生成并提现",
+    }) as HTMLButtonElement;
     await waitFor(() => {
       expect(createButton.disabled).toBe(false);
     });
