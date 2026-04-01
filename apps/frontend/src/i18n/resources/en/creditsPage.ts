@@ -28,7 +28,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   manageSpendCapModalTitle: "Manage Spending Limit",
   manageSpendCapModalEyebrow: "Billing Cycle Spending Limit",
   manageSpendCapModalClose: "Close spending limit dialog",
-  manageSpendCapModalAmountLabel: "Billing cycle spending limit",
+  manageSpendCapModalAmountLabel: "Amount (USDC)",
   manageSpendCapModalHint:
     "Set a maximum amount you can spend in a billing cycle. When reached, API requests will be blocked until the next cycle.",
   manageSpendCapModalUnlimitedLabel: "Allow unlimited spending",

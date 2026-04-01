@@ -27,13 +27,6 @@ type ManageSpendCapModalProps = {
   onSaved?: (nextLimit: OwnerSpendingLimit) => void | Promise<void>;
 };
 
-function formatLimitInput(value?: number | null): string {
-  if (!value || value <= 0) {
-    return "";
-  }
-  return value.toFixed(2);
-}
-
 export default function ManageSpendCapModal({
   open,
   userAddress,
@@ -51,7 +44,7 @@ export default function ManageSpendCapModal({
     if (!open) {
       return;
     }
-    setLimitInput(formatLimitInput(spendingLimit?.spendingLimitUsdc));
+    setLimitInput("");
     setAllowUnlimited(spendingLimit?.allowUnlimited ?? true);
     setSaveError(null);
     setIsSaving(false);
@@ -141,10 +134,21 @@ export default function ManageSpendCapModal({
                 min="0.01"
                 step="0.01"
                 value={limitInput}
-                onChange={(event) => setLimitInput(event.target.value)}
+                onFocus={() => {
+                  if (allowUnlimited) {
+                    setAllowUnlimited(false);
+                    setSaveError(null);
+                  }
+                }}
+                onChange={(event) => {
+                  setLimitInput(event.target.value);
+                  if (event.target.value.trim() && allowUnlimited) {
+                    setAllowUnlimited(false);
+                  }
+                }}
                 className="pl-9"
                 placeholder="5.00"
-                disabled={allowUnlimited || isSaving}
+                disabled={isSaving}
                 aria-label={t("creditsPage.manageSpendCapModalAmountLabel")}
               />
             </div>
