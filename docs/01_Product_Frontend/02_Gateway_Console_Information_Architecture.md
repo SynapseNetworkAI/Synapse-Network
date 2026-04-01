@@ -49,10 +49,10 @@ flowchart TD
 
 历史兼容路径说明：
 
-1. `/dashboard/router` 是旧 owner finance alias，当前应收口到 `/dashboard/billing`（Billing）。
+1. `/dashboard/router` 是旧 owner finance alias，当前应收口到 `/dashboard/billing`（Billing > Payments）。
 2. `/dashboard/logs` 是旧审计 alias，当前应收口到 `/dashboard/audit`。
 3. `/dashboard/settlement` 只保留为过渡期 reconciliation preview，不再作为主导航入口。
-4. `/dashboard/console` 是旧 owner mixed console alias，当前应跳转到 `/dashboard/developer`；资金与凭据操作分别归属 `/dashboard/billing` 与 `/dashboard/credentials`。
+4. `/dashboard/console` 是旧 owner mixed console alias，当前应跳转到 `/dashboard/developer`；账单与支付历史归属 `/dashboard/billing`，Credits 归属 `/dashboard/billing/credits`。
 
 ### 3.2 Provider Role
 
@@ -64,7 +64,7 @@ flowchart TD
 4. `Settlements` / `/provider/settlements`
 5. `Revenue Analytics` / `/provider/usage`
 
-Provider 不再单独暴露 `/provider/billing`。Owner 资金账本保留在 `/dashboard/billing`，Provider 财务面拆分为 `/provider/settlements` 与 `/provider/usage`。
+Provider 不再单独暴露 `/provider/billing`。Owner 付款与账单历史保留在 `/dashboard/billing`，Provider 财务面拆分为 `/provider/settlements` 与 `/provider/usage`。
 
 这组拆分的意义是：
 
