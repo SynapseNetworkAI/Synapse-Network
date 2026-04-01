@@ -9,24 +9,38 @@ function buildIdempotencyKey(prefix: string): string {
   const random =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID().replaceAll("-", "")
-      : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      : Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2);
   return `${prefix}_${now}_${random}`.slice(0, 120);
 }
 
 function buildDepositIntentIdempotencyKey(txHash: string): string {
-  const normalizedTx = String(txHash || "").trim().toLowerCase();
+  const normalizedTx = String(txHash || "")
+    .trim()
+    .toLowerCase();
   return `deposit_tx_${normalizedTx.replace(/^0x/, "")}`.slice(0, 120);
 }
 
-async function readErrorPayload(response: Response): Promise<{ code?: string; message?: string }> {
+async function readErrorPayload(
+  response: Response
+): Promise<{ code?: string; message?: string }> {
   try {
     const text = await response.text();
     if (!text) return {};
-    const parsed = JSON.parse(text) as { detail?: { code?: string; message?: string } | string; message?: string };
+    const parsed = JSON.parse(text) as {
+      detail?: { code?: string; message?: string } | string;
+      message?: string;
+    };
     if (parsed.detail && typeof parsed.detail === "object") {
       return {
-        code: typeof parsed.detail.code === "string" ? parsed.detail.code : undefined,
-        message: typeof parsed.detail.message === "string" ? parsed.detail.message : undefined,
+        code:
+          typeof parsed.detail.code === "string"
+            ? parsed.detail.code
+            : undefined,
+        message:
+          typeof parsed.detail.message === "string"
+            ? parsed.detail.message
+            : undefined,
       };
     }
     let message: string | undefined;
@@ -47,6 +61,16 @@ export type BalanceSummary = {
   ownerBalance: number;
   providerReceivable: number;
   platformFeeAccrued: number;
+};
+
+export type OwnerSpendingLimit = {
+  ownerAddress: string;
+  spendingLimitUsdc: number | null;
+  allowUnlimited: boolean;
+  cycleInterval: "monthly";
+  currentCycleSpendUsdc: number;
+  remainingSpendUsdc: number | null;
+  updatedAt: string | number | null;
 };
 
 export type DepositIntentRecord = {
@@ -127,17 +151,29 @@ export type IndexerStatus = {
   pollIntervalSec: number;
 };
 
-async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+async function readErrorMessage(
+  response: Response,
+  fallback: string
+): Promise<string> {
   try {
     const text = await response.text();
     if (!text) return fallback;
     try {
-      const parsed = JSON.parse(text) as { detail?: { message?: string } | string; message?: string };
-      if (typeof parsed.detail === "string") return normalizeAuthApiError(parsed.detail, response.status);
-      if (parsed.detail && typeof parsed.detail === "object" && parsed.detail.message) {
+      const parsed = JSON.parse(text) as {
+        detail?: { message?: string } | string;
+        message?: string;
+      };
+      if (typeof parsed.detail === "string")
+        return normalizeAuthApiError(parsed.detail, response.status);
+      if (
+        parsed.detail &&
+        typeof parsed.detail === "object" &&
+        parsed.detail.message
+      ) {
         return normalizeAuthApiError(parsed.detail.message, response.status);
       }
-      if (parsed.message) return normalizeAuthApiError(parsed.message, response.status);
+      if (parsed.message)
+        return normalizeAuthApiError(parsed.message, response.status);
       return normalizeAuthApiError(text, response.status);
     } catch {
       return normalizeAuthApiError(text, response.status);
@@ -147,7 +183,9 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
   }
 }
 
-export async function getV2Balance(userAddress: string): Promise<BalanceSummary> {
+export async function getV2Balance(
+  userAddress: string
+): Promise<BalanceSummary> {
   const response = await fetch(`${API_BASE}/balance`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
@@ -155,7 +193,9 @@ export async function getV2Balance(userAddress: string): Promise<BalanceSummary>
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to fetch v2 balance"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to fetch v2 balance")
+    );
   }
 
   const payload = (await response.json()) as {
@@ -169,19 +209,99 @@ export async function getV2Balance(userAddress: string): Promise<BalanceSummary>
   };
   const feeFromMap = Number(payload.balance?.platform?.feeAccrued ?? 0);
   return {
-    ownerBalance: Number(payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance ?? 0),
-    providerReceivable: Number(payload.balance?.providerReceivable ?? payload.balance?.providerReceivableBalance ?? 0),
-    platformFeeAccrued: Number(payload.balance?.platformFeeAccrued ?? feeFromMap),
+    ownerBalance: Number(
+      payload.balance?.ownerBalance ??
+        payload.balance?.consumerAvailableBalance ??
+        0
+    ),
+    providerReceivable: Number(
+      payload.balance?.providerReceivable ??
+        payload.balance?.providerReceivableBalance ??
+        0
+    ),
+    platformFeeAccrued: Number(
+      payload.balance?.platformFeeAccrued ?? feeFromMap
+    ),
   };
+}
+
+function normalizeOwnerSpendingLimit(
+  payload?: Partial<OwnerSpendingLimit>
+): OwnerSpendingLimit {
+  return {
+    ownerAddress: String(payload?.ownerAddress || "").toLowerCase(),
+    spendingLimitUsdc:
+      typeof payload?.spendingLimitUsdc === "number"
+        ? payload.spendingLimitUsdc
+        : null,
+    allowUnlimited: Boolean(payload?.allowUnlimited),
+    cycleInterval: "monthly",
+    currentCycleSpendUsdc: Number(payload?.currentCycleSpendUsdc ?? 0),
+    remainingSpendUsdc:
+      typeof payload?.remainingSpendUsdc === "number"
+        ? payload.remainingSpendUsdc
+        : null,
+    updatedAt: payload?.updatedAt ?? null,
+  };
+}
+
+export async function getOwnerSpendingLimit(
+  userAddress: string
+): Promise<OwnerSpendingLimit> {
+  const response = await fetch(`${API_BASE}/balance/spending-limit`, {
+    method: "GET",
+    headers: buildAuthedHeaders(userAddress, false),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Failed to fetch spending limit")
+    );
+  }
+
+  const payload = (await response.json()) as {
+    spendingLimit?: Partial<OwnerSpendingLimit>;
+  };
+  return normalizeOwnerSpendingLimit(payload.spendingLimit);
+}
+
+export async function updateOwnerSpendingLimit(
+  userAddress: string,
+  payload: { spendingLimitUsdc?: number | null; allowUnlimited: boolean }
+): Promise<OwnerSpendingLimit> {
+  const response = await fetch(`${API_BASE}/balance/spending-limit`, {
+    method: "PUT",
+    headers: buildAuthedHeaders(userAddress),
+    body: JSON.stringify({
+      spendingLimitUsdc: payload.spendingLimitUsdc ?? null,
+      allowUnlimited: payload.allowUnlimited,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Failed to update spending limit")
+    );
+  }
+
+  const result = (await response.json()) as {
+    spendingLimit?: Partial<OwnerSpendingLimit>;
+  };
+  return normalizeOwnerSpendingLimit(result.spendingLimit);
 }
 
 export async function createDepositIntent(
   userAddress: string,
   payload: { txHash: string; amountUsdc: number }
 ): Promise<DepositIntentRecord> {
-  const normalizedTx = String(payload.txHash || "").trim().toLowerCase();
+  const normalizedTx = String(payload.txHash || "")
+    .trim()
+    .toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
-    throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+    throw new Error(
+      "Invalid txHash format. Expected 66-char 0x-prefixed hash."
+    );
   }
   if (!Number.isFinite(payload.amountUsdc) || payload.amountUsdc <= 0) {
     throw new Error("amountUsdc must be a positive number.");
@@ -213,17 +333,27 @@ export async function createDepositIntent(
       const errorPayload = await readErrorPayload(response);
       if (errorPayload.code === "DEPOSIT_REPLAY_DETECTED") {
         const existing = (await listDepositIntents(userAddress, 100)).find(
-          (row) => String(row.txHash || "").trim().toLowerCase() === normalizedTx,
+          (row) =>
+            String(row.txHash || "")
+              .trim()
+              .toLowerCase() === normalizedTx
         );
         if (existing) {
           return existing;
         }
       }
-      throw new Error(normalizeAuthApiError(errorPayload.message || "Failed to submit deposit intent", response.status));
+      throw new Error(
+        normalizeAuthApiError(
+          errorPayload.message || "Failed to submit deposit intent",
+          response.status
+        )
+      );
     }
 
     if (!response.ok) {
-      throw new Error(await readErrorMessage(response, "Failed to submit deposit intent"));
+      throw new Error(
+        await readErrorMessage(response, "Failed to submit deposit intent")
+      );
     }
 
     const data = (await response.json()) as {
@@ -235,15 +365,34 @@ export async function createDepositIntent(
     const deposit = data.deposit ?? data.intent ?? {};
     return {
       id: typeof deposit.id === "string" ? deposit.id : undefined,
-      ownerAddress: typeof deposit.ownerAddress === "string" ? deposit.ownerAddress : userAddress,
+      ownerAddress:
+        typeof deposit.ownerAddress === "string"
+          ? deposit.ownerAddress
+          : userAddress,
       txHash: String(deposit.txHash || data.tx_hash || payload.txHash),
       amountUsdc: Number(deposit.amountUsdc ?? payload.amountUsdc),
       creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
-      status: String((deposit as { state?: string }).state || deposit.status || "pending"),
-      failureReason: typeof deposit.failureReason === "string" ? deposit.failureReason : undefined,
-      createdAt: typeof deposit.createdAt === "string" || typeof deposit.createdAt === "number" ? deposit.createdAt : undefined,
-      updatedAt: typeof deposit.updatedAt === "string" || typeof deposit.updatedAt === "number" ? deposit.updatedAt : undefined,
-      confirmedAt: typeof deposit.confirmedAt === "number" ? deposit.confirmedAt : undefined,
+      status: String(
+        (deposit as { state?: string }).state || deposit.status || "pending"
+      ),
+      failureReason:
+        typeof deposit.failureReason === "string"
+          ? deposit.failureReason
+          : undefined,
+      createdAt:
+        typeof deposit.createdAt === "string" ||
+        typeof deposit.createdAt === "number"
+          ? deposit.createdAt
+          : undefined,
+      updatedAt:
+        typeof deposit.updatedAt === "string" ||
+        typeof deposit.updatedAt === "number"
+          ? deposit.updatedAt
+          : undefined,
+      confirmedAt:
+        typeof deposit.confirmedAt === "number"
+          ? deposit.confirmedAt
+          : undefined,
     };
   })();
 
@@ -275,7 +424,9 @@ export async function recordDepositAttempt(
   if (payload.txHash) {
     const normalizedTx = String(payload.txHash).trim().toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
-      throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+      throw new Error(
+        "Invalid txHash format. Expected 66-char 0x-prefixed hash."
+      );
     }
   }
 
@@ -291,7 +442,9 @@ export async function recordDepositAttempt(
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to record deposit attempt"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to record deposit attempt")
+    );
   }
 
   const data = (await response.json()) as {
@@ -301,42 +454,69 @@ export async function recordDepositAttempt(
   return {
     id: typeof attempt.id === "number" ? attempt.id : undefined,
     attemptId: String(attempt.attemptId || payload.attemptId),
-    ownerAddress: typeof attempt.ownerAddress === "string" ? attempt.ownerAddress : undefined,
-    clientRequestId: typeof attempt.clientRequestId === "string" ? attempt.clientRequestId : undefined,
-    txHash: typeof attempt.txHash === "string" ? attempt.txHash : payload.txHash,
+    ownerAddress:
+      typeof attempt.ownerAddress === "string"
+        ? attempt.ownerAddress
+        : undefined,
+    clientRequestId:
+      typeof attempt.clientRequestId === "string"
+        ? attempt.clientRequestId
+        : undefined,
+    txHash:
+      typeof attempt.txHash === "string" ? attempt.txHash : payload.txHash,
     amountUsdc: Number(attempt.amountUsdc ?? payload.amountUsdc),
     stage: String(attempt.stage || payload.stage) as DepositAttemptStage,
-    failureReason: typeof attempt.failureReason === "string" ? attempt.failureReason : payload.failureReason,
-    requestId: typeof attempt.requestId === "string" ? attempt.requestId : undefined,
-    clientIp: typeof attempt.clientIp === "string" ? attempt.clientIp : undefined,
-    userAgent: typeof attempt.userAgent === "string" ? attempt.userAgent : undefined,
+    failureReason:
+      typeof attempt.failureReason === "string"
+        ? attempt.failureReason
+        : payload.failureReason,
+    requestId:
+      typeof attempt.requestId === "string" ? attempt.requestId : undefined,
+    clientIp:
+      typeof attempt.clientIp === "string" ? attempt.clientIp : undefined,
+    userAgent:
+      typeof attempt.userAgent === "string" ? attempt.userAgent : undefined,
     createdAt: (attempt.createdAt as TimestampLike) ?? undefined,
     updatedAt: (attempt.updatedAt as TimestampLike) ?? undefined,
   };
 }
 
-export async function listDepositIntents(userAddress: string, limit: number = 50): Promise<DepositIntentRecord[]> {
-  const response = await fetch(`${API_BASE}/balance/deposit/intents?limit=${encodeURIComponent(String(limit))}`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress, false),
-    cache: "no-store",
-  });
+export async function listDepositIntents(
+  userAddress: string,
+  limit: number = 50
+): Promise<DepositIntentRecord[]> {
+  const response = await fetch(
+    `${API_BASE}/balance/deposit/intents?limit=${encodeURIComponent(
+      String(limit)
+    )}`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+      cache: "no-store",
+    }
+  );
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to fetch deposit intents"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to fetch deposit intents")
+    );
   }
 
-  const payload = (await response.json()) as { intents?: Array<Record<string, unknown>> };
+  const payload = (await response.json()) as {
+    intents?: Array<Record<string, unknown>>;
+  };
   const rows = Array.isArray(payload.intents) ? payload.intents : [];
 
   return rows.map((row) => ({
     id: typeof row.id === "string" ? row.id : undefined,
-    ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
+    ownerAddress:
+      typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
     txHash: typeof row.txHash === "string" ? row.txHash : "",
     amountUsdc: Number(row.amountUsdc ?? 0),
     creditedAmountUsdc: Number(row.creditedAmountUsdc ?? 0),
     status: typeof row.status === "string" ? row.status : "pending",
-    failureReason: typeof row.failureReason === "string" ? row.failureReason : undefined,
+    failureReason:
+      typeof row.failureReason === "string" ? row.failureReason : undefined,
     createdAt: (row.createdAt as string | number | undefined) ?? undefined,
     updatedAt: (row.updatedAt as string | number | undefined) ?? undefined,
     confirmedAt: Number(row.confirmedAt ?? 0) || undefined,
@@ -345,24 +525,32 @@ export async function listDepositIntents(userAddress: string, limit: number = 50
 
 export async function getDepositSyncStatus(
   userAddress: string,
-  txHash: string,
+  txHash: string
 ): Promise<DepositSyncStatus> {
-  const normalizedTx = String(txHash || "").trim().toLowerCase();
+  const normalizedTx = String(txHash || "")
+    .trim()
+    .toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
-    throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+    throw new Error(
+      "Invalid txHash format. Expected 66-char 0x-prefixed hash."
+    );
   }
 
   const response = await fetch(
-    `${API_BASE}/balance/deposit/sync?txHash=${encodeURIComponent(normalizedTx)}`,
+    `${API_BASE}/balance/deposit/sync?txHash=${encodeURIComponent(
+      normalizedTx
+    )}`,
     {
       method: "GET",
       headers: buildAuthedHeaders(userAddress, false),
       cache: "no-store",
-    },
+    }
   );
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to fetch deposit sync status"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to fetch deposit sync status")
+    );
   }
 
   const payload = (await response.json()) as {
@@ -376,13 +564,18 @@ export async function getDepositSyncStatus(
     status: typeof sync.status === "string" ? sync.status : "NOT_REGISTERED",
     confirmed: Boolean(sync.confirmed),
     canRefreshBalance: Boolean(sync.canRefreshBalance),
-    depositIntentId: typeof sync.depositIntentId === "string" ? sync.depositIntentId : undefined,
-    ownerAddress: typeof sync.ownerAddress === "string" ? sync.ownerAddress : undefined,
+    depositIntentId:
+      typeof sync.depositIntentId === "string"
+        ? sync.depositIntentId
+        : undefined,
+    ownerAddress:
+      typeof sync.ownerAddress === "string" ? sync.ownerAddress : undefined,
     amountUsdc: Number(sync.amountUsdc ?? 0) || undefined,
     creditedAmountUsdc: Number(sync.creditedAmountUsdc ?? 0) || undefined,
     confirmations: Number(sync.confirmations ?? 0) || undefined,
     eventKey: typeof sync.eventKey === "string" ? sync.eventKey : undefined,
-    confirmedAt: typeof sync.confirmedAt === "number" ? sync.confirmedAt : undefined,
+    confirmedAt:
+      typeof sync.confirmedAt === "number" ? sync.confirmedAt : undefined,
     updatedAt:
       typeof sync.updatedAt === "string" || typeof sync.updatedAt === "number"
         ? sync.updatedAt
@@ -391,7 +584,10 @@ export async function getDepositSyncStatus(
   };
 }
 
-export async function requestV2Refund(userAddress: string, amountUsdc: number): Promise<OwnerRefundIntent> {
+export async function requestV2Refund(
+  userAddress: string,
+  amountUsdc: number
+): Promise<OwnerRefundIntent> {
   const headers = {
     ...buildAuthedHeaders(userAddress, true),
     "X-Idempotency-Key": buildIdempotencyKey("refund"),
@@ -404,12 +600,15 @@ export async function requestV2Refund(userAddress: string, amountUsdc: number): 
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to process refund"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to process refund")
+    );
   }
 
   const payload = (await response.json()) as Record<string, unknown>;
   const refundId = typeof payload.refundId === "string" ? payload.refundId : "";
-  const signature = typeof payload.signature === "string" ? payload.signature : "";
+  const signature =
+    typeof payload.signature === "string" ? payload.signature : "";
   return {
     refundId,
     signature,
@@ -420,19 +619,30 @@ export async function requestV2Refund(userAddress: string, amountUsdc: number): 
   };
 }
 
-export async function completeV2Refund(userAddress: string, refundId: string, txHash: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/refunds/${encodeURIComponent(refundId)}/complete`, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify({ txHash }),
-  });
+export async function completeV2Refund(
+  userAddress: string,
+  refundId: string,
+  txHash: string
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/refunds/${encodeURIComponent(refundId)}/complete`,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify({ txHash }),
+    }
+  );
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to complete refund"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to complete refund")
+    );
   }
 }
 
-export async function getV2IndexerStatus(userAddress: string): Promise<IndexerStatus> {
+export async function getV2IndexerStatus(
+  userAddress: string
+): Promise<IndexerStatus> {
   const response = await fetch(`${API_BASE}/indexer/status`, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
@@ -440,10 +650,14 @@ export async function getV2IndexerStatus(userAddress: string): Promise<IndexerSt
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to fetch indexer status"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to fetch indexer status")
+    );
   }
 
-  const payload = (await response.json()) as { indexer?: Partial<IndexerStatus> };
+  const payload = (await response.json()) as {
+    indexer?: Partial<IndexerStatus>;
+  };
   const indexer = payload.indexer ?? {};
   return {
     running: Boolean(indexer.running),
@@ -453,7 +667,10 @@ export async function getV2IndexerStatus(userAddress: string): Promise<IndexerSt
       failed: Number(indexer.lastCounters?.failed ?? 0),
       pending: Number(indexer.lastCounters?.pending ?? 0),
     },
-    lastProcessedAt: typeof indexer.lastProcessedAt === "number" ? indexer.lastProcessedAt : null,
+    lastProcessedAt:
+      typeof indexer.lastProcessedAt === "number"
+        ? indexer.lastProcessedAt
+        : null,
     lastError: typeof indexer.lastError === "string" ? indexer.lastError : null,
     pollIntervalSec: Number(indexer.pollIntervalSec ?? 2),
   };

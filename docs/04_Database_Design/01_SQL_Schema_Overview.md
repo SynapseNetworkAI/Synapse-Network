@@ -68,8 +68,12 @@ Runtime 身份相关对象单独成层：
 1. `synapse_agent_profiles`
 2. `synapse_agent_credentials`
 3. `synapse_budget_policies`
+4. `synapse_owner_spend_limits`
 
-这表示平台不再以“单个 API key 桶”理解调用行为，而是以 Agent + Budget Policy 理解调用行为。
+这表示平台同时具备两层额度语义：
+
+1. Agent + Budget Policy 的 credential 级约束
+2. Owner account 的 billing-cycle 总额度约束
 
 ### 2.3 Service / Quote / Invocation 是商业状态机
 

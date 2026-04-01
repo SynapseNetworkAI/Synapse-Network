@@ -5,7 +5,7 @@
 - Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:frontend`, `npm run ci:docs`
 - DB sources: `docs/04_Database_Design/`, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: `docs/api.md`
-- Last verified against code: `2026-03-24`
+- Last verified against code: `2026-04-01`
 
 > 核心定位：这是面向 build-for-agent Runtime 的平台 API 合约总表，不再按旧控制台角色或旧字段命名组织。
 
@@ -34,10 +34,12 @@
 13. `GET /api/v1/router/config`
 14. `POST /api/v1/router/config`
 15. `GET /api/v1/finance/audit-logs`
-16. `GET /api/v1/admin/fee-policy`
-17. `PUT /api/v1/admin/fee-policy`
-18. `POST /api/v1/admin/deposits/replay`
-19. `GET|POST|PUT|DELETE /api/v1/services*` except public discover
+16. `GET /api/v1/balance/spending-limit`
+17. `PUT /api/v1/balance/spending-limit`
+18. `GET /api/v1/admin/fee-policy`
+19. `PUT /api/v1/admin/fee-policy`
+20. `POST /api/v1/admin/deposits/replay`
+21. `GET|POST|PUT|DELETE /api/v1/services*` except public discover
 
 ### 1.3 Public or Runtime APIs
 
@@ -124,7 +126,36 @@
 3. 默认退回 owner 原地址
 4. 大额或异常拆分进入人工审核
 
-### 3.4 `POST /api/v1/providers/withdrawals/intent`
+### 3.4 `GET /api/v1/balance/spending-limit`
+
+返回当前 Owner 的账户级 billing-cycle spend cap。
+
+返回字段：
+
+1. `ownerAddress`
+2. `spendingLimitUsdc`
+3. `allowUnlimited`
+4. `cycleInterval`，当前固定为 `monthly`
+5. `currentCycleSpendUsdc`
+6. `remainingSpendUsdc`
+7. `updatedAt`
+
+### 3.5 `PUT /api/v1/balance/spending-limit`
+
+用途：设置或清空当前 Owner 的账户级 billing-cycle spend cap。
+
+请求体：
+
+1. `spendingLimitUsdc`，当 `allowUnlimited = false` 时必填，且必须大于 0
+2. `allowUnlimited`
+
+语义：
+
+1. `allowUnlimited = false` 时，Gateway 会把当前 Owner 的 monthly spend cap 持久化到 `synapse_owner_spend_limits`
+2. `allowUnlimited = true` 时，Gateway 会把 `spendingLimitUsdc` 清空为 `NULL`
+3. Runtime quote / invocation 都会读取同一份 Owner spend cap
+
+### 3.6 `POST /api/v1/providers/withdrawals/intent`
 
 用途：当前 Owner 在 Provider Workspace 发起收益提现。
 
@@ -141,7 +172,7 @@
 9. 如果已签发的 withdrawal ticket 过期，Gateway 在后续 `GET /api/v1/providers/withdrawals` 或新的 `POST /api/v1/providers/withdrawals/intent` 调用中会自动把该单据推进到 `CANCELLED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
 10. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
 
-### 3.4.1 `GET /api/v1/providers/withdrawals/capability`
+### 3.6.1 `GET /api/v1/providers/withdrawals/capability`
 
 用途：给 Provider Settlements 页面返回“网关当前能否签发 withdraw ticket”的能力探测结果。
 
@@ -151,7 +182,7 @@
 2. `code` / `message` 返回当前阻塞原因，例如 `WITHDRAW_SIGNER_NOT_CONFIGURED`。
 3. 前端必须先读该接口，再决定是否允许点击 `Generate & Claim`，避免把配置错误直接暴露成 500 交互。
 
-### 3.4.2 `POST /api/v1/admin/providers/withdrawals/{withdrawalId}/review`
+### 3.6.2 `POST /api/v1/admin/providers/withdrawals/{withdrawalId}/review`
 
 用途：平台管理员处理 `PENDING_MANUAL_REVIEW` 的 Provider 提现单。
 

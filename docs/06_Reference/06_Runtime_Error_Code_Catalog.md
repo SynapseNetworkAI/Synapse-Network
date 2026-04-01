@@ -5,7 +5,7 @@
 - Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:frontend`, `npm run ci:docs`
 - DB sources: none
 - Supersedes: `docs/Gateway_Error_Codes.md`
-- Last verified against code: `2026-03-24`
+- Last verified against code: `2026-04-01`
 
 > 当前错误码文档已切到 Agent-first Runtime 语义，不再保留旧角色二分叙事。
 
@@ -107,8 +107,9 @@
 1. `BUDGET_EXHAUSTED` (`402`)：生命周期预算不足。
 2. `DAILY_LIMIT_EXCEEDED` (`402`)：日预算已打满。
 3. `PER_INVOCATION_CAP_EXCEEDED` (`402`)：单次调用金额超过当前策略允许上限。
-4. `CREDENTIAL_RPM_EXCEEDED` (`429`)：Invocation 前的 Credential RPM 守卫触发。
-5. `SERVICE_QPS_EXCEEDED` (`429`)：Invocation 前的 Service QPS 守卫触发。
+4. `OWNER_BILLING_CYCLE_LIMIT_EXCEEDED` (`402`)：Owner 账户月度总消费上限已打满。
+5. `CREDENTIAL_RPM_EXCEEDED` (`429`)：Invocation 前的 Credential RPM 守卫触发。
+6. `SERVICE_QPS_EXCEEDED` (`429`)：Invocation 前的 Service QPS 守卫触发。
 
 #### 复用 Generate Path 的执行错误
 
@@ -133,7 +134,7 @@
 ### Budget / Balance 类
 
 1. `INSUFFICIENT_BALANCE`：提示 Owner 充值或等待结算回补。
-2. `BUDGET_EXHAUSTED` / `DAILY_LIMIT_EXCEEDED` / `PER_INVOCATION_CAP_EXCEEDED`：停止当前任务，切换低价服务、缩小任务范围或等待策略调整。
+2. `BUDGET_EXHAUSTED` / `DAILY_LIMIT_EXCEEDED` / `PER_INVOCATION_CAP_EXCEEDED` / `OWNER_BILLING_CYCLE_LIMIT_EXCEEDED`：停止当前任务，切换低价服务、缩小任务范围或等待策略调整。
 
 ### Request / Contract 类
 

@@ -15,6 +15,7 @@ erDiagram
     synapse_owner_accounts ||--o{ synapse_agent_profiles : owns
     synapse_agent_profiles ||--o{ synapse_agent_credentials : issues
     synapse_agent_credentials ||--|| synapse_budget_policies : constrained_by
+    synapse_owner_accounts ||--o| synapse_owner_spend_limits : capped_by
     synapse_owner_accounts ||--o{ synapse_service_manifests : owns
     synapse_provider_profiles ||--o{ synapse_service_manifests : provides
     synapse_service_manifests ||--o{ synapse_service_endpoints : routes_to
@@ -107,6 +108,25 @@ erDiagram
 1. `credential_id UNIQUE`
 
 这意味着当前模型里，平台选择“每个 credential 对应一套预算约束”，而不是一套 credential 绑定多套可选 policy。
+
+### 4.4 `synapse_owner_spend_limits`
+
+这是 Owner 账户级 billing-cycle spend cap 表。
+
+字段重点：
+
+1. `owner_address`
+2. `spending_limit_usdc`
+3. `cycle_interval`
+4. `created_at`
+5. `updated_at`
+
+关键约束：
+
+1. `owner_address UNIQUE`
+2. `cycle_interval` 当前固定为 `monthly`
+
+这张表解决的是账户总额度，而不是 credential 局部额度。
 
 ## 5. Service Catalog
 

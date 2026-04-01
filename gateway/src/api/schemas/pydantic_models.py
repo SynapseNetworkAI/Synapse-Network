@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.domain.service_contract import (
     QuoteInputPreviewRecord,
@@ -239,6 +239,32 @@ class AdminProviderWithdrawReviewRequest(BaseModel):
 
 class RouterConfigRequest(BaseModel):
     dailyLimitUsdc: float = Field(..., ge=0, le=10_000)
+
+
+class OwnerSpendLimitUpdateRequest(BaseModel):
+    spendingLimitUsdc: Optional[Decimal] = Field(default=None)
+    allowUnlimited: bool = False
+
+    @field_validator("spendingLimitUsdc")
+    @classmethod
+    def validate_spending_limit_usdc(
+        cls, value: Optional[Decimal]
+    ) -> Optional[Decimal]:
+        if value is None:
+            return None
+        if value <= 0:
+            raise ValueError("spendingLimitUsdc must be positive")
+        if value != value.quantize(Decimal("0.000001")):
+            raise ValueError("spendingLimitUsdc supports up to 6 decimal places")
+        return value
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "OwnerSpendLimitUpdateRequest":
+        if not self.allowUnlimited and self.spendingLimitUsdc is None:
+            raise ValueError(
+                "spendingLimitUsdc is required unless allowUnlimited is true"
+            )
+        return self
 
 
 # Backward-compatible aliases.

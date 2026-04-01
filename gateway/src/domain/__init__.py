@@ -32,7 +32,7 @@ from .finance import (
     UsageLogRow,
     WithdrawCreateContext,
 )
-from .gateway import RouterConfigRow
+from .gateway import OwnerSpendLimitRow, RouterConfigRow
 from .identity import (
     AgentCredentialRecord,
     AgentProfileRecord,
@@ -163,6 +163,7 @@ __all__ = [
     "QuoteRequestDraftRecord",
     "OwnerAccountRecord",
     "OperationContextMetadata",
+    "OwnerSpendLimitRow",
     "ProcessedDepositEventRow",
     "ProviderProfileRecord",
     "ProviderWalletRecord",
