@@ -47,7 +47,7 @@
 
 1. 历史上未继续采用的 Agents 旧方案直接删除，不保留并行设计入口
 2. 后续 Agents 页面改动只更新 owner guide，不再恢复旧 `AGENTS.md`
-3. 充值能力与 Owner Treasury 使用同一套 Vault Deposit 流程；旧 `/dashboard/console` 仅保留为跳转到 `/dashboard/developer` 的兼容入口，避免重新出现混合控制台
+3. 充值能力与 Owner Billing 使用同一套 Vault Deposit 流程；旧 `/dashboard/console` 仅保留为跳转到 `/dashboard/developer` 的兼容入口，避免重新出现混合控制台
 
 ## Owner Console 边界
 
