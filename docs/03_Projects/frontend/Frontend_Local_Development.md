@@ -7,22 +7,29 @@
 先安装依赖并启动开发环境：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/apps/frontend
+cd /home/alex/Documents/cliff/Synapse-Network/apps/frontend
 yarn install
 yarn dev
+```
+
+项目构建命令：
+
+```bash
+cd /home/alex/Documents/cliff/Synapse-Network/apps/frontend
+yarn build
 ```
 
 项目测试命令：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/apps/frontend
+cd /home/alex/Documents/cliff/Synapse-Network/apps/frontend
 yarn test
 ```
 
 项目门禁命令：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network
+cd /home/alex/Documents/cliff/Synapse-Network
 npm run ci:frontend
 ```
 
@@ -31,6 +38,7 @@ npm run ci:frontend
 1. `apps/frontend` 包管理统一使用 Yarn。
 2. 不要在这个子项目里执行 `npm install` 或 `npm ci`。
 3. 不要重新生成 `package-lock.json`。
+4. `yarn build` 会先清理 `.next/`，避免旧的路由构建产物把 App Router 页面打成 `PageNotFoundError`。
 
 ## 环境变量
 

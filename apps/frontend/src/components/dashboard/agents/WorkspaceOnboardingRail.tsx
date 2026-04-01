@@ -78,7 +78,7 @@ export default function WorkspaceOnboardingRail({
     statePanelDescription = t("agentsPage.workspaceRailStatePanelDepositDescription");
     statePanelPrimaryHref = "/dashboard/billing";
     statePanelPrimaryLabel = t("agentsPage.workspaceRailOpenTreasury");
-    statePanelSecondaryHref = "/dashboard/agents/workspace";
+    statePanelSecondaryHref = "/dashboard/agents";
     statePanelSecondaryLabel = t("agentsPage.workspaceRailReviewRegistry");
   } else if (!hasAgents) {
     statePanelTitle = t("agentsPage.workspaceRailStatePanelCreateTitle");
@@ -92,7 +92,7 @@ export default function WorkspaceOnboardingRail({
     statePanelDescription = t("agentsPage.workspaceRailStatePanelAllocateDescription");
     statePanelPrimaryHref = "/dashboard/billing/credits";
     statePanelPrimaryLabel = t("agentsPage.workspaceRailOpenCredits");
-    statePanelSecondaryHref = "/dashboard/agents/workspace";
+    statePanelSecondaryHref = "/dashboard/agents";
     statePanelSecondaryLabel = t("agentsPage.workspaceRailReviewRegistry");
   } else if (!hasSuccessfulInvocation) {
     statePanelTitle = t("agentsPage.workspaceRailStatePanelInvokeTitle");
@@ -136,7 +136,7 @@ export default function WorkspaceOnboardingRail({
       title: t("agentsPage.workspaceRailStepCredentialTitle"),
       summary: hasCredential ? t("agentsPage.workspaceRailStepCredentialSummaryReady") : t("agentsPage.workspaceRailStepCredentialSummaryEmpty"),
       state: credentialState,
-      href: "/dashboard/agents/workspace",
+      href: "/dashboard/agents",
       actionLabel: t("agentsPage.workspaceRailReviewRegistry"),
       icon: KeyRound,
     },

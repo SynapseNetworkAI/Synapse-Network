@@ -183,7 +183,7 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceSimpleTitle: "Agents",
   workspaceSimpleDescription: "Manage agents and agents Credential",
   workspaceCreateAgentCompact: "Create Agent +",
-  workspaceAgentCardDescription: "Owner-bound runtime profile ready for paid API calls.",
+  workspaceAgentCardDescription: "This agent was created to use the Synapse API.",
   workspaceDetailEmptyTitle: "View Agent Details",
   workspaceDetailEmptyDescription: "Click any agent from the left panel to inspect its runtime profile, limits, and credential controls.",
   workspaceDetailDescription: "Manage API keys, limits, and authentication credentials for this runtime.",

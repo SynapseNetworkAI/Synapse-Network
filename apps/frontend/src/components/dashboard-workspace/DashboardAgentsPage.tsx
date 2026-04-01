@@ -79,6 +79,7 @@ type PendingDangerAction =
   | { type: "regenerate"; agent: AgentCredentialRecord };
 
 export default function DashboardAgentsPage({ mode = "guide" }: Readonly<DashboardAgentsPageProps>) {
+  const workspaceFrameClass = "w-full max-w-[1288px]";
   const { address: userAddress, isConnected } = useAccount();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { t } = useLanguage();
@@ -636,7 +637,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
   const workspaceContent = (
     <>
-      <header className="x-divider w-full max-w-[1040px] border-b pb-7">
+      <header className={`x-divider ${workspaceFrameClass} border-b pb-7`}>
         <section>
           <h1 className="x-page-title flex items-center gap-2 text-white">
             <Bot className="h-6 w-6 text-blue-400" />
@@ -646,8 +647,8 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
         </section>
       </header>
 
-      <section className="grid w-full max-w-[1040px] grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-        <XPanel as="article" variant="flat" className="min-w-0 rounded-[24px] p-5">
+      <section className={`grid ${workspaceFrameClass} grid-cols-1 items-start gap-5 xl:grid-cols-[536px_minmax(0,720px)] xl:gap-8`}>
+        <article className="min-w-0">
           <header className="x-divider mb-4 flex flex-col gap-4 border-b pb-4">
             <div>
               <h2 className="x-section-title mt-1 text-white">{t("agentsPage.workspaceYourAgentsTitle")}</h2>
@@ -706,7 +707,6 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               </XPanel>
             ) : (
               visibleCredentials.map((agent) => {
-                const usagePercent = getAgentUsagePercent(agent);
                 const isSelected = selectedAgent?.id === agent.id;
                 const statusClasses = agent.status === "active"
                   ? "bg-emerald-500/12 text-emerald-300"
@@ -726,47 +726,46 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                       }
                     }}
                     className={cx(
-                      "x-list-card block w-full cursor-pointer p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0]/60",
+                      "x-list-card block w-full cursor-pointer px-6 py-5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1d9bf0]/60 xl:w-[536px]",
                       isSelected
                         ? "x-tile-active"
                         : "x-tile-flat x-tile-flat-hover",
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 flex-1 items-start gap-3">
-                        <span className={cx("rounded-[16px] p-2.5", agent.status === "active" ? "x-icon-chip" : "x-panel-muted")} aria-hidden="true">
+                    <div className="flex items-start gap-4">
+                      <span className={cx("mt-0.5 rounded-[18px] p-3", agent.status === "active" ? "x-icon-chip" : "x-panel-muted")} aria-hidden="true">
                           <Bot className={`h-5 w-5 ${agent.status === "active" ? "text-blue-400" : "text-gray-500"}`} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="x-card-title truncate text-white">{agent.name || t("agentsPage.unnamedAgent")}</h3>
-                          <p className="x-body-copy mt-1.5 max-w-[24rem] pr-2">{t("agentsPage.workspaceAgentCardDescription")}</p>
-                          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="x-card-title truncate text-[17px] text-white">{agent.name || t("agentsPage.unnamedAgent")}</h3>
+                            <p className="x-body-copy mt-2 max-w-[22rem] leading-7">{t("agentsPage.workspaceAgentCardDescription")}</p>
+                          </div>
+                          {isManageMode ? (
+                            <XButton
+                              variant="icon"
+                              size="icon"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setPendingDeleteAgent(agent);
+                                setDeleteConfirmationName("");
+                              }}
+                              className="x-manage-delete mt-0.5 rounded-full p-0"
+                              aria-label={t("agentsPage.workspaceDeleteAgentLabel")}
+                              title={t("agentsPage.workspaceDeleteAgentLabel")}
+                            >
+                              <MinusCircle className="h-4 w-4" />
+                            </XButton>
+                          ) : null}
+                        </div>
+                        <div className="mt-5 flex flex-wrap items-center gap-3">
                             <span className={`x-status-inline ${statusClasses}`}>
                               {agent.status === "active" ? t("agentsPage.workspaceFilterActive") : t("agentsPage.workspaceToneRevoked")}
                             </span>
                             <span className="x-data-label font-mono text-gray-500">{agent.tokenPrefix || agent.id.slice(0, 12)}</span>
-                          </div>
                         </div>
-                      </div>
-                      <div className="x-agent-rail flex flex-col items-end justify-between gap-4">
-                        <span className="x-agent-usage">{usagePercent}%</span>
-                        {isManageMode ? (
-                          <XButton
-                            variant="icon"
-                            size="icon"
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              setPendingDeleteAgent(agent);
-                              setDeleteConfirmationName("");
-                            }}
-                            className="x-manage-delete rounded-full p-0"
-                            aria-label={t("agentsPage.workspaceDeleteAgentLabel")}
-                            title={t("agentsPage.workspaceDeleteAgentLabel")}
-                          >
-                            <MinusCircle className="h-4 w-4" />
-                          </XButton>
-                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -774,11 +773,18 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
               })
             )}
           </div>
-        </XPanel>
+        </article>
 
-        <XPanel as="article" variant="flat" className="min-w-0 rounded-[24px]">
+        <XPanel
+          as="article"
+          variant="flat"
+          className={cx(
+            "min-w-0 rounded-[24px] xl:w-[720px]",
+            !selectedAgent && "xl:h-[560px]",
+          )}
+        >
           {!selectedAgent ? (
-            <section className="flex flex-col items-center justify-center px-8 py-20 text-center">
+            <section className="flex h-full min-h-[560px] flex-col items-center justify-center px-8 py-20 text-center">
               <span className="x-icon-chip rounded-[22px] p-5" aria-hidden="true">
                 <Bot className="h-10 w-10 text-blue-300" />
               </span>
@@ -919,7 +925,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   );
 
   return (
-    <main className="x-workspace-shell mr-auto w-full max-w-[1040px] space-y-8 px-6 py-8 transition duration-200 lg:px-8 xl:px-10">
+    <main className="x-workspace-shell mx-auto w-full max-w-[1288px] space-y-8 px-6 py-8 transition duration-200 lg:px-8 xl:px-0">
       {error && (
         <aside role="alert" className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
           <AlertCircle className="h-5 w-5" />

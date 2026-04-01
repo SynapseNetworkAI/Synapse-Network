@@ -128,7 +128,7 @@ export default function OwnerCreditsPage() {
             <Wallet className="h-4 w-4" />
             {t("creditsPage.openTreasury")}
           </Link>
-          <Link href="/dashboard/agents/workspace" className="inline-flex items-center gap-2 rounded-lg border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-bold text-blue-300 transition hover:bg-blue-500/20">
+          <Link href="/dashboard/agents" className="inline-flex items-center gap-2 rounded-lg border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-bold text-blue-300 transition hover:bg-blue-500/20">
             <Coins className="h-4 w-4" />
             {t("creditsPage.openAgentsWorkspace")}
           </Link>
@@ -229,7 +229,7 @@ export default function OwnerCreditsPage() {
                             </span>
                           </td>
                           <td className="px-4 py-4 text-right">
-                            <Link href="/dashboard/agents/workspace" className="inline-flex items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-300 transition hover:bg-blue-500/20">
+                            <Link href="/dashboard/agents" className="inline-flex items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-300 transition hover:bg-blue-500/20">
                               {t("creditsPage.manageAgent")}
                               <ArrowRight className="h-3.5 w-3.5" />
                             </Link>

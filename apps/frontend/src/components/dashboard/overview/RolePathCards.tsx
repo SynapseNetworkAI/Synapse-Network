@@ -13,7 +13,7 @@ export default function RolePathCards() {
           <li>高速调用服务并查看消费明细</li>
         </ol>
         <div className="flex flex-wrap gap-2 mt-2">
-          <Link href="/dashboard/agents/workspace" className="flex items-center px-4 py-2.5 text-xs font-bold text-black bg-blue-500 rounded-lg hover:bg-blue-400 transition-colors">
+          <Link href="/dashboard/agents" className="flex items-center px-4 py-2.5 text-xs font-bold text-black bg-blue-500 rounded-lg hover:bg-blue-400 transition-colors">
             点击进入 Agent Workspace
             <ArrowRight className="w-4 h-4 ml-1" />
           </Link>

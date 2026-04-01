@@ -18,7 +18,7 @@ export default function WorkflowSection() {
       icon: <UserPlus className="w-4 h-4 text-blue-400" />,
       title: t("overviewPage.consumerCreateAgentTitle"),
       description: t("overviewPage.consumerCreateAgentDescription"),
-      link: "/dashboard/agents/workspace",
+      link: "/dashboard/agents",
       linkText: t("overviewPage.consumerCreateAgentLink")
     },
     {

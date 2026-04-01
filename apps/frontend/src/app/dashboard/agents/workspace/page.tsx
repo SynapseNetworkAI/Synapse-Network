@@ -1,5 +1,5 @@
-import DashboardAgentsPage from "@/components/dashboard-workspace/DashboardAgentsPage";
+import { redirect } from "next/navigation";
 
 export default function DashboardAgentsWorkspaceRoute() {
-	return <DashboardAgentsPage mode="workspace" />;
+  redirect("/dashboard/agents");
 }

@@ -183,7 +183,7 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceSimpleTitle: "Agents",
   workspaceSimpleDescription: "Manage agents and agents Credential",
   workspaceCreateAgentCompact: "Create Agent +",
-  workspaceAgentCardDescription: "这个运行时身份已经绑定 Owner，可直接用于付费 API 调用。",
+  workspaceAgentCardDescription: "这个 Agent 已创建，可直接用于调用 Synapse API。",
   workspaceDetailEmptyTitle: "查看 Agent 详情",
   workspaceDetailEmptyDescription: "点击左侧任意 Agent，查看它的运行时详情、限额和凭据控制面板。",
   workspaceDetailDescription: "在这里管理这个运行时的 API key、限额和认证凭据。",

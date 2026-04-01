@@ -26,8 +26,6 @@ const overviewPage: I18nMessages["overviewPage"] = {
   financialInfrastructure: "Financial Infrastructure",
   coreCapabilities: "Core Capabilities",
   coreCapabilitiesDescription: "The architectural pillars of the Synapse M2M economy.",
-  realTimeActivity: "Real-time Activity",
-  openAuditTrail: "Open Audit Trail",
   feeTransparency: "Fee Transparency",
   feeTransparencyDescription: "Real-time protocol fee calculation.",
   protocolEfficiency: "Protocol Efficiency",
@@ -93,13 +91,6 @@ const overviewPage: I18nMessages["overviewPage"] = {
   capabilityAtomicSettlementDescription: "Our gateway handles real-time fee deduction and request routing with automatic rollback on failure.",
   capabilityUnifiedLedgerTitle: "Unified Ledger",
   capabilityUnifiedLedgerDescription: "Transparent auditing and settlement for both consumers and providers with gas-less withdrawal options.",
-  eventStreamTitle: "ServicePaid Event Stream",
-  eventStreamServiceId: "Service ID",
-  eventStreamOwner: "Owner",
-  eventStreamAmountUsdc: "Amount (USDC)",
-  eventStreamFeeUsdc: "Fee (USDC)",
-  eventStreamTxHash: "Tx Hash",
-  eventStreamEmpty: "No ServicePaid events found for the current owner scope.",
 };
 
 export default overviewPage;

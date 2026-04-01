@@ -169,3 +169,15 @@ Agents 页是第一块样板地。后续 Credits、Payments、Usage、Provider W
 判断标准只有一个：
 
 哪个页面还在大量手写 `x-modal-*`、`x-button-*`、`x-panel-*`，哪个页面就优先迁移。
+
+## 8. Agents Route Contract
+
+`Agents` 页面从现在开始只有一个 owner-side canonical route：
+
+1. `/dashboard/agents`
+
+强约束：
+
+1. 不再保留 `Agents Workspace` 作为 sidebar 子菜单
+2. 历史路径 `/dashboard/agents/workspace` 只能做兼容跳转，不允许继续作为主入口
+3. 所有 owner-side CTA、overview links、credits links 都应统一指向 `/dashboard/agents`
