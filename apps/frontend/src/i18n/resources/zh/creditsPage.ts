@@ -28,7 +28,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   manageSpendCapModalTitle: "管理消费上限",
   manageSpendCapModalEyebrow: "Billing Cycle Spending Limit",
   manageSpendCapModalClose: "关闭消费上限弹窗",
-  manageSpendCapModalAmountLabel: "Billing 周期消费上限",
+  manageSpendCapModalAmountLabel: "金额 (USDC)",
   manageSpendCapModalHint:
     "设置一个 billing 周期内允许消费的最大金额。达到上限后，API 请求会一直被阻断，直到下一个周期开始。",
   manageSpendCapModalUnlimitedLabel: "允许无限消费",
