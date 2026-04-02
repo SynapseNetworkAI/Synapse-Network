@@ -8,25 +8,13 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import OverviewHero from "@/components/dashboard/overview/OverviewHero";
 import WorkflowSection from "@/components/dashboard/overview/WorkflowSection";
 import CapabilityCards from "@/components/dashboard/overview/CapabilityCards";
-import FeeTransparencyPanel from "@/components/dashboard/overview/FeeTransparencyPanel";
-import { RefreshCw, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu, History, Wallet, Terminal } from "lucide-react";
-import Link from "next/link";
+import { RefreshCw, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu } from "lucide-react";
 
 export default function OverviewPage() {
   const { isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
   const { stats, handleRefresh, isRefreshing } = useOwnerData();
   const { t } = useLanguage();
-
-  const currentBalance = isConnected && isSessionAuthenticated ? stats?.ownerBalance || "0.00" : "0.00";
-  const quickNavItems = [
-    { name: t("overviewPage.quickNavAgents"), icon: <Bot className="w-4 h-4" />, href: "/dashboard/agents", color: "text-blue-400" },
-    { name: t("overviewPage.quickNavDiscovery"), icon: <Cpu className="w-4 h-4" />, href: "/dashboard/discovery", color: "text-purple-400" },
-    { name: t("overviewPage.quickNavInvocations"), icon: <History className="w-4 h-4" />, href: "/dashboard/invocations", color: "text-emerald-400" },
-    { name: t("overviewPage.quickNavTreasury"), icon: <Wallet className="w-4 h-4" />, href: "/dashboard/billing", color: "text-amber-400" },
-    { name: t("overviewPage.quickNavRiskAudit"), icon: <ShieldCheck className="w-4 h-4" />, href: "/dashboard/audit", color: "text-red-400" },
-    { name: t("overviewPage.quickNavDeveloperResources"), icon: <Terminal className="w-4 h-4" />, href: "/dashboard/developer", color: "text-gray-400" },
-  ];
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#f5f5f7] font-sans selection:bg-white/90 selection:text-black">
@@ -71,22 +59,6 @@ export default function OverviewPage() {
         {/* HERO SECTION */}
         <section>
           <OverviewHero />
-        </section>
-
-        {/* QUICK NAVIGATION */}
-        <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {quickNavItems.map((item) => (
-            <Link 
-              key={item.name} 
-              href={item.href}
-              className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
-            >
-              <div className={`p-3 rounded-xl bg-white/[0.03] mb-3 group-hover:scale-110 transition-transform ${item.color}`}>
-                {item.icon}
-              </div>
-              <span className="text-xs font-bold text-gray-400 group-hover:text-white transition-colors">{item.name}</span>
-            </Link>
-          ))}
         </section>
 
         {/* WORKFLOW SECTION */}
@@ -160,33 +132,6 @@ export default function OverviewPage() {
             <p className="text-xs text-gray-500 mt-1">{t("overviewPage.coreCapabilitiesDescription")}</p>
           </div>
           <CapabilityCards />
-        </section>
-
-        {/* FEE TRANSPARENCY */}
-        <section className="grid grid-cols-1">
-          <div className="lg:max-w-[420px]">
-            <div className="mb-6">
-              <h2 className="text-lg font-bold text-white tracking-tight">{t("overviewPage.feeTransparency")}</h2>
-              <p className="text-xs text-gray-500 mt-1">{t("overviewPage.feeTransparencyDescription")}</p>
-            </div>
-            <div className="p-6 rounded-2xl bg-[#0a0a0c] border border-white/5">
-              <FeeTransparencyPanel
-                masterBalance={currentBalance}
-                providerNetTotal={0}
-                platformFeesTotal={0}
-                platformFeeRatePercent={10}
-              />
-              <div className="mt-8 pt-6 border-t border-white/5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{t("overviewPage.protocolEfficiency")}</span>
-                  <span className="text-xs font-mono text-emerald-400">99.98%</span>
-                </div>
-                <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400 w-[99.98%]" />
-                </div>
-              </div>
-            </div>
-          </div>
         </section>
 
         {/* FOOTER */}
