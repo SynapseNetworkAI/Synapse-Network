@@ -113,7 +113,7 @@ def _gateway_root_dir() -> str:
 
 
 def _repo_root_dir() -> str:
-    return os.path.abspath(os.path.join(_gateway_root_dir(), ".."))
+    return os.path.abspath(os.path.join(_gateway_root_dir(), "..", ".."))
 
 
 def _resolve_env_file_path(env_file: str) -> str:
