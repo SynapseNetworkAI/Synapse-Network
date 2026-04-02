@@ -258,6 +258,8 @@ export default function Navbar() {
                     topNavItemRefs.current["/docs"] = node;
                   }}
                   href="/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className={getTopNavLinkClasses("/docs")}
                   onMouseEnter={() => setHoveredTopNavHref("/docs")}
                   onFocus={() => setHoveredTopNavHref("/docs")}
@@ -311,6 +313,8 @@ export default function Navbar() {
               <div className="hidden items-center gap-[30px] xl:flex">
                 <Link
                   href="/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
                 >
                   {t("nav.documentation")}
