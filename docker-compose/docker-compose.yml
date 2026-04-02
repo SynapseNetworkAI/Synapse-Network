@@ -18,11 +18,6 @@ services:
       - SYNAPSE_ADMIN_APP_PASSWORD=12345678
       - SYNAPSE_ADMIN_READONLY_USER=synapse_admin_ro
       - SYNAPSE_ADMIN_READONLY_PASSWORD=12345678
-      - SYNAPSE_PROVIDER_DB=synapse_gateway_providers
-      - SYNAPSE_PROVIDER_APP_USER=synapse_provider_app
-      - SYNAPSE_PROVIDER_APP_PASSWORD=12345678
-      - SYNAPSE_PROVIDER_READONLY_USER=synapse_provider_ro
-      - SYNAPSE_PROVIDER_READONLY_PASSWORD=12345678
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
