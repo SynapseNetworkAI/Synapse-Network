@@ -4,4 +4,4 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-bash "$ROOT_DIR/scripts/ci/run_next_quality_gate.sh" "ci:frontend" "$ROOT_DIR/apps/frontend" "true"
+bash "$ROOT_DIR/scripts/ci/run_next_quality_gate.sh" "ci:frontend" "$ROOT_DIR/services/user-front" "true"

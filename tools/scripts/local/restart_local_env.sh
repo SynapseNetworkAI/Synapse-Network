@@ -33,13 +33,13 @@ echo "Running V2 daily-limit regression smoke..."
 
 if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
   PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
-elif [[ -x "${ROOT_DIR}/gateway/.venv/bin/python" ]]; then
-  PYTHON_BIN="${ROOT_DIR}/gateway/.venv/bin/python"
-elif [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
-  PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
+elif [[ -x "${ROOT_DIR}/services/gateway/.venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/services/gateway/.venv/bin/python"
+elif [[ -x "${ROOT_DIR}/services/gateway/venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/services/gateway/venv/bin/python"
 else
   PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_311.sh")"
 fi
 
-"${PYTHON_BIN}" "${ROOT_DIR}/gateway/examples/v2_daily_limit_regression.py"
+"${PYTHON_BIN}" "${ROOT_DIR}/services/gateway/examples/v2_daily_limit_regression.py"
 echo "V2 daily-limit regression passed."

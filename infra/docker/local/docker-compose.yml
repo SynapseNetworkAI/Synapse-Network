@@ -20,7 +20,7 @@ services:
       - SYNAPSE_ADMIN_READONLY_PASSWORD=12345678
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ../../postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U synapse -d synapse_gateway"]
       interval: 5s

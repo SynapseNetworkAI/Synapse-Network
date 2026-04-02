@@ -2,7 +2,7 @@
 description: "Use when writing or modifying finance backend, balance, billing, settlement, ledger, deposit, withdraw, refund, reconciliation, idempotency, audit, or transaction-sensitive Python code. Covers money safety, Decimal usage, idempotency, audit trails, and ACID transaction rules."
 applyTo:
   - "gateway/**/*.py"
-  - "admin/gateway-admin/**/*.py"
+  - "services/gateway-admin/**/*.py"
   - "provider_service/**/*.py"
 name: "Synapse Finance Backend Rules"
 ---

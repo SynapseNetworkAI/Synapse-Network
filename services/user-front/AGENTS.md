@@ -1,6 +1,6 @@
 # frontend Hard Rules
 
-Local execution mirror for `apps/frontend/`.
+Local execution mirror for `services/user-front/`.
 
 ## Canonical Sources
 
@@ -11,13 +11,13 @@ Local execution mirror for `apps/frontend/`.
 
 ## Role Boundary
 
-- `apps/frontend` is the owner and developer facing product frontend.
+- `services/user-front` is the owner and developer facing product frontend.
 - It must express the agent-first payment story clearly, but it is not the settlement source of truth.
 - Do not invent backend truth for balances, service status, or runtime policy in the UI.
 
 ## Local Constraints
 
-- Package management for `apps/frontend` stays on Yarn.
+- Package management for `services/user-front` stays on Yarn.
 - Use the development server during iteration.
 - Keep copy, IA, and user flows aligned with canonical product docs and i18n resources.
 - Wallet and payment-related UX should hide avoidable Web3 complexity rather than exposing raw protocol mechanics.
@@ -25,7 +25,7 @@ Local execution mirror for `apps/frontend/`.
 ## Commands
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/apps/frontend
+cd /Users/cliff/workspace/Synapse-Network/services/user-front
 yarn dev
 yarn test
 

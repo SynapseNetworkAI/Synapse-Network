@@ -1,6 +1,6 @@
 # gateway-admin Hard Rules
 
-This file is the local execution mirror for `admin/gateway-admin/`.
+This file is the local execution mirror for `services/gateway-admin/`.
 
 ## Canonical Sources
 
@@ -29,20 +29,20 @@ This file is the local execution mirror for `admin/gateway-admin/`.
 - Use the local virtual environment only:
 
 ```bash
-/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python
+services/gateway-admin/.venv/bin/python
 ```
 
 ## Validation
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
-/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pytest tests/test_app.py -q
+cd services/gateway-admin
+services/gateway-admin/.venv/bin/python -m pytest tests/test_app.py -q
 ```
 
 ## Operations
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd services/gateway-admin
 sh scripts/ops/start-local.sh
 sh scripts/ops/start-staging.sh
 sh scripts/ops/stop.sh

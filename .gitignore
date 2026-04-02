@@ -58,3 +58,5 @@ spec2flow
 
 # Local generated output (Playwright screenshots, videos, metrics)
 output/
+anvil*.log
+apps/.next

@@ -1,18 +1,18 @@
 ---
 description: "Use when writing or modifying gateway-admin finance review, finance approval, withdrawal review, refund approval, deposit repair approval, reconciliation drilldown, or finance-admin execution code. Covers admin control-plane money review semantics, reviewer permissions, audit evidence, and backend-owned decision flows."
 applyTo:
-  - "admin/gateway-admin/src/api/routers/provider_withdraw_review.py"
-  - "admin/gateway-admin/src/api/routers/approval.py"
-  - "admin/gateway-admin/src/api/routers/dashboard.py"
-  - "admin/gateway-admin/src/api/schemas/approval.py"
-  - "admin/gateway-admin/src/api/schemas/provider_withdraw_review.py"
-  - "admin/gateway-admin/src/services/approval/**/*.py"
-  - "admin/gateway-admin/src/services/finance_admin/**/*.py"
-  - "admin/gateway-admin/src/services/adapters/provider_withdraw_review.py"
-  - "admin/gateway-admin/src/storage/analytics/provider_withdraw_review.py"
-  - "admin/gateway-admin/tests/test_app.py"
-  - "admin/gateway-admin/tests/test_execution_service.py"
-  - "admin/gateway-admin/tests/test_execution_worker.py"
+  - "services/gateway-admin/src/api/routers/provider_withdraw_review.py"
+  - "services/gateway-admin/src/api/routers/approval.py"
+  - "services/gateway-admin/src/api/routers/dashboard.py"
+  - "services/gateway-admin/src/api/schemas/approval.py"
+  - "services/gateway-admin/src/api/schemas/provider_withdraw_review.py"
+  - "services/gateway-admin/src/services/approval/**/*.py"
+  - "services/gateway-admin/src/services/finance_admin/**/*.py"
+  - "services/gateway-admin/src/services/adapters/provider_withdraw_review.py"
+  - "services/gateway-admin/src/storage/analytics/provider_withdraw_review.py"
+  - "services/gateway-admin/tests/test_app.py"
+  - "services/gateway-admin/tests/test_execution_service.py"
+  - "services/gateway-admin/tests/test_execution_worker.py"
 name: "Synapse Finance Admin Rules"
 ---
 
@@ -21,7 +21,7 @@ name: "Synapse Finance Admin Rules"
 ## Scope
 
 - This file is narrower than `finance-backend.instructions.md`.
-- It applies to `admin/gateway-admin` finance review and approval flows where operators review, approve, reject, retry, or inspect money-affecting actions.
+- It applies to `services/gateway-admin` finance review and approval flows where operators review, approve, reject, retry, or inspect money-affecting actions.
 
 ## Boundary
 

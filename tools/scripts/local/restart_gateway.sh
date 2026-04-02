@@ -9,8 +9,8 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
-LOG_FILE="${ROOT_DIR}/gateway/logs/provider_api.log"
-CONFIG_FILE="${ROOT_DIR}/apps/frontend/src/contract-config.json"
+LOG_FILE="${ROOT_DIR}/services/gateway/logs/provider_api.log"
+CONFIG_FILE="${ROOT_DIR}/services/user-front/src/contract-config.json"
 HEALTH_URL="http://127.0.0.1:8000/health"
 STARTUP_TIMEOUT_SEC="${STARTUP_TIMEOUT_SEC:-20}"
 
@@ -66,10 +66,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
-if [ -x "${ROOT_DIR}/gateway/.venv/bin/python" ]; then
-  PYTHON_BIN="${ROOT_DIR}/gateway/.venv/bin/python"
-elif [ -x "${ROOT_DIR}/gateway/venv/bin/python" ]; then
-  PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
+if [ -x "${ROOT_DIR}/services/gateway/.venv/bin/python" ]; then
+  PYTHON_BIN="${ROOT_DIR}/services/gateway/.venv/bin/python"
+elif [ -x "${ROOT_DIR}/services/gateway/venv/bin/python" ]; then
+  PYTHON_BIN="${ROOT_DIR}/services/gateway/venv/bin/python"
 else
   PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_311.sh")"
 fi
@@ -79,7 +79,7 @@ echo "Using Python interpreter: ${PYTHON_BIN}"
 
 if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
   echo "Python dependencies missing. Installing from gateway/requirements.txt ..."
-  "$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/gateway/requirements.txt"
+  "$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/services/gateway/requirements.txt"
 fi
 
 PROVIDER_PID_FROM_FILE=""
@@ -111,9 +111,9 @@ DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse
 LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
 LOCAL_POSTGRES_DSN="$(printf '%s' "$LOCAL_POSTGRES_DSN" | sed 's/@postgres:/@127.0.0.1:/')"
 
-cd "${ROOT_DIR}/gateway"
+cd "${ROOT_DIR}/services/gateway"
 
-if [ -f "${ROOT_DIR}/gateway/.env.local" ]; then
+if [ -f "${ROOT_DIR}/services/gateway/.env.local" ]; then
   nohup env \
     ENVIRONMENT=local \
     ENV_FILE=.env.local \
