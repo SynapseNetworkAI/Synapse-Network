@@ -185,11 +185,11 @@ export class SynapseAuth {
   async confirmDeposit(intentId: string, eventKey: string): Promise<{ status: string }> {
     const token = await this.getToken();
     return this._fetch<{ status: string }>(
-      `${this.gatewayUrl}/api/v1/balance/deposit/confirm`,
+      `${this.gatewayUrl}/api/v1/balance/deposit/intents/${intentId}/confirm`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ intentId, eventKey }),
+        body: JSON.stringify({ eventKey, confirmations: 1 }),
       }
     );
   }

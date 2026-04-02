@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test:e2e": "jest --testPathPattern='tests/e2e' --runInBand --forceExit",
+    "test:e2e": "jest --testPathPattern='tests/e2e/consumer' --runInBand --forceExit",
+    "test:new-consumer": "jest --testPathPattern='tests/e2e/new-consumer' --runInBand --forceExit --verbose",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
