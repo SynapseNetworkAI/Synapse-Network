@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from tests.e2e.conftest import GATEWAY_BASE
-from tests.e2e.helpers.gateway import get_balance
+from tests.e2e.helpers.gateway import get_balance, get_balance_full
 
 CREDENTIAL_HEADER = "X-Credential"
 TIMEOUT = 60
@@ -36,16 +36,20 @@ def test_get_quote_for_service(session_state):
     session_state["quote_id"] = quote_id
 
 
-def test_invocation_deducts_balance(owner_headers, session_state):
+def test_invocation_deducts_balance(owner_headers, provider_headers, session_state):
     token = session_state.get("agent_token")
     service_id = session_state.get("service_id")
     if not token or not service_id:
         pytest.skip("agent_token or service_id not set")
 
-    balance_before = get_balance(GATEWAY_BASE, owner_headers)
-    assert balance_before > Decimal("0"), (
-        f"Balance too low ({balance_before}) — deposit may have failed"
+    bal_before = get_balance_full(GATEWAY_BASE, owner_headers)
+    consumer_before = Decimal(str(bal_before.get("consumerAvailableBalance", 0)))
+    assert consumer_before > Decimal("0"), (
+        f"Consumer balance too low ({consumer_before}) — deposit may have failed"
     )
+    provider_bal_before = get_balance_full(GATEWAY_BASE, provider_headers)
+    provider_receivable_before = Decimal(str(provider_bal_before.get("providerReceivable", 0)))
+    fee_before = Decimal(str(bal_before.get("platformFeeAccrued", 0)))
 
     idem_key = uuid.uuid4().hex
     quote_id = session_state.get("quote_id")
@@ -70,13 +74,39 @@ def test_invocation_deducts_balance(owner_headers, session_state):
         or body.get("id")
         or body.get("invocation_id")
     )
+    charged = Decimal(str(body.get("chargedUsdc", 0)))
     session_state["invocation_id"] = inv_id
+    session_state["charged_usdc"] = charged
 
     # Allow settlement to propagate
     time.sleep(1)
-    balance_after = get_balance(GATEWAY_BASE, owner_headers)
-    assert balance_after <= balance_before, (
-        f"Balance did not decrease after invocation: before={balance_before}, after={balance_after}"
+
+    bal_after = get_balance_full(GATEWAY_BASE, owner_headers)
+    consumer_after = Decimal(str(bal_after.get("consumerAvailableBalance", 0)))
+    fee_after = Decimal(str(bal_after.get("platformFeeAccrued", 0)))
+
+    provider_bal_after = get_balance_full(GATEWAY_BASE, provider_headers)
+    provider_receivable_after = Decimal(str(provider_bal_after.get("providerReceivable", 0)))
+
+    # 1. Consumer balance must decrease
+    assert consumer_after < consumer_before, (
+        f"Consumer balance did not decrease: before={consumer_before}, after={consumer_after}"
+    )
+    # 2. Provider receivable must increase (provider earned something)
+    assert provider_receivable_after >= provider_receivable_before, (
+        f"Provider receivable did not increase: before={provider_receivable_before}, after={provider_receivable_after}"
+    )
+    # 3. Platform fee must increase (gateway took a cut)
+    assert fee_after >= fee_before, (
+        f"Platform fee accrued did not increase: before={fee_before}, after={fee_after}"
+    )
+
+    consumer_delta = consumer_before - consumer_after
+    provider_delta = provider_receivable_after - provider_receivable_before
+    fee_delta = fee_after - fee_before
+    print(
+        f"\n  Settlement: charged={charged} USDC"
+        f" | consumer↓{consumer_delta} | provider↑{provider_delta} | fee↑{fee_delta}"
     )
     session_state["invocation_idem_key"] = idem_key
 

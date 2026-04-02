@@ -9,6 +9,13 @@ import httpx
 TIMEOUT = 30
 
 
+def get_balance_full(gateway_base: str, headers: dict) -> dict:
+    """Return the raw balance dict from gateway for multi-field assertions."""
+    r = httpx.get(f"{gateway_base}/api/v1/balance", headers=headers, timeout=TIMEOUT)
+    r.raise_for_status()
+    return r.json().get("balance", {})
+
+
 def get_balance(gateway_base: str, headers: dict) -> Decimal:
     r = httpx.get(f"{gateway_base}/api/v1/balance", headers=headers, timeout=TIMEOUT)
     r.raise_for_status()
