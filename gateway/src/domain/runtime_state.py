@@ -170,15 +170,6 @@ class VaultWithdrawalMetadataState(BaseModel):
     ticket: WithdrawalTicketMetadata = Field(default_factory=WithdrawalTicketMetadata)
 
 
-class RouterPolicyState(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    owner_address: str = Field(alias="ownerAddress")
-    daily_limit_usdc: Decimal = Field(default=Decimal("0"), alias="dailyLimitUsdc")
-    created_at: str = Field(default="", alias="createdAt")
-    updated_at: str = Field(default="", alias="updatedAt")
-
-
 class BackfillState(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

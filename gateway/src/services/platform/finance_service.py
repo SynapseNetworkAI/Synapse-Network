@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
-from src.domain.gateway import OwnerSpendLimitRow, RouterConfigRow
+from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
@@ -157,24 +157,6 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "providerLockedBalance": balance_data.provider_locked_balance(normalized_owner),
             "platformFeeAccrued": round(balance_data.platform.fee_accrued, 6),
             "updatedAt": balance_data.updated_at,
-        }
-
-    async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
-        await asyncio.sleep(0)
-        owner = normalize_wallet(owner_wallet)
-        rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
-
-        found = next(
-            (row for row in rows if normalize_wallet(row.owner_address or "") == owner),
-            None,
-        )
-        if not found:
-            return {"ownerAddress": owner, "dailyLimitUsdc": 0.0, "updatedAt": None}
-
-        return {
-            "ownerAddress": owner,
-            "dailyLimitUsdc": round(float(found.daily_limit_usdc or 0.0), 6),
-            "updatedAt": int(found.updated_at or 0) or None,
         }
 
     async def get_owner_spending_limit(self, owner_wallet: str) -> Dict[str, Any]:
@@ -394,61 +376,4 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 )
             return response
 
-    async def set_router_config(
-        self,
-        owner_wallet: str,
-        daily_limit_usdc: float,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        owner = normalize_wallet(owner_wallet)
-        async with self._mutation_lock.lock(f"{owner}:router_config"):
-            await self._enforce_owner_write_rate_limit(owner, "router_config")
-            if daily_limit_usdc < 0 or daily_limit_usdc > 10_000:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "code": "INVALID_DAILY_LIMIT",
-                        "message": "dailyLimitUsdc must be within [0, 10000].",
-                    },
-                )
 
-            now = int(time.time())
-            rows = self.storage.get_data_manager().system.gateway_state.read_router_config_rows()
-
-            existing = next(
-                (
-                    row
-                    for row in rows
-                    if normalize_wallet(row.owner_address or "") == owner
-                ),
-                None,
-            )
-            if existing is None:
-                existing = RouterConfigRow(
-                    id=str(uuid4()),
-                    owner_address=owner,
-                    daily_limit_usdc=round(float(daily_limit_usdc), 6),
-                    created_at=now_dt_str(),
-                    updated_at=now_dt_str(),
-                )
-                rows.append(existing)
-            else:
-                existing.daily_limit_usdc = round(float(daily_limit_usdc), 6)
-                existing.updated_at = now_dt_str()
-
-            self.storage.get_data_manager().system.gateway_state.write_router_config_rows(
-                rows, now
-            )
-            self._append_financial_audit(
-                "ROUTER_CONFIG_UPDATED",
-                owner,
-                {
-                    "dailyLimitUsdc": existing.daily_limit_usdc,
-                    "requestMeta": request_meta or {},
-                },
-            )
-            return {
-                "ownerAddress": owner,
-                "dailyLimitUsdc": existing.daily_limit_usdc,
-                "updatedAt": existing.updated_at,
-            }
