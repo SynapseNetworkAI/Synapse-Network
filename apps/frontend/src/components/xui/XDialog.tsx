@@ -11,9 +11,10 @@ export type XDialogProps = {
   ariaLabelledby: string;
   children: ReactNode;
   overlayClassName?: string;
+  onDismiss?: () => void;
 };
 
-export function XDialog({ open, ariaLabelledby, children, overlayClassName }: Readonly<XDialogProps>) {
+export function XDialog({ open, ariaLabelledby, children, overlayClassName, onDismiss }: Readonly<XDialogProps>) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -30,6 +31,11 @@ export function XDialog({ open, ariaLabelledby, children, overlayClassName }: Re
       role="dialog"
       aria-modal="true"
       aria-labelledby={ariaLabelledby}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onDismiss?.();
+        }
+      }}
     >
       {children}
     </div>,

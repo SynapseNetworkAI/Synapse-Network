@@ -11,7 +11,11 @@ import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import contractConfig from "@/contract-config.json";
 import { parseAbi } from "viem";
 
-export default function WalletProfileBadge() {
+type WalletProfileBadgeProps = {
+  compact?: boolean;
+};
+
+export default function WalletProfileBadge({ compact = false }: Readonly<WalletProfileBadgeProps>) {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { t } = useLanguage();
@@ -61,7 +65,32 @@ export default function WalletProfileBadge() {
   }, [address, disconnect, t]);
 
   if (!isConnected) {
-    return <ConnectButton />;
+    return <ConnectButton showBalance={false} chainStatus="none" />;
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="hidden h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-[#0b0f15] px-3.5 text-sm text-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:flex">
+          <span className="inline-flex h-2 w-2 rounded-full bg-[#7ff7be] shadow-[0_0_10px_rgba(127,247,190,0.58)]" />
+          <span className="font-semibold tracking-[-0.02em]">
+            {address?.slice(0, 6)}...{address?.slice(-4)}
+          </span>
+        </div>
+        <div className="hidden h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-[#0b0f15] px-3.5 text-sm font-semibold text-[#7ff7be] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:flex">
+          <Coins className="h-4 w-4" />
+          {masterBalance} USDC
+        </div>
+        <button
+          onClick={handleLogout}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-[#ff6f6f]/18 bg-[#190d10] px-3 text-sm font-semibold text-[#ff8d8d] transition hover:border-[#ff6f6f]/28 hover:bg-[#221013] hover:text-[#ffb0b0]"
+          title={t("nav.disconnectWallet")}
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="hidden 2xl:inline">{t("nav.disconnect")}</span>
+        </button>
+      </div>
+    );
   }
 
   return (
