@@ -5,13 +5,13 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 const COPY = {
   en: {
-    eyebrow: "Synapse Developer Console",
-    title: "Route The Agent Economy",
+    eyebrow: "Synapse Network",
+    title: "Stripe for AI Agents.",
     status: "Loading workspace...",
   },
   zh: {
-    eyebrow: "Synapse Developer Console",
-    title: "正在接入智能体经济",
+    eyebrow: "Synapse Network",
+    title: "链接硅基生命的 API 结算中枢",
     status: "正在加载工作台...",
   },
 } as const;
@@ -34,24 +34,16 @@ export default function GlobalLoadingScreen() {
       </div>
 
       <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
-        <div className="relative">
-          <LanguageSwitcher className="h-10 appearance-none rounded-full border border-white/12 bg-white/[0.045] px-4 pr-9 text-xs font-semibold tracking-[0.06em] text-white/86 outline-none backdrop-blur-xl transition hover:border-white/22 hover:bg-white/[0.08] focus:border-white/28" />
-          <span className="pointer-events-none absolute right-4 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border-r border-t border-white/35 rotate-[135deg]" />
-        </div>
+        <LanguageSwitcher className="h-10 rounded-full border border-white/12 bg-white/[0.045] px-4 pr-4 text-xs font-semibold tracking-[0.06em] text-white/86 outline-none backdrop-blur-xl transition hover:border-white/22 hover:bg-white/[0.08] focus:border-white/28" />
       </div>
 
       <div className="relative flex min-h-screen items-center justify-center px-6">
         <div className="mx-auto flex w-full max-w-[760px] flex-col items-center text-center">
-          <div className="x-loading-fade-up flex items-center gap-3 text-white/80">
-            <span className="text-[40px] font-light tracking-[-0.08em] text-white/84">
-              X
-            </span>
-            <span className="text-[16px] font-semibold tracking-[-0.03em] text-white/84 sm:text-[18px]">
-              {copy.eyebrow}
-            </span>
-          </div>
+          <p className="x-loading-fade-up text-[16px] font-semibold tracking-[0.08em] text-white/78 sm:text-[18px]">
+            {copy.eyebrow}
+          </p>
 
-          <h1 className="x-loading-fade-up x-loading-fade-up-delay mt-10 max-w-[12ch] text-balance text-[clamp(2.75rem,6vw,5rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-white">
+          <h1 className="x-loading-fade-up x-loading-fade-up-delay mt-10 max-w-[14ch] text-balance text-[clamp(2.75rem,6vw,5rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-white">
             {copy.title}
           </h1>
 

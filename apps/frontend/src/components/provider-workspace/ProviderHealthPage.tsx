@@ -13,6 +13,7 @@ import {
   type ServiceHealthHistoryResponse,
 } from "@/utils/serviceApi";
 import { useAuth } from "@/components/WalletAuthGuard";
+import XSelect from "@/components/xui/XSelect";
 
 const HealthChartsPanel = dynamic(() => import("@/components/provider/HealthChartsPanel"), {
   loading: () => (
@@ -160,19 +161,17 @@ export default function ProviderHealthPage() {
 
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <label htmlFor="health-service-select" className="text-xs tracking-wide text-[#86868b] uppercase">API Service</label>
-        <select
+        <XSelect
           id="health-service-select"
           value={selectedServiceId}
-          onChange={(e) => setSelectedServiceId(e.target.value)}
-          className="w-full lg:w-[360px] rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none"
+          onChange={(next) => setSelectedServiceId(next)}
+          options={services.map((svc) => ({
+            value: svc.serviceId,
+            label: `${svc.name} (${svc.serviceId})`,
+          }))}
+          triggerClassName="inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white lg:w-[360px]"
           disabled={loadingServices || services.length === 0}
-        >
-          {services.map((svc) => (
-            <option key={svc.serviceId} value={svc.serviceId}>
-              {svc.name} ({svc.serviceId})
-            </option>
-          ))}
-        </select>
+        />
         <button
           onClick={() => {
             if (selectedServiceId) {

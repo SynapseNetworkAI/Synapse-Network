@@ -9,6 +9,7 @@ import {
   Server,
 } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import XSelect from "@/components/xui/XSelect";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { formatPricing } from "@/utils/pricing";
 
@@ -151,29 +152,31 @@ export default function DiscoveryConsolePage() {
             <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white lg:min-w-[220px]">
               <span className="text-gray-400">{t("discoveryPage.sortByLabel")}</span>
               <Filter className="h-4 w-4 text-gray-500" />
-              <select
+              <XSelect
                 value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                className="w-full bg-transparent text-sm text-white outline-none"
-              >
-                <option value="best_match">{t("discoveryPage.sortBestMatch")}</option>
-                <option value="revenue">{t("discoveryPage.sortCallAmount")}</option>
-                <option value="invocation_count">{t("discoveryPage.sortCallCount")}</option>
-                <option value="price">{t("discoveryPage.sortPrice")}</option>
-                <option value="health">{t("discoveryPage.sortHealth")}</option>
-                <option value="service_name">{t("discoveryPage.sortName")}</option>
-              </select>
+                onChange={(next) => setSortBy(next)}
+                options={[
+                  { value: "best_match", label: t("discoveryPage.sortBestMatch") },
+                  { value: "revenue", label: t("discoveryPage.sortCallAmount") },
+                  { value: "invocation_count", label: t("discoveryPage.sortCallCount") },
+                  { value: "price", label: t("discoveryPage.sortPrice") },
+                  { value: "health", label: t("discoveryPage.sortHealth") },
+                  { value: "service_name", label: t("discoveryPage.sortName") },
+                ]}
+                triggerClassName="inline-flex min-h-6 w-full items-center justify-between gap-2 bg-transparent text-sm text-white"
+              />
             </label>
             <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white lg:min-w-[180px]">
               <span className="text-gray-400">{t("discoveryPage.orderLabel")}</span>
-              <select
+              <XSelect
                 value={sortOrder}
-                onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}
-                className="w-full bg-transparent text-sm text-white outline-none"
-              >
-                <option value="desc">{t("discoveryPage.orderDescending")}</option>
-                <option value="asc">{t("discoveryPage.orderAscending")}</option>
-              </select>
+                onChange={(next) => setSortOrder(next)}
+                options={[
+                  { value: "desc", label: t("discoveryPage.orderDescending") },
+                  { value: "asc", label: t("discoveryPage.orderAscending") },
+                ]}
+                triggerClassName="inline-flex min-h-6 w-full items-center justify-between gap-2 bg-transparent text-sm text-white"
+              />
             </label>
           </div>
 

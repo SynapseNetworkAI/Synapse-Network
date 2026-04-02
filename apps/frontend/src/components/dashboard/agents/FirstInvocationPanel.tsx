@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bot, Check, Copy, ExternalLink, Play, Rocket, Terminal } from "lucide-react";
+import XSelect from "@/components/xui/XSelect";
 import type { ServiceRegistryRecord } from "@/utils/serviceApi";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 
@@ -161,20 +162,21 @@ export default function FirstInvocationPanel({
               <label htmlFor="sandbox-service" className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">
                 {t("agentsPage.demoServiceLabel")}
               </label>
-              <select
+              <XSelect
                 id="sandbox-service"
                 value={selectedService?.serviceId ?? ""}
-                onChange={(event) => onSelectService(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-500/40"
+                onChange={(next) => onSelectService(next)}
+                options={
+                  services.length === 0
+                    ? [{ value: "", label: t("agentsPage.noPublicServicesAvailable") }]
+                    : services.map((service) => ({
+                        value: service.serviceId,
+                        label: `${service.name} (${formatPricing(service.pricing)})`,
+                      }))
+                }
+                triggerClassName="mt-2 inline-flex min-h-[50px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition focus:border-blue-500/40"
                 disabled={isLoading || services.length === 0}
-              >
-                {services.length === 0 && <option value="">{t("agentsPage.noPublicServicesAvailable")}</option>}
-                {services.map((service) => (
-                  <option key={service.serviceId} value={service.serviceId}>
-                    {service.name} ({formatPricing(service.pricing)})
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <dl className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4">

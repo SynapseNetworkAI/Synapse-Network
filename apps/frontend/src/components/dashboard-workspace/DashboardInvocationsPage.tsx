@@ -15,6 +15,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
+import XSelect from "@/components/xui/XSelect";
 import { listPaginatedUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 
 type InvocationStatusFilter = "all" | "accepted" | "succeeded" | "failed" | "refunded";
@@ -300,17 +301,18 @@ export default function InvocationsPage() {
               className="w-full pl-10 pr-4 py-2.5 bg-[#0a0a0a] border border-[#222222] rounded-xl text-sm text-white placeholder:text-[#666666] focus:outline-none focus:border-[#22c55e]/50"
             />
           </div>
-          <select
+          <XSelect
             value={statusInput}
-            onChange={(event) => setStatusInput(event.target.value as InvocationStatusFilter)}
-            className="px-3 py-2.5 bg-[#0a0a0a] border border-[#222222] rounded-xl text-sm text-white focus:outline-none focus:border-[#22c55e]/50"
-          >
-            <option value="all">{t("invocationsPage.statusAll")}</option>
-            <option value="accepted">{t("invocationsPage.statusAccepted")}</option>
-            <option value="succeeded">{t("invocationsPage.statusSucceeded")}</option>
-            <option value="failed">{t("invocationsPage.statusFailed")}</option>
-            <option value="refunded">{t("invocationsPage.statusRefunded")}</option>
-          </select>
+            onChange={(next) => setStatusInput(next)}
+            options={[
+              { value: "all", label: t("invocationsPage.statusAll") },
+              { value: "accepted", label: t("invocationsPage.statusAccepted") },
+              { value: "succeeded", label: t("invocationsPage.statusSucceeded") },
+              { value: "failed", label: t("invocationsPage.statusFailed") },
+              { value: "refunded", label: t("invocationsPage.statusRefunded") },
+            ]}
+            triggerClassName="inline-flex min-h-[42px] items-center justify-between gap-3 rounded-xl border border-[#222222] bg-[#0a0a0a] px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#22c55e]/50"
+          />
           <button
             onClick={applyFilters}
             className="px-4 py-2.5 rounded-xl border border-[#22c55e]/40 bg-[#22c55e]/10 hover:bg-[#22c55e] hover:text-black text-sm font-semibold text-[#22c55e] transition-colors"

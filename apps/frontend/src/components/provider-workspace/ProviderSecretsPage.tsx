@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import XSelect from "@/components/xui/XSelect";
 
 import { listApiSecrets, createApiSecret, deleteApiSecret, ProviderSecret } from "@/utils/serviceApi";
 
@@ -369,16 +370,16 @@ export default function SecretsPage() {
                     </div>
                   </div>
                 </div>
-                <select
+                <XSelect
                   id="secret-expiration"
                   value={expiration}
-                  onChange={(event) => setExpiration(event.target.value)}
-                  className="w-full appearance-none rounded-md border border-gray-800 bg-[#0A0A0A] px-3 py-2 text-sm text-white outline-none transition-all focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                >
-                  {expirationOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                  onChange={(next) => setExpiration(next)}
+                  options={expirationOptions.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                  triggerClassName="inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-md border border-gray-800 bg-[#0A0A0A] px-3 py-2 text-sm text-white transition-all focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                />
               </div>
             </div>
 
