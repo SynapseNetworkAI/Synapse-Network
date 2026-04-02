@@ -14,6 +14,7 @@ from src.domain.voucher import VoucherRedemptionResult
 from src.services.platform.balance_service import BalanceService
 from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.finance_service import PlatformFinanceService
+from src.services.platform import credential_service
 from src.services.provider.withdraw_service import ProviderWithdrawService
 
 

@@ -1,13 +1,9 @@
-"""
-E2E test configuration and shared fixtures.
-
-Run from gateway/ directory:
+"""Run from services/gateway/ directory:
     pytest tests/e2e/ -v --tb=short
 
 Services must be running before test execution:
     scripts/local/setup_local_env.sh   (deploy contracts, start Hardhat/Anvil)
     scripts/local/restart_gateway.sh   (start Gateway on :8000)
-    cd provider_service && uvicorn app.main:app --host 127.0.0.1 --port 8001
 """
 
 from __future__ import annotations
@@ -25,8 +21,8 @@ from eth_account.messages import encode_defunct
 from web3 import Web3
 
 # ── Directory layout ──────────────────────────────────────────────────────────
-ROOT = Path(__file__).parents[3]          # gateway/tests/e2e -> repo root
-FRONTEND_SRC = ROOT / "apps" / "frontend" / "src"
+ROOT = Path(__file__).parents[4]          # services/gateway/tests/e2e -> repo root
+FRONTEND_SRC = ROOT / "services" / "user-front" / "src"
 CONTRACT_CONFIG_PATH = FRONTEND_SRC / "contract-config.json"
 MOCK_USDC_ABI_PATH = FRONTEND_SRC / "MockUSDCABI.json"
 SYNAPSE_CORE_ABI_PATH = FRONTEND_SRC / "SynapseCoreABI.json"
