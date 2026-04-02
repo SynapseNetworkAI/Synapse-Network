@@ -173,6 +173,11 @@ Primary actions:
 
 The Credits page should now mirror the X billing surface much more closely.
 
+Reference layout spec:
+
+1. `docs/01_Product_Frontend/owner_agent_guide/credits_page_x_layout_spec.md`
+2. `docs/01_Product_Frontend/owner_agent_guide/x_console_live_dom_workflow.md`
+
 ### 7.1 Card order
 
 1. `Remaining balance`
@@ -183,11 +188,12 @@ The Credits page should now mirror the X billing surface much more closely.
 ### 7.2 Layout rule
 
 1. narrow centered billing column
-2. stacked cards, not dashboard grids
+2. section-based billing layout, not a uniform dashboard card stack
 3. white pill CTAs on the right
-4. no `Auto Recharge unavailable` block
-5. `Purchase credits` opens an in-place USDC deposit modal instead of routing away from Credits
-6. deposit modal should expose X-style preset amount chips above the freeform amount input
+4. `Purchase credits` opens an in-place USDC deposit modal instead of routing away from Credits
+5. deposit modal should expose X-style preset amount chips above the freeform amount input
+6. `Free Credits Voucher` should render as a bordered section row, not a boxed card
+7. all future X parity work must use the live DOM workflow before implementation
 
 ### 7.3 Content rule
 
