@@ -192,9 +192,10 @@ const { agentToken, credentialId } = await fetch(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      serviceId: targetServiceId,
-      label: 'my-agent-bot',          // 可选标签，便于管理
-      spendingLimitUsdc: 1.00,        // 此 Credential 最多消费 1 USDC
+      name: 'my-agent-bot',            // 可选标签，便于管理
+      creditLimit: 1.00,               // 每日额度上限（USDC），每天重置
+      maxCalls: 200,                   // 生命周期调用次数上限（不会每日重置）
+      resetInterval: 'daily',          // creditLimit 重置周期
     }),
   }
 ).then(r => r.json())
@@ -206,6 +207,11 @@ console.log('Agent Token:', agentToken)   // agt_xxxxx...
         <StepTip accent={ACCENT}>
           每个 Credential 独立限额，可为不同 Agent / 场景创建多个 Credential，
           额度耗尽后自动失效，不会超额扣费。
+          <br />
+          <span className="opacity-80">
+            <strong>Daily Budget</strong>（<code>creditLimit</code>）按 <code>resetInterval</code> 每日重置；
+            {" "}<strong>Max Calls</strong>（<code>maxCalls</code>）是生命周期累计上限，不会重置。
+          </span>
         </StepTip>
       </StepItem>
 
