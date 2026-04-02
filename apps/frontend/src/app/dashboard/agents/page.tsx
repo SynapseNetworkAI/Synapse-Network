@@ -1,5 +1,5 @@
-import DashboardAgentsPage from "@/components/dashboard-workspace/DashboardAgentsPage";
+import DashboardAgentsWorkspacePage from "@/components/dashboard-workspace/DashboardAgentsWorkspacePage";
 
 export default function DashboardAgentsRoute() {
-  return <DashboardAgentsPage mode="workspace" />;
+  return <DashboardAgentsWorkspacePage />;
 }

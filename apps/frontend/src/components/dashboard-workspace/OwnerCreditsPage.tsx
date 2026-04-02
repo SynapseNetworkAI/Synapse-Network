@@ -1,14 +1,11 @@
 "use client";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CircleAlert } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
-import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
-import ManageSpendCapModal from "@/components/dashboard-workspace/ManageSpendCapModal";
-import RedeemVoucherModal from "@/components/dashboard-workspace/RedeemVoucherModal";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
-import DashboardPageLoadingState from "@/components/loading/DashboardPageLoadingState";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useVaultDeposit } from "@/hooks/useVaultDeposit";
@@ -25,6 +22,19 @@ import {
   calculateSpendRatio,
   getBillingCycleWindow,
 } from "@/utils/creditsSpendCap";
+
+const DepositUsdcModal = dynamic(
+  () => import("@/components/dashboard/shared/DepositUsdcModal"),
+  { ssr: false }
+);
+const ManageSpendCapModal = dynamic(
+  () => import("@/components/dashboard-workspace/ManageSpendCapModal"),
+  { ssr: false }
+);
+const RedeemVoucherModal = dynamic(
+  () => import("@/components/dashboard-workspace/RedeemVoucherModal"),
+  { ssr: false }
+);
 
 function formatUsd(value: number): string {
   return `$${Math.max(0, value).toFixed(2)}`;
@@ -210,9 +220,10 @@ export default function OwnerCreditsPage() {
     [fetchSpendingLimit, handleRefresh, t, userAddress]
   );
 
-  if (isConnected && isSessionAuthenticated && (isBootstrapping || isSpendCapLoading)) {
-    return <DashboardPageLoadingState />;
-  }
+  const showBalanceSkeleton =
+    isConnected && isSessionAuthenticated && isBootstrapping;
+  const showSpendCapSkeleton =
+    isConnected && isSessionAuthenticated && isSpendCapLoading;
 
   return (
     <div className="mx-auto w-full max-w-[768px] px-4 pb-24 pt-12 sm:px-6 lg:px-0">
@@ -239,12 +250,19 @@ export default function OwnerCreditsPage() {
                   <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
                     {t("creditsPage.remainingBalanceLabel")}
                   </p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                      {formatUsd(creditSummary.remainingBalance)}
-                    </p>
-                    <CircleAlert className="h-[14px] w-[14px] text-[#71767b]" />
-                  </div>
+                  {showBalanceSkeleton ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-[32px] w-[112px] animate-pulse rounded-full bg-white/[0.09]" />
+                      <div className="h-[14px] w-[14px] animate-pulse rounded-full bg-white/[0.08]" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
+                        {formatUsd(creditSummary.remainingBalance)}
+                      </p>
+                      <CircleAlert className="h-[14px] w-[14px] text-[#71767b]" />
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -309,47 +327,63 @@ export default function OwnerCreditsPage() {
                 <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
                   {t("creditsPage.currentSpend")}
                 </p>
-                <p className="text-[24px] font-semibold leading-[32px] text-white">
-                  {formatPlainAmount(creditSummary.currentSpend)}
-                </p>
+                {showSpendCapSkeleton ? (
+                  <div className="mt-2 h-[32px] w-[96px] animate-pulse rounded-full bg-white/[0.09]" />
+                ) : (
+                  <p className="text-[24px] font-semibold leading-[32px] text-white">
+                    {formatPlainAmount(creditSummary.currentSpend)}
+                  </p>
+                )}
               </div>
               <div className="text-left md:text-right">
                 <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
                   {t("creditsPage.billingCycleCap")}
                 </p>
-                <p className="text-[24px] font-semibold leading-[32px] text-white">
-                  {creditSummary.billingCycleCap !== null
-                    ? formatPlainAmount(creditSummary.billingCycleCap)
-                    : t("creditsPage.billingCycleCapNotConfigured")}
-                </p>
+                {showSpendCapSkeleton ? (
+                  <div className="mt-2 h-[32px] w-[128px] animate-pulse rounded-full bg-white/[0.09] md:ml-auto" />
+                ) : (
+                  <p className="text-[24px] font-semibold leading-[32px] text-white">
+                    {creditSummary.billingCycleCap !== null
+                      ? formatPlainAmount(creditSummary.billingCycleCap)
+                      : t("creditsPage.billingCycleCapNotConfigured")}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="relative mt-3">
-              <div className="h-3 rounded-full bg-[#262626]">
-                <div
-                  className={`h-3 rounded-full transition-[width] ${
-                    creditSummary.spendRatio !== null
-                      ? "bg-[#4f8df7]"
-                      : "bg-white/20"
-                  }`}
-                  style={{
-                    width: `${
+              {showSpendCapSkeleton ? (
+                <div className="h-3 animate-pulse rounded-full bg-white/[0.08]" />
+              ) : (
+                <div className="h-3 rounded-full bg-[#262626]">
+                  <div
+                    className={`h-3 rounded-full transition-[width] ${
                       creditSummary.spendRatio !== null
-                        ? Math.max(1.5, creditSummary.spendRatio)
-                        : 100
-                    }%`,
-                  }}
-                />
-              </div>
+                        ? "bg-[#4f8df7]"
+                        : "bg-white/20"
+                    }`}
+                    style={{
+                      width: `${
+                        creditSummary.spendRatio !== null
+                          ? Math.max(1.5, creditSummary.spendRatio)
+                          : 100
+                      }%`,
+                    }}
+                  />
+                </div>
+              )}
             </div>
-            <p className="text-[14px] font-normal leading-[20px] text-[#71767b]">
-              {creditSummary.spendRatio !== null
-                ? t("creditsPage.usedPercent", {
-                    percent: formatPercent(creditSummary.spendRatio),
-                  })
-                : t("creditsPage.manageSpendCapCoverageHint")}
-            </p>
+            {showSpendCapSkeleton ? (
+              <div className="h-5 w-[260px] animate-pulse rounded-full bg-white/[0.08]" />
+            ) : (
+              <p className="text-[14px] font-normal leading-[20px] text-[#71767b]">
+                {creditSummary.spendRatio !== null
+                  ? t("creditsPage.usedPercent", {
+                      percent: formatPercent(creditSummary.spendRatio),
+                    })
+                  : t("creditsPage.manageSpendCapCoverageHint")}
+              </p>
+            )}
             {!isSpendCapAvailable ? (
               <p className="text-[14px] leading-5 text-[#d5a35b]">
                 {t("creditsPage.manageSpendCapUnavailable")}
