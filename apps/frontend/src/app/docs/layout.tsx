@@ -1,6 +1,7 @@
 import { DocsActiveProvider } from "./active-context";
 import DocsSidebar from "./components/DocsSidebar";
 import DocsTopNav from "./components/DocsTopNav";
+import { DocsContentWrapper } from "./components/DocsContentWrapper";
 
 export default function DocsLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -13,7 +14,9 @@ export default function DocsLayout({ children }: Readonly<{ children: React.Reac
         <DocsSidebar />
         <main className="flex-1 min-w-0 overflow-x-hidden">
           <div className="max-w-[900px] mx-auto px-6 lg:px-10 py-12">
-            {children}
+            <DocsContentWrapper>
+              {children}
+            </DocsContentWrapper>
           </div>
         </main>
       </div>

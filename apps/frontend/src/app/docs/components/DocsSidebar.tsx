@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { NAV_TREE } from "../nav-tree";
@@ -12,6 +12,8 @@ export default function DocsSidebar() {
   const { activeId } = useDocsActive();
   // Start all sections open
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [isPending, startTransition] = useTransition();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const toggle = (id: string) =>
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -31,7 +33,13 @@ export default function DocsSidebar() {
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    router.push(href);
+    // Use startTransition so the current page stays interactive while the
+    // new route loads; loading.tsx skeleton appears immediately.
+    setPendingHref(href);
+    startTransition(() => {
+      router.push(href);
+      setPendingHref(null);
+    });
   };
 
   return (
@@ -75,9 +83,19 @@ export default function DocsSidebar() {
                     }
 
                     const active = isActive(item.href, item.id);
+                    const pending = pendingHref === item.href;
                     const cleanLabel = isChild
                       ? item.label.slice(2) // strip "↳ "
                       : item.label;
+
+                    // Pre-compute class names — use if/else to satisfy no-nested-ternary rule
+                    let childCls = "text-[#8b98a5] hover:text-[#c8d0d8]";
+                    if (active) childCls = "text-white";
+                    else if (pending) childCls = "text-[#7ff7be]/60";
+
+                    let parentCls = "text-[#c0c8d0] hover:text-white hover:bg-white/[0.04]";
+                    if (active) parentCls = "text-white bg-white/[0.06]";
+                    else if (pending) parentCls = "text-[#7ff7be]/60 bg-white/[0.03]";
 
                     /* ── Child anchor item ── */
                     if (isChild) {
@@ -96,11 +114,10 @@ export default function DocsSidebar() {
                           )}
                           <button
                             onClick={() => handleNav(item.href)}
+                            disabled={isPending && pending}
                             className={[
                               "w-full flex items-center gap-2 pl-3 pr-2 py-[5px] text-left rounded-r-md transition-colors text-[12.5px] leading-[1.4]",
-                              active
-                                ? "text-white"
-                                : "text-[#8b98a5] hover:text-[#c8d0d8]",
+                              childCls,
                             ].join(" ")}
                           >
                             <span
@@ -118,11 +135,10 @@ export default function DocsSidebar() {
                       <button
                         key={item.id}
                         onClick={() => handleNav(item.href)}
+                        disabled={isPending && pending}
                         className={[
                           "relative w-full flex items-center gap-2 px-3 py-[7px] rounded-lg text-left text-[13px] transition-colors",
-                          active
-                            ? "text-white bg-white/[0.06]"
-                            : "text-[#c0c8d0] hover:text-white hover:bg-white/[0.04]",
+                          parentCls,
                         ].join(" ")}
                       >
                         {/* Left green bar for active */}

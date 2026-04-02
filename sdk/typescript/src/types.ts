@@ -25,7 +25,10 @@ export interface TokenResponse {
 export interface IssueCredentialOptions {
   name?: string;
   maxCalls?: number;
+  /** Per-window USDC budget. Window size is controlled by resetInterval (default: "daily"). */
   creditLimit?: number;
+  /** Budget reset cadence: "hourly" | "daily" | "weekly" | "monthly" | "never" */
+  resetInterval?: "hourly" | "daily" | "weekly" | "monthly" | "never";
   rpm?: number;
   expiresInSec?: number;
 }

@@ -99,6 +99,7 @@ export class SynapseAuth {
     if (opts.name) body["name"] = opts.name;
     if (opts.maxCalls != null) body["maxCalls"] = opts.maxCalls;
     if (opts.creditLimit != null) body["creditLimit"] = opts.creditLimit;
+    if (opts.resetInterval != null) body["resetInterval"] = opts.resetInterval;
     if (opts.rpm != null) body["rpm"] = opts.rpm;
     if (opts.expiresInSec != null) body["expiresInSec"] = opts.expiresInSec;
 
@@ -192,6 +193,23 @@ export class SynapseAuth {
         body: JSON.stringify({ eventKey, confirmations: 1 }),
       }
     );
+  }
+
+  /**
+   * Set the owner-level monthly billing cap.
+   * Pass `null` (or omit) to remove the cap (unlimited until balance = 0).
+   */
+  async setSpendingLimit(usdc: number | null): Promise<void> {
+    const token = await this.getToken();
+    await this._fetch(`${this.gatewayUrl}/api/v1/balance/spending-limit`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(
+        usdc === null
+          ? { allowUnlimited: true }
+          : { spendingLimitUsdc: usdc, allowUnlimited: false }
+      ),
+    });
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────

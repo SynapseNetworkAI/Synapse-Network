@@ -54,11 +54,12 @@ const GATEWAY = 'https://gateway.synapse.network'
 const wallet = new Wallet(process.env.PRIVATE_KEY!)
 const auth   = SynapseAuth.fromWallet(wallet, { gatewayUrl: GATEWAY })
 
-// 2. 颁发 Agent Credential（绑定消费上限）
+// 2. 颁发 Agent Credential（per-agent 预算窗口；不设则余额耗尽前无限调用）
 const { token } = await auth.issueCredential({
-  name:        'my-agent',
-  creditLimit: 5.0,   // USDC
-  maxCalls:    200,
+  name:          'my-agent',
+  creditLimit:   5.0,       // USDC — 滚动窗口上限
+  resetInterval: 'daily',   // 每日重置（hourly / weekly / monthly / never）
+  maxCalls:      200,       // 生命周期调用次数上限
 })
 
 // 3. 创建 Client + 调用服务（自动 quote → invoke → 结算）
@@ -112,9 +113,10 @@ await auth.confirmDeposit(intentId, eventKey)`} />
               {[
                 { m: "SynapseAuth.fromWallet(wallet, opts?)",           r: "SynapseAuth", d: "从 ethers.js Wallet 创建 Auth 实例" },
                 { m: "auth.getToken()",                                  r: "Promise<string>", d: "获取 JWT（自动 challenge/sign/verify + 缓存）" },
-                { m: "auth.issueCredential(opts?)",                      r: "IssueCredentialResult", d: "颁发 Agent Credential，返回 token + id" },
+                { m: "auth.issueCredential(opts?)",                      r: "IssueCredentialResult", d: "颁发 Agent Credential；creditLimit = 滚动窗口上限（由 resetInterval 控制，默认 daily）" },
                 { m: "auth.listCredentials()",                           r: "AgentCredential[]", d: "列出当前钱包所有 Credential" },
                 { m: "auth.getBalance()",                                r: "BalanceSummary", d: "查询余额（consumer / provider / fee）" },
+                { m: "auth.setSpendingLimit(usdc)",                      r: "Promise<void>", d: "设置 Owner 月度账单总上限（null = 不限；余额耗尽即停）" },
                 { m: "auth.registerDepositIntent(txHash, amount)",       r: "DepositIntentResult", d: "登记链上充值意图" },
                 { m: "auth.confirmDeposit(intentId, eventKey)",          r: "{ status }",  d: "确认充值到账" },
               ].map((row) => (

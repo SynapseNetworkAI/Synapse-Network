@@ -1150,7 +1150,24 @@ body {
   .registry-feed-row-highlight,
   .x-loading-beam,
   .x-loading-progress,
-  .x-loading-fade-up {
+  .x-loading-fade-up,
+  .x-docs-page-enter {
     animation: none !important;
   }
+}
+
+/* ── Docs page entrance transition ───────────────────────────────────────── */
+@keyframes xDocsPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.x-docs-page-enter {
+  animation: xDocsPageEnter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
