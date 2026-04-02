@@ -10,6 +10,7 @@ from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.execution import PreparedWithdrawTicket
 from src.domain.finance import BalanceLedger, RefundIntentRow, UsageLogRow
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
+from src.domain.voucher import VoucherRedemptionResult
 from src.services.platform.balance_service import BalanceService
 from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.finance_service import PlatformFinanceService
@@ -106,6 +107,9 @@ class FakeStorage:
         self.balance = InMemoryBalanceRepo()
         self.audit = InMemoryAuditRepo()
         self.idempotency = InMemoryIdempotencyRepo()
+        self.voucher_atomic_result: VoucherRedemptionResult | None = None
+        self.voucher_atomic_error: RuntimeError | None = None
+        self.voucher_commands = []
         self.data_manager = SimpleNamespace(
             finance=SimpleNamespace(balance=self.balance),
             system=SimpleNamespace(gateway_state=self.gateway_state, idempotency=self.idempotency),
@@ -114,6 +118,17 @@ class FakeStorage:
 
     def get_data_manager(self):
         return self.data_manager
+
+    def redeem_credit_voucher_atomic(self, command):
+        self.voucher_commands.append(command)
+        if self.voucher_atomic_error is not None:
+            raise self.voucher_atomic_error
+        if self.voucher_atomic_result is None:
+            raise RuntimeError("VOUCHER_REDEEM_RESULT_INVALID")
+        self.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = float(
+            self.voucher_atomic_result.after_balance_usdc
+        )
+        return self.voucher_atomic_result
 
 
 async def _async_none(*args, **kwargs):
@@ -1082,3 +1097,69 @@ def test_platform_finance_service_can_clear_owner_spending_limit_to_unlimited() 
     assert saved["spendingLimitUsdc"] is None
     assert saved["allowUnlimited"] is True
     assert storage.gateway_state.owner_spend_limit_rows[0].spending_limit_usdc is None
+
+
+def test_platform_finance_service_redeems_voucher_and_returns_balance() -> None:
+    storage = FakeStorage()
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 20.0
+    storage.voucher_atomic_result = VoucherRedemptionResult(
+        redemptionId="vrd-1",
+        voucherCodeId="vcode-1",
+        campaignId="camp-1",
+        campaignCode="APRIL26",
+        campaignDisplayName="April Credits",
+        voucherCodeLast4="EFGH",
+        grantedAmountUsdc=Decimal("15.000000"),
+        ownerAddress="0xabc",
+        ledgerEntryId="ledger-voucher::vrd-1",
+        targetAccountId="consumer_wallet::0xabc",
+        promoAccountId="platform_promo::camp-1",
+        status="COMPLETED",
+        beforeBalanceUsdc=Decimal("20.000000"),
+        afterBalanceUsdc=Decimal("35.000000"),
+        redeemedAt="2026-04-02 10:00:00",
+    )
+    service = PlatformFinanceService(storage, DummyLockManager())
+    service._get_redis_client = _async_none
+    service._enforce_owner_write_rate_limit = _async_none
+
+    result = asyncio.run(
+        service.redeem_credit_voucher(
+            owner_wallet="0xabc",
+            voucher_code="ABCD-EFGH-IJKL",
+            idempotency_key="voucher-redeem-key-0001",
+            request_meta={
+                "requestId": "req-voucher-1",
+                "clientIp": "127.0.0.1",
+                "userAgent": "pytest",
+            },
+        )
+    )
+
+    assert result["redemption"]["campaignCode"] == "APRIL26"
+    assert result["redemption"]["grantedAmountUsdc"] == "15.000000"
+    assert result["balance"]["ownerBalance"] == 35.0
+    assert storage.voucher_commands[0].normalized_code == "ABCDEFGHIJKL"
+    assert storage.voucher_commands[0].code_hash
+
+
+def test_platform_finance_service_maps_voucher_conflict_errors() -> None:
+    storage = FakeStorage()
+    storage.voucher_atomic_error = RuntimeError("VOUCHER_ALREADY_REDEEMED")
+    service = PlatformFinanceService(storage, DummyLockManager())
+    service._get_redis_client = _async_none
+    service._enforce_owner_write_rate_limit = _async_none
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(
+            service.redeem_credit_voucher(
+                owner_wallet="0xabc",
+                voucher_code="ABCD-EFGH-IJKL",
+                idempotency_key="voucher-redeem-key-0002",
+                request_meta={"requestId": "req-voucher-2"},
+            )
+        )
+
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail["code"] == "VOUCHER_ALREADY_REDEEMED"
+    assert storage.audit.rows[-1].action == "VOUCHER_REDEEM_FAILED"

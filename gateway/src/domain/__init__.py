@@ -112,6 +112,7 @@ from .system import (
     ProcessedDepositEventRow,
     WithdrawTxDedupRow,
 )
+from .voucher import VoucherRedeemCommand, VoucherRedemptionResult
 
 __all__ = [
     "AuditLogEntry",
@@ -222,4 +223,6 @@ __all__ = [
     "WithdrawalIntentRow",
     "WithdrawalTicketMetadata",
     "WithdrawTxDedupRow",
+    "VoucherRedeemCommand",
+    "VoucherRedemptionResult",
 ]

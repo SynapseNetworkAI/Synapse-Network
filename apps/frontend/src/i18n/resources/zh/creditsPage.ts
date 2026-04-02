@@ -43,6 +43,16 @@ const creditsPage: I18nMessages["creditsPage"] = {
   freeCreditsVoucherDescription:
     "平台可能会向开发者发放免费 credits。输入 voucher 代码后，可以把免费 credits 加到你的账户。",
   redeemVoucher: "兑换 Voucher",
+  redeemVoucherModalTitle: "兑换 Voucher Code",
+  redeemVoucherModalDescription:
+    "输入 voucher code，把免费 credits 充入你的账户。",
+  redeemVoucherModalClose: "关闭 voucher 兑换弹窗",
+  redeemVoucherModalPlaceholder: "XXXX-XXXX-XXXX",
+  redeemVoucherModalInvalid: "请输入 `XXXX-XXXX-XXXX` 格式的 voucher code。",
+  redeemVoucherModalUnavailable:
+    "当前环境还没有接通 voucher 核销后端。现在先把 UI 契约和输入校验收口，后端上线后可直接接入。",
+  redeemVoucherModalRedeeming: "正在兑换 Voucher...",
+  redeemVoucherModalSuccess: "Voucher 核销成功，{{amount}} 已充入你的余额。",
 };
 
 export default creditsPage;

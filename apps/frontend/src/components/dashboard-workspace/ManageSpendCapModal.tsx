@@ -121,9 +121,6 @@ export default function ManageSpendCapModal({
 
         <XDialogBody className="space-y-5 px-6 pb-6 pt-1">
           <label className="block">
-            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8b98b4]">
-              {t("creditsPage.manageSpendCapModalAmountLabel")}
-            </span>
             <div className="relative">
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[15px] font-semibold text-[#d6d9db]">
                 $
@@ -147,7 +144,6 @@ export default function ManageSpendCapModal({
                   }
                 }}
                 className="pl-9"
-                placeholder="5.00"
                 disabled={isSaving}
                 aria-label={t("creditsPage.manageSpendCapModalAmountLabel")}
               />

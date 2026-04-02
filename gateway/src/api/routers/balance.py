@@ -14,6 +14,7 @@ from src.api.schemas.pydantic_models import (
     RefundCompleteRequest,
     RouterConfigRequest,
     OwnerSpendLimitUpdateRequest,
+    VoucherRedeemRequest,
     ProviderWithdrawIntentRequest,
     ProviderWithdrawCompleteRequest,
     TX_HASH_FORMAT_ERROR,
@@ -484,6 +485,29 @@ async def set_owner_spending_limit(
         "status": "success",
         "ownerAddress": owner_wallet,
         "spendingLimit": saved,
+    }
+
+
+@router.post("/v1/balance/vouchers/redeem")
+async def redeem_credit_voucher(
+    payload: VoucherRedeemRequest,
+    request: Request,
+    idempotency_key: Annotated[
+        str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)
+    ],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    result = await service.redeem_credit_voucher(
+        owner_wallet=owner_wallet,
+        voucher_code=payload.voucherCode,
+        idempotency_key=idempotency_key,
+        request_meta=_extract_request_meta(request),
+    )
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        **result,
     }
 
 

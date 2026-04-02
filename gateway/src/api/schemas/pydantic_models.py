@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Any, Dict, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 from src.domain.service_contract import (
     QuoteInputPreviewRecord,
@@ -258,13 +258,20 @@ class OwnerSpendLimitUpdateRequest(BaseModel):
             raise ValueError("spendingLimitUsdc supports up to 6 decimal places")
         return value
 
-    @model_validator(mode="after")
-    def validate_payload(self) -> "OwnerSpendLimitUpdateRequest":
-        if not self.allowUnlimited and self.spendingLimitUsdc is None:
-            raise ValueError(
-                "spendingLimitUsdc is required unless allowUnlimited is true"
-            )
-        return self
+
+class VoucherRedeemRequest(BaseModel):
+    voucherCode: str = Field(..., min_length=12, max_length=64)
+
+    @field_validator("voucherCode")
+    @classmethod
+    def validate_voucher_code(cls, value: str) -> str:
+        normalized = str(value or "").strip().upper()
+        compact = "".join(ch for ch in normalized if ch.isalnum())
+        if len(compact) != 12:
+            raise ValueError("voucherCode must contain exactly 12 alphanumeric characters")
+        if not compact.isalnum():
+            raise ValueError("voucherCode must be alphanumeric")
+        return normalized
 
 
 # Backward-compatible aliases.

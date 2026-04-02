@@ -354,3 +354,54 @@ def test_set_owner_spending_limit_endpoint_accepts_unlimited_payload(monkeypatch
     assert payload["status"] == "success"
     assert payload["spendingLimit"]["allowUnlimited"] is True
     assert payload["spendingLimit"]["spendingLimitUsdc"] is None
+
+
+def test_redeem_voucher_endpoint_returns_redemption_payload(monkeypatch) -> None:
+    storage = FakeStorage([])
+
+    async def fake_redeem_credit_voucher(
+        self,
+        *,
+        owner_wallet: str,
+        voucher_code: str,
+        idempotency_key: str,
+        request_meta,
+    ):
+        _ = self
+        assert voucher_code == "ABCD-EFGH-IJKL"
+        assert idempotency_key == "voucher-redeem-key-0003"
+        assert request_meta["requestId"] == "req-voucher-3"
+        return {
+            "redemption": {
+                "redemptionId": "vrd-1",
+                "campaignCode": "APRIL26",
+                "grantedAmountUsdc": "15.000000",
+            },
+            "balance": {
+                "ownerBalance": 35.0,
+                "providerReceivable": 0.0,
+                "platformFeeAccrued": 0.0,
+            },
+        }
+
+    monkeypatch.setattr(
+        BalanceService, "redeem_credit_voucher", fake_redeem_credit_voucher
+    )
+
+    with _http_client(storage) as client:
+        response = client.post(
+            "/api/v1/balance/vouchers/redeem",
+            json={"voucherCode": "ABCD-EFGH-IJKL"},
+            headers={
+                "X-User-Address": "0xowner",
+                "Authorization": "Bearer test",
+                "X-Idempotency-Key": "voucher-redeem-key-0003",
+                "X-Request-Id": "req-voucher-3",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["redemption"]["campaignCode"] == "APRIL26"
+    assert payload["balance"]["ownerBalance"] == 35.0

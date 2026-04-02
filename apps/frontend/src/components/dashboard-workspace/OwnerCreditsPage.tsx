@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CircleAlert } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import toast from "react-hot-toast";
 import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
 import ManageSpendCapModal from "@/components/dashboard-workspace/ManageSpendCapModal";
+import RedeemVoucherModal from "@/components/dashboard-workspace/RedeemVoucherModal";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useOwnerData } from "@/hooks/useOwnerData";
@@ -16,6 +18,7 @@ import {
 } from "@/utils/authSession";
 import {
   getOwnerSpendingLimit,
+  redeemCreditVoucher,
   type OwnerSpendingLimit,
 } from "@/utils/balanceApi";
 import {
@@ -45,6 +48,8 @@ export default function OwnerCreditsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSpendCapAvailable, setIsSpendCapAvailable] = useState(true);
   const [isSpendCapModalOpen, setIsSpendCapModalOpen] = useState(false);
+  const [isRedeemVoucherModalOpen, setIsRedeemVoucherModalOpen] =
+    useState(false);
 
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
@@ -170,6 +175,31 @@ export default function OwnerCreditsPage() {
     }
     setIsSpendCapModalOpen(true);
   }, [ensureBillingControlReady]);
+
+  const handleOpenRedeemVoucher = useCallback(async () => {
+    const ready = await ensureBillingControlReady();
+    if (!ready) {
+      return;
+    }
+    setIsRedeemVoucherModalOpen(true);
+  }, [ensureBillingControlReady]);
+
+  const handleRedeemVoucher = useCallback(
+    async (voucherCode: string) => {
+      if (!userAddress) {
+        throw new Error(t("creditsPage.walletUnavailable"));
+      }
+
+      const result = await redeemCreditVoucher(userAddress, voucherCode);
+      await Promise.all([handleRefresh(), fetchSpendingLimit()]);
+      toast.success(
+        t("creditsPage.redeemVoucherModalSuccess", {
+          amount: formatUsd(result.redemption.grantedAmountUsdc),
+        })
+      );
+    },
+    [fetchSpendingLimit, handleRefresh, t, userAddress]
+  );
 
   return (
     <div className="mx-auto w-full max-w-[1040px] px-8 py-10">
@@ -329,6 +359,9 @@ export default function OwnerCreditsPage() {
           </div>
           <button
             type="button"
+            onClick={() => {
+              void handleOpenRedeemVoucher();
+            }}
             className="inline-flex h-12 shrink-0 items-center justify-center rounded-full bg-white px-6 text-[15px] font-medium text-black transition hover:bg-white/90"
           >
             {t("creditsPage.redeemVoucher")}
@@ -365,6 +398,12 @@ export default function OwnerCreditsPage() {
           setSpendingLimit(nextLimit);
           await handleRefresh();
         }}
+      />
+
+      <RedeemVoucherModal
+        open={isRedeemVoucherModalOpen}
+        onClose={() => setIsRedeemVoucherModalOpen(false)}
+        onRedeem={handleRedeemVoucher}
       />
     </div>
   );

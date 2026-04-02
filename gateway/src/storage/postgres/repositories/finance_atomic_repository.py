@@ -29,6 +29,7 @@ from src.domain.runtime_state import (
     InvocationBillingState,
     VaultWithdrawalMetadataState,
 )
+from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from ..database_manager import DatabaseManager
@@ -94,6 +95,8 @@ class FinanceAtomicRepository:
             return f"consumer_wallet::{normalized_wallet}", "consumer_wallet"
         if normalized_type == "provider":
             return f"provider_wallet::{normalized_wallet}", "provider_wallet"
+        if normalized_type == "platform_promo":
+            return f"platform_promo::{normalized_wallet}", "platform_promo"
         return "platform_revenue::main", "platform_revenue"
 
     def _ensure_owner_account(self, cur: Any, wallet: str, updated_at: str) -> str:
@@ -198,7 +201,7 @@ class FinanceAtomicRepository:
 
     @staticmethod
     def _audit_detail_json(row: AuditLogRow) -> dict[str, Any]:
-        return {
+        payload = {
             "domain": "finance",
             "riskLevel": row.risk_level,
             "actor": row.actor,
@@ -217,6 +220,9 @@ class FinanceAtomicRepository:
             "message": row.message,
             "ownerAddress": row.owner_address,
         }
+        extra = row.detail_json if isinstance(row.detail_json, dict) else {}
+        payload.update(extra)
+        return payload
 
     @staticmethod
     def _deposit_state_key(deposit_id: str) -> str:
@@ -405,6 +411,166 @@ class FinanceAtomicRepository:
             self._q6(current_pending),
             self._q6(current_frozen),
             now_text,
+        )
+
+    def _ensure_platform_promo_account(
+        self, cur: Any, campaign_id: str, updated_at: str
+    ) -> str:
+        normalized_campaign = str(campaign_id or "").strip().lower()
+        account_id = f"platform_promo::{normalized_campaign}"
+        cur.execute(
+            """
+            INSERT INTO synapse_ledger_accounts (
+                account_id, account_kind, owner_id, provider_id, currency, status, created_at, updated_at
+            ) VALUES (%s, 'platform_promo', NULL, NULL, 'USDC', 'active', %s, %s)
+            ON CONFLICT (account_id)
+            DO UPDATE SET updated_at = EXCLUDED.updated_at
+            """,
+            (account_id, updated_at, updated_at),
+        )
+        return account_id
+
+    def _load_locked_campaign_promo_balance(
+        self,
+        cur: Any,
+        *,
+        campaign_id: str,
+        credit_amount_usdc: Decimal,
+        max_total_redemptions: int,
+        now: int,
+    ) -> tuple[str, Decimal]:
+        now_text = to_dt_str(now, now_dt_str())
+        promo_account_id = self._ensure_platform_promo_account(cur, campaign_id, now_text)
+
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(granted_amount_usdc), 0)
+            FROM synapse_credit_voucher_redemptions
+            WHERE campaign_id = %s
+              AND status = 'COMPLETED'
+            """,
+            (campaign_id,),
+        )
+        redeemed_amount = self._q6((cur.fetchone() or [0])[0])
+        total_budget = self._q6(credit_amount_usdc * Decimal(max_total_redemptions))
+        derived_available = self._q6(max(Decimal("0"), total_budget - redeemed_amount))
+
+        cur.execute(self._balance_for_update_sql, (promo_account_id,))
+        hit = cur.fetchone()
+        if hit is None:
+            self._upsert_balance_triplet(
+                cur,
+                campaign_id,
+                "platform_promo",
+                derived_available,
+                Decimal("0"),
+                Decimal("0"),
+                now_text,
+            )
+            return promo_account_id, derived_available
+
+        current_available = self._q6(hit[0])
+        current_pending = self._q6(hit[1])
+        current_frozen = self._q6(hit[2])
+        if (
+            current_available != derived_available
+            or current_pending != Decimal("0")
+            or current_frozen != Decimal("0")
+        ):
+            self._upsert_balance_triplet(
+                cur,
+                campaign_id,
+                "platform_promo",
+                derived_available,
+                Decimal("0"),
+                Decimal("0"),
+                now_text,
+            )
+            return promo_account_id, derived_available
+
+        return promo_account_id, current_available
+
+    def _read_existing_voucher_redemption_by_idempotency(
+        self,
+        cur: Any,
+        *,
+        owner_id: str,
+        client_request_id: str,
+    ) -> tuple[Any, ...] | None:
+        cur.execute(
+            """
+            SELECT
+                red.redemption_id,
+                red.voucher_code_id,
+                red.campaign_id,
+                camp.campaign_code,
+                camp.display_name,
+                code.code_last4,
+                red.granted_amount_usdc,
+                red.owner_address,
+                red.ledger_entry_id,
+                red.target_account_id,
+                red.promo_account_id,
+                red.status,
+                red.before_balance_usdc,
+                red.after_balance_usdc,
+                red.request_hash,
+                red.created_at
+            FROM synapse_credit_voucher_redemptions AS red
+            INNER JOIN synapse_credit_voucher_campaigns AS camp
+                ON camp.campaign_id = red.campaign_id
+            INNER JOIN synapse_credit_voucher_codes AS code
+                ON code.voucher_code_id = red.voucher_code_id
+            WHERE red.owner_id = %s
+              AND red.client_request_id = %s
+            ORDER BY red.created_at DESC
+            LIMIT 1
+            """,
+            (owner_id, client_request_id),
+        )
+        return cur.fetchone()
+
+    @staticmethod
+    def _voucher_result_from_row(
+        row: tuple[Any, ...],
+        *,
+        before_balance: Decimal,
+        after_balance: Decimal,
+    ) -> VoucherRedemptionResult:
+        (
+            redemption_id,
+            voucher_code_id,
+            campaign_id,
+            campaign_code,
+            display_name,
+            code_last4,
+            granted_amount_usdc,
+            owner_address,
+            ledger_entry_id,
+            target_account_id,
+            promo_account_id,
+            status,
+            stored_before_balance,
+            stored_after_balance,
+            _request_hash,
+            created_at,
+        ) = row
+        return VoucherRedemptionResult(
+            redemptionId=str(redemption_id),
+            voucherCodeId=str(voucher_code_id),
+            campaignId=str(campaign_id),
+            campaignCode=str(campaign_code),
+            campaignDisplayName=str(display_name),
+            voucherCodeLast4=str(code_last4),
+            grantedAmountUsdc=granted_amount_usdc,
+            ownerAddress=str(owner_address),
+            ledgerEntryId=str(ledger_entry_id),
+            targetAccountId=str(target_account_id),
+            promoAccountId=str(promo_account_id),
+            status=str(status),
+            beforeBalanceUsdc=stored_before_balance or before_balance,
+            afterBalanceUsdc=stored_after_balance or after_balance,
+            redeemedAt=to_dt_str(created_at, "") or "",
         )
 
     def _record_charge_facts(
@@ -1287,6 +1453,318 @@ class FinanceAtomicRepository:
             conn.commit()
         return BalanceMutationResult(
             beforeBalance=float(before_available), afterBalance=float(after_available)
+        )
+
+    def redeem_credit_voucher_atomic(
+        self, command: VoucherRedeemCommand
+    ) -> VoucherRedemptionResult:
+        now = int(time.time())
+        now_text = to_dt_str(now, now_dt_str())
+        owner = str(command.owner_address or "").strip().lower()
+
+        with self._db.connect() as conn:
+            try:
+                with conn.cursor() as cur:
+                    owner_id = self._ensure_owner_account(cur, owner, now_text)
+
+                    if command.idempotency_key:
+                        existing = self._read_existing_voucher_redemption_by_idempotency(
+                            cur,
+                            owner_id=owner_id,
+                            client_request_id=command.idempotency_key,
+                        )
+                        if existing is not None:
+                            stored_hash = str(existing[14] or "")
+                            if stored_hash and stored_hash != str(command.request_hash or ""):
+                                raise RuntimeError(
+                                    "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"
+                                )
+                            return self._voucher_result_from_row(
+                                existing,
+                                before_balance=Decimal("0"),
+                                after_balance=Decimal("0"),
+                            )
+
+                    cur.execute(
+                        """
+                        SELECT
+                            code.voucher_code_id,
+                            code.campaign_id,
+                            code.code_last4,
+                            code.status,
+                            code.owner_id_redeemed,
+                            code.redemption_id,
+                            camp.campaign_code,
+                            camp.display_name,
+                            camp.status,
+                            camp.credit_amount_usdc,
+                            camp.starts_at,
+                            camp.expires_at,
+                            camp.max_total_redemptions,
+                            camp.max_redemptions_per_owner,
+                            camp.allowlist_mode
+                        FROM synapse_credit_voucher_codes AS code
+                        INNER JOIN synapse_credit_voucher_campaigns AS camp
+                            ON camp.campaign_id = code.campaign_id
+                        WHERE code.code_hash = %s
+                        FOR UPDATE OF code, camp
+                        """,
+                        (command.code_hash,),
+                    )
+                    row = cur.fetchone()
+                    if row is None:
+                        raise RuntimeError("INVALID_VOUCHER_CODE")
+
+                    (
+                        voucher_code_id,
+                        campaign_id,
+                        code_last4,
+                        code_status,
+                        owner_id_redeemed,
+                        existing_redemption_id,
+                        campaign_code,
+                        campaign_display_name,
+                        campaign_status,
+                        credit_amount_usdc,
+                        starts_at,
+                        expires_at,
+                        max_total_redemptions,
+                        max_redemptions_per_owner,
+                        allowlist_mode,
+                    ) = row
+
+                    normalized_code_status = str(code_status or "").strip().lower()
+                    normalized_campaign_status = str(campaign_status or "").strip().lower()
+
+                    if normalized_code_status in {"redeemed", "disabled"} or owner_id_redeemed:
+                        raise RuntimeError("VOUCHER_ALREADY_REDEEMED")
+                    if normalized_code_status == "expired":
+                        raise RuntimeError("VOUCHER_EXPIRED")
+                    if normalized_campaign_status in {"draft", "paused", "archived"}:
+                        raise RuntimeError("VOUCHER_CAMPAIGN_INACTIVE")
+                    if normalized_campaign_status == "expired":
+                        raise RuntimeError("VOUCHER_EXPIRED")
+                    if existing_redemption_id:
+                        raise RuntimeError("VOUCHER_ALREADY_REDEEMED")
+
+                    if starts_at is not None and to_dt_str(starts_at, "") > now_text:
+                        raise RuntimeError("VOUCHER_CAMPAIGN_INACTIVE")
+                    if expires_at is not None and to_dt_str(expires_at, "") <= now_text:
+                        raise RuntimeError("VOUCHER_EXPIRED")
+
+                    if str(allowlist_mode or "").strip().lower() == "owner_allowlist":
+                        cur.execute(
+                            """
+                            SELECT 1
+                            FROM synapse_credit_voucher_owner_allowlist
+                            WHERE campaign_id = %s AND owner_id = %s
+                            LIMIT 1
+                            """,
+                            (campaign_id, owner_id),
+                        )
+                        if cur.fetchone() is None:
+                            raise RuntimeError("OWNER_NOT_ELIGIBLE")
+
+                    if max_total_redemptions is None:
+                        raise RuntimeError("VOUCHER_CAMPAIGN_BUDGET_UNDEFINED")
+
+                    cur.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM synapse_credit_voucher_redemptions
+                        WHERE campaign_id = %s
+                          AND status = 'COMPLETED'
+                        """,
+                        (campaign_id,),
+                    )
+                    if int((cur.fetchone() or [0])[0] or 0) >= int(max_total_redemptions):
+                        raise RuntimeError("VOUCHER_CAMPAIGN_EXHAUSTED")
+
+                    cur.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM synapse_credit_voucher_redemptions
+                        WHERE campaign_id = %s
+                          AND owner_id = %s
+                          AND status = 'COMPLETED'
+                        """,
+                        (campaign_id, owner_id),
+                    )
+                    owner_redemption_count = int((cur.fetchone() or [0])[0] or 0)
+                    if owner_redemption_count >= int(max_redemptions_per_owner or 1):
+                        raise RuntimeError("OWNER_REDEMPTION_LIMIT_EXCEEDED")
+
+                    amount = self._q6(credit_amount_usdc)
+                    before_owner = self._load_available_balance(cur, owner, "consumer", now)
+                    promo_account_id, promo_before = self._load_locked_campaign_promo_balance(
+                        cur,
+                        campaign_id=str(campaign_id),
+                        credit_amount_usdc=self._q6(credit_amount_usdc),
+                        max_total_redemptions=int(max_total_redemptions),
+                        now=now,
+                    )
+                    if promo_before < amount:
+                        raise RuntimeError("VOUCHER_CAMPAIGN_EXHAUSTED")
+
+                    after_owner = self._q6(before_owner + amount)
+                    promo_after = self._q6(promo_before - amount)
+                    target_account_id = self._account_identity(owner, "consumer")[0]
+
+                    self._set_available_balance(
+                        cur, owner, "consumer", after_owner, now, now_text
+                    )
+                    self._upsert_balance_triplet(
+                        cur,
+                        str(campaign_id),
+                        "platform_promo",
+                        promo_after,
+                        Decimal("0"),
+                        Decimal("0"),
+                        now_text,
+                    )
+
+                    redemption_id = f"vrd-{uuid4().hex}"
+                    ledger_entry_id = f"ledger-voucher::{redemption_id}"
+                    cur.execute(
+                        """
+                        INSERT INTO synapse_credit_voucher_redemptions (
+                            redemption_id, voucher_code_id, campaign_id, owner_id,
+                            owner_address, target_account_id, promo_account_id, ledger_entry_id,
+                            granted_amount_usdc, before_balance_usdc, after_balance_usdc,
+                            status, request_id, client_request_id, request_hash,
+                            client_ip, user_agent, created_at, updated_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'COMPLETED',
+                            %s, %s, %s, %s, %s, %s, %s
+                        )
+                        """,
+                        (
+                            redemption_id,
+                            voucher_code_id,
+                            campaign_id,
+                            owner_id,
+                            owner,
+                            target_account_id,
+                            promo_account_id,
+                            ledger_entry_id,
+                            str(amount),
+                            str(before_owner),
+                            str(after_owner),
+                            command.request_id,
+                            command.idempotency_key,
+                            command.request_hash,
+                            command.client_ip,
+                            command.user_agent,
+                            now_text,
+                            now_text,
+                        ),
+                    )
+
+                    cur.execute(
+                        """
+                        UPDATE synapse_credit_voucher_codes
+                        SET status = 'redeemed',
+                            owner_id_redeemed = %s,
+                            redeemed_by_address = %s,
+                            redeemed_at = %s,
+                            redemption_id = %s,
+                            updated_at = %s
+                        WHERE voucher_code_id = %s
+                        """,
+                        (
+                            owner_id,
+                            owner,
+                            now_text,
+                            redemption_id,
+                            now_text,
+                            voucher_code_id,
+                        ),
+                    )
+
+                    self._append_ledger_entry(
+                        cur,
+                        entry_id=ledger_entry_id,
+                        reference_type="voucher_redemption",
+                        reference_id=redemption_id,
+                        business_type="voucher_redeem",
+                        debit_account_id=promo_account_id,
+                        credit_account_id=target_account_id,
+                        amount_usdc=amount,
+                        request_id=command.request_id,
+                    )
+                    self._append_finance_audit_row(
+                        cur,
+                        AuditLogRow(
+                            actionType="VOUCHER_REDEEMED",
+                            businessType="deposit",
+                            riskLevel="green",
+                            ownerAddress=owner,
+                            requestId=command.request_id,
+                            clientIp=command.client_ip,
+                            userAgent=command.user_agent,
+                            amountDelta=amount,
+                            beforeBalance=before_owner,
+                            afterBalance=after_owner,
+                            resultStatus="COMPLETED",
+                            ledgerId=ledger_entry_id,
+                            status="COMPLETED",
+                            message=f"campaign={campaign_code}; voucherLast4={code_last4}",
+                            detailJson={
+                                "campaignId": str(campaign_id),
+                                "campaignCode": str(campaign_code),
+                                "campaignDisplayName": str(campaign_display_name),
+                                "voucherCodeId": str(voucher_code_id),
+                                "voucherCodeLast4": str(code_last4),
+                                "redemptionId": redemption_id,
+                                "promoAccountId": promo_account_id,
+                                "targetAccountId": target_account_id,
+                            },
+                        ),
+                    )
+
+                conn.commit()
+            except _INTEGRITY_ERRORS:
+                conn.rollback()
+                if command.idempotency_key:
+                    with conn.cursor() as cur:
+                        owner_id = self._owner_id(owner)
+                        existing = self._read_existing_voucher_redemption_by_idempotency(
+                            cur,
+                            owner_id=owner_id,
+                            client_request_id=command.idempotency_key,
+                        )
+                        if existing is not None:
+                            stored_hash = str(existing[14] or "")
+                            if stored_hash and stored_hash != str(command.request_hash or ""):
+                                raise RuntimeError(
+                                    "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"
+                                )
+                            return self._voucher_result_from_row(
+                                existing,
+                                before_balance=Decimal("0"),
+                                after_balance=Decimal("0"),
+                            )
+                raise
+            except Exception:
+                conn.rollback()
+                raise
+
+        return VoucherRedemptionResult(
+            redemptionId=redemption_id,
+            voucherCodeId=str(voucher_code_id),
+            campaignId=str(campaign_id),
+            campaignCode=str(campaign_code),
+            campaignDisplayName=str(campaign_display_name),
+            voucherCodeLast4=str(code_last4),
+            grantedAmountUsdc=amount,
+            ownerAddress=owner,
+            ledgerEntryId=ledger_entry_id,
+            targetAccountId=target_account_id,
+            promoAccountId=promo_account_id,
+            status="COMPLETED",
+            beforeBalanceUsdc=before_owner,
+            afterBalanceUsdc=after_owner,
+            redeemedAt=now_text,
         )
 
 
