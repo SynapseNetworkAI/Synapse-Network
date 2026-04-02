@@ -155,17 +155,18 @@ Authorization: Bearer <JWT>
 Content-Type: application/json
 
 {
-  "serviceId": "svc_abc123",
-  "label": "my-agent-bot",
-  "spendingLimitUsdc": 5.00
+  "name": "my-agent-bot",
+  "creditLimit": 5.00,
+  "resetInterval": "daily",
+  "maxCalls": 200
 }
 
 → 200
 {
   "agentToken": "agt_xxxxx...",
   "credentialId": "cred_uuid",
-  "spendingLimitUsdc": "5.00",
-  "remainingUsdc": "5.00"
+  "creditLimit": "5.00",
+  "resetInterval": "daily"
 }
         `} />
       </section>
