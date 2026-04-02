@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
+import XSelect from "@/components/xui/XSelect";
 
 import AuthMask from "@/components/AuthMask";
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
@@ -1483,15 +1484,16 @@ export default function DeployManifestPage() {
                 />
                 <div>
                   <label htmlFor="supported-languages" className="mb-1.5 block text-sm font-medium text-zinc-200">Supported Languages</label>
-                  <select
+                  <XSelect
                     id="supported-languages"
-                    className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-500"
                     value={normalizeSupportedLanguages(draft.modelUsage.supportedLanguages)[0]}
-                    onChange={(event) => updateModelUsage("supportedLanguages", [event.target.value])}
-                  >
-                    <option value="en">EN</option>
-                    <option value="cn">CN</option>
-                  </select>
+                    onChange={(next) => updateModelUsage("supportedLanguages", [next])}
+                    options={[
+                      { value: "en", label: "EN" },
+                      { value: "cn", label: "CN" },
+                    ]}
+                    triggerClassName="inline-flex min-h-[50px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white transition focus:border-green-500"
+                  />
                   <FieldNote hint="V1 supports a single contract language selection: EN or CN." />
                 </div>
               </div>
@@ -1532,13 +1534,13 @@ export default function DeployManifestPage() {
                     <span>Price Model</span>
                     <FieldGuideHint item={FIELD_GUIDES.billing} />
                   </label>
-                  <select
-                    className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-zinc-400 outline-none"
+                  <XSelect
                     value={DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel}
+                    onChange={() => undefined}
+                    options={[{ value: "fixed", label: "fixed" }]}
+                    triggerClassName="inline-flex min-h-[50px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-zinc-400"
                     disabled
-                  >
-                    <option value="fixed">fixed</option>
-                  </select>
+                  />
                   <FieldNote hint="V1 only supports fixed pricing: one base price per invocation." />
                 </div>
                 <TextField

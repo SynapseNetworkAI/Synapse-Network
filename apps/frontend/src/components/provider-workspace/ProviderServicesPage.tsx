@@ -21,6 +21,7 @@ import {
 import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import XSelect from "@/components/xui/XSelect";
 import {
   DEFAULT_SERVICE_EDIT_DRAFT_CONFIG,
   SERVICE_CONSTRAINT_LIMITS,
@@ -518,15 +519,16 @@ export default function ProviderServicesPage() { // NOSONAR
 
                   <label className="space-y-2 text-sm">
                     <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthMethod")}</span>
-                    <select
+                    <XSelect
                       value={draft.healthMethod}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthMethod: event.target.value as "GET" | "HEAD" | "POST" } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    >
-                      <option value="GET">GET</option>
-                      <option value="HEAD">HEAD</option>
-                      <option value="POST">POST</option>
-                    </select>
+                      onChange={(next) => setDraft((prev) => (prev ? { ...prev, healthMethod: next as "GET" | "HEAD" | "POST" } : prev))}
+                      options={[
+                        { value: "GET", label: "GET" },
+                        { value: "HEAD", label: "HEAD" },
+                        { value: "POST", label: "POST" },
+                      ]}
+                      triggerClassName="inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white focus:border-[#22c55e]/70"
+                    />
                   </label>
 
                   <label className="space-y-2 text-sm">
@@ -741,15 +743,16 @@ export default function ProviderServicesPage() { // NOSONAR
               className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#86868b]"
             />
           </label>
-          <select
+          <XSelect
             value={statusInput}
-            onChange={(event) => setStatusInput(event.target.value as ServiceStatusFilter)}
-            className="min-w-[130px] rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-left text-sm text-white outline-none"
-          >
-            <option value="all">{t("providerServicesPage.filterAllStatus")}</option>
-            <option value="online">{t("providerServicesPage.filterOnline")}</option>
-            <option value="offline">{t("providerServicesPage.filterOffline")}</option>
-          </select>
+            onChange={(next) => setStatusInput(next)}
+            options={[
+              { value: "all", label: t("providerServicesPage.filterAllStatus") },
+              { value: "online", label: t("providerServicesPage.filterOnline") },
+              { value: "offline", label: t("providerServicesPage.filterOffline") },
+            ]}
+            triggerClassName="inline-flex min-h-10 min-w-[130px] items-center justify-between gap-3 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-left text-sm text-white"
+          />
         </div>
         <div className="flex items-center gap-2 lg:justify-end">
           <button

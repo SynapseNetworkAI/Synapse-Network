@@ -1,3 +1,5 @@
+import XSelect from "@/components/xui/XSelect";
+
 type StatusFilterProps<T extends string> = {
   id: string;
   label?: string;
@@ -18,16 +20,16 @@ export default function StatusFilter<T extends string>({
   return (
     <div className="flex items-center gap-2">
       <label htmlFor={id} className="text-xs text-gray-400">{label}</label>
-      <select
+      <XSelect
         id={id}
         value={value}
-        onChange={(event) => onChange(event.target.value as T)}
-        className="px-3 py-2 text-xs text-white bg-gray-900 border border-gray-700 rounded-lg"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>{getOptionLabel ? getOptionLabel(option) : option}</option>
-        ))}
-      </select>
+        onChange={onChange}
+        options={options.map((option) => ({
+          value: option,
+          label: getOptionLabel ? getOptionLabel(option) : option,
+        }))}
+        triggerClassName="inline-flex min-h-9 items-center justify-between gap-3 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-xs text-white"
+      />
     </div>
   );
 }

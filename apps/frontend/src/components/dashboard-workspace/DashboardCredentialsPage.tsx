@@ -16,6 +16,7 @@ import {
 } from "@/utils/agentCredentialApi";
 import { setCredentialForService } from "@/utils/agentCredentialStore";
 import { clearAuthSession } from "@/utils/authSession";
+import XSelect from "@/components/xui/XSelect";
  
  
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -324,18 +325,18 @@ function CredentialsContent() {
           </div>
            <div className="x-panel-muted flex items-center gap-2 rounded-lg px-3 py-1.5">
              <Filter className="w-3.5 h-3.5 text-gray-500" />
-             <select
+             <XSelect
                value={serviceFilter}
-               onChange={(e) => setServiceFilter(e.target.value)}
-               className="x-select-flat cursor-pointer appearance-none bg-transparent pr-4 text-sm text-gray-300"
-             >
-               <option value="">All Services (Universal)</option>
-               {services.map((srv) => (
-                 <option key={srv.serviceId} value={srv.serviceId}>
-                   {srv.name} (Dedicated)
-                 </option>
-               ))}
-             </select>
+               onChange={(next) => setServiceFilter(next)}
+               options={[
+                 { value: "", label: "All Services (Universal)" },
+                 ...services.map((srv) => ({
+                   value: srv.serviceId,
+                   label: `${srv.name} (Dedicated)`,
+                 })),
+               ]}
+               triggerClassName="inline-flex min-h-8 items-center justify-between gap-2 bg-transparent pr-1 text-sm text-gray-300"
+             />
           </div>
         </div>
 

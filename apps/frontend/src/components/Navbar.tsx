@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Network } from "lucide-react";
+import { Network } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import WalletProfileBadge from "@/components/WalletProfileBadge";
@@ -225,18 +225,12 @@ export default function Navbar() {
             </Link>
           </nav>
           <div className="ml-1 border-l border-white/12 pl-2">
-            <div className="relative">
-              <LanguageSwitcher className="h-8 appearance-none rounded-full border border-white/16 bg-white/[0.06] px-3 pr-8 text-xs font-semibold tracking-[0.06em] text-white/95 outline-none transition hover:border-white/28 hover:bg-white/[0.12] focus:border-white/45" />
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/45" />
-            </div>
+            <LanguageSwitcher className="h-8 rounded-full border border-white/16 bg-white/[0.06] px-3 pr-3 text-xs font-semibold tracking-[0.06em] text-white/95 outline-none transition hover:border-white/28 hover:bg-white/[0.12] focus:border-white/45" />
           </div>
         </div>
       ) : (
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <LanguageSwitcher className="h-10 appearance-none rounded-full border border-white/12 bg-white/[0.04] px-3 pr-9 text-[11px] font-semibold tracking-[0.12em] text-white/90 outline-none transition hover:border-white/20 hover:bg-white/[0.08] focus:border-white/30 sm:px-4 sm:text-xs" />
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/45" />
-          </div>
+          <LanguageSwitcher className="h-10 rounded-full border border-white/12 bg-white/[0.04] px-3 pr-3 text-[11px] font-semibold tracking-[0.12em] text-white/90 outline-none transition hover:border-white/20 hover:bg-white/[0.08] focus:border-white/30 sm:px-4 sm:text-xs" />
           <WalletProfileBadge />
         </div>
       )}
