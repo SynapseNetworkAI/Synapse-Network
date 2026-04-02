@@ -9,13 +9,13 @@ import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
-type TopNavHref = "/marketplace" | "/blog" | "/about";
+type TopNavHref = "/marketplace" | "/blog" | "/about" | "/docs";
 
 export default function Navbar() {
   const pathname = usePathname();
   const activePath = pathname ?? "/";
   const isMarketingPage =
-    activePath === "/" || activePath === "/marketplace" || activePath === "/blog" || activePath === "/about";
+    activePath === "/" || activePath === "/marketplace" || activePath === "/blog" || activePath === "/about" || activePath.startsWith("/docs");
   const { t, lang } = useLanguage();
 
   const [gatewayStatus, setGatewayStatus] = useState<"online" | "offline" | "checking">("checking");
@@ -253,6 +253,18 @@ export default function Navbar() {
                 >
                   {t("nav.about")}
                 </Link>
+                <Link
+                  ref={(node) => {
+                    topNavItemRefs.current["/docs"] = node;
+                  }}
+                  href="/docs"
+                  className={getTopNavLinkClasses("/docs")}
+                  onMouseEnter={() => setHoveredTopNavHref("/docs")}
+                  onFocus={() => setHoveredTopNavHref("/docs")}
+                  onBlur={() => setHoveredTopNavHref(null)}
+                >
+                  {t("nav.docs")}
+                </Link>
               </nav>
               <div className="ml-1 border-l border-white/12 pl-2">
                 <LanguageSwitcher className="h-8 rounded-full border border-white/16 bg-white/[0.06] px-3 pr-3 text-xs font-semibold tracking-[0.06em] text-white/95 outline-none transition hover:border-white/28 hover:bg-white/[0.12] focus:border-white/45" />
@@ -298,11 +310,10 @@ export default function Navbar() {
               </button>
               <div className="hidden items-center gap-[30px] xl:flex">
                 <Link
-                  href="/dashboard/developer"
+                  href="/docs"
                   className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
                 >
                   {t("nav.documentation")}
-                  <ExternalLink className="h-3.5 w-3.5 text-[#71767b]" />
                 </Link>
                 <Link
                   href="/blog"
