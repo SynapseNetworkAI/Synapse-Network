@@ -20,4 +20,3 @@ run_group() {
 
 run_group "${base_dir}/gateway"
 run_group "${base_dir}/gateway-admin"
-run_group "${base_dir}/gateway-providers"
