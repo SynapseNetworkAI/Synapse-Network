@@ -155,9 +155,11 @@ export default function Navbar() {
   );
 
   const consoleBrandMark = (
-    <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#2f3336] bg-transparent text-[#e7e9ea]">
-      <span className="absolute left-[8px] top-[6px] h-[1.5px] w-[15px] rotate-45 rounded-full bg-current" />
-      <span className="absolute left-[8px] top-[20px] h-[1.5px] w-[15px] -rotate-45 rounded-full bg-current" />
+    <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#2f3336] bg-[#0d0f12]">
+      <span className="absolute inset-[5px] rounded-[7px] border border-white/[0.06]" />
+      <span className="absolute left-[8px] top-[10px] h-1.5 w-1.5 rounded-full bg-[#7ff7be]" />
+      <span className="absolute right-[8px] bottom-[10px] h-1.5 w-1.5 rounded-full bg-white/82" />
+      <span className="absolute left-[10px] right-[10px] top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-white/0 via-white/52 to-white/0" />
     </span>
   );
 
@@ -285,7 +287,7 @@ export default function Navbar() {
               </button>
             </div>
 
-            <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3">
+            <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-[14px]">
               <button
                 type="button"
                 onClick={() => setQuickAccessOpen(true)}
@@ -294,7 +296,7 @@ export default function Navbar() {
               >
                 <Search className="h-4 w-4" />
               </button>
-              <div className="hidden items-center gap-7 xl:flex">
+              <div className="hidden items-center gap-[30px] xl:flex">
                 <Link
                   href="/dashboard/developer"
                   className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
@@ -317,7 +319,7 @@ export default function Navbar() {
                   <Bell className="h-[18px] w-[18px]" />
                 </Link>
               </div>
-              <LanguageSwitcher className="h-10 min-w-[122px] rounded-full border border-[#2f3336] bg-transparent px-3 pr-3 text-[15px] font-normal tracking-[0.01em] text-[#e7e9ea] outline-none transition hover:border-[#3d4043] hover:bg-[#080808] focus:border-[#3d4043]" />
+              <LanguageSwitcher className="h-[36px] min-w-[121px] rounded-full border border-[#2f3336] bg-[#16181c] px-[14px] pr-[11px] text-[15px] font-normal leading-none tracking-[0.01em] text-[#e7e9ea] outline-none transition hover:border-[#3d4043] hover:bg-[#1b1d21] focus:border-[#536471]" />
             </div>
           </div>
         </nav>

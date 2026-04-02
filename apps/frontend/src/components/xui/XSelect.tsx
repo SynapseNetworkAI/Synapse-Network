@@ -27,6 +27,8 @@ type XSelectProps<T extends string = string> = {
   placeholder?: ReactNode;
   leadingIcon?: ReactNode;
   triggerClassName?: string;
+  contentClassName?: string;
+  chevronClassName?: string;
   menuClassName?: string;
   optionClassName?: string;
   matchTriggerWidth?: boolean;
@@ -49,6 +51,8 @@ export default function XSelect<T extends string = string>({
   placeholder,
   leadingIcon,
   triggerClassName,
+  contentClassName,
+  chevronClassName,
   menuClassName,
   optionClassName,
   matchTriggerWidth = true,
@@ -147,14 +151,19 @@ export default function XSelect<T extends string = string>({
           "inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0a0a0a] px-3 py-2 text-sm text-white transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-50"
         }
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2.5 text-left whitespace-nowrap">
+        <span
+          className={
+            contentClassName ||
+            "flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden text-left whitespace-nowrap"
+          }
+        >
           {leadingIcon ? <span className="shrink-0">{leadingIcon}</span> : null}
           <span className="min-w-0 truncate whitespace-nowrap">{selectedOption?.label ?? placeholder ?? ""}</span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-white/55 transition-transform ${
+          className={`ml-2 h-4 w-4 shrink-0 self-center text-white/55 transition-transform ${
             open ? "rotate-180" : ""
-          }`}
+          } ${chevronClassName || ""}`}
         />
       </button>
 
