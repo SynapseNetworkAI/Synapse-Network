@@ -319,7 +319,7 @@ export default function Navbar() {
                   <Bell className="h-[18px] w-[18px]" />
                 </Link>
               </div>
-              <LanguageSwitcher className="h-[36px] min-w-[121px] rounded-full border border-[#2f3336] bg-[#16181c] px-[14px] pr-[11px] text-[15px] font-normal leading-none tracking-[0.01em] text-[#e7e9ea] outline-none transition hover:border-[#3d4043] hover:bg-[#1b1d21] focus:border-[#536471]" />
+              <LanguageSwitcher className="tracking-[0.01em] focus-visible:border-[#536471]" />
             </div>
           </div>
         </nav>

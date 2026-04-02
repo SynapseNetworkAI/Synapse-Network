@@ -4,6 +4,9 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export default function OverviewHero() {
   const { t } = useLanguage();
+  const heroDescriptionLines = t("overviewPage.heroDescription")
+    .split(/(?<=[.!?。！？])\s+/)
+    .filter(Boolean);
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.03] to-transparent p-8 md:p-12">
@@ -18,7 +21,12 @@ export default function OverviewHero() {
         </h2>
         
         <p className="text-lg text-gray-400 leading-relaxed mb-8">
-          {t("overviewPage.heroDescription")}
+          {heroDescriptionLines.map((line, index) => (
+            <span key={line} className="block">
+              {line}
+              {index === heroDescriptionLines.length - 1 ? null : " "}
+            </span>
+          ))}
         </p>
 
         <div className="flex flex-wrap gap-4">

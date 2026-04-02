@@ -101,9 +101,6 @@ export type I18nMessages = {
     financialInfrastructure: string;
     coreCapabilities: string;
     coreCapabilitiesDescription: string;
-    feeTransparency: string;
-    feeTransparencyDescription: string;
-    protocolEfficiency: string;
     footerTagline: string;
     footerPrivacy: string;
     footerTerms: string;
