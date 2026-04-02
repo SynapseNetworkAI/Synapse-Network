@@ -38,7 +38,7 @@ export default function DocsSidebar() {
   return (
     <aside
       data-testid="docs-sidebar"
-      className="hidden lg:flex flex-col w-[240px] shrink-0 sticky top-[56px] h-[calc(100vh-56px)] overflow-y-auto border-r border-white/[0.045]"
+      className="hidden lg:flex flex-col w-[240px] shrink-0 sticky top-[100px] h-[calc(100vh-100px)] overflow-y-auto border-r border-white/[0.045]"
       style={{ background: "#08090b" }}
     >
       {/* Search stub */}
