@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount, useDisconnect } from "wagmi";
+import toast from "react-hot-toast";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { buildAuthedHeaders, clearAuthSession } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import { 
   LayoutGrid,
   Wallet,
@@ -20,13 +24,18 @@ import {
   Terminal,
   AlertTriangle,
   History,
-  ChevronDown
+  ChevronDown,
+  CircleUserRound,
+  Settings,
+  LogOut
 } from "lucide-react";
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const activePath = pathname ?? "";
   const router = useRouter();
+  const { address } = useAccount();
+  const { disconnect } = useDisconnect();
   const { openConnectModal } = useConnectModal();
   const { isConnected, isSessionAuthenticated, authorize } = useAuth();
   const { t } = useLanguage();
@@ -35,7 +44,9 @@ export default function DashboardSidebar() {
   const providerConsoleRoute = `${providerRoot}/console`;
   const providerSettlementsRoute = `${providerRoot}/settlements`;
   const billingChildActive = activePath.startsWith("/dashboard/billing");
+  const accountChildActive = activePath.startsWith("/dashboard/account");
   const [billingExpanded, setBillingExpanded] = useState(billingChildActive);
+  const [accountExpanded, setAccountExpanded] = useState(accountChildActive);
 
   useEffect(() => {
     const allRoutes = [
@@ -46,6 +57,7 @@ export default function DashboardSidebar() {
       "/dashboard/billing",
       "/dashboard/billing/credits",
       "/dashboard/billing/payments",
+      "/dashboard/account/settings",
       "/dashboard/audit",
       "/dashboard/developer",
       providerConsoleRoute,
@@ -76,6 +88,12 @@ export default function DashboardSidebar() {
     }
   }, [billingChildActive]);
 
+  useEffect(() => {
+    if (accountChildActive) {
+      setAccountExpanded(true);
+    }
+  }, [accountChildActive]);
+
   const isRouteActive = (paths: string | string[], exact = false) => {
     const candidates = Array.isArray(paths) ? paths : [paths];
     return candidates.some((path) => (exact ? activePath === path : activePath.startsWith(path)));
@@ -101,6 +119,10 @@ export default function DashboardSidebar() {
       return "ml-10 mr-2 mt-1 flex items-center rounded-2xl bg-white/[0.065] px-4 py-2.5 text-[14px] font-medium text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] transition-[background-color,color,box-shadow]";
     }
     return "ml-10 mr-2 mt-1 flex items-center rounded-2xl px-4 py-2.5 text-[14px] font-medium text-white/70 transition-[background-color,color] hover:bg-white/[0.03] hover:text-white";
+  };
+
+  const getDangerSubButtonClasses = () => {
+    return "ml-10 mr-2 mt-1 flex w-[calc(100%-3rem)] items-center rounded-2xl px-4 py-2.5 text-[14px] font-medium text-[#ff8f8f] transition-[background-color,color] hover:bg-[#2a1115] hover:text-[#ffb3b3]";
   };
 
   const getGroupTriggerClasses = (expanded: boolean) => {
@@ -135,6 +157,29 @@ export default function DashboardSidebar() {
       router.push(providerSettlementsRoute);
     }
   };
+
+  const handleLogout = useCallback(async () => {
+    if (address) {
+      try {
+        const response = await fetch(`${getGatewayBaseUrl()}/api/v1/auth/logout`, {
+          method: "POST",
+          headers: {
+            ...buildAuthedHeaders(address, false),
+          },
+        });
+        if (!response.ok && response.status !== 404) {
+          console.warn("Backend logout warning:", response.status);
+        }
+      } catch (error) {
+        console.warn("Backend logout warning:", error);
+      }
+    }
+
+    clearAuthSession();
+    disconnect();
+    toast.success(t("nav.walletDisconnected"));
+    router.push("/");
+  }, [address, disconnect, router, t]);
 
   return (
     <aside className="w-[270px] shrink-0 bg-[#0a0a0c] border-r border-white/5 flex flex-col pt-6 overflow-y-auto min-h-[calc(100vh-73px)] pb-12 font-sans tracking-tight">
@@ -231,6 +276,36 @@ export default function DashboardSidebar() {
             <Clock className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.settlements")}
           </Link>
+        </nav>
+      </div>
+
+      <div className="mt-auto mb-2">
+        <nav className="flex flex-col gap-0.5">
+          <button
+            type="button"
+            className={getGroupTriggerClasses(accountExpanded)}
+            onClick={() => setAccountExpanded((current) => !current)}
+            aria-expanded={accountExpanded}
+            aria-controls="dashboard-account-subnav"
+          >
+            <CircleUserRound className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
+            {t("sidebar.account")}
+            <ChevronDown
+              className={`ml-auto h-4 w-4 text-white/38 transition-transform duration-200 ${accountExpanded ? "rotate-0 text-white/56" : "-rotate-90"}`}
+            />
+          </button>
+          {accountExpanded ? (
+            <div id="dashboard-account-subnav" className="pb-1">
+              <Link href="/dashboard/account/settings" className={getSubLinkClasses("/dashboard/account/settings")}>
+                <Settings className="mr-3 h-4 w-4 text-white/46" />
+                {t("sidebar.settings")}
+              </Link>
+              <button type="button" onClick={() => void handleLogout()} className={getDangerSubButtonClasses()}>
+                <LogOut className="mr-3 h-4 w-4" />
+                {t("sidebar.logout")}
+              </button>
+            </div>
+          ) : null}
         </nav>
       </div>
 

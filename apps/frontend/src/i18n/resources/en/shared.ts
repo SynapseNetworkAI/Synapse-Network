@@ -1,6 +1,6 @@
 import type { I18nMessages } from "@/i18n/schema";
 
-const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
+const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettingsPage"> = {
   language: {
     en: "English",
     zh: "Chinese",
@@ -27,6 +27,7 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     quickAccessPaymentsDescription: "Review billing records and account payment activity.",
     quickAccessAuditDescription: "Monitor alerts, policy enforcement, and audit logs.",
     quickAccessDeveloperDescription: "Open docs, runtime examples, and integration guides.",
+    quickAccessAccountSettingsDescription: "Adjust account identity visibility, preferences, and session posture.",
     quickAccessProviderConsoleDescription: "Manage provider workspace health and performance.",
     quickAccessProviderCredentialsDescription: "Issue provider secrets and signing material.",
     quickAccessServicesDescription: "Create, edit, and publish monetized APIs.",
@@ -47,6 +48,9 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     billing: "Billing",
     credits: "Credits",
     payments: "Payments",
+    account: "Account",
+    settings: "Settings",
+    logout: "Logout",
     discovery: "Discovery",
     invocations: "Invocations",
     treasury: "Payments",
@@ -58,6 +62,18 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     myServices: "My Services",
     usageAnalytics: "Usage Analytics",
     settlements: "Settlements",
+  },
+  accountSettingsPage: {
+    title: "Account Settings",
+    description: "Manage workspace-level identity, language preference, and session posture from one control surface.",
+    identityTitle: "Connected Identity",
+    identityDescription: "Your owner wallet remains the trust anchor for credits, spending limits, and sensitive billing controls.",
+    connectedWallet: "Connected wallet",
+    notConnected: "Wallet not connected",
+    preferenceTitle: "Interface Preference",
+    preferenceDescription: "Language selection is controlled globally from the top-right switcher and applies across the workspace.",
+    securityTitle: "Session Security",
+    securityDescription: "Use the Account menu logout action to terminate the current wallet-backed session cleanly.",
   },
 };
 
