@@ -21,6 +21,15 @@ function buildDepositIntentIdempotencyKey(txHash: string): string {
   return `deposit_tx_${normalizedTx.replace(/^0x/, "")}`.slice(0, 120);
 }
 
+function buildVoucherRedeemIdempotencyKey(voucherCode: string): string {
+  const compact = String(voucherCode || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 24);
+  return `voucher_redeem_${compact}`.slice(0, 120);
+}
+
 async function readErrorPayload(
   response: Response
 ): Promise<{ code?: string; message?: string }> {
@@ -71,6 +80,29 @@ export type OwnerSpendingLimit = {
   currentCycleSpendUsdc: number;
   remainingSpendUsdc: number | null;
   updatedAt: string | number | null;
+};
+
+export type VoucherRedemptionRecord = {
+  redemptionId: string;
+  voucherCodeId: string;
+  campaignId: string;
+  campaignCode: string;
+  campaignDisplayName: string;
+  voucherCodeLast4: string;
+  grantedAmountUsdc: number;
+  ownerAddress: string;
+  ledgerEntryId: string;
+  targetAccountId: string;
+  promoAccountId: string;
+  status: string;
+  beforeBalanceUsdc: number;
+  afterBalanceUsdc: number;
+  redeemedAt: string;
+};
+
+export type RedeemVoucherResponse = {
+  redemption: VoucherRedemptionRecord;
+  balance: BalanceSummary;
 };
 
 export type DepositIntentRecord = {
@@ -289,6 +321,72 @@ export async function updateOwnerSpendingLimit(
     spendingLimit?: Partial<OwnerSpendingLimit>;
   };
   return normalizeOwnerSpendingLimit(result.spendingLimit);
+}
+
+export async function redeemCreditVoucher(
+  userAddress: string,
+  voucherCode: string
+): Promise<RedeemVoucherResponse> {
+  const response = await fetch(`${API_BASE}/balance/vouchers/redeem`, {
+    method: "POST",
+    headers: {
+      ...buildAuthedHeaders(userAddress),
+      "X-Idempotency-Key": buildVoucherRedeemIdempotencyKey(voucherCode),
+    },
+    body: JSON.stringify({ voucherCode }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Failed to redeem voucher")
+    );
+  }
+
+  const payload = (await response.json()) as {
+    redemption?: Partial<VoucherRedemptionRecord>;
+    balance?: Partial<BalanceSummary> & {
+      ownerBalance?: number;
+      consumerAvailableBalance?: number;
+      providerReceivable?: number;
+      providerReceivableBalance?: number;
+      platform?: { feeAccrued?: number };
+    };
+  };
+
+  return {
+    redemption: {
+      redemptionId: String(payload.redemption?.redemptionId || ""),
+      voucherCodeId: String(payload.redemption?.voucherCodeId || ""),
+      campaignId: String(payload.redemption?.campaignId || ""),
+      campaignCode: String(payload.redemption?.campaignCode || ""),
+      campaignDisplayName: String(
+        payload.redemption?.campaignDisplayName || ""
+      ),
+      voucherCodeLast4: String(payload.redemption?.voucherCodeLast4 || ""),
+      grantedAmountUsdc: Number(payload.redemption?.grantedAmountUsdc ?? 0),
+      ownerAddress: String(payload.redemption?.ownerAddress || userAddress),
+      ledgerEntryId: String(payload.redemption?.ledgerEntryId || ""),
+      targetAccountId: String(payload.redemption?.targetAccountId || ""),
+      promoAccountId: String(payload.redemption?.promoAccountId || ""),
+      status: String(payload.redemption?.status || "COMPLETED"),
+      beforeBalanceUsdc: Number(payload.redemption?.beforeBalanceUsdc ?? 0),
+      afterBalanceUsdc: Number(payload.redemption?.afterBalanceUsdc ?? 0),
+      redeemedAt: String(payload.redemption?.redeemedAt || ""),
+    },
+    balance: {
+      ownerBalance: Number(
+        payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance ?? 0
+      ),
+      providerReceivable: Number(
+        payload.balance?.providerReceivable ??
+          payload.balance?.providerReceivableBalance ??
+          0
+      ),
+      platformFeeAccrued: Number(
+        payload.balance?.platformFeeAccrued ?? payload.balance?.platform?.feeAccrued ?? 0
+      ),
+    },
+  };
 }
 
 export async function createDepositIntent(

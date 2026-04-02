@@ -9,6 +9,7 @@
 > 1. `docs/01_Product_Frontend/owner_agent_guide/agents_guide.md`
 > 2. `docs/01_Product_Frontend/README.md`
 > 3. `docs/Design.md`
+> 4. `docs/01_Product_Frontend/owner_agent_guide/credits_voucher_redeem_flow.md`
 
 ## 1. Product Decision
 
@@ -206,7 +207,7 @@ Avoid:
 2. recent ledger list
 3. treasury/runtime jargon in the main copy
 
-### 7.5 Current backend contract
+### 7.4 Current backend contract
 
 Gateway now supports a true owner-level billing-cycle spend cap.
 
@@ -229,7 +230,19 @@ Frontend rule:
 2. the modal should not expose credential selectors
 3. saved state should read and write the owner account spend cap only
 
-### 7.4 Payments page rule
+### 7.5 Voucher contract
+
+`Redeem Voucher` is now an in-place Credits modal.
+
+Rules:
+
+1. button opens a single-field X-style modal instead of navigating away
+2. voucher code input auto-formats to `XXXX-XXXX-XXXX`
+3. voucher redemption is owner-level, never agent-level
+4. modal submits to `POST /api/v1/balance/vouchers/redeem` with idempotency
+5. success closes the modal and refreshes Credits balance in place
+
+### 7.6 Payments page rule
 
 `Billing > Payments` should mirror the X payment-history page, not the old owner treasury dashboard.
 
@@ -261,7 +274,7 @@ Avoid:
 | [ Current Billing Cycle: Mar 31 - Apr 30, 2026 ]                 [Days Remaining 29]        |
 +----------------------------------------------------------------------------------------------+
 | Manage Spend Cap                                                       [Manage Spend Cap]    |
-| X-style shell, but backed by credential monthly limits until owner policy exists             |
+| X-style shell backed by the owner-level billing-cycle spend cap                              |
 |                                                                                              |
 | CURRENT SPEND                             BILLING CYCLE CAP                                  |
 | 0.01                                      5.00                                               |

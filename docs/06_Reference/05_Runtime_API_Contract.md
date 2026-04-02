@@ -36,6 +36,7 @@
 15. `GET /api/v1/finance/audit-logs`
 16. `GET /api/v1/balance/spending-limit`
 17. `PUT /api/v1/balance/spending-limit`
+18. `POST /api/v1/balance/vouchers/redeem`
 18. `GET /api/v1/admin/fee-policy`
 19. `PUT /api/v1/admin/fee-policy`
 20. `POST /api/v1/admin/deposits/replay`
@@ -154,6 +155,52 @@
 1. `allowUnlimited = false` 时，Gateway 会把当前 Owner 的 monthly spend cap 持久化到 `synapse_owner_spend_limits`
 2. `allowUnlimited = true` 时，Gateway 会把 `spendingLimitUsdc` 清空为 `NULL`
 3. Runtime quote / invocation 都会读取同一份 Owner spend cap
+
+### 3.5.1 `POST /api/v1/balance/vouchers/redeem`
+
+用途：把 free-credit voucher 核销到当前 Owner 的消费侧余额。
+
+请求头：
+
+1. 必须携带 `X-Idempotency-Key`
+
+请求体：
+
+1. `voucherCode`，支持 `XXXX-XXXX-XXXX` 或 12 位紧凑字母数字格式
+
+成功返回：
+
+1. `redemption`
+2. `balance`
+
+`redemption` 字段：
+
+1. `redemptionId`
+2. `voucherCodeId`
+3. `campaignId`
+4. `campaignCode`
+5. `campaignDisplayName`
+6. `voucherCodeLast4`
+7. `grantedAmountUsdc`
+8. `ownerAddress`
+9. `ledgerEntryId`
+10. `targetAccountId`
+11. `promoAccountId`
+12. `status`
+13. `beforeBalanceUsdc`
+14. `afterBalanceUsdc`
+15. `redeemedAt`
+
+错误语义：
+
+1. `INVALID_VOUCHER_CODE`
+2. `VOUCHER_ALREADY_REDEEMED`
+3. `VOUCHER_EXPIRED`
+4. `VOUCHER_CAMPAIGN_INACTIVE`
+5. `VOUCHER_CAMPAIGN_EXHAUSTED`
+6. `OWNER_NOT_ELIGIBLE`
+7. `OWNER_REDEMPTION_LIMIT_EXCEEDED`
+8. `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`
 
 ### 3.6 `POST /api/v1/providers/withdrawals/intent`
 

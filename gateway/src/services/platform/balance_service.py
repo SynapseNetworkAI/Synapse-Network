@@ -213,6 +213,21 @@ class BalanceService(
             request_meta=request_meta,
         )
 
+    async def redeem_credit_voucher(
+        self,
+        *,
+        owner_wallet: str,
+        voucher_code: str,
+        idempotency_key: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return await self.platform_finance_service.redeem_credit_voucher(
+            owner_wallet=owner_wallet,
+            voucher_code=voucher_code,
+            idempotency_key=idempotency_key,
+            request_meta=request_meta,
+        )
+
     async def set_router_config(
         self,
         owner_wallet: str,

@@ -12,7 +12,13 @@ class LedgerAccountRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     account_id: str = Field(alias="accountId")
-    account_kind: Literal["consumer_wallet", "provider_wallet", "platform_revenue", "budget_hold"] = Field(alias="accountKind")
+    account_kind: Literal[
+        "consumer_wallet",
+        "provider_wallet",
+        "platform_revenue",
+        "platform_promo",
+        "budget_hold",
+    ] = Field(alias="accountKind")
     owner_id: Optional[str] = Field(default=None, alias="ownerId")
     provider_id: Optional[str] = Field(
         default=None,

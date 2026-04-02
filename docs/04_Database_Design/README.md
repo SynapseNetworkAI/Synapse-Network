@@ -41,6 +41,8 @@
 	然后理解余额快照、预算预占、ledger entry、平台抽成和收益桶。
 4. `04_Concurrency_Idempotency_and_Consistency.md`
 	最后看为什么金融级系统必须优先保证幂等、锁、状态机和对账闭环。
+5. `05_Voucher_Campaign_and_Redemption_Model.md`
+	需要设计免费 credits voucher 时，看这里的 campaign / code / redemption / ledger 方案。
 
 ## 总体分层图
 

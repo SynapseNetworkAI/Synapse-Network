@@ -44,6 +44,16 @@ const creditsPage: I18nMessages["creditsPage"] = {
   freeCreditsVoucherDescription:
     "X may give out free credits to developers to build with the API. Enter a voucher code to add free credits to your account.",
   redeemVoucher: "Redeem Voucher",
+  redeemVoucherModalTitle: "Redeem Voucher Code",
+  redeemVoucherModalDescription:
+    "Enter your voucher to add free credits to your account.",
+  redeemVoucherModalClose: "Close voucher redemption dialog",
+  redeemVoucherModalPlaceholder: "XXXX-XXXX-XXXX",
+  redeemVoucherModalInvalid: "Enter a voucher code in XXXX-XXXX-XXXX format.",
+  redeemVoucherModalUnavailable:
+    "Voucher redemption backend is not wired in this environment yet. This modal currently reserves the UI contract only.",
+  redeemVoucherModalRedeeming: "Redeeming Voucher...",
+  redeemVoucherModalSuccess: "Voucher redeemed. {{amount}} was added to your balance.",
 };
 
 export default creditsPage;

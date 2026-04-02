@@ -214,6 +214,104 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
+        table_name="synapse_credit_voucher_campaigns",
+        required_columns=frozenset(
+            {
+                "id",
+                "campaign_id",
+                "campaign_code",
+                "display_name",
+                "status",
+                "credit_amount_usdc",
+                "starts_at",
+                "expires_at",
+                "max_total_redemptions",
+                "max_redemptions_per_owner",
+                "allowlist_mode",
+                "notes",
+                "created_by",
+                "created_at",
+                "updated_at",
+            }
+        ),
+        required_indexes=frozenset({"idx_voucher_campaign_status_window"}),
+        required_constraints=(
+            _constraint("primary key on campaign_id", PRIMARY_KEY_FRAGMENT, "campaign_id"),
+            _constraint("unique campaign_code", "unique", "campaign_code"),
+        ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_credit_voucher_codes",
+        required_columns=frozenset(
+            {
+                "id",
+                "voucher_code_id",
+                "campaign_id",
+                "code_hash",
+                "code_last4",
+                "status",
+                "owner_id_redeemed",
+                "redeemed_by_address",
+                "redeemed_at",
+                "redemption_id",
+                "created_at",
+                "updated_at",
+            }
+        ),
+        required_indexes=frozenset({"idx_voucher_codes_campaign_status"}),
+        required_constraints=(
+            _constraint("primary key on voucher_code_id", PRIMARY_KEY_FRAGMENT, "voucher_code_id"),
+            _constraint("unique code_hash", "unique", "code_hash"),
+        ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_credit_voucher_owner_allowlist",
+        required_columns=frozenset({"id", "campaign_id", "owner_id", "created_at", "updated_at"}),
+        required_constraints=(
+            _constraint("unique owner allowlist row", "unique", "campaign_id", "owner_id"),
+        ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_credit_voucher_redemptions",
+        required_columns=frozenset(
+            {
+                "id",
+                "redemption_id",
+                "voucher_code_id",
+                "campaign_id",
+                "owner_id",
+                "owner_address",
+                "target_account_id",
+                "promo_account_id",
+                "ledger_entry_id",
+                "granted_amount_usdc",
+                "before_balance_usdc",
+                "after_balance_usdc",
+                "status",
+                "request_id",
+                "client_request_id",
+                "request_hash",
+                "client_ip",
+                "user_agent",
+                "failure_code",
+                "failure_reason",
+                "created_at",
+                "updated_at",
+            }
+        ),
+        required_indexes=frozenset(
+            {
+                "idx_voucher_redemptions_owner_created",
+                "idx_voucher_redemptions_campaign_created",
+                "uq_voucher_redemptions_code_live",
+                "uq_voucher_redemptions_owner_client_request",
+            }
+        ),
+        required_constraints=(
+            _constraint("primary key on redemption_id", PRIMARY_KEY_FRAGMENT, "redemption_id"),
+        ),
+    ),
+    TableSchemaContract(
         table_name="synapse_provider_risk_flags",
         required_columns=frozenset({"id", "owner_address", "is_high_risk", "risk_reason_code", "risk_level", "created_at", "updated_at"}),
         required_indexes=frozenset({"idx_synapse_provider_risk_flags_high_risk"}),

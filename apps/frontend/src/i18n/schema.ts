@@ -659,6 +659,14 @@ export type I18nMessages = {
     freeCreditsVoucherTitle: string;
     freeCreditsVoucherDescription: string;
     redeemVoucher: string;
+    redeemVoucherModalTitle: string;
+    redeemVoucherModalDescription: string;
+    redeemVoucherModalClose: string;
+    redeemVoucherModalPlaceholder: string;
+    redeemVoucherModalInvalid: string;
+    redeemVoucherModalUnavailable: string;
+    redeemVoucherModalRedeeming: string;
+    redeemVoucherModalSuccess: string;
   };
   auditPage: {
     title: string;

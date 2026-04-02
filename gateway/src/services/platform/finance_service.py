@@ -1,5 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
+import hashlib
 from typing import Any, Dict, List, Optional
 import asyncio
 import time
@@ -10,6 +11,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
 from src.domain.gateway import OwnerSpendLimitRow, RouterConfigRow
+from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
@@ -44,6 +46,47 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _q6(value: Decimal | str | int | float) -> Decimal:
         return Decimal(str(value)).quantize(
             Decimal("0.000001"), rounding=ROUND_HALF_UP
+        )
+
+    @staticmethod
+    def _normalize_voucher_code(value: str) -> str:
+        compact = "".join(ch for ch in str(value or "").strip().upper() if ch.isalnum())
+        if len(compact) != 12 or not compact.isalnum():
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_VOUCHER_CODE",
+                    "message": "voucherCode must contain exactly 12 alphanumeric characters.",
+                },
+            )
+        return compact
+
+    @staticmethod
+    def _hash_voucher_code(normalized_code: str) -> str:
+        return hashlib.sha256(normalized_code.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _voucher_error(code: str) -> tuple[int, str]:
+        mapping = {
+            "INVALID_VOUCHER_CODE": (404, "Voucher code not found."),
+            "VOUCHER_ALREADY_REDEEMED": (409, "This voucher has already been redeemed."),
+            "VOUCHER_EXPIRED": (409, "This voucher has expired."),
+            "VOUCHER_CAMPAIGN_INACTIVE": (409, "This voucher campaign is not currently active."),
+            "VOUCHER_CAMPAIGN_BUDGET_UNDEFINED": (409, "This voucher campaign is not ready for redemption."),
+            "VOUCHER_CAMPAIGN_EXHAUSTED": (409, "This voucher campaign has no credits remaining."),
+            "OWNER_NOT_ELIGIBLE": (403, "This wallet is not eligible to redeem this voucher."),
+            "OWNER_REDEMPTION_LIMIT_EXCEEDED": (
+                409,
+                "This wallet has already reached the redemption limit for this voucher campaign.",
+            ),
+            "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD": (
+                409,
+                "Idempotency key payload mismatch.",
+            ),
+        }
+        return mapping.get(
+            code,
+            (500, "Voucher redemption failed due to an unexpected gateway error."),
         )
 
     @staticmethod
@@ -232,6 +275,124 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 },
             )
             return await self.get_owner_spending_limit(owner)
+
+    async def redeem_credit_voucher(
+        self,
+        *,
+        owner_wallet: str,
+        voucher_code: str,
+        idempotency_key: str,
+        request_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        owner = normalize_wallet(owner_wallet)
+        normalized_code = self._normalize_voucher_code(voucher_code)
+        request_id = str((request_meta or {}).get("requestId") or "").strip() or None
+        client_ip = str((request_meta or {}).get("clientIp") or "").strip() or None
+        user_agent = str((request_meta or {}).get("userAgent") or "").strip() or None
+        validated_idempotency_key = self._validate_idempotency_key(idempotency_key)
+        request_hash = self._request_hash(
+            {
+                "ownerAddress": owner,
+                "voucherCode": normalized_code,
+            }
+        )
+
+        redis_client = await self._get_redis_client()
+        if redis_client is not None:
+            retry = await self._check_idempotency_redis(
+                scope="voucher_redeem",
+                owner_wallet=owner,
+                idempotency_key=validated_idempotency_key,
+                request_hash=request_hash,
+            )
+            if retry is not None:
+                return retry
+            claimed = await self._start_idempotency_redis(
+                scope="voucher_redeem",
+                owner_wallet=owner,
+                idempotency_key=validated_idempotency_key,
+                request_hash=request_hash,
+            )
+            if not claimed:
+                retry = await self._check_idempotency_redis(
+                    scope="voucher_redeem",
+                    owner_wallet=owner,
+                    idempotency_key=validated_idempotency_key,
+                    request_hash=request_hash,
+                )
+                if retry is not None:
+                    return retry
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+                        "message": "A request with this idempotency key is already processing.",
+                    },
+                )
+
+        async with self._mutation_lock.lock(f"{owner}:voucher_redeem"):
+            await self._enforce_owner_write_rate_limit(owner, "voucher_redeem")
+
+            if not hasattr(self.storage, "redeem_credit_voucher_atomic"):
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "code": "VOUCHER_REDEEM_STORAGE_UNAVAILABLE",
+                        "message": "Voucher redemption requires PostgreSQL storage support.",
+                    },
+                )
+
+            try:
+                redemption = getattr(self.storage, "redeem_credit_voucher_atomic")(
+                    VoucherRedeemCommand(
+                        ownerAddress=owner,
+                        voucherCode=voucher_code,
+                        normalizedCode=normalized_code,
+                        codeHash=self._hash_voucher_code(normalized_code),
+                        idempotencyKey=validated_idempotency_key,
+                        requestHash=request_hash,
+                        requestId=request_id,
+                        clientIp=client_ip,
+                        userAgent=user_agent,
+                    )
+                )
+            except RuntimeError as exc:
+                code = str(exc)
+                status_code, message = self._voucher_error(code)
+                self._append_financial_audit(
+                    "VOUCHER_REDEEM_FAILED",
+                    owner,
+                    {
+                        "businessType": "deposit",
+                        "code": code,
+                        "message": message,
+                        "requestId": request_id,
+                        "voucherCodeLast4": normalized_code[-4:],
+                        "requestMeta": request_meta or {},
+                    },
+                )
+                raise HTTPException(
+                    status_code=status_code,
+                    detail={"code": code, "message": message},
+                ) from exc
+
+            if not isinstance(redemption, VoucherRedemptionResult):
+                raise RuntimeError("VOUCHER_REDEEM_RESULT_INVALID")
+
+            balance = await self.get_balance(owner)
+            response = {
+                "redemption": redemption.model_dump(by_alias=True, mode="json"),
+                "balance": balance,
+            }
+            if redis_client is not None:
+                await self._complete_idempotency_redis(
+                    scope="voucher_redeem",
+                    owner_wallet=owner,
+                    idempotency_key=validated_idempotency_key,
+                    request_hash=request_hash,
+                    response=response,
+                )
+            return response
 
     async def set_router_config(
         self,

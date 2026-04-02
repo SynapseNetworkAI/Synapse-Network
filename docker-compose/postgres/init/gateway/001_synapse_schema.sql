@@ -494,6 +494,110 @@ CREATE TABLE IF NOT EXISTS synapse_owner_spend_limits (
     CHECK (cycle_interval IN ('monthly'))
 );
 
+ALTER TABLE IF EXISTS synapse_ledger_accounts
+DROP CONSTRAINT IF EXISTS synapse_ledger_accounts_account_kind_check;
+
+ALTER TABLE IF EXISTS synapse_ledger_accounts
+ADD CONSTRAINT synapse_ledger_accounts_account_kind_check
+CHECK (
+    account_kind IN (
+        'consumer_wallet',
+        'provider_wallet',
+        'platform_revenue',
+        'platform_promo',
+        'budget_hold'
+    )
+);
+
+ALTER TABLE IF EXISTS synapse_ledger_accounts
+DROP CONSTRAINT IF EXISTS synapse_ledger_accounts_check;
+
+ALTER TABLE IF EXISTS synapse_ledger_accounts
+ADD CONSTRAINT synapse_ledger_accounts_check
+CHECK (
+    (account_kind = 'consumer_wallet' AND owner_id IS NOT NULL AND provider_id IS NULL)
+    OR (account_kind = 'provider_wallet' AND owner_id IS NOT NULL AND provider_id IS NOT NULL)
+    OR (account_kind IN ('platform_revenue', 'platform_promo') AND owner_id IS NULL AND provider_id IS NULL)
+    OR (account_kind = 'budget_hold' AND owner_id IS NOT NULL)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_credit_voucher_campaigns (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    campaign_id TEXT PRIMARY KEY,
+    campaign_code TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    credit_amount_usdc NUMERIC(36, 6) NOT NULL,
+    starts_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    max_total_redemptions INTEGER,
+    max_redemptions_per_owner INTEGER NOT NULL DEFAULT 1,
+    allowlist_mode TEXT NOT NULL DEFAULT 'open',
+    notes TEXT,
+    created_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (credit_amount_usdc > 0),
+    CHECK (max_total_redemptions IS NULL OR max_total_redemptions > 0),
+    CHECK (max_redemptions_per_owner > 0),
+    CHECK (status IN ('draft', 'active', 'paused', 'expired', 'archived')),
+    CHECK (allowlist_mode IN ('open', 'owner_allowlist'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_credit_voucher_codes (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    voucher_code_id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL REFERENCES synapse_credit_voucher_campaigns (campaign_id) ON DELETE RESTRICT,
+    code_hash TEXT NOT NULL UNIQUE,
+    code_last4 TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    owner_id_redeemed TEXT REFERENCES synapse_owner_accounts (owner_id) ON DELETE SET NULL,
+    redeemed_by_address TEXT,
+    redeemed_at TIMESTAMPTZ,
+    redemption_id TEXT UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('active', 'reserved', 'redeemed', 'disabled', 'expired'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_credit_voucher_owner_allowlist (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    campaign_id TEXT NOT NULL REFERENCES synapse_credit_voucher_campaigns (campaign_id) ON DELETE CASCADE,
+    owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (campaign_id, owner_id)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_credit_voucher_redemptions (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    redemption_id TEXT PRIMARY KEY,
+    voucher_code_id TEXT NOT NULL REFERENCES synapse_credit_voucher_codes (voucher_code_id) ON DELETE RESTRICT,
+    campaign_id TEXT NOT NULL REFERENCES synapse_credit_voucher_campaigns (campaign_id) ON DELETE RESTRICT,
+    owner_id TEXT NOT NULL REFERENCES synapse_owner_accounts (owner_id) ON DELETE RESTRICT,
+    owner_address TEXT NOT NULL,
+    target_account_id TEXT NOT NULL REFERENCES synapse_ledger_accounts (account_id) ON DELETE RESTRICT,
+    promo_account_id TEXT NOT NULL REFERENCES synapse_ledger_accounts (account_id) ON DELETE RESTRICT,
+    ledger_entry_id TEXT UNIQUE REFERENCES synapse_ledger_entries (entry_id) ON DELETE SET NULL,
+    granted_amount_usdc NUMERIC(36, 6) NOT NULL,
+    before_balance_usdc NUMERIC(36, 6) NOT NULL,
+    after_balance_usdc NUMERIC(36, 6) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'COMPLETED',
+    request_id TEXT,
+    client_request_id TEXT,
+    request_hash TEXT,
+    client_ip TEXT,
+    user_agent TEXT,
+    failure_code TEXT,
+    failure_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (granted_amount_usdc > 0),
+    CHECK (before_balance_usdc >= 0),
+    CHECK (after_balance_usdc >= 0),
+    CHECK (status IN ('PENDING', 'COMPLETED', 'REVERSED', 'FAILED'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_synapse_provider_profiles_owner
 ON synapse_provider_profiles (owner_id, updated_at DESC);
 
@@ -580,6 +684,27 @@ ON synapse_router_config (updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_owner_spend_limits_updated_at
 ON synapse_owner_spend_limits (updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_voucher_campaign_status_window
+ON synapse_credit_voucher_campaigns (status, starts_at, expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_voucher_codes_campaign_status
+ON synapse_credit_voucher_codes (campaign_id, status, redeemed_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_voucher_redemptions_owner_created
+ON synapse_credit_voucher_redemptions (owner_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_voucher_redemptions_campaign_created
+ON synapse_credit_voucher_redemptions (campaign_id, created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_code_live
+ON synapse_credit_voucher_redemptions (voucher_code_id)
+WHERE status IN ('PENDING', 'COMPLETED', 'REVERSED');
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_owner_client_request
+ON synapse_credit_voucher_redemptions (owner_id, client_request_id)
+WHERE client_request_id IS NOT NULL
+  AND status IN ('PENDING', 'COMPLETED', 'REVERSED');
 
 -- Reconcile legacy lowercase withdrawal statuses into the target uppercase contract.
 

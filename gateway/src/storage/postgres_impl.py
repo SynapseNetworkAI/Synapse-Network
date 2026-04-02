@@ -41,6 +41,7 @@ from src.domain.finance import (
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
+from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -287,6 +288,11 @@ class PostgresStorage(BaseStorage):
         self, command: ReserveProviderWithdrawCommand
     ) -> BalanceMutationResult:
         return self._data_manager.finance.atomic.reserve_provider_withdraw_atomic(command)
+
+    def redeem_credit_voucher_atomic(
+        self, command: VoucherRedeemCommand
+    ) -> VoucherRedemptionResult:
+        return self._data_manager.finance.atomic.redeem_credit_voucher_atomic(command)
 
     def read_audit_rows(
         self, owner_wallet: Optional[str] = None, limit: int = 200
