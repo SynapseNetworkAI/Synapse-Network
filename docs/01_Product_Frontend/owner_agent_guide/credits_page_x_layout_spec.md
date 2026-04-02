@@ -42,6 +42,7 @@ Important:
 
 - `Free Credits Voucher` is a section row, not a boxed card
 - `Remaining balance` in Synapse should use a double-wrap shell: outer billing container + inner X-style panel
+- Synapse override: `Remaining balance` inner panel background is unified to `#1a1a1a` so it matches `Current Billing Cycle`, instead of keeping X's darker black panel
 - `Billing Cycle` and `Manage Spend Cap` use `#1a1a1a` surfaces with `8px` radius
 
 ## 3. Measured layout values
@@ -80,7 +81,7 @@ Important:
 | card height | `148px` |
 | card radius | `12px` |
 | card padding | `16px` |
-| card background | `#0d0d0d` |
+| card background | `#1a1a1a` |
 | card border | `1px solid #232323` |
 | label font size | `14px` |
 | label line height | `20px` |
@@ -158,6 +159,7 @@ Important:
 5. Keep the balance number at `24px`, not oversized hero numerals.
 6. Keep voucher as a bordered section row, not a boxed panel.
 7. The current Synapse Credits page intentionally omits the `Auto Recharge unavailable` block to keep the billing surface simpler.
+8. Synapse intentionally uses the same `#1a1a1a` content background for `Remaining balance` and `Current Billing Cycle` to reduce visual discontinuity.
 
 ## 5. Validation
 

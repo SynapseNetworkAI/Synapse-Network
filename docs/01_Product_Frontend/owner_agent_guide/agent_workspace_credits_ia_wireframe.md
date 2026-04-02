@@ -252,6 +252,11 @@ Rules:
 
 `Billing > Payments` should mirror the X payment-history page, not the old owner treasury dashboard.
 
+Reference layout spec:
+
+1. `docs/01_Product_Frontend/owner_agent_guide/payments_page_x_layout_spec.md`
+2. `docs/01_Product_Frontend/owner_agent_guide/x_console_live_dom_workflow.md`
+
 Use:
 
 1. `Payments`

@@ -133,6 +133,12 @@ describe("OwnerCreditsPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
     );
 
+    expect(await screen.findByText("Remaining balance:")).toBeTruthy();
+    expect(screen.getByText("$20.00")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Purchase credits" })
+    ).toBeTruthy();
+
     await waitFor(() => {
       expect(getOwnerSpendingLimitMock).toHaveBeenCalledWith("0xabc");
     });

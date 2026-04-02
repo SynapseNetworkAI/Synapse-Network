@@ -149,6 +149,8 @@ For any page changed using this workflow:
   - [export_x_console_cookies.py](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/export_x_console_cookies.py)
 - Credits measurement:
   - [measure_x_console_credits.mjs](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/measure_x_console_credits.mjs)
+- Payments measurement:
+  - [measure_x_console_payments.mjs](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/measure_x_console_payments.mjs)
 
 ## 9. Adoption rule
 

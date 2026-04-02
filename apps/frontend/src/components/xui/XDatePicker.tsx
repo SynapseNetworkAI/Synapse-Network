@@ -11,6 +11,7 @@ type XDatePickerProps = {
   min?: string;
   ariaLabel: string;
   className?: string;
+  triggerVariant?: "default" | "payments";
 };
 
 function parseDate(value: string): Date {
@@ -79,6 +80,7 @@ export function XDatePicker({
   min,
   ariaLabel,
   className,
+  triggerVariant = "default",
 }: Readonly<XDatePickerProps>) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -132,7 +134,10 @@ export function XDatePicker({
         aria-label={ariaLabel}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="x-date-trigger"
+        className={cx(
+          "x-date-trigger",
+          triggerVariant === "payments" && "x-date-trigger-payments"
+        )}
       >
         <CalendarDays className="h-4 w-4 text-[#d6d9db]" />
         <span>{formatTriggerLabel(value)}</span>

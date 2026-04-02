@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import type { MouseEvent } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect } from "wagmi";
 import toast from "react-hot-toast";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { useDashboardNavigationFeedback } from "@/components/dashboard/DashboardNavigationFeedback";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { buildAuthedHeaders, clearAuthSession } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
@@ -34,10 +35,12 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
   const activePath = pathname ?? "";
   const router = useRouter();
+  const [, startNavigationTransition] = useTransition();
   const { address } = useAccount();
   const { disconnect } = useDisconnect();
   const { openConnectModal } = useConnectModal();
   const { isConnected, isSessionAuthenticated, authorize } = useAuth();
+  const { beginNavigation } = useDashboardNavigationFeedback();
   const { t } = useLanguage();
 
   const providerRoot = "/provider";
@@ -136,26 +139,86 @@ export default function DashboardSidebar() {
     return event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
   };
 
+  const queueNavigation = useCallback(
+    (href: string) => {
+      beginNavigation(href);
+
+      const navigate = () => {
+        startNavigationTransition(() => {
+          router.push(href);
+        });
+      };
+
+      if (typeof globalThis.requestAnimationFrame === "function") {
+        globalThis.requestAnimationFrame(navigate);
+        return;
+      }
+
+      globalThis.setTimeout(navigate, 0);
+    },
+    [beginNavigation, router, startNavigationTransition]
+  );
+
+  const handleSidebarNavigation = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+      if (shouldBypassNavGuard(event)) {
+        return;
+      }
+
+      if (activePath === href) {
+        event.preventDefault();
+        return;
+      }
+
+      event.preventDefault();
+      queueNavigation(href);
+    },
+    [activePath, queueNavigation]
+  );
+
+  const prefetchRoute = useCallback(
+    (href: string) => {
+      router.prefetch(href);
+    },
+    [router]
+  );
+
+  const getRouteLinkProps = useCallback(
+    (href: string) => ({
+      href,
+      onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+        handleSidebarNavigation(event, href);
+      },
+      onMouseEnter: () => {
+        prefetchRoute(href);
+      },
+      onFocus: () => {
+        prefetchRoute(href);
+      },
+    }),
+    [handleSidebarNavigation, prefetchRoute]
+  );
+
   const handleSettlementsNavigation = async (event: MouseEvent<HTMLAnchorElement>) => {
     if (shouldBypassNavGuard(event)) {
       return;
     }
 
+    event.preventDefault();
+
     if (!isConnected) {
-      event.preventDefault();
       openConnectModal?.();
       return;
     }
 
-    if (isSessionAuthenticated) {
-      return;
+    if (!isSessionAuthenticated) {
+      const authorized = await authorize();
+      if (!authorized) {
+        return;
+      }
     }
 
-    event.preventDefault();
-    const authorized = await authorize();
-    if (authorized) {
-      router.push(providerSettlementsRoute);
-    }
+    queueNavigation(providerSettlementsRoute);
   };
 
   const handleLogout = useCallback(async () => {
@@ -191,20 +254,20 @@ export default function DashboardSidebar() {
           {t("sidebar.ownerControl")}
         </h3>
         <nav className="flex flex-col gap-0.5">
-          <Link href="/dashboard/overview" className={getLinkClasses(["/dashboard/overview"], true)}>
+          <Link {...getRouteLinkProps("/dashboard/overview")} className={getLinkClasses(["/dashboard/overview"], true)}>
             <LayoutGrid className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.overview")}
           </Link>
-          <Link href="/dashboard/agents" className={getLinkClasses("/dashboard/agents", false)}>
+          <Link {...getRouteLinkProps("/dashboard/agents")} className={getLinkClasses("/dashboard/agents", false)}>
             <Bot className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.agents")}
             <span className={getBadgeClasses(isRouteActive("/dashboard/agents"))}>3</span>
           </Link>
-          <Link href="/dashboard/discovery" className={getLinkClasses("/dashboard/discovery", false)}>
+          <Link {...getRouteLinkProps("/dashboard/discovery")} className={getLinkClasses("/dashboard/discovery", false)}>
             <Compass className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.discovery")}
           </Link>
-          <Link href="/dashboard/invocations" className={getLinkClasses("/dashboard/invocations", false)}>
+          <Link {...getRouteLinkProps("/dashboard/invocations")} className={getLinkClasses("/dashboard/invocations", false)}>
             <History className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.invocations")}
           </Link>
@@ -223,19 +286,19 @@ export default function DashboardSidebar() {
           </button>
           {billingExpanded ? (
             <div id="dashboard-billing-subnav" className="pb-1">
-              <Link href="/dashboard/billing/credits" className={getSubLinkClasses("/dashboard/billing/credits")}>
+              <Link {...getRouteLinkProps("/dashboard/billing/credits")} className={getSubLinkClasses("/dashboard/billing/credits")}>
                 {t("sidebar.credits")}
               </Link>
-              <Link href="/dashboard/billing" className={getSubLinkClasses("/dashboard/billing")}>
+              <Link {...getRouteLinkProps("/dashboard/billing")} className={getSubLinkClasses("/dashboard/billing")}>
                 {t("sidebar.payments")}
               </Link>
             </div>
           ) : null}
-          <Link href="/dashboard/audit" className={getLinkClasses(["/dashboard/audit"], false)}>
+          <Link {...getRouteLinkProps("/dashboard/audit")} className={getLinkClasses(["/dashboard/audit"], false)}>
             <AlertTriangle className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.riskAudit")}
           </Link>
-          <Link href="/dashboard/developer" className={getLinkClasses(["/dashboard/developer"], false)}>
+          <Link {...getRouteLinkProps("/dashboard/developer")} className={getLinkClasses(["/dashboard/developer"], false)}>
             <Terminal className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.developerResources")}
           </Link>
@@ -249,26 +312,32 @@ export default function DashboardSidebar() {
           {t("sidebar.providerRole")}
         </h3>
         <nav className="flex flex-col gap-0.5">
-          <Link href={providerConsoleRoute} className={getLinkClasses([providerConsoleRoute, `${providerRoot}/sell`], false)}>
+          <Link {...getRouteLinkProps(providerConsoleRoute)} className={getLinkClasses([providerConsoleRoute, `${providerRoot}/sell`], false)}>
             <LayoutGrid className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.providerConsole")}
           </Link>
-          <Link href={`${providerRoot}/secrets`} className={getLinkClasses([`${providerRoot}/secrets`], false)}>
+          <Link {...getRouteLinkProps(`${providerRoot}/secrets`)} className={getLinkClasses([`${providerRoot}/secrets`], false)}>
             <Key className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.providerCredentials")}
           </Link>
-          <Link href={`${providerRoot}/services`} className={getLinkClasses([`${providerRoot}/services`], false)}>
+          <Link {...getRouteLinkProps(`${providerRoot}/services`)} className={getLinkClasses([`${providerRoot}/services`], false)}>
             <Box className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.myServices")}
             <span className={getBadgeClasses(isRouteActive(`${providerRoot}/services`))}>2</span>
           </Link>
-          <Link href={`${providerRoot}/usage`} className={getLinkClasses([`${providerRoot}/usage`], false)}>
+          <Link {...getRouteLinkProps(`${providerRoot}/usage`)} className={getLinkClasses([`${providerRoot}/usage`], false)}>
             <AreaChart className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.usageAnalytics")}
           </Link>
           <Link
             href={providerSettlementsRoute}
             className={getLinkClasses([providerSettlementsRoute], false)}
+            onMouseEnter={() => {
+              prefetchRoute(providerSettlementsRoute);
+            }}
+            onFocus={() => {
+              prefetchRoute(providerSettlementsRoute);
+            }}
             onClick={(event) => {
               void handleSettlementsNavigation(event);
             }}
@@ -296,7 +365,7 @@ export default function DashboardSidebar() {
           </button>
           {accountExpanded ? (
             <div id="dashboard-account-subnav" className="pb-1">
-              <Link href="/dashboard/account/settings" className={getSubLinkClasses("/dashboard/account/settings")}>
+              <Link {...getRouteLinkProps("/dashboard/account/settings")} className={getSubLinkClasses("/dashboard/account/settings")}>
                 <Settings className="mr-3 h-4 w-4 text-white/46" />
                 {t("sidebar.settings")}
               </Link>
