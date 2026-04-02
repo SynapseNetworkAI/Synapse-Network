@@ -14,8 +14,10 @@ type TopNavHref = "/marketplace" | "/blog" | "/about" | "/docs";
 export default function Navbar() {
   const pathname = usePathname();
   const activePath = pathname ?? "/";
+  const isDocsPage = activePath.startsWith("/docs");
   const isMarketingPage =
-    activePath === "/" || activePath === "/marketplace" || activePath === "/blog" || activePath === "/about" || activePath.startsWith("/docs");
+    !isDocsPage &&
+    (activePath === "/" || activePath === "/marketplace" || activePath === "/blog" || activePath === "/about");
   const { t, lang } = useLanguage();
 
   const [gatewayStatus, setGatewayStatus] = useState<"online" | "offline" | "checking">("checking");
@@ -162,6 +164,9 @@ export default function Navbar() {
       <span className="absolute left-[10px] right-[10px] top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-white/0 via-white/52 to-white/0" />
     </span>
   );
+
+  // Docs pages render their own DocsTopNav — suppress the global navbar
+  if (isDocsPage) return null;
 
   return (
     <>
