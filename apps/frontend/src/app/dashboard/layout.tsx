@@ -9,7 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <WalletAuthGuard>
-      <div className="flex bg-[#050505] min-h-[calc(100vh-73px)]">
+      <div className="flex bg-[#050505] min-h-[calc(100vh-60px)]">
         <DashboardSidebar />
         <main className="min-w-0 flex-1 overflow-x-hidden">
           <RoleGuard>

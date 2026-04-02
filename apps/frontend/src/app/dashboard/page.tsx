@@ -20,7 +20,7 @@ export default function DashboardIndex() {
 
   if (!mounted) return null;
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-73px)]">
+    <div className="flex items-center justify-center min-h-[calc(100vh-60px)]">
       <div className="animate-pulse text-green-500">Redirecting to workspace...</div>
     </div>
   );

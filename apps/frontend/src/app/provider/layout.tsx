@@ -9,7 +9,7 @@ export default function ProviderLayout({
 }) {
   return (
     <WalletAuthGuard>
-      <div className="flex bg-[#050505] min-h-[calc(100vh-73px)]">
+      <div className="flex bg-[#050505] min-h-[calc(100vh-60px)]">
         <DashboardSidebar />
         <main className="flex-1 overflow-x-hidden">
           <RoleGuard>

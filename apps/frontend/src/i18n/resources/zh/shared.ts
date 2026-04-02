@@ -10,6 +10,8 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettin
     blog: "博客",
     about: "关于",
     documentation: "文档",
+    forum: "论坛",
+    notifications: "通知",
     gatewayNode: "网关节点",
     online: "在线",
     offline: "离线",

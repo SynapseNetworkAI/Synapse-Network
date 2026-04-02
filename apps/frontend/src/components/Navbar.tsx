@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Network, Search } from "lucide-react";
+import { Bell, ExternalLink, Network, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import QuickAccessDialog from "@/components/QuickAccessDialog";
@@ -154,6 +154,13 @@ export default function Navbar() {
     </span>
   );
 
+  const consoleBrandMark = (
+    <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#2f3336] bg-transparent text-[#e7e9ea]">
+      <span className="absolute left-[8px] top-[6px] h-[1.5px] w-[15px] rotate-45 rounded-full bg-current" />
+      <span className="absolute left-[8px] top-[20px] h-[1.5px] w-[15px] -rotate-45 rounded-full bg-current" />
+    </span>
+  );
+
   return (
     <>
       {isMarketingPage ? (
@@ -252,53 +259,65 @@ export default function Navbar() {
           </div>
         </nav>
       ) : (
-        <nav className="sticky top-0 z-50 border-b border-white/6 bg-[#050608]/92 backdrop-blur-xl">
-          <div className="flex h-[60px] items-center gap-3 px-4 sm:px-5 lg:grid lg:grid-cols-[270px_minmax(320px,440px)_1fr] lg:px-0">
-            <div className="flex min-w-0 items-center lg:h-full lg:border-r lg:border-white/6 lg:px-6">
+        <nav className="sticky top-0 z-50 border-b border-[#2f3336] bg-[#000000]">
+          <div className="relative flex h-[60px] items-center px-4 sm:px-5 lg:px-7">
+            <div className="flex min-w-0 w-[270px] items-center">
               <Link href="/dashboard/overview" className="group flex min-w-0 items-center gap-3 text-white">
-                {brandMark}
-                <span className="min-w-0 leading-none">
-                  <span className="block truncate text-[1.05rem] font-semibold tracking-[-0.04em] text-white/96">Synapse Network</span>
-                  <span className="mt-1 block truncate text-[10px] font-medium uppercase tracking-[0.22em] text-white/34">
-                    {t("nav.productTagline")}
-                  </span>
+                {consoleBrandMark}
+                <span className="min-w-0 truncate text-[14px] font-semibold tracking-[-0.01em] text-[#e7e9ea]">
+                  Synapse Developer Console
                 </span>
               </Link>
             </div>
 
-            <div className="hidden items-center justify-center px-6 lg:flex">
+            <div className="absolute left-1/2 top-1/2 hidden w-[min(440px,calc(100vw-720px))] min-w-[320px] -translate-x-1/2 -translate-y-1/2 lg:block">
               <button
                 type="button"
                 onClick={() => setQuickAccessOpen(true)}
-                className="flex h-10 w-full items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.025] px-4 text-left text-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-white/16 hover:bg-white/[0.045] hover:text-white/86"
+                className="flex h-10 w-full items-center gap-3 rounded-[12px] border border-[#2f3336] bg-transparent px-4 text-left text-[#71767b] transition hover:border-[#3d4043] hover:bg-[#080808] hover:text-[#e7e9ea]"
                 aria-label={t("nav.search")}
               >
-                <Search className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{t("nav.search")}</span>
-                <span className="rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/42">
+                <Search className="h-[18px] w-[18px] shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-[15px] font-normal">{t("nav.search")}</span>
+                <span className="text-[13px] font-normal tracking-[0.01em] text-[#71767b]">
                   Ctrl+K
                 </span>
               </button>
             </div>
 
-            <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3 lg:px-6">
+            <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setQuickAccessOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-white/10 bg-white/[0.03] text-white/72 transition hover:border-white/16 hover:bg-white/[0.06] hover:text-white lg:hidden"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-[#2f3336] bg-transparent text-[#71767b] transition hover:border-[#3d4043] hover:bg-[#080808] hover:text-[#e7e9ea] lg:hidden"
                 aria-label={t("nav.search")}
               >
                 <Search className="h-4 w-4" />
               </button>
-              <div className="hidden items-center gap-5 text-[13px] font-medium text-white/46 xl:flex">
-                <Link href="/dashboard/developer" className="transition hover:text-white/88">
+              <div className="hidden items-center gap-7 xl:flex">
+                <Link
+                  href="/dashboard/developer"
+                  className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
+                >
                   {t("nav.documentation")}
+                  <ExternalLink className="h-3.5 w-3.5 text-[#71767b]" />
                 </Link>
-                <Link href="/marketplace" className="transition hover:text-white/88">
-                  {t("nav.apiMarketplace")}
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
+                >
+                  {t("nav.forum")}
+                  <ExternalLink className="h-3.5 w-3.5 text-[#71767b]" />
+                </Link>
+                <Link
+                  href="/dashboard/audit"
+                  className="inline-flex items-center justify-center text-[#71767b] transition hover:text-[#e7e9ea]"
+                  aria-label={t("nav.notifications")}
+                >
+                  <Bell className="h-[18px] w-[18px]" />
                 </Link>
               </div>
-              <LanguageSwitcher className="h-10 min-w-[92px] rounded-[14px] border border-white/10 bg-white/[0.03] px-3 pr-3 text-[12px] font-semibold tracking-[0.06em] text-white/92 outline-none transition hover:border-white/18 hover:bg-white/[0.06] focus:border-white/28" />
+              <LanguageSwitcher className="h-10 min-w-[122px] rounded-full border border-[#2f3336] bg-transparent px-3 pr-3 text-[15px] font-normal tracking-[0.01em] text-[#e7e9ea] outline-none transition hover:border-[#3d4043] hover:bg-[#080808] focus:border-[#3d4043]" />
             </div>
           </div>
         </nav>
