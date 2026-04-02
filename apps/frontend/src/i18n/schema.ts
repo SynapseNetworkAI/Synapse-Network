@@ -7,6 +7,7 @@ export type I18nMessages = {
     apiMarketplace: string;
     blog: string;
     about: string;
+    docs: string;
     documentation: string;
     forum: string;
     notifications: string;

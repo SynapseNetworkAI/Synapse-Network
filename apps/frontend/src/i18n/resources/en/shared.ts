@@ -9,6 +9,7 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettin
     apiMarketplace: "API Marketplace",
     blog: "Blog",
     about: "About",
+    docs: "Docs",
     documentation: "Documentation",
     forum: "Forum",
     notifications: "Notifications",
