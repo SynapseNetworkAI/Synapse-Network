@@ -65,115 +65,161 @@ export default function OwnerBillingPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1040px] px-8 py-10">
-      <div className="border-b border-white/8 pb-9">
-        <h1 className="text-[43px] font-semibold tracking-[-0.04em] text-white">{t("billingPage.title")}</h1>
-        <p className="mt-3 text-[18px] text-[#8b98b4]">{t("billingPage.description")}</p>
+    <div className="mx-auto w-full max-w-[1024px] px-4 pb-24 pt-12 sm:px-6 lg:px-0">
+      <div className="border-b border-[#2f3336] pb-8">
+        <h1 className="text-[24px] font-normal leading-[32px] tracking-[-0.01em] text-white">
+          {t("billingPage.title")}
+        </h1>
+        <p className="mt-2 text-[16px] leading-[24px] text-[#9ca3af]">
+          {t("billingPage.description")}
+        </p>
       </div>
 
-      <section className="mt-12 rounded-[18px] border border-white/10 bg-[#1f1f1f] px-4 py-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-        <div className="rounded-[12px] border border-white/10 bg-[#232323] px-10 py-9">
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_320px_1fr] lg:items-end">
-            <div>
-              <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">{t("billingPage.fromLabel")}</p>
-              <XDatePicker
-                value={fromDate}
-                onChange={handleFromDateChange}
-                max={today}
-                ariaLabel={t("billingPage.fromLabel")}
-              />
+      <section className="py-8">
+        <div className="rounded-[12px] border border-[#232323] bg-[#0d0d0d] p-4">
+          <div className="rounded-[8px] border border-[#323232] bg-[#1a1a1a] p-6">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="flex w-full flex-col gap-2 sm:max-w-xs">
+                <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
+                  {t("billingPage.fromLabel")}
+                </p>
+                <XDatePicker
+                  value={fromDate}
+                  onChange={handleFromDateChange}
+                  max={today}
+                  ariaLabel={t("billingPage.fromLabel")}
+                  triggerVariant="payments"
+                />
+              </div>
+
+              <div className="flex w-full flex-col gap-2 sm:max-w-xs">
+                <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
+                  {t("billingPage.toLabel")}
+                </p>
+                <XDatePicker
+                  value={toDate}
+                  onChange={handleToDateChange}
+                  min={fromDate}
+                  max={today}
+                  ariaLabel={t("billingPage.toLabel")}
+                  triggerVariant="payments"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setFromDate("2026-01-01");
+                  setToDate(today);
+                }}
+                className="mt-2 h-8 w-full rounded-[6px] px-3 text-[14px] font-normal leading-[20px] text-[#6b7280] transition hover:bg-white/10 hover:text-[#9ca3af] sm:ml-auto sm:mt-0 sm:w-auto"
+              >
+                {t("billingPage.resetRange")}
+              </button>
             </div>
 
-            <div>
-              <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#8b98b4]">{t("billingPage.toLabel")}</p>
-              <XDatePicker
-                value={toDate}
-                onChange={handleToDateChange}
-                min={fromDate}
-                max={today}
-                ariaLabel={t("billingPage.toLabel")}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setFromDate("2026-01-01");
-                setToDate(today);
-              }}
-              className="h-11 justify-self-start text-[14px] font-medium text-[#5f6468] transition hover:text-[#8b98b4] lg:justify-self-end lg:text-right"
-            >
-              {t("billingPage.resetRange")}
-            </button>
-          </div>
-
-          <div className="mt-8 overflow-hidden rounded-[8px]">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-white/10 text-[12px] font-medium text-white">
-                  <th className="px-4 py-4">{t("billingPage.tableTransactionId")}</th>
-                  <th className="px-4 py-4">{t("billingPage.tableStatus")}</th>
-                  <th className="px-4 py-4">{t("billingPage.tablePaymentMethod")}</th>
-                  <th className="px-4 py-4">{t("billingPage.tableAmount")}</th>
-                  <th className="px-4 py-4">{t("billingPage.tableDate")}</th>
-                  <th className="px-4 py-4 text-right">{t("billingPage.tableInvoice")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr className="border-b border-white/10">
-                    <td colSpan={6} className="px-4 py-8 text-center text-[15px] text-[#8b98b4]">
-                      {t("billingPage.loading")}
-                    </td>
+            <div className="overflow-x-auto overflow-y-visible -mx-2 sm:mx-0">
+              <table className="relative w-full min-w-[600px] sm:min-w-0">
+                <thead>
+                  <tr className="border-b border-[#373737]">
+                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+                      {t("billingPage.tableTransactionId")}
+                    </th>
+                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+                      {t("billingPage.tableStatus")}
+                    </th>
+                    <th className="hidden px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db] sm:table-cell">
+                      {t("billingPage.tablePaymentMethod")}
+                    </th>
+                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+                      {t("billingPage.tableAmount")}
+                    </th>
+                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+                      {t("billingPage.tableDate")}
+                    </th>
+                    <th className="px-4 py-3 text-right text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+                      {t("billingPage.tableInvoice")}
+                    </th>
                   </tr>
-                ) : filteredRecords.length === 0 ? (
-                  <tr className="border-b border-white/10">
-                    <td colSpan={6} className="px-4 py-8 text-center text-[15px] text-[#8b98b4]">
-                      {t("billingPage.empty")}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRecords.map((row) => {
-                    const isSuccess = row.status === "COMPLETED";
-                    return (
-                      <tr key={row.id} className="border-b border-white/8 text-[15px] text-white last:border-b-0">
-                        <td className="px-4 py-5 font-mono font-semibold text-[#dfe3e6]">{transactionIdForRecord(row.id)}</td>
-                        <td className="px-4 py-5">
-                          <span className={isSuccess ? "font-semibold text-[#35d07f]" : row.status === "FAILED" ? "font-semibold text-[#ff6b6b]" : "font-semibold text-[#f3b24d]"}>
-                            {row.status === "COMPLETED"
-                              ? t("billingPage.statusSucceeded")
-                              : row.status === "FAILED"
-                                ? t("billingPage.statusFailed")
-                                : t("billingPage.statusPending")}
-                          </span>
-                        </td>
-                        <td className="px-4 py-5">
-                          <span className="inline-flex rounded-[6px] bg-white/8 px-3 py-1 text-[14px] text-[#dfe3e6]">
-                            {paymentMethodForRecord(row.type)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-5 font-semibold text-white">${row.amount.toFixed(2)}</td>
-                        <td className="px-4 py-5 text-[#dfe3e6]">{formatDateLabel(row.timestamp, lang)}</td>
-                        <td className="px-4 py-5 text-right">
-                          {row.txHash ? (
-                            <a
-                              href={`https://etherscan.io/tx/${row.txHash}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center justify-end text-[#8b98b4] transition hover:text-white"
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr className="border-b border-[#232323]">
+                      <td
+                        colSpan={6}
+                        className="px-4 py-8 text-center text-[15px] leading-6 text-[#9ca3af]"
+                      >
+                        {t("billingPage.loading")}
+                      </td>
+                    </tr>
+                  ) : filteredRecords.length === 0 ? (
+                    <tr className="border-b border-[#232323]">
+                      <td
+                        colSpan={6}
+                        className="px-4 py-8 text-center text-[15px] leading-6 text-[#9ca3af]"
+                      >
+                        {t("billingPage.empty")}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRecords.map((row) => {
+                      const isSuccess = row.status === "COMPLETED";
+                      const isFailed = row.status === "FAILED";
+                      return (
+                        <tr
+                          key={row.id}
+                          className="border-b border-[#232323] last:border-b-0"
+                        >
+                          <td className="px-4 py-4 font-mono text-[16px] font-medium leading-6 text-white">
+                            {transactionIdForRecord(row.id)}
+                          </td>
+                          <td className="px-4 py-4 text-[16px] leading-6">
+                            <span
+                              className={
+                                isSuccess
+                                  ? "font-medium text-[#35d07f]"
+                                  : isFailed
+                                    ? "font-medium text-[#ff6b6b]"
+                                    : "font-medium text-[#f3b24d]"
+                              }
                             >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <span className="text-[#5f6468]">--</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                              {row.status === "COMPLETED"
+                                ? t("billingPage.statusSucceeded")
+                                : row.status === "FAILED"
+                                  ? t("billingPage.statusFailed")
+                                  : t("billingPage.statusPending")}
+                            </span>
+                          </td>
+                          <td className="hidden px-4 py-4 text-[16px] leading-6 text-[#71767b] sm:table-cell">
+                            {paymentMethodForRecord(row.type)}
+                          </td>
+                          <td className="px-4 py-4 text-[16px] leading-6 text-white">
+                            ${row.amount.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-4 text-[16px] leading-6 text-[#71767b]">
+                            {formatDateLabel(row.timestamp, lang)}
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            {row.txHash ? (
+                              <a
+                                href={`https://etherscan.io/tx/${row.txHash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center justify-end text-[#71767b] transition hover:text-white"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            ) : (
+                              <span className="text-[#5f6468]">--</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>

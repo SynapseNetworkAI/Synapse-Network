@@ -8,6 +8,7 @@ import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
 import ManageSpendCapModal from "@/components/dashboard-workspace/ManageSpendCapModal";
 import RedeemVoucherModal from "@/components/dashboard-workspace/RedeemVoucherModal";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import DashboardPageLoadingState from "@/components/loading/DashboardPageLoadingState";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useVaultDeposit } from "@/hooks/useVaultDeposit";
@@ -44,11 +45,12 @@ export default function OwnerCreditsPage() {
   const { address: userAddress, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated, authorize } = useAuth();
-  const { stats, handleRefresh } = useOwnerData();
+  const { stats, handleRefresh, isBootstrapping } = useOwnerData();
   const [spendingLimit, setSpendingLimit] = useState<OwnerSpendingLimit | null>(
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const [isSpendCapLoading, setIsSpendCapLoading] = useState(false);
   const [isSpendCapAvailable, setIsSpendCapAvailable] = useState(true);
   const [isSpendCapModalOpen, setIsSpendCapModalOpen] = useState(false);
   const [isRedeemVoucherModalOpen, setIsRedeemVoucherModalOpen] =
@@ -57,11 +59,13 @@ export default function OwnerCreditsPage() {
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
       setSpendingLimit(null);
+      setIsSpendCapLoading(false);
       setIsSpendCapAvailable(true);
       return;
     }
 
     try {
+      setIsSpendCapLoading(true);
       setError(null);
       const nextLimit = await getOwnerSpendingLimit(userAddress);
       setSpendingLimit(nextLimit);
@@ -80,6 +84,8 @@ export default function OwnerCreditsPage() {
       );
       setSpendingLimit(null);
       setIsSpendCapAvailable(false);
+    } finally {
+      setIsSpendCapLoading(false);
     }
   }, [isConnected, isSessionAuthenticated, userAddress]);
 
@@ -204,6 +210,10 @@ export default function OwnerCreditsPage() {
     [fetchSpendingLimit, handleRefresh, t, userAddress]
   );
 
+  if (isConnected && isSessionAuthenticated && (isBootstrapping || isSpendCapLoading)) {
+    return <DashboardPageLoadingState />;
+  }
+
   return (
     <div className="mx-auto w-full max-w-[768px] px-4 pb-24 pt-12 sm:px-6 lg:px-0">
       <div className="border-b border-[#2f3336] pb-8">
@@ -224,8 +234,7 @@ export default function OwnerCreditsPage() {
 
         <section className="border-b border-[#232323] py-8 first:pt-0">
           <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-            <div className="rounded-[12px] border border-[#232323] bg-[#0d0d0d] p-4">
-              <div className="flex min-h-[148px] flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
                 <div>
                   <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
                     {t("creditsPage.remainingBalanceLabel")}
@@ -234,7 +243,7 @@ export default function OwnerCreditsPage() {
                     <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
                       {formatUsd(creditSummary.remainingBalance)}
                     </p>
-                    <CircleAlert className="h-[14px] w-[14px] text-[#9ca3af]" />
+                    <CircleAlert className="h-[14px] w-[14px] text-[#71767b]" />
                   </div>
                 </div>
                 <button
@@ -242,11 +251,10 @@ export default function OwnerCreditsPage() {
                   onClick={() => {
                     void handleOpenPurchaseCredits();
                   }}
-                  className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb]"
+                  className="inline-flex h-[36px] min-w-[143px] items-center justify-center self-start whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] md:self-auto"
                 >
                   {t("creditsPage.purchaseCredits")}
                 </button>
-              </div>
             </div>
           </div>
 

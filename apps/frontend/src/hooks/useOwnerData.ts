@@ -19,6 +19,7 @@ export type OwnerStats = {
 export function useOwnerData() {
 	const { address: userAddress, isConnected } = useAccount();
 	const { isSessionAuthenticated } = useAuth();
+	const [isBootstrapping, setIsBootstrapping] = useState(false);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
 	const [stats, setStats] = useState<OwnerStats>({
@@ -79,9 +80,22 @@ export function useOwnerData() {
 	}, []);
 
 	useEffect(() => {
-		if (isConnected && userAddress && isSessionAuthenticated) {
-			void fetchOwnerData(userAddress);
-		} else {
+		let isActive = true;
+
+		const bootstrapOwnerData = async () => {
+			if (isConnected && userAddress && isSessionAuthenticated) {
+				setIsBootstrapping(true);
+				try {
+					await fetchOwnerData(userAddress);
+				} finally {
+					if (isActive) {
+						setIsBootstrapping(false);
+					}
+				}
+				return;
+			}
+
+			setIsBootstrapping(false);
 			setStats({
 				ownerBalance: "0.00",
 				todaySpend: "0.00",
@@ -89,7 +103,13 @@ export function useOwnerData() {
 				blockedCalls: 0,
 			});
 			setLogs([]);
-		}
+		};
+
+		void bootstrapOwnerData();
+
+		return () => {
+			isActive = false;
+		};
 	}, [isConnected, isSessionAuthenticated, userAddress, fetchOwnerData]);
 
 	const handleRefresh = useCallback(async () => {
@@ -102,6 +122,7 @@ export function useOwnerData() {
 
 	return {
 		userAddress,
+		isBootstrapping,
 		isRefreshing,
 		stats,
 		logs,

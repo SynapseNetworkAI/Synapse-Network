@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useAccount } from "wagmi";
+import DashboardPageLoadingState from "@/components/loading/DashboardPageLoadingState";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
@@ -13,8 +14,12 @@ import { RefreshCw, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu
 export default function OverviewPage() {
   const { isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
-  const { stats, handleRefresh, isRefreshing } = useOwnerData();
+  const { handleRefresh, isRefreshing, isBootstrapping } = useOwnerData();
   const { t } = useLanguage();
+
+  if (isConnected && isSessionAuthenticated && isBootstrapping) {
+    return <DashboardPageLoadingState />;
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#f5f5f7] font-sans selection:bg-white/90 selection:text-black">
