@@ -1,11 +1,11 @@
 ---
 description: "Use when writing or modifying admin console, admin-front table, list page, filters, pagination, approval status, audit status, review state, admin dashboard, or stitch-aligned control-plane UX. Covers admin-front list semantics, backend-owned status truth, and operational UI patterns."
 applyTo:
-  - "admin/admin-front/**/*.ts"
-  - "admin/admin-front/**/*.tsx"
-  - "admin/admin-front/**/*.js"
-  - "admin/admin-front/**/*.jsx"
-  - "admin/admin-front/**/*.css"
+  - "services/admin-front/**/*.ts"
+  - "services/admin-front/**/*.tsx"
+  - "services/admin-front/**/*.js"
+  - "services/admin-front/**/*.jsx"
+  - "services/admin-front/**/*.css"
 name: "Synapse Admin Console Rules"
 ---
 
@@ -13,7 +13,7 @@ name: "Synapse Admin Console Rules"
 
 ## Scope
 
-- This file is specific to `admin/admin-front` control-plane work.
+- This file is specific to `services/admin-front` control-plane work.
 - It refines the general frontend rules with admin-console-specific list, status, and operational UX constraints.
 
 ## Source of Truth

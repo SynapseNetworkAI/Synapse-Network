@@ -1,5 +1,5 @@
 const hre = require("hardhat");
-const contractConfig = require("../../apps/frontend/src/contract-config.json");
+const contractConfig = require("../../services/user-front/src/contract-config.json");
 
 async function main() {
     const usdc = await hre.ethers.getContractAt("MockUSDC", contractConfig.MockUSDC);

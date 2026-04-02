@@ -1,16 +1,16 @@
 ---
-description: "Use when writing or modifying frontend, React, Next.js, TypeScript, Tailwind, Chakra UI, dashboard, component, page, layout, styling, i18n, admin-front, or apps/frontend code. Covers Next 14 and React 18 baseline, reuse, visual consistency, and frontend UX rules."
+description: "Use when writing or modifying frontend, React, Next.js, TypeScript, Tailwind, Chakra UI, dashboard, component, page, layout, styling, i18n, admin-front, or services/user-front code. Covers Next 14 and React 18 baseline, reuse, visual consistency, and frontend UX rules."
 applyTo:
-  - "apps/frontend/**/*.ts"
-  - "apps/frontend/**/*.tsx"
-  - "apps/frontend/**/*.js"
-  - "apps/frontend/**/*.jsx"
-  - "apps/frontend/**/*.css"
-  - "admin/admin-front/**/*.ts"
-  - "admin/admin-front/**/*.tsx"
-  - "admin/admin-front/**/*.js"
-  - "admin/admin-front/**/*.jsx"
-  - "admin/admin-front/**/*.css"
+  - "services/user-front/**/*.ts"
+  - "services/user-front/**/*.tsx"
+  - "services/user-front/**/*.js"
+  - "services/user-front/**/*.jsx"
+  - "services/user-front/**/*.css"
+  - "services/admin-front/**/*.ts"
+  - "services/admin-front/**/*.tsx"
+  - "services/admin-front/**/*.js"
+  - "services/admin-front/**/*.jsx"
+  - "services/admin-front/**/*.css"
 name: "Synapse Frontend Rules"
 ---
 
@@ -18,14 +18,14 @@ name: "Synapse Frontend Rules"
 
 ## Scope
 
-- This file carries shared frontend rules for `apps/frontend` and `admin/admin-front`.
+- This file carries shared frontend rules for `services/user-front` and `services/admin-front`.
 - Product role boundaries, local package-manager rules, and app-specific run commands stay in each subproject's AGENTS file.
 
 ## Runtime Baseline
 
 - Primary frontend stack is Next.js `14.2.x`, React `18`, and TypeScript `5`.
-- `apps/frontend` uses TailwindCSS `3.4.x` and wallet/web3 UI integrations.
-- `admin/admin-front` uses Next.js with Chakra UI and a more ops-heavy console surface.
+- `services/user-front` uses TailwindCSS `3.4.x` and wallet/web3 UI integrations.
+- `services/admin-front` uses Next.js with Chakra UI and a more ops-heavy console surface.
 - Respect the existing stack in each app. Do not add a new UI framework or state library without a strong reason.
 
 ## Product and UX Direction
@@ -50,8 +50,8 @@ name: "Synapse Frontend Rules"
 
 ## App-Specific Conventions
 
-- In `apps/frontend`, keep user-facing copy and information architecture aligned with the central product docs and i18n resources.
-- In `admin/admin-front`, keep UX semantics aligned with `docs/admin/` and the stitch prototypes for that surface.
+- In `services/user-front`, keep user-facing copy and information architecture aligned with the central product docs and i18n resources.
+- In `services/admin-front`, keep UX semantics aligned with `docs/admin/` and the stitch prototypes for that surface.
 - Do not make the frontend invent backend truth for approvals, pagination, review states, or system status if the backend should own it.
 
 ## Types, Data, and Contracts

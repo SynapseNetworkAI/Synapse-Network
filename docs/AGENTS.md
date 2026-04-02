@@ -32,7 +32,7 @@ AI-readable repository entrypoints now also include:
 
 - root `llms.txt` for the shortest machine-readable repo map
 - `docs/ARCHITECTURE.md` for the top-level system model
-- `docs/exec-plans/` for persistent multi-step execution plans
+- `docs/00_Governance/exec-plans/` for persistent multi-step execution plans
 
 ### 4.1 Canonical Workspace Layer
 
@@ -61,9 +61,9 @@ Recommended split:
 - `docs-sync.instructions.md`: behavior-change sync rules for code, tests, docs, and instructions
 - `safety-guard.instructions.md`: pre-flight safety checklist and blocked-patterns gate for production deployments, migrations, destructive DB ops, and irreversible operations\n\n### 4.3 Subproject Local Layer
 
-- `apps/frontend/AGENTS.md`
-- `admin/admin-front/AGENTS.md`
-- `admin/gateway-admin/AGENTS.md`
+- `services/user-front/AGENTS.md`
+- `services/admin-front/AGENTS.md`
+- `services/gateway-admin/AGENTS.md`
 - `provider_service/AGENTS.md`
 - Purpose: local role boundaries, package-manager rules, runtime commands, validation entrypoints, and project-specific exceptions.
 

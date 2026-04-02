@@ -65,7 +65,7 @@ Recommended split for backend services:
 
 ## Workspace-Specific Reminders
 
-- `gateway`, `provider_service`, and `admin/gateway-admin` are not interchangeable runtimes. Preserve each service boundary.
+- `gateway`, `provider_service`, and `services/gateway-admin` are not interchangeable runtimes. Preserve each service boundary.
 - Gateway and finance-sensitive code paths must favor consistency and auditability over convenience.
 - Provider runtimes should not absorb gateway settlement or admin-control-plane responsibilities.
 
@@ -92,4 +92,4 @@ Recommended split for backend services:
 
 **Service boundary violations**
 - `gateway` code importing directly from `provider_service` modules — inter-service communication must go through the API layer.
-- `admin/gateway-admin` writing balance mutations directly instead of delegating to the settlement runtime.
+- `services/gateway-admin` writing balance mutations directly instead of delegating to the settlement runtime.

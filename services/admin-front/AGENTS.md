@@ -1,6 +1,6 @@
 # admin-front Hard Rules
 
-Local execution mirror for `admin/admin-front/`.
+Local execution mirror for `services/admin-front/`.
 
 ## Canonical Sources
 
@@ -24,7 +24,7 @@ Always use `npm run dev` while iterating. Do not keep the dev server running whi
 
 ### 保持文档和前端页面一致
 
-When working on `admin/admin-front`, consult the backend/admin document index under `docs/admin/` so page behavior, IA, approval semantics, and control-plane wording stay aligned with `gateway-admin`.
+When working on `services/admin-front`, consult the backend/admin document index under `docs/admin/` so page behavior, IA, approval semantics, and control-plane wording stay aligned with `gateway-admin`.
 
 Recommended `docs/admin/` reading order:
 
@@ -44,15 +44,15 @@ For any admin-front page that maps to a `gateway-admin` module, align UI copy, f
 
 ### 保持实现与 `stitch` 原型一致
 
-When implementing or refactoring any `admin/admin-front` page, treat `admin/admin-front/stitch/` as the primary visual and interaction prototype library for that surface.
+When implementing or refactoring any `services/admin-front` page, treat `services/admin-front/stitch/` as the primary visual and interaction prototype library for that surface.
 
 Recommended prototype lookup order:
 
-- `admin/admin-front/stitch/overview/`: console shell, dashboard density, card rhythm, signal surfaces, and global Sentinel tone.
-- `admin/admin-front/stitch/admin_login/`: admin sign-in composition, security framing, CTA posture, and auth entry hierarchy.
-- `admin/admin-front/stitch/mfa_setup_registration/`: MFA enrollment, QR/manual key layout, verification cadence, and secure initialization mood.
-- `admin/admin-front/stitch/reset_successful/`: success-state composition, post-action confirmation rhythm, and return-entry CTA treatment.
-- `admin/admin-front/stitch/synapse_sentinel/`: shared Sentinel design language and supporting visual rules.
+- `services/admin-front/stitch/overview/`: console shell, dashboard density, card rhythm, signal surfaces, and global Sentinel tone.
+- `services/admin-front/stitch/admin_login/`: admin sign-in composition, security framing, CTA posture, and auth entry hierarchy.
+- `services/admin-front/stitch/mfa_setup_registration/`: MFA enrollment, QR/manual key layout, verification cadence, and secure initialization mood.
+- `services/admin-front/stitch/reset_successful/`: success-state composition, post-action confirmation rhythm, and return-entry CTA treatment.
+- `services/admin-front/stitch/synapse_sentinel/`: shared Sentinel design language and supporting visual rules.
 
 For each matching page, review `screen.png`, `code.html`, and `DESIGN.md` in that `stitch` subfolder before implementation.
 

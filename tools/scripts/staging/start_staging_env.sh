@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.staging_env.pids"
-LOG_FILE="${ROOT_DIR}/gateway/logs/provider_api_staging.log"
+LOG_FILE="${ROOT_DIR}/services/gateway/logs/provider_api_staging.log"
 
 find_pid_by_port() {
   local port="$1"
@@ -17,12 +17,12 @@ if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_311.sh" ]]; then
   exit 1
 fi
 
-cd "${ROOT_DIR}/gateway"
+cd "${ROOT_DIR}/services/gateway"
 
-if [[ -x "${ROOT_DIR}/gateway/.venv/bin/python" ]]; then
-  PYTHON_BIN="${ROOT_DIR}/gateway/.venv/bin/python"
-elif [[ -x "${ROOT_DIR}/gateway/venv/bin/python" ]]; then
-  PYTHON_BIN="${ROOT_DIR}/gateway/venv/bin/python"
+if [[ -x "${ROOT_DIR}/services/gateway/.venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/services/gateway/.venv/bin/python"
+elif [[ -x "${ROOT_DIR}/services/gateway/venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/services/gateway/venv/bin/python"
 else
   PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_311.sh")"
 fi
@@ -32,7 +32,7 @@ echo "Using Python interpreter: ${PYTHON_BIN}"
 
 if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
   echo "Python dependencies missing. Installing from gateway/requirements.txt ..."
-  "$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/gateway/requirements.txt"
+  "$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/services/gateway/requirements.txt"
 fi
 
 EXISTING_PROVIDER_PID="$(find_pid_by_port 8000)"
@@ -45,7 +45,7 @@ if [[ -n "$EXISTING_PROVIDER_PID" ]]; then
   fi
 fi
 
-if [[ -f "${ROOT_DIR}/gateway/.env.staging" ]]; then
+if [[ -f "${ROOT_DIR}/services/gateway/.env.staging" ]]; then
   ENVIRONMENT=staging ENV_FILE=.env.staging "$PYTHON_BIN" provider_fastapi.py > "$LOG_FILE" 2>&1 &
 else
   ENVIRONMENT=staging "$PYTHON_BIN" provider_fastapi.py > "$LOG_FILE" 2>&1 &

@@ -29,7 +29,7 @@ async function main() {
 
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
   if (!config.MockUSDC) {
-    throw new Error("MockUSDC address missing in apps/frontend/src/contract-config.json");
+    throw new Error("MockUSDC address missing in services/user-front/src/contract-config.json");
   }
 
   const [sender] = await hre.ethers.getSigners();

@@ -44,7 +44,7 @@ async function main() {
 
   // 4. 更新前端配置表 contract-config.json
   console.log("\nUpdating Frontend Config...");
-  const configPath = path.join(repoRoot, "apps/frontend/src/contract-config.json");
+  const configPath = path.join(repoRoot, "services/user-front/src/contract-config.json");
   let config = {};
   if (fs.existsSync(configPath)) {
     config = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -55,7 +55,7 @@ async function main() {
   config.SynapseCore = vaultAddress;
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  console.log("✅ Successfully updated apps/frontend/src/contract-config.json!");
+  console.log("✅ Successfully updated services/user-front/src/contract-config.json!");
   
   console.log("\n=================== 部署完毕 ===================");
   console.log("IMPORTANT: 给 Python 后端用到的环境变量：");
