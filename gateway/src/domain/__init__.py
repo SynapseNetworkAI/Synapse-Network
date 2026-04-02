@@ -32,7 +32,7 @@ from .finance import (
     UsageLogRow,
     WithdrawCreateContext,
 )
-from .gateway import OwnerSpendLimitRow, RouterConfigRow
+from .gateway import OwnerSpendLimitRow
 from .identity import (
     AgentCredentialRecord,
     AgentProfileRecord,
@@ -65,7 +65,6 @@ from .runtime_state import (
     DepositMetadataState,
     InvocationBillingState,
     ReconciliationState,
-    RouterPolicyState,
     RuntimeStateRecord,
     ServiceHealthHistoryItem,
     ServiceHealthHistoryState,
@@ -177,8 +176,6 @@ __all__ = [
     "RefundOriginRef",
     "RefundReviewContext",
     "RuntimePayloadRecord",
-    "RouterConfigRow",
-    "RouterPolicyState",
     "RuntimeCredentialRecord",
     "RuntimeStateRecord",
     "SchemaDocument",

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import json
 from typing import Any, Callable, List
 
-from src.domain.gateway import OwnerSpendLimitRow, RouterConfigRow
+from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
 from src.domain.finance import (
     RefundIntentRow,
@@ -711,41 +711,6 @@ class GatewayStateRepository:
                         completeMeta=row.complete_meta,
                     ).model_dump(by_alias=True, mode="json"),
                     row_updated_at,
-                )
-
-    def read_router_config_rows(self) -> List[RouterConfigRow]:
-        with self._db.readonly_cursor() as cur:
-            cur.execute(
-                "SELECT owner_address, daily_limit_usdc, created_at, updated_at FROM synapse_router_config ORDER BY updated_at DESC"
-            )
-            rows = cur.fetchall()
-        return [
-            RouterConfigRow(
-                ownerAddress=str(owner),
-                dailyLimitUsdc=float(self._q6(limit)),
-                createdAt=to_dt_str(created, "") or "",
-                updatedAt=to_dt_str(updated, "") or "",
-            )
-            for owner, limit, created, updated in rows
-        ]
-
-    def write_router_config_rows(
-        self, rows: List[RouterConfigRow], updated_at: str | int
-    ) -> None:
-        with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_router_config")
-            for row in rows:
-                owner = row.owner_address.lower()
-                if not owner:
-                    continue
-                cur.execute(
-                    "INSERT INTO synapse_router_config (owner_address, daily_limit_usdc, created_at, updated_at) VALUES (%s, %s, %s, %s)",
-                    (
-                        owner,
-                        str(self._q6(row.daily_limit_usdc)),
-                        to_dt_str(row.created_at or updated_at, now_dt_str()),
-                        to_dt_str(row.updated_at or updated_at, now_dt_str()),
-                    ),
                 )
 
     def read_owner_spend_limit_rows(self) -> List[OwnerSpendLimitRow]:

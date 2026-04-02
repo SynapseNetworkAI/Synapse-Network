@@ -12,7 +12,6 @@ from src.api.schemas.pydantic_models import (
     AdminDepositReplayRequest,
     RefundIntentRequest,
     RefundCompleteRequest,
-    RouterConfigRequest,
     OwnerSpendLimitUpdateRequest,
     VoucherRedeemRequest,
     ProviderWithdrawIntentRequest,
@@ -431,28 +430,6 @@ async def complete_refund_as_admin(
         "refundStatus": result.get("status"),
         "txHash": result.get("txHash"),
     }
-
-
-@router.get("/v1/router/config")
-async def get_router_config(
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
-    service: Annotated[BalanceService, Depends(get_balance_service)],
-):
-    config = await service.get_router_config(owner_wallet)
-    return {"status": "success", "ownerAddress": owner_wallet, "config": config}
-
-
-@router.post("/v1/router/config")
-async def set_router_config(
-    config: RouterConfigRequest,
-    request: Request,
-    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
-    service: Annotated[BalanceService, Depends(get_balance_service)],
-):
-    saved = await service.set_router_config(
-        owner_wallet, config.dailyLimitUsdc, _extract_request_meta(request)
-    )
-    return {"status": "success", "ownerAddress": owner_wallet, "config": saved}
 
 
 @router.get("/v1/balance/spending-limit")

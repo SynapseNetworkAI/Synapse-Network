@@ -237,10 +237,6 @@ class AdminProviderWithdrawReviewRequest(BaseModel):
     reviewerNote: Optional[str] = Field(default=None, max_length=512)
 
 
-class RouterConfigRequest(BaseModel):
-    dailyLimitUsdc: float = Field(..., ge=0, le=10_000)
-
-
 class OwnerSpendLimitUpdateRequest(BaseModel):
     spendingLimitUsdc: Optional[Decimal] = Field(default=None)
     allowUnlimited: bool = False

@@ -96,7 +96,6 @@ class DiscoveryResponse(SDKModel):
 class BudgetCheck(SDKModel):
     allowed: bool = True
     remaining_budget_usdc: Optional[float] = Field(default=None, alias="remainingBudgetUsdc")
-    remaining_daily_limit_usdc: Optional[float] = Field(default=None, alias="remainingDailyLimitUsdc")
 
 
 class InvokeConstraints(SDKModel):

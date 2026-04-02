@@ -192,9 +192,6 @@ class BalanceService(
     async def expire_stale_provider_withdrawals(self) -> int:
         return await self.provider_withdraw_service.expire_stale_provider_withdrawals()
 
-    async def get_router_config(self, owner_wallet: str) -> Dict[str, Any]:
-        return await self.platform_finance_service.get_router_config(owner_wallet)
-
     async def get_owner_spending_limit(self, owner_wallet: str) -> Dict[str, Any]:
         return await self.platform_finance_service.get_owner_spending_limit(owner_wallet)
 
@@ -228,14 +225,4 @@ class BalanceService(
             request_meta=request_meta,
         )
 
-    async def set_router_config(
-        self,
-        owner_wallet: str,
-        daily_limit_usdc: float,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        return await self.platform_finance_service.set_router_config(
-            owner_wallet=owner_wallet,
-            daily_limit_usdc=daily_limit_usdc,
-            request_meta=request_meta,
-        )
+

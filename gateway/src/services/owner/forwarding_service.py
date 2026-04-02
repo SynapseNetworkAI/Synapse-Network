@@ -400,7 +400,6 @@ async def _budget_check(
         return {
             "allowed": error_code is None,
             "remainingBudgetUsdc": None,
-            "remainingDailyLimitUsdc": None,
             "remainingBillingCycleLimitUsdc": remaining_owner_billing,
             "errorCode": error_code,
         }
@@ -418,7 +417,6 @@ async def _budget_check(
     return {
         "allowed": error_code is None,
         "remainingBudgetUsdc": remaining_lifetime if remaining_lifetime is not None else remaining_budget,
-        "remainingDailyLimitUsdc": remaining_daily,
         "remainingBillingCycleLimitUsdc": remaining_owner_billing,
         "errorCode": error_code,
     }
@@ -465,7 +463,7 @@ def _budget_error_code(
     if remaining_lifetime is not None and charge_amount > remaining_lifetime + 1e-9:
         return "BUDGET_EXHAUSTED"
     if remaining_daily is not None and charge_amount > remaining_daily + 1e-9:
-        return "DAILY_LIMIT_EXCEEDED"
+        return "BUDGET_EXHAUSTED"
     if remaining_owner_billing is not None and charge_amount > remaining_owner_billing + 1e-9:
         return "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED"
     return None
