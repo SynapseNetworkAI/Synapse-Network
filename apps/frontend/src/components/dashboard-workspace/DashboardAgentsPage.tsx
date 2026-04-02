@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { AlertCircle, Bot, Check, Copy, MinusCircle, PencilLine, Plus, ShieldCheck } from "lucide-react";
@@ -7,9 +8,6 @@ import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
-import ActivationRunway from "@/components/dashboard/agents/ActivationRunway";
-import ActivationStatusStrip from "@/components/dashboard/agents/ActivationStatusStrip";
-import FirstInvocationPanel, { type FirstInvocationResult } from "@/components/dashboard/agents/FirstInvocationPanel";
 import { formatAgentBudget, getAgentUsagePercent } from "@/components/dashboard/agents/agentWorkspacePresenters";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import {
@@ -40,6 +38,35 @@ import {
 import { XInput } from "@/components/xui/XInput";
 import { XPanel } from "@/components/xui/XPanel";
 import { cx } from "@/components/xui/cx";
+import type { FirstInvocationResult } from "@/components/dashboard/agents/FirstInvocationPanel";
+
+const ActivationStatusStrip = dynamic(
+  () => import("@/components/dashboard/agents/ActivationStatusStrip"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[112px] animate-pulse rounded-[28px] border border-white/[0.06] bg-white/[0.025]" />
+    ),
+  }
+);
+const ActivationRunway = dynamic(
+  () => import("@/components/dashboard/agents/ActivationRunway"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] animate-pulse rounded-[28px] border border-white/[0.06] bg-white/[0.025]" />
+    ),
+  }
+);
+const FirstInvocationPanel = dynamic(
+  () => import("@/components/dashboard/agents/FirstInvocationPanel"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[320px] animate-pulse rounded-[28px] border border-white/[0.06] bg-white/[0.025]" />
+    ),
+  }
+);
 
 function scrollToSection(sectionId: string) {
   document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -120,6 +147,7 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   const [agentName, setAgentName] = useState("");
   const [dailyBudget, setDailyBudget] = useState("10.00");
   const [maxCalls, setMaxCalls] = useState("1000");
+  const isGuideMode = mode === "guide";
   const ownerAddress = userAddress?.toLowerCase() ?? "";
   const isAnyModalOpen = Boolean(
     isCreateModalOpen
@@ -187,8 +215,15 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
   }, [fetchCredentials, isConnected, isSessionAuthenticated, userAddress]);
 
   useEffect(() => {
+    if (!isGuideMode) {
+      setServices([]);
+      setIsServicesLoading(false);
+      setServiceError(null);
+      return;
+    }
+
     void fetchServices();
-  }, [fetchServices]);
+  }, [fetchServices, isGuideMode]);
 
   useEffect(() => {
     if (!isAnyModalOpen) {
@@ -215,9 +250,13 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.allSettled([fetchCredentials(), handleOwnerRefresh(), fetchServices()]);
+    const refreshTasks = [fetchCredentials(), handleOwnerRefresh()];
+    if (isGuideMode) {
+      refreshTasks.push(fetchServices());
+    }
+    await Promise.allSettled(refreshTasks);
     setIsRefreshing(false);
-  }, [fetchCredentials, fetchServices, handleOwnerRefresh]);
+  }, [fetchCredentials, fetchServices, handleOwnerRefresh, isGuideMode]);
 
   const ensureOwnerReady = useCallback(async (): Promise<string | null> => {
     if (!isConnected) {
@@ -558,8 +597,6 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setIsSandboxInvoking(false);
     }
   }, [fetchCredentials, handleOwnerRefresh, sandboxCredential, selectedService, t]);
-
-  const isGuideMode = mode === "guide";
 
   let primaryActionLabel = t("agentsPage.refreshWorkspace");
   if (!isConnected) {

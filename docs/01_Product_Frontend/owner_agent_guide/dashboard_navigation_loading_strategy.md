@@ -70,16 +70,35 @@ After route shell swap, the page itself must render a loading state while client
 
 Do not wait for API data before showing the page container.
 
+For pages with stable chrome and predictable first-screen structure, prefer shell-first rendering with local section skeletons over a full-page blocking loader.
+
 Required pattern for client-data pages:
 
 1. hooks expose `isBootstrapping` or equivalent first-load state
-2. page renders `DashboardPageLoadingState` during initial hydration
-3. refresh actions use lighter local refresh states instead of full route-blocking loaders
+2. page renders either `DashboardPageLoadingState` or local section skeletons during initial hydration
+3. page title, frame, and primary actions should appear before secondary data settles
+4. refresh actions use lighter local refresh states instead of full route-blocking loaders
 
 Current first adopters:
 
 1. [DashboardOverviewPage.tsx](/home/alex/Documents/cliff/Synapse-Network/apps/frontend/src/components/dashboard-workspace/DashboardOverviewPage.tsx)
 2. [OwnerCreditsPage.tsx](/home/alex/Documents/cliff/Synapse-Network/apps/frontend/src/components/dashboard-workspace/OwnerCreditsPage.tsx)
+
+### 3.4 Route-specific code splitting
+
+Heavy dashboard routes must not ship guide-only or table-heavy code in the first navigation payload when that code is not needed for the active mode.
+
+Required pattern:
+
+1. workspace mode must not eagerly import guide-mode panels
+2. route shell owns the heading and immediate page frame
+3. heavier secondary content can mount through dynamic import with visible skeletons
+
+Current adopters:
+
+1. [DashboardAgentsPage.tsx](/home/alex/Documents/cliff/Synapse-Network/apps/frontend/src/components/dashboard-workspace/DashboardAgentsPage.tsx)
+2. [DashboardInvocationsPage.tsx](/home/alex/Documents/cliff/Synapse-Network/apps/frontend/src/components/dashboard-workspace/DashboardInvocationsPage.tsx)
+3. [DashboardInvocationsContent.tsx](/home/alex/Documents/cliff/Synapse-Network/apps/frontend/src/components/dashboard-workspace/DashboardInvocationsContent.tsx)
 
 ## 4. Performance rules
 
@@ -88,6 +107,7 @@ Current first adopters:
 3. do not block navigation on non-critical data fetches
 4. auth-gated routes may delay `router.push`, but they must still show immediate UI intent once auth succeeds
 5. `loading.tsx` stays as a route fallback, but it is not the primary UX mechanism for client-data pages
+6. do not eagerly load guide-only components on workspace routes
 
 ## 5. Rollout rule
 
