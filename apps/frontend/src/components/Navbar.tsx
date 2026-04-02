@@ -5,7 +5,6 @@ import { Network, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import QuickAccessDialog from "@/components/QuickAccessDialog";
-import WalletProfileBadge from "@/components/WalletProfileBadge";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
@@ -300,7 +299,6 @@ export default function Navbar() {
                 </Link>
               </div>
               <LanguageSwitcher className="h-10 min-w-[92px] rounded-[14px] border border-white/10 bg-white/[0.03] px-3 pr-3 text-[12px] font-semibold tracking-[0.06em] text-white/92 outline-none transition hover:border-white/18 hover:bg-white/[0.06] focus:border-white/28" />
-              <WalletProfileBadge compact />
             </div>
           </div>
         </nav>

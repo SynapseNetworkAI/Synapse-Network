@@ -1,6 +1,6 @@
 import type { I18nMessages } from "@/i18n/schema";
 
-const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
+const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettingsPage"> = {
   language: {
     en: "英文",
     zh: "中文",
@@ -27,6 +27,7 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     quickAccessPaymentsDescription: "查看账单记录和账户支付活动。",
     quickAccessAuditDescription: "监控告警、策略执行和审计日志。",
     quickAccessDeveloperDescription: "打开文档、运行时示例和接入指南。",
+    quickAccessAccountSettingsDescription: "调整账户身份展示、偏好设置和当前会话安全状态。",
     quickAccessProviderConsoleDescription: "管理 Provider 工作台健康度和性能。",
     quickAccessProviderCredentialsDescription: "签发 Provider 密钥和签名材料。",
     quickAccessServicesDescription: "创建、编辑并发布可变现 API 服务。",
@@ -47,6 +48,9 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     billing: "Billing",
     credits: "Credits",
     payments: "Payments",
+    account: "Account",
+    settings: "Settings",
+    logout: "Logout",
     discovery: "服务发现",
     invocations: "调用记录",
     treasury: "Payments",
@@ -58,6 +62,18 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar"> = {
     myServices: "我的服务",
     usageAnalytics: "使用分析",
     settlements: "结算",
+  },
+  accountSettingsPage: {
+    title: "账户设置",
+    description: "在同一个控制面里管理工作台身份、语言偏好和会话安全状态。",
+    identityTitle: "当前身份",
+    identityDescription: "你的 Owner 钱包仍然是 credits、spend cap 和敏感计费控制的信任锚点。",
+    connectedWallet: "已连接钱包",
+    notConnected: "钱包未连接",
+    preferenceTitle: "界面偏好",
+    preferenceDescription: "语言选择由右上角全局切换器控制，并会应用到整个工作台。",
+    securityTitle: "会话安全",
+    securityDescription: "如需安全退出当前钱包会话，请使用左侧 Account 菜单里的 Logout。",
   },
 };
 

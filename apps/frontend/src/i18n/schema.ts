@@ -25,6 +25,7 @@ export type I18nMessages = {
     quickAccessPaymentsDescription: string;
     quickAccessAuditDescription: string;
     quickAccessDeveloperDescription: string;
+    quickAccessAccountSettingsDescription: string;
     quickAccessProviderConsoleDescription: string;
     quickAccessProviderCredentialsDescription: string;
     quickAccessServicesDescription: string;
@@ -45,6 +46,9 @@ export type I18nMessages = {
     billing: string;
     credits: string;
     payments: string;
+    account: string;
+    settings: string;
+    logout: string;
     discovery: string;
     invocations: string;
     treasury: string;
@@ -56,6 +60,18 @@ export type I18nMessages = {
     myServices: string;
     usageAnalytics: string;
     settlements: string;
+  };
+  accountSettingsPage: {
+    title: string;
+    description: string;
+    identityTitle: string;
+    identityDescription: string;
+    connectedWallet: string;
+    notConnected: string;
+    preferenceTitle: string;
+    preferenceDescription: string;
+    securityTitle: string;
+    securityDescription: string;
   };
   overviewPage: {
     systemOperational: string;

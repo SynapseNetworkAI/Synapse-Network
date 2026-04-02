@@ -112,6 +112,14 @@ export default function QuickAccessDialog({ open, onClose }: Readonly<QuickAcces
         matches: (value) => value.startsWith("/dashboard/developer"),
       },
       {
+        href: "/dashboard/account/settings",
+        label: t("sidebar.settings"),
+        description: t("nav.quickAccessAccountSettingsDescription"),
+        icon: FileText,
+        keywords: ["account", "settings", "preferences", "session"],
+        matches: (value) => value.startsWith("/dashboard/account/settings"),
+      },
+      {
         href: "/provider/console",
         label: t("sidebar.providerConsole"),
         description: t("nav.quickAccessProviderConsoleDescription"),
