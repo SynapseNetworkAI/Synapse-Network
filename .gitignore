@@ -55,3 +55,6 @@ logs/
 .spec2flow
 spec2flow
 .vscode/
+
+# Local generated output (Playwright screenshots, videos, metrics)
+output/
