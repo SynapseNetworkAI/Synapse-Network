@@ -10,6 +10,8 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettin
     blog: "Blog",
     about: "About",
     documentation: "Documentation",
+    forum: "Forum",
+    notifications: "Notifications",
     gatewayNode: "Gateway Node",
     online: "Online",
     offline: "Offline",

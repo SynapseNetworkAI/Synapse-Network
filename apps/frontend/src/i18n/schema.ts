@@ -8,6 +8,8 @@ export type I18nMessages = {
     blog: string;
     about: string;
     documentation: string;
+    forum: string;
+    notifications: string;
     gatewayNode: string;
     online: string;
     offline: string;
