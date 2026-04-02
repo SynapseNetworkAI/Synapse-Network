@@ -7,48 +7,39 @@ typechain-types/
 artifacts/
 cache/
 
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
 .venv/
 venv/
-provider_service/.venv/
 *.db
-*.log
 agent_wallet.json
 .env
-provider_service/.env.local
-provider_service/.env.staging
-provider_service/.env.prod
-gateway/.env.local
-gateway/.env.staging
-gateway/.env.prod
-apps/frontend/.env.local
-apps/frontend/.env.staging
-apps/frontend/.env.prod
-admin/gateway-admin/.env.staging
+
+# Service .env files (each service carries its own .env.*.example)
+services/gateway/.env.local
+services/gateway/.env.staging
+services/gateway/.env.prod
+services/gateway-admin/.env.local
+services/gateway-admin/.env.staging
+services/gateway-admin/.env.prod
+services/user-front/.env.local
+services/user-front/.env.staging
+services/user-front/.env.prod
 
 # Local runtime artifacts
 .local_env.pids
 temp_check.js
 test_agents.js
-admin/gateway-admin/run/
-provider_service/run/
-provider_service/storage/
 
-# Agent SDK local build artifacts
-sdk/python/agentpay_agent_sdk.egg-info/
-sdk/python/.ci-tools/
-sdk/python/dist/
-sdk/python/*.egg-info/
-
-# gateway runtime/generated files
-gateway/agent_credentials.json
-gateway/audit_log.jsonl
-gateway/service_registry.json
-gateway/*.egg-info/
+# Service runtime/generated files
+services/gateway/agent_credentials.json
+services/gateway/audit_log.jsonl
+services/gateway/service_registry.json
+services/gateway/*.egg-info/
+services/gateway/logs/
+services/gateway-admin/run/
 
 logs/
 *.log
@@ -59,4 +50,3 @@ spec2flow
 # Local generated output (Playwright screenshots, videos, metrics)
 output/
 anvil*.log
-apps/.next
