@@ -101,8 +101,8 @@ function SettingToggle({
           onChange={(event) => onChange(event.target.checked)}
           disabled={disabled}
         />
-        <span className="h-7 w-12 rounded-full border border-white/12 bg-white/[0.08] transition peer-checked:border-[#7ff7be]/30 peer-checked:bg-[#7ff7be]/20 peer-disabled:opacity-40" />
-        <span className="absolute left-[4px] top-[4px] h-5 w-5 rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.28)] transition peer-checked:translate-x-5" />
+        <span className="h-6 w-10 rounded-full border border-white/12 bg-white/[0.08] transition peer-checked:border-[#7ff7be]/30 peer-checked:bg-[#7ff7be]/20 peer-disabled:opacity-40" />
+        <span className="absolute left-[3px] top-[3px] h-[18px] w-[18px] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.28)] transition peer-checked:translate-x-4" />
       </span>
     </label>
   );
@@ -120,14 +120,14 @@ function SettingsRow({
   noBorder?: boolean;
 }>) {
   return (
-    <section className={noBorder ? "py-8" : "border-b border-[#232323] py-8"}>
-      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-8">
+    <section className={noBorder ? "py-3.5" : "border-b border-[#1e1e1e] py-3.5"}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-6">
         <div className="max-w-[474px] min-w-0">
-          <h3 className="text-[18px] font-medium leading-7 tracking-[-0.01em] text-white">
+          <h3 className="text-[14px] font-semibold leading-5 tracking-[-0.01em] text-white">
             {title}
           </h3>
           {description ? (
-            <p className="mt-2 text-[14px] leading-5 text-[#9ca3af]">
+            <p className="mt-0.5 text-[12px] leading-4 text-[#6b7280]">
               {description}
             </p>
           ) : null}
@@ -139,7 +139,7 @@ function SettingsRow({
 }
 
 const INPUT_CLASSES =
-  "h-10 rounded-[12px] border border-[#2f3336] bg-transparent px-3.5 py-0 text-[14px] leading-5 text-white placeholder:text-[#71767b] focus-visible:border-[#536471]";
+  "h-9 rounded-[10px] border border-[#2f3336] bg-transparent px-3 py-0 text-[13px] leading-5 text-white placeholder:text-[#71767b] focus-visible:border-[#536471]";
 
 const PRIMARY_BUTTON_CLASSES =
   "inline-flex h-9 items-center justify-center rounded-full border border-white/80 bg-white/95 px-4 text-[13px] font-semibold leading-none text-neutral-900 shadow-[0_0_30px_rgba(255,255,255,0.12)] transition-[box-shadow,transform,background-color] duration-200 hover:bg-white hover:shadow-[0_0_40px_rgba(255,255,255,0.2)] disabled:cursor-not-allowed disabled:opacity-45";
@@ -303,18 +303,18 @@ export default function AccountSettingsPage() {
       : t("accountSettingsPage.emailHelp");
 
   return (
-    <div className="mx-auto w-full max-w-[1024px] px-8 py-[52px]">
+    <div className="mx-auto w-full max-w-[1024px] px-8 py-6">
       <div className="mx-auto w-full max-w-[768px]">
-        <header className="mb-4 border-b border-[#232323] pb-8">
-          <h1 className="text-[24px] font-normal leading-8 text-white">
+        <header className="border-b border-[#1e1e1e] pb-4 mb-0">
+          <h1 className="text-[18px] font-semibold leading-7 text-white">
             {t("accountSettingsPage.title")}
           </h1>
-          <p className="mt-2 text-[16px] leading-6 text-[#9ca3af]">
+          <p className="mt-1 text-[13px] leading-5 text-[#6b7280]">
             {t("accountSettingsPage.description")}
           </p>
         </header>
 
-        <div className="min-h-[420px]">
+        <div>
           <SettingsRow
             title={t("accountSettingsPage.nameLabel")}
             control={
@@ -397,11 +397,11 @@ export default function AccountSettingsPage() {
                 : t("accountSettingsPage.notConnected")
             }
             control={
-              <div className="rounded-[14px] border border-[#2f3336] bg-transparent px-3.5 py-3">
-                <p className="text-[14px] font-medium leading-5 text-white">
+              <div className="rounded-[10px] border border-[#2f3336] bg-transparent px-3 py-2.5">
+                <p className="text-[13px] font-medium leading-5 text-white">
                   {boundWallet ? maskWallet(boundWallet) : t("accountSettingsPage.unset")}
                 </p>
-                <p className="mt-1 break-all text-[12px] leading-4 text-[#71767b]">
+                <p className="mt-0.5 break-all text-[12px] leading-4 text-[#71767b]">
                   {boundWallet ?? t("accountSettingsPage.walletRequired")}
                 </p>
               </div>
