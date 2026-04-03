@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../components/CodeBlock";
 import { useActiveSection } from "../use-active-section";
+import { useDocsPageNav } from "../use-docs-page-nav";
 
 const PAGE_SECTIONS = ["settlement", "service-registry", "credentials", "idempotency"];
 
@@ -22,6 +23,12 @@ export default function ConceptsPage() {
   const idempotencyCardDescriptions = tList("docsPage.conceptsIdempotencyCardDescriptions");
   const nextLabels = tList("docsPage.conceptsNextLabels");
   const nextDescriptions = tList("docsPage.conceptsNextDescriptions");
+  useDocsPageNav([
+    { id: "settlement", label: t("docsPage.conceptsSettlementTitle") },
+    { id: "service-registry", label: t("docsPage.conceptsRegistryTitle") },
+    { id: "credentials", label: t("docsPage.conceptsCredentialsTitle") },
+    { id: "idempotency", label: t("docsPage.conceptsIdempotencyTitle") },
+  ]);
 
   return (
     <div className="space-y-20">

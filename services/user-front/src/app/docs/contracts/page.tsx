@@ -4,8 +4,9 @@ import { GitBranch, FileText, ExternalLink } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { StatusBadge } from "../components/StatusBadge";
 import { useActiveSection } from "../use-active-section";
+import { useDocsPageNav } from "../use-docs-page-nav";
 
-const PAGE_SECTIONS = ["contract-core", "contract-usdc"];
+const PAGE_SECTIONS = ["contract-core", "contract-usdc", "contract-abi"];
 
 // ── Per-environment contract addresses ────────────────────────────────────────
 // Staging / Prod addresses will be filled in after on-chain deployment.
@@ -142,6 +143,11 @@ function AddressRow({
 export default function ContractsPage() {
   const { t, tList } = useLanguage();
   useActiveSection(PAGE_SECTIONS, "contract-core");
+  useDocsPageNav([
+    { id: "contract-core", label: t("docsPage.contractsCoreTitle") },
+    { id: "contract-usdc", label: t("docsPage.contractsMockTitle") },
+    { id: "contract-abi", label: t("docsPage.contractsAbiTitle") },
+  ]);
 
   const rawEnv = process.env.NEXT_PUBLIC_APP_ENV;
   let currentEnv: AppEnv = "local";
@@ -329,13 +335,9 @@ export default function ContractsPage() {
       </section>
 
       {/* ── ABI & Source ────────────────────────────────────────── */}
-      <section className="space-y-4 border-t border-white/[0.06] pt-10">
-        <h3 className="x-card-title text-white">获取 ABI / 查看源码</h3>
-        <p className="x-body-copy">
-          ABI 位于仓库{" "}
-          <code className="text-[#c0c5cc] font-mono text-[12px]">artifacts/contracts/</code>，
-          可直接 import。合约部署并 verify 后，点击 Arbiscan 链接可在链上浏览器查看完整 Solidity 源码。
-        </p>
+      <section id="contract-abi" className="space-y-4 border-t border-white/[0.06] pt-10">
+        <h3 className="x-card-title text-white">{t("docsPage.contractsAbiTitle")}</h3>
+        <p className="x-body-copy">{t("docsPage.contractsAbiDescription")}</p>
         <div className="flex gap-4 flex-wrap">
           <a
             href={GITHUB_CONTRACTS}
@@ -343,7 +345,7 @@ export default function ContractsPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-[13px] text-[#7ff7be] hover:underline"
           >
-            <ExternalLink size={13} /> GitHub — contracts/
+            <ExternalLink size={13} /> {tList("docsPage.contractsAbiLinks")[0] ?? "GitHub — contracts/"}
           </a>
           <a
             href="https://sepolia.arbiscan.io"
@@ -351,7 +353,7 @@ export default function ContractsPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-[13px] text-[#6eb6f6] hover:underline"
           >
-            <ExternalLink size={13} /> Arbiscan Sepolia (Staging)
+            <ExternalLink size={13} /> {tList("docsPage.contractsAbiLinks")[1] ?? "Arbiscan Sepolia (Staging)"}
           </a>
           <a
             href="https://arbiscan.io"
@@ -359,7 +361,7 @@ export default function ContractsPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-[13px] text-[#f9c74f] hover:underline"
           >
-            <ExternalLink size={13} /> Arbiscan (Production)
+            <ExternalLink size={13} /> {tList("docsPage.contractsAbiLinks")[2] ?? "Arbiscan (Production)"}
           </a>
         </div>
       </section>

@@ -7,6 +7,7 @@ const docsPage: I18nMessages["docsPage"] = {
   topNavSearchPlaceholder: "Search docs...",
   topNavDeveloperConsole: "Developer Console",
   topNavTabs: ["Overview", "Getting Started", "Concepts", "API Reference", "SDK", "Contracts"],
+  onThisPageTitle: "On this page",
   sidebarSectionLabels: [
     "OVERVIEW",
     "GETTING STARTED",
@@ -421,6 +422,29 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkPyTitle: "Python SDK",
   sdkPyDescription:
     "The Python SDK now supports the full automated owner onboarding chain: private-key wallet auth, balance reads, deposit registration, credential issuance, discover, quote, invoke, receipt fetch, and end-to-end validation.",
+  sdkPyHeroSignal: "Automated chain ready",
+  sdkPyHeroTitle: "Python agents can now clear the full paid invocation chain.",
+  sdkPyHeroDescription:
+    "Start from a fresh wallet, authenticate an owner, confirm deposits into spendable balance, mint a credential, invoke a paid service, fetch the receipt, and prove the balance moved. No hand-waving, no fake mocks at the SDK boundary.",
+  sdkPyHeroPrimaryCta: "See the onboarding runbook",
+  sdkPyHeroSecondaryCta: "Inspect the E2E chain",
+  sdkPySignalLabel: "Runtime state",
+  sdkPySignalTitle: "Cold-start consumer flow",
+  sdkPySignalTitles: [
+    "Owner auth",
+    "Deposit bridge",
+    "Credential issue",
+    "Receipt verify",
+  ],
+  sdkPySignalValues: [
+    "challenge -> sign -> verify -> cached JWT",
+    "txHash -> intent -> confirm -> spendable balance",
+    "owner wallet -> agent token with spend controls",
+    "quote -> invoke -> receipt -> balance decrement",
+  ],
+  sdkPySignalFootnoteLabel: "Chain note",
+  sdkPySignalFootnote:
+    "This page reflects the SDK that already passed the real Python cold-start E2E against local gateway + chain infra, not a speculative API sketch.",
   sdkPyCapabilityTitles: [
     "Owner wallet auth",
     "Balance + treasury visibility",
@@ -432,6 +456,31 @@ const docsPage: I18nMessages["docsPage"] = {
     "Read consumer available balance, provider receivable, and protocol fee summaries without leaving the SDK.",
     "Register an onchain txHash with the gateway and confirm it into spendable balance using the same auth client.",
     "Use TS-style aliases discover, quote, invoke, and get_invocation so Python and TypeScript integrations share one mental model.",
+  ],
+  sdkPyRunbookEyebrow: "Operator runbook",
+  sdkPyRunbookTitle: "From private key to charged receipt in one Python surface.",
+  sdkPyRunbookDescription:
+    "Treat the Python SDK as the owner control plane plus the runtime call plane. The runbook below is the shortest honest path to first paid invocation.",
+  sdkPyFlowStepTags: [
+    "Step 01",
+    "Step 02",
+    "Step 03",
+    "Step 04",
+    "Step 05",
+  ],
+  sdkPyFlowStepTitles: [
+    "Authenticate the owner wallet",
+    "Convert an onchain deposit into spendable balance",
+    "Issue a constrained agent credential",
+    "Discover, quote, and invoke a live service",
+    "Fetch the terminal receipt and verify the balance moved",
+  ],
+  sdkPyFlowStepDescriptions: [
+    "Start from SynapseAuth.from_private_key, sign the gateway challenge, and retain the JWT for follow-up actions.",
+    "Register the deposit txHash with the gateway and confirm it once the deposit event has been indexed.",
+    "Mint a runtime credential with a spend window, max call ceiling, and rpm guardrail before giving it to the agent.",
+    "Use SynapseClient to discover available services, quote the target, and execute the paid invocation through the gateway.",
+    "Pull the invocation receipt, confirm the terminal status, and assert that consumer available balance decreased after settlement.",
   ],
   sdkPyInstallDescription:
     "Install the SDK in editable mode when working locally. The dev extra includes pytest, eth-account, and web3 so the cold-start E2E can drive the full chain.",
@@ -448,9 +497,20 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkPyInvokeTitle: "Discover and invoke",
   sdkPyInvokeDescription:
     "The runtime client discovers services, requests a quote, invokes the target API, and polls the invocation receipt until it reaches a terminal status.",
+  sdkPyVerifyEyebrow: "Verification chain",
   sdkPyVerifyTitle: "Validate the full chain",
   sdkPyVerifyDescription:
     "The Python SDK ships with an end-to-end cold-start test that creates a fresh wallet, deposits funds, issues a credential, discovers a live service, invokes it, and verifies the balance decrement.",
+  sdkPyVerificationChecks: [
+    "Create a fresh wallet and fund it with ETH + mock USDC",
+    "Deposit into SynapseCore, register deposit intent, and confirm it into gateway balance",
+    "Issue an agent credential from the owner wallet and list it back",
+    "Register a mock provider service, discover it, quote it, invoke it, and fetch the receipt",
+    "Assert the post-invocation consumer balance is lower than the pre-invocation balance",
+  ],
+  sdkPyVerifyResultLabel: "Latest local validation",
+  sdkPyVerifyResultDescription:
+    "This is the real passing shape from the current Python SDK suite after the onboarding and invoke chain were wired through the SDK end to end.",
   sdkPyReadmeLead: "Full documentation is available in",
   sdkPyReadmeCta: "sdk/python/README.md",
   contractsEyebrow: "Smart Contracts",

@@ -7,6 +7,7 @@ const docsPage: I18nMessages["docsPage"] = {
   topNavSearchPlaceholder: "搜索文档...",
   topNavDeveloperConsole: "开发者控制台",
   topNavTabs: ["概览", "快速开始", "核心概念", "API 参考", "SDK", "合约"],
+  onThisPageTitle: "本页导航",
   sidebarSectionLabels: [
     "概览",
     "快速开始",
@@ -417,6 +418,29 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkPyTitle: "Python SDK",
   sdkPyDescription:
     "Python SDK 现在已经支持完整自动化主链：私钥钱包登录、余额查询、充值登记、凭证签发、discover、quote、invoke、receipt 查询，以及端到端验证。",
+  sdkPyHeroSignal: "自动化主链已打通",
+  sdkPyHeroTitle: "Python agent 现在已经能跑完整付费调用链。",
+  sdkPyHeroDescription:
+    "从一个全新钱包开始，完成 owner 登录、充值入账、凭证签发、付费调用、receipt 拉取，再验证余额真实下降。不是假 mock，不是 demo API，而是 SDK 级真钱链闭环。",
+  sdkPyHeroPrimaryCta: "查看接入主链",
+  sdkPyHeroSecondaryCta: "查看 E2E 验证",
+  sdkPySignalLabel: "运行态",
+  sdkPySignalTitle: "冷启动 Consumer 主链",
+  sdkPySignalTitles: [
+    "Owner 登录",
+    "充值过桥",
+    "凭证签发",
+    "Receipt 验证",
+  ],
+  sdkPySignalValues: [
+    "challenge -> sign -> verify -> JWT 缓存",
+    "txHash -> intent -> confirm -> 可消费余额",
+    "owner 钱包 -> 带额度约束的 agent token",
+    "quote -> invoke -> receipt -> 余额下降",
+  ],
+  sdkPySignalFootnoteLabel: "链路说明",
+  sdkPySignalFootnote:
+    "这页展示的是已经跑通本地 gateway + chain infra 的真实 Python 冷启动 E2E，不是停留在 README 级别的伪接入。",
   sdkPyCapabilityTitles: [
     "Owner 钱包认证",
     "余额与资金视图",
@@ -428,6 +452,31 @@ const docsPage: I18nMessages["docsPage"] = {
     "直接读取 consumer 可用余额、provider receivable 和平台费摘要，不需要跳出 SDK 再拼接口。",
     "把链上 txHash 登记给 gateway，并在事件被索引后确认成可消费余额。",
     "支持 discover、quote、invoke、get_invocation 这组 TS 风格 alias，让 Python / TypeScript 接入模型保持一致。",
+  ],
+  sdkPyRunbookEyebrow: "接入主链",
+  sdkPyRunbookTitle: "从 private key 到已扣费 receipt，全程都在 Python 面上。",
+  sdkPyRunbookDescription:
+    "把 Python SDK 当成 owner 控制面和 runtime 调用面的统一入口。下面这条 runbook，就是拿到首个付费调用的最短诚实路径。",
+  sdkPyFlowStepTags: [
+    "Step 01",
+    "Step 02",
+    "Step 03",
+    "Step 04",
+    "Step 05",
+  ],
+  sdkPyFlowStepTitles: [
+    "登录 owner 钱包",
+    "把链上充值转成可消费余额",
+    "签发带约束的 Agent Credential",
+    "发现、报价并调用在线服务",
+    "拉取终态 receipt 并验证余额变化",
+  ],
+  sdkPyFlowStepDescriptions: [
+    "从 SynapseAuth.from_private_key 起步，签 challenge，换 JWT，再把 token 复用给后续动作。",
+    "把 deposit txHash 登记给 gateway，并在充值事件被索引后确认 intent 完成入账。",
+    "先给 agent 签发额度窗口、最大调用次数和 rpm guardrail，再把 token 交给运行时。",
+    "使用 SynapseClient discover 可用服务，quote 目标服务，并通过 gateway 执行付费调用。",
+    "读取 invocation receipt，确认调用进入终态，并断言 settlement 后 consumer 可用余额确实下降。",
   ],
   sdkPyInstallDescription:
     "本地开发推荐 editable install。dev 依赖已经包含 pytest、eth-account 和 web3，方便直接跑完整冷启动 E2E。",
@@ -444,9 +493,20 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkPyInvokeTitle: "发现并调用服务",
   sdkPyInvokeDescription:
     "runtime client 先 discover 服务，再 quote、invoke，并轮询 invocation receipt 直到进入终态。",
+  sdkPyVerifyEyebrow: "验证链",
   sdkPyVerifyTitle: "验证整条链路",
   sdkPyVerifyDescription:
     "Python SDK 自带冷启动 E2E：创建新钱包、充值、签发凭证、发现在线服务、发起调用，并验证余额真实下降。",
+  sdkPyVerificationChecks: [
+    "创建一个全新钱包，并给它注入 ETH 和 mock USDC",
+    "充值到 SynapseCore，再把 deposit intent 登记并确认进 gateway 余额",
+    "从 owner 钱包签发 agent credential，并回查 list 接口确认存在",
+    "注册一个 mock provider 服务，discover 它、quote 它、invoke 它，并拉取 receipt",
+    "断言调用后的 consumer available balance 小于调用前余额",
+  ],
+  sdkPyVerifyResultLabel: "最近一次本地验证",
+  sdkPyVerifyResultDescription:
+    "这个结果就是当前 Python SDK 在 owner onboarding + paid invoke 主链打通后的真实通过形态，不是写在文档里的愿景数字。",
   sdkPyReadmeLead: "完整文档见",
   sdkPyReadmeCta: "sdk/python/README.md",
   contractsEyebrow: "智能合约",

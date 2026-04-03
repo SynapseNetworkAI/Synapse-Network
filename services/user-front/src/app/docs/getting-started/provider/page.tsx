@@ -6,6 +6,7 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../../components/CodeBlock";
 import { StepItem, StepTip } from "../../components/StepItem";
 import { useActiveSection } from "../../use-active-section";
+import { useDocsPageNav } from "../../use-docs-page-nav";
 
 const ACCENT = "#6eb6f6";
 
@@ -32,6 +33,10 @@ export default function ProviderGuidePage() {
   const healthDescriptions = tList("docsPage.providerHealthDescriptions");
   const settlementRows = tList("docsPage.providerSettlementModelRows");
   const settlementValues = tList("docsPage.providerSettlementModelValues");
+  useDocsPageNav(PAGE_SECTIONS.map((id, index) => ({
+    id,
+    label: stepTitles[index] ?? id,
+  })));
 
   return (
     <div className="space-y-4">
