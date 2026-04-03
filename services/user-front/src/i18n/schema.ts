@@ -78,11 +78,13 @@ export type I18nMessages = {
     connectedWallet: string;
     notConnected: string;
     walletCardTitle: string;
+    walletRowDescription: string;
     walletSessionMissing: string;
     nameLabel: string;
     namePlaceholder: string;
     nameHelp: string;
     emailLabel: string;
+    emailDescription: string;
     emailPlaceholder: string;
     emailHelp: string;
     emailVerified: string;
@@ -93,6 +95,8 @@ export type I18nMessages = {
     notifyAlertsDescription: string;
     securityTitle: string;
     securityDescription: string;
+    saveRowTitle: string;
+    saveRowDescription: string;
     saveButton: string;
     saving: string;
     saveHint: string;

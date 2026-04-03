@@ -1,0 +1,17 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="synapseMarkGradient" x1="10" y1="32" x2="54" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1FD4FF" />
+      <stop offset="1" stop-color="#7DFF6A" />
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="32" rx="17" ry="23" stroke="url(#synapseMarkGradient)" stroke-width="1.8" opacity="0.82"/>
+  <ellipse cx="32" cy="32" rx="11" ry="23" stroke="url(#synapseMarkGradient)" stroke-width="1.8" opacity="0.58"/>
+  <path d="M10 32H24.5C26.2 32 26.9 30.7 27.8 26.8L31 20L35.8 43L39.6 25.6C40.3 22.5 41.1 21.8 42.7 21.8H54" stroke="url(#synapseMarkGradient)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="10" cy="32" r="2.6" fill="#1FD4FF"/>
+  <circle cx="54" cy="32" r="2.6" fill="#7DFF6A"/>
+  <circle cx="32" cy="16" r="2.1" fill="url(#synapseMarkGradient)"/>
+  <circle cx="32" cy="48" r="2.1" fill="url(#synapseMarkGradient)"/>
+  <circle cx="44.5" cy="25.2" r="2.1" fill="url(#synapseMarkGradient)" opacity="0.95"/>
+  <circle cx="19.5" cy="38.8" r="2.1" fill="url(#synapseMarkGradient)" opacity="0.95"/>
+</svg>
