@@ -293,7 +293,7 @@ console.log('结算时间:', latest.settledAt)
             {t("docsPage.consumerDeepDiveCta")} <ArrowRight size={13} />
           </button>
           <button
-            onClick={() => router.push("/docs/sdk")}
+            onClick={() => router.push("/docs/sdk/typescript")}
             className="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg text-[#71767b] hover:text-white transition-colors border border-white/[0.06] hover:border-white/10"
           >
             {t("docsPage.consumerSdkCta")} <ArrowRight size={13} />

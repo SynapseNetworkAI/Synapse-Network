@@ -68,6 +68,7 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
           "Services",
           "Agent Invocations",
           "Credentials",
+          "SDK Overview",
           "TypeScript SDK",
           "Python SDK",
           "SynapseCore",
@@ -137,5 +138,17 @@ describe("DocsSidebar", () => {
 
     expect(beginNavigationMock).toHaveBeenCalledWith("/docs/getting-started/consumer");
     expect(pushMock).toHaveBeenCalledWith("/docs/getting-started/consumer");
+  });
+
+  it("routes Python SDK to its own page", async () => {
+    const user = userEvent.setup();
+
+    render(<DocsSidebar />);
+
+    const pythonButton = screen.getAllByRole("button", { name: /^Python SDK$/i })[0];
+    await user.click(pythonButton);
+
+    expect(beginNavigationMock).toHaveBeenCalledWith("/docs/sdk/python");
+    expect(pushMock).toHaveBeenCalledWith("/docs/sdk/python");
   });
 });

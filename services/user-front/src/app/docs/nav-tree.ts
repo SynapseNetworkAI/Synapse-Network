@@ -69,25 +69,26 @@ export function getDocsNavTree(sectionLabels: string[], itemLabels: string[], so
       id: "sdk",
       label: sectionLabels[4] ?? "SDK",
       items: [
-        { id: "sdk-ts", label: itemLabels[24] ?? "TypeScript SDK", href: "/docs/sdk" },
-        { id: "sdk-py", label: itemLabels[25] ?? "Python SDK", href: "/docs/sdk#sdk-py", soon: true },
+        { id: "sdk-overview", label: itemLabels[24] ?? "SDK Overview", href: "/docs/sdk" },
+        { id: "sdk-ts", label: itemLabels[25] ?? "TypeScript SDK", href: "/docs/sdk/typescript" },
+        { id: "sdk-py", label: itemLabels[26] ?? "Python SDK", href: "/docs/sdk/python" },
       ],
     },
     {
       id: "contracts",
       label: sectionLabels[5] ?? "SMART CONTRACTS",
       items: [
-        { id: "contract-core", label: itemLabels[26] ?? "SynapseCore", href: "/docs/contracts" },
-        { id: "contract-usdc", label: itemLabels[27] ?? "MockUSDC (Testnet)", href: "/docs/contracts#contract-usdc" },
+        { id: "contract-core", label: itemLabels[27] ?? "SynapseCore", href: "/docs/contracts" },
+        { id: "contract-usdc", label: itemLabels[28] ?? "MockUSDC (Testnet)", href: "/docs/contracts#contract-usdc" },
       ],
     },
     {
       id: "resources",
       label: sectionLabels[6] ?? "RESOURCES",
       items: [
-        { id: "changelog", label: itemLabels[28] ?? "Changelog", href: "/blog" },
-        { id: "status", label: itemLabels[29] ?? "Status Page", href: "#", soon: true },
-        { id: "community", label: itemLabels[30] ?? "GitHub", href: "https://github.com/cliff-personal/Synapse-Network-Sdk", external: true },
+        { id: "changelog", label: itemLabels[29] ?? "Changelog", href: "/blog" },
+        { id: "status", label: itemLabels[30] ?? "Status Page", href: "#", soon: true },
+        { id: "community", label: itemLabels[31] ?? "GitHub", href: "https://github.com/cliff-personal/Synapse-Network-Sdk", external: true },
       ],
     },
   ].map((section) => ({

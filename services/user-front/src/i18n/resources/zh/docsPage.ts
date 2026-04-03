@@ -41,6 +41,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "服务",
     "Agent 调用",
     "凭证",
+    "SDK 总览",
     "TypeScript SDK",
     "Python SDK",
     "SynapseCore",
@@ -302,12 +303,48 @@ const docsPage: I18nMessages["docsPage"] = {
   apiAuthNoteDescription:
     "标记为 JWT 的接口需要在请求头里加入 Authorization: Bearer <token>。Token 通过 POST /api/v1/auth/verify 获取，目前有效期为 24 小时。",
   sdkEyebrow: "SDK",
-  sdkTitle: "SDK Reference",
+  sdkTitle: "SDK",
   sdkDescription:
-    "官方 SDK 封装了认证、充值、服务发现、调用和结算，让 Consumer 几行代码就能跑完整条链路。",
+    "Synapse 现在同时提供一等公民的 TypeScript SDK 和 Python SDK。两套 SDK 都已经覆盖 owner 登录、余额读取、充值确认、凭证签发、服务发现、付费调用和 receipt 验证这条主链。",
+  sdkHubCardTitles: ["TypeScript SDK", "Python SDK"],
+  sdkHubCardDescriptions: [
+    "浏览器、Node.js、Next.js 和现代前端/边缘运行时的标准接入方案。适合把 owner onboarding 和 agent runtime 一起放在 TS 体系里。",
+    "面向 Python 服务和后端 agent 的自动化接入方案。适合在 Python 3.11+ 系统里直接完成钱包登录、充值确认、签发凭证和服务调用。",
+  ],
+  sdkHubCardBullets: [
+    "钱包登录、余额查询、deposit intent / confirm、凭证签发、discover、quote、invoke、receipt 轮询。",
+    "钱包登录、JWT 缓存、余额查询、deposit intent / confirm、凭证签发、TS 风格 runtime alias、新钱包冷启动 E2E。",
+  ],
+  sdkHubCapabilityLabel: "覆盖能力",
+  sdkHubOpenCta: "打开接入文档",
+  sdkCompareTitle: "能力对齐",
+  sdkCompareDescription:
+    "按你的运行时选择 SDK 即可。底层结算语义保持一致，所以双语言接入不会造成心智撕裂。",
+  sdkCompareCapability: "能力",
+  sdkCompareRows: [
+    "Owner 钱包登录",
+    "余额读取",
+    "充值登记 / 确认",
+    "凭证签发",
+    "服务发现 / 报价 / 调用",
+    "冷启动端到端测试",
+  ],
+  sdkCompareTypeScript: ["支持", "支持", "支持", "支持", "支持", "支持"],
+  sdkComparePython: ["支持", "支持", "支持", "支持", "支持", "支持"],
+  sdkInstallTitle: "安装",
   sdkTsTitle: "TypeScript SDK",
   sdkTsDescription:
-    "支持 Node.js 18+ 和现代浏览器，提供完整 TypeScript 类型，并保持极简运行时依赖。",
+    "支持 Node.js 18+ 和现代浏览器，提供完整 TypeScript 类型，也是 Synapse owner onboarding 主链的参考实现。",
+  sdkTsInstallDescription:
+    "安装 SDK 和 ethers 之后，就能直接接 challenge / sign / verify、余额查询、充值确认、凭证签发和付费调用。",
+  sdkTsAuthTitle: "钱包登录 + 余额查询",
+  sdkTsAuthDescription:
+    "TypeScript SDK 会处理 owner 钱包 challenge / sign / verify，并自动复用 JWT 来查询余额或继续签发 credential。",
+  sdkTsDepositDescription:
+    "链上调用 SynapseCore.deposit 之后，把 txHash 登记给 gateway，再确认 intent 入账，余额就会转成可消费状态。",
+  sdkTsInvokeTitle: "签发凭证并调用服务",
+  sdkTsInvokeDescription:
+    "credential 签发和运行时调用处在同一条接入链里。client 负责 discover、quote、invoke，并轮询到终态 receipt。",
   sdkConsumerQuickStartTitle: "Consumer 快速开始",
   sdkConsumerQuickStartDescription: "完成钱包认证、颁发凭证和调用服务，只需要 3 步。",
   sdkDiscoveryTitle: "服务发现",
@@ -378,7 +415,38 @@ const docsPage: I18nMessages["docsPage"] = {
     "轮询直到调用进入终态。",
   ],
   sdkPyTitle: "Python SDK",
-  sdkPyDescription: "位于 sdk/python/，适合 Python 3.11+ 服务，并支持通过 pip 本地安装。",
+  sdkPyDescription:
+    "Python SDK 现在已经支持完整自动化主链：私钥钱包登录、余额查询、充值登记、凭证签发、discover、quote、invoke、receipt 查询，以及端到端验证。",
+  sdkPyCapabilityTitles: [
+    "Owner 钱包认证",
+    "余额与资金视图",
+    "充值索引接入",
+    "运行时调用对齐",
+  ],
+  sdkPyCapabilityDescriptions: [
+    "通过 SynapseAuth.from_private_key 完成 challenge / sign / verify，并缓存 JWT 给后续操作复用。",
+    "直接读取 consumer 可用余额、provider receivable 和平台费摘要，不需要跳出 SDK 再拼接口。",
+    "把链上 txHash 登记给 gateway，并在事件被索引后确认成可消费余额。",
+    "支持 discover、quote、invoke、get_invocation 这组 TS 风格 alias，让 Python / TypeScript 接入模型保持一致。",
+  ],
+  sdkPyInstallDescription:
+    "本地开发推荐 editable install。dev 依赖已经包含 pytest、eth-account 和 web3，方便直接跑完整冷启动 E2E。",
+  sdkPyAuthTitle: "Owner 钱包登录",
+  sdkPyAuthDescription:
+    "Python 鉴权层从 private key 起步，完成 challenge / sign / verify，再把 JWT 复用到余额读取、充值确认和 credential 签发。",
+  sdkPyBalanceDescription:
+    "余额读取被纳入 auth 层，owner 可以先确认充值是否已转成可消费余额，再继续签发凭证或发起调用。",
+  sdkPyDepositDescription:
+    "钱包链上执行 SynapseCore.deposit 之后，把 txHash 登记给 gateway，再在事件被索引后确认 intent 完成入账。",
+  sdkPyCredentialTitle: "签发 Agent Credential",
+  sdkPyCredentialDescription:
+    "同一个 owner auth client 可以签发带额度窗口、调用次数上限和 rpm ceiling 的 Agent Credential，然后把 token 交给 runtime client。",
+  sdkPyInvokeTitle: "发现并调用服务",
+  sdkPyInvokeDescription:
+    "runtime client 先 discover 服务，再 quote、invoke，并轮询 invocation receipt 直到进入终态。",
+  sdkPyVerifyTitle: "验证整条链路",
+  sdkPyVerifyDescription:
+    "Python SDK 自带冷启动 E2E：创建新钱包、充值、签发凭证、发现在线服务、发起调用，并验证余额真实下降。",
   sdkPyReadmeLead: "完整文档见",
   sdkPyReadmeCta: "sdk/python/README.md",
   contractsEyebrow: "智能合约",
