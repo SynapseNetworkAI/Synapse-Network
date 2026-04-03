@@ -345,11 +345,7 @@ export default function DashboardSidebar() {
             <Clock className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.settlements")}
           </Link>
-        </nav>
-      </div>
-
-      <div className="mt-auto mb-2">
-        <nav className="flex flex-col gap-0.5">
+          <div className="mt-4 pt-1">
           <button
             type="button"
             className={getGroupTriggerClasses(accountExpanded)}
@@ -375,6 +371,7 @@ export default function DashboardSidebar() {
               </button>
             </div>
           ) : null}
+          </div>
         </nav>
       </div>
 

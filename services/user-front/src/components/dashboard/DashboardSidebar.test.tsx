@@ -144,4 +144,18 @@ describe("DashboardSidebar", () => {
     expect(beginNavigationMock).toHaveBeenCalledWith("/dashboard/overview");
     expect(pushMock).toHaveBeenCalledWith("/dashboard/overview");
   });
+
+  it("renders account directly after settlements in the main navigation flow", () => {
+    render(<DashboardSidebar />);
+
+    const settlementsLink = screen.getAllByRole("link", { name: /Settlements/i }).at(-1);
+    const accountButton = screen.getAllByRole("button", { name: /Account/i }).at(-1);
+
+    expect(settlementsLink).toBeTruthy();
+    expect(accountButton).toBeTruthy();
+    expect(
+      settlementsLink!.compareDocumentPosition(accountButton!) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
 });
