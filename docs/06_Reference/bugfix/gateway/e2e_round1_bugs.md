@@ -56,3 +56,13 @@
 **根因**: DB 约束只允许 `['draft','active','paused','archived']`，不允许 `'inactive'`
 **修复**: 改为 `status: 'paused'`
 **状态**: ✅ 已修复
+
+---
+
+## 第 3 轮新增 Bug（2026-04-03）
+
+## BUG-007: owner shell upsert 会覆盖未来 profile 字段
+**症状**: 一旦把 `display_name / email / notify_*` 直接塞进 `synapse_owner_accounts`，现有 runtime / idempotency / registry 等路径里那些“只想确保 owner shell 存在”的 upsert 未来就可能把 profile 写脏或回滚成默认值。  
+**根因**: `synapse_owner_accounts` 之前只承载 owner shell 语义，没有 profile 字段；如果继续复用 `_ensure_owner_account()` 直接更新整行，就会把“存在性 upsert”和“账户资料写入”混成一件事。  
+**修复**: 保持 `_ensure_owner_account()` 只写 shell 核心字段；新增独立的 `read_owner_profile()` / `update_owner_profile()` 路径专门处理 profile，避免 runtime 写路径碰 profile。  
+**状态**: ✅ 已修复

@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS synapse_owner_accounts (
     id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     owner_id TEXT PRIMARY KEY,
     owner_wallet TEXT NOT NULL UNIQUE,
+    display_name TEXT,
+    email TEXT,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    notify_marketing BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_alerts BOOLEAN NOT NULL DEFAULT TRUE,
     status TEXT NOT NULL DEFAULT 'active',
     default_currency TEXT NOT NULL DEFAULT 'USDC',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -600,6 +605,10 @@ CREATE TABLE IF NOT EXISTS synapse_credit_voucher_redemptions (
 
 CREATE INDEX IF NOT EXISTS idx_synapse_provider_profiles_owner
 ON synapse_provider_profiles (owner_id, updated_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_synapse_owner_accounts_email_unique
+ON synapse_owner_accounts ((lower(email)))
+WHERE email IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_synapse_agent_credentials_agent
 ON synapse_agent_credentials (agent_id, issued_at DESC);

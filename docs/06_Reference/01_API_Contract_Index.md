@@ -106,7 +106,8 @@
 包括：
 
 1. Owner challenge / verify / logout
-2. Admin login / me / logout / policy
+2. Owner profile read / signed profile update
+3. Admin login / me / logout / policy
 
 它们负责建立 Session，不直接承载 Runtime invoke。
 

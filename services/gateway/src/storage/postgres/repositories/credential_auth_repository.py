@@ -12,6 +12,7 @@ from src.domain.identity import (
     AgentProfileRecord,
     BudgetPolicyRecord,
     OwnerAccountRecord,
+    OwnerProfileRecord,
     RuntimeCredentialRecord,
 )
 from src.domain.runtime_state import (
@@ -130,6 +131,170 @@ class CredentialAuthRepository:
             ),
         )
         return owner_id
+
+    @staticmethod
+    def _row_to_owner_profile(row: Any) -> OwnerProfileRecord:
+        (
+            owner_id,
+            owner_wallet,
+            display_name,
+            email,
+            email_verified,
+            notify_marketing,
+            notify_alerts,
+            status,
+            default_currency,
+            created_at,
+            updated_at,
+        ) = row
+        return OwnerProfileRecord(
+            ownerId=owner_id,
+            ownerWallet=str(owner_wallet or "").lower(),
+            displayName=display_name,
+            email=email,
+            emailVerified=bool(email_verified),
+            notifyMarketing=bool(notify_marketing),
+            notifyAlerts=bool(notify_alerts),
+            status=status,
+            defaultCurrency=default_currency,
+            createdAt=to_dt_str(created_at),
+            updatedAt=to_dt_str(updated_at),
+        )
+
+    def read_owner_profile(
+        self, wallet: str, *, ensure_exists: bool = True
+    ) -> Optional[OwnerProfileRecord]:
+        normalized_wallet = str(wallet or "").strip().lower()
+        if not normalized_wallet:
+            return None
+
+        if ensure_exists:
+            with self._db.tx_cursor() as cur:
+                owner_id = self._ensure_owner_account(
+                    cur,
+                    OwnerAccountRecord(
+                        ownerId=self._owner_id(normalized_wallet),
+                        ownerWallet=normalized_wallet,
+                    ),
+                )
+                cur.execute(
+                    """
+                    SELECT
+                        owner_id,
+                        owner_wallet,
+                        display_name,
+                        email,
+                        email_verified,
+                        notify_marketing,
+                        notify_alerts,
+                        status,
+                        default_currency,
+                        created_at,
+                        updated_at
+                    FROM synapse_owner_accounts
+                    WHERE owner_id = %s
+                    """,
+                    (owner_id,),
+                )
+                row = cur.fetchone()
+        else:
+            with self._db.readonly_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        owner_id,
+                        owner_wallet,
+                        display_name,
+                        email,
+                        email_verified,
+                        notify_marketing,
+                        notify_alerts,
+                        status,
+                        default_currency,
+                        created_at,
+                        updated_at
+                    FROM synapse_owner_accounts
+                    WHERE owner_wallet = %s
+                    """,
+                    (normalized_wallet,),
+                )
+                row = cur.fetchone()
+        if not row:
+            return None
+        return self._row_to_owner_profile(row)
+
+    def update_owner_profile(
+        self,
+        wallet: str,
+        *,
+        display_name: Optional[str],
+        email: Optional[str],
+        notify_marketing: bool,
+        notify_alerts: bool,
+    ) -> OwnerProfileRecord:
+        normalized_wallet = str(wallet or "").strip().lower()
+        normalized_display_name = str(display_name or "").strip() or None
+        normalized_email = str(email or "").strip().lower() or None
+        with self._db.tx_cursor() as cur:
+            owner_id = self._ensure_owner_account(
+                cur,
+                OwnerAccountRecord(
+                    ownerId=self._owner_id(normalized_wallet),
+                    ownerWallet=normalized_wallet,
+                ),
+            )
+            if normalized_email:
+                cur.execute(
+                    """
+                    SELECT owner_id
+                    FROM synapse_owner_accounts
+                    WHERE lower(email) = lower(%s)
+                      AND owner_id <> %s
+                    LIMIT 1
+                    """,
+                    (normalized_email, owner_id),
+                )
+                if cur.fetchone():
+                    raise ValueError("EMAIL_ALREADY_IN_USE")
+            cur.execute(
+                """
+                UPDATE synapse_owner_accounts
+                SET
+                    display_name = %s,
+                    email = %s,
+                    email_verified = CASE
+                        WHEN COALESCE(lower(email), '') = COALESCE(lower(%s), '')
+                            THEN email_verified
+                        ELSE FALSE
+                    END,
+                    notify_marketing = %s,
+                    notify_alerts = %s,
+                    updated_at = NOW()
+                WHERE owner_id = %s
+                RETURNING
+                    owner_id,
+                    owner_wallet,
+                    display_name,
+                    email,
+                    email_verified,
+                    notify_marketing,
+                    notify_alerts,
+                    status,
+                    default_currency,
+                    created_at,
+                    updated_at
+                """,
+                (
+                    normalized_display_name,
+                    normalized_email,
+                    normalized_email,
+                    bool(notify_marketing),
+                    bool(notify_alerts),
+                    owner_id,
+                ),
+            )
+            row = cur.fetchone()
+        return self._row_to_owner_profile(row)
 
     def _ensure_agent_profile(self, cur: Any, record: RuntimeCredentialRecord) -> str:
         runtime_label = str(record.agent.runtime_label or "").lower()

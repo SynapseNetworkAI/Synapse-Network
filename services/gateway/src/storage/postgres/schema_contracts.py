@@ -45,7 +45,23 @@ def _constraint(description: str, *required_fragments: str) -> ConstraintContrac
 POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
     TableSchemaContract(
         table_name="synapse_owner_accounts",
-        required_columns=frozenset({"id", "owner_id", "owner_wallet", "status", "default_currency", "created_at", "updated_at"}),
+        required_columns=frozenset(
+            {
+                "id",
+                "owner_id",
+                "owner_wallet",
+                "display_name",
+                "email",
+                "email_verified",
+                "notify_marketing",
+                "notify_alerts",
+                "status",
+                "default_currency",
+                "created_at",
+                "updated_at",
+            }
+        ),
+        required_indexes=frozenset({"idx_synapse_owner_accounts_email_unique"}),
         required_constraints=(
             _constraint("primary key on owner_id", PRIMARY_KEY_FRAGMENT, "owner_id"),
         ),

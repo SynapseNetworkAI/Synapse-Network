@@ -100,6 +100,7 @@ class FakeConnection:
 class FakeDB:
     def __init__(self):
         self.readonly_plan: List[Dict[str, Any]] = []
+        self.tx_plan: List[Dict[str, Any]] = []
         self.readonly_cursors: List[FakeCursor] = []
         self.tx_cursors: List[FakeCursor] = []
         self.connect_plan: List[Dict[str, Any]] = []
@@ -117,7 +118,11 @@ class FakeDB:
 
     @contextlib.contextmanager
     def tx_cursor(self):
-        cur = FakeCursor()
+        plan = self.tx_plan.pop(0) if self.tx_plan else {}
+        cur = FakeCursor(
+            fetchone_queue=plan.get("fetchone"),
+            fetchall_queue=plan.get("fetchall"),
+        )
         self.tx_cursors.append(cur)
         yield cur
 
@@ -880,6 +885,74 @@ def test_credential_auth_repository_normalizes_datetime_metadata_state() -> None
     assert len(creds) == 1
     assert creds[0].metadata is not None
     assert creds[0].metadata.updated_at == "2026-03-15 14:24:05"
+
+
+def test_credential_auth_repository_reads_owner_profile_with_defaults() -> None:
+    db = FakeDB()
+    db.tx_plan.append(
+        {
+            "fetchone": [
+                (
+                    "owner:0xabc",
+                    "0xabc",
+                    "Infra Desk",
+                    "ops@synapse.test",
+                    False,
+                    True,
+                    False,
+                    "active",
+                    "USDC",
+                    "2026-04-03 10:00:00",
+                    "2026-04-03 10:05:00",
+                )
+            ]
+        }
+    )
+    repo = CredentialAuthRepository(db, _q6)
+
+    profile = repo.read_owner_profile("0xABC", ensure_exists=True)
+
+    assert profile is not None
+    assert profile.owner_wallet == "0xabc"
+    assert profile.display_name == "Infra Desk"
+    assert profile.notify_alerts is False
+    executed = db.tx_cursors[-1].executed
+    assert any("INSERT INTO synapse_owner_accounts" in sql for sql, _ in executed)
+    assert any("FROM synapse_owner_accounts" in sql for sql, _ in executed)
+
+
+def test_credential_auth_repository_updates_owner_profile_without_touching_shell_upsert() -> None:
+    db = FakeDB()
+    db.tx_plan.append({"fetchone": [None, (
+        "owner:0xabc",
+        "0xabc",
+        "Infra Desk",
+        "infra@synapse.test",
+        False,
+        False,
+        True,
+        "active",
+        "USDC",
+        "2026-04-03 10:00:00",
+        "2026-04-03 10:06:00",
+    )]})
+    repo = CredentialAuthRepository(db, _q6)
+
+    profile = repo.update_owner_profile(
+        "0xabc",
+        display_name="Infra Desk",
+        email="infra@synapse.test",
+        notify_marketing=False,
+        notify_alerts=True,
+    )
+
+    assert profile.email == "infra@synapse.test"
+    executed = db.tx_cursors[-1].executed
+    owner_upsert_sql = [sql for sql, _ in executed if "INSERT INTO synapse_owner_accounts" in sql][0]
+    assert "display_name" not in owner_upsert_sql.lower()
+    update_sql = [sql for sql, _ in executed if "UPDATE synapse_owner_accounts" in sql][0]
+    assert "display_name = %s" in update_sql
+    assert "email_verified = CASE" in update_sql
 
 
 def test_gateway_state_repository_read_and_write() -> None:

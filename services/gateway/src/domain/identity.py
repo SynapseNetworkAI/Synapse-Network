@@ -19,6 +19,22 @@ class OwnerAccountRecord(BaseModel):
     updated_at: str = Field(default="", alias="updatedAt")
 
 
+class OwnerProfileRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    owner_id: str = Field(alias="ownerId")
+    owner_wallet: str = Field(alias="ownerWallet")
+    display_name: Optional[str] = Field(default=None, alias="displayName")
+    email: Optional[str] = None
+    email_verified: bool = Field(default=False, alias="emailVerified")
+    notify_marketing: bool = Field(default=True, alias="notifyMarketing")
+    notify_alerts: bool = Field(default=True, alias="notifyAlerts")
+    status: Literal["active", "suspended", "closed"] = "active"
+    default_currency: str = Field(default="USDC", alias="defaultCurrency")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
+
+
 class ProviderProfileRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
