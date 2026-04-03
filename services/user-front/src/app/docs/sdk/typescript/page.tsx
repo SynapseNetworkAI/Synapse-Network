@@ -5,13 +5,7 @@ import { CodeBlock } from "../../components/CodeBlock";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useActiveSection } from "../../use-active-section";
 
-const PAGE_SECTIONS = [
-  "sdk-ts",
-  "ts-auth",
-  "ts-deposit",
-  "ts-invoke",
-  "ts-api",
-];
+const PAGE_SECTIONS = ["sdk-ts"];
 
 export default function TypeScriptSdkPage() {
   const { t, tList } = useLanguage();
@@ -48,7 +42,7 @@ yarn add @synapse-network/sdk ethers`}
         />
       </section>
 
-      <section id="ts-auth" className="space-y-4">
+      <section className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkTsAuthTitle")}</h2>
         <p className="x-body-copy max-w-[680px]">{t("docsPage.sdkTsAuthDescription")}</p>
         <CodeBlock
@@ -69,7 +63,7 @@ console.log(balance.consumerAvailableBalance);`}
         />
       </section>
 
-      <section id="ts-deposit" className="space-y-4">
+      <section className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkDepositTitle")}</h2>
         <p className="x-body-copy max-w-[680px]">{t("docsPage.sdkTsDepositDescription")}</p>
         <CodeBlock
@@ -88,7 +82,7 @@ await auth.confirmDeposit(intentId, eventKey);`}
         />
       </section>
 
-      <section id="ts-invoke" className="space-y-4">
+      <section className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkTsInvokeTitle")}</h2>
         <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkTsInvokeDescription")}</p>
         <CodeBlock
@@ -125,7 +119,7 @@ console.log(result.invocationId, result.status, result.chargedUsdc);`}
         />
       </section>
 
-      <section id="ts-api" className="space-y-5">
+      <section className="space-y-5">
         <h2 className="x-section-title text-white">{t("docsPage.sdkApiCheatsheetTitle")}</h2>
 
         <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">SynapseAuth</div>

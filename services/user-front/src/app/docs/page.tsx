@@ -8,11 +8,17 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { StatusBadge } from "./components/StatusBadge";
 import { useActiveSection } from "./use-active-section";
+import { useDocsPageNav } from "./use-docs-page-nav";
 
 export default function DocsOverviewPage() {
   const router = useRouter();
   const { t, tList } = useLanguage();
   useActiveSection(["introduction", "architecture"], "introduction");
+  const sidebarItems = tList("docsPage.sidebarItemLabels");
+  useDocsPageNav([
+    { id: "introduction", label: sidebarItems[0] ?? "Introduction" },
+    { id: "architecture", label: sidebarItems[1] ?? "Architecture" },
+  ]);
   const quickCardTags = tList("docsPage.overviewQuickCardTags");
   const quickCardTitles = tList("docsPage.overviewQuickCardTitles");
   const quickCardDescriptions = tList("docsPage.overviewQuickCardDescriptions");

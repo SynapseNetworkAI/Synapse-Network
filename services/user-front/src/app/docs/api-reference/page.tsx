@@ -3,6 +3,7 @@
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useActiveSection } from "../use-active-section";
 import { StatusBadge } from "../components/StatusBadge";
+import { useDocsPageNav } from "../use-docs-page-nav";
 
 const PAGE_SECTIONS = ["api-auth", "api-balance", "api-services", "api-invocations", "api-credentials"];
 
@@ -124,6 +125,10 @@ export default function ApiReferencePage() {
   routeGroups.forEach((group, index) => {
     group.title = groupTitles[index] ?? group.title;
   });
+  useDocsPageNav(routeGroups.map((group) => ({
+    id: group.id,
+    label: group.title,
+  })));
 
   return (
     <div className="space-y-16">

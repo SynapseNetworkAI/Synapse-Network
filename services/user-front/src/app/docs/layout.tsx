@@ -3,6 +3,7 @@ import {
   DocsNavigationLoadingOverlay,
 } from "./DocsNavigationFeedback";
 import { DocsActiveProvider } from "./active-context";
+import DocsOnThisPage from "./components/DocsOnThisPage";
 import DocsSidebar from "./components/DocsSidebar";
 import DocsTopNav from "./components/DocsTopNav";
 import { DocsContentWrapper } from "./components/DocsContentWrapper";
@@ -19,10 +20,13 @@ export default function DocsLayout({ children }: Readonly<{ children: React.Reac
           <DocsSidebar />
           <main className="relative flex-1 min-w-0 overflow-x-hidden">
             <DocsNavigationLoadingOverlay />
-            <div className="max-w-[900px] mx-auto px-6 lg:px-10 py-12">
-              <DocsContentWrapper>
-                {children}
-              </DocsContentWrapper>
+            <div className="mx-auto flex max-w-[1180px] justify-center gap-10 px-6 py-12 lg:px-10">
+              <div className="min-w-0 max-w-[900px] flex-1">
+                <DocsContentWrapper>
+                  {children}
+                </DocsContentWrapper>
+              </div>
+              <DocsOnThisPage />
             </div>
           </main>
         </div>

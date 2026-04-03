@@ -5,13 +5,18 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { StatusBadge } from "../components/StatusBadge";
 import { useActiveSection } from "../use-active-section";
+import { useDocsPageNav } from "../use-docs-page-nav";
 
 const PAGE_SECTIONS = ["sdk-overview", "sdk-compare"];
 
 export default function SdkPage() {
   const router = useRouter();
   const { t, tList } = useLanguage();
-  useActiveSection(PAGE_SECTIONS, "sdk-hub");
+  useActiveSection(PAGE_SECTIONS, "sdk-overview");
+  useDocsPageNav([
+    { id: "sdk-overview", label: tList("docsPage.sidebarItemLabels")[24] ?? "SDK Overview" },
+    { id: "sdk-compare", label: t("docsPage.sdkCompareTitle") },
+  ]);
 
   const cardTitles = tList("docsPage.sdkHubCardTitles");
   const cardDescriptions = tList("docsPage.sdkHubCardDescriptions");

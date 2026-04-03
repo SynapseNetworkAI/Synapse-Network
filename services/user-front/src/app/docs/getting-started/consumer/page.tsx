@@ -6,6 +6,7 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../../components/CodeBlock";
 import { StepItem, StepTip } from "../../components/StepItem";
 import { useActiveSection } from "../../use-active-section";
+import { useDocsPageNav } from "../../use-docs-page-nav";
 
 const ACCENT = "#7ff7be";
 
@@ -26,6 +27,10 @@ export default function ConsumerGuidePage() {
   const stepTitles = tList("docsPage.consumerStepTitles");
   const stepBodies = tList("docsPage.consumerStepBodies");
   const stepTips = tList("docsPage.consumerStepTips");
+  useDocsPageNav(PAGE_SECTIONS.map((id, index) => ({
+    id,
+    label: stepTitles[index] ?? id,
+  })));
 
   return (
     <div className="space-y-4">
