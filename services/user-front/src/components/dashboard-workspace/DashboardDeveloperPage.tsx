@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Terminal, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers, ArrowRight } from "lucide-react";
+import { Terminal, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers, ArrowRight, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 // ── Real consumer quickstart codes ──────────────────────────────────────────
@@ -141,6 +141,7 @@ export default function DeveloperPage() {
   const { t } = useLanguage();
   const [sdk, setSdk] = React.useState<"ts" | "py">("ts");
   const [copied, setCopied] = React.useState<string | null>(null);
+  const [expanded, setExpanded] = React.useState(false);
 
   const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -152,7 +153,7 @@ export default function DeveloperPage() {
   const installCmd = sdk === "ts" ? TS_INSTALL : PY_INSTALL;
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8 space-y-6">
       {/* ── Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -191,7 +192,7 @@ export default function DeveloperPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* ── Left: Quickstart ── */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 space-y-4">
 
           {/* Title + SDK tabs */}
           <div className="flex items-center justify-between">
@@ -219,23 +220,50 @@ export default function DeveloperPage() {
             </div>
           </div>
 
-          {/* Code block */}
-          <div className="relative group">
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-[#0a0b0d] rounded-t-2xl">
+          {/* Code block — collapsible */}
+          <div className="rounded-2xl border border-white/[0.06] bg-[#0a0b0d] overflow-hidden">
+            {/* Header bar */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
               <span className="text-[10px] font-semibold tracking-widest uppercase text-[#4e535a] font-mono">
                 {sdk === "ts" ? "typescript" : "python"}
               </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => copy(code, "code")}
+                  className="p-1.5 rounded-md text-[#71767b] hover:text-white hover:bg-white/[0.08] transition-colors"
+                  aria-label="Copy code"
+                >
+                  {copied === "code" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => copy(code, "code")}
-              className="absolute right-3 top-2 p-1.5 rounded-md text-[#71767b] hover:text-white hover:bg-white/[0.08] transition-colors z-10"
-              aria-label="Copy code"
+
+            {/* Code area with collapse */}
+            <div
+              className="relative transition-all duration-300 ease-in-out"
+              style={{ maxHeight: expanded ? "1200px" : "380px", overflow: "hidden" }}
             >
-              {copied === "code" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <pre className="p-5 font-mono text-[12.5px] leading-relaxed text-[#c9d1d9] whitespace-pre overflow-x-auto">
+                <code>{code}</code>
+              </pre>
+
+              {/* Fade mask when collapsed */}
+              {!expanded && (
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#0a0b0d] to-transparent pointer-events-none" />
+              )}
+            </div>
+
+            {/* Expand / Collapse toggle */}
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 border-t border-white/[0.06] text-[11px] font-semibold text-[#6b7280] hover:text-white hover:bg-white/[0.03] transition-colors"
+            >
+              {expanded ? "Collapse" : "Expand full code"}
+              <ChevronDown
+                className="w-3.5 h-3.5 transition-transform duration-200"
+                style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
             </button>
-            <pre className="p-5 rounded-b-2xl bg-[#0a0b0d] border border-t-0 border-white/[0.06] overflow-x-auto font-mono text-[12.5px] leading-relaxed text-[#c9d1d9] whitespace-pre">
-              <code>{code}</code>
-            </pre>
           </div>
 
           {/* Install + MCP cards */}
