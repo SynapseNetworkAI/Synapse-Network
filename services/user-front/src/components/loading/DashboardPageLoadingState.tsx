@@ -1,20 +1,5 @@
 "use client";
 
-import { useLanguage } from "@/components/i18n/LanguageProvider";
-
-const COPY = {
-  en: {
-    eyebrow: "Workspace transition",
-    title: "Preparing the next control surface",
-    status: "Rendering the page shell first, then streaming data into place.",
-  },
-  zh: {
-    eyebrow: "工作台切换中",
-    title: "先切页面，再把数据逐步加载进来",
-    status: "界面壳体会先响应，数据随后补齐，避免侧栏点击卡住。",
-  },
-} as const;
-
 type DashboardPageLoadingStateProps = {
   mode?: "page" | "overlay";
 };
@@ -22,8 +7,6 @@ type DashboardPageLoadingStateProps = {
 export default function DashboardPageLoadingState({
   mode = "page",
 }: Readonly<DashboardPageLoadingStateProps>) {
-  const { lang } = useLanguage();
-  const copy = COPY[lang] ?? COPY.en;
   const isOverlay = mode === "overlay";
 
   return (
@@ -45,7 +28,12 @@ export default function DashboardPageLoadingState({
           <div className="mt-5 h-5 w-[min(620px,88vw)] rounded-full bg-white/[0.07]" />
         </div>
 
-        <div className="mt-10 flex flex-col gap-6 xl:flex-row">
+        {/* Spinner */}
+        <div className="mt-8 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-full border-2 border-white/[0.08] border-t-white/60 animate-spin" />
+        </div>
+
+        <div className="mt-8 flex flex-col gap-6 xl:flex-row">
           <div className="min-w-0 flex-1">
             <div className="rounded-[28px] border border-white/[0.06] bg-white/[0.025] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
               <div className="grid gap-4 md:grid-cols-2">
@@ -83,17 +71,7 @@ export default function DashboardPageLoadingState({
           </div>
         </div>
 
-        <div className="relative mt-10 max-w-[720px]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/48">
-            {copy.eyebrow}
-          </p>
-          <p className="mt-3 text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-white/92 sm:text-[28px]">
-            {copy.title}
-          </p>
-          <p className="mt-3 max-w-[60ch] text-[14px] leading-6 text-white/56 sm:text-[15px]">
-            {copy.status}
-          </p>
-        </div>
+
       </div>
     </div>
   );

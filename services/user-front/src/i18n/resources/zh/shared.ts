@@ -8,7 +8,7 @@ const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar
   loadingScreen: {
     eyebrow: "Synapse Network",
     title: "智能体时代的结算基础设施",
-    status: "正在初始化控制平面...",
+    status: "Loading...",
   },
   nav: {
     apiMarketplace: "API 市场",

@@ -2,150 +2,309 @@
 
 import React from "react";
 import Link from "next/link";
-import toast from "react-hot-toast";
-import { Terminal, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers } from "lucide-react";
+import { Terminal, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 
-export default function DeveloperPage() {
-  const { t, tList } = useLanguage();
-  const [copied, setCopied] = React.useState<string | null>(null);
-  const docSections = tList("developerPage.docSections");
+// ── Real consumer quickstart codes ──────────────────────────────────────────
 
-  const copyToClipboard = (text: string, id: string) => {
+const TS_CODE = `// Step 1 — Auth: get challenge + sign → JWT
+const { challenge } = await fetch(
+  \`/api/v1/auth/challenge?address=\${walletAddress}\`
+).then(r => r.json())
+
+const signature = await signer.signMessage(challenge)
+
+const { token } = await fetch('/api/v1/auth/verify', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ wallet_address: walletAddress, message: challenge, signature }),
+}).then(r => r.json())
+
+// Step 2 — Discover: find a service
+const { services } = await fetch(
+  '/api/v1/services/discover?tag=llm&limit=20',
+  { headers: { 'Authorization': \`Bearer \${token}\` } }
+).then(r => r.json())
+
+const { serviceId } = services[0]
+
+// Step 3 — Issue Agent Credential (with spend limits)
+const { agentToken, credentialId } = await fetch(
+  '/api/v1/credentials/agent/issue',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': \`Bearer \${token}\`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: 'my-agent-bot',
+      creditLimit: 1.00,      // daily USDC cap
+      maxCalls: 200,
+      resetInterval: 'daily',
+    }),
+  }
+).then(r => r.json())
+
+// Step 4 — Invoke service (agent pays, no manual auth needed)
+const result = await fetch('/api/v1/agent/invocations', {
+  method: 'POST',
+  headers: {
+    'Authorization': \`Bearer \${agentToken}\`,   // ← use agentToken here
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    serviceId,
+    payload: { prompt: 'Summarize this document...' },
+    idempotencyKey: crypto.randomUUID(),
+  }),
+}).then(r => r.json())
+
+console.log('Result:', result.data)
+console.log('Charged:', result.chargedUsdc, 'USDC')`.trim();
+
+const PY_CODE = `import httpx, uuid
+
+BASE = "http://your-gateway:8000"
+
+# Step 1 — Auth: get challenge + sign → JWT
+r = httpx.get(f"{BASE}/api/v1/auth/challenge", params={"address": wallet_address})
+challenge = r.json()["challenge"]
+
+signature = account.sign_message(encode_defunct(text=challenge)).signature.hex()
+
+token = httpx.post(f"{BASE}/api/v1/auth/verify", json={
+    "wallet_address": wallet_address,
+    "message": challenge,
+    "signature": signature,
+}).json()["token"]
+
+headers = {"Authorization": f"Bearer {token}"}
+
+# Step 2 — Discover: find a service
+services = httpx.get(
+    f"{BASE}/api/v1/services/discover",
+    params={"tag": "llm", "limit": 20},
+    headers=headers,
+).json()["services"]
+
+service_id = services[0]["serviceId"]
+
+# Step 3 — Issue Agent Credential
+cred = httpx.post(
+    f"{BASE}/api/v1/credentials/agent/issue",
+    headers=headers,
+    json={
+        "name": "my-agent-bot",
+        "creditLimit": 1.00,   # daily USDC cap
+        "maxCalls": 200,
+        "resetInterval": "daily",
+    },
+).json()
+
+agent_token = cred["agentToken"]   # agt_xxxxx...
+
+# Step 4 — Invoke service (agent pays)
+result = httpx.post(
+    f"{BASE}/api/v1/agent/invocations",
+    headers={"Authorization": f"Bearer {agent_token}",
+             "Content-Type": "application/json"},
+    json={
+        "serviceId": service_id,
+        "payload": {"prompt": "Summarize this document..."},
+        "idempotencyKey": str(uuid.uuid4()),
+    },
+).json()
+
+print("Result:", result["data"])
+print("Charged:", result["chargedUsdc"], "USDC")`.trim();
+
+const TS_INSTALL = "npm install @synapse-network/sdk";
+const PY_INSTALL = "pip install synapse-network-sdk";
+
+// ── Docs sidebar links — pointing to real /docs pages ───────────────────────
+
+const DOC_LINKS = [
+  { label: "Consumer Quick Start",      href: "/docs/getting-started/consumer" },
+  { label: "Authentication & Auth",     href: "/docs/getting-started/consumer#step-auth" },
+  { label: "Discover Services",         href: "/docs/getting-started/consumer#step-discover" },
+  { label: "Agent Credentials",         href: "/docs/getting-started/consumer#step-credential" },
+  { label: "Invoke & Settle",           href: "/docs/getting-started/consumer#step-invoke" },
+  { label: "Quote & Settlement",        href: "/docs/concepts" },
+  { label: "API Reference",             href: "/docs/api-reference" },
+  { label: "TypeScript SDK",            href: "/docs/sdk" },
+];
+
+// ── Component ────────────────────────────────────────────────────────────────
+
+export default function DeveloperPage() {
+  const { t } = useLanguage();
+  const [sdk, setSdk] = React.useState<"ts" | "py">("ts");
+  const [copied, setCopied] = React.useState<string | null>(null);
+
+  const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopied(id);
-    toast.success(id === "code" ? t("developerPage.quickstartCodeCopied") : t("developerPage.installCommandCopied"));
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const quickstartCode = `import { SynapseClient } from "@synapse/sdk";
-
-const client = new SynapseClient({
-  credential: "your_agent_credential_here"
-});
-
-// 1. Discover Service
-const services = await client.discovery.search("text-generation");
-
-// 2. Get Quote
-const quote = await client.quote.get(services[0].id);
-
-// 3. Invoke Service
-const result = await client.invoke.call(quote.id, {
-  prompt: "Hello, Synapse!"
-});
-
-console.log(result.data);`;
+  const code = sdk === "ts" ? TS_CODE : PY_CODE;
+  const installCmd = sdk === "ts" ? TS_INSTALL : PY_INSTALL;
 
   return (
-    <div className="p-8 space-y-10">
+    <div className="p-8 space-y-8">
+      {/* ── Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Terminal className="w-6 h-6 text-blue-400" />
+          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-blue-400" />
             {t("developerPage.title")}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">{t("developerPage.description")}</p>
+          <p className="text-sm text-[#6b7280] mt-1">{t("developerPage.description")}</p>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/credentials" className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border border-white/10 text-white hover:border-blue-400/40 hover:bg-white/[0.04] transition-colors">
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/dashboard/credentials"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 text-white hover:border-blue-400/40 hover:bg-white/[0.04] transition-colors"
+          >
             {t("developerPage.agentCredentials")}
           </Link>
-          <Link href="/dashboard/billing" className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border border-white/10 text-white hover:border-amber-400/40 hover:bg-white/[0.04] transition-colors">
+          <Link
+            href="/dashboard/billing"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 text-white hover:border-amber-400/40 hover:bg-white/[0.04] transition-colors"
+          >
             {t("developerPage.ownerTreasury")}
           </Link>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold hover:bg-blue-400 transition-colors">
+          <a
+            href="/docs/getting-started/consumer"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-semibold hover:bg-blue-400 transition-colors"
+          >
             <BookOpen className="w-3.5 h-3.5" />
             {t("developerPage.fullDocumentation")}
             <ExternalLink className="w-3 h-3" />
-          </button>
+          </a>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* QUICKSTART */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* ── Left: Quickstart ── */}
         <div className="lg:col-span-8 space-y-6">
+
+          {/* Title + SDK tabs */}
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Zap className="w-5 h-5 text-amber-400" />
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-400" />
               {t("developerPage.quickstartGuide")}
             </h2>
-            <div className="flex p-1 rounded-lg bg-white/[0.03] border border-white/5">
-              <button className="px-3 py-1 rounded-md text-[10px] font-bold bg-white text-black">{t("developerPage.quickstartTypeScript")}</button>
-              <button className="px-3 py-1 rounded-md text-[10px] font-bold text-gray-500 hover:text-gray-300">{t("developerPage.quickstartPython")}</button>
-            </div>
-          </div>
-          
-          <div className="relative group">
-            <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button 
-                onClick={() => copyToClipboard(quickstartCode, "code")}
-                aria-label={t("developerPage.quickstartCopyCode")}
-                title={t("developerPage.quickstartCopyCode")}
-                className="p-2 rounded-lg bg-white/10 border border-white/10 hover:bg-white/20 transition-colors"
+            <div className="flex p-0.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+              <button
+                onClick={() => setSdk("ts")}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors ${
+                  sdk === "ts" ? "bg-white text-black" : "text-[#6b7280] hover:text-gray-300"
+                }`}
               >
-                {copied === "code" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                TypeScript
+              </button>
+              <button
+                onClick={() => setSdk("py")}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors ${
+                  sdk === "py" ? "bg-white text-black" : "text-[#6b7280] hover:text-gray-300"
+                }`}
+              >
+                Python
               </button>
             </div>
-            <pre className="p-6 rounded-2xl bg-[#0a0a0c] border border-white/5 overflow-x-auto font-mono text-sm leading-relaxed text-blue-300/80">
-              <code>{quickstartCode}</code>
+          </div>
+
+          {/* Code block */}
+          <div className="relative group">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-[#0a0b0d] rounded-t-2xl">
+              <span className="text-[10px] font-semibold tracking-widest uppercase text-[#4e535a] font-mono">
+                {sdk === "ts" ? "typescript" : "python"}
+              </span>
+            </div>
+            <button
+              onClick={() => copy(code, "code")}
+              className="absolute right-3 top-2 p-1.5 rounded-md text-[#71767b] hover:text-white hover:bg-white/[0.08] transition-colors z-10"
+              aria-label="Copy code"
+            >
+              {copied === "code" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+            <pre className="p-5 rounded-b-2xl bg-[#0a0b0d] border border-t-0 border-white/[0.06] overflow-x-auto font-mono text-[12.5px] leading-relaxed text-[#c9d1d9] whitespace-pre">
+              <code>{code}</code>
             </pre>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 w-fit mb-4">
-                <Cpu className="w-5 h-5 text-blue-400" />
+          {/* Install + MCP cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-all">
+              <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 w-fit mb-3">
+                <Cpu className="w-4 h-4 text-blue-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-2">{t("developerPage.sdkInstallationTitle")}</h4>
-              <p className="text-xs text-gray-500 leading-relaxed mb-4">{t("developerPage.sdkInstallationDescription")}</p>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-black border border-white/5">
-                <code className="text-[11px] font-mono text-gray-400">{t("developerPage.sdkInstallCommand")}</code>
+              <h4 className="text-sm font-bold text-white mb-1">{t("developerPage.sdkInstallationTitle")}</h4>
+              <p className="text-xs text-[#6b7280] leading-relaxed mb-3">{t("developerPage.sdkInstallationDescription")}</p>
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black border border-white/[0.06]">
+                <code className="text-[11px] font-mono text-[#9ca3af]">{installCmd}</code>
                 <button
-                  onClick={() => copyToClipboard(t("developerPage.sdkInstallCommand"), "npm")}
-                  aria-label={t("developerPage.copyInstallCommand")}
-                  title={t("developerPage.copyInstallCommand")}
-                  className="text-gray-600 hover:text-white transition-colors"
+                  onClick={() => copy(installCmd, "install")}
+                  className="text-[#4b5563] hover:text-white transition-colors ml-2"
+                  aria-label="Copy install command"
                 >
-                  {copied === "npm" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied === "install" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
-            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
-              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 w-fit mb-4">
-                <Layers className="w-5 h-5 text-purple-400" />
+
+            <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] transition-all">
+              <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 w-fit mb-3">
+                <Layers className="w-4 h-4 text-purple-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-2">{t("developerPage.mcpIntegrationTitle")}</h4>
-              <p className="text-xs text-gray-500 leading-relaxed mb-4">{t("developerPage.mcpIntegrationDescription")}</p>
-              <button className="flex items-center gap-2 text-[11px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-widest">
+              <h4 className="text-sm font-bold text-white mb-1">{t("developerPage.mcpIntegrationTitle")}</h4>
+              <p className="text-xs text-[#6b7280] leading-relaxed mb-3">{t("developerPage.mcpIntegrationDescription")}</p>
+              <a
+                href="/docs/sdk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-widest"
+              >
                 {t("developerPage.viewMcpGuide")}
                 <ArrowRight className="w-3 h-3" />
-              </button>
+              </a>
             </div>
           </div>
         </div>
 
-        {/* SIDEBAR RESOURCES */}
-        <div className="lg:col-span-4 space-y-8">
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-400" />
+        {/* ── Right: Documentation sidebar ── */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="space-y-3">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-blue-400" />
               {t("developerPage.documentationTitle")}
             </h2>
-            <div className="space-y-2">
-              {docSections.map((item) => (
-                <button key={item} className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all group">
-                  <span className="text-xs font-medium text-gray-400 group-hover:text-white transition-colors">{item}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-blue-400 transition-all" />
-                </button>
+            <div className="space-y-1.5">
+              {DOC_LINKS.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:bg-white/[0.05] hover:border-white/10 transition-all group"
+                >
+                  <span className="text-xs font-medium text-[#9ca3af] group-hover:text-white transition-colors">
+                    {item.label}
+                  </span>
+                  <ExternalLink className="w-3 h-3 text-[#4b5563] group-hover:text-blue-400 transition-colors shrink-0" />
+                </a>
               ))}
             </div>
           </div>
 
-          <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20">
-            <h3 className="text-sm font-bold text-white mb-2">{t("developerPage.needHelpTitle")}</h3>
-            <p className="text-xs text-gray-500 leading-relaxed mb-4">{t("developerPage.needHelpDescription")}</p>
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/8 to-transparent border border-blue-500/20">
+            <h3 className="text-sm font-bold text-white mb-1">{t("developerPage.needHelpTitle")}</h3>
+            <p className="text-xs text-[#6b7280] leading-relaxed mb-4">{t("developerPage.needHelpDescription")}</p>
             <button className="w-full py-2.5 bg-white text-black rounded-lg text-[11px] font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors">
               {t("developerPage.joinDiscord")}
             </button>
@@ -156,10 +315,3 @@ console.log(result.data);`;
   );
 }
 
-function ArrowRight({ className }: Readonly<{ className?: string }>) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-    </svg>
-  );
-}

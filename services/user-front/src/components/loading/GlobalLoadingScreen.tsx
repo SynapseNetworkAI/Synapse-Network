@@ -24,12 +24,12 @@ export default function GlobalLoadingScreen() {
       </div>
 
       <div className="relative flex min-h-screen items-center justify-center px-6">
-        <div className="mx-auto flex w-full max-w-[760px] flex-col items-center text-center">
-          <p className="x-loading-fade-up text-[16px] font-semibold tracking-[0.08em] text-white/78 sm:text-[18px]">
+        <div className="mx-auto flex w-full max-w-[900px] flex-col items-center text-center">
+          <p className="x-loading-fade-up mb-6 text-[13px] font-semibold tracking-[0.12em] uppercase text-white/50">
             {t("loadingScreen.eyebrow")}
           </p>
 
-          <h1 className="x-loading-fade-up x-loading-fade-up-delay mt-10 max-w-[14ch] text-balance text-[clamp(2.75rem,6vw,5rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-white">
+          <h1 className="x-loading-fade-up x-loading-fade-up-delay w-full whitespace-nowrap text-center text-[clamp(1.6rem,4.2vw,3.6rem)] font-semibold leading-[1.0] tracking-[-0.04em] text-white">
             {t("loadingScreen.title")}
           </h1>
 

@@ -8,7 +8,7 @@ const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar
   loadingScreen: {
     eyebrow: "Synapse Network",
     title: "Settlement Infrastructure for the Agentic Era.",
-    status: "Initializing the control plane...",
+    status: "Loading...",
   },
   nav: {
     apiMarketplace: "API Marketplace",
