@@ -7,11 +7,8 @@ import {
   ArrowLeft,
   Check,
   CircleHelp,
-  Layers3,
   Plus,
-  Route,
   Server,
-  ShieldCheck,
   Wand2,
   X,
 } from "lucide-react";
@@ -20,6 +17,7 @@ import { useAccount } from "wagmi";
 import XSelect from "@/components/xui/XSelect";
 
 import AuthMask from "@/components/AuthMask";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import { createServiceRegistry } from "@/utils/serviceApi";
@@ -140,58 +138,11 @@ type FieldGuideItem = {
   example?: string;
 };
 
-const FIELD_GUIDES: Record<string, FieldGuideItem> = {
-  serviceId: {
-    title: "Service ID",
-    purpose: "Stable machine identity for discovery, quote and invoke.",
-    howToConfigure: "Use lowercase letters, digits, underscore or hyphen. Underscore is supported and should be preserved when intentional.",
-    platformUse: "Primary routing key and global uniqueness boundary.",
-    example: "svc_invoice_ocr_apac",
-  },
-  serviceName: {
-    title: "Service Name",
-    purpose: "Human-readable label in marketplace and provider console.",
-    howToConfigure: "Write it like a product name, not an internal class name.",
-    platformUse: "Display and search ranking trust signal.",
-    example: "SEA Invoice OCR",
-  },
-  descriptionForModel: {
-    title: "Description for Model",
-    purpose: "Tell autonomous agents when and why to call this service.",
-    howToConfigure: "Describe trigger conditions, not marketing copy.",
-    platformUse: "Discovery matching and runtime decision quality.",
-  },
-  taskCategory: {
-    title: "Task Category",
-    purpose: "Coarse semantic bucket for routing and discovery.",
-    howToConfigure: "Use dotted taxonomy such as ocr.invoice or search.web.",
-    platformUse: "Improves search recall and future ranking strategies.",
-  },
-  runtime: {
-    title: "Runtime Contract",
-    purpose: "Defines endpoint, timeout and payload boundaries.",
-    howToConfigure: "Mirror the real upstream SLA, not wishful numbers.",
-    platformUse: "Admission control, forwarding and health evaluation.",
-  },
-  billing: {
-    title: "Billing Contract",
-    purpose: "Defines price model and settlement currency.",
-    howToConfigure: "Use USDC-native numbers with one fixed per-call price.",
-    platformUse: "Settlement and charge ledger alignment.",
-  },
-  routingTargets: {
-    title: "Routing Targets",
-    purpose: "Active-active upstream targets behind the service contract.",
-    howToConfigure: "Add one or more invoke URLs with weights and optional regions.",
-    platformUse: "Weighted failover and health-based routing.",
-  },
-  ioSchema: {
-    title: "IO Schema",
-    purpose: "Defines the JSON contract agents will parse against.",
-    howToConfigure: "Use strict object schemas with stable keys.",
-    platformUse: "Caller understanding and response parsing reliability.",
-  },
-};
+type TranslateFn = (
+  key: string,
+  vars?: Record<string, string | number>,
+  fallbackText?: string,
+) => string;
 
 const createDraftId = (): string =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -222,8 +173,8 @@ const createDefaultDraft = (): ManifestDraft => ({
     examplesText: "[]",
   },
   ioSchema: {
-    inputSchemaText: "{}",
-    outputSchemaText: "{}",
+    inputSchemaText: JSON.stringify({ type: "object", properties: {}, required: [] }, null, 2),
+    outputSchemaText: JSON.stringify({ type: "object", properties: {} }, null, 2),
   },
   billing: {
     priceModel: DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel,
@@ -601,29 +552,39 @@ const applyGatewayOverrides = (draft: ManifestDraft, raw: Record<string, unknown
 
 };
 
-const collectIdentityErrors = (draft: ManifestDraft, errors: Record<string, string>): void => {
+const collectIdentityErrors = (
+  draft: ManifestDraft,
+  errors: Record<string, string>,
+  t: TranslateFn,
+): void => {
   const serviceId = draft.identity.serviceId.trim();
   const serviceName = draft.identity.serviceName.trim();
   const manifestVersion = draft.identity.manifestVersion.trim();
   const descriptionForModel = draft.modelUsage.descriptionForModel.trim();
 
   if (!serviceId) {
-    errors.serviceId = "Service ID is required.";
+    errors.serviceId = t("providerServiceDeployPage.validationServiceIdRequired");
   } else if (!SERVICE_ID_REGEX.test(serviceId)) {
-    errors.serviceId = "Service ID must match ^[a-z0-9_-]{3,64}$.";
+    errors.serviceId = t("providerServiceDeployPage.validationServiceIdPattern");
   }
   if (!serviceName) {
-    errors.serviceName = "Service Name is required.";
+    errors.serviceName = t("providerServiceDeployPage.validationServiceNameRequired");
   } else if (serviceName.length < SERVICE_NAME_MIN || serviceName.length > SERVICE_NAME_MAX) {
-    errors.serviceName = `Service Name must be ${SERVICE_NAME_MIN}-${SERVICE_NAME_MAX} chars.`;
+    errors.serviceName = t("providerServiceDeployPage.validationServiceNameLength", {
+      min: SERVICE_NAME_MIN,
+      max: SERVICE_NAME_MAX,
+    });
   }
   if (!manifestVersion || !/^\d+\.\d+\.\d+$/.test(manifestVersion)) {
-    errors.manifestVersion = "Service Version must use semver, for example 1.0.0.";
+    errors.manifestVersion = t("providerServiceDeployPage.validationManifestVersion");
   }
   if (!descriptionForModel) {
-    errors.descriptionForModel = "Description for Model is required.";
+    errors.descriptionForModel = t("providerServiceDeployPage.validationDescriptionRequired");
   } else if (descriptionForModel.length < DESCRIPTION_MIN || descriptionForModel.length > DESCRIPTION_MAX) {
-    errors.descriptionForModel = `Description for Model must be ${DESCRIPTION_MIN}-${DESCRIPTION_MAX} chars.`;
+    errors.descriptionForModel = t("providerServiceDeployPage.validationDescriptionLength", {
+      min: DESCRIPTION_MIN,
+      max: DESCRIPTION_MAX,
+    });
   }
 };
 
@@ -632,45 +593,62 @@ const collectSchemaErrors = (
   outputSchemaValid: boolean,
   examplesValid: boolean,
   errors: Record<string, string>,
+  t: TranslateFn,
 ): void => {
-  if (!inputSchemaValid) errors.inputSchema = "Input Schema must be valid JSON object.";
-  if (!outputSchemaValid) errors.outputSchema = "Output Schema must be valid JSON object.";
-  if (!examplesValid) errors.examples = "Examples must be valid JSON array.";
+  if (!inputSchemaValid) errors.inputSchema = t("providerServiceDeployPage.validationInputSchema");
+  if (!outputSchemaValid) errors.outputSchema = t("providerServiceDeployPage.validationOutputSchema");
+  if (!examplesValid) errors.examples = t("providerServiceDeployPage.validationExamples");
 };
 
 const collectRuntimeErrors = (
   draft: ManifestDraft,
   normalizedTargets: Array<{ url: string; region?: string; weight: number }>,
   errors: Record<string, string>,
+  t: TranslateFn,
 ): void => {
   const basePriceUsdc = Number(draft.billing.basePriceUsdc);
 
   if (!Number.isFinite(basePriceUsdc) || basePriceUsdc < 0) {
-    errors.basePriceUsdc = "Base Price USDC must be a non-negative number.";
+    errors.basePriceUsdc = t("providerServiceDeployPage.validationBasePrice");
   }
   if (!isHttpUrl(draft.runtime.endpointUrl.trim())) {
-    errors.endpointUrl = "Endpoint URL must be a valid http(s) URL.";
+    errors.endpointUrl = t("providerServiceDeployPage.validationEndpointUrl");
   }
   if (draft.runtime.timeoutMs < SERVICE_CONSTRAINT_LIMITS.timeoutMs.min || draft.runtime.timeoutMs > SERVICE_CONSTRAINT_LIMITS.timeoutMs.max) {
-    errors.timeoutMs = `Timeout must be in [${SERVICE_CONSTRAINT_LIMITS.timeoutMs.min}, ${SERVICE_CONSTRAINT_LIMITS.timeoutMs.max}] ms.`;
+    errors.timeoutMs = t("providerServiceDeployPage.validationTimeoutRange", {
+      min: SERVICE_CONSTRAINT_LIMITS.timeoutMs.min,
+      max: SERVICE_CONSTRAINT_LIMITS.timeoutMs.max,
+    });
   }
   if (draft.runtime.maxRequestBytes < SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min || draft.runtime.maxRequestBytes > SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max) {
-    errors.maxRequestBytes = `Max Request Bytes must be in [${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min}, ${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max}].`;
+    errors.maxRequestBytes = t("providerServiceDeployPage.validationMaxRequestBytesRange", {
+      min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min,
+      max: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max,
+    });
   }
   if (draft.runtime.maxResponseBytes < SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min || draft.runtime.maxResponseBytes > SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max) {
-    errors.maxResponseBytes = `Max Response Bytes must be in [${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min}, ${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max}].`;
+    errors.maxResponseBytes = t("providerServiceDeployPage.validationMaxResponseBytesRange", {
+      min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min,
+      max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max,
+    });
   }
   if (!normalizeHealthPath(draft.gatewayExtensions.healthCheck.path).startsWith("/")) {
-    errors.healthPath = "Health Check Path must start with /.";
+    errors.healthPath = t("providerServiceDeployPage.validationHealthPath");
   }
   if (normalizedTargets.length === 0) {
-    errors.routingTargets = "At least one valid routing target is required.";
+    errors.routingTargets = t("providerServiceDeployPage.validationRoutingTargets");
   }
   if (draft.gatewayExtensions.routingTargets.some((target) => target.url.trim() && (target.weight < WEIGHT_MIN || target.weight > WEIGHT_MAX))) {
-    errors.routingTargets = `Target weight must be in [${WEIGHT_MIN}, ${WEIGHT_MAX}].`;
+    errors.routingTargets = t("providerServiceDeployPage.validationTargetWeight", {
+      min: WEIGHT_MIN,
+      max: WEIGHT_MAX,
+    });
   }
   if (draft.gatewayExtensions.rateLimitPolicy.maxQps < SERVICE_CONSTRAINT_LIMITS.maxQps.min || draft.gatewayExtensions.rateLimitPolicy.maxQps > SERVICE_CONSTRAINT_LIMITS.maxQps.max) {
-    errors.maxQps = `Max QPS must be in [${SERVICE_CONSTRAINT_LIMITS.maxQps.min}, ${SERVICE_CONSTRAINT_LIMITS.maxQps.max}].`;
+    errors.maxQps = t("providerServiceDeployPage.validationMaxQpsRange", {
+      min: SERVICE_CONSTRAINT_LIMITS.maxQps.min,
+      max: SERVICE_CONSTRAINT_LIMITS.maxQps.max,
+    });
   }
 };
 
@@ -680,16 +658,19 @@ const validateDraft = (
   outputSchemaValid: boolean,
   examplesValid: boolean,
   normalizedTargets: Array<{ url: string; region?: string; weight: number }>,
+  t: TranslateFn,
 ): Record<string, string> => {
   const errors: Record<string, string> = {};
-  collectIdentityErrors(draft, errors);
-  collectSchemaErrors(inputSchemaValid, outputSchemaValid, examplesValid, errors);
-  collectRuntimeErrors(draft, normalizedTargets, errors);
+  collectIdentityErrors(draft, errors, t);
+  collectSchemaErrors(inputSchemaValid, outputSchemaValid, examplesValid, errors, t);
+  collectRuntimeErrors(draft, normalizedTargets, errors, t);
 
   return errors;
 };
 
 function FieldGuideHint({ item }: Readonly<{ item?: FieldGuideItem }>) {
+  const { t } = useLanguage();
+
   if (!item) {
     return null;
   }
@@ -702,9 +683,9 @@ function FieldGuideHint({ item }: Readonly<{ item?: FieldGuideItem }>) {
       <div className="absolute z-30 mt-2 w-72 rounded-xl border border-gray-700 bg-[#0b0d12] p-3 text-[11px] shadow-2xl">
         <p className="font-semibold text-white">{item.title}</p>
         <p className="mt-2 text-gray-300">{item.purpose}</p>
-        <p className="mt-2 text-gray-400">Configure: {item.howToConfigure}</p>
-        <p className="mt-1 text-gray-400">Platform: {item.platformUse}</p>
-        {item.example ? <p className="mt-1 text-green-300">Example: {item.example}</p> : null}
+        <p className="mt-2 text-gray-400">{t("providerServiceDeployPage.fieldGuideConfigureLabel")}: {item.howToConfigure}</p>
+        <p className="mt-1 text-gray-400">{t("providerServiceDeployPage.fieldGuidePlatformLabel")}: {item.platformUse}</p>
+        {item.example ? <p className="mt-1 text-green-300">{t("providerServiceDeployPage.fieldGuideExampleLabel")}: {item.example}</p> : null}
       </div>
     </details>
   );
@@ -773,6 +754,7 @@ function TextField({
       </label>
       <input
         type="text"
+        aria-label={label}
         className={`w-full rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-500 ${mono ? "font-mono" : ""}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -801,6 +783,7 @@ function NumberField({
       <label className="mb-1.5 block text-sm font-medium text-zinc-200">{label}</label>
       <input
         type="number"
+        aria-label={label}
         className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
         value={value}
         onChange={(event) => onChange(Number.parseInt(event.target.value, 10) || 0)}
@@ -823,6 +806,7 @@ function TagEditor({
   placeholder: string;
   hint: string;
 }>) {
+  const { t } = useLanguage();
   const [draft, setDraft] = useState("");
 
   const addValue = () => {
@@ -839,6 +823,7 @@ function TagEditor({
       <div className="flex gap-2">
         <input
           type="text"
+          aria-label={label}
           className="flex-1 rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-500"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -851,7 +836,7 @@ function TagEditor({
           placeholder={placeholder}
         />
         <button type="button" onClick={addValue} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10">
-          Add
+          {t("providerServiceDeployPage.tagAddButton")}
         </button>
       </div>
       <p className="mt-2 text-xs text-zinc-500">{hint}</p>
@@ -886,6 +871,7 @@ function JsonEditor({
     <div>
       <label className="mb-1.5 block text-sm font-medium text-zinc-200">{label}</label>
       <textarea
+        aria-label={label}
         className="h-48 w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-xs text-zinc-200 outline-none transition focus:border-green-500"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -902,6 +888,7 @@ function RoutingTargetsEditor({
   targets: RoutingTarget[];
   onChange: (next: RoutingTarget[]) => void;
 }>) {
+  const { t } = useLanguage();
   const updateTarget = (index: number, key: keyof RoutingTarget, value: string | number) => {
     const next = targets.map((target, targetIndex) => {
       if (targetIndex !== index) {
@@ -918,26 +905,30 @@ function RoutingTargetsEditor({
         <div key={target.id} className="grid gap-3 rounded-2xl border border-white/8 bg-black/60 p-4 md:grid-cols-[1.6fr_1fr_120px_44px]">
           <input
             type="text"
+            aria-label={t("providerServiceDeployPage.routingTargetUrlAria")}
             className="rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
-            placeholder="https://provider.example.com/invoke"
+            placeholder={t("providerServiceDeployPage.routingTargetUrlPlaceholder")}
             value={target.url}
             onChange={(event) => updateTarget(index, "url", event.target.value)}
           />
           <input
             type="text"
+            aria-label={t("providerServiceDeployPage.routingTargetRegionAria")}
             className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-500"
-            placeholder="ap-southeast-1"
+            placeholder={t("providerServiceDeployPage.routingTargetRegionPlaceholder")}
             value={target.region}
             onChange={(event) => updateTarget(index, "region", event.target.value)}
           />
           <input
             type="number"
+            aria-label={t("providerServiceDeployPage.routingTargetWeightAria")}
             className="rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
             value={target.weight}
             onChange={(event) => updateTarget(index, "weight", Number.parseInt(event.target.value, 10) || 0)}
           />
           <button
             type="button"
+            aria-label={t("providerServiceDeployPage.routingTargetRemoveAria")}
             onClick={() => onChange(targets.length === 1 ? [emptyRoutingTarget()] : targets.filter((_, targetIndex) => targetIndex !== index))}
             className="flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -951,7 +942,7 @@ function RoutingTargetsEditor({
         className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
       >
         <Plus className="h-4 w-4" />
-        Add Routing Target
+        {t("providerServiceDeployPage.routingTargetAdd")}
       </button>
     </div>
   );
@@ -971,10 +962,16 @@ const normalizeParsedManifest = (current: ManifestDraft, raw: Record<string, unk
 export default function DeployManifestPage() {
   const router = useRouter();
   const { address } = useAccount();
+  const { t, tList } = useLanguage();
 
   const [draft, setDraft] = useState<ManifestDraft>(createDefaultDraft);
   const [hasDraft, setHasDraft] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showManifestPreview, setShowManifestPreview] = useState(false);
+  const [showGatewayPreview, setShowGatewayPreview] = useState(false);
+  const [serviceIdTouched, setServiceIdTouched] = useState(false);
+  const [serviceSlugTouched, setServiceSlugTouched] = useState(false);
   const [aiCurl, setAICurl] = useState("");
   const [aiResponse, setAIResponse] = useState("");
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -1011,10 +1008,12 @@ export default function DeployManifestPage() {
       parsed.gatewayExtensions.healthCheck.successCodesText = DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT;
       parsed.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_SERVICE_REQUEST_ID_HEADER;
       setDraft(parsed);
+      setServiceIdTouched(Boolean(parsed.identity.serviceId.trim()));
+      setServiceSlugTouched(Boolean(parsed.identity.serviceSlug.trim()));
       setHasDraft(false);
-      toast.success("Service definition draft restored.");
+      toast.success(t("providerServiceDeployPage.draftRestored"));
     } catch {
-      toast.error("Stored draft is corrupted. Start from a clean service definition.");
+      toast.error(t("providerServiceDeployPage.corruptedDraft"));
     }
   };
 
@@ -1024,6 +1023,45 @@ export default function DeployManifestPage() {
       identity: {
         ...current.identity,
         [key]: value,
+      },
+    }));
+  };
+
+  const updateServiceName = (value: string) => {
+    setDraft((current) => {
+      const derivedServiceId = normalizeServiceId(value);
+      const derivedSlug = slugifyValue(value);
+      return {
+        ...current,
+        identity: {
+          ...current.identity,
+          serviceName: value,
+          serviceId: serviceIdTouched ? current.identity.serviceId : derivedServiceId,
+          serviceSlug: serviceSlugTouched ? current.identity.serviceSlug : derivedSlug,
+        },
+      };
+    });
+  };
+
+  const updateServiceId = (value: string) => {
+    setServiceIdTouched(true);
+    updateIdentity("serviceId", normalizeServiceId(value));
+  };
+
+  const updateServiceSlug = (value: string) => {
+    setServiceSlugTouched(true);
+    updateIdentity("serviceSlug", slugifyValue(value));
+  };
+
+  const resyncDerivedIdentity = () => {
+    setServiceIdTouched(false);
+    setServiceSlugTouched(false);
+    setDraft((current) => ({
+      ...current,
+      identity: {
+        ...current.identity,
+        serviceId: normalizeServiceId(current.identity.serviceName),
+        serviceSlug: slugifyValue(current.identity.serviceName),
       },
     }));
   };
@@ -1100,6 +1138,64 @@ export default function DeployManifestPage() {
   const outputSchema = useMemo(() => parseJsonObject(draft.ioSchema.outputSchemaText), [draft.ioSchema.outputSchemaText]);
   const examples = useMemo(() => parseJsonArray(draft.modelUsage.examplesText), [draft.modelUsage.examplesText]);
   const successCodes = useMemo(() => parseNumberList(draft.gatewayExtensions.healthCheck.successCodesText), [draft.gatewayExtensions.healthCheck.successCodesText]);
+  const minimalRequiredFields = tList("providerServiceDeployPage.minimalRequiredFields");
+  const defaultRules = tList("providerServiceDeployPage.defaultRules");
+  const readinessStates = tList("providerServiceDeployPage.readinessStates");
+  const fieldGuides = useMemo<Record<string, FieldGuideItem>>(
+    () => ({
+      serviceId: {
+        title: t("providerServiceDeployPage.fieldGuideServiceIdTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideServiceIdPurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideServiceIdHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideServiceIdPlatform"),
+        example: t("providerServiceDeployPage.fieldGuideServiceIdExample"),
+      },
+      serviceName: {
+        title: t("providerServiceDeployPage.fieldGuideServiceNameTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideServiceNamePurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideServiceNameHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideServiceNamePlatform"),
+        example: t("providerServiceDeployPage.fieldGuideServiceNameExample"),
+      },
+      descriptionForModel: {
+        title: t("providerServiceDeployPage.fieldGuideDescriptionTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideDescriptionPurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideDescriptionHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideDescriptionPlatform"),
+      },
+      taskCategory: {
+        title: t("providerServiceDeployPage.fieldGuideTaskCategoryTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideTaskCategoryPurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideTaskCategoryHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideTaskCategoryPlatform"),
+      },
+      runtime: {
+        title: t("providerServiceDeployPage.fieldGuideRuntimeTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideRuntimePurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideRuntimeHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideRuntimePlatform"),
+      },
+      billing: {
+        title: t("providerServiceDeployPage.fieldGuideBillingTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideBillingPurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideBillingHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideBillingPlatform"),
+      },
+      routingTargets: {
+        title: t("providerServiceDeployPage.fieldGuideRoutingTargetsTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideRoutingTargetsPurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideRoutingTargetsHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideRoutingTargetsPlatform"),
+      },
+      ioSchema: {
+        title: t("providerServiceDeployPage.fieldGuideIoSchemaTitle"),
+        purpose: t("providerServiceDeployPage.fieldGuideIoSchemaPurpose"),
+        howToConfigure: t("providerServiceDeployPage.fieldGuideIoSchemaHow"),
+        platformUse: t("providerServiceDeployPage.fieldGuideIoSchemaPlatform"),
+      },
+    }),
+    [t],
+  );
 
   const normalizedTargets = useMemo(() => {
     const validTargets = draft.gatewayExtensions.routingTargets.filter((target) => isHttpUrl(target.url.trim()));
@@ -1123,20 +1219,20 @@ export default function DeployManifestPage() {
   }, [draft.gatewayExtensions.routingTargets, draft.runtime.endpointUrl]);
 
   const fieldErrors = useMemo(
-    () => validateDraft(draft, inputSchema.valid, outputSchema.valid, examples.valid, normalizedTargets),
-    [draft, inputSchema.valid, outputSchema.valid, examples.valid, normalizedTargets],
+    () => validateDraft(draft, inputSchema.valid, outputSchema.valid, examples.valid, normalizedTargets, t),
+    [draft, inputSchema.valid, outputSchema.valid, examples.valid, normalizedTargets, t],
   );
 
   const readinessChecks = useMemo(
     () => [
-      { label: "Identity", ok: Boolean(draft.identity.serviceId.trim() && draft.identity.serviceName.trim()) },
-      { label: "Model Contract", ok: Boolean(draft.modelUsage.descriptionForModel.trim()) },
-      { label: "Schema", ok: inputSchema.valid && outputSchema.valid },
-      { label: "Billing", ok: Boolean(draft.billing.basePriceUsdc.trim()) },
-      { label: "Runtime", ok: isHttpUrl(draft.runtime.endpointUrl.trim()) },
-      { label: "Gateway Extensions", ok: normalizedTargets.length > 0 },
+      { label: t("providerServiceDeployPage.checkIdentity"), ok: Boolean(draft.identity.serviceId.trim() && draft.identity.serviceName.trim()) },
+      { label: t("providerServiceDeployPage.checkModelContract"), ok: Boolean(draft.modelUsage.descriptionForModel.trim()) },
+      { label: t("providerServiceDeployPage.checkSchema"), ok: inputSchema.valid && outputSchema.valid },
+      { label: t("providerServiceDeployPage.checkBilling"), ok: Boolean(draft.billing.basePriceUsdc.trim()) },
+      { label: t("providerServiceDeployPage.checkRuntime"), ok: isHttpUrl(draft.runtime.endpointUrl.trim()) },
+      { label: t("providerServiceDeployPage.checkGatewayExtensions"), ok: normalizedTargets.length > 0 },
     ],
-    [draft, inputSchema.valid, outputSchema.valid, normalizedTargets.length],
+    [draft, inputSchema.valid, outputSchema.valid, normalizedTargets.length, t],
   );
 
   const standardManifest = useMemo(
@@ -1221,10 +1317,10 @@ export default function DeployManifestPage() {
     setIsAiGenerating(true);
     try {
       if (!aiCurlLooksValid) {
-        throw new Error("Raw cURL Command must start with curl and include a valid http(s) URL.");
+        throw new Error(t("providerServiceDeployPage.parserInvalidCurl"));
       }
       if (!address) {
-        throw new Error("Wallet not connected. Please connect wallet and sign in first.");
+        throw new Error(t("providerServiceDeployPage.parserWalletMissing"));
       }
 
       const response = await fetch(PARSE_CURL_ENDPOINT, {
@@ -1239,7 +1335,7 @@ export default function DeployManifestPage() {
 
       if (!response.ok) {
         const raw = await response.text();
-        throw new Error(normalizeAuthApiError(raw || "Failed to parse cURL", response.status));
+        throw new Error(normalizeAuthApiError(raw || t("providerServiceDeployPage.parserFailed"), response.status));
       }
 
       const payload = (await response.json()) as {
@@ -1252,18 +1348,18 @@ export default function DeployManifestPage() {
       };
 
       if (payload.status !== "success") {
-        throw new Error(payload.detail || "Unknown parser error.");
+        throw new Error(payload.detail || t("providerServiceDeployPage.parserUnknownError"));
       }
 
       const parsed = payload.data ?? payload.parsed ?? payload.manifest ?? payload.result;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Parser did not return a valid service definition object.");
+        throw new Error(t("providerServiceDeployPage.parserInvalidResponse"));
       }
 
       setAIResponse(JSON.stringify(parsed, null, 2));
-      toast.success("AI service definition draft generated. Review and confirm override.");
+      toast.success(t("providerServiceDeployPage.parserGeneratedToast"));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to parse cURL.";
+      const message = error instanceof Error ? error.message : t("providerServiceDeployPage.parserFailed");
       toast.error(message);
     } finally {
       setIsAiGenerating(false);
@@ -1272,13 +1368,15 @@ export default function DeployManifestPage() {
 
   const confirmAndInject = () => {
     if (!parsedAiResponse) {
-      toast.error("Expected / Generated Service Definition JSON must be valid JSON object.");
+      toast.error(t("providerServiceDeployPage.parserExpectedJsonError"));
       return;
     }
 
     setDraft((current) => normalizeParsedManifest(current, parsedAiResponse));
+    setServiceIdTouched(true);
+    setServiceSlugTouched(true);
     closeParser();
-    toast.success("Parsed service definition data injected into the form.");
+    toast.success(t("providerServiceDeployPage.parserInjectedToast"));
   };
 
   const submitDeploy = async () => {
@@ -1287,7 +1385,7 @@ export default function DeployManifestPage() {
       return;
     }
     if (!address) {
-      toast.error("Wallet not connected. Please connect wallet and sign in first.");
+      toast.error(t("providerServiceDeployPage.submitWalletMissing"));
       return;
     }
 
@@ -1295,29 +1393,29 @@ export default function DeployManifestPage() {
     try {
       await createServiceRegistry(gatewayPayloadPreview, address);
       localStorage.removeItem(STORAGE_KEY);
-      toast.success("API service submitted.");
+      toast.success(t("providerServiceDeployPage.submitSuccess"));
       router.replace("/provider/services");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create service.";
+      const message = error instanceof Error ? error.message : t("providerServiceDeployPage.submitFailed");
       toast.error(message);
     } finally {
       setIsDeploying(false);
     }
   };
 
-  let deploymentLabel = "CREATE API SERVICE";
+  let deploymentLabel = t("providerServiceDeployPage.deploymentLabelCreate");
   if (isDeploying) {
-    deploymentLabel = "CREATING SERVICE...";
+    deploymentLabel = t("providerServiceDeployPage.deploymentLabelCreating");
   } else if (nextBlockingIssue) {
-    deploymentLabel = "FIX CONTRACT VALIDATION";
+    deploymentLabel = t("providerServiceDeployPage.deploymentLabelFix");
   }
 
   return (
     <AuthMask
       allowChallengeAuthorize={false}
-      sessionHelpText="This page is session-only. Please complete wallet sign-in from My Services, then return to create a service."
+      sessionHelpText={t("providerServiceDeployPage.sessionHelpText")}
       sessionRecoveryHref="/provider/services"
-      sessionRecoveryLabel="Go to API Services"
+      sessionRecoveryLabel={t("providerServiceDeployPage.sessionRecoveryLabel")}
     >
       <div className="min-h-[calc(100vh-80px)] bg-[#050505]">
         <div className="mx-auto grid max-w-[1680px] gap-6 px-4 py-6 lg:grid-cols-[1.15fr_0.95fr] xl:px-6">
@@ -1327,28 +1425,26 @@ export default function DeployManifestPage() {
                 <div>
                   <Link href="/provider/services" className="inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-green-300">
                     <ArrowLeft className="h-4 w-4" />
-                    Back to API Services
+                    {t("providerServiceDeployPage.backToApiServices")}
                   </Link>
                   <div className="mt-5 flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-green-500/20 bg-green-500/10 text-green-300">
                       <Server className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">Provider Control Plane</p>
-                      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">Create API Service</h1>
+                      <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">{t("providerServiceDeployPage.eyebrow")}</p>
+                      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">{t("providerServiceDeployPage.title")}</h1>
                     </div>
                   </div>
                   <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
-                    This page now follows the new service definition standard and SQL target model. You define the agent-facing contract,
-                    runtime boundary and gateway extensions here. The right side shows both the standard service definition and the current gateway
-                    submission mapping, so there is no contract theater.
+                    {t("providerServiceDeployPage.heroDescription")}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={closeDeployPage}
-                    aria-label="Close create API service page"
+                    aria-label={t("providerServiceDeployPage.closePageAria")}
                     className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-3 text-zinc-400 transition hover:bg-white/10 hover:text-white"
                   >
                     <X className="h-5 w-5" />
@@ -1359,7 +1455,7 @@ export default function DeployManifestPage() {
                       onClick={restoreDraft}
                       className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-200 transition hover:bg-amber-500/15"
                     >
-                      Restore Draft
+                      {t("providerServiceDeployPage.restoreDraft")}
                     </button>
                   ) : null}
                   <button
@@ -1368,7 +1464,7 @@ export default function DeployManifestPage() {
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
                   >
                     <Wand2 className="h-4 w-4" />
-                    AI Definition Assist
+                    {t("providerServiceDeployPage.aiAssist")}
                   </button>
                 </div>
               </div>
@@ -1376,355 +1472,358 @@ export default function DeployManifestPage() {
 
             <SectionCard
               index="01"
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title="Identity Layer"
-              summary="Define the immutable machine identity and the human-facing contract header."
+              icon={<Server className="h-5 w-5" />}
+              title={t("providerServiceDeployPage.sectionQuickPublishTitle")}
+              summary={t("providerServiceDeployPage.sectionQuickPublishSummary")}
             >
-              <div className="grid gap-4 md:grid-cols-2">
-                <TextField
-                  label="Service ID"
-                  value={draft.identity.serviceId}
-                  onChange={(value) => updateIdentity("serviceId", normalizeServiceId(value))}
-                  placeholder="svc_invoice_ocr_apac"
-                  error={fieldErrors.serviceId}
-                  hint="Globally unique service contract key. Letters, digits, underscore and hyphen are allowed."
-                  guide={FIELD_GUIDES.serviceId}
-                  mono
-                />
-                <TextField
-                  label="Service Name"
-                  value={draft.identity.serviceName}
-                  onChange={(value) => updateIdentity("serviceName", value)}
-                  placeholder="SEA Invoice OCR"
-                  error={fieldErrors.serviceName}
-                  hint="Human-readable product name shown in provider console and marketplace."
-                  guide={FIELD_GUIDES.serviceName}
-                />
-                <TextField
-                  label="Service Slug"
-                  value={draft.identity.serviceSlug}
-                  onChange={(value) => updateIdentity("serviceSlug", slugifyValue(value))}
-                  placeholder="sea-invoice-ocr"
-                  hint="Optional marketing-safe slug. If omitted, it is derived from Service Name."
-                  mono
-                />
-                <TextField
-                  label="Service Version"
-                  value={draft.identity.manifestVersion}
-                  onChange={(value) => updateIdentity("manifestVersion", value)}
-                  placeholder="1.0.0"
-                  error={fieldErrors.manifestVersion}
-                  hint="Semver for contract evolution."
-                  mono
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
-                  <p className="font-medium text-white">Initial Service State</p>
-                  <p className="mt-2 leading-6">
-                    New services are created as draft. Runtime availability and serving status are determined by gateway health checks after registration.
-                  </p>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-green-500/15 bg-green-500/[0.06] p-4">
+                  <p className="text-sm font-semibold text-white">{t("providerServiceDeployPage.requiredFromYou")}</p>
+                  <ul className="mt-3 space-y-2 text-sm text-zinc-300">
+                    {minimalRequiredFields.map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <Check className="mt-0.5 h-4 w-4 text-green-300" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
-                  <p className="font-medium text-white">Owner / Provider Binding</p>
-                  <p className="mt-2 leading-6">
-                    Provider profile and payout account are bound by the platform control plane, not by this public service contract.
-                    That is why the page collects service identity, not settlement identity.
-                  </p>
+                <div className="rounded-2xl border border-white/8 bg-black/60 p-4">
+                  <p className="text-sm font-semibold text-white">{t("providerServiceDeployPage.autoAppliedDefaults")}</p>
+                  <ul className="mt-3 space-y-2 text-sm text-zinc-400">
+                    {defaultRules.map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-zinc-500" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-            </SectionCard>
 
-            <SectionCard
-              index="02"
-              icon={<Layers3 className="h-5 w-5" />}
-              title="Agent Contract"
-              summary="Tell the agent what this service does, when to call it, and what schemas it should trust."
-            >
-              <TextField
-                label="Description for Model"
-                value={draft.modelUsage.descriptionForModel}
-                onChange={(value) => updateModelUsage("descriptionForModel", value)}
-                placeholder="Extract structured invoice fields from Southeast Asia invoice images."
-                error={fieldErrors.descriptionForModel}
-                hint="Required. This is discovery and decision text for autonomous agents."
-                guide={FIELD_GUIDES.descriptionForModel}
-              />
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField
-                  label="Task Category"
-                  value={draft.modelUsage.taskCategory}
-                  onChange={(value) => updateModelUsage("taskCategory", value)}
-                  placeholder="ocr.invoice"
-                  hint="Optional but strongly recommended semantic bucket."
-                  guide={FIELD_GUIDES.taskCategory}
-                  mono
-                />
-                <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
-                  <p className="font-medium text-white">Agent-facing Rule</p>
-                  <p className="mt-2 leading-6">
-                    This is not marketing copy. If the text does not help an agent decide when to call, it does not belong here.
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-5 xl:grid-cols-3">
-                <TagEditor
-                  label="Capabilities"
-                  values={draft.modelUsage.capabilities}
-                  onChange={(next) => updateModelUsage("capabilities", next)}
-                  placeholder="merchant_extraction"
-                  hint="Atomic abilities exposed by the service."
-                />
-                <TagEditor
-                  label="Limitations"
-                  values={draft.modelUsage.limitations}
-                  onChange={(next) => updateModelUsage("limitations", next)}
-                  placeholder="not_for_handwritten_receipts"
-                  hint="Known boundaries to keep invocation safe."
+                  label={t("providerServiceDeployPage.serviceNameLabel")}
+                  value={draft.identity.serviceName}
+                  onChange={updateServiceName}
+                  placeholder={t("providerServiceDeployPage.serviceNamePlaceholder")}
+                  error={fieldErrors.serviceName}
+                  hint={t("providerServiceDeployPage.serviceNameHint")}
+                  guide={fieldGuides.serviceName}
                 />
                 <div>
-                  <label htmlFor="supported-languages" className="mb-1.5 block text-sm font-medium text-zinc-200">Supported Languages</label>
-                  <XSelect
-                    id="supported-languages"
-                    value={normalizeSupportedLanguages(draft.modelUsage.supportedLanguages)[0]}
-                    onChange={(next) => updateModelUsage("supportedLanguages", [next])}
-                    options={[
-                      { value: "en", label: "EN" },
-                      { value: "cn", label: "CN" },
-                    ]}
-                    triggerClassName="inline-flex min-h-[50px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white transition focus:border-green-500"
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 text-sm font-medium text-zinc-200">
+                      <span>{t("providerServiceDeployPage.serviceIdLabel")}</span>
+                      <FieldGuideHint item={fieldGuides.serviceId} />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={resyncDerivedIdentity}
+                      className="text-xs font-medium text-green-300 transition hover:text-green-200"
+                    >
+                      {t("providerServiceDeployPage.serviceIdResync")}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    aria-label={t("providerServiceDeployPage.serviceIdLabel")}
+                    className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
+                    value={draft.identity.serviceId}
+                    onChange={(event) => updateServiceId(event.target.value)}
+                    placeholder={t("providerServiceDeployPage.serviceIdPlaceholder")}
                   />
-                  <FieldNote hint="V1 supports a single contract language selection: EN or CN." />
+                  <FieldNote
+                    error={fieldErrors.serviceId}
+                    hint={serviceIdTouched
+                      ? t("providerServiceDeployPage.serviceIdManualHint")
+                      : t("providerServiceDeployPage.serviceIdResyncHint")}
+                  />
                 </div>
+                <TextField
+                  label={t("providerServiceDeployPage.endpointLabel")}
+                  value={draft.runtime.endpointUrl}
+                  onChange={(value) => updateRuntime("endpointUrl", value)}
+                  placeholder={t("providerServiceDeployPage.endpointPlaceholder")}
+                  error={fieldErrors.endpointUrl}
+                  hint={t("providerServiceDeployPage.endpointHint")}
+                  guide={fieldGuides.runtime}
+                  mono
+                />
+                <TextField
+                  label={t("providerServiceDeployPage.priceLabel")}
+                  value={draft.billing.basePriceUsdc}
+                  onChange={(value) => updateBilling("basePriceUsdc", value)}
+                  placeholder={t("providerServiceDeployPage.pricePlaceholder")}
+                  error={fieldErrors.basePriceUsdc}
+                  hint={t("providerServiceDeployPage.priceHint")}
+                  guide={fieldGuides.billing}
+                  mono
+                />
               </div>
-              <JsonEditor
-                label="Examples JSON Array"
-                value={draft.modelUsage.examplesText}
-                onChange={(value) => updateModelUsage("examplesText", value)}
-                error={fieldErrors.examples}
-                hint="Use an array of objects with input/output pairs."
+
+              <TextField
+                label={t("providerServiceDeployPage.descriptionLabel")}
+                value={draft.modelUsage.descriptionForModel}
+                onChange={(value) => updateModelUsage("descriptionForModel", value)}
+                placeholder={t("providerServiceDeployPage.descriptionPlaceholder")}
+                error={fieldErrors.descriptionForModel}
+                hint={t("providerServiceDeployPage.descriptionHint")}
+                guide={fieldGuides.descriptionForModel}
               />
+
               <div className="grid gap-5 xl:grid-cols-2">
                 <JsonEditor
-                  label="Input Schema"
+                  label={t("providerServiceDeployPage.inputSchemaLabel")}
                   value={draft.ioSchema.inputSchemaText}
                   onChange={(value) => updateIoSchema("inputSchemaText", value)}
                   error={fieldErrors.inputSchema}
-                  hint="Must be a valid JSON object."
+                  hint={t("providerServiceDeployPage.inputSchemaHint")}
                 />
                 <JsonEditor
-                  label="Output Schema"
+                  label={t("providerServiceDeployPage.outputSchemaLabel")}
                   value={draft.ioSchema.outputSchemaText}
                   onChange={(value) => updateIoSchema("outputSchemaText", value)}
                   error={fieldErrors.outputSchema}
-                  hint="Must be a valid JSON object."
+                  hint={t("providerServiceDeployPage.outputSchemaHint")}
                 />
               </div>
-            </SectionCard>
 
-            <SectionCard
-              index="03"
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title="Billing Contract"
-              summary="Define the fixed per-call commercial contract the gateway can settle in V1."
-            >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div>
-                  <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-zinc-200">
-                    <span>Price Model</span>
-                    <FieldGuideHint item={FIELD_GUIDES.billing} />
-                  </label>
-                  <XSelect
-                    value={DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel}
-                    onChange={() => undefined}
-                    options={[{ value: "fixed", label: "fixed" }]}
-                    triggerClassName="inline-flex min-h-[50px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-zinc-400"
-                    disabled
+              <details className="rounded-2xl border border-white/8 bg-black/45 p-4">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-white">
+                  {t("providerServiceDeployPage.optionalMetadataTitle")}
+                </summary>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                  {t("providerServiceDeployPage.optionalMetadataDescription")}
+                </p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <TextField
+                    label={t("providerServiceDeployPage.taskCategoryLabel")}
+                    value={draft.modelUsage.taskCategory}
+                    onChange={(value) => updateModelUsage("taskCategory", value)}
+                    placeholder={t("providerServiceDeployPage.taskCategoryPlaceholder")}
+                    hint={t("providerServiceDeployPage.taskCategoryHint")}
+                    guide={fieldGuides.taskCategory}
+                    mono
                   />
-                  <FieldNote hint="V1 only supports fixed pricing: one base price per invocation." />
+                  <div>
+                    <label htmlFor="supported-languages" className="mb-1.5 block text-sm font-medium text-zinc-200">{t("providerServiceDeployPage.supportedLanguagesLabel")}</label>
+                    <XSelect
+                      id="supported-languages"
+                      value={normalizeSupportedLanguages(draft.modelUsage.supportedLanguages)[0]}
+                      onChange={(next) => updateModelUsage("supportedLanguages", [next])}
+                      options={[
+                        { value: "en", label: t("language.en") },
+                        { value: "cn", label: t("language.zh") },
+                      ]}
+                      triggerClassName="inline-flex min-h-[50px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white transition focus:border-green-500"
+                    />
+                    <FieldNote hint={t("providerServiceDeployPage.supportedLanguagesHint")} />
+                  </div>
                 </div>
-                <TextField
-                  label="Base Price USDC"
-                  value={draft.billing.basePriceUsdc}
-                  onChange={(value) => updateBilling("basePriceUsdc", value)}
-                  placeholder="0.008"
-                  error={fieldErrors.basePriceUsdc}
-                  hint="Use decimal USDC, not fiat approximations."
-                  mono
-                />
-                <TextField
-                  label="Settlement Currency"
-                  value={draft.billing.settlementCurrency}
-                  onChange={(value) => updateBilling("settlementCurrency", value.toUpperCase())}
-                  placeholder={DEFAULT_SERVICE_SETTLEMENT_CURRENCY}
-                  hint="Current system is USDC-native."
-                  mono
-                />
-                <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
-                  <p className="font-medium text-white">Billing Rule</p>
-                  <p className="mt-2 leading-6">
-                    V1 only supports per-call billing. One invoke corresponds to one base-price charge.
-                  </p>
+                <div className="mt-4 grid gap-5 xl:grid-cols-2">
+                  <TagEditor
+                    label={t("providerServiceDeployPage.capabilitiesLabel")}
+                    values={draft.modelUsage.capabilities}
+                    onChange={(next) => updateModelUsage("capabilities", next)}
+                    placeholder={t("providerServiceDeployPage.capabilitiesPlaceholder")}
+                    hint={t("providerServiceDeployPage.capabilitiesHint")}
+                  />
+                  <TagEditor
+                    label={t("providerServiceDeployPage.limitationsLabel")}
+                    values={draft.modelUsage.limitations}
+                    onChange={(next) => updateModelUsage("limitations", next)}
+                    placeholder={t("providerServiceDeployPage.limitationsPlaceholder")}
+                    hint={t("providerServiceDeployPage.limitationsHint")}
+                  />
                 </div>
-              </div>
+                <div className="mt-4">
+                  <JsonEditor
+                    label={t("providerServiceDeployPage.examplesLabel")}
+                    value={draft.modelUsage.examplesText}
+                    onChange={(value) => updateModelUsage("examplesText", value)}
+                    error={fieldErrors.examples}
+                    hint={t("providerServiceDeployPage.examplesHint")}
+                  />
+                </div>
+              </details>
             </SectionCard>
 
-            <SectionCard
-              index="04"
-              icon={<Route className="h-5 w-5" />}
-              title="Runtime Boundary"
-              summary="Declare the upstream endpoint and execution boundaries the gateway must respect."
-            >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <TextField
-                  label="Primary Endpoint URL"
-                  value={draft.runtime.endpointUrl}
-                  onChange={(value) => updateRuntime("endpointUrl", value)}
-                  placeholder="https://provider.example.com/invoke"
-                  error={fieldErrors.endpointUrl}
-                  hint="This is the canonical invoke URL if no routing targets are defined."
-                  guide={FIELD_GUIDES.runtime}
-                  mono
-                />
-                <TextField
-                  label="Auth Mode"
-                  value={draft.runtime.authMode}
-                  onChange={(value) => updateRuntime("authMode", value)}
-                  placeholder={DEFAULT_SERVICE_AUTH_MODE}
-                  hint="Defines how the gateway authenticates to your upstream. gateway_forward means Synapse forwards the request using platform-managed credentials and headers."
-                  mono
-                />
-                <NumberField
-                  label="Timeout (ms)"
-                  value={draft.runtime.timeoutMs}
-                  onChange={(value) => updateRuntime("timeoutMs", value)}
-                  error={fieldErrors.timeoutMs}
-                  hint={`Allowed range ${SERVICE_CONSTRAINT_LIMITS.timeoutMs.min}-${SERVICE_CONSTRAINT_LIMITS.timeoutMs.max}.`}
-                />
-                <NumberField
-                  label="Max Request Bytes"
-                  value={draft.runtime.maxRequestBytes}
-                  onChange={(value) => updateRuntime("maxRequestBytes", value)}
-                  error={fieldErrors.maxRequestBytes}
-                  hint={`Allowed range ${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min}-${SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max}.`}
-                />
-                <NumberField
-                  label="Max Response Bytes"
-                  value={draft.runtime.maxResponseBytes}
-                  onChange={(value) => updateRuntime("maxResponseBytes", value)}
-                  error={fieldErrors.maxResponseBytes}
-                  hint={`Allowed range ${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min}-${SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max}.`}
-                />
+            <section className="rounded-3xl border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.advancedEyebrow")}</p>
+                  <h2 className="mt-2 text-lg font-semibold text-white">{t("providerServiceDeployPage.advancedTitle")}</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
+                    {t("providerServiceDeployPage.advancedDescription")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((current) => !current)}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  {showAdvanced ? t("providerServiceDeployPage.advancedHide") : t("providerServiceDeployPage.advancedShow")}
+                </button>
               </div>
-            </SectionCard>
 
-            <SectionCard
-              index="05"
-              icon={<Route className="h-5 w-5" />}
-              title="Gateway Extensions"
-              summary="Internal execution policy for health checks, multi-target routing and forwarding. Platform-managed tracing and metering defaults are applied automatically."
-            >
-              <div className="grid gap-4 md:grid-cols-4">
-                <div>
-                  <p className="mb-1.5 block text-sm font-medium text-zinc-200">Health Method</p>
-                  <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                    {DEFAULT_SERVICE_HEALTH_METHOD}
+              {showAdvanced ? (
+                <div className="mt-5 space-y-5">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <TextField
+                      label={t("providerServiceDeployPage.versionLabel")}
+                      value={draft.identity.manifestVersion}
+                      onChange={(value) => updateIdentity("manifestVersion", value)}
+                      placeholder={t("providerServiceDeployPage.versionPlaceholder")}
+                      error={fieldErrors.manifestVersion}
+                      hint={t("providerServiceDeployPage.versionHint")}
+                      mono
+                    />
+                    <TextField
+                      label={t("providerServiceDeployPage.slugLabel")}
+                      value={draft.identity.serviceSlug}
+                      onChange={updateServiceSlug}
+                      placeholder={t("providerServiceDeployPage.slugPlaceholder")}
+                      hint={serviceSlugTouched
+                        ? t("providerServiceDeployPage.slugHintManual")
+                        : t("providerServiceDeployPage.slugHintAuto")}
+                      mono
+                    />
+                    <TextField
+                      label={t("providerServiceDeployPage.settlementCurrencyLabel")}
+                      value={draft.billing.settlementCurrency}
+                      onChange={(value) => updateBilling("settlementCurrency", value.toUpperCase())}
+                      placeholder={t("providerServiceDeployPage.settlementCurrencyPlaceholder", undefined, DEFAULT_SERVICE_SETTLEMENT_CURRENCY)}
+                      hint={t("providerServiceDeployPage.settlementCurrencyHint")}
+                      mono
+                    />
                   </div>
-                  <FieldNote hint="Platform probes health with a fixed GET request in V1." />
-                </div>
-                <TextField
-                  label="Health Path"
-                  value={draft.gatewayExtensions.healthCheck.path}
-                  onChange={(value) => updateHealthCheck("path", value)}
-                  placeholder="/health"
-                  error={fieldErrors.healthPath}
-                  hint="Gateway composes origin + this path for probes."
-                />
-                <div>
-                  <p className="mb-1.5 block text-sm font-medium text-zinc-200">Health Interval (sec)</p>
-                  <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                    {DEFAULT_SERVICE_HEALTH_INTERVAL_SEC}
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <TextField
+                      label={t("providerServiceDeployPage.authModeLabel")}
+                      value={draft.runtime.authMode}
+                      onChange={(value) => updateRuntime("authMode", value)}
+                      placeholder={t("providerServiceDeployPage.authModePlaceholder", undefined, DEFAULT_SERVICE_AUTH_MODE)}
+                      hint={t("providerServiceDeployPage.authModeHint")}
+                      mono
+                    />
+                    <NumberField
+                      label={t("providerServiceDeployPage.timeoutLabel")}
+                      value={draft.runtime.timeoutMs}
+                      onChange={(value) => updateRuntime("timeoutMs", value)}
+                      error={fieldErrors.timeoutMs}
+                      hint={t("providerServiceDeployPage.timeoutHint", {
+                        min: SERVICE_CONSTRAINT_LIMITS.timeoutMs.min,
+                        max: SERVICE_CONSTRAINT_LIMITS.timeoutMs.max,
+                      })}
+                    />
+                    <NumberField
+                      label={t("providerServiceDeployPage.rateLimitLabel")}
+                      value={draft.gatewayExtensions.rateLimitPolicy.maxQps}
+                      onChange={updateRateLimitPolicy}
+                      error={fieldErrors.maxQps}
+                      hint={t("providerServiceDeployPage.rateLimitHint", {
+                        min: SERVICE_CONSTRAINT_LIMITS.maxQps.min,
+                        max: SERVICE_CONSTRAINT_LIMITS.maxQps.max,
+                      })}
+                    />
                   </div>
-                  <FieldNote hint="Platform probes every 10 seconds in V1." />
-                </div>
-                <NumberField
-                  label="Health Timeout (ms)"
-                  value={draft.gatewayExtensions.healthCheck.timeoutMs}
-                  onChange={(value) => updateHealthCheck("timeoutMs", value)}
-                  hint="Probe timeout, usually lower than invoke timeout."
-                />
-              </div>
-              <div>
-                <p className="mb-1.5 block text-sm font-medium text-zinc-200">Health Success Codes</p>
-                <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                  {DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT}
-                </div>
-                <FieldNote hint="V1 treats HTTP 200 as the health success signal." />
-              </div>
-              <div>
-                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-zinc-200">
-                  <span>Routing Targets</span>
-                  <FieldGuideHint item={FIELD_GUIDES.routingTargets} />
-                </label>
-                <RoutingTargetsEditor
-                  targets={draft.gatewayExtensions.routingTargets}
-                  onChange={(next) =>
-                    setDraft((current) => ({
-                      ...current,
-                      gatewayExtensions: {
-                        ...current.gatewayExtensions,
-                        routingTargets: next,
-                      },
-                    }))
-                  }
-                />
-                <FieldNote error={fieldErrors.routingTargets} hint="Each target should be an invoke URL. Weight maps to traffic share." />
-              </div>
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div>
-                  <p className="mb-1.5 block text-sm font-medium text-zinc-200">Request ID Header</p>
-                  <div className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-zinc-400">
-                    {DEFAULT_SERVICE_REQUEST_ID_HEADER}
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <NumberField
+                      label={t("providerServiceDeployPage.maxRequestBytesLabel")}
+                      value={draft.runtime.maxRequestBytes}
+                      onChange={(value) => updateRuntime("maxRequestBytes", value)}
+                      error={fieldErrors.maxRequestBytes}
+                      hint={t("providerServiceDeployPage.maxRequestBytesHint", {
+                        min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min,
+                        max: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max,
+                      })}
+                    />
+                    <NumberField
+                      label={t("providerServiceDeployPage.maxResponseBytesLabel")}
+                      value={draft.runtime.maxResponseBytes}
+                      onChange={(value) => updateRuntime("maxResponseBytes", value)}
+                      error={fieldErrors.maxResponseBytes}
+                      hint={t("providerServiceDeployPage.maxResponseBytesHint", {
+                        min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min,
+                        max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max,
+                      })}
+                    />
                   </div>
-                  <FieldNote hint="Platform-managed trace header. V1 always injects this value." />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TextField
+                      label={t("providerServiceDeployPage.healthPathLabel")}
+                      value={draft.gatewayExtensions.healthCheck.path}
+                      onChange={(value) => updateHealthCheck("path", value)}
+                      placeholder={t("providerServiceDeployPage.healthPathPlaceholder")}
+                      error={fieldErrors.healthPath}
+                      hint={t("providerServiceDeployPage.healthPathHint")}
+                    />
+                    <NumberField
+                      label={t("providerServiceDeployPage.healthTimeoutLabel")}
+                      value={draft.gatewayExtensions.healthCheck.timeoutMs}
+                      onChange={(value) => updateHealthCheck("timeoutMs", value)}
+                      hint={t("providerServiceDeployPage.healthTimeoutHint")}
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border border-white/8 bg-black/45 p-4">
+                    <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-zinc-200">
+                      <span>{t("providerServiceDeployPage.routingTargetsLabel")}</span>
+                      <FieldGuideHint item={fieldGuides.routingTargets} />
+                    </label>
+                    <RoutingTargetsEditor
+                      targets={draft.gatewayExtensions.routingTargets}
+                      onChange={(next) =>
+                        setDraft((current) => ({
+                          ...current,
+                          gatewayExtensions: {
+                            ...current.gatewayExtensions,
+                            routingTargets: next,
+                          },
+                        }))
+                      }
+                    />
+                    <FieldNote error={fieldErrors.routingTargets} hint={t("providerServiceDeployPage.routingTargetsHint")} />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
+                      <p className="font-medium text-white">{t("providerServiceDeployPage.defaultsCardTitle")}</p>
+                      <p className="mt-2 leading-6">
+                        {t("providerServiceDeployPage.defaultsCardDescription", {
+                          method: DEFAULT_SERVICE_HEALTH_METHOD,
+                          codes: DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT,
+                        })}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
+                      <p className="font-medium text-white">{t("providerServiceDeployPage.meteringCardTitle")}</p>
+                      <p className="mt-2 leading-6">
+                        {t("providerServiceDeployPage.meteringCardDescription")}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-black/60 px-4 py-3">
-                  <p className="text-sm font-medium text-white">Forwarding Rule</p>
-                  <p className="mt-1 text-xs leading-6 text-zinc-500">
-                    V1 does not expose pass-through header configuration. Synapse injects only platform-managed headers.
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-4 xl:grid-cols-2">
-                <NumberField
-                  label="Rate Limit QPS"
-                  value={draft.gatewayExtensions.rateLimitPolicy.maxQps}
-                  onChange={updateRateLimitPolicy}
-                  error={fieldErrors.maxQps}
-                  hint={`Gateway v1 admission cap ${SERVICE_CONSTRAINT_LIMITS.maxQps.min}-${SERVICE_CONSTRAINT_LIMITS.maxQps.max}.`}
-                />
-                <div className="rounded-2xl border border-white/8 bg-black/60 px-4 py-3">
-                  <p className="text-sm font-medium text-white">Platform Defaults</p>
-                  <p className="mt-1 text-xs leading-6 text-zinc-500">
-                    Bill-on-error, request-id enforcement, response-size metering and billable status classes are controlled by the platform in V1.
-                  </p>
-                </div>
-              </div>
-            </SectionCard>
+              ) : null}
+            </section>
 
             {showAIModal ? (
               <div className="x-dialog-shell x-modal-overlay">
                 <button
                   type="button"
-                  aria-label="Close AI parser"
+                  aria-label={t("providerServiceDeployPage.closeParserAria")}
                   onClick={closeParser}
                   className="absolute inset-0"
                 />
                 <div className="x-modal-flat x-modal-surface relative z-10 flex max-h-[92vh] max-w-6xl flex-col border border-green-900/40 shadow-[0_0_50px_rgba(34,197,94,0.12)]">
                   <div className="x-modal-header border-b border-white/8">
                     <div className="x-modal-header-copy">
-                      <h3 className="text-xl font-semibold text-white">AI Service Definition Parser</h3>
-                      <p className="mt-1 text-sm text-zinc-500">Paste a complete API example block: raw cURL command plus the returned JSON result. The parser will infer the current V1 service definition fields and fill the form.</p>
+                      <h3 className="text-xl font-semibold text-white">{t("providerServiceDeployPage.parserTitle")}</h3>
+                      <p className="mt-1 text-sm text-zinc-500">{t("providerServiceDeployPage.parserDescription")}</p>
                     </div>
                     <button type="button" onClick={closeParser} className="x-modal-close">
                       <X className="h-5 w-5" />
@@ -1732,7 +1831,7 @@ export default function DeployManifestPage() {
                   </div>
                   <div className="x-modal-body grid gap-5 overflow-y-auto xl:grid-cols-2">
                     <div>
-                      <label htmlFor="ai-curl-command" className="mb-1.5 block text-sm font-medium text-zinc-200">Raw cURL Command + Result</label>
+                      <label htmlFor="ai-curl-command" className="mb-1.5 block text-sm font-medium text-zinc-200">{t("providerServiceDeployPage.parserCurlLabel")}</label>
                       <textarea
                         id="ai-curl-command"
                         className="h-[420px] w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-xs text-green-300 outline-none transition focus:border-green-500"
@@ -1741,21 +1840,21 @@ export default function DeployManifestPage() {
                         placeholder={DEFAULT_AI_PARSER_SAMPLE}
                       />
                       {aiCurl.trim() && !aiCurlLooksValid ? (
-                        <p className="mt-2 text-xs text-amber-300">Enter a valid example block that starts with curl, contains a full http(s) URL, and can optionally include the returned JSON result after the command.</p>
+                        <p className="mt-2 text-xs text-amber-300">{t("providerServiceDeployPage.parserCurlInvalid")}</p>
                       ) : (
-                        <p className="mt-2 text-xs text-zinc-500">Natural language notes are not accepted here. Paste the actual cURL request and, if available, the real JSON response right below it.</p>
+                        <p className="mt-2 text-xs text-zinc-500">{t("providerServiceDeployPage.parserCurlHint")}</p>
                       )}
                     </div>
                     <div>
-                      <label htmlFor="ai-response-json" className="mb-1.5 block text-sm font-medium text-zinc-200">Expected / Generated Service Definition JSON</label>
+                      <label htmlFor="ai-response-json" className="mb-1.5 block text-sm font-medium text-zinc-200">{t("providerServiceDeployPage.parserJsonLabel")}</label>
                       <textarea
                         id="ai-response-json"
                         className="h-[420px] w-full rounded-2xl border border-white/10 bg-[#06080c] px-4 py-3 font-mono text-xs text-blue-300 outline-none transition focus:border-green-500"
                         value={aiResponse}
                         onChange={(event) => setAIResponse(event.target.value)}
-                        placeholder='{"service_id":"svc_invoice_ocr_apac"}'
+                        placeholder={t("providerServiceDeployPage.parserJsonPlaceholder")}
                       />
-                      {aiResponse.trim() && !parsedAiResponse ? <p className="mt-2 text-xs text-amber-300">Generated service definition must be a valid JSON object.</p> : <p className="mt-2 text-xs text-zinc-500">You can manually refine the service definition JSON before applying the override.</p>}
+                      {aiResponse.trim() && !parsedAiResponse ? <p className="mt-2 text-xs text-amber-300">{t("providerServiceDeployPage.parserJsonInvalid")}</p> : <p className="mt-2 text-xs text-zinc-500">{t("providerServiceDeployPage.parserJsonHint")}</p>}
                     </div>
                   </div>
                   <div className="x-modal-footer border-t border-white/8">
@@ -1765,7 +1864,7 @@ export default function DeployManifestPage() {
                       disabled={isAiGenerating || !aiCurlLooksValid}
                       className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isAiGenerating ? "Generating..." : "Generate Definition JSON"}
+                      {isAiGenerating ? t("providerServiceDeployPage.parserGenerating") : t("providerServiceDeployPage.parserGenerate")}
                     </button>
                     <button
                       type="button"
@@ -1774,7 +1873,7 @@ export default function DeployManifestPage() {
                       className="inline-flex items-center gap-2 rounded-2xl bg-green-500 px-5 py-3 text-sm font-semibold text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Check className="h-4 w-4" />
-                      Confirm Override
+                      {t("providerServiceDeployPage.parserConfirm")}
                     </button>
                   </div>
                 </div>
@@ -1787,46 +1886,44 @@ export default function DeployManifestPage() {
               <div className="rounded-[28px] border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Deployment Readiness</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Contract Assembly</h2>
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.readinessEyebrow")}</p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">{t("providerServiceDeployPage.readinessTitle")}</h2>
                   </div>
                   <p className={`text-sm font-semibold ${nextBlockingIssue ? "text-amber-300" : "text-green-300"}`}>{readinessPercent}%</p>
                 </div>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
                   <div className={`h-full ${nextBlockingIssue ? "bg-amber-400" : "bg-green-500"}`} style={{ width: `${readinessPercent}%` }} />
                 </div>
+                <div className="mt-4 rounded-2xl border border-white/8 bg-black/50 p-4 text-sm text-zinc-400">
+                  <p className="font-medium text-white">{t("providerServiceDeployPage.readinessAutoTitle")}</p>
+                  <p className="mt-2 leading-6">
+                    {t("providerServiceDeployPage.readinessAutoDescription")}
+                  </p>
+                </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   {readinessChecks.map((item) => (
                     <div key={item.label} className={`rounded-2xl border px-3 py-2 text-xs ${item.ok ? "border-green-500/20 bg-green-500/10 text-green-200" : "border-white/8 bg-black/50 text-zinc-500"}`}>
-                      {item.ok ? "Ready" : "Pending"} · {item.label}
+                      {item.ok ? t("providerServiceDeployPage.checkReady") : t("providerServiceDeployPage.checkPending")} · {item.label}
                     </div>
                   ))}
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Service ID</p>
-                    <p className="mt-2 break-all font-mono text-sm text-green-300">{draft.identity.serviceId || "unset"}</p>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessServiceId")}</p>
+                    <p className="mt-2 break-all font-mono text-sm text-green-300">{draft.identity.serviceId || t("providerServiceDeployPage.readinessUnset")}</p>
                   </div>
                   <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Routing Targets</p>
-                    <p className="mt-2 text-sm text-white">{normalizedTargets.length}</p>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessRoutingTargets")}</p>
+                    <p className="mt-2 text-sm text-white">{normalizedTargets.length || 1}</p>
                   </div>
                   <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Price</p>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessPrice")}</p>
                     <p className="mt-2 text-sm text-white">{draft.billing.basePriceUsdc || "0"} {draft.billing.settlementCurrency}</p>
                   </div>
                   <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Service State</p>
-                    <p className="mt-2 text-sm text-white">{DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status}</p>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessState")}</p>
+                    <p className="mt-2 text-sm text-white">{readinessStates[0] ?? DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status}</p>
                   </div>
-                </div>
-                <div className="mt-4 rounded-2xl border border-white/8 bg-black/50 p-4 text-sm text-zinc-400">
-                  <p className="font-medium text-white">Current Gateway Reality</p>
-                  <p className="mt-2 leading-6">
-                      V1 only collects the fields the current gateway and control plane can actually honor. New services land as draft, then
-                      gateway health checks determine runtime serving status. Streaming, async callback, quality analytics and metering edge rules
-                      remain platform-managed, so this page stays focused on identity, model usage, schema, billing, runtime, routing and health checks.
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -1837,32 +1934,39 @@ export default function DeployManifestPage() {
                   {deploymentLabel}
                 </button>
                 <p className={`mt-3 text-center text-xs ${nextBlockingIssue ? "text-amber-300" : "text-green-300"}`}>
-                  {nextBlockingIssue || "Ready. Core gateway submission contract is consistent with the current backend."}
+                  {nextBlockingIssue || t("providerServiceDeployPage.deploymentReadyText")}
                 </p>
               </div>
 
               <div className="rounded-[28px] border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Agent-facing Contract</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Standard Service Definition JSON</h2>
-                  </div>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.previewEyebrow")}</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">{t("providerServiceDeployPage.previewTitle")}</h2>
+                <div className="mt-4 space-y-4">
+                  <details
+                    className="rounded-2xl border border-white/8 bg-black/45 p-4"
+                    open={showManifestPreview}
+                    onToggle={(event) => setShowManifestPreview((event.currentTarget as HTMLDetailsElement).open)}
+                  >
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-white">
+                      {t("providerServiceDeployPage.previewManifest")}
+                    </summary>
+                    <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-green-500/10 bg-black/70 p-4 font-mono text-xs leading-6 text-green-300">
+                      {JSON.stringify(standardManifest, null, 2)}
+                    </pre>
+                  </details>
+                  <details
+                    className="rounded-2xl border border-white/8 bg-black/45 p-4"
+                    open={showGatewayPreview}
+                    onToggle={(event) => setShowGatewayPreview((event.currentTarget as HTMLDetailsElement).open)}
+                  >
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-white">
+                      {t("providerServiceDeployPage.previewGatewayPayload")}
+                    </summary>
+                    <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-white/8 bg-black/70 p-4 font-mono text-xs leading-6 text-sky-300">
+                      {JSON.stringify(gatewayPayloadPreview, null, 2)}
+                    </pre>
+                  </details>
                 </div>
-                <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-green-500/10 bg-black/70 p-4 font-mono text-xs leading-6 text-green-300">
-                  {JSON.stringify(standardManifest, null, 2)}
-                </pre>
-              </div>
-
-              <div className="rounded-[28px] border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Gateway Submission</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">Current Gateway Payload</h2>
-                  </div>
-                </div>
-                <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-white/8 bg-black/70 p-4 font-mono text-xs leading-6 text-sky-300">
-                  {JSON.stringify(gatewayPayloadPreview, null, 2)}
-                </pre>
               </div>
             </div>
           </div>

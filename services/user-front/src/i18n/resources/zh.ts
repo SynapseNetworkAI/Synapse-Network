@@ -14,6 +14,7 @@ import invocationsPage from "@/i18n/resources/zh/invocationsPage";
 import marketplacePage from "@/i18n/resources/zh/marketplacePage";
 import overviewPage from "@/i18n/resources/zh/overviewPage";
 import providerConsolePage from "@/i18n/resources/zh/providerConsolePage";
+import providerServiceDeployPage from "@/i18n/resources/zh/providerServiceDeployPage";
 import providerSecretsPage from "@/i18n/resources/zh/providerSecretsPage";
 import providerServicesPage from "@/i18n/resources/zh/providerServicesPage";
 import providerSettlements from "@/i18n/resources/zh/providerSettlements";
@@ -39,6 +40,7 @@ const zh: I18nMessages = {
   servicesPage,
   settlementPage,
   providerConsolePage,
+  providerServiceDeployPage,
   providerSecretsPage,
   providerServicesPage,
   providerUsagePage,

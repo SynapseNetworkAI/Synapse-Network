@@ -14,6 +14,7 @@ import invocationsPage from "@/i18n/resources/en/invocationsPage";
 import marketplacePage from "@/i18n/resources/en/marketplacePage";
 import overviewPage from "@/i18n/resources/en/overviewPage";
 import providerConsolePage from "@/i18n/resources/en/providerConsolePage";
+import providerServiceDeployPage from "@/i18n/resources/en/providerServiceDeployPage";
 import providerSecretsPage from "@/i18n/resources/en/providerSecretsPage";
 import providerServicesPage from "@/i18n/resources/en/providerServicesPage";
 import providerSettlements from "@/i18n/resources/en/providerSettlements";
@@ -39,6 +40,7 @@ const en: I18nMessages = {
   servicesPage,
   settlementPage,
   providerConsolePage,
+  providerServiceDeployPage,
   providerSecretsPage,
   providerServicesPage,
   providerUsagePage,
