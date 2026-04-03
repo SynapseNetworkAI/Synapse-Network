@@ -8,6 +8,7 @@ import buyPage from "@/i18n/resources/en/buyPage";
 import creditsPage from "@/i18n/resources/en/creditsPage";
 import developerPage from "@/i18n/resources/en/developerPage";
 import discoveryPage from "@/i18n/resources/en/discoveryPage";
+import docsPage from "@/i18n/resources/en/docsPage";
 import home from "@/i18n/resources/en/home";
 import invocationsPage from "@/i18n/resources/en/invocationsPage";
 import marketplacePage from "@/i18n/resources/en/marketplacePage";
@@ -28,6 +29,7 @@ const en: I18nMessages = {
   home,
   marketplacePage,
   discoveryPage,
+  docsPage,
   invocationsPage,
   billingPage,
   creditsPage,

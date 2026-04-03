@@ -2,24 +2,20 @@
 
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { usePathname } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, type MouseEvent } from "react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
+import { useDocsNavigationFeedback } from "../DocsNavigationFeedback";
+import { warmDocsRoute } from "../navigationWarmup";
 
-const TABS = [
-  { label: "Overview",        href: "/docs" },
-  { label: "Getting Started", href: "/docs/getting-started" },
-  { label: "Concepts",        href: "/docs/concepts" },
-  { label: "API Reference",   href: "/docs/api-reference" },
-  { label: "SDK",             href: "/docs/sdk" },
-  { label: "Contracts",       href: "/docs/contracts" },
-] as const;
+const TAB_HREFS = ["/docs", "/docs/getting-started", "/docs/concepts", "/docs/api-reference", "/docs/sdk", "/docs/contracts"] as const;
 
 function matchTab(pathname: string) {
   // Most specific match first
-  for (const tab of [...TABS].reverse()) {
-    if (pathname === tab.href || pathname.startsWith(tab.href + "/")) {
-      return tab.href;
+  for (const href of [...TAB_HREFS].reverse()) {
+    if (pathname === href || pathname.startsWith(href + "/")) {
+      return href;
     }
   }
   return "/docs";
@@ -27,8 +23,13 @@ function matchTab(pathname: string) {
 
 export default function DocsTopNav() {
   const pathname = usePathname();
+  const activePath = pathname ?? "/docs";
+  const router = useRouter();
+  const { tList, t } = useLanguage();
+  const { beginNavigation } = useDocsNavigationFeedback();
   const active = matchTab(pathname ?? "/docs");
   const [scrolled, setScrolled] = useState(false);
+  const tabs = tList("docsPage.topNavTabs");
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 2);
@@ -36,6 +37,72 @@ export default function DocsTopNav() {
     fn();
     return () => window.removeEventListener("scroll", fn);
   }, []);
+
+  const queueNavigation = useCallback(
+    (href: string) => {
+      if (href === activePath) {
+        return;
+      }
+
+      beginNavigation(href);
+
+      const navigate = () => {
+        router.push(href);
+      };
+
+      if (typeof globalThis.requestAnimationFrame === "function") {
+        globalThis.requestAnimationFrame(navigate);
+        return;
+      }
+
+      globalThis.setTimeout(navigate, 0);
+    },
+    [activePath, beginNavigation, router]
+  );
+
+  const shouldBypassNavGuard = (event: MouseEvent<HTMLAnchorElement>) => {
+    return event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+  };
+
+  const handleDocsNavigation = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+      if (shouldBypassNavGuard(event)) {
+        return;
+      }
+
+      if (href === activePath) {
+        event.preventDefault();
+        return;
+      }
+
+      event.preventDefault();
+      queueNavigation(href);
+    },
+    [activePath, queueNavigation]
+  );
+
+  const prefetchRoute = useCallback(
+    (href: string) => {
+      warmDocsRoute(router, href);
+    },
+    [router]
+  );
+
+  const getRouteLinkProps = useCallback(
+    (href: string) => ({
+      href,
+      onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+        handleDocsNavigation(event, href);
+      },
+      onMouseEnter: () => {
+        prefetchRoute(href);
+      },
+      onFocus: () => {
+        prefetchRoute(href);
+      },
+    }),
+    [handleDocsNavigation, prefetchRoute]
+  );
 
   const brandMark = (
     <span className="relative inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-[#2a2d31] bg-[#0d0f12]">
@@ -59,16 +126,16 @@ export default function DocsTopNav() {
       >
         {/* Left: logo + name */}
         <Link
-          href="/docs"
+          {...getRouteLinkProps("/docs")}
           className="flex items-center gap-2.5 shrink-0 group"
-          aria-label="Synapse Developer Platform"
+          aria-label={`${t("docsPage.topNavBrand")} ${t("docsPage.topNavBrandSub")}`}
         >
           {brandMark}
           <div className="flex flex-col leading-none">
             <span className="text-[15px] font-semibold tracking-[-0.02em] text-[#e7e9ea] group-hover:text-white transition-colors">
-              Synapse
+              {t("docsPage.topNavBrand")}
               <span className="text-[#4e535a] font-normal"> · </span>
-              <span className="text-[#71767b] font-normal">Developer Platform</span>
+              <span className="text-[#71767b] font-normal">{t("docsPage.topNavBrandSub")}</span>
             </span>
           </div>
         </Link>
@@ -78,10 +145,10 @@ export default function DocsTopNav() {
           <button
             type="button"
             className="hidden md:flex h-[36px] w-full max-w-[440px] items-center gap-3 rounded-[10px] border border-[#2f3336] bg-transparent px-4 text-left text-[#71767b] transition hover:border-[#3d4043] hover:bg-[#080808] hover:text-[#e7e9ea]"
-            aria-label="Search docs"
+            aria-label={t("docsPage.topNavSearchAria")}
           >
             <Search className="h-[15px] w-[15px] shrink-0" />
-            <span className="flex-1 text-[14px] font-normal truncate">Search docs...</span>
+            <span className="flex-1 text-[14px] font-normal truncate">{t("docsPage.topNavSearchPlaceholder")}</span>
             <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[11px] text-[#3d4043] font-mono">
               Ctrl K
             </kbd>
@@ -95,7 +162,7 @@ export default function DocsTopNav() {
             href="/dashboard/overview"
             className="hidden sm:inline-flex items-center gap-1.5 h-[34px] px-4 rounded-[10px] bg-white text-[#0f1419] text-[13px] font-semibold tracking-[-0.01em] hover:bg-[#e7e9ea] transition-colors"
           >
-            Developer Console
+            {t("docsPage.topNavDeveloperConsole")}
             <span className="text-[#536471]">→</span>
           </Link>
         </div>
@@ -106,18 +173,18 @@ export default function DocsTopNav() {
         className="flex items-center h-[44px] px-4 lg:px-6 border-b gap-0 overflow-x-auto scrollbar-hide"
         style={{ borderColor: "#1a1d20" }}
       >
-        {TABS.map((tab) => {
-          const isActive = active === tab.href;
+        {TAB_HREFS.map((href, index) => {
+          const isActive = active === href;
           return (
             <Link
-              key={tab.href}
-              href={tab.href}
+              key={href}
+              {...getRouteLinkProps(href)}
               className="relative flex items-center h-full px-3.5 text-[14px] font-normal shrink-0 transition-colors"
               style={{
                 color: isActive ? "#e7e9ea" : "#71767b",
               }}
             >
-              {tab.label}
+              {tabs[index] ?? ""}
               {isActive && (
                 <span
                   className="absolute bottom-0 left-0 right-0 h-[2px]"

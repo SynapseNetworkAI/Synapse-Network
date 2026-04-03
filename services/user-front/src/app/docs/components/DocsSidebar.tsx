@@ -1,19 +1,47 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronRight, ExternalLink } from "lucide-react";
-import { NAV_TREE } from "../nav-tree";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { useDocsNavigationFeedback } from "../DocsNavigationFeedback";
+import { getDocsNavTree } from "../nav-tree";
 import { useDocsActive } from "../active-context";
+import { warmAllDocsRoutes, warmDocsRoute } from "../navigationWarmup";
 
 export default function DocsSidebar() {
   const pathname = usePathname();
+  const activePath = pathname ?? "/docs";
   const router = useRouter();
+  const { tList, t } = useLanguage();
   const { activeId } = useDocsActive();
+  const { beginNavigation } = useDocsNavigationFeedback();
+  const navTree = getDocsNavTree(
+    tList("docsPage.sidebarSectionLabels"),
+    tList("docsPage.sidebarItemLabels"),
+    t("docsPage.sidebarSoon"),
+  );
   // Start all sections open
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [isPending, startTransition] = useTransition();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    const warmup = () => {
+      warmAllDocsRoutes(router);
+    };
+
+    if (typeof globalThis.requestIdleCallback === "function") {
+      const idleId = globalThis.requestIdleCallback(warmup, { timeout: 800 });
+      return () => globalThis.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = globalThis.setTimeout(warmup, 80);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [router]);
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [activePath]);
 
   const toggle = (id: string) =>
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -26,20 +54,57 @@ export default function DocsSidebar() {
     return !hrefHash;
   };
 
+  const prefetchRoute = useCallback(
+    (href: string) => {
+      warmDocsRoute(router, href);
+    },
+    [router]
+  );
+
+  const queueNavigation = useCallback(
+    (href: string) => {
+      const [path] = href.split("#");
+      if (path && path !== activePath) {
+        beginNavigation(path);
+      }
+      setPendingHref(href);
+
+      const navigate = () => {
+        router.push(href);
+      };
+
+      if (typeof globalThis.requestAnimationFrame === "function") {
+        globalThis.requestAnimationFrame(navigate);
+        return;
+      }
+
+      globalThis.setTimeout(navigate, 0);
+    },
+    [activePath, beginNavigation, router]
+  );
+
   const handleNav = (href: string) => {
+    if (!href || href === "#") {
+      return;
+    }
+
+    if (href.startsWith("http")) {
+      globalThis.open(href, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     const [path, hash] = href.split("#");
-    if (path === pathname && hash) {
+    if (path === activePath && hash) {
       const el = document.getElementById(hash);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    // Use startTransition so the current page stays interactive while the
-    // new route loads; loading.tsx skeleton appears immediately.
-    setPendingHref(href);
-    startTransition(() => {
-      router.push(href);
-      setPendingHref(null);
-    });
+
+    if (path === activePath && !hash) {
+      return;
+    }
+
+    queueNavigation(href);
   };
 
   return (
@@ -49,7 +114,7 @@ export default function DocsSidebar() {
       style={{ background: "#08090b" }}
     >
       <nav className="py-3 px-2" aria-label="Docs navigation">
-        {NAV_TREE.map((section) => {
+        {navTree.map((section) => {
           const isOpen = collapsed[section.id] !== true;
 
           return (
@@ -114,7 +179,8 @@ export default function DocsSidebar() {
                           )}
                           <button
                             onClick={() => handleNav(item.href)}
-                            disabled={isPending && pending}
+                            onMouseEnter={() => prefetchRoute(item.href)}
+                            onFocus={() => prefetchRoute(item.href)}
                             className={[
                               "w-full flex items-center gap-2 pl-3 pr-2 py-[5px] text-left rounded-r-md transition-colors text-[12.5px] leading-[1.4]",
                               childCls,
@@ -135,7 +201,8 @@ export default function DocsSidebar() {
                       <button
                         key={item.id}
                         onClick={() => handleNav(item.href)}
-                        disabled={isPending && pending}
+                        onMouseEnter={() => prefetchRoute(item.href)}
+                        onFocus={() => prefetchRoute(item.href)}
                         className={[
                           "relative w-full flex items-center gap-2 px-3 py-[7px] rounded-lg text-left text-[13px] transition-colors",
                           parentCls,
@@ -151,7 +218,7 @@ export default function DocsSidebar() {
                         <span className="flex-1 min-w-0 pl-[2px]">{cleanLabel}</span>
                         {item.soon && (
                           <span className="text-[10px] text-[#636870] border border-white/[0.08] px-1.5 py-0.5 rounded-md font-mono shrink-0">
-                            SOON
+                            {t("docsPage.sidebarSoon")}
                           </span>
                         )}
                         {item.external && (
@@ -169,4 +236,3 @@ export default function DocsSidebar() {
     </aside>
   );
 }
-

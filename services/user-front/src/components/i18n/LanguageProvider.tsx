@@ -21,22 +21,20 @@ type LanguageContextValue = {
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<AppLanguage>(DEFAULT_LANGUAGE);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
+  const [lang, setLangState] = useState<AppLanguage>(() => {
+    if (typeof window === "undefined") return DEFAULT_LANGUAGE;
     const stored = window.localStorage.getItem(I18N_STORAGE_KEY);
     if (isSupportedLanguage(stored)) {
-      setLangState(stored);
-      return;
+      return stored;
     }
 
     const browserLang = window.navigator.language?.toLowerCase();
     if (browserLang?.startsWith("zh")) {
-      setLangState("zh");
+      return "zh";
     }
-  }, []);
+
+    return DEFAULT_LANGUAGE;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;

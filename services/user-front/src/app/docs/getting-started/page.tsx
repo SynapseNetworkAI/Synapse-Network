@@ -2,29 +2,18 @@
 
 import { ArrowRight, Zap, Radio } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useActiveSection } from "../use-active-section";
-
-const CONSUMER_STEPS = [
-  "连接钱包 · 获取 JWT",
-  "充值 USDC",
-  "发现可用服务",
-  "创建 Agent Credential",
-  "调用服务",
-  "验证结算结果",
-];
-
-const PROVIDER_STEPS = [
-  "连接钱包 · 获取 JWT",
-  "注册服务",
-  "实现端点接口",
-  "健康检测通过",
-  "查看收益",
-  "提现 USDC",
-];
 
 export default function GettingStartedOverviewPage() {
   const router = useRouter();
+  const { t, tList } = useLanguage();
   useActiveSection(["gs-overview"], "gs-overview");
+  const consumerSteps = tList("docsPage.gettingStartedConsumerSteps");
+  const providerSteps = tList("docsPage.gettingStartedProviderSteps");
+  const dims = tList("docsPage.gettingStartedDifferenceDims");
+  const consumerDiffs = tList("docsPage.gettingStartedDifferenceConsumer");
+  const providerDiffs = tList("docsPage.gettingStartedDifferenceProvider");
 
   return (
     <div className="space-y-16">
@@ -32,11 +21,11 @@ export default function GettingStartedOverviewPage() {
       {/* Page header */}
       <div className="space-y-3 border-b border-white/[0.06] pb-8">
         <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
-          Getting Started
+          {t("docsPage.gettingStartedEyebrow")}
         </span>
-        <h1 className="x-page-title text-white">选择你的角色</h1>
+        <h1 className="x-page-title text-white">{t("docsPage.gettingStartedTitle")}</h1>
         <p className="x-body-copy max-w-[560px]">
-          Synapse 服务两种角色。请根据你的目标选择对应的引导路径，每条路径独立成文，互不干扰。
+          {t("docsPage.gettingStartedDescription")}
         </p>
       </div>
 
@@ -57,15 +46,14 @@ export default function GettingStartedOverviewPage() {
             </div>
             <div>
               <div className="text-[10px] font-semibold tracking-widest text-[#7ff7be] uppercase mb-0.5">
-                Consumer
+                {t("docsPage.consumerEyebrow")}
               </div>
-              <div className="x-card-title text-white">服务调用者</div>
+              <div className="x-card-title text-white">{t("docsPage.gettingStartedConsumerTitle")}</div>
             </div>
           </div>
 
           <p className="text-[13px] text-[#71767b] leading-relaxed">
-            调用已注册在 Synapse 平台上的 AI Agent API，按调用次数即时扣费，
-            无需传统 API Key 管理——用 USDC 余额作为通用计费单元。
+            {t("docsPage.gettingStartedConsumerDescription")}
           </p>
 
           <div
@@ -73,9 +61,9 @@ export default function GettingStartedOverviewPage() {
             style={{ background: "#7ff7be08", border: "1px solid #7ff7be14" }}
           >
             <div className="text-[10px] font-semibold tracking-widest text-[#7ff7be] uppercase mb-2">
-              6 步引导
+              {t("docsPage.gettingStartedSixSteps")}
             </div>
-            {CONSUMER_STEPS.map((s, i) => (
+            {consumerSteps.map((s, i) => (
               <div key={s} className="flex items-center gap-2 text-[12px] text-[#71767b]">
                 <span
                   className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
@@ -98,7 +86,7 @@ export default function GettingStartedOverviewPage() {
                 color: "#7ff7be",
               }}
             >
-              Consumer 引导 <ArrowRight size={15} />
+              {t("docsPage.gettingStartedConsumerCta")} <ArrowRight size={15} />
             </button>
           </div>
         </div>
@@ -117,15 +105,14 @@ export default function GettingStartedOverviewPage() {
             </div>
             <div>
               <div className="text-[10px] font-semibold tracking-widest text-[#6eb6f6] uppercase mb-0.5">
-                Provider
+                {t("docsPage.providerEyebrow")}
               </div>
-              <div className="x-card-title text-white">服务提供者</div>
+              <div className="x-card-title text-white">{t("docsPage.gettingStartedProviderTitle")}</div>
             </div>
           </div>
 
           <p className="text-[13px] text-[#71767b] leading-relaxed">
-            将你的 AI 服务接入 Synapse 结算网络，设定每次调用的 USDC 定价，
-            自动接收来自全网 AI Agent 的调用请求，收益实时到账，随时提现至链上钱包。
+            {t("docsPage.gettingStartedProviderDescription")}
           </p>
 
           <div
@@ -133,9 +120,9 @@ export default function GettingStartedOverviewPage() {
             style={{ background: "#6eb6f608", border: "1px solid #6eb6f614" }}
           >
             <div className="text-[10px] font-semibold tracking-widest text-[#6eb6f6] uppercase mb-2">
-              6 步引导
+              {t("docsPage.gettingStartedSixSteps")}
             </div>
-            {PROVIDER_STEPS.map((s, i) => (
+            {providerSteps.map((s, i) => (
               <div key={s} className="flex items-center gap-2 text-[12px] text-[#71767b]">
                 <span
                   className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
@@ -158,7 +145,7 @@ export default function GettingStartedOverviewPage() {
                 color: "#6eb6f6",
               }}
             >
-              Provider 引导 <ArrowRight size={15} />
+              {t("docsPage.gettingStartedProviderCta")} <ArrowRight size={15} />
             </button>
           </div>
         </div>
@@ -166,34 +153,18 @@ export default function GettingStartedOverviewPage() {
 
       {/* Difference note */}
       <div className="x-panel-muted rounded-2xl p-6 space-y-3">
-        <h3 className="text-[15px] font-semibold text-white">两种角色的核心区别</h3>
+        <h3 className="text-[15px] font-semibold text-white">{t("docsPage.gettingStartedDifferenceTitle")}</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-          {[
-            {
-              dim: "资金流向",
-              consumer: "充值 USDC → 调用扣减",
-              provider: "接收调用 → 收益累积 → 提现",
-            },
-            {
-              dim: "核心凭证",
-              consumer: "Agent Credential（agentToken）",
-              provider: "服务注册 JWT + serviceId",
-            },
-            {
-              dim: "主要 API",
-              consumer: "/balance/deposit · /agent/invocations",
-              provider: "/services · /balance/withdraw",
-            },
-          ].map((row) => (
-            <div key={row.dim} className="space-y-2">
-              <div className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase">{row.dim}</div>
+          {dims.map((dim, index) => (
+            <div key={dim} className="space-y-2">
+              <div className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase">{dim}</div>
               <div className="flex items-start gap-2 text-[12px]">
                 <span className="text-[#7ff7be] shrink-0 font-mono">C</span>
-                <span className="text-[#71767b]">{row.consumer}</span>
+                <span className="text-[#71767b]">{consumerDiffs[index] ?? ""}</span>
               </div>
               <div className="flex items-start gap-2 text-[12px]">
                 <span className="text-[#6eb6f6] shrink-0 font-mono">P</span>
-                <span className="text-[#71767b]">{row.provider}</span>
+                <span className="text-[#71767b]">{providerDiffs[index] ?? ""}</span>
               </div>
             </div>
           ))}

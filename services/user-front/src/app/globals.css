@@ -1171,3 +1171,15 @@ body {
 .x-docs-page-enter {
   animation: xDocsPageEnter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+@keyframes docsNavProgress {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(110%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}

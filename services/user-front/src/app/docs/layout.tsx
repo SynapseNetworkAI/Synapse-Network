@@ -1,3 +1,7 @@
+import {
+  DocsNavigationFeedbackProvider,
+  DocsNavigationLoadingOverlay,
+} from "./DocsNavigationFeedback";
 import { DocsActiveProvider } from "./active-context";
 import DocsSidebar from "./components/DocsSidebar";
 import DocsTopNav from "./components/DocsTopNav";
@@ -5,21 +9,24 @@ import { DocsContentWrapper } from "./components/DocsContentWrapper";
 
 export default function DocsLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <DocsActiveProvider>
-      {/* Dedicated docs navbar replaces the global marketing/console Navbar */}
-      <DocsTopNav />
+    <DocsNavigationFeedbackProvider>
+      <DocsActiveProvider>
+        {/* Dedicated docs navbar replaces the global marketing/console Navbar */}
+        <DocsTopNav />
 
-      {/* 56px top bar + 44px tab bar = 100px total */}
-      <div className="flex min-h-screen" style={{ paddingTop: "100px" }}>
-        <DocsSidebar />
-        <main className="flex-1 min-w-0 overflow-x-hidden">
-          <div className="max-w-[900px] mx-auto px-6 lg:px-10 py-12">
-            <DocsContentWrapper>
-              {children}
-            </DocsContentWrapper>
-          </div>
-        </main>
-      </div>
-    </DocsActiveProvider>
+        {/* 56px top bar + 44px tab bar = 100px total */}
+        <div className="flex min-h-screen" style={{ paddingTop: "100px" }}>
+          <DocsSidebar />
+          <main className="relative flex-1 min-w-0 overflow-x-hidden">
+            <DocsNavigationLoadingOverlay />
+            <div className="max-w-[900px] mx-auto px-6 lg:px-10 py-12">
+              <DocsContentWrapper>
+                {children}
+              </DocsContentWrapper>
+            </div>
+          </main>
+        </div>
+      </DocsActiveProvider>
+    </DocsNavigationFeedbackProvider>
   );
 }
