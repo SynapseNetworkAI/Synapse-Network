@@ -106,4 +106,14 @@ describe("Docs On this page navigation", () => {
     expect(scrollIntoView).toHaveBeenCalled();
     expect(window.location.hash).toBe("#py-verify");
   });
+
+  it("pins the On this page rail to the docs viewport chrome", async () => {
+    pathnameMock.mockReturnValue("/docs/getting-started/consumer");
+    renderWithProviders(createElement(ConsumerGuidePage));
+
+    const nav = (await screen.findAllByTestId("docs-on-this-page"))[0];
+    expect(nav.className).toContain("sticky");
+    expect(nav.className).toContain("top-[100px]");
+    expect(nav.className).toContain("h-[calc(100vh-100px)]");
+  });
 });
