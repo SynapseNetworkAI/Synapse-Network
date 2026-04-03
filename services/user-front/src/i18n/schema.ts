@@ -939,6 +939,12 @@ export type I18nMessages = {
     sdkPyVerifyResultDescription: string;
     sdkPyReadmeLead: string;
     sdkPyReadmeCta: string;
+    sdkPyAuthMethods: string[];
+    sdkPyAuthReturns: string[];
+    sdkPyAuthDescriptions: string[];
+    sdkPyClientMethods: string[];
+    sdkPyClientReturns: string[];
+    sdkPyClientDescriptions: string[];
     contractsEyebrow: string;
     contractsTitle: string;
     contractsDescription: string;
