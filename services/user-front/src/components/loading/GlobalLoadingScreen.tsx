@@ -3,22 +3,8 @@
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 
-const COPY = {
-  en: {
-    eyebrow: "Synapse Network",
-    title: "Stripe for AI Agents.",
-    status: "Loading workspace...",
-  },
-  zh: {
-    eyebrow: "Synapse Network",
-    title: "链接硅基生命的 API 结算中枢",
-    status: "正在加载工作台...",
-  },
-} as const;
-
 export default function GlobalLoadingScreen() {
-  const { lang } = useLanguage();
-  const copy = COPY[lang] ?? COPY.en;
+  const { t } = useLanguage();
 
   return (
     <div className="fixed inset-0 z-[120] overflow-hidden bg-[#050505] text-white">
@@ -40,18 +26,18 @@ export default function GlobalLoadingScreen() {
       <div className="relative flex min-h-screen items-center justify-center px-6">
         <div className="mx-auto flex w-full max-w-[760px] flex-col items-center text-center">
           <p className="x-loading-fade-up text-[16px] font-semibold tracking-[0.08em] text-white/78 sm:text-[18px]">
-            {copy.eyebrow}
+            {t("loadingScreen.eyebrow")}
           </p>
 
           <h1 className="x-loading-fade-up x-loading-fade-up-delay mt-10 max-w-[14ch] text-balance text-[clamp(2.75rem,6vw,5rem)] font-semibold leading-[0.98] tracking-[-0.06em] text-white">
-            {copy.title}
+            {t("loadingScreen.title")}
           </h1>
 
           <div className="x-loading-fade-up x-loading-fade-up-delay-2 mt-16 w-full max-w-[340px]">
             <div className="h-[6px] overflow-hidden rounded-full bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
               <div className="x-loading-progress h-full rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.72)_48%,rgba(84,126,255,0.88)_100%)]" />
             </div>
-            <p className="mt-4 text-[15px] text-white/62">{copy.status}</p>
+            <p className="mt-4 text-[15px] text-white/62">{t("loadingScreen.status")}</p>
           </div>
         </div>
       </div>

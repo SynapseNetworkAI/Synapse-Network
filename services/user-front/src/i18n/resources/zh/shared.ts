@@ -1,9 +1,14 @@
 import type { I18nMessages } from "@/i18n/schema";
 
-const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettingsPage"> = {
+const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar" | "accountSettingsPage"> = {
   language: {
     en: "英文",
     zh: "中文",
+  },
+  loadingScreen: {
+    eyebrow: "Synapse Network",
+    title: "智能体时代的结算基础设施",
+    status: "正在初始化控制平面...",
   },
   nav: {
     apiMarketplace: "API 市场",
@@ -39,7 +44,7 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettin
     quickAccessMarketplaceDescription: "浏览面向 Agent 的公开服务市场。",
     quickAccessBlogDescription: "阅读产品动态和生态更新。",
     quickAccessAboutDescription: "查看产品愿景和基础设施定位。",
-    productTagline: "链接硅基生命的 API 结算中枢",
+    productTagline: "智能体时代的结算基础设施",
     disconnect: "断开连接",
     disconnectWallet: "断开钱包连接",
     walletDisconnected: "钱包已断开连接",
