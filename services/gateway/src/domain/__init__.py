@@ -38,6 +38,7 @@ from .identity import (
     AgentProfileRecord,
     BudgetPolicyRecord,
     OwnerAccountRecord,
+    OwnerProfileRecord,
     ProviderProfileRecord,
     RuntimeCredentialRecord,
 )
@@ -162,6 +163,7 @@ __all__ = [
     "QuoteInputPreviewRecord",
     "QuoteRequestDraftRecord",
     "OwnerAccountRecord",
+    "OwnerProfileRecord",
     "OperationContextMetadata",
     "OwnerSpendLimitRow",
     "ProcessedDepositEventRow",

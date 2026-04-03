@@ -29,6 +29,9 @@ const ROUTE_GROUPS: { id: string; title: string; routes: Route[] }[] = [
       { method: "GET",  path: "/api/v1/auth/challenge",  desc: "获取 EIP-191 签名挑战串",       auth: false },
       { method: "POST", path: "/api/v1/auth/verify",     desc: "验证签名，返回 JWT",             auth: false },
       { method: "POST", path: "/api/v1/auth/logout",     desc: "吊销当前 JWT",                  auth: true  },
+      { method: "GET",  path: "/api/v1/auth/me",         desc: "读取当前 Owner 钱包绑定的账户档案", auth: true  },
+      { method: "POST", path: "/api/v1/auth/me/profile/challenge", desc: "为账户设置更新生成一次性签名 challenge", auth: true  },
+      { method: "PUT",  path: "/api/v1/auth/me/profile", desc: "提交钱包签名后的账户名称、邮箱和通知偏好", auth: true  },
     ],
   },
   {

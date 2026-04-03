@@ -8,8 +8,18 @@ from src.api.schemas.pydantic_models import (
     VerifyAuthRequest,
     TokenResponse,
     BaseResponse,
+    OwnerProfileChallengeRequest,
+    OwnerProfileChallengeResponse,
+    OwnerProfileResponse,
+    OwnerProfileUpdateRequest,
+    OwnerProfileView,
 )
-from src.core.auth import create_auth_challenge, verify_auth_signature
+from src.core.auth import (
+    create_auth_challenge,
+    create_owner_profile_update_challenge,
+    verify_auth_signature,
+    verify_owner_profile_update_signature,
+)
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.runtime_state import AuthSessionState
@@ -23,6 +33,28 @@ router = APIRouter()
 
 AuthorizationHeader = Annotated[Optional[str], Header(alias="Authorization")]
 UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
+
+
+def _owner_profile_view(row) -> OwnerProfileView:
+    return OwnerProfileView(
+        ownerAddress=row.owner_wallet,
+        displayName=row.display_name,
+        email=row.email,
+        emailVerified=row.email_verified,
+        notifyMarketing=row.notify_marketing,
+        notifyAlerts=row.notify_alerts,
+        createdAt=row.created_at,
+        updatedAt=row.updated_at,
+    )
+
+
+def _mask_email(email: Optional[str]) -> Optional[str]:
+    if not email:
+        return None
+    local, _, domain = email.partition("@")
+    if not local or not domain:
+        return None
+    return f"{local[:1]}***@{domain}"
 
 
 @router.get(
@@ -133,3 +165,138 @@ async def logout(
     except Exception as e:
         logger.error(f"Logout failed: {e}")
         raise HTTPException(status_code=500, detail="Logout failed")
+
+
+@router.get(
+    "/v1/auth/me",
+    response_model=OwnerProfileResponse,
+    responses={
+        401: {"description": "Unauthorized"},
+        500: {"description": "Profile lookup failed"},
+    },
+)
+async def get_me(
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    try:
+        owner = credential_service.require_owner_wallet(authorization, x_user_address)
+        profile = storage.get_data_manager().system.credential_auth.read_owner_profile(
+            owner, ensure_exists=True
+        )
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Owner profile not found")
+        return OwnerProfileResponse(success=True, profile=_owner_profile_view(profile))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Owner profile lookup failed: {e}")
+        raise HTTPException(status_code=500, detail="Profile lookup failed")
+
+
+@router.post(
+    "/v1/auth/me/profile/challenge",
+    response_model=OwnerProfileChallengeResponse,
+    responses={
+        401: {"description": "Unauthorized"},
+        400: {"description": "Failed to create profile update challenge"},
+        500: {"description": "Challenge generation failed"},
+    },
+)
+async def get_profile_update_challenge(
+    request: OwnerProfileChallengeRequest,
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    _ = storage
+    try:
+        owner = credential_service.require_owner_wallet(authorization, x_user_address)
+        challenge = create_owner_profile_update_challenge(
+            owner, request.model_dump(by_alias=True)
+        )
+        if not challenge:
+            raise HTTPException(
+                status_code=400, detail="Failed to create profile update challenge"
+            )
+        return OwnerProfileChallengeResponse(
+            success=True,
+            challenge=challenge,
+            expiresInSec=max(30, int(settings.auth_challenge_ttl_sec)),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Owner profile challenge generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Challenge generation failed")
+
+
+@router.put(
+    "/v1/auth/me/profile",
+    response_model=OwnerProfileResponse,
+    responses={
+        401: {"description": "Invalid signature"},
+        409: {"description": "Email already in use"},
+        500: {"description": "Profile update failed"},
+    },
+)
+async def update_me_profile(
+    request: OwnerProfileUpdateRequest,
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    try:
+        owner = credential_service.require_owner_wallet(authorization, x_user_address)
+        payload = request.model_dump(
+            by_alias=True, exclude={"message", "signature"}
+        )
+        verified = verify_owner_profile_update_signature(
+            owner, payload, request.signature, request.message
+        )
+        if not verified:
+            raise HTTPException(
+                status_code=401,
+                detail=(
+                    "Invalid signature or expired challenge. Please request a new "
+                    f"profile challenge and sign within {settings.auth_challenge_ttl_sec}s."
+                ),
+            )
+
+        try:
+            profile = storage.get_data_manager().system.credential_auth.update_owner_profile(
+                owner,
+                display_name=request.displayName,
+                email=request.email,
+                notify_marketing=request.notifyMarketing,
+                notify_alerts=request.notifyAlerts,
+            )
+        except ValueError as exc:
+            if str(exc) == "EMAIL_ALREADY_IN_USE":
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "EMAIL_ALREADY_IN_USE",
+                        "message": "Email address is already linked to another wallet.",
+                    },
+                ) from exc
+            raise
+
+        credential_service.append_audit_log(
+            storage,
+            "OWNER_PROFILE_UPDATED",
+            owner,
+            {
+                "displayNameSet": bool(profile.display_name),
+                "emailMasked": _mask_email(profile.email),
+                "notifyMarketing": profile.notify_marketing,
+                "notifyAlerts": profile.notify_alerts,
+            },
+        )
+        return OwnerProfileResponse(success=True, profile=_owner_profile_view(profile))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Owner profile update failed: {e}")
+        raise HTTPException(status_code=500, detail="Profile update failed")

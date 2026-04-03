@@ -1,7 +1,9 @@
+import hashlib
+import json
 import secrets
 import time
 from eth_account.messages import encode_defunct
-from typing import Optional
+from typing import Any, Optional
 from cachetools import TTLCache
 
 from .common import normalize_wallet
@@ -21,6 +23,22 @@ pending_challenges = TTLCache(
     maxsize=1000,
     ttl=max(30, int(settings.auth_challenge_ttl_sec)),
 )
+pending_owner_profile_update_challenges = TTLCache(
+    maxsize=1000,
+    ttl=max(30, int(settings.auth_challenge_ttl_sec)),
+)
+
+
+def _owner_profile_payload_hash(wallet_address: str, payload: dict[str, Any]) -> str:
+    normalized_payload = {
+        "walletAddress": normalize_wallet(wallet_address),
+        "displayName": str(payload.get("displayName") or "").strip() or None,
+        "email": str(payload.get("email") or "").strip().lower() or None,
+        "notifyMarketing": bool(payload.get("notifyMarketing", True)),
+        "notifyAlerts": bool(payload.get("notifyAlerts", True)),
+    }
+    encoded = json.dumps(normalized_payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def create_auth_challenge(wallet_address: str) -> Optional[str]:
@@ -40,6 +58,32 @@ def create_auth_challenge(wallet_address: str) -> Optional[str]:
         return challenge
     except Exception as e:
         logger.error(f"Challenge generation failed: {e}")
+        return None
+
+
+def create_owner_profile_update_challenge(
+    wallet_address: str, payload: dict[str, Any]
+) -> Optional[str]:
+    try:
+        wallet = normalize_wallet(wallet_address)
+        payload_hash = _owner_profile_payload_hash(wallet, payload)
+        nonce = secrets.token_hex(16)
+        timestamp = int(time.time())
+        challenge = (
+            "Update Synapse account profile\n"
+            f"Wallet: {wallet}\n"
+            f"Payload Hash: {payload_hash}\n"
+            f"Nonce: {nonce}\n"
+            f"Timestamp: {timestamp}"
+        )
+        pending_owner_profile_update_challenges[wallet] = {
+            "challenge": challenge,
+            "payload_hash": payload_hash,
+        }
+        logger.info(f"Created owner profile update challenge for wallet {wallet}")
+        return challenge
+    except Exception as e:
+        logger.error(f"Owner profile challenge generation failed: {e}")
         return None
 
 
@@ -95,3 +139,43 @@ def verify_auth_signature(
     except Exception as e:
         logger.error(f"Signature verification failed: {e}")
         return None
+
+
+def verify_owner_profile_update_signature(
+    wallet_address: str, payload: dict[str, Any], signature: str, message: str
+) -> bool:
+    try:
+        wallet = normalize_wallet(wallet_address)
+        pending_entry = pending_owner_profile_update_challenges.get(wallet)
+        if not pending_entry:
+            logger.warning(f"No pending owner profile update challenge for {wallet}")
+            return False
+
+        if message != pending_entry.get("challenge"):
+            logger.warning(f"Owner profile challenge mismatch for {wallet}")
+            return False
+
+        payload_hash = _owner_profile_payload_hash(wallet, payload)
+        if payload_hash != pending_entry.get("payload_hash"):
+            logger.warning(f"Owner profile payload hash mismatch for {wallet}")
+            return False
+
+        signable_message = encode_defunct(text=message)
+        web3_class = _web3_class()
+        w3 = web3_class()
+        recovered_address = w3.eth.account.recover_message(
+            signable_message, signature=signature
+        )
+
+        if normalize_wallet(recovered_address) != wallet:
+            logger.warning(
+                "Owner profile signature recovery mismatch. "
+                f"Expected {wallet}, got {recovered_address}"
+            )
+            return False
+
+        del pending_owner_profile_update_challenges[wallet]
+        return True
+    except Exception as e:
+        logger.error(f"Owner profile signature verification failed: {e}")
+        return False

@@ -45,6 +45,12 @@ Owner 负责：
 4. set budget
 5. provider role operations
 
+当前 wallet-first auth 已经进一步约束了 Owner profile 的落点和写入方式：
+
+1. `synapse_owner_accounts` 承载 Owner 的可选 profile 字段，例如 `display_name`、`email`、`notify_marketing`、`notify_alerts`
+2. 这些字段只是附着在 Owner wallet 上的运营元数据，不是第二套账户体系
+3. profile 读取可以只依赖 JWT，但 profile 写入必须再走一次 wallet challenge + signature，避免 stale session 伪造配置更新
+
 ### 3.2 Agent Credential
 
 Agent credential 是 Runtime 支付身份。

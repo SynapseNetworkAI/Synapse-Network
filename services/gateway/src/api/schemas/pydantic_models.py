@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from typing import Any, Dict, Literal, Optional
 
@@ -10,6 +11,8 @@ from src.domain.service_contract import (
 
 TX_HASH_PREFIX_ERROR = "txHash must start with 0x"
 TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
+EMAIL_FORMAT_ERROR = "email must be a valid address"
+EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class BaseResponse(BaseModel):
@@ -36,6 +39,62 @@ class TokenResponse(BaseResponse):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+
+
+class OwnerProfilePayload(BaseModel):
+    displayName: Optional[str] = Field(default=None, max_length=64)
+    email: Optional[str] = Field(default=None, max_length=320)
+    notifyMarketing: bool = True
+    notifyAlerts: bool = True
+
+    @field_validator("displayName")
+    @classmethod
+    def normalize_display_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if not normalized:
+            return None
+        if not EMAIL_REGEX.match(normalized):
+            raise ValueError(EMAIL_FORMAT_ERROR)
+        return normalized
+
+
+class OwnerProfileChallengeRequest(OwnerProfilePayload):
+    pass
+
+
+class OwnerProfileUpdateRequest(OwnerProfilePayload):
+    message: str = Field(..., min_length=1, max_length=1024)
+    signature: str = Field(..., min_length=1, max_length=2048)
+
+
+class OwnerProfileView(BaseModel):
+    ownerAddress: str
+    displayName: Optional[str] = None
+    email: Optional[str] = None
+    emailVerified: bool = False
+    notifyMarketing: bool = True
+    notifyAlerts: bool = True
+    createdAt: str
+    updatedAt: str
+
+
+class OwnerProfileResponse(BaseResponse):
+    profile: OwnerProfileView
+
+
+class OwnerProfileChallengeResponse(BaseResponse):
+    challenge: str
+    expiresInSec: int
 
 
 class CredentialIssueRequest(BaseModel):

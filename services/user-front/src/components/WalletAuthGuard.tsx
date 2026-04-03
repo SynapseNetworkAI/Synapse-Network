@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, createContext, useContext, useRef, useMemo } from "react";
 import { useAccount, useAccountEffect, useDisconnect, useSignMessage } from "wagmi";
-import { toHex } from "viem";
 import { getAppRole } from "@/utils/roleStore";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
@@ -12,6 +11,11 @@ import {
   storeAuthSession,
   verifyAuthSignature,
 } from "@/utils/authSession";
+import {
+  isWalletUnstableError,
+  readInjectedAccounts,
+  signWalletMessage,
+} from "@/utils/walletSignature";
 import { showWalletStatusErrorToast, showWalletStatusToast } from "@/utils/walletToast";
 
 interface AuthContextType {
@@ -34,42 +38,7 @@ export const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-function shouldFallbackSignError(msg: string): boolean {
-  return (
-    msg.includes("getChainId") ||
-    msg.includes("reading 'raw'") ||
-    msg.includes("reading 'length'") ||
-    msg.includes("Cannot read properties of undefined") ||
-    msg.includes("unavailable while reconnecting")
-  );
-}
-
-function isWalletUnstableError(msg: string): boolean {
-  return (
-    msg.includes("Cannot read properties of undefined") ||
-    msg.includes("reading 'length'") ||
-    msg.includes("reading 'raw'")
-  );
-}
-
 const SESSION_EXPIRED_TOAST_COOLDOWN_MS = 2500;
-
-async function readInjectedAccounts(): Promise<string[]> {
-  const ethereum = (globalThis as { ethereum?: { request: (args: { method: string }) => Promise<unknown> } }).ethereum;
-  if (!ethereum) {
-    return [];
-  }
-
-  try {
-    const accounts = await ethereum.request({ method: "eth_accounts" });
-    if (!Array.isArray(accounts)) {
-      return [];
-    }
-    return accounts.filter((item): item is string => typeof item === "string" && item.length > 0);
-  } catch {
-    return [];
-  }
-}
 
 export default function WalletAuthGuard({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isConnected, address } = useAccount();
@@ -113,50 +82,11 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   // We no longer block access globally based on isPublicRoute.
   // The context provides auth state to downstream components that use <AuthMask />.
 
-  const signWithInjectedProvider = useCallback(async (message: string, walletAddress: string): Promise<string> => {
-    const ethereum = (globalThis as { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<string> } }).ethereum;
-    if (!ethereum) {
-      throw new Error("Wallet provider unavailable. Please reconnect wallet and retry.");
-    }
-
-    const hexMessage = toHex(message);
-    const attempts: Array<unknown[]> = [
-      [hexMessage, walletAddress],
-      [walletAddress, hexMessage],
-      [message, walletAddress],
-      [walletAddress, message],
-    ];
-
-    let lastErr: unknown = null;
-    for (const params of attempts) {
-      try {
-        const sig = await ethereum.request({
-          method: "personal_sign",
-          params,
-        });
-        if (typeof sig === "string" && sig.length > 0) return sig;
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-
-    throw lastErr ?? new Error("Wallet signature failed. Please reconnect wallet and retry.");
-  }, []);
-
-  const signChallengeMessage = useCallback(async (challengeMessage: string, walletAddress: string): Promise<string> => {
-    try {
-      return await signMessageAsync({
-        message: challengeMessage,
-      });
-    } catch (signErr: unknown) {
-      const msg = signErr instanceof Error ? signErr.message : String(signErr);
-      if (!shouldFallbackSignError(msg)) {
-        throw signErr;
-      }
-      console.warn("Wagmi signing failed, falling back to injected provider personal_sign...");
-      return signWithInjectedProvider(challengeMessage, walletAddress);
-    }
-  }, [signMessageAsync, signWithInjectedProvider]);
+  const signChallengeMessage = useCallback(
+    async (challengeMessage: string, walletAddress: string): Promise<string> =>
+      signWalletMessage(challengeMessage, walletAddress, signMessageAsync),
+    [signMessageAsync]
+  );
 
   const handleAuthorizeFailure = useCallback((error: unknown): void => {
     clearAuthSession();

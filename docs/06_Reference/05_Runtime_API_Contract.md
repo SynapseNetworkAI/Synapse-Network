@@ -16,6 +16,9 @@
 1. `GET /api/v1/auth/challenge`
 2. `POST /api/v1/auth/verify`
 3. `POST /api/v1/auth/logout`
+4. `GET /api/v1/auth/me`
+5. `POST /api/v1/auth/me/profile/challenge`
+6. `PUT /api/v1/auth/me/profile`
 
 ### 1.2 Owner Session Business APIs
 
@@ -60,6 +63,67 @@
 4. 同一个 Owner 可以同时拥有消费侧资金桶和供给侧收益桶。
 
 ## 3. Finance API Semantics
+
+### 3.0 `GET /api/v1/auth/me`
+
+返回当前 Owner wallet 绑定的控制面 profile。
+
+返回字段：
+
+1. `ownerAddress`
+2. `displayName`
+3. `email`
+4. `emailVerified`
+5. `notifyMarketing`
+6. `notifyAlerts`
+7. `createdAt`
+8. `updatedAt`
+
+语义：
+
+1. 如果当前 wallet 还没有 `synapse_owner_accounts` 行，Gateway 会先补一个 shell row 再返回 profile
+2. `displayName` / `email` 都允许为空，不阻断支付主链
+
+### 3.0.1 `POST /api/v1/auth/me/profile/challenge`
+
+用途：为当前 Owner profile 更新生成一次性的 wallet 签名 challenge。
+
+请求体：
+
+1. `displayName`
+2. `email`
+3. `notifyMarketing`
+4. `notifyAlerts`
+
+返回字段：
+
+1. `challenge`
+2. `expiresInSec`
+
+语义：
+
+1. challenge 绑定 `owner wallet + profile payload hash + nonce + timestamp`
+2. 后续 `PUT /api/v1/auth/me/profile` 必须提交同一 payload 和 challenge 的签名
+
+### 3.0.2 `PUT /api/v1/auth/me/profile`
+
+用途：把账户名称、邮箱和通知偏好绑定到当前 Owner wallet。
+
+请求体：
+
+1. `displayName`
+2. `email`
+3. `notifyMarketing`
+4. `notifyAlerts`
+5. `message`
+6. `signature`
+
+语义：
+
+1. Gateway 必须重新验证这次 profile update 的 wallet signature，而不是只信 JWT
+2. 如果 `email` 被修改，`emailVerified` 会被重置为 `false`
+3. `email` 必须在全平台唯一
+4. 该接口会写 system audit log，但不会影响 credits、deposit、invoke 等核心支付链路
 
 ### 3.1 `GET /api/v1/balance`
 
