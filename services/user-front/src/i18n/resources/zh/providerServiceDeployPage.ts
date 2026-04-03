@@ -11,7 +11,7 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   backToApiServices: "返回 API 服务",
   eyebrow: "Provider 控制平面",
   heroDescription:
-    "这个页面已经按新的服务定义标准和 SQL target 模型重构。你在这里定义 agent-facing 契约、运行时边界和 gateway 扩展。右侧会同时展示标准服务定义和当前 gateway 提交映射，不再有契约表演。",
+    "在一个页面里完成 agent-facing 契约、endpoint、价格和运行时默认值配置。",
   aiAssist: "AI 定义助手",
   sectionQuickPublishTitle: "快速发布",
   sectionQuickPublishSummary: "只填写最小可用契约，其余字段回落到平台默认值，后续需要时再覆盖。",
@@ -131,6 +131,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   previewTitle: "只在你需要时检查精确 payload",
   previewManifest: "标准服务定义 JSON",
   previewGatewayPayload: "Gateway 提交 payload",
+  deployEyebrow: "发布",
+  deployTitle: "校验通过后直接创建服务",
   parserTitle: "AI 服务定义解析器",
   parserDescription:
     "粘贴一整段 API 示例块：原始 cURL 命令加返回 JSON 结果。解析器会推导当前 V1 服务定义字段并自动填充表单。",

@@ -1404,6 +1404,8 @@ export type I18nMessages = {
     previewTitle: string;
     previewManifest: string;
     previewGatewayPayload: string;
+    deployEyebrow: string;
+    deployTitle: string;
     parserTitle: string;
     parserDescription: string;
     parserCurlLabel: string;

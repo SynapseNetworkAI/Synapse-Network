@@ -1,4 +1,4 @@
-"""Gateway API helpers: deposit intent/confirm, balance query."""
+"""Gateway API helpers: balance, provider secret, deposit and service registry."""
 from __future__ import annotations
 
 import uuid
@@ -68,3 +68,65 @@ def deposit_confirm(
     )
     assert r.status_code == 200, f"deposit confirm failed ({r.status_code}): {r.text}"
     return r.json()
+
+
+def issue_provider_secret(
+    gateway_base: str,
+    headers: dict,
+    *,
+    name: str,
+    rpm: int = 120,
+    credit_limit: float = 10.0,
+) -> dict:
+    r = httpx.post(
+        f"{gateway_base}/api/v1/secrets/provider/issue",
+        headers=headers,
+        json={
+            "name": name,
+            "rpm": rpm,
+            "creditLimit": credit_limit,
+            "resetInterval": "monthly",
+        },
+        timeout=TIMEOUT,
+    )
+    assert r.status_code == 200, (
+        f"issue provider secret failed ({r.status_code}): {r.text}"
+    )
+    return r.json()
+
+
+def list_provider_secrets(gateway_base: str, headers: dict) -> list[dict]:
+    r = httpx.get(
+        f"{gateway_base}/api/v1/secrets/provider/list",
+        headers=headers,
+        timeout=TIMEOUT,
+    )
+    assert r.status_code == 200, (
+        f"list provider secrets failed ({r.status_code}): {r.text}"
+    )
+    payload = r.json()
+    return payload.get("secrets", [])
+
+
+def register_service(gateway_base: str, headers: dict, payload: dict) -> dict:
+    r = httpx.post(
+        f"{gateway_base}/api/v1/services",
+        headers=headers,
+        json=payload,
+        timeout=TIMEOUT,
+    )
+    assert r.status_code in (200, 201), (
+        f"service registration failed ({r.status_code}): {r.text}"
+    )
+    return r.json()
+
+
+def list_services(gateway_base: str, headers: dict) -> list[dict]:
+    r = httpx.get(
+        f"{gateway_base}/api/v1/services",
+        headers=headers,
+        timeout=TIMEOUT,
+    )
+    assert r.status_code == 200, f"list services failed ({r.status_code}): {r.text}"
+    payload = r.json()
+    return payload.get("services") or payload.get("items") or []

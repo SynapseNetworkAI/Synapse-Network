@@ -23,6 +23,12 @@
 
 ---
 
+> 说明：这份文档是 **consumer paid invocation 主干链路**。  
+> 如果你要验证 `http://localhost:3000/provider/services/deploy` 对应的真实 Provider 接入流程，请看：
+> `docs/06_Reference/test/gateway/provider_service_deploy_e2e_test_design.md`
+
+---
+
 ## 2. 系统架构与服务依赖
 
 ```

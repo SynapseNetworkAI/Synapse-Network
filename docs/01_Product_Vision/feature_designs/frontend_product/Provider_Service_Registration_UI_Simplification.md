@@ -14,7 +14,7 @@ Before this change, Provider service registration exposed too much control-plane
 3. billing internals
 4. runtime controls
 5. gateway health and routing controls
-6. raw payload previews
+6. raw payload previews and readiness rails
 
 That shape was technically honest, but it made first-time provider onboarding too expensive.
 
@@ -114,16 +114,14 @@ Only power users should touch these:
 
 ## 5. Page structure
 
-The page should be split into two working layers:
+The page should be split into two working layers plus one final submit strip:
 
 ### Layer A — Quick Publish
 
 Contains:
 
-1. required-input summary
-2. auto-default summary
-3. minimum input form
-4. optional metadata disclosure
+1. minimum input form
+2. optional metadata disclosure
 
 ### Layer B — Advanced Overrides
 
@@ -136,17 +134,26 @@ Only opens when the provider needs:
 3. custom health behavior
 4. contract version override
 
-## 6. Right rail behavior
+### Layer C — Publish action
 
-The right rail should not overwhelm first-time providers.
+Lives at the bottom of the page, not in a right rail.
 
-It should prioritize:
+Contains:
 
-1. readiness state
-2. minimum-input explanation
-3. exact payload preview only on demand
+1. one short publish heading
+2. one validation/error line
+3. one primary submit button
 
-Raw JSON previews must be collapsed by default.
+## 6. Layout behavior
+
+The page should now stay single-column for the default flow.
+
+That means:
+
+1. no persistent right rail
+2. no readiness percentage panel
+3. no raw gateway payload preview in the default publish screen
+4. the form itself is the product, not a side inspector
 
 ## 7. UX rules
 
@@ -156,6 +163,7 @@ Raw JSON previews must be collapsed by default.
 4. The page must state that new services land as `draft`.
 5. The page must state that health, forwarding and metering defaults are platform-managed in V1.
 6. The page must not present advanced controls as mandatory.
+7. Hero copy should stay short enough to scan in one breath.
 
 ## 8. Why this is cheaper for the user
 
