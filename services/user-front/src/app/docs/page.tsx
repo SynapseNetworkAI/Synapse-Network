@@ -150,15 +150,23 @@ export default function DocsOverviewPage() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
           {[
-            { num: "01", label: "链上担保", desc: "SynapseCore 合约接收 USDC 存款，资金锁仓作为消费配额" },
-            { num: "02", label: "链下结算", desc: "Gateway 实时扣费 + 分账：consumer↓ · provider↑ · platform_fee↑" },
-            { num: "03", label: "凭证提现", desc: "Provider 凭 receivable 余额发起提现，合约转账 USDC 至钱包" },
+            { num: "01", label: "链上担保", desc: "SynapseCore 合约接收 USDC 存款，资金锁仓作为消费配额", href: "/docs/contracts" },
+            { num: "02", label: "链下结算", desc: "Gateway 实时扣费 + 分账：consumer↓ · provider↑ · platform_fee↑", href: "/docs/concepts" },
+            { num: "03", label: "凭证提现", desc: "Provider 凭 receivable 余额发起提现，合约转账 USDC 至钱包", href: "/docs/getting-started/provider#step-withdraw" },
           ].map((step) => (
-            <div key={step.num} className="x-panel-muted rounded-2xl p-5">
+            <button
+              key={step.num}
+              onClick={() => router.push(step.href)}
+              className="x-panel-muted x-tile-flat-hover text-left rounded-2xl p-5 block w-full"
+            >
               <div className="text-[10px] font-semibold tracking-widest text-[#7ff7be] mb-3">{step.num}</div>
               <div className="x-card-title text-white mb-2">{step.label}</div>
               <p className="text-[13px] text-[#71767b] leading-relaxed">{step.desc}</p>
-            </div>
+              <div className="mt-4 flex items-center gap-1 text-[12px] font-medium text-[#7ff7be]/70">
+                <span>Learn more</span>
+                <ArrowRight size={12} />
+              </div>
+            </button>
           ))}
         </div>
       </section>
@@ -173,8 +181,9 @@ export default function DocsOverviewPage() {
           {PRODUCTS.map((p) => (
             <button
               key={p.title}
-              onClick={() => router.push(p.href)}
-              className="x-tile-flat x-tile-flat-hover text-left p-5 rounded-2xl"
+              onClick={() => p.href !== "#" && router.push(p.href)}
+              disabled={p.href === "#"}
+              className="x-tile-flat text-left p-5 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed enabled:x-tile-flat-hover"
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/[0.04] border border-white/[0.06]">
