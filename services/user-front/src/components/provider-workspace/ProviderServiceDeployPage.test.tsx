@@ -102,6 +102,11 @@ describe("ProviderServiceDeployPage", () => {
     renderPage();
 
     expect(screen.getByText("Quick Publish")).toBeTruthy();
+    expect(screen.queryByText("Required from you")).toBeNull();
+    expect(screen.queryByText("Auto-applied defaults")).toBeNull();
+    expect(screen.queryByText("Lowest-cost onboarding")).toBeNull();
+    expect(screen.queryByText("Preview and auditability")).toBeNull();
+    expect(screen.queryByText("Gateway submission payload")).toBeNull();
     expect(screen.queryByLabelText("Auth Mode")).toBeNull();
 
     await user.type(screen.getByLabelText("Service Name"), "SEA Invoice OCR");

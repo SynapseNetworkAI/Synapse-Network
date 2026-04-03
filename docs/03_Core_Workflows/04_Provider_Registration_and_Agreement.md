@@ -65,6 +65,20 @@ Provider onboarding 的第一步不是填服务，而是建立供给侧主体：
 2. 绑定展示名和状态
 3. 确认这是同一个 Owner 的 Provider role，而不是新账户体系
 
+### 5.2 当前自动化接入里的钱包与登录真相
+
+本地和 CI 自动化里，Provider 不需要预先存在于链上白名单。
+
+当前真实链路是：
+
+1. 测试代码先生成一个新的 EOA 钱包
+2. 通过 `challenge -> sign -> verify` 获取 JWT
+3. 之后一切 Provider 控制面操作都绑定到这个 Owner wallet scope
+
+也就是说：
+
+**Provider identity 的第一性原语仍然是 Owner wallet，而不是数据库里预先创建的 provider root account。**
+
 ### 5.1 为什么必须先有 Provider Profile
 
 因为后面的 Service Manifest 需要明确归属：
@@ -92,6 +106,26 @@ Provider 不能只声明“我能提供服务”，还要声明：
 3. 内部结算映射主键
 
 Agent 只需要知道 service 能做什么、多少钱、如何调用。
+
+## 6.5 Step B.5: Provider Credentials（当前工程真相）
+
+用户在 Provider Console 里常说的 “创建 Credentials”，在当前工程真相里不是 Agent Credential，而是 Provider 自己的控制面 secret：
+
+1. `POST /api/v1/secrets/provider/issue`
+2. `GET /api/v1/secrets/provider/list`
+3. `DELETE /api/v1/secrets/provider/{secret_id}`
+
+它的职责是：
+
+1. 为 Provider 提供可审计的 secret 生命周期
+2. 让供给侧拥有自己的 access key / signing credential
+3. 作为 Provider onboarding 自动化测试里的独立步骤存在
+
+需要讲真话的一点：
+
+**当前 `POST /api/v1/services` 注册服务本身并不强依赖先创建 provider secret。**
+
+但在真实 onboarding runbook 里，我们仍然把它放进最低成本接入主链，因为这才是 Provider 控制面完整闭环。
 
 ## 7. Step C: 提交 Service Manifest
 
@@ -190,3 +224,17 @@ Provider registration 不是“填个表单然后开放 API”。
 **Owner scope -> Provider role -> Payout binding -> Manifest contract -> Endpoint validation -> Audited activation**
 
 的一整条控制面闭环。
+
+## 12. 对应自动化测试参考
+
+针对 `http://localhost:3000/provider/services/deploy` 的真实控制面测试方案见：
+
+`docs/06_Reference/test/gateway/provider_service_deploy_e2e_test_design.md`
+
+这份文档对应的是当前工程里真正可执行的链路：
+
+1. fresh wallet
+2. auth login
+3. issue provider secret
+4. register service
+5. verify provider-owned service list

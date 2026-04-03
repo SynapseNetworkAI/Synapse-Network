@@ -94,6 +94,16 @@ def provider_account(w3: Web3):
 
 
 @pytest.fixture(scope="session")
+def fresh_provider_account():
+    """Ephemeral provider wallet for onboarding e2e.
+
+    This mirrors real-world provider onboarding more closely than reusing a
+    pre-seeded hardhat account, because wallet auth itself is off-chain.
+    """
+    return Account.create(f"provider-onboarding-{SESSION_ID}")
+
+
+@pytest.fixture(scope="session")
 def owner_jwt(owner_account) -> str:
     """Authenticate owner wallet and return JWT token."""
     from tests.e2e.helpers.auth import authenticate_wallet
@@ -106,6 +116,16 @@ def provider_jwt(provider_account) -> str:
     """Authenticate provider wallet and return JWT token."""
     from tests.e2e.helpers.auth import authenticate_wallet
     token, _ = authenticate_wallet(GATEWAY_BASE, PROVIDER_KEY)
+    return token
+
+
+@pytest.fixture(scope="session")
+def fresh_provider_jwt(fresh_provider_account) -> str:
+    """Authenticate a brand-new provider wallet and return JWT token."""
+    from tests.e2e.helpers.auth import authenticate_wallet
+    token, _ = authenticate_wallet(
+        GATEWAY_BASE, fresh_provider_account.key.hex()
+    )
     return token
 
 
@@ -123,6 +143,15 @@ def provider_headers(provider_jwt: str, provider_account) -> dict:
     return {
         "Authorization": f"Bearer {provider_jwt}",
         "X-User-Address": provider_account.address.lower(),
+        "Content-Type": "application/json",
+    }
+
+
+@pytest.fixture(scope="session")
+def fresh_provider_headers(fresh_provider_jwt: str, fresh_provider_account) -> dict:
+    return {
+        "Authorization": f"Bearer {fresh_provider_jwt}",
+        "X-User-Address": fresh_provider_account.address.lower(),
         "Content-Type": "application/json",
     }
 

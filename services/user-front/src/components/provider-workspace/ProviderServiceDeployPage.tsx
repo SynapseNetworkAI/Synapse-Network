@@ -962,14 +962,12 @@ const normalizeParsedManifest = (current: ManifestDraft, raw: Record<string, unk
 export default function DeployManifestPage() {
   const router = useRouter();
   const { address } = useAccount();
-  const { t, tList } = useLanguage();
+  const { t } = useLanguage();
 
   const [draft, setDraft] = useState<ManifestDraft>(createDefaultDraft);
   const [hasDraft, setHasDraft] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showManifestPreview, setShowManifestPreview] = useState(false);
-  const [showGatewayPreview, setShowGatewayPreview] = useState(false);
   const [serviceIdTouched, setServiceIdTouched] = useState(false);
   const [serviceSlugTouched, setServiceSlugTouched] = useState(false);
   const [aiCurl, setAICurl] = useState("");
@@ -1138,9 +1136,6 @@ export default function DeployManifestPage() {
   const outputSchema = useMemo(() => parseJsonObject(draft.ioSchema.outputSchemaText), [draft.ioSchema.outputSchemaText]);
   const examples = useMemo(() => parseJsonArray(draft.modelUsage.examplesText), [draft.modelUsage.examplesText]);
   const successCodes = useMemo(() => parseNumberList(draft.gatewayExtensions.healthCheck.successCodesText), [draft.gatewayExtensions.healthCheck.successCodesText]);
-  const minimalRequiredFields = tList("providerServiceDeployPage.minimalRequiredFields");
-  const defaultRules = tList("providerServiceDeployPage.defaultRules");
-  const readinessStates = tList("providerServiceDeployPage.readinessStates");
   const fieldGuides = useMemo<Record<string, FieldGuideItem>>(
     () => ({
       serviceId: {
@@ -1223,18 +1218,6 @@ export default function DeployManifestPage() {
     [draft, inputSchema.valid, outputSchema.valid, examples.valid, normalizedTargets, t],
   );
 
-  const readinessChecks = useMemo(
-    () => [
-      { label: t("providerServiceDeployPage.checkIdentity"), ok: Boolean(draft.identity.serviceId.trim() && draft.identity.serviceName.trim()) },
-      { label: t("providerServiceDeployPage.checkModelContract"), ok: Boolean(draft.modelUsage.descriptionForModel.trim()) },
-      { label: t("providerServiceDeployPage.checkSchema"), ok: inputSchema.valid && outputSchema.valid },
-      { label: t("providerServiceDeployPage.checkBilling"), ok: Boolean(draft.billing.basePriceUsdc.trim()) },
-      { label: t("providerServiceDeployPage.checkRuntime"), ok: isHttpUrl(draft.runtime.endpointUrl.trim()) },
-      { label: t("providerServiceDeployPage.checkGatewayExtensions"), ok: normalizedTargets.length > 0 },
-    ],
-    [draft, inputSchema.valid, outputSchema.valid, normalizedTargets.length, t],
-  );
-
   const standardManifest = useMemo(
     () => buildProviderDeployStandardManifest({
       draft,
@@ -1276,8 +1259,6 @@ export default function DeployManifestPage() {
     }
   }, [aiResponse]);
 
-  const completedChecks = readinessChecks.filter((item) => item.ok).length;
-  const readinessPercent = Math.round((completedChecks / readinessChecks.length) * 100);
   const nextBlockingIssue = firstValidationError(fieldErrors);
 
   const openParser = () => {
@@ -1418,7 +1399,7 @@ export default function DeployManifestPage() {
       sessionRecoveryLabel={t("providerServiceDeployPage.sessionRecoveryLabel")}
     >
       <div className="min-h-[calc(100vh-80px)] bg-[#050505]">
-        <div className="mx-auto grid max-w-[1680px] gap-6 px-4 py-6 lg:grid-cols-[1.15fr_0.95fr] xl:px-6">
+        <div className="mx-auto max-w-[1120px] px-4 py-6 xl:px-6">
           <div className="space-y-6">
             <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.12),transparent_28%),linear-gradient(180deg,#0c0f14,#07090d)] p-7">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1476,31 +1457,6 @@ export default function DeployManifestPage() {
               title={t("providerServiceDeployPage.sectionQuickPublishTitle")}
               summary={t("providerServiceDeployPage.sectionQuickPublishSummary")}
             >
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="rounded-2xl border border-green-500/15 bg-green-500/[0.06] p-4">
-                  <p className="text-sm font-semibold text-white">{t("providerServiceDeployPage.requiredFromYou")}</p>
-                  <ul className="mt-3 space-y-2 text-sm text-zinc-300">
-                    {minimalRequiredFields.map((item) => (
-                      <li key={item} className="flex items-start gap-2">
-                        <Check className="mt-0.5 h-4 w-4 text-green-300" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-black/60 p-4">
-                  <p className="text-sm font-semibold text-white">{t("providerServiceDeployPage.autoAppliedDefaults")}</p>
-                  <ul className="mt-3 space-y-2 text-sm text-zinc-400">
-                    {defaultRules.map((item) => (
-                      <li key={item} className="flex items-start gap-2">
-                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-zinc-500" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField
                   label={t("providerServiceDeployPage.serviceNameLabel")}
@@ -1811,6 +1767,26 @@ export default function DeployManifestPage() {
               ) : null}
             </section>
 
+            <section className="rounded-3xl border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.deployEyebrow")}</p>
+                  <h2 className="mt-2 text-lg font-semibold text-white">{t("providerServiceDeployPage.deployTitle")}</h2>
+                  <p className={`mt-2 text-sm ${nextBlockingIssue ? "text-amber-300" : "text-zinc-500"}`}>
+                    {nextBlockingIssue || t("providerServiceDeployPage.deploymentReadyText")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={submitDeploy}
+                  disabled={isDeploying || Boolean(nextBlockingIssue)}
+                  className="inline-flex min-w-[280px] items-center justify-center rounded-2xl bg-green-500 px-5 py-4 text-sm font-semibold text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deploymentLabel}
+                </button>
+              </div>
+            </section>
+
             {showAIModal ? (
               <div className="x-dialog-shell x-modal-overlay">
                 <button
@@ -1879,96 +1855,6 @@ export default function DeployManifestPage() {
                 </div>
               </div>
             ) : null}
-          </div>
-
-          <div className="space-y-6">
-            <div className="sticky top-6 space-y-6">
-              <div className="rounded-[28px] border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.readinessEyebrow")}</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">{t("providerServiceDeployPage.readinessTitle")}</h2>
-                  </div>
-                  <p className={`text-sm font-semibold ${nextBlockingIssue ? "text-amber-300" : "text-green-300"}`}>{readinessPercent}%</p>
-                </div>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
-                  <div className={`h-full ${nextBlockingIssue ? "bg-amber-400" : "bg-green-500"}`} style={{ width: `${readinessPercent}%` }} />
-                </div>
-                <div className="mt-4 rounded-2xl border border-white/8 bg-black/50 p-4 text-sm text-zinc-400">
-                  <p className="font-medium text-white">{t("providerServiceDeployPage.readinessAutoTitle")}</p>
-                  <p className="mt-2 leading-6">
-                    {t("providerServiceDeployPage.readinessAutoDescription")}
-                  </p>
-                </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {readinessChecks.map((item) => (
-                    <div key={item.label} className={`rounded-2xl border px-3 py-2 text-xs ${item.ok ? "border-green-500/20 bg-green-500/10 text-green-200" : "border-white/8 bg-black/50 text-zinc-500"}`}>
-                      {item.ok ? t("providerServiceDeployPage.checkReady") : t("providerServiceDeployPage.checkPending")} · {item.label}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessServiceId")}</p>
-                    <p className="mt-2 break-all font-mono text-sm text-green-300">{draft.identity.serviceId || t("providerServiceDeployPage.readinessUnset")}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessRoutingTargets")}</p>
-                    <p className="mt-2 text-sm text-white">{normalizedTargets.length || 1}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessPrice")}</p>
-                    <p className="mt-2 text-sm text-white">{draft.billing.basePriceUsdc || "0"} {draft.billing.settlementCurrency}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-black/50 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">{t("providerServiceDeployPage.readinessState")}</p>
-                    <p className="mt-2 text-sm text-white">{readinessStates[0] ?? DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={submitDeploy}
-                  disabled={isDeploying || Boolean(nextBlockingIssue)}
-                  className="mt-5 flex w-full items-center justify-center rounded-2xl bg-green-500 px-5 py-4 text-sm font-semibold text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {deploymentLabel}
-                </button>
-                <p className={`mt-3 text-center text-xs ${nextBlockingIssue ? "text-amber-300" : "text-green-300"}`}>
-                  {nextBlockingIssue || t("providerServiceDeployPage.deploymentReadyText")}
-                </p>
-              </div>
-
-              <div className="rounded-[28px] border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.previewEyebrow")}</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">{t("providerServiceDeployPage.previewTitle")}</h2>
-                <div className="mt-4 space-y-4">
-                  <details
-                    className="rounded-2xl border border-white/8 bg-black/45 p-4"
-                    open={showManifestPreview}
-                    onToggle={(event) => setShowManifestPreview((event.currentTarget as HTMLDetailsElement).open)}
-                  >
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-white">
-                      {t("providerServiceDeployPage.previewManifest")}
-                    </summary>
-                    <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-green-500/10 bg-black/70 p-4 font-mono text-xs leading-6 text-green-300">
-                      {JSON.stringify(standardManifest, null, 2)}
-                    </pre>
-                  </details>
-                  <details
-                    className="rounded-2xl border border-white/8 bg-black/45 p-4"
-                    open={showGatewayPreview}
-                    onToggle={(event) => setShowGatewayPreview((event.currentTarget as HTMLDetailsElement).open)}
-                  >
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-white">
-                      {t("providerServiceDeployPage.previewGatewayPayload")}
-                    </summary>
-                    <pre className="mt-4 max-h-[380px] overflow-auto rounded-2xl border border-white/8 bg-black/70 p-4 font-mono text-xs leading-6 text-sky-300">
-                      {JSON.stringify(gatewayPayloadPreview, null, 2)}
-                    </pre>
-                  </details>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

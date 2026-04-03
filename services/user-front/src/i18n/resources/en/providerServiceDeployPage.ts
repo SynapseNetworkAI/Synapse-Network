@@ -11,7 +11,7 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   backToApiServices: "Back to API Services",
   eyebrow: "Provider Control Plane",
   heroDescription:
-    "This page now follows the new service definition standard and SQL target model. You define the agent-facing contract, runtime boundary and gateway extensions here. The right side shows both the standard service definition and the current gateway submission mapping, so there is no contract theater.",
+    "Define the agent-facing contract, endpoint, price and runtime defaults in one pass.",
   aiAssist: "AI Definition Assist",
   sectionQuickPublishTitle: "Quick Publish",
   sectionQuickPublishSummary:
@@ -133,6 +133,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   previewTitle: "Inspect the exact payload only when you need it",
   previewManifest: "Standard Service Definition JSON",
   previewGatewayPayload: "Gateway submission payload",
+  deployEyebrow: "Publish",
+  deployTitle: "Create the service when validation is clean",
   parserTitle: "AI Service Definition Parser",
   parserDescription:
     "Paste a complete API example block: raw cURL command plus the returned JSON result. The parser will infer the current V1 service definition fields and fill the form.",
