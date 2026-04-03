@@ -3,6 +3,11 @@ export type I18nMessages = {
     en: string;
     zh: string;
   };
+  loadingScreen: {
+    eyebrow: string;
+    title: string;
+    status: string;
+  };
   nav: {
     apiMarketplace: string;
     blog: string;

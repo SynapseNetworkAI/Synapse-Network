@@ -1,9 +1,14 @@
 import type { I18nMessages } from "@/i18n/schema";
 
-const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettingsPage"> = {
+const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar" | "accountSettingsPage"> = {
   language: {
     en: "English",
     zh: "Chinese",
+  },
+  loadingScreen: {
+    eyebrow: "Synapse Network",
+    title: "Settlement Infrastructure for the Agentic Era.",
+    status: "Initializing the control plane...",
   },
   nav: {
     apiMarketplace: "API Marketplace",
@@ -39,7 +44,7 @@ const shared: Pick<I18nMessages, "language" | "nav" | "sidebar" | "accountSettin
     quickAccessMarketplaceDescription: "Browse public agent-ready services.",
     quickAccessBlogDescription: "Read product and ecosystem updates.",
     quickAccessAboutDescription: "See the product vision and infrastructure thesis.",
-    productTagline: "Stripe for AI Agents",
+    productTagline: "Settlement Infrastructure for the Agentic Era",
     disconnect: "Disconnect",
     disconnectWallet: "Disconnect Wallet",
     walletDisconnected: "Wallet disconnected",
