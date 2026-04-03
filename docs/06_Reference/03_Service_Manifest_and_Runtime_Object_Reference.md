@@ -119,6 +119,27 @@ V1 至少要求：
 5. `forwarding_policy.request_id_header`
 6. `metering_policy.*`
 
+Provider Console 当前默认首屏只要求 Provider 明确以下最小接入信息：
+
+1. `service_name`
+2. `service_id`
+3. `runtime.endpoint_url`
+4. `billing.base_price_usdc`
+5. `model_usage.description_for_model`
+6. `io_schema.input_schema`
+7. `io_schema.output_schema`
+
+其中以下字段允许前端自动推导或预填默认值：
+
+1. `service_id` 可先由 `service_name` 自动派生，但 Provider 仍可手动覆盖
+2. `service_slug` 默认由 `service_name` 派生
+3. `manifest_version` 默认 `1.0.0`
+4. `settlement_currency` 默认 `USDC`
+5. `runtime.auth_mode` 默认 `gateway_forward`
+6. `gateway_extensions.health_check.path` 默认 `/health`
+7. `gateway_extensions.health_check.timeout_ms` 默认 `3000`
+8. `gateway_extensions.rate_limit_policy.max_qps` 默认 `50`
+
 平台默认策略：
 
 1. 新建 service 默认进入 `draft`。
