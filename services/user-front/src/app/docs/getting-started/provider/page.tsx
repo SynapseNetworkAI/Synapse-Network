@@ -2,6 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../../components/CodeBlock";
 import { StepItem, StepTip } from "../../components/StepItem";
 import { useActiveSection } from "../../use-active-section";
@@ -19,7 +20,18 @@ const PAGE_SECTIONS = [
 
 export default function ProviderGuidePage() {
   const router = useRouter();
+  const { t, tList } = useLanguage();
   useActiveSection(PAGE_SECTIONS, "step-auth");
+  const progressLabels = tList("docsPage.providerProgress");
+  const stepTitles = tList("docsPage.providerStepTitles");
+  const stepBodies = tList("docsPage.providerStepBodies");
+  const stepTips = tList("docsPage.providerStepTips");
+  const endpointKeys = tList("docsPage.providerEndpointGridKeys");
+  const endpointValues = tList("docsPage.providerEndpointGridValues");
+  const healthStatuses = tList("docsPage.providerHealthStatuses");
+  const healthDescriptions = tList("docsPage.providerHealthDescriptions");
+  const settlementRows = tList("docsPage.providerSettlementModelRows");
+  const settlementValues = tList("docsPage.providerSettlementModelValues");
 
   return (
     <div className="space-y-4">
@@ -31,21 +43,20 @@ export default function ProviderGuidePage() {
             className="text-[10px] font-semibold tracking-[0.14em] uppercase px-2 py-1 rounded"
             style={{ color: ACCENT, background: `${ACCENT}12`, border: `1px solid ${ACCENT}25` }}
           >
-            Provider
+            {t("docsPage.providerEyebrow")}
           </span>
           <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
-            服务提供者引导
+            {t("docsPage.providerPageEyebrow")}
           </span>
         </div>
-        <h1 className="x-page-title text-white">Provider Quick Start</h1>
+        <h1 className="x-page-title text-white">{t("docsPage.providerTitle")}</h1>
         <p className="x-body-copy max-w-[560px]">
-          将你的 API 接入 Synapse 结算网络，6 步完成：注册 → 配置端点 → 健康检测 → 接收调用 → 查看收益 → 提现。
-          预计耗时 <strong className="text-[#c0c5cc]">15 分钟</strong>。
+          {t("docsPage.providerDescription")}
         </p>
 
         {/* Step progress */}
         <div className="flex items-center gap-0 mt-4 flex-wrap gap-y-2">
-          {["Auth", "Register", "Endpoint", "Health", "Earnings", "Withdraw"].map((s, i) => (
+          {progressLabels.map((s, i) => (
             <div key={s} className="flex items-center">
               <a
                 href={`#${PAGE_SECTIONS[i]}`}
@@ -67,10 +78,9 @@ export default function ProviderGuidePage() {
       </div>
 
       {/* ── Step 01: Auth ───────────────────────────────────────── */}
-      <StepItem num="01" title="连接钱包 · 获取 JWT" accent={ACCENT} id="step-auth">
+      <StepItem num="01" title={stepTitles[0] ?? ""} accent={ACCENT} id="step-auth">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          Provider 与 Consumer 使用相同的认证机制：EIP-191 钱包签名 + JWT。
-          你的钱包地址即为 Provider 身份标识，Provider 收益将提现到此地址。
+          {stepBodies[0]}
         </p>
         <CodeBlock lang="typescript" code={`
 const { challenge } = await fetch(
@@ -94,12 +104,9 @@ const { token } = await fetch('/api/v1/auth/verify', {
       </StepItem>
 
       {/* ── Step 02: Register ───────────────────────────────────── */}
-      <StepItem num="02" title="注册服务" accent={ACCENT} id="step-register">
+      <StepItem num="02" title={stepTitles[1] ?? ""} accent={ACCENT} id="step-register">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          向 Gateway 注册你的服务端点、定价与标签。
-          注册成功后获得全局唯一的{" "}
-          <code className="text-[#c0c5cc] font-mono text-[12px]">serviceId</code>，
-          消费方通过此 ID 调用你的服务。
+          {stepBodies[1]}
         </p>
         <CodeBlock lang="typescript" code={`
 const { service } = await fetch('/api/v1/services', {
@@ -121,36 +128,26 @@ console.log('服务 ID:', service.serviceId)   // svc_xxxxxxxx
 console.log('服务状态:', service.status)     // "pending_health_check"
         `} />
         <StepTip accent={ACCENT}>
-          <code className="text-[#c0c5cc] font-mono text-[12px]">pricePerCallUsdc</code> 支持小数到 6 位，
-          最低 0.000001 USDC（约 0.0001 美分）。可随时通过{" "}
-          <code className="text-[#c0c5cc] font-mono text-[12px]">PUT /services/:id</code> 更新定价。
+          {stepTips[1]}
         </StepTip>
       </StepItem>
 
       {/* ── Step 03: Endpoint Spec ──────────────────────────────── */}
-      <StepItem num="03" title="实现端点接口规范" accent={ACCENT} id="step-endpoint">
+      <StepItem num="03" title={stepTitles[2] ?? ""} accent={ACCENT} id="step-endpoint">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          Gateway 收到 Consumer 调用后，将请求转发到你注册的端点。
-          你的端点需符合以下规范才能正常接收调用。
+          {stepBodies[2]}
         </p>
 
         <div
           className="rounded-xl p-4 space-y-3 mt-2"
           style={{ background: `${ACCENT}06`, border: `1px solid ${ACCENT}14` }}
         >
-          <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">Gateway 转发格式</div>
+          <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">{t("docsPage.providerStepTitles.2", undefined, "Gateway forwarding contract")}</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[12px]">
-            {[
-              { key: "Method",  val: "POST" },
-              { key: "Timeout", val: "30s（超时 Gateway 返回 504）" },
-              { key: "Header: X-Synapse-Service-Id",      val: "你的 serviceId" },
-              { key: "Header: X-Synapse-Invocation-Id",   val: "本次调用唯一 ID（可用于幂等）" },
-              { key: "Header: X-Synapse-Consumer-Wallet", val: "调用方钱包地址" },
-              { key: "Body",    val: "Consumer 传入的 payload（JSON）" },
-            ].map((r) => (
-              <div key={r.key} className="flex gap-2">
-                <code className="text-[#6eb6f6] font-mono shrink-0">{r.key}:</code>
-                <span className="text-[#71767b]">{r.val}</span>
+            {endpointKeys.map((key, index) => (
+              <div key={key} className="flex gap-2">
+                <code className="text-[#6eb6f6] font-mono shrink-0">{key}:</code>
+                <span className="text-[#71767b]">{endpointValues[index] ?? ""}</span>
               </div>
             ))}
           </div>
@@ -196,33 +193,30 @@ async def infer(
     return {"result": result}
         `} />
         <StepTip accent={ACCENT}>
-          你的端点响应时间直接影响消费方体验。建议 p95 响应时间控制在 5s 以内，
-          避免 Gateway 超时（30s）返回错误给 Consumer。
+          {stepTips[2]}
         </StepTip>
       </StepItem>
 
       {/* ── Step 04: Health Check ───────────────────────────────── */}
-      <StepItem num="04" title="通过健康检测" accent={ACCENT} id="step-health">
+      <StepItem num="04" title={stepTitles[3] ?? ""} accent={ACCENT} id="step-health">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          注册服务后，Gateway 会自动 ping 你的端点进行健康检测。
-          只有状态为 <code className="text-[#c0c5cc] font-mono text-[12px]">healthy</code>{" "}
-          的服务才对消费方可见。
+          {stepBodies[3]}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-          {[
-            { status: "pending_health_check", color: "#f9c74f", desc: "刚注册，等待首次 ping" },
-            { status: "healthy",              color: "#7ff7be", desc: "端点响应正常，对消费方可见" },
-            { status: "unhealthy",            color: "#ff6b6b", desc: "端点无响应或返回非 2xx" },
-          ].map((s) => (
-            <div key={s.status} className="x-panel-muted rounded-xl p-4">
+          {healthStatuses.map((status, index) => (
+            <div key={status} className="x-panel-muted rounded-xl p-4">
               <span
                 className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded border mb-2 font-mono"
-                style={{ color: s.color, background: `${s.color}10`, borderColor: `${s.color}30` }}
+                style={{
+                  color: index === 0 ? "#f9c74f" : index === 1 ? "#7ff7be" : "#ff6b6b",
+                  background: `${index === 0 ? "#f9c74f" : index === 1 ? "#7ff7be" : "#ff6b6b"}10`,
+                  borderColor: `${index === 0 ? "#f9c74f" : index === 1 ? "#7ff7be" : "#ff6b6b"}30`,
+                }}
               >
-                {s.status}
+                {status}
               </span>
-              <p className="text-[12px] text-[#71767b]">{s.desc}</p>
+              <p className="text-[12px] text-[#71767b]">{healthDescriptions[index] ?? ""}</p>
             </div>
           ))}
         </div>
@@ -250,12 +244,9 @@ await waitForHealthy(service.serviceId, token)
       </StepItem>
 
       {/* ── Step 05: View Earnings ──────────────────────────────── */}
-      <StepItem num="05" title="接收调用 · 查看收益" accent={ACCENT} id="step-earnings">
+      <StepItem num="05" title={stepTitles[4] ?? ""} accent={ACCENT} id="step-earnings">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          服务变为 healthy 后，Consumer 即可通过 Gateway 调用。
-          每次调用完成，Platform 原子将{" "}
-          <code className="text-[#c0c5cc] font-mono text-[12px]">provider_receivable</code>{" "}
-          余额增加（扣除平台手续费后的净收益）。
+          {stepBodies[4]}
         </p>
         <CodeBlock lang="typescript" code={`
 // 查询收益余额
@@ -280,16 +271,12 @@ invocations.forEach(inv => {
           className="rounded-xl p-4 mt-2"
           style={{ background: `${ACCENT}06`, border: `1px solid ${ACCENT}14` }}
         >
-          <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase mb-2">结算分账模型</div>
+          <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase mb-2">{t("docsPage.providerSettlementModelLabel")}</div>
           <div className="space-y-1.5 text-[12px]">
-            {[
-              { label: "Consumer 扣费",         val: "pricePerCall × 1",          color: "#ff6b6b" },
-              { label: "Provider 收益",          val: "pricePerCall × (1 - 手续费率)", color: ACCENT },
-              { label: "Platform Fee",           val: "pricePerCall × 手续费率",  color: "#f9c74f" },
-            ].map((r) => (
-              <div key={r.label} className="flex items-center justify-between">
-                <span className="text-[#71767b]">{r.label}</span>
-                <code className="font-mono text-[11px]" style={{ color: r.color }}>{r.val}</code>
+            {settlementRows.map((label, index) => (
+              <div key={label} className="flex items-center justify-between">
+                <span className="text-[#71767b]">{label}</span>
+                <code className="font-mono text-[11px]" style={{ color: index === 0 ? "#ff6b6b" : index === 1 ? ACCENT : "#f9c74f" }}>{settlementValues[index] ?? ""}</code>
               </div>
             ))}
           </div>
@@ -297,9 +284,9 @@ invocations.forEach(inv => {
       </StepItem>
 
       {/* ── Step 06: Withdraw ───────────────────────────────────── */}
-      <StepItem num="06" title="提现 USDC 至链上钱包" accent={ACCENT} last id="step-withdraw">
+      <StepItem num="06" title={stepTitles[5] ?? ""} accent={ACCENT} last id="step-withdraw">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          随时发起提现申请，Gateway 触发链上合约将 USDC 转移至你的钱包地址。
+          {stepBodies[5]}
         </p>
         <CodeBlock lang="typescript" code={`
 // 查询当前可提现余额
@@ -338,9 +325,9 @@ console.log('提现交易 Hash:', withdrawal.txHash)
             ✓
           </div>
           <div>
-            <div className="text-[14px] font-semibold text-white mb-1">Provider 引导完成</div>
+            <div className="text-[14px] font-semibold text-white mb-1">{t("docsPage.providerCompletionTitle")}</div>
             <p className="text-[13px] text-[#71767b]">
-              你已完成完整的 Provider 链路：身份认证 → 服务注册 → 端点实现 → 健康检测 → 收益管理 → 提现。
+              {t("docsPage.providerCompletionDescription")}
             </p>
           </div>
         </div>
@@ -351,13 +338,13 @@ console.log('提现交易 Hash:', withdrawal.txHash)
             className="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg transition-colors"
             style={{ color: ACCENT, background: `${ACCENT}10`, border: `1px solid ${ACCENT}20` }}
           >
-            Services API 完整文档 <ArrowRight size={13} />
+            {t("docsPage.providerServicesApiCta")} <ArrowRight size={13} />
           </button>
           <button
             onClick={() => router.push("/docs/concepts")}
             className="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg text-[#71767b] hover:text-white transition-colors border border-white/[0.06] hover:border-white/10"
           >
-            深入理解结算机制 <ArrowRight size={13} />
+            {t("docsPage.providerDeepDiveCta")} <ArrowRight size={13} />
           </button>
         </div>
       </StepItem>

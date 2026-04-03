@@ -2,6 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../../components/CodeBlock";
 import { StepItem, StepTip } from "../../components/StepItem";
 import { useActiveSection } from "../../use-active-section";
@@ -19,7 +20,12 @@ const PAGE_SECTIONS = [
 
 export default function ConsumerGuidePage() {
   const router = useRouter();
+  const { t, tList } = useLanguage();
   useActiveSection(PAGE_SECTIONS, "step-auth");
+  const progressLabels = tList("docsPage.consumerProgress");
+  const stepTitles = tList("docsPage.consumerStepTitles");
+  const stepBodies = tList("docsPage.consumerStepBodies");
+  const stepTips = tList("docsPage.consumerStepTips");
 
   return (
     <div className="space-y-4">
@@ -31,21 +37,20 @@ export default function ConsumerGuidePage() {
             className="text-[10px] font-semibold tracking-[0.14em] uppercase px-2 py-1 rounded"
             style={{ color: ACCENT, background: `${ACCENT}12`, border: `1px solid ${ACCENT}25` }}
           >
-            Consumer
+            {t("docsPage.consumerEyebrow")}
           </span>
           <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
-            服务调用者引导
+            {t("docsPage.consumerPageEyebrow")}
           </span>
         </div>
-        <h1 className="x-page-title text-white">Consumer Quick Start</h1>
+        <h1 className="x-page-title text-white">{t("docsPage.consumerTitle")}</h1>
         <p className="x-body-copy max-w-[560px]">
-          从零开始，6 步完成：注册 → 充值 → 发现服务 → 创建凭证 → 调用 → 验证结算。
-          预计耗时 <strong className="text-[#c0c5cc]">10 分钟</strong>。
+          {t("docsPage.consumerDescription")}
         </p>
 
         {/* Step progress */}
         <div className="flex items-center gap-0 mt-4 flex-wrap gap-y-2">
-          {["Auth", "Deposit", "Discover", "Credential", "Invoke", "Verify"].map((s, i) => (
+          {progressLabels.map((s, i) => (
             <div key={s} className="flex items-center">
               <a
                 href={`#step-${PAGE_SECTIONS[i].split("-")[1]}`}
@@ -67,10 +72,9 @@ export default function ConsumerGuidePage() {
       </div>
 
       {/* ── Step 01: Auth ───────────────────────────────────────── */}
-      <StepItem num="01" title="连接钱包 · 获取 JWT" accent={ACCENT} id="step-auth">
+      <StepItem num="01" title={stepTitles[0] ?? ""} accent={ACCENT} id="step-auth">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          Synapse 使用 <strong className="text-[#c0c5cc]">EIP-191 钱包签名</strong> 认证，
-          无需注册账号。用你的 EVM 钱包签名一个挑战串，换取 24 小时有效的 JWT Token。
+          {stepBodies[0]}
         </p>
         <CodeBlock lang="typescript" code={`
 // Step 1 — 获取挑战串
@@ -92,17 +96,15 @@ const { token } = await fetch('/api/v1/auth/verify', {
 // Authorization: Bearer <token>
         `} />
         <StepTip accent={ACCENT}>
-          使用 TypeScript SDK：{" "}
+          {stepTips[0]}{" "}
           <code className="text-[#c0c5cc] font-mono text-[12px]">await client.auth.connectWallet(signer)</code>{" "}
-          自动完成以上三步。
         </StepTip>
       </StepItem>
 
       {/* ── Step 02: Deposit ────────────────────────────────────── */}
-      <StepItem num="02" title="充值 USDC" accent={ACCENT} id="step-deposit">
+      <StepItem num="02" title={stepTitles[1] ?? ""} accent={ACCENT} id="step-deposit">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          链上 approve USDC 并调用 SynapseCore 合约存款，然后通知 Gateway 登记充值意图。
-          充值后余额立即可用于调用消费。
+          {stepBodies[1]}
         </p>
         <CodeBlock lang="typescript" code={`
 import { ethers } from 'ethers'
@@ -137,17 +139,15 @@ await fetch(\`/api/v1/balance/deposit/intents/\${intentId}/confirm\`, {
 console.log('✓ 充值完成，余额已到账')
         `} />
         <StepTip accent={ACCENT}>
-          充值意图使用 <code className="text-[#c0c5cc] font-mono text-[12px]">X-Idempotency-Key</code>{" "}
-          保证网络重试安全，建议使用 UUID v4。
+          {stepTips[1]}{" "}
+          <code className="text-[#c0c5cc] font-mono text-[12px]">X-Idempotency-Key</code>.
         </StepTip>
       </StepItem>
 
       {/* ── Step 03: Discover ───────────────────────────────────── */}
-      <StepItem num="03" title="发现可用服务" accent={ACCENT} id="step-discover">
+      <StepItem num="03" title={stepTitles[2] ?? ""} accent={ACCENT} id="step-discover">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          通过 <code className="text-[#c0c5cc] font-mono text-[12px]">/services/discover</code>{" "}
-          接口按 tag 或关键词搜索已注册的 Provider 服务，找到目标服务的{" "}
-          <code className="text-[#c0c5cc] font-mono text-[12px]">serviceId</code>。
+          {stepBodies[2]}
         </p>
         <CodeBlock lang="typescript" code={`
 // 发现可用服务（支持 tag、name 过滤）
@@ -175,11 +175,9 @@ console.log(\`找到服务: \${targetServiceId}，每次调用: \${pricePerCall}
       </StepItem>
 
       {/* ── Step 04: Credential ─────────────────────────────────── */}
-      <StepItem num="04" title="创建 Agent Credential" accent={ACCENT} id="step-credential">
+      <StepItem num="04" title={stepTitles[3] ?? ""} accent={ACCENT} id="step-credential">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          Credential 是绑定单个服务的访问凭证，内含消费额度上限。
-          用 <code className="text-[#c0c5cc] font-mono text-[12px]">agentToken</code>{" "}
-          替代 API Key 调用目标服务，Gateway 根据此 token 自动扣费。
+          {stepBodies[3]}
         </p>
         <CodeBlock lang="typescript" code={`
 // 为目标服务颁发 Agent Credential
@@ -205,21 +203,14 @@ console.log('Agent Token:', agentToken)   // agt_xxxxx...
 // 保存 agentToken，后续调用时使用
         `} />
         <StepTip accent={ACCENT}>
-          每个 Credential 独立限额，可为不同 Agent / 场景创建多个 Credential，
-          额度耗尽后自动失效，不会超额扣费。
-          <br />
-          <span className="opacity-80">
-            <strong>Daily Budget</strong>（<code>creditLimit</code>）按 <code>resetInterval</code> 每日重置；
-            {" "}<strong>Max Calls</strong>（<code>maxCalls</code>）是生命周期累计上限，不会重置。
-          </span>
+          {stepTips[3]}
         </StepTip>
       </StepItem>
 
       {/* ── Step 05: Invoke ─────────────────────────────────────── */}
-      <StepItem num="05" title="调用服务 · 即时结算" accent={ACCENT} id="step-invoke">
+      <StepItem num="05" title={stepTitles[4] ?? ""} accent={ACCENT} id="step-invoke">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          使用 <code className="text-[#c0c5cc] font-mono text-[12px]">agentToken</code>{" "}
-          作为 Bearer Token 发起调用。Gateway 原子执行：消费者余额↓ · Provider 收益↑ · 平台手续费↑。
+          {stepBodies[4]}
         </p>
         <CodeBlock lang="typescript" code={`
 // 调用服务（带 agentToken）
@@ -244,15 +235,14 @@ console.log('本次扣费:', result.chargedUsdc, 'USDC')
 // → 本次扣费: "0.0010" USDC
         `} />
         <StepTip accent={ACCENT}>
-          每次调用都带 <code className="text-[#c0c5cc] font-mono text-[12px]">idempotencyKey</code>，
-          网络重试时传相同 key，Gateway 返回缓存结果，不重复扣费。
+          {stepTips[4]}
         </StepTip>
       </StepItem>
 
       {/* ── Step 06: Verify ─────────────────────────────────────── */}
-      <StepItem num="06" title="验证结算结果" accent={ACCENT} last id="step-verify">
+      <StepItem num="06" title={stepTitles[5] ?? ""} accent={ACCENT} last id="step-verify">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
-          调用完成后，查询余额确认扣费已原子完成。
+          {stepBodies[5]}
         </p>
         <CodeBlock lang="typescript" code={`
 // 查询当前账户余额
@@ -287,9 +277,9 @@ console.log('结算时间:', latest.settledAt)
             ✓
           </div>
           <div>
-            <div className="text-[14px] font-semibold text-white mb-1">Consumer 引导完成</div>
+            <div className="text-[14px] font-semibold text-white mb-1">{t("docsPage.consumerCompletionTitle")}</div>
             <p className="text-[13px] text-[#71767b]">
-              你已完成完整的 Consumer 链路：身份认证 → 充值 → 发现服务 → 凭证管理 → 调用结算。
+              {t("docsPage.consumerCompletionDescription")}
             </p>
           </div>
         </div>
@@ -300,13 +290,13 @@ console.log('结算时间:', latest.settledAt)
             className="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg transition-colors"
             style={{ color: ACCENT, background: `${ACCENT}10`, border: `1px solid ${ACCENT}20` }}
           >
-            深入理解结算机制 <ArrowRight size={13} />
+            {t("docsPage.consumerDeepDiveCta")} <ArrowRight size={13} />
           </button>
           <button
             onClick={() => router.push("/docs/sdk")}
             className="inline-flex items-center gap-2 text-[13px] font-medium px-4 py-2 rounded-lg text-[#71767b] hover:text-white transition-colors border border-white/[0.06] hover:border-white/10"
           >
-            TypeScript SDK <ArrowRight size={13} />
+            {t("docsPage.consumerSdkCta")} <ArrowRight size={13} />
           </button>
         </div>
       </StepItem>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useActiveSection } from "../use-active-section";
 import { StatusBadge } from "../components/StatusBadge";
 
@@ -71,6 +72,7 @@ const ROUTE_GROUPS: { id: string; title: string; routes: Route[] }[] = [
 ];
 
 function RouteTable({ routes }: Readonly<{ routes: Route[] }>) {
+  const { t } = useLanguage();
   return (
     <div className="rounded-2xl border border-white/[0.06] overflow-hidden mt-4">
       <table className="w-full text-left">
@@ -78,8 +80,8 @@ function RouteTable({ routes }: Readonly<{ routes: Route[] }>) {
           <tr className="border-b border-white/[0.06] bg-white/[0.02]">
             <th className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase px-4 py-3 w-[80px]">Method</th>
             <th className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase px-4 py-3">Path</th>
-            <th className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase px-4 py-3 hidden md:table-cell">Description</th>
-            <th className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase px-4 py-3 hidden md:table-cell w-[60px]">Auth</th>
+            <th className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase px-4 py-3 hidden md:table-cell">{t("docsPage.sdkDescriptionLabel")}</th>
+            <th className="text-[10px] font-semibold tracking-widest text-[#4e535a] uppercase px-4 py-3 hidden md:table-cell w-[60px]">{t("docsPage.apiGroupTitles.0", undefined, "Auth")}</th>
           </tr>
         </thead>
         <tbody>
@@ -115,7 +117,13 @@ function RouteTable({ routes }: Readonly<{ routes: Route[] }>) {
 }
 
 export default function ApiReferencePage() {
+  const { t, tList } = useLanguage();
   useActiveSection(PAGE_SECTIONS, "api-auth");
+  const groupTitles = tList("docsPage.apiGroupTitles");
+  const routeGroups = [...ROUTE_GROUPS];
+  routeGroups.forEach((group, index) => {
+    group.title = groupTitles[index] ?? group.title;
+  });
 
   return (
     <div className="space-y-16">
@@ -124,39 +132,38 @@ export default function ApiReferencePage() {
       <div className="space-y-2 border-b border-white/[0.06] pb-8">
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
-            API Reference
+            {t("docsPage.apiEyebrow")}
           </span>
           <StatusBadge status="GA" />
         </div>
-        <h1 className="x-page-title text-white">REST API</h1>
+        <h1 className="x-page-title text-white">{t("docsPage.apiTitle")}</h1>
         <p className="x-body-copy max-w-[560px]">
-          所有路由挂载在{" "}
+          {t("docsPage.apiDescription")}{" "}
           <code className="text-[#7ff7be] font-mono text-[13px] bg-[#7ff7be]/8 px-1.5 py-0.5 rounded">/api</code>{" "}
-          前缀下。Base URL：
           <code className="text-[#c0c5cc] font-mono text-[13px] ml-1">https://gateway.synapse.network</code>
         </p>
         <div className="flex gap-6 pt-2">
           <div className="flex items-center gap-2">
             <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border font-mono ${METHOD_COLOR.GET}`}>GET</span>
-            <span className="text-[12px] text-[#71767b]">读取</span>
+            <span className="text-[12px] text-[#71767b]">{t("docsPage.apiLegendRead")}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border font-mono ${METHOD_COLOR.POST}`}>POST</span>
-            <span className="text-[12px] text-[#71767b]">创建 / 执行</span>
+            <span className="text-[12px] text-[#71767b]">{t("docsPage.apiLegendCreate")}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border font-mono ${METHOD_COLOR.PUT}`}>PUT</span>
-            <span className="text-[12px] text-[#71767b]">更新</span>
+            <span className="text-[12px] text-[#71767b]">{t("docsPage.apiLegendUpdate")}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border font-mono ${METHOD_COLOR.DELETE}`}>DELETE</span>
-            <span className="text-[12px] text-[#71767b]">删除</span>
+            <span className="text-[12px] text-[#71767b]">{t("docsPage.apiLegendDelete")}</span>
           </div>
         </div>
       </div>
 
       {/* Route groups */}
-      {ROUTE_GROUPS.map((group) => (
+      {routeGroups.map((group) => (
         <section key={group.id} id={group.id} className="space-y-2">
           <h2 className="x-section-title text-white">{group.title}</h2>
           <RouteTable routes={group.routes} />
@@ -168,10 +175,9 @@ export default function ApiReferencePage() {
         <span className="text-[#7ff7be] mt-0.5 shrink-0">🔐</span>
         <div className="space-y-1">
           <p className="text-[13px] font-semibold text-[#c0c5cc]">认证方式</p>
+          <p className="text-[13px] font-semibold text-[#c0c5cc]">{t("docsPage.apiAuthNoteTitle")}</p>
           <p className="text-[13px] text-[#71767b] leading-relaxed">
-            标注 <code className="text-[#c0c5cc] font-mono text-[12px]">JWT</code> 的接口需在请求头加入{" "}
-            <code className="text-[#7ff7be] font-mono text-[12px]">Authorization: Bearer &lt;token&gt;</code>。
-            Token 通过 <code className="text-[#c0c5cc] font-mono text-[12px]">POST /api/v1/auth/verify</code> 获取，有效期 24 小时。
+            {t("docsPage.apiAuthNoteDescription")}
           </p>
         </div>
       </div>

@@ -14,79 +14,88 @@ export interface NavSection {
 
 // href with no hash = the "page root" item for that route.
 // href with hash   = a sub-section anchor on that page.
-export const NAV_TREE: NavSection[] = [
-  {
-    id: "overview",
-    label: "OVERVIEW",
-    items: [
-      { id: "introduction", label: "Introduction",   href: "/docs" },
-      { id: "architecture", label: "Architecture",   href: "/docs#architecture" },
-    ],
-  },
-  {
-    id: "getting-started",
-    label: "GETTING STARTED",
-    items: [
-      { id: "gs-overview",  label: "Overview",         href: "/docs/getting-started" },
-      { id: "gs-consumer",  label: "Consumer Guide",   href: "/docs/getting-started/consumer" },
-      { id: "gs-c-auth",    label: "↳ Auth",           href: "/docs/getting-started/consumer#step-auth" },
-      { id: "gs-c-deposit", label: "↳ Deposit USDC",   href: "/docs/getting-started/consumer#step-deposit" },
-      { id: "gs-c-discover",label: "↳ Discover Services", href: "/docs/getting-started/consumer#step-discover" },
-      { id: "gs-c-cred",    label: "↳ Create Credential", href: "/docs/getting-started/consumer#step-credential" },
-      { id: "gs-c-invoke",  label: "↳ Invoke & Settle", href: "/docs/getting-started/consumer#step-invoke" },
-      { id: "gs-provider",  label: "Provider Guide",   href: "/docs/getting-started/provider" },
-      { id: "gs-p-auth",    label: "↳ Auth",           href: "/docs/getting-started/provider#step-auth" },
-      { id: "gs-p-register",label: "↳ Register Service", href: "/docs/getting-started/provider#step-register" },
-      { id: "gs-p-endpoint",label: "↳ Endpoint Spec",  href: "/docs/getting-started/provider#step-endpoint" },
-      { id: "gs-p-health",  label: "↳ Health Check",   href: "/docs/getting-started/provider#step-health" },
-      { id: "gs-p-earnings",label: "↳ View Earnings",  href: "/docs/getting-started/provider#step-earnings" },
-      { id: "gs-p-withdraw",label: "↳ Withdraw USDC",  href: "/docs/getting-started/provider#step-withdraw" },
-    ],
-  },
-  {
-    id: "core-concepts",
-    label: "CORE CONCEPTS",
-    items: [
-      { id: "settlement",       label: "How Settlement Works", href: "/docs/concepts" },
-      { id: "service-registry", label: "Service Registry",     href: "/docs/concepts#service-registry" },
-      { id: "credentials",      label: "Agent Credentials",    href: "/docs/concepts#credentials" },
-      { id: "idempotency",      label: "Idempotency",          href: "/docs/concepts#idempotency" },
-    ],
-  },
-  {
-    id: "api-reference",
-    label: "API REFERENCE",
-    items: [
-      { id: "api-auth",        label: "Auth",              href: "/docs/api-reference" },
-      { id: "api-balance",     label: "Balance",           href: "/docs/api-reference#api-balance" },
-      { id: "api-services",    label: "Services",          href: "/docs/api-reference#api-services" },
-      { id: "api-invocations", label: "Agent Invocations", href: "/docs/api-reference#api-invocations" },
-      { id: "api-credentials", label: "Credentials",       href: "/docs/api-reference#api-credentials" },
-    ],
-  },
-  {
-    id: "sdk",
-    label: "SDK",
-    items: [
-      { id: "sdk-ts", label: "TypeScript SDK", href: "/docs/sdk" },
-      { id: "sdk-py", label: "Python SDK",     href: "/docs/sdk#sdk-py", soon: true },
-    ],
-  },
-  {
-    id: "contracts",
-    label: "SMART CONTRACTS",
-    items: [
-      { id: "contract-core", label: "SynapseCore",       href: "/docs/contracts" },
-      { id: "contract-usdc", label: "MockUSDC (Testnet)", href: "/docs/contracts#contract-usdc" },
-    ],
-  },
-  {
-    id: "resources",
-    label: "RESOURCES",
-    items: [
-      { id: "changelog", label: "Changelog",  href: "/blog" },
-      { id: "status",    label: "Status Page", href: "#", soon: true },
-      { id: "community", label: "GitHub",      href: "https://github.com/synapse-network", external: true },
-    ],
-  },
-];
+export function getDocsNavTree(sectionLabels: string[], itemLabels: string[], soonLabel: string): NavSection[] {
+  return [
+    {
+      id: "overview",
+      label: sectionLabels[0] ?? "OVERVIEW",
+      items: [
+        { id: "introduction", label: itemLabels[0] ?? "Introduction", href: "/docs" },
+        { id: "architecture", label: itemLabels[1] ?? "Architecture", href: "/docs#architecture" },
+      ],
+    },
+    {
+      id: "getting-started",
+      label: sectionLabels[1] ?? "GETTING STARTED",
+      items: [
+        { id: "gs-overview", label: itemLabels[2] ?? "Overview", href: "/docs/getting-started" },
+        { id: "gs-consumer", label: itemLabels[3] ?? "Consumer Guide", href: "/docs/getting-started/consumer" },
+        { id: "gs-c-auth", label: `↳ ${itemLabels[4] ?? "Auth"}`, href: "/docs/getting-started/consumer#step-auth" },
+        { id: "gs-c-deposit", label: `↳ ${itemLabels[5] ?? "Deposit USDC"}`, href: "/docs/getting-started/consumer#step-deposit" },
+        { id: "gs-c-discover", label: `↳ ${itemLabels[6] ?? "Discover Services"}`, href: "/docs/getting-started/consumer#step-discover" },
+        { id: "gs-c-cred", label: `↳ ${itemLabels[7] ?? "Create Credential"}`, href: "/docs/getting-started/consumer#step-credential" },
+        { id: "gs-c-invoke", label: `↳ ${itemLabels[8] ?? "Invoke & Settle"}`, href: "/docs/getting-started/consumer#step-invoke" },
+        { id: "gs-provider", label: itemLabels[9] ?? "Provider Guide", href: "/docs/getting-started/provider" },
+        { id: "gs-p-auth", label: `↳ ${itemLabels[4] ?? "Auth"}`, href: "/docs/getting-started/provider#step-auth" },
+        { id: "gs-p-register", label: `↳ ${itemLabels[10] ?? "Register Service"}`, href: "/docs/getting-started/provider#step-register" },
+        { id: "gs-p-endpoint", label: `↳ ${itemLabels[11] ?? "Endpoint Spec"}`, href: "/docs/getting-started/provider#step-endpoint" },
+        { id: "gs-p-health", label: `↳ ${itemLabels[12] ?? "Health Check"}`, href: "/docs/getting-started/provider#step-health" },
+        { id: "gs-p-earnings", label: `↳ ${itemLabels[13] ?? "View Earnings"}`, href: "/docs/getting-started/provider#step-earnings" },
+        { id: "gs-p-withdraw", label: `↳ ${itemLabels[14] ?? "Withdraw USDC"}`, href: "/docs/getting-started/provider#step-withdraw" },
+      ],
+    },
+    {
+      id: "core-concepts",
+      label: sectionLabels[2] ?? "CORE CONCEPTS",
+      items: [
+        { id: "settlement", label: itemLabels[15] ?? "How Settlement Works", href: "/docs/concepts" },
+        { id: "service-registry", label: itemLabels[16] ?? "Service Registry", href: "/docs/concepts#service-registry" },
+        { id: "credentials", label: itemLabels[17] ?? "Agent Credentials", href: "/docs/concepts#credentials" },
+        { id: "idempotency", label: itemLabels[18] ?? "Idempotency", href: "/docs/concepts#idempotency" },
+      ],
+    },
+    {
+      id: "api-reference",
+      label: sectionLabels[3] ?? "API REFERENCE",
+      items: [
+        { id: "api-auth", label: itemLabels[19] ?? "Auth", href: "/docs/api-reference" },
+        { id: "api-balance", label: itemLabels[20] ?? "Balance", href: "/docs/api-reference#api-balance" },
+        { id: "api-services", label: itemLabels[21] ?? "Services", href: "/docs/api-reference#api-services" },
+        { id: "api-invocations", label: itemLabels[22] ?? "Agent Invocations", href: "/docs/api-reference#api-invocations" },
+        { id: "api-credentials", label: itemLabels[23] ?? "Credentials", href: "/docs/api-reference#api-credentials" },
+      ],
+    },
+    {
+      id: "sdk",
+      label: sectionLabels[4] ?? "SDK",
+      items: [
+        { id: "sdk-ts", label: itemLabels[24] ?? "TypeScript SDK", href: "/docs/sdk" },
+        { id: "sdk-py", label: itemLabels[25] ?? "Python SDK", href: "/docs/sdk#sdk-py", soon: true },
+      ],
+    },
+    {
+      id: "contracts",
+      label: sectionLabels[5] ?? "SMART CONTRACTS",
+      items: [
+        { id: "contract-core", label: itemLabels[26] ?? "SynapseCore", href: "/docs/contracts" },
+        { id: "contract-usdc", label: itemLabels[27] ?? "MockUSDC (Testnet)", href: "/docs/contracts#contract-usdc" },
+      ],
+    },
+    {
+      id: "resources",
+      label: sectionLabels[6] ?? "RESOURCES",
+      items: [
+        { id: "changelog", label: itemLabels[28] ?? "Changelog", href: "/blog" },
+        { id: "status", label: itemLabels[29] ?? "Status Page", href: "#", soon: true },
+        { id: "community", label: itemLabels[30] ?? "GitHub", href: "https://github.com/cliff-personal/Synapse-Network-Sdk", external: true },
+      ],
+    },
+  ].map((section) => ({
+    ...section,
+    items: section.items.map((item) => (item.soon ? { ...item, soon: true, label: item.label, external: item.external ?? false } : item)),
+  }));
+}
+
+export function getSoonLabel(fallback?: string) {
+  return fallback || "SOON";
+}

@@ -5,48 +5,34 @@ import {
   Terminal, Layers, Shield, Activity, Database, Webhook,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { StatusBadge } from "./components/StatusBadge";
 import { useActiveSection } from "./use-active-section";
 
-const QUICK_START_CARDS = [
-  {
-    icon: Zap,
-    tag: "5 min",
-    title: "Use an Agent Service",
-    desc: "充值 USDC → 创建 Credential → 调用 API → 余额即时扣减",
-    href: "/docs/getting-started",
-    color: "#7ff7be",
-  },
-  {
-    icon: Radio,
-    tag: "10 min",
-    title: "Register a Service",
-    desc: "注册服务 → 配置 pricing → 上线 → 实时接收收益",
-    href: "/docs/getting-started#service-registry",
-    color: "#6eb6f6",
-  },
-  {
-    icon: Package,
-    tag: "NEW",
-    title: "TypeScript SDK",
-    desc: "npm install → import SynapseClient → 3 行代码完成调用",
-    href: "/docs/sdk",
-    color: "#f9c74f",
-  },
-];
-
-const PRODUCTS = [
-  { icon: Terminal, title: "Gateway API",       desc: "结算网关核心 REST API。处理认证、计费与链路路由，亚毫秒级 overhead。",         status: "GA",   href: "/docs/api-reference" },
-  { icon: Layers,   title: "Service Registry",  desc: "Provider 服务注册、定价配置、健康检测与公开发现接口。",                      status: "GA",   href: "/docs/concepts#service-registry" },
-  { icon: Shield,   title: "Agent Credentials", desc: "消费方凭证颁发、额度控制、生命周期管理与撤销流程。",                         status: "GA",   href: "/docs/concepts#credentials" },
-  { icon: Activity, title: "Settlement Engine", desc: "链下原子扣费 + 分账，链上 USDC 可提现。gas-free 高频结算。",                status: "GA",   href: "/docs/concepts" },
-  { icon: Database, title: "Deposit Indexer",   desc: "链上充值事件监听、自动确认、idempotent 意图管理。",                         status: "GA",   href: "/docs/getting-started#deposit" },
-  { icon: Webhook,  title: "Webhooks",           desc: "调用完成回调与事件推送 —— Provider 可订阅 settled 事件。",                 status: "SOON", href: "#" },
-];
-
 export default function DocsOverviewPage() {
   const router = useRouter();
+  const { t, tList } = useLanguage();
   useActiveSection(["introduction", "architecture"], "introduction");
+  const quickCardTags = tList("docsPage.overviewQuickCardTags");
+  const quickCardTitles = tList("docsPage.overviewQuickCardTitles");
+  const quickCardDescriptions = tList("docsPage.overviewQuickCardDescriptions");
+  const quickStartCards = [
+    { icon: Zap, tag: quickCardTags[0], title: quickCardTitles[0], desc: quickCardDescriptions[0], href: "/docs/getting-started", color: "#7ff7be" },
+    { icon: Radio, tag: quickCardTags[1], title: quickCardTitles[1], desc: quickCardDescriptions[1], href: "/docs/getting-started/provider", color: "#6eb6f6" },
+    { icon: Package, tag: quickCardTags[2], title: quickCardTitles[2], desc: quickCardDescriptions[2], href: "/docs/sdk", color: "#f9c74f" },
+  ];
+  const productTitles = tList("docsPage.overviewProductTitles");
+  const productDescriptions = tList("docsPage.overviewProductDescriptions");
+  const products = [
+    { icon: Terminal, title: productTitles[0], desc: productDescriptions[0], status: "GA", href: "/docs/api-reference" },
+    { icon: Layers, title: productTitles[1], desc: productDescriptions[1], status: "GA", href: "/docs/concepts#service-registry" },
+    { icon: Shield, title: productTitles[2], desc: productDescriptions[2], status: "GA", href: "/docs/concepts#credentials" },
+    { icon: Activity, title: productTitles[3], desc: productDescriptions[3], status: "GA", href: "/docs/concepts" },
+    { icon: Database, title: productTitles[4], desc: productDescriptions[4], status: "GA", href: "/docs/getting-started/consumer#step-deposit" },
+    { icon: Webhook, title: productTitles[5], desc: productDescriptions[5], status: "SOON", href: "#" },
+  ];
+  const architectureLabels = tList("docsPage.overviewArchitectureLabels");
+  const architectureDescriptions = tList("docsPage.overviewArchitectureDescriptions");
 
   return (
     <div className="space-y-20">
@@ -56,20 +42,16 @@ export default function DocsOverviewPage() {
         <div className="flex items-center gap-3">
           <StatusBadge status="BETA" />
           <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
-            Developer Documentation
+            {t("docsPage.overviewEyebrow")}
           </span>
         </div>
 
         <h1 className="x-page-title text-white" style={{ maxWidth: 600 }}>
-          Synapse Developer Platform
+          {t("docsPage.overviewTitle")}
         </h1>
 
         <p className="x-body-copy max-w-[560px]">
-          AI Agent 经济基础设施 ——{" "}
-          <span className="text-[#c0c5cc]">
-            链上充值担保 · 链下网关秒扣 · 凭票免 Gas 提现。
-          </span>{" "}
-          让 AI 之间（M2M）以毫秒级延迟、零 Gas 成本完成 API 服务的购买与结算。
+          {t("docsPage.overviewDescription")}
         </p>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -78,27 +60,21 @@ export default function DocsOverviewPage() {
             onClick={() => router.push("/docs/getting-started")}
             className="x-button-primary inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[14px]"
           >
-            Quick Start <ArrowRight size={15} />
+            {t("docsPage.overviewQuickStart")} <ArrowRight size={15} />
           </button>
           <button
             onClick={() => router.push("/docs/api-reference")}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[14px] text-white border border-white/10 hover:border-white/20 hover:bg-white/[0.04] transition-colors"
           >
-            API Reference
+            {t("docsPage.overviewApiReference")}
           </button>
         </div>
 
         <div className="mt-2 p-5 rounded-2xl border border-white/[0.06] bg-[#0a0b0d] font-mono text-[12px] text-[#71767b] leading-relaxed">
-          <span className="text-[#7ff7be]">Consumer</span>
-          {" /deposit USDC → "}
-          <span className="text-[#6eb6f6]">Gateway</span>
-          {" /quote → /invoke → "}
-          <span className="text-[#f9c74f]">Provider API</span>
-          {" → settled "}
-          <span className="text-[#7ff7be]">✓</span>
+          {t("docsPage.overviewFlowLine")} <span className="text-[#7ff7be]">✓</span>
           <br />
           <span className="text-[#3a3f45]">
-            {"                  ↓ platform fee accrued · provider receivable ++"}
+            {t("docsPage.overviewFlowSubline")}
           </span>
         </div>
       </section>
@@ -106,11 +82,11 @@ export default function DocsOverviewPage() {
       {/* Quick Start Cards */}
       <section>
         <div className="flex items-center gap-3 mb-6">
-          <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">Get Started</span>
+          <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">{t("docsPage.overviewGetStartedLabel")}</span>
           <div className="flex-1 h-px bg-white/[0.045]" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="quickstart-cards">
-          {QUICK_START_CARDS.map((card) => (
+          {quickStartCards.map((card) => (
             <button
               key={card.title}
               onClick={() => router.push(card.href)}
@@ -133,7 +109,7 @@ export default function DocsOverviewPage() {
               </div>
               <p className="text-[13px] text-[#71767b] leading-relaxed">{card.desc}</p>
               <div className="mt-4 flex items-center gap-1 text-[12px] font-medium" style={{ color: card.color }}>
-                <span>Read guide</span>
+                <span>{t("docsPage.overviewReadGuide")}</span>
                 <ArrowRight size={12} />
               </div>
             </button>
@@ -143,16 +119,15 @@ export default function DocsOverviewPage() {
 
       {/* Architecture */}
       <section id="architecture" className="space-y-4">
-        <h2 className="x-section-title text-white">Architecture</h2>
+        <h2 className="x-section-title text-white">{t("docsPage.overviewArchitectureTitle")}</h2>
         <p className="x-body-copy">
-          Synapse 采用<strong className="text-[#c0c5cc]">混合结算模型</strong>：链上 USDC
-          存入合约作担保，链下网关完成毫秒级扣费与分账，Provider 凭收益凭证随时提现至链上地址。
+          {t("docsPage.overviewArchitectureDescription")}
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
           {[
-            { num: "01", label: "链上担保", desc: "SynapseCore 合约接收 USDC 存款，资金锁仓作为消费配额", href: "/docs/contracts" },
-            { num: "02", label: "链下结算", desc: "Gateway 实时扣费 + 分账：consumer↓ · provider↑ · platform_fee↑", href: "/docs/concepts" },
-            { num: "03", label: "凭证提现", desc: "Provider 凭 receivable 余额发起提现，合约转账 USDC 至钱包", href: "/docs/getting-started/provider#step-withdraw" },
+            { num: "01", label: architectureLabels[0], desc: architectureDescriptions[0], href: "/docs/contracts" },
+            { num: "02", label: architectureLabels[1], desc: architectureDescriptions[1], href: "/docs/concepts" },
+            { num: "03", label: architectureLabels[2], desc: architectureDescriptions[2], href: "/docs/getting-started/provider#step-withdraw" },
           ].map((step) => (
             <button
               key={step.num}
@@ -163,7 +138,7 @@ export default function DocsOverviewPage() {
               <div className="x-card-title text-white mb-2">{step.label}</div>
               <p className="text-[13px] text-[#71767b] leading-relaxed">{step.desc}</p>
               <div className="mt-4 flex items-center gap-1 text-[12px] font-medium text-[#7ff7be]/70">
-                <span>Learn more</span>
+                <span>{t("docsPage.overviewLearnMore")}</span>
                 <ArrowRight size={12} />
               </div>
             </button>
@@ -174,11 +149,11 @@ export default function DocsOverviewPage() {
       {/* Platform Products */}
       <section>
         <div className="flex items-center gap-3 mb-6">
-          <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">Platform Products</span>
+          <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">{t("docsPage.overviewPlatformProductsLabel")}</span>
           <div className="flex-1 h-px bg-white/[0.045]" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="products-grid">
-          {PRODUCTS.map((p) => (
+          {products.map((p) => (
             <button
               key={p.title}
               onClick={() => p.href !== "#" && router.push(p.href)}

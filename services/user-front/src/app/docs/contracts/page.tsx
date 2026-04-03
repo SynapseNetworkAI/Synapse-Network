@@ -1,6 +1,7 @@
 "use client";
 
 import { GitBranch, FileText, ExternalLink } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { StatusBadge } from "../components/StatusBadge";
 import { useActiveSection } from "../use-active-section";
 
@@ -70,11 +71,17 @@ function AddressRow({
   address,
   accentColor,
   isCurrent,
+  currentLabel,
+  localHint,
+  notDeployedLabel,
 }: Readonly<{
   envDef: EnvDef;
   address: string | null;
   accentColor: string;
   isCurrent: boolean;
+  currentLabel: string;
+  localHint: string;
+  notDeployedLabel: string;
 }>) {
   return (
     <div
@@ -100,7 +107,7 @@ function AddressRow({
             className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
             style={{ background: `${accentColor}20`, color: accentColor }}
           >
-            当前环境
+            {currentLabel}
           </span>
         )}
       </div>
@@ -122,17 +129,18 @@ function AddressRow({
               {envDef.label === "Staging" ? "Arbiscan Sepolia" : "Arbiscan"}
             </a>
           ) : (
-            <span className="text-[11px] text-[#4e535a]">本地网络，无公共浏览器</span>
+            <span className="text-[11px] text-[#4e535a]">{localHint}</span>
           )}
         </div>
       ) : (
-        <p className="text-[12px] text-[#4e535a] italic">尚未部署 — 上线前更新此地址</p>
+        <p className="text-[12px] text-[#4e535a] italic">{notDeployedLabel}</p>
       )}
     </div>
   );
 }
 
 export default function ContractsPage() {
+  const { t, tList } = useLanguage();
   useActiveSection(PAGE_SECTIONS, "contract-core");
 
   const rawEnv = process.env.NEXT_PUBLIC_APP_ENV;
@@ -146,12 +154,11 @@ export default function ContractsPage() {
       {/* Page header */}
       <div className="space-y-2 border-b border-white/[0.06] pb-8">
         <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
-          Smart Contracts
+          {t("docsPage.contractsEyebrow")}
         </span>
-        <h1 className="x-page-title text-white">Smart Contracts</h1>
+        <h1 className="x-page-title text-white">{t("docsPage.contractsTitle")}</h1>
         <p className="x-body-copy max-w-[560px]">
-          合约部署于三个网络环境。Local 用于本地开发，Staging 桥接 Arbitrum Sepolia 测试网，
-          Production 部署在 Arbitrum One 主网（计划中）。
+          {t("docsPage.contractsDescription")}
         </p>
         <div
           className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-lg text-[12px] font-mono border"
@@ -162,7 +169,7 @@ export default function ContractsPage() {
           }}
         >
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: ENVS[currentEnv].color }} />
-          当前运行环境：{ENVS[currentEnv].label} — {ENVS[currentEnv].chainName}
+          {t("docsPage.contractsCurrentEnv")}：{ENVS[currentEnv].label} — {ENVS[currentEnv].chainName}
         </div>
       </div>
 
@@ -170,14 +177,13 @@ export default function ContractsPage() {
       <section id="contract-core" className="space-y-6">
         <div className="flex items-center gap-3">
           <GitBranch size={18} className="text-[#7ff7be]" />
-          <h2 className="x-section-title text-white">SynapseCore</h2>
+          <h2 className="x-section-title text-white">{t("docsPage.contractsCoreTitle")}</h2>
           <StatusBadge status="GA" />
         </div>
         <p className="x-body-copy">
-          主结算合约，负责 USDC 的存款托管与提现分发。由 Gateway 链下账本驱动，
-          链上仅在 deposit / withdraw 时交互。
+          {t("docsPage.contractsCoreDescription")}
           {ENVS[currentEnv].explorer && (
-            <span className="ml-1">合约已在区块浏览器上 verify，点击地址可查看完整源码。</span>
+            <span className="ml-1">{t("docsPage.contractsCoreVerified")}</span>
           )}
         </p>
 
@@ -190,6 +196,9 @@ export default function ContractsPage() {
               address={ENVS[env].contracts.SynapseCore}
               accentColor={ENVS[env].color}
               isCurrent={env === currentEnv}
+              currentLabel={t("docsPage.contractsCurrentEnvTag")}
+              localHint={t("docsPage.contractsLocalExplorerHint")}
+              notDeployedLabel={t("docsPage.contractsNotDeployed")}
             />
           ))}
         </div>
@@ -198,8 +207,7 @@ export default function ContractsPage() {
         <div className="x-panel-muted rounded-xl p-4 flex gap-3">
           <span className="shrink-0 mt-0.5">💡</span>
           <p className="text-[13px] text-[#71767b] leading-relaxed">
-            合约源码托管于 GitHub，Staging / Prod 部署后会在 Arbiscan 上 verify。
-            verify 后点击浏览器链接即可查看完整 Solidity 源码，无需在文档页嵌入。
+            {t("docsPage.contractsSourceTip")}
             {" "}
             <a
               href={GITHUB_CONTRACTS}
@@ -207,12 +215,12 @@ export default function ContractsPage() {
               rel="noopener noreferrer"
               className="text-[#7ff7be] hover:underline inline-flex items-center gap-1"
             >
-              查看 GitHub 源码 <ExternalLink size={11} />
+              {t("docsPage.contractsGithubSource")} <ExternalLink size={11} />
             </a>
           </p>
         </div>
 
-        <h3 className="text-[15px] font-semibold text-white">Key Functions</h3>
+        <h3 className="text-[15px] font-semibold text-white">{t("docsPage.contractsKeyFunctions")}</h3>
         <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
           <table className="w-full text-left">
             <thead>
@@ -290,6 +298,9 @@ export default function ContractsPage() {
               address={ENVS[env].contracts.MockUSDC}
               accentColor={ENVS[env].color}
               isCurrent={env === currentEnv}
+              currentLabel={t("docsPage.contractsCurrentEnvTag")}
+              localHint={t("docsPage.contractsLocalExplorerHint")}
+              notDeployedLabel={t("docsPage.contractsNotDeployed")}
             />
           ))}
         </div>
@@ -357,4 +368,3 @@ export default function ContractsPage() {
     </div>
   );
 }
-

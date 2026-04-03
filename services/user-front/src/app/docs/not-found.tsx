@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { FileQuestion } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export default function DocsNotFound() {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 py-24 text-center">
 
@@ -15,13 +19,12 @@ export default function DocsNotFound() {
 
       {/* Heading */}
       <h1 className="text-[28px] font-semibold text-white tracking-[-0.02em] mb-3">
-        Page not found
+        {t("docsPage.notFoundTitle")}
       </h1>
 
       {/* Sub-copy */}
       <p className="text-[14px] text-[#8b98a5] max-w-[320px] leading-relaxed mb-8">
-        This documentation page doesn&apos;t exist yet.
-        It may have been moved, renamed, or is still being written.
+        {t("docsPage.notFoundDescription")}
       </p>
 
       {/* Back link */}
@@ -29,7 +32,7 @@ export default function DocsNotFound() {
         href="/docs"
         className="inline-flex items-center gap-2 h-[38px] px-5 rounded-[10px] text-[13px] font-semibold text-[#0f1419] bg-white hover:bg-[#e7e9ea] transition-colors"
       >
-        ← Back to Docs
+        ← {t("docsPage.notFoundBack")}
       </Link>
 
     </div>
