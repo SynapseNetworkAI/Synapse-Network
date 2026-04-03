@@ -2,7 +2,7 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const developerPage: I18nMessages["developerPage"] = {
   title: "Developer Resources",
-  description: "SDK docs, quickstarts, and integration references for autonomous agent workflows. Funding stays in Owner Treasury. Runtime secret issuance stays in Agent Credentials.",
+  description: "REST API, SDK quickstarts, and MCP integration references. Auth via wallet · Spend via Agent Credentials · Funds in Owner Treasury.",
   agentCredentials: "Agent Credentials",
   ownerTreasury: "Owner Treasury",
   fullDocumentation: "Full Documentation",
