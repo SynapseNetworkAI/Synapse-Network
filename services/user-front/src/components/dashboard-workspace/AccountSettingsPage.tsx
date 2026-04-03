@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Mail, ShieldCheck, UserRound, Wallet } from "lucide-react";
 import { useAccount, useSignMessage } from "wagmi";
-import { XButton } from "@/components/xui/XButton";
 import { XInput } from "@/components/xui/XInput";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -93,16 +91,9 @@ function SettingToggle({
   disabled?: boolean;
 }>) {
   return (
-    <label className="flex items-start justify-between gap-4 rounded-[18px] border border-white/8 bg-black/20 px-4 py-4">
-      <div className="space-y-1">
-        <p className="text-[15px] font-medium tracking-[-0.01em] text-white">
-          {title}
-        </p>
-        <p className="max-w-[460px] text-[13px] leading-6 text-white/52">
-          {description}
-        </p>
-      </div>
-      <span className="relative mt-0.5 inline-flex shrink-0">
+    <label className="inline-flex items-center justify-end">
+      <span className="sr-only">{title}. {description}</span>
+      <span className="relative inline-flex shrink-0">
         <input
           type="checkbox"
           className="peer sr-only"
@@ -110,12 +101,48 @@ function SettingToggle({
           onChange={(event) => onChange(event.target.checked)}
           disabled={disabled}
         />
-        <span className="h-7 w-12 rounded-full border border-white/10 bg-white/[0.09] transition peer-checked:bg-[#7ff7be]/28 peer-disabled:opacity-40" />
-        <span className="absolute left-[4px] top-[4px] h-5 w-5 rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.32)] transition peer-checked:translate-x-5" />
+        <span className="h-7 w-12 rounded-full border border-white/12 bg-white/[0.08] transition peer-checked:border-[#7ff7be]/30 peer-checked:bg-[#7ff7be]/20 peer-disabled:opacity-40" />
+        <span className="absolute left-[4px] top-[4px] h-5 w-5 rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.28)] transition peer-checked:translate-x-5" />
       </span>
     </label>
   );
 }
+
+function SettingsRow({
+  title,
+  description,
+  control,
+  noBorder = false,
+}: Readonly<{
+  title: string;
+  description?: string;
+  control: React.ReactNode;
+  noBorder?: boolean;
+}>) {
+  return (
+    <section className={noBorder ? "py-8" : "border-b border-[#232323] py-8"}>
+      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-8">
+        <div className="max-w-[474px] min-w-0">
+          <h3 className="text-[18px] font-medium leading-7 tracking-[-0.01em] text-white">
+            {title}
+          </h3>
+          {description ? (
+            <p className="mt-2 text-[14px] leading-5 text-[#9ca3af]">
+              {description}
+            </p>
+          ) : null}
+        </div>
+        <div className="w-full max-w-[264px] shrink-0">{control}</div>
+      </div>
+    </section>
+  );
+}
+
+const INPUT_CLASSES =
+  "h-10 rounded-[12px] border border-[#2f3336] bg-transparent px-3.5 py-0 text-[14px] leading-5 text-white placeholder:text-[#71767b] focus-visible:border-[#536471]";
+
+const PRIMARY_BUTTON_CLASSES =
+  "inline-flex h-9 items-center justify-center rounded-full border border-white/80 bg-white/95 px-4 text-[13px] font-semibold leading-none text-neutral-900 shadow-[0_0_30px_rgba(255,255,255,0.12)] transition-[box-shadow,transform,background-color] duration-200 hover:bg-white hover:shadow-[0_0_40px_rgba(255,255,255,0.2)] disabled:cursor-not-allowed disabled:opacity-45";
 
 export default function AccountSettingsPage() {
   const { t } = useLanguage();
@@ -269,194 +296,151 @@ export default function AccountSettingsPage() {
     t,
   ]);
 
+  const emailStatusText = emailError
+    ? emailError
+    : profile?.emailVerified
+      ? t("accountSettingsPage.emailVerified")
+      : t("accountSettingsPage.emailHelp");
+
   return (
-    <div className="mx-auto w-full max-w-[1024px] px-8 py-10">
-      <div className="border-b border-white/8 pb-9">
-        <h1 className="text-[42px] font-semibold tracking-[-0.04em] text-white">
-          {t("accountSettingsPage.title")}
-        </h1>
-        <p className="mt-3 max-w-[760px] text-[18px] leading-7 text-[#8b98b4]">
-          {t("accountSettingsPage.description")}
-        </p>
-      </div>
+    <div className="mx-auto w-full max-w-[1024px] px-8 py-[52px]">
+      <div className="mx-auto w-full max-w-[768px]">
+        <header className="mb-4 border-b border-[#232323] pb-8">
+          <h1 className="text-[24px] font-normal leading-8 text-white">
+            {t("accountSettingsPage.title")}
+          </h1>
+          <p className="mt-2 text-[16px] leading-6 text-[#9ca3af]">
+            {t("accountSettingsPage.description")}
+          </p>
+        </header>
 
-      <div className="mt-10 grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <section className="rounded-[24px] border border-white/8 bg-[#111214] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-[#7ff7be]">
-              <UserRound className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-white">
-                {t("accountSettingsPage.profileTitle")}
-              </h2>
-              <p className="mt-1 text-[13px] text-white/44">
-                {t("accountSettingsPage.profileDescription")}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-5">
-            <div className="grid gap-2">
-              <label
-                htmlFor="account-settings-display-name"
-                className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/40"
-              >
-                {t("accountSettingsPage.nameLabel")}
-              </label>
-              <XInput
-                id="account-settings-display-name"
-                value={form.displayName}
-                onChange={(event) => updateField("displayName", event.target.value)}
-                placeholder={t("accountSettingsPage.namePlaceholder")}
-                maxLength={64}
-                className="rounded-[18px] border border-white/8 bg-black/20 py-3.5 text-[15px]"
-              />
-              <p className="text-[12px] text-white/42">
-                {t("accountSettingsPage.nameHelp")}
-              </p>
-            </div>
-
-            <div className="grid gap-2">
-              <label
-                htmlFor="account-settings-email"
-                className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/40"
-              >
-                {t("accountSettingsPage.emailLabel")}
-              </label>
-              <XInput
-                id="account-settings-email"
-                value={form.email}
-                onChange={(event) => updateField("email", event.target.value)}
-                placeholder={t("accountSettingsPage.emailPlaceholder")}
-                inputMode="email"
-                autoComplete="email"
-                className="rounded-[18px] border border-white/8 bg-black/20 py-3.5 text-[15px]"
-              />
-              <p className={`text-[12px] ${emailError ? "text-[#ff7b7b]" : "text-white/42"}`}>
-                {emailError ??
-                  (profile?.emailVerified
-                    ? t("accountSettingsPage.emailVerified")
-                    : t("accountSettingsPage.emailHelp"))}
-              </p>
-            </div>
-
-            <div className="grid gap-3 pt-3">
-              <SettingToggle
-                title={t("accountSettingsPage.notifyMarketingTitle")}
-                description={t("accountSettingsPage.notifyMarketingDescription")}
-                checked={form.notifyMarketing}
-                onChange={(next) => updateField("notifyMarketing", next)}
-                disabled={isSaving}
-              />
-              <SettingToggle
-                title={t("accountSettingsPage.notifyAlertsTitle")}
-                description={t("accountSettingsPage.notifyAlertsDescription")}
-                checked={form.notifyAlerts}
-                onChange={(next) => updateField("notifyAlerts", next)}
-                disabled={isSaving}
-              />
-            </div>
-
-            {loadError ? (
-              <div className="rounded-[18px] border border-[#4a1f1f] bg-[#2a1111] px-4 py-3 text-[13px] text-[#ffb4b4]">
-                {loadError}
+        <div className="min-h-[420px]">
+          <SettingsRow
+            title={t("accountSettingsPage.nameLabel")}
+            control={
+              <div className="space-y-2">
+                <label className="block">
+                  <span className="sr-only">{t("accountSettingsPage.nameLabel")}</span>
+                  <XInput
+                    id="account-settings-display-name"
+                    value={form.displayName}
+                    onChange={(event) => updateField("displayName", event.target.value)}
+                    placeholder={t("accountSettingsPage.namePlaceholder")}
+                    maxLength={64}
+                    className={INPUT_CLASSES}
+                  />
+                </label>
               </div>
-            ) : null}
+            }
+          />
 
-            <div className="flex items-center justify-between gap-4 border-t border-white/8 pt-5">
-              <p className="text-[13px] leading-6 text-white/42">
-                {hasLiveWallet
-                  ? t("accountSettingsPage.saveHint")
-                  : t("accountSettingsPage.saveRequiresWallet")}
-              </p>
-              <XButton
-                variant="primary"
-                size="pill"
-                onClick={() => void onSave()}
-                disabled={!canSave}
-                className="min-w-[164px]"
-              >
-                {isSaving
-                  ? t("accountSettingsPage.saving")
-                  : t("accountSettingsPage.saveButton")}
-              </XButton>
-            </div>
-          </div>
-        </section>
-
-        <aside className="grid gap-6 self-start">
-          <section className="rounded-[24px] border border-white/8 bg-[#111214] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-[#7fb5ff]">
-                <Wallet className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-white">
-                  {t("accountSettingsPage.walletCardTitle")}
-                </h2>
-                <p className="mt-1 text-[13px] text-white/42">
-                  {t("accountSettingsPage.connectedWallet")}
+          <SettingsRow
+            title={t("accountSettingsPage.emailLabel")}
+            control={
+              <div className="space-y-2">
+                <label className="block">
+                  <span className="sr-only">{t("accountSettingsPage.emailLabel")}</span>
+                  <XInput
+                    id="account-settings-email"
+                    value={form.email}
+                    onChange={(event) => updateField("email", event.target.value)}
+                    placeholder={t("accountSettingsPage.emailPlaceholder")}
+                    inputMode="email"
+                    autoComplete="email"
+                    className={INPUT_CLASSES}
+                  />
+                </label>
+                <p className={`text-[12px] leading-4 ${emailError ? "text-[#ff8b8b]" : "text-[#71767b]"}`}>
+                  {emailStatusText}
                 </p>
               </div>
-            </div>
-            <div className="mt-5 rounded-[18px] border border-white/8 bg-black/20 px-4 py-3">
-              <p className="text-[15px] font-medium text-white/88">
-                {boundWallet
-                  ? maskWallet(boundWallet)
-                  : t("accountSettingsPage.notConnected")}
-              </p>
-              <p className="mt-1 text-[12px] text-white/42 break-all">
-                {boundWallet ?? t("accountSettingsPage.walletSessionMissing")}
-              </p>
-            </div>
-          </section>
+            }
+          />
 
-          <section className="rounded-[24px] border border-white/8 bg-[#111214] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-[#f6c25b]">
-                <Mail className="h-5 w-5" />
-              </span>
-              <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-white">
-                {t("accountSettingsPage.identitySummaryTitle")}
-              </h2>
-            </div>
-            <div className="mt-5 space-y-3 rounded-[18px] border border-white/8 bg-black/20 px-4 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/36">
-                  {t("accountSettingsPage.nameLabel")}
-                </span>
-                <span className="text-[14px] text-white/88">
-                  {profile?.displayName || t("accountSettingsPage.unset")}
-                </span>
+          <SettingsRow
+            title={t("accountSettingsPage.notifyMarketingTitle")}
+            description={t("accountSettingsPage.notifyMarketingDescription")}
+            control={
+              <div className="flex h-9 items-center justify-end">
+                <SettingToggle
+                  title={t("accountSettingsPage.notifyMarketingTitle")}
+                  description={t("accountSettingsPage.notifyMarketingDescription")}
+                  checked={form.notifyMarketing}
+                  onChange={(next) => updateField("notifyMarketing", next)}
+                  disabled={isSaving}
+                />
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/36">
-                  {t("accountSettingsPage.emailLabel")}
-                </span>
-                <span className="text-right text-[14px] text-white/88">
-                  {profile?.email || t("accountSettingsPage.unset")}
-                </span>
-              </div>
-            </div>
-          </section>
+            }
+          />
 
-          <section className="rounded-[24px] border border-white/8 bg-[#111214] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-[#7ff7be]">
-                <ShieldCheck className="h-5 w-5" />
-              </span>
-              <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-white">
-                {t("accountSettingsPage.securityTitle")}
-              </h2>
-            </div>
-            <p className="mt-5 text-[14px] leading-7 text-white/58">
-              {isLoading
-                ? t("accountSettingsPage.loading")
-                : t("accountSettingsPage.securityDescription")}
-            </p>
-          </section>
-        </aside>
+          <SettingsRow
+            title={t("accountSettingsPage.notifyAlertsTitle")}
+            description={t("accountSettingsPage.notifyAlertsDescription")}
+            control={
+              <div className="flex h-9 items-center justify-end">
+                <SettingToggle
+                  title={t("accountSettingsPage.notifyAlertsTitle")}
+                  description={t("accountSettingsPage.notifyAlertsDescription")}
+                  checked={form.notifyAlerts}
+                  onChange={(next) => updateField("notifyAlerts", next)}
+                  disabled={isSaving}
+                />
+              </div>
+            }
+          />
+
+          <SettingsRow
+            title={t("accountSettingsPage.connectedWallet")}
+            description={
+              boundWallet
+                ? t("accountSettingsPage.walletRowDescription")
+                : t("accountSettingsPage.notConnected")
+            }
+            control={
+              <div className="rounded-[14px] border border-[#2f3336] bg-transparent px-3.5 py-3">
+                <p className="text-[14px] font-medium leading-5 text-white">
+                  {boundWallet ? maskWallet(boundWallet) : t("accountSettingsPage.unset")}
+                </p>
+                <p className="mt-1 break-all text-[12px] leading-4 text-[#71767b]">
+                  {boundWallet ?? t("accountSettingsPage.walletRequired")}
+                </p>
+              </div>
+            }
+          />
+
+          <SettingsRow
+            title={t("accountSettingsPage.saveRowTitle")}
+            description={
+              isLoading ? t("accountSettingsPage.loading") : undefined
+            }
+            noBorder
+            control={
+              <div className="flex flex-col items-start gap-3 md:items-end">
+                <button
+                  type="button"
+                  onClick={() => void onSave()}
+                  disabled={!canSave}
+                  className={PRIMARY_BUTTON_CLASSES}
+                >
+                  {isSaving
+                    ? t("accountSettingsPage.saving")
+                    : t("accountSettingsPage.saveButton")}
+                </button>
+                {loadError ? (
+                  <p className="text-right text-[12px] leading-4 text-[#ff8b8b]">
+                    {loadError}
+                  </p>
+                ) : (
+                  <p className="text-right text-[12px] leading-4 text-[#71767b]">
+                    {hasLiveWallet
+                      ? t("accountSettingsPage.saveHint")
+                      : t("accountSettingsPage.saveRequiresWallet")}
+                  </p>
+                )}
+              </div>
+            }
+          />
+        </div>
       </div>
     </div>
   );

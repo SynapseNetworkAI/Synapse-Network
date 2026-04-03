@@ -28,7 +28,7 @@ For X-alignment work, the source of truth is a repo-local toolchain, not a promp
 
 Recommended split:
 
-1. keep the measurement logic as scripts under `tools/scripts/ui/`
+1. keep the measurement logic under repo-root `scripts/` entrypoints, with implementation allowed under `tools/scripts/ui/`
 2. keep the extraction contract in docs
 3. use a skill only if we later want Codex to wrap the same scripts across multiple repos
 
@@ -72,13 +72,13 @@ npm install
 ### 4.1 Export authenticated cookies
 
 ```bash
-python tools/scripts/ui/export_x_console_cookies.py --output /tmp/x_console_cookies.json
+python scripts/export_x_console_cookies.py --output /tmp/x_console_cookies.json
 ```
 
 ### 4.2 Measure the real X Credits page
 
 ```bash
-node tools/scripts/ui/measure_x_console_credits.mjs \
+node scripts/measure_x_console_credits.mjs \
   --cookies /tmp/x_console_cookies.json \
   --output /tmp/x_console_credits_metrics.json \
   --screenshot /tmp/x_console_credits.png
@@ -146,11 +146,17 @@ For any page changed using this workflow:
 ## 8. Current scripts
 
 - Cookie export:
-  - [export_x_console_cookies.py](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/export_x_console_cookies.py)
+  - entrypoint: [export_x_console_cookies.py](/home/alex/Documents/cliff/Synapse-Network/scripts/export_x_console_cookies.py)
+  - implementation: [export_x_console_cookies.py](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/export_x_console_cookies.py)
 - Credits measurement:
-  - [measure_x_console_credits.mjs](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/measure_x_console_credits.mjs)
+  - entrypoint: [measure_x_console_credits.mjs](/home/alex/Documents/cliff/Synapse-Network/scripts/measure_x_console_credits.mjs)
+  - implementation: [measure_x_console_credits.mjs](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/measure_x_console_credits.mjs)
 - Payments measurement:
-  - [measure_x_console_payments.mjs](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/measure_x_console_payments.mjs)
+  - entrypoint: [measure_x_console_payments.mjs](/home/alex/Documents/cliff/Synapse-Network/scripts/measure_x_console_payments.mjs)
+  - implementation: [measure_x_console_payments.mjs](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/measure_x_console_payments.mjs)
+- Settings measurement:
+  - entrypoint: [measure_x_console_settings.mjs](/home/alex/Documents/cliff/Synapse-Network/scripts/measure_x_console_settings.mjs)
+  - implementation: [measure_x_console_settings.mjs](/home/alex/Documents/cliff/Synapse-Network/tools/scripts/ui/measure_x_console_settings.mjs)
 
 ## 9. Adoption rule
 

@@ -25,7 +25,7 @@ const {
 }));
 
 const TRANSLATIONS: Record<string, string> = {
-  "accountSettingsPage.title": "Account Settings",
+  "accountSettingsPage.title": "Settings",
   "accountSettingsPage.description": "Bind operator identity to your owner wallet without adding a second account system. Name and email stay optional, but every mutation is signed by the wallet.",
   "accountSettingsPage.profileTitle": "Wallet-bound profile",
   "accountSettingsPage.profileDescription": "This profile is attached to your owner wallet. Save actions require a fresh wallet signature, so nobody can spoof account metadata from a stale JWT alone.",
@@ -33,11 +33,13 @@ const TRANSLATIONS: Record<string, string> = {
   "accountSettingsPage.connectedWallet": "Connected wallet",
   "accountSettingsPage.notConnected": "Wallet not connected",
   "accountSettingsPage.walletCardTitle": "Wallet trust anchor",
+  "accountSettingsPage.walletRowDescription": "This wallet remains the root identity behind every signed profile mutation.",
   "accountSettingsPage.walletSessionMissing": "Reconnect the wallet to unlock signed profile updates.",
   "accountSettingsPage.nameLabel": "Account name",
   "accountSettingsPage.namePlaceholder": "Synapse operator",
   "accountSettingsPage.nameHelp": "Shown as your operator-facing account label across the control plane.",
   "accountSettingsPage.emailLabel": "Email",
+  "accountSettingsPage.emailDescription": "Link an operator email to this wallet address. Changing it resets verification until the next proof flow lands.",
   "accountSettingsPage.emailPlaceholder": "ops@yourcompany.com",
   "accountSettingsPage.emailHelp": "Email is optional. If you change it later, verification resets until the next email proof flow lands.",
   "accountSettingsPage.emailVerified": "Email is linked to this wallet. Verified flag is currently wallet-side only.",
@@ -48,6 +50,8 @@ const TRANSLATIONS: Record<string, string> = {
   "accountSettingsPage.notifyAlertsDescription": "Receive high-signal notifications when credits, spend caps, or risk conditions need action.",
   "accountSettingsPage.securityTitle": "Session Security",
   "accountSettingsPage.securityDescription": "Your wallet remains the only root identity. JWT proves session continuity; wallet signature proves profile ownership at write time.",
+  "accountSettingsPage.saveRowTitle": "Save changes",
+  "accountSettingsPage.saveRowDescription": "Commit this profile update to the control plane with one fresh wallet signature.",
   "accountSettingsPage.saveButton": "Save settings",
   "accountSettingsPage.saving": "Saving...",
   "accountSettingsPage.saveHint": "Save will request one fresh wallet signature to bind this profile update to your owner address.",

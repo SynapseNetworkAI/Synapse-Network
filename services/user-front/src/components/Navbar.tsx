@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Bell, ExternalLink, Network, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -157,11 +158,15 @@ export default function Navbar() {
   );
 
   const consoleBrandMark = (
-    <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#2f3336] bg-[#0d0f12]">
-      <span className="absolute inset-[5px] rounded-[7px] border border-white/[0.06]" />
-      <span className="absolute left-[8px] top-[10px] h-1.5 w-1.5 rounded-full bg-[#7ff7be]" />
-      <span className="absolute right-[8px] bottom-[10px] h-1.5 w-1.5 rounded-full bg-white/82" />
-      <span className="absolute left-[10px] right-[10px] top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-white/0 via-white/52 to-white/0" />
+    <span className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[#2f3336] bg-[#0d0f12] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <Image
+        src="/logo-mark.svg"
+        alt="Synapse logo"
+        width={22}
+        height={22}
+        className="h-[22px] w-[22px]"
+        priority
+      />
     </span>
   );
 
