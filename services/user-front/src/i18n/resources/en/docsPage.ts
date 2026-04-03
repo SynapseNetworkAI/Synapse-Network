@@ -41,6 +41,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Services",
     "Agent Invocations",
     "Credentials",
+    "SDK Overview",
     "TypeScript SDK",
     "Python SDK",
     "SynapseCore",
@@ -305,12 +306,48 @@ const docsPage: I18nMessages["docsPage"] = {
   apiAuthNoteDescription:
     "Routes tagged with JWT require Authorization: Bearer <token>. Tokens come from POST /api/v1/auth/verify and currently expire after 24 hours.",
   sdkEyebrow: "SDK",
-  sdkTitle: "SDK Reference",
+  sdkTitle: "SDKs",
   sdkDescription:
-    "The official SDK wraps authentication, deposits, service discovery, invocation, and settlement so consumers can complete the full flow in just a few lines.",
+    "Synapse ships first-party TypeScript and Python SDKs. Both now cover the owner onboarding and runtime invocation chain: wallet auth, balance reads, deposit confirmation, credential issuance, service discovery, paid invoke, and receipt verification.",
+  sdkHubCardTitles: ["TypeScript SDK", "Python SDK"],
+  sdkHubCardDescriptions: [
+    "The reference SDK for browser and Node.js integrations. Best fit when your agent runtime already lives in TypeScript, Next.js, or a serverless edge stack.",
+    "The automation-ready SDK for Python services and backend agents. Best fit when you need wallet auth, credential issuance, and paid invocation inside Python 3.11+ systems.",
+  ],
+  sdkHubCardBullets: [
+    "Wallet auth, balances, deposit intent / confirm, credential issuance, discover, quote, invoke, receipt polling.",
+    "Wallet auth, JWT caching, balances, deposit intent / confirm, credential issuance, TS-style runtime aliases, cold-start E2E.",
+  ],
+  sdkHubCapabilityLabel: "Core coverage",
+  sdkHubOpenCta: "Open integration guide",
+  sdkCompareTitle: "Capability comparison",
+  sdkCompareDescription:
+    "Choose the SDK that matches your runtime. Both are designed to drive the same settlement primitives, so the mental model stays stable across languages.",
+  sdkCompareCapability: "Capability",
+  sdkCompareRows: [
+    "Owner wallet login",
+    "Balance reads",
+    "Deposit intent / confirm",
+    "Credential issuance",
+    "Service discover / quote / invoke",
+    "Cold-start end-to-end test",
+  ],
+  sdkCompareTypeScript: ["yes", "yes", "yes", "yes", "yes", "yes"],
+  sdkComparePython: ["yes", "yes", "yes", "yes", "yes", "yes"],
+  sdkInstallTitle: "Install",
   sdkTsTitle: "TypeScript SDK",
   sdkTsDescription:
-    "Supports Node.js 18+ and modern browsers, ships with full TypeScript types, and keeps runtime dependencies minimal.",
+    "Supports Node.js 18+ and modern browsers, ships with full TypeScript types, and is the reference implementation for the Synapse consumer onboarding flow.",
+  sdkTsInstallDescription:
+    "Install the package plus ethers. The SDK handles challenge / sign / verify, owner balance reads, deposit indexing, credential issuance, and paid invoke.",
+  sdkTsAuthTitle: "Wallet auth + balance",
+  sdkTsAuthDescription:
+    "The TypeScript SDK authenticates an owner wallet with challenge / sign / verify, then reuses the JWT to fetch balances or issue credentials.",
+  sdkTsDepositDescription:
+    "After calling SynapseCore.deposit onchain, register the txHash with the gateway and confirm the indexed deposit so the balance becomes spendable.",
+  sdkTsInvokeTitle: "Issue a credential and invoke a service",
+  sdkTsInvokeDescription:
+    "Credential issuance and paid runtime invocation stay in one flow. The client discovers services, requests a quote, invokes, and polls the terminal receipt.",
   sdkConsumerQuickStartTitle: "Consumer quick start",
   sdkConsumerQuickStartDescription:
     "Authenticate with a wallet, issue a credential, and invoke a service in three steps.",
@@ -383,7 +420,37 @@ const docsPage: I18nMessages["docsPage"] = {
   ],
   sdkPyTitle: "Python SDK",
   sdkPyDescription:
-    "Available under sdk/python/, suitable for Python 3.11+ services, and installable locally with pip.",
+    "The Python SDK now supports the full automated owner onboarding chain: private-key wallet auth, balance reads, deposit registration, credential issuance, discover, quote, invoke, receipt fetch, and end-to-end validation.",
+  sdkPyCapabilityTitles: [
+    "Owner wallet auth",
+    "Balance + treasury visibility",
+    "Deposit indexing",
+    "Runtime invoke parity",
+  ],
+  sdkPyCapabilityDescriptions: [
+    "Use SynapseAuth.from_private_key to complete challenge / sign / verify and cache the JWT for subsequent calls.",
+    "Read consumer available balance, provider receivable, and protocol fee summaries without leaving the SDK.",
+    "Register an onchain txHash with the gateway and confirm it into spendable balance using the same auth client.",
+    "Use TS-style aliases discover, quote, invoke, and get_invocation so Python and TypeScript integrations share one mental model.",
+  ],
+  sdkPyInstallDescription:
+    "Install the SDK in editable mode when working locally. The dev extra includes pytest, eth-account, and web3 so the cold-start E2E can drive the full chain.",
+  sdkPyAuthTitle: "Owner wallet login",
+  sdkPyAuthDescription:
+    "The Python auth layer starts from a private key, signs the gateway challenge, exchanges it for a JWT, and reuses the token for subsequent balance and credential operations.",
+  sdkPyBalanceDescription:
+    "Balance reads are part of the auth layer so an owner can check whether a deposit has become spendable before issuing credentials or invoking services.",
+  sdkPyDepositDescription:
+    "After the wallet completes the onchain SynapseCore deposit, register the txHash with the gateway, then confirm the intent once the event is indexed.",
+  sdkPyCredentialTitle: "Issue an agent credential",
+  sdkPyCredentialDescription:
+    "The same owner auth client can mint an agent credential with a spend window, call cap, and rpm ceiling, then hand the token to a runtime client.",
+  sdkPyInvokeTitle: "Discover and invoke",
+  sdkPyInvokeDescription:
+    "The runtime client discovers services, requests a quote, invokes the target API, and polls the invocation receipt until it reaches a terminal status.",
+  sdkPyVerifyTitle: "Validate the full chain",
+  sdkPyVerifyDescription:
+    "The Python SDK ships with an end-to-end cold-start test that creates a fresh wallet, deposits funds, issues a credential, discovers a live service, invokes it, and verifies the balance decrement.",
   sdkPyReadmeLead: "Full documentation is available in",
   sdkPyReadmeCta: "sdk/python/README.md",
   contractsEyebrow: "Smart Contracts",

@@ -16,6 +16,8 @@ import ProviderGuidePage from "@/app/docs/getting-started/provider/page";
 import ConceptsPage from "@/app/docs/concepts/page";
 import ApiReferencePage from "@/app/docs/api-reference/page";
 import SdkPage from "@/app/docs/sdk/page";
+import TypeScriptSdkPage from "@/app/docs/sdk/typescript/page";
+import PythonSdkPage from "@/app/docs/sdk/python/page";
 import ContractsPage from "@/app/docs/contracts/page";
 
 const { pushMock, pathnameMock } = vi.hoisted(() => ({
@@ -100,6 +102,8 @@ describe("docs multilingual surfaces", () => {
         createElement(ConceptsPage),
         createElement(ApiReferencePage),
         createElement(SdkPage),
+        createElement(TypeScriptSdkPage),
+        createElement(PythonSdkPage),
         createElement(ContractsPage),
       ),
       "en",
@@ -107,7 +111,9 @@ describe("docs multilingual surfaces", () => {
 
     expect(await screen.findByRole("heading", { name: "How Synapse Works" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "REST API" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "SDK Reference" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "SDKs" })).toBeTruthy();
+    expect(screen.getAllByRole("heading", { name: "TypeScript SDK" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("heading", { name: "Python SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Smart Contracts" }).length).toBeGreaterThan(0);
   });
 

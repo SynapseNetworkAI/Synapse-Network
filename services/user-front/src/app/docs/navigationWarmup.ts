@@ -10,6 +10,8 @@ export const DOCS_INTERNAL_ROUTES = [
   "/docs/concepts",
   "/docs/api-reference",
   "/docs/sdk",
+  "/docs/sdk/typescript",
+  "/docs/sdk/python",
   "/docs/contracts",
 ] as const;
 
