@@ -349,13 +349,13 @@ const docsPage: I18nMessages["docsPage"] = {
     "After calling SynapseCore.deposit onchain, register the txHash with the gateway and confirm the indexed deposit so the balance becomes spendable.",
   sdkTsDiscoverTitle: "Discover services first",
   sdkTsDiscoverDescription:
-    "The canonical consumer path is discover -> select serviceId -> quote -> invoke. Discover gives the runtime structured service records instead of hardcoded API endpoints.",
+    "The canonical consumer path is discover -> select serviceId -> invoke. Discover gives the runtime structured service records instead of hardcoded API endpoints. The SDK handles quoting internally — your code sees a single invoke() call.",
   sdkTsInvokeTitle: "Issue a credential and invoke through discovery",
   sdkTsInvokeDescription:
-    "Once you issue an agent credential, the client can discover services, pick a target serviceId, request a quote, invoke the service, and poll the terminal receipt in one runtime flow.",
+    "Once you issue an agent credential, the client can discover services, pick a target serviceId, and invoke the service. invoke() handles quote → invoke → poll internally so your agent code stays on one line.",
   sdkTsDirectTitle: "Known serviceId? Call it directly",
   sdkTsDirectDescription:
-    "If your runtime already has a stable serviceId from discovery cache, config, or a previous control-plane step, you can quote and invoke directly without rerunning discovery on every call.",
+    "If your runtime already has a stable serviceId from discovery cache, config, or a previous control-plane step, call invoke() directly. No separate quote step needed — the SDK handles it.",
   sdkTsStarterTitle: "Official free starter services",
   sdkTsStarterDescription:
     "Synapse will progressively publish free starter interfaces sourced from the Synapse-Network-Sdk repository. They are intended as zero-cost discovery targets for SDK smoke tests, demos, and first invocations.",
@@ -431,8 +431,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "Create a client using an issued credential token.",
     "Discover available services.",
     "Search services using plain text.",
-    "Get a price quote before invoking a service.",
-    "Run the full quote -> invoke -> settle flow.",
+    "Get a raw price quote (rarely needed; invoke() handles this automatically).",
+    "Run the full quote → invoke → settle flow in one call.",
     "Invoke directly from an existing quoteId.",
     "Fetch a specific invocation receipt.",
     "Poll until the invocation reaches a terminal state.",
@@ -514,7 +514,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "The same owner auth client can mint an agent credential with a spend window, call cap, and rpm ceiling, then hand the token to a runtime client.",
   sdkPyInvokeTitle: "Discover and invoke",
   sdkPyInvokeDescription:
-    "The runtime client discovers services, requests a quote, invokes the target API, and polls the invocation receipt until it reaches a terminal status.",
+    "The runtime client discovers services, then invokes the target API. invoke() handles quote → invoke → receipt polling internally — your code stays at one call.",
   sdkPyVerifyEyebrow: "Verification chain",
   sdkPyVerifyTitle: "Validate the full chain",
   sdkPyVerifyDescription:
@@ -581,8 +581,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "Create a client from an issued credential token.",
     "Discover available services.",
     "Search services using plain text.",
-    "Get a price quote before invoking a service.",
-    "Quote → invoke → settle; polls until terminal state.",
+    "Get a raw price quote (rarely needed; invoke() handles this automatically).",
+    "Quote → invoke → settle in one call; polls until terminal state.",
     "Fetch a specific invocation receipt.",
   ],
   contractsEyebrow: "Smart Contracts",

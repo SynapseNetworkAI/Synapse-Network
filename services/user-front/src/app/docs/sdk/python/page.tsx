@@ -98,7 +98,7 @@ client = SynapseClient(
 services = client.discover(limit=20)
 service_id = services[0].service_id
 
-quote = client.quote(service_id)
+# One call — invoke() handles quote → invoke → poll internally
 result = client.invoke(
     service_id,
     {"prompt": "hello"},
@@ -106,9 +106,7 @@ result = client.invoke(
     poll_timeout_sec=60,
 )
 
-receipt = client.get_invocation(result.invocation_id)
-print(quote.quote_id)
-print(receipt.status, receipt.charged_usdc)`}
+print(result.invocation_id, result.status, result.charged_usdc)`}
         />
       </section>
 
