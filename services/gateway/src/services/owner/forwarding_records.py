@@ -10,6 +10,14 @@ from fastapi import HTTPException
 
 from src.domain.execution import InvocationRecord, ServiceQuoteRecord
 from src.domain.identity import RuntimeCredentialRecord
+from src.domain.invocation_response import (
+    InvocationErrorInfo,
+    InvocationErrorResponse,
+    InvocationPendingResponse,
+    InvocationReceiptRef,
+    InvocationStateResponse,
+    InvocationSuccessResponse,
+)
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.platform import credential_service
 from src.storage import BaseStorage
@@ -159,38 +167,41 @@ def invocation_error_action(error_code: Optional[str]) -> Optional[str]:
 # State payload renderers (consumed by router responses)
 # ---------------------------------------------------------------------------
 
-def invocation_error_payload(invocation: InvocationRecord) -> dict[str, Any]:
+def invocation_error_payload(invocation: InvocationRecord) -> InvocationErrorResponse:
     status = str(invocation.status or "FAILED_FINAL")
     retryable = status == "FAILED_RETRYABLE"
-    return {
-        "invocationId": invocation.invocation_id,
-        "status": status,
-        "error": {
-            "code": invocation.error_code or "INVOCATION_FAILED",
-            "message": "Invocation failed",
-            "retryable": retryable,
-            "action": invocation.error_action or ("retry" if retryable else "stop"),
-        },
-    }
+    return InvocationErrorResponse(
+        invocationId=invocation.invocation_id,
+        status=status,
+        error=InvocationErrorInfo(
+            code=invocation.error_code or "INVOCATION_FAILED",
+            message="Invocation failed",
+            retryable=retryable,
+            action=invocation.error_action or ("retry" if retryable else "stop"),
+        ),
+    )
 
 
-def invocation_success_payload(invocation: InvocationRecord) -> dict[str, Any]:
-    return {
-        "invocationId": invocation.invocation_id,
-        "status": invocation.status,
-        "chargedUsdc": round(float(invocation.charged_usdc), 6),
-        "result": invocation.result.payload,
-        "receipt": {"quoteId": invocation.quote_id, "invocationId": invocation.invocation_id},
-    }
+def invocation_success_payload(invocation: InvocationRecord) -> InvocationSuccessResponse:
+    return InvocationSuccessResponse(
+        invocationId=invocation.invocation_id,
+        status=str(invocation.status),
+        chargedUsdc=round(float(invocation.charged_usdc), 6),
+        result=invocation.result.payload,
+        receipt=InvocationReceiptRef(
+            quoteId=invocation.quote_id,
+            invocationId=invocation.invocation_id,
+        ),
+    )
 
 
-def invocation_state_payload(invocation: InvocationRecord) -> dict[str, Any]:
+def invocation_state_payload(invocation: InvocationRecord) -> InvocationStateResponse:
     if invocation.status == "SUCCEEDED":
         return invocation_success_payload(invocation)
     if invocation.status in {"FAILED_RETRYABLE", "FAILED_FINAL"}:
         return invocation_error_payload(invocation)
-    return {
-        "invocationId": invocation.invocation_id,
-        "status": invocation.status,
-        "chargedUsdc": round(float(invocation.charged_usdc), 6),
-    }
+    return InvocationPendingResponse(
+        invocationId=invocation.invocation_id,
+        status=str(invocation.status),
+        chargedUsdc=round(float(invocation.charged_usdc), 6),
+    )

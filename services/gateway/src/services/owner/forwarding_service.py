@@ -11,6 +11,7 @@ from src.core.common import normalize_wallet
 from src.domain.execution import InvocationRecord, ServiceQuoteRecord
 from src.domain.finance import UsageLogRow
 from src.domain.identity import RuntimeCredentialRecord
+from src.domain.invocation_response import ConsumerSuccessResponse, InvocationStateResponse
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.platform import credential_service
 from src.services.owner import forwarding_billing, forwarding_upstream, forwarding_validation
@@ -218,7 +219,7 @@ async def generate_response_v2(
     x_service_id: Optional[str],
     credential_token: Optional[str],
     x_request_id: Optional[str],
-) -> dict[str, Any]:
+) -> ConsumerSuccessResponse:
     """Orchestrate full generate pipeline: validate, rate-limit, charge, proxy, audit, respond."""
     service_id = forwarding_validation.validate_service_id(x_service_id, request.serviceId)
     token = forwarding_validation.validate_credential_token(credential_token)
@@ -248,7 +249,7 @@ def get_invocation_receipt_v1(
     storage: BaseStorage,
     invocation_id: str,
     credential_token: Optional[str],
-) -> dict[str, Any]:
+) -> InvocationStateResponse:
     token = forwarding_validation.validate_credential_token(credential_token)
     credential = credential_service.resolve_active_credential(storage, token)
     invocation = read_invocation(storage, invocation_id)
@@ -265,7 +266,7 @@ async def invoke_v1(
     request: AgentInvokeRequest,
     credential_token: Optional[str],
     x_request_id: Optional[str],
-) -> dict[str, Any]:
+) -> InvocationStateResponse:
     """Single-call invoke: validate price assertion, build internal quote, run pipeline."""
     token = forwarding_validation.validate_credential_token(credential_token)
     trace_request_id = forwarding_validation.resolve_request_id(x_request_id)
