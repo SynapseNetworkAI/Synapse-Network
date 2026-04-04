@@ -13,6 +13,7 @@ from src.domain.registry import ServiceTargetHealth
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.platform import credential_service
 from src.services.platform import service_health_service
+from src.services.platform import service_health_utils
 
 
 class InMemoryGatewayStateRepo:
@@ -139,7 +140,7 @@ def _http_runtime_client(storage: FakeStorage):
 
 
 def test_public_network_stats_returns_layered_public_aggregate_counts(monkeypatch) -> None:
-    monkeypatch.setattr(service_health_service, "_now_ms", lambda: 500_000)
+    monkeypatch.setattr(service_health_utils, "_now_ms", lambda: 500_000)
     services = [
         _service_definition(
             "svc.alpha",
