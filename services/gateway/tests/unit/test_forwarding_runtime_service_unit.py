@@ -13,9 +13,8 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 from src.api.schemas.pydantic_models import (
-    AgentInvocationRequest,
     AgentDiscoverySearchRequest,
-    AgentQuoteRequest,
+    AgentInvokeRequest,
     InferenceRequest,
 )
 from src.domain.gateway import OwnerSpendLimitRow
@@ -30,7 +29,7 @@ from src.domain.service_contract import (
     ServiceDefinitionRecord,
 )
 from src import app as gateway_app
-from src.services.owner import forwarding_billing, forwarding_service, forwarding_upstream, forwarding_validation
+from src.services.owner import forwarding_billing, forwarding_budget, forwarding_service, forwarding_upstream, forwarding_validation
 from src.services.platform import credential_service
 from src.services.provider.registry_service import RegistryService
 
@@ -479,7 +478,7 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
@@ -500,16 +499,16 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
         )
     )
 
-    receipt = response["payload"]["receipt"]
-    assert receipt["requestId"] == "req-typed-001"
-    assert receipt["quoteId"].startswith("quote-")
-    assert receipt["invocationId"].startswith("inv-")
-    assert receipt["serviceId"] == "svc.echo"
-    assert receipt["serviceUnitPrice"] == pytest.approx(1.2)
-    assert receipt["totalCharge"] == pytest.approx(1.25)
-    assert receipt["consumerAvailableBalanceAfter"] == pytest.approx(8.75)
+    receipt = response.payload.receipt
+    assert receipt.requestId == "req-typed-001"
+    assert receipt.quoteId.startswith("quote-")
+    assert receipt.invocationId.startswith("inv-")
+    assert receipt.serviceId == "svc.echo"
+    assert receipt.serviceUnitPrice == pytest.approx(1.2)
+    assert receipt.totalCharge == pytest.approx(1.25)
+    assert receipt.consumerAvailableBalanceAfter == pytest.approx(8.75)
 
-    assert response["payload"]["data"]["result"] == {
+    assert response.payload.data.result == {
         "answer": "pong",
         "echo": "hello typed world",
     }
@@ -529,11 +528,11 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
 
     assert len(storage.audit.rows) == 1
     assert storage.audit.rows[0].action == "V2_USAGE_CHARGED"
-    assert storage.audit.rows[0].details["quoteId"] == receipt["quoteId"]
-    assert storage.audit.rows[0].details["invocationId"] == receipt["invocationId"]
+    assert storage.audit.rows[0].details["quoteId"] == receipt.quoteId
+    assert storage.audit.rows[0].details["invocationId"] == receipt.invocationId
     assert storage.audit.rows[0].details["resultStatus"] == "success"
-    assert storage.execution.read_quote(receipt["quoteId"]).status == "CONSUMED"
-    assert storage.execution.read_invocation(receipt["invocationId"]).status == "SUCCEEDED"
+    assert storage.execution.read_quote(receipt.quoteId).status == "CONSUMED"
+    assert storage.execution.read_invocation(receipt.invocationId).status == "SUCCEEDED"
 
 
 def test_find_active_service_hydrates_persisted_health_snapshot() -> None:
@@ -546,12 +545,13 @@ def test_find_active_service_hydrates_persisted_health_snapshot() -> None:
     assert service.runtime_health.targets[0].target_url == "https://provider.test/invoke"
 
 
+@pytest.mark.skip(reason="Route A (quote→invocations) removed; use invoke_v1 flow")
 def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
@@ -628,7 +628,7 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
     assert replay_response["invocationId"] == invocation_id
 
 
-def test_owner_billing_cycle_limit_blocks_quote_and_invocation(monkeypatch) -> None:
+def test_owner_billing_cycle_limit_blocks_invoke(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
@@ -654,7 +654,7 @@ def test_owner_billing_cycle_limit_blocks_quote_and_invocation(monkeypatch) -> N
         )
     ]
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
@@ -665,33 +665,14 @@ def test_owner_billing_cycle_limit_blocks_quote_and_invocation(monkeypatch) -> N
         forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
     )
 
-    quote_response = asyncio.run(
-        forwarding_service.create_quote_v1(
-            storage,
-            AgentQuoteRequest(
-                serviceId="svc.echo",
-                inputPreview=QuoteInputPreviewRecord(
-                    sample=RuntimePayloadRecord(body={"textLength": 17})
-                ),
-                responseMode="sync",
-            ),
-            raw_token,
-            "req-owner-cap-quote-001",
-        )
-    )
-
-    assert quote_response["budgetCheck"]["allowed"] is False
-    assert quote_response["budgetCheck"]["remainingBillingCycleLimitUsdc"] == pytest.approx(
-        0.4
-    )
-
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            forwarding_service.create_invocation_v1(
+            forwarding_service.invoke_v1(
                 storage,
-                AgentInvocationRequest(
-                    quoteId=quote_response["quoteId"],
+                AgentInvokeRequest(
+                    serviceId="svc.echo",
                     idempotencyKey="task-owner-cap-step-1",
+                    costUsdc=Decimal("1.2"),
                     payload=RuntimePayloadRecord(body={"text": "hello typed world"}),
                     responseMode="sync",
                 ),
@@ -704,13 +685,14 @@ def test_owner_billing_cycle_limit_blocks_quote_and_invocation(monkeypatch) -> N
     assert exc_info.value.detail["code"] == "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED"
 
 
+@pytest.mark.skip(reason="Route A (quote→invocations) removed; use invoke_v1 flow")
 def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
     registry_service = RegistryService(storage)
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
@@ -764,12 +746,13 @@ def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypa
     assert invocation_response["result"]["echo"] == "hello typed world"
 
 
+@pytest.mark.skip(reason="Route A (quote→invocations) removed; HTTP contract tests need rewrite for /invoke")
 def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
@@ -856,6 +839,7 @@ def test_agent_runtime_http_contract_locks_discovery_quote_and_invocation(monkey
     assert persisted_invocation.status == "SUCCEEDED"
 
 
+@pytest.mark.skip(reason="Route A (quote→invocations) removed; HTTP contract tests need rewrite for /invoke")
 def test_agent_runtime_http_contract_uses_persisted_health_snapshot_for_discovery_and_invoke(
     monkeypatch,
 ) -> None:
@@ -866,7 +850,7 @@ def test_agent_runtime_http_contract_uses_persisted_health_snapshot_for_discover
     manifest_service = storage.registry.read_service_registry_rows()[0]
     assert manifest_service.runtime_health is None
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
     monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
@@ -977,7 +961,7 @@ def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
     storage = FakeStorage(_structured_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
     monkeypatch.setattr(
         forwarding_upstream.httpx, "AsyncClient", FakeStructuredAsyncClient
     )
@@ -1003,7 +987,7 @@ def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
         )
     )
 
-    assert response["payload"]["data"]["result"]["result"]["symbol"] == "ETH"
+    assert response.payload.data.result["result"]["symbol"] == "ETH"
     assert FakeStructuredAsyncClient.last_request["url"] == (
         "https://provider.test/provider-services/web3-sentiment-index/invoke"
     )
@@ -1031,7 +1015,7 @@ def test_generate_response_v2_returns_required_field_error_for_structured_servic
     storage = FakeStorage(_structured_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
-    monkeypatch.setattr(forwarding_service, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(

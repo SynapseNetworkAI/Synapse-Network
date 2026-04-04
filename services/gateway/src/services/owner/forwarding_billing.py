@@ -10,6 +10,12 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.execution import InvocationRecord
 from src.domain.finance import UsageLogRow
+from src.domain.invocation_response import (
+    ConsumerReceipt,
+    ConsumerResponseData,
+    ConsumerResponsePayload,
+    ConsumerSuccessResponse,
+)
 from src.domain.identity import RuntimeCredentialRecord
 from src.services.platform import credential_service
 from src.storage import BaseStorage
@@ -80,33 +86,33 @@ def build_consumer_receipt(
     unit_price: float,
     total_charge: float,
     consumer_balance_after: float,
-) -> dict[str, Any]:
+) -> ConsumerReceipt:
     """Build consumer-visible receipt fields without leaking internal settlement splits."""
-    return {
-        "requestId": request_id,
-        "quoteId": quote_id,
-        "invocationId": invocation_id,
-        "serviceId": service_id,
-        "totalCharge": total_charge,
-        "consumerAvailableBalanceAfter": consumer_balance_after,
-        "serviceUnitPrice": unit_price,
-    }
+    return ConsumerReceipt(
+        requestId=request_id,
+        quoteId=quote_id,
+        invocationId=invocation_id,
+        serviceId=service_id,
+        totalCharge=total_charge,
+        consumerAvailableBalanceAfter=consumer_balance_after,
+        serviceUnitPrice=unit_price,
+    )
 
 
 def build_consumer_success_response(
-    receipt: dict[str, Any], upstream_result: Any
-) -> dict[str, Any]:
+    receipt: ConsumerReceipt, upstream_result: Any
+) -> ConsumerSuccessResponse:
     """Build canonical consumer response payload while preserving upstream result envelope."""
-    return {
-        "statusCode": 200,
-        "ok": True,
-        "payload": {
-            "status": "success",
-            "code": "DELIVERED",
-            "receipt": receipt,
-            "data": {"result": upstream_result},
-        },
-    }
+    return ConsumerSuccessResponse(
+        statusCode=200,
+        ok=True,
+        payload=ConsumerResponsePayload(
+            status="success",
+            code="DELIVERED",
+            receipt=receipt,
+            data=ConsumerResponseData(result=upstream_result),
+        ),
+    )
 
 
 def pricing_breakdown(
