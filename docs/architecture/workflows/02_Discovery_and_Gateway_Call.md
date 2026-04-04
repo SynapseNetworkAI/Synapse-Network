@@ -5,7 +5,7 @@
 - Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:frontend`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Supersedes: former `docs/agent/02_Discovery_Quote_Invoke_API_Design.md` for workflow semantics of discover, quote, and invoke
-- Last verified against code: 2026-03-24
+- Last verified against code: 2026-07-07
 
 ## 1. 目标
 
@@ -227,6 +227,74 @@ Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层
 2. 附加内部 trace / request id
 3. 执行 timeout、payload 限制和 response mode 约束
 4. 把上游原始 HTTP 成败映射成平台的执行结果
+
+### 8.4 单次调用路径：POST /v1/agent/invoke（cost_usdc 价格断言）
+
+经典流程需要两次 HTTP 请求（quote + invoke）。当 Agent 已通过 Discovery 获取服务价格，可以使用 **单次调用路径** 将其合并为一次请求。
+
+**请求体：**
+
+```json
+{
+  "serviceId": "svc_quotes_top3",
+  "idempotencyKey": "job-007-step-1",
+  "costUsdc": 0.05,
+  "payload": { "body": { "topic": "resilience" } },
+  "responseMode": "sync"
+}
+```
+
+**`costUsdc` 语义：**
+
+- 取自 Discovery 响应中 `pricing.amount` 字段（Agent 观察到的价格）
+- 这是**精确断言**，而不是上限（`max_cost`）
+- Gateway 检查 `|live_price - costUsdc| ≤ 1e-6`
+- 如果价格已变动，返回 `422 PRICE_MISMATCH`，Agent 必须重新 discover 后重试
+
+**422 PRICE_MISMATCH 响应：**
+
+```json
+{
+  "detail": {
+    "code": "PRICE_MISMATCH",
+    "message": "Service price has changed. You expected 0.050000 USDC but current is 0.150000 USDC.",
+    "expectedPriceUsdc": 0.05,
+    "currentPriceUsdc": 0.15
+  }
+}
+```
+
+**Gateway 内部执行顺序：**
+
+1. 验证 credential
+2. 查询服务及当前实时单价
+3. 断言价格：`|live_price - costUsdc| ≤ 1e-6`，否则 422
+4. 构建内部 ephemeral quote（写入 `synapse_service_quotes`，供审计）
+5. 执行调用管线（预算检查 → 扣费 → 转发 → 写结果）
+6. 返回 invocation 结果
+
+**SDK 使用模式：**
+
+```python
+# Python SDK
+services = client.discover_services(intent="quotes")
+svc = services.services[0]
+result = client.invoke(svc.serviceId, {"topic": "resilience"}, cost_usdc=svc.price_usdc)
+```
+
+```typescript
+// TypeScript SDK
+const services = await client.discover();
+const result = await client.invoke(services[0].serviceId, { topic: "resilience" }, {
+  costUsdc: services[0].priceUsdc,
+});
+```
+
+**为什么是精确断言而不是上限：**
+
+1. `max_cost` 上限让 Agent 在价格悄然上涨时被静默多扣费
+2. `cost_usdc` 精确断言强制透明：Agent 永远知道自己实际支付了多少
+3. 价格变动时 Gateway 主动报错，Agent 重新 discover 拿最新价格后重试，决策权在 Agent 手中
 
 ## 9. 成功与失败映射
 

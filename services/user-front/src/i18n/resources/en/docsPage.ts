@@ -352,10 +352,10 @@ const docsPage: I18nMessages["docsPage"] = {
     "The canonical consumer path is discover -> select serviceId -> invoke. Discover gives the runtime structured service records instead of hardcoded API endpoints. The SDK handles quoting internally — your code sees a single invoke() call.",
   sdkTsInvokeTitle: "Issue a credential and invoke through discovery",
   sdkTsInvokeDescription:
-    "Once you issue an agent credential, the client can discover services, pick a target serviceId, and invoke the service. invoke() handles quote → invoke → poll internally so your agent code stays on one line.",
+    "Once you issue an agent credential, discover services, then call invoke() with the service price you saw. Gateway rejects with PRICE_MISMATCH if the Provider changed the price since discovery — re-discover and retry.",
   sdkTsDirectTitle: "Known serviceId? Call it directly",
   sdkTsDirectDescription:
-    "If your runtime already has a stable serviceId from discovery cache, config, or a previous control-plane step, call invoke() directly. No separate quote step needed — the SDK handles it.",
+    "If your runtime already has a stable serviceId and its last-seen price, pass costUsdc directly. One HTTP call. Gateway returns PRICE_MISMATCH if the price changed.",
   sdkTsStarterTitle: "Official free starter services",
   sdkTsStarterDescription:
     "Synapse will progressively publish free starter interfaces sourced from the Synapse-Network-Sdk repository. They are intended as zero-cost discovery targets for SDK smoke tests, demos, and first invocations.",
@@ -431,8 +431,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "Create a client using an issued credential token.",
     "Discover available services.",
     "Search services using plain text.",
-    "Get a raw price quote (rarely needed; invoke() handles this automatically).",
-    "Run the full quote → invoke → settle flow in one call.",
+    "Get a raw price quote (advanced; invoke() with costUsdc is preferred).",
+    "Invoke with price assertion: pass costUsdc from discovery — raises PriceMismatchError if price changed.",
     "Invoke directly from an existing quoteId.",
     "Fetch a specific invocation receipt.",
     "Poll until the invocation reaches a terminal state.",
@@ -514,7 +514,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "The same owner auth client can mint an agent credential with a spend window, call cap, and rpm ceiling, then hand the token to a runtime client.",
   sdkPyInvokeTitle: "Discover and invoke",
   sdkPyInvokeDescription:
-    "The runtime client discovers services, then invokes the target API. invoke() handles quote → invoke → receipt polling internally — your code stays at one call.",
+    "Discover services, then call invoke() with cost_usdc = the price from discovery. Gateway rejects with PriceMismatchError if the Provider changed the price.",
   sdkPyVerifyEyebrow: "Verification chain",
   sdkPyVerifyTitle: "Validate the full chain",
   sdkPyVerifyDescription:
@@ -581,8 +581,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Create a client from an issued credential token.",
     "Discover available services.",
     "Search services using plain text.",
-    "Get a raw price quote (rarely needed; invoke() handles this automatically).",
-    "Quote → invoke → settle in one call; polls until terminal state.",
+    "Quote → invoke → settle in one call with price assertion; raises PriceMismatchError if price changed.",
     "Fetch a specific invocation receipt.",
   ],
   contractsEyebrow: "Smart Contracts",

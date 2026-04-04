@@ -13,6 +13,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.api.schemas.pydantic_models import (
     AgentInvocationRequest,
+    AgentInvokeRequest,
     AgentQuoteRequest,
     InferenceRequest,
 )
@@ -1171,4 +1172,67 @@ def get_invocation_receipt_v1(
             status_code=403,
             detail={"code": "INVOCATION_FORBIDDEN", "message": "Invocation does not belong to this credential"},
         )
+    return _invocation_state_payload(invocation)
+
+
+_PRICE_TOLERANCE = Decimal("0.000001")
+
+
+async def invoke_v1(
+    storage: BaseStorage,
+    request: AgentInvokeRequest,
+    credential_token: Optional[str],
+    x_request_id: Optional[str],
+) -> dict[str, Any]:
+    """Single-call invoke: validate price assertion, build internal quote, run pipeline.
+
+    The agent passes ``costUsdc`` — the price it observed during discovery.
+    If the live service price has changed, we return 422 PRICE_MISMATCH so the
+    agent can re-discover. No charge is made in that case.
+    """
+    token = _validate_credential_token(credential_token)
+    trace_request_id = _resolve_request_id(x_request_id)
+    credential = credential_service.resolve_active_credential(storage, token)
+
+    service = _find_active_service(storage, request.serviceId)
+    live_price = _parse_service_price_usdc(service)
+    live_price_decimal = _q6(live_price)
+    cost_decimal = _q6(request.costUsdc)
+
+    if abs(live_price_decimal - cost_decimal) > _PRICE_TOLERANCE:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "PRICE_MISMATCH",
+                "message": (
+                    f"Service price has changed. "
+                    f"You expected {float(cost_decimal):.6f} USDC but the current price is "
+                    f"{float(live_price_decimal):.6f} USDC. Re-discover to get the updated price."
+                ),
+                "expectedPriceUsdc": float(cost_decimal),
+                "currentPriceUsdc": float(live_price_decimal),
+            },
+        )
+
+    invoke_payload = request.payload.body
+    _validate_invoke_request_contract(service, invoke_payload)
+
+    quote = _build_service_quote(
+        service,
+        credential,
+        invoke_payload,
+        live_price,
+        response_mode=request.responseMode,
+    )
+    _persist_quote(storage, quote)
+
+    invocation, _, _ = await _execute_invocation_pipeline(
+        storage,
+        credential,
+        service,
+        quote,
+        invoke_payload,
+        request.idempotencyKey,
+        trace_request_id,
+    )
     return _invocation_state_payload(invocation)
