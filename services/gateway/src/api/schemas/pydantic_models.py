@@ -5,7 +5,6 @@ from typing import Any, Dict, Literal, Optional, Annotated
 from pydantic import BaseModel, Field, field_validator
 
 from src.domain.service_contract import (
-    QuoteInputPreviewRecord,
     RuntimePayloadRecord,
 )
 
@@ -136,19 +135,6 @@ class AgentDiscoverySearchRequest(BaseModel):
             return None
         normalized = str(value).strip()
         return normalized or None
-
-
-class AgentQuoteRequest(BaseModel):
-    serviceId: str = Field(..., min_length=1, max_length=128)
-    inputPreview: QuoteInputPreviewRecord = Field(default_factory=QuoteInputPreviewRecord)
-    responseMode: Literal["sync", "async", "stream"] = "sync"
-
-
-class AgentInvocationRequest(BaseModel):
-    quoteId: str = Field(..., min_length=1, max_length=128)
-    idempotencyKey: str = Field(..., min_length=1, max_length=128)
-    payload: RuntimePayloadRecord = Field(default_factory=RuntimePayloadRecord)
-    responseMode: Literal["sync", "async", "stream"] = "sync"
 
 
 class AgentInvokeRequest(BaseModel):

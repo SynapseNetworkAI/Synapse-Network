@@ -4,7 +4,7 @@
 - Code paths: `gateway/src/`, `sdk/python/`, `apps/frontend/src/`
 - Verified with: `npm run ci:gateway`, `npm run ci:sdk-python`, `npm run ci:frontend`, `npm run ci:docs`
 - DB sources: `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
-- Supersedes: former `docs/agent/02_Discovery_Quote_Invoke_API_Design.md` for workflow semantics of discover, quote, and invoke
+- Supersedes: former `docs/agent/02_Discovery_Quote_Invoke_API_Design.md` for workflow semantics of discover and invoke
 - Last verified against code: 2026-07-07
 
 ## 1. 目标
@@ -27,9 +27,8 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
 统一边界如下：
 
 1. Discovery 负责给 Agent 返回结构化决策输入，而不是营销卡片。
-2. Quote 负责做价格与预算预检查，而不是最终扣费。
-3. Invoke 才是正式执行与记账入口。
-4. Agent-facing 协议默认不暴露卖家钱包、平台分账明细、内部路由节点或内部账本主键。
+2. Invoke 是正式执行与记账入口；Gateway 内部完成价格锁定（quote），不暴露为独立 Agent API。
+3. Agent-facing 协议默认不暴露卖家钱包、平台分账明细、内部路由节点或内部账本主键。
 
 控制台 Discovery 与 Agent Discovery 必须分层：
 
@@ -44,7 +43,7 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
 2. `Agent Credential`
    Runtime 支付身份和预算约束入口。
 3. `Platform Gateway`
-   承担发现、报价校验、路由、转发、审计和扣费决策。
+   承担发现、路由、转发、审计和扣费决策。
 4. `Provider Service`
    真正执行上游能力的服务提供方。
 5. `PostgreSQL`
@@ -61,7 +60,7 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
 | `synapse_service_quotes` | 报价、TTL、约束和价格锚点 |
 | `synapse_invocations` | 调用生命周期、状态和结果摘要 |
 | `synapse_budget_events` | reserve / capture / release 预算事件 |
-| `synapse_audit_events` | discover、quote、invoke 过程中的关键审计事件 |
+| `synapse_audit_events` | discover、invoke 过程中的关键审计事件 |
 
 ## 5. 主流程总览
 
@@ -74,12 +73,10 @@ sequenceDiagram
 
     A->>G: Discover services
     G->>DB: Read search index + manifests + health snapshots
-    G-->>A: Ranked service list
-    A->>G: Request quote
+    G-->>A: Ranked service list (includes priceUsdc)
+    A->>G: Invoke with costUsdc + idempotency key
     G->>DB: Check credential + budget + service scope
-    G->>DB: Write quote + budget reserve
-    G-->>A: Quote with TTL and constraints
-    A->>G: Invoke with quote + idempotency key
+    G->>DB: Create internal quote + budget reserve
     G->>DB: Create invocation row
     G->>P: Forward request to chosen endpoint
     P-->>G: Upstream response
@@ -141,9 +138,9 @@ Gateway 至少要组合：
 4. 路由权重和真实 target 列表
 5. 平台内部账本主键
 
-## 7. Quote
+## 7. Quote（内部步骤，非 Agent-facing API）
 
-Quote 是调用前的商业和风控闸门，不是最终扣费点。
+Quote 现在是 Gateway 在 `POST /agent/invoke` 内部自动创建的，不再作为独立的 Agent-facing API 暴露。Agent 只调用一次 invoke，Gateway 在内部完成价格锁定、预算预占与 quote 记录写入。
 
 ### 7.1 Quote 必须解决的问题
 
@@ -174,7 +171,7 @@ Quote 是调用前的商业和风控闸门，不是最终扣费点。
 
 ## 8. Invoke
 
-Invoke 是 Discovery / Quote / Call 这条链路的执行点。
+Invoke 是 Discovery / Invoke 这条链路的执行点。
 
 ### 8.1 Invoke 前的校验顺序
 
@@ -182,11 +179,10 @@ Gateway 必须按成本从低到高执行：
 
 1. Credential 是否存在
 2. Credential 是否 active 且未过期
-3. Quote 是否存在且未过期
-4. Service 是否仍处于可调用状态
-5. Budget policy 是否允许
-6. Owner 资金池是否足以支撑 quote 金额
-7. Idempotency key 是否冲突
+3. Service 是否仍处于可调用状态
+4. Budget policy 是否允许
+5. Owner 资金池是否足以支撑调用金额
+6. Idempotency key 是否冲突
 
 其中第 4 条的服务可调用状态，至少要同时满足：
 
@@ -201,13 +197,12 @@ Gateway 必须按成本从低到高执行：
 Gateway 在转发前先写 `synapse_invocations`，至少包含：
 
 1. `invocation_id`
-2. `quote_id`
-3. `service_id`
-4. `endpoint_id`
-5. `credential_id`
-6. `agent_id`
-7. `idempotency_key`
-8. `status = PENDING`
+2. `service_id`
+3. `endpoint_id`
+4. `credential_id`
+5. `agent_id`
+6. `idempotency_key`
+7. `status = PENDING`
 
 后续根据执行推进到：
 
@@ -230,7 +225,7 @@ Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层
 
 ### 8.4 单次调用路径：POST /v1/agent/invoke（cost_usdc 价格断言）
 
-经典流程需要两次 HTTP 请求（quote + invoke）。当 Agent 已通过 Discovery 获取服务价格，可以使用 **单次调用路径** 将其合并为一次请求。
+Agent 通过 Discovery 获取服务价格后，使用 **单次调用路径** 将 `costUsdc` 带入 invoke。Gateway 内部完成价格断言和 quote 写入。
 
 **请求体：**
 
@@ -303,7 +298,7 @@ const result = await client.invoke(services[0].serviceId, { topic: "resilience" 
 如果上游完成有效交付：
 
 1. `synapse_invocations.status -> SUCCEEDED`
-2. Quote 标记 `CONSUMED`
+2. 内部 Quote 标记 `CONSUMED`
 3. 预算事件从 `reserve` 走向 `capture`
 4. 进入后续结算流程
 
@@ -312,7 +307,7 @@ const result = await client.invoke(services[0].serviceId, { topic: "resilience" 
 如果上游失败、超时、连接错误或返回不可接受结果：
 
 1. `synapse_invocations.status -> FAILED_RETRYABLE` 或 `FAILED_FINAL`
-2. Quote 保持可审计但不再作为成功结算依据
+2. 内部 Quote 保持可审计但不再作为成功结算依据
 3. 预算执行 `release`
 4. 写稳定错误码和 `error_action`
 
@@ -351,7 +346,7 @@ Invoke 的业务幂等由 `synapse_invocations UNIQUE (credential_id, idempotenc
 
 这条链路必须永远守住两条边界：
 
-1. 对 Agent 暴露的是 `service / quote / invocation / result / stable error`
+1. 对 Agent 暴露的是 `service / invocation / result / stable error`
 2. 对平台内部保留的是 `endpoint / routing / payout / ledger / audit`
 
 Synapse 的 Gateway 不是让 Agent 直接撞向 Provider，而是在 Runtime 语义上替 Agent 完成了：

@@ -295,8 +295,8 @@ const ROUTE_GROUPS: RouteGroup[] = [
         agentMeta: {
           role: "consumer_agent",
           phase: "discover",
-          note: "First step for a consumer agent: scan the marketplace for available paid APIs. Filter by keyword to find relevant tools. Returns serviceId values needed for quoting.",
-          outputs: [{ key: "serviceId", desc: "Service identifier — pass to POST /agent/invoke (with costUsdc) or POST /agent/quotes for a price lock" }],
+          note: "First step for a consumer agent: scan the marketplace for available paid APIs. Filter by keyword to find relevant tools. Returns serviceId and priceUsdc needed for invoke.",
+          outputs: [{ key: "serviceId", desc: "Service identifier — pass to POST /agent/invoke with costUsdc for a price-asserting single-call invoke" }],
           next: "Pick a serviceId + note priceUsdc, then call POST /agent/invoke with costUsdc",
         },
       },
@@ -383,66 +383,14 @@ const ROUTE_GROUPS: RouteGroup[] = [
   {
     id: "api-invocations",
     title: "Agent Invocations",
-    description: "Quotes, paid invocations, and invocation history.",
+    description: "Paid invocations and invocation history.",
     routes: [
-      {
-        id: "post-quote",
-        method: "POST",
-        path: "/api/v1/agent/quotes",
-        summary: "Get invocation quote",
-        description: "Request a 60-second price lock for calling a service. Pass the quote_id to the invoke endpoint before it expires.",
-        auth: "credential",
-        bodyExample: { service_id: "svc_xyz" },
-        responseExample: { quote_id: "q_abc123", price_usdc: "0.01", valid_until: "2026-01-01T00:01:00Z" },
-        agentMeta: {
-          role: "consumer_agent",
-          phase: "invoke",
-          note: "Price-lock step before invoking. If the credential balance is too low for the quoted price, the agent should pause and notify the owner to deposit more USDC.",
-          requires: "Agent credential token (snk_agent_...) from POST /agent/credentials",
-          outputs: [
-            { key: "quote_id", desc: "Price-lock token — must be passed to POST /agent/invocations within 60 seconds" },
-            { key: "price_usdc", desc: "Confirmed USDC cost — deducted from credential balance on invoke" },
-          ],
-          next: "Within 60 seconds, call POST /agent/invocations with the quote_id",
-        },
-        errors: [
-          { status: 402, code: "INSUFFICIENT_BALANCE", message: "Credential does not have enough balance for this service" },
-          { status: 404, code: "SERVICE_NOT_FOUND", message: "Service is not currently active" },
-        ],
-      },
-      {
-        id: "post-invoke",
-        method: "POST",
-        path: "/api/v1/agent/invocations",
-        summary: "Execute paid invocation",
-        description: "Invoke a service using a valid quote. The gateway atomically deducts USDC, proxies the call, and records the settlement receipt.",
-        auth: "credential",
-        idempotency: true,
-        bodyExample: { quote_id: "q_abc123", payload: { prompt: "Analyze sentiment of: hello world" } },
-        responseExample: { invocation_id: "inv_xyz", status: "completed", charged_usdc: "0.01", result: { sentiment: "positive" } },
-        agentMeta: {
-          role: "consumer_agent",
-          phase: "invoke",
-          note: "The core M2M transaction. The gateway atomically deducts balance, proxies the call, and records settlement. Always send X-Idempotency-Key to prevent double-charges on network retries.",
-          requires: "Valid quote_id from POST /agent/quotes (must be < 60s old)",
-          outputs: [
-            { key: "invocation_id", desc: "Settlement receipt ID — use with GET /agent/invocations/:id to audit" },
-            { key: "result", desc: "The proxied API response from the provider service" },
-          ],
-          next: "Store invocation_id. Retrieve receipt with GET /agent/invocations/:invocationId",
-        },
-        errors: [
-          { status: 402, code: "QUOTE_EXPIRED", message: "Quote expired — request a new quote first" },
-          { status: 409, code: "DUPLICATE_INVOCATION", message: "Idempotency key already used — returns cached response" },
-          { status: 502, code: "PROVIDER_ERROR", message: "Provider service returned an error" },
-        ],
-      },
       {
         id: "post-agent-invoke",
         method: "POST",
         path: "/api/v1/agent/invoke",
-        summary: "Single-call invoke with price assertion",
-        description: "Invoke a service in one HTTP call. Pass cost_usdc — the price the agent saw in discovery. Gateway returns 422 PRICE_MISMATCH if the live price has changed, so the agent can re-discover before being charged.",
+        summary: "Invoke a service (price assertion)",
+        description: "Invoke a service in one HTTP call. Pass costUsdc — the price the agent saw in discovery. Gateway returns 422 PRICE_MISMATCH if the live price has changed, so the agent re-discovers and retries before being charged.",
         auth: "credential",
         idempotency: true,
         bodyExample: { serviceId: "svc_xyz", idempotencyKey: "job-001", costUsdc: 0.05, payload: { body: { prompt: "hello" } } },
@@ -525,7 +473,7 @@ const ROUTE_GROUPS: RouteGroup[] = [
             { key: "credential.token", desc: "Agent token (snk_agent_...) — Bearer token for all /agent/* calls" },
             { key: "credential.credential_id", desc: "Credential ID — use to revoke this token later" },
           ],
-          next: "Pass token to agent runtime. Agent calls GET /services/discover then POST /agent/quotes",
+          next: "Pass token to agent runtime. Agent calls GET /services/discover then POST /agent/invoke with costUsdc",
         },
         errors: [
           { status: 402, code: "INSUFFICIENT_BALANCE", message: "Owner has no spendable balance — deposit USDC first" },
@@ -645,9 +593,7 @@ function GetTokenGuide() {
               获得 JWT 后，调用{" "}
               <code className="text-[#c0c5cc] font-mono text-[10px]">POST /agent/credentials</code>{" "}
               签发 Agent token。Agent 用该 token（而非 JWT）调用{" "}
-              <code className="text-[#c0c5cc] font-mono text-[10px]">/agent/quotes</code>{" "}
-              和{" "}
-              <code className="text-[#c0c5cc] font-mono text-[10px]">/agent/invocations</code>。Owner JWT 不应暴露给 Agent 运行时。
+              <code className="text-[#c0c5cc] font-mono text-[10px]">/agent/invoke</code>。Owner JWT 不应暴露给 Agent 运行时。
             </p>
           </div>
         </div>
