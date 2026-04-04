@@ -23,6 +23,8 @@ const PAGE_SECTIONS = [
   "api-credentials",
 ];
 
+const GATEWAY_BASE_URL = process.env.NEXT_PUBLIC_GATEWAY_BASE_URL ?? "http://127.0.0.1:8000";
+
 const METHOD_COLOR: Record<string, string> = {
   GET: "text-[#7ff7be] bg-[#7ff7be]/10 border-[#7ff7be]/20",
   POST: "text-[#6eb6f6] bg-[#6eb6f6]/10 border-[#6eb6f6]/20",
@@ -570,6 +572,112 @@ function buildCurl(
   return lines.join(" \\\n");
 }
 
+// ─── Get Token Guide ──────────────────────────────────────────────────────────
+
+function GetTokenGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-[11px] text-[#6eb6f6] hover:opacity-80 transition-opacity"
+      >
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        如何获取 Bearer Token？
+      </button>
+      {open && (
+        <div className="rounded-xl border border-white/[0.06] bg-[#070809] p-4 space-y-4 text-[11px]">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-[#4e535a] mb-2">
+              Owner JWT — 3 步获取
+            </div>
+            <div className="space-y-2.5">
+              {[
+                { n: 1, code: "GET /api/v1/auth/challenge?address=<wallet>", desc: "返回一次性 nonce 字符串" },
+                { n: 2, code: "用钱包私钥对 nonce 进行 EIP-191 签名", desc: "MetaMask / ethers.js / Python eth-account 均可" },
+                { n: 3, code: "POST /api/v1/auth/verify → 获得 access_token", desc: "将 token 粘贴到上方 Bearer Token 输入框" },
+              ].map((s) => (
+                <div key={s.n} className="flex gap-3 items-start">
+                  <span className="text-[10px] font-mono text-[#4e535a] w-4 shrink-0 mt-0.5">{s.n}.</span>
+                  <div className="space-y-0.5">
+                    <code className="text-[#7ff7be] font-mono text-[10px] leading-5">{s.code}</code>
+                    <p className="text-[#4e535a] leading-5">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-white/[0.04] pt-3 space-y-1.5">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-[#4e535a]">
+              Agent Credential token (snk_agent_...)
+            </div>
+            <p className="text-[#4e535a] leading-5">
+              获得 JWT 后，调用{" "}
+              <code className="text-[#c0c5cc] font-mono text-[10px]">POST /agent/credentials</code>{" "}
+              签发 Agent token。Agent 用该 token（而非 JWT）调用{" "}
+              <code className="text-[#c0c5cc] font-mono text-[10px]">/agent/quotes</code>{" "}
+              和{" "}
+              <code className="text-[#c0c5cc] font-mono text-[10px]">/agent/invocations</code>。Owner JWT 不应暴露给 Agent 运行时。
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Role Tabs ────────────────────────────────────────────────────────────────
+
+function roleBtnCls(active: boolean, role: "consumer" | "provider"): string {
+  if (!active) return "text-[#4e535a] hover:text-[#71767b]";
+  if (role === "consumer") return "bg-[#6eb6f6]/15 text-[#6eb6f6] border border-[#6eb6f6]/20";
+  return "bg-[#c084fc]/15 text-[#c084fc] border border-[#c084fc]/20";
+}
+
+function RoleTabs({ active, onChange }: Readonly<{ active: "consumer" | "provider"; onChange: (r: "consumer" | "provider") => void }>) {
+  return (
+    <div className="flex gap-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-1 w-fit">
+      {(["consumer", "provider"] as const).map((role) => (
+        <button
+          key={role}
+          onClick={() => onChange(role)}
+          className={`rounded-lg px-4 py-1.5 text-[12px] font-semibold transition-all ${roleBtnCls(active === role, role)}`}
+        >
+          {role === "consumer" ? "Consumer 买家" : "Provider 卖家"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Role Filter ──────────────────────────────────────────────────────────────
+
+function getGroupsForRole(groups: RouteGroup[], role: "consumer" | "provider"): RouteGroup[] {
+  if (role === "consumer") {
+    return groups
+      .map((g) => {
+        if (g.id === "api-services") {
+          return {
+            ...g,
+            description: "Discover available API services for agent invocation.",
+            routes: g.routes.filter((r) => r.id === "get-discover"),
+          };
+        }
+        return g;
+      })
+      .filter((g) => g.routes.length > 0);
+  }
+  // provider: auth + balance + services (excluding discover)
+  return groups
+    .filter((g) => ["api-auth", "api-balance", "api-services"].includes(g.id))
+    .map((g) => {
+      if (g.id === "api-services") {
+        return { ...g, routes: g.routes.filter((r) => r.id !== "get-discover") };
+      }
+      return g;
+    });
+}
+
 // ─── Agent Quickstart ─────────────────────────────────────────────────────────
 
 const FLOW_STEPS = [
@@ -933,8 +1041,8 @@ export default function ApiReferencePage() {
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [token, setToken] = useState("");
-  const [gatewayUrl, setGatewayUrl] = useState("http://127.0.0.1:8000");
   const [showConfig, setShowConfig] = useState(false);
+  const [viewRole, setViewRole] = useState<"consumer" | "provider">("consumer");
 
   const toggle = useCallback((id: string) => { setExpandedId((cur) => (cur === id ? null : id)); }, []);
 
@@ -978,29 +1086,32 @@ export default function ApiReferencePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="text-[12px] font-semibold text-[#c0c5cc]">Try It</div>
-            <span className="text-[11px] text-[#4e535a]">— configure bearer token and gateway URL</span>
+            <span className="text-[11px] text-[#4e535a]">— configure bearer token</span>
           </div>
           <button onClick={() => setShowConfig((v) => !v)} className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] px-2.5 py-1.5 text-[11px] text-[#71767b] transition-colors hover:border-white/[0.1] hover:text-[#c0c5cc]">
             <Settings2 size={12} />{showConfig ? "Collapse" : "Configure"}
           </button>
         </div>
         {showConfig && (
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <label htmlFor="cfg-gw" className="text-[10px] font-semibold uppercase tracking-widest text-[#4e535a]">Gateway URL</label>
-              <input id="cfg-gw" className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 font-mono text-[12px] text-[#c0c5cc] placeholder:text-[#4e535a] focus:border-white/20 focus:outline-none" value={gatewayUrl} onChange={(e) => setGatewayUrl(e.target.value)} placeholder="http://127.0.0.1:8000" />
-            </div>
+          <div className="mt-4 space-y-4">
             <div className="space-y-1.5">
               <label htmlFor="cfg-tok" className="text-[10px] font-semibold uppercase tracking-widest text-[#4e535a]">Bearer Token</label>
               <input id="cfg-tok" className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 font-mono text-[12px] text-[#c0c5cc] placeholder:text-[#4e535a] focus:border-white/20 focus:outline-none" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Paste JWT or snk_agent_... here" type="password" />
               <p className="text-[11px] text-[#4e535a]"><span className="font-mono text-[#c0c5cc]">JWT</span> for owner endpoints · <span className="font-mono text-[#c0c5cc]">CRED</span> for agent invocation endpoints</p>
             </div>
+            <GetTokenGuide />
           </div>
         )}
       </div>
 
+      {/* Role Tabs */}
+      <div className="space-y-2">
+        <p className="text-[11px] text-[#4e535a]">按角色查看相关端点：</p>
+        <RoleTabs active={viewRole} onChange={(r) => { setViewRole(r); setExpandedId(null); }} />
+      </div>
+
       {/* Route Groups */}
-      {groups.map((group) => (
+      {getGroupsForRole(groups, viewRole).map((group) => (
         <section key={group.id} id={group.id} className="space-y-3">
           <div className="space-y-1">
             <h2 className="x-section-title text-white">{group.title}</h2>
@@ -1008,7 +1119,7 @@ export default function ApiReferencePage() {
           </div>
           <div className="space-y-1">
             {group.routes.map((route) => (
-              <EndpointRow key={route.id} route={route} gatewayUrl={gatewayUrl} token={token} expanded={expandedId === route.id} onToggle={() => toggle(route.id)} />
+              <EndpointRow key={route.id} route={route} gatewayUrl={GATEWAY_BASE_URL} token={token} expanded={expandedId === route.id} onToggle={() => toggle(route.id)} />
             ))}
           </div>
         </section>

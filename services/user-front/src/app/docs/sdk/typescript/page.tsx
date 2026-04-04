@@ -136,7 +136,7 @@ if (!service) {
 
 const serviceId = service.serviceId ?? service.id!;
 
-const quote = await client.quote(serviceId);
+// One call — invoke() handles quote → invoke → poll internally
 const result = await client.invoke(
   serviceId,
   { prompt: "hello" },
@@ -146,7 +146,6 @@ const result = await client.invoke(
   }
 );
 
-console.log(quote.quoteId);
 console.log(result.invocationId, result.status, result.chargedUsdc);`}
         />
       </section>
@@ -158,14 +157,14 @@ console.log(result.invocationId, result.status, result.chargedUsdc);`}
           lang="typescript"
           code={`const knownServiceId = process.env.SYNAPSE_SERVICE_ID!;
 
-const quote = await client.quote(knownServiceId);
+// invoke() handles the full quote → invoke → settle flow
 const result = await client.invoke(
   knownServiceId,
   { prompt: "hello" },
   { idempotencyKey: "job-known-service-001" }
 );
 
-console.log(quote.quoteId, result.status);`}
+console.log(result.invocationId, result.status, result.chargedUsdc);`}
         />
       </section>
 

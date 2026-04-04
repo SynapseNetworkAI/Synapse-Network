@@ -346,13 +346,13 @@ const docsPage: I18nMessages["docsPage"] = {
     "链上调用 SynapseCore.deposit 之后，把 txHash 登记给 gateway，再确认 intent 入账，余额就会转成可消费状态。",
   sdkTsDiscoverTitle: "先走服务发现",
   sdkTsDiscoverDescription:
-    "Consumer 的标准主链是 discover -> 选定 serviceId -> quote -> invoke。discover 返回的是结构化服务记录，不是硬编码 API 端点。",
+    "Consumer 的标准主链是 discover -> 选定 serviceId -> invoke。discover 返回的是结构化服务记录，不是硬编码 API 端点。SDK 在内部处理报价，你的代码只需调用一次 invoke()。",
   sdkTsInvokeTitle: "签发凭证，并通过 discovery 调用服务",
   sdkTsInvokeDescription:
-    "签发 agent credential 之后，client 可以发现服务、选定目标 serviceId、请求报价、发起调用，并轮询到终态 receipt。",
+    "签发 agent credential 之后，client 可以发现服务、选定目标 serviceId、直接发起调用。invoke() 内部自动完成 quote → invoke → 轮询，一行代码搞定。",
   sdkTsDirectTitle: "已知 serviceId 时可直接调用",
   sdkTsDirectDescription:
-    "如果运行时已经从 discovery cache、配置中心或前一次控制面步骤里拿到了稳定 serviceId，就可以直接 quote + invoke，不需要每次都重新 discover。",
+    "如果运行时已经从 discovery cache、配置中心或前一次控制面步骤里拿到了稳定 serviceId，直接调用 invoke() 即可。SDK 内部处理报价，无需额外步骤。",
   sdkTsStarterTitle: "官方免费 starter services",
   sdkTsStarterDescription:
     "Synapse 会逐步把 Synapse-Network-Sdk 仓库里的参考接口发布成平台官方免费 starter services，方便 SDK smoke test、demo 和第一次调用时零成本接入。",
@@ -427,8 +427,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "使用已颁发的 credential token 创建客户端。",
     "发现可用服务。",
     "按文本搜索服务。",
-    "在调用前先拿到价格报价。",
-    "执行完整 quote -> invoke -> settle 流程。",
+    "在需要时手动获取价格报价（通常无需直接调用，invoke() 会自动处理）。",
+    "一次调用完成 quote → invoke → settle 全流程。",
     "基于已有 quoteId 直接发起调用。",
     "查询指定 invocation receipt。",
     "轮询直到调用进入终态。",
@@ -510,7 +510,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "同一个 owner auth client 可以签发带额度窗口、调用次数上限和 rpm ceiling 的 Agent Credential，然后把 token 交给 runtime client。",
   sdkPyInvokeTitle: "发现并调用服务",
   sdkPyInvokeDescription:
-    "runtime client 先 discover 服务，再 quote、invoke，并轮询 invocation receipt 直到进入终态。",
+    "runtime client 先 discover 服务，然后直接 invoke。invoke() 内部自动处理 quote、调用和轮询 receipt。",
   sdkPyVerifyEyebrow: "验证链",
   sdkPyVerifyTitle: "验证整条链路",
   sdkPyVerifyDescription:
@@ -577,7 +577,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "通过已颁发的 credential token 创建运行时客户端。",
     "发现可用服务列表。",
     "通过关键词搜索服务。",
-    "在调用前获取价格报价。",
+    "在需要时手动获取价格报价（通常无需直接调用，invoke() 会自动处理）。",
     "执行 quote → invoke → settle，轮询至终态。",
     "拉取指定调用的 receipt。",
   ],
