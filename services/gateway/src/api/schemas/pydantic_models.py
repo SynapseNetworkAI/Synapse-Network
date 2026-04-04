@@ -115,6 +115,18 @@ class CredentialQuotaUpdateRequest(BaseModel):
     expiration: Optional[int] = None
 
 
+class CredentialUpdateRequest(BaseModel):
+    """Full credential update — name + all quota fields."""
+
+    name: Optional[str] = None
+    maxCalls: Optional[int] = None
+    rpm: Optional[int] = None
+    expiresAt: Optional[int] = None
+    creditLimit: Optional[float] = None
+    resetInterval: Optional[str] = None
+    expiration: Optional[int] = None
+
+
 class InferenceRequest(BaseModel):
     prompt: Optional[str] = None
     serviceId: Optional[str] = None

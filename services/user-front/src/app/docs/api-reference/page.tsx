@@ -661,8 +661,7 @@ const FLOW_STEPS = [
   { n: 2, label: "POST /verify", phase: "auth", hint: "→ JWT" },
   { n: 3, label: "POST /credentials", phase: "manage", hint: "→ token" },
   { n: 4, label: "GET /discover", phase: "discover", hint: "→ serviceId" },
-  { n: 5, label: "POST /quotes", phase: "invoke", hint: "→ quote_id" },
-  { n: 6, label: "POST /invocations", phase: "invoke", hint: "→ result" },
+  { n: 5, label: "POST /api/v1/agent/invoke", phase: "invoke", hint: "→ result" },
 ];
 
 const FLOW_CLR: Record<string, string> = {
@@ -682,7 +681,7 @@ function AgentQuickstart() {
       >
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-[#6eb6f6]">Agent Quickstart</span>
-          <span className="text-[12px] text-[#71767b]">Complete M2M flow — 6 API calls</span>
+          <span className="text-[12px] text-[#71767b]">Complete M2M flow — 5 API calls</span>
         </div>
         {open ? <ChevronDown size={14} className="text-[#4e535a] shrink-0" /> : <ChevronRight size={14} className="text-[#4e535a] shrink-0" />}
       </button>
