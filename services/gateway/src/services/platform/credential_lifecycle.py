@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from src.api.schemas.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
+from src.domain.identity import CredentialPatch
 from src.services.platform.credential_service import (
     CredentialRuntimeSeed,
     _build_credential_response,
@@ -159,9 +160,7 @@ async def revoke_credential_for_owner(
 
         updated = clone_runtime_credential(
             found,
-            status="revoked",
-            updated_at=now_dt_str(),
-            revoked_at=now,
+            CredentialPatch(status="revoked", updated_at=now_dt_str(), revoked_at=now),
         )
         rows[index] = updated
         save_credential_rows(storage, rows)
@@ -206,13 +205,14 @@ async def rotate_credential_for_owner(
 
         updated = clone_runtime_credential(
             found,
-            secret_hash=hash_token(plain_token),
-            secret_prefix=token_prefix(plain_token),
-            status="active",
-            issued_at=now_str,
-            updated_at=now_str,
-            revoked_at=None,
-            clear_revoked_at=True,
+            CredentialPatch(
+                secret_hash=hash_token(plain_token),
+                secret_prefix=token_prefix(plain_token),
+                status="active",
+                issued_at=now_str,
+                updated_at=now_str,
+                clear_revoked_at=True,
+            ),
         )
         rows[index] = updated
         save_credential_rows(storage, rows)
@@ -294,8 +294,7 @@ def _update_if_present(
         normalized_value = resolve_reset_interval(value)
         return clone_runtime_credential(
             record,
-            reset_interval=normalized_value,
-            updated_at=now_dt_str(),
+            CredentialPatch(reset_interval=normalized_value, updated_at=now_dt_str()),
         )
 
     if field in {"maxCalls", "rpm", "expiresAt", "expiration"}:
@@ -315,14 +314,14 @@ def _update_if_present(
         if should_raise:
             raise HTTPException(status_code=400, detail={"code": code, "message": message})
 
-    clone_map: Dict[str, Dict[str, Any]] = {
-        "maxCalls": {"max_calls": value},
-        "rpm": {"rpm": value},
-        "expiresAt": {"expires_at": value},
-        "creditLimit": {"credit_limit": value},
-        "expiration": {"expiration": value},
+    field_to_kwarg: dict[str, str] = {
+        "maxCalls": "max_calls",
+        "rpm": "rpm",
+        "expiresAt": "expires_at",
+        "creditLimit": "credit_limit",
+        "expiration": "expiration",
     }
-    return clone_runtime_credential(record, updated_at=now_dt_str(), **clone_map[field])
+    return clone_runtime_credential(record, CredentialPatch(updated_at=now_dt_str(), **{field_to_kwarg[field]: value}))
 
 
 async def update_credential_quota_for_owner(

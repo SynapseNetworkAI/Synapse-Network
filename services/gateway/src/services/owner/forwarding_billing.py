@@ -333,8 +333,9 @@ def _charge_and_mark_usage_atomic(
     if idx >= 0:
         updated_credential = credential_service.clone_runtime_credential(
             rows[idx],
-            calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
-            updated_at=now,
+            credential_service.CredentialPatch(
+                calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
+            ),
         )
         rows[idx] = updated_credential
         credential_service.save_credential_rows(storage, rows)
@@ -385,8 +386,9 @@ async def _charge_and_mark_usage_fallback(
         if idx >= 0:
             updated_credential = credential_service.clone_runtime_credential(
                 rows[idx],
-                calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
-                updated_at=now,
+                credential_service.CredentialPatch(
+                    calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
+                ),
             )
             rows[idx] = updated_credential
             credential_service.save_credential_rows(storage, rows)
@@ -431,7 +433,8 @@ async def rollback_charge(
         if idx >= 0:
             rows[idx] = credential_service.clone_runtime_credential(
                 rows[idx],
-                calls_used=max(0, int(rows[idx].metadata.calls_used or 0) - 1),
-                updated_at=credential_service.now_ts(),
+                credential_service.CredentialPatch(
+                    calls_used=max(0, int(rows[idx].metadata.calls_used or 0) - 1),
+                ),
             )
             credential_service.save_credential_rows(storage, rows)

@@ -41,6 +41,11 @@ Recommended split for backend services:
 - Prefer explicit domain models over loose `dict[str, Any]` payloads for long-lived business data.
 - When a storage layer persists structured records, model those records as typed objects instead of passing ad-hoc JSON-shaped dictionaries through the service stack.
 - Keep field names, aliases, and error semantics stable unless the contract change is intentional and documented.
+- **No bare `dict[str, Any]` in internal service function signatures or as mutation specs.** When a function requires more than 4 optional kwargs representing a logical update, define a typed Pydantic model as the patch/update object (e.g. `CredentialPatch`) and pass it as a single argument. See `src/domain/identity.py:CredentialPatch` for the established pattern.
+
+## File Size Discipline
+
+- **Any file exceeding 500 lines must be split** before adding new functionality. Extract a focused sub-module that owns a single responsibility (e.g. lifecycle CRUD, billing helpers, record builders). Preserve backwards compatibility via re-exports in the original file. See `forwarding_service.py` → `forwarding_budget.py` + `forwarding_records.py`, `credential_service.py` → `credential_lifecycle.py` for examples.
 
 ## Finance and Safety
 

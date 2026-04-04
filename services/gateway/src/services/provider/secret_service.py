@@ -207,9 +207,7 @@ async def revoke_provider_secret_for_owner(
 
         rows[index] = credential_service.clone_runtime_credential(
             found,
-            status="revoked",
-            updated_at=now_dt_str(),
-            revoked_at=now,
+            credential_service.CredentialPatch(status="revoked", updated_at=now_dt_str(), revoked_at=now),
         )
         save_provider_secret_rows(storage, rows)
 
