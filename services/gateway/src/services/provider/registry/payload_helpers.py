@@ -522,7 +522,7 @@ def service_lifecycle_status(service: ServiceDefinitionRecord) -> str:
 
 
 def is_deleted_service(service: ServiceDefinitionRecord) -> bool:
-    return service_lifecycle_status(service) == "deleted"
+    return service_lifecycle_status(service) in {"deleted", "archived"}
 
 
 def history_window_hours(hours: Optional[int], days: Optional[int]) -> tuple[int, int]:
