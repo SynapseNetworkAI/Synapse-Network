@@ -347,9 +347,26 @@ const docsPage: I18nMessages["docsPage"] = {
     "The TypeScript SDK authenticates an owner wallet with challenge / sign / verify, then reuses the JWT to fetch balances or issue credentials.",
   sdkTsDepositDescription:
     "After calling SynapseCore.deposit onchain, register the txHash with the gateway and confirm the indexed deposit so the balance becomes spendable.",
-  sdkTsInvokeTitle: "Issue a credential and invoke a service",
+  sdkTsDiscoverTitle: "Discover services first",
+  sdkTsDiscoverDescription:
+    "The canonical consumer path is discover -> select serviceId -> quote -> invoke. Discover gives the runtime structured service records instead of hardcoded API endpoints.",
+  sdkTsInvokeTitle: "Issue a credential and invoke through discovery",
   sdkTsInvokeDescription:
-    "Credential issuance and paid runtime invocation stay in one flow. The client discovers services, requests a quote, invokes, and polls the terminal receipt.",
+    "Once you issue an agent credential, the client can discover services, pick a target serviceId, request a quote, invoke the service, and poll the terminal receipt in one runtime flow.",
+  sdkTsDirectTitle: "Known serviceId? Call it directly",
+  sdkTsDirectDescription:
+    "If your runtime already has a stable serviceId from discovery cache, config, or a previous control-plane step, you can quote and invoke directly without rerunning discovery on every call.",
+  sdkTsStarterTitle: "Official free starter services",
+  sdkTsStarterDescription:
+    "Synapse will progressively publish free starter interfaces sourced from the Synapse-Network-Sdk repository. They are intended as zero-cost discovery targets for SDK smoke tests, demos, and first invocations.",
+  sdkTsStarterBullets: [
+    "Use discover() to find currently available free starter services at runtime.",
+    "Treat serviceId as the stable runtime key once discovery has selected the target.",
+    "The Synapse-Network-Sdk repository is the canonical source for those starter interfaces and examples.",
+  ],
+  sdkTsVerificationTitle: "How to verify the full consumer flow",
+  sdkTsVerificationDescription:
+    "A complete consumer acceptance run should prove discovery, quote, invoke, receipt, and balance deduction. The TypeScript SDK E2E suite now checks both discovery-selected calls and direct serviceId calls.",
   sdkConsumerQuickStartTitle: "Consumer quick start",
   sdkConsumerQuickStartDescription:
     "Authenticate with a wallet, issue a credential, and invoke a service in three steps.",

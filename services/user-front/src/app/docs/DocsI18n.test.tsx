@@ -118,6 +118,9 @@ describe("docs multilingual surfaces", () => {
     expect(screen.getAllByRole("heading", { name: "TypeScript SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Python SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Smart Contracts" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Discover services first" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Known serviceId? Call it directly" })).toBeTruthy();
+    expect(screen.getByText(/official free starter services/i)).toBeTruthy();
   });
 
   it("renders docs 404 in Chinese", async () => {

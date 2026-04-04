@@ -19,7 +19,6 @@ export default function DocsSidebar() {
   const navTree = getDocsNavTree(
     tList("docsPage.sidebarSectionLabels"),
     tList("docsPage.sidebarItemLabels"),
-    t("docsPage.sidebarSoon"),
   );
   // Start all sections open
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});

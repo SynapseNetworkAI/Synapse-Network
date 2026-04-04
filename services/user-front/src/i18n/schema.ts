@@ -884,8 +884,17 @@ export type I18nMessages = {
     sdkTsAuthTitle: string;
     sdkTsAuthDescription: string;
     sdkTsDepositDescription: string;
+    sdkTsDiscoverTitle: string;
+    sdkTsDiscoverDescription: string;
     sdkTsInvokeTitle: string;
     sdkTsInvokeDescription: string;
+    sdkTsDirectTitle: string;
+    sdkTsDirectDescription: string;
+    sdkTsStarterTitle: string;
+    sdkTsStarterDescription: string;
+    sdkTsStarterBullets: string[];
+    sdkTsVerificationTitle: string;
+    sdkTsVerificationDescription: string;
     sdkConsumerQuickStartTitle: string;
     sdkConsumerQuickStartDescription: string;
     sdkDiscoveryTitle: string;

@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 async function main() {
-  const repoRoot = path.resolve(__dirname, "..", "..");
+  const repoRoot = path.resolve(__dirname, "..", "..", "..");
   const configPath = path.join(repoRoot, "apps/frontend/src/contract-config.json");
   const routerAbiPath = path.join(repoRoot, "apps/frontend/src/SynapseCoreABI.json");
   const usdcAbiPath = path.join(repoRoot, "apps/frontend/src/MockUSDCABI.json");

@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 async function main() {
-    const repoRoot = path.resolve(__dirname, "..", "..");
+    const repoRoot = path.resolve(__dirname, "..", "..", "..");
     const configPath = path.join(repoRoot, "services/user-front/src/contract-config.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     
