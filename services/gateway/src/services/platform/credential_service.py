@@ -23,6 +23,7 @@ from src.domain.identity import (
     AgentCredentialRecord,
     AgentProfileRecord,
     BudgetPolicyRecord,
+    CredentialPatch,
     OwnerAccountRecord,
     RuntimeCredentialRecord,
 )
@@ -283,46 +284,20 @@ def build_runtime_credential_record(seed: CredentialRuntimeSeed) -> RuntimeCrede
 
 def clone_runtime_credential(
     record: RuntimeCredentialRecord,
-    *,
-    calls_used: Optional[int] = None,
-    status: Optional[str] = None,
-    secret_hash: Optional[str] = None,
-    secret_prefix: Optional[str] = None,
-    credit_limit: Optional[float] = None,
-    rpm: Optional[int] = None,
-    max_calls: Optional[int] = None,
-    reset_interval: Optional[str] = None,
-    expiration: Optional[int] = None,
-    expires_at: Optional[int] = None,
-    issued_at: Optional[str] = None,
-    updated_at: Optional[str] = None,
-    revoked_at: Optional[int] = None,
-    clear_revoked_at: bool = False,
+    patch: CredentialPatch,
 ) -> RuntimeCredentialRecord:
     metadata = _metadata_state(record)
     policy = _policy_state(record)
-    effective_updated_at = to_dt_str(updated_at, now_dt_str())
-    effective_calls_used = int(metadata.calls_used or 0)
-    if calls_used is not None:
-        effective_calls_used = calls_used
-    effective_max_calls = int(metadata.max_calls or 0)
-    if max_calls is not None:
-        effective_max_calls = max_calls
-    effective_reset_interval = str(metadata.reset_interval or "daily")
-    if reset_interval is not None:
-        effective_reset_interval = reset_interval
-    effective_expiration = metadata.expiration
-    if expiration is not None:
-        effective_expiration = expiration
-    effective_credit_limit = policy.lifetime_cap_usdc
-    if credit_limit is not None:
-        effective_credit_limit = Decimal(str(round(credit_limit, 6)))
-    effective_rpm = policy.rpm_limit
-    if rpm is not None:
-        effective_rpm = rpm
-    effective_expires_at = _dt_str_to_epoch(record.credential.expires_at)
-    if expires_at is not None:
-        effective_expires_at = expires_at
+    effective_updated_at = to_dt_str(patch.updated_at, now_dt_str())
+    effective_calls_used = patch.calls_used if patch.calls_used is not None else int(metadata.calls_used or 0)
+    effective_max_calls = patch.max_calls if patch.max_calls is not None else int(metadata.max_calls or 0)
+    effective_reset_interval = patch.reset_interval if patch.reset_interval is not None else str(metadata.reset_interval or "daily")
+    effective_expiration = patch.expiration if patch.expiration is not None else metadata.expiration
+    effective_credit_limit = (
+        Decimal(str(round(patch.credit_limit, 6))) if patch.credit_limit is not None else policy.lifetime_cap_usdc
+    )
+    effective_rpm = patch.rpm if patch.rpm is not None else policy.rpm_limit
+    effective_expires_at = patch.expires_at if patch.expires_at is not None else _dt_str_to_epoch(record.credential.expires_at)
 
     return record.model_copy(
         update={
@@ -330,14 +305,14 @@ def clone_runtime_credential(
             "agent": record.agent.model_copy(update={"updated_at": effective_updated_at}),
             "credential": record.credential.model_copy(
                 update={
-                    "secret_hash": secret_hash or record.credential.secret_hash,
-                    "secret_prefix": secret_prefix or record.credential.secret_prefix,
-                    "status": status or record.credential.status,
-                    "issued_at": issued_at or record.credential.issued_at,
+                    "secret_hash": patch.secret_hash or record.credential.secret_hash,
+                    "secret_prefix": patch.secret_prefix or record.credential.secret_prefix,
+                    "status": patch.status or record.credential.status,
+                    "issued_at": patch.issued_at or record.credential.issued_at,
                     "expires_at": to_dt_str(effective_expires_at),
                     "revoked_at": None
-                    if clear_revoked_at
-                    else (str(revoked_at) if revoked_at is not None else record.credential.revoked_at),
+                    if patch.clear_revoked_at
+                    else (str(patch.revoked_at) if patch.revoked_at is not None else record.credential.revoked_at),
                     "last_used_at": effective_updated_at,
                 }
             ),

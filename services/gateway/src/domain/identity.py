@@ -101,3 +101,24 @@ class RuntimeCredentialRecord(BaseModel):
     credential: AgentCredentialRecord
     policy: Optional[BudgetPolicyRecord] = None
     metadata: Optional[CredentialMetadataState] = None
+
+
+class CredentialPatch(BaseModel):
+    """Partial update applied by clone_runtime_credential. All fields are optional."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    calls_used: Optional[int] = None
+    status: Optional[str] = None
+    secret_hash: Optional[str] = None
+    secret_prefix: Optional[str] = None
+    credit_limit: Optional[float] = None
+    rpm: Optional[int] = None
+    max_calls: Optional[int] = None
+    reset_interval: Optional[str] = None
+    expiration: Optional[int] = None
+    expires_at: Optional[int] = None
+    issued_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    revoked_at: Optional[int] = None
+    clear_revoked_at: bool = False
