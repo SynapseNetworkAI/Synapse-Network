@@ -6,7 +6,7 @@ import contextlib
 import time
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 import pytest
 
@@ -75,7 +75,7 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, plan: Optional[Dict[str, Any]] = None):
+    def __init__(self, plan: Optional[dict[str, Any]] = None):
         plan = plan or {}
         self.cursor_obj = FakeCursor(
             fetchone_queue=plan.get("fetchone"),
@@ -99,11 +99,11 @@ class FakeConnection:
 
 class FakeDB:
     def __init__(self):
-        self.readonly_plan: List[Dict[str, Any]] = []
-        self.tx_plan: List[Dict[str, Any]] = []
+        self.readonly_plan: List[dict[str, Any]] = []
+        self.tx_plan: List[dict[str, Any]] = []
         self.readonly_cursors: List[FakeCursor] = []
         self.tx_cursors: List[FakeCursor] = []
-        self.connect_plan: List[Dict[str, Any]] = []
+        self.connect_plan: List[dict[str, Any]] = []
         self.connections: List[FakeConnection] = []
 
     @contextlib.contextmanager
@@ -1316,7 +1316,7 @@ def test_balance_redis_guard_accepts_typed_deposit_rows_for_replay_check() -> No
         def __init__(self):
             self.audit_calls = []
 
-        def _append_financial_audit(self, action: str, owner_wallet: str, details: Dict[str, Any]) -> None:
+        def _append_financial_audit(self, action: str, owner_wallet: str, details: dict[str, Any]) -> None:
             self.audit_calls.append((action, owner_wallet, details))
 
         def _parse_created_at_epoch(self, value: Any) -> int:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from threading import Lock
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
@@ -18,7 +18,7 @@ _RECONCILIATION_ERROR_CODE = "INDEXER_RECONCILIATION_FAILED"
 _WEB3_INSTANCE: Any = None
 _TRANSFER_TOPIC: Optional[str] = None
 
-INDEXER_STATUS: Dict[str, Any] = {
+INDEXER_STATUS: dict[str, Any] = {
     "running": False,
     "listenerAddress": normalize_wallet(settings.router_address),
     "lastCounters": {"credited": 0, "failed": 0, "pending": 0},
@@ -43,7 +43,7 @@ INDEXER_STATUS: Dict[str, Any] = {
     },
 }
 
-TOKEN_DECIMALS_CACHE: Dict[str, int] = {}
+TOKEN_DECIMALS_CACHE: dict[str, int] = {}
 
 
 def get_web3_class():
@@ -87,7 +87,7 @@ def _to_public_error_code(value: Any, default_code: str) -> Optional[str]:
     return default_code
 
 
-def _public_status_snapshot() -> Dict[str, Any]:
+def _public_status_snapshot() -> dict[str, Any]:
     """生成对外暴露的状态副本，避免把内部异常原样泄露出去。"""
     snapshot = dict(INDEXER_STATUS)
     backfill = dict(snapshot.get("backfill") or {})
@@ -108,7 +108,7 @@ def _public_status_snapshot() -> Dict[str, Any]:
     return snapshot
 
 
-def get_indexer_status() -> Dict[str, Any]:
+def get_indexer_status() -> dict[str, Any]:
     """返回前端/管理端可读取的 indexer 运行状态。"""
     with lock:
         snapshot = _public_status_snapshot()

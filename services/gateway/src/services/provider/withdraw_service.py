@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional, cast
+from typing import Any, List, Literal, Optional, cast
 import asyncio
 from datetime import datetime, timezone
 import time
@@ -99,7 +99,7 @@ class ProviderWithdrawService(
         return super()._require_withdraw_signer()
 
     def _sign_withdraw_ticket(
-        self, typed_data: Dict[str, Any], private_key: str
+        self, typed_data: dict[str, Any], private_key: str
     ) -> str:
         if self._signing_delegate is not None:
             return self._signing_delegate._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
@@ -227,13 +227,13 @@ class ProviderWithdrawService(
 
     @staticmethod
     def _operation_context_metadata(
-        request_meta: Optional[Dict[str, Any]] = None,
+        request_meta: Optional[dict[str, Any]] = None,
     ) -> OperationContextMetadata:
         return OperationContextMetadata.model_validate(request_meta or {})
 
     @staticmethod
     def _withdrawal_ticket_metadata(
-        ticket_payload: Dict[str, Any],
+        ticket_payload: dict[str, Any],
     ) -> WithdrawalTicketMetadata:
         return WithdrawalTicketMetadata.model_validate(ticket_payload)
 
@@ -343,7 +343,7 @@ class ProviderWithdrawService(
         return None
 
     def _parse_withdraw_amount_usdc(
-        self, payload: Dict[str, Any], available: float
+        self, payload: dict[str, Any], available: float
     ) -> float:
         raw = payload.get("amountUsdc")
         if raw is None:
@@ -392,7 +392,7 @@ class ProviderWithdrawService(
             )
         return float(amount)
 
-    def _requested_withdraw_amount_for_hash(self, payload: Dict[str, Any]) -> Any:
+    def _requested_withdraw_amount_for_hash(self, payload: dict[str, Any]) -> Any:
         raw = payload.get("amountUsdc")
         if raw is None:
             return None
@@ -408,7 +408,7 @@ class ProviderWithdrawService(
         self,
         *,
         owner: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         available_receivable: float,
     ) -> WithdrawCreateContext:
         amount_usdc = self._parse_withdraw_amount_usdc(payload, available_receivable)
@@ -423,7 +423,7 @@ class ProviderWithdrawService(
             request_hash=request_hash,
         )
 
-    def _build_pending_withdraw_response(self, row: WithdrawalIntentRow) -> Dict[str, Any]:
+    def _build_pending_withdraw_response(self, row: WithdrawalIntentRow) -> dict[str, Any]:
         return {
             "withdrawalId": str(row.id or ""),
             "status": str(row.status or "REQUESTED"),
@@ -446,7 +446,7 @@ class ProviderWithdrawService(
 
     def _assert_withdrawal_completable(
         self, target: WithdrawalIntentRow, tx_hash: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         status = str(target.status or "").upper()
         if status == "COMPLETED":
             existing_tx = str(target.tx_hash or "")
@@ -679,7 +679,7 @@ class ProviderWithdrawService(
         )
 
     def _parse_withdraw_review_context(
-        self, request_meta: Optional[Dict[str, Any]]
+        self, request_meta: Optional[dict[str, Any]]
     ) -> tuple[str, str, str]:
         review_ctx = OperationContextMetadata.model_validate(request_meta or {}).review
         reviewer_address = (
@@ -702,8 +702,8 @@ class ProviderWithdrawService(
         amount_usdc: float,
         reviewer_address: str,
         reviewer_note: str,
-        request_meta: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         self._release_frozen_withdraw_to_available(owner, amount_usdc)
         now = int(time.time())
         now_text = now_dt_str()
@@ -743,8 +743,8 @@ class ProviderWithdrawService(
         amount_usdc: float,
         reviewer_address: str,
         reviewer_note: str,
-        request_meta: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         self._assert_withdraw_vault_liquidity(Decimal(str(amount_usdc)))
         ticket_payload = self._prepare_withdraw_ticket(
             owner=owner,
@@ -839,10 +839,10 @@ class ProviderWithdrawService(
         amount_usdc: float,
         idempotency_key: str,
         request_hash: str,
-        request_meta: Optional[Dict[str, Any]],
+        request_meta: Optional[dict[str, Any]],
         redis_client: Optional[Any],
         idem_rows: List[IdempotencyRow],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         request_id = str((request_meta or {}).get("requestId") or str(uuid4()))
         atomic_result = self.process_withdrawal_request(
             WithdrawalAtomicRequestCommand(
@@ -913,7 +913,7 @@ class ProviderWithdrawService(
         request_hash: str,
         redis_client: Optional[Any],
         idem_rows: List[IdempotencyRow],
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         pending = self._get_pending_withdrawal(rows, owner)
         if pending is None:
             return None
@@ -947,9 +947,9 @@ class ProviderWithdrawService(
         owner: str,
         amount_usdc: float,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]],
+        request_meta: Optional[dict[str, Any]],
         ticket_payload: PreparedWithdrawTicket,
-    ) -> tuple[WithdrawalIntentRow, Dict[str, Any]]:
+    ) -> tuple[WithdrawalIntentRow, dict[str, Any]]:
         now_text = now_dt_str()
         withdrawal_id = str(uuid4())
         status = (
@@ -996,11 +996,11 @@ class ProviderWithdrawService(
 
     async def create_provider_withdraw_intent(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
@@ -1104,7 +1104,7 @@ class ProviderWithdrawService(
 
     async def list_provider_withdrawals(
         self, owner_wallet: str
-    ) -> List[Dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
         rows = self._expire_stale_withdrawals(
@@ -1122,8 +1122,8 @@ class ProviderWithdrawService(
         self,
         owner_wallet: str,
         withdrawal_id: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_review"):
             await self._enforce_owner_write_rate_limit(
@@ -1197,8 +1197,8 @@ class ProviderWithdrawService(
         owner_wallet: str,
         withdrawal_id: str,
         tx_hash: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_complete"):
             await self._enforce_owner_write_rate_limit(

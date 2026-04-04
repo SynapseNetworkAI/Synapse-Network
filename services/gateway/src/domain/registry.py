@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -75,10 +75,10 @@ class ServiceRegistryRow(BaseModel):
     role: Optional[str] = None
     address: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    auth: Dict[str, Any] = Field(default_factory=dict)
-    health_check: Dict[str, Any] = Field(default_factory=dict, alias="healthCheck")
-    forwarding: Dict[str, Any] = Field(default_factory=dict)
-    metering: Dict[str, Any] = Field(default_factory=dict)
-    invoke: Dict[str, Any] = Field(default_factory=dict)
+    auth: dict[str, Any] = Field(default_factory=dict)
+    health_check: dict[str, Any] = Field(default_factory=dict, alias="healthCheck")
+    forwarding: dict[str, Any] = Field(default_factory=dict)
+    metering: dict[str, Any] = Field(default_factory=dict)
+    invoke: dict[str, Any] = Field(default_factory=dict)
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")

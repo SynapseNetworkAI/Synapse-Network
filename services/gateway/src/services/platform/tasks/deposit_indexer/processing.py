@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
@@ -27,14 +27,14 @@ from .persistence import (
 from .shared import logger
 
 
-def _mark_intent_failed(intent: Dict[str, Any], reason: str, now: int) -> None:
+def _mark_intent_failed(intent: dict[str, Any], reason: str, now: int) -> None:
     """把 intent 标记为失败，并记录失败原因。"""
     intent["status"] = "FAILED"
     intent["failureReason"] = reason
     intent["updatedAt"] = to_dt_str(now, now_dt_str()) or now_dt_str()
 
 
-def _extract_intent_fields(intent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _extract_intent_fields(intent: dict[str, Any]) -> Optional[dict[str, Any]]:
     """抽取充值确认所需的最小字段集合。"""
     tx_hash = _normalize_tx_hash(str(intent.get("txHash") or ""))
     owner_wallet = normalize_wallet(str(intent.get("ownerAddress") or ""))
@@ -49,8 +49,8 @@ def _extract_intent_fields(intent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def _repair_confirmed_intent_if_needed(
-    storage: BaseStorage, intent: Dict[str, Any]
-) -> Dict[str, Any]:
+    storage: BaseStorage, intent: dict[str, Any]
+) -> dict[str, Any]:
     """修复历史脏数据：intent 已确认，但余额仍卡在 pending。"""
     if not hasattr(storage, "confirm_deposit_intent_atomic"):
         return {"result": "skip"}
@@ -83,8 +83,8 @@ def _repair_confirmed_intent_if_needed(
 
 
 def _build_deposit_confirmation_context(
-    intent: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
+    intent: dict[str, Any],
+) -> Optional[dict[str, Any]]:
     """构造 intent 链上确认所需的上下文。"""
     intent_fields = _extract_intent_fields(intent)
     if not intent_fields:
@@ -102,8 +102,8 @@ def _resolve_deposit_receipt_state(
     owner_wallet: str,
     min_amount_usdc: float,
     now: int,
-    intent: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
+    intent: dict[str, Any],
+) -> Optional[dict[str, Any]]:
     """判断链上交易是否已确认且能匹配到合法 deposit 事件。"""
     tx_receipt = _get_confirmed_receipt_or_none(tx_hash)
     if tx_receipt is None:
@@ -130,8 +130,8 @@ def _resolve_deposit_receipt_state(
 
 
 def _resolve_event_key_or_mark_duplicate(
-    intent: Dict[str, Any],
-    matched: Dict[str, Any],
+    intent: dict[str, Any],
+    matched: dict[str, Any],
     processed_keys: set[str],
     now: int,
 ) -> str:
@@ -148,14 +148,14 @@ def _resolve_event_key_or_mark_duplicate(
 def _apply_confirmed_balance_to_ledger(
     *,
     storage: BaseStorage,
-    intent: Dict[str, Any],
+    intent: dict[str, Any],
     owner_wallet: str,
     event_key: str,
     confirmations: int,
     ledger: BalanceLedger,
     amount_usdc: float,
     now: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """应用余额变更，优先走数据库原子确认路径。"""
     if hasattr(storage, "confirm_deposit_intent_atomic"):
         try:
@@ -194,13 +194,13 @@ def _apply_confirmed_balance_to_ledger(
 def _apply_confirmed_deposit(
     *,
     storage: BaseStorage,
-    intent: Dict[str, Any],
-    context: Dict[str, Any],
-    tx_state: Dict[str, Any],
+    intent: dict[str, Any],
+    context: dict[str, Any],
+    tx_state: dict[str, Any],
     processed_keys: set[str],
     ledger: BalanceLedger,
     now: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """把链上已确认的 deposit 应用到系统账本和审计。"""
     matched = tx_state["matched"]
     tx_receipt = tx_state["tx_receipt"]
@@ -271,11 +271,11 @@ def _apply_confirmed_deposit(
 
 def _process_single_intent(
     storage: BaseStorage,
-    intent: Dict[str, Any],
+    intent: dict[str, Any],
     processed_keys: set[str],
     ledger: BalanceLedger,
     now: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """处理单条充值 intent 的状态推进。"""
     status = str(intent.get("status") or "PENDING_CONFIRMATION").upper()
     if status == "CONFIRMED":
@@ -312,7 +312,7 @@ def _process_single_intent(
 
 
 def _accumulate_outcome_counts(
-    outcome: Dict[str, Any], counters: Dict[str, int]
+    outcome: dict[str, Any], counters: dict[str, int]
 ) -> None:
     """把单条处理结果折叠进轮次计数器。"""
     result = str(outcome.get("result") or "skip")
@@ -327,7 +327,7 @@ def _accumulate_outcome_counts(
 
 
 def _apply_outcome_flags(
-    outcome: Dict[str, Any],
+    outcome: dict[str, Any],
     *,
     changed_intents: bool,
     changed_ledger: bool,
@@ -344,7 +344,7 @@ def _apply_outcome_flags(
 def _persist_processing_changes(
     storage: BaseStorage,
     *,
-    intents: List[Dict[str, Any]],
+    intents: List[dict[str, Any]],
     processed_keys: set[str],
     ledger: BalanceLedger,
     changed_intents: bool,
@@ -361,8 +361,8 @@ def _persist_processing_changes(
 
 
 def _find_intent_by_tx_owner(
-    intents: List[Dict[str, Any]], tx_hash: str, owner_wallet: str
-) -> Optional[Dict[str, Any]]:
+    intents: List[dict[str, Any]], tx_hash: str, owner_wallet: str
+) -> Optional[dict[str, Any]]:
     """按 txHash + owner 定位对应的 deposit intent。"""
     owner = normalize_wallet(owner_wallet)
     tx = _normalize_tx_hash(tx_hash)
@@ -382,7 +382,7 @@ def _find_intent_by_tx_owner(
 
 def _build_recovery_intent(
     tx_hash: str, owner_wallet: str, amount_usdc: float, event_key: str, now: int
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """为链上已存在但本地缺失的充值构造补账 intent。"""
     now_text = to_dt_str(now, now_dt_str()) or now_dt_str()
     return {

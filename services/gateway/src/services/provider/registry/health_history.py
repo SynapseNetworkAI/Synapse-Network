@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .interfaces import RegistryContext
 from .payload_helpers import (
@@ -21,7 +21,7 @@ async def service_health_history(
     limit_per_target: int,
     hours: Optional[int] = None,
     days: Optional[int] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     service_row = find_owned_service(rows, service_record_id, owner_wallet)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from src.domain.service_contract import ServiceDefinitionRecord
 
@@ -11,7 +11,7 @@ from .discovery_helpers import query_match_score, service_health_score
 SETTLED_USAGE_STATUSES = {"accepted", "succeeded"}
 
 
-def normalized_usage_row(raw: Any) -> Dict[str, Any]:
+def normalized_usage_row(raw: Any) -> dict[str, Any]:
     if isinstance(raw, dict):
         return raw
     if hasattr(raw, "model_dump"):
@@ -22,34 +22,34 @@ def normalized_usage_row(raw: Any) -> Dict[str, Any]:
     return {}
 
 
-def usage_status(row: Dict[str, Any]) -> str:
+def usage_status(row: dict[str, Any]) -> str:
     return str(row.get("status") or "").strip().lower()
 
 
-def usage_business_type(row: Dict[str, Any]) -> str:
+def usage_business_type(row: dict[str, Any]) -> str:
     return str(row.get("businessType") or row.get("business_type") or "charge").strip().lower()
 
 
-def usage_request_id(row: Dict[str, Any]) -> str:
+def usage_request_id(row: dict[str, Any]) -> str:
     return str(row.get("requestId") or row.get("request_id") or row.get("id") or "").strip()
 
 
-def usage_ts(row: Dict[str, Any]) -> int:
+def usage_ts(row: dict[str, Any]) -> int:
     try:
         return int(row.get("ts") or 0)
     except Exception:
         return 0
 
 
-def usage_consumer(row: Dict[str, Any]) -> str:
+def usage_consumer(row: dict[str, Any]) -> str:
     return str(row.get("consumerAddress") or "").strip().lower()
 
 
-def usage_service_id(row: Dict[str, Any]) -> str:
+def usage_service_id(row: dict[str, Any]) -> str:
     return str(row.get("serviceId") or row.get("service_id") or "").strip()
 
 
-def usage_total_charge(row: Dict[str, Any]) -> Decimal:
+def usage_total_charge(row: dict[str, Any]) -> Decimal:
     raw = (
         row.get("totalCharge")
         or row.get("total_charge")
@@ -65,8 +65,8 @@ def usage_total_charge(row: Dict[str, Any]) -> Decimal:
         return Decimal("0")
 
 
-def settled_usage_metrics(raw_rows: Any) -> tuple[Dict[str, Dict[str, Any]], Dict[str, int]]:
-    dedup_by_request_id: Dict[str, Dict[str, Any]] = {}
+def settled_usage_metrics(raw_rows: Any) -> tuple[dict[str, dict[str, Any]], dict[str, int]]:
+    dedup_by_request_id: dict[str, dict[str, Any]] = {}
     status_counts: Counter[str] = Counter()
 
     if not isinstance(raw_rows, list):
@@ -93,9 +93,9 @@ def settled_usage_metrics(raw_rows: Any) -> tuple[Dict[str, Dict[str, Any]], Dic
     return dedup_by_request_id, dict(status_counts)
 
 
-def service_usage_metrics(raw_rows: Any) -> Dict[str, Dict[str, Any]]:
+def service_usage_metrics(raw_rows: Any) -> dict[str, dict[str, Any]]:
     dedup_by_request_id, _ = settled_usage_metrics(raw_rows)
-    metrics: Dict[str, Dict[str, Any]] = {}
+    metrics: dict[str, dict[str, Any]] = {}
 
     for row in dedup_by_request_id.values():
         service_id = usage_service_id(row)
@@ -122,7 +122,7 @@ def service_usage_metrics(raw_rows: Any) -> Dict[str, Dict[str, Any]]:
 
 def console_sort_metric_tuple(
     svc: ServiceDefinitionRecord,
-    usage_metrics: Dict[str, Dict[str, Any]],
+    usage_metrics: dict[str, dict[str, Any]],
 ) -> tuple[int, Decimal, float]:
     metrics = usage_metrics.get(str(svc.service_id or ""), {})
     return (
@@ -134,7 +134,7 @@ def console_sort_metric_tuple(
 
 def sorted_console_discovery_services(
     services: List[ServiceDefinitionRecord],
-    usage_metrics: Dict[str, Dict[str, Any]],
+    usage_metrics: dict[str, dict[str, Any]],
     intent: Optional[str],
     sort_by: str,
     sort_order: str,

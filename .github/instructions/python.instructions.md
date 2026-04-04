@@ -42,6 +42,7 @@ Recommended split for backend services:
 - When a storage layer persists structured records, model those records as typed objects instead of passing ad-hoc JSON-shaped dictionaries through the service stack.
 - Keep field names, aliases, and error semantics stable unless the contract change is intentional and documented.
 - **No bare `dict[str, Any]` in internal service function signatures or as mutation specs.** When a function requires more than 4 optional kwargs representing a logical update, define a typed Pydantic model as the patch/update object (e.g. `CredentialPatch`) and pass it as a single argument. See `src/domain/identity.py:CredentialPatch` for the established pattern.
+- **Use built-in generic types, not `typing` aliases.** Python 3.9+ allows `dict[str, ...]`, `list[...]`, `tuple[...]`, `set[...]` directly. Never import or use `typing.Dict`, `typing.List`, `typing.Tuple`, `typing.Set`. Use `from __future__ import annotations` at the top of the file to support this even in older forward-reference contexts.
 
 ## File Size Discipline
 

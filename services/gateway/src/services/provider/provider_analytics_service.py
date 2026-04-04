@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, List
 
 from src.core.common import normalize_wallet
 from src.domain.finance import UsageLogRow
@@ -45,8 +45,8 @@ class ProviderAnalyticsService:
 
     def _deduplicate_by_request_id(
         self, rows: List[UsageLogRow]
-    ) -> tuple[Dict[str, UsageLogRow], int]:
-        dedup: Dict[str, UsageLogRow] = {}
+    ) -> tuple[dict[str, UsageLogRow], int]:
+        dedup: dict[str, UsageLogRow] = {}
         duplicate_dropped = 0
         for row in rows:
             request_id = self._row_request_id(row)
@@ -63,7 +63,7 @@ class ProviderAnalyticsService:
         return dedup, duplicate_dropped
 
     def _settled_rows(
-        self, dedup_rows: Dict[str, UsageLogRow]
+        self, dedup_rows: dict[str, UsageLogRow]
     ) -> List[UsageLogRow]:
         settled = [
             row
@@ -88,7 +88,7 @@ class ProviderAnalyticsService:
 
     def _to_recent_calls(
         self, settled: List[UsageLogRow], limit: int
-    ) -> List[Dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         return [
             {
                 "requestId": self._row_request_id(row),
@@ -108,7 +108,7 @@ class ProviderAnalyticsService:
 
     def get_provider_earnings_summary(
         self, owner_wallet: str, limit: int = 200
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build idempotent provider summary using request_id deduplication for succeeded provider calls."""
         owner = normalize_wallet(owner_wallet)
         provider_rows = self._provider_rows(owner)

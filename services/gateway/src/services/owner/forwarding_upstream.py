@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any
 import hashlib
 import hmac
 import json
@@ -47,7 +47,7 @@ def _parse_target_weight(raw_weight: Any) -> int:
 def normalized_weighted_targets(
     invoke: ServiceInvokeConfigRecord,
     allowed_target_urls: set[str] | None = None,
-) -> Tuple[list[str], list[int]]:
+) -> tuple[list[str], list[int]]:
     """Normalize upstream targets and validate routing weights for weighted random selection."""
     normalized_targets: list[str] = []
     normalized_weights: list[int] = []

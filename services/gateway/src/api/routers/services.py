@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
-from typing import Optional, Dict, Any, List, Annotated, Union
+from typing import Optional, Any, List, Annotated, Union
 from uuid import uuid4
 from src.api.deps import get_registry_service
 from src.api.schemas.pydantic_models import AgentDiscoverySearchRequest
@@ -21,7 +21,7 @@ router = APIRouter()
 AuthorizationHeader = Annotated[Optional[str], Header(alias="Authorization")]
 UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
 
-REGISTRATION_GUIDE_FIELDS: List[Dict[str, Any]] = [
+REGISTRATION_GUIDE_FIELDS: List[dict[str, Any]] = [
     {
         "key": "serviceName",
         "required": True,
@@ -115,7 +115,7 @@ class RetryPolicySpec(BaseModel):
 class ForwardingSpec(BaseModel):
     requestIdHeader: str = "X-Synapse-Request-Id"
     passThroughHeaders: List[str] = Field(default_factory=list)
-    injectHeaders: Dict[str, str] = Field(default_factory=dict)
+    injectHeaders: dict[str, str] = Field(default_factory=dict)
     retryPolicy: RetryPolicySpec = Field(default_factory=RetryPolicySpec)
 
 
@@ -138,8 +138,8 @@ class InvokeMethod(BaseModel):
     timeoutMs: int = settings.gateway_default_timeout_ms
     request: dict
     response: dict
-    headersTemplate: Dict[str, str] = Field(default_factory=dict)
-    examples: List[Dict[str, Any]] = Field(default_factory=list)
+    headersTemplate: dict[str, str] = Field(default_factory=dict)
+    examples: List[dict[str, Any]] = Field(default_factory=list)
 
 
 class ProviderProfileSpec(BaseModel):
@@ -169,7 +169,7 @@ class RegisterServiceRequest(BaseModel):
     summary: str = ""
     tags: List[str] = Field(default_factory=list)
     status: str = "active"
-    auth: Dict[str, Any] = Field(default_factory=dict)
+    auth: dict[str, Any] = Field(default_factory=dict)
     providerProfile: Optional[ProviderProfileSpec] = None
     payoutAccount: Optional[PayoutAccountSpec] = None
     governance: Optional[GovernanceSpec] = None
@@ -200,7 +200,7 @@ class RegisterServiceRequest(BaseModel):
 class ParseCurlRequest(BaseModel):
     curlCommand: str
     model: Optional[str] = None
-    currentManifest: Optional[Dict[str, Any]] = None
+    currentManifest: Optional[dict[str, Any]] = None
 
 
 @router.get("/v1/services/discover")
@@ -378,7 +378,7 @@ async def register_service(
 @router.put("/v1/services/{service_record_id}")
 async def update_service(
     service_record_id: str,
-    req: Dict[str, Any],
+    req: dict[str, Any],
     service: RegistryService = Depends(get_registry_service),
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,

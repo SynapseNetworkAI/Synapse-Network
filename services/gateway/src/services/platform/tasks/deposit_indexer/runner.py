@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict
+from typing import Any
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
@@ -47,7 +47,7 @@ from .shared import (
 )
 
 
-def _validated_replay_receipt_or_raise(normalized_tx: str) -> Dict[str, Any]:
+def _validated_replay_receipt_or_raise(normalized_tx: str) -> dict[str, Any]:
     """校验重放目标交易必须已确认且 receipt 完整。"""
     tx_state = _get_confirmed_receipt_or_none(normalized_tx)
     if tx_state is None:
@@ -63,14 +63,14 @@ def _validated_replay_receipt_or_raise(normalized_tx: str) -> Dict[str, Any]:
 def _process_replay_event(
     storage: BaseStorage,
     *,
-    intents: list[Dict[str, Any]],
+    intents: list[dict[str, Any]],
     processed_keys: set[str],
     ledger: BalanceLedger,
     normalized_tx: str,
-    event: Dict[str, Any],
-    summary: Dict[str, Any],
+    event: dict[str, Any],
+    summary: dict[str, Any],
     now: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """处理管理员 replay 流中的单个链上事件。"""
     owner_wallet = normalize_wallet(str(event.get("ownerAddress") or ""))
     if not owner_wallet:
@@ -104,7 +104,7 @@ def _process_replay_event(
 
 def replay_deposit_tx(
     storage: BaseStorage, tx_hash: str, requested_by: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """管理员按 txHash 强制重放一笔充值交易。"""
     normalized_tx = _normalize_tx_hash(tx_hash)
     if not normalized_tx:
@@ -184,7 +184,7 @@ def replay_deposit_tx(
     return summary
 
 
-def process_pending_deposit_intents_once(storage: BaseStorage) -> Dict[str, int]:
+def process_pending_deposit_intents_once(storage: BaseStorage) -> dict[str, int]:
     """单轮处理所有待确认 intent，是最终一致性的主入口。"""
     now = _now()
     counters = {"credited": 0, "failed": 0, "pending": 0}

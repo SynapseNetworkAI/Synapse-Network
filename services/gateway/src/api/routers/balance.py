@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
-from typing import Dict, Any, Annotated, Optional
+from typing import Any, Annotated, Optional
 
 from src.api.deps import get_balance_service, get_provider_analytics_service
 from src.api.schemas.pydantic_models import (
@@ -45,7 +45,7 @@ def get_owner_wallet(
     return credential_service.require_owner_wallet(authorization, x_user_address)
 
 
-def _extract_request_meta(request: Request) -> Dict[str, Any]:
+def _extract_request_meta(request: Request) -> dict[str, Any]:
     client_host = request.client.host if request.client else ""
     return {
         "requestId": request.headers.get("X-Request-Id") or "",
@@ -209,8 +209,8 @@ def _build_usage_logs_response(
 
 
 def _normalize_fee_policy_payload(
-    payload: Dict[str, Any], default_fallback: float
-) -> Dict[str, Any]:
+    payload: dict[str, Any], default_fallback: float
+) -> dict[str, Any]:
     default_rate = _clamp_rate(payload.get("defaultRate"), default_fallback)
     owner_rates_raw = payload.get("ownerRates")
     if owner_rates_raw is None:
@@ -218,7 +218,7 @@ def _normalize_fee_policy_payload(
     if not isinstance(owner_rates_raw, dict):
         raise ValueError("ownerRates must be an object")
 
-    owner_rates: Dict[str, float] = {}
+    owner_rates: dict[str, float] = {}
     for key, value in owner_rates_raw.items():
         owner = normalize_wallet(str(key or ""))
         if not owner:
@@ -747,7 +747,7 @@ async def get_fee_policy(
     },
 )
 async def set_fee_policy(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("fee_policy.write"))],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):

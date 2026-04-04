@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 import asyncio
 import time
 from uuid import uuid4
@@ -112,7 +112,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     @staticmethod
     def _deposit_sync_status_from_row(
         tx_hash: str, row: Optional[DepositIntentRow]
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         normalized_tx_hash = str(tx_hash or "").strip().lower()
         if row is None:
             return {
@@ -202,7 +202,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             return None
         return self._normalize_tx_hash_or_raise(tx_hash)
 
-    def _require_deposit_attempt_id(self, payload: Dict[str, Any]) -> str:
+    def _require_deposit_attempt_id(self, payload: dict[str, Any]) -> str:
         attempt_id = str(payload.get("attemptId") or "").strip()
         if not attempt_id:
             raise HTTPException(
@@ -215,7 +215,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return attempt_id
 
     def _request_meta_value(
-        self, request_meta: Optional[Dict[str, Any]], key: str
+        self, request_meta: Optional[dict[str, Any]], key: str
     ) -> Optional[str]:
         value = str((request_meta or {}).get(key) or "").strip()
         return value or None
@@ -223,13 +223,13 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _build_deposit_attempt_row(
         self,
         *,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         owner: str,
         attempt_id: str,
         amount_usdc: Decimal,
         stage: str,
         tx_hash: Optional[str],
-        request_meta: Optional[Dict[str, Any]],
+        request_meta: Optional[dict[str, Any]],
     ) -> DepositAttemptRow:
         now_text = now_dt_str()
         return DepositAttemptRow(
@@ -247,7 +247,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             updatedAt=now_text,
         )
 
-    def _serialize_deposit_attempt_row(self, saved: Any) -> Dict[str, Any]:
+    def _serialize_deposit_attempt_row(self, saved: Any) -> dict[str, Any]:
         if isinstance(saved, DepositAttemptRow):
             return saved.model_dump(by_alias=True, mode="json")
         if isinstance(saved, dict):
@@ -263,10 +263,10 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def record_deposit_attempt(
         self,
         *,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         owner_wallet: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         attempt_id = self._require_deposit_attempt_id(payload)
         amount_usdc = self._parse_deposit_attempt_amount(payload.get("amountUsdc"))
@@ -330,7 +330,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         )
 
     def _parse_refund_amount_usdc(
-        self, payload: Dict[str, Any], available: float
+        self, payload: dict[str, Any], available: float
     ) -> float:
         raw = payload.get("amountUsdc")
         try:
@@ -388,7 +388,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             return row
         return None
 
-    def _build_pending_refund_response(self, row: RefundIntentRow) -> Dict[str, Any]:
+    def _build_pending_refund_response(self, row: RefundIntentRow) -> dict[str, Any]:
         return {
             "refundId": str(row.id or ""),
             "signature": str(row.signature or ""),
@@ -401,7 +401,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "message": str(row.message or ""),
         }
 
-    def _parse_refund_origin(self, payload: Dict[str, Any]) -> RefundOriginRef:
+    def _parse_refund_origin(self, payload: dict[str, Any]) -> RefundOriginRef:
         origin_request_id = str(payload.get("originRequestId") or "").strip()
         origin_tx_hash = str(payload.get("originTxHash") or "").strip().lower()
         if not origin_request_id and not origin_tx_hash:
@@ -419,7 +419,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             tx_hash=origin_tx_hash,
         )
 
-    def _validate_refund_destination(self, owner: str, payload: Dict[str, Any]) -> None:
+    def _validate_refund_destination(self, owner: str, payload: dict[str, Any]) -> None:
         destination = str(payload.get("destinationAddress") or "").strip().lower()
         if destination and normalize_wallet(destination) != owner:
             raise HTTPException(
@@ -430,7 +430,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 },
             )
 
-    def _resolve_refund_type(self, payload: Dict[str, Any]) -> str:
+    def _resolve_refund_type(self, payload: dict[str, Any]) -> str:
         refund_type = str(payload.get("refundType") or REFUND_AUTO_TYPE).strip().upper()
         if refund_type not in {REFUND_AUTO_TYPE, REFUND_MANUAL_TYPE}:
             raise HTTPException(
@@ -461,7 +461,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         owner: str,
         origin: RefundOriginRef,
         rows: List[RefundIntentRow],
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         refundable_total = self._sum_refundable_usage_total(owner=owner, origin=origin)
         consumed = self._sum_consumed_refunds(owner=owner, origin=origin, rows=rows)
         return {
@@ -507,7 +507,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         self,
         *,
         owner: str,
-        origin: Dict[str, str],
+        origin: dict[str, str],
         rows: List[RefundIntentRow],
         now: int,
     ) -> bool:
@@ -527,7 +527,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _classify_refund_risk(
         self, *, amount_usdc: float, refund_type: str, abnormal_split: bool
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         if abnormal_split:
             return {
                 "status": "PENDING_MANUAL_REVIEW",
@@ -593,7 +593,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     def _assert_refund_completable(
         self, target: RefundIntentRow, tx_hash: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         status = str(target.status or "").upper()
         if status == "COMPLETED":
             existing_tx = str(target.tx_hash or "")
@@ -661,9 +661,9 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         owner: str,
         idempotency_key: str,
         request_hash: str,
-        response: Dict[str, Any],
+        response: dict[str, Any],
         redis_client: Optional[Any],
-        idem_rows: List[Dict[str, Any]],
+        idem_rows: List[dict[str, Any]],
     ) -> None:
         if redis_client is None:
             self._record_idempotent_response(
@@ -691,8 +691,8 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         idempotency_key: str,
         request_hash: str,
         redis_client: Optional[Any],
-        idem_rows: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        idem_rows: List[dict[str, Any]],
+    ) -> dict[str, Any]:
         pending_amount = round(float(pending.amount_usdc or 0.0), 6)
         if pending_amount != amount_usdc:
             raise HTTPException(
@@ -714,7 +714,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return response
 
     def _parse_refund_create_context(
-        self, payload: Dict[str, Any], owner: str, available_balance: float
+        self, payload: dict[str, Any], owner: str, available_balance: float
     ) -> RefundCreateContext:
         amount_usdc = self._parse_refund_amount_usdc(payload, available_balance)
         reason = str(payload.get("reason") or "").strip()
@@ -768,7 +768,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         origin: RefundOriginRef,
         rows: List[RefundIntentRow],
         amount_usdc: float,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         limits = self._compute_refund_origin_limits(
             owner=owner, origin=origin, rows=rows
         )
@@ -811,7 +811,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         self._save_balance_ledger(ledger)
 
     def _parse_refund_review_context(
-        self, request_meta: Optional[Dict[str, Any]]
+        self, request_meta: Optional[dict[str, Any]]
     ) -> RefundReviewContext:
         review_ctx = OperationContextMetadata.model_validate(request_meta or {}).review
         reviewer_address = (
@@ -834,8 +834,8 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         amount_usdc: float,
         reviewer_address: str,
         reviewer_note: str,
-        request_meta: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         self._release_locked_refund_to_available(owner, amount_usdc)
         now = int(time.time())
         target.status = "REJECTED"
@@ -873,8 +873,8 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         review_decision: str,
         reviewer_address: str,
         reviewer_note: str,
-        request_meta: Optional[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+        request_meta: Optional[dict[str, Any]],
+    ) -> Optional[dict[str, Any]]:
         if review_decision not in {"APPROVE", "REJECT"}:
             raise HTTPException(
                 status_code=400,
@@ -914,8 +914,8 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         status_before: str,
         reviewer_address: str,
         reviewer_note: str,
-        request_meta: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
         now = int(time.time())
         target.status = "COMPLETED"
         target.tx_hash = normalized_tx_hash
@@ -953,7 +953,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         owner: str,
         idempotency_key: str,
         request_hash: str,
-    ) -> tuple[Optional[Dict[str, Any]], Optional[Any], List[Dict[str, Any]]]:
+    ) -> tuple[Optional[dict[str, Any]], Optional[Any], List[dict[str, Any]]]:
         redis_client = await self._get_redis_client()
         redis_hit = await self._check_idempotency_redis(
             scope="deposit_intent",
@@ -980,7 +980,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             if redis_retry is not None:
                 return redis_retry, redis_client, []
 
-        idem_rows: List[Dict[str, Any]] = []
+        idem_rows: List[dict[str, Any]] = []
         if redis_client is None:
             idem_rows = self._load_idempotency_rows()
             idem_hit = self._try_get_idempotent_response(
@@ -1043,11 +1043,11 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         deposit_intent_id: str,
         event_key: str,
         confirmations: int,
-        request_meta: Optional[Dict[str, Any]],
+        request_meta: Optional[dict[str, Any]],
         confirmed_row: Optional[DepositIntentRow] = None,
         moved: Optional[DepositBalanceMove] = None,
     ) -> None:
-        details: Dict[str, Any] = {
+        details: dict[str, Any] = {
             "businessType": "deposit",
             "depositIntentId": deposit_intent_id,
             "eventKey": event_key,
@@ -1109,7 +1109,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     def _parse_deposit_intent_draft(
         self,
         *,
-        intent: Dict[str, Any],
+        intent: dict[str, Any],
         owner: str,
     ) -> DepositIntentDraft:
         tx_hash = self._normalize_tx_hash_or_raise(str(intent.get("txHash") or ""))
@@ -1190,8 +1190,8 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         deposit_intent_id: str,
         event_key: str,
         confirmations: int,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:deposit_confirm"):
             await self._enforce_owner_write_rate_limit(owner, "deposit_confirm")
@@ -1249,11 +1249,11 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     async def register_deposit_intent(
         self,
-        intent: Dict[str, Any],
+        intent: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:deposit_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
@@ -1343,7 +1343,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     async def get_deposit_sync_status(
         self, owner_wallet: str, tx_hash: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         await asyncio.sleep(0)
         rows = self._load_deposit_intents()
         target = self._find_deposit_intent_by_tx_hash(rows, owner_wallet, tx_hash)
@@ -1351,11 +1351,11 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     async def process_refund_intent(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
@@ -1400,7 +1400,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 if redis_retry is not None:
                     return redis_retry
 
-            idem_rows: List[Dict[str, Any]] = []
+            idem_rows: List[dict[str, Any]] = []
             if redis_client is None:
                 idem_rows = self._load_idempotency_rows()
                 idem_hit = self._try_get_idempotent_response(
@@ -1510,7 +1510,7 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             )
             return response
 
-    async def list_refunds(self, owner_wallet: str) -> List[Dict[str, Any]]:
+    async def list_refunds(self, owner_wallet: str) -> List[dict[str, Any]]:
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
         rows = self._load_refund_rows()
@@ -1527,8 +1527,8 @@ class OwnerFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         owner_wallet: str,
         refund_id: str,
         tx_hash: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_complete"):
             await self._enforce_owner_write_rate_limit(owner, "refund_complete")

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -34,7 +34,7 @@ def execution_repo(storage: BaseStorage) -> Any:
 # Request fingerprinting
 # ---------------------------------------------------------------------------
 
-def payload_digest(payload: Dict[str, Any]) -> str:
+def payload_digest(payload: dict[str, Any]) -> str:
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -50,7 +50,7 @@ def _quote_expiration_seconds(service: ServiceDefinitionRecord) -> int:
 def build_service_quote(
     service: ServiceDefinitionRecord,
     credential: RuntimeCredentialRecord,
-    request_payload: Dict[str, Any],
+    request_payload: dict[str, Any],
     unit_price: float,
     response_mode: str = "sync",
 ) -> ServiceQuoteRecord:
@@ -92,7 +92,7 @@ def build_invocation_record(
     credential: RuntimeCredentialRecord,
     quote: ServiceQuoteRecord,
     idempotency_key: str,
-    request_payload: Dict[str, Any],
+    request_payload: dict[str, Any],
 ) -> InvocationRecord:
     created_at = now_dt_str()
     endpoint_id = service.primary_endpoint.endpoint_id if service.primary_endpoint is not None else None

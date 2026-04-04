@@ -6,7 +6,7 @@ import secrets
 import time
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional
 from uuid import uuid4
 
 import jwt  # type: ignore[import-untyped]
@@ -352,7 +352,7 @@ def find_runtime_credential_index(
     )
 
 
-def _build_credential_response(record: RuntimeCredentialRecord) -> Dict[str, Any]:
+def _build_credential_response(record: RuntimeCredentialRecord) -> dict[str, Any]:
     credit_limit = credential_credit_limit(record)
     return {
         "id": record.credential.credential_id,
@@ -375,8 +375,8 @@ def _build_credential_response(record: RuntimeCredentialRecord) -> Dict[str, Any
 
 
 def _normalize_system_audit_details(
-    action: str, details: Dict[str, Any]
-) -> Dict[str, Any]:
+    action: str, details: dict[str, Any]
+) -> dict[str, Any]:
     normalized = dict(details)
 
     secret_id = normalized.get("secretId")
@@ -405,7 +405,7 @@ def _normalize_system_audit_details(
 
 
 def append_audit_log(
-    storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]
+    storage: BaseStorage, action: str, owner_wallet: str, details: dict[str, Any]
 ) -> None:
     normalized_details = _normalize_system_audit_details(action, details)
     storage.get_data_manager().audit.logs.append_audit_row(
@@ -422,8 +422,8 @@ def append_audit_log(
 
 def read_audit_log(
     storage: BaseStorage, owner_wallet: str, limit: int
-) -> List[Dict[str, Any]]:
-    result: List[Dict[str, Any]] = []
+) -> List[dict[str, Any]]:
+    result: List[dict[str, Any]] = []
     try:
         audit_repo = storage.get_data_manager().audit.logs
         if hasattr(audit_repo, "read_system_audit_rows"):
@@ -516,7 +516,7 @@ def resolve_active_credential(
 
 def list_credentials_by_owner(
     storage: BaseStorage, owner_wallet: str
-) -> List[Dict[str, Any]]:
+) -> List[dict[str, Any]]:
     rows = load_credential_rows(storage)
     visible = [
         _build_credential_response(row)
@@ -533,9 +533,9 @@ def list_credentials_by_owner(
 
 def list_secrets_by_owner(
     storage: BaseStorage, owner_wallet: str
-) -> List[Dict[str, Any]]:
+) -> List[dict[str, Any]]:
     rows = load_credential_rows(storage)
-    result: List[Dict[str, Any]] = []
+    result: List[dict[str, Any]] = []
     for row in rows:
         if credential_owner_wallet(row) != owner_wallet:
             continue

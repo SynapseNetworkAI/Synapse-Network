@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from src.domain.service_contract import AgentDiscoveryQueryRecord, PublicServiceDiscoveryRecord
 from src.services.platform import service_health_service
@@ -67,7 +67,7 @@ async def discover_services(
     public_gateway_url: Optional[str] = None,
     sort_by: str = "best_match",
     sort_order: str = "desc",
-) -> List[Dict[str, Any]]:
+) -> List[dict[str, Any]]:
     usage_metrics = service_usage_metrics(
         context.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
     )
@@ -78,7 +78,7 @@ async def discover_services(
         sort_by=sort_by,
         sort_order=sort_order,
     )
-    result: List[Dict[str, Any]] = []
+    result: List[dict[str, Any]] = []
     for row in public_services:
         payload = row.model_dump(by_alias=True, exclude_none=True)
         metrics = usage_metrics.get(str(row.service_id or ""), {})
@@ -88,7 +88,7 @@ async def discover_services(
     return result
 
 
-async def public_network_stats(context: RegistryContext) -> Dict[str, Any]:
+async def public_network_stats(context: RegistryContext) -> dict[str, Any]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     registered_services = [
@@ -175,10 +175,10 @@ async def count_agent_discovery_results(
     return len(scoped_services)
 
 
-async def list_owner_services(context: RegistryContext, owner_wallet: str) -> List[Dict[str, Any]]:
+async def list_owner_services(context: RegistryContext, owner_wallet: str) -> List[dict[str, Any]]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
-    owner_rows: List[Dict[str, Any]] = []
+    owner_rows: List[dict[str, Any]] = []
     for svc in rows:
         if svc.owner_address != owner_wallet or is_deleted_service(svc):
             continue
@@ -198,7 +198,7 @@ async def health_status(
     context: RegistryContext,
     intent: Optional[str] = None,
     include_inactive: bool = False,
-) -> List[Dict[str, Any]]:
+) -> List[dict[str, Any]]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     scoped = []

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
@@ -49,7 +49,7 @@ def _read_chain_vault_balance_usdc() -> float:
     return _amount_usdc_from_raw(raw_balance, decimals=decimals)
 
 
-def run_reconciliation_check_once(storage: BaseStorage) -> Dict[str, Any]:
+def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
     """对账：比较链上 vault 余额与平台账本义务是否一致。"""
     if not bool(settings.v2_reconciliation_enabled):
         return {"enabled": False}
