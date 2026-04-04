@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from src.api.schemas.pydantic_models import CredentialIssueRequest
 from src.core.common import normalize_wallet
 from src.domain.identity import RuntimeCredentialRecord
-from src.services.platform import credential_service
+from src.services.platform import credential_lifecycle, credential_service
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
@@ -117,7 +117,7 @@ async def issue_provider_secret_for_owner(
     now = credential_service.now_ts()
     now_str = now_dt_str()
     max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = (
-        credential_service._validate_issue_request(req, now)
+        credential_lifecycle._validate_issue_request(req, now)
     )
 
     plain_token = credential_service.issue_token()
