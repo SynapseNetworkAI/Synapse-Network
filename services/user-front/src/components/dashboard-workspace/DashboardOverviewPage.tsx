@@ -9,7 +9,7 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import OverviewHero from "@/components/dashboard/overview/OverviewHero";
 import WorkflowSection from "@/components/dashboard/overview/WorkflowSection";
 import CapabilityCards from "@/components/dashboard/overview/CapabilityCards";
-import { RefreshCw, LayoutGrid, ShieldCheck, Zap, Layers, User, Bot, Server, Cpu } from "lucide-react";
+import { RefreshCw, LayoutGrid, Zap, Layers, User, Bot, Server, Cpu } from "lucide-react";
 
 export default function OverviewPage() {
   const { isConnected } = useAccount();

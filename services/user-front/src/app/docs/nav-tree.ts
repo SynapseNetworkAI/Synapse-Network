@@ -14,7 +14,7 @@ export interface NavSection {
 
 // href with no hash = the "page root" item for that route.
 // href with hash   = a sub-section anchor on that page.
-export function getDocsNavTree(sectionLabels: string[], itemLabels: string[], soonLabel: string): NavSection[] {
+export function getDocsNavTree(sectionLabels: string[], itemLabels: string[]): NavSection[] {
   return [
     {
       id: "overview",

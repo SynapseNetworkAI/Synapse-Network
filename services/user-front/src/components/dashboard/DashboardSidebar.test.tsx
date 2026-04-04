@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type React from "react";
 
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 
@@ -42,7 +43,21 @@ const TRANSLATIONS: Record<string, string> = {
 };
 
 vi.mock("next/link", () => ({
-  default: ({ href, onClick, onMouseEnter, onFocus, className, children }: any) => (
+  default: ({
+    href,
+    onClick,
+    onMouseEnter,
+    onFocus,
+    className,
+    children,
+  }: {
+    href: string | { pathname?: string };
+    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+    onMouseEnter?: React.MouseEventHandler<HTMLAnchorElement>;
+    onFocus?: React.FocusEventHandler<HTMLAnchorElement>;
+    className?: string;
+    children?: React.ReactNode;
+  }) => (
     <a
       href={typeof href === "string" ? href : href?.pathname}
       onClick={onClick}

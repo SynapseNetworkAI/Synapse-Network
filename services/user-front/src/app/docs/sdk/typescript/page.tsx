@@ -5,7 +5,16 @@ import { CodeBlock } from "../../components/CodeBlock";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useActiveSection } from "../../use-active-section";
 
-const PAGE_SECTIONS = ["sdk-ts"];
+const PAGE_SECTIONS = [
+  "sdk-ts-install",
+  "sdk-ts-auth",
+  "sdk-ts-discover",
+  "sdk-ts-invoke",
+  "sdk-ts-direct",
+  "sdk-ts-starter",
+  "sdk-ts-verify",
+  "sdk-ts-cheatsheet",
+];
 
 export default function TypeScriptSdkPage() {
   const { t, tList } = useLanguage();
@@ -31,7 +40,7 @@ export default function TypeScriptSdkPage() {
         <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkTsDescription")}</p>
       </section>
 
-      <section id="sdk-ts" className="space-y-4">
+      <section id="sdk-ts-install" className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkInstallTitle")}</h2>
         <p className="x-body-copy max-w-[660px]">{t("docsPage.sdkTsInstallDescription")}</p>
         <CodeBlock
@@ -42,7 +51,7 @@ yarn add @synapse-network/sdk ethers`}
         />
       </section>
 
-      <section className="space-y-4">
+      <section id="sdk-ts-auth" className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkTsAuthTitle")}</h2>
         <p className="x-body-copy max-w-[680px]">{t("docsPage.sdkTsAuthDescription")}</p>
         <CodeBlock
@@ -63,7 +72,7 @@ console.log(balance.consumerAvailableBalance);`}
         />
       </section>
 
-      <section className="space-y-4">
+      <section id="sdk-ts-deposit" className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkDepositTitle")}</h2>
         <p className="x-body-copy max-w-[680px]">{t("docsPage.sdkTsDepositDescription")}</p>
         <CodeBlock
@@ -82,7 +91,24 @@ await auth.confirmDeposit(intentId, eventKey);`}
         />
       </section>
 
-      <section className="space-y-4">
+      <section id="sdk-ts-discover" className="space-y-4">
+        <h2 className="x-section-title text-white">{t("docsPage.sdkTsDiscoverTitle")}</h2>
+        <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkTsDiscoverDescription")}</p>
+        <CodeBlock
+          lang="typescript"
+          code={`const services = await client.discover({ limit: 20 });
+const service = services.find((item) => (item.serviceId ?? item.id));
+
+if (!service) {
+  throw new Error("No discoverable services are available yet.");
+}
+
+const serviceId = service.serviceId ?? service.id!;
+console.log(serviceId, service.serviceName, service.summary);`}
+        />
+      </section>
+
+      <section id="sdk-ts-invoke" className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkTsInvokeTitle")}</h2>
         <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkTsInvokeDescription")}</p>
         <CodeBlock
@@ -102,7 +128,13 @@ const client = new SynapseClient({
 });
 
 const services = await client.discover({ limit: 20 });
-const serviceId = services[0]?.serviceId!;
+const service = services.find((item) => (item.serviceId ?? item.id));
+
+if (!service) {
+  throw new Error("No discoverable services are available yet.");
+}
+
+const serviceId = service.serviceId ?? service.id!;
 
 const quote = await client.quote(serviceId);
 const result = await client.invoke(
@@ -119,7 +151,49 @@ console.log(result.invocationId, result.status, result.chargedUsdc);`}
         />
       </section>
 
-      <section className="space-y-5">
+      <section id="sdk-ts-direct" className="space-y-4">
+        <h2 className="x-section-title text-white">{t("docsPage.sdkTsDirectTitle")}</h2>
+        <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkTsDirectDescription")}</p>
+        <CodeBlock
+          lang="typescript"
+          code={`const knownServiceId = process.env.SYNAPSE_SERVICE_ID!;
+
+const quote = await client.quote(knownServiceId);
+const result = await client.invoke(
+  knownServiceId,
+  { prompt: "hello" },
+  { idempotencyKey: "job-known-service-001" }
+);
+
+console.log(quote.quoteId, result.status);`}
+        />
+      </section>
+
+      <section id="sdk-ts-starter" className="space-y-4">
+        <h2 className="x-section-title text-white">{t("docsPage.sdkTsStarterTitle")}</h2>
+        <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkTsStarterDescription")}</p>
+        <ul className="space-y-3 text-[14px] leading-6 text-[#8b98a5]">
+          {tList("docsPage.sdkTsStarterBullets").map((item) => (
+            <li key={item} className="flex gap-3">
+              <span className="mt-[8px] h-[5px] w-[5px] shrink-0 rounded-full bg-[#7ff7be]" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section id="sdk-ts-verify" className="space-y-4">
+        <h2 className="x-section-title text-white">{t("docsPage.sdkTsVerificationTitle")}</h2>
+        <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkTsVerificationDescription")}</p>
+        <CodeBlock
+          lang="bash"
+          code={`cd /home/alex/Documents/cliff/Synapse-Network-Sdk/typescript
+npm run test:e2e
+npm run test:new-consumer`}
+        />
+      </section>
+
+      <section id="sdk-ts-cheatsheet" className="space-y-5">
         <h2 className="x-section-title text-white">{t("docsPage.sdkApiCheatsheetTitle")}</h2>
 
         <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">SynapseAuth</div>

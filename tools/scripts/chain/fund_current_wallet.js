@@ -20,7 +20,7 @@ async function main() {
     process.exit(1);
   }
 
-  const repoRoot = path.resolve(__dirname, "..", "..");
+  const repoRoot = path.resolve(__dirname, "..", "..", "..");
   const configPath = path.join(repoRoot, "apps", "frontend", "src", "contract-config.json");
 
   if (!fs.existsSync(configPath)) {

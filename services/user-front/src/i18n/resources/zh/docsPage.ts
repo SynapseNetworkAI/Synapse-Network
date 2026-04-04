@@ -344,9 +344,26 @@ const docsPage: I18nMessages["docsPage"] = {
     "TypeScript SDK 会处理 owner 钱包 challenge / sign / verify，并自动复用 JWT 来查询余额或继续签发 credential。",
   sdkTsDepositDescription:
     "链上调用 SynapseCore.deposit 之后，把 txHash 登记给 gateway，再确认 intent 入账，余额就会转成可消费状态。",
-  sdkTsInvokeTitle: "签发凭证并调用服务",
+  sdkTsDiscoverTitle: "先走服务发现",
+  sdkTsDiscoverDescription:
+    "Consumer 的标准主链是 discover -> 选定 serviceId -> quote -> invoke。discover 返回的是结构化服务记录，不是硬编码 API 端点。",
+  sdkTsInvokeTitle: "签发凭证，并通过 discovery 调用服务",
   sdkTsInvokeDescription:
-    "credential 签发和运行时调用处在同一条接入链里。client 负责 discover、quote、invoke，并轮询到终态 receipt。",
+    "签发 agent credential 之后，client 可以发现服务、选定目标 serviceId、请求报价、发起调用，并轮询到终态 receipt。",
+  sdkTsDirectTitle: "已知 serviceId 时可直接调用",
+  sdkTsDirectDescription:
+    "如果运行时已经从 discovery cache、配置中心或前一次控制面步骤里拿到了稳定 serviceId，就可以直接 quote + invoke，不需要每次都重新 discover。",
+  sdkTsStarterTitle: "官方免费 starter services",
+  sdkTsStarterDescription:
+    "Synapse 会逐步把 Synapse-Network-Sdk 仓库里的参考接口发布成平台官方免费 starter services，方便 SDK smoke test、demo 和第一次调用时零成本接入。",
+  sdkTsStarterBullets: [
+    "运行时优先通过 discover() 查当前可用的免费 starter services。",
+    "一旦 discovery 选定目标，就把 serviceId 当成稳定运行时主键。",
+    "Synapse-Network-Sdk 仓库是这些 starter interfaces 和示例代码的 canonical source。",
+  ],
+  sdkTsVerificationTitle: "如何验证完整 consumer 调用链",
+  sdkTsVerificationDescription:
+    "完整验收必须同时证明 discovery、quote、invoke、receipt 和余额扣减都成立。TypeScript SDK 的 E2E 现在会同时验证“discover 选服务调用”和“已知 serviceId 直调”两条路径。",
   sdkConsumerQuickStartTitle: "Consumer 快速开始",
   sdkConsumerQuickStartDescription: "完成钱包认证、颁发凭证和调用服务，只需要 3 步。",
   sdkDiscoveryTitle: "服务发现",

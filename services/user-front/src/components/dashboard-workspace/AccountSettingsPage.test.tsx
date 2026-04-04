@@ -110,10 +110,7 @@ vi.mock("@/utils/accountProfileApi", () => ({
 }));
 
 vi.mock("@/utils/walletSignature", () => ({
-  signWalletMessage: vi.fn(
-    async (_challenge: string, _walletAddress: string, _signMessageAsync: unknown) =>
-      "0xsigned"
-  ),
+  signWalletMessage: vi.fn(async () => "0xsigned"),
   isWalletUnstableError: (message: string) =>
     message.includes("reading 'raw'") || message.includes("Connector not connected"),
 }));
