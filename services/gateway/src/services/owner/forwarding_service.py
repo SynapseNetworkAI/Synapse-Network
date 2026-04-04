@@ -12,9 +12,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.api.schemas.pydantic_models import (
-    AgentInvocationRequest,
     AgentInvokeRequest,
-    AgentQuoteRequest,
     InferenceRequest,
 )
 from src.domain.execution import InvocationRecord, InvocationResultRecord, ServiceQuoteRecord
@@ -1087,77 +1085,6 @@ async def generate_response_v2(
     return _build_consumer_success_response(
         receipt, succeeded_invocation.result.payload
     )
-
-async def create_quote_v1(
-    storage: BaseStorage,
-    request: AgentQuoteRequest,
-    credential_token: Optional[str],
-    x_request_id: Optional[str],
-) -> dict[str, Any]:
-    token = _validate_credential_token(credential_token)
-    trace_request_id = _resolve_request_id(x_request_id)
-    credential = credential_service.resolve_active_credential(storage, token)
-    service = _find_active_service(storage, request.serviceId)
-    unit_price = _parse_service_price_usdc(service)
-    quote = _build_service_quote(
-        service,
-        credential,
-        {"inputPreview": request.inputPreview.model_dump(by_alias=True)},
-        unit_price,
-        response_mode=request.responseMode,
-    )
-    _persist_quote(storage, quote)
-    settlement, total_charge = _charge_amount_from_unit_price(
-        storage, _service_wallet(service), unit_price
-    )
-    budget_check = await _budget_check(storage, credential, total_charge)
-    _ = settlement
-    return _quote_response(trace_request_id, quote, budget_check)
-
-
-async def create_invocation_v1(
-    storage: BaseStorage,
-    request: AgentInvocationRequest,
-    credential_token: Optional[str],
-    x_request_id: Optional[str],
-) -> dict[str, Any]:
-    token = _validate_credential_token(credential_token)
-    credential = credential_service.resolve_active_credential(storage, token)
-    quote = _read_quote(storage, request.quoteId)
-    if quote.credential_id != credential.credential.credential_id:
-        raise HTTPException(
-            status_code=403,
-            detail={"code": "QUOTE_CREDENTIAL_MISMATCH", "message": "Quote does not belong to this credential"},
-        )
-    if _quote_is_expired(quote):
-        expired_quote = _quote_with_status(quote, "EXPIRED")
-        _persist_quote(storage, expired_quote)
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "QUOTE_EXPIRED", "message": "Quote has expired"},
-        )
-    if quote.status not in {"OPEN", "CONSUMED"}:
-        raise HTTPException(
-            status_code=409,
-            detail={"code": "QUOTE_NOT_INVOKABLE", "message": "Quote cannot be invoked"},
-        )
-
-    service = _find_active_service(storage, quote.service_id)
-    invoke_payload = request.payload.body
-    _validate_invoke_request_contract(service, invoke_payload)
-
-    trace_request_id = _resolve_request_id(x_request_id or request.idempotencyKey)
-    invocation, _, _ = await _execute_invocation_pipeline(
-        storage,
-        credential,
-        service,
-        quote,
-        invoke_payload,
-        request.idempotencyKey,
-        trace_request_id,
-    )
-    return _invocation_state_payload(invocation)
-
 
 def get_invocation_receipt_v1(
     storage: BaseStorage,

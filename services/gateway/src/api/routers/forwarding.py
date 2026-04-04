@@ -3,9 +3,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header
 
 from src.api.schemas.pydantic_models import (
-    AgentInvocationRequest,
     AgentInvokeRequest,
-    AgentQuoteRequest,
     InferenceRequest,
 )
 from src.services.owner import forwarding_service
@@ -29,30 +27,6 @@ async def generate_response_v2(
 ):
     return await forwarding_service.generate_response_v2(
         storage, request, x_service_id, x_credential, x_request_id
-    )
-
-
-@router.post("/v1/agent/quotes")
-async def create_agent_quote(
-    request: AgentQuoteRequest,
-    storage: StorageDep,
-    x_credential: CredentialHeader = None,
-    x_request_id: RequestIdHeader = None,
-):
-    return await forwarding_service.create_quote_v1(
-        storage, request, x_credential, x_request_id
-    )
-
-
-@router.post("/v1/agent/invocations")
-async def create_agent_invocation(
-    request: AgentInvocationRequest,
-    storage: StorageDep,
-    x_credential: CredentialHeader = None,
-    x_request_id: RequestIdHeader = None,
-):
-    return await forwarding_service.create_invocation_v1(
-        storage, request, x_credential, x_request_id
     )
 
 
