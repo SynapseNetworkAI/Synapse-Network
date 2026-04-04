@@ -343,7 +343,7 @@ async def test_health_status_uses_discovery_effective_runtime_state(monkeypatch)
     )
 
     monkeypatch.setattr(
-        "src.services.provider.registry.discovery.service_health_service._now_ms",
+        "src.services.platform.service_health_utils._now_ms",
         lambda: 1_000 + 121_000,
     )
 
