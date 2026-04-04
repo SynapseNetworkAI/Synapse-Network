@@ -112,6 +112,11 @@ async def update_service(
                 "schemaVersion",
             }
             safe_patch = {key: value for key, value in req_data.items() if key not in blocked}
+            # When isActive is explicitly set to False without a status override,
+            # inject "paused" so the merged payload does not inherit the existing
+            # "active" status — preventing service_lifecycle_status from returning "active".
+            if "isActive" in safe_patch and not safe_patch["isActive"] and "status" not in safe_patch:
+                safe_patch["status"] = "paused"
             updated_payload = {
                 **svc.model_dump(by_alias=True, mode="json"),
                 **safe_patch,
@@ -161,7 +166,7 @@ async def delete_service(
 
             deleted = svc.model_copy(
                 update={
-                    "status": "deleted",
+                    "status": "archived",
                     "is_active": False,
                     "updated_at": now_dt_str(),
                 }
