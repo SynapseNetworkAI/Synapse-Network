@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from src.core.config import settings
 
@@ -38,7 +38,7 @@ def normalize_service_row(row: Any) -> Any:
     if not path.startswith("/"):
         path = f"/{path}"
 
-    normalized: Dict[str, Any] = {
+    normalized: dict[str, Any] = {
         **row,
         "schemaVersion": int(row.get("schemaVersion") or 2),
         "name": service_name,

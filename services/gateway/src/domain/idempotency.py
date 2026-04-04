@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,7 +21,7 @@ class IdempotencyRow(BaseModel):
     owner_address: str = Field(default="", alias="ownerAddress")
     idempotency_key: str = Field(default="", alias="idempotencyKey")
     request_hash: str = Field(default="", alias="requestHash")
-    response: Optional[Dict[str, Any]] = None
+    response: Optional[dict[str, Any]] = None
     created_at: str = Field(default="", alias="createdAt")
     expires_at: int = Field(default=0, alias="expiresAt")
 

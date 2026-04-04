@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
@@ -37,7 +37,7 @@ def _topic_to_address(topic: Any) -> str:
 
 def _make_event_row(
     tx_hash: str, log_index: int, owner_wallet: str, amount_raw: int, token: str
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """把原始链上日志转换为统一的 deposit event 行。"""
     normalized_owner = normalize_wallet(owner_wallet)
     if not normalized_owner or amount_raw <= 0:
@@ -65,7 +65,7 @@ def _decode_amount_raw(data: Any) -> int:
 
 def _extract_router_event_rows(
     contract: Any, event_name: str, tx_receipt: Any, tx_hash: str
-) -> List[Dict[str, Any]]:
+) -> List[dict[str, Any]]:
     """从路由合约 receipt 中提取指定事件名的充值事件。"""
     event_cls = getattr(contract.events, event_name, None)
     if event_cls is None:
@@ -76,7 +76,7 @@ def _extract_router_event_rows(
     except Exception:
         return []
 
-    parsed: List[Dict[str, Any]] = []
+    parsed: List[dict[str, Any]] = []
     for row in rows:
         args = row.get("args", {})
         maybe_event = _make_event_row(
@@ -92,7 +92,7 @@ def _extract_router_event_rows(
     return parsed
 
 
-def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
+def _decode_router_deposit_events(tx_receipt: Any) -> List[dict[str, Any]]:
     """优先按 SynapseCore ABI 解码标准 deposit 事件。"""
     base_dir = os.path.abspath(__file__)
     candidate_paths = [
@@ -124,7 +124,7 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
         return []
 
     tx_hash = tx_receipt["transactionHash"].hex().lower()
-    events: List[Dict[str, Any]] = []
+    events: List[dict[str, Any]] = []
     for event_name in ("DepositInfo", "Deposit", "Deposited"):
         events.extend(
             _extract_router_event_rows(contract, event_name, tx_receipt, tx_hash)
@@ -132,13 +132,13 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[Dict[str, Any]]:
     return events
 
 
-def _decode_erc20_transfer_to_router(tx_receipt: Any) -> List[Dict[str, Any]]:
+def _decode_erc20_transfer_to_router(tx_receipt: Any) -> List[dict[str, Any]]:
     """当标准事件缺失时，退化为解析 ERC20 Transfer 到路由地址。"""
     router = normalize_wallet(settings.router_address)
     if not router or router == "0x0000000000000000000000000000000000000000":
         return []
 
-    events: List[Dict[str, Any]] = []
+    events: List[dict[str, Any]] = []
     tx_hash = tx_receipt["transactionHash"].hex().lower()
     web3_class = get_web3_class()
     transfer_topic = get_transfer_topic()
@@ -169,7 +169,7 @@ def _decode_erc20_transfer_to_router(tx_receipt: Any) -> List[Dict[str, Any]]:
     return events
 
 
-def _decode_deposit_events_from_receipt(tx_receipt: Any) -> List[Dict[str, Any]]:
+def _decode_deposit_events_from_receipt(tx_receipt: Any) -> List[dict[str, Any]]:
     """统一封装 receipt -> deposit events 的解码策略。"""
     events = _decode_router_deposit_events(tx_receipt)
     if not events:
@@ -215,11 +215,11 @@ def _resolve_token_decimals(token_address: str) -> int:
 
 
 def _pick_matching_event(
-    events: List[Dict[str, Any]], owner_wallet: str, min_amount_usdc: float
-) -> Optional[Dict[str, Any]]:
+    events: List[dict[str, Any]], owner_wallet: str, min_amount_usdc: float
+) -> Optional[dict[str, Any]]:
     """从候选事件中挑出属于 owner 且金额满足下限的最佳匹配。"""
     owner = normalize_wallet(owner_wallet)
-    candidate: Optional[Dict[str, Any]] = None
+    candidate: Optional[dict[str, Any]] = None
 
     for row in events:
         row_owner = normalize_wallet(str(row.get("ownerAddress", "")))
@@ -249,7 +249,7 @@ def _confirmations_for_receipt(tx_receipt: Any) -> int:
     return max(0, latest_block - block_number + 1)
 
 
-def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[Dict[str, Any]]:
+def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[dict[str, Any]]:
     """读取 receipt；未确认返回 None，失败交易返回 failed 标记。"""
     try:
         from web3.exceptions import TransactionNotFound
@@ -277,7 +277,7 @@ def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[Dict[str, Any]]:
 
 def _resolve_matched_event(
     tx_receipt: Any, owner_wallet: str, min_amount_usdc: float
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """从 receipt 中解出并匹配当前 intent 对应的 deposit 事件。"""
     return _pick_matching_event(
         _decode_deposit_events_from_receipt(tx_receipt), owner_wallet, min_amount_usdc

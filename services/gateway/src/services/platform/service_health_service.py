@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -30,7 +30,7 @@ def _runtime_health(service: ServiceDefinitionRecord) -> ServiceRuntimeHealthRec
     return ServiceRuntimeHealthRecord()
 
 
-def _target_health_map(service: ServiceDefinitionRecord) -> Dict[str, ServiceHealthTargetRecord]:
+def _target_health_map(service: ServiceDefinitionRecord) -> dict[str, ServiceHealthTargetRecord]:
     return {
         str(target.target_url): target
         for target in _runtime_health(service).targets
@@ -58,7 +58,7 @@ def build_probe_url(target_url: str, health_path: str) -> str:
     )
 
 
-def _health_check_config(service: ServiceDefinitionRecord) -> Dict[str, Any]:
+def _health_check_config(service: ServiceDefinitionRecord) -> dict[str, Any]:
     spec = service.health_check
     timeout_ms = int(spec.timeout_ms or settings.service_health_probe_timeout_ms)
     success_codes = list(spec.success_codes or [200])
@@ -77,7 +77,7 @@ def _service_targets(service: ServiceDefinitionRecord) -> List[ServiceInvokeTarg
     return [target for target in service.invoke.targets if str(target.url or "").strip()]
 
 
-def public_health_summary(service: ServiceDefinitionRecord) -> Dict[str, Any]:
+def public_health_summary(service: ServiceDefinitionRecord) -> dict[str, Any]:
     health = _runtime_health(service)
     raw_status = str(health.overall_status or "unknown")
     stale = is_health_stale(service)
@@ -170,7 +170,7 @@ def is_service_discoverable(service: ServiceDefinitionRecord) -> bool:
 def _service_health_row(
     service: ServiceDefinitionRecord,
     target: ServiceInvokeTargetRecord,
-    target_health: Dict[str, ServiceHealthTargetRecord],
+    target_health: dict[str, ServiceHealthTargetRecord],
 ) -> Optional[ServiceTargetHealth]:
     service_id = str(service.service_id or "").strip()
     if not service_id:
@@ -216,7 +216,7 @@ def _build_service_target_health_rows(
     return rows
 
 
-def _empty_persisted_health_bucket() -> Dict[str, Any]:
+def _empty_persisted_health_bucket() -> dict[str, Any]:
     return {
         "overallStatus": "unknown",
         "healthyTargets": 0,
@@ -226,7 +226,7 @@ def _empty_persisted_health_bucket() -> Dict[str, Any]:
     }
 
 
-def _target_health_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _target_health_payload(payload: dict[str, Any]) -> dict[str, Any]:
     row_last_checked = int(payload.get("lastCheckedAt") or 0)
     return {
         "status": str(payload.get("status") or "unknown"),
@@ -242,7 +242,7 @@ def _target_health_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _persisted_target_record(
-    target_url: str, target_payload: Dict[str, Any]
+    target_url: str, target_payload: dict[str, Any]
 ) -> ServiceHealthTargetRecord:
     return ServiceHealthTargetRecord(
         targetUrl=str(target_url),
@@ -260,7 +260,7 @@ def _persisted_target_record(
     )
 
 
-def _persisted_target_records(persisted: Dict[str, Any]) -> List[ServiceHealthTargetRecord]:
+def _persisted_target_records(persisted: dict[str, Any]) -> List[ServiceHealthTargetRecord]:
     return [
         _persisted_target_record(str(target_url), dict(target_payload or {}))
         for target_url, target_payload in dict(persisted.get("targets") or {}).items()
@@ -268,7 +268,7 @@ def _persisted_target_records(persisted: Dict[str, Any]) -> List[ServiceHealthTa
 
 
 def _merge_persisted_health_payload(
-    index: Dict[str, Dict[str, Any]], row: ServiceTargetHealth
+    index: dict[str, dict[str, Any]], row: ServiceTargetHealth
 ) -> None:
     service_id = str(row.service_id or "").strip()
     target_url = str(row.target_url or "").strip()
@@ -288,7 +288,7 @@ def _merge_persisted_health_payload(
         bucket["overallStatus"] = overall_status
 
 
-def _runtime_health_from_persisted_payload(persisted: Dict[str, Any]) -> ServiceRuntimeHealthRecord:
+def _runtime_health_from_persisted_payload(persisted: dict[str, Any]) -> ServiceRuntimeHealthRecord:
     return ServiceRuntimeHealthRecord(
         overallStatus=str(persisted.get("overallStatus") or "unknown"),
         healthyTargets=int(persisted.get("healthyTargets") or 0),
@@ -299,7 +299,7 @@ def _runtime_health_from_persisted_payload(persisted: Dict[str, Any]) -> Service
 
 
 def _seeded_service_health(
-    service: ServiceDefinitionRecord, persisted: Dict[str, Any] | None
+    service: ServiceDefinitionRecord, persisted: dict[str, Any] | None
 ) -> ServiceDefinitionRecord:
     if not persisted or _runtime_health(service).targets:
         return service
@@ -308,12 +308,12 @@ def _seeded_service_health(
     )
 
 
-def _load_persisted_target_health(storage: BaseStorage) -> Dict[str, Dict[str, Any]]:
+def _load_persisted_target_health(storage: BaseStorage) -> dict[str, dict[str, Any]]:
     rows = storage.get_data_manager().system.registry.read_service_target_health_rows()
     if not isinstance(rows, list):
         return {}
 
-    index: Dict[str, Dict[str, Any]] = {}
+    index: dict[str, dict[str, Any]] = {}
     for row in rows:
         if not isinstance(row, ServiceTargetHealth):
             continue
@@ -369,7 +369,7 @@ def _history_row_from_target(
     service: ServiceDefinitionRecord,
     target_url: str,
     target_status: ServiceHealthTargetRecord,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     checked_at = int(target_status.last_checked_at or _now_ms())
     return {
         "serviceId": str(service.service_id or "").strip(),
@@ -470,7 +470,7 @@ def _should_prune_history(now_ms: int) -> bool:
 
 def prune_health_history(
     storage: BaseStorage, valid_service_ids: Optional[set[str]] = None
-) -> Dict[str, int]:
+) -> dict[str, int]:
     existing: list[ServiceTargetHealthHistory] = list(
         storage.get_data_manager().system.registry.read_service_target_health_history_rows()
     )
@@ -498,7 +498,7 @@ async def _probe_target(
     method: str,
     timeout_sec: float,
     success_codes: List[int],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     started = time.perf_counter()
     http_status = None
     error = None
@@ -523,7 +523,7 @@ async def _probe_target(
 def _merge_target_health(
     previous: ServiceHealthTargetRecord | None,
     target: ServiceInvokeTargetRecord,
-    probe: Dict[str, Any],
+    probe: dict[str, Any],
     checked_at_ms: int,
     healthy_threshold: int,
     unhealthy_threshold: int,
@@ -654,7 +654,7 @@ async def probe_service_health(
             await async_client.aclose()
 
 
-async def refresh_all_service_health(storage: BaseStorage) -> Dict[str, int]:
+async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
     raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
     if isinstance(raw_rows, list):
         rows = [

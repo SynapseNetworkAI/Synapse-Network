@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, List
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
@@ -16,13 +16,13 @@ from .shared import _now
 _INDEXER_RUNTIME_STATE_KEY = "deposit_indexer_runtime_state"
 
 
-def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
+def _load_deposit_intents(storage: BaseStorage) -> List[dict[str, Any]]:
     """从存储层读取充值意图，并统一转换成 indexer 可变 dict。"""
     raw_rows = storage.get_data_manager().system.gateway_state.read_deposit_intents()
     if not isinstance(raw_rows, list):
         return []
 
-    normalized: List[Dict[str, Any]] = []
+    normalized: List[dict[str, Any]] = []
     for row in raw_rows:
         if isinstance(row, DepositIntentRow):
             normalized.append(row.model_dump(by_alias=True, mode="json"))
@@ -31,7 +31,7 @@ def _load_deposit_intents(storage: BaseStorage) -> List[Dict[str, Any]]:
     return normalized
 
 
-def _save_deposit_intents(storage: BaseStorage, rows: List[Dict[str, Any]]) -> None:
+def _save_deposit_intents(storage: BaseStorage, rows: List[dict[str, Any]]) -> None:
     """把充值意图刷回存储层。"""
     repo = storage.get_data_manager().system.gateway_state
     repo.write_deposit_intents(rows)
@@ -63,14 +63,14 @@ def _save_processed_deposit_event_keys(storage: BaseStorage, keys: List[str]) ->
     )
 
 
-def _load_runtime_state(storage: BaseStorage, state_key: str) -> Dict[str, Any]:
+def _load_runtime_state(storage: BaseStorage, state_key: str) -> dict[str, Any]:
     """读取指定 runtime state payload。"""
     raw = storage.get_data_manager().system.gateway_state.read_runtime_state(state_key)
     return dict(raw) if isinstance(raw, dict) else {}
 
 
 def _save_runtime_state(
-    storage: BaseStorage, state_key: str, payload: Dict[str, Any]
+    storage: BaseStorage, state_key: str, payload: dict[str, Any]
 ) -> None:
     """写入指定 runtime state payload。"""
     storage.get_data_manager().system.gateway_state.write_runtime_state(
@@ -78,19 +78,19 @@ def _save_runtime_state(
     )
 
 
-def _load_backfill_state(storage: BaseStorage) -> Dict[str, Any]:
+def _load_backfill_state(storage: BaseStorage) -> dict[str, Any]:
     """读取 block backfill 的数据库游标状态。"""
     return _load_runtime_state(storage, "deposit_backfill_state")
 
 
-def _save_backfill_state(storage: BaseStorage, state: Dict[str, Any]) -> None:
+def _save_backfill_state(storage: BaseStorage, state: dict[str, Any]) -> None:
     """写入 block backfill 的数据库游标状态。"""
     payload = dict(state)
     payload["updatedAt"] = now_dt_str()
     _save_runtime_state(storage, "deposit_backfill_state", payload)
 
 
-def _load_indexer_runtime_state(storage: BaseStorage) -> Dict[str, Any]:
+def _load_indexer_runtime_state(storage: BaseStorage) -> dict[str, Any]:
     """读取 indexer 持久化运行状态。"""
     return _load_runtime_state(storage, _INDEXER_RUNTIME_STATE_KEY)
 
@@ -103,7 +103,7 @@ def _persist_indexer_runtime_state(storage: BaseStorage) -> None:
 
 
 def _append_audit_log(
-    storage: BaseStorage, action: str, owner_wallet: str, details: Dict[str, Any]
+    storage: BaseStorage, action: str, owner_wallet: str, details: dict[str, Any]
 ) -> None:
     """追加 indexer 相关审计事件。"""
     storage.get_data_manager().audit.logs.append_audit_row(

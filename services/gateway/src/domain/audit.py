@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,7 +23,7 @@ class AuditLogEntry(BaseModel):
     action: str = ""
     domain: Literal["finance", "system"] = "finance"
     owner_address: str = Field(default="", alias="ownerAddress")
-    details: Dict[str, Any] = Field(default_factory=dict)
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class AuditLogRow(BaseModel):
@@ -62,7 +62,7 @@ class AuditLogRow(BaseModel):
     result_status: Optional[str] = Field(default=None, alias="resultStatus")
     error_code: Optional[str] = Field(default=None, alias="errorCode")
     message: Optional[str] = None
-    detail_json: Dict[str, Any] = Field(default_factory=dict, alias="detailJson")
+    detail_json: dict[str, Any] = Field(default_factory=dict, alias="detailJson")
     created_at: Optional[str] = Field(default=None, alias="createdAt")
 
 
@@ -86,5 +86,5 @@ class SystemAuditLogRow(BaseModel):
     error_code: Optional[str] = Field(default=None, alias="errorCode")
     ip_address: Optional[str] = Field(default=None, alias="ipAddress")
     user_agent: Optional[str] = Field(default=None, alias="userAgent")
-    detail_json: Dict[str, Any] = Field(default_factory=dict, alias="detailJson")
+    detail_json: dict[str, Any] = Field(default_factory=dict, alias="detailJson")
     created_at: Optional[str] = Field(default=None, alias="createdAt")

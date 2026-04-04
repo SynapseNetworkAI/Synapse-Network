@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from src.core.config import settings
 from src.domain.registry import ServiceTargetHealth
@@ -17,7 +17,7 @@ from .payload_helpers import public_health_summary_record
 
 
 def target_health_record(
-    payload: Dict[str, Any], target_url: str
+    payload: dict[str, Any], target_url: str
 ) -> ServiceHealthTargetRecord:
     row_last_checked = int(payload.get("lastCheckedAt") or 0)
     return ServiceHealthTargetRecord(
@@ -37,7 +37,7 @@ def target_health_record(
 
 
 def merge_health_row(
-    index: Dict[str, ServiceRuntimeHealthRecord], payload: Dict[str, Any]
+    index: dict[str, ServiceRuntimeHealthRecord], payload: dict[str, Any]
 ) -> None:
     service_id = str(payload.get("serviceId") or "").strip()
     target_url = str(payload.get("targetUrl") or "").strip()
@@ -75,11 +75,11 @@ def finalize_health_bucket(bucket: ServiceRuntimeHealthRecord) -> None:
         bucket.overall_status = "unhealthy"
 
 
-def build_runtime_health_index(raw_rows: Any) -> Dict[str, ServiceRuntimeHealthRecord]:
+def build_runtime_health_index(raw_rows: Any) -> dict[str, ServiceRuntimeHealthRecord]:
     if not isinstance(raw_rows, list):
         return {}
 
-    index: Dict[str, ServiceRuntimeHealthRecord] = {}
+    index: dict[str, ServiceRuntimeHealthRecord] = {}
     for row in raw_rows:
         if not isinstance(row, ServiceTargetHealth):
             continue
@@ -92,7 +92,7 @@ def build_runtime_health_index(raw_rows: Any) -> Dict[str, ServiceRuntimeHealthR
 
 def apply_runtime_health(
     payload: ServiceDefinitionRecord,
-    health_index: Dict[str, ServiceRuntimeHealthRecord],
+    health_index: dict[str, ServiceRuntimeHealthRecord],
 ) -> ServiceDefinitionRecord:
     service_id = str(payload.service_id or "").strip()
     health = health_index.get(service_id) if service_id else None

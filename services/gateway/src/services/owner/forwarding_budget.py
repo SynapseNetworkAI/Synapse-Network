@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 from fastapi import HTTPException
 
@@ -15,7 +15,7 @@ from src.storage import BaseStorage
 
 # Shared best-effort runtime caches. Redis is preferred in production; memory fallback keeps dev mode usable.
 _redis_client = None
-_memory_window_counters: Dict[str, Tuple[float, int]] = {}
+_memory_window_counters: dict[str, tuple[float, int]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ def raise_for_budget_check(budget_result: dict[str, Any]) -> None:
 # Spend-window key helpers
 # ---------------------------------------------------------------------------
 
-def _window_key_and_ttl(reset_interval: str, now_ts: int) -> Tuple[str, int]:
+def _window_key_and_ttl(reset_interval: str, now_ts: int) -> tuple[str, int]:
     now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc)
     if reset_interval == "never":
         return "never", 86400 * 365 * 50

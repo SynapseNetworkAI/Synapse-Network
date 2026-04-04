@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException
@@ -80,7 +80,7 @@ def build_consumer_receipt(
     unit_price: float,
     total_charge: float,
     consumer_balance_after: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build consumer-visible receipt fields without leaking internal settlement splits."""
     return {
         "requestId": request_id,
@@ -94,8 +94,8 @@ def build_consumer_receipt(
 
 
 def build_consumer_success_response(
-    receipt: Dict[str, Any], upstream_result: Any
-) -> Dict[str, Any]:
+    receipt: dict[str, Any], upstream_result: Any
+) -> dict[str, Any]:
     """Build canonical consumer response payload while preserving upstream result envelope."""
     return {
         "statusCode": 200,
@@ -111,7 +111,7 @@ def build_consumer_success_response(
 
 def pricing_breakdown(
     storage: BaseStorage, provider_wallet: str, unit_price: float
-) -> Tuple[float, float, float, float, float, float]:
+) -> tuple[float, float, float, float, float, float]:
     """Compute fee decomposition used by charging, logging, and audit records."""
     fee_rate = resolve_platform_fee_rate(storage, provider_wallet)
     protocol_fee = round(unit_price * fee_rate, 6)
@@ -129,7 +129,7 @@ def pricing_breakdown(
     )
 
 
-def append_invocation_billing(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
+def append_invocation_billing(storage: BaseStorage, row: UsageLogRow | dict[str, Any]) -> None:
     """Append one invocation billing event into the typed billing projection."""
     raw_rows = storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
     rows = list(raw_rows) if isinstance(raw_rows, list) else []
@@ -148,7 +148,7 @@ def append_invocation_billing(storage: BaseStorage, row: UsageLogRow | Dict[str,
         repo.write_invocation_billing_rows(fallback_rows)
 
 
-def append_usage_log(storage: BaseStorage, row: UsageLogRow | Dict[str, Any]) -> None:
+def append_usage_log(storage: BaseStorage, row: UsageLogRow | dict[str, Any]) -> None:
     append_invocation_billing(storage, row)
 
 
@@ -203,7 +203,7 @@ async def charge_and_mark_usage(
     routing_tax: float = 0.0,
     usage_row: Optional[UsageLogRow] = None,
     invocation: Optional[InvocationRecord] = None,
-) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
+) -> tuple[float, Optional[RuntimeCredentialRecord]]:
     """Atomically charge consumer, credit provider/platform, and increment credential usage."""
     now = credential_service.now_ts()
 
@@ -250,7 +250,7 @@ def _charge_and_mark_usage_atomic(
     credential_id: str,
     context: ChargeUsageAtomicContext,
     now: int,
-) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
+) -> tuple[float, Optional[RuntimeCredentialRecord]]:
     consumer_after = 0.0
     updated_credential = None
 
@@ -351,7 +351,7 @@ async def _charge_and_mark_usage_fallback(
     platform_fee_total: float,
     provider_net: float,
     credential_id: str,
-) -> Tuple[float, Optional[RuntimeCredentialRecord]]:
+) -> tuple[float, Optional[RuntimeCredentialRecord]]:
     consumer_after = 0.0
     updated_credential: Optional[RuntimeCredentialRecord] = None
     now = credential_service.now_ts()

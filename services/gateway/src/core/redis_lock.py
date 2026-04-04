@@ -1,7 +1,7 @@
 import asyncio
 import time
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Awaitable, Callable, Dict, Optional
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 from uuid import uuid4
 
 
@@ -27,7 +27,7 @@ return 0
         self._key_prefix = key_prefix
         self._acquire_timeout_sec = max(0.2, float(acquire_timeout_sec))
         self._poll_interval_sec = max(0.01, float(poll_interval_sec))
-        self._local_locks: Dict[str, asyncio.Lock] = {}
+        self._local_locks: dict[str, asyncio.Lock] = {}
 
     @asynccontextmanager
     async def lock(self, resource: str, ttl_sec: int = 15) -> AsyncIterator[None]:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Callable, Dict, List, Literal, Optional
+from typing import Any, Callable, List, Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
@@ -23,7 +23,7 @@ from .operation_metadata import OperationContextMetadata
 """Finance domain entities — BalanceLedger & FeePolicyEntity.
 
 所有金额字段均使用 float（与现有六位精度 quantize 保持一致），
-禁止业务层使用裸 Dict[str, Any] 传递账本或费率数据。
+禁止业务层使用裸 dict[str, Any] 传递账本或费率数据。
 """
 
 
@@ -114,9 +114,9 @@ class BalanceLedger(BaseModel):
     @classmethod
     def _consumer_wallets_from_legacy_maps(
         cls,
-        available_map: Dict[str, float],
-        pending_map: Dict[str, float],
-        frozen_map: Dict[str, float],
+        available_map: dict[str, float],
+        pending_map: dict[str, float],
+        frozen_map: dict[str, float],
     ) -> List[ConsumerWalletRecord]:
         owners = {cls._normalize_owner(owner) for owner in available_map}
         owners |= {cls._normalize_owner(owner) for owner in pending_map}
@@ -134,9 +134,9 @@ class BalanceLedger(BaseModel):
     @classmethod
     def _provider_wallets_from_legacy_maps(
         cls,
-        available_map: Dict[str, float],
-        pending_map: Dict[str, float],
-        frozen_map: Dict[str, float],
+        available_map: dict[str, float],
+        pending_map: dict[str, float],
+        frozen_map: dict[str, float],
     ) -> List[ProviderWalletRecord]:
         owners = {cls._normalize_owner(owner) for owner in available_map}
         owners |= {cls._normalize_owner(owner) for owner in pending_map}
@@ -221,7 +221,7 @@ class FeePolicyEntity(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     default_rate: float = Field(default=0.0, alias="defaultRate")
-    owner_rates: Dict[str, float] = Field(default_factory=dict, alias="ownerRates")
+    owner_rates: dict[str, float] = Field(default_factory=dict, alias="ownerRates")
     updated_at: Optional[str] = Field(default=None, alias="updatedAt")
     updated_by: Optional[str] = Field(default=None, alias="updatedBy")
 
@@ -415,7 +415,7 @@ class AtomicWithdrawalResult:
     withdrawal_id: str
     status: str
     amount_usdc: float
-    ticket: Dict[str, Any]
+    ticket: dict[str, Any]
     message: str
     risk_reason_code: str
     request_id: str

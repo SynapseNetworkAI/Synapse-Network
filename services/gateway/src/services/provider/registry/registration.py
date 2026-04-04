@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from src.services.platform import credential_service, service_health_service
 from src.utils.datetime_utils import now_dt_str
@@ -25,12 +25,12 @@ def _masked_payout_address(value: str | None) -> str | None:
     return f"{normalized[:6]}...{normalized[-4:]}"
 
 
-def _audit_details(service_payload: Dict[str, Any]) -> Dict[str, Any]:
+def _audit_details(service_payload: dict[str, Any]) -> dict[str, Any]:
     payout_account = service_payload.get("payoutAccount")
     provider_profile = service_payload.get("providerProfile")
     governance = service_payload.get("governance")
     auth_payload = service_payload.get("auth")
-    details: Dict[str, Any] = {
+    details: dict[str, Any] = {
         "serviceId": service_payload.get("serviceId"),
         "serviceName": service_payload.get("serviceName"),
         "status": service_payload.get("status"),
@@ -55,8 +55,8 @@ def _audit_details(service_payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def register_service(
-    context: RegistryContext, req_data: Dict[str, Any], owner_wallet: str
-) -> Dict[str, Any]:
+    context: RegistryContext, req_data: dict[str, Any], owner_wallet: str
+) -> dict[str, Any]:
     async with context._registry_lock():
         rows = context._load_service_registry_rows()
         new_svc = normalize_service_payload(req_data, owner_wallet)
@@ -92,9 +92,9 @@ async def register_service(
 async def update_service(
     context: RegistryContext,
     service_record_id: str,
-    req_data: Dict[str, Any],
+    req_data: dict[str, Any],
     owner_wallet: str,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     async with context._registry_lock():
         rows = context._load_service_registry_rows()
         for index, svc in enumerate(rows):

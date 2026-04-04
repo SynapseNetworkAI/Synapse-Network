@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, List, Optional, Protocol
 
 from src.storage.base import BaseStorage
 from src.domain.registry import ServiceTargetHealthHistory
@@ -22,6 +22,6 @@ class RegistryContext(Protocol):
     ) -> List[ServiceTargetHealthHistory]: ...
 
 
-JsonDict = Dict[str, Any]
+JsonDict = dict[str, Any]
 JsonList = List[JsonDict]
 MaybeString = Optional[str]

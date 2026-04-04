@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from src.storage.base import BaseStorage
 from src.domain.registry import ServiceTargetHealthHistory
@@ -59,13 +59,13 @@ class RegistryService:
         )
 
     async def register_service(
-        self, req_data: Dict[str, Any], owner_wallet: str
-    ) -> Dict[str, Any]:
+        self, req_data: dict[str, Any], owner_wallet: str
+    ) -> dict[str, Any]:
         return await register_service_op(self, req_data, owner_wallet)
 
     async def update_service(
-        self, service_record_id: str, req_data: Dict[str, Any], owner_wallet: str
-    ) -> Optional[Dict[str, Any]]:
+        self, service_record_id: str, req_data: dict[str, Any], owner_wallet: str
+    ) -> Optional[dict[str, Any]]:
         return await update_service_op(self, service_record_id, req_data, owner_wallet)
 
     async def delete_service(self, service_record_id: str, owner_wallet: str) -> bool:
@@ -97,7 +97,7 @@ class RegistryService:
         public_gateway_url: Optional[str] = None,
         sort_by: str = "best_match",
         sort_order: str = "desc",
-    ) -> List[Dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         return await discover_services_op(
             self,
             intent=intent,
@@ -106,7 +106,7 @@ class RegistryService:
             sort_order=sort_order,
         )
 
-    async def public_network_stats(self) -> Dict[str, Any]:
+    async def public_network_stats(self) -> dict[str, Any]:
         return await public_network_stats_op(self)
 
     async def search_agent_discovery(
@@ -126,12 +126,12 @@ class RegistryService:
     ) -> int:
         return await count_agent_discovery_results_op(self, query)
 
-    async def list_owner_services(self, owner_wallet: str) -> List[Dict[str, Any]]:
+    async def list_owner_services(self, owner_wallet: str) -> List[dict[str, Any]]:
         return await list_owner_services_op(self, owner_wallet)
 
     async def health_status(
         self, intent: Optional[str] = None, include_inactive: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         return await health_status_op(
             self,
             intent=intent,
@@ -145,7 +145,7 @@ class RegistryService:
         limit_per_target: int,
         hours: Optional[int] = None,
         days: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return await service_health_history_op(
             self,
             service_record_id,

@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -25,7 +25,7 @@ GENERIC_ACTION_SEGMENTS = {"invoke", "generate", "run"}
 
 def _contains_chinese(value: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", value))
-def _service_manifest_template() -> Dict[str, Any]:
+def _service_manifest_template() -> dict[str, Any]:
     return {
         "service_id": "",
         "service_name": "",
@@ -73,7 +73,7 @@ def _service_manifest_template() -> Dict[str, Any]:
     }
 
 
-def _deep_merge_manifest(base: Dict[str, Any], override: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _deep_merge_manifest(base: dict[str, Any], override: Optional[dict[str, Any]]) -> dict[str, Any]:
     merged = dict(base)
     if not isinstance(override, dict):
         return merged
@@ -125,7 +125,7 @@ def _load_manifest_parser_doc() -> str:
     return ""
 
 
-def _extract_json_from_text(content: str) -> Optional[Dict[str, Any]]:
+def _extract_json_from_text(content: str) -> Optional[dict[str, Any]]:
     stripped = content.strip()
     if stripped.startswith("```"):
         stripped = re.sub(r"^```(?:json)?", "", stripped, flags=re.IGNORECASE).strip()
@@ -144,9 +144,9 @@ def _extract_json_from_text(content: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _extract_json_objects_with_positions(content: str) -> list[tuple[int, Dict[str, Any]]]:
+def _extract_json_objects_with_positions(content: str) -> list[tuple[int, dict[str, Any]]]:
     decoder = json.JSONDecoder()
-    matches: list[tuple[int, Dict[str, Any]]] = []
+    matches: list[tuple[int, dict[str, Any]]] = []
     for idx, ch in enumerate(content):
         if ch != "{":
             continue
@@ -159,9 +159,9 @@ def _extract_json_objects_with_positions(content: str) -> list[tuple[int, Dict[s
     return matches
 
 
-def _infer_schema_from_json_payload(payload: Any) -> Dict[str, Any]:
+def _infer_schema_from_json_payload(payload: Any) -> dict[str, Any]:
     if isinstance(payload, dict):
-        properties: Dict[str, Any] = {}
+        properties: dict[str, Any] = {}
         required = []
         for key, value in payload.items():
             properties[key] = _infer_schema_from_json_payload(value)
@@ -261,7 +261,7 @@ def _service_id_from_segments(path_segments: list[str]) -> str:
     return f"svc_{normalized}"[:64] if normalized else "svc_imported_api_service"
 
 
-def _extract_response_payload(raw_text: str, request_payload: Any) -> Optional[Dict[str, Any]]:
+def _extract_response_payload(raw_text: str, request_payload: Any) -> Optional[dict[str, Any]]:
     matches = _extract_json_objects_with_positions(raw_text)
     if not matches:
         return None
@@ -311,11 +311,11 @@ def _derive_service_identity(endpoint: str) -> tuple[str, str, str, list[str], s
     return service_id, service_name, description, path_segments, health_path
 
 
-def _build_examples(request_body: Any, response_body: Any) -> list[Dict[str, Any]]:
+def _build_examples(request_body: Any, response_body: Any) -> list[dict[str, Any]]:
     if request_body is None and response_body is None:
         return []
 
-    example: Dict[str, Any] = {}
+    example: dict[str, Any] = {}
     if request_body is not None:
         example["input"] = request_body
     if response_body is not None:
@@ -328,8 +328,8 @@ def _build_model_usage_payload(
     path_segments: list[str],
     request_body: Any,
     response_body: Any,
-    examples: list[Dict[str, Any]],
-) -> Dict[str, Any]:
+    examples: list[dict[str, Any]],
+) -> dict[str, Any]:
     return {
         "description_for_model": description,
         "task_category": _guess_task_category(path_segments),
@@ -340,7 +340,7 @@ def _build_model_usage_payload(
     }
 
 
-def _build_gateway_extensions_payload(endpoint: str, health_path: str) -> Dict[str, Any]:
+def _build_gateway_extensions_payload(endpoint: str, health_path: str) -> dict[str, Any]:
     return {
         "health_check": {
             "method": "GET",
@@ -359,7 +359,7 @@ def _build_gateway_extensions_payload(endpoint: str, health_path: str) -> Dict[s
     }
 
 
-def _apply_required_defaults(base: Dict[str, Any], endpoint: str, health_path: str, input_schema: Dict[str, Any], output_schema: Dict[str, Any], examples: list[Dict[str, Any]]) -> None:
+def _apply_required_defaults(base: dict[str, Any], endpoint: str, health_path: str, input_schema: dict[str, Any], output_schema: dict[str, Any], examples: list[dict[str, Any]]) -> None:
     if not base["model_usage"].get("examples") and examples:
         base["model_usage"]["examples"] = examples
 
@@ -389,7 +389,7 @@ def _apply_required_defaults(base: Dict[str, Any], endpoint: str, health_path: s
         }
 
 
-def _extract_curl_parts(curl_command: str) -> Dict[str, Any]:
+def _extract_curl_parts(curl_command: str) -> dict[str, Any]:
     method_match = re.search(r"(?:^|\s)-X\s+([A-Za-z]+)", curl_command)
     method = method_match.group(1).upper() if method_match else ""
 
@@ -427,8 +427,8 @@ def _to_agent_tool_name(name: str) -> str:
 
 
 def _build_fallback_manifest(
-    curl_command: str, current_manifest: Optional[Dict[str, Any]]
-) -> Dict[str, Any]:
+    curl_command: str, current_manifest: Optional[dict[str, Any]]
+) -> dict[str, Any]:
     parts = _extract_curl_parts(curl_command)
     endpoint = parts.get("endpoint", "")
     request_body = parts.get("body")
@@ -482,7 +482,7 @@ def _build_fallback_manifest(
 
 
 def _build_messages(
-    curl_command: str, current_manifest: Optional[Dict[str, Any]], parser_doc: str
+    curl_command: str, current_manifest: Optional[dict[str, Any]], parser_doc: str
 ) -> list[dict[str, str]]:
     current_manifest_payload = (
         current_manifest if isinstance(current_manifest, dict) else {}
@@ -518,9 +518,9 @@ def _build_messages(
 
 async def parse_manifest_from_curl(
     curl_command: str,
-    current_manifest: Optional[Dict[str, Any]],
+    current_manifest: Optional[dict[str, Any]],
     model_override: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     fallback_manifest = _build_fallback_manifest(curl_command, current_manifest)
 
     if not settings.deepseek_api_key:

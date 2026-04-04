@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 from src.domain.finance import FeePolicyEntity
 from src.domain.system import PlatformFeePolicyDefaultRow, PlatformFeePolicyOwnerRow
@@ -39,7 +39,7 @@ class FeePolicyRepository:
             updated_at = default_entity.updated_at
             updated_by = default_entity.updated_by
 
-        owner_rates: Dict[str, float] = {}
+        owner_rates: dict[str, float] = {}
         for owner, fee_rate in owner_rows:
             owner_entity = PlatformFeePolicyOwnerRow(
                 ownerAddress=str(owner),
@@ -57,7 +57,7 @@ class FeePolicyRepository:
     def set_platform_fee_policy(
         self,
         default_rate: float,
-        owner_rates: Dict[str, float],
+        owner_rates: dict[str, float],
         updated_by: str,
         updated_at: str | int,
     ) -> None:

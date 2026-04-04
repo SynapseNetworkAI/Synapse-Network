@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException
 
@@ -59,7 +59,7 @@ def _charge_amount_from_unit_price(
     return settlement, total_charge
 
 
-def _request_payload(request: InferenceRequest, service: ServiceDefinitionRecord) -> Dict[str, Any]:
+def _request_payload(request: InferenceRequest, service: ServiceDefinitionRecord) -> dict[str, Any]:
     payload = dict(request.payload or {})
     if payload:
         return payload
@@ -75,7 +75,7 @@ def _request_payload(request: InferenceRequest, service: ServiceDefinitionRecord
 
 def _log_upstream_failure(
     storage: BaseStorage, request_id: str, owner_wallet: str, provider_wallet: str,
-    service_id: str, settlement: Dict[str, float],
+    service_id: str, settlement: dict[str, float],
     error_code: Optional[str] = None, error_message: Optional[str] = None,
 ) -> None:
     forwarding_billing.append_invocation_billing(
@@ -100,7 +100,7 @@ async def _execute_invocation_pipeline(
     credential: RuntimeCredentialRecord,
     service: ServiceDefinitionRecord,
     quote: ServiceQuoteRecord,
-    request_payload: Dict[str, Any],
+    request_payload: dict[str, Any],
     idempotency_key: str,
     trace_request_id: str,
 ) -> tuple[InvocationRecord, float, dict[str, float]]:
@@ -218,7 +218,7 @@ async def generate_response_v2(
     x_service_id: Optional[str],
     credential_token: Optional[str],
     x_request_id: Optional[str],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Orchestrate full generate pipeline: validate, rate-limit, charge, proxy, audit, respond."""
     service_id = forwarding_validation.validate_service_id(x_service_id, request.serviceId)
     token = forwarding_validation.validate_credential_token(credential_token)

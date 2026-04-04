@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 import string
 import time
-from typing import Any, Dict, List, Literal, Optional, cast
+from typing import Any, List, Literal, Optional, cast
 
 from src.core.config import settings
 from src.domain.service_contract import (
@@ -134,7 +134,7 @@ def require_range(name: str, value: int, lower: int, upper: int) -> int:
     return value
 
 
-def dict_payload(value: Any) -> Dict[str, Any]:
+def dict_payload(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
@@ -142,7 +142,7 @@ def list_payload(value: Any) -> List[Any]:
     return value if isinstance(value, list) else []
 
 
-def validated_invoke_payload(req_data: Dict[str, Any]) -> Dict[str, Any]:
+def validated_invoke_payload(req_data: dict[str, Any]) -> dict[str, Any]:
     invoke = dict_payload(req_data.get("invoke"))
     if not invoke:
         raise ValueError("invoke is required")
@@ -159,7 +159,7 @@ def validated_invoke_payload(req_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def normalized_invoke_targets(
-    invoke: Dict[str, Any],
+    invoke: dict[str, Any],
 ) -> List[ServiceInvokeTargetRecord]:
     targets = list_payload(invoke.get("targets"))
     if not targets:
@@ -194,7 +194,7 @@ def resolved_auth_type(
     return next(iter(auth_modes))
 
 
-def normalized_health_check(req_data: Dict[str, Any]) -> Dict[str, Any]:
+def normalized_health_check(req_data: dict[str, Any]) -> dict[str, Any]:
     health_check = dict_payload(req_data.get("healthCheck"))
     if not health_check:
         raise ValueError("healthCheck is required")
@@ -207,7 +207,7 @@ def normalized_health_check(req_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def normalized_provider_profile(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
+def normalized_provider_profile(req_data: dict[str, Any]) -> dict[str, Any] | None:
     provider_profile = dict_payload(req_data.get("providerProfile"))
     if not provider_profile:
         return None
@@ -217,7 +217,7 @@ def normalized_provider_profile(req_data: Dict[str, Any]) -> Dict[str, Any] | No
     return {"displayName": display_name}
 
 
-def normalized_payout_account(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
+def normalized_payout_account(req_data: dict[str, Any]) -> dict[str, Any] | None:
     payout_account = dict_payload(req_data.get("payoutAccount"))
     if not payout_account:
         return None
@@ -241,7 +241,7 @@ def normalized_payout_account(req_data: Dict[str, Any]) -> Dict[str, Any] | None
     }
 
 
-def normalized_governance(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
+def normalized_governance(req_data: dict[str, Any]) -> dict[str, Any] | None:
     governance = dict_payload(req_data.get("governance"))
     if not governance:
         return None
@@ -254,9 +254,9 @@ def normalized_governance(req_data: Dict[str, Any]) -> Dict[str, Any] | None:
 
 
 def normalized_auth_payload(
-    req_data: Dict[str, Any],
+    req_data: dict[str, Any],
     targets: List[ServiceInvokeTargetRecord],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     auth_payload = dict_payload(req_data.get("auth"))
     inferred_type = resolved_auth_type(targets)
     auth_type = str(auth_payload.get("type") or "").strip()
@@ -274,7 +274,7 @@ def normalized_auth_payload(
 
 
 def bounded_constraint(
-    constraints: Dict[str, Any],
+    constraints: dict[str, Any],
     key: str,
     snake_key: str,
     fallback: int,
@@ -289,7 +289,7 @@ def bounded_constraint(
     )
 
 
-def normalized_constraints(req_data: Dict[str, Any]) -> ServiceConstraintRecord:
+def normalized_constraints(req_data: dict[str, Any]) -> ServiceConstraintRecord:
     constraints = dict_payload(req_data.get("constraints"))
     return ServiceConstraintRecord(
         timeoutMs=bounded_constraint(
@@ -327,7 +327,7 @@ def normalized_constraints(req_data: Dict[str, Any]) -> ServiceConstraintRecord:
     )
 
 
-def resolved_pricing(req_data: Dict[str, Any]) -> tuple[str, str]:
+def resolved_pricing(req_data: dict[str, Any]) -> tuple[str, str]:
     pricing_value = req_data.get("pricing")
     pricing_amount = req_data.get("pricingAmount") or "0"
     pricing_currency = str(req_data.get("pricingCurrency") or "USDC")
@@ -341,11 +341,11 @@ def resolved_pricing(req_data: Dict[str, Any]) -> tuple[str, str]:
     return str(pricing_amount), pricing_currency
 
 
-def resolved_service_name(req_data: Dict[str, Any]) -> str:
+def resolved_service_name(req_data: dict[str, Any]) -> str:
     return str(req_data.get("serviceName") or req_data.get("service_name") or "").strip()
 
 
-def resolved_tags(req_data: Dict[str, Any]) -> List[str]:
+def resolved_tags(req_data: dict[str, Any]) -> List[str]:
     tags_value = req_data.get("tags")
     if isinstance(tags_value, list):
         source = tags_value
@@ -355,7 +355,7 @@ def resolved_tags(req_data: Dict[str, Any]) -> List[str]:
     return [str(tag) for tag in source if isinstance(tag, (str, int, float))]
 
 
-def default_forwarding_payload(req_data: Dict[str, Any]) -> Dict[str, Any]:
+def default_forwarding_payload(req_data: dict[str, Any]) -> dict[str, Any]:
     return {
         "requestIdHeader": "X-Synapse-Request-Id",
         "passThroughHeaders": ["X-Trace-Id", "X-Client-Version"],
@@ -370,7 +370,7 @@ def default_forwarding_payload(req_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def default_metering_payload() -> Dict[str, Any]:
+def default_metering_payload() -> dict[str, Any]:
     return {
         "billingUnit": "per_call",
         "billOnError": False,
@@ -381,7 +381,7 @@ def default_metering_payload() -> Dict[str, Any]:
 
 
 def normalized_invoke_config(
-    invoke: Dict[str, Any],
+    invoke: dict[str, Any],
     constraints: ServiceConstraintRecord,
     targets: List[ServiceInvokeTargetRecord],
 ) -> ServiceInvokeConfigRecord:
@@ -403,17 +403,17 @@ def normalized_invoke_config(
 
 
 def service_definition_payload(
-    req_data: Dict[str, Any],
+    req_data: dict[str, Any],
     owner_wallet: str,
     service_name: str,
     tags: List[str],
     pricing_amount: str,
     pricing_currency: str,
     constraints: ServiceConstraintRecord,
-    health_check: Dict[str, Any],
-    invoke: Dict[str, Any],
+    health_check: dict[str, Any],
+    invoke: dict[str, Any],
     normalized_targets: List[ServiceInvokeTargetRecord],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     forwarding_payload = dict_payload(req_data.get("forwarding"))
     metering_payload = dict_payload(req_data.get("metering"))
     return {
@@ -449,7 +449,7 @@ def service_definition_payload(
 
 
 def normalize_service_payload(
-    req_data: Dict[str, Any], owner_wallet: str
+    req_data: dict[str, Any], owner_wallet: str
 ) -> ServiceDefinitionRecord:
     invoke = validated_invoke_payload(req_data)
     normalized_targets = normalized_invoke_targets(invoke)
@@ -538,8 +538,8 @@ def history_window_hours(hours: Optional[int], days: Optional[int]) -> tuple[int
 
 def history_entries_by_target(
     history: List[Any], service_record_id: str, cutoff_ms: int
-) -> Dict[str, List[Dict[str, Any]]]:
-    per_target: Dict[str, List[Dict[str, Any]]] = {}
+) -> dict[str, List[dict[str, Any]]]:
+    per_target: dict[str, List[dict[str, Any]]] = {}
     for row in history:
         if str(row.service_id or "") != service_record_id:
             continue
@@ -554,8 +554,8 @@ def history_entries_by_target(
 
 
 def serialized_history_targets(
-    per_target: Dict[str, List[Dict[str, Any]]], normalized_limit: int
-) -> List[Dict[str, Any]]:
+    per_target: dict[str, List[dict[str, Any]]], normalized_limit: int
+) -> List[dict[str, Any]]:
     targets = []
     for target_url, entries in per_target.items():
         sorted_entries = sorted(

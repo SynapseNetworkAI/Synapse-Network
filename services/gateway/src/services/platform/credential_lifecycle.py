@@ -1,7 +1,7 @@
 """Credential lifecycle: issue, revoke, rotate, delete, and update quota."""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -31,7 +31,7 @@ from src.storage import BaseStorage
 
 def _validate_issue_request(
     req: CredentialIssueRequest, now: int
-) -> Tuple[int, int, Optional[float], str, Optional[int], int]:
+) -> tuple[int, int, Optional[float], str, Optional[int], int]:
     expires_at = now + resolve_ttl_seconds(req.expiresInSec)
     max_calls = int(req.maxCalls or 1000000)
     rpm = int(req.rpm or 600)
@@ -74,7 +74,7 @@ def _validate_issue_request(
 
 async def issue_credential_for_owner(
     storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     now = now_ts()
     now_str = now_dt_str()
     max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = (
@@ -139,7 +139,7 @@ async def revoke_credential_for_owner(
     not_found_message: str = "Credential not found",
     forbidden_message: str = "Credential does not belong to current wallet",
     audit_action: str = "CREDENTIAL_REVOKED",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     now = now_ts()
 
     async with write_lock:
@@ -176,7 +176,7 @@ async def rotate_credential_for_owner(
     owner_wallet: str,
     credential_id: str,
     audit_action: str = "CREDENTIAL_REGENERATED",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     now = now_ts()
     now_str = now_dt_str()
     plain_token = issue_token()
@@ -240,7 +240,7 @@ async def delete_credential_for_owner(
     owner_wallet: str,
     credential_id: str,
     audit_action: str = "CREDENTIAL_DELETED",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     async with write_lock:
         rows = load_credential_rows(storage)
         index = find_runtime_credential_index(rows, credential_id)
@@ -329,7 +329,7 @@ async def update_credential_quota_for_owner(
     owner_wallet: str,
     credential_id: str,
     req: CredentialQuotaUpdateRequest,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     now = now_ts()
 
     async with write_lock:

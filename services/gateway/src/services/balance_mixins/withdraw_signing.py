@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -36,7 +36,7 @@ USDC_DECIMALS = 18
 
 
 class BalanceWithdrawSigningMixin:
-    def provider_withdraw_capability(self) -> Dict[str, Any]:
+    def provider_withdraw_capability(self) -> dict[str, Any]:
         web3_class = _web3_class()
         contract_address = normalize_wallet(settings.router_address)
 
@@ -166,7 +166,7 @@ class BalanceWithdrawSigningMixin:
         deadline: int,
         chain_id: int,
         verifying_contract: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         web3_class = _web3_class()
         checksum_owner = (
             web3_class.to_checksum_address(owner_wallet) if web3_class is not None else owner_wallet
@@ -209,7 +209,7 @@ class BalanceWithdrawSigningMixin:
         }
 
     def _sign_withdraw_ticket(
-        self, typed_data: Dict[str, Any], private_key: str
+        self, typed_data: dict[str, Any], private_key: str
     ) -> str:
         if Account is None:
             raise HTTPException(

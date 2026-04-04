@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Any, List, Optional
 
 from src.storage.base import BaseStorage
 from src.core.redis_lock import RedisLockManager
@@ -42,23 +42,23 @@ class BalanceService(
             guard_delegate=self,
         )
 
-    def _normalize_rows(self, raw: Any) -> List[Dict[str, Any]]:
+    def _normalize_rows(self, raw: Any) -> List[dict[str, Any]]:
         if isinstance(raw, list):
             return [item for item in raw if isinstance(item, dict)]
         if isinstance(raw, dict) and isinstance(raw.get("rows"), list):
             return [item for item in raw["rows"] if isinstance(item, dict)]
         return []
 
-    async def get_balance(self, owner_wallet: str) -> Dict[str, Any]:
+    async def get_balance(self, owner_wallet: str) -> dict[str, Any]:
         return await self.platform_finance_service.get_balance(owner_wallet)
 
     async def register_deposit_intent(
         self,
-        intent: Dict[str, Any],
+        intent: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.owner_finance_service.register_deposit_intent(
             intent=intent,
             owner_wallet=owner_wallet,
@@ -68,10 +68,10 @@ class BalanceService(
 
     async def record_deposit_attempt(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         owner_wallet: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.owner_finance_service.record_deposit_attempt(
             payload=payload,
             owner_wallet=owner_wallet,
@@ -83,7 +83,7 @@ class BalanceService(
 
     async def get_deposit_sync_status(
         self, owner_wallet: str, tx_hash: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return await self.owner_finance_service.get_deposit_sync_status(
             owner_wallet, tx_hash
         )
@@ -95,8 +95,8 @@ class BalanceService(
         deposit_intent_id: str,
         event_key: str,
         confirmations: int,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.owner_finance_service.confirm_deposit_intent(
             owner_wallet=owner_wallet,
             deposit_intent_id=deposit_intent_id,
@@ -107,11 +107,11 @@ class BalanceService(
 
     async def process_refund_intent(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.owner_finance_service.process_refund_intent(
             payload=payload,
             owner_wallet=owner_wallet,
@@ -119,7 +119,7 @@ class BalanceService(
             request_meta=request_meta,
         )
 
-    async def list_refunds(self, owner_wallet: str) -> List[Dict[str, Any]]:
+    async def list_refunds(self, owner_wallet: str) -> List[dict[str, Any]]:
         return await self.owner_finance_service.list_refunds(owner_wallet)
 
     async def complete_refund_intent(
@@ -127,8 +127,8 @@ class BalanceService(
         owner_wallet: str,
         refund_id: str,
         tx_hash: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.owner_finance_service.complete_refund_intent(
             owner_wallet=owner_wallet,
             refund_id=refund_id,
@@ -138,11 +138,11 @@ class BalanceService(
 
     async def create_provider_withdraw_intent(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.provider_withdraw_service.create_provider_withdraw_intent(
             payload=payload,
             owner_wallet=owner_wallet,
@@ -152,7 +152,7 @@ class BalanceService(
 
     async def list_provider_withdrawals(
         self, owner_wallet: str
-    ) -> List[Dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         return await self.provider_withdraw_service.list_provider_withdrawals(
             owner_wallet
         )
@@ -162,8 +162,8 @@ class BalanceService(
         owner_wallet: str,
         withdrawal_id: str,
         tx_hash: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.provider_withdraw_service.complete_provider_withdrawal(
             owner_wallet=owner_wallet,
             withdrawal_id=withdrawal_id,
@@ -175,8 +175,8 @@ class BalanceService(
         self,
         owner_wallet: str,
         withdrawal_id: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.provider_withdraw_service.review_provider_withdrawal(
             owner_wallet=owner_wallet,
             withdrawal_id=withdrawal_id,
@@ -185,14 +185,14 @@ class BalanceService(
 
     async def get_provider_withdraw_capability(
         self, owner_wallet: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         _ = owner_wallet
         return self.provider_withdraw_capability()
 
     async def expire_stale_provider_withdrawals(self) -> int:
         return await self.provider_withdraw_service.expire_stale_provider_withdrawals()
 
-    async def get_owner_spending_limit(self, owner_wallet: str) -> Dict[str, Any]:
+    async def get_owner_spending_limit(self, owner_wallet: str) -> dict[str, Any]:
         return await self.platform_finance_service.get_owner_spending_limit(owner_wallet)
 
     async def set_owner_spending_limit(
@@ -201,8 +201,8 @@ class BalanceService(
         *,
         spending_limit_usdc: Optional[float],
         allow_unlimited: bool,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.platform_finance_service.set_owner_spending_limit(
             owner_wallet=owner_wallet,
             spending_limit_usdc=spending_limit_usdc,
@@ -216,8 +216,8 @@ class BalanceService(
         owner_wallet: str,
         voucher_code: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         return await self.platform_finance_service.redeem_credit_voucher(
             owner_wallet=owner_wallet,
             voucher_code=voucher_code,

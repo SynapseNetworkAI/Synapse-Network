@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
@@ -44,8 +44,8 @@ def _resolve_initial_backfill_start_block(confirmed_head: int) -> int:
 
 
 def _resolve_backfill_scan_range(
-    state: Dict[str, Any], confirmed_head: int
-) -> Optional[Dict[str, int]]:
+    state: dict[str, Any], confirmed_head: int
+) -> Optional[dict[str, int]]:
     """根据数据库游标和配置，计算本轮 backfill 的区块范围。"""
     if confirmed_head <= 0:
         return None
@@ -70,13 +70,13 @@ def _resolve_backfill_scan_range(
 def _process_backfill_event(
     storage: BaseStorage,
     *,
-    intents: list[Dict[str, Any]],
+    intents: list[dict[str, Any]],
     processed_keys: set[str],
     ledger: BalanceLedger,
     tx_hash: str,
-    event: Dict[str, Any],
+    event: dict[str, Any],
     now: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """处理 backfill 扫描出的单个链上充值事件。"""
     event_key = str(event.get("eventKey") or "")
     if not event_key or event_key in processed_keys:
@@ -110,7 +110,7 @@ def _process_backfill_event(
     return outcome
 
 
-def run_backfill_scan_once(storage: BaseStorage) -> Dict[str, Any]:
+def run_backfill_scan_once(storage: BaseStorage) -> dict[str, Any]:
     """按区块范围做补扫，把漏掉的链上充值补成 intent/入账结果。"""
     if not bool(settings.v2_backfill_enabled):
         return {"enabled": False}

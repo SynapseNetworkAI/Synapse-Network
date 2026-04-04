@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, List
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -75,9 +75,9 @@ def save_provider_secret_rows(
 
 def list_provider_secrets_by_owner(
     storage: BaseStorage, owner_wallet: str
-) -> List[Dict[str, Any]]:
+) -> List[dict[str, Any]]:
     rows = load_provider_secret_rows(storage)
-    result: List[Dict[str, Any]] = []
+    result: List[dict[str, Any]] = []
     for row in rows:
         if credential_service.credential_owner_wallet(row) != owner_wallet:
             continue
@@ -113,7 +113,7 @@ def list_provider_secrets_by_owner(
 
 async def issue_provider_secret_for_owner(
     storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     now = credential_service.now_ts()
     now_str = now_dt_str()
     max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = (
@@ -183,7 +183,7 @@ async def issue_provider_secret_for_owner(
 
 async def revoke_provider_secret_for_owner(
     storage: BaseStorage, owner_wallet: str, secret_id: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     now = credential_service.now_ts()
 
     async with provider_write_lock:

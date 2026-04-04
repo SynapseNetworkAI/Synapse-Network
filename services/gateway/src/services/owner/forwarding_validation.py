@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from uuid import uuid4
 import re
 
@@ -202,7 +202,7 @@ def resolve_request_id(client_request_id: Optional[str]) -> str:
     return candidate
 
 
-def validate_invoke_request_contract(service: ServiceDefinitionRecord, payload: Dict[str, Any]) -> None:
+def validate_invoke_request_contract(service: ServiceDefinitionRecord, payload: dict[str, Any]) -> None:
     """Enforce runtime invoke contract: POST + JSON + required fields from schema."""
     service_id = str(service.service_id or "unknown")
 

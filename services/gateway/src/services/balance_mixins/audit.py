@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class BalanceAuditMixin:
     def _append_financial_audit(
-        self, action: str, owner_wallet: str, details: Dict[str, Any]
+        self, action: str, owner_wallet: str, details: dict[str, Any]
     ) -> None:
         entry = AuditLogEntry(
             id=str(uuid4()),
@@ -55,14 +55,14 @@ class BalanceAuditMixin:
 
     async def list_finance_audit_logs(
         self, owner_wallet: str, limit: int
-    ) -> List[Dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         return await asyncio.to_thread(
             self._list_finance_audit_logs_sync, owner_wallet, limit
         )
 
     def _read_audit_rows_from_storage(
         self, owner: str, limit: int
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> Optional[List[dict[str, Any]]]:
         try:
             rows = self.storage.get_data_manager().audit.logs.read_audit_rows(
                 owner_wallet=owner, limit=max(1, min(limit, 500))
@@ -74,7 +74,7 @@ class BalanceAuditMixin:
         except Exception:
             return None
 
-    def _read_audit_rows_from_jsonl(self, owner: str) -> List[Dict[str, Any]]:
+    def _read_audit_rows_from_jsonl(self, owner: str) -> List[dict[str, Any]]:
         if not hasattr(self.storage, "directory"):
             return []
 
@@ -84,7 +84,7 @@ class BalanceAuditMixin:
         if not os.path.exists(path):
             return []
 
-        rows: List[Dict[str, Any]] = []
+        rows: List[dict[str, Any]] = []
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 raw = line.strip()
@@ -101,7 +101,7 @@ class BalanceAuditMixin:
 
     def _list_finance_audit_logs_sync(
         self, owner_wallet: str, limit: int
-    ) -> List[Dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         allowed_actions = self._finance_audit_actions()
 

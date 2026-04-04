@@ -3,7 +3,7 @@ import json
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -69,7 +69,7 @@ class BalanceRedisGuardMixin:
             f"finance:idem:{scope}:{normalize_wallet(owner_wallet)}:{idempotency_key}"
         )
 
-    def _request_hash(self, payload: Dict[str, Any]) -> str:
+    def _request_hash(self, payload: dict[str, Any]) -> str:
         encoded = json.dumps(
             payload, sort_keys=True, ensure_ascii=True, separators=(",", ":")
         )
@@ -108,7 +108,7 @@ class BalanceRedisGuardMixin:
         owner_wallet: str,
         idempotency_key: str,
         request_hash: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         redis_client = await self._get_redis_client()
         if redis_client is None:
             return None
@@ -191,7 +191,7 @@ class BalanceRedisGuardMixin:
         owner_wallet: str,
         idempotency_key: str,
         request_hash: str,
-        response: Dict[str, Any],
+        response: dict[str, Any],
     ) -> None:
         redis_client = await self._get_redis_client()
         if redis_client is None:
@@ -364,7 +364,7 @@ class BalanceRedisGuardMixin:
         owner_wallet: str,
         idempotency_key: str,
         request_hash: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         for row in rows:
             if row.scope != scope:
@@ -398,7 +398,7 @@ class BalanceRedisGuardMixin:
         owner_wallet: str,
         idempotency_key: str,
         request_hash: str,
-        response: Dict[str, Any],
+        response: dict[str, Any],
     ) -> None:
         now = int(time.time())
         owner = normalize_wallet(owner_wallet)
@@ -429,7 +429,7 @@ class BalanceRedisGuardMixin:
         return None
 
     @staticmethod
-    def _serialize_row(row: Any) -> Optional[Dict[str, Any]]:
+    def _serialize_row(row: Any) -> Optional[dict[str, Any]]:
         if isinstance(row, dict):
             return dict(row)
         if hasattr(row, "model_dump"):
@@ -442,7 +442,7 @@ class BalanceRedisGuardMixin:
 
     def _validate_unique_recent_deposit(
         self, rows: List[Any], owner_wallet: str, tx_hash: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
         now = int(time.time())
         replay_window = max(60, int(settings.finance_replay_window_sec))
@@ -480,7 +480,7 @@ class BalanceRedisGuardMixin:
         owner: str,
         idempotency_key: str,
         request_hash: str,
-    ) -> tuple[Optional[Dict[str, Any]], Optional[Any], List[IdempotencyRow]]:
+    ) -> tuple[Optional[dict[str, Any]], Optional[Any], List[IdempotencyRow]]:
         redis_client = await self._get_redis_client()
         redis_hit = await self._check_idempotency_redis(
             scope="provider_withdraw_intent",
@@ -528,7 +528,7 @@ class BalanceRedisGuardMixin:
         owner: str,
         idempotency_key: str,
         request_hash: str,
-        response: Dict[str, Any],
+        response: dict[str, Any],
         redis_client: Optional[Any],
         idem_rows: List[IdempotencyRow],
     ) -> None:

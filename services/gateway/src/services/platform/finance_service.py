@@ -1,7 +1,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
 import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 import asyncio
 import time
 from uuid import uuid4
@@ -35,7 +35,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             return await self._guard_delegate._get_redis_client()  # type: ignore[attr-defined]
         return await super()._get_redis_client()
 
-    def _normalize_rows(self, raw: Any) -> List[Dict[str, Any]]:
+    def _normalize_rows(self, raw: Any) -> List[dict[str, Any]]:
         if isinstance(raw, list):
             return [item for item in raw if isinstance(item, dict)]
         if isinstance(raw, dict) and isinstance(raw.get("rows"), list):
@@ -138,7 +138,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             None,
         )
 
-    async def get_balance(self, owner_wallet: str) -> Dict[str, Any]:
+    async def get_balance(self, owner_wallet: str) -> dict[str, Any]:
         """Only return current authenticated owner's balance summary."""
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
@@ -159,7 +159,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "updatedAt": balance_data.updated_at,
         }
 
-    async def get_owner_spending_limit(self, owner_wallet: str) -> Dict[str, Any]:
+    async def get_owner_spending_limit(self, owner_wallet: str) -> dict[str, Any]:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
         found = self._find_owner_spend_limit_row(owner)
@@ -191,8 +191,8 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         *,
         spending_limit_usdc: Optional[Decimal],
         allow_unlimited: bool,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:owner_spend_limit"):
             await self._enforce_owner_write_rate_limit(owner, "owner_spend_limit")
@@ -264,8 +264,8 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         owner_wallet: str,
         voucher_code: str,
         idempotency_key: str,
-        request_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         owner = normalize_wallet(owner_wallet)
         normalized_code = self._normalize_voucher_code(voucher_code)
         request_id = str((request_meta or {}).get("requestId") or "").strip() or None
