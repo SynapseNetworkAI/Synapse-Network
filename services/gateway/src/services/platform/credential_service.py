@@ -399,6 +399,81 @@ def resolve_reset_interval(value: Optional[str]) -> str:
     return normalized
 
 
+def list_credentials_by_owner_active(
+    storage: BaseStorage, owner_wallet: str
+) -> List[dict[str, Any]]:
+    """Return only active, non-expired credentials for an owner."""
+    now = now_ts() * 1000  # expiresAt is stored as epoch ms
+    rows = load_credential_rows(storage)
+    visible = []
+    for row in rows:
+        if credential_owner_wallet(row) != owner_wallet:
+            continue
+        cred = row.credential
+        if str(cred.status or "") != "active":
+            continue
+        expires_at = _dt_str_to_epoch(cred.expires_at)
+        expiration = row.metadata.expiration if row.metadata is not None else None
+        if (expires_at and expires_at <= now) or (expiration and int(expiration) <= now):
+            continue
+        visible.append(_build_credential_response(row))
+    visible.sort(
+        key=lambda r: to_dt_str(r.get("createdAt"), "1970-01-01 00:00:00") or "1970-01-01 00:00:00",
+        reverse=True,
+    )
+    return visible
+
+
+def get_credential_status_for_owner(
+    storage: BaseStorage, owner_wallet: str, credential_id: str
+) -> dict[str, Any]:
+    """Return a validity status object for a single credential."""
+    now = now_ts() * 1000
+    rows = load_credential_rows(storage)
+    index = next(
+        (i for i, r in enumerate(rows) if r.credential.credential_id == credential_id),
+        -1,
+    )
+    if index < 0:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "CREDENTIAL_NOT_FOUND", "message": "Credential not found"},
+        )
+    found = rows[index]
+    if credential_owner_wallet(found) != owner_wallet:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "Credential does not belong to current wallet"},
+        )
+
+    cred_status = str(found.credential.status or "active")
+    expires_at = _dt_str_to_epoch(found.credential.expires_at)
+    expiration = found.metadata.expiration if found.metadata is not None else None
+    max_calls = int(found.metadata.max_calls or 0) if found.metadata is not None else 0
+    calls_used = int(found.metadata.calls_used or 0) if found.metadata is not None else 0
+    credit_limit = credential_credit_limit(found)
+
+    is_expired = bool(
+        (expires_at and expires_at <= now)
+        or (expiration and int(expiration) <= now)
+    )
+    calls_exhausted = bool(max_calls > 0 and calls_used >= max_calls)
+    valid = cred_status == "active" and not is_expired and not calls_exhausted
+
+    return {
+        "status": "success",
+        "credentialId": credential_id,
+        "valid": valid,
+        "credentialStatus": cred_status,
+        "isExpired": is_expired,
+        "callsExhausted": calls_exhausted,
+        "expiresAt": expires_at,
+        "callsUsed": calls_used,
+        "maxCalls": max_calls or None,
+        "creditLimit": credit_limit,
+    }
+
+
 # Re-export lifecycle operations so existing callers via credential_service.xxx still work.
 from src.services.platform.credential_lifecycle import (  # noqa: F401
     issue_credential_for_owner,
@@ -406,5 +481,6 @@ from src.services.platform.credential_lifecycle import (  # noqa: F401
     rotate_credential_for_owner,
     delete_credential_for_owner,
     update_credential_quota_for_owner,
+    update_credential_for_owner,
 )
 

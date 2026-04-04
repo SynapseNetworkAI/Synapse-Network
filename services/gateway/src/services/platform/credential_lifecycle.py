@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from src.api.schemas.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest
+from src.api.schemas.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest, CredentialUpdateRequest
 from src.domain.identity import CredentialPatch
 from src.services.platform.credential_service import (
     CredentialRuntimeSeed,
@@ -371,6 +371,76 @@ async def update_credential_quota_for_owner(
     append_audit_log(
         storage,
         "CREDENTIAL_QUOTA_UPDATED",
+        owner_wallet,
+        {"credentialId": credential_id},
+    )
+    return {"status": "success", "credential": _build_credential_response(updated)}
+
+
+async def update_credential_for_owner(
+    storage: BaseStorage,
+    owner_wallet: str,
+    credential_id: str,
+    req: CredentialUpdateRequest,
+) -> dict[str, Any]:
+    """Full credential update: name + all quota fields."""
+    now = now_ts()
+
+    async with write_lock:
+        rows = load_credential_rows(storage)
+        index = find_runtime_credential_index(rows, credential_id)
+        if index < 0:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "CREDENTIAL_NOT_FOUND", "message": "Credential not found"},
+            )
+
+        found = rows[index]
+        if credential_owner_wallet(found) != owner_wallet:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "FORBIDDEN", "message": "Credential does not belong to current wallet"},
+            )
+
+        # Build quota patch using existing helper
+        quota_req = CredentialQuotaUpdateRequest(
+            maxCalls=req.maxCalls,
+            rpm=req.rpm,
+            expiresAt=req.expiresAt,
+            creditLimit=req.creditLimit,
+            resetInterval=req.resetInterval,
+            expiration=req.expiration,
+        )
+        updated = found
+        for field, value in {
+            "maxCalls": quota_req.maxCalls,
+            "rpm": quota_req.rpm,
+            "expiresAt": quota_req.expiresAt,
+            "creditLimit": quota_req.creditLimit,
+            "resetInterval": quota_req.resetInterval,
+            "expiration": quota_req.expiration,
+        }.items():
+            updated = _update_if_present(updated, field, value, now)
+
+        # Apply name update on top of quota changes
+        if req.name is not None:
+            name_stripped = req.name.strip()
+            if name_stripped:
+                updated = updated.model_copy(
+                    update={
+                        "agent": updated.agent.model_copy(update={"name": name_stripped}),
+                        "metadata": updated.metadata.model_copy(update={"name": name_stripped})
+                        if updated.metadata is not None
+                        else updated.metadata,
+                    }
+                )
+
+        rows[index] = updated
+        save_credential_rows(storage, rows)
+
+    append_audit_log(
+        storage,
+        "CREDENTIAL_UPDATED",
         owner_wallet,
         {"credentialId": credential_id},
     )

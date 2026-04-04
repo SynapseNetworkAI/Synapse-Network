@@ -516,7 +516,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Create a fresh wallet and fund it with ETH + mock USDC",
     "Deposit into SynapseCore, register deposit intent, and confirm it into gateway balance",
     "Issue an agent credential from the owner wallet and list it back",
-    "Register a mock provider service, discover it, invoke it, and fetch the receipt"
+    "Register a mock provider service, discover it, invoke it, and fetch the receipt",
     "Assert the post-invocation consumer balance is lower than the pre-invocation balance",
   ],
   sdkPyVerifyResultLabel: "Latest local validation",
