@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header
 
 from src.api.schemas.pydantic_models import (
     AgentInvocationRequest,
+    AgentInvokeRequest,
     AgentQuoteRequest,
     InferenceRequest,
 )
@@ -63,4 +64,21 @@ async def get_agent_invocation_receipt(
 ):
     return forwarding_service.get_invocation_receipt_v1(
         storage, invocation_id, x_credential
+    )
+
+
+@router.post("/v1/agent/invoke")
+async def agent_invoke(
+    request: AgentInvokeRequest,
+    storage: StorageDep,
+    x_credential: CredentialHeader = None,
+    x_request_id: RequestIdHeader = None,
+):
+    """Single-call invoke with price assertion.
+
+    Pass ``costUsdc`` = the price the agent observed in discovery.
+    Returns 422 PRICE_MISMATCH if the live price has changed.
+    """
+    return await forwarding_service.invoke_v1(
+        storage, request, x_credential, x_request_id
     )

@@ -1,6 +1,6 @@
 import re
 from decimal import Decimal
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Annotated
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -147,6 +147,25 @@ class AgentQuoteRequest(BaseModel):
 class AgentInvocationRequest(BaseModel):
     quoteId: str = Field(..., min_length=1, max_length=128)
     idempotencyKey: str = Field(..., min_length=1, max_length=128)
+    payload: RuntimePayloadRecord = Field(default_factory=RuntimePayloadRecord)
+    responseMode: Literal["sync", "async", "stream"] = "sync"
+
+
+class AgentInvokeRequest(BaseModel):
+    """Single-call invoke: serviceId + costUsdc (price the agent observed in discovery).
+
+    Gateway checks that the live service price equals costUsdc (±1e-6 tolerance).
+    If the price has changed since discovery, it returns 422 PRICE_MISMATCH so the
+    agent can re-discover before being charged.
+    """
+
+    serviceId: str = Field(..., min_length=1, max_length=128)
+    idempotencyKey: str = Field(..., min_length=1, max_length=128)
+    costUsdc: Decimal = Field(
+        ...,
+        gt=Decimal("0"),
+        description="Service price the agent saw during discovery. Rejected with PRICE_MISMATCH if the live price differs.",
+    )
     payload: RuntimePayloadRecord = Field(default_factory=RuntimePayloadRecord)
     responseMode: Literal["sync", "async", "stream"] = "sync"
 

@@ -81,7 +81,7 @@ auth.confirm_deposit(
         <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkPyInvokeDescription")}</p>
         <CodeBlock
           lang="python"
-          code={`from synapse_client import SynapseClient
+          code={`from synapse_client import SynapseClient, PriceMismatchError
 
 issued = auth.issue_credential(
     name="consumer-agent-01",
@@ -96,17 +96,22 @@ client = SynapseClient(
 )
 
 services = client.discover(limit=20)
-service_id = services[0].service_id
+service = services[0]
+service_id = service.service_id
+price_usdc = float(service.price_usdc)  # price from discovery
 
-# One call — invoke() handles quote → invoke → poll internally
-result = client.invoke(
-    service_id,
-    {"prompt": "hello"},
-    idempotency_key="job-001",
-    poll_timeout_sec=60,
-)
-
-print(result.invocation_id, result.status, result.charged_usdc)`}
+try:
+    # One call — cost_usdc locks the price the agent saw
+    result = client.invoke(
+        service_id,
+        {"prompt": "hello"},
+        cost_usdc=price_usdc,
+        idempotency_key="job-001",
+    )
+    print(result.invocation_id, result.status, result.charged_usdc)
+except PriceMismatchError as err:
+    # Price changed — re-discover and retry
+    print(f"Price changed: expected {err.expected_price_usdc}, now {err.current_price_usdc}")`}
         />
       </section>
 

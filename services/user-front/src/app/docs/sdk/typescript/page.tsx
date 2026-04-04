@@ -113,7 +113,7 @@ console.log(serviceId, service.serviceName, service.summary);`}
         <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkTsInvokeDescription")}</p>
         <CodeBlock
           lang="typescript"
-          code={`import { SynapseClient } from "@synapse-network/sdk";
+          code={`import { SynapseClient, PriceMismatchError } from "@synapse-network/sdk";
 
 const issued = await auth.issueCredential({
   name: "consumer-agent-01",
@@ -135,18 +135,23 @@ if (!service) {
 }
 
 const serviceId = service.serviceId ?? service.id!;
+const priceUsdc = Number((service as any).priceUsdc ?? (service.pricing as any)?.amount ?? 0);
 
-// One call — invoke() handles quote → invoke → poll internally
-const result = await client.invoke(
-  serviceId,
-  { prompt: "hello" },
-  {
-    idempotencyKey: "job-001",
-    pollTimeoutMs: 60_000,
+try {
+  // One call — costUsdc locks the price the agent saw from discovery
+  const result = await client.invoke(
+    serviceId,
+    { prompt: "hello" },
+    { idempotencyKey: "job-001", costUsdc: priceUsdc }
+  );
+  console.log(result.invocationId, result.status, result.chargedUsdc);
+} catch (err) {
+  if (err instanceof PriceMismatchError) {
+    // Price changed — re-discover and retry
+    console.warn(\`Price changed: expected \${err.expectedPriceUsdc}, now \${err.currentPriceUsdc}\`);
   }
-);
-
-console.log(result.invocationId, result.status, result.chargedUsdc);`}
+  throw err;
+}`}
         />
       </section>
 
@@ -156,12 +161,13 @@ console.log(result.invocationId, result.status, result.chargedUsdc);`}
         <CodeBlock
           lang="typescript"
           code={`const knownServiceId = process.env.SYNAPSE_SERVICE_ID!;
+const knownPrice = Number(process.env.SYNAPSE_SERVICE_PRICE_USDC!);
 
-// invoke() handles the full quote → invoke → settle flow
+// Pass the price you saw in discovery — gateway rejects with PRICE_MISMATCH if it changed
 const result = await client.invoke(
   knownServiceId,
   { prompt: "hello" },
-  { idempotencyKey: "job-known-service-001" }
+  { idempotencyKey: "job-known-service-001", costUsdc: knownPrice }
 );
 
 console.log(result.invocationId, result.status, result.chargedUsdc);`}
