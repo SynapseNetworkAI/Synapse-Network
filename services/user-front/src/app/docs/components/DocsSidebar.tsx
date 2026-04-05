@@ -124,7 +124,7 @@ export default function DocsSidebar() {
                 onClick={() => toggle(section.id)}
                 className="w-full flex items-center justify-between px-2 py-[7px] text-left group"
               >
-                <span className="text-[10.5px] font-semibold tracking-[0.1em] uppercase text-[#636870] group-hover:text-[#8b98a5] transition-colors">
+                <span className="text-[11px] font-semibold tracking-[0.1em] uppercase text-[#636870] group-hover:text-[#8b98a5] transition-colors">
                   {section.label}
                 </span>
                 <ChevronRight
@@ -201,7 +201,7 @@ export default function DocsSidebar() {
                             onMouseEnter={() => prefetchRoute(item.href)}
                             onFocus={() => prefetchRoute(item.href)}
                             className={[
-                              "w-full flex items-center gap-2 pl-3 pr-2 py-[5px] text-left rounded-r-md transition-colors text-[12px] leading-[1.4]",
+                              "w-full flex items-center gap-2 pl-3 pr-2 py-[5px] text-left rounded-r-md transition-colors text-[13px] leading-[1.4]",
                               childCls,
                             ].join(" ")}
                           >
@@ -237,7 +237,7 @@ export default function DocsSidebar() {
                         onMouseEnter={() => prefetchRoute(item.href)}
                         onFocus={() => prefetchRoute(item.href)}
                         className={[
-                          "relative w-full flex items-center gap-2 px-3 py-[7px] rounded-lg text-left text-[13px] transition-colors",
+                          "relative w-full flex items-center gap-2 px-3 py-[7px] rounded-lg text-left text-[14px] transition-colors",
                           parentCls,
                         ].join(" ")}
                       >

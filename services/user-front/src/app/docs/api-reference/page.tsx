@@ -9,7 +9,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useDocsPageNav } from "../use-docs-page-nav";
 import {
   ROUTE_GROUPS,
-  METHOD_COLOR,
+  METHOD_BG,
   ROLE_BADGE,
   type RouteGroup,
   type RouteEndpoint,
@@ -60,31 +60,31 @@ function getGroupsForRole(groups: RouteGroup[], role: "consumer" | "provider"): 
 
 function EndpointRow({ route }: { route: RouteEndpoint }) {
   const roleBadge = ROLE_BADGE[route.agentMeta.role];
-  const methodCls = METHOD_COLOR[route.method] ?? "";
+  const methodBg = METHOD_BG[route.method] ?? "bg-white/10 text-white";
 
   return (
     <Link
       href={`/docs/api-reference/${route.id}`}
-      className="group flex items-center gap-3 rounded-2xl border border-white/[0.055] bg-white/[0.015] px-4 py-3 transition-all hover:border-white/[0.1] hover:bg-white/[0.028]"
+      className="group flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.012] px-4 py-3.5 transition-all hover:border-white/[0.12] hover:bg-white/[0.03]"
     >
       <span
-        className={`inline-block w-[54px] text-center text-[10px] font-semibold tracking-wider border rounded px-1 py-0.5 font-mono shrink-0 ${methodCls}`}
+        className={`inline-block min-w-[52px] text-center text-[11px] font-bold tracking-wide rounded-md px-2 py-1 font-mono shrink-0 ${methodBg}`}
       >
         {route.method}
       </span>
-      <code className="text-[12.5px] font-mono text-[#c0c5cc] truncate flex-1">{route.path}</code>
-      <span className="hidden text-[12px] text-[#71767b] md:block flex-1 truncate">
+      <code className="text-[13px] font-mono text-[#c0c5cc] truncate flex-[1.2]">{route.path}</code>
+      <span className="hidden text-[13px] text-[#71767b] md:block flex-1 truncate leading-snug">
         {route.summary}
       </span>
       <div className="ml-auto flex items-center gap-2 shrink-0">
         {route.auth !== "none" && (
-          <span className="hidden sm:block text-[9px] text-[#4e535a] border border-white/[0.08] px-1.5 py-0.5 rounded font-mono">
+          <span className="hidden sm:block text-[10px] text-[#4e535a] border border-white/[0.08] px-1.5 py-0.5 rounded font-mono">
             {route.auth === "credential" ? "CRED" : "JWT"}
           </span>
         )}
         {roleBadge && (
           <span
-            className={`hidden sm:inline-flex rounded border px-1.5 py-0.5 text-[9px] font-semibold ${roleBadge.cls}`}
+            className={`hidden sm:inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${roleBadge.cls}`}
           >
             {roleBadge.label}
           </span>
@@ -118,7 +118,7 @@ const FLOW_CLR: Record<string, string> = {
 function AgentQuickstart() {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] overflow-hidden">
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-5 py-4 text-left transition-colors hover:bg-white/[0.02]"
@@ -201,7 +201,7 @@ export default function ApiReferencePage() {
   const [viewRole, setViewRole] = useState<"consumer" | "provider">("consumer");
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-14">
       {/* Header */}
       <div className="space-y-4 border-b border-white/[0.06] pb-8">
         <div className="flex items-center gap-3">
@@ -211,7 +211,7 @@ export default function ApiReferencePage() {
           <StatusBadge status="GA" />
         </div>
         <h1 className="x-page-title text-white">{t("docsPage.apiTitle")}</h1>
-        <p className="x-body-copy max-w-[560px]">
+        <p className="x-body-copy">
           {t("docsPage.apiDescription")}{" "}
           <code className="text-[#7ff7be] font-mono text-[13px] bg-[#7ff7be]/8 px-1.5 py-0.5 rounded">
             /api
@@ -221,23 +221,21 @@ export default function ApiReferencePage() {
           </code>
         </p>
         {/* Method legend */}
-        <div className="flex flex-wrap gap-4 pt-1">
+        <div className="flex flex-wrap gap-5 pt-2">
           {(["GET", "POST", "PUT", "DELETE"] as const).map((m) => (
             <div key={m} className="flex items-center gap-2">
               <span
-                className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border font-mono ${METHOD_COLOR[m]}`}
+                className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-md font-mono ${METHOD_BG[m] ?? ""}`}
               >
                 {m}
               </span>
-              <span className="text-[12px] text-[#71767b]">
-                {
-                  {
+              <span className="text-[13px] text-[#71767b]">
+                {{
                     GET: t("docsPage.apiLegendRead"),
                     POST: t("docsPage.apiLegendCreate"),
                     PUT: t("docsPage.apiLegendUpdate"),
                     DELETE: t("docsPage.apiLegendDelete"),
-                  }[m]
-                }
+                  }[m]}
               </span>
             </div>
           ))}
@@ -287,9 +285,9 @@ export default function ApiReferencePage() {
         <section key={group.id} id={group.id} className="space-y-3">
           <div className="space-y-1">
             <h2 className="x-section-title text-white">{group.title}</h2>
-            <p className="text-[13px] text-[#71767b]">{group.description}</p>
+            <p className="x-body-copy">{group.description}</p>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {group.routes.map((route) => (
               <EndpointRow key={route.id} route={route} />
             ))}

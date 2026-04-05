@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useState, useCallback, useMemo } from "react";
-import { Copy, Check, Send, ChevronLeft, ArrowRight } from "lucide-react";
+import { Copy, Check, ChevronLeft, ArrowRight, Play, ChevronDown, Sparkles } from "lucide-react";
 import {
   ALL_ROUTES,
   buildCurl,
-  METHOD_COLOR,
+  METHOD_BG,
   ROLE_BADGE,
   PHASE_BADGE,
   type RouteEndpoint,
@@ -20,12 +20,9 @@ import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 function SectionDivider({ title }: { title: string }) {
   return (
-    <div className="flex items-center gap-4 py-1">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4e535a] whitespace-nowrap">
-        {title}
-      </span>
-      <div className="flex-1 h-px bg-white/[0.06]" />
-    </div>
+    <h4 className="text-[15px] font-semibold text-[#e7e9ea] pt-2 pb-1">
+      {title}
+    </h4>
   );
 }
 
@@ -84,7 +81,7 @@ function AgentBox({ meta }: { meta: AgentMeta }) {
   const role = ROLE_BADGE[meta.role] ?? ROLE_BADGE.public;
   const phaseCls = PHASE_BADGE[meta.phase] ?? "text-[#71767b] bg-[#71767b]/8 border-[#71767b]/20";
   return (
-    <div className="rounded-xl border border-[#6eb6f6]/14 bg-[#6eb6f6]/[0.03] px-4 py-4 space-y-3">
+    <div className="rounded-lg border border-[#6eb6f6]/14 bg-[#6eb6f6]/[0.03] px-4 py-4 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">
           Agent Context
@@ -138,7 +135,7 @@ function errorBadgeCls(status: number): string {
 
 function ErrorTable({ errors }: { errors: ErrorCode[] }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+    <div className="rounded-lg border border-white/[0.06] overflow-hidden">
       {errors.map((e, i) => (
         <div
           key={e.code}
@@ -157,6 +154,38 @@ function ErrorTable({ errors }: { errors: ErrorCode[] }) {
   );
 }
 
+// cURL colour palette
+const CURL_COLOR = {
+  keyword: "#e7e9ea",  // curl
+  flag:    "#6eb6f6",  // --request, --header, -X
+  quoted:  "#f4a261",  // 'value'
+  cont:    "#4e535a",  // \
+  rest:    "#71767b",  // everything else
+} as const;
+
+// ─── cURL syntax highlighter ─────────────────────────────────────────────────
+
+function CurlHighlight({ curl }: { curl: string }) {
+  const tokens: { text: string; col: string }[] = [];
+  const re = /(\bcurl\b)|(--?[\w-]+)|('(?:[^'\\]|\\.)*')|(\\)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(curl)) !== null) {
+    if (m.index > last) tokens.push({ text: curl.slice(last, m.index), col: CURL_COLOR.rest });
+    if (m[1])      tokens.push({ text: m[1], col: CURL_COLOR.keyword });
+    else if (m[2]) tokens.push({ text: m[2], col: CURL_COLOR.flag });
+    else if (m[3]) tokens.push({ text: m[3], col: CURL_COLOR.quoted });
+    else           tokens.push({ text: m[4]!, col: CURL_COLOR.cont });
+    last = m.index + m[0].length;
+  }
+  if (last < curl.length) tokens.push({ text: curl.slice(last), col: CURL_COLOR.rest });
+  return (
+    <pre className="overflow-x-auto px-4 py-4 text-[11.5px] leading-[1.75] font-mono min-h-[80px] whitespace-pre">
+      <code>{tokens.map((t, i) => <span key={i} style={{ color: t.col }}>{t.text}</span>)}</code>
+    </pre>
+  );
+}
+
 // ─── Right Panel: cURL card ───────────────────────────────────────────────────
 
 function CurlCard({ route, curl }: { route: RouteEndpoint; curl: string }) {
@@ -167,30 +196,71 @@ function CurlCard({ route, curl }: { route: RouteEndpoint; curl: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[#09090c] overflow-hidden">
+    <div className="rounded-xl border border-white/[0.08] bg-[#09090c] overflow-hidden">
       {/* card header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-[#0d0d10]">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[12px] font-medium text-[#c0c5cc] truncate">{route.summary}</span>
         </div>
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          <span className="text-[10px] font-mono text-[#71767b] border border-white/[0.08] px-2 py-0.5 rounded-md">
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          <button className="flex items-center gap-1 text-[11px] font-mono text-[#c0c5cc] border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1 rounded-md transition-colors">
+            <span className="w-1.5 h-1.5 rounded-sm bg-[#71767b] inline-block mr-0.5" />
             cURL
-          </span>
+            <ChevronDown size={10} className="text-[#71767b] ml-0.5" />
+          </button>
           <button
             onClick={handleCopy}
-            className="p-1.5 rounded-lg hover:bg-white/[0.07] text-[#71767b] hover:text-[#c0c5cc] transition-colors"
+            className="p-1.5 rounded-md hover:bg-white/[0.07] text-[#71767b] hover:text-[#c0c5cc] transition-colors"
             aria-label="Copy cURL"
           >
             {copied ? <Check size={13} className="text-[#7ff7be]" /> : <Copy size={13} />}
           </button>
+          <button className="p-1.5 rounded-md hover:bg-white/[0.07] text-[#4e535a] hover:text-[#71767b] transition-colors" aria-label="AI assist">
+            <Sparkles size={13} />
+          </button>
         </div>
       </div>
       {/* code */}
-      <pre className="overflow-x-auto px-4 py-4 text-[11.5px] leading-[1.75] font-mono text-[#9aa4af] min-h-[80px]">
-        <code>{curl}</code>
-      </pre>
+      <CurlHighlight curl={curl} />
     </div>
+  );
+}
+
+// JSON colour palette (X-style: keys = near-white, strings = blue)
+const JSON_COLOR = {
+  key:   "#e7e9ea",  // "key":
+  str:   "#6ab0f5",  // "string value"
+  num:   "#e7e9ea",  // 123
+  bool:  "#e7e9ea",  // true/false
+  null:  "#71767b",  // null
+  punct: "#6e7680",  // {}[],:
+  ws:    "#9aa4af",  // whitespace / unmatched
+} as const;
+
+// ─── JSON syntax highlighter ────────────────────────────────────────────────
+
+function JsonHighlight({ json }: { json: string }) {
+  const tokens: { text: string; col: string }[] = [];
+  const re = /("(?:[^"\\]|\\.)*"\s*:)|("(?:[^"\\]|\\.)*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false)\b|\b(null)\b|(\{|\}|\[|\]|,|:)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(json)) !== null) {
+    if (m.index > last) tokens.push({ text: json.slice(last, m.index), col: JSON_COLOR.ws });
+    if (m[1])      tokens.push({ text: m[1], col: JSON_COLOR.key });
+    else if (m[2]) tokens.push({ text: m[2], col: JSON_COLOR.str });
+    else if (m[3]) tokens.push({ text: m[3], col: JSON_COLOR.num });
+    else if (m[4]) tokens.push({ text: m[4], col: JSON_COLOR.bool });
+    else if (m[5]) tokens.push({ text: m[5], col: JSON_COLOR.null });
+    else           tokens.push({ text: m[6]!, col: JSON_COLOR.punct });
+    last = m.index + m[0].length;
+  }
+  if (last < json.length) tokens.push({ text: json.slice(last), col: JSON_COLOR.ws });
+  return (
+    <pre className="overflow-x-auto px-4 py-4 text-[11.5px] leading-[1.75] font-mono max-h-[380px] overflow-y-auto">
+      <code>
+        {tokens.map((t, i) => <span key={i} style={{ color: t.col }}>{t.text}</span>)}
+      </code>
+    </pre>
   );
 }
 
@@ -206,7 +276,7 @@ function ResponseCard({ route }: { route: RouteEndpoint }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[#09090c] overflow-hidden">
+    <div className="rounded-xl border border-white/[0.08] bg-[#09090c] overflow-hidden">
       {/* tab header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-[#0d0d10]">
         <div className="flex items-center gap-2">
@@ -215,18 +285,21 @@ function ResponseCard({ route }: { route: RouteEndpoint }) {
           </span>
           <span className="text-[12px] text-[#71767b]">default</span>
         </div>
-        <button
-          onClick={handleCopy}
-          className="p-1.5 rounded-lg hover:bg-white/[0.07] text-[#71767b] hover:text-[#c0c5cc] transition-colors"
-          aria-label="Copy response"
-        >
-          {copied ? <Check size={13} className="text-[#7ff7be]" /> : <Copy size={13} />}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleCopy}
+            className="p-1.5 rounded-md hover:bg-white/[0.07] text-[#71767b] hover:text-[#c0c5cc] transition-colors"
+            aria-label="Copy response"
+          >
+            {copied ? <Check size={13} className="text-[#7ff7be]" /> : <Copy size={13} />}
+          </button>
+          <button className="p-1.5 rounded-md hover:bg-white/[0.07] text-[#4e535a] hover:text-[#71767b] transition-colors" aria-label="AI assist">
+            <Sparkles size={13} />
+          </button>
+        </div>
       </div>
       {/* json body */}
-      <pre className="overflow-x-auto px-4 py-4 text-[11.5px] leading-[1.75] font-mono text-[#9aa4af] max-h-[380px] overflow-y-auto">
-        <code>{json}</code>
-      </pre>
+      <JsonHighlight json={json} />
     </div>
   );
 }
@@ -253,7 +326,6 @@ function EndpointDetail({
   );
   const [liveResponse, setLiveResponse] = useState<{ status: number; body: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tryOpen, setTryOpen] = useState(false);
 
   const gatewayUrl = getGatewayBaseUrl();
   const curl = useMemo(
@@ -304,11 +376,13 @@ function EndpointDetail({
 
   const pathParams = (route.params ?? []).filter((p) => p.in === "path");
   const queryParams = (route.params ?? []).filter((p) => p.in === "query");
-  const methodCls = METHOD_COLOR[route.method] ?? "";
+  const methodBg = METHOD_BG[route.method] ?? "bg-white/10 text-white";
   const roleBadge = ROLE_BADGE[route.agentMeta.role];
 
   return (
-    <div>
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-10 items-start">
+      {/* ── LEFT column ───────────────────────────────────── */}
+      <div className="min-w-0">
       {/* ── Breadcrumb ──────────────────────────────────────── */}
       <div className="mb-7 flex items-center gap-2 text-[12px] text-[#4e535a]">
         <Link
@@ -329,26 +403,32 @@ function EndpointDetail({
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71767b]">
           {groupTitle}
         </p>
-        <h1 className="text-[30px] font-bold tracking-tight text-white leading-tight">
+        <h1 className="text-[36px] font-bold tracking-tight text-white leading-tight">
           {route.summary}
         </h1>
-        <p className="text-[15px] text-[#8b98a5] leading-relaxed max-w-[560px]">
+        <p className="text-[15px] text-[#8b98a5] leading-relaxed">
           {route.description}
         </p>
-        {/* method + path pill */}
+        {/* X-style method + path + Try it row */}
         <div className="flex flex-wrap items-center gap-3 pt-1">
-          <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.015] px-4 py-2.5">
-            <span
-              className={`text-[11px] font-bold font-mono px-2.5 py-1 rounded border ${methodCls}`}
-            >
+          <div className="flex items-center rounded-xl border border-white/[0.08] bg-white/[0.015] overflow-hidden flex-1 min-w-0 max-w-[640px]">
+            <span className={`text-[12px] font-bold font-mono px-3 py-2.5 shrink-0 ${methodBg}`}>
               {route.method}
             </span>
-            <code className="text-[13px] font-mono text-[#c0c5cc]">{route.path}</code>
+            <code className="text-[13px] font-mono text-[#c0c5cc] px-3 py-2.5 border-l border-white/[0.06] flex-1 min-w-0 truncate">
+              {route.path}
+            </code>
+            <button
+              onClick={() => void handleSend()}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold bg-[#1d7a4f] hover:bg-[#1b8f5a] text-[#7ff7be] transition-colors disabled:opacity-50 shrink-0 border-l border-white/[0.06]"
+            >
+              <Play size={12} className="fill-current" />
+              {loading ? "…" : "Try it"}
+            </button>
           </div>
           {roleBadge && (
-            <span
-              className={`rounded border px-2.5 py-1 text-[10px] font-semibold ${roleBadge.cls}`}
-            >
+            <span className={`rounded border px-2.5 py-1 text-[10px] font-semibold ${roleBadge.cls}`}>
               {roleBadge.label}
             </span>
           )}
@@ -360,17 +440,15 @@ function EndpointDetail({
         </div>
       </div>
 
-      {/* ── Two-column layout ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-8 items-start">
-        {/* ── LEFT column ───────────────────────────────────── */}
-        <div className="space-y-8 min-w-0">
+      {/* ── Sections ─────────────────────────────────────────── */}
+      <div className="space-y-8">
 
           {/* Authorizations */}
           {route.auth !== "none" && (
             <section className="space-y-3">
               <SectionDivider title="Authorizations" />
-              <div className="rounded-xl border border-white/[0.06] px-4 py-4">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="rounded-lg border border-white/[0.06] px-4 py-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <code className="text-[13px] font-mono font-semibold text-[#c0c5cc]">
                     Authorization
                   </code>
@@ -385,10 +463,34 @@ function EndpointDetail({
                   </span>
                 </div>
                 <p className="text-[13px] text-[#71767b] leading-[1.65]">
-                  {route.auth === "credential"
-                    ? "Agent credential token (snk_agent_…). Pass as Bearer <token>. Obtain via POST /agent/credentials."
-                    : "Owner JWT. Pass as Bearer <token>. Obtain from POST /api/v1/auth/verify."}
+                  Bearer authentication header of the form{" "}
+                  <code className="text-[12px] font-mono bg-white/[0.05] px-1.5 py-0.5 rounded text-[#c0c5cc]">
+                    Bearer &lt;token&gt;
+                  </code>
+                  {" "}where{" "}
+                  <code className="text-[12px] font-mono bg-white/[0.05] px-1.5 py-0.5 rounded text-[#c0c5cc]">
+                    &lt;token&gt;
+                  </code>{" "}
+                  is your{" "}
+                  {route.auth === "credential" ? "agent credential (snk_agent_…)" : "owner JWT"}.
                 </p>
+                {/* Token input for Try it */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-[#4e535a]">
+                    Token (for Try it)
+                  </label>
+                  <input
+                    type="password"
+                    className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 font-mono text-[12px] text-[#c0c5cc] placeholder:text-[#4e535a] focus:border-white/20 focus:outline-none"
+                    placeholder={
+                      route.auth === "credential"
+                        ? "snk_agent_..."
+                        : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    }
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                  />
+                </div>
               </div>
             </section>
           )}
@@ -397,7 +499,7 @@ function EndpointDetail({
           {queryParams.length > 0 && (
             <section className="space-y-3">
               <SectionDivider title="Query Parameters" />
-              <div className="rounded-xl border border-white/[0.06] px-4">
+              <div className="rounded-lg border border-white/[0.06] px-4">
                 {queryParams.map((p) => (
                   <ParamBlock
                     key={p.name}
@@ -414,7 +516,7 @@ function EndpointDetail({
           {pathParams.length > 0 && (
             <section className="space-y-3">
               <SectionDivider title="Path Parameters" />
-              <div className="rounded-xl border border-white/[0.06] px-4">
+              <div className="rounded-lg border border-white/[0.06] px-4">
                 {pathParams.map((p) => (
                   <ParamBlock
                     key={p.name}
@@ -432,7 +534,7 @@ function EndpointDetail({
             <section className="space-y-3">
               <SectionDivider title="Request Body" />
               <textarea
-                className="w-full rounded-xl border border-white/[0.08] bg-[#070809] px-4 py-3 font-mono text-[12px] text-[#c0c5cc] focus:border-white/20 focus:outline-none resize-none"
+                className="w-full rounded-lg border border-white/[0.08] bg-[#070809] px-4 py-3 font-mono text-[12px] text-[#c0c5cc] focus:border-white/20 focus:outline-none resize-none"
                 rows={Math.min(14, bodyText.split("\n").length + 1)}
                 value={bodyText}
                 onChange={(e) => setBodyText(e.target.value)}
@@ -455,38 +557,10 @@ function EndpointDetail({
             </section>
           )}
 
-          {/* Try It */}
-          <section className="space-y-3">
-            <SectionDivider title="Try It" />
-            {route.auth !== "none" && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-widest text-[#4e535a]">
-                  Bearer Token
-                </label>
-                <input
-                  type="password"
-                  className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 font-mono text-[12px] text-[#c0c5cc] placeholder:text-[#4e535a] focus:border-white/20 focus:outline-none"
-                  placeholder={
-                    route.auth === "credential"
-                      ? "snk_agent_..."
-                      : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  }
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                />
-              </div>
-            )}
-            <button
-              onClick={() => void handleSend()}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-[13px] font-semibold text-[#0f1419] transition-all hover:bg-[#e7e9ea] active:scale-[0.98] disabled:opacity-50"
-            >
-              <Send size={14} />
-              {loading ? "Sending…" : "Send Request"}
-            </button>
-
-            {/* Live response */}
-            {liveResponse && (
+          {/* Live response (shown after Try it is clicked) */}
+          {liveResponse && (
+            <section className="space-y-3">
+              <SectionDivider title="Live Response" />
               <div className="rounded-xl border border-white/[0.06] overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.04] bg-[#070809]">
                   <span
@@ -498,34 +572,34 @@ function EndpointDetail({
                   >
                     {liveResponse.status || "Error"}
                   </span>
-                  <span className="text-[11px] text-[#4e535a]">Live Response</span>
+                  <span className="text-[11px] text-[#4e535a]">Response</span>
                 </div>
                 <pre className="max-h-72 overflow-auto bg-[#040506] px-4 py-4 text-[11.5px] leading-6 font-mono text-[#9aa4af]">
                   <code>{liveResponse.body}</code>
                 </pre>
               </div>
-            )}
-          </section>
-        </div>
-
-        {/* ── RIGHT sticky panel ─────────────────────────────── */}
-        <div className="xl:sticky xl:top-[128px] space-y-4">
-          <CurlCard route={route} curl={curl} />
-          <ResponseCard route={route} />
-          {route.idempotency && (
-            <div className="rounded-xl border border-[#f9c74f]/14 bg-[#f9c74f]/[0.03] px-4 py-3 text-[12px] text-[#f9c74f] leading-[1.6]">
-              <span className="font-semibold">Idempotent.</span> Pass{" "}
-              <code className="font-mono bg-[#f9c74f]/10 px-1 rounded text-[11px]">
-                X-Idempotency-Key
-              </code>{" "}
-              to safely retry without duplicate charges.
-            </div>
+            </section>
           )}
-        </div>
       </div>
 
       {/* ── Prev / Next navigation ──────────────────────────── */}
       <EndpointNav current={route} />
+      </div>
+
+      {/* ── RIGHT sticky panel ─────────────────────────────── */}
+      <div className="xl:sticky xl:top-[108px] space-y-4">
+        <CurlCard route={route} curl={curl} />
+        <ResponseCard route={route} />
+        {route.idempotency && (
+          <div className="rounded-lg border border-[#f9c74f]/14 bg-[#f9c74f]/[0.03] px-4 py-3 text-[12px] text-[#f9c74f] leading-[1.6]">
+            <span className="font-semibold">Idempotent.</span> Pass{" "}
+            <code className="font-mono bg-[#f9c74f]/10 px-1 rounded text-[11px]">
+              X-Idempotency-Key
+            </code>{" "}
+            to safely retry without duplicate charges.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

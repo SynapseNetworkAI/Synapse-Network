@@ -7,6 +7,15 @@ export const METHOD_COLOR: Record<string, string> = {
   DELETE: "text-red-400 bg-red-400/10 border-red-400/20",
 };
 
+// Solid background for the X-style inline method badge
+export const METHOD_BG: Record<string, string> = {
+  GET: "bg-[#00ba7c] text-[#0f1419]",
+  POST: "bg-[#1d9bf0] text-white",
+  PUT: "bg-[#f59e0b] text-[#0f1419]",
+  DELETE: "bg-red-500 text-white",
+  PATCH: "bg-[#c084fc] text-[#0f1419]",
+};
+
 export const ROLE_BADGE: Record<string, { label: string; cls: string }> = {
   owner: { label: "Owner", cls: "text-[#f9c74f] bg-[#f9c74f]/10 border-[#f9c74f]/30" },
   consumer_agent: { label: "Consumer Agent", cls: "text-[#6eb6f6] bg-[#6eb6f6]/10 border-[#6eb6f6]/30" },
