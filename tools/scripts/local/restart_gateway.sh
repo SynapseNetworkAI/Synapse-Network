@@ -7,7 +7,9 @@ fi
 set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+# scripts/ is a symlink (→ tools/scripts); logical path is Synapse-Network/scripts/local
+# so repo root is two levels up from SCRIPT_DIR, not three.
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 LOG_FILE="${ROOT_DIR}/services/gateway/logs/provider_api.log"
 CONFIG_FILE="${ROOT_DIR}/services/user-front/src/contract-config.json"

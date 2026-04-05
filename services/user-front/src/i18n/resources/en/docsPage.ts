@@ -634,6 +634,54 @@ const docsPage: I18nMessages["docsPage"] = {
     "Arbiscan Sepolia (Staging)",
     "Arbiscan (Production)",
   ],
+
+  // ── Code block inline comments (consumer guide) ──────────────────────────
+  consumerCodeAuth: [
+    "Step 1 — Get challenge nonce",
+    "Step 2 — Sign with wallet (EIP-191)",
+    "Step 3 — Exchange for JWT",
+    "Add to all subsequent requests:",
+    "Authorization: Bearer <token>",
+  ],
+  consumerCodeDeposit: [
+    "Deposit 10 USDC",
+    "1. Approve contract to spend your USDC",
+    "2. On-chain deposit",
+    "3. Register deposit intent (idempotency key prevents duplicates)",
+    "4. Confirm — Gateway also listens for chain events automatically",
+    "✓ Deposit complete, balance credited",
+  ],
+  consumerCodeDiscover: [
+    "Discover available services (filter by tag or name)",
+    "Response example",
+    "Found service: , price per call:  USDC",
+  ],
+  consumerCodeCredential: [
+    "Idempotent pattern: check for active credential first, use if found, create only if not",
+    "Active credential found — reuse it (idempotent: repeated runs won't create duplicates)",
+    "No active credential — create one",
+    "per-day budget (USDC)",
+    "lifetime call cap",
+    "agt_xxx… — persist this token",
+    "New credential created:",
+    "Reusing existing credential:",
+    "Health check (run on startup or via cron)",
+    "Credential is invalid — re-issue",
+  ],
+  consumerCodeInvoke: [
+    "Single call covers the full flow: discovery → debit → settlement",
+    "Idempotency key — prevents double-charge on retry",
+    "Use agentToken, NOT the owner JWT",
+    "Price you observed in discovery — prevents unexpected charges if price changed",
+    "Gateway returns 422 PRICE_MISMATCH if live price changed — re-discover and retry",
+  ],
+  consumerCodeVerify: [
+    "Query current account balance",
+    "Decreased by this invocation's fee",
+    "Verify the latest invocation record",
+    "\"settled\"",
+    "\"0.0010\"",
+  ],
 };
 
 export default docsPage;

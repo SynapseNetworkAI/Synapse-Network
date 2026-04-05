@@ -27,6 +27,12 @@ export default function ConsumerGuidePage() {
   const stepTitles = tList("docsPage.consumerStepTitles");
   const stepBodies = tList("docsPage.consumerStepBodies");
   const stepTips = tList("docsPage.consumerStepTips");
+  const cAuth = tList("docsPage.consumerCodeAuth");
+  const cDeposit = tList("docsPage.consumerCodeDeposit");
+  const cDiscover = tList("docsPage.consumerCodeDiscover");
+  const cCred = tList("docsPage.consumerCodeCredential");
+  const cInvoke = tList("docsPage.consumerCodeInvoke");
+  const cVerify = tList("docsPage.consumerCodeVerify");
   useDocsPageNav(PAGE_SECTIONS.map((id, index) => ({
     id,
     label: stepTitles[index] ?? id,
@@ -81,25 +87,25 @@ export default function ConsumerGuidePage() {
         <p className="text-[13px] text-[#71767b] leading-relaxed">
           {stepBodies[0]}
         </p>
-        <CodeBlock lang="typescript" code={`
-// Step 1 — 获取挑战串
-const { challenge } = await fetch(
-  \`/api/v1/auth/challenge?address=\${walletAddress}\`
-).then(r => r.json())
-
-// Step 2 — 钱包签名（EIP-191）
-const signature = await signer.signMessage(challenge)
-
-// Step 3 — 换取 JWT
-const { token } = await fetch('/api/v1/auth/verify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ wallet_address: walletAddress, message: challenge, signature }),
-}).then(r => r.json())
-
-// 后续所有请求加入 header：
-// Authorization: Bearer <token>
-        `} />
+        <CodeBlock lang="typescript" code={[
+          `// ${cAuth[0]}`,
+          `const { challenge } = await fetch(`,
+          `  \`/api/v1/auth/challenge?address=\${walletAddress}\``,
+          `).then(r => r.json())`,
+          ``,
+          `// ${cAuth[1]}`,
+          `const signature = await signer.signMessage(challenge)`,
+          ``,
+          `// ${cAuth[2]}`,
+          `const { token } = await fetch('/api/v1/auth/verify', {`,
+          `  method: 'POST',`,
+          `  headers: { 'Content-Type': 'application/json' },`,
+          `  body: JSON.stringify({ wallet_address: walletAddress, message: challenge, signature }),`,
+          `}).then(r => r.json())`,
+          ``,
+          `// ${cAuth[3]}`,
+          `// ${cAuth[4]}`,
+        ].join('\n')} />
         <StepTip accent={ACCENT}>
           {stepTips[0]}{" "}
           <code className="text-[#c0c5cc] font-mono text-[12px]">await client.auth.connectWallet(signer)</code>{" "}
@@ -111,38 +117,38 @@ const { token } = await fetch('/api/v1/auth/verify', {
         <p className="text-[13px] text-[#71767b] leading-relaxed">
           {stepBodies[1]}
         </p>
-        <CodeBlock lang="typescript" code={`
-import { ethers } from 'ethers'
-
-const depositAmount = ethers.parseUnits('10', 6)   // 充值 10 USDC
-
-// 1. 授权合约使用你的 USDC
-await usdcContract.approve(SYNAPSE_CORE_ADDRESS, depositAmount)
-
-// 2. 链上存款
-const tx = await synapseCore.deposit(depositAmount)
-await tx.wait()
-
-// 3. 登记充值意图（带幂等 Key 防重复）
-const idempotencyKey = crypto.randomUUID()
-const { intentId } = await fetch('/api/v1/balance/deposit/intent', {
-  method: 'POST',
-  headers: {
-    'Authorization': \`Bearer \${token}\`,
-    'X-Idempotency-Key': idempotencyKey,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ txHash: tx.hash, amountUsdc: 10 }),
-}).then(r => r.json())
-
-// 4. 确认（Gateway 会自动监听链上事件，也可手动触发）
-await fetch(\`/api/v1/balance/deposit/intents/\${intentId}/confirm\`, {
-  method: 'POST',
-  headers: { 'Authorization': \`Bearer \${token}\` },
-})
-
-console.log('✓ 充值完成，余额已到账')
-        `} />
+        <CodeBlock lang="typescript" code={[
+          `import { ethers } from 'ethers'`,
+          ``,
+          `const depositAmount = ethers.parseUnits('10', 6)   // ${cDeposit[0]}`,
+          ``,
+          `// ${cDeposit[1]}`,
+          `await usdcContract.approve(SYNAPSE_CORE_ADDRESS, depositAmount)`,
+          ``,
+          `// ${cDeposit[2]}`,
+          `const tx = await synapseCore.deposit(depositAmount)`,
+          `await tx.wait()`,
+          ``,
+          `// ${cDeposit[3]}`,
+          `const idempotencyKey = crypto.randomUUID()`,
+          `const { intentId } = await fetch('/api/v1/balance/deposit/intent', {`,
+          `  method: 'POST',`,
+          `  headers: {`,
+          `    'Authorization': \`Bearer \${token}\`,`,
+          `    'X-Idempotency-Key': idempotencyKey,`,
+          `    'Content-Type': 'application/json',`,
+          `  },`,
+          `  body: JSON.stringify({ txHash: tx.hash, amountUsdc: 10 }),`,
+          `}).then(r => r.json())`,
+          ``,
+          `// ${cDeposit[4]}`,
+          `await fetch(\`/api/v1/balance/deposit/intents/\${intentId}/confirm\`, {`,
+          `  method: 'POST',`,
+          `  headers: { 'Authorization': \`Bearer \${token}\` },`,
+          `})`,
+          ``,
+          `console.log('${cDeposit[5]}')`,
+        ].join('\n')} />
         <StepTip accent={ACCENT}>
           {stepTips[1]}{" "}
           <code className="text-[#c0c5cc] font-mono text-[12px]">X-Idempotency-Key</code>.
@@ -154,29 +160,29 @@ console.log('✓ 充值完成，余额已到账')
         <p className="text-[13px] text-[#71767b] leading-relaxed">
           {stepBodies[2]}
         </p>
-        <CodeBlock lang="typescript" code={`
-// 发现可用服务（支持 tag、name 过滤）
-const { services } = await fetch(
-  '/api/v1/services/discover?tag=llm&limit=20',
-  { headers: { 'Authorization': \`Bearer \${token}\` } }
-).then(r => r.json())
-
-// 响应示例
-// [
-//   {
-//     serviceId: "svc_abc123",
-//     name: "fast-llm-inference",
-//     pricePerCallUsdc: "0.001",
-//     status: "healthy",
-//     tags: ["llm", "inference"],
-//     provider: "0xProviderWallet..."
-//   }
-// ]
-
-const targetServiceId = services[0].serviceId
-const pricePerCall = services[0].pricePerCallUsdc
-console.log(\`找到服务: \${targetServiceId}，每次调用: \${pricePerCall} USDC\`)
-        `} />
+        <CodeBlock lang="typescript" code={[
+          `// ${cDiscover[0]}`,
+          `const { services } = await fetch(`,
+          `  '/api/v1/services/discover?tag=llm&limit=20',`,
+          `  { headers: { 'Authorization': \`Bearer \${token}\` } }`,
+          `).then(r => r.json())`,
+          ``,
+          `// ${cDiscover[1]}`,
+          `// [`,
+          `//   {`,
+          `//     serviceId: "svc_abc123",`,
+          `//     name: "fast-llm-inference",`,
+          `//     pricePerCallUsdc: "0.001",`,
+          `//     status: "healthy",`,
+          `//     tags: ["llm", "inference"],`,
+          `//     provider: "0xProviderWallet..."`,
+          `//   }`,
+          `// ]`,
+          ``,
+          `const targetServiceId = services[0].serviceId`,
+          `const pricePerCall = services[0].pricePerCallUsdc`,
+          `console.log(\`${cDiscover[2].replace(":", ": \${targetServiceId},").replace(":",": \${pricePerCall}")}\`)`,
+        ].join('\n')} />
       </StepItem>
 
       {/* ── Step 04: Credential ─────────────────────────────────── */}
@@ -184,47 +190,47 @@ console.log(\`找到服务: \${targetServiceId}，每次调用: \${pricePerCall}
         <p className="text-[13px] text-[#71767b] leading-relaxed">
           {stepBodies[3]}
         </p>
-        <CodeBlock lang="typescript" code={`
-// 幂等模式：先查有没有可用的 active 凭据，有则直接用，没有再新建
-const { credentials } = await fetch(
-  '/api/v1/credentials/agent/list?active_only=true',
-  { headers: { 'Authorization': \`Bearer \${token}\` } }
-).then(r => r.json())
-
-let agentToken: string
-let credentialId: string
-
-if (credentials.length > 0) {
-  // 有现成 active 凭据，直接复用（幺等：重复运行不新建）
-  credentialId = credentials[0].id
-  console.log('复用现有凭据:', credentialId)
-} else {
-  // 无可用凭据，新建一个
-  const resp = await fetch('/api/v1/credentials/agent/issue', {
-    method: 'POST',
-    headers: {
-      'Authorization': \`Bearer \${token}\`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      name: 'my-agent-bot',
-      creditLimit: 1.00,       // 每日限额（USDC）
-      maxCalls: 200,           // 生命周期调用次数上限
-      resetInterval: 'daily',
-    }),
-  }).then(r => r.json())
-  agentToken = resp.credential.token   // agt_xxxxx… — 请持久化存储
-  credentialId = resp.credential.id
-  console.log('新建凭据:', credentialId)
-}
-
-// 凭据健康检查（定时任务 / 启动前检查可用）
-const { valid } = await fetch(
-  \`/api/v1/credentials/agent/\${credentialId}/status\`,
-  { headers: { 'Authorization': \`Bearer \${token}\` } }
-).then(r => r.json())
-if (!valid) console.warn('凭据已失效，重新建立')
-        `} />
+        <CodeBlock lang="typescript" code={[
+          `// ${cCred[0]}`,
+          `const { credentials } = await fetch(`,
+          `  '/api/v1/credentials/agent/list?active_only=true',`,
+          `  { headers: { 'Authorization': \`Bearer \${token}\` } }`,
+          `).then(r => r.json())`,
+          ``,
+          `let agentToken: string`,
+          `let credentialId: string`,
+          ``,
+          `if (credentials.length > 0) {`,
+          `  // ${cCred[1]}`,
+          `  credentialId = credentials[0].id`,
+          `  console.log('${cCred[7]}', credentialId)`,
+          `} else {`,
+          `  // ${cCred[2]}`,
+          `  const resp = await fetch('/api/v1/credentials/agent/issue', {`,
+          `    method: 'POST',`,
+          `    headers: {`,
+          `      'Authorization': \`Bearer \${token}\`,`,
+          `      'Content-Type': 'application/json',`,
+          `    },`,
+          `    body: JSON.stringify({`,
+          `      name: 'my-agent-bot',`,
+          `      creditLimit: 1.00,       // ${cCred[3]}`,
+          `      maxCalls: 200,           // ${cCred[4]}`,
+          `      resetInterval: 'daily',`,
+          `    }),`,
+          `  }).then(r => r.json())`,
+          `  agentToken = resp.credential.token   // ${cCred[5]}`,
+          `  credentialId = resp.credential.id`,
+          `  console.log('${cCred[6]}', credentialId)`,
+          `}`,
+          ``,
+          `// ${cCred[8]}`,
+          `const { valid } = await fetch(`,
+          `  \`/api/v1/credentials/agent/\${credentialId}/status\`,`,
+          `  { headers: { 'Authorization': \`Bearer \${token}\` } }`,
+          `).then(r => r.json())`,
+          `if (!valid) console.warn('${cCred[9]}')`,
+        ].join('\n')} />
         <StepTip accent={ACCENT}>
           {stepTips[3]}
         </StepTip>
@@ -235,29 +241,29 @@ if (!valid) console.warn('凭据已失效，重新建立')
         <p className="text-[13px] text-[#71767b] leading-relaxed">
           {stepBodies[4]}
         </p>
-        <CodeBlock lang="typescript" code={`
-// 一次调用完成全流程：发现 → 扣费 → 结算
-const invocationKey = crypto.randomUUID()  // 幂等 key，防止重复扣费
-
-const result = await fetch('/api/v1/agent/invoke', {
-  method: 'POST',
-  headers: {
-    'Authorization': \`Bearer \${agentToken}\`,   // 注意：用 agentToken，不是 JWT
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    serviceId: targetServiceId,
-    costUsdc: parseFloat(pricePerCall),  // 键入你发现的价格，防止价格外泄扣费
-    idempotencyKey: invocationKey,
-    payload: { body: { prompt: 'Summarize this document...' } },
-  }),
-}).then(r => r.json())
-
-console.log('调用结果:', result.result)
-console.log('本次扣费:', result.chargedUsdc, 'USDC')
-console.log('回执 ID:', result.invocationId)
-// 如果服务实时价格发生变化，返回 422 PRICE_MISMATCH — 重新 discover 再重试
-        `} />
+        <CodeBlock lang="typescript" code={[
+          `// ${cInvoke[0]}`,
+          `const invocationKey = crypto.randomUUID()  // ${cInvoke[1]}`,
+          ``,
+          `const result = await fetch('/api/v1/agent/invoke', {`,
+          `  method: 'POST',`,
+          `  headers: {`,
+          `    'Authorization': \`Bearer \${agentToken}\`,   // ${cInvoke[2]}`,
+          `    'Content-Type': 'application/json',`,
+          `  },`,
+          `  body: JSON.stringify({`,
+          `    serviceId: targetServiceId,`,
+          `    costUsdc: parseFloat(pricePerCall),  // ${cInvoke[3]}`,
+          `    idempotencyKey: invocationKey,`,
+          `    payload: { body: { prompt: 'Summarize this document...' } },`,
+          `  }),`,
+          `}).then(r => r.json())`,
+          ``,
+          `console.log('Result:', result.result)`,
+          `console.log('Charged:', result.chargedUsdc, 'USDC')`,
+          `console.log('Invocation ID:', result.invocationId)`,
+          `// ${cInvoke[4]}`,
+        ].join('\n')} />
         <StepTip accent={ACCENT}>
           {stepTips[4]}
         </StepTip>
@@ -268,26 +274,26 @@ console.log('回执 ID:', result.invocationId)
         <p className="text-[13px] text-[#71767b] leading-relaxed">
           {stepBodies[5]}
         </p>
-        <CodeBlock lang="typescript" code={`
-// 查询当前账户余额
-const balance = await fetch('/api/v1/balance', {
-  headers: { 'Authorization': \`Bearer \${token}\` },
-}).then(r => r.json())
-
-console.log('Consumer 可用余额:', balance.consumerBalanceUsdc)
-// 减少了本次调用费用
-
-// 验证本次调用记录
-const { invocations } = await fetch(
-  '/api/v1/agent/invocations?limit=5',
-  { headers: { 'Authorization': \`Bearer \${token}\` } },
-).then(r => r.json())
-
-const latest = invocations[0]
-console.log('调用状态:', latest.status)        // "settled"
-console.log('实际扣费:', latest.chargedUsdc)   // "0.0010"
-console.log('结算时间:', latest.settledAt)
-        `} />
+        <CodeBlock lang="typescript" code={[
+          `// ${cVerify[0]}`,
+          `const balance = await fetch('/api/v1/balance', {`,
+          `  headers: { 'Authorization': \`Bearer \${token}\` },`,
+          `}).then(r => r.json())`,
+          ``,
+          `console.log('Consumer balance:', balance.consumerBalanceUsdc)`,
+          `// ${cVerify[1]}`,
+          ``,
+          `// ${cVerify[2]}`,
+          `const { invocations } = await fetch(`,
+          `  '/api/v1/agent/invocations?limit=5',`,
+          `  { headers: { 'Authorization': \`Bearer \${token}\` } },`,
+          `).then(r => r.json())`,
+          ``,
+          `const latest = invocations[0]`,
+          `console.log('Status:', latest.status)        // ${cVerify[3]}`,
+          `console.log('Charged:', latest.chargedUsdc)   // ${cVerify[4]}`,
+          `console.log('Settled at:', latest.settledAt)`,
+        ].join('\n')} />
 
         {/* Completion badge */}
         <div

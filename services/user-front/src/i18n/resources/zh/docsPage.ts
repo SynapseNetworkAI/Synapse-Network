@@ -628,6 +628,54 @@ const docsPage: I18nMessages["docsPage"] = {
     "Arbiscan Sepolia（Staging）",
     "Arbiscan（Production）",
   ],
+
+  // ── 代码块内联注释（Consumer 引导） ────────────────────────────────────────
+  consumerCodeAuth: [
+    "Step 1 — 获取挑战串",
+    "Step 2 — 钱包签名（EIP-191）",
+    "Step 3 — 换取 JWT",
+    "后续所有请求加入 header：",
+    "Authorization: Bearer <token>",
+  ],
+  consumerCodeDeposit: [
+    "充值 10 USDC",
+    "1. 授权合约使用你的 USDC",
+    "2. 链上存款",
+    "3. 登记充值意图（带幂等 Key 防重复）",
+    "4. 确认（Gateway 会自动监听链上事件，也可手动触发）",
+    "✓ 充值完成，余额已到账",
+  ],
+  consumerCodeDiscover: [
+    "发现可用服务（支持 tag、name 过滤）",
+    "响应示例",
+    "找到服务: ，每次调用:  USDC",
+  ],
+  consumerCodeCredential: [
+    "幂等模式：先查有没有可用的 active 凭据，有则直接用，没有再新建",
+    "有现成 active 凭据，直接复用（幂等：重复运行不新建）",
+    "无可用凭据，新建一个",
+    "每日限额（USDC）",
+    "生命周期调用次数上限",
+    "agt_xxxxx… — 请持久化存储",
+    "新建凭据:",
+    "复用现有凭据:",
+    "凭据健康检查（定时任务 / 启动前检查可用）",
+    "凭据已失效，重新建立",
+  ],
+  consumerCodeInvoke: [
+    "一次调用完成全流程：发现 → 扣费 → 结算",
+    "幂等 key，防止重复扣费",
+    "注意：用 agentToken，不是 JWT",
+    "键入你发现的价格，防止价格外泄扣费",
+    "如果服务实时价格发生变化，返回 422 PRICE_MISMATCH — 重新 discover 再重试",
+  ],
+  consumerCodeVerify: [
+    "查询当前账户余额",
+    "减少了本次调用费用",
+    "验证本次调用记录",
+    "\"settled\"",
+    "\"0.0010\"",
+  ],
 };
 
 export default docsPage;

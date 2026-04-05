@@ -115,3 +115,91 @@ Before implementation:
 If a rule is repeating across multiple Python services or multiple frontend apps, move it into `.github/instructions/` instead of copying it into every AGENTS file.
 
 If a rule only matters to one service's role, environment, or runtime workflow, keep it in that service's `AGENTS.md`.
+
+## 9. Developer Tools (`scripts/tools/`)
+
+Reusable scripts live in `scripts/tools/`. See `scripts/tools/README.md` for full docs.
+
+| Tool | Purpose |
+|------|---------|
+| `screenshot_docs.js` | Take EN + ZH Playwright screenshots of any docs page to verify i18n rendering |
+| `audit_i18n_comments.js` | Scan docs pages for hardcoded CJK `//` comments that need i18n extraction |
+
+### i18n Code Block Comment Rule
+
+**Do not hardcode CJK or language-specific text inside CodeBlock `code` props.**
+
+Use the array-join pattern instead:
+```tsx
+const cAuth = tList("docsPage.consumerCodeAuth");  // string[]
+
+<CodeBlock lang="typescript" code={[
+  `// ${cAuth[0]}`,
+  `const { challenge } = await fetch(...)`,
+].join('\n')} />
+```
+
+Add corresponding arrays to both `en/docsPage.ts`, `zh/docsPage.ts`, and `schema.ts`.
+
+Run `node scripts/tools/audit_i18n_comments.js` to validate before merging any docs page changes.
+
+## 10. Directory Structure & Script Sync Rule
+
+### Canonical service layout
+
+```
+services/
+  gateway/          # Python FastAPI gateway (main backend)
+  gateway-admin/    # Admin control-plane gateway
+  user-front/       # Consumer-facing Next.js frontend
+  admin-front/      # Admin-facing Next.js frontend
+
+scripts/ → tools/scripts/   # symlink — see "symlink note" below
+  local/            # Local dev lifecycle (setup/stop/restart)
+  ci/               # CI quality gates per service
+  chain/            # Hardhat/Anvil scripts (deploy, fund, e2e)
+  prod/             # Production start/stop
+  staging/          # Staging start/stop
+  python/           # Python resolver helpers
+
+../Synapse-Network-Provider/   # Separate sibling repo for provider_service
+../Synapse-Network-Sdk/        # Separate sibling repo for SDK
+```
+
+### Symlink note — always use `../..` from `scripts/local/` or `scripts/ci/`
+
+`scripts/` is a **symlink** pointing to `tools/scripts/`. Bash `cd` traverses it
+logically, so `pwd` reports the logical path (e.g. `Synapse-Network/scripts/local`).
+
+This means:
+- `SCRIPT_DIR/../../..` → **parent of repo root** (wrong)
+- `SCRIPT_DIR/../..` → **repo root** ✓
+
+Every shell script under `scripts/` must use exactly **two levels up** (`../..`) to
+reach `ROOT_DIR`, regardless of how deep the subdirectory is under `scripts/`.
+
+### Mandatory checklist when renaming or moving directories
+
+When any of the following changes:
+- A directory under `services/` is renamed or moved
+- A sibling repo path changes (e.g. `Synapse-Network-Provider/`)
+- The `scripts/` symlink target changes
+
+Run this audit before committing:
+
+```bash
+# 1. Check all scripts reference correct paths
+grep -rn "apps/\|/provider_service\b" scripts/ --include="*.sh" --include="*.py"
+
+# 2. Check ROOT_DIR depth is always ../.. from scripts/*/ dirs
+grep -rn "\.\./\.\./\.\." scripts/ --include="*.sh"
+# → must return nothing (any result is a bug)
+
+# 3. Syntax-check all scripts
+find scripts/ -name "*.sh" | xargs -I{} bash -n {}
+
+# 4. Run full local setup to confirm
+sh scripts/local/setup_local_env.sh
+```
+
+Stale paths must be fixed in the **same commit** as the directory change.
