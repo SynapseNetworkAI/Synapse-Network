@@ -59,6 +59,7 @@ const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar
     account: "Account",
     settings: "Settings",
     logout: "Logout",
+    login: "Sign In",
     discovery: "Discovery",
     invocations: "Invocations",
     treasury: "Payments",

@@ -28,7 +28,8 @@ import {
   ChevronDown,
   CircleUserRound,
   Settings,
-  LogOut
+  LogOut,
+  LogIn
 } from "lucide-react";
 
 export default function DashboardSidebar() {
@@ -365,10 +366,21 @@ export default function DashboardSidebar() {
                 <Settings className="mr-3 h-4 w-4 text-white/46" />
                 {t("sidebar.settings")}
               </Link>
-              <button type="button" onClick={() => void handleLogout()} className={getDangerSubButtonClasses()}>
-                <LogOut className="mr-3 h-4 w-4" />
-                {t("sidebar.logout")}
-              </button>
+              {isConnected || isSessionAuthenticated ? (
+                <button type="button" onClick={() => void handleLogout()} className={getDangerSubButtonClasses()}>
+                  <LogOut className="mr-3 h-4 w-4" />
+                  {t("sidebar.logout")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ml-10 mr-2 mt-1 flex w-[calc(100%-3rem)] items-center rounded-2xl px-4 py-2.5 text-[14px] font-medium text-white/70 transition-[background-color,color] hover:bg-white/[0.03] hover:text-white"
+                  onClick={() => openConnectModal?.()}
+                >
+                  <LogIn className="mr-3 h-4 w-4 text-white/46" />
+                  {t("sidebar.login")}
+                </button>
+              )}
             </div>
           ) : null}
           </div>
