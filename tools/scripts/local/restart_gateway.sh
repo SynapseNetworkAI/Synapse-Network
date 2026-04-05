@@ -107,10 +107,15 @@ if [ -n "$LISTENER_PID_AFTER_STOP" ] && [ "$LISTENER_PID_AFTER_STOP" != "$EXISTI
 fi
 
 ROUTER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore || c.A2APaySyncRouter || '')")"
-PROVIDER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury || '')")"
 
 DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse_gateway"
-LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+_LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
+if [[ -z "${POSTGRES_DSN:-}" && -f "$_LOCAL_ENV_FILE" ]]; then
+  _dotenv_dsn="$(grep -m1 '^POSTGRES_DSN=' "$_LOCAL_ENV_FILE" | cut -d= -f2-)"
+  LOCAL_POSTGRES_DSN="${_dotenv_dsn:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+else
+  LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+fi
 LOCAL_POSTGRES_DSN="$(printf '%s' "$LOCAL_POSTGRES_DSN" | sed 's/@postgres:/@127.0.0.1:/')"
 
 cd "${ROOT_DIR}/services/gateway"
@@ -123,8 +128,6 @@ if [ -f "${ROOT_DIR}/services/gateway/.env.local" ]; then
     POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
     RPC_URL="http://127.0.0.1:8545" \
     ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-    PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
-    EXPECTED_PRICE="1000000000000000000" \
     "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 < /dev/null &
 else
   nohup env \
@@ -133,8 +136,6 @@ else
     POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
     RPC_URL="http://127.0.0.1:8545" \
     ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-    PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
-    EXPECTED_PRICE="1000000000000000000" \
     "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 < /dev/null &
 fi
 
