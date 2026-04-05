@@ -165,7 +165,7 @@ async def test_delete_service_marks_deleted_and_appends_audit(monkeypatch) -> No
     stored_rows = context._load_service_registry_rows()
 
     assert deleted is True
-    assert stored_rows[0].status == "deleted"
+    assert stored_rows[0].status == "archived"
     assert stored_rows[0].is_active is False
     assert stored_rows[0].updated_at == "2026-03-20 13:00:00"
     assert audit_calls == [

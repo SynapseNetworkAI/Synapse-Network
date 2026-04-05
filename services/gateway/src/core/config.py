@@ -3,7 +3,6 @@
 Private loader helpers live in ``config_loaders``; they are imported here so
 that test code that accesses them via ``config.<helper>`` continues to work.
 """
-import json
 import os
 
 from src.core.config_loaders import (
@@ -82,8 +81,6 @@ class Settings:
     # Gateway withdraw signer used to issue EIP-712 provider withdrawal tickets.
     # Provider settlements require this key to be configured in the runtime environment.
     private_key: str = os.getenv("PRIVATE_KEY", "")
-    # Optional contract address used by compatibility paths.
-    contract_address: str = os.getenv("CONTRACT_ADDRESS", "")
 
     # Storage backend switch. Only "postgres" is supported.
     storage_backend: str = (
@@ -186,29 +183,6 @@ class Settings:
     # Timeout (seconds) for DeepSeek parse-curl requests.
     deepseek_timeout_s: float = _env_float("DEEPSEEK_TIMEOUT_S", 30.0)
 
-    # Legacy payment fallback provider wallet.
-    provider_address: str = os.getenv(
-        "PROVIDER_ADDRESS", "0x0000000000000000000000000000000000000000"
-    )
-    # Legacy payment fallback expected price in wei.
-    expected_price: int = _env_int("EXPECTED_PRICE", 1000000000000000000)
-    # Minimum confirmations for legacy payment-verification endpoints.
-    min_confirmations: int = _env_int("MIN_CONFIRMATIONS", 1)
-    # Max wait time (seconds) for pending payment confirmation.
-    payment_ttl_sec: int = _env_int("PAYMENT_TTL_SEC", 600)
-    # Optional comma-separated allow-list for token contract addresses.
-    allowed_token_addresses: set[str] = {
-        addr.strip().lower()
-        for addr in os.getenv("ALLOWED_TOKEN_ADDRESSES", "").split(",")
-        if addr.strip()
-    }
-    # Per-service static pricing override JSON (serviceId -> wei string/int).
-    service_prices_json: str = os.getenv("SERVICE_PRICES_JSON", "{}")
-    # Error message used when payment confirmation exceeds ttl.
-    payment_timeout_message: str = "Payment confirmation timed out"
-    # Error message used for invalid wallet/address input.
-    invalid_address_message: str = "address is invalid"
-
     # Wallet challenge JWT secret alias (defaults to jwt_secret for single-source config).
     auth_secret: str = os.getenv(
         "AUTH_SECRET",
@@ -228,8 +202,6 @@ class Settings:
     finance_write_rate_limit_per_min: int = _env_int(
         "FINANCE_WRITE_RATE_LIMIT_PER_MIN", 60
     )
-    # Keep backward-compatible auth behavior enabled by default.
-    allow_legacy_auth: bool = _env_bool("ALLOW_LEGACY_AUTH", True)
 
     # Default credential ttl (seconds) when caller omits expiration.
     agent_credential_default_ttl_sec: int = _env_int(
@@ -356,14 +328,6 @@ class Settings:
         401: {"description": "Unauthorized"},
         400: {"description": "Invalid auth payload"},
     }
-
-    # Parsed per-service static prices; invalid JSON falls back to empty map.
-    try:
-        service_prices: dict[str, int] = {
-            str(k): int(v) for k, v in json.loads(service_prices_json).items()
-        }
-    except Exception:
-        service_prices = {}
 
 
 settings = Settings()
