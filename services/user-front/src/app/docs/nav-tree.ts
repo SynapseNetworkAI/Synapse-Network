@@ -59,6 +59,12 @@ export function getDocsNavTree(sectionLabels: string[], itemLabels: string[]): N
       label: sectionLabels[3] ?? "API REFERENCE",
       items: [
         { id: "api-auth", label: itemLabels[19] ?? "Auth", href: "/docs/api-reference" },
+        { id: "api-auth-challenge", label: "↳ GET /challenge", href: "/docs/api-reference#endpoint-get-challenge" },
+        { id: "api-auth-verify", label: "↳ POST /verify", href: "/docs/api-reference#endpoint-post-verify" },
+        { id: "api-auth-me", label: "↳ GET /me", href: "/docs/api-reference#endpoint-get-me" },
+        { id: "api-auth-profile-challenge", label: "↳ POST /me/profile/challenge", href: "/docs/api-reference#endpoint-post-profile-challenge" },
+        { id: "api-auth-profile", label: "↳ PUT /me/profile", href: "/docs/api-reference#endpoint-put-me-profile" },
+        { id: "api-auth-logout", label: "↳ POST /logout", href: "/docs/api-reference#endpoint-post-logout" },
         { id: "api-balance", label: itemLabels[20] ?? "Balance", href: "/docs/api-reference#api-balance" },
         { id: "api-services", label: itemLabels[21] ?? "Services", href: "/docs/api-reference#api-services" },
         { id: "api-invocations", label: itemLabels[22] ?? "Agent Invocations", href: "/docs/api-reference#api-invocations" },

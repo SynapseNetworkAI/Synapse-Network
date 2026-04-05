@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -1018,6 +1018,28 @@ export default function ApiReferencePage() {
   const [token, setToken] = useState("");
   const [showConfig, setShowConfig] = useState(false);
   const [viewRole, setViewRole] = useState<"consumer" | "provider">("consumer");
+
+  // Auto-expand endpoint from URL hash (initial cross-page nav) or sidebar expand-endpoint event
+  useEffect(() => {
+    const expandFromHash = (hash: string) => {
+      if (!hash.startsWith("endpoint-")) return;
+      setExpandedId(hash.slice("endpoint-".length));
+      globalThis.setTimeout(() => {
+        const el = document.getElementById(hash);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+    };
+
+    // Handle hash present on initial page load
+    const initialHash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+    if (initialHash) expandFromHash(initialHash);
+
+    // Handle same-page navigation from sidebar
+    const handler = (e: Event) => expandFromHash((e as CustomEvent<string>).detail);
+    globalThis.addEventListener("expand-endpoint", handler);
+    return () => globalThis.removeEventListener("expand-endpoint", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggle = useCallback((id: string) => { setExpandedId((cur) => (cur === id ? null : id)); }, []);
 

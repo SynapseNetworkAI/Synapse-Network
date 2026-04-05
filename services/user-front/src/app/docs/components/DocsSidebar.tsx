@@ -23,6 +23,9 @@ export default function DocsSidebar() {
   // Start all sections open
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [currentHash, setCurrentHash] = useState(
+    typeof window !== "undefined" ? window.location.hash.slice(1) : "",
+  );
 
   useEffect(() => {
     const warmup = () => {
@@ -49,6 +52,9 @@ export default function DocsSidebar() {
   const isActive = (href: string, id: string): boolean => {
     const [hrefPath, hrefHash] = href.split("#");
     if (hrefPath !== pathname) return false;
+    if (hrefHash?.startsWith("endpoint-")) {
+      return currentHash === hrefHash;
+    }
     if (activeId) return id === activeId;
     return !hrefHash;
   };
@@ -96,6 +102,11 @@ export default function DocsSidebar() {
     if (path === activePath && hash) {
       const el = document.getElementById(hash);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (hash.startsWith("endpoint-")) {
+        setCurrentHash(hash);
+        globalThis.history.pushState(null, "", `${activePath}#${hash}`);
+        globalThis.dispatchEvent(new CustomEvent("expand-endpoint", { detail: hash }));
+      }
       return;
     }
 
@@ -163,13 +174,21 @@ export default function DocsSidebar() {
 
                     /* ── Child anchor item ── */
                     if (isChild) {
+                      const METHOD_COLORS: Record<string, { color: string; bg: string }> = {
+                        GET:    { color: "#7ff7be", bg: "rgba(127,247,190,0.12)" },
+                        POST:   { color: "#6eb6f6", bg: "rgba(110,182,246,0.12)" },
+                        PUT:    { color: "#f9c74f", bg: "rgba(249,199,79,0.12)" },
+                        DELETE: { color: "#f87171", bg: "rgba(248,113,113,0.12)" },
+                      };
+                      const methodMatch = cleanLabel.match(/^(GET|POST|PUT|PATCH|DELETE)\s(.+)$/);
+                      const mc = methodMatch ? (METHOD_COLORS[methodMatch[1]] ?? null) : null;
+
                       return (
                         <div
                           key={item.id}
                           className="relative ml-[22px]"
                           style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}
                         >
-                          {/* Active tick on the left border */}
                           {active && (
                             <span
                               className="absolute -left-px top-1/2 -translate-y-1/2 w-[2px] h-[16px] rounded-full"
@@ -181,15 +200,29 @@ export default function DocsSidebar() {
                             onMouseEnter={() => prefetchRoute(item.href)}
                             onFocus={() => prefetchRoute(item.href)}
                             className={[
-                              "w-full flex items-center gap-2 pl-3 pr-2 py-[5px] text-left rounded-r-md transition-colors text-[12.5px] leading-[1.4]",
+                              "w-full flex items-center gap-2 pl-3 pr-2 py-[5px] text-left rounded-r-md transition-colors text-[12px] leading-[1.4]",
                               childCls,
                             ].join(" ")}
                           >
-                            <span
-                              className="w-[5px] h-[5px] rounded-full shrink-0 transition-colors"
-                              style={{ background: active ? "#7ff7be" : "rgba(255,255,255,0.12)" }}
-                            />
-                            {cleanLabel}
+                            {methodMatch && mc ? (
+                              <>
+                                <span
+                                  className="shrink-0 rounded px-[5px] py-px text-[9px] font-bold font-mono tracking-wide leading-none"
+                                  style={{ color: mc.color, background: mc.bg }}
+                                >
+                                  {methodMatch[1]}
+                                </span>
+                                <span className="truncate">{methodMatch[2]}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span
+                                  className="w-[5px] h-[5px] rounded-full shrink-0 transition-colors"
+                                  style={{ background: active ? "#7ff7be" : "rgba(255,255,255,0.12)" }}
+                                />
+                                {cleanLabel}
+                              </>
+                            )}
                           </button>
                         </div>
                       );
