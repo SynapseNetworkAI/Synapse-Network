@@ -57,6 +57,7 @@ export type I18nMessages = {
     account: string;
     settings: string;
     logout: string;
+    login: string;
     discovery: string;
     invocations: string;
     treasury: string;
