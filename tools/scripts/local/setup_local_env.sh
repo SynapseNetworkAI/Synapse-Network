@@ -7,7 +7,9 @@ fi
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+# scripts/ is a symlink (→ tools/scripts); logical ".." traversal skips the symlink
+# level, so repo root is two levels up from scripts/local, not three.
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_311.sh"
 REQUIRED_NODE_VERSION="20.19.0"
@@ -119,11 +121,11 @@ else
 fi
 
 echo "2) Deploying contracts to localhost..."
-npx hardhat run scripts/deploy_anvil.js --network localhost
+npx hardhat run scripts/chain/deploy_anvil.js --network localhost
 
 echo "2.1) Funding test accounts..."
-npx hardhat run scripts/fund_eth.js --network localhost
-npx hardhat run scripts/fund_usdc.js --network localhost
+npx hardhat run scripts/chain/fund_eth.js --network localhost
+npx hardhat run scripts/chain/fund_usdc.js --network localhost
 
 CONFIG_FILE="${ROOT_DIR}/services/user-front/src/contract-config.json"
 if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -199,7 +201,7 @@ if ! kill -0 "$PROVIDER_PID" >/dev/null 2>&1; then
 fi
 
 echo "4) Starting frontend Next.js in background..."
-cd "${ROOT_DIR}/apps/frontend"
+cd "${ROOT_DIR}/services/user-front"
 
 EXISTING_FRONTEND_PID="$(find_pid_by_port 3000)"
 if [[ -n "$EXISTING_FRONTEND_PID" ]]; then

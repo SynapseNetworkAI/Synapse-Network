@@ -984,6 +984,12 @@ export type I18nMessages = {
     contractsAbiTitle: string;
     contractsAbiDescription: string;
     contractsAbiLinks: string[];
+    consumerCodeAuth: string[];
+    consumerCodeDeposit: string[];
+    consumerCodeDiscover: string[];
+    consumerCodeCredential: string[];
+    consumerCodeInvoke: string[];
+    consumerCodeVerify: string[];
   };
   auditPage: {
     title: string;
