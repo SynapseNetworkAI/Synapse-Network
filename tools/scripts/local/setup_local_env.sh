@@ -165,7 +165,18 @@ fi
 
 LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
 DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse_gateway"
-LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+
+# Prefer: explicit shell export > .env.local POSTGRES_DSN > hardcoded default.
+# The gateway loads .env.local with override=False, so an explicit POSTGRES_DSN
+# env var set here will always win.  Read from .env.local first to avoid the
+# default overriding the intended local DSN (e.g. when local postgres is already
+# on 5432 and the project uses the alt container on 5434).
+if [[ -z "${POSTGRES_DSN:-}" && -f "$LOCAL_ENV_FILE" ]]; then
+	_dotenv_dsn="$(grep -m1 '^POSTGRES_DSN=' "$LOCAL_ENV_FILE" | cut -d= -f2-)"
+	LOCAL_POSTGRES_DSN="${_dotenv_dsn:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+else
+	LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+fi
 # Normalize docker-network hostname for host-run local mode.
 LOCAL_POSTGRES_DSN="${LOCAL_POSTGRES_DSN/@postgres:/@127.0.0.1:}"
 
@@ -176,8 +187,6 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
-	EXPECTED_PRICE="1000000000000000000" \
 	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 &
 else
 	ENVIRONMENT=local \
@@ -185,8 +194,6 @@ else
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	PROVIDER_ADDRESS="$PROVIDER_ADDRESS" \
-	EXPECTED_PRICE="1000000000000000000" \
 	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 &
 fi
 PROVIDER_PID=$!
