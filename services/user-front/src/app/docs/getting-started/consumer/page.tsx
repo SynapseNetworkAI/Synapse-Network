@@ -185,27 +185,45 @@ console.log(\`找到服务: \${targetServiceId}，每次调用: \${pricePerCall}
           {stepBodies[3]}
         </p>
         <CodeBlock lang="typescript" code={`
-// 为目标服务颁发 Agent Credential
-const { agentToken, credentialId } = await fetch(
-  '/api/v1/credentials/agent/issue',
-  {
+// 幂等模式：先查有没有可用的 active 凭据，有则直接用，没有再新建
+const { credentials } = await fetch(
+  '/api/v1/credentials/agent/list?active_only=true',
+  { headers: { 'Authorization': \`Bearer \${token}\` } }
+).then(r => r.json())
+
+let agentToken: string
+let credentialId: string
+
+if (credentials.length > 0) {
+  // 有现成 active 凭据，直接复用（幺等：重复运行不新建）
+  credentialId = credentials[0].id
+  console.log('复用现有凭据:', credentialId)
+} else {
+  // 无可用凭据，新建一个
+  const resp = await fetch('/api/v1/credentials/agent/issue', {
     method: 'POST',
     headers: {
       'Authorization': \`Bearer \${token}\`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      name: 'my-agent-bot',            // 可选标签，便于管理
-      creditLimit: 1.00,               // 每日额度上限（USDC），每天重置
-      maxCalls: 200,                   // 生命周期调用次数上限（不会每日重置）
-      resetInterval: 'daily',          // creditLimit 重置周期
+      name: 'my-agent-bot',
+      creditLimit: 1.00,       // 每日限额（USDC）
+      maxCalls: 200,           // 生命周期调用次数上限
+      resetInterval: 'daily',
     }),
-  }
-).then(r => r.json())
+  }).then(r => r.json())
+  agentToken = resp.credential.token   // agt_xxxxx… — 请持久化存储
+  credentialId = resp.credential.id
+  console.log('新建凭据:', credentialId)
+}
 
-console.log('Credential ID:', credentialId)
-console.log('Agent Token:', agentToken)   // agt_xxxxx...
-// 保存 agentToken，后续调用时使用
+// 凭据健康检查（定时任务 / 启动前检查可用）
+const { valid } = await fetch(
+  \`/api/v1/credentials/agent/\${credentialId}/status\`,
+  { headers: { 'Authorization': \`Bearer \${token}\` } }
+).then(r => r.json())
+if (!valid) console.warn('凭据已失效，重新建立')
         `} />
         <StepTip accent={ACCENT}>
           {stepTips[3]}
@@ -218,10 +236,10 @@ console.log('Agent Token:', agentToken)   // agt_xxxxx...
           {stepBodies[4]}
         </p>
         <CodeBlock lang="typescript" code={`
-// 调用服务（带 agentToken）
+// 一次调用完成全流程：发现 → 扣费 → 结算
 const invocationKey = crypto.randomUUID()  // 幂等 key，防止重复扣费
 
-const result = await fetch('/api/v1/agent/invocations', {
+const result = await fetch('/api/v1/agent/invoke', {
   method: 'POST',
   headers: {
     'Authorization': \`Bearer \${agentToken}\`,   // 注意：用 agentToken，不是 JWT
@@ -229,15 +247,16 @@ const result = await fetch('/api/v1/agent/invocations', {
   },
   body: JSON.stringify({
     serviceId: targetServiceId,
-    payload: { prompt: 'Summarize this document...' },
+    costUsdc: parseFloat(pricePerCall),  // 键入你发现的价格，防止价格外泄扣费
     idempotencyKey: invocationKey,
+    payload: { body: { prompt: 'Summarize this document...' } },
   }),
 }).then(r => r.json())
 
-console.log('调用结果:', result.data)
+console.log('调用结果:', result.result)
 console.log('本次扣费:', result.chargedUsdc, 'USDC')
-// → 调用结果: { summary: "..." }
-// → 本次扣费: "0.0010" USDC
+console.log('回执 ID:', result.invocationId)
+// 如果服务实时价格发生变化，返回 422 PRICE_MISMATCH — 重新 discover 再重试
         `} />
         <StepTip accent={ACCENT}>
           {stepTips[4]}
