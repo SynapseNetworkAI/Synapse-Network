@@ -1,3 +1,5 @@
+import { ROUTE_GROUPS } from "./api-reference/endpoint-data";
+
 export interface NavItem {
   id: string;
   label: string;
@@ -57,19 +59,27 @@ export function getDocsNavTree(sectionLabels: string[], itemLabels: string[]): N
     {
       id: "api-reference",
       label: sectionLabels[3] ?? "API REFERENCE",
-      items: [
-        { id: "api-auth", label: itemLabels[19] ?? "Auth", href: "/docs/api-reference" },
-        { id: "api-auth-challenge", label: "↳ GET /challenge", href: "/docs/api-reference#endpoint-get-challenge" },
-        { id: "api-auth-verify", label: "↳ POST /verify", href: "/docs/api-reference#endpoint-post-verify" },
-        { id: "api-auth-me", label: "↳ GET /me", href: "/docs/api-reference#endpoint-get-me" },
-        { id: "api-auth-profile-challenge", label: "↳ POST /me/profile/challenge", href: "/docs/api-reference#endpoint-post-profile-challenge" },
-        { id: "api-auth-profile", label: "↳ PUT /me/profile", href: "/docs/api-reference#endpoint-put-me-profile" },
-        { id: "api-auth-logout", label: "↳ POST /logout", href: "/docs/api-reference#endpoint-post-logout" },
-        { id: "api-balance", label: itemLabels[20] ?? "Balance", href: "/docs/api-reference#api-balance" },
-        { id: "api-services", label: itemLabels[21] ?? "Services", href: "/docs/api-reference#api-services" },
-        { id: "api-invocations", label: itemLabels[22] ?? "Agent Invocations", href: "/docs/api-reference#api-invocations" },
-        { id: "api-credentials", label: itemLabels[23] ?? "Credentials", href: "/docs/api-reference#api-credentials" },
-      ],
+      items: ROUTE_GROUPS.flatMap((g, i) => {
+        const groupLabel = [
+          itemLabels[19] ?? "Auth",
+          itemLabels[20] ?? "Balance",
+          itemLabels[21] ?? "Services",
+          itemLabels[22] ?? "Agent Invocations",
+          itemLabels[23] ?? "Credentials",
+        ][i] ?? g.title;
+        return [
+          {
+            id: g.id,
+            label: groupLabel,
+            href: `/docs/api-reference#${g.id}`,
+          },
+          ...g.routes.map((r) => ({
+            id: `api-${r.id}`,
+            label: `↳ ${r.method} ${r.path.replace("/api/v1", "")}`,
+            href: `/docs/api-reference/${r.id}`,
+          })),
+        ];
+      }),
     },
     {
       id: "sdk",

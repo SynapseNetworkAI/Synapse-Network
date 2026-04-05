@@ -23,9 +23,6 @@ export default function DocsSidebar() {
   // Start all sections open
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const [currentHash, setCurrentHash] = useState(
-    typeof window !== "undefined" ? window.location.hash.slice(1) : "",
-  );
 
   useEffect(() => {
     const warmup = () => {
@@ -52,9 +49,6 @@ export default function DocsSidebar() {
   const isActive = (href: string, id: string): boolean => {
     const [hrefPath, hrefHash] = href.split("#");
     if (hrefPath !== pathname) return false;
-    if (hrefHash?.startsWith("endpoint-")) {
-      return currentHash === hrefHash;
-    }
     if (activeId) return id === activeId;
     return !hrefHash;
   };
@@ -102,11 +96,6 @@ export default function DocsSidebar() {
     if (path === activePath && hash) {
       const el = document.getElementById(hash);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (hash.startsWith("endpoint-")) {
-        setCurrentHash(hash);
-        globalThis.history.pushState(null, "", `${activePath}#${hash}`);
-        globalThis.dispatchEvent(new CustomEvent("expand-endpoint", { detail: hash }));
-      }
       return;
     }
 
@@ -151,10 +140,22 @@ export default function DocsSidebar() {
                   {section.items.map((item) => {
                     const isChild = item.label.startsWith("↳");
 
-                    // Child items only render when we're on their matching page
+                    // Child items visibility:
+                    // - hash-based children: only show when on the parent page
+                    // - sub-page children (no hash): show when anywhere in the same docs section
+                    //   e.g. /docs/api-reference and /docs/api-reference/get-challenge share section "api-reference"
                     if (isChild) {
-                      const [childPath] = item.href.split("#");
-                      if (pathname !== childPath) return null;
+                      const [childPath, childHash] = item.href.split("#");
+                      if (childHash) {
+                        // hash-based: only show on parent page
+                        if (pathname !== childPath) return null;
+                      } else {
+                        // sub-page: show when on any page with the same second path segment
+                        // e.g. childPath.split("/")[2] = "api-reference"
+                        const childSection = childPath.split("/")[2] ?? "";
+                        const curSection = (pathname ?? "").split("/")[2] ?? "";
+                        if (!childSection || childSection !== curSection) return null;
+                      }
                     }
 
                     const active = isActive(item.href, item.id);
