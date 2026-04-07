@@ -12,6 +12,8 @@ import { useDashboardNavigationFeedback } from "@/components/dashboard/Dashboard
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { buildAuthedHeaders, clearAuthSession } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+import { listAgentCredentials } from "@/utils/agentCredentialApi";
+import { listServiceRegistry } from "@/utils/serviceApi";
 import { 
   LayoutGrid,
   Wallet,
@@ -51,6 +53,14 @@ export default function DashboardSidebar() {
   const accountChildActive = activePath.startsWith("/dashboard/account");
   const [billingExpanded, setBillingExpanded] = useState(billingChildActive);
   const [accountExpanded, setAccountExpanded] = useState(accountChildActive);
+  const [agentCount, setAgentCount] = useState<number | null>(null);
+  const [serviceCount, setServiceCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isConnected || !isSessionAuthenticated || !address) return;
+    listAgentCredentials(address).then((creds) => setAgentCount(creds.length)).catch(() => {});
+    listServiceRegistry(address, address).then((svcs) => setServiceCount(svcs.length)).catch(() => {});
+  }, [isConnected, isSessionAuthenticated, address]);
 
   useEffect(() => {
     const allRoutes = [
@@ -262,7 +272,9 @@ export default function DashboardSidebar() {
           <Link {...getRouteLinkProps("/dashboard/agents")} className={getLinkClasses("/dashboard/agents", false)}>
             <Bot className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.agents")}
-            <span className={getBadgeClasses(isRouteActive("/dashboard/agents"))}>3</span>
+            {agentCount !== null && (
+              <span className={getBadgeClasses(isRouteActive("/dashboard/agents"))}>{agentCount}</span>
+            )}
           </Link>
           <Link {...getRouteLinkProps("/dashboard/discovery")} className={getLinkClasses("/dashboard/discovery", false)}>
             <Compass className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
@@ -324,7 +336,9 @@ export default function DashboardSidebar() {
           <Link {...getRouteLinkProps(`${providerRoot}/services`)} className={getLinkClasses([`${providerRoot}/services`], false)}>
             <Box className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.myServices")}
-            <span className={getBadgeClasses(isRouteActive(`${providerRoot}/services`))}>2</span>
+            {serviceCount !== null && (
+              <span className={getBadgeClasses(isRouteActive(`${providerRoot}/services`))}>{serviceCount}</span>
+            )}
           </Link>
           <Link {...getRouteLinkProps(`${providerRoot}/usage`)} className={getLinkClasses([`${providerRoot}/usage`], false)}>
             <AreaChart className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
