@@ -1,8 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { AlertTriangle, ShieldCheck, ShieldAlert, Activity, Bell, Zap, History } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { useAccount } from "wagmi";
+import { useAuth } from "@/components/WalletAuthGuard";
+import { buildAuthedHeaders } from "@/utils/authSession";
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 type RelativeTime = {
   unit: "minutes" | "hours" | "days";
@@ -25,6 +29,40 @@ type AuditTrailRecord = {
   time: RelativeTime;
 };
 
+type FinanceAuditLog = {
+  id: string;
+  timestamp: number;
+  action: string;
+  domain: string;
+  ownerAddress: string;
+  details?: Record<string, unknown>;
+};
+
+function toRelativeTime(timestamp: number): RelativeTime {
+  const diffSec = Math.floor(Date.now() / 1000) - timestamp;
+  if (diffSec < 3600) return { unit: "minutes", count: Math.max(1, Math.floor(diffSec / 60)) };
+  if (diffSec < 86400) return { unit: "hours", count: Math.max(1, Math.floor(diffSec / 3600)) };
+  return { unit: "days", count: Math.max(1, Math.floor(diffSec / 86400)) };
+}
+
+function formatAction(action: string): string {
+  return action
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replaceAll(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function extractTarget(log: FinanceAuditLog): string {
+  const d = log.details ?? {};
+  if (typeof d.txHash === "string") return d.txHash.slice(0, 16) + "…";
+  if (typeof d.agentId === "string") {
+    const parts = d.agentId.split(":");
+    return (parts.at(-1) ?? d.agentId).slice(0, 16) + "…";
+  }
+  if (typeof d.credentialId === "string") return d.credentialId.slice(0, 16) + "…";
+  return log.domain;
+}
+
 function formatRelativeTime(
   value: RelativeTime,
   t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string,
@@ -40,17 +78,34 @@ function formatRelativeTime(
 
 export default function RiskAuditPage() {
   const { t } = useLanguage();
+  const { address, isConnected } = useAccount();
+  const { isSessionAuthenticated } = useAuth();
+  const [auditLogs, setAuditLogs] = useState<AuditTrailRecord[]>([]);
+
+  useEffect(() => {
+    if (!isConnected || !isSessionAuthenticated || !address) return;
+    const headers = buildAuthedHeaders(address);
+    fetch(`${getGatewayBaseUrl()}/api/v1/finance/audit-logs?limit=10`, { headers })
+      .then((r) => r.json())
+      .then((data: { logs?: FinanceAuditLog[] }) => {
+        const logs = data.logs ?? [];
+        setAuditLogs(
+          logs.map((log) => ({
+            id: log.id,
+            action: formatAction(log.action),
+            actor: log.ownerAddress ? `${log.ownerAddress.slice(0, 6)}…${log.ownerAddress.slice(-4)}` : "—",
+            target: extractTarget(log),
+            time: toRelativeTime(log.timestamp),
+          }))
+        );
+      })
+      .catch(() => {});
+  }, [isConnected, isSessionAuthenticated, address]);
 
   const alerts: AuditAlert[] = [
     { id: "alt_1", type: t("auditPage.alertBudgetWarningType"), severity: "medium", message: t("auditPage.alertBudgetWarningMessage"), time: { unit: "minutes", count: 10 } },
     { id: "alt_2", type: t("auditPage.alertRateLimitType"), severity: "low", message: t("auditPage.alertRateLimitMessage"), time: { unit: "minutes", count: 45 } },
     { id: "alt_3", type: t("auditPage.alertSecurityAlertType"), severity: "high", message: t("auditPage.alertSecurityAlertMessage"), time: { unit: "hours", count: 2 } },
-  ];
-
-  const auditLogs: AuditTrailRecord[] = [
-    { id: "aud_1", action: t("auditPage.auditActionCredentialCreated"), actor: t("auditPage.auditActorOwner"), target: "ResearchBot-01", time: { unit: "days", count: 1 } },
-    { id: "aud_2", action: t("auditPage.auditActionBudgetUpdated"), actor: t("auditPage.auditActorOwner"), target: "CreativeAgent", time: { unit: "days", count: 2 } },
-    { id: "aud_3", action: t("auditPage.auditActionVaultDeposit"), actor: t("auditPage.auditActorOwner"), target: t("auditPage.auditTargetVaultContract"), time: { unit: "days", count: 3 } },
   ];
 
   const getAlertTone = (severity: string) => {
