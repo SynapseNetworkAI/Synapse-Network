@@ -79,10 +79,16 @@ def _extract_router_event_rows(
     parsed: List[dict[str, Any]] = []
     for row in rows:
         args = row.get("args", {})
+        sender = (
+            args.get(_legacy_deposit_sender_key())
+            or args.get("user")
+            or args.get("from")
+            or ""
+        )
         maybe_event = _make_event_row(
             tx_hash,
             int(row.get("logIndex", 0)),
-            str(args.get(_legacy_deposit_sender_key()) or args.get("from") or ""),
+            str(sender),
             int(args.get("amount") or args.get("value") or 0),
             str(args.get("token") or ""),
         )
