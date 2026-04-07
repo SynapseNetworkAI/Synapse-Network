@@ -1,17 +1,22 @@
 #!/usr/bin/env node
 /**
- * Synapse Network — Full-Chain Browser Test with Wallet Injection
- * ================================================================
- * Uses Chrome + injected ethereum provider (no MetaMask needed).
- * The injected provider signs messages with the Hardhat test account key.
+ * Synapse Network — Full-Chain Browser E2E Test
+ * ==============================================
+ * Phase 1 (Backend): fund buyer wallet, create agents, invoke services, verify billing
+ * Phase 2 (Browser): Playwright screenshots of all dashboard pages with wallet injected
+ *
+ * New Buyer Wallet: Hardhat account #3
+ *   address : 0x90F79bf6EB2c4f870365E785982E1f101E93b906
+ *   key     : 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
  *
  * Usage:
- *   node scripts/browser_e2e_test.js [--screenshot-only]
+ *   cd Synapse-Network && node scripts/browser_e2e_test.js
+ *   node scripts/browser_e2e_test.js --screenshot-only   # skip backend, just screenshots
  *
- * Prerequisites:
- *   cd services/gateway && ../scripts/browser_e2e_test.js
+ * Prerequisites: services running (gateway:8000, anvil:8545, frontend:3000)
  */
 
+"use strict";
 const { chromium } = require("playwright");
 const { ethers } = require("ethers");
 const path = require("path");

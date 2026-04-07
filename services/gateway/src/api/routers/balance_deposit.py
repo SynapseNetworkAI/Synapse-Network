@@ -1,4 +1,4 @@
-"""Deposit and refund balance routes."""
+"""Deposit, refund, and consumer withdrawal balance routes."""
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Request
@@ -20,6 +20,7 @@ from src.api.routers.balance_helpers import (
     _normalize_tx_hash_or_400,
     _ensure_fee_policy_admin,
 )
+from src.api.schemas.pydantic_models import ConsumerWithdrawRequest
 from src.storage import get_storage
 
 router = APIRouter()
@@ -225,3 +226,49 @@ async def complete_refund_as_admin(
         "refundStatus": result.get("status"),
         "txHash": result.get("txHash"),
     }
+
+
+# ── Consumer Balance Withdrawal ─────────────────────────────────────────────────
+
+
+@router.post(
+    "/v1/balance/consumer/withdraw",
+    summary="Withdraw unused consumer balance back to wallet",
+)
+async def create_consumer_withdraw(
+    body: ConsumerWithdrawRequest,
+    request: Request,
+    idempotency_key: Annotated[
+        str, Header(alias="X-Idempotency-Key", min_length=16, max_length=128)
+    ],
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    """
+    Withdraw UNUSED consumer balance (unspent deposits) back to the owner wallet.
+
+    - Amount must be ≤ consumer available balance.
+    - Amounts ≥ $500 or > 3 daily requests trigger PENDING_MANUAL_REVIEW.
+    - Idempotent: same X-Idempotency-Key returns the same response.
+    """
+    result = await service.create_consumer_withdraw_intent(
+        payload=body.model_dump(),
+        owner_wallet=owner_wallet,
+        idempotency_key=idempotency_key,
+        request_meta=_extract_request_meta(request),
+    )
+    return {"status": "success", "ownerAddress": owner_wallet, **result}
+
+
+@router.get(
+    "/v1/balance/consumer/withdrawals",
+    summary="List consumer withdrawal intents for this wallet",
+)
+async def list_consumer_withdrawals(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+):
+    rows = await service.list_consumer_withdrawals(owner_wallet)
+    return {"status": "success", "ownerAddress": owner_wallet, "withdrawals": rows[:limit]}
+

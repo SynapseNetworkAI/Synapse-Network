@@ -1,0 +1,242 @@
+{
+  "generated_at": "2026-04-07T09:10:10.998120+00:00",
+  "project_id": "synapse-network",
+  "project_root": "/Users/cliff/workspace/agent/Synapse-Network",
+  "overall": "PARTIAL",
+  "project_bootstrap_ready": false,
+  "project_bootstrap_complete": false,
+  "recommended_next_group": "Integration",
+  "recommended_next_key": "mcp_config",
+  "recommended_next_command": "amem mcp-setup .",
+  "recommended_verify_command": "amem doctor .",
+  "recommended_done_when": "`amem doctor .` shows `[OK] mcp_config`.",
+  "recommended_next_safe_to_auto_execute": true,
+  "recommended_next_approval_required": false,
+  "recommended_next_approval_reason": "writes only local IDE MCP config under .vscode for the current project",
+  "groups": [
+    {
+      "name": "Core",
+      "status": "HEALTHY",
+      "summary": "Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "registry",
+          "detail": "registered as 'synapse-network'"
+        },
+        {
+          "status": "OK",
+          "key": "active",
+          "detail": "active=true"
+        },
+        {
+          "status": "OK",
+          "key": "root",
+          "detail": "/Users/cliff/workspace/agent/Synapse-Network"
+        },
+        {
+          "status": "OK",
+          "key": "python3.12",
+          "detail": "/opt/homebrew/bin/python3.12"
+        },
+        {
+          "status": "OK",
+          "key": "mcp_package",
+          "detail": "mcp import OK"
+        },
+        {
+          "status": "OK",
+          "key": "profile_manifest",
+          "detail": "applied profile 'python-service'"
+        },
+        {
+          "status": "OK",
+          "key": "profile_consistency",
+          "detail": "profile 'python-service' consistency OK"
+        }
+      ]
+    },
+    {
+      "name": "Planning",
+      "status": "HEALTHY",
+      "summary": "Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "planning_root",
+          "detail": "present: /Users/cliff/workspace/agent/Synapse-Network/docs/plans"
+        },
+        {
+          "status": "OK",
+          "key": "planning_bundle",
+          "detail": "1 planning bundle(s) passed plan-check"
+        }
+      ]
+    },
+    {
+      "name": "Integration",
+      "status": "WATCH",
+      "summary": "Integration status=WATCH (ok=1, warn=1, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "bridge_instruction",
+          "detail": "/Users/cliff/workspace/agent/Synapse-Network/.github/instructions/agents-memory-bridge.instructions.md"
+        },
+        {
+          "status": "WARN",
+          "key": "mcp_config",
+          "detail": "agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py"
+        }
+      ]
+    },
+    {
+      "name": "Optional",
+      "status": "WATCH",
+      "summary": "Optional status=WATCH (ok=2, warn=6, fail=0, info=0)",
+      "checks": [
+        {
+          "status": "OK",
+          "key": "copilot_activation",
+          "detail": "Agents-Memory activation block present -> /Users/cliff/workspace/agent/Synapse-Network/.github/copilot-instructions.md"
+        },
+        {
+          "status": "OK",
+          "key": "agents_read_order",
+          "detail": "AGENTS.md references current bridge and 8 managed standard(s)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "unable to inspect services/gateway/examples/synapse_client_quickstart.py: unterminated string literal (detected at line 38) (<unknown>, line 38)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic high complexity (lines=292>40, branches=21>5, nesting=4>=4, locals=36>8, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows high complexity (lines=59>40, nesting=4>=4, locals=14>8, branches=4, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "services/gateway/src/storage/postgres/repositories/balance_repository.py::BalanceRepository.read_balance_ledger high complexity (lines=61>40, nesting=4>=4, locals=14>8, branches=5, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "services/gateway/src/services/platform/tasks/deposit_indexer/backfill.py::run_backfill_scan_once high complexity (lines=116>40, branches=8>5, locals=22>8, nesting=3, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "services/gateway/src/services/platform/finance_service.py::PlatformFinanceService.redeem_credit_voucher high complexity (lines=111>40, branches=8>5, locals=16>8, nesting=3, missing_guiding_comment)"
+        }
+      ]
+    }
+  ],
+  "action_sequence": [
+    "Integration (required): Run `amem mcp-setup .` to repair or create the MCP server configuration.",
+    "Optional (recommended): Refactor flagged functions before adding more behavior, and add a short guiding comment when complex logic must remain in place."
+  ],
+  "runbook_steps": [
+    {
+      "group": "Integration",
+      "priority": "required",
+      "key": "mcp_config",
+      "status": "WARN",
+      "detail": "agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py",
+      "action": "Create or repair the MCP configuration so IDE agents can call Agents-Memory tools.",
+      "command": "amem mcp-setup .",
+      "verify_with": "amem doctor .",
+      "done_when": "`amem doctor .` shows `[OK] mcp_config`.",
+      "safe_to_auto_execute": true,
+      "approval_required": false,
+      "approval_reason": "writes only local IDE MCP config under .vscode for the current project",
+      "next_command": "amem doctor ."
+    }
+  ],
+  "bootstrap_checklist": [
+    "[x] Core - Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)",
+    "[x] Planning - Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
+    "[ ] Integration - Integration status=WATCH (ok=1, warn=1, fail=0, info=0)",
+    "[ ] Optional - Optional status=WATCH (ok=2, warn=6, fail=0, info=0)",
+    "[ ] Final verification - re-run `amem doctor .` and confirm no remaining WARN / FAIL steps"
+  ],
+  "recommended_steps": [
+    {
+      "group": "Refactor",
+      "priority": "recommended",
+      "key": "refactor_bundle",
+      "status": "WARN",
+      "detail": "refactor bundle ready for services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
+      "action": "Review and execute the generated refactor bundle at docs/plans/refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic before adding more behavior.",
+      "command": "python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e",
+      "verify_with": "amem doctor .",
+      "done_when": "`amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.",
+      "safe_to_auto_execute": true,
+      "approval_required": false,
+      "approval_reason": "refreshes generated planning docs only",
+      "next_command": "amem doctor .",
+      "bundle_path": "docs/plans/refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
+      "task_name": "Refactor hotspot: services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
+      "task_slug": "refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
+      "hotspot_index": 1,
+      "hotspot_token": "hotspot-af1f8f002a9e",
+      "hotspot": {
+        "identifier": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
+        "rank_token": "hotspot-af1f8f002a9e",
+        "relative_path": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py",
+        "function_name": "redeem_credit_voucher_atomic",
+        "qualified_name": "FinanceAtomicRepository.redeem_credit_voucher_atomic",
+        "line": 52,
+        "status": "WARN",
+        "effective_lines": 292,
+        "branches": 21,
+        "nesting": 4,
+        "local_vars": 36,
+        "has_guiding_comment": false,
+        "issues": [
+          "lines=292>40",
+          "branches=21>5",
+          "nesting=4>=4",
+          "locals=36>8",
+          "missing_guiding_comment"
+        ],
+        "score": 41
+      }
+    }
+  ],
+  "recommended_refactor_bundle": {
+    "bundle_path": "docs/plans/refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
+    "task_name": "Refactor hotspot: services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
+    "task_slug": "refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
+    "hotspot_index": 1,
+    "hotspot_token": "hotspot-af1f8f002a9e",
+    "hotspot": {
+      "identifier": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
+      "rank_token": "hotspot-af1f8f002a9e",
+      "relative_path": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py",
+      "function_name": "redeem_credit_voucher_atomic",
+      "qualified_name": "FinanceAtomicRepository.redeem_credit_voucher_atomic",
+      "line": 52,
+      "status": "WARN",
+      "effective_lines": 292,
+      "branches": 21,
+      "nesting": 4,
+      "local_vars": 36,
+      "has_guiding_comment": false,
+      "issues": [
+        "lines=292>40",
+        "branches=21>5",
+        "nesting=4>=4",
+        "locals=36>8",
+        "missing_guiding_comment"
+      ],
+      "score": 41
+    }
+  }
+}

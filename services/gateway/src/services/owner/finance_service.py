@@ -37,6 +37,7 @@ from src.services.owner.finance_constants import (
     REFUND_MANUAL_REVIEW_THRESHOLD_USDC,
     REFUND_MANUAL_TYPE,
 )
+from src.services.owner.finance_consumer_withdraw_mixin import FinanceConsumerWithdrawMixin
 from src.services.owner.finance_deposit_exec_mixin import FinanceDepositExecMixin
 from src.services.owner.finance_refund_analysis_mixin import FinanceRefundAnalysisMixin
 from src.services.owner.finance_refund_exec_mixin import FinanceRefundExecMixin
@@ -45,6 +46,7 @@ from src.utils.datetime_utils import now_dt_str
 
 
 class OwnerFinanceService(
+    FinanceConsumerWithdrawMixin,
     FinanceDepositExecMixin,
     FinanceRefundAnalysisMixin,
     FinanceRefundExecMixin,

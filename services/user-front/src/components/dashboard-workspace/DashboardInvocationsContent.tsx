@@ -7,6 +7,7 @@ import {
   Clock,
   History,
   RefreshCw,
+  RotateCcw,
   Search,
   XCircle,
 } from "lucide-react";
@@ -17,8 +18,131 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import XSelect from "@/components/xui/XSelect";
 import { listPaginatedUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
+import { requestV2Refund } from "@/utils/balanceApi";
 
 type InvocationStatusFilter = "all" | "accepted" | "succeeded" | "failed" | "refunded";
+
+// ── Refund Modal ─────────────────────────────────────────────────────────────
+type RefundModalProps = {
+  row: UsageLogRecord;
+  userAddress: string;
+  onClose: () => void;
+  onSuccess: () => void;
+};
+
+function RefundModal({ row, userAddress, onClose, onSuccess }: RefundModalProps) {
+  const charge = row.total_charge ?? row.unit_price ?? 0;
+  const [amount, setAmount] = useState(String(charge > 0 ? charge : ""));
+  const [reason, setReasonState] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    const amountNum = parseFloat(amount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      toast.error("Please enter a valid amount.");
+      return;
+    }
+    if (amountNum < 10) {
+      toast.error("Minimum refund amount is 10 USDC.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await requestV2Refund(userAddress, {
+        amountUsdc: amountNum,
+        originRequestId: row.request_id,
+        reason: reason.trim() || undefined,
+        refundType: "MANUAL_APPEAL",
+      });
+      if (result.status === "PENDING_MANUAL_REVIEW") {
+        toast.success(`Refund submitted — under review (${result.riskReasonCode || "manual review"}).`);
+      } else {
+        toast.success(`Refund requested: $${result.amountRefunded} USDC (${result.status}).`);
+      }
+      onSuccess();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Refund request failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-[#111] p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-1 text-base font-semibold text-white">Request Refund</h3>
+        <p className="mb-4 text-sm text-[#86868b]">
+          Dispute charge for invocation{" "}
+          <span className="font-mono text-[#c5c5c7]">{row.request_id?.slice(0, 16)}…</span>
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+              Amount (USDC) — min $10
+            </label>
+            <input
+              type="number"
+              min="10"
+              step="0.000001"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none"
+            />
+            {charge > 0 && (
+              <p className="mt-1 text-xs text-[#86868b]">
+                Original charge: ${charge.toFixed(6)} USDC
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+              Reason (optional)
+            </label>
+            <textarea
+              rows={3}
+              maxLength={256}
+              value={reason}
+              onChange={(e) => setReasonState(e.target.value)}
+              placeholder="Describe why you're requesting a refund…"
+              className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b]">
+            ⚠ Refunds ≥ $500 or repeat requests require manual review (12–24 h).
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={onClose}
+              disabled={submitting}
+              className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] py-2 text-sm text-[#9ca3af] hover:bg-[#151515] disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex-1 rounded-xl bg-[#22c55e] py-2 text-sm font-semibold text-black hover:bg-[#16a34a] disabled:opacity-40"
+            >
+              {submitting ? "Submitting…" : "Submit Refund"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 10;
 
@@ -130,6 +254,8 @@ export default function DashboardInvocationsContent() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [refundRow, setRefundRow] = useState<UsageLogRecord | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,7 +300,7 @@ export default function DashboardInvocationsContent() {
     return () => {
       cancelled = true;
     };
-  }, [address, isSessionAuthenticated, page, query, status, t]);
+  }, [address, isSessionAuthenticated, page, query, status, t, refreshKey]);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -205,7 +331,7 @@ export default function DashboardInvocationsContent() {
   if (loading) {
     tableBody = (
       <tr>
-        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
+        <td colSpan={10} className="px-6 py-12 text-center text-[#86868b]">
           <div className="inline-flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-[#22c55e]" />
             {t("invocationsPage.loading")}
@@ -216,7 +342,7 @@ export default function DashboardInvocationsContent() {
   } else if (rows.length === 0) {
     tableBody = (
       <tr>
-        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
+        <td colSpan={10} className="px-6 py-12 text-center text-[#86868b]">
           {t("invocationsPage.empty")}
         </td>
       </tr>
@@ -266,6 +392,18 @@ export default function DashboardInvocationsContent() {
                   <div className="text-[11px]">{formatTimestamp(row.created_at, lang === "zh" ? "zh-CN" : "en-US")}</div>
                 </div>
               </div>
+            </td>
+            <td className="px-6 py-4">
+              {(row.status === "succeeded" || row.status === "accepted") && row.request_id && (
+                <button
+                  type="button"
+                  onClick={() => setRefundRow(row)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#2f3336] px-2.5 py-1 text-xs text-[#9ca3af] transition hover:border-[#22c55e]/40 hover:text-[#22c55e]"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Refund
+                </button>
+              )}
             </td>
           </tr>
         ))}
@@ -353,6 +491,7 @@ export default function DashboardInvocationsContent() {
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableLatency")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableStatus")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableTimestamp")}</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515] text-sm">{tableBody}</tbody>
@@ -394,6 +533,15 @@ export default function DashboardInvocationsContent() {
           {t("invocationsPage.footer")}
         </span>
       </div>
+
+      {refundRow && address && (
+        <RefundModal
+          row={refundRow}
+          userAddress={address}
+          onClose={() => setRefundRow(null)}
+          onSuccess={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }
