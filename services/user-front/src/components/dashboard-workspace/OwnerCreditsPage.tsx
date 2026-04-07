@@ -16,6 +16,7 @@ import {
 import {
   getOwnerSpendingLimit,
   redeemCreditVoucher,
+  requestConsumerWithdraw,
   type OwnerSpendingLimit,
 } from "@/utils/balanceApi";
 import {
@@ -35,6 +36,134 @@ const RedeemVoucherModal = dynamic(
   () => import("@/components/dashboard-workspace/RedeemVoucherModal"),
   { ssr: false }
 );
+
+// ── Withdraw Balance Modal ───────────────────────────────────────────────────
+type WithdrawModalProps = {
+  availableBalance: number;
+  userAddress: string;
+  onClose: () => void;
+  onSuccess: () => void;
+};
+
+function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSuccess }: WithdrawModalProps) {
+  const [amount, setAmount] = useState(String(availableBalance > 0 ? availableBalance.toFixed(2) : ""));
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    const num = parseFloat(amount);
+    if (!Number.isFinite(num) || num <= 0) {
+      toast.error("Enter a valid amount.");
+      return;
+    }
+    if (num > availableBalance + 1e-6) {
+      toast.error(`Amount exceeds available balance ($${availableBalance.toFixed(2)}).`);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await requestConsumerWithdraw(userAddress, {
+        amountUsdc: num,
+        reason: reason.trim() || undefined,
+      });
+      if (result.status === "PENDING_MANUAL_REVIEW") {
+        toast.success(
+          `Withdrawal submitted — under review. Reason: ${result.riskReasonCode || "manual review"}`
+        );
+      } else {
+        toast.success(`Withdrawal of $${result.amountUsdc.toFixed(2)} USDC requested (${result.status}).`);
+      }
+      onSuccess();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Withdrawal failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-[#111] p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-1 text-base font-semibold text-white">Withdraw Balance</h3>
+        <p className="mb-4 text-sm text-[#86868b]">
+          Withdraw unused credits back to your wallet. Available:{" "}
+          <span className="font-mono text-white">${availableBalance.toFixed(2)} USDC</span>
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+              Amount (USDC)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                max={availableBalance}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setAmount(availableBalance.toFixed(2))}
+                className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white"
+              >
+                Max
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+              Reason (optional)
+            </label>
+            <textarea
+              rows={2}
+              maxLength={256}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why are you withdrawing?"
+              className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none"
+            />
+          </div>
+
+          <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b] space-y-1">
+            <p>⚠ Amounts ≥ $500 require manual review (12–24 h).</p>
+            <p>⚠ Max 3 withdrawals per 24 hours.</p>
+            <p>⚠ Funds are sent to your connected wallet address.</p>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={onClose}
+              disabled={submitting}
+              className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] py-2 text-sm text-[#9ca3af] hover:bg-[#151515] disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || availableBalance <= 0}
+              className="flex-1 rounded-xl bg-[#22c55e] py-2 text-sm font-semibold text-black hover:bg-[#16a34a] disabled:opacity-40"
+            >
+              {submitting ? "Submitting…" : "Withdraw"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function formatUsd(value: number): string {
   return `$${Math.max(0, value).toFixed(2)}`;
@@ -65,6 +194,7 @@ export default function OwnerCreditsPage() {
   const [isSpendCapModalOpen, setIsSpendCapModalOpen] = useState(false);
   const [isRedeemVoucherModalOpen, setIsRedeemVoucherModalOpen] =
     useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
@@ -220,6 +350,12 @@ export default function OwnerCreditsPage() {
     [fetchSpendingLimit, handleRefresh, t, userAddress]
   );
 
+  const handleWithdraw = useCallback(async () => {
+    const ready = await ensureBillingControlReady();
+    if (!ready) return;
+    setIsWithdrawModalOpen(true);
+  }, [ensureBillingControlReady]);
+
   const showBalanceSkeleton =
     isConnected && isSessionAuthenticated && isBootstrapping;
   const showSpendCapSkeleton =
@@ -264,15 +400,25 @@ export default function OwnerCreditsPage() {
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleOpenPurchaseCredits();
-                  }}
-                  className="inline-flex h-[36px] min-w-[143px] items-center justify-center self-start whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] md:self-auto"
-                >
-                  {t("creditsPage.purchaseCredits")}
-                </button>
+                <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => { void handleWithdraw(); }}
+                    disabled={creditSummary.remainingBalance <= 0}
+                    className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Withdraw
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleOpenPurchaseCredits();
+                    }}
+                    className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb]"
+                  >
+                    {t("creditsPage.purchaseCredits")}
+                  </button>
+                </div>
             </div>
           </div>
 
@@ -451,6 +597,17 @@ export default function OwnerCreditsPage() {
         onClose={() => setIsRedeemVoucherModalOpen(false)}
         onRedeem={handleRedeemVoucher}
       />
+
+      {isWithdrawModalOpen && userAddress && (
+        <WithdrawBalanceModal
+          availableBalance={creditSummary.remainingBalance}
+          userAddress={userAddress}
+          onClose={() => setIsWithdrawModalOpen(false)}
+          onSuccess={async () => {
+            await Promise.all([handleRefresh(), fetchSpendingLimit()]);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -248,6 +248,12 @@ class RefundIntentRequest(BaseModel):
     evidenceSummary: Optional[str] = Field(default=None, max_length=512)
 
 
+class ConsumerWithdrawRequest(BaseModel):
+    """Withdraw unused consumer balance (unspent deposits) back to wallet."""
+    amountUsdc: float = Field(..., gt=0, description="Amount in USDC to withdraw, > 0")
+    reason: Optional[str] = Field(default=None, max_length=256)
+
+
 class RefundCompleteRequest(BaseModel):
     txHash: str = Field(..., min_length=66, max_length=66)
     reviewerAddress: Optional[str] = Field(default=None, max_length=64)

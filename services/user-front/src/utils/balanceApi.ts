@@ -165,9 +165,28 @@ export type OwnerRefundIntent = {
   refundId: string;
   signature: string;
   amountRefunded: number;
-  status: "PENDING" | "COMPLETED";
+  status: "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
   gasPayer: "OWNER";
   gasModel: "OWNER_PAYS_ONCHAIN";
+  riskLevel?: "green" | "yellow" | "red";
+  riskReasonCode?: string;
+  message?: string;
+};
+
+export type RefundIntentRecord = {
+  id: string;
+  ownerAddress?: string;
+  amountUsdc?: number;
+  reason?: string;
+  status: "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
+  riskLevel?: string;
+  riskReasonCode?: string;
+  message?: string;
+  originRequestId?: string;
+  originTxHash?: string;
+  txHash?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type IndexerStatus = {
@@ -684,17 +703,31 @@ export async function getDepositSyncStatus(
 
 export async function requestV2Refund(
   userAddress: string,
-  amountUsdc: number
+  params: {
+    amountUsdc: number;
+    originRequestId?: string;
+    originTxHash?: string;
+    reason?: string;
+    refundType?: "SYSTEM_FAILURE" | "MANUAL_APPEAL";
+  }
 ): Promise<OwnerRefundIntent> {
   const headers = {
     ...buildAuthedHeaders(userAddress, true),
     "X-Idempotency-Key": buildIdempotencyKey("refund"),
   };
 
+  const body: Record<string, unknown> = {
+    amountUsdc: params.amountUsdc,
+    refundType: params.refundType ?? "MANUAL_APPEAL",
+  };
+  if (params.originRequestId) body.originRequestId = params.originRequestId;
+  if (params.originTxHash) body.originTxHash = params.originTxHash;
+  if (params.reason) body.reason = params.reason;
+
   const response = await fetch(`${API_BASE}/refund`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ amountUsdc }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -711,10 +744,105 @@ export async function requestV2Refund(
     refundId,
     signature,
     amountRefunded: Number(payload.amountRefunded || 0),
-    status: payload.status === "COMPLETED" ? "COMPLETED" : "PENDING",
+    status: (payload.status as OwnerRefundIntent["status"]) ?? "PENDING",
     gasPayer: "OWNER",
     gasModel: "OWNER_PAYS_ONCHAIN",
+    riskLevel: payload.riskLevel as OwnerRefundIntent["riskLevel"],
+    riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
+    message: typeof payload.message === "string" ? payload.message : undefined,
   };
+}
+
+export async function listV2Refunds(
+  userAddress: string
+): Promise<RefundIntentRecord[]> {
+  const response = await fetch(`${API_BASE}/refunds`, {
+    method: "GET",
+    headers: buildAuthedHeaders(userAddress),
+  });
+  if (!response.ok) return [];
+  const payload = (await response.json()) as { refunds?: unknown[] };
+  const raw = Array.isArray(payload.refunds) ? payload.refunds : [];
+  return raw.map((r): RefundIntentRecord => {
+    const row = r as Record<string, unknown>;
+    return {
+      id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
+      ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
+      amountUsdc: typeof row.amountUsdc === "number" ? row.amountUsdc : Number(row.amountUsdc || 0),
+      reason: typeof row.reason === "string" ? row.reason : undefined,
+      status: (row.status as RefundIntentRecord["status"]) ?? "PENDING",
+      riskLevel: typeof row.riskLevel === "string" ? row.riskLevel : undefined,
+      riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
+      message: typeof row.message === "string" ? row.message : undefined,
+      originRequestId: typeof row.originRequestId === "string" ? row.originRequestId : undefined,
+      originTxHash: typeof row.originTxHash === "string" ? row.originTxHash : undefined,
+      txHash: typeof row.txHash === "string" ? row.txHash : undefined,
+      createdAt: typeof row.createdAt === "string" ? row.createdAt : undefined,
+      updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : undefined,
+    };
+  });
+}
+
+export type ConsumerWithdrawIntent = {
+  withdrawId: string;
+  amountUsdc: number;
+  status: "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
+  riskLevel?: "green" | "yellow" | "red";
+  riskReasonCode?: string;
+  message?: string;
+  destination?: string;
+};
+
+export async function requestConsumerWithdraw(
+  userAddress: string,
+  params: { amountUsdc: number; reason?: string }
+): Promise<ConsumerWithdrawIntent> {
+  const headers = {
+    ...buildAuthedHeaders(userAddress, true),
+    "X-Idempotency-Key": buildIdempotencyKey("consumer-withdraw"),
+  };
+  const response = await fetch(`${API_BASE}/balance/consumer/withdraw`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amountUsdc: params.amountUsdc, reason: params.reason }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Withdraw request failed"));
+  }
+  const payload = (await response.json()) as Record<string, unknown>;
+  return {
+    withdrawId: typeof payload.withdrawId === "string" ? payload.withdrawId : "",
+    amountUsdc: Number(payload.amountUsdc || 0),
+    status: (payload.status as ConsumerWithdrawIntent["status"]) ?? "PENDING",
+    riskLevel: payload.riskLevel as ConsumerWithdrawIntent["riskLevel"],
+    riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
+    message: typeof payload.message === "string" ? payload.message : undefined,
+    destination: typeof payload.destination === "string" ? payload.destination : undefined,
+  };
+}
+
+export async function listConsumerWithdrawals(
+  userAddress: string
+): Promise<RefundIntentRecord[]> {
+  const response = await fetch(`${API_BASE}/balance/consumer/withdrawals`, {
+    method: "GET",
+    headers: buildAuthedHeaders(userAddress),
+  });
+  if (!response.ok) return [];
+  const payload = (await response.json()) as { withdrawals?: unknown[] };
+  const raw = Array.isArray(payload.withdrawals) ? payload.withdrawals : [];
+  return raw.map((r): RefundIntentRecord => {
+    const row = r as Record<string, unknown>;
+    return {
+      id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
+      amountUsdc: Number(row.amountUsdc || 0),
+      status: (row.status as RefundIntentRecord["status"]) ?? "PENDING",
+      riskLevel: typeof row.riskLevel === "string" ? row.riskLevel : undefined,
+      riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
+      message: typeof row.message === "string" ? row.message : undefined,
+      createdAt: typeof row.createdAt === "string" ? row.createdAt : undefined,
+    };
+  });
 }
 
 export async function completeV2Refund(

@@ -663,14 +663,63 @@ async function main() {
     logCount = logsAfter?.count || logsAfter?.total || (logsAfter?.logs || []).length;
     ok(`Total invocation logs: ${logCount}`);
 
-    // ── Phase 5: API Checklist ─────────────────────────────────────────────
+    // ── Phase 5: Consumer Balance Withdrawal ──────────────────────────────
+    section("Phase 5: Consumer Balance Withdraw");
+    const balBefore = await apiGet("/v1/balance", token, addr);
+    const availableBefore = balBefore?.balance?.consumerAvailableBalance ?? 0;
+    ok(`Available balance before withdraw: ${availableBefore} USDC`);
+    if (availableBefore >= 1.0) {
+      const withdrawAmount = Math.floor(availableBefore * 100) / 100; // floor to 2dp
+      const idemKey = `e2e-withdraw-${Date.now()}`;
+      const wdRes = await fetch(`${GATEWAY_URL}/v1/balance/consumer/withdraw`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Wallet-Address": addr,
+          "Authorization": `Bearer ${token}`,
+          "X-Idempotency-Key": idemKey,
+        },
+        body: JSON.stringify({ amountUsdc: withdrawAmount, reason: "E2E test: withdraw remaining balance" }),
+      });
+      const wdBody = await wdRes.json().catch(() => ({}));
+      if (!wdRes.ok) {
+        warn(`Withdraw failed (${wdRes.status}): ${JSON.stringify(wdBody).slice(0, 200)}`);
+      } else {
+        ok(`Withdraw requested: $${wdBody.amountUsdc} USDC → status=${wdBody.status}, riskLevel=${wdBody.riskLevel}`);
+        // Idempotency: same key should return same result
+        const wdRes2 = await fetch(`${GATEWAY_URL}/v1/balance/consumer/withdraw`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Wallet-Address": addr,
+            "Authorization": `Bearer ${token}`,
+            "X-Idempotency-Key": idemKey,
+          },
+          body: JSON.stringify({ amountUsdc: withdrawAmount, reason: "E2E test: duplicate idempotent" }),
+        });
+        const wdBody2 = await wdRes2.json().catch(() => ({}));
+        if (wdRes2.ok && wdBody2.withdrawId === wdBody.withdrawId) {
+          ok(`Idempotency confirmed: same withdrawId=${wdBody.withdrawId}`);
+        } else {
+          warn(`Idempotency check unexpected response: ${JSON.stringify(wdBody2).slice(0, 150)}`);
+        }
+        // List withdrawals
+        const wdList = await apiGet("/v1/balance/consumer/withdrawals", token, addr);
+        const count = (wdList?.withdrawals || []).length;
+        ok(`Listed ${count} withdrawal record(s)`);
+      }
+    } else {
+      warn(`Balance too low to test withdraw (need ≥ 1.0, have ${availableBefore}).`);
+    }
+
+    // ── Phase 6: API Checklist ─────────────────────────────────────────────
     const checkResults = await runChecklist(token, addr);
 
-    // ── Phase 6: Browser screenshots ──────────────────────────────────────
+    // ── Phase 7: Browser screenshots ──────────────────────────────────────
     const screenshots = await takeScreenshots(token, addr);
 
-    // ── Phase 7: Write report ─────────────────────────────────────────────
-    section("Phase 7: Write Test Report");
+    // ── Phase 8: Write report ─────────────────────────────────────────────
+    section("Phase 8: Write Test Report");
     writeChecklistMd(checkResults, screenshots, balance, credCount, logCount);
 
   } else {

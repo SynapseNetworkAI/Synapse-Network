@@ -91,7 +91,7 @@ class FinanceRefundAnalysisMixin:
             "refundId": str(row.id or ""),
             "signature": str(row.signature or ""),
             "amountRefunded": round(float(row.amount_usdc or 0.0), 6),
-            "status": str(row.status or "PENDING"),
+            "status": str(row.status or "REQUESTED"),
             "gasPayer": str(row.gas_payer or "OWNER"),
             "gasModel": str(row.gas_model or "OWNER_PAYS_ONCHAIN"),
             "riskLevel": str(row.risk_level or "green"),
@@ -248,7 +248,7 @@ class FinanceRefundAnalysisMixin:
                 "message": "Manual appeal refund requires reviewer approval.",
             }
         return {
-            "status": "PENDING",
+            "status": "REQUESTED",
             "riskLevel": "green",
             "riskReasonCode": "",
             "message": "",

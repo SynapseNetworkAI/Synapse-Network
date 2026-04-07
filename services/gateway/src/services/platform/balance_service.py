@@ -122,6 +122,23 @@ class BalanceService(
     async def list_refunds(self, owner_wallet: str) -> List[dict[str, Any]]:
         return await self.owner_finance_service.list_refunds(owner_wallet)
 
+    async def create_consumer_withdraw_intent(
+        self,
+        payload: dict[str, Any],
+        owner_wallet: str,
+        idempotency_key: str,
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        return await self.owner_finance_service.create_consumer_withdraw_intent(
+            payload=payload,
+            owner_wallet=owner_wallet,
+            idempotency_key=idempotency_key,
+            request_meta=request_meta,
+        )
+
+    async def list_consumer_withdrawals(self, owner_wallet: str) -> List[dict[str, Any]]:
+        return await self.owner_finance_service.list_consumer_withdrawals(owner_wallet)
+
     async def complete_refund_intent(
         self,
         owner_wallet: str,
