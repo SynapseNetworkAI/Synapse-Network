@@ -403,7 +403,7 @@ def list_credentials_by_owner_active(
     storage: BaseStorage, owner_wallet: str
 ) -> List[dict[str, Any]]:
     """Return only active, non-expired credentials for an owner."""
-    now = now_ts() * 1000  # expiresAt is stored as epoch ms
+    now = now_ts()
     rows = load_credential_rows(storage)
     visible = []
     for row in rows:
@@ -428,7 +428,7 @@ def get_credential_status_for_owner(
     storage: BaseStorage, owner_wallet: str, credential_id: str
 ) -> dict[str, Any]:
     """Return a validity status object for a single credential."""
-    now = now_ts() * 1000
+    now = now_ts()
     rows = load_credential_rows(storage)
     index = next(
         (i for i, r in enumerate(rows) if r.credential.credential_id == credential_id),

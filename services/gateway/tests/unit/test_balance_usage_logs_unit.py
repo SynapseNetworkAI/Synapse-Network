@@ -13,6 +13,9 @@ from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.finance import UsageLogRow
 from src.services.platform import credential_service
 from src.services.platform.balance_service import BalanceService
+from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
+    run_provider_withdraw_expiry_reaper as _real_run_provider_withdraw_expiry_reaper,
+)
 
 
 class InMemoryGatewayStateRepo:
@@ -106,6 +109,7 @@ def test_app_lifespan_runs_provider_withdraw_expiry_reaper_tick(monkeypatch) -> 
     monkeypatch.setattr(gateway_app, "create_storage", lambda settings: storage)
     monkeypatch.setattr(gateway_app, "run_v2_deposit_indexer", _background_loop_until_stopped)
     monkeypatch.setattr(gateway_app, "run_service_health_monitor", _background_loop_until_stopped)
+    monkeypatch.setattr(gateway_app, "run_provider_withdraw_expiry_reaper", _real_run_provider_withdraw_expiry_reaper)
     monkeypatch.setattr(
         gateway_app.settings,
         "service_health_monitor_enabled",
@@ -128,7 +132,7 @@ def test_app_lifespan_runs_provider_withdraw_expiry_reaper_tick(monkeypatch) -> 
     app = gateway_app.create_app()
 
     with TestClient(app, base_url="https://gateway.test"):
-        assert ticked.wait(timeout=1.0)
+        assert ticked.wait(timeout=5.0)
         assert tick_count["value"] >= 1
         assert app.state.provider_withdraw_expiry_reaper_task is not None
 

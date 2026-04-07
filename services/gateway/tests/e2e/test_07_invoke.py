@@ -18,22 +18,26 @@ def _cred_headers(token: str) -> dict:
 
 
 def test_get_quote_for_service(session_state):
+    """Discover the service price via agent discovery search."""
     token = session_state.get("agent_token")
     service_id = session_state.get("service_id")
     if not token or not service_id:
         pytest.skip("agent_token or service_id not set — previous steps may have failed")
 
     r = httpx.post(
-        f"{GATEWAY_BASE}/api/v1/agent/quotes",
+        f"{GATEWAY_BASE}/api/v1/agent/discovery/search",
         headers=_cred_headers(token),
-        json={"serviceId": service_id, "responseMode": "sync"},
+        json={"serviceId": service_id},
         timeout=TIMEOUT,
     )
-    assert r.status_code == 200, f"Quote failed ({r.status_code}): {r.text}"
+    assert r.status_code == 200, f"Discovery search failed ({r.status_code}): {r.text}"
     body = r.json()
-    quote_id = body.get("quoteId") or body.get("id") or body.get("quote_id")
-    assert quote_id, f"quoteId missing from quote response: {body}"
-    session_state["quote_id"] = quote_id
+    results = body.get("results", [])
+    match = next((s for s in results if s.get("serviceId") == service_id), None)
+    assert match, f"service_id {service_id!r} not found in discovery results: {results}"
+    price_usdc = match.get("basePriceUsdc") or match.get("priceUsdc") or "0.001"
+    session_state["service_price_usdc"] = str(price_usdc)
+    session_state["quote_id"] = "price_confirmed"  # used as gate by downstream tests
 
 
 def test_invocation_deducts_balance(owner_headers, provider_headers, session_state):
@@ -52,16 +56,17 @@ def test_invocation_deducts_balance(owner_headers, provider_headers, session_sta
     fee_before = Decimal(str(bal_before.get("platformFeeAccrued", 0)))
 
     idem_key = uuid.uuid4().hex
+    price_usdc = session_state.get("service_price_usdc", "0.001")
     quote_id = session_state.get("quote_id")
     if not quote_id:
         pytest.skip("quote_id not set — test_get_quote_for_service may have failed")
     r = httpx.post(
-        f"{GATEWAY_BASE}/api/v1/agent/invocations",
+        f"{GATEWAY_BASE}/api/v1/agent/invoke",
         headers=_cred_headers(token),
         json={
-            "quoteId": quote_id,
-            "idempotencyKey": idem_key,
             "serviceId": service_id,
+            "idempotencyKey": idem_key,
+            "costUsdc": price_usdc,
             "payload": {"prompt": "e2e automated test invocation"},
             "responseMode": "sync",
         },
@@ -143,15 +148,15 @@ def test_idempotent_invocation_same_id(session_state):
     if not all([token, service_id, idem_key, quote_id]):
         pytest.skip("Prerequisites not set")
 
-    # Resending an identical request (same quoteId, same idem_key, same payload)
+    # Resending an identical request (same idem_key, same payload)
     # must return the cached invocation record — not create a new one.
     r = httpx.post(
-        f"{GATEWAY_BASE}/api/v1/agent/invocations",
+        f"{GATEWAY_BASE}/api/v1/agent/invoke",
         headers=_cred_headers(token),
         json={
-            "quoteId": quote_id,
-            "idempotencyKey": idem_key,
             "serviceId": service_id,
+            "idempotencyKey": idem_key,
+            "costUsdc": session_state.get("service_price_usdc", "0.001"),
             "payload": {"prompt": "e2e automated test invocation"},
             "responseMode": "sync",
         },

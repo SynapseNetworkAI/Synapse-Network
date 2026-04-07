@@ -170,16 +170,20 @@ class _MockProviderHandler(BaseHTTPRequestHandler):
         pass  # silence request logs in test output
 
     def do_GET(self):
+        body = b'{"status":"healthy"}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(b'{"status":"healthy"}')
+        self.wfile.write(body)
 
     def do_POST(self):
+        body = b'{"result":"e2e mock provider response"}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(b'{"result":"e2e mock provider response"}')
+        self.wfile.write(body)
 
 
 @pytest.fixture(scope="session")

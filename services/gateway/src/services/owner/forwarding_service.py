@@ -119,7 +119,7 @@ async def _execute_invocation_pipeline(
 
     existing = read_invocation_by_idempotency(storage, credential.credential.credential_id, idempotency_key)
     if existing is not None:
-        if existing.request_digest != payload_digest(request_payload) or existing.quote_id != quote.quote_id:
+        if existing.request_digest != payload_digest(request_payload):
             raise HTTPException(
                 status_code=409,
                 detail={"code": "IDEMPOTENCY_CONFLICT", "message": "Idempotency key already used with different request payload"},
