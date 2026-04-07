@@ -37,6 +37,10 @@ function parseStatus(value: unknown): DeductionStatus {
   if (normalized === "accepted" || normalized === "succeeded" || normalized === "refunded" || normalized === "failed") {
     return normalized;
   }
+  // Map backend variants like "failed_retryable", "failed_permanent" to "failed"
+  if (normalized.startsWith("failed")) {
+    return "failed";
+  }
   return "succeeded";
 }
 
