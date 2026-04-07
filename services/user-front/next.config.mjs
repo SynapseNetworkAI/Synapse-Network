@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Transpile @metamask/sdk and its deps so webpack handles them correctly
+  transpilePackages: ["@metamask/sdk", "@metamask/sdk-communication-layer"],
   // Optimize heavy barrel imports — reduces per-route module count significantly
   experimental: {
     optimizePackageImports: [
@@ -14,6 +16,8 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@react-native-async-storage/async-storage": false,
+      // Resolve cross-fetch to browser ponyfill to fix @metamask/sdk bundling
+      "cross-fetch": "cross-fetch/dist/browser-ponyfill.js",
     };
     config.externals.push("pino-pretty", "lokijs", "encoding");
     return config;
@@ -21,3 +25,6 @@ const nextConfig = {
 };
 
 export default nextConfig;
+
+
+
