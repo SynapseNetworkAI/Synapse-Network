@@ -125,6 +125,40 @@ Reusable scripts live in `scripts/tools/`. See `scripts/tools/README.md` for ful
 | `screenshot_docs.js` | Take EN + ZH Playwright screenshots of any docs page to verify i18n rendering |
 | `audit_i18n_comments.js` | Scan docs pages for hardcoded CJK `//` comments that need i18n extraction |
 
+### agent-browser — AI Browser Automation CLI
+
+[`agent-browser`](https://github.com/vercel-labs/agent-browser) (v0.25.3, 27.8k★) is a Rust-native CLI that gives AI agents full browser control via Chrome for Testing. Use it for UI verification, screenshot capture, and autonomous browser workflows.
+
+**One-time setup (macOS ARM64):**
+
+```bash
+npm install -g agent-browser   # install CLI
+agent-browser install          # download Chrome for Testing (~165 MB)
+# Chrome lands at ~/.agent-browser/browsers/chrome-147.x/
+```
+
+> If npm fails with `ECONNREFUSED 127.0.0.1:7890`, unset the stale proxy first:
+> ```bash
+> unset HTTP_PROXY HTTPS_PROXY ALL_PROXY && npm install -g agent-browser
+> ```
+
+**Core workflow:**
+
+```bash
+agent-browser open <url>          # launch browser and navigate
+agent-browser snapshot -i         # print interactive element refs
+agent-browser click @e1           # click element by ref
+agent-browser fill @e2 "text"     # type into input
+agent-browser screenshot out.png  # capture current viewport
+```
+
+**Verify the frontend renders correctly:**
+
+```bash
+agent-browser open http://localhost:3000
+agent-browser screenshot /tmp/user-front.png
+```
+
 ### i18n Code Block Comment Rule
 
 **Do not hardcode CJK or language-specific text inside CodeBlock `code` props.**
