@@ -27,9 +27,9 @@ def test_revoked_credential_is_rejected(session_state):
         pytest.skip("Credential not revoked or missing agent_token/service_id")
 
     r = httpx.post(
-        f"{GATEWAY_BASE}/api/v1/agent/quotes",
+        f"{GATEWAY_BASE}/api/v1/agent/invoke",
         headers={"X-Credential": token, "Content-Type": "application/json"},
-        json={"serviceId": service_id, "responseMode": "sync"},
+        json={"serviceId": service_id, "idempotencyKey": "revoke-test-key", "costUsdc": "0.001", "responseMode": "sync"},
         timeout=15,
     )
     assert r.status_code in (401, 403), (
