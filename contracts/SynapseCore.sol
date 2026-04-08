@@ -106,4 +106,5 @@ contract SynapseCore is Ownable, EIP712, ReentrancyGuard {
         
         emit PlatformFeeDrawn(msg.sender, amount);
     }
+
 }

@@ -783,16 +783,29 @@ export async function listV2Refunds(
   });
 }
 
+export type ConsumerWithdrawTicket = {
+  amount: string;
+  fee: string;
+  nonce: number;
+  deadline: number;
+  signature: string;
+  chainId: number;
+  contractAddress: string;
+};
+
 export type ConsumerWithdrawIntent = {
   withdrawId: string;
   amountUsdc: number;
-  status: "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
+  feeUsdc: number;
+  netUsdc: number;
+  status: "REQUESTED" | "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
   riskLevel?: "green" | "yellow" | "red";
   riskReasonCode?: string;
   message?: string;
   destination?: string;
   createdAt?: string;
   existingWithdrawal?: boolean;
+  ticket?: ConsumerWithdrawTicket;
 };
 
 export async function requestConsumerWithdraw(
@@ -812,9 +825,23 @@ export async function requestConsumerWithdraw(
     throw new Error(await readErrorMessage(response, "Withdraw request failed"));
   }
   const payload = (await response.json()) as Record<string, unknown>;
+  const rawTicket = payload.ticket as Record<string, unknown> | undefined;
+  const ticket: ConsumerWithdrawTicket | undefined = rawTicket
+    ? {
+        amount: typeof rawTicket.amount === "string" ? rawTicket.amount : `${Number(rawTicket.amount) || 0}`,
+        fee: typeof rawTicket.fee === "string" ? rawTicket.fee : `${Number(rawTicket.fee) || 0}`,
+        nonce: Number(rawTicket.nonce || 0),
+        deadline: Number(rawTicket.deadline || 0),
+        signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
+        chainId: Number(rawTicket.chainId || 0),
+        contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
+      }
+    : undefined;
   return {
     withdrawId: typeof payload.withdrawId === "string" ? payload.withdrawId : "",
     amountUsdc: Number(payload.amountUsdc || 0),
+    feeUsdc: Number(payload.feeUsdc || 0),
+    netUsdc: Number(payload.netUsdc || 0),
     status: (payload.status as ConsumerWithdrawIntent["status"]) ?? "PENDING",
     riskLevel: payload.riskLevel as ConsumerWithdrawIntent["riskLevel"],
     riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
@@ -822,6 +849,7 @@ export async function requestConsumerWithdraw(
     destination: typeof payload.destination === "string" ? payload.destination : undefined,
     createdAt: typeof payload.createdAt === "string" ? payload.createdAt : undefined,
     existingWithdrawal: payload.existingWithdrawal === true,
+    ticket,
   };
 }
 

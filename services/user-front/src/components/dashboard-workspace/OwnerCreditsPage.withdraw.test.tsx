@@ -12,6 +12,7 @@ import { I18N_STORAGE_KEY } from "@/i18n/config";
 const {
   authorizeMock,
   getOwnerSpendingLimitMock,
+  ownerBalanceState,
   requestConsumerWithdrawMock,
   handleRefreshMock,
   toastSuccessMock,
@@ -19,6 +20,7 @@ const {
 } = vi.hoisted(() => ({
   authorizeMock: vi.fn(async () => true),
   getOwnerSpendingLimitMock: vi.fn(),
+  ownerBalanceState: { value: "20" },
   requestConsumerWithdrawMock: vi.fn(),
   handleRefreshMock: vi.fn(),
   toastSuccessMock: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock("@/components/WalletAuthGuard", () => ({
 
 vi.mock("@/hooks/useOwnerData", () => ({
   useOwnerData: () => ({
-    stats: { ownerBalance: "20" },
+    stats: { ownerBalance: ownerBalanceState.value },
     handleRefresh: handleRefreshMock,
     isBootstrapping: false,
   }),
@@ -108,6 +110,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    ownerBalanceState.value = "20";
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
     getOwnerSpendingLimitMock.mockResolvedValue(spendingLimitDefault);
   });
@@ -220,6 +223,39 @@ describe("OwnerCreditsPage — Withdraw", () => {
     await waitFor(() => {
       expect(screen.getByText("$0.00")).toBeTruthy();
     });
+  });
+
+  it("keeps the withdrawn balance after a page refresh when the server balance stays deducted", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-refresh-1",
+      status: "REQUESTED",
+      amountUsdc: 20,
+      riskReasonCode: null,
+    });
+    handleRefreshMock.mockImplementation(async () => {
+      ownerBalanceState.value = "0";
+    });
+
+    const rendered = renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(handleRefreshMock).toHaveBeenCalled();
+      expect(screen.getByText("$0.00")).toBeTruthy();
+    });
+
+    rendered.unmount();
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    expect(screen.getByText("$0.00")).toBeTruthy();
   });
 
   it("shows a success toast with the withdrawn amount", async () => {

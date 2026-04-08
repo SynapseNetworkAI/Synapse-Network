@@ -151,3 +151,4 @@ Consumer withdrawals appear in the **Payments** tab (`/dashboard/billing/payment
 | `REJECTED` | Failed (red) |
 
 Amount is shown as a negative value since this is an outflow from the vault.
+Date is rendered in the local wall-clock format `YYYY-MM-DD HH:mm:ss` so the Payments ledger stays stable across browser locales.

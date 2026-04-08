@@ -15,7 +15,8 @@ Consumer Withdrawal 链路定义 Owner（买家）如何把**未消费的预存 
 | --- | --- |
 | `Owner (Consumer Role)` | 发起提现申请 |
 | `Platform Gateway` | 风控校验、余额冻结、幂等控制、记录存储 |
-| `Vault Contract` *(未来)* | 链上出金执行（当前阶段通过平台人工/自动处理） |
+| `SynapseCore Contract` | 链上出金执行：`platformWithdrawTo(user, amount, fee)` |
+| `Consumer Withdraw Processor` | 后台任务：自动处理 REQUESTED 队列，调用链上合约完成出金 |
 | `PostgreSQL` | 持久化余额变更、提现记录、审计事件 |
 
 ## 2.1 Bug 记录与修复状态
@@ -246,6 +247,8 @@ sequenceDiagram
     participant FE as Frontend
     participant GW as Gateway API
     participant DB as PostgreSQL
+    participant BG as Consumer Withdraw Processor
+    participant SC as SynapseCore Contract
 
     U->>FE: Click "Withdraw"
     FE->>GW: POST /api/v1/balance/consumer/withdraw\n{amountUsdc, reason}
@@ -253,8 +256,8 @@ sequenceDiagram
     GW->>DB: Check active withdrawals (idempotency)
     GW->>DB: Classify risk (auto / manual)
     GW->>DB: ATOMIC UPDATE: available -= amount, pending/frozen += amount
-    GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED|PENDING_MANUAL_REVIEW)
-    GW-->>FE: {status, amountUsdc, riskLevel, ...}
+    GW->>DB: INSERT withdrawal record (status=REQUESTED|PENDING_MANUAL_REVIEW)
+    GW-->>FE: {status, amountUsdc, feeUsdc, netUsdc, ...}
 
     FE->>FE: 300ms delay (DB write settle)
     FE->>GW: GET /api/v1/balance
@@ -263,8 +266,13 @@ sequenceDiagram
     FE->>U: 更新余额显示
 
     alt status = REQUESTED (auto path)
-        Note over GW,DB: 平台后台处理出金 (当前阶段：人工/cron)
-        GW->>DB: UPDATE status=COMPLETED, pending -= amount
+        Note over BG: Background task polls every 10s
+        BG->>DB: SELECT REQUESTED consumer withdrawals
+        BG->>SC: platformWithdrawTo(user, grossWei, feeWei)
+        SC-->>U: Transfer net USDC (gross − fee) to user wallet
+        SC->>SC: Accrue fee to platformFeePool
+        BG->>DB: UPDATE status=COMPLETED, pending -= amount, record txHash
+        BG->>DB: INSERT audit: CONSUMER_WITHDRAW_AUTO_COMPLETED
     else status = PENDING_MANUAL_REVIEW
         Note over GW,DB: 人工审核
         GW->>DB: APPROVE → frozen -> pending → issue ticket → COMPLETED
@@ -337,29 +345,92 @@ handleSubmit
 
 | 参数 | 默认值 | 含义 |
 | --- | --- | --- |
-| `CONSUMER_WITHDRAW_MIN_USDC` | 1.0 | 最小提现金额 (USDC) |
-| `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0 | 超过此金额进人工审核 |
+| `CONSUMER_WITHDRAW_MIN_USDC` | 1.0 | 最低提现金额 (USDC) |
+| `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0 | 超过金额进入人工审核 |
 | `CONSUMER_WITHDRAW_MAX_DAILY_COUNT` | 3 | 24h 内最大提现次数 |
+| `CONSUMER_WITHDRAW_FEE_USDC` | 0.50 | 每笔消费者提现手续费 (USDC)，用户承担 |
+| `CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC` | 10.0 | 后台处理器轮询间隔 (秒) |
+| `CONSUMER_WITHDRAW_PROCESSOR_ENABLED` | true | 是否启用消费者提现自动处理器 |
 
-这三个参数通过环境变量覆盖，无需代码变更。
+以上参数均可通过环境变量覆盖，无需改代码即可调整。
 
 ## 11. 安全保障
 
-| 威胁 | 防护手段 |
+| 威胁 | 应对机制 / 阶段 |
 | --- | --- |
-| 余额超提 | 原子 SQL UPDATE + `WHERE available >= amount` |
-| 并发双花 | 互斥锁 `_mutation_lock.lock(f"{owner}:consumer_withdraw_intent")` |
-| 重复提交 | Redis 幂等 + 活跃单保护（双重）|
-| 大额快速出金 | 金额阈值 + 日频次限制 → PENDING_MANUAL_REVIEW |
-| consumer 余额混用 | withdrawal_kind 强隔离，consumer 与 provider 路径完全独立 |
+| 余额超卖 | 原子 SQL UPDATE + `WHERE available >= amount` |
+| 并发双提 | 互斥锁 `_mutation_lock.lock(f"{owner}:consumer_withdraw_intent")` |
+| 重复交易 | Redis 幂等 + 活跃提现记录唯一性检查 |
+| 大额快速攫取 | 金额阈值 + 每日次数限制 → PENDING_MANUAL_REVIEW |
+| consumer 余额混淆 | withdrawal_kind 强制隔离 consumer 与 provider 路径，互不干扰 |
+| Vault 流动性不足 | 后台处理器在链上执行前检查 Vault USDC 余额 ≥ gross，不足则跳过并记录 WARNING |
+| 私钥泄露 | `PRIVATE_KEY` 仅存于 Gateway .env，不入库不上链；platformWithdrawTo 为 onlyOwner |
 
-## 12. 文档结论
+## 12. 手续费机制
 
-Consumer withdrawal 正确顺序：
+Consumer 提现采用 **用户承担手续费** 模式：
 
-**资格校验 → 频率/幂等校验 → 余额原子锁仓 → 创建意图记录 → UI 刷新展示 → 平台执行出金 → 审计闭环**
+| 项目 | 值 |
+| --- | --- |
+| 手续费 | `CONSUMER_WITHDRAW_FEE_USDC`（默认 $0.50） |
+| 扣除方式 | 链上 `platformWithdrawTo(user, gross, fee)` → 用户到账 `net = gross - fee` |
+| 手续费去向 | 合约 `platformFeePool` 累加，可由 owner `withdrawFees()` 提取 |
+| 前置校验 | 提现金额 ≤ fee → 400 AMOUNT_TOO_LOW_FOR_FEE |
+| API 返回 | `feeUsdc` + `netUsdc` 透明展示 |
 
-区别于 Provider withdrawal：
-- 无需 EIP-712 签名（当前阶段平台人工/自动出金）
-- 资金来自 consumer_wallet 而非 provider_wallet
-- 风控阈值、日限额独立配置
+## 13. 消费者提现自动处理器
+
+### 13.1 架构
+
+```
+┌──────────────────────────────────────────────────┐
+│            Gateway (FastAPI lifespan)             │
+│                                                    │
+│   ┌───────────────────────────────────────────┐   │
+│   │  consumer_withdraw_processor (async task)  │   │
+│   │  ┌─────────┐    ┌──────────┐   ┌────────┐│   │
+│   │  │ Poll DB │───▶│ On-chain │──▶│Update  ││   │
+│   │  │REQUESTED│    │platformW.│   │DB+Audit││   │
+│   │  └─────────┘    └──────────┘   └────────┘│   │
+│   └───────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────┘
+```
+
+### 13.2 流程
+
+1. 轮询 `refund_intent` 表中 `status=REQUESTED` + `type=CONSUMER_BALANCE_WITHDRAW` 的行
+2. 逐条处理：
+   - 检查 Vault USDC 余额 ≥ gross
+   - 调用 `platformWithdrawTo(user, gross, fee)` 发送链上交易
+   - 等待交易确认（receipt）
+   - 更新 DB：`status=COMPLETED`、`tx_hash=0x...`
+   - 扣减 `pending_balance`
+   - 写入审计事件 `CONSUMER_WITHDRAW_AUTO_COMPLETED`
+3. 任何步骤失败 → 记录 ERROR + 跳过该行，下一轮重试
+
+### 13.3 配置
+
+- `CONSUMER_WITHDRAW_PROCESSOR_ENABLED`：开关（默认 true）
+- `CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC`：轮询间隔（默认 10s）
+
+### 13.4 与 Provider Withdrawal 对比
+
+| 维度 | Consumer Withdrawal | Provider Withdrawal |
+| --- | --- | --- |
+| 发起方 | 用户在 UI 点击提现 | Provider 调用 API |
+| 链上执行 | 平台后台 `platformWithdrawTo` (onlyOwner) | 用户自行提交 EIP-712 签名 ticket |
+| 谁付 Gas | 平台 (deployer) | 用户 (provider) |
+| 手续费 | $0.50 从提现金额扣除 | 按 `PROVIDER_WITHDRAW_FEE_PCT` 比例扣除 |
+| 超时机制 | 无（后台自动处理） | 有 expiry reaper 30min 超时回滚 |
+
+## 14. 文档结论
+
+Consumer withdrawal 完整顺序：
+
+**格式校验 → 余额/幂等校验 → 手续费校验 → 余额原子扣减 → 创建退款记录 → UI 展示费用 → 后台处理器链上执行 platformWithdrawTo → 审计日志**
+
+与 Provider withdrawal 核心差异：
+- 无需 EIP-712 签名，平台代执行链上转账
+- 收取固定手续费（$0.50），从提现金额中扣除
+- 余额直达 consumer_wallet（非 provider_wallet）
+- 无超时回滚，后台任务持续重试直到成功
