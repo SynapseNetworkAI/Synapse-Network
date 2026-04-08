@@ -30,6 +30,13 @@ function paymentMethodForRecord(type: string): string {
   return "Wallet";
 }
 
+function typeLabelForRecord(type: string): { label: string; cls: string } {
+  if (type === "Withdraw") return { label: "Withdraw", cls: "text-orange-400" };
+  if (type === "Refund")   return { label: "Refund",   cls: "text-sky-400" };
+  if (type === "Claim")    return { label: "Claim",    cls: "text-purple-400" };
+  return { label: "Deposit", cls: "text-green-400" };
+}
+
 function transactionIdForRecord(id: string): string {
   if (id.length <= 8) {
     return id;
@@ -128,6 +135,9 @@ export default function OwnerBillingPage() {
                     <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
                       {t("billingPage.tableStatus")}
                     </th>
+                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+                      Type
+                    </th>
                     <th className="hidden px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db] sm:table-cell">
                       {t("billingPage.tablePaymentMethod")}
                     </th>
@@ -146,7 +156,7 @@ export default function OwnerBillingPage() {
                   {loading ? (
                     <tr className="border-b border-[#232323]">
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-4 py-8 text-center text-[15px] leading-6 text-[#9ca3af]"
                       >
                         {t("billingPage.loading")}
@@ -155,7 +165,7 @@ export default function OwnerBillingPage() {
                   ) : filteredRecords.length === 0 ? (
                     <tr className="border-b border-[#232323]">
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-4 py-8 text-center text-[15px] leading-6 text-[#9ca3af]"
                       >
                         {t("billingPage.empty")}
@@ -189,6 +199,9 @@ export default function OwnerBillingPage() {
                                   ? t("billingPage.statusFailed")
                                   : t("billingPage.statusPending")}
                             </span>
+                          </td>
+                          <td className="px-4 py-4 text-[14px] leading-6">
+                            {(() => { const { label, cls } = typeLabelForRecord(row.type); return <span className={`font-medium ${cls}`}>{label}</span>; })()}
                           </td>
                           <td className="hidden px-4 py-4 text-[16px] leading-6 text-[#71767b] sm:table-cell">
                             {paymentMethodForRecord(row.type)}
