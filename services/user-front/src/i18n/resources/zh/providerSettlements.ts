@@ -58,6 +58,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   withdrawalDescription: "Gateway 签发 EIP-712 票据，Provider 链上 Claim 自付 gas。",
   chainRequiredNetwork: "所需网络",
   metricAvailable: "可用余额",
+  metricGasBalance: "Gas 余额",
   metricPendingLocked: "待处理 / 已锁定",
   metricPendingTicket: "待处理票据",
   metricTxState: "交易状态",
@@ -113,9 +114,14 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   dedupeNoteTip: "在汇总统计前，请求会先按 request ID 去重，避免重试导致重复记账。",
   withdrawPageTitle: "Provider 提现",
   withdrawPageDescription: "EIP-712 链上自助提现。",
+  withdrawGasNote: "提现是链上交易，需要从连接的钱包中支付少量原生代币（如 ETH）作为 Gas 费用。",
+  insufficientGasWarning: "Gas 余额不足，请先在钱包中充值原生代币（如 ETH）后再提现。",
   historyPageTitle: "提现记录",
   historyPageDescription: "结算事件与提现历史。",
   viewHistory: "查看提现记录",
+  viewInvocationRecords: "查看调用记录",
+  invocationRecordsTitle: "调用记录",
+  invocationRecordsDescription: "Provider 服务调用结算事件。",
   backToWithdraw: "返回提现",
 };
 

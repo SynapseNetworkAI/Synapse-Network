@@ -36,8 +36,10 @@ const TRANSLATIONS: Record<string, string> = {
   "sidebar.myServices": "My Services",
   "sidebar.usageAnalytics": "Usage Analytics",
   "sidebar.settlements": "Settlements",
+  "sidebar.settlement": "Settlement",
   "sidebar.withdraw": "Withdraw",
   "sidebar.withdrawHistory": "Withdraw History",
+  "sidebar.invocationRecords": "Invocation Records",
   "sidebar.account": "Account",
   "sidebar.settings": "Settings",
   "sidebar.logout": "Logout",
@@ -162,16 +164,22 @@ describe("DashboardSidebar", () => {
     expect(pushMock).toHaveBeenCalledWith("/dashboard/overview");
   });
 
-  it("renders account directly after withdraw history in the main navigation flow", () => {
+  it("renders settlement group with withdraw sub-links before account", async () => {
+    const user = userEvent.setup();
     render(<DashboardSidebar />);
 
-    const withdrawHistoryLink = screen.getAllByRole("link", { name: /Withdraw History/i }).at(-1);
+    const settlementButton = screen.getAllByRole("button", { name: /Settlement/i }).at(-1);
+    expect(settlementButton).toBeTruthy();
+
+    await user.click(settlementButton!);
+
+    const invocationRecordsLink = screen.getAllByRole("link", { name: /Invocation Records/i }).at(-1);
     const accountButton = screen.getAllByRole("button", { name: /Account/i }).at(-1);
 
-    expect(withdrawHistoryLink).toBeTruthy();
+    expect(invocationRecordsLink).toBeTruthy();
     expect(accountButton).toBeTruthy();
     expect(
-      withdrawHistoryLink!.compareDocumentPosition(accountButton!) &
+      invocationRecordsLink!.compareDocumentPosition(accountButton!) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
