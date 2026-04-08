@@ -22,6 +22,7 @@ import {
   Box,
   Key,
   AreaChart,
+  Database,
   ShieldCheck,
   Terminal,
   AlertTriangle,
@@ -51,8 +52,10 @@ export default function DashboardSidebar() {
   const providerWithdrawHistoryRoute = `${providerRoot}/withdraw/history`;
   const billingChildActive = activePath.startsWith("/dashboard/billing");
   const accountChildActive = activePath.startsWith("/dashboard/account");
+  const settlementChildActive = activePath.startsWith(`${providerRoot}/withdraw`);
   const [billingExpanded, setBillingExpanded] = useState(billingChildActive);
   const [accountExpanded, setAccountExpanded] = useState(accountChildActive);
+  const [settlementExpanded, setSettlementExpanded] = useState(settlementChildActive);
   const [agentCount, setAgentCount] = useState<number | null>(null);
   const [serviceCount, setServiceCount] = useState<number | null>(null);
 
@@ -108,6 +111,12 @@ export default function DashboardSidebar() {
       setAccountExpanded(true);
     }
   }, [accountChildActive]);
+
+  useEffect(() => {
+    if (settlementChildActive) {
+      setSettlementExpanded(true);
+    }
+  }, [settlementChildActive]);
 
   const isRouteActive = (paths: string | string[], exact = false) => {
     const candidates = Array.isArray(paths) ? paths : [paths];
@@ -345,38 +354,41 @@ export default function DashboardSidebar() {
             <AreaChart className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
             {t("sidebar.usageAnalytics")}
           </Link>
-          <Link
-            href={providerWithdrawRoute}
-            className={getLinkClasses([providerWithdrawRoute], false)}
-            onMouseEnter={() => {
-              prefetchRoute(providerWithdrawRoute);
-            }}
-            onFocus={() => {
-              prefetchRoute(providerWithdrawRoute);
-            }}
-            onClick={(event) => {
-              void handleWithdrawNavigation(event, providerWithdrawRoute);
-            }}
+          <button
+            type="button"
+            className={getGroupTriggerClasses(settlementExpanded)}
+            onClick={() => setSettlementExpanded((current) => !current)}
+            aria-expanded={settlementExpanded}
+            aria-controls="provider-settlement-subnav"
           >
-            <Wallet className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
-            {t("sidebar.withdraw")}
-          </Link>
-          <Link
-            href={providerWithdrawHistoryRoute}
-            className={getLinkClasses([providerWithdrawHistoryRoute], false)}
-            onMouseEnter={() => {
-              prefetchRoute(providerWithdrawHistoryRoute);
-            }}
-            onFocus={() => {
-              prefetchRoute(providerWithdrawHistoryRoute);
-            }}
-            onClick={(event) => {
-              void handleWithdrawNavigation(event, providerWithdrawHistoryRoute);
-            }}
-          >
-            <History className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
-            {t("sidebar.withdrawHistory")}
-          </Link>
+            <Database className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
+            {t("sidebar.settlement")}
+            <ChevronDown
+              className={`ml-auto h-4 w-4 text-white/38 transition-transform duration-200 ${settlementExpanded ? "rotate-0 text-white/56" : "-rotate-90"}`}
+            />
+          </button>
+          {settlementExpanded ? (
+            <div id="provider-settlement-subnav" className="pb-1">
+              <Link
+                href={providerWithdrawRoute}
+                className={getSubLinkClasses(providerWithdrawRoute)}
+                onMouseEnter={() => { prefetchRoute(providerWithdrawRoute); }}
+                onFocus={() => { prefetchRoute(providerWithdrawRoute); }}
+                onClick={(event) => { void handleWithdrawNavigation(event, providerWithdrawRoute); }}
+              >
+                {t("sidebar.withdraw")}
+              </Link>
+              <Link
+                href={providerWithdrawHistoryRoute}
+                className={getSubLinkClasses(providerWithdrawHistoryRoute)}
+                onMouseEnter={() => { prefetchRoute(providerWithdrawHistoryRoute); }}
+                onFocus={() => { prefetchRoute(providerWithdrawHistoryRoute); }}
+                onClick={(event) => { void handleWithdrawNavigation(event, providerWithdrawHistoryRoute); }}
+              >
+                {t("sidebar.invocationRecords")}
+              </Link>
+            </div>
+          ) : null}
           <div className="mt-4 pt-1">
           <button
             type="button"

@@ -71,8 +71,10 @@ const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar
     myServices: "我的服务",
     usageAnalytics: "使用分析",
     settlements: "结算",
+    settlement: "结算",
     withdraw: "提现",
     withdrawHistory: "提现记录",
+    invocationRecords: "调用记录",
   },
   accountSettingsPage: {
     title: "设置",

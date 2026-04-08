@@ -69,8 +69,10 @@ export type I18nMessages = {
     myServices: string;
     usageAnalytics: string;
     settlements: string;
+    settlement: string;
     withdraw: string;
     withdrawHistory: string;
+    invocationRecords: string;
   };
   accountSettingsPage: {
     title: string;
@@ -1262,6 +1264,7 @@ export type I18nMessages = {
     withdrawalDescription: string;
     chainRequiredNetwork: string;
     metricAvailable: string;
+    metricGasBalance: string;
     metricPendingLocked: string;
     metricPendingTicket: string;
     metricTxState: string;
@@ -1317,9 +1320,14 @@ export type I18nMessages = {
     dedupeNoteTip: string;
     withdrawPageTitle: string;
     withdrawPageDescription: string;
+    withdrawGasNote: string;
+    insufficientGasWarning: string;
     historyPageTitle: string;
     historyPageDescription: string;
     viewHistory: string;
+    viewInvocationRecords: string;
+    invocationRecordsTitle: string;
+    invocationRecordsDescription: string;
     backToWithdraw: string;
   };
   providerSecretsPage: {

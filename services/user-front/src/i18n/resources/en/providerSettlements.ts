@@ -58,6 +58,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   withdrawalDescription: "Gateway issues EIP-712 ticket; provider claims on-chain, self-pay gas.",
   chainRequiredNetwork: "the required network",
   metricAvailable: "Available",
+  metricGasBalance: "Gas Balance",
   metricPendingLocked: "Pending / Locked",
   metricPendingTicket: "Pending Ticket",
   metricTxState: "Tx State",
@@ -113,9 +114,14 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   dedupeNoteTip: "Requests are deduplicated by request ID before summary aggregation to prevent double-counting across retries.",
   withdrawPageTitle: "Provider Withdraw",
   withdrawPageDescription: "EIP-712 on-chain self-service withdrawal.",
+  withdrawGasNote: "Withdrawal is an on-chain transaction. You will need to pay a small gas fee in the native token (e.g. ETH) from your connected wallet.",
+  insufficientGasWarning: "Insufficient gas balance. Please top up native token (e.g. ETH) in your wallet before withdrawing.",
   historyPageTitle: "Withdraw History",
   historyPageDescription: "Settlement events and withdrawal history.",
   viewHistory: "View History",
+  viewInvocationRecords: "View Invocation Records",
+  invocationRecordsTitle: "Invocation Records",
+  invocationRecordsDescription: "Settlement events from provider service invocations.",
   backToWithdraw: "Back to Withdraw",
 };
 
