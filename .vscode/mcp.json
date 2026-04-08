@@ -3,7 +3,9 @@
     "agents-memory": {
       "type": "stdio",
       "command": "python3.12",
-      "args": ["/Users/cliff/workspace/Agents-Memory/scripts/mcp_server.py"],
+      "args": [
+        "/Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py"
+      ],
       "env": {}
     }
   }

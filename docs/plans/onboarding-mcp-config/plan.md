@@ -25,14 +25,13 @@ doc_status: active
 - 测试改动：
 
 ## Onboarding Execution
-- run `amem mcp-setup .`
+- run `python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e`
 - verify with `amem doctor .`
-- finish when: `amem doctor .` shows `[OK] mcp_config`.
+- finish when: `amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.
 
 ## Action Sequence Snapshot
 ```json
 [
-  "Integration (required): Run `amem mcp-setup .` to repair or create the MCP server configuration.",
   "Optional (recommended): Refactor flagged functions before adding more behavior, and add a short guiding comment when complex logic must remain in place."
 ]
 ```

@@ -2,32 +2,17 @@
 
 - Project: `synapse-network`
 - Root: `/Users/cliff/workspace/agent/Synapse-Network`
-- Overall: `PARTIAL`
+- Overall: `READY`
 
 ## Checklist
 - [x] Core - Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)
 - [x] Planning - Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)
-- [ ] Integration - Integration status=WATCH (ok=1, warn=1, fail=0, info=0)
+- [x] Integration - Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)
 - [ ] Optional - Optional status=WATCH (ok=2, warn=6, fail=0, info=0)
-- [ ] Final verification - re-run `amem doctor .` and confirm no remaining WARN / FAIL steps
+- [x] Final verification - latest `amem doctor .` already reflects the current healthy state
 
 ## Action Sequence
-1. Integration (required): Run `amem mcp-setup .` to repair or create the MCP server configuration.
-2. Optional (recommended): Refactor flagged functions before adding more behavior, and add a short guiding comment when complex logic must remain in place.
-
-## Onboarding Runbook
-### Step 1: Integration / mcp_config
-- Priority: `required`
-- Trigger: agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py
-- Action: Create or repair the MCP configuration so IDE agents can call Agents-Memory tools.
-- Command: `amem mcp-setup .`
-- Verify with: `amem doctor .`
-- Next command: `amem doctor .`
-- Safe To Auto Execute: `True`
-- Approval Required: `False`
-- Approval Reason: writes only local IDE MCP config under .vscode for the current project
-- Done when: `amem doctor .` shows `[OK] mcp_config`.
-
+1. Optional (recommended): Refactor flagged functions before adding more behavior, and add a short guiding comment when complex logic must remain in place.
 ## Group Health
 ### Core
 - Summary: Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)
@@ -42,12 +27,12 @@
 ### Planning
 - Summary: Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)
 - [OK] `planning_root` present: /Users/cliff/workspace/agent/Synapse-Network/docs/plans
-- [OK] `planning_bundle` 1 planning bundle(s) passed plan-check
+- [OK] `planning_bundle` 2 planning bundle(s) passed plan-check
 
 ### Integration
-- Summary: Integration status=WATCH (ok=1, warn=1, fail=0, info=0)
+- Summary: Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)
 - [OK] `bridge_instruction` /Users/cliff/workspace/agent/Synapse-Network/.github/instructions/agents-memory-bridge.instructions.md
-- [WARN] `mcp_config` agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py
+- [OK] `mcp_config` agents-memory server configured -> /Users/cliff/workspace/agent/Synapse-Network/.vscode/mcp.json
 
 ### Optional
 - Summary: Optional status=WATCH (ok=2, warn=6, fail=0, info=0)

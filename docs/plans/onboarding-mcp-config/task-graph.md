@@ -25,21 +25,5 @@ doc_status: active
 
 ## Onboarding Task Steps
 ```json
-[
-  {
-    "group": "Integration",
-    "priority": "required",
-    "key": "mcp_config",
-    "status": "WARN",
-    "detail": "agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py",
-    "action": "Create or repair the MCP configuration so IDE agents can call Agents-Memory tools.",
-    "command": "amem mcp-setup .",
-    "verify_with": "amem doctor .",
-    "done_when": "`amem doctor .` shows `[OK] mcp_config`.",
-    "safe_to_auto_execute": true,
-    "approval_required": false,
-    "approval_reason": "writes only local IDE MCP config under .vscode for the current project",
-    "next_command": "amem doctor ."
-  }
-]
+[]
 ```
