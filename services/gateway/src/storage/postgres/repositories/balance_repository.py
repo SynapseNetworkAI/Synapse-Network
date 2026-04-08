@@ -196,38 +196,75 @@ class BalanceRepository:
         ledger.updated_at = max_updated
         return ledger
 
+    def reserve_consumer_balance_for_withdrawal(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        """Atomically move *amount_usdc* from available → pending for a consumer withdrawal.
+
+        Uses a direct SQL delta so it is safe against concurrent full-ledger writes
+        by the deposit indexer.  Raises RuntimeError if the row does not exist or
+        available balance would go negative.
+        """
+        account_id, _ = self._account_identity(owner, "consumer")
+        with self._db.tx_cursor() as cur:
+            # Ensure ledger account + balance row exist first
+            self._ensure_ledger_account(cur, owner, "consumer", updated_at)
+            cur.execute(
+                """
+                INSERT INTO synapse_account_balances (
+                    account_id, available_balance, pending_balance, frozen_balance, updated_at
+                )
+                VALUES (%s, 0, 0, 0, %s)
+                ON CONFLICT (account_id) DO NOTHING
+                """,
+                (account_id, updated_at),
+            )
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET available_balance = available_balance - %s,
+                    pending_balance   = pending_balance   + %s,
+                    updated_at        = %s
+                WHERE account_id = %s
+                  AND available_balance >= %s
+                """,
+                (
+                    str(self._q6(amount_usdc)),
+                    str(self._q6(amount_usdc)),
+                    updated_at,
+                    account_id,
+                    str(self._q6(amount_usdc)),
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
+
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
+        """Persist the ledger's available balances.
+
+        Only available_balance is updated so that pending_balance and
+        frozen_balance (managed atomically by the withdrawal subsystem) are
+        never clobbered by a full-ledger rewrite from the deposit indexer.
+        """
         updated_at = (
             to_dt_str(ledger.updated_at or now_dt_str(), now_dt_str()) or now_dt_str()
         )
 
         with self._db.tx_cursor() as cur:
-            cur.execute(
-                """
-                UPDATE synapse_account_balances AS ab
-                SET available_balance = 0,
-                    pending_balance = 0,
-                    frozen_balance = 0,
-                    updated_at = %s
-                FROM synapse_ledger_accounts AS la
-                WHERE la.account_id = ab.account_id
-                                    AND la.account_kind IN ('consumer_wallet', 'provider_wallet', 'platform_revenue')
-                """,
-                (updated_at,),
-            )
-            self._upsert_account_rows(
+            self._upsert_available_only_rows(
                 cur,
                 "consumer",
                 ledger.consumer_wallets,
                 updated_at,
             )
-            self._upsert_account_rows(
+            self._upsert_available_only_rows(
                 cur,
                 "provider",
                 ledger.provider_wallets,
                 updated_at,
             )
 
+            # Platform revenue row: still full-upsert (no pending/frozen semantics)
             self._upsert_balance_row(
                 cur,
                 "__platform__",
@@ -236,6 +273,36 @@ class BalanceRepository:
                 0,
                 0,
                 updated_at,
+            )
+
+    def _upsert_available_only_rows(
+        self,
+        cur: Any,
+        account_type: str,
+        wallet_rows: list[ConsumerWalletRecord] | list[ProviderWalletRecord],
+        updated_at: str,
+    ) -> None:
+        """Upsert only available_balance; leave pending/frozen intact on conflict."""
+        for wallet_row in wallet_rows:
+            owner = str(wallet_row.owner_address or "").lower()
+            if not owner:
+                continue
+            account_id = self._ensure_ledger_account(cur, owner, account_type, updated_at)
+            cur.execute(
+                """
+                INSERT INTO synapse_account_balances (
+                    account_id, available_balance, pending_balance, frozen_balance, updated_at
+                ) VALUES (%s, %s, 0, 0, %s)
+                ON CONFLICT (account_id)
+                DO UPDATE SET
+                    available_balance = EXCLUDED.available_balance,
+                    updated_at        = EXCLUDED.updated_at
+                """,
+                (
+                    account_id,
+                    str(self._q6(wallet_row.available_balance or 0)),
+                    updated_at,
+                ),
             )
 
     def _upsert_account_rows(

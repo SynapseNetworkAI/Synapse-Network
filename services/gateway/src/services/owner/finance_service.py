@@ -92,6 +92,14 @@ class OwnerFinanceService(
         ledger.updated_at = now_dt_str()
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
+    def _reserve_consumer_balance(self, owner: str, amount_usdc: float) -> None:
+        """Atomically move *amount_usdc* from consumer available → pending."""
+        self.storage.get_data_manager().finance.balance.reserve_consumer_balance_for_withdrawal(
+            owner=owner,
+            amount_usdc=amount_usdc,
+            updated_at=now_dt_str(),
+        )
+
     def _load_deposit_intents(self) -> List[DepositIntentRow]:
         rows = self.storage.get_data_manager().system.gateway_state.read_deposit_intents()
         return rows if isinstance(rows, list) else []

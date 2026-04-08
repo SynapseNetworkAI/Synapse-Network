@@ -180,15 +180,19 @@ class FinanceConsumerWithdrawMixin:
             # ── Risk classification ───────────────────────────────────────────
             risk = self._classify_consumer_withdraw_risk(amount_usdc, daily_count)
 
-            # ── Reserve balance ───────────────────────────────────────────────
-            consumer_wallet = ledger.ensure_consumer_wallet(owner)
-            consumer_wallet.available_balance = round(
-                float(consumer_wallet.available_balance or 0.0) - amount_usdc, 6
-            )
-            consumer_wallet.pending_balance = round(
-                float(consumer_wallet.pending_balance or 0.0) + amount_usdc, 6
-            )
-            self._save_balance_ledger(ledger)  # type: ignore[attr-defined]
+            # ── Reserve balance (atomic SQL delta) ───────────────────────────
+            try:
+                self._reserve_consumer_balance(owner, amount_usdc)  # type: ignore[attr-defined]
+            except RuntimeError:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INSUFFICIENT_CONSUMER_BALANCE",
+                        "message": (
+                            f"Requested {amount_usdc:.6f} USDC exceeds available balance."
+                        ),
+                    },
+                )
 
             # ── Persist intent row (reuse RefundIntentRow storage) ───────────
             withdraw_id = str(uuid4())

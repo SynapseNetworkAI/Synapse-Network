@@ -211,6 +211,149 @@ async function createAgents(token, addr, names) {
   return created;
 }
 
+// ─── Provider registration ────────────────────────────────────────────────────
+const PROVIDER_BASE = "http://localhost:8100";
+
+// Services from Synapse-Network-Provider to register on the platform
+const PROVIDER_SERVICES_TO_REGISTER = [
+  {
+    agentToolName: "svc_e2e_provider_quotes",
+    serviceName: "Provider Quotes Service",
+    summary: "E2E test: Famous quotes via DeepSeek — from Synapse-Network-Provider.",
+    tags: ["e2e", "quotes", "test"],
+    invokeUrl: `${PROVIDER_BASE}/api/v1/quotes/famous`,
+    invokeMethod: "POST",
+    invokeRequestSchema: { body: { type: "object", properties: { text: { type: "string" } } } },
+    healthPath: "/health",
+    price: 0.010,
+  },
+  {
+    agentToolName: "svc_e2e_provider_sentiment",
+    serviceName: "Provider Web3 Sentiment Index",
+    summary: "E2E test: Web3 social sentiment analysis — from Synapse-Network-Provider.",
+    tags: ["e2e", "sentiment", "web3", "test"],
+    invokeUrl: `${PROVIDER_BASE}/provider-services/web3-sentiment-index/invoke`,
+    invokeMethod: "POST",
+    invokeRequestSchema: { body: { type: "object", properties: { asset: { type: "string" } } } },
+    healthPath: "/health",
+    price: 0.020,
+  },
+];
+
+/**
+ * Register provider services.
+ * Returns array of registered serviceIds.
+ */
+async function registerProviderServices(providerToken, providerAddr) {
+  const registeredIds = [];
+
+  // Check existing services to avoid duplicates
+  const existingResp = await fetch(`${GATEWAY_URL}/v1/services?ownerAddress=${providerAddr}`, {
+    headers: { Authorization: `Bearer ${providerToken}`, "X-User-Address": providerAddr },
+  });
+  const existingData = await existingResp.json().catch(() => ({}));
+  const existingSvcIds = new Set(
+    (existingData.services || []).map(s => s.serviceId || s.agentToolName)
+  );
+
+  for (const svc of PROVIDER_SERVICES_TO_REGISTER) {
+    if (existingSvcIds.has(svc.agentToolName)) {
+      ok(`Service "${svc.agentToolName}" already registered — skipping`);
+      // Find its real serviceId
+      const found = (existingData.services || []).find(
+        s => s.serviceId === svc.agentToolName || s.agentToolName === svc.agentToolName
+      );
+      if (found) registeredIds.push(found.serviceId || svc.agentToolName);
+      continue;
+    }
+
+    const payload = {
+      agentToolName: svc.agentToolName,
+      serviceName: svc.serviceName,
+      role: "Provider",
+      status: "active",
+      isActive: true,
+      summary: svc.summary,
+      tags: svc.tags,
+      pricing: { amount: String(svc.price), currency: "USDC" },
+      auth: { type: "gateway_signed" },
+      providerProfile: { displayName: "E2E Provider" },
+      payoutAccount: { payoutAddress: providerAddr, chainId: 31337, settlementCurrency: "USDC" },
+      governance: { termsAccepted: true, riskAcknowledged: true },
+      healthCheck: {
+        path: svc.healthPath, method: "GET", timeoutMs: 3000,
+        successCodes: [200], healthyThreshold: 1, unhealthyThreshold: 3,
+      },
+      invoke: {
+        method: svc.invokeMethod,
+        targets: [{ url: svc.invokeUrl, weight: 100 }],
+        timeoutMs: 15000,
+        request: { contentType: "application/json", schema: svc.invokeRequestSchema },
+        response: { contentType: "application/json" },
+      },
+      constraints: { timeoutMs: 15000, maxResponseBytes: 131072, maxRequestBytes: 65536, maxQps: 10 },
+    };
+
+    const r = await fetch(`${GATEWAY_URL}/v1/services`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${providerToken}`,
+        "X-User-Address": providerAddr,
+      },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      warn(`Service "${svc.agentToolName}" registration failed (${r.status}): ${JSON.stringify(d).slice(0, 200)}`);
+      continue;
+    }
+    const svcId = d.serviceId || d.service_id || d.service?.serviceId || d.service?.service_id || "";
+    if (svcId) {
+      ok(`Service registered: ${svcId} (${svc.serviceName})`);
+      registeredIds.push(svcId);
+    } else {
+      warn(`Service "${svc.agentToolName}" response missing serviceId: ${JSON.stringify(d).slice(0, 150)}`);
+    }
+  }
+
+  return registeredIds;
+}
+
+/**
+ * Issue a provider signing secret (for provider console to show signed invocations).
+ * Returns the secret id or null.
+ */
+async function ensureProviderSecret(providerToken, providerAddr) {
+  const listResp = await fetch(`${GATEWAY_URL}/v1/secrets/provider/list`, {
+    headers: { Authorization: `Bearer ${providerToken}`, "X-User-Address": providerAddr },
+  });
+  const listData = await listResp.json().catch(() => ({}));
+  const secrets = listData.secrets || listData.items || [];
+  if (secrets.length > 0) {
+    ok(`Provider signing secret exists — ${secrets.length} secret(s)`);
+    return secrets[0].id || secrets[0].secretId;
+  }
+
+  const r = await fetch(`${GATEWAY_URL}/v1/secrets/provider/issue`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${providerToken}`,
+      "X-User-Address": providerAddr,
+    },
+    body: JSON.stringify({ label: "E2E Provider Secret", description: "Auto-issued by E2E test" }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    warn(`Provider secret issue failed (${r.status}): ${JSON.stringify(d).slice(0, 150)}`);
+    return null;
+  }
+  const secretId = d.id || d.secretId || d.secret?.id;
+  ok(`Provider signing secret issued: ${secretId}`);
+  return secretId;
+}
+
 // ─── Invoke services ──────────────────────────────────────────────────────────
 async function invokeServices(token, addr, agents, count = 5) {
   // Get first available service
@@ -327,7 +470,7 @@ async function runChecklist(token, addr) {
 }
 
 // ─── Browser screenshots ───────────────────────────────────────────────────────
-async function takeScreenshots(token, addr) {
+async function takeScreenshots(token, addr, providerToken = null, providerAddr = null) {
   section("Browser Screenshots (Playwright)");
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
@@ -536,7 +679,61 @@ async function takeScreenshots(token, addr) {
     screenshots.push({ url: p.url, file: fname });
   }
 
+  // ── Provider-wallet screenshots (reuse buyer context via page-level init script) ──
+  // Playwright guarantees: context scripts run first, then page scripts.
+  // Page-level addInitScript overrides a2a_auth_session to provider JWT after the
+  // buyer context INIT_SCRIPT runs — no separate browser context needed.
+  // Fix for BUG-SCREENSHOT-01: separate browser context caused blank pages because
+  // the simplified window.ethereum used on(e,fn){} (no-op) preventing wagmi reconnect.
+  if (providerToken && providerAddr) {
+    try {
+      const pSession = JSON.stringify({
+        token: providerToken,
+        wallet: providerAddr,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      });
+
+      // Create new page in same (already-connected) buyer context
+      const pPage = await context.newPage();
+
+      // Page-level script runs AFTER context INIT_SCRIPT — overrides auth session to provider
+      await pPage.addInitScript(
+        ({ session, pAddr }) => {
+          try {
+            localStorage.setItem("a2a_auth_session", session);
+            localStorage.setItem("a2a_selected_role", "provider");
+            localStorage.setItem(`a2a_role_${pAddr}`, "provider");
+          } catch (e) {}
+        },
+        { session: pSession, pAddr: providerAddr }
+      );
+
+      // Warm-up: open root first so wagmi completes reconnect before hitting guarded route
+      console.log("\n  [Provider page] Warming up on home page…");
+      await pPage.goto(FRONTEND_URL + "/", { waitUntil: "domcontentloaded" });
+      await pPage.waitForTimeout(3000);
+
+      const PROVIDER_PAGES = [
+        { url: "/provider/console",     name: "10-provider-console-provider-wallet",    wait: 5000 },
+        { url: "/provider/services",    name: "11-provider-services-provider-wallet",    wait: 5000 },
+        { url: "/provider/credentials", name: "12-provider-credentials-provider-wallet", wait: 4000 },
+      ];
+
+      for (const p of PROVIDER_PAGES) {
+        await pPage.goto(FRONTEND_URL + p.url, { waitUntil: "domcontentloaded" });
+        await pPage.waitForTimeout(p.wait);
+        const fname = await shot(pPage, p.name);
+        screenshots.push({ url: p.url, file: fname });
+      }
+
+      ok("Provider-wallet screenshots taken");
+    } catch (e) {
+      warn(`Provider-wallet screenshot error: ${e.message}`);
+    }
+  }
+
   await browser.close();
+
   console.log(`\n  Screenshots saved to: ${SCREENSHOT_DIR}`);
   return screenshots;
 }
@@ -643,7 +840,33 @@ async function main() {
     credCount = (credsAfter?.credentials || []).length;
     ok(`Total agents: ${credCount}`);
 
-    // ── Phase 4: Invoke services ───────────────────────────────────────────
+    // ── Phase 4: Register Provider Services ───────────────────────────────
+    section("Phase 4: Register Provider Services");
+    let providerToken, providerAddr;
+    let registeredServiceIds = [];
+    try {
+      ({ token: providerToken, addr: providerAddr } = await authenticate(PROVIDER_KEY));
+      ok(`Provider wallet: ${providerAddr}`);
+
+      // Ensure provider signing secret exists (shows in Provider Credentials page)
+      await ensureProviderSecret(providerToken, providerAddr);
+
+      // Register 2 services from Synapse-Network-Provider (quotes + sentiment)
+      registeredServiceIds = await registerProviderServices(providerToken, providerAddr);
+      ok(`Provider services registered: ${registeredServiceIds.length}`);
+
+      // List provider services to confirm
+      const checkSvcs = await fetch(`${GATEWAY_URL}/v1/services?ownerAddress=${providerAddr}`, {
+        headers: { Authorization: `Bearer ${providerToken}`, "X-User-Address": providerAddr },
+      });
+      const checkData = await checkSvcs.json().catch(() => ({}));
+      const total = (checkData.services || []).length;
+      ok(`Total services under provider wallet: ${total}`);
+    } catch (e) {
+      warn(`Provider registration error: ${e.message}`);
+    }
+
+    // ── Phase 5: Invoke services ─────────────────────────────────────────────
     section("Phase 4: Invoke Services (5×)");
     // Issue a fresh invoke credential (raw token needed, list endpoint doesn't return it)
     const invokeCred = await apiPost("/v1/credentials/agent/issue",
@@ -663,8 +886,8 @@ async function main() {
     logCount = logsAfter?.count || logsAfter?.total || (logsAfter?.logs || []).length;
     ok(`Total invocation logs: ${logCount}`);
 
-    // ── Phase 5: Consumer Balance Withdrawal ──────────────────────────────
-    section("Phase 5: Consumer Balance Withdraw");
+    // ── Phase 6: Consumer Balance Withdrawal ────────────────────────────
+    section("Phase 6: Consumer Balance Withdraw");
     const balBefore = await apiGet("/v1/balance", token, addr);
     const availableBefore = balBefore?.balance?.consumerAvailableBalance ?? 0;
     ok(`Available balance before withdraw: ${availableBefore} USDC`);
@@ -712,14 +935,14 @@ async function main() {
       warn(`Balance too low to test withdraw (need ≥ 1.0, have ${availableBefore}).`);
     }
 
-    // ── Phase 6: API Checklist ─────────────────────────────────────────────
+    // ── Phase 7: API Checklist ─────────────────────────────────────────────
     const checkResults = await runChecklist(token, addr);
 
-    // ── Phase 7: Browser screenshots ──────────────────────────────────────
-    const screenshots = await takeScreenshots(token, addr);
+    // ── Phase 8: Browser screenshots ──────────────────────────────────────
+    const screenshots = await takeScreenshots(token, addr, providerToken, providerAddr);
 
-    // ── Phase 8: Write report ─────────────────────────────────────────────
-    section("Phase 8: Write Test Report");
+    // ── Phase 9: Write report ─────────────────────────────────────────────
+    section("Phase 9: Write Test Report");
     writeChecklistMd(checkResults, screenshots, balance, credCount, logCount);
 
   } else {
@@ -729,7 +952,14 @@ async function main() {
     const bal = await apiGet("/v1/balance", token, addr);
     balance = bal?.balance?.consumerAvailableBalance ?? 0;
     ok(`Balance: ${balance} USDC`);
-    const screenshots = await takeScreenshots(token, addr);
+    // Authenticate provider for screenshot-only mode
+    let soProviderToken = null, soProviderAddr = null;
+    try {
+      ({ token: soProviderToken, addr: soProviderAddr } = await authenticate(PROVIDER_KEY));
+    } catch (e) {
+      warn(`Could not auth provider for screenshots: ${e.message}`);
+    }
+    const screenshots = await takeScreenshots(token, addr, soProviderToken, soProviderAddr);
     console.log(`\n  ${screenshots.length} screenshots taken`);
   }
 
