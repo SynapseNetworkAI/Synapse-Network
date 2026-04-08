@@ -28,7 +28,7 @@ from src.domain.finance import (
 )
 from src.domain.ledger import DepositIntentRow
 from src.domain.operation_metadata import OperationContextMetadata
-from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
+from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin
 from src.services.owner.finance_constants import (
     DEPOSIT_ATTEMPT_STAGES,
     INVALID_TX_HASH_MESSAGE,
@@ -50,6 +50,7 @@ class OwnerFinanceService(
     FinanceDepositExecMixin,
     FinanceRefundAnalysisMixin,
     FinanceRefundExecMixin,
+    BalanceWithdrawSigningMixin,
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
 ):

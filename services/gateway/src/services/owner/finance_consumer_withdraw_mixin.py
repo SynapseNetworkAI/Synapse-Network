@@ -20,6 +20,7 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.services.owner.finance_constants import (
+    CONSUMER_WITHDRAW_FEE_USDC,
     CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC,
     CONSUMER_WITHDRAW_MAX_DAILY_COUNT,
     CONSUMER_WITHDRAW_MIN_USDC,
@@ -122,6 +123,17 @@ class FinanceConsumerWithdrawMixin:
                         "message": f"amountUsdc must be >= {CONSUMER_WITHDRAW_MIN_USDC} USDC.",
                     },
                 )
+            if amount_usdc <= CONSUMER_WITHDRAW_FEE_USDC:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "AMOUNT_TOO_LOW_FOR_FEE",
+                        "message": (
+                            f"Withdrawal amount must exceed the platform fee of "
+                            f"${CONSUMER_WITHDRAW_FEE_USDC:.2f} USDC."
+                        ),
+                    },
+                )
 
             reason = str(payload.get("reason") or "").strip()[:256]
 
@@ -175,6 +187,8 @@ class FinanceConsumerWithdrawMixin:
                     return {
                         "withdrawId": str(row.id or ""),
                         "amountUsdc": row_amount,
+                        "feeUsdc": round(CONSUMER_WITHDRAW_FEE_USDC, 6),
+                        "netUsdc": round(max(0, row_amount - CONSUMER_WITHDRAW_FEE_USDC), 6),
                         "status": str(row.status),
                         "riskLevel": str(row.risk_level or "green"),
                         "riskReasonCode": str(row.risk_reason_code or ""),
@@ -220,14 +234,76 @@ class FinanceConsumerWithdrawMixin:
 
             # ── Persist intent row (reuse RefundIntentRow storage) ───────────
             withdraw_id = str(uuid4())
-            signature = f"mock-consumer-withdraw-{withdraw_id[:12]}"
+
+            # ── Sign EIP-712 withdraw ticket (reuses SynapseCore.withdraw) ───
+            # For REQUESTED (auto-approve), sign immediately so the frontend
+            # can execute on-chain.  For PENDING_MANUAL_REVIEW, ticket is empty.
+            ticket: dict = {}
+            fee_usdc = round(CONSUMER_WITHDRAW_FEE_USDC, 6)
+            net_usdc = round(amount_usdc - fee_usdc, 6)
+            ticket_signature = ""
+
+            if risk["status"] == "REQUESTED":
+                try:
+                    from src.services.balance_mixins.withdraw_signing import USDC_DECIMALS
+                    from src.core.config import settings
+                    from src.core.common import normalize_wallet as _nw
+
+                    private_key = self._require_withdraw_signer()  # type: ignore[attr-defined]
+                    nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)  # type: ignore[attr-defined]
+                    deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()  # type: ignore[attr-defined]
+
+                    # SynapseCore.withdraw sends `amount` (gross) to msg.sender
+                    # and accrues `fee` to platformFeePool.
+                    # So: amount_wei = net (what user receives), fee_wei = fee.
+                    # Actually the contract does: safeTransfer(msg.sender, amount)
+                    # and platformFeePool += fee.  The vault needs (amount + fee).
+                    # So amount = net_usdc, fee = fee_usdc.
+                    # But wait, looking at the contract more carefully:
+                    # withdraw() does safeTransfer(msg.sender, amount) where amount
+                    # is the first param.  So amount IS what the user receives (net).
+                    # fee is taken from the vault separately into platformFeePool.
+                    # Total deducted from vault = amount + fee.
+                    # But the user deposited `amount_usdc` total.  We reserved
+                    # `amount_usdc` from their available balance.
+                    # So: amount_wei = net (user gets), fee_wei = fee (pool gets).
+                    # Vault deduction = net + fee = amount_usdc.  Correct!
+                    net_wei = int(round(net_usdc * (10 ** USDC_DECIMALS)))
+                    fee_wei = int(round(fee_usdc * (10 ** USDC_DECIMALS)))
+
+                    typed_data = self._build_withdraw_typed_data(  # type: ignore[attr-defined]
+                        owner_wallet=owner,
+                        amount_wei=net_wei,
+                        fee_wei=fee_wei,
+                        nonce=nonce,
+                        deadline=deadline,
+                        chain_id=chain_id,
+                        verifying_contract=_nw(settings.router_address),
+                    )
+                    ticket_signature = self._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
+                    ticket = {
+                        "amount": str(net_wei),
+                        "fee": str(fee_wei),
+                        "nonce": nonce,
+                        "deadline": deadline,
+                        "signature": ticket_signature,
+                        "chainId": chain_id,
+                        "contractAddress": _nw(settings.router_address),
+                    }
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "consumer_withdraw: ticket signing failed for %s, proceeding without ticket",
+                        owner, exc_info=True,
+                    )
+
             row = RefundIntentRow(
                 id=withdraw_id,
                 ownerAddress=owner,
                 amountUsdc=Decimal(str(round(amount_usdc, 6))),
                 reason=reason,
                 status=risk["status"],
-                signature=signature,
+                signature=ticket_signature or f"mock-consumer-withdraw-{withdraw_id[:12]}",
                 gasPayer="OWNER",
                 gasModel="OWNER_PAYS_ONCHAIN",
                 refundType=CONSUMER_WITHDRAW_TYPE,
@@ -238,20 +314,24 @@ class FinanceConsumerWithdrawMixin:
                 idempotencyKey=idempotency_key,
                 createdAt=now_dt_str(),
                 updatedAt=now_dt_str(),
-                requestMeta=request_meta or {},
+                requestMeta={**(request_meta or {}), **({"ticketNonce": ticket.get("nonce")} if ticket else {})},
             )
             rows.append(row)
             self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
 
-            response = {
+            response: dict[str, Any] = {
                 "withdrawId": withdraw_id,
                 "amountUsdc": round(amount_usdc, 6),
+                "feeUsdc": fee_usdc,
+                "netUsdc": net_usdc,
                 "status": risk["status"],
                 "riskLevel": risk["riskLevel"],
                 "riskReasonCode": risk["riskReasonCode"],
                 "message": risk["message"],
                 "destination": owner,
             }
+            if ticket:
+                response["ticket"] = ticket
 
             # ── Finalize idempotency ──────────────────────────────────────────
             await self._finalize_refund_idempotency(  # type: ignore[attr-defined]

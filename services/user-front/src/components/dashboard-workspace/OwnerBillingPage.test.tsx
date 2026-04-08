@@ -50,4 +50,26 @@ describe("OwnerBillingPage", () => {
     expect(screen.getByText("Voucher")).toBeTruthy();
     expect(screen.getByText("$5.00")).toBeTruthy();
   });
+
+  it("renders payment timestamps in fixed YYYY-MM-DD HH:mm:ss format", () => {
+    useFundsDataMock.mockReturnValue({
+      loading: false,
+      records: [
+        {
+          id: "abc123456789",
+          type: "Deposit",
+          amount: 20,
+          txHash: "0xbeadfeed",
+          timestamp: new Date(2026, 3, 8, 10, 56, 0).getTime(),
+          status: "COMPLETED",
+        },
+      ],
+    });
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
+    );
+
+    expect(screen.getByText("2026-04-08 10:56:00")).toBeTruthy();
+  });
 });

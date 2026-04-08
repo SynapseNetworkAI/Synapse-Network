@@ -18,6 +18,16 @@ CONSUMER_WITHDRAW_MAX_DAILY_COUNT: int = int(
 )
 CONSUMER_WITHDRAW_TYPE = "CONSUMER_BALANCE_WITHDRAW"
 
+# Withdrawal fee: flat amount in USDC deducted from the withdrawal gross.
+# Net sent to user = amountUsdc − fee.  Fee accrues to platformFeePool on-chain.
+CONSUMER_WITHDRAW_FEE_USDC: float = float(
+    os.getenv("CONSUMER_WITHDRAW_FEE_USDC", "0.50")
+)
+# Auto-processor polling interval (seconds).
+CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC: float = float(
+    os.getenv("CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC", "10.0")
+)
+
 DEPOSIT_ATTEMPT_STAGES = {
     "SIGN_REQUESTED",
     "TX_BROADCASTED",

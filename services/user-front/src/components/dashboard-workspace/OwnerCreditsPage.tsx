@@ -1,8 +1,8 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CircleAlert } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
@@ -14,6 +14,7 @@ import {
   WALLET_SESSION_MISSING_MESSAGE,
 } from "@/utils/authSession";
 import {
+  completeV2Refund,
   getOwnerSpendingLimit,
   redeemCreditVoucher,
   requestConsumerWithdraw,
@@ -24,6 +25,7 @@ import {
   calculateSpendRatio,
   getBillingCycleWindow,
 } from "@/utils/creditsSpendCap";
+import SynapseCoreABI from "@/SynapseCoreABI.json";
 
 const DepositUsdcModal = dynamic(
   () => import("@/components/dashboard/shared/DepositUsdcModal"),
@@ -46,10 +48,53 @@ type WithdrawModalProps = {
   onSuccess: (result: ConsumerWithdrawIntent) => Promise<void>;
 };
 
+function normalizeSignature(signature: string): `0x${string}` {
+  const normalized = signature.startsWith("0x") ? signature : `0x${signature}`;
+  return normalized as `0x${string}`;
+}
+
+type WithdrawStep = "form" | "signing" | "onchain" | "confirming" | "completing" | "done";
+
 function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSuccess }: Readonly<WithdrawModalProps>) {
   const [amount, setAmount] = useState(String(availableBalance > 0 ? availableBalance.toFixed(2) : ""));
   const [reason, setReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState<WithdrawStep>("form");
+  const [withdrawResult, setWithdrawResult] = useState<ConsumerWithdrawIntent | null>(null);
+  const chainId = useChainId();
+  const { data: txHash, writeContractAsync } = useWriteContract();
+  const {
+    isSuccess: isTxConfirmed,
+    isError: isTxFailed,
+    error: txReceiptError,
+  } = useWaitForTransactionReceipt({ hash: txHash, chainId });
+  const completingRef = useRef(false);
+
+  // Step: tx confirmed → call backend /complete
+  useEffect(() => {
+    if (!isTxConfirmed || !txHash || !withdrawResult?.withdrawId || completingRef.current) return;
+    completingRef.current = true;
+    setStep("completing");
+    const complete = async () => {
+      try {
+        await completeV2Refund(userAddress, withdrawResult.withdrawId, txHash);
+        toast.success(`Withdrawal of $${withdrawResult.netUsdc.toFixed(2)} USDC completed!`);
+        setStep("done");
+        await onSuccess(withdrawResult);
+        onClose();
+      } catch {
+        toast.error("On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.");
+        onClose();
+      }
+    };
+    void complete();
+  }, [isTxConfirmed, txHash, withdrawResult, userAddress, onSuccess, onClose]);
+
+  // Step: tx failed
+  useEffect(() => {
+    if (!isTxFailed || !withdrawResult) return;
+    toast.error(txReceiptError?.message || "On-chain transaction failed. Your balance will be restored.");
+    setStep("form");
+  }, [isTxFailed, withdrawResult, txReceiptError]);
 
   const handleSubmit = async () => {
     const num = Number.parseFloat(amount);
@@ -61,37 +106,78 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
       toast.error(`Amount exceeds available balance ($${availableBalance.toFixed(2)}).`);
       return;
     }
-    setSubmitting(true);
+
+    setStep("signing");
     try {
       const result = await requestConsumerWithdraw(userAddress, {
         amountUsdc: num,
         reason: reason.trim() || undefined,
       });
+      setWithdrawResult(result);
+
       if (result.existingWithdrawal) {
-        toast(`A pending withdrawal of $${result.amountUsdc.toFixed(2)} USDC already exists. Balance will update once it completes.`, {
-          icon: "⏳",
-          duration: 6000,
-        });
-      } else if (result.status === "PENDING_MANUAL_REVIEW") {
-        toast.success(
-          `Withdrawal submitted — under review. Reason: ${result.riskReasonCode || "manual review"}`
-        );
-      } else {
-        toast.success(`Withdrawal of $${result.amountUsdc.toFixed(2)} USDC requested (${result.status}).`);
+        toast("A pending withdrawal already exists. Balance will update once it completes.", { icon: "⏳", duration: 6000 });
+        onClose();
+        return;
       }
-      await onSuccess(result);
-      onClose();
+
+      if (result.status === "PENDING_MANUAL_REVIEW") {
+        toast.success(`Withdrawal submitted — under review. Reason: ${result.riskReasonCode || "manual review"}`);
+        await onSuccess(result);
+        onClose();
+        return;
+      }
+
+      // status === "REQUESTED" with ticket → execute on-chain
+      if (!result.ticket) {
+        toast.success(`Withdrawal of $${result.amountUsdc.toFixed(2)} USDC reserved. On-chain signing unavailable — it will be processed automatically.`);
+        await onSuccess(result);
+        onClose();
+        return;
+      }
+
+      setStep("onchain");
+      const ticket = result.ticket;
+      const contractAddress = (ticket.contractAddress || "") as `0x${string}`;
+
+      await writeContractAsync({
+        address: contractAddress,
+        abi: SynapseCoreABI,
+        chainId: ticket.chainId || chainId,
+        functionName: "withdraw",
+        args: [
+          BigInt(ticket.amount),
+          BigInt(ticket.fee),
+          BigInt(ticket.nonce),
+          BigInt(ticket.deadline),
+          normalizeSignature(ticket.signature),
+        ],
+      });
+
+      setStep("confirming");
+      toast.success("Transaction submitted — waiting for confirmation…");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Withdrawal failed.");
-    } finally {
-      setSubmitting(false);
+      const msg = err instanceof Error ? err.message : "Withdrawal failed.";
+      if (msg.includes("User rejected") || msg.includes("denied")) {
+        toast.error("Transaction rejected by wallet.");
+      } else {
+        toast.error(msg);
+      }
+      setStep("form");
     }
   };
+
+  const submitting = step !== "form";
+  let buttonLabel = "Withdraw";
+  if (step === "signing") buttonLabel = "Requesting…";
+  else if (step === "onchain") buttonLabel = "Confirm in Wallet…";
+  else if (step === "confirming") buttonLabel = "Confirming on-chain…";
+  else if (step === "completing") buttonLabel = "Completing…";
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-      onClick={onClose}
+      onClick={submitting ? undefined : onClose}
     >
       <div
         className="w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-[#111] p-6 shadow-2xl"
@@ -116,12 +202,14 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
                 max={availableBalance}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none"
+                disabled={submitting}
+                className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
               />
               <button
                 type="button"
                 onClick={() => setAmount(availableBalance.toFixed(2))}
-                className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white"
+                disabled={submitting}
+                className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white disabled:opacity-40"
               >
                 Max
               </button>
@@ -137,16 +225,26 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
               maxLength={256}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
+              disabled={submitting}
               placeholder="Why are you withdrawing?"
-              className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none"
+              className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
             />
           </div>
 
           <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b] space-y-1">
             <p>⚠ Amounts ≥ $500 require manual review (12–24 h).</p>
             <p>⚠ Max 3 withdrawals per 24 hours.</p>
-            <p>⚠ Funds are sent to your connected wallet address.</p>
+            <p>⚠ Your wallet will execute the on-chain transfer (you pay gas).</p>
           </div>
+
+          {step !== "form" && step !== "done" && (
+            <div className="rounded-xl border border-[#22c55e]/30 bg-[#22c55e]/5 px-3 py-2 text-xs text-[#22c55e]">
+              {step === "signing" && "Requesting withdrawal ticket from server…"}
+              {step === "onchain" && "Please confirm the transaction in your wallet."}
+              {step === "confirming" && "Transaction submitted. Waiting for block confirmation…"}
+              {step === "completing" && "On-chain confirmed. Updating records…"}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-1">
             <button
@@ -161,7 +259,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
               disabled={submitting || availableBalance <= 0}
               className="flex-1 rounded-xl bg-[#22c55e] py-2 text-sm font-semibold text-black hover:bg-[#16a34a] disabled:opacity-40"
             >
-              {submitting ? "Submitting…" : "Withdraw"}
+              {submitting ? buttonLabel : "Withdraw"}
             </button>
           </div>
         </div>

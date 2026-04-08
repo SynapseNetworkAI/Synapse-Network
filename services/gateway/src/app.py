@@ -19,6 +19,9 @@ from src.services.platform.tasks.deposit_indexer import run_v2_deposit_indexer
 from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
     run_provider_withdraw_expiry_reaper,
 )
+from src.services.platform.tasks.consumer_withdraw_processor import (
+    run_consumer_withdraw_processor,
+)
 from src.services.platform.service_health_service import run_service_health_monitor
 
 setup_logger()
@@ -61,6 +64,18 @@ async def lifespan(app: FastAPI):
             )
         )
 
+    # Consumer withdrawal auto-processor: picks up REQUESTED consumer withdrawals,
+    # executes on-chain platformWithdrawTo, and marks them COMPLETED.
+    app.state.consumer_withdraw_processor_stop_event = asyncio.Event()
+    app.state.consumer_withdraw_processor_task = None
+    if settings.consumer_withdraw_processor_enabled:
+        app.state.consumer_withdraw_processor_task = asyncio.create_task(
+            run_consumer_withdraw_processor(
+                app.state.consumer_withdraw_processor_stop_event,
+                app.state.storage,
+            )
+        )
+
     yield
     # Cleanup on shutdown
     logger.info("Application shutting down...")
@@ -91,6 +106,16 @@ async def lifespan(app: FastAPI):
         with suppress(asyncio.CancelledError):
             await app.state.provider_withdraw_expiry_reaper_task
         logger.info("Provider withdrawal expiry reaper task cancelled during shutdown")
+    if hasattr(app.state, "consumer_withdraw_processor_stop_event"):
+        app.state.consumer_withdraw_processor_stop_event.set()
+    if (
+        hasattr(app.state, "consumer_withdraw_processor_task")
+        and app.state.consumer_withdraw_processor_task is not None
+    ):
+        app.state.consumer_withdraw_processor_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await app.state.consumer_withdraw_processor_task
+        logger.info("Consumer withdrawal processor task cancelled during shutdown")
 
 
 def create_app() -> FastAPI:

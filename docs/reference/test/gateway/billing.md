@@ -17,6 +17,7 @@ Transaction history of wallet top-ups, voucher redemptions. Date range filtering
 
 ### TC-BI-03: Transaction list table shown
 - **Expected:** Table with columns (Date, Amount, Type, TX ID)
+- **Expected:** Date column uses fixed local wall-clock format `YYYY-MM-DD HH:mm:ss`
 
 ### TC-BI-04: Date filtering works
 - Narrow date range
