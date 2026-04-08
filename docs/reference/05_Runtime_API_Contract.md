@@ -26,8 +26,10 @@
 2. `POST /api/v1/balance/deposit/attempts`
 3. `POST /api/v1/balance/deposit/intent`
 4. `GET /api/v1/balance/deposit/intents`
-5. `POST /api/v1/refund`
-6. `GET /api/v1/refunds`
+5. `POST /api/v1/balance/consumer/withdraw` ← consumer 提现剩余余额
+6. `GET /api/v1/balance/consumer/withdrawals` ← consumer 提现记录
+7. `POST /api/v1/refund`
+8. `GET /api/v1/refunds`
 7. `GET /api/v1/usage/logs`
 8. `POST /api/v1/providers/withdrawals/intent`
 9. `GET /api/v1/providers/withdrawals/capability`
@@ -179,6 +181,63 @@
 11. `eventKey`
 12. `confirmedAt`
 13. `updatedAt`
+
+### 3.2.2 `POST /api/v1/balance/consumer/withdraw`
+
+用途：Consumer 将账户中未消费的剩余预充值余额提现回自己的链上钱包。
+
+> **关键区分**：本接口是提现剩余押金（unused deposit），与 `POST /api/v1/refund`（对单次调用发起争议退款）完全不同，**不需要 `originRequestId`**。
+
+Headers:
+- `Authorization: Bearer <token>` — 必须
+- `X-Wallet-Address: <ownerAddress>` — 必须
+- `X-Idempotency-Key: <uuid-or-hash>` — 必须（幂等保护）
+
+请求体：
+
+```json
+{
+  "amountUsdc": 9.95,
+  "reason": "optional freeform reason (max 256 chars)"
+}
+```
+
+返回字段：
+
+1. `withdrawId` — 本次提现记录 ID
+2. `amountUsdc` — 实际请求提现金额
+3. `status` — 当前状态：`REQUESTED`（正常）| `PENDING_MANUAL_REVIEW`（需人工审核）
+4. `riskLevel` — `green` | `yellow` | `red`
+5. `riskReasonCode` — 风险原因码（green 时为空字符串）
+6. `message` — 人类可读消息
+7. `destination` — 目标地址（始终为 owner 自己的钱包）
+
+风险规则：
+
+| 条件 | riskLevel | status |
+|---|---|---|
+| 正常（≤ $500，24h 内 < 3 次）| `green` | `REQUESTED` |
+| 金额 ≥ $500 USDC | `yellow` | `PENDING_MANUAL_REVIEW` |
+| 24h 内已提现 3 次 | `red` | `PENDING_MANUAL_REVIEW` |
+
+安全约束：
+
+1. `amountUsdc` 不得超过当前 `consumerAvailableBalance`，否则返回 `400 INSUFFICIENT_CONSUMER_BALANCE`
+2. 资金只能打回 owner 自己的钱包，不允许重定向到第三方地址
+3. 幂等键（`X-Idempotency-Key`）在有效期内重复提交返回相同结果，不重复扣减余额
+4. 最小提现金额：1.0 USDC
+
+### 3.2.3 `GET /api/v1/balance/consumer/withdrawals`
+
+用途：查询当前账户的所有提现记录（分页，最新优先）。
+
+查询参数：`limit`（默认 50，最大 200）
+
+返回字段：
+
+1. `status` — `"success"`
+2. `ownerAddress` — owner 钱包地址
+3. `withdrawals` — 提现记录数组，每条包含 `withdrawId`, `amountUsdc`, `status`, `riskLevel`, `riskReasonCode`, `createdAt`
 
 ### 3.3 `POST /api/v1/refund`
 
@@ -419,3 +478,5 @@
 1. 文档优先表达目标态业务语义，不再以旧字段名为组织中心。
 2. Runtime 协议默认只暴露 service-facing 信息，不暴露 Provider 结算面。
 3. 任何资金接口变更都必须同步更新本文件和对应专题文档。
+4. `synapse_vault_withdrawals.status` 有效值为 `REQUESTED` | `SIGNED` | `FAILED` | `APPROVED_AUTO` | `PENDING_MANUAL_REVIEW` | `REJECTED` | `COMPLETED` | `CANCELLED`。**不存在 `PENDING` 状态**（历史遗留，已于 2026-04-08 修正）。
+5. Consumer 提现（`POST /api/v1/balance/consumer/withdraw`）与 Provider 提现（`POST /api/v1/providers/withdrawals/intent`）共用 `synapse_vault_withdrawals` 表，通过 `withdrawal_kind` 字段区分。

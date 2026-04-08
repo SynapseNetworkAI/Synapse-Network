@@ -7,6 +7,7 @@ import contractConfig from "@/contract-config.json";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import { fetchRefunds, type RefundRecord } from "@/utils/refundApi";
+import { listConsumerWithdrawals } from "@/utils/balanceApi";
 
 export type LedgerRecord = {
   id: string;
@@ -107,6 +108,28 @@ export function useFundsData() {
         status: r.status
       }));
 
+      // fetch consumer withdrawals (off-chain balance refunds)
+      const withdrawals = await listConsumerWithdrawals(userAddress);
+      const mappedWithdrawals: LedgerRecord[] = withdrawals.map((w) => {
+        const tsMs = w.createdAt
+          ? new Date(w.createdAt).getTime()
+          : Date.now();
+        const statusMap: Record<string, LedgerRecord["status"]> = {
+          REQUESTED: "PENDING",
+          PENDING_MANUAL_REVIEW: "PENDING",
+          COMPLETED: "COMPLETED",
+          REJECTED: "FAILED",
+        };
+        return {
+          id: w.id,
+          type: "Withdraw" as const,
+          amount: w.amountUsdc,
+          txHash: null,
+          timestamp: tsMs,
+          status: statusMap[w.status?.toUpperCase()] ?? "PENDING",
+        };
+      });
+
       const failedStorage = localStorage.getItem("synapse_failed_deposits");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const localFailures: any[] = failedStorage ? JSON.parse(failedStorage) : [];
@@ -122,7 +145,7 @@ export function useFundsData() {
           failureReason: f.failureReason
       }));
 
-      const allRecords = [...onchainRecords, ...mappedRefunds, ...mappedFailures];
+      const allRecords = [...onchainRecords, ...mappedRefunds, ...mappedWithdrawals, ...mappedFailures];
       // Sort by timestamp desc
       allRecords.sort((a, b) => b.timestamp - a.timestamp);
       setRecords(allRecords);
