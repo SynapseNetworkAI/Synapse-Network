@@ -179,6 +179,8 @@ class FinanceConsumerWithdrawMixin:
                         "riskLevel": str(row.risk_level or "green"),
                         "riskReasonCode": str(row.risk_reason_code or ""),
                         "message": str(row.message or ""),
+                        "createdAt": str(row.created_at or ""),
+                        "existingWithdrawal": True,
                     }
 
             # ── Check available balance ───────────────────────────────────────

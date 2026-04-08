@@ -791,6 +791,8 @@ export type ConsumerWithdrawIntent = {
   riskReasonCode?: string;
   message?: string;
   destination?: string;
+  createdAt?: string;
+  existingWithdrawal?: boolean;
 };
 
 export async function requestConsumerWithdraw(
@@ -818,6 +820,8 @@ export async function requestConsumerWithdraw(
     riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
     message: typeof payload.message === "string" ? payload.message : undefined,
     destination: typeof payload.destination === "string" ? payload.destination : undefined,
+    createdAt: typeof payload.createdAt === "string" ? payload.createdAt : undefined,
+    existingWithdrawal: payload.existingWithdrawal === true,
   };
 }
 
