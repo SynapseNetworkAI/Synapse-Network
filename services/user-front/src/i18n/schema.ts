@@ -69,6 +69,8 @@ export type I18nMessages = {
     myServices: string;
     usageAnalytics: string;
     settlements: string;
+    withdraw: string;
+    withdrawHistory: string;
   };
   accountSettingsPage: {
     title: string;
@@ -1307,6 +1309,18 @@ export type I18nMessages = {
     paginationPrev: string;
     paginationNext: string;
     dedupeNote: string;
+    descriptionTip: string;
+    withdrawalDescriptionTip: string;
+    walletGasTip: string;
+    withdrawAmountHintTip: string;
+    historyDescriptionTip: string;
+    dedupeNoteTip: string;
+    withdrawPageTitle: string;
+    withdrawPageDescription: string;
+    historyPageTitle: string;
+    historyPageDescription: string;
+    viewHistory: string;
+    backToWithdraw: string;
   };
   providerSecretsPage: {
     unknownError: string;

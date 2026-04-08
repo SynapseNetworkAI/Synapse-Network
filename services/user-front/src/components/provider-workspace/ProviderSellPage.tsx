@@ -98,7 +98,7 @@ export default function ProviderConsolePage() {
             </div>
             {isConnected && (
               <button
-                onClick={() => router.push("/provider/settlements")}
+                onClick={() => router.push("/provider/withdraw")}
                 className="text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 border border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e] hover:text-[#000000] transition-all rounded-lg"
               >
                 {t("providerConsolePage.claim")}

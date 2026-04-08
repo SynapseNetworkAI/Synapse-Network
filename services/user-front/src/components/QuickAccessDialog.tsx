@@ -152,12 +152,12 @@ export default function QuickAccessDialog({ open, onClose }: Readonly<QuickAcces
         matches: (value) => value.startsWith("/provider/usage"),
       },
       {
-        href: "/provider/settlements",
-        label: t("sidebar.settlements"),
+        href: "/provider/withdraw",
+        label: t("sidebar.withdraw"),
         description: t("nav.quickAccessSettlementsDescription"),
         icon: Wallet,
         keywords: ["settlements", "withdraw", "payouts"],
-        matches: (value) => value.startsWith("/provider/settlements"),
+        matches: (value) => value.startsWith("/provider/withdraw"),
       },
       {
         href: "/marketplace",

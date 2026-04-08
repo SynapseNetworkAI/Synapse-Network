@@ -60,20 +60,31 @@ export function useFundsData() {
       const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
       const vault = new ethers.Contract(contractConfig.SynapseCore, SynapseCoreABI, provider);
 
-      // fetch on-chain deposit
+      // fetch on-chain deposit + withdraw + off-chain data in parallel
       const filterDeposit = vault.filters.DepositInfo(userAddress);
-      const depositLogs = await vault.queryFilter(filterDeposit, 0, "latest");
-      
-      // fetch on-chain withdraw
       const filterWithdraw = vault.filters.WithdrawInfo(userAddress);
-      const withdrawLogs = await vault.queryFilter(filterWithdraw, 0, "latest");
+
+      const [depositLogs, withdrawLogs, refunds, withdrawals] = await Promise.all([
+        vault.queryFilter(filterDeposit, 0, "latest"),
+        vault.queryFilter(filterWithdraw, 0, "latest"),
+        fetchRefunds(userAddress),
+        listConsumerWithdrawals(userAddress),
+      ]);
+
+      // Deduplicate block fetches — fetch each unique block number only once
+      const allLogs = [...depositLogs, ...withdrawLogs];
+      const uniqueBlockNumbers = [...new Set(allLogs.map((log: any) => log.blockNumber))];
+      const blockMap = new Map<number, any>();
+      await Promise.all(uniqueBlockNumbers.map(async (blockNum: number) => {
+        const block = await provider.getBlock(blockNum);
+        if (block) blockMap.set(blockNum, block);
+      }));
 
       const onchainRecords: LedgerRecord[] = [];
 
-      // Disable linting here because args are dynamically resolved
       /* eslint-disable @typescript-eslint/no-explicit-any */
-      await Promise.all(depositLogs.map(async (log: any) => {
-        const block = await provider.getBlock(log.blockNumber);
+      for (const log of depositLogs as any[]) {
+        const block = blockMap.get(log.blockNumber);
         onchainRecords.push({
           id: `${log.transactionHash}-${log.logIndex}`,
           type: "Deposit",
@@ -82,10 +93,10 @@ export function useFundsData() {
           timestamp: block ? Number(block.timestamp) * 1000 : Date.now(),
           status: "COMPLETED"
         });
-      }));
+      }
 
-      await Promise.all(withdrawLogs.map(async (log: any) => {
-        const block = await provider.getBlock(log.blockNumber);
+      for (const log of withdrawLogs as any[]) {
+        const block = blockMap.get(log.blockNumber);
         onchainRecords.push({
           id: `${log.transactionHash}-${log.logIndex}`,
           type: "Withdraw",
@@ -94,11 +105,10 @@ export function useFundsData() {
           timestamp: block ? Number(block.timestamp) * 1000 : Date.now(),
           status: "COMPLETED"
         });
-      }));
+      }
       /* eslint-enable @typescript-eslint/no-explicit-any */
 
       // fetch off-chain refunds
-      const refunds = await fetchRefunds(userAddress);
       const mappedRefunds: LedgerRecord[] = refunds.map((r: RefundRecord) => ({
         id: r.id || `refund-${Math.random()}`,
         type: r.type === "refund" ? "Refund" : "Claim",
@@ -108,8 +118,7 @@ export function useFundsData() {
         status: r.status
       }));
 
-      // fetch consumer withdrawals (off-chain balance refunds)
-      const withdrawals = await listConsumerWithdrawals(userAddress);
+      // consumer withdrawals (off-chain balance refunds) — already fetched in parallel above
       const mappedWithdrawals: LedgerRecord[] = withdrawals.map((w) => {
         const tsMs = w.createdAt
           ? new Date(w.createdAt).getTime()
