@@ -239,6 +239,35 @@ class BalanceRepository:
             if cur.rowcount != 1:
                 raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
 
+    def consume_consumer_pending_for_withdrawal(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        """Atomically reduce *pending_balance* after a consumer withdrawal completes.
+
+        Mirrors ``reserve_consumer_balance_for_withdrawal`` — uses a direct SQL
+        delta so that ``write_balance_ledger`` (which only touches
+        ``available_balance``) cannot silently discard the change.
+        """
+        account_id, _ = self._account_identity(owner, "consumer")
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET pending_balance = pending_balance - %s,
+                    updated_at      = %s
+                WHERE account_id = %s
+                  AND pending_balance >= %s
+                """,
+                (
+                    str(self._q6(amount_usdc)),
+                    updated_at,
+                    account_id,
+                    str(self._q6(amount_usdc)),
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("CONSUME_PENDING_BALANCE_INCONSISTENT")
+
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
         """Persist the ledger's available balances.
 
