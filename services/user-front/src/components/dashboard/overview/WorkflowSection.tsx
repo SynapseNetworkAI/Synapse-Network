@@ -63,7 +63,7 @@ export default function WorkflowSection() {
       icon: <CreditCard className="w-4 h-4 text-emerald-400" />,
       title: t("overviewPage.providerWithdrawTitle"),
       description: t("overviewPage.providerWithdrawDescription"),
-      link: "/provider/settlements",
+      link: "/provider/withdraw",
       linkText: t("overviewPage.providerWithdrawLink")
     }
   ];

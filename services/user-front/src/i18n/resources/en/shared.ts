@@ -71,6 +71,8 @@ const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar
     myServices: "My Services",
     usageAnalytics: "Usage Analytics",
     settlements: "Settlements",
+    withdraw: "Withdraw",
+    withdrawHistory: "Withdraw History",
   },
   accountSettingsPage: {
     title: "Settings",

@@ -26,10 +26,9 @@ from ..database_manager import DatabaseManager
 class GatewayStateRefundMixin:
     """Consumer refund row read/write operations."""
 
-    def read_consumer_refund_rows(self) -> List[RefundIntentRow]:
+    def read_consumer_refund_rows(self, *, owner_wallet: str | None = None) -> List[RefundIntentRow]:
         with self._db.readonly_cursor() as cur:
-            cur.execute(
-                """
+            base_sql = """
                 SELECT
                     vw.withdrawal_id,
                     owner.owner_wallet,
@@ -51,9 +50,13 @@ class GatewayStateRefundMixin:
                 LEFT JOIN synapse_runtime_state rs
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
                 WHERE vw.withdrawal_kind = 'consumer_refund'
-                ORDER BY created_at ASC
-                """
-            )
+            """
+            params: tuple = ()
+            if owner_wallet:
+                base_sql += " AND LOWER(owner.owner_wallet) = %s"
+                params = (owner_wallet.lower(),)
+            base_sql += " ORDER BY created_at ASC"
+            cur.execute(base_sql, params)
             rows = cur.fetchall()
         projected: List[RefundIntentRow] = []
         for (

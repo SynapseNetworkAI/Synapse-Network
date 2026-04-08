@@ -36,6 +36,8 @@ const TRANSLATIONS: Record<string, string> = {
   "sidebar.myServices": "My Services",
   "sidebar.usageAnalytics": "Usage Analytics",
   "sidebar.settlements": "Settlements",
+  "sidebar.withdraw": "Withdraw",
+  "sidebar.withdrawHistory": "Withdraw History",
   "sidebar.account": "Account",
   "sidebar.settings": "Settings",
   "sidebar.logout": "Logout",
@@ -160,16 +162,16 @@ describe("DashboardSidebar", () => {
     expect(pushMock).toHaveBeenCalledWith("/dashboard/overview");
   });
 
-  it("renders account directly after settlements in the main navigation flow", () => {
+  it("renders account directly after withdraw history in the main navigation flow", () => {
     render(<DashboardSidebar />);
 
-    const settlementsLink = screen.getAllByRole("link", { name: /Settlements/i }).at(-1);
+    const withdrawHistoryLink = screen.getAllByRole("link", { name: /Withdraw History/i }).at(-1);
     const accountButton = screen.getAllByRole("button", { name: /Account/i }).at(-1);
 
-    expect(settlementsLink).toBeTruthy();
+    expect(withdrawHistoryLink).toBeTruthy();
     expect(accountButton).toBeTruthy();
     expect(
-      settlementsLink!.compareDocumentPosition(accountButton!) &
+      withdrawHistoryLink!.compareDocumentPosition(accountButton!) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });

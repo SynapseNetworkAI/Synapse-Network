@@ -148,7 +148,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             return
 
         gateway_state = self.storage.get_data_manager().system.gateway_state
-        refund_rows = gateway_state.read_consumer_refund_rows()
+        refund_rows = gateway_state.read_consumer_refund_rows(owner_wallet=owner)
         active_total = Decimal("0")
         for row in refund_rows:
             if normalize_wallet(str(row.owner_address or "")) != owner:
@@ -182,11 +182,9 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
     async def get_balance(self, owner_wallet: str) -> dict[str, Any]:
         """Only return current authenticated owner's balance summary."""
-        await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
-        self._repair_consumer_withdraw_reservation_gap(normalized_owner)
-        balance_data = (
-            self.storage.get_data_manager().finance.balance.read_balance_ledger()
+        balance_data = await asyncio.to_thread(
+            self.storage.get_data_manager().finance.balance.read_balance_ledger
         )
 
         return {
@@ -203,15 +201,19 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         }
 
     async def get_owner_spending_limit(self, owner_wallet: str) -> dict[str, Any]:
-        await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
-        found = self._find_owner_spend_limit_row(owner)
-        spending_limit = (
-            self._q6(found.spending_limit_usdc)
-            if found is not None and found.spending_limit_usdc is not None
-            else None
-        )
-        current_cycle_spend = self._current_cycle_spend_usdc(owner)
+
+        def _sync_work():
+            found = self._find_owner_spend_limit_row(owner)
+            spending_limit = (
+                self._q6(found.spending_limit_usdc)
+                if found is not None and found.spending_limit_usdc is not None
+                else None
+            )
+            current_cycle_spend = self._current_cycle_spend_usdc(owner)
+            return found, spending_limit, current_cycle_spend
+
+        found, spending_limit, current_cycle_spend = await asyncio.to_thread(_sync_work)
         remaining = (
             self._q6(max(Decimal("0"), spending_limit - current_cycle_spend))
             if spending_limit is not None

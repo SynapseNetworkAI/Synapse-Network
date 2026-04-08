@@ -22,7 +22,6 @@ import {
   Box,
   Key,
   AreaChart,
-  Clock,
   ShieldCheck,
   Terminal,
   AlertTriangle,
@@ -48,7 +47,8 @@ export default function DashboardSidebar() {
 
   const providerRoot = "/provider";
   const providerConsoleRoute = `${providerRoot}/console`;
-  const providerSettlementsRoute = `${providerRoot}/settlements`;
+  const providerWithdrawRoute = `${providerRoot}/withdraw`;
+  const providerWithdrawHistoryRoute = `${providerRoot}/withdraw/history`;
   const billingChildActive = activePath.startsWith("/dashboard/billing");
   const accountChildActive = activePath.startsWith("/dashboard/account");
   const [billingExpanded, setBillingExpanded] = useState(billingChildActive);
@@ -78,7 +78,8 @@ export default function DashboardSidebar() {
       `${providerRoot}/secrets`,
       `${providerRoot}/services`,
       `${providerRoot}/usage`,
-      `${providerRoot}/settlements`,
+      `${providerRoot}/withdraw`,
+      `${providerRoot}/withdraw/history`,
     ];
 
     const warmup = () => {
@@ -210,7 +211,7 @@ export default function DashboardSidebar() {
     [handleSidebarNavigation, prefetchRoute]
   );
 
-  const handleSettlementsNavigation = async (event: MouseEvent<HTMLAnchorElement>) => {
+  const handleWithdrawNavigation = async (event: MouseEvent<HTMLAnchorElement>, target: string) => {
     if (shouldBypassNavGuard(event)) {
       return;
     }
@@ -229,7 +230,7 @@ export default function DashboardSidebar() {
       }
     }
 
-    queueNavigation(providerSettlementsRoute);
+    queueNavigation(target);
   };
 
   const handleLogout = useCallback(async () => {
@@ -345,20 +346,36 @@ export default function DashboardSidebar() {
             {t("sidebar.usageAnalytics")}
           </Link>
           <Link
-            href={providerSettlementsRoute}
-            className={getLinkClasses([providerSettlementsRoute], false)}
+            href={providerWithdrawRoute}
+            className={getLinkClasses([providerWithdrawRoute], false)}
             onMouseEnter={() => {
-              prefetchRoute(providerSettlementsRoute);
+              prefetchRoute(providerWithdrawRoute);
             }}
             onFocus={() => {
-              prefetchRoute(providerSettlementsRoute);
+              prefetchRoute(providerWithdrawRoute);
             }}
             onClick={(event) => {
-              void handleSettlementsNavigation(event);
+              void handleWithdrawNavigation(event, providerWithdrawRoute);
             }}
           >
-            <Clock className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
-            {t("sidebar.settlements")}
+            <Wallet className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
+            {t("sidebar.withdraw")}
+          </Link>
+          <Link
+            href={providerWithdrawHistoryRoute}
+            className={getLinkClasses([providerWithdrawHistoryRoute], false)}
+            onMouseEnter={() => {
+              prefetchRoute(providerWithdrawHistoryRoute);
+            }}
+            onFocus={() => {
+              prefetchRoute(providerWithdrawHistoryRoute);
+            }}
+            onClick={(event) => {
+              void handleWithdrawNavigation(event, providerWithdrawHistoryRoute);
+            }}
+          >
+            <History className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
+            {t("sidebar.withdrawHistory")}
           </Link>
           <div className="mt-4 pt-1">
           <button

@@ -164,7 +164,7 @@ class FinanceConsumerWithdrawMixin:
             # (available_balance >= amount) makes this safe: if pending already holds the
             # reservation the UPDATE will find available < amount and raise RuntimeError,
             # which we silently ignore.
-            rows = self._load_refund_rows()  # type: ignore[attr-defined]
+            rows = self._load_refund_rows(owner_wallet=owner)  # type: ignore[attr-defined]
             now = int(time.time())
             for row in rows:
                 if normalize_wallet(str(row.owner_address or "")) != owner:
@@ -363,7 +363,7 @@ class FinanceConsumerWithdrawMixin:
         import asyncio
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
-        rows = self._load_refund_rows()  # type: ignore[attr-defined]
+        rows = self._load_refund_rows(owner_wallet=owner)  # type: ignore[attr-defined]
         result = []
         for row in rows:
             if normalize_wallet(str(row.owner_address or "")) != owner:

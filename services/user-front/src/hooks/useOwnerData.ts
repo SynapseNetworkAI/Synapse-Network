@@ -34,13 +34,13 @@ export function useOwnerData() {
 	const fetchOwnerData = useCallback(async (addr: string) => {
 		if (!addr) return;
 		try {
-			const balanceSummary = await getV2Balance(addr);
-			let usageLogs: UsageLogRecord[] = [];
-			try {
-				usageLogs = await listUsageLogs(addr, 500);
-			} catch (logErr) {
-				console.warn("Failed to fetch owner-scoped logs:", logErr);
-			}
+			const [balanceSummary, usageLogs] = await Promise.all([
+				getV2Balance(addr),
+				listUsageLogs(addr, 500).catch((logErr) => {
+					console.warn("Failed to fetch owner-scoped logs:", logErr);
+					return [] as UsageLogRecord[];
+				}),
+			]);
 
 			const ownerLogs = usageLogs.filter(
 				(log) => (log.ownerAddress || "").toLowerCase() === addr.toLowerCase()

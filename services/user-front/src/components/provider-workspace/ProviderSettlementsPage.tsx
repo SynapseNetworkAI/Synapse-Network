@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Database, ReceiptText, Activity, Wallet, ShieldCheck, Loader2 } from "lucide-react";
+import { Database, ReceiptText, Activity, Wallet, Loader2, Info } from "lucide-react";
 import { formatEther, formatUnits, parseUnits } from "viem";
 import { useAccount, useBalance, useChainId, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -612,19 +612,17 @@ export default function ProviderSettlementsPage() {
         </h1>
         <p className="mt-2 text-sm text-[#86868b]">
           {t("providerSettlements.description")}
+          <Info className="w-3.5 h-3.5 text-[#555] inline-block ml-1 align-text-bottom cursor-help" title={t("providerSettlements.descriptionTip")} />
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="xl:col-span-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
+      <div>
+        <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#86868b]">
             <Wallet className="w-4 h-4" />
             {t("providerSettlements.providerWithdrawalEyebrow")}
           </div>
           <h2 className="mt-3 text-xl font-semibold text-white">{t("providerSettlements.withdrawalTitle")}</h2>
-          <p className="mt-2 text-sm text-[#86868b] leading-relaxed">
-            {t("providerSettlements.withdrawalDescription")}
-          </p>
           {!loadingWithdrawCapability && withdrawCapability && !ticketSigningEnabled && (
             <div className="mt-4 rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
               {withdrawCapability.message}
@@ -643,8 +641,9 @@ export default function ProviderSettlementsPage() {
               {nativeGasWarning}
             </div>
           )}
-          <div className="mt-4 rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/[0.06] px-4 py-3 text-sm text-[#d9ffe7]">
-            {walletGasGuidance}
+          <div className="mt-4 rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/[0.06] px-4 py-3 text-sm text-[#d9ffe7] flex items-center gap-1">
+            <span>{walletGasGuidance}</span>
+            <Info className="w-3.5 h-3.5 text-[#22c55e]/50 shrink-0 cursor-help" title={t("providerSettlements.walletGasTip")} />
           </div>
           {pendingTicketExpired && (
             <div className="mt-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10 px-4 py-3 text-sm text-[#fecaca]">
@@ -663,9 +662,7 @@ export default function ProviderSettlementsPage() {
                   setWithdrawAmountInput(nextValue);
                 }
               }}
-              placeholder={t("providerSettlements.amountPlaceholder", {
-                amount: availableReceivable.toFixed(6),
-              })}
+              placeholder={`${availableReceivable.toFixed(6)} USDC`}
               className={`w-full sm:max-w-md px-3 py-2 rounded-lg border bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] ${withdrawAmountValidationMessage ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[#222222]"}`}
               disabled={isAnyLoading}
             />
@@ -684,12 +681,8 @@ export default function ProviderSettlementsPage() {
               {t("providerSettlements.resumePending")}
             </button>
           </div>
-          {withdrawAmountValidationMessage ? (
+          {withdrawAmountValidationMessage && (
             <p className="mt-3 text-xs text-[#f87171]">{withdrawAmountValidationMessage}</p>
-          ) : (
-            <p className="mt-3 text-xs text-[#86868b]">
-              {t("providerSettlements.withdrawAmountHint")}
-            </p>
           )}
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
@@ -715,18 +708,7 @@ export default function ProviderSettlementsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#22c55e]/30 bg-[#0a0a0a] p-5">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#22c55e]">
-            <ShieldCheck className="w-4 h-4" />
-            {t("providerSettlements.securityContractTitle")}
-          </div>
-          <ul className="mt-3 space-y-2 text-xs text-[#c5c5c7] leading-relaxed">
-            <li>{t("providerSettlements.securityBulletOne")}</li>
-            <li>{t("providerSettlements.securityBulletTwo")}</li>
-            <li>{t("providerSettlements.securityBulletThree")}</li>
-            <li>{t("providerSettlements.securityBulletFour")}</li>
-          </ul>
-        </div>
+
       </div>
 
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 flex flex-col lg:flex-row lg:items-center gap-2">
@@ -821,6 +803,7 @@ export default function ProviderSettlementsPage() {
             <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">{t("providerSettlements.historyTitle")}</div>
             <div className="mt-1 text-sm text-[#c5c5c7]">
               {t("providerSettlements.historyDescription")}
+              <Info className="w-3 h-3 text-[#555] inline-block ml-1 align-text-bottom cursor-help" title={t("providerSettlements.historyDescriptionTip")} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -914,6 +897,7 @@ export default function ProviderSettlementsPage() {
         <ReceiptText className="w-4 h-4 text-[#22c55e]" />
         <span>
           {t("providerSettlements.dedupeNote")}
+          <Info className="w-3 h-3 text-[#555] inline-block ml-1 align-text-bottom cursor-help" title={t("providerSettlements.dedupeNoteTip")} />
         </span>
         <Activity className="w-4 h-4 text-[#86868b] ml-auto" />
       </div>
