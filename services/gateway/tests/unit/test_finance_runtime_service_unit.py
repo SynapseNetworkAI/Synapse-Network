@@ -42,6 +42,15 @@ class InMemoryBalanceRepo:
     def write_balance_ledger(self, ledger):
         self.ledger = ledger.model_copy(deep=True)
 
+    def reserve_consumer_balance_for_withdrawal(self, owner: str, amount_usdc: float, updated_at: str):
+        _ = updated_at
+        wallet = self.ledger.ensure_consumer_wallet(owner)
+        available = float(wallet.available_balance or 0.0)
+        if available + 1e-9 < amount_usdc:
+            raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
+        wallet.available_balance = round(available - amount_usdc, 6)
+        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
+
 
 class InMemoryGatewayStateRepo:
     def __init__(self):
@@ -1001,6 +1010,34 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
         "platformFeeAccrued": 0.4,
         "updatedAt": "2026-03-17 12:00:00",
     }
+
+
+def test_owner_balance_summary_repairs_stale_active_consumer_withdraw_gap() -> None:
+    storage = FakeStorage()
+    consumer_wallet = storage.balance.ledger.ensure_consumer_wallet("0xabc")
+    consumer_wallet.available_balance = 20.0
+    consumer_wallet.pending_balance = 0.0
+    storage.gateway_state.refund_rows = [
+        RefundIntentRow(
+            id="wd-stale-1",
+            ownerAddress="0xabc",
+            amountUsdc=Decimal("20.0"),
+            status="REQUESTED",
+            refundType="CONSUMER_BALANCE_WITHDRAW",
+            createdAt="2026-04-08 10:00:00",
+            updatedAt="2026-04-08 10:00:00",
+        )
+    ]
+
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    balance = asyncio.run(service.get_balance("0xabc"))
+
+    assert balance["consumerAvailableBalance"] == 0.0
+    assert balance["consumerPendingBalance"] == 20.0
+    repaired = storage.balance.read_balance_ledger()
+    assert repaired.consumer_available_balance("0xabc") == 0.0
+    assert repaired.consumer_pending_balance("0xabc") == 20.0
 
 
 def test_platform_finance_service_persists_owner_spending_limit() -> None:

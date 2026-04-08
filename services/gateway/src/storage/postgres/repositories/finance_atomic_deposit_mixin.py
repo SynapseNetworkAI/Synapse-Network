@@ -259,48 +259,10 @@ class FinanceAtomicDepositMixin:
                 )
 
                 if row.status.upper() == "CONFIRMED":
-                    if pending_balance >= row.amount_usdc:
-                        next_available = self._q6(available_balance + row.amount_usdc)  # type: ignore[attr-defined]
-                        next_pending = self._q6(pending_balance - row.amount_usdc)  # type: ignore[attr-defined]
-                        self._upsert_balance_triplet(  # type: ignore[attr-defined]
-                            cur, owner, "consumer", next_available, next_pending, frozen_balance, now_text,
-                        )
-                        cur.execute(
-                            "UPDATE synapse_vault_deposits SET updated_at = %s WHERE deposit_id = %s AND owner_id = %s",
-                            (now_text, row.id, self._owner_id(row.owner_address)),  # type: ignore[attr-defined]
-                        )
-                        self._append_withdrawal_audit(  # type: ignore[attr-defined]
-                            cur,
-                            action="CONSUMER_DEPOSIT_CONFIRMED_REPAIRED",
-                            business_type="deposit",
-                            owner=owner,
-                            request_id=row.request_id or command.event_key,
-                            amount=row.amount_usdc,
-                            risk_level="yellow",
-                            risk_reason_code="DEPOSIT_CONFIRM_REPAIR",
-                            result_status="CONFIRMED",
-                            message="repair_pending_to_available",
-                            evidence={
-                                "txHash": row.tx_hash,
-                                "beforeBalance": available_balance,
-                                "afterBalance": next_available,
-                                "ledgerId": row.id,
-                                "traceId": command.event_key,
-                            },
-                        )
-                        conn.commit()
-                        return DepositIntentRow(
-                            id=row.id,
-                            ownerAddress=row.owner_address,
-                            txHash=row.tx_hash,
-                            requestId=row.request_id,
-                            consumerAddress=row.consumer_address,
-                            amountUsdc=row.amount_usdc,
-                            idempotencyKey=row.idempotency_key,
-                            status="CONFIRMED",
-                            createdAt=row.created_at,
-                            updatedAt=now_text,
-                        )
+                    # A confirmed deposit is already fully reflected in consumer available
+                    # balance.  Replaying a synthetic "pending -> available" repair here is
+                    # unsafe because consumer withdrawals reuse the same pending bucket; that
+                    # would incorrectly unfreeze active withdrawal reservations.
                     return row
                 if row.status.upper() not in {"PENDING_CONFIRMATION", "PENDING"}:
                     raise RuntimeError("DEPOSIT_STATUS_INVALID")

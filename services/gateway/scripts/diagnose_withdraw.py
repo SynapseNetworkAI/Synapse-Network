@@ -90,7 +90,12 @@ def main():
     pend2 = float(b2.get("consumerPendingBalance", 0))
     print(f"\nPost-withdraw balance: available=${avail2:.4f} pending=${pend2:.4f}")
 
-    if abs(avail2 - (avail - amount)) < 0.001:
+    if active:
+        if abs(avail2 - avail) < 0.001 and abs(pend2 - pend) < 0.001:
+            print("  ✓ Existing active withdrawal returned idempotently without double deduction")
+        else:
+            print("  ✗ Active withdrawal should not change balance on repeated request")
+    elif abs(avail2 - (avail - amount)) < 0.001:
         print("  ✓ Balance correctly decreased")
     else:
         print(f"  ✗ Balance NOT decreased (expected ${avail - amount:.4f}, got ${avail2:.4f})")
