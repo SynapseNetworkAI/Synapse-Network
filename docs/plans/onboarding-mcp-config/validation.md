@@ -26,14 +26,14 @@ python3 scripts/memory.py docs-check .
 
 ## Onboarding Verification
 - primary verification command: `amem doctor .`
-- expected completion: `amem doctor .` shows `[OK] mcp_config`.
+- expected completion: `amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.
 
 ## State Snapshot
 ```json
 {
-  "project_bootstrap_ready": false,
-  "project_bootstrap_complete": false,
-  "recommended_next_command": "amem mcp-setup .",
+  "project_bootstrap_ready": true,
+  "project_bootstrap_complete": true,
+  "recommended_next_command": "python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e",
   "recommended_verify_command": "amem doctor ."
 }
 ```

@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-04-07T09:10:10.998120+00:00",
+  "generated_at": "2026-04-08T01:46:25.332688+00:00",
   "project_id": "synapse-network",
   "project_root": "/Users/cliff/workspace/agent/Synapse-Network",
-  "overall": "PARTIAL",
-  "project_bootstrap_ready": false,
-  "project_bootstrap_complete": false,
-  "recommended_next_group": "Integration",
-  "recommended_next_key": "mcp_config",
-  "recommended_next_command": "amem mcp-setup .",
+  "overall": "READY",
+  "project_bootstrap_ready": true,
+  "project_bootstrap_complete": true,
+  "recommended_next_group": "Refactor",
+  "recommended_next_key": "refactor_bundle",
+  "recommended_next_command": "python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e",
   "recommended_verify_command": "amem doctor .",
-  "recommended_done_when": "`amem doctor .` shows `[OK] mcp_config`.",
+  "recommended_done_when": "`amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.",
   "recommended_next_safe_to_auto_execute": true,
   "recommended_next_approval_required": false,
-  "recommended_next_approval_reason": "writes only local IDE MCP config under .vscode for the current project",
+  "recommended_next_approval_reason": "refreshes generated planning docs only",
   "groups": [
     {
       "name": "Core",
@@ -69,14 +69,14 @@
         {
           "status": "OK",
           "key": "planning_bundle",
-          "detail": "1 planning bundle(s) passed plan-check"
+          "detail": "2 planning bundle(s) passed plan-check"
         }
       ]
     },
     {
       "name": "Integration",
-      "status": "WATCH",
-      "summary": "Integration status=WATCH (ok=1, warn=1, fail=0, info=0)",
+      "status": "HEALTHY",
+      "summary": "Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
       "checks": [
         {
           "status": "OK",
@@ -84,9 +84,9 @@
           "detail": "/Users/cliff/workspace/agent/Synapse-Network/.github/instructions/agents-memory-bridge.instructions.md"
         },
         {
-          "status": "WARN",
+          "status": "OK",
           "key": "mcp_config",
-          "detail": "agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py"
+          "detail": "agents-memory server configured -> /Users/cliff/workspace/agent/Synapse-Network/.vscode/mcp.json"
         }
       ]
     },
@@ -139,32 +139,15 @@
     }
   ],
   "action_sequence": [
-    "Integration (required): Run `amem mcp-setup .` to repair or create the MCP server configuration.",
     "Optional (recommended): Refactor flagged functions before adding more behavior, and add a short guiding comment when complex logic must remain in place."
   ],
-  "runbook_steps": [
-    {
-      "group": "Integration",
-      "priority": "required",
-      "key": "mcp_config",
-      "status": "WARN",
-      "detail": "agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py",
-      "action": "Create or repair the MCP configuration so IDE agents can call Agents-Memory tools.",
-      "command": "amem mcp-setup .",
-      "verify_with": "amem doctor .",
-      "done_when": "`amem doctor .` shows `[OK] mcp_config`.",
-      "safe_to_auto_execute": true,
-      "approval_required": false,
-      "approval_reason": "writes only local IDE MCP config under .vscode for the current project",
-      "next_command": "amem doctor ."
-    }
-  ],
+  "runbook_steps": [],
   "bootstrap_checklist": [
     "[x] Core - Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)",
     "[x] Planning - Planning status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
-    "[ ] Integration - Integration status=WATCH (ok=1, warn=1, fail=0, info=0)",
+    "[x] Integration - Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
     "[ ] Optional - Optional status=WATCH (ok=2, warn=6, fail=0, info=0)",
-    "[ ] Final verification - re-run `amem doctor .` and confirm no remaining WARN / FAIL steps"
+    "[x] Final verification - latest `amem doctor .` already reflects the current healthy state"
   ],
   "recommended_steps": [
     {

@@ -88,14 +88,14 @@ Integration onboarding: mcp_config
       {
         "status": "OK",
         "key": "planning_bundle",
-        "detail": "1 planning bundle(s) passed plan-check"
+        "detail": "2 planning bundle(s) passed plan-check"
       }
     ]
   },
   {
     "name": "Integration",
-    "status": "WATCH",
-    "summary": "Integration status=WATCH (ok=1, warn=1, fail=0, info=0)",
+    "status": "HEALTHY",
+    "summary": "Integration status=HEALTHY (ok=2, warn=0, fail=0, info=0)",
     "checks": [
       {
         "status": "OK",
@@ -103,9 +103,9 @@ Integration onboarding: mcp_config
         "detail": "./.github/instructions/agents-memory-bridge.instructions.md"
       },
       {
-        "status": "WARN",
+        "status": "OK",
         "key": "mcp_config",
-        "detail": "agents-memory exists but args do not include /Users/cliff/workspace/agent/Agents-Memory/scripts/mcp_server.py"
+        "detail": "agents-memory server configured -> ./.vscode/mcp.json"
       }
     ]
   },

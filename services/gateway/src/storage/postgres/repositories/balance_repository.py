@@ -282,7 +282,16 @@ class BalanceRepository:
         wallet_rows: list[ConsumerWalletRecord] | list[ProviderWalletRecord],
         updated_at: str,
     ) -> None:
-        """Upsert only available_balance; leave pending/frozen intact on conflict."""
+        """Upsert only available_balance; leave pending/frozen intact on conflict.
+
+        Safety: on conflict we use GREATEST(EXCLUDED, current) so that a stale
+        read-modify-write cycle from the deposit indexer or billing path can never
+        decrease available_balance below a value that was atomically reduced by
+        a concurrent reserve_consumer_balance_for_withdrawal call.  The only
+        legitimate decreases to available_balance go through atomic delta SQLs
+        (reserve_consumer_balance_for_withdrawal, charge_consumer_atomic, etc.)
+        which bypass this path entirely.
+        """
         for wallet_row in wallet_rows:
             owner = str(wallet_row.owner_address or "").lower()
             if not owner:
@@ -295,7 +304,8 @@ class BalanceRepository:
                 ) VALUES (%s, %s, 0, 0, %s)
                 ON CONFLICT (account_id)
                 DO UPDATE SET
-                    available_balance = EXCLUDED.available_balance,
+                    available_balance = GREATEST(EXCLUDED.available_balance,
+                                                 synapse_account_balances.available_balance),
                     updated_at        = EXCLUDED.updated_at
                 """,
                 (

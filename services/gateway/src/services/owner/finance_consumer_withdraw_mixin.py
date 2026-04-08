@@ -145,6 +145,13 @@ class FinanceConsumerWithdrawMixin:
             # This must come before the balance check because a previous call may have
             # already reserved the balance (available=0); we still want to return the
             # existing active record rather than raising INSUFFICIENT_BALANCE.
+            #
+            # Idempotency self-healing: if the reservation was lost (e.g. a concurrent
+            # write_balance_ledger clobbered available_balance), re-apply it atomically
+            # before returning the existing record.  The atomic SQL WHERE clause
+            # (available_balance >= amount) makes this safe: if pending already holds the
+            # reservation the UPDATE will find available < amount and raise RuntimeError,
+            # which we silently ignore.
             rows = self._load_refund_rows()  # type: ignore[attr-defined]
             now = int(time.time())
             for row in rows:
@@ -153,9 +160,21 @@ class FinanceConsumerWithdrawMixin:
                 if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
                     continue
                 if str(row.status or "").upper() in REFUND_ACTIVE_STATUSES:
+                    row_amount = round(float(row.amount_usdc or 0), 6)
+                    # Re-apply reservation if available_balance was not properly reduced
+                    # (race condition: deposit indexer or another write restored it).
+                    ledger_check = self._load_balance_ledger()  # type: ignore[attr-defined]
+                    avail_check = ledger_check.consumer_available_balance(owner)
+                    pend_check = ledger_check.consumer_pending_balance(owner)
+                    if avail_check >= row_amount - 1e-9 and pend_check < row_amount - 1e-9:
+                        # Reservation was not persisted — re-apply atomically (idempotent).
+                        try:
+                            self._reserve_consumer_balance(owner, row_amount)  # type: ignore[attr-defined]
+                        except RuntimeError:
+                            pass  # Already reserved concurrently — safe to ignore
                     return {
                         "withdrawId": str(row.id or ""),
-                        "amountUsdc": float(row.amount_usdc or 0),
+                        "amountUsdc": row_amount,
                         "status": str(row.status),
                         "riskLevel": str(row.risk_level or "green"),
                         "riskReasonCode": str(row.risk_reason_code or ""),
