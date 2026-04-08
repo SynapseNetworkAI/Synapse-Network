@@ -42,7 +42,7 @@ type WithdrawModalProps = {
   availableBalance: number;
   userAddress: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: () => Promise<void>;
 };
 
 function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSuccess }: WithdrawModalProps) {
@@ -73,7 +73,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
       } else {
         toast.success(`Withdrawal of $${result.amountUsdc.toFixed(2)} USDC requested (${result.status}).`);
       }
-      onSuccess();
+      await onSuccess();
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Withdrawal failed.");
@@ -604,6 +604,8 @@ export default function OwnerCreditsPage() {
           userAddress={userAddress}
           onClose={() => setIsWithdrawModalOpen(false)}
           onSuccess={async () => {
+            // Small delay to let DB write settle before re-reading balance
+            await new Promise((resolve) => setTimeout(resolve, 300));
             await Promise.all([handleRefresh(), fetchSpendingLimit()]);
           }}
         />

@@ -1,0 +1,314 @@
+// @vitest-environment jsdom
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
+
+import OwnerCreditsPage from "@/components/dashboard-workspace/OwnerCreditsPage";
+import { LanguageProvider } from "@/components/i18n/LanguageProvider";
+import { I18N_STORAGE_KEY } from "@/i18n/config";
+
+const {
+  authorizeMock,
+  getOwnerSpendingLimitMock,
+  requestConsumerWithdrawMock,
+  handleRefreshMock,
+  toastSuccessMock,
+  toastErrorMock,
+} = vi.hoisted(() => ({
+  authorizeMock: vi.fn(async () => true),
+  getOwnerSpendingLimitMock: vi.fn(),
+  requestConsumerWithdrawMock: vi.fn(),
+  handleRefreshMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+}));
+
+vi.mock("@rainbow-me/rainbowkit", () => ({
+  useConnectModal: () => ({ openConnectModal: vi.fn() }),
+}));
+
+vi.mock("wagmi", () => ({
+  useAccount: () => ({ address: "0xabc", isConnected: true }),
+}));
+
+vi.mock("@/components/WalletAuthGuard", () => ({
+  useAuth: () => ({
+    isSessionAuthenticated: true,
+    authorize: authorizeMock,
+  }),
+}));
+
+vi.mock("@/hooks/useOwnerData", () => ({
+  useOwnerData: () => ({
+    stats: { ownerBalance: "20" },
+    handleRefresh: handleRefreshMock,
+    isBootstrapping: false,
+  }),
+}));
+
+vi.mock("@/hooks/useVaultDeposit", () => ({
+  useVaultDeposit: () => ({
+    isOpen: false,
+    openModal: vi.fn(),
+    closeModal: vi.fn(),
+    depositAmount: "0",
+    setDepositAmount: vi.fn(),
+    depositError: null,
+    depositStep: "input",
+    handleDeposit: vi.fn(),
+    isPending: false,
+    isConfirming: false,
+    walletUsdcBalance: "0",
+    vaultAddress: "0xvault",
+    walletAddress: "0xabc",
+    shortAddress: "0xabc",
+  }),
+}));
+
+vi.mock("react-hot-toast", () => ({
+  default: {
+    success: toastSuccessMock,
+    error: toastErrorMock,
+  },
+}));
+
+vi.mock("@/utils/balanceApi", async () => {
+  const actual = await vi.importActual<typeof import("@/utils/balanceApi")>(
+    "@/utils/balanceApi"
+  );
+  return {
+    ...actual,
+    getOwnerSpendingLimit: getOwnerSpendingLimitMock,
+    requestConsumerWithdraw: requestConsumerWithdrawMock,
+  };
+});
+
+const spendingLimitDefault = {
+  ownerAddress: "0xabc",
+  spendingLimitUsdc: null,
+  allowUnlimited: true,
+  cycleInterval: "monthly",
+  currentCycleSpendUsdc: 0,
+  remainingSpendUsdc: null,
+  updatedAt: null,
+};
+
+function renderPage() {
+  return render(
+    createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+  );
+}
+
+describe("OwnerCreditsPage — Withdraw", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
+    getOwnerSpendingLimitMock.mockResolvedValue(spendingLimitDefault);
+  });
+
+  it("shows the Withdraw button and the current balance", async () => {
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    expect(screen.getAllByText("Remaining balance:").length).toBeGreaterThan(0);
+    expect(screen.getByText("$20.00")).toBeTruthy();
+  });
+
+  it("opens withdraw modal when Withdraw button is clicked", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Withdraw Balance" })
+    ).toBeTruthy();
+    expect(screen.getByText(/Available:/)).toBeTruthy();
+  });
+
+  it("pre-fills the amount field with the full available balance", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+    const amountInput = screen.getByRole("spinbutton");
+    expect((amountInput as HTMLInputElement).value).toBe("20.00");
+  });
+
+  it("calls requestConsumerWithdraw with correct args on submit", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      status: "REQUESTED",
+      amountUsdc: 20,
+      riskReasonCode: null,
+    });
+    handleRefreshMock.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
+    // The last "Withdraw" button is inside the modal
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(requestConsumerWithdrawMock).toHaveBeenCalledWith("0xabc", {
+        amountUsdc: 20,
+        reason: undefined,
+      });
+    });
+  });
+
+  it("calls handleRefresh after a successful withdrawal", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      status: "REQUESTED",
+      amountUsdc: 20,
+      riskReasonCode: null,
+    });
+    handleRefreshMock.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(handleRefreshMock).toHaveBeenCalled();
+    });
+  });
+
+  it("shows a success toast with the withdrawn amount", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      status: "REQUESTED",
+      amountUsdc: 20,
+      riskReasonCode: null,
+    });
+    handleRefreshMock.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalledWith(
+        expect.stringContaining("$20.00")
+      );
+    });
+  });
+
+  it("closes the modal after successful withdrawal", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      status: "REQUESTED",
+      amountUsdc: 20,
+      riskReasonCode: null,
+    });
+    handleRefreshMock.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Withdraw Balance" })
+      ).toBeNull();
+    });
+  });
+
+  it("shows pending_manual_review toast for large withdrawals", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      status: "PENDING_MANUAL_REVIEW",
+      amountUsdc: 20,
+      riskReasonCode: "HIGH_AMOUNT",
+    });
+    handleRefreshMock.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalledWith(
+        expect.stringContaining("under review")
+      );
+    });
+  });
+
+  it("shows an error toast when withdrawal API fails", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockRejectedValue(
+      new Error("Insufficient balance")
+    );
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith("Insufficient balance");
+    });
+  });
+
+  it("does not call requestConsumerWithdraw when amount is zero", async () => {
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const amountInput = screen.getByRole("spinbutton");
+    await user.clear(amountInput);
+    await user.type(amountInput, "0");
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    expect(requestConsumerWithdrawMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).toHaveBeenCalledWith("Enter a valid amount.");
+  });
+});
