@@ -157,8 +157,10 @@ class OwnerFinanceService(
             "source": "deposit_intent",
         }
 
-    def _load_refund_rows(self) -> List[RefundIntentRow]:
-        rows = self.storage.get_data_manager().system.gateway_state.read_consumer_refund_rows()
+    def _load_refund_rows(self, *, owner_wallet: str | None = None) -> List[RefundIntentRow]:
+        rows = self.storage.get_data_manager().system.gateway_state.read_consumer_refund_rows(
+            owner_wallet=owner_wallet
+        )
         if not isinstance(rows, list):
             return []
         result: List[RefundIntentRow] = []
@@ -355,10 +357,19 @@ class OwnerFinanceService(
         return normalized
 
     def _consume_locked_refund_amount(self, owner: str, amount_usdc: float) -> None:
-        ledger = self._load_balance_ledger()
-        consumer_wallet = ledger.ensure_consumer_wallet(owner)
-        locked = round(float(consumer_wallet.pending_balance or 0.0), 6)
-        if locked + 1e-9 < amount_usdc:
+        """Atomically reduce pending_balance after withdrawal/refund completion.
+
+        Uses the atomic SQL path so the change is not discarded by
+        ``write_balance_ledger`` (which intentionally only writes available).
+        """
+        from src.utils.datetime_utils import now_dt_str as _now
+        try:
+            self.storage.get_data_manager().finance.balance.consume_consumer_pending_for_withdrawal(
+                owner=owner,
+                amount_usdc=amount_usdc,
+                updated_at=_now(),
+            )
+        except RuntimeError:
             raise HTTPException(
                 status_code=409,
                 detail={
@@ -366,8 +377,6 @@ class OwnerFinanceService(
                     "message": "Locked owner balance is insufficient for this refund intent.",
                 },
             )
-        consumer_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
-        self._save_balance_ledger(ledger)
 
     def _reserve_owner_refund_amount(self, owner: str, amount_usdc: float) -> None:
         ledger = self._load_balance_ledger()

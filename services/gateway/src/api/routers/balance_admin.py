@@ -102,6 +102,19 @@ async def list_finance_audit_logs(
     }
 
 
+@router.get("/v1/finance/risk-overview")
+async def get_risk_overview(
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    overview = await service.get_risk_overview(owner_wallet)
+    return {
+        "status": "success",
+        "ownerAddress": owner_wallet,
+        "overview": overview,
+    }
+
+
 @router.get("/v1/usage/logs")
 async def get_usage_logs(
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],

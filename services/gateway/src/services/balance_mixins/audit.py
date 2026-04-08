@@ -43,6 +43,8 @@ class BalanceAuditMixin:
             "CONSUMER_DEPOSIT_CONFIRMED",
             "CONSUMER_DEPOSIT_CONFIRMED_REPAIRED",
             "REFUND_INTENT_CREATED",
+            "CONSUMER_WITHDRAW_INTENT_CREATED",
+            "REFUND_INTENT_COMPLETED",
             "PROVIDER_WITHDRAW_INTENT_CREATED",
             "PROVIDER_WITHDRAW_REVIEW_APPROVED",
             "PROVIDER_WITHDRAW_REVIEW_REJECTED",
@@ -51,6 +53,23 @@ class BalanceAuditMixin:
             "FINANCE_RATE_LIMIT_HIT",
             "DEPOSIT_REPLAY_DETECTED",
             "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+        }
+
+    def _user_facing_audit_actions(self) -> set[str]:
+        """Actions visible to end users: only start + outcome, no intermediate steps."""
+        return {
+            # Deposit: only the final confirmation
+            "CONSUMER_DEPOSIT_CONFIRMED",
+            "CONSUMER_DEPOSIT_CONFIRMED_REPAIRED",
+            # Consumer withdraw: start + completion
+            "CONSUMER_WITHDRAW_INTENT_CREATED",
+            "REFUND_INTENT_COMPLETED",
+            # Provider withdraw: start + review result + completion
+            "PROVIDER_WITHDRAW_INTENT_CREATED",
+            "PROVIDER_WITHDRAW_REVIEW_APPROVED",
+            "PROVIDER_WITHDRAW_REVIEW_REJECTED",
+            "PROVIDER_WITHDRAW_COMPLETED",
+            "PROVIDER_WITHDRAW_CANCELLED",
         }
 
     async def list_finance_audit_logs(
@@ -103,7 +122,7 @@ class BalanceAuditMixin:
         self, owner_wallet: str, limit: int
     ) -> List[dict[str, Any]]:
         owner = normalize_wallet(owner_wallet)
-        allowed_actions = self._finance_audit_actions()
+        allowed_actions = self._user_facing_audit_actions()
 
         rows = self._read_audit_rows_from_storage(owner, limit)
         if rows is None:
@@ -113,3 +132,17 @@ class BalanceAuditMixin:
 
         rows.sort(key=lambda item: int(item.get("timestamp") or 0), reverse=True)
         return rows[: max(1, min(limit, 500))]
+
+    async def get_risk_overview(self, owner_wallet: str) -> dict[str, Any]:
+        return await asyncio.to_thread(self._get_risk_overview_sync, owner_wallet)
+
+    def _get_risk_overview_sync(self, owner_wallet: str) -> dict[str, Any]:
+        owner = normalize_wallet(owner_wallet)
+        try:
+            return self.storage.get_data_manager().audit.logs.risk_overview_for_owner(owner)
+        except Exception:
+            return {
+                "systemIntegrity": {"level": "green", "anomalyCount24h": 0},
+                "pendingReviews": {"level": "green", "count": 0},
+                "alerts": [],
+            }

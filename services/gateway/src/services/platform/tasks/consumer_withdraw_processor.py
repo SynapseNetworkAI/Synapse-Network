@@ -165,13 +165,20 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
     # Mark as COMPLETED
     try:
         dm = storage.get_data_manager()
-        # Consume locked pending balance
-        from src.domain.finance import BalanceLedger
-        ledger: BalanceLedger = dm.finance.balance.read_balance_ledger()
-        wallet = ledger.ensure_consumer_wallet(owner)
-        locked = round(float(wallet.pending_balance or 0.0), 6)
-        wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
-        dm.finance.balance.write_balance_ledger(ledger)
+        # Consume locked pending balance — use the atomic SQL path so
+        # write_balance_ledger (which only writes available) cannot discard it.
+        from src.utils.datetime_utils import now_dt_str
+        try:
+            dm.finance.balance.consume_consumer_pending_for_withdrawal(
+                owner=owner,
+                amount_usdc=amount_usdc,
+                updated_at=now_dt_str(),
+            )
+        except RuntimeError:
+            logger.warning(
+                "consumer_withdraw_processor: pending balance consume failed for %s (amount=%.6f)",
+                owner, amount_usdc,
+            )
 
         # Update refund row status
         rows = dm.system.gateway_state.read_consumer_refund_rows()

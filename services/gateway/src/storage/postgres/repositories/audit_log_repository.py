@@ -437,3 +437,100 @@ class AuditLogRepository:
                 )
             )
         return result
+
+    # ── risk overview aggregation ────────────────────────────────────
+
+    def risk_overview_for_owner(self, owner_wallet: str) -> dict[str, Any]:
+        """Compute an owner-scoped risk overview from audit events and withdrawal intents."""
+        owner_candidates = self._owner_id_candidates(owner_wallet)
+        if not owner_candidates:
+            return self._empty_risk_overview()
+
+        owner_filter = "(lower(owner_id) = lower(%s) OR lower(owner_id) = lower(%s))"
+
+        # 1) anomaly count in last 24h
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT count(*) FROM synapse_audit_events
+                WHERE business_type = 'anomaly'
+                  AND {owner_filter}
+                  AND created_at >= now() - interval '24 hours'
+                """,
+                owner_candidates,
+            )
+            anomaly_count_24h: int = int((cur.fetchone() or (0,))[0])
+
+        # 2) pending manual review count
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*) FROM synapse_vault_withdrawals vw
+                JOIN synapse_owner_accounts oa ON oa.owner_id = vw.owner_id
+                WHERE vw.status = 'PENDING_MANUAL_REVIEW'
+                  AND lower(oa.owner_wallet) = lower(%s)
+                """,
+                (normalize_wallet(owner_wallet),),
+            )
+            pending_review_count: int = int((cur.fetchone() or (0,))[0])
+
+        # 3) recent non-green alerts (up to 20)
+        with self._db.readonly_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT event_id, event_type, detail_json,
+                       extract(epoch from created_at)::bigint
+                FROM synapse_audit_events
+                WHERE business_type <> 'system'
+                  AND {owner_filter}
+                  AND coalesce(detail_json->>'riskLevel', 'green') <> 'green'
+                ORDER BY created_at DESC
+                LIMIT 20
+                """,
+                owner_candidates,
+            )
+            alert_rows = cur.fetchall()
+
+        alerts: list[dict[str, Any]] = []
+        for evt_id, evt_type, detail_json, ts in alert_rows:
+            details = self._payload_dict(detail_json)
+            risk_level = details.get("riskLevel", "yellow")
+            severity = "high" if risk_level == "red" else "medium"
+            alerts.append({
+                "id": str(evt_id or ""),
+                "type": str(evt_type or ""),
+                "severity": severity,
+                "message": str(details.get("message") or details.get("riskReasonCode") or evt_type or ""),
+                "timestamp": int(ts or 0),
+                "details": details,
+            })
+
+        # derive levels
+        if anomaly_count_24h >= 3:
+            integrity_level = "red"
+        elif anomaly_count_24h >= 1:
+            integrity_level = "yellow"
+        else:
+            integrity_level = "green"
+
+        review_level = "yellow" if pending_review_count > 0 else "green"
+
+        return {
+            "systemIntegrity": {
+                "level": integrity_level,
+                "anomalyCount24h": anomaly_count_24h,
+            },
+            "pendingReviews": {
+                "level": review_level,
+                "count": pending_review_count,
+            },
+            "alerts": alerts,
+        }
+
+    @staticmethod
+    def _empty_risk_overview() -> dict[str, Any]:
+        return {
+            "systemIntegrity": {"level": "green", "anomalyCount24h": 0},
+            "pendingReviews": {"level": "green", "count": 0},
+            "alerts": [],
+        }
