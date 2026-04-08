@@ -13,155 +13,11 @@ Consumer Withdrawal 链路定义 Owner（买家）如何把**未消费的预存 
 
 | 参与者 | 职责 |
 | --- | --- |
-| `Owner (Consumer Role)` | 发起提现申请 |
-| `Platform Gateway` | 风控校验、余额冻结、幂等控制、记录存储 |
-| `SynapseCore Contract` | 链上出金执行：`platformWithdrawTo(user, amount, fee)` |
-| `Consumer Withdraw Processor` | 后台任务：自动处理 REQUESTED 队列，调用链上合约完成出金 |
+| `Owner (Consumer Role)` | 发起提现申请，链上执行 `SynapseCore.withdraw()` |
+| `Platform Gateway` | 风控校验、余额冻结、幂等控制、EIP-712 签票、记录存储 |
+| `SynapseCore` (Vault Contract) | 链上出金执行：验证 EIP-712 签名，转 USDC 给用户，收取平台费 |
+| `Background Event Watcher` | 安全网：监控链上 `WithdrawInfo` 事件，自动补全遗漏的 COMPLETED 状态 |
 | `PostgreSQL` | 持久化余额变更、提现记录、审计事件 |
-
-## 2.1 Bug 记录与修复状态
-
-> 最后验证：2026-04-08，自动化测试 4 张截图全部通过 ✅
-
-### Bug-001 — 提现后 UI 余额没有变化（前端 `onSuccess` 未 await）
-
-**严重级别：** High  
-**状态：** 已修复 ✅  
-**发现时间：** 2026-04-08  
-**修复 commit：** `a4aecc77`
-
-**根本原因：**  
-`WithdrawBalanceModal.handleSubmit` 调用 `onSuccess()` 时**未 `await`**，导致父组件的 `handleRefresh()` 在 modal 尚未关闭时就被跳过，页面余额显示旧值。
-
-**修复内容（`OwnerCreditsPage.tsx`）：**
-1. `onSuccess` prop 类型从 `() => void` → `(result: ConsumerWithdrawIntent) => Promise<void>`  
-2. `handleSubmit` 加 `await onSuccess(result)` + `await onClose()`  
-3. 父组件 `onSuccess` 中加 300 ms 等待让 DB 写入沉淀，再调 `handleRefresh()`  
-
----
-
-### Bug-002 — 刷新页面后余额恢复原值（乐观覆盖未持久化）
-
-**严重级别：** Medium  
-**状态：** 已修复 ✅  
-**发现时间：** 2026-04-08
-
-**根本原因：**  
-`optimisticBalanceOverride` 只存在 React state 中，页面刷新后 state 消失。如果 DB 中 `available_balance` 在提现 REQUESTED 期间仍显示原值（因链上延迟或历史状态），刷新后 UI 会恢复 pre-withdraw 金额。
-
-**修复内容（`OwnerCreditsPage.tsx`）：**
-1. 新增 `optimisticStorageKey = synapse_credits_optimistic_${address}` per-wallet sessionStorage 键  
-2. `onSuccess` 成功后同步写入 `sessionStorage`  
-3. 组件挂载时从 `sessionStorage` 恢复 `optimisticBalanceOverride`（本次会话内跨刷新有效）  
-4. 当服务端余额已降至 `≤ targetBalance` 时清除 sessionStorage 并解除覆盖  
-5. 新增 `clearOptimisticOverride()` 统一清除 state + sessionStorage  
-
----
-
-### Bug-003 — `consumerPendingWithdrawBalance` 字段名错误
-
-**严重级别：** Low  
-**状态：** 已修复 ✅  
-**发现时间：** 2026-04-08  
-**影响文件：** `scripts/credits_withdraw_validation.js`
-
-**根本原因：**  
-自动化脚本中读取待提现余额使用字段 `consumerPendingWithdrawBalance`，但网关实际返回字段为 `consumerPendingBalance`，导致 `pending` 永远显示 0。
-
-**修复：** 改为 `balance.body?.balance?.consumerPendingBalance`
-
----
-
-### Bug-004 — Deposit Indexer 重复确认已 CONFIRMED 存款导致提现预留被覆盖
-
-**严重级别：** High（历史数据已污染；当前代码已修复）  
-**状态：** 已修复 ✅（`confirm_deposit_intent_atomic` 加 `CONFIRMED` 早退卫兵，单元测试覆盖）  
-**发现时间：** 2026-04-08  
-**修复文件：** `services/gateway/src/storage/postgres/repositories/finance_atomic_deposit_mixin.py`
-
----
-
-#### 根本原因（经审计日志追溯确认）
-
-钱包 `0xd856907d..` 的审计事件印证了如下时序：
-
-```
-2026-04-07 10:02:30  CONSUMER_DEPOSIT_CONFIRMED  delta=20.0  ← 原始存款正常入账
-2026-04-08 00:51:50  CONSUMER_WITHDRAW_INTENT_CREATED        ← 提现申请创建
-                                                              available=0, pending=20 ✓
-2026-04-08 00:51:50  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0  ← 同一秒！覆盖了提现预留
-2026-04-08 02:16:10  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0  ← indexer 又跑了一次
-2026-04-08 02:16:34  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0
-2026-04-08 02:26:22  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0
-2026-04-08 02:46:03  DEPOSIT_INTENT_REGISTERED               ← 用户新充 20 USDC
-2026-04-08 02:46:05  CONSUMER_DEPOSIT_CONFIRMED  delta=20.0  ← 第二笔存款正常入账
-```
-
-**早期代码缺陷（已修复）：**  
-`processing.py` 的 `_repair_confirmed_intent_if_needed()` 与 deposit indexer 定期轮询  
-不断对 **已是 CONFIRMED** 的存款 `80b91a3d-c14`（tx `0x9702ba5a..`）调用  
-`confirm_deposit_intent_atomic`，而旧版方法**没有 CONFIRMED 早退**：
-
-```python
-# 旧代码（已删除）：缺少状态检查，直接重新写入余额
-next_available = available_balance + row.amount_usdc   # ← 每次执行都 +20 USDC
-self._upsert_balance_triplet(...)
-self._append_withdrawal_audit(action="CONSUMER_DEPOSIT_CONFIRMED_REPAIRED", ...)
-```
-
-每次执行 → `available_balance += 20`，提现 reserve 被逐一还原。
-
----
-
-#### 修复方案
-
-`confirm_deposit_intent_atomic`（`finance_atomic_deposit_mixin.py`，当前已合入）中加了早退卫兵：
-
-```python
-if row.status.upper() == "CONFIRMED":
-    # 已确认的存款已完整计入 consumer available balance。
-    # 对 CONFIRMED 重放 pending→available 修复操作是不安全的，
-    # 因为提现预留也会使用同一个 pending 分桶；
-    # 这样会错误地解冻活跃的提现预留。
-    return row   # ← 直接返回，不修改余额，不写 REPAIRED 审计事件
-```
-
-配套单元测试（`test_postgres_repositories_unit.py`）验证：
-
-```python
-def test_finance_atomic_repository_confirmed_deposit_is_idempotent_without_balance_repair():
-    # status="CONFIRMED" 的存款
-    confirmed = repo.confirm_deposit_intent_atomic(command)
-    assert confirmed.status == "CONFIRMED"
-    executed_sql = ...
-    assert "UPSERT" not in executed_sql                          # ← 余额未修改
-    assert "CONSUMER_DEPOSIT_CONFIRMED_REPAIRED" not in executed_sql  # ← 无污染审计
-```
-
----
-
-#### 当前 DB 存量状态说明
-
-| 钱包 | avail | pending | 说明 |
-|------|-------|---------|------|
-| `0xd856907d..` | 20.0 | 20.0 | **合法**：第一笔提现待处理（pending=20）+ 第二笔充值（avail=20）|
-| `0x3a5f04b2..` | 10.0 | 10.0 | 疑似历史污染，或确为先充 20 再提 10 后余 10 |
-
-`0xd856907d` 钱包的最终状态（avail=20, pending=20）来自：  
-- 第一笔提现 20 USDC（REQUESTED，pending=20）  
-- 第二笔独立充值 20 USDC（02:46 确认，avail=20）  
-该余额**当前是正确的**。
-
----
-
-#### 修复后表现（自动化测试验证）
-
-- 2026-04-08 新钱包测试：`available=0, pending=10` ✅  
-- `CONSUMER_DEPOSIT_CONFIRMED_REPAIRED` 事件不再被代码路径写入
-
-**建议（后续）：** 对 `0x3a5f04b2` 等疑似受污染钱包进行审计追溯，确认余额可信后 mark 为 reviewed。
-
-
 
 ## 3. 核心表
 
@@ -241,44 +97,74 @@ CANCELLED                    ← 已超时或手动取消，资金归还 availab
 
 ## 7. 主流程
 
+> **统一 Withdraw 模型**：Consumer 和 Provider 提现复用同一条链上路径 `SynapseCore.withdraw()`。
+> Gateway 签发 EIP-712 票据（含手续费），前端执行链上交易，用户付 gas。
+
 ```mermaid
 sequenceDiagram
     participant U as Owner (Consumer)
     participant FE as Frontend
     participant GW as Gateway API
     participant DB as PostgreSQL
-    participant BG as Consumer Withdraw Processor
-    participant SC as SynapseCore Contract
+    participant SC as SynapseCore (Chain)
 
     U->>FE: Click "Withdraw"
     FE->>GW: POST /api/v1/balance/consumer/withdraw\n{amountUsdc, reason}
     GW->>DB: Check consumer_available_balance
     GW->>DB: Check active withdrawals (idempotency)
     GW->>DB: Classify risk (auto / manual)
-    GW->>DB: ATOMIC UPDATE: available -= amount, pending/frozen += amount
-    GW->>DB: INSERT withdrawal record (status=REQUESTED|PENDING_MANUAL_REVIEW)
-    GW-->>FE: {status, amountUsdc, feeUsdc, netUsdc, ...}
+    GW->>DB: ATOMIC UPDATE: available -= amount, pending += amount
+    GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED)
+    GW->>GW: Sign EIP-712 Withdraw ticket\n(amount=net, fee=fee, nonce, deadline)
+    GW-->>FE: {status, ticket: {amount, fee, nonce, deadline, signature, chainId, contractAddress}}
+
+    FE->>SC: SynapseCore.withdraw(amount, fee, nonce, deadline, signature)\n(msg.sender = Owner, Owner pays gas)
+    SC->>SC: Verify EIP-712 signature (platformSigner)
+    SC->>SC: userNonces[user]++ | platformFeePool += fee
+    SC->>U: safeTransfer(USDC, amount) → Owner wallet
+    SC-->>FE: tx confirmed (WithdrawInfo event)
+
+    FE->>GW: POST /api/v1/refunds/{withdrawId}/complete\n{txHash}
+    GW->>DB: UPDATE status=COMPLETED, pending -= amount, txHash
+    GW-->>FE: 200 OK
 
     FE->>FE: 300ms delay (DB write settle)
     FE->>GW: GET /api/v1/balance
-    GW->>DB: read_balance_ledger() → fresh SELECT
-    GW-->>FE: {ownerBalance: available_balance (减少后的值)}
+    GW-->>FE: {ownerBalance: 更新后余额}
     FE->>U: 更新余额显示
 
-    alt status = REQUESTED (auto path)
-        Note over BG: Background task polls every 10s
-        BG->>DB: SELECT REQUESTED consumer withdrawals
-        BG->>SC: platformWithdrawTo(user, grossWei, feeWei)
-        SC-->>U: Transfer net USDC (gross − fee) to user wallet
-        SC->>SC: Accrue fee to platformFeePool
-        BG->>DB: UPDATE status=COMPLETED, pending -= amount, record txHash
-        BG->>DB: INSERT audit: CONSUMER_WITHDRAW_AUTO_COMPLETED
-    else status = PENDING_MANUAL_REVIEW
-        Note over GW,DB: 人工审核
-        GW->>DB: APPROVE → frozen -> pending → issue ticket → COMPLETED
+    Note over GW,SC: 安全网：Background Event Watcher 扫描<br/>WithdrawInfo 事件，补全遗漏的 COMPLETED
+
+    alt status = PENDING_MANUAL_REVIEW
+        Note over GW,DB: 人工审核路径
+        GW->>DB: APPROVE → frozen -> pending → 签发 ticket
         GW->>DB: REJECT  → frozen -> available → REJECTED
     end
 ```
+
+### 7.1 手续费模型
+
+| 项目 | 值 |
+| --- | --- |
+| `CONSUMER_WITHDRAW_FEE_USDC` | 0.50 (默认) |
+| 合约处理 | `amount` (净额) 转给用户，`fee` 累加到 `platformFeePool` |
+| gas 费 | 用户自付（`msg.sender = Owner`） |
+
+合约视角：`withdraw(net_wei, fee_wei, nonce, deadline, sig)`
+- `safeTransfer(msg.sender, net_wei)` → 用户收到净额
+- `platformFeePool += fee_wei` → 平台手续费留在合约内
+- Vault 总减少 = `net_wei`（fee 不离开合约，仅重新分配）
+
+### 7.2 Background Event Watcher（安全网）
+
+`consumer_withdraw_processor.py` 不再直接执行链上交易。改为 **事件监听器**：
+
+1. 每 10 秒扫描 REQUESTED 状态的消费者提现记录
+2. 检查链上 `userNonces[owner]` 是否已超过 ticket nonce
+3. 扫描 `WithdrawInfo(user, amount, fee)` 事件匹配
+4. 找到匹配 → 自动标记 COMPLETED（含 txHash）
+
+这覆盖了"前端在链上交易成功后崩溃，未调用 /complete"的极端场景。
 
 ## 8. 为什么提现后 UI 余额没有变化
 
@@ -345,92 +231,37 @@ handleSubmit
 
 | 参数 | 默认值 | 含义 |
 | --- | --- | --- |
-| `CONSUMER_WITHDRAW_MIN_USDC` | 1.0 | 最低提现金额 (USDC) |
-| `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0 | 超过金额进入人工审核 |
+| `CONSUMER_WITHDRAW_MIN_USDC` | 1.0 | 最小提现金额 (USDC) |
+| `CONSUMER_WITHDRAW_FEE_USDC` | 0.50 | 平台手续费 (USDC)，从提现金额中扣除 |
+| `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0 | 超过此金额进人工审核 |
 | `CONSUMER_WITHDRAW_MAX_DAILY_COUNT` | 3 | 24h 内最大提现次数 |
-| `CONSUMER_WITHDRAW_FEE_USDC` | 0.50 | 每笔消费者提现手续费 (USDC)，用户承担 |
-| `CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC` | 10.0 | 后台处理器轮询间隔 (秒) |
-| `CONSUMER_WITHDRAW_PROCESSOR_ENABLED` | true | 是否启用消费者提现自动处理器 |
+| `CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC` | 10.0 | 后台事件监听器扫描间隔 |
 
-以上参数均可通过环境变量覆盖，无需改代码即可调整。
+这些参数通过环境变量覆盖，无需代码变更。
 
 ## 11. 安全保障
 
-| 威胁 | 应对机制 / 阶段 |
+| 威胁 | 防护手段 |
 | --- | --- |
-| 余额超卖 | 原子 SQL UPDATE + `WHERE available >= amount` |
-| 并发双提 | 互斥锁 `_mutation_lock.lock(f"{owner}:consumer_withdraw_intent")` |
-| 重复交易 | Redis 幂等 + 活跃提现记录唯一性检查 |
-| 大额快速攫取 | 金额阈值 + 每日次数限制 → PENDING_MANUAL_REVIEW |
-| consumer 余额混淆 | withdrawal_kind 强制隔离 consumer 与 provider 路径，互不干扰 |
-| Vault 流动性不足 | 后台处理器在链上执行前检查 Vault USDC 余额 ≥ gross，不足则跳过并记录 WARNING |
-| 私钥泄露 | `PRIVATE_KEY` 仅存于 Gateway .env，不入库不上链；platformWithdrawTo 为 onlyOwner |
+| 余额超提 | 原子 SQL UPDATE + `WHERE available >= amount` |
+| 并发双花 | 互斥锁 `_mutation_lock.lock(f"{owner}:consumer_withdraw_intent")` |
+| 重复提交 | Redis 幂等 + 活跃单保护（双重）|
+| 大额快速出金 | 金额阈值 + 日频次限制 → PENDING_MANUAL_REVIEW |
+| consumer 余额混用 | withdrawal_kind 强隔离，consumer 与 provider 路径完全独立 |
+| 伪造签名 | 合约验证 `ECDSA.recover(hash, signature) == platformSigner` |
+| 重放已用票据 | 合约 `userNonces[msg.sender]++` 强制递增，每张票仅能用一次 |
+| 过期票据 | `require(block.timestamp <= deadline)` — 默认 15 分钟有效期 |
+| 平台私钥泄露 | 二方协作：即使 signer key 泄露，攻击者仍需用户钱包私钥（msg.sender）才能执行 |
 
-## 12. 手续费机制
+## 12. 文档结论
 
-Consumer 提现采用 **用户承担手续费** 模式：
+Consumer withdrawal 正确顺序：
 
-| 项目 | 值 |
-| --- | --- |
-| 手续费 | `CONSUMER_WITHDRAW_FEE_USDC`（默认 $0.50） |
-| 扣除方式 | 链上 `platformWithdrawTo(user, gross, fee)` → 用户到账 `net = gross - fee` |
-| 手续费去向 | 合约 `platformFeePool` 累加，可由 owner `withdrawFees()` 提取 |
-| 前置校验 | 提现金额 ≤ fee → 400 AMOUNT_TOO_LOW_FOR_FEE |
-| API 返回 | `feeUsdc` + `netUsdc` 透明展示 |
+**资格校验 → 频率/幂等校验 → 余额原子锁仓 → 创建意图记录 + EIP-712 签票 → 前端链上执行 → /complete 回调 → UI 刷新 → 审计闭环**
 
-## 13. 消费者提现自动处理器
-
-### 13.1 架构
-
-```
-┌──────────────────────────────────────────────────┐
-│            Gateway (FastAPI lifespan)             │
-│                                                    │
-│   ┌───────────────────────────────────────────┐   │
-│   │  consumer_withdraw_processor (async task)  │   │
-│   │  ┌─────────┐    ┌──────────┐   ┌────────┐│   │
-│   │  │ Poll DB │───▶│ On-chain │──▶│Update  ││   │
-│   │  │REQUESTED│    │platformW.│   │DB+Audit││   │
-│   │  └─────────┘    └──────────┘   └────────┘│   │
-│   └───────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────┘
-```
-
-### 13.2 流程
-
-1. 轮询 `refund_intent` 表中 `status=REQUESTED` + `type=CONSUMER_BALANCE_WITHDRAW` 的行
-2. 逐条处理：
-   - 检查 Vault USDC 余额 ≥ gross
-   - 调用 `platformWithdrawTo(user, gross, fee)` 发送链上交易
-   - 等待交易确认（receipt）
-   - 更新 DB：`status=COMPLETED`、`tx_hash=0x...`
-   - 扣减 `pending_balance`
-   - 写入审计事件 `CONSUMER_WITHDRAW_AUTO_COMPLETED`
-3. 任何步骤失败 → 记录 ERROR + 跳过该行，下一轮重试
-
-### 13.3 配置
-
-- `CONSUMER_WITHDRAW_PROCESSOR_ENABLED`：开关（默认 true）
-- `CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC`：轮询间隔（默认 10s）
-
-### 13.4 与 Provider Withdrawal 对比
-
-| 维度 | Consumer Withdrawal | Provider Withdrawal |
-| --- | --- | --- |
-| 发起方 | 用户在 UI 点击提现 | Provider 调用 API |
-| 链上执行 | 平台后台 `platformWithdrawTo` (onlyOwner) | 用户自行提交 EIP-712 签名 ticket |
-| 谁付 Gas | 平台 (deployer) | 用户 (provider) |
-| 手续费 | $0.50 从提现金额扣除 | 按 `PROVIDER_WITHDRAW_FEE_PCT` 比例扣除 |
-| 超时机制 | 无（后台自动处理） | 有 expiry reaper 30min 超时回滚 |
-
-## 14. 文档结论
-
-Consumer withdrawal 完整顺序：
-
-**格式校验 → 余额/幂等校验 → 手续费校验 → 余额原子扣减 → 创建退款记录 → UI 展示费用 → 后台处理器链上执行 platformWithdrawTo → 审计日志**
-
-与 Provider withdrawal 核心差异：
-- 无需 EIP-712 签名，平台代执行链上转账
-- 收取固定手续费（$0.50），从提现金额中扣除
-- 余额直达 consumer_wallet（非 provider_wallet）
-- 无超时回滚，后台任务持续重试直到成功
+与 Provider withdrawal 的关系：
+- **复用同一条链上路径**：`SynapseCore.withdraw()` — EIP-712 签名验证，用户执行
+- 资金来自 `consumer_wallet` 而非 `provider_wallet`
+- 风控阈值、日限额独立配置
+- 手续费：Consumer 0.50 USDC / Provider 0 USDC（可分别配置）
+- 安全模型：Gateway（platformSigner）签票 + User（msg.sender）执行，二方协作安全

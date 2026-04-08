@@ -16,10 +16,12 @@ import {
 import {
   completeV2Refund,
   getOwnerSpendingLimit,
+  listConsumerWithdrawals,
   redeemCreditVoucher,
   requestConsumerWithdraw,
   type ConsumerWithdrawIntent,
   type OwnerSpendingLimit,
+  type RefundIntentRecord,
 } from "@/utils/balanceApi";
 import {
   calculateSpendRatio,
@@ -302,6 +304,7 @@ export default function OwnerCreditsPage() {
   const [isRedeemVoucherModalOpen, setIsRedeemVoucherModalOpen] =
     useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [pendingWithdrawal, setPendingWithdrawal] = useState<RefundIntentRecord | null>(null);
   const [optimisticBalanceOverride, setOptimisticBalanceOverride] = useState<{
     withdrawId: string;
     amountUsdc: number;
@@ -326,6 +329,27 @@ export default function OwnerCreditsPage() {
       }
     } catch { /* ignore */ }
   }, [optimisticStorageKey]);
+
+  const fetchPendingWithdrawal = useCallback(async () => {
+    if (!isConnected || !userAddress || !isSessionAuthenticated) {
+      setPendingWithdrawal(null);
+      return;
+    }
+    try {
+      const rows = await listConsumerWithdrawals(userAddress);
+      const active = rows.find((r) => {
+        const s = (r.status ?? "").toUpperCase();
+        return s === "REQUESTED" || s === "PENDING" || s === "PENDING_MANUAL_REVIEW";
+      }) ?? null;
+      setPendingWithdrawal(active);
+    } catch {
+      setPendingWithdrawal(null);
+    }
+  }, [isConnected, isSessionAuthenticated, userAddress]);
+
+  useEffect(() => {
+    void fetchPendingWithdrawal();
+  }, [fetchPendingWithdrawal]);
 
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
@@ -562,14 +586,21 @@ export default function OwnerCreditsPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => { void handleWithdraw(); }}
-                    disabled={displayedRemainingBalance <= 0}
-                    className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Withdraw
-                  </button>
+                  <div className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => { void handleWithdraw(); }}
+                      disabled={displayedRemainingBalance <= 0 || pendingWithdrawal !== null}
+                      className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Withdraw
+                    </button>
+                    {pendingWithdrawal && (
+                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                        A withdrawal of ${(pendingWithdrawal.amountUsdc ?? 0).toFixed(2)} is pending. Only one active withdrawal is allowed.
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -789,7 +820,7 @@ export default function OwnerCreditsPage() {
 
             // Small delay to let DB write settle before re-reading balance
             await new Promise((resolve) => setTimeout(resolve, 300));
-            await Promise.all([handleRefresh(), fetchSpendingLimit()]);
+            await Promise.all([handleRefresh(), fetchSpendingLimit(), fetchPendingWithdrawal()]);
           }}
         />
       )}
