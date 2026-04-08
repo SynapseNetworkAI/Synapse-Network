@@ -17,6 +17,7 @@ import {
   getOwnerSpendingLimit,
   redeemCreditVoucher,
   requestConsumerWithdraw,
+  type ConsumerWithdrawIntent,
   type OwnerSpendingLimit,
 } from "@/utils/balanceApi";
 import {
@@ -42,16 +43,16 @@ type WithdrawModalProps = {
   availableBalance: number;
   userAddress: string;
   onClose: () => void;
-  onSuccess: () => Promise<void>;
+  onSuccess: (result: ConsumerWithdrawIntent) => Promise<void>;
 };
 
-function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSuccess }: WithdrawModalProps) {
+function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSuccess }: Readonly<WithdrawModalProps>) {
   const [amount, setAmount] = useState(String(availableBalance > 0 ? availableBalance.toFixed(2) : ""));
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    const num = parseFloat(amount);
+    const num = Number.parseFloat(amount);
     if (!Number.isFinite(num) || num <= 0) {
       toast.error("Enter a valid amount.");
       return;
@@ -73,7 +74,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
       } else {
         toast.success(`Withdrawal of $${result.amountUsdc.toFixed(2)} USDC requested (${result.status}).`);
       }
-      await onSuccess();
+      await onSuccess(result);
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Withdrawal failed.");
@@ -195,6 +196,11 @@ export default function OwnerCreditsPage() {
   const [isRedeemVoucherModalOpen, setIsRedeemVoucherModalOpen] =
     useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [optimisticBalanceOverride, setOptimisticBalanceOverride] = useState<{
+    withdrawId: string;
+    amountUsdc: number;
+    targetBalance: number;
+  } | null>(null);
 
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
@@ -256,6 +262,28 @@ export default function OwnerCreditsPage() {
     };
   }, [spendingLimit, stats.ownerBalance]);
 
+  const displayedRemainingBalance = useMemo(() => {
+    if (!optimisticBalanceOverride) {
+      return creditSummary.remainingBalance;
+    }
+
+    const serverBalance = creditSummary.remainingBalance;
+    if (serverBalance <= optimisticBalanceOverride.targetBalance + 1e-6) {
+      return serverBalance;
+    }
+
+    return optimisticBalanceOverride.targetBalance;
+  }, [creditSummary.remainingBalance, optimisticBalanceOverride]);
+
+  useEffect(() => {
+    if (
+      optimisticBalanceOverride &&
+      creditSummary.remainingBalance <= optimisticBalanceOverride.targetBalance + 1e-6
+    ) {
+      setOptimisticBalanceOverride(null);
+    }
+  }, [creditSummary.remainingBalance, optimisticBalanceOverride]);
+
   const {
     isOpen: isDepositModalOpen,
     openModal: openDepositModal,
@@ -274,6 +302,7 @@ export default function OwnerCreditsPage() {
   } = useVaultDeposit({
     initialAmount: "20",
     onDepositSynced: async () => {
+      setOptimisticBalanceOverride(null);
       await Promise.all([handleRefresh(), fetchSpendingLimit()]);
     },
   });
@@ -340,6 +369,7 @@ export default function OwnerCreditsPage() {
       }
 
       const result = await redeemCreditVoucher(userAddress, voucherCode);
+      setOptimisticBalanceOverride(null);
       await Promise.all([handleRefresh(), fetchSpendingLimit()]);
       toast.success(
         t("creditsPage.redeemVoucherModalSuccess", {
@@ -394,7 +424,7 @@ export default function OwnerCreditsPage() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                        {formatUsd(creditSummary.remainingBalance)}
+                        {formatUsd(displayedRemainingBalance)}
                       </p>
                       <CircleAlert className="h-[14px] w-[14px] text-[#71767b]" />
                     </div>
@@ -404,7 +434,7 @@ export default function OwnerCreditsPage() {
                   <button
                     type="button"
                     onClick={() => { void handleWithdraw(); }}
-                    disabled={creditSummary.remainingBalance <= 0}
+                    disabled={displayedRemainingBalance <= 0}
                     className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Withdraw
@@ -600,10 +630,25 @@ export default function OwnerCreditsPage() {
 
       {isWithdrawModalOpen && userAddress && (
         <WithdrawBalanceModal
-          availableBalance={creditSummary.remainingBalance}
+          availableBalance={displayedRemainingBalance}
           userAddress={userAddress}
           onClose={() => setIsWithdrawModalOpen(false)}
-          onSuccess={async () => {
+          onSuccess={async (result) => {
+            setOptimisticBalanceOverride((current) => {
+              if (current?.withdrawId === result.withdrawId) {
+                return current;
+              }
+
+              return {
+                withdrawId: result.withdrawId,
+                amountUsdc: result.amountUsdc,
+                targetBalance: Math.max(
+                  0,
+                  displayedRemainingBalance - result.amountUsdc
+                ),
+              };
+            });
+
             // Small delay to let DB write settle before re-reading balance
             await new Promise((resolve) => setTimeout(resolve, 300));
             await Promise.all([handleRefresh(), fetchSpendingLimit()]);

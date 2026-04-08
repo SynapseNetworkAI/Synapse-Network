@@ -177,6 +177,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
   it("calls handleRefresh after a successful withdrawal", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-1",
       status: "REQUESTED",
       amountUsdc: 20,
       riskReasonCode: null,
@@ -197,9 +198,34 @@ describe("OwnerCreditsPage — Withdraw", () => {
     });
   });
 
+  it("updates the displayed remaining balance immediately after a successful withdrawal", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-balance-1",
+      status: "REQUESTED",
+      amountUsdc: 20,
+      riskReasonCode: null,
+    });
+    handleRefreshMock.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
+    await screen.findByRole("heading", { name: "Withdraw Balance" });
+
+    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    await user.click(withdrawButtons.at(-1)!);
+
+    await waitFor(() => {
+      expect(screen.getByText("$0.00")).toBeTruthy();
+    });
+  });
+
   it("shows a success toast with the withdrawn amount", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-2",
       status: "REQUESTED",
       amountUsdc: 20,
       riskReasonCode: null,
@@ -225,6 +251,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
   it("closes the modal after successful withdrawal", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-3",
       status: "REQUESTED",
       amountUsdc: 20,
       riskReasonCode: null,
@@ -250,6 +277,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
   it("shows pending_manual_review toast for large withdrawals", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-4",
       status: "PENDING_MANUAL_REVIEW",
       amountUsdc: 20,
       riskReasonCode: "HIGH_AMOUNT",
