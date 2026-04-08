@@ -13,6 +13,10 @@ from src.core.redis_lock import RedisLockManager
 from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
+from src.services.owner.finance_constants import (
+    CONSUMER_WITHDRAW_TYPE,
+    REFUND_ACTIVE_STATUSES,
+)
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
 
@@ -138,10 +142,49 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             None,
         )
 
+    def _repair_consumer_withdraw_reservation_gap(self, owner_wallet: str) -> None:
+        owner = normalize_wallet(owner_wallet)
+        if not owner:
+            return
+
+        gateway_state = self.storage.get_data_manager().system.gateway_state
+        refund_rows = gateway_state.read_consumer_refund_rows()
+        active_total = Decimal("0")
+        for row in refund_rows:
+            if normalize_wallet(str(row.owner_address or "")) != owner:
+                continue
+            if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
+                continue
+            if str(row.status or "").upper() not in REFUND_ACTIVE_STATUSES:
+                continue
+            active_total += self._q6(row.amount_usdc or 0)
+
+        if active_total <= Decimal("0"):
+            return
+
+        balance_repo = self.storage.get_data_manager().finance.balance
+        ledger = balance_repo.read_balance_ledger()
+        available_balance = self._q6(ledger.consumer_available_balance(owner))
+        pending_balance = self._q6(ledger.consumer_pending_balance(owner))
+        shortfall = self._q6(active_total - pending_balance)
+        if shortfall <= Decimal("0") or available_balance <= Decimal("0"):
+            return
+
+        reserve_amount = self._q6(min(shortfall, available_balance))
+        try:
+            balance_repo.reserve_consumer_balance_for_withdrawal(
+                owner=owner,
+                amount_usdc=float(reserve_amount),
+                updated_at=now_dt_str(),
+            )
+        except RuntimeError:
+            return
+
     async def get_balance(self, owner_wallet: str) -> dict[str, Any]:
         """Only return current authenticated owner's balance summary."""
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
+        self._repair_consumer_withdraw_reservation_gap(normalized_owner)
         balance_data = (
             self.storage.get_data_manager().finance.balance.read_balance_ledger()
         )

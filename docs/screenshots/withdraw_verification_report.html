@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Consumer Withdrawal Verification — 2026-04-08 01:37:01 UTC</title>
+<title>Consumer Withdrawal Verification — 2026-04-08 02:35:58 UTC</title>
 <style>
 body{background:#111;color:#e2e8f0;font-family:system-ui,sans-serif;padding:40px;max-width:960px}
 h1{color:#35d07f;font-size:22px;margin-bottom:4px}
@@ -18,13 +18,13 @@ pre{background:#0a0a0a;border:1px solid #222;padding:12px;border-radius:8px;font
 </head>
 <body>
 <h1>Consumer Withdrawal Verification</h1>
-<p class="mono">Time: 2026-04-08 01:37:01 UTC | Owner: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8</p>
+<p class="mono">Time: 2026-04-08 02:35:58 UTC | Owner: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8</p>
 
 <h2>Before Withdrawal</h2>
 <table>
 <tr><th>Field</th><th>Amount</th></tr>
-<tr><td>consumer_available_balance</td><td class="w">$100.554100 USDC</td></tr>
-<tr><td>consumer_pending_balance</td><td>$0.000000 USDC</td></tr>
+<tr><td>consumer_available_balance</td><td class="w">$95.554100 USDC</td></tr>
+<tr><td>consumer_pending_balance</td><td>$5.000000 USDC</td></tr>
 </table>
 
 <h2>Withdrawal Request</h2>
@@ -40,11 +40,11 @@ pre{background:#0a0a0a;border:1px solid #222;padding:12px;border-radius:8px;font
 <tr><th>Field</th><th>Amount</th><th>Delta</th></tr>
 <tr>
   <td>consumer_available_balance</td><td class="w">$95.554100 USDC</td>
-  <td class="org">-5.000000</td>
+  <td class="grn">+0.000000</td>
 </tr>
 <tr>
   <td>consumer_pending_balance</td><td>$5.000000 USDC</td>
-  <td class="grn">+5.000000</td>
+  <td class="grn">+0.000000</td>
 </tr>
 <tr><td>consumer_frozen_balance</td><td>$0.000000 USDC</td><td>—</td></tr>
 </table>
@@ -54,7 +54,7 @@ pre{background:#0a0a0a;border:1px solid #222;padding:12px;border-radius:8px;font
 <tr><th>Check</th><th>Result</th></tr>
 <tr><td>available_balance decreased by $5.00 USDC</td><td><span style="background:#0f3a25;color:#35d07f;padding:2px 8px;border-radius:4px;font-size:12px">PASS ✓</span></td></tr>
 <tr><td>pending_balance increased by $5.00 USDC (funds frozen)</td>
-  <td><span style="background:#0f3a25;color:#35d07f;padding:2px 8px;border-radius:4px;font-size:12px">PASS ✓</span></td></tr>
+  <td><span style="background:#3a1010;color:#ff6b6b;padding:2px 8px;border-radius:4px;font-size:12px">FAIL ✗</span></td></tr>
 <tr><td>Withdrawal record appears in /api/v1/balance/consumer/withdrawals</td><td><span style="background:#0f3a25;color:#35d07f;padding:2px 8px;border-radius:4px;font-size:12px">PASS ✓</span></td></tr>
 </table>
 
@@ -66,8 +66,7 @@ pre{background:#0a0a0a;border:1px solid #222;padding:12px;border-radius:8px;font
   "amountUsdc": 5.0,
   "riskLevel": "green",
   "riskReasonCode": "",
-  "message": "",
-  "destination": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+  "message": ""
 }</pre>
 
 <h2>Balance After (Full)</h2>
@@ -81,7 +80,7 @@ pre{background:#0a0a0a;border:1px solid #222;padding:12px;border-radius:8px;font
   "providerReceivableBalance": 0.0,
   "providerLockedBalance": 0.0,
   "platformFeeAccrued": 0.0351,
-  "updatedAt": "2026-04-08 01:37:01"
+  "updatedAt": "2026-04-08 02:34:53"
 }</pre>
 
 <h2>Withdrawal Record in Listing</h2>

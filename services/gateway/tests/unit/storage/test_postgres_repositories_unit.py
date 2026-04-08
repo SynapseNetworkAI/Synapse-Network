@@ -468,11 +468,11 @@ def test_balance_repository_read_and_write() -> None:
         )
     )
     ops = db.tx_cursors[-1].executed
-    assert "UPDATE synapse_account_balances AS ab" in ops[0][0]
+    available_only_upserts = [sql for sql, _ in ops if "INSERT INTO synapse_account_balances" in sql]
+    assert len(available_only_upserts) == 2
+    assert any("GREATEST(EXCLUDED.available_balance" in sql for sql in available_only_upserts)
     upserts = [params for sql, params in ops if sql == "UPSERT"]
-    assert len(upserts) == 3
-    assert any(params[0] == "consumer_wallet::0xb" for params in upserts)
-    assert any(params[0] == "provider_wallet::0xs" for params in upserts)
+    assert len(upserts) == 1
     assert any(params[0] == "platform_revenue::main" for params in upserts)
 
 
@@ -1586,6 +1586,50 @@ def test_finance_atomic_repository_confirm_deposit_writes_canonical_audit_eviden
     assert '"afterBalance": "13.500000"' in detail_json
     assert '"ledgerId": "dep-1"' in detail_json
     assert '"traceId": "evt-confirm-1"' in detail_json
+
+
+def test_finance_atomic_repository_confirmed_deposit_is_idempotent_without_balance_repair() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (
+                    "dep-1",
+                    "0xabc",
+                    "0x1111111111111111111111111111111111111111111111111111111111111111",
+                    "req-1",
+                    Decimal("20.000000"),
+                    "CONFIRMED",
+                    "2026-03-18 08:22:39",
+                    "2026-03-18 08:22:39",
+                ),
+                ({"consumerAddress": "0xabc", "idempotencyKey": "idem-1"},),
+                (Decimal("0.000000"), Decimal("20.000000"), Decimal("0.000000")),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    confirmed = repo.confirm_deposit_intent_atomic(
+        DepositIntentConfirmCommand(
+            owner_wallet="0xabc",
+            deposit_intent_id="dep-1",
+            event_key="evt-confirm-1",
+            confirmations=12,
+        )
+    )
+
+    assert confirmed.status == "CONFIRMED"
+    executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "UPSERT" not in executed_sql
+    assert "CONSUMER_DEPOSIT_CONFIRMED_REPAIRED" not in executed_sql
 
 
 def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:

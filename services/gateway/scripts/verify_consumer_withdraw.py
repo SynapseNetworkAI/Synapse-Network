@@ -69,8 +69,14 @@ def main() -> None:
     b_before = balance_full(hdrs)
     avail_before = float(b_before.get("consumerAvailableBalance", 0))
     pend_before  = float(b_before.get("consumerPendingBalance", 0))
+    rows_before = list_withdrawals(hdrs)
+    active_before = [
+        row for row in rows_before
+        if str(row.get("status") or "").upper() in {"REQUESTED", "PENDING_MANUAL_REVIEW"}
+    ]
     print(f"  consumer_available_balance : ${avail_before:.6f}")
     print(f"  consumer_pending_balance   : ${pend_before:.6f}")
+    print(f"  active_withdrawals         : {len(active_before)}")
 
     if avail_before < WITHDRAW_AMOUNT:
         print(f"\n  ⚠ available ({avail_before}) < withdraw amount ({WITHDRAW_AMOUNT}). Using max available.")
@@ -100,9 +106,22 @@ def main() -> None:
 
     # ── Step 4: Verify ────────────────────────────────────────────────────────
     print("\nStep 4: Assertions")
-    balance_ok = abs(avail_after - (avail_before - actual_amount)) < 0.001
-    print(f"  available decreased by ${actual_amount:.2f}: {'PASS ✓' if balance_ok else 'FAIL ✗'}")
-    assert balance_ok, f"Balance error: expected {avail_before - actual_amount:.6f}, got {avail_after:.6f}"
+    if active_before:
+        balance_ok = abs(avail_after - avail_before) < 0.001 and abs(pend_after - pend_before) < 0.001
+        print(
+            f"  active request returned without double deduction: {'PASS ✓' if balance_ok else 'FAIL ✗'}"
+        )
+        assert balance_ok, (
+            "Active withdrawal should return existing record without changing balances again. "
+            f"before=({avail_before:.6f},{pend_before:.6f}) after=({avail_after:.6f},{pend_after:.6f})"
+        )
+    else:
+        balance_ok = abs(avail_after - (avail_before - actual_amount)) < 0.001
+        pending_ok = abs(pend_after - (pend_before + actual_amount)) < 0.001
+        print(f"  available decreased by ${actual_amount:.2f}: {'PASS ✓' if balance_ok else 'FAIL ✗'}")
+        print(f"  pending increased by ${actual_amount:.2f}: {'PASS ✓' if pending_ok else 'FAIL ✗'}")
+        assert balance_ok, f"Balance error: expected {avail_before - actual_amount:.6f}, got {avail_after:.6f}"
+        assert pending_ok, f"Pending error: expected {pend_before + actual_amount:.6f}, got {pend_after:.6f}"
 
     # ── Step 5: Listing ───────────────────────────────────────────────────────
     print("\nStep 5: GET /api/v1/balance/consumer/withdrawals")
