@@ -141,6 +141,27 @@ class FinanceConsumerWithdrawMixin:
             if redis_hit is not None:
                 return redis_hit
 
+            # ── Check if a pending withdrawal already exists (before balance check) ─
+            # This must come before the balance check because a previous call may have
+            # already reserved the balance (available=0); we still want to return the
+            # existing active record rather than raising INSUFFICIENT_BALANCE.
+            rows = self._load_refund_rows()  # type: ignore[attr-defined]
+            now = int(time.time())
+            for row in rows:
+                if normalize_wallet(str(row.owner_address or "")) != owner:
+                    continue
+                if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
+                    continue
+                if str(row.status or "").upper() in REFUND_ACTIVE_STATUSES:
+                    return {
+                        "withdrawId": str(row.id or ""),
+                        "amountUsdc": float(row.amount_usdc or 0),
+                        "status": str(row.status),
+                        "riskLevel": str(row.risk_level or "green"),
+                        "riskReasonCode": str(row.risk_reason_code or ""),
+                        "message": str(row.message or ""),
+                    }
+
             # ── Check available balance ───────────────────────────────────────
             ledger = self._load_balance_ledger()  # type: ignore[attr-defined]
             available = ledger.consumer_available_balance(owner)
@@ -157,25 +178,7 @@ class FinanceConsumerWithdrawMixin:
                 )
 
             # ── Frequency check (24 h daily cap) ─────────────────────────────
-            rows = self._load_refund_rows()  # type: ignore[attr-defined]
-            now = int(time.time())
             daily_count = self._count_consumer_withdrawals_last_24h(owner, rows, now)
-
-            # ── Check if a pending withdrawal already exists ──────────────────
-            for row in rows:
-                if normalize_wallet(str(row.owner_address or "")) != owner:
-                    continue
-                if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
-                    continue
-                if str(row.status or "").upper() in REFUND_ACTIVE_STATUSES:
-                    return {
-                        "withdrawId": str(row.id or ""),
-                        "amountUsdc": float(row.amount_usdc or 0),
-                        "status": str(row.status),
-                        "riskLevel": str(row.risk_level or "green"),
-                        "riskReasonCode": str(row.risk_reason_code or ""),
-                        "message": str(row.message or ""),
-                    }
 
             # ── Risk classification ───────────────────────────────────────────
             risk = self._classify_consumer_withdraw_risk(amount_usdc, daily_count)
