@@ -67,7 +67,12 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
         amountUsdc: num,
         reason: reason.trim() || undefined,
       });
-      if (result.status === "PENDING_MANUAL_REVIEW") {
+      if (result.existingWithdrawal) {
+        toast(`A pending withdrawal of $${result.amountUsdc.toFixed(2)} USDC already exists. Balance will update once it completes.`, {
+          icon: "⏳",
+          duration: 6000,
+        });
+      } else if (result.status === "PENDING_MANUAL_REVIEW") {
         toast.success(
           `Withdrawal submitted — under review. Reason: ${result.riskReasonCode || "manual review"}`
         );
@@ -85,7 +90,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
       onClick={onClose}
     >
       <div
@@ -186,6 +191,9 @@ export default function OwnerCreditsPage() {
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { stats, handleRefresh, isBootstrapping } = useOwnerData();
+  const optimisticStorageKey = userAddress
+    ? `synapse_credits_optimistic_${userAddress.toLowerCase()}`
+    : null;
   const [spendingLimit, setSpendingLimit] = useState<OwnerSpendingLimit | null>(
     null
   );
@@ -201,6 +209,25 @@ export default function OwnerCreditsPage() {
     amountUsdc: number;
     targetBalance: number;
   } | null>(null);
+
+  // Restore optimistic override from sessionStorage on mount / address change
+  // so that a page refresh still shows the pending-withdrawal balance.
+  useEffect(() => {
+    if (!optimisticStorageKey) return;
+    try {
+      const stored = sessionStorage.getItem(optimisticStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as {
+          withdrawId: string;
+          amountUsdc: number;
+          targetBalance: number;
+        };
+        if (parsed.withdrawId && typeof parsed.targetBalance === "number") {
+          setOptimisticBalanceOverride(parsed);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [optimisticStorageKey]);
 
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
@@ -275,14 +302,20 @@ export default function OwnerCreditsPage() {
     return optimisticBalanceOverride.targetBalance;
   }, [creditSummary.remainingBalance, optimisticBalanceOverride]);
 
+  const clearOptimisticOverride = useCallback(() => {
+    setOptimisticBalanceOverride(null);
+    if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
+  }, [optimisticStorageKey]);
+
   useEffect(() => {
     if (
       optimisticBalanceOverride &&
       creditSummary.remainingBalance <= optimisticBalanceOverride.targetBalance + 1e-6
     ) {
       setOptimisticBalanceOverride(null);
+      if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
     }
-  }, [creditSummary.remainingBalance, optimisticBalanceOverride]);
+  }, [creditSummary.remainingBalance, optimisticBalanceOverride, optimisticStorageKey]);
 
   const {
     isOpen: isDepositModalOpen,
@@ -302,7 +335,7 @@ export default function OwnerCreditsPage() {
   } = useVaultDeposit({
     initialAmount: "20",
     onDepositSynced: async () => {
-      setOptimisticBalanceOverride(null);
+      clearOptimisticOverride();
       await Promise.all([handleRefresh(), fetchSpendingLimit()]);
     },
   });
@@ -369,7 +402,7 @@ export default function OwnerCreditsPage() {
       }
 
       const result = await redeemCreditVoucher(userAddress, voucherCode);
-      setOptimisticBalanceOverride(null);
+      clearOptimisticOverride();
       await Promise.all([handleRefresh(), fetchSpendingLimit()]);
       toast.success(
         t("creditsPage.redeemVoucherModalSuccess", {
@@ -377,7 +410,7 @@ export default function OwnerCreditsPage() {
         })
       );
     },
-    [fetchSpendingLimit, handleRefresh, t, userAddress]
+    [clearOptimisticOverride, fetchSpendingLimit, handleRefresh, t, userAddress]
   );
 
   const handleWithdraw = useCallback(async () => {
@@ -417,7 +450,7 @@ export default function OwnerCreditsPage() {
                     {t("creditsPage.remainingBalanceLabel")}
                   </p>
                   {showBalanceSkeleton ? (
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="flex items-center gap-2 mt-2">
                       <div className="h-[32px] w-[112px] animate-pulse rounded-full bg-white/[0.09]" />
                       <div className="h-[14px] w-[14px] animate-pulse rounded-full bg-white/[0.08]" />
                     </div>
@@ -430,7 +463,7 @@ export default function OwnerCreditsPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
                   <button
                     type="button"
                     onClick={() => { void handleWithdraw(); }}
@@ -634,12 +667,11 @@ export default function OwnerCreditsPage() {
           userAddress={userAddress}
           onClose={() => setIsWithdrawModalOpen(false)}
           onSuccess={async (result) => {
-            setOptimisticBalanceOverride((current) => {
-              if (current?.withdrawId === result.withdrawId) {
-                return current;
-              }
-
-              return {
+            // Only apply optimistic override for newly-created withdrawals.
+            // When the server returns an existing active withdrawal (existingWithdrawal=true),
+            // the balance already reflects the reservation from the original request.
+            if (!result.existingWithdrawal) {
+              const newOverride = {
                 withdrawId: result.withdrawId,
                 amountUsdc: result.amountUsdc,
                 targetBalance: Math.max(
@@ -647,7 +679,15 @@ export default function OwnerCreditsPage() {
                   displayedRemainingBalance - result.amountUsdc
                 ),
               };
-            });
+              setOptimisticBalanceOverride((current) =>
+                current?.withdrawId === result.withdrawId ? current : newOverride
+              );
+              if (optimisticStorageKey) {
+                try {
+                  sessionStorage.setItem(optimisticStorageKey, JSON.stringify(newOverride));
+                } catch { /* ignore */ }
+              }
+            }
 
             // Small delay to let DB write settle before re-reading balance
             await new Promise((resolve) => setTimeout(resolve, 300));
