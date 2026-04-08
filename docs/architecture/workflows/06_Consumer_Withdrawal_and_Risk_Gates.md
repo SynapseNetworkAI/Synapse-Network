@@ -18,6 +18,150 @@ Consumer Withdrawal 链路定义 Owner（买家）如何把**未消费的预存 
 | `Vault Contract` *(未来)* | 链上出金执行（当前阶段通过平台人工/自动处理） |
 | `PostgreSQL` | 持久化余额变更、提现记录、审计事件 |
 
+## 2.1 Bug 记录与修复状态
+
+> 最后验证：2026-04-08，自动化测试 4 张截图全部通过 ✅
+
+### Bug-001 — 提现后 UI 余额没有变化（前端 `onSuccess` 未 await）
+
+**严重级别：** High  
+**状态：** 已修复 ✅  
+**发现时间：** 2026-04-08  
+**修复 commit：** `a4aecc77`
+
+**根本原因：**  
+`WithdrawBalanceModal.handleSubmit` 调用 `onSuccess()` 时**未 `await`**，导致父组件的 `handleRefresh()` 在 modal 尚未关闭时就被跳过，页面余额显示旧值。
+
+**修复内容（`OwnerCreditsPage.tsx`）：**
+1. `onSuccess` prop 类型从 `() => void` → `(result: ConsumerWithdrawIntent) => Promise<void>`  
+2. `handleSubmit` 加 `await onSuccess(result)` + `await onClose()`  
+3. 父组件 `onSuccess` 中加 300 ms 等待让 DB 写入沉淀，再调 `handleRefresh()`  
+
+---
+
+### Bug-002 — 刷新页面后余额恢复原值（乐观覆盖未持久化）
+
+**严重级别：** Medium  
+**状态：** 已修复 ✅  
+**发现时间：** 2026-04-08
+
+**根本原因：**  
+`optimisticBalanceOverride` 只存在 React state 中，页面刷新后 state 消失。如果 DB 中 `available_balance` 在提现 REQUESTED 期间仍显示原值（因链上延迟或历史状态），刷新后 UI 会恢复 pre-withdraw 金额。
+
+**修复内容（`OwnerCreditsPage.tsx`）：**
+1. 新增 `optimisticStorageKey = synapse_credits_optimistic_${address}` per-wallet sessionStorage 键  
+2. `onSuccess` 成功后同步写入 `sessionStorage`  
+3. 组件挂载时从 `sessionStorage` 恢复 `optimisticBalanceOverride`（本次会话内跨刷新有效）  
+4. 当服务端余额已降至 `≤ targetBalance` 时清除 sessionStorage 并解除覆盖  
+5. 新增 `clearOptimisticOverride()` 统一清除 state + sessionStorage  
+
+---
+
+### Bug-003 — `consumerPendingWithdrawBalance` 字段名错误
+
+**严重级别：** Low  
+**状态：** 已修复 ✅  
+**发现时间：** 2026-04-08  
+**影响文件：** `scripts/credits_withdraw_validation.js`
+
+**根本原因：**  
+自动化脚本中读取待提现余额使用字段 `consumerPendingWithdrawBalance`，但网关实际返回字段为 `consumerPendingBalance`，导致 `pending` 永远显示 0。
+
+**修复：** 改为 `balance.body?.balance?.consumerPendingBalance`
+
+---
+
+### Bug-004 — Deposit Indexer 重复确认已 CONFIRMED 存款导致提现预留被覆盖
+
+**严重级别：** High（历史数据已污染；当前代码已修复）  
+**状态：** 已修复 ✅（`confirm_deposit_intent_atomic` 加 `CONFIRMED` 早退卫兵，单元测试覆盖）  
+**发现时间：** 2026-04-08  
+**修复文件：** `services/gateway/src/storage/postgres/repositories/finance_atomic_deposit_mixin.py`
+
+---
+
+#### 根本原因（经审计日志追溯确认）
+
+钱包 `0xd856907d..` 的审计事件印证了如下时序：
+
+```
+2026-04-07 10:02:30  CONSUMER_DEPOSIT_CONFIRMED  delta=20.0  ← 原始存款正常入账
+2026-04-08 00:51:50  CONSUMER_WITHDRAW_INTENT_CREATED        ← 提现申请创建
+                                                              available=0, pending=20 ✓
+2026-04-08 00:51:50  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0  ← 同一秒！覆盖了提现预留
+2026-04-08 02:16:10  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0  ← indexer 又跑了一次
+2026-04-08 02:16:34  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0
+2026-04-08 02:26:22  CONSUMER_DEPOSIT_CONFIRMED_REPAIRED delta=20.0
+2026-04-08 02:46:03  DEPOSIT_INTENT_REGISTERED               ← 用户新充 20 USDC
+2026-04-08 02:46:05  CONSUMER_DEPOSIT_CONFIRMED  delta=20.0  ← 第二笔存款正常入账
+```
+
+**早期代码缺陷（已修复）：**  
+`processing.py` 的 `_repair_confirmed_intent_if_needed()` 与 deposit indexer 定期轮询  
+不断对 **已是 CONFIRMED** 的存款 `80b91a3d-c14`（tx `0x9702ba5a..`）调用  
+`confirm_deposit_intent_atomic`，而旧版方法**没有 CONFIRMED 早退**：
+
+```python
+# 旧代码（已删除）：缺少状态检查，直接重新写入余额
+next_available = available_balance + row.amount_usdc   # ← 每次执行都 +20 USDC
+self._upsert_balance_triplet(...)
+self._append_withdrawal_audit(action="CONSUMER_DEPOSIT_CONFIRMED_REPAIRED", ...)
+```
+
+每次执行 → `available_balance += 20`，提现 reserve 被逐一还原。
+
+---
+
+#### 修复方案
+
+`confirm_deposit_intent_atomic`（`finance_atomic_deposit_mixin.py`，当前已合入）中加了早退卫兵：
+
+```python
+if row.status.upper() == "CONFIRMED":
+    # 已确认的存款已完整计入 consumer available balance。
+    # 对 CONFIRMED 重放 pending→available 修复操作是不安全的，
+    # 因为提现预留也会使用同一个 pending 分桶；
+    # 这样会错误地解冻活跃的提现预留。
+    return row   # ← 直接返回，不修改余额，不写 REPAIRED 审计事件
+```
+
+配套单元测试（`test_postgres_repositories_unit.py`）验证：
+
+```python
+def test_finance_atomic_repository_confirmed_deposit_is_idempotent_without_balance_repair():
+    # status="CONFIRMED" 的存款
+    confirmed = repo.confirm_deposit_intent_atomic(command)
+    assert confirmed.status == "CONFIRMED"
+    executed_sql = ...
+    assert "UPSERT" not in executed_sql                          # ← 余额未修改
+    assert "CONSUMER_DEPOSIT_CONFIRMED_REPAIRED" not in executed_sql  # ← 无污染审计
+```
+
+---
+
+#### 当前 DB 存量状态说明
+
+| 钱包 | avail | pending | 说明 |
+|------|-------|---------|------|
+| `0xd856907d..` | 20.0 | 20.0 | **合法**：第一笔提现待处理（pending=20）+ 第二笔充值（avail=20）|
+| `0x3a5f04b2..` | 10.0 | 10.0 | 疑似历史污染，或确为先充 20 再提 10 后余 10 |
+
+`0xd856907d` 钱包的最终状态（avail=20, pending=20）来自：  
+- 第一笔提现 20 USDC（REQUESTED，pending=20）  
+- 第二笔独立充值 20 USDC（02:46 确认，avail=20）  
+该余额**当前是正确的**。
+
+---
+
+#### 修复后表现（自动化测试验证）
+
+- 2026-04-08 新钱包测试：`available=0, pending=10` ✅  
+- `CONSUMER_DEPOSIT_CONFIRMED_REPAIRED` 事件不再被代码路径写入
+
+**建议（后续）：** 对 `0x3a5f04b2` 等疑似受污染钱包进行审计追溯，确认余额可信后 mark 为 reviewed。
+
+
+
 ## 3. 核心表
 
 | 表 | 作用 |
