@@ -137,6 +137,11 @@ Integration onboarding: mcp_config
       {
         "status": "WARN",
         "key": "refactor_watch",
+        "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=146>40, branches=11>5, nesting=4>=4, locals=21>8)"
+      },
+      {
+        "status": "WARN",
+        "key": "refactor_watch",
         "detail": "services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows high complexity (lines=59>40, nesting=4>=4, locals=14>8, branches=4, missing_guiding_comment)"
       },
       {
@@ -148,11 +153,6 @@ Integration onboarding: mcp_config
         "status": "WARN",
         "key": "refactor_watch",
         "detail": "services/gateway/src/services/platform/tasks/deposit_indexer/backfill.py::run_backfill_scan_once high complexity (lines=116>40, branches=8>5, locals=22>8, nesting=3, missing_guiding_comment)"
-      },
-      {
-        "status": "WARN",
-        "key": "refactor_watch",
-        "detail": "services/gateway/src/services/platform/finance_service.py::PlatformFinanceService.redeem_credit_voucher high complexity (lines=111>40, branches=8>5, locals=16>8, nesting=3, missing_guiding_comment)"
       }
     ]
   }
