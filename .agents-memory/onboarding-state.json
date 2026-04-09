@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-08T02:52:49.381099+00:00",
+  "generated_at": "2026-04-08T14:55:36.854570+00:00",
   "project_id": "synapse-network",
   "project_root": "/Users/cliff/workspace/agent/Synapse-Network",
   "overall": "READY",
@@ -118,7 +118,7 @@
         {
           "status": "WARN",
           "key": "refactor_watch",
-          "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=146>40, branches=11>5, nesting=4>=4, locals=21>8)"
+          "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=203>40, branches=15>5, nesting=4>=4, locals=31>8)"
         },
         {
           "status": "WARN",

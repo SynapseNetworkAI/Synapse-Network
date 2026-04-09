@@ -81,6 +81,8 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.ticketExpired": "Ticket expired",
   "providerSettlements.staleTicket": "Stale ticket",
   "providerSettlements.invalidSignature": "Invalid signature",
+  "providerSettlements.confirmWithdraw": "Confirm",
+  "providerSettlements.withdrawAmountPlaceholder": "Amount (blank = full withdrawal)",
   "providerSettlements.pendingReviewExists": "A withdrawal is already pending review.",
   "providerSettlements.generatingTicket": "Generating ticket...",
   "providerSettlements.settledCompleted": "Withdrawal settled",
@@ -259,8 +261,15 @@ describe("ProviderWithdrawPage", () => {
 
   /* ── Gas fee note ────────────────────────────────────────── */
 
-  it("shows gas fee note explaining on-chain cost", async () => {
+  it("shows gas fee note after opening amount input panel", async () => {
+    const user = userEvent.setup();
     renderPage();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Generate & Claim/i })).toBeTruthy();
+    });
+    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    await user.click(btn);
     await waitFor(() => {
       expect(screen.getByText(/gas fee/i)).toBeTruthy();
     });
@@ -287,11 +296,17 @@ describe("ProviderWithdrawPage", () => {
 
   /* ── Amount input ────────────────────────────────────────── */
 
-  it("renders amount input with label and placeholder", async () => {
+  it("renders amount input with placeholder after opening panel", async () => {
+    const user = userEvent.setup();
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("Withdraw Amount")).toBeTruthy();
-      expect(screen.getByPlaceholderText("0.00")).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Generate & Claim/i })).toBeTruthy();
+    });
+    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    await user.click(btn);
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Amount/i)).toBeTruthy();
     });
   });
 
@@ -299,10 +314,16 @@ describe("ProviderWithdrawPage", () => {
     const user = userEvent.setup();
     renderPage();
     await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Generate & Claim/i })).toBeTruthy();
+    });
+    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    await user.click(btn);
+    await waitFor(() => {
       expect(screen.getByRole("button", { name: /MAX/i })).toBeTruthy();
     });
     await user.click(screen.getByRole("button", { name: /MAX/i }));
-    const input = screen.getByPlaceholderText("0.00") as HTMLInputElement;
+    const input = screen.getByPlaceholderText(/Amount/i) as HTMLInputElement;
     expect(input.value).toBe("12.50");
   });
 
@@ -448,6 +469,9 @@ describe("ProviderWithdrawPage", () => {
     const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
     await waitFor(() => expect(btn.disabled).toBe(false));
     await user.click(btn);
+    // Panel opens; now click Confirm to trigger the intent
+    await waitFor(() => expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: /Confirm/i }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
   });
 });

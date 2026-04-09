@@ -115,6 +115,8 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   withdrawPageTitle: "Provider Withdraw",
   withdrawPageDescription: "EIP-712 on-chain self-service withdrawal.",
   withdrawAmountLabel: "Withdraw Amount",
+  confirmWithdraw: "Confirm",
+  withdrawAmountPlaceholder: "Amount (blank = full withdrawal)",
   withdrawGasNote: "On-chain transaction — a small gas fee in native token (e.g. ETH) applies.",
   insufficientGasWarning: "Insufficient gas balance. Please top up native token (e.g. ETH) in your wallet before withdrawing.",
   historyPageTitle: "Withdraw History",

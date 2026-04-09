@@ -137,7 +137,7 @@ Integration onboarding: mcp_config
       {
         "status": "WARN",
         "key": "refactor_watch",
-        "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=146>40, branches=11>5, nesting=4>=4, locals=21>8)"
+        "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=203>40, branches=15>5, nesting=4>=4, locals=31>8)"
       },
       {
         "status": "WARN",

@@ -26,9 +26,9 @@ Track Python functions that are already high-complexity or are approaching the c
    - token: `hotspot-af1f8f002a9e`
    - issues: `lines=292>40, branches=21>5, nesting=4>=4, locals=36>8, missing_guiding_comment`
    - bundle command: `amem refactor-bundle . --token hotspot-af1f8f002a9e`
-2. [WARN] `services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent` line=97 metrics=(lines=146, branches=11, nesting=4, locals=21)
+2. [WARN] `services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent` line=98 metrics=(lines=203, branches=15, nesting=4, locals=31)
    - token: `hotspot-ae22c6f3e3cb`
-   - issues: `lines=146>40, branches=11>5, nesting=4>=4, locals=21>8`
+   - issues: `lines=203>40, branches=15>5, nesting=4>=4, locals=31>8`
    - bundle command: `amem refactor-bundle . --token hotspot-ae22c6f3e3cb`
 3. [WARN] `services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows` line=73 metrics=(lines=59, branches=4, nesting=4, locals=14)
    - token: `hotspot-230b7cdcfbe3`
