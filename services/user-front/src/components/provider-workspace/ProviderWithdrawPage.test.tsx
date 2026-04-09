@@ -41,7 +41,8 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.signerUnavailable": "Signer Unavailable",
   "providerSettlements.creatingTicket": "Creating Ticket...",
   "providerSettlements.resumePending": "Resume Pending",
-  "providerSettlements.withdrawGasNote": "Withdrawal is an on-chain transaction. You will need to pay a small gas fee.",
+  "providerSettlements.withdrawAmountLabel": "Withdraw Amount",
+  "providerSettlements.withdrawGasNote": "On-chain transaction — a small gas fee in native token (e.g. ETH) applies.",
   "providerSettlements.insufficientGasWarning": "Insufficient gas balance. Please top up native token.",
   "providerSettlements.historyTitle": "Withdrawal History",
   "providerSettlements.historyFilterAll": "All",
@@ -286,11 +287,23 @@ describe("ProviderWithdrawPage", () => {
 
   /* ── Amount input ────────────────────────────────────────── */
 
-  it("renders amount input with placeholder showing available balance", async () => {
+  it("renders amount input with label and placeholder", async () => {
     renderPage();
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("12.500000 USDC")).toBeTruthy();
+      expect(screen.getByText("Withdraw Amount")).toBeTruthy();
+      expect(screen.getByPlaceholderText("0.00")).toBeTruthy();
     });
+  });
+
+  it("renders MAX button that fills available balance", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /MAX/i })).toBeTruthy();
+    });
+    await user.click(screen.getByRole("button", { name: /MAX/i }));
+    const input = screen.getByPlaceholderText("0.00") as HTMLInputElement;
+    expect(input.value).toBe("12.50");
   });
 
   /* ── Resume Pending ──────────────────────────────────────── */

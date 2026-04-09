@@ -1320,6 +1320,7 @@ export type I18nMessages = {
     dedupeNoteTip: string;
     withdrawPageTitle: string;
     withdrawPageDescription: string;
+    withdrawAmountLabel: string;
     withdrawGasNote: string;
     insufficientGasWarning: string;
     historyPageTitle: string;

@@ -560,44 +560,18 @@ export default function ProviderWithdrawPage() {
         </p>
       </div>
 
-      <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-        <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
-          <div>
-            <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
-              {t("providerSettlements.metricAvailable")}
-            </p>
-            <div className="flex items-center gap-2">
-              <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                {availableReceivable.toFixed(6)} USDC
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
-            <button
-              type="button"
-              onClick={handleCreateWithdrawalIntent}
-              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || !hasEnoughGas || Boolean(withdrawAmountValidationMessage)}
-              className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {generateClaimLabel}
-            </button>
-            {pendingWithdrawal?.ticket && pendingWithdrawal?.status === "APPROVED_AUTO" && (
-              <button
-                type="button"
-                onClick={resumePendingWithdraw}
-                disabled={isAnyLoading}
-                className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {t("providerSettlements.resumePending")}
-              </button>
-            )}
-          </div>
+      <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] space-y-5">
+        {/* ── Balance row ──────────────────────────────────── */}
+        <div className="rounded-[12px] border border-[#232323] bg-[#1a1a1a] px-5 py-4">
+          <p className="mb-1 text-[13px] font-medium uppercase tracking-[0.08em] text-[#71767b]">
+            {t("providerSettlements.metricAvailable")}
+          </p>
+          <p className="text-[28px] font-bold leading-[36px] tracking-[-0.02em] text-white">
+            {availableReceivable.toFixed(6)} <span className="text-[18px] font-semibold text-[#9ca3af]">USDC</span>
+          </p>
         </div>
-      </div>
 
-      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5 space-y-4">
-        <p className="text-sm text-[#86868b]">{t("providerSettlements.withdrawGasNote")}</p>
-
+        {/* ── Warnings ─────────────────────────────────────── */}
         {!loadingWithdrawCapability && withdrawCapability && !ticketSigningEnabled && (
           <div className="rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
             {withdrawCapability.message}
@@ -616,31 +590,70 @@ export default function ProviderWithdrawPage() {
             {t("providerSettlements.pendingTicketExpiredBanner")}
           </div>
         )}
-
         {!hasEnoughGas && isConnected && (
           <div className="rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
             {t("providerSettlements.insufficientGasWarning")}
           </div>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={withdrawAmountInput}
-            onChange={(e) => {
-              const nextValue = e.target.value;
-              if (nextValue === "" || WITHDRAW_AMOUNT_INPUT_PATTERN.test(nextValue)) {
-                setWithdrawAmountInput(nextValue);
-              }
-            }}
-            placeholder={`${availableReceivable.toFixed(6)} USDC`}
-            className={`w-full sm:max-w-md px-3 py-2 rounded-lg border bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] ${withdrawAmountValidationMessage ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[#222222]"}`}
-            disabled={isAnyLoading}
-          />
+        {/* ── Amount input ─────────────────────────────────── */}
+        <div>
+          <label className="mb-2 block text-[13px] font-medium text-[#9ca3af]">
+            {t("providerSettlements.withdrawAmountLabel")}
+          </label>
+          <div className={`flex items-center rounded-[10px] border bg-[#050505] transition-colors focus-within:border-[#22c55e]/60 ${withdrawAmountValidationMessage ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={withdrawAmountInput}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                if (nextValue === "" || WITHDRAW_AMOUNT_INPUT_PATTERN.test(nextValue)) {
+                  setWithdrawAmountInput(nextValue);
+                }
+              }}
+              placeholder="0.00"
+              className="min-w-0 flex-1 bg-transparent px-4 py-3 text-[16px] text-white outline-none placeholder:text-[#555]"
+              disabled={isAnyLoading}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (availableReceivable > 0) {
+                  setWithdrawAmountInput(availableReceivable.toFixed(2));
+                }
+              }}
+              disabled={availableReceivable <= 0 || isAnyLoading}
+              className="mr-1 rounded-[6px] px-2 py-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#22c55e] transition hover:bg-[#22c55e]/10 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              MAX
+            </button>
+            <span className="pr-4 text-[14px] font-medium text-[#71767b]">USDC</span>
+          </div>
+          {withdrawAmountValidationMessage && (
+            <p className="mt-1.5 text-xs text-[#f87171]">{withdrawAmountValidationMessage}</p>
+          )}
+          <p className="mt-2 text-[12px] leading-[18px] text-[#555]">{t("providerSettlements.withdrawGasNote")}</p>
         </div>
-        {withdrawAmountValidationMessage && (
-          <p className="text-xs text-[#f87171]">{withdrawAmountValidationMessage}</p>
+
+        {/* ── Action buttons ───────────────────────────────── */}
+        <button
+          type="button"
+          onClick={handleCreateWithdrawalIntent}
+          disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || !hasEnoughGas || Boolean(withdrawAmountValidationMessage)}
+          className="flex w-full items-center justify-center rounded-[10px] bg-[#22c55e] px-5 py-3 text-[15px] font-semibold text-black transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {generateClaimLabel}
+        </button>
+        {pendingWithdrawal?.ticket && pendingWithdrawal?.status === "APPROVED_AUTO" && (
+          <button
+            type="button"
+            onClick={resumePendingWithdraw}
+            disabled={isAnyLoading}
+            className="flex w-full items-center justify-center rounded-[10px] border border-[#2f3336] bg-transparent px-5 py-3 text-[14px] font-medium text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {t("providerSettlements.resumePending")}
+          </button>
         )}
       </div>
 
