@@ -550,7 +550,8 @@ export default function ProviderWithdrawPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[768px] px-4 pb-24 pt-12 sm:px-6 lg:px-0 text-white bg-[#000000] min-h-screen space-y-6">
+    <div className="min-h-screen bg-[#000000]">
+    <div className="mx-auto w-full max-w-[768px] px-4 pb-24 pt-12 sm:px-6 lg:px-0 text-white space-y-6">
       <div className="border-b border-[#222222] pb-5">
         <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
           <Wallet className="w-8 h-8 text-[#22c55e]" />
@@ -764,6 +765,7 @@ export default function ProviderWithdrawPage() {
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   );
 }
