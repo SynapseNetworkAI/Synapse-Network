@@ -1,3 +1,31 @@
+"""Provider 服务批量注册脚本
+
+向 Synapse Gateway 批量注册多个 Provider 服务定义，包含完整的:
+  - 服务元数据（名称、定价、标签、摘要）
+  - 调用配置（请求/响应 schema、约束、超时）
+  - Provider 配置（收款链、健康检查、治理声明）
+
+默认注册 3 个示例服务:
+  1. Web3 Sentiment Index  — 加密市场情绪指数
+  2. Smart Contract Audit  — 智能合约安全审计
+  3. Whale Flow Monitor    — 巨鲸钱包资金流监控
+
+环境变量:
+    SYNAPSE_GATEWAY_API_BASE     (必填) Gateway API 地址
+    SYNAPSE_OWNER_ADDRESS        (必填) Owner 钱包地址
+    SYNAPSE_OWNER_BEARER_TOKEN   (必填) Owner JWT 令牌
+    SYNAPSE_PROVIDER_BASE_URL    Provider 服务基础 URL，默认 http://127.0.0.1:8100
+    SYNAPSE_PROVIDER_DISPLAY_NAME Provider 显示名称，默认 "Synapse Labs"
+    SYNAPSE_PAYOUT_ADDRESS       收款地址，默认同 OWNER_ADDRESS
+    SYNAPSE_PAYOUT_CHAIN_ID      收款链 ID，默认 421614 (Arbitrum Sepolia)
+    SYNAPSE_REGISTER_DRY_RUN     设为 true 仅打印 payload 不实际注册
+
+使用方式:
+    export SYNAPSE_GATEWAY_API_BASE=http://127.0.0.1:8000
+    export SYNAPSE_OWNER_ADDRESS=0x... SYNAPSE_OWNER_BEARER_TOKEN=...
+    python register_provider_shelf_services.py
+"""
+
 import json
 import os
 from typing import Any
@@ -8,6 +36,7 @@ CONTENT_TYPE_JSON = "application/json"
 
 
 def require_env(name: str) -> str:
+    """读取必填环境变量，缺失时抛出异常。"""
     value = str(os.getenv(name, "")).strip()
     if not value:
         raise ValueError(f"Missing required environment variable: {name}")
@@ -15,6 +44,7 @@ def require_env(name: str) -> str:
 
 
 def env_bool(name: str, default: bool = False) -> bool:
+    """读取布尔型环境变量，支持 1/true/yes/on。"""
     value = str(os.getenv(name, "")).strip().lower()
     if not value:
         return default
@@ -22,10 +52,12 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 def provider_service_url(base_url: str, slug: str) -> str:
+    """拼接 Provider 服务调用 URL：{base_url}/provider-services/{slug}/invoke。"""
     return f"{base_url.rstrip('/')}/provider-services/{slug}/invoke"
 
 
 def common_response_schema() -> dict[str, Any]:
+    """通用响应体 JSON Schema，所有服务共享相同的返回结构。"""
     return {
         "body": {
             "type": "object",
@@ -46,6 +78,10 @@ def common_registration_fields(
     payout_address: str,
     payout_chain_id: int,
 ) -> dict[str, Any]:
+    """构建服务注册通用字段。
+
+    包含: 角色、状态、认证方式、Provider 资料、收款账户、治理声明、健康检查配置。
+    """
     return {
         "role": "Provider",
         "status": "active",
@@ -80,6 +116,10 @@ def build_registration_payloads(
     payout_address: str,
     payout_chain_id: int,
 ) -> list[dict[str, Any]]:
+    """生成 3 个示例服务的注册请求体。
+
+    每个服务包含: agentToolName、定价、标签、调用配置、请求/响应 schema 和示例。
+    """
     shared = common_registration_fields(
         display_name=display_name,
         payout_address=payout_address,
@@ -256,6 +296,7 @@ def build_registration_payloads(
 
 
 def registration_headers(owner_address: str, bearer_token: str) -> dict[str, str]:
+    """构建服务注册请求头。"""
     return {
         "Content-Type": CONTENT_TYPE_JSON,
         "Authorization": f"Bearer {bearer_token}",
@@ -266,6 +307,7 @@ def registration_headers(owner_address: str, bearer_token: str) -> dict[str, str
 def register_service(
     api_base: str, headers: dict[str, str], payload: dict[str, Any]
 ) -> dict[str, Any]:
+    """调用 POST /api/v1/services 注册单个服务。"""
     response = requests.post(
         f"{api_base.rstrip('/')}/api/v1/services",
         headers=headers,
@@ -284,6 +326,7 @@ def register_service(
 
 
 def main() -> None:
+    """主流程: 读取环境变量 → 构建 payload → 批量注册服务。"""
     api_base = require_env("SYNAPSE_GATEWAY_API_BASE")
     owner_address = require_env("SYNAPSE_OWNER_ADDRESS")
     bearer_token = require_env("SYNAPSE_OWNER_BEARER_TOKEN")

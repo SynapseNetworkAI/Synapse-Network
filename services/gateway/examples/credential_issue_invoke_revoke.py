@@ -1,3 +1,31 @@
+"""Agent 凭据全生命周期示例: 签发 → 链上支付 → 调用服务 → 撤销
+
+完整演示:
+  1. Owner 钱包签名登录（EIP-191 challenge/verify）
+  2. 签发 Agent Credential（设置有效期、最大调用次数、RPM 限速）
+  3. 链上 Mint USDC + Approve + payForService（模拟充值）
+  4. 用 Credential 调用 Gateway generate（带重试轮询）
+  5. 撤销 Credential
+
+环境变量:
+    OWNER_PRIVATE_KEY      (必填) Owner 钱包私钥
+    SERVICE_ID             (必填) 要调用的服务 ID
+    PROVIDER_ADDRESS       (必填) Provider 钱包地址
+    API_BASE               Gateway API 地址，默认 http://127.0.0.1:8000
+    RPC_URL                链 RPC 地址，默认 http://127.0.0.1:8545
+    DEPLOYER_PRIVATE_KEY   部署者私钥（用于 mint），默认 Hardhat #0
+    OWNER_PAYMENT_PRIVATE_KEY  付款钱包私钥，默认同 OWNER_PRIVATE_KEY
+    PRICE_USDC             单次支付金额，默认 1
+    PROMPT                 调用提示词
+    EXPIRES_IN_SEC         凭据有效期（秒），默认 3600
+    MAX_CALLS              凭据最大调用次数，默认 100
+    RPM                    每分钟请求限制，默认 600
+
+使用方式:
+    export OWNER_PRIVATE_KEY=0x... SERVICE_ID=svc_xxx PROVIDER_ADDRESS=0x...
+    python credential_issue_invoke_revoke.py
+"""
+
 import json
 import os
 import sys
@@ -11,17 +39,20 @@ from eth_account.messages import encode_defunct
 from web3 import Web3
 
 
+# ── 默认私钥: Hardhat 本地测试链的预置账户 ──
 DEFAULT_DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 DEFAULT_OWNER_PAYMENT_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 CONTENT_TYPE_JSON = "application/json"
 
 
 def load_json(file_path: Path) -> Any:
+    """读取 JSON 文件并返回解析结果。"""
     with file_path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def build_auth_headers(token: str, owner_address: str, with_json: bool = True) -> Dict[str, str]:
+    """构建认证请求头: Authorization Bearer + X-User-Address。"""
     headers = {
         "Authorization": f"Bearer {token}",
         "X-User-Address": owner_address,
@@ -32,6 +63,11 @@ def build_auth_headers(token: str, owner_address: str, with_json: bool = True) -
 
 
 def authenticate_owner(api_base: str, owner_private_key: str) -> tuple[str, str]:
+    """执行 EIP-191 钱包签名登录。
+
+    流程: GET /auth/challenge 获取随机 nonce → 钱包签名 → POST /auth/verify 换取 JWT token。
+    返回 (token, owner_address)。
+    """
     owner_account = Account.from_key(owner_private_key)
     owner_address = owner_account.address.lower()
 
@@ -72,6 +108,13 @@ def mint_and_pay_for_service(
     deployer_private_key: str,
     owner_payment_private_key: str,
 ) -> str:
+    """链上支付全流程: Mint USDC → Approve → payForService。
+
+    1. 用 deployer 给付款钱包铸造测试 USDC
+    2. 付款钱包授权 SynapseCore 合约花费 USDC
+    3. 调用 payForService 完成链上支付
+    返回交易哈希 (txHash)。
+    """
     contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
     router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
     usdc_abi = load_json(root_dir / "frontend" / "src" / "MockUSDCABI.json")
@@ -152,6 +195,11 @@ def invoke_generate_with_polling(
     prompt: str,
     timeout_sec: int = 90,
 ) -> Dict[str, Any]:
+    """调用 Gateway generate 接口，支持 202 重试轮询。
+
+    当 Gateway 返回 202 时表示付款尚未确认，等待 retryAfterSec 后重试，
+    直到成功或超时。
+    """
     started_at = time.time()
 
     while True:
@@ -180,6 +228,7 @@ def invoke_generate_with_polling(
 
 
 def require_env(name: str) -> str:
+    """读取必填环境变量，缺失时抛出异常。"""
     value = os.getenv(name, "").strip()
     if not value:
         raise RuntimeError(f"Missing env: {name}")
@@ -187,12 +236,7 @@ def require_env(name: str) -> str:
 
 
 def main() -> None:
-    root_dir = Path(__file__).resolve().parents[2]
-
-    api_base = os.getenv("API_BASE", "http://127.0.0.1:8000").rstrip("/")
-    rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
-
-    owner_private_key = require_env("OWNER_PRIVATE_KEY")
+    """主流程: 登录 → 签发凭据 → 链上支付 → 调用服务 → 撤销凭据。"""
     service_id = require_env("SERVICE_ID")
     provider_address = require_env("PROVIDER_ADDRESS")
 
