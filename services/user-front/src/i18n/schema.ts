@@ -1321,6 +1321,8 @@ export type I18nMessages = {
     withdrawPageTitle: string;
     withdrawPageDescription: string;
     withdrawAmountLabel: string;
+    confirmWithdraw: string;
+    withdrawAmountPlaceholder: string;
     withdrawGasNote: string;
     insufficientGasWarning: string;
     historyPageTitle: string;

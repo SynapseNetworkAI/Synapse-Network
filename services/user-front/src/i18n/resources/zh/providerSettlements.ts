@@ -115,6 +115,8 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   withdrawPageTitle: "Provider 提现",
   withdrawPageDescription: "EIP-712 链上自助提现。",
   withdrawAmountLabel: "提现金额",
+  confirmWithdraw: "确认提现",
+  withdrawAmountPlaceholder: "金额（留空=全额提现）",
   withdrawGasNote: "链上交易 — 需支付少量原生代币（如 ETH）作为 Gas 费。",
   insufficientGasWarning: "Gas 余额不足，请先在钱包中充值原生代币（如 ETH）后再提现。",
   historyPageTitle: "提现记录",
