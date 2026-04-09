@@ -1,4 +1,5 @@
 {
+  "_comment": "agent_sdk_discover_invoke.py 的配置文件。api_base: Gateway 地址; agent_credential_token: Agent 凭据令牌; intent: 语义搜索意图; prompt: 调用时发送的提示词",
   "api_base": "http://127.0.0.1:8000",
   "agent_credential_token": "agt_63f83dbc43c5db47140a785b5decf1afce599c8c80fb8dd7",
   "intent": "名人名言",

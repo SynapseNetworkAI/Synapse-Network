@@ -1,10 +1,24 @@
+"""Synapse Python SDK 快速入门示例
+
+演示两种调用模式:
+  Mode 1: 硬编码 Service ID 直接调用指定服务
+  Mode 2: 语义发现（Semantic Discovery）由网络自动推荐最优服务
+
+环境变量:
+    SYNAPSE_API_KEY  (必填) Agent 凭据令牌，格式为 agt_...
+
+使用方式:
+    pip install synapse-client  # 或本地引用 SDK
+    export SYNAPSE_API_KEY='agt_...'
+    python synapse_client_quickstart.py
+"""
 
 import os
 import sys
 import uuid
 from pathlib import Path
 
-# Provide import path if running locally
+# 尝试导入 SDK，本地开发时自动添加父目录到 sys.path
 try:
     from synapse_client import SynapseClient
 except ModuleNotFoundError:
@@ -14,6 +28,7 @@ except ModuleNotFoundError:
     from synapse_client import SynapseClient
 
 def main():
+    """主流程: 初始化客户端 → 硬编码调用 → 语义发现调用。"""
     api_key = os.getenv("SYNAPSE_API_KEY")
     if not api_key:
         print("Please set SYNAPSE_API_KEY environment variable.")

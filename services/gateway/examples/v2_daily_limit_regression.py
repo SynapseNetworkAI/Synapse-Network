@@ -1,3 +1,26 @@
+"""V2 每日限额 (Daily Limit) 回归测试
+
+验证流程:
+  1. Owner 钱包签名登录
+  2. 发现一个服务并获取单价
+  3. 签发 Agent Credential
+  4. 设置每日限额 = 单次调用价格（只够一次）
+  5. 链上充值 + 等待确认
+  6. 第一次调用应成功
+  7. 第二次调用应被拦截（402 DAILY_LIMIT_EXCEEDED）
+
+环境变量:
+    API_BASE               Gateway API 地址，默认 http://127.0.0.1:8000
+    RPC_URL                链 RPC 地址，默认 http://127.0.0.1:8545
+    OWNER_PRIVATE_KEY      Owner 私钥，默认 Hardhat #0
+    DEPLOYER_PRIVATE_KEY   部署者私钥，默认 Hardhat #0
+    OWNER_PAYMENT_PRIVATE_KEY 付款私钥，默认同 OWNER_PRIVATE_KEY
+    PROMPT                 调用提示词
+
+使用方式:
+    python v2_daily_limit_regression.py
+"""
+
 import json
 import os
 import sys
@@ -10,17 +33,20 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 from web3 import Web3
 
+# ── 默认私钥: Hardhat 本地测试链的预置账户 ──
 DEFAULT_DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 DEFAULT_OWNER_PAYMENT_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 CONTENT_TYPE_JSON = "application/json"
 
 
 def load_json(file_path: Path) -> Any:
+    """读取 JSON 文件并返回解析结果。"""
     with file_path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def authenticate_owner(api_base: str, owner_private_key: str) -> tuple[str, str]:
+    """执行 EIP-191 钱包签名登录，返回 (token, owner_address)。"""
     owner_account = Account.from_key(owner_private_key)
     owner_address = owner_account.address.lower()
 
@@ -53,6 +79,7 @@ def authenticate_owner(api_base: str, owner_private_key: str) -> tuple[str, str]
 
 
 def build_auth_headers(token: str, owner_address: str, with_json: bool = True) -> Dict[str, str]:
+    """构建认证请求头。"""
     headers = {
         "Authorization": f"Bearer {token}",
         "X-User-Address": owner_address,
@@ -63,6 +90,7 @@ def build_auth_headers(token: str, owner_address: str, with_json: bool = True) -
 
 
 def pick_target_service(api_base: str) -> tuple[str, float]:
+    """从服务发现接口获取第一个可用服务及其单价。"""
     response = requests.get(f"{api_base}/api/v1/services/discover", timeout=20)
     response.raise_for_status()
     payload = response.json()
@@ -87,6 +115,7 @@ def pick_target_service(api_base: str) -> tuple[str, float]:
 
 
 def issue_credential(api_base: str, token: str, owner_address: str) -> str:
+    """签发 Agent Credential，返回 credential token。"""
     response = requests.post(
         f"{api_base}/api/v1/credentials/agent/issue",
         headers=build_auth_headers(token, owner_address),
@@ -106,6 +135,7 @@ def issue_credential(api_base: str, token: str, owner_address: str) -> str:
 
 
 def set_daily_limit(api_base: str, token: str, owner_address: str, daily_limit_usdc: float) -> None:
+    """设置账户每日花费限额（USDC）。"""
     response = requests.post(
         f"{api_base}/api/v1/router/config",
         headers=build_auth_headers(token, owner_address),
@@ -124,6 +154,7 @@ def build_payment_tx(
     owner_payment_private_key: str,
     provider_address: Optional[str] = None,
 ) -> str:
+    """链上支付: Mint USDC → Approve → payForService，返回 txHash。"""
     contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
     router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
     usdc_abi = load_json(root_dir / "frontend" / "src" / "MockUSDCABI.json")
@@ -206,6 +237,10 @@ def submit_and_wait_deposit_confirmation(
     amount_usdc: float,
     timeout_sec: int = 90,
 ) -> None:
+    """提交充值意图并轮询等待确认。
+
+    持续查询 deposit intents 列表，直到对应 txHash 状态变为 confirmed。
+    """
     intent_resp = requests.post(
         f"{api_base}/api/v1/balance/deposit/intent",
         headers=build_auth_headers(token, owner_address),
@@ -246,6 +281,7 @@ def submit_and_wait_deposit_confirmation(
 
 
 def invoke_v2_generate(api_base: str, credential: str, service_id: str, prompt: str) -> requests.Response:
+    """调用 Gateway generate 接口（单次，不轮询）。"""
     return requests.post(
         f"{api_base}/api/v1/gateway/generate",
         headers={
@@ -259,6 +295,7 @@ def invoke_v2_generate(api_base: str, credential: str, service_id: str, prompt: 
 
 
 def main() -> None:
+    """主流程: 7 步验证 daily limit 是否正常拦截第二次调用。"""
     root_dir = Path(__file__).resolve().parents[2]
 
     api_base = os.getenv("API_BASE", "http://127.0.0.1:8000").rstrip("/")

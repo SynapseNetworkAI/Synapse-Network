@@ -1,14 +1,32 @@
+"""Agent SDK 服务发现 + 调用示例
+
+演示 Consumer 通过 Synapse Gateway 执行完整的「发现服务 → 选择最优 → 调用」链路。
+需要配置文件: agent_sdk_discover_invoke.config.json（同目录）。
+
+使用方式:
+    python agent_sdk_discover_invoke.py
+"""
+
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import requests
 
+# ── 配置文件路径：与本脚本同目录下的 .config.json ──
 CONFIG_PATH = Path(__file__).with_name("agent_sdk_discover_invoke.config.json")
 CONTENT_TYPE_JSON = "application/json"
 
 
 def load_config() -> Dict[str, Any]:
+    """加载配置文件并校验必填字段。
+
+    配置字段说明:
+        api_base              - Gateway API 地址，如 http://127.0.0.1:8000
+        agent_credential_token - Agent 凭据令牌（从 /credentials/agent/issue 获取）
+        intent                - 语义搜索意图，用于服务发现（如 "名人名言"）
+        prompt                - 调用服务时发送的提示词
+    """
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(f"Config file not found: {CONFIG_PATH}")
 
@@ -24,6 +42,11 @@ def load_config() -> Dict[str, Any]:
 
 
 def discover_services(api_base: str, intent: str) -> List[Dict[str, Any]]:
+    """根据语义意图（intent）发现可用服务列表。
+
+    调用 GET /api/v1/services/discover?intent=xxx
+    返回按相关度排序的服务列表。
+    """
     url = f"{api_base.rstrip('/')}/api/v1/services/discover"
     response = requests.get(url, params={"intent": intent}, timeout=30)
     response.raise_for_status()
@@ -40,6 +63,7 @@ def discover_services(api_base: str, intent: str) -> List[Dict[str, Any]]:
 
 
 def pick_service(services: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
+    """从发现结果中选取第一个服务（相关度最高）。"""
     if not services:
         raise RuntimeError("No services found from discover response")
 
@@ -52,6 +76,11 @@ def pick_service(services: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
 
 
 def call_gateway(api_base: str, service_id: str, credential_token: str, prompt: str) -> Dict[str, Any]:
+    """通过 Gateway 调用指定服务。
+
+    POST /api/v1/gateway/generate
+    请求头 X-Credential 携带 Agent 凭据令牌。
+    """
     url = f"{api_base.rstrip('/')}/api/v1/gateway/generate"
     response = requests.post(
         url,
@@ -78,6 +107,7 @@ def call_gateway(api_base: str, service_id: str, credential_token: str, prompt: 
 
 
 def main() -> None:
+    """主流程: 加载配置 → 发现服务 → 选择服务 → 调用 Gateway → 打印结果。"""
     config = load_config()
     api_base = str(config["api_base"]).strip()
     credential_token = str(config["agent_credential_token"]).strip()
