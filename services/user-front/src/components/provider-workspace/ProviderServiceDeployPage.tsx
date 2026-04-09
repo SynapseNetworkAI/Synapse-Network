@@ -966,7 +966,7 @@ export default function DeployManifestPage() {
 
   const [draft, setDraft] = useState<ManifestDraft>(createDefaultDraft);
   const [hasDraft, setHasDraft] = useState(false);
-  const [showAIModal, setShowAIModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [serviceIdTouched, setServiceIdTouched] = useState(false);
   const [serviceSlugTouched, setServiceSlugTouched] = useState(false);
