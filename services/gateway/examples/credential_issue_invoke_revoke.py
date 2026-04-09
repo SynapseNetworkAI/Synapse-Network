@@ -78,9 +78,10 @@ def authenticate_owner(api_base: str, owner_private_key: str) -> tuple[str, str]
     )
     challenge_resp.raise_for_status()
     challenge = challenge_resp.json()
+    challenge_text = challenge["challenge"]
 
     signed_message = Account.sign_message(
-        encode_defunct(text=challenge["message"]),
+        encode_defunct(text=challenge_text),
         private_key=owner_private_key,
     )
 
@@ -88,15 +89,15 @@ def authenticate_owner(api_base: str, owner_private_key: str) -> tuple[str, str]
         f"{api_base}/api/v1/auth/verify",
         headers={"Content-Type": CONTENT_TYPE_JSON},
         json={
-            "address": owner_address,
-            "nonce": challenge["nonce"],
+            "wallet_address": owner_address,
+            "message": challenge_text,
             "signature": signed_message.signature.hex(),
         },
         timeout=20,
     )
     verify_resp.raise_for_status()
     verified = verify_resp.json()
-    return verified["token"], owner_address
+    return verified["access_token"], owner_address
 
 
 def mint_and_pay_for_service(
@@ -115,9 +116,9 @@ def mint_and_pay_for_service(
     3. 调用 payForService 完成链上支付
     返回交易哈希 (txHash)。
     """
-    contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
-    router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
-    usdc_abi = load_json(root_dir / "frontend" / "src" / "MockUSDCABI.json")
+    contract_config = load_json(root_dir / "user-front" / "src" / "contract-config.json")
+    router_abi = load_json(root_dir / "user-front" / "src" / "SynapseCoreABI.json")
+    usdc_abi = load_json(root_dir / "user-front" / "src" / "MockUSDCABI.json")
 
     web3 = Web3(Web3.HTTPProvider(rpc_url))
     if not web3.is_connected():
@@ -170,7 +171,7 @@ def mint_and_pay_for_service(
     print(f"[payment] approve done: {approve_hash.hex()}")
 
     pay_nonce = web3.eth.get_transaction_count(payer.address)
-    pay_tx = router_contract.functions.payForService(token_address, provider_checksum, amount_wei, service_id).build_transaction(
+    pay_tx = router_contract.functions.deposit(amount_wei).build_transaction(
         {
             "from": payer.address,
             "nonce": pay_nonce,
@@ -184,7 +185,9 @@ def mint_and_pay_for_service(
     web3.eth.wait_for_transaction_receipt(pay_hash)
 
     tx_hash = pay_hash.hex()
-    print(f"[payment] payForService done: {tx_hash}")
+    if not tx_hash.startswith("0x"):
+        tx_hash = f"0x{tx_hash}"
+    print(f"[payment] deposit done: {tx_hash}")
     return tx_hash
 
 
@@ -235,8 +238,64 @@ def require_env(name: str) -> str:
     return value
 
 
+def _submit_and_wait_deposit(
+    api_base: str,
+    token: str,
+    owner_address: str,
+    tx_hash: str,
+    amount_usdc: float,
+    timeout_sec: int = 90,
+) -> None:
+    """提交充值意图并轮询等待确认。"""
+    if not tx_hash.startswith("0x"):
+        tx_hash = f"0x{tx_hash}"
+    idempotency_key = f"dep-{tx_hash[2:18]}-{int(time.time())}"
+    headers = build_auth_headers(token, owner_address)
+    headers["X-Idempotency-Key"] = idempotency_key
+    intent_resp = requests.post(
+        f"{api_base}/api/v1/balance/deposit/intent",
+        headers=headers,
+        json={
+            "txHash": tx_hash,
+            "amountUsdc": round(amount_usdc, 6),
+        },
+        timeout=20,
+    )
+    intent_resp.raise_for_status()
+
+    started_at = time.time()
+    while True:
+        list_resp = requests.get(
+            f"{api_base}/api/v1/balance/deposit/intents?limit=50",
+            headers=build_auth_headers(token, owner_address, with_json=False),
+            timeout=20,
+        )
+        list_resp.raise_for_status()
+        rows = list_resp.json().get("intents", [])
+
+        target = next(
+            (r for r in rows if str(r.get("txHash", "")).lower() == tx_hash.lower()),
+            None,
+        )
+        if target:
+            status = str(target.get("status", "")).lower()
+            if status == "confirmed":
+                print(f"[deposit] confirmed txHash={tx_hash}")
+                return
+            if status in {"failed", "duplicate"}:
+                raise RuntimeError(f"Deposit intent ended with status={status}: {target}")
+
+        if time.time() - started_at > timeout_sec:
+            raise TimeoutError("Timed out waiting for deposit confirmation")
+        time.sleep(2)
+
+
 def main() -> None:
     """主流程: 登录 → 签发凭据 → 链上支付 → 调用服务 → 撤销凭据。"""
+    root_dir = Path(__file__).resolve().parents[2]  # services/
+    api_base = os.getenv("API_BASE", "http://127.0.0.1:8000").rstrip("/")
+    rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
+    owner_private_key = require_env("OWNER_PRIVATE_KEY")
     service_id = require_env("SERVICE_ID")
     provider_address = require_env("PROVIDER_ADDRESS")
 
@@ -273,8 +332,8 @@ def main() -> None:
     credential_token = issued["token"]
     print(f"[credential] issued id={credential_id}")
 
-    print("[step] payForService to get tx hash ...")
-    mint_and_pay_for_service(
+    print("[step] deposit on-chain ...")
+    tx_hash = mint_and_pay_for_service(
         root_dir=root_dir,
         rpc_url=rpc_url,
         service_id=service_id,
@@ -283,6 +342,9 @@ def main() -> None:
         deployer_private_key=deployer_private_key,
         owner_payment_private_key=owner_payment_private_key,
     )
+
+    print("[step] submit deposit intent and wait for confirmation ...")
+    _submit_and_wait_deposit(api_base, token, owner_address, tx_hash, float(price_usdc))
 
     print("[step] invoke /generate with credential ...")
     generate_result = invoke_generate_with_polling(

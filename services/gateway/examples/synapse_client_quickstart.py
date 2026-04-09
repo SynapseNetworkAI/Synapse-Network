@@ -39,53 +39,46 @@ def main():
     client = SynapseClient(api_key=api_key)
 
     print("=== Mode 1: Hardcoded Service ID ===")
-    service_id = "SVC_WEATHER_001"  # Example ID
+    service_id = "svc_quotes_famous_top3"
     print(f"Calling specific service: {service_id}")
     
     try:
-        response = client.call_service(
+        response = client.invoke(
             service_id=service_id,
-            payload={
-                "location": "Kuala Lumpur",
-                "days": 3
-            }
+            payload={"text": "给我一句名人名言"},
+            cost_usdc=0.01,
         )
-        print("
-[ Invoke Success ]")
-        print(f"Result Content :
-{response.content}")
-        print(f"Fee Deducted   : {response.fee_deducted} USDC")
-        print(f"Tx Hash        : {response.tx_hash}")
+        print("\n[ Invoke Success ]")
+        print(f"Result        : {response.result}")
+        print(f"Fee Deducted  : {response.charged_usdc} USDC")
+        print(f"Invocation ID : {response.invocation_id}")
     except Exception as e:
         print(f"Error calling {service_id}: {e}")
 
-    print("
-" + "="*40 + "
-")
+    print("\n" + "="*40 + "\n")
 
     print("=== Mode 2: Semantic Discovery ===")
-    intent = "image-generation"
+    intent = "quotes"
     print(f"Searching for network services handling: '{intent}'")
     discovery = client.discover_services(intent=intent)
     
-    if not discovery.services:
+    if not discovery.results:
         print(f"No services found for intent: {intent}")
     else:
-        best_service = discovery.services[0].serviceId
-        print(f"Network suggested best service: {best_service}")
+        best = discovery.results[0]
+        print(f"Network suggested best service: {best.service_id}")
         
         try:
-            res = client.call_service(
-                service_id=best_service,
-                payload={"prompt": "A futuristic cyberpunk city"}
+            res = client.invoke(
+                service_id=best.service_id,
+                payload={"text": "名人名言"},
+                cost_usdc=float(best.pricing.amount),
             )
-            print("
-[ Invoke Success ]")
-            print(f"Result Content :
-{res.content}")
-            print(f"Fee Deducted   : {res.fee_deducted} USDC")
+            print("\n[ Invoke Success ]")
+            print(f"Result        : {res.result}")
+            print(f"Fee Deducted  : {res.charged_usdc} USDC")
         except Exception as e:
-            print(f"Error calling {best_service}: {e}")
+            print(f"Error calling {best.service_id}: {e}")
 
 if __name__ == '__main__':
     main()
