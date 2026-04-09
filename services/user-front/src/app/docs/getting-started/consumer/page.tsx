@@ -17,6 +17,7 @@ const PAGE_SECTIONS = [
   "step-credential",
   "step-invoke",
   "step-verify",
+  "step-withdraw",
 ];
 
 export default function ConsumerGuidePage() {
@@ -33,6 +34,7 @@ export default function ConsumerGuidePage() {
   const cCred = tList("docsPage.consumerCodeCredential");
   const cInvoke = tList("docsPage.consumerCodeInvoke");
   const cVerify = tList("docsPage.consumerCodeVerify");
+  const cWithdraw = tList("docsPage.consumerCodeWithdraw");
   useDocsPageNav(PAGE_SECTIONS.map((id, index) => ({
     id,
     label: stepTitles[index] ?? id,
@@ -76,7 +78,7 @@ export default function ConsumerGuidePage() {
                 </span>
                 {s}
               </a>
-              {i < 5 && <span className="text-[#3a3f45] text-[12px] px-1">→</span>}
+              {i < progressLabels.length - 1 && <span className="text-[#3a3f45] text-[12px] px-1">→</span>}
             </div>
           ))}
         </div>
@@ -270,7 +272,7 @@ export default function ConsumerGuidePage() {
       </StepItem>
 
       {/* ── Step 06: Verify ─────────────────────────────────────── */}
-      <StepItem num="06" title={stepTitles[5] ?? ""} accent={ACCENT} last id="step-verify">
+      <StepItem num="06" title={stepTitles[5] ?? ""} accent={ACCENT} id="step-verify">
         <p className="text-[13px] text-[#71767b] leading-relaxed">
           {stepBodies[5]}
         </p>
@@ -294,6 +296,50 @@ export default function ConsumerGuidePage() {
           `console.log('Charged:', latest.chargedUsdc)   // ${cVerify[4]}`,
           `console.log('Settled at:', latest.settledAt)`,
         ].join('\n')} />
+        <StepTip accent={ACCENT}>
+          {stepTips[5]}
+        </StepTip>
+      </StepItem>
+
+      {/* ── Step 07: Withdraw ───────────────────────────────────── */}
+      <StepItem num="07" title={stepTitles[6] ?? ""} accent={ACCENT} last id="step-withdraw">
+        <p className="text-[13px] text-[#71767b] leading-relaxed">
+          {stepBodies[6]}
+        </p>
+        <CodeBlock lang="typescript" code={[
+          `// ${cWithdraw[0]}`,
+          `const withdrawKey = crypto.randomUUID()  // ${cWithdraw[1]}`,
+          ``,
+          `const withdraw = await fetch('/api/v1/balance/consumer/withdraw', {`,
+          `  method: 'POST',`,
+          `  headers: {`,
+          `    'Authorization': \`Bearer \${token}\`,`,
+          `    'X-Idempotency-Key': withdrawKey,`,
+          `    'Content-Type': 'application/json',`,
+          `  },`,
+          `  body: JSON.stringify({`,
+          `    amountUsdc: 5.0,    // Amount to withdraw`,
+          `    reason: 'unused balance refund',`,
+          `  }),`,
+          `}).then(r => r.json())`,
+          ``,
+          `console.log('Withdraw intent:', withdraw.intentId)`,
+          `console.log('Status:', withdraw.status)  // "APPROVED" or "PENDING_MANUAL_REVIEW"`,
+          ``,
+          `// ${cWithdraw[2]}`,
+          `const { withdrawals } = await fetch(`,
+          `  '/api/v1/balance/consumer/withdrawals?limit=10',`,
+          `  { headers: { 'Authorization': \`Bearer \${token}\` } },`,
+          `).then(r => r.json())`,
+          ``,
+          `// ${cWithdraw[3]}`,
+          `withdrawals.forEach(w =>`,
+          `  console.log(\`  \${w.intentId}: \${w.amountUsdc} USDC — \${w.status}\`)`,
+          `)`,
+        ].join('\n')} />
+        <StepTip accent={ACCENT}>
+          {stepTips[6]}
+        </StepTip>
 
         {/* Completion badge */}
         <div
