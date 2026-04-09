@@ -118,6 +118,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Create an agent credential",
     "Invoke a service",
     "Verify settlement",
+    "Withdraw USDC",
   ],
   gettingStartedProviderSteps: [
     "Connect wallet and get a JWT",
@@ -132,9 +133,9 @@ const docsPage: I18nMessages["docsPage"] = {
   gettingStartedDifferenceTitle: "Core differences between the two roles",
   gettingStartedDifferenceDims: ["Money flow", "Primary credential", "Key APIs"],
   gettingStartedDifferenceConsumer: [
-    "Deposit USDC -> spend on invocations",
+    "Deposit USDC -> spend on invocations -> withdraw unused",
     "Agent Credential (agentToken)",
-    "/balance/deposit · /agent/invocations",
+    "/balance/deposit · /agent/invocations · /balance/consumer/withdraw",
   ],
   gettingStartedDifferenceProvider: [
     "Receive calls -> accrue earnings -> withdraw",
@@ -145,8 +146,8 @@ const docsPage: I18nMessages["docsPage"] = {
   consumerPageEyebrow: "Service consumer guide",
   consumerTitle: "Consumer Quick Start",
   consumerDescription:
-    "From zero to first successful paid invocation in six steps: authenticate, deposit, discover, issue credentials, invoke, and verify settlement. Estimated time: 10 minutes.",
-  consumerProgress: ["Auth", "Deposit", "Discover", "Credential", "Invoke", "Verify"],
+    "From zero to first successful paid invocation — and back to your wallet — in seven steps: authenticate, deposit, discover, issue credentials, invoke, verify settlement, and withdraw. Estimated time: 10 minutes.",
+  consumerProgress: ["Auth", "Deposit", "Discover", "Credential", "Invoke", "Verify", "Withdraw"],
   consumerStepTitles: [
     "Connect wallet and get a JWT",
     "Deposit USDC",
@@ -154,6 +155,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Create an agent credential",
     "Invoke a service and settle instantly",
     "Verify settlement results",
+    "Withdraw unused USDC",
   ],
   consumerStepBodies: [
     "Synapse authenticates wallets with an EIP-191 challenge signature. No separate account is required: sign the challenge and receive a 24-hour JWT.",
@@ -162,6 +164,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Credentials are scoped access tokens with spend limits. Use the idempotent pattern: check for an existing active credential first, then issue one only if needed. Use agentToken as the bearer token — the gateway handles charging automatically.",
     "A single POST /api/v1/agent/invoke call covers discovery-to-settlement atomically. Pass the serviceId, payload, and the price you observed (costUsdc) to prevent price-mismatch surprises.",
     "After the invocation finishes, fetch balances and recent invocation receipts to confirm that the debit and settlement completed atomically.",
+    "When you are done using services, withdraw your remaining consumer balance back to your wallet. The gateway creates a withdrawal intent and processes it. Large amounts (≥ $500) or frequent requests (> 3/day) may require manual review.",
   ],
   consumerStepTips: [
     "With the TypeScript SDK, await client.auth.connectWallet(signer) performs challenge, sign, and verify automatically.",
@@ -170,10 +173,11 @@ const docsPage: I18nMessages["docsPage"] = {
     "Daily Budget (creditLimit) resets according to resetInterval, while Max Calls is a lifetime cap that does not reset. The idempotent pattern: GET list?active_only=true first, then issue only if no match found.",
     "Always send idempotencyKey with invoke. If the network retries, the gateway returns the cached result instead of double-charging. Gateway returns 422 PRICE_MISMATCH if the live price changed — re-discover and retry.",
     "Use recent invocation receipts to verify chargedUsdc, final status, and settledAt before moving traffic into production.",
+    "Withdrawals are processed automatically for standard amounts. Always include X-Idempotency-Key to prevent duplicate withdrawal requests. Use GET /balance/consumer/withdrawals to track status.",
   ],
   consumerCompletionTitle: "Consumer guide complete",
   consumerCompletionDescription:
-    "You have finished the full consumer flow: authentication, deposits, discovery, credential issuance, invocation, and settlement verification.",
+    "You have finished the full consumer flow: authentication, deposits, discovery, credential issuance, invocation, settlement verification, and withdrawal.",
   consumerDeepDiveCta: "Dive deeper into settlement",
   consumerSdkCta: "TypeScript SDK",
   providerEyebrow: "Provider",
@@ -681,6 +685,12 @@ const docsPage: I18nMessages["docsPage"] = {
     "Verify the latest invocation record",
     "\"settled\"",
     "\"0.0010\"",
+  ],
+  consumerCodeWithdraw: [
+    "Withdraw remaining consumer balance back to wallet",
+    "Idempotency key prevents duplicate withdrawals",
+    "Check withdrawal status",
+    "Withdrawal history",
   ],
 };
 

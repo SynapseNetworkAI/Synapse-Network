@@ -61,7 +61,7 @@ export default function GettingStartedOverviewPage() {
             style={{ background: "#7ff7be08", border: "1px solid #7ff7be14" }}
           >
             <div className="text-[10px] font-semibold tracking-widest text-[#7ff7be] uppercase mb-2">
-              {t("docsPage.gettingStartedSixSteps")}
+              {`${consumerSteps.length}-step guide`}
             </div>
             {consumerSteps.map((s, i) => (
               <div key={s} className="flex items-center gap-2 text-[12px] text-[#71767b]">
