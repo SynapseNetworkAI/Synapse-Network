@@ -1205,6 +1205,8 @@ export type I18nMessages = {
     publishApiServiceTitle: string;
     publishApiServiceDescription: string;
     createService: string;
+    credentialsBannerText: string;
+    credentialsBannerAction: string;
   };
   providerSettlements: {
     walletPaysGasDisconnected: string;
