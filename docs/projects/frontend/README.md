@@ -65,6 +65,7 @@
 
 1. [Frontend_Local_Development.md](./Frontend_Local_Development.md)
 2. [Frontend_Agent_Rules.md](./Frontend_Agent_Rules.md)
+3. [Synapse_Analytics_Tracking_Plan.md](./Synapse_Analytics_Tracking_Plan.md)
 
 项目目录内只保留：
 
