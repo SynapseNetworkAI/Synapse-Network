@@ -30,6 +30,8 @@ const providerConsolePage: I18nMessages["providerConsolePage"] = {
   publishApiServiceTitle: "发布 API 服务",
   publishApiServiceDescription: "把 API 服务定义发布到市场，并一步开启按量运行时路由。",
   createService: "创建服务",
+  credentialsBannerText: "发布服务前请先创建 Provider 凭据，只需一分钟。",
+  credentialsBannerAction: "创建凭据",
 };
 
 export default providerConsolePage;

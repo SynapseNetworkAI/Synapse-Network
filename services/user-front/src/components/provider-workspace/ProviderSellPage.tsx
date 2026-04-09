@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { listApiSecrets } from "@/utils/serviceApi";
-import { Activity, Key, Database, Zap, Server, ArrowRight, TerminalSquare, RefreshCw, Plus } from "lucide-react";
+import { Activity, AlertTriangle, Key, Database, Zap, Server, ArrowRight, TerminalSquare, RefreshCw, Plus } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function ProviderConsolePage() {
@@ -16,12 +17,22 @@ export default function ProviderConsolePage() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [missingCredentials, setMissingCredentials] = useState(false);
 
   const {
     services,
     providerStats,
     handleRefresh: loadDashboardData
   } = useDashboardData();
+
+  useEffect(() => {
+    if (!address) { setMissingCredentials(false); return; }
+    let cancelled = false;
+    listApiSecrets(address)
+      .then((secrets) => { if (!cancelled) setMissingCredentials(secrets.length === 0); })
+      .catch(() => { if (!cancelled) setMissingCredentials(false); });
+    return () => { cancelled = true; };
+  }, [address]);
 
   const handlePublishClick = async () => {
     if (!address) {
@@ -46,6 +57,12 @@ export default function ProviderConsolePage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await loadDashboardData();
+    if (address) {
+      try {
+        const secrets = await listApiSecrets(address);
+        setMissingCredentials(secrets.length === 0);
+      } catch { /* keep current state */ }
+    }
     setIsRefreshing(false);
   };
 
@@ -79,6 +96,22 @@ export default function ProviderConsolePage() {
           </button>
         </div>
       </div>
+
+      {/* Missing credentials banner */}
+      {isConnected && missingCredentials && (
+        <div className="flex items-center gap-3 rounded-2xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-5 py-4">
+          <AlertTriangle className="h-5 w-5 flex-shrink-0 text-[#ff9f0a]" />
+          <p className="flex-1 text-sm text-[#ffd7a1]">
+            {t("providerConsolePage.credentialsBannerText")}
+          </p>
+          <Link
+            href="/provider/secrets"
+            className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-[#ff9f0a]/40 bg-[#ff9f0a]/20 px-4 py-1.5 text-xs font-bold text-[#ff9f0a] transition hover:bg-[#ff9f0a]/30"
+          >
+            {t("providerConsolePage.credentialsBannerAction")} <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      )}
 
       {/* KPI METRICS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

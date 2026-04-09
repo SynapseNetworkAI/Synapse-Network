@@ -30,6 +30,8 @@ const providerConsolePage: I18nMessages["providerConsolePage"] = {
   publishApiServiceTitle: "Publish API Service",
   publishApiServiceDescription: "Publish an API service definition to the marketplace and start metered runtime routing in one shot.",
   createService: "Create Service",
+  credentialsBannerText: "Set up Provider Credentials before publishing a service. This only takes a minute.",
+  credentialsBannerAction: "Create Credentials",
 };
 
 export default providerConsolePage;
