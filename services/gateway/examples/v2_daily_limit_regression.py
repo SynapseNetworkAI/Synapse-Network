@@ -57,9 +57,10 @@ def authenticate_owner(api_base: str, owner_private_key: str) -> tuple[str, str]
     )
     challenge_resp.raise_for_status()
     challenge = challenge_resp.json()
+    challenge_text = challenge["challenge"]
 
     signed_message = Account.sign_message(
-        encode_defunct(text=challenge["message"]),
+        encode_defunct(text=challenge_text),
         private_key=owner_private_key,
     )
 
@@ -67,15 +68,15 @@ def authenticate_owner(api_base: str, owner_private_key: str) -> tuple[str, str]
         f"{api_base}/api/v1/auth/verify",
         headers={"Content-Type": CONTENT_TYPE_JSON},
         json={
-            "address": owner_address,
-            "nonce": challenge["nonce"],
+            "wallet_address": owner_address,
+            "message": challenge_text,
             "signature": signed_message.signature.hex(),
         },
         timeout=20,
     )
     verify_resp.raise_for_status()
     verified = verify_resp.json()
-    return verified["token"], owner_address
+    return verified["access_token"], owner_address
 
 
 def build_auth_headers(token: str, owner_address: str, with_json: bool = True) -> Dict[str, str]:
@@ -104,7 +105,8 @@ def pick_target_service(api_base: str) -> tuple[str, float]:
         raise RuntimeError("Service discovery returned empty serviceId")
 
     try:
-        unit_price = float(target.get("pricing", 0))
+        pricing = target.get("pricing", {})
+        unit_price = float(pricing.get("amount", 0) if isinstance(pricing, dict) else pricing)
     except Exception as error:
         raise RuntimeError(f"Invalid pricing in discovered service: {error}")
 
@@ -136,10 +138,10 @@ def issue_credential(api_base: str, token: str, owner_address: str) -> str:
 
 def set_daily_limit(api_base: str, token: str, owner_address: str, daily_limit_usdc: float) -> None:
     """设置账户每日花费限额（USDC）。"""
-    response = requests.post(
-        f"{api_base}/api/v1/router/config",
+    response = requests.put(
+        f"{api_base}/api/v1/balance/spending-limit",
         headers=build_auth_headers(token, owner_address),
-        json={"dailyLimitUsdc": round(daily_limit_usdc, 6)},
+        json={"spendingLimitUsdc": round(daily_limit_usdc, 6)},
         timeout=20,
     )
     response.raise_for_status()
@@ -155,9 +157,9 @@ def build_payment_tx(
     provider_address: Optional[str] = None,
 ) -> str:
     """链上支付: Mint USDC → Approve → payForService，返回 txHash。"""
-    contract_config = load_json(root_dir / "frontend" / "src" / "contract-config.json")
-    router_abi = load_json(root_dir / "frontend" / "src" / "SynapseCoreABI.json")
-    usdc_abi = load_json(root_dir / "frontend" / "src" / "MockUSDCABI.json")
+    contract_config = load_json(root_dir / "user-front" / "src" / "contract-config.json")
+    router_abi = load_json(root_dir / "user-front" / "src" / "SynapseCoreABI.json")
+    usdc_abi = load_json(root_dir / "user-front" / "src" / "MockUSDCABI.json")
 
     web3 = Web3(Web3.HTTPProvider(rpc_url))
     if not web3.is_connected():
@@ -205,11 +207,8 @@ def build_payment_tx(
     web3.eth.wait_for_transaction_receipt(approve_hash)
 
     pay_nonce = web3.eth.get_transaction_count(payer.address)
-    pay_tx = router_contract.functions.payForService(
-        token_address,
-        provider_checksum,
+    pay_tx = router_contract.functions.deposit(
         amount_wei,
-        service_id,
     ).build_transaction(
         {
             "from": payer.address,
@@ -241,9 +240,14 @@ def submit_and_wait_deposit_confirmation(
 
     持续查询 deposit intents 列表，直到对应 txHash 状态变为 confirmed。
     """
+    if not tx_hash.startswith("0x"):
+        tx_hash = f"0x{tx_hash}"
+    idempotency_key = f"dep-{tx_hash[2:18]}-{int(time.time())}"
+    headers = build_auth_headers(token, owner_address)
+    headers["X-Idempotency-Key"] = idempotency_key
     intent_resp = requests.post(
         f"{api_base}/api/v1/balance/deposit/intent",
-        headers=build_auth_headers(token, owner_address),
+        headers=headers,
         json={
             "txHash": tx_hash,
             "amountUsdc": round(amount_usdc, 6),
@@ -296,7 +300,7 @@ def invoke_v2_generate(api_base: str, credential: str, service_id: str, prompt: 
 
 def main() -> None:
     """主流程: 7 步验证 daily limit 是否正常拦截第二次调用。"""
-    root_dir = Path(__file__).resolve().parents[2]
+    root_dir = Path(__file__).resolve().parents[2]  # services/
 
     api_base = os.getenv("API_BASE", "http://127.0.0.1:8000").rstrip("/")
     rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
@@ -319,8 +323,23 @@ def main() -> None:
     print("[3/7] Issue credential...")
     credential_token = issue_credential(api_base, auth_token, owner_address)
 
-    print("[4/7] Set daily limit equal to one call price...")
-    set_daily_limit(api_base, auth_token, owner_address, unit_price)
+    print("[4/7] Set daily limit to cover exactly one more call...")
+    # Read current cycle spend, then set limit = current_spend + one_call_total.
+    # This ensures exactly one more invocation succeeds while the second is blocked.
+    limit_headers = build_auth_headers(auth_token, owner_address, with_json=False)
+    current_limit = requests.get(
+        f"{api_base}/api/v1/balance/spending-limit",
+        headers=limit_headers,
+        timeout=20,
+    ).json()
+    current_spend = float(
+        current_limit.get("spendingLimit", {}).get("currentCycleSpendUsdc", 0)
+    )
+    # total_charge ≈ unit_price * 1.01 (1% platform fee)
+    one_call_total = round(unit_price * 1.05, 6)
+    daily_limit = round(current_spend + one_call_total, 6)
+    set_daily_limit(api_base, auth_token, owner_address, daily_limit)
+    print(f"      current_spend={current_spend}, daily_limit={daily_limit}")
 
     deposit_amount = max(unit_price * 3, 3.0)
     print(f"[5/7] Build on-chain payment tx and submit deposit intent (amount={deposit_amount})...")
@@ -354,8 +373,8 @@ def main() -> None:
 
     body = second_resp.json()
     code = str(body.get("detail", {}).get("code", ""))
-    if code != "DAILY_LIMIT_EXCEEDED":
-        raise RuntimeError(f"Expected DAILY_LIMIT_EXCEEDED, got: {second_resp.text}")
+    if code != "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED":
+        raise RuntimeError(f"Expected OWNER_BILLING_CYCLE_LIMIT_EXCEEDED, got: {second_resp.text}")
 
     print("PASS: daily limit enforcement is working (second call blocked).")
 
