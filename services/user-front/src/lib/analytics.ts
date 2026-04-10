@@ -135,6 +135,9 @@ function detectSurface(): Surface {
 /** Max events to re-enqueue on flush failure to avoid unbounded growth. */
 const MAX_QUEUE_SIZE = 100;
 
+/** Gateway rejects batches larger than this. flush() chunks at this limit. */
+const MAX_BATCH_SIZE = 50;
+
 export class SynapseAnalytics {
   private config: AnalyticsConfig;
   private queue: AnalyticsEvent[] = [];
@@ -271,26 +274,30 @@ export class SynapseAnalytics {
     if (this.queue.length === 0) return;
 
     const batch = this.queue.splice(0, this.queue.length);
-    const payload = JSON.stringify({ events: batch });
 
-    // Try sendBeacon first (works during unload), fall back to fetch
-    // Use Blob with explicit JSON content-type so the backend parses correctly
-    const beaconSent =
-      typeof navigator !== 'undefined' &&
-      typeof navigator.sendBeacon === 'function' &&
-      navigator.sendBeacon(
-        this.config.endpoint,
-        new Blob([payload], { type: 'application/json' }),
-      );
+    // Chunk into MAX_BATCH_SIZE slices — gateway rejects batches > 50 events.
+    for (let i = 0; i < batch.length; i += MAX_BATCH_SIZE) {
+      const chunk = batch.slice(i, i + MAX_BATCH_SIZE);
+      const payload = JSON.stringify({ events: chunk });
 
-    if (!beaconSent) {
-      this.fetchSend(payload).catch(() => {
-        // Re-enqueue on failure, capped at MAX_QUEUE_SIZE
-        const capacity = MAX_QUEUE_SIZE - this.queue.length;
-        if (capacity > 0) {
-          this.queue.unshift(...batch.slice(0, capacity));
-        }
-      });
+      // Try sendBeacon first (works during unload), fall back to fetch
+      const beaconSent =
+        typeof navigator !== 'undefined' &&
+        typeof navigator.sendBeacon === 'function' &&
+        navigator.sendBeacon(
+          this.config.endpoint,
+          new Blob([payload], { type: 'application/json' }),
+        );
+
+      if (!beaconSent) {
+        this.fetchSend(payload).catch(() => {
+          // Re-enqueue failed chunk, capped at MAX_QUEUE_SIZE
+          const capacity = MAX_QUEUE_SIZE - this.queue.length;
+          if (capacity > 0) {
+            this.queue.unshift(...chunk.slice(0, capacity));
+          }
+        });
+      }
     }
   }
 
