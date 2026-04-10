@@ -27,6 +27,7 @@ import {
   type DepositAttemptStage,
 } from "@/utils/balanceApi";
 import { showWalletStatusToast } from "@/utils/walletToast";
+import { analytics } from "@/lib/analytics";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 
@@ -374,6 +375,11 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     }
 
     setDepositStep("signing_permit");
+    analytics.capture("deposit_started", {
+      amount_usdc: amountUsdc,
+      token_symbol: "USDC",
+      chain_id: chainId,
+    });
     try {
       const amountBigInt = parseUnits(String(amountUsdc), 18);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
@@ -400,6 +406,10 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       });
 
       const { v, r, s } = parseSignature(signature);
+      analytics.capture("deposit_permit_signed", {
+        amount_usdc: amountUsdc,
+        token_symbol: "USDC",
+      });
       setDepositStep("executing_tx");
       const submittedHash = await writeContractAsync({
         address: VAULT_ADDRESS,

@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { Providers } from "@/components/Providers";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
+import { AnalyticsProvider } from "@/lib/analytics-provider";
 import { Toaster } from "react-hot-toast";
 
 const geistSans = localFont({
@@ -33,6 +34,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
         <Providers>
+          <AnalyticsProvider>
           <LanguageProvider>
             <Navbar />
             <main className="flex-1">
@@ -49,6 +51,7 @@ export default function RootLayout({
               }} 
             />
           </LanguageProvider>
+          </AnalyticsProvider>
         </Providers>
       </body>
     </html>

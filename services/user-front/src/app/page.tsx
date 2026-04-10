@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { useAccount } from "wagmi";
 import { fetchPublicNetworkStats, type PublicNetworkStats } from "@/utils/networkStatsApi";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { analytics } from "@/lib/analytics";
 
 const HOMEPAGE_STATS_POLL_MS = 12000;
 
@@ -84,6 +85,8 @@ export default function Home() {
 
   const handleEnterRole = (role: "CONSUMER" | "PROVIDER" | "ADMIN", path: string) => {
     setAppRole(role);
+    const analyticsRole = role === "CONSUMER" ? "consumer" : role === "PROVIDER" ? "provider" : "anonymous";
+    analytics.capture("role_selected", { role: analyticsRole, page_path: "/" });
     router.push(path);
   };
 
@@ -186,14 +189,20 @@ export default function Home() {
 
               <div className="mx-auto mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <button
-                  onClick={() => handleEnterRole("CONSUMER", "/dashboard/overview")}
+                  onClick={() => {
+                    analytics.capture("cta_clicked", { cta_id: "hero_launch_console", cta_text: "Launch Console", cta_location: "hero" });
+                    handleEnterRole("CONSUMER", "/dashboard/overview");
+                  }}
                   className="group relative inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
                 >
                   Launch Console
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
                 <button
-                  onClick={() => router.push("/dashboard/developer")}
+                  onClick={() => {
+                    analytics.capture("cta_clicked", { cta_id: "hero_developer_resources", cta_text: "Open Developer Resources", cta_location: "hero" });
+                    router.push("/dashboard/developer");
+                  }}
                   className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/50 px-8 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-all hover:bg-zinc-800 hover:text-zinc-200"
                 >
                   Open Developer Resources
@@ -258,14 +267,20 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
               <button
-                onClick={() => handleEnterRole("CONSUMER", "/dashboard/discovery")}
+                onClick={() => {
+                  analytics.capture("cta_clicked", { cta_id: "final_consumer_cta", cta_text: t("home.finalCta"), cta_location: "features_bottom" });
+                  handleEnterRole("CONSUMER", "/dashboard/discovery");
+                }}
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-[#7ff7be] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#6ae5ac]"
               >
                 {t("home.finalCta")}
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
-                onClick={() => handleEnterRole("PROVIDER", "/provider/console")}
+                onClick={() => {
+                  analytics.capture("cta_clicked", { cta_id: "final_provider_cta", cta_text: t("home.providerWorkspaceBtn"), cta_location: "features_bottom" });
+                  handleEnterRole("PROVIDER", "/provider/console");
+                }}
                 className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
               >
                 {t("home.providerWorkspaceBtn")}
