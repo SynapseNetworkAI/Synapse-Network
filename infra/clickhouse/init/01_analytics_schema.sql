@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS synapse_analytics.events
     properties     String DEFAULT '{}'
 )
 ENGINE = MergeTree()
-PARTITION BY toYYYYMM(timestamp)
+PARTITION BY toYYYYMM(toDateTime(timestamp))
 ORDER BY (event_name, distinct_id, timestamp)
-TTL timestamp + INTERVAL 365 DAY
+TTL toDateTime(timestamp) + INTERVAL 365 DAY  -- DateTime64 requires explicit cast for TTL
 SETTINGS index_granularity = 8192;
 
 -- ── Kafka Engine table ─────────────────────────────────────────────────────
