@@ -109,7 +109,13 @@ class AnalyticsBackend:
 
 
 class KafkaBackend(AnalyticsBackend):
-    """Writes events to Kafka topic using aiokafka."""
+    """Writes events to Kafka topic using aiokafka.
+
+    Lazy-initializes the producer on first use so the app can start without
+    Kafka being reachable (e.g., during tests).  The asyncio.Lock prevents
+    duplicate producer creation under concurrent async load, which would
+    otherwise cause double-counted billing events.
+    """
 
     def __init__(
         self,
@@ -119,21 +125,28 @@ class KafkaBackend(AnalyticsBackend):
         self._bootstrap_servers = bootstrap_servers
         self._topic = topic
         self._producer = None
+        self._lock = None  # asyncio.Lock created lazily inside async context
 
     async def _ensure_producer(self):
-        if self._producer is None:
-            from aiokafka import AIOKafkaProducer
-            self._producer = AIOKafkaProducer(
-                bootstrap_servers=self._bootstrap_servers,
-                value_serializer=lambda v: v.encode("utf-8"),
-                key_serializer=lambda k: k.encode("utf-8") if k else None,
-                acks="all",
-                compression_type="gzip",
-                linger_ms=50,
-                batch_size=32768,
-            )
-            await self._producer.start()
-            logger.info("Kafka analytics producer started: %s", self._bootstrap_servers)
+        import asyncio
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        async with self._lock:
+            if self._producer is None:
+                from aiokafka import AIOKafkaProducer
+                self._producer = AIOKafkaProducer(
+                    bootstrap_servers=self._bootstrap_servers,
+                    value_serializer=lambda v: v.encode("utf-8"),
+                    key_serializer=lambda k: k.encode("utf-8") if k else None,
+                    acks="all",
+                    compression_type="gzip",
+                    linger_ms=50,
+                    batch_size=32768,
+                )
+                await self._producer.start()
+                logger.info(
+                    "Kafka analytics producer started: %s", self._bootstrap_servers
+                )
 
     async def send(self, event: AnalyticsEvent) -> None:
         await self._ensure_producer()
