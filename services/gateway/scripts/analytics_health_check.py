@@ -62,7 +62,7 @@ async def main(clickhouse_url: str):
         FROM synapse_analytics.events
         WHERE timestamp >= now() - INTERVAL 1 HOUR
     """)
-    recent_count = rows[0]["cnt"] if rows else 0
+    recent_count = int(rows[0]["cnt"]) if rows else 0
     check("Events in last hour", recent_count > 0, f"count={recent_count}")
 
     # Check 2: No duplicate event_ids
@@ -72,9 +72,9 @@ async def main(clickhouse_url: str):
         FROM synapse_analytics.events
         WHERE timestamp >= now() - INTERVAL 24 HOUR
     """)
-    if rows and rows[0]["total"] > 0:
-        total = rows[0]["total"]
-        unique = rows[0]["unique_ids"]
+    if rows and int(rows[0]["total"]) > 0:
+        total = int(rows[0]["total"])
+        unique = int(rows[0]["unique_ids"])
         dup_rate = (total - unique) / max(total, 1)
         check("Duplicate rate < 1%", dup_rate < 0.01,
               f"total={total}, unique={unique}, dup_rate={dup_rate:.4f}")
@@ -89,7 +89,7 @@ async def main(clickhouse_url: str):
         WHERE distinct_id LIKE '0x%' AND length(distinct_id) = 42
         AND timestamp >= now() - INTERVAL 24 HOUR
     """)
-    raw_wallets = rows[0]["cnt"] if rows else 0
+    raw_wallets = int(rows[0]["cnt"]) if rows else 0
     check("No raw wallet addresses in distinct_id", raw_wallets == 0, f"found={raw_wallets}")
 
     # Check 4: All sources present
@@ -127,9 +127,9 @@ async def main(clickhouse_url: str):
         WHERE event_name IN ('invoke_completed', 'invoke_failed')
         AND timestamp >= now() - INTERVAL 1 HOUR
     """)
-    if rows and (rows[0]["succeeded"] + rows[0]["failed"]) > 0:
-        total_invokes = rows[0]["succeeded"] + rows[0]["failed"]
-        success_rate = rows[0]["succeeded"] / total_invokes
+    if rows and (int(rows[0]["succeeded"]) + int(rows[0]["failed"])) > 0:
+        total_invokes = int(rows[0]["succeeded"]) + int(rows[0]["failed"])
+        success_rate = int(rows[0]["succeeded"]) / total_invokes
         check("Invoke success rate > 90%", success_rate > 0.90,
               f"rate={success_rate:.2%} ({rows[0]['succeeded']}/{total_invokes})")
     else:
