@@ -42,12 +42,21 @@ BOLD = "\033[1m"
 
 passed = 0
 failed = 0
+warned = 0
 
 
 def ok(msg: str) -> None:
     global passed
     passed += 1
     print(f"  {GREEN}✅ PASS{RESET}: {msg}")
+
+
+def warn(msg: str, detail: str = "") -> None:
+    """Non-blocking warning: infrastructure-dependent check skipped."""
+    global warned
+    warned += 1
+    suffix = f" — {detail}" if detail else ""
+    print(f"  {YELLOW}⚠️  WARN{RESET}: {msg}{suffix}")
 
 
 def fail(msg: str, detail: str = "") -> None:
@@ -361,11 +370,21 @@ async def run_clickhouse_check(url: str) -> None:
     if server_available:
         tables = await query("SHOW TABLES FROM synapse_analytics")
         table_names = {r.get("name", "") for r in tables}
-        for required_table in ["events", "events_kafka", "events_kafka_mv"]:
-            if required_table in table_names:
-                ok(f"表存在: synapse_analytics.{required_table}")
+        # Check core table (always required)
+        if "events" in table_names:
+            ok("表存在: synapse_analytics.events")
+        else:
+            fail("表缺失: synapse_analytics.events")
+        # Kafka Engine tables are only present when Kafka broker is running
+        kafka_tables = ["events_kafka", "events_kafka_mv"]
+        for kafka_table in kafka_tables:
+            if kafka_table in table_names:
+                ok(f"表存在: synapse_analytics.{kafka_table}")
             else:
-                fail(f"表缺失: synapse_analytics.{required_table}")
+                warn(
+                    f"Kafka 依赖表未创建: synapse_analytics.{kafka_table}",
+                    "需启动 Kafka broker 后重建 ClickHouse 容器才会出现此表；本地开发可忽略",
+                )
     else:
         ok("表结构验证跳过（使用 clickhouse local 模式，不验证 Kafka Engine 表）")
 
@@ -471,6 +490,8 @@ async def main(clickhouse_url: str) -> None:
     print(f"\n{BOLD}{'═' * 60}{RESET}")
     print(f"{BOLD}  验证结果汇总{RESET}")
     print(f"  {GREEN}✅ 通过: {passed}{RESET}")
+    if warned > 0:
+        print(f"  {YELLOW}⚠️  警告: {warned} (基础设施依赖，非阻塞){RESET}")
     if failed > 0:
         print(f"  {RED}❌ 失败: {failed}{RESET}")
     else:
