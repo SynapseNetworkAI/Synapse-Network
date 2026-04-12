@@ -69,7 +69,7 @@ class InMemoryGatewayStateRepo:
 
     def read_deposit_intents(self): return list(self.deposit_rows)
     def write_deposit_intents(self, rows): self.deposit_rows = list(rows)
-    def read_consumer_refund_rows(self): return list(self.refund_rows)
+    def read_consumer_refund_rows(self, *, owner_wallet: str | None = None): return list(self.refund_rows)
 
     def write_consumer_refund_rows(self, rows, updated_at):
         _ = updated_at

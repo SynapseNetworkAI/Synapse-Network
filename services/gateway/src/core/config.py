@@ -335,5 +335,16 @@ class Settings:
         400: {"description": "Invalid auth payload"},
     }
 
+    # ── Analytics Pipeline ────────────────────────────────────────
+    analytics_kafka_bootstrap_servers: str = os.getenv(
+        "ANALYTICS_KAFKA_BOOTSTRAP_SERVERS", ""
+    )
+    analytics_kafka_topic: str = os.getenv(
+        "ANALYTICS_KAFKA_TOPIC", "synapse.analytics.events"
+    )
+    analytics_fallback_file: str = os.getenv(
+        "ANALYTICS_FALLBACK_FILE", "logs/analytics_events.jsonl"
+    )
+
 
 settings = Settings()

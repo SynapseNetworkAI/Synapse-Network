@@ -27,6 +27,7 @@ from src.services.analytics.emitter import (
 from src.services.analytics.gateway_events import (
     emit_deposit_completed,
     emit_invoke_completed,
+    emit_provider_first_revenue_received,
     emit_provider_revenue_received,
     emit_settlement_claim_completed,
     emit_settlement_claim_requested,
@@ -476,3 +477,87 @@ class TestPrivacyInFullPipeline:
                 )
             elif isinstance(value, dict):
                 self._assert_no_raw_address_in_dict(value, field_path)
+
+
+# ── Test: provider_first_revenue_received ──────────────────────
+
+
+class TestProviderFirstRevenueReceived:
+    """Verify emit_provider_first_revenue_received emits the correct payload."""
+
+    async def test_emits_correct_event_name(self, emitter, events_file):
+        set_emitter(emitter)
+
+        await emit_provider_first_revenue_received(
+            PROVIDER_WALLET,
+            service_id="svc_first_rev",
+            gross_usdc=0.50,
+        )
+
+        stored = _read_events(events_file)
+        assert len(stored) == 1
+        assert stored[0]["event_name"] == "provider_first_revenue_received"
+
+    async def test_properties_contain_required_fields(self, emitter, events_file):
+        set_emitter(emitter)
+
+        await emit_provider_first_revenue_received(
+            PROVIDER_WALLET,
+            service_id="svc_first_rev",
+            gross_usdc=1.00,
+            time_since_listing_ms=120_000,
+        )
+
+        stored = _read_events(events_file)
+        assert len(stored) == 1
+        props = stored[0]["properties"]
+        assert props["role"] == "provider"
+        assert props["is_first_revenue"] is True
+        assert props["service_id"] == "svc_first_rev"
+        assert props["gross_usdc"] == 1.00
+        assert props["time_since_listing_ms"] == 120_000
+
+    async def test_provider_address_is_hashed(self, emitter, events_file):
+        set_emitter(emitter)
+
+        await emit_provider_first_revenue_received(
+            PROVIDER_WALLET,
+            service_id="svc_priv_first",
+            gross_usdc=0.05,
+        )
+
+        stored = _read_events(events_file)
+        assert len(stored) == 1
+        raw_content = events_file.read_text()
+        assert PROVIDER_WALLET not in raw_content, (
+            "Raw provider wallet address leaked into analytics event"
+        )
+
+    async def test_optional_time_since_listing_omitted_when_none(
+        self, emitter, events_file
+    ):
+        set_emitter(emitter)
+
+        await emit_provider_first_revenue_received(
+            PROVIDER_WALLET,
+            service_id="svc_no_time",
+            gross_usdc=0.25,
+            # time_since_listing_ms not provided
+        )
+
+        stored = _read_events(events_file)
+        assert len(stored) == 1
+        props = stored[0]["properties"]
+        assert "time_since_listing_ms" not in props
+
+    async def test_noop_when_emitter_not_set(self, events_file):
+        set_emitter(None)
+
+        # Should not raise even with no emitter wired
+        await emit_provider_first_revenue_received(
+            PROVIDER_WALLET,
+            service_id="svc_noop",
+            gross_usdc=0.10,
+        )
+
+        assert not events_file.exists() or _read_events(events_file) == []

@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.identity import RuntimeCredentialRecord
+from src.services.analytics.gateway_events import emit_budget_blocked
 from src.services.platform import credential_service
 from src.storage import BaseStorage
 

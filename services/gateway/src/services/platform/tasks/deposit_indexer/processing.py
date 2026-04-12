@@ -33,6 +33,18 @@ def _mark_intent_failed(intent: dict[str, Any], reason: str, now: int) -> None:
     intent["failureReason"] = reason
     intent["updatedAt"] = to_dt_str(now, now_dt_str()) or now_dt_str()
 
+    # Analytics: deposit_failed (fire-and-forget via asyncio task)
+    import asyncio
+    from src.services.analytics.gateway_events import emit_deposit_failed
+    owner = str(intent.get("ownerAddress") or "")
+    amount = float(intent.get("amountUsdc") or 0.0)
+    if owner and amount > 0:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(emit_deposit_failed(owner, amount_usdc=amount, error_code=reason))
+        except RuntimeError:
+            pass
+
 
 def _extract_intent_fields(intent: dict[str, Any]) -> Optional[dict[str, Any]]:
     """抽取充值确认所需的最小字段集合。"""
@@ -260,6 +272,19 @@ def _apply_confirmed_deposit(
         float(intent.get("creditedAmountUsdc") or amount_usdc),
         next_balance,
     )
+
+    # Analytics: deposit_completed
+    import asyncio
+    from src.services.analytics.gateway_events import emit_deposit_completed
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(emit_deposit_completed(
+            owner_wallet,
+            amount_usdc=float(intent.get("creditedAmountUsdc") or amount_usdc),
+            tx_hash=tx_hash,
+        ))
+    except RuntimeError:
+        pass
 
     return {
         "result": "credited",
