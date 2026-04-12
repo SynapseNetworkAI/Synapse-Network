@@ -1,4 +1,5 @@
 node_modules
+.DS_Store
 
 coverage
 coverage.json
@@ -51,3 +52,6 @@ spec2flow
 output/
 anvil*.log
 tmp/screens/
+
+# Local browser automation state
+.agent-browser/

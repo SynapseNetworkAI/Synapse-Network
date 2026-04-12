@@ -1,6 +1,7 @@
 """Invoke pipeline orchestration: validate, rate-limit, charge, proxy, audit, respond."""
 from __future__ import annotations
 
+import time
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -13,6 +14,13 @@ from src.domain.finance import UsageLogRow
 from src.domain.identity import RuntimeCredentialRecord
 from src.domain.invocation_response import ConsumerSuccessResponse, InvocationStateResponse
 from src.domain.service_contract import ServiceDefinitionRecord
+from src.services.analytics.gateway_events import (
+    emit_invoke_completed,
+    emit_invoke_failed,
+    emit_provider_first_revenue_received,
+    emit_provider_revenue_received,
+    emit_quote_generated,
+)
 from src.services.platform import credential_service
 from src.services.owner import forwarding_billing, forwarding_upstream, forwarding_validation
 from src.services.owner.forwarding_budget import (
@@ -115,7 +123,18 @@ async def _execute_invocation_pipeline(
     provider_wallet = _service_wallet(service)
     unit_price = round(float(quote.quoted_price_usdc), 6)
     settlement, total_charge = _charge_amount_from_unit_price(storage, provider_wallet, unit_price)
-    raise_for_budget_check(await budget_check(storage, credential, total_charge))
+    budget_result = await budget_check(storage, credential, total_charge)
+    if not budget_result.get("allowed"):
+        from src.services.analytics.gateway_events import emit_budget_blocked
+        await emit_budget_blocked(
+            credential_service.credential_owner_wallet(credential),
+            service_id=service.service_id,
+            required_usdc=float(total_charge),
+            available_usdc=budget_result.get("remainingBudgetUsdc"),
+            error_code=str(budget_result.get("errorCode") or "BUDGET_EXHAUSTED"),
+            correlation_id=trace_request_id,
+        )
+    raise_for_budget_check(budget_result)
 
     existing = read_invocation_by_idempotency(storage, credential.credential.credential_id, idempotency_key)
     if existing is not None:
@@ -151,6 +170,7 @@ async def _execute_invocation_pipeline(
 
     running = invocation.model_copy(update={"status": "RUNNING", "started_at": now_dt_str(), "updated_at": now_dt_str()})
     persist_invocation(storage, running)
+    _t0 = time.monotonic()
 
     try:
         invocation_result = await forwarding_upstream.call_upstream(service, running, request_payload)
@@ -167,6 +187,12 @@ async def _execute_invocation_pipeline(
             "finished_at": now_dt_str(), "updated_at": now_dt_str(),
         })
         persist_invocation(storage, failed)
+        await emit_invoke_failed(
+            owner_wallet, service_id=service.service_id,
+            provider_address=provider_wallet, quote_id=quote.quote_id,
+            error_code=error_code, failure_stage="upstream",
+            correlation_id=trace_request_id,
+        )
         credential_service.append_audit_log(storage, "V2_USAGE_CHARGE_FAILED", owner_wallet, {
             "requestId": trace_request_id, "agentId": credential.agent.agent_id,
             "credentialId": credential.credential.credential_id, "serviceId": service.service_id,
@@ -185,6 +211,12 @@ async def _execute_invocation_pipeline(
             "error_action": "retry", "finished_at": now_dt_str(), "updated_at": now_dt_str(),
         })
         persist_invocation(storage, failed)
+        await emit_invoke_failed(
+            owner_wallet, service_id=service.service_id,
+            provider_address=provider_wallet, quote_id=quote.quote_id,
+            error_code="UPSTREAM_ERROR", failure_stage="upstream",
+            correlation_id=trace_request_id,
+        )
         credential_service.append_audit_log(storage, "V2_USAGE_CHARGE_FAILED", owner_wallet, {
             "requestId": trace_request_id, "agentId": credential.agent.agent_id,
             "credentialId": credential.credential.credential_id, "serviceId": service.service_id,
@@ -200,6 +232,46 @@ async def _execute_invocation_pipeline(
         "finished_at": now_dt_str(), "updated_at": now_dt_str(),
     })
     persist_invocation(storage, succeeded)
+
+    # Analytics: invoke_completed
+    owner_wallet_for_analytics = credential_service.credential_owner_wallet(credential)
+    elapsed_ms = int((time.monotonic() - _t0) * 1000)
+    await emit_invoke_completed(
+        owner_wallet_for_analytics,
+        service_id=service.service_id,
+        provider_address=provider_wallet,
+        quote_id=quote.quote_id,
+        price_usdc=float(total_charge),
+        latency_ms=elapsed_ms,
+        correlation_id=trace_request_id,
+    )
+    # Analytics: provider_revenue_received
+    await emit_provider_revenue_received(
+        provider_wallet,
+        service_id=service.service_id,
+        gross_usdc=float(settlement["unit_price"]),
+        platform_fee_usdc=float(settlement["protocol_fee"]),
+        provider_net_usdc=float(settlement["provider_net"]),
+        correlation_id=trace_request_id,
+    )
+    # Analytics: provider_first_revenue_received (milestone — only on first settled row)
+    normalized_provider = normalize_wallet(provider_wallet)
+    raw_billing_rows = storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
+    billing_rows = raw_billing_rows if isinstance(raw_billing_rows, list) else []
+    prior_settled = [
+        r for r in billing_rows
+        if normalize_wallet(str(getattr(r, "provider_address", "") or "")) == normalized_provider
+        and str(getattr(r, "status", "")).lower() == "succeeded"
+    ]
+    # prior_settled includes the row just appended, so threshold is exactly 1
+    if len(prior_settled) == 1:
+        await emit_provider_first_revenue_received(
+            provider_wallet,
+            service_id=service.service_id,
+            gross_usdc=float(settlement["unit_price"]),
+            correlation_id=trace_request_id,
+        )
+
     credential_service.append_audit_log(storage, "V2_USAGE_CHARGED", owner_wallet, {
         "requestId": trace_request_id, "agentId": credential.agent.agent_id,
         "credentialId": credential.credential.credential_id,
@@ -233,6 +305,11 @@ async def generate_response_v2(
 
     quote = build_service_quote(service, credential, request_payload, unit_price)
     persist_quote(storage, quote)
+    await emit_quote_generated(
+        credential_service.credential_owner_wallet(credential),
+        service_id=service_id, quote_id=quote.quote_id,
+        price_usdc=float(unit_price), correlation_id=request_id,
+    )
     succeeded, consumer_after, settlement = await _execute_invocation_pipeline(
         storage, credential, service, quote, request_payload, request_id, request_id,
     )
@@ -296,6 +373,11 @@ async def invoke_v1(
     forwarding_validation.validate_invoke_request_contract(service, invoke_payload)
     quote = build_service_quote(service, credential, invoke_payload, live_price, response_mode=request.responseMode)
     persist_quote(storage, quote)
+    await emit_quote_generated(
+        credential_service.credential_owner_wallet(credential),
+        service_id=request.serviceId, quote_id=quote.quote_id,
+        price_usdc=float(live_price), correlation_id=trace_request_id,
+    )
     invocation, _, _ = await _execute_invocation_pipeline(
         storage, credential, service, quote, invoke_payload, request.idempotencyKey, trace_request_id,
     )

@@ -224,6 +224,9 @@ class ProviderWithdrawService(
                     "requestMeta": request_meta or {},
                 },
             )
+            # Analytics: settlement_claim_requested
+            from src.services.analytics.gateway_events import emit_settlement_claim_requested
+            await emit_settlement_claim_requested(owner, claim_usdc=context.amount_usdc)
             return response
 
     async def list_provider_withdrawals(
@@ -388,6 +391,17 @@ class ProviderWithdrawService(
                     "amountUsdc": amount_usdc,
                     "requestMeta": request_meta or {},
                 },
+            )
+            # Analytics: settlement_claim_completed + withdrawal_completed
+            from src.services.analytics.gateway_events import (
+                emit_settlement_claim_completed,
+                emit_withdrawal_completed,
+            )
+            await emit_settlement_claim_completed(
+                owner, claim_usdc=amount_usdc, tx_hash=normalized_tx_hash,
+            )
+            await emit_withdrawal_completed(
+                owner, amount_usdc=amount_usdc, tx_hash=normalized_tx_hash, role="provider",
             )
             return {
                 "withdrawalId": str(target.id or ""),

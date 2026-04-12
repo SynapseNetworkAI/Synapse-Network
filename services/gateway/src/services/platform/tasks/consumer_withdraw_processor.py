@@ -213,6 +213,18 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             "consumer_withdraw_processor: COMPLETED id=%s owner=%s amount=%.6f tx=%s",
             row.id, owner, amount_usdc, tx_hash,
         )
+
+        # Analytics: withdrawal_completed
+        import asyncio
+        from src.services.analytics.gateway_events import emit_withdrawal_completed
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(emit_withdrawal_completed(
+                owner, amount_usdc=amount_usdc, tx_hash=tx_hash, role="consumer",
+            ))
+        except RuntimeError:
+            pass
+
         return True
     except Exception as exc:
         logger.error(

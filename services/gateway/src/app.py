@@ -23,6 +23,9 @@ from src.services.platform.tasks.consumer_withdraw_processor import (
     run_consumer_withdraw_processor,
 )
 from src.services.platform.service_health_service import run_service_health_monitor
+from src.services.analytics.emitter import create_analytics_emitter
+from src.services.analytics import gateway_events as gw_analytics
+from src.api.routers.events import router as events_router
 
 setup_logger()
 logger = logging.getLogger(__name__)
@@ -36,6 +39,15 @@ async def lifespan(app: FastAPI):
     logger.info(
         "Application starting up... Storage Connected (%s).", settings.storage_backend
     )
+
+    # Initialize analytics emitter
+    app.state.analytics = create_analytics_emitter(
+        kafka_bootstrap_servers=settings.analytics_kafka_bootstrap_servers or None,
+        kafka_topic=settings.analytics_kafka_topic,
+        fallback_file=settings.analytics_fallback_file,
+        environment=settings.environment,
+    )
+    gw_analytics.set_emitter(app.state.analytics)
 
     # 启动 V2 链上索引守护任务（主索引器）
     # 该任务负责充值事件的异步确认与最终一致性入账。
@@ -117,6 +129,10 @@ async def lifespan(app: FastAPI):
             await app.state.consumer_withdraw_processor_task
         logger.info("Consumer withdrawal processor task cancelled during shutdown")
 
+    # Cleanup analytics
+    if hasattr(app.state, "analytics"):
+        await app.state.analytics._backend.close()
+
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -144,6 +160,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(provider_secrets.router, prefix="/api", tags=["provider-secrets"])
     app.include_router(forwarding.router, prefix="/api", tags=["forwarding"])
+    app.include_router(events_router, tags=["analytics"])
 
     @app.get("/health")
     async def health_check():

@@ -35,6 +35,7 @@ from src.services.platform.service_health_utils import (
     prune_health_history,
     sync_service_target_health_table,
 )
+from src.services.analytics.gateway_events import emit_provider_health_degraded
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +228,25 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
 
             checked += 1
             next_row = await probe_service_health(row, client=client)
+            # Analytics: emit when overall health transitions to degraded or unhealthy
+            prev_overall = str(
+                getattr(getattr(row, "runtime_health", None), "overallStatus", None) or ""
+            ).lower()
+            next_overall = str(
+                getattr(getattr(next_row, "runtime_health", None), "overallStatus", None) or ""
+            ).lower()
+            if next_overall in {"degraded", "unhealthy"} and prev_overall not in {
+                "degraded",
+                "unhealthy",
+            }:
+                next_health = getattr(next_row, "runtime_health", None)
+                await emit_provider_health_degraded(
+                    str(next_row.owner_address or ""),
+                    service_id=str(next_row.service_id or ""),
+                    overall_status=next_overall,
+                    healthy_targets=int(getattr(next_health, "healthyTargets", 0) or 0),
+                    total_targets=int(getattr(next_health, "totalTargets", 0) or 0),
+                )
             if next_row != row:
                 updated += 1
             if settings.service_health_history_enabled:

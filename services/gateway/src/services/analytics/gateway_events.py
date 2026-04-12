@@ -191,6 +191,37 @@ async def emit_deposit_failed(
 
 # ── Provider revenue ───────────────────────────────────────────
 
+async def emit_provider_first_revenue_received(
+    provider_address: str,
+    *,
+    service_id: str,
+    gross_usdc: float,
+    time_since_listing_ms: Optional[int] = None,
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit once when a provider receives their very first payment.
+
+    This is a milestone activation event distinct from the recurring
+    ``provider_revenue_received`` event. Callers are responsible for
+    detecting the first-revenue condition (e.g., by checking whether the
+    provider has any prior settled invoices before calling this helper).
+    """
+    extra: dict[str, Any] = {
+        "provider_id": sha256_hash(provider_address),
+        "service_id": service_id,
+        "gross_usdc": gross_usdc,
+        "is_first_revenue": True,
+    }
+    if time_since_listing_ms is not None:
+        extra["time_since_listing_ms"] = time_since_listing_ms
+    await _emit(
+        "provider_first_revenue_received", provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra=extra,
+    )
+
+
 async def emit_provider_revenue_received(
     provider_address: str,
     *,
@@ -282,6 +313,78 @@ async def emit_refund_completed(
             "reason_code": reason_code,
             "service_id": service_id,
             "tx_hash": tx_hash,
+        },
+    )
+
+
+# ── Service registration ────────────────────────────────────────
+
+async def emit_service_registered(
+    provider_address: str,
+    *,
+    service_id: str,
+    service_name: str = "",
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit when a provider successfully registers a new service."""
+    await _emit(
+        "service_registered", provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "service_name": service_name,
+        },
+    )
+
+
+async def emit_service_register_failed(
+    provider_address: str,
+    *,
+    error_code: str,
+    service_name: str = "",
+    reason: str = "",
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit when a provider's service registration attempt fails."""
+    extra: dict[str, Any] = {
+        "provider_id": sha256_hash(provider_address),
+        "error_code": error_code,
+        "service_name": service_name,
+    }
+    if reason:
+        extra["reason"] = reason
+    await _emit(
+        "service_register_failed", provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra=extra,
+    )
+
+
+# ── Provider health ─────────────────────────────────────────────
+
+async def emit_provider_health_degraded(
+    provider_address: str,
+    *,
+    service_id: str,
+    healthy_targets: int,
+    total_targets: int,
+    overall_status: str = "degraded",
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit when a provider service's health drops below fully-healthy."""
+    await _emit(
+        "provider_health_degraded", provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "healthy_targets": healthy_targets,
+            "total_targets": total_targets,
+            "overall_status": overall_status,
         },
     )
 

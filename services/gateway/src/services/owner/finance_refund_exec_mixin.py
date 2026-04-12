@@ -173,6 +173,21 @@ class FinanceRefundExecMixin:
                 "requestMeta": request_meta or {},
             },
         )
+
+        # Analytics: refund_completed (fire-and-forget via asyncio task)
+        import asyncio
+        from src.services.analytics.gateway_events import emit_refund_completed
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(emit_refund_completed(
+                owner,
+                amount_usdc=amount_usdc,
+                reason_code=str(target.reason or ""),
+                tx_hash=normalized_tx_hash,
+            ))
+        except RuntimeError:
+            pass
+
         return {
             "refundId": str(target.id or ""),
             "status": "COMPLETED",

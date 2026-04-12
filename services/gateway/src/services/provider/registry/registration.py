@@ -5,6 +5,10 @@ import uuid
 from typing import Any, Optional
 
 from src.services.platform import credential_service, service_health_service
+from src.services.analytics.gateway_events import (
+    emit_service_registered,
+    emit_service_register_failed,
+)
 from src.utils.datetime_utils import now_dt_str
 
 from .interfaces import RegistryContext
@@ -64,7 +68,15 @@ async def register_service(
             new_svc = new_svc.model_copy(
                 update={"service_id": generate_service_id(owner_wallet)}
             )
-        ensure_unique_service_id(rows, str(new_svc.service_id or ""))
+        try:
+            ensure_unique_service_id(rows, str(new_svc.service_id or ""))
+        except ValueError as exc:
+            await emit_service_register_failed(
+                owner_wallet,
+                error_code="SERVICE_ID_CONFLICT",
+                reason=str(exc),
+            )
+            raise
         new_svc = bind_forwarding_service_id(new_svc)
         created_at = now_dt_str()
         new_svc = new_svc.model_copy(
@@ -85,6 +97,11 @@ async def register_service(
             "provider.service.registered",
             owner_wallet,
             _audit_details(response),
+        )
+        await emit_service_registered(
+            owner_wallet,
+            service_id=str(new_svc.service_id or ""),
+            service_name=str(new_svc.service_name or ""),
         )
         return response
 
