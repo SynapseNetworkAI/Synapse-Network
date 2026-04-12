@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from contextlib import asynccontextmanager, suppress
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.cors import resolve_cors_origin_regex, resolve_cors_origins
@@ -29,6 +29,48 @@ from src.api.routers.events import router as events_router
 
 setup_logger()
 logger = logging.getLogger(__name__)
+
+
+def _task_initialized(task: asyncio.Task | None) -> bool:
+    return task is not None and not task.done()
+
+
+def _build_monitor_state(*, enabled: bool, task: asyncio.Task | None) -> dict[str, bool]:
+    return {"enabled": enabled, "initialized": _task_initialized(task)}
+
+
+def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
+    state = getattr(app, "state", None)
+
+    def _state_task(name: str) -> asyncio.Task | None:
+        if state is None:
+            return None
+        return getattr(state, name, None)
+
+    monitors = {
+        "deposit_indexer": _build_monitor_state(
+            enabled=True, task=_state_task("v2_indexer_task")
+        ),
+        "service_health_monitor": _build_monitor_state(
+            enabled=settings.service_health_monitor_enabled,
+            task=_state_task("service_health_task"),
+        ),
+        "provider_withdraw_expiry_reaper": _build_monitor_state(
+            enabled=settings.provider_withdraw_expiry_reaper_enabled,
+            task=_state_task("provider_withdraw_expiry_reaper_task"),
+        ),
+        "consumer_withdraw_processor": _build_monitor_state(
+            enabled=settings.consumer_withdraw_processor_enabled,
+            task=_state_task("consumer_withdraw_processor_task"),
+        ),
+    }
+
+    ready = all(
+        (not monitor["enabled"]) or monitor["initialized"]
+        for monitor in monitors.values()
+    )
+
+    return {"status": "ready" if ready else "degraded", "monitors": monitors}
 
 
 @asynccontextmanager
@@ -165,6 +207,10 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check():
         return {"status": "ok", "version": "2.0.0"}
+
+    @app.get("/readiness")
+    async def readiness_check(request: Request):
+        return _readiness_snapshot(request.app)
 
     return app
 
