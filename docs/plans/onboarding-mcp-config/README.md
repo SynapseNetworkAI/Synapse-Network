@@ -17,10 +17,10 @@ doc_status: active
 
 ## Onboarding State
 - state file: `.agents-memory/onboarding-state.json`
-- bootstrap ready: `yes`
-- bootstrap complete: `yes`
-- next group: `Refactor`
-- next key: `refactor_bundle`
-- next command: `python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e`
-- verify with: `amem doctor .`
-- done when: `amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.
+- bootstrap ready: `no`
+- bootstrap complete: `no`
+- next group: `Core`
+- next key: `profile_consistency`
+- next command: `amem profile-check .`
+- verify with: `amem profile-check .`
+- done when: `amem doctor .` shows `[OK] profile_consistency`.

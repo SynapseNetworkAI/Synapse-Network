@@ -35,8 +35,8 @@ Integration onboarding: mcp_config
 [
   {
     "name": "Core",
-    "status": "HEALTHY",
-    "summary": "Core status=HEALTHY (ok=7, warn=0, fail=0, info=0)",
+    "status": "ATTENTION",
+    "summary": "Core status=ATTENTION (ok=6, warn=0, fail=1, info=0)",
     "checks": [
       {
         "status": "OK",
@@ -69,9 +69,9 @@ Integration onboarding: mcp_config
         "detail": "applied profile 'python-service'"
       },
       {
-        "status": "OK",
+        "status": "FAIL",
         "key": "profile_consistency",
-        "detail": "profile 'python-service' consistency OK"
+        "detail": "missing required file: tests"
       }
     ]
   },
@@ -112,7 +112,7 @@ Integration onboarding: mcp_config
   {
     "name": "Optional",
     "status": "WATCH",
-    "summary": "Optional status=WATCH (ok=2, warn=6, fail=0, info=0)",
+    "summary": "Optional status=WATCH (ok=2, warn=5, fail=0, info=0)",
     "checks": [
       {
         "status": "OK",
@@ -127,11 +127,6 @@ Integration onboarding: mcp_config
       {
         "status": "WARN",
         "key": "refactor_watch",
-        "detail": "unable to inspect services/gateway/examples/synapse_client_quickstart.py: unterminated string literal (detected at line 38) (<unknown>, line 38)"
-      },
-      {
-        "status": "WARN",
-        "key": "refactor_watch",
         "detail": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic high complexity (lines=292>40, branches=21>5, nesting=4>=4, locals=36>8, missing_guiding_comment)"
       },
       {
@@ -142,17 +137,17 @@ Integration onboarding: mcp_config
       {
         "status": "WARN",
         "key": "refactor_watch",
+        "detail": "services/gateway/examples/v2_daily_limit_regression.py::submit_and_wait_deposit_confirmation high complexity (lines=50>40, branches=6>5, locals=11>8, nesting=3, missing_guiding_comment)"
+      },
+      {
+        "status": "WARN",
+        "key": "refactor_watch",
         "detail": "services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows high complexity (lines=59>40, nesting=4>=4, locals=14>8, branches=4, missing_guiding_comment)"
       },
       {
         "status": "WARN",
         "key": "refactor_watch",
         "detail": "services/gateway/src/storage/postgres/repositories/balance_repository.py::BalanceRepository.read_balance_ledger high complexity (lines=61>40, nesting=4>=4, locals=14>8, branches=5, missing_guiding_comment)"
-      },
-      {
-        "status": "WARN",
-        "key": "refactor_watch",
-        "detail": "services/gateway/src/services/platform/tasks/deposit_indexer/backfill.py::run_backfill_scan_once high complexity (lines=116>40, branches=8>5, locals=22>8, nesting=3, missing_guiding_comment)"
       }
     ]
   }

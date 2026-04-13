@@ -25,5 +25,21 @@ doc_status: active
 
 ## Onboarding Task Steps
 ```json
-[]
+[
+  {
+    "group": "Core",
+    "priority": "required",
+    "key": "profile_consistency",
+    "status": "FAIL",
+    "detail": "missing required file: tests",
+    "action": "Repair missing or drifted profile-managed files before continuing onboarding.",
+    "command": "amem profile-check .",
+    "verify_with": "amem profile-check .",
+    "done_when": "`amem doctor .` shows `[OK] profile_consistency`.",
+    "safe_to_auto_execute": false,
+    "approval_required": true,
+    "approval_reason": "this step diagnoses drift but manual repair choices still require a human decision",
+    "next_command": "amem doctor ."
+  }
+]
 ```
