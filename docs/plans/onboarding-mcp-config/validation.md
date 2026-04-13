@@ -25,15 +25,15 @@ python3 scripts/memory.py docs-check .
 - test diff:
 
 ## Onboarding Verification
-- primary verification command: `amem doctor .`
-- expected completion: `amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.
+- primary verification command: `amem profile-check .`
+- expected completion: `amem doctor .` shows `[OK] profile_consistency`.
 
 ## State Snapshot
 ```json
 {
-  "project_bootstrap_ready": true,
-  "project_bootstrap_complete": true,
-  "recommended_next_command": "python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e",
-  "recommended_verify_command": "amem doctor ."
+  "project_bootstrap_ready": false,
+  "project_bootstrap_complete": false,
+  "recommended_next_command": "amem profile-check .",
+  "recommended_verify_command": "amem profile-check ."
 }
 ```

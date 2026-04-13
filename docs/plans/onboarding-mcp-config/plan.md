@@ -25,13 +25,14 @@ doc_status: active
 - 测试改动：
 
 ## Onboarding Execution
-- run `python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e`
-- verify with `amem doctor .`
-- finish when: `amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.
+- run `amem profile-check .`
+- verify with `amem profile-check .`
+- finish when: `amem doctor .` shows `[OK] profile_consistency`.
 
 ## Action Sequence Snapshot
 ```json
 [
+  "Core (required): Re-run `amem profile-check .` and repair the missing profile-managed files.",
   "Optional (recommended): Refactor flagged functions before adding more behavior, and add a short guiding comment when complex logic must remain in place."
 ]
 ```

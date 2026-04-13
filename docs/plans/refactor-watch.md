@@ -30,19 +30,18 @@ Track Python functions that are already high-complexity or are approaching the c
    - token: `hotspot-ae22c6f3e3cb`
    - issues: `lines=203>40, branches=15>5, nesting=4>=4, locals=31>8`
    - bundle command: `amem refactor-bundle . --token hotspot-ae22c6f3e3cb`
-3. [WARN] `services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows` line=73 metrics=(lines=59, branches=4, nesting=4, locals=14)
+3. [WARN] `services/gateway/examples/v2_daily_limit_regression.py::submit_and_wait_deposit_confirmation` line=231 metrics=(lines=50, branches=6, nesting=3, locals=11)
+   - token: `hotspot-064f920a78ca`
+   - issues: `lines=50>40, branches=6>5, locals=11>8, nesting=3, missing_guiding_comment`
+   - bundle command: `amem refactor-bundle . --token hotspot-064f920a78ca`
+4. [WARN] `services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows` line=73 metrics=(lines=59, branches=4, nesting=4, locals=14)
    - token: `hotspot-230b7cdcfbe3`
    - issues: `lines=59>40, nesting=4>=4, locals=14>8, branches=4, missing_guiding_comment`
    - bundle command: `amem refactor-bundle . --token hotspot-230b7cdcfbe3`
-4. [WARN] `services/gateway/src/storage/postgres/repositories/balance_repository.py::BalanceRepository.read_balance_ledger` line=136 metrics=(lines=61, branches=5, nesting=4, locals=14)
+5. [WARN] `services/gateway/src/storage/postgres/repositories/balance_repository.py::BalanceRepository.read_balance_ledger` line=136 metrics=(lines=61, branches=5, nesting=4, locals=14)
    - token: `hotspot-27d7dd41486f`
    - issues: `lines=61>40, nesting=4>=4, locals=14>8, branches=5, missing_guiding_comment`
    - bundle command: `amem refactor-bundle . --token hotspot-27d7dd41486f`
-5. [WARN] `services/gateway/src/services/platform/tasks/deposit_indexer/backfill.py::run_backfill_scan_once` line=113 metrics=(lines=116, branches=8, nesting=3, locals=22)
-   - token: `hotspot-447cc31b8594`
-   - issues: `lines=116>40, branches=8>5, locals=22>8, nesting=3, missing_guiding_comment`
-   - bundle command: `amem refactor-bundle . --token hotspot-447cc31b8594`
-6. [WARN] services/gateway/src/services/platform/tasks/deposit_indexer/backfill.py::run_backfill_scan_once high complexity (lines=116>40, branches=8>5, locals=22>8, nesting=3, missing_guiding_comment)
 
 ## Suggested Action
 
