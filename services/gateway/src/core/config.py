@@ -4,6 +4,7 @@ Private loader helpers live in ``config_loaders``; they are imported here so
 that test code that accesses them via ``config.<helper>`` continues to work.
 """
 import os
+from datetime import datetime, timezone
 
 from src.core.config_loaders import (
     _build_redis_url_from_components,
@@ -40,13 +41,15 @@ _service_health_history_retention_hours_default = max(
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
     environment: str = _canonical_environment_name(os.getenv("ENVIRONMENT", "local"))
-    # Structured logging defaults (file sink configured via loguru).
+    # Structured logging defaults (JSON file sink managed via stdlib handlers).
     log_directory: str = os.path.abspath(
-        os.getenv("GATEWAY_LOG_DIR", os.path.join(_gateway_root_dir(), "logs"))
+        os.getenv(
+            "GATEWAY_LOG_DIR", os.path.join(_gateway_root_dir(), "logs", "gateway")
+        )
     )
     log_file_name: str = os.getenv("GATEWAY_LOG_FILE_NAME", "gateway-runtime.log").strip() or "gateway-runtime.log"
     log_rotation: str = os.getenv("GATEWAY_LOG_ROTATION", "00:00").strip() or "00:00"
-    log_retention_days: int = max(7, _env_int("GATEWAY_LOG_RETENTION_DAYS", 7))
+    log_retention_days: int = max(14, _env_int("GATEWAY_LOG_RETENTION_DAYS", 14))
     log_level: str = os.getenv("GATEWAY_LOG_LEVEL", "INFO").strip().upper() or "INFO"
     # RPC endpoint used by chain-facing flows (deposit indexer, receipt checks).
     rpc_url: str = os.getenv("RPC_URL", "http://127.0.0.1:8545")
@@ -354,8 +357,12 @@ class Settings:
         "ANALYTICS_FALLBACK_FILE", "logs/analytics_events.jsonl"
     )
 
+    def _log_date_slug(self) -> str:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
     @property
     def log_file_path(self) -> str:
-        return os.path.abspath(os.path.join(self.log_directory, self.log_file_name))
+        dated_directory = os.path.join(self.log_directory, self._log_date_slug())
+        return os.path.abspath(os.path.join(dated_directory, self.log_file_name))
 
 settings = Settings()

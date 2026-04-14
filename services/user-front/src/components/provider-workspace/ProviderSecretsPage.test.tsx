@@ -133,7 +133,8 @@ describe("ProviderSecretsPage", () => {
     await screen.findByRole("heading", { name: "签发 Provider 凭据" });
     await user.type(screen.getByLabelText("名称"), "新密钥");
     await user.type(screen.getByLabelText("速率限制"), "75");
-    await user.selectOptions(screen.getByLabelText("过期时间"), "30");
+    await user.click(screen.getByLabelText("过期时间"));
+    await user.click(await screen.findByRole("option", { name: "30 天" }));
 
     await user.click(screen.getByRole("button", { name: "签发凭据" }));
 
