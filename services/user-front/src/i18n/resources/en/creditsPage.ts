@@ -54,6 +54,10 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "Voucher redemption backend is not wired in this environment yet. This modal currently reserves the UI contract only.",
   redeemVoucherModalRedeeming: "Redeeming Voucher...",
   redeemVoucherModalSuccess: "Voucher redeemed. {{amount}} was added to your balance.",
+  supportTitle: "Need help with deposit or billing?",
+  supportDescription:
+    "If credits do not arrive, a refund is stuck, or billing looks wrong, contact the operator directly before retrying the same payment flow.",
+  supportAction: "Contact Support",
 };
 
 export default creditsPage;
