@@ -7,20 +7,6 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-
-class _LoguruStub:
-    def remove(self):
-        return None
-
-    def configure(self, **kwargs):
-        return kwargs
-
-    def add(self, *args, **kwargs):
-        return None
-
-
-sys.modules.setdefault("loguru", SimpleNamespace(logger=_LoguruStub()))
-
 class _TTLCache(dict):
     def __init__(self, maxsize, ttl):
         super().__init__()
