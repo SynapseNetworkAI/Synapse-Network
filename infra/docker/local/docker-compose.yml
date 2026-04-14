@@ -13,11 +13,15 @@ services:
       - SYNAPSE_GATEWAY_APP_PASSWORD=12345678
       - SYNAPSE_GATEWAY_READONLY_USER=synapse_gateway_ro
       - SYNAPSE_GATEWAY_READONLY_PASSWORD=12345678
+      - SYNAPSE_GATEWAY_MIGRATOR_USER=synapse_gateway_migrator
+      - SYNAPSE_GATEWAY_MIGRATOR_PASSWORD=12345678
       - SYNAPSE_ADMIN_DB=synapse_gateway_admin
       - SYNAPSE_ADMIN_APP_USER=synapse_admin_app
       - SYNAPSE_ADMIN_APP_PASSWORD=12345678
       - SYNAPSE_ADMIN_READONLY_USER=synapse_admin_ro
       - SYNAPSE_ADMIN_READONLY_PASSWORD=12345678
+      - SYNAPSE_ADMIN_MIGRATOR_USER=synapse_admin_migrator
+      - SYNAPSE_ADMIN_MIGRATOR_PASSWORD=12345678
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../postgres/init:/docker-entrypoint-initdb.d:ro

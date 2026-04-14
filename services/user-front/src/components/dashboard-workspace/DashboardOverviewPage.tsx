@@ -9,6 +9,7 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import OverviewHero from "@/components/dashboard/overview/OverviewHero";
 import WorkflowSection from "@/components/dashboard/overview/WorkflowSection";
 import CapabilityCards from "@/components/dashboard/overview/CapabilityCards";
+import { buildSupportMailto, getSupportPortalUrl } from "@/utils/supportContact";
 import { RefreshCw, LayoutGrid, Zap, Layers, User, Bot, Server, Cpu } from "lucide-react";
 
 export default function OverviewPage() {
@@ -16,6 +17,7 @@ export default function OverviewPage() {
   const { isSessionAuthenticated } = useAuth();
   const { handleRefresh, isRefreshing, isBootstrapping } = useOwnerData();
   const { t } = useLanguage();
+  const supportHref = getSupportPortalUrl() || buildSupportMailto("Synapse dashboard support");
 
   if (isConnected && isSessionAuthenticated && isBootstrapping) {
     return <DashboardPageLoadingState />;
@@ -154,6 +156,16 @@ export default function OverviewPage() {
               <button type="button" className="hover:text-gray-400 transition-colors">{t("overviewPage.footerTerms")}</button>
               <button type="button" className="hover:text-gray-400 transition-colors">{t("overviewPage.footerSecurity")}</button>
               <button type="button" className="hover:text-gray-400 transition-colors">{t("overviewPage.footerStatus")}</button>
+              {supportHref ? (
+                <a
+                  href={supportHref}
+                  target={supportHref.startsWith("http") ? "_blank" : undefined}
+                  rel={supportHref.startsWith("http") ? "noreferrer" : undefined}
+                  className="hover:text-gray-400 transition-colors"
+                >
+                  {t("overviewPage.footerSupport")}
+                </a>
+              ) : null}
             </div>
           </div>
         </footer>

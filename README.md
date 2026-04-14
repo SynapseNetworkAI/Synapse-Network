@@ -219,6 +219,32 @@ This week focus:
 - P1 logging partitioning baseline: monthly partitions and retention policy
 - Delivery gate: P0 complete before any public production exposure
 
+## Deployment Automation
+
+Repository-level deployment execution now uses:
+
+1. `.github/workflows/pr-ci.yml`
+2. `.github/workflows/deploy-staging.yml`
+3. `.github/workflows/deploy-production.yml`
+4. `scripts/deploy/staging.sh`
+5. `scripts/deploy/production.sh`
+6. `scripts/deploy/rollback.sh`
+
+These workflows are designed to be triggered by `Synapse-Network-Growing`, which acts as the deploy control plane for staging/prod promotion and rollback audit.
+
+## Lowest-cost rollout recommendation
+
+For the current pre-launch phase, the default recommendation is:
+
+1. start with a single `staging` GCE VM
+2. co-host `Synapse-Network`, `Synapse-Network-Provider`, Postgres, Kafka, ClickHouse, and reverse proxy on that machine
+3. deploy through `GitHub Actions -> SSH -> staging deploy script`
+4. postpone the dedicated `prod` VM until staging is stable and support / backup / monitoring are in place
+
+Operational runbook:
+
+- [docs/ops/09_Staging_First_GCE_Rollout.md](docs/ops/09_Staging_First_GCE_Rollout.md)
+
 GitHub issue templates for direct assignment:
 - Board checklist: [.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
 - Single work item: [.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)

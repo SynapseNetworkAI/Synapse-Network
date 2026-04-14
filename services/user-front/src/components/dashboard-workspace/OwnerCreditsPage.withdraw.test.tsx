@@ -33,6 +33,16 @@ vi.mock("@rainbow-me/rainbowkit", () => ({
 
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xabc", isConnected: true }),
+  useChainId: () => 11155111,
+  useWriteContract: () => ({
+    data: undefined,
+    writeContractAsync: vi.fn(),
+  }),
+  useWaitForTransactionReceipt: () => ({
+    isSuccess: false,
+    isError: false,
+    error: null,
+  }),
 }));
 
 vi.mock("@/components/WalletAuthGuard", () => ({
