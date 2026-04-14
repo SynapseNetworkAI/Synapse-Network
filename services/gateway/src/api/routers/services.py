@@ -274,7 +274,7 @@ async def search_agent_discovery(
         "discovery",
         request_id=request_id,
         path="/api/v1/agent/discovery/search",
-        intent=query.intent,
+        intent=query.normalized_query,
     )
     log.info(
         "discovery.start",
