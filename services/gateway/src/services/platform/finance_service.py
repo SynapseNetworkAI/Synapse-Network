@@ -183,6 +183,9 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     async def get_balance(self, owner_wallet: str) -> dict[str, Any]:
         """Only return current authenticated owner's balance summary."""
         normalized_owner = normalize_wallet(owner_wallet)
+        await asyncio.to_thread(
+            self._repair_consumer_withdraw_reservation_gap, normalized_owner
+        )
         balance_data = await asyncio.to_thread(
             self.storage.get_data_manager().finance.balance.read_balance_ledger
         )
@@ -420,5 +423,4 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     response=response,
                 )
             return response
-
 
