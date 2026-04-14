@@ -51,6 +51,14 @@ class InMemoryBalanceRepo:
         wallet.available_balance = round(available - amount_usdc, 6)
         wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
 
+    def consume_consumer_pending_for_withdrawal(self, owner: str, amount_usdc: float, updated_at: str):
+        _ = updated_at
+        wallet = self.ledger.ensure_consumer_wallet(owner)
+        pending = float(wallet.pending_balance or 0.0)
+        if pending + 1e-9 < amount_usdc:
+            raise RuntimeError("INSUFFICIENT_CONSUMER_PENDING_ATOMIC")
+        wallet.pending_balance = round(pending - amount_usdc, 6)
+
 
 class InMemoryGatewayStateRepo:
     def __init__(self):
@@ -67,8 +75,16 @@ class InMemoryGatewayStateRepo:
         assert all(isinstance(row, DepositIntentRow) for row in rows)
         self.deposit_rows = list(rows)
 
-    def read_consumer_refund_rows(self):
-        return list(self.refund_rows)
+    def read_consumer_refund_rows(self, *, owner_wallet: str | None = None):
+        rows = list(self.refund_rows)
+        if owner_wallet:
+            normalized = owner_wallet.lower()
+            rows = [
+                row
+                for row in rows
+                if str(row.owner_address or row.ownerAddress or "").lower() == normalized
+            ]
+        return rows
 
     def write_consumer_refund_rows(self, rows, updated_at):
         _ = updated_at
@@ -166,6 +182,8 @@ def _configure_owner_service(service: OwnerFinanceService) -> None:
 
 
 def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
+    if not settings.usdc_token_address:
+        settings.usdc_token_address = "0x0000000000000000000000000000000000000001"
     service._get_redis_client = _async_none
     service._check_idempotency_redis = _async_none
     service._start_idempotency_redis = _async_true
@@ -340,7 +358,7 @@ def test_consumer_finance_refund_flow_uses_typed_rows() -> None:
             "refund-intent-key-0001",
         )
     )
-    assert created["status"] == "PENDING"
+    assert created["status"] == "REQUESTED"
     assert len(storage.gateway_state.refund_rows) == 1
     assert isinstance(storage.gateway_state.refund_rows[0], RefundIntentRow)
 

@@ -137,7 +137,7 @@ describe("ProviderSettlementsPage", () => {
       expect(getProviderWithdrawCapabilityMock).toHaveBeenCalledWith("0xabc");
     });
 
-    const amountInput = await screen.findByPlaceholderText("提现金额（留空 = 全部 12.000000 USDC）");
+    const amountInput = await screen.findByPlaceholderText("12.000000 USDC");
     await user.type(amountInput, "8.5");
 
     const createButton = screen.getByRole("button", {

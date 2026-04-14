@@ -1,15 +1,63 @@
 import hashlib
 import json
+import logging
 import secrets
 import time
 from eth_account.messages import encode_defunct
 from typing import Any, Optional
-from cachetools import TTLCache
+try:
+    from cachetools import TTLCache
+except Exception:  # pragma: no cover - optional dependency fallback
+    class TTLCache(dict):
+        def __init__(self, maxsize, ttl):
+            super().__init__()
+            self.maxsize = max(1, int(maxsize))
+            self.ttl = max(1, int(ttl))
+            self._expires: dict[str, float] = {}
+
+        def _now(self) -> float:
+            return time.time()
+
+        def _purge(self) -> None:
+            now = self._now()
+            expired_keys = [
+                key for key, expires in self._expires.items() if expires <= now
+            ]
+            for key in expired_keys:
+                self._expires.pop(key, None)
+                super().pop(key, None)
+
+        def __setitem__(self, key, value):
+            self._purge()
+            if len(self) >= self.maxsize:
+                oldest_key = next(iter(self._expires)) if self._expires else None
+                if oldest_key is not None:
+                    self._expires.pop(oldest_key, None)
+                    super().pop(oldest_key, None)
+            self._expires[key] = self._now() + self.ttl
+            super().__setitem__(key, value)
+
+        def __getitem__(self, key):
+            self._purge()
+            if key not in self._expires:
+                raise KeyError(key)
+            return super().__getitem__(key)
+
+        def get(self, key, default=None):
+            self._purge()
+            if key not in self._expires:
+                return default
+            return super().get(key, default)
+
+        def __delitem__(self, key):
+            self._expires.pop(key, None)
+            super().__delitem__(key)
 
 from .common import normalize_wallet
 from .config import settings
-from loguru import logger
 import jwt
+
+logger = logging.getLogger(__name__)
 
 
 def _web3_class():

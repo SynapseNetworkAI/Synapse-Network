@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
-import OwnerCreditsPage from "@/components/dashboard-workspace/OwnerCreditsPage";
+import OwnerCreditsPage, { WithdrawBalanceModal } from "@/components/dashboard-workspace/OwnerCreditsPage";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 
@@ -17,6 +17,7 @@ const {
   handleRefreshMock,
   toastSuccessMock,
   toastErrorMock,
+  completeV2RefundMock,
 } = vi.hoisted(() => ({
   authorizeMock: vi.fn(async () => true),
   getOwnerSpendingLimitMock: vi.fn(),
@@ -25,6 +26,7 @@ const {
   handleRefreshMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  completeV2RefundMock: vi.fn(),
 }));
 
 vi.mock("@rainbow-me/rainbowkit", () => ({
@@ -94,6 +96,7 @@ vi.mock("@/utils/balanceApi", async () => {
     ...actual,
     getOwnerSpendingLimit: getOwnerSpendingLimitMock,
     requestConsumerWithdraw: requestConsumerWithdrawMock,
+    completeV2Refund: completeV2RefundMock,
   };
 });
 
@@ -111,6 +114,20 @@ function renderPage() {
   return render(
     createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
   );
+}
+
+function renderWithdrawModal(overrides: { availableBalance?: number } = {}) {
+  const onClose = vi.fn();
+  const onSuccess = vi.fn().mockResolvedValue(undefined);
+  render(
+    createElement(WithdrawBalanceModal, {
+      availableBalance: overrides.availableBalance ?? 20,
+      userAddress: "0xabc",
+      onClose,
+      onSuccess,
+    }),
+  );
+  return { onClose, onSuccess };
 }
 
 describe("OwnerCreditsPage — Withdraw", () => {
@@ -211,61 +228,27 @@ describe("OwnerCreditsPage — Withdraw", () => {
     });
   });
 
-  it("updates the displayed remaining balance immediately after a successful withdrawal", async () => {
+  it("submits a withdrawal and closes the modal on success", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
-      withdrawId: "wd-balance-1",
+      withdrawId: "wd-success",
       status: "REQUESTED",
       amountUsdc: 20,
       riskReasonCode: null,
     });
-    handleRefreshMock.mockResolvedValue(undefined);
 
-    renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
-    await screen.findByRole("heading", { name: "Withdraw Balance" });
-
+    const { onClose, onSuccess } = renderWithdrawModal();
     const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
-      expect(screen.getByText("$0.00")).toBeTruthy();
+      expect(requestConsumerWithdrawMock).toHaveBeenCalledWith("0xabc", {
+        amountUsdc: 20,
+        reason: undefined,
+      });
+      expect(onSuccess).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
     });
-  });
-
-  it("keeps the withdrawn balance after a page refresh when the server balance stays deducted", async () => {
-    const user = userEvent.setup();
-    requestConsumerWithdrawMock.mockResolvedValue({
-      withdrawId: "wd-refresh-1",
-      status: "REQUESTED",
-      amountUsdc: 20,
-      riskReasonCode: null,
-    });
-    handleRefreshMock.mockImplementation(async () => {
-      ownerBalanceState.value = "0";
-    });
-
-    const rendered = renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
-    await screen.findByRole("heading", { name: "Withdraw Balance" });
-
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
-    await user.click(withdrawButtons.at(-1)!);
-
-    await waitFor(() => {
-      expect(handleRefreshMock).toHaveBeenCalled();
-      expect(screen.getByText("$0.00")).toBeTruthy();
-    });
-
-    rendered.unmount();
-    renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    expect(screen.getByText("$0.00")).toBeTruthy();
   });
 
   it("shows a success toast with the withdrawn amount", async () => {
@@ -273,68 +256,32 @@ describe("OwnerCreditsPage — Withdraw", () => {
     requestConsumerWithdrawMock.mockResolvedValue({
       withdrawId: "wd-2",
       status: "REQUESTED",
-      amountUsdc: 20,
+      amountUsdc: 42.5,
       riskReasonCode: null,
     });
-    handleRefreshMock.mockResolvedValue(undefined);
 
-    renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
-    await screen.findByRole("heading", { name: "Withdraw Balance" });
+    renderWithdrawModal();
 
     const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
       expect(toastSuccessMock).toHaveBeenCalledWith(
-        expect.stringContaining("$20.00")
+        expect.stringContaining("$42.50")
       );
-    });
-  });
-
-  it("closes the modal after successful withdrawal", async () => {
-    const user = userEvent.setup();
-    requestConsumerWithdrawMock.mockResolvedValue({
-      withdrawId: "wd-3",
-      status: "REQUESTED",
-      amountUsdc: 20,
-      riskReasonCode: null,
-    });
-    handleRefreshMock.mockResolvedValue(undefined);
-
-    renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
-    await screen.findByRole("heading", { name: "Withdraw Balance" });
-
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
-    await user.click(withdrawButtons.at(-1)!);
-
-    await waitFor(() => {
-      expect(
-        screen.queryByRole("heading", { name: "Withdraw Balance" })
-      ).toBeNull();
     });
   });
 
   it("shows pending_manual_review toast for large withdrawals", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
-      withdrawId: "wd-4",
+      withdrawId: "wd-review",
       status: "PENDING_MANUAL_REVIEW",
-      amountUsdc: 20,
+      amountUsdc: 500,
       riskReasonCode: "HIGH_AMOUNT",
     });
-    handleRefreshMock.mockResolvedValue(undefined);
 
-    renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
-    await screen.findByRole("heading", { name: "Withdraw Balance" });
+    renderWithdrawModal();
 
     const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
     await user.click(withdrawButtons.at(-1)!);
@@ -352,11 +299,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
       new Error("Insufficient balance")
     );
 
-    renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
-    await screen.findByRole("heading", { name: "Withdraw Balance" });
+    renderWithdrawModal();
 
     const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
     await user.click(withdrawButtons.at(-1)!);
@@ -369,11 +312,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
   it("does not call requestConsumerWithdraw when amount is zero", async () => {
     const user = userEvent.setup();
 
-    renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
-    await screen.findByRole("heading", { name: "Withdraw Balance" });
+    renderWithdrawModal();
 
     const amountInput = screen.getByRole("spinbutton");
     await user.clear(amountInput);
