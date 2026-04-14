@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 
+import gateway_fastapi
 from src import app as gateway_app
 from src.api import deps as api_deps
 from src.api.schemas.pydantic_models import InferenceRequest
@@ -340,3 +341,29 @@ def test_balance_service_logs_failure(monkeypatch):
             )
         )
     assert any(call[0] == "exception" and call[1] == "settlement.failed" for call in fake_log.calls)
+
+
+def test_gateway_fastapi_startup_logs_to_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "log_directory", str(tmp_path / "logs"), raising=False)
+    monkeypatch.setattr(settings, "log_file_name", "gateway.log", raising=False)
+
+    captured_run: dict[str, object] = {}
+
+    def _fake_run(*args, **kwargs):
+        captured_run["args"] = args
+        captured_run["kwargs"] = kwargs
+
+    monkeypatch.setattr(gateway_fastapi, "uvicorn", SimpleNamespace(run=_fake_run))
+
+    gateway_fastapi._run_gateway()
+
+    assert captured_run["kwargs"]["log_config"] is None
+
+    log_files = sorted((tmp_path / "logs").glob("*/gateway.log"))
+    assert log_files, "Daily file handler did not create a log file"
+    newest_file = log_files[-1]
+    contents = newest_file.read_text().strip().splitlines()
+    assert contents
+    record = json.loads(contents[-1])
+    assert record["extra"]["service"] == "synapse-gateway"
+    assert record["extra"]["host"] == settings.provider_api_host
