@@ -147,6 +147,7 @@ export type I18nMessages = {
     footerTerms: string;
     footerSecurity: string;
     footerStatus: string;
+    footerSupport: string;
     heroEyebrow: string;
     heroTitleLead: string;
     heroTitleAccent: string;
@@ -746,6 +747,9 @@ export type I18nMessages = {
     redeemVoucherModalUnavailable: string;
     redeemVoucherModalRedeeming: string;
     redeemVoucherModalSuccess: string;
+    supportTitle: string;
+    supportDescription: string;
+    supportAction: string;
   };
   docsPage: {
     topNavBrand: string;
@@ -1497,6 +1501,9 @@ export type I18nMessages = {
     deploymentLabelCreating: string;
     deploymentLabelFix: string;
     deploymentReadyText: string;
+    supportTitle: string;
+    supportDescription: string;
+    supportAction: string;
     previewEyebrow: string;
     previewTitle: string;
     previewManifest: string;

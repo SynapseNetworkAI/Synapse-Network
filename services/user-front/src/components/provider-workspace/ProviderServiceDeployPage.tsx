@@ -18,6 +18,7 @@ import XSelect from "@/components/xui/XSelect";
 
 import AuthMask from "@/components/AuthMask";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import SupportContactPanel from "@/components/shared/SupportContactPanel";
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import { createServiceRegistry } from "@/utils/serviceApi";
@@ -1786,6 +1787,13 @@ export default function DeployManifestPage() {
                 </button>
               </div>
             </section>
+
+            <SupportContactPanel
+              title={t("providerServiceDeployPage.supportTitle")}
+              description={t("providerServiceDeployPage.supportDescription")}
+              actionLabel={t("providerServiceDeployPage.supportAction")}
+              subject="Synapse provider service publish support"
+            />
 
             {showAIModal ? (
               <div className="x-dialog-shell x-modal-overlay">

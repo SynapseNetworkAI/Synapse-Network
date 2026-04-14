@@ -89,6 +89,9 @@ describe("ProviderServiceDeployPage", () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    delete process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
+    delete process.env.NEXT_PUBLIC_SUPPORT_PORTAL_URL;
     globalThis.localStorage.clear();
     createServiceRegistryMock.mockResolvedValue({
       id: "svc-1",
@@ -190,5 +193,15 @@ describe("ProviderServiceDeployPage", () => {
     expect(screen.getByRole("button", { name: "AI 定义助手" })).toBeTruthy();
     expect(screen.getByLabelText("服务名称")).toBeTruthy();
     expect(screen.getByRole("button", { name: "显示高级覆盖" })).toBeTruthy();
+  });
+
+  it("shows a support contact entry when support email is configured", async () => {
+    process.env.NEXT_PUBLIC_SUPPORT_EMAIL = "support@synapse.test";
+
+    renderPage();
+
+    expect(screen.getByText("Need help publishing this service?")).toBeTruthy();
+    const supportLink = screen.getByRole("link", { name: "Contact Support" });
+    expect(supportLink.getAttribute("href")).toContain("mailto:support@synapse.test");
   });
 });

@@ -33,6 +33,16 @@ vi.mock("@rainbow-me/rainbowkit", () => ({
 
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xabc", isConnected: true }),
+  useChainId: () => 11155111,
+  useWriteContract: () => ({
+    data: undefined,
+    writeContractAsync: vi.fn(),
+  }),
+  useWaitForTransactionReceipt: () => ({
+    isSuccess: false,
+    isError: false,
+    error: null,
+  }),
 }));
 
 vi.mock("@/components/WalletAuthGuard", () => ({
@@ -90,6 +100,9 @@ vi.mock("@/utils/balanceApi", async () => {
 describe("OwnerCreditsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    delete process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
+    delete process.env.NEXT_PUBLIC_SUPPORT_PORTAL_URL;
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
     getOwnerSpendingLimitMock.mockResolvedValue({
       ownerAddress: "0xabc",
@@ -171,5 +184,17 @@ describe("OwnerCreditsPage", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith(
       "Voucher redeemed. $15.00 was added to your balance."
     );
+  });
+
+  it("shows a support contact entry when support email is configured", async () => {
+    process.env.NEXT_PUBLIC_SUPPORT_EMAIL = "support@synapse.test";
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+    );
+
+    expect((await screen.findAllByText("Need help with deposit or billing?")).length).toBeGreaterThan(0);
+    const supportLink = screen.getByRole("link", { name: "Contact Support" });
+    expect(supportLink.getAttribute("href")).toContain("mailto:support@synapse.test");
   });
 });
