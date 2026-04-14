@@ -46,8 +46,45 @@ from src.services.owner.forwarding_records import (
 )
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str
+from src.utils.logging_utils import workflow_logger
 
 _PRICE_TOLERANCE = Decimal("0.000001")
+
+
+def _invocation_logger(
+    request_id: str,
+    service_id: str,
+    credential: RuntimeCredentialRecord,
+    *,
+    mode: str,
+):
+    return workflow_logger(
+        "invocation",
+        request_id=request_id,
+        service_id=service_id,
+        credential_id=str(credential.credential.credential_id),
+        entry=mode,
+    )
+
+
+def _log_invocation_failure(log, exc: Exception) -> None:
+    if isinstance(exc, HTTPException):
+        detail = exc.detail if isinstance(exc.detail, dict) else {}
+        error_code = detail.get("code") or detail.get("errorCode")
+        if exc.status_code >= 500:
+            log.error(
+                "invocation.failed",
+                error_code=error_code,
+                status_code=exc.status_code,
+            )
+        else:
+            log.warning(
+                "invocation.failed",
+                error_code=error_code,
+                status_code=exc.status_code,
+            )
+        return
+    log.exception("invocation.failed", error_code=getattr(exc, "code", None))
 
 
 def _service_wallet(service: ServiceDefinitionRecord) -> str:
@@ -310,13 +347,35 @@ async def generate_response_v2(
         service_id=service_id, quote_id=quote.quote_id,
         price_usdc=float(unit_price), correlation_id=request_id,
     )
-    succeeded, consumer_after, settlement = await _execute_invocation_pipeline(
-        storage, credential, service, quote, request_payload, request_id, request_id,
+    log = _invocation_logger(request_id, service_id, credential, mode="generate")
+    log.info(
+        "invocation.start",
+        quote_id=quote.quote_id,
+        service_price_usdc=float(unit_price),
     )
+    try:
+        succeeded, consumer_after, settlement = await _execute_invocation_pipeline(
+            storage,
+            credential,
+            service,
+            quote,
+            request_payload,
+            request_id,
+            request_id,
+        )
+    except Exception as exc:
+        _log_invocation_failure(log, exc)
+        raise
     receipt = forwarding_billing.build_consumer_receipt(
         request_id=request_id, quote_id=quote.quote_id,
         invocation_id=succeeded.invocation_id, service_id=service_id,
         unit_price=settlement["unit_price"], total_charge=settlement["total_charge"],
+        consumer_balance_after=consumer_after,
+    )
+    log.info(
+        "invocation.complete",
+        invocation_id=succeeded.invocation_id,
+        total_charge=settlement["total_charge"],
         consumer_balance_after=consumer_after,
     )
     return forwarding_billing.build_consumer_success_response(receipt, succeeded.result.payload)
@@ -378,7 +437,29 @@ async def invoke_v1(
         service_id=request.serviceId, quote_id=quote.quote_id,
         price_usdc=float(live_price), correlation_id=trace_request_id,
     )
-    invocation, _, _ = await _execute_invocation_pipeline(
-        storage, credential, service, quote, invoke_payload, request.idempotencyKey, trace_request_id,
+    log = _invocation_logger(
+        trace_request_id,
+        request.serviceId,
+        credential,
+        mode="invoke",
+    )
+    log.info("invocation.start", quote_id=quote.quote_id, response_mode=request.responseMode)
+    try:
+        invocation, _, _ = await _execute_invocation_pipeline(
+            storage,
+            credential,
+            service,
+            quote,
+            invoke_payload,
+            request.idempotencyKey,
+            trace_request_id,
+        )
+    except Exception as exc:
+        _log_invocation_failure(log, exc)
+        raise
+    log.info(
+        "invocation.complete",
+        invocation_id=invocation.invocation_id,
+        status=invocation.status,
     )
     return invocation_state_payload(invocation)

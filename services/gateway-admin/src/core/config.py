@@ -1,9 +1,13 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
-from pydantic import Field
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+SERVICE_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_LOG_DIR = SERVICE_ROOT / "logs"
 
 
 DEVELOPMENT_CORS_ORIGINS = (
@@ -26,6 +30,23 @@ class Settings(BaseSettings):
 
     app_name: str = "Synapse Gateway Admin"
     environment: str = "local"
+    log_directory: str = Field(
+        default=str(DEFAULT_LOG_DIR),
+        alias="ADMIN_LOG_DIR",
+    )
+    log_file_name: str = Field(
+        default="gateway-admin.log",
+        alias="ADMIN_LOG_FILE_NAME",
+    )
+    log_rotation: str = Field(
+        default="00:00",
+        alias="ADMIN_LOG_ROTATION",
+    )
+    log_retention_days: int = Field(
+        default=7,
+        alias="ADMIN_LOG_RETENTION_DAYS",
+    )
+    log_level: str = Field(default="INFO", alias="ADMIN_LOG_LEVEL")
     host: str = Field(default="0.0.0.0", alias="ADMIN_GATEWAY_HOST")
     port: int = Field(default=8300, alias="ADMIN_GATEWAY_PORT")
     debug: bool = Field(default=True, alias="ADMIN_GATEWAY_DEBUG")
@@ -143,6 +164,9 @@ class Settings(BaseSettings):
                 if origin not in origins:
                     origins.append(origin)
         return origins
+
+    def log_file_path(self) -> str:
+        return str(Path(self.log_directory).expanduser().resolve() / self.log_file_name)
 
 
 @lru_cache(maxsize=1)
