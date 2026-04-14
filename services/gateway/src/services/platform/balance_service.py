@@ -10,6 +10,7 @@ from src.services.balance_mixins import (
 from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.finance_service import PlatformFinanceService
 from src.services.provider.withdraw_service import ProviderWithdrawService
+from src.utils.logging_utils import workflow_logger, resolve_request_id
 
 
 class BalanceService(
@@ -41,6 +42,21 @@ class BalanceService(
             signing_delegate=self,
             guard_delegate=self,
         )
+
+    def _settlement_logger(
+        self,
+        operation: str,
+        request_meta: Optional[dict[str, Any]],
+        **extra: Any,
+    ):
+        meta = request_meta or {}
+        request_id = resolve_request_id(meta.get("requestId"), operation)
+        admin_execution = meta.get("adminExecution")
+        log_extra = dict(extra)
+        if isinstance(admin_execution, dict):
+            log_extra.setdefault("admin_actor", admin_execution.get("requestedBy"))
+            log_extra.setdefault("admin_role", admin_execution.get("actorRole"))
+        return workflow_logger("settlement", request_id=request_id, operation=operation, **log_extra)
 
     def _normalize_rows(self, raw: Any) -> List[dict[str, Any]]:
         if isinstance(raw, list):
@@ -160,12 +176,29 @@ class BalanceService(
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        return await self.provider_withdraw_service.create_provider_withdraw_intent(
-            payload=payload,
+        log = self._settlement_logger(
+            "provider_withdraw.intent.create",
+            request_meta,
             owner_wallet=owner_wallet,
             idempotency_key=idempotency_key,
-            request_meta=request_meta,
         )
+        log.info("settlement.start", amount_usdc=payload.get("amountUsdc"))
+        try:
+            result = await self.provider_withdraw_service.create_provider_withdraw_intent(
+                payload=payload,
+                owner_wallet=owner_wallet,
+                idempotency_key=idempotency_key,
+                request_meta=request_meta,
+            )
+        except Exception:
+            log.exception("settlement.failed")
+            raise
+        log.info(
+            "settlement.complete",
+            withdrawal_id=result.get("withdrawalId"),
+            status=result.get("status"),
+        )
+        return result
 
     async def list_provider_withdrawals(
         self, owner_wallet: str
@@ -181,12 +214,31 @@ class BalanceService(
         tx_hash: str,
         request_meta: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        return await self.provider_withdraw_service.complete_provider_withdrawal(
+        log = self._settlement_logger(
+            "provider_withdraw.complete",
+            request_meta,
             owner_wallet=owner_wallet,
             withdrawal_id=withdrawal_id,
             tx_hash=tx_hash,
-            request_meta=request_meta,
         )
+        log.info("settlement.start")
+        try:
+            result = await self.provider_withdraw_service.complete_provider_withdrawal(
+                owner_wallet=owner_wallet,
+                withdrawal_id=withdrawal_id,
+                tx_hash=tx_hash,
+                request_meta=request_meta,
+            )
+        except Exception:
+            log.exception("settlement.failed")
+            raise
+        log.info(
+            "settlement.complete",
+            withdrawal_id=withdrawal_id,
+            status=result.get("status"),
+            tx_hash=result.get("txHash"),
+        )
+        return result
 
     async def review_provider_withdrawal(
         self,
@@ -194,11 +246,29 @@ class BalanceService(
         withdrawal_id: str,
         request_meta: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        return await self.provider_withdraw_service.review_provider_withdrawal(
+        log = self._settlement_logger(
+            "provider_withdraw.review",
+            request_meta,
             owner_wallet=owner_wallet,
             withdrawal_id=withdrawal_id,
-            request_meta=request_meta,
         )
+        log.info("settlement.start")
+        try:
+            result = await self.provider_withdraw_service.review_provider_withdrawal(
+                owner_wallet=owner_wallet,
+                withdrawal_id=withdrawal_id,
+                request_meta=request_meta,
+            )
+        except Exception:
+            log.exception("settlement.failed")
+            raise
+        log.info(
+            "settlement.complete",
+            withdrawal_id=withdrawal_id,
+            status=result.get("status"),
+            review=result.get("reviewDecision"),
+        )
+        return result
 
     async def get_provider_withdraw_capability(
         self, owner_wallet: str
@@ -241,5 +311,3 @@ class BalanceService(
             idempotency_key=idempotency_key,
             request_meta=request_meta,
         )
-
-

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from typing import Optional, Any, List, Annotated, Union
-from uuid import uuid4
 from src.api.deps import get_registry_service
 from src.api.schemas.pydantic_models import AgentDiscoverySearchRequest
 from src.services.provider.registry_service import (
@@ -15,6 +14,7 @@ from src.services.provider.manifest_parser_service import parse_manifest_from_cu
 from src.core.config import settings
 from src.domain.service_contract import AgentDiscoveryQueryRecord
 from pydantic import BaseModel, Field, model_validator
+from src.utils.logging_utils import workflow_logger, resolve_request_id
 
 router = APIRouter()
 
@@ -221,13 +221,28 @@ async def discover_services(
     Public endpoint for owner-scoped AI agents to discover available services.
     Returns only active services.
     """
-    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
-    public_services = await service.discover_services(
-        intent,
-        public_gateway_url=gateway_url,
+    request_id = resolve_request_id(request.headers.get("X-Request-Id"), "disc")
+    log = workflow_logger(
+        "discovery",
+        request_id=request_id,
+        path="/api/v1/services/discover",
+        intent=intent or "",
         sort_by=sort_by,
         sort_order=sort_order,
     )
+    log.info("discovery.start")
+    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
+    try:
+        public_services = await service.discover_services(
+            intent,
+            public_gateway_url=gateway_url,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+    except Exception:
+        log.exception("discovery.failed")
+        raise
+    log.info("discovery.complete", result_count=len(public_services))
     return {
         "status": "success",
         "services": public_services,
@@ -254,13 +269,35 @@ async def search_agent_discovery(
 ):
     gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
     query = AgentDiscoveryQueryRecord.model_validate(payload.model_dump(by_alias=True))
-    total_count = await service.count_agent_discovery_results(query)
-    results = await service.search_agent_discovery(
-        query, public_gateway_url=gateway_url
+    request_id = resolve_request_id(request.headers.get("X-Request-Id"), "disc")
+    log = workflow_logger(
+        "discovery",
+        request_id=request_id,
+        path="/api/v1/agent/discovery/search",
+        intent=query.intent,
     )
-    request_id = str(request.headers.get("X-Request-Id") or "").strip() or f"disc_{uuid4().hex}"
+    log.info(
+        "discovery.start",
+        page=query.effective_page,
+        page_size=query.effective_page_size,
+    )
+    try:
+        total_count = await service.count_agent_discovery_results(query)
+        results = await service.search_agent_discovery(
+            query, public_gateway_url=gateway_url
+        )
+    except Exception:
+        log.exception("discovery.failed")
+        raise
     page = query.effective_page
     page_size = query.effective_page_size
+    log.info(
+        "discovery.complete",
+        result_count=len(results),
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+    )
     return {
         "requestId": request_id,
         "results": [

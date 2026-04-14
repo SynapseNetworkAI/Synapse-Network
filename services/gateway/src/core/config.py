@@ -40,6 +40,14 @@ _service_health_history_retention_hours_default = max(
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
     environment: str = _canonical_environment_name(os.getenv("ENVIRONMENT", "local"))
+    # Structured logging defaults (file sink configured via loguru).
+    log_directory: str = os.path.abspath(
+        os.getenv("GATEWAY_LOG_DIR", os.path.join(_gateway_root_dir(), "logs"))
+    )
+    log_file_name: str = os.getenv("GATEWAY_LOG_FILE_NAME", "gateway-runtime.log").strip() or "gateway-runtime.log"
+    log_rotation: str = os.getenv("GATEWAY_LOG_ROTATION", "00:00").strip() or "00:00"
+    log_retention_days: int = max(7, _env_int("GATEWAY_LOG_RETENTION_DAYS", 7))
+    log_level: str = os.getenv("GATEWAY_LOG_LEVEL", "INFO").strip().upper() or "INFO"
     # RPC endpoint used by chain-facing flows (deposit indexer, receipt checks).
     rpc_url: str = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     # Listener contract for deposit events; falls back to frontend contract config.
@@ -346,5 +354,8 @@ class Settings:
         "ANALYTICS_FALLBACK_FILE", "logs/analytics_events.jsonl"
     )
 
+    @property
+    def log_file_path(self) -> str:
+        return os.path.abspath(os.path.join(self.log_directory, self.log_file_name))
 
 settings = Settings()

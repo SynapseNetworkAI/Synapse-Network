@@ -7,13 +7,24 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.api.routers import admin_auth, admin_config, admin_users, approval, audit, dashboard, execution, provider_withdraw_review
+from src.api.routers import (
+	admin_auth,
+	admin_config,
+	admin_users,
+	approval,
+	audit,
+	dashboard,
+	execution,
+	provider_withdraw_review,
+)
 from src.api import deps
 from src.core.csrf import build_admin_csrf_token
 from src.core.config import get_settings
 from src.core.errors import AppError
+from src.core.log_config import setup_logger
 from src.core.middleware import RequestContextMiddleware
 
+setup_logger()
 settings = get_settings()
 
 

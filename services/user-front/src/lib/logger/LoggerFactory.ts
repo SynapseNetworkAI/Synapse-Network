@@ -39,8 +39,10 @@ const createLogger = () => {
   
   // Default to local JSONL for MVP
   // Align with python sdk log path or put it in a known folder
-  const jsonlPath = process.env.LOG_FILE_PATH || '../audit_log.jsonl';
-  return new LoggerService(new JsonlAdapter(jsonlPath));
+  const jsonlPath = process.env.LOG_FILE_PATH || './logs/user-ops.jsonl';
+  const retentionEnv = Number.parseInt(process.env.LOG_RETENTION_DAYS ?? '', 10);
+  const retentionDays = Number.isFinite(retentionEnv) && retentionEnv > 0 ? retentionEnv : 7;
+  return new LoggerService(new JsonlAdapter(jsonlPath, { retentionDays }));
 };
 
 // Singleton pattern for Next.js to prevent multiple instances during hot reloading (HMR)
