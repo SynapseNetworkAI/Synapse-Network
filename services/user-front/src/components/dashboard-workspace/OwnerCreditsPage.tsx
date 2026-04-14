@@ -837,3 +837,5 @@ export default function OwnerCreditsPage() {
     </div>
   );
 }
+
+export { WithdrawBalanceModal };

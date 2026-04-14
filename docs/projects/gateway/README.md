@@ -72,6 +72,7 @@
 根 `docs/03_Projects/gateway/` 当前集中维护：
 
 1. [Gateway_Local_Development.md](./Gateway_Local_Development.md)
+2. [logging/file_logging_strategy.md](./logging/file_logging_strategy.md)
 
 项目目录内只保留最小入口文档：
 

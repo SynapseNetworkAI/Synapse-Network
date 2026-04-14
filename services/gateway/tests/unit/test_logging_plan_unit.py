@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import contextmanager
 from types import SimpleNamespace
 
@@ -9,15 +10,15 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 
-from loguru import logger
-
 from src import app as gateway_app
 from src.api import deps as api_deps
 from src.api.schemas.pydantic_models import InferenceRequest
 from src.core.log_config import setup_logger
+from src.core.config import settings
 from src.services.owner import forwarding_service, forwarding_validation, forwarding_billing
 from src.services.platform import credential_service
 from src.services.platform.balance_service import BalanceService
+from src.utils.logging_utils import workflow_logger
 
 
 class FakeWorkflowLog:
@@ -83,13 +84,21 @@ def _http_client(monkeypatch, *, registry_service: StubRegistryService | None = 
 
 
 @contextmanager
-def capture_logs(level: str = "INFO"):
-    records: list[dict[str, object]] = []
-    handler_id = logger.add(lambda message: records.append(message.record), level=level)
+def capture_logs(level: int = logging.INFO):
+    records: list[logging.LogRecord] = []
+
+    class _ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _ListHandler()
+    handler.setLevel(level)
+    root = logging.getLogger()
+    root.addHandler(handler)
     try:
         yield records
     finally:
-        logger.remove(handler_id)
+        root.removeHandler(handler)
 
 
 def _patch_invocation_dependencies(monkeypatch):
@@ -114,6 +123,7 @@ def _patch_invocation_dependencies(monkeypatch):
         lambda storage, token: SimpleNamespace(
             credential=SimpleNamespace(credential_id="cred_1"),
             agent=SimpleNamespace(agent_id="agent_1"),
+            owner=SimpleNamespace(owner_wallet="0xabc"),
         ),
     )
     monkeypatch.setattr(
@@ -175,13 +185,42 @@ def test_setup_logger_writes_json_file(tmp_path):
         serialize=True,
         enqueue=False,
     )
-    logger.bind(request_id="req-demo", workflow="unit").info("unit-test", key="value")
+    workflow_logger("unit", request_id="req-demo").info("unit-test", key="value")
     contents = log_path.read_text().strip().splitlines()
     assert contents
     record = json.loads(contents[-1])
     assert record["message"] == "unit-test"
     assert record["extra"]["request_id"] == "req-demo"
     assert record["extra"]["workflow"] == "unit"
+
+
+def test_log_file_path_uses_daily_directory(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "log_directory", str(tmp_path), raising=False)
+    monkeypatch.setattr(settings, "log_file_name", "gateway.log", raising=False)
+    monkeypatch.setattr(
+        settings, "_log_date_slug", lambda self=None: "2026-04-14", raising=False
+    )
+    expected = tmp_path / "2026-04-14" / "gateway.log"
+    assert settings.log_file_path == str(expected)
+
+
+def test_setup_logger_uses_daily_directory(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "log_directory", str(tmp_path), raising=False)
+    monkeypatch.setattr(settings, "log_file_name", "gateway.log", raising=False)
+    monkeypatch.setattr(
+        settings, "_log_date_slug", lambda self=None: "2026-04-14", raising=False
+    )
+    setup_logger(
+        log_file_path=None,
+        log_rotation="10 MB",
+        log_retention="2 days",
+        log_level="INFO",
+        serialize=True,
+        enqueue=False,
+    )
+    expected = tmp_path / "2026-04-14" / "gateway.log"
+    workflow_logger("daily", request_id="req-daily").info("daily-test")
+    assert expected.exists()
 
 
 def test_discover_services_logs_workflow(monkeypatch):
@@ -197,7 +236,9 @@ def test_discover_services_logs_workflow(monkeypatch):
             headers={"X-Request-Id": "req-discovery"},
         )
     assert response.status_code == 200
-    messages = [(rec["extra"].get("workflow"), rec["message"]) for rec in records]
+    messages = [
+        (getattr(rec, "workflow", None), rec.getMessage()) for rec in records
+    ]
     assert ("discovery", "discovery.start") in messages
     assert ("discovery", "discovery.complete") in messages
 
