@@ -8,4 +8,4 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 echo "[ci:docs] validating documentation constraints"
 
-node "$ROOT_DIR/tools/scripts/ci/validate_docs.js"
+node "$ROOT_DIR/scripts/ci/validate_docs.js"
