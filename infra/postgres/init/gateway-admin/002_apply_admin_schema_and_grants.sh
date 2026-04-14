@@ -23,10 +23,12 @@ postgres_password="${POSTGRES_PASSWORD:-12345678}"
 gateway_db="${SYNAPSE_GATEWAY_DB:-${postgres_db}}"
 gateway_app_user="${SYNAPSE_GATEWAY_APP_USER:-synapse_gateway_app}"
 gateway_ro_user="${SYNAPSE_GATEWAY_READONLY_USER:-synapse_gateway_ro}"
+gateway_migrator_user="${SYNAPSE_GATEWAY_MIGRATOR_USER:-synapse_gateway_migrator}"
 
 admin_db="${SYNAPSE_ADMIN_DB:-synapse_gateway_admin}"
 admin_app_user="${SYNAPSE_ADMIN_APP_USER:-synapse_admin_app}"
 admin_ro_user="${SYNAPSE_ADMIN_READONLY_USER:-synapse_admin_ro}"
+admin_migrator_user="${SYNAPSE_ADMIN_MIGRATOR_USER:-synapse_admin_migrator}"
 
 run_psql_local() {
     PGPASSWORD="${postgres_password}" psql -v ON_ERROR_STOP=1 --username "${postgres_user}" "$@"
@@ -97,6 +99,7 @@ grant_schema_access() {
     local db_name="$1"
     local app_user="$2"
     local ro_user="$3"
+    local migrator_user="${4:-}"
 
     run_psql \
         --dbname "${db_name}" \
@@ -138,6 +141,22 @@ GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO :"app_user";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
 GRANT SELECT ON SEQUENCES TO :"ro_user";
 SQL
+
+    if [[ -n "${migrator_user}" ]]; then
+        run_psql \
+            --dbname "${db_name}" \
+            --set=migrator_user="${migrator_user}" <<'SQL'
+GRANT USAGE, CREATE ON SCHEMA public TO :"migrator_user";
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO :"migrator_user";
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO :"migrator_user";
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT ALL PRIVILEGES ON TABLES TO :"migrator_user";
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT ALL PRIVILEGES ON SEQUENCES TO :"migrator_user";
+SQL
+    fi
 }
 
 run_psql_file \
@@ -173,10 +192,16 @@ REVOKE ALL ON DATABASE :"admin_db" FROM PUBLIC;
 
 GRANT CONNECT, TEMPORARY ON DATABASE :"gateway_db" TO :"gateway_app_user";
 GRANT CONNECT ON DATABASE :"gateway_db" TO :"gateway_ro_user";
+SELECT
+    format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :"gateway_db", :"gateway_migrator_user")
+WHERE :'gateway_migrator_user' <> '' \gexec
 
 GRANT CONNECT, TEMPORARY ON DATABASE :"admin_db" TO :"admin_app_user";
 GRANT CONNECT ON DATABASE :"admin_db" TO :"admin_ro_user";
+SELECT
+    format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :"admin_db", :"admin_migrator_user")
+WHERE :'admin_migrator_user' <> '' \gexec
 SQL
 
-grant_schema_access "${gateway_db}" "${gateway_app_user}" "${gateway_ro_user}"
-grant_schema_access "${admin_db}" "${admin_app_user}" "${admin_ro_user}"
+grant_schema_access "${gateway_db}" "${gateway_app_user}" "${gateway_ro_user}" "${gateway_migrator_user}"
+grant_schema_access "${admin_db}" "${admin_app_user}" "${admin_ro_user}" "${admin_migrator_user}"

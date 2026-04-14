@@ -127,6 +127,10 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   deploymentLabelCreating: "正在创建服务...",
   deploymentLabelFix: "先修复契约校验",
   deploymentReadyText: "已就绪。核心 gateway 提交契约和当前后端保持一致。",
+  supportTitle: "发布服务遇到问题？",
+  supportDescription:
+    "如果服务注册失败、运行时接入不清楚，或者上线前需要人工复核，请把服务名称和 Endpoint 一并发给运营支持。",
+  supportAction: "联系支持",
   previewEyebrow: "预览与可审计性",
   previewTitle: "只在你需要时检查精确 payload",
   previewManifest: "标准服务定义 JSON",

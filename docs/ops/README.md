@@ -37,6 +37,7 @@
 4. `04_Financial_Incident_Response_and_Production_Operations.md`
 5. `05_Discovery_Service_Troubleshooting_SQL.md`
 6. `06_Python_Environment_and_Venv_Strategy.md`
+7. `09_Staging_First_GCE_Rollout.md`
 
 ## 模块边界
 

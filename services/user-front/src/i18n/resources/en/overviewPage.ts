@@ -31,6 +31,7 @@ const overviewPage: I18nMessages["overviewPage"] = {
   footerTerms: "Terms",
   footerSecurity: "Security",
   footerStatus: "Status",
+  footerSupport: "Support",
   heroEyebrow: "The Agentic Economy",
   heroTitleLead: "Synapse Network:",
   heroTitleAccent: "Financial Layer",

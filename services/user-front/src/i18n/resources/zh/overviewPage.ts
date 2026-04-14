@@ -31,6 +31,7 @@ const overviewPage: I18nMessages["overviewPage"] = {
   footerTerms: "条款",
   footerSecurity: "安全",
   footerStatus: "状态",
+  footerSupport: "联系支持",
   heroEyebrow: "Agent 经济时代",
   heroTitleLead: "Synapse Network:",
   heroTitleAccent: "自主智能体的金融层",

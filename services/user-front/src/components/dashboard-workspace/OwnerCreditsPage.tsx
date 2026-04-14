@@ -7,6 +7,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
+import SupportContactPanel from "@/components/shared/SupportContactPanel";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useVaultDeposit } from "@/hooks/useVaultDeposit";
 import {
@@ -563,6 +564,15 @@ export default function OwnerCreditsPage() {
             {error}
           </div>
         )}
+
+        <div className="mb-6">
+          <SupportContactPanel
+            title={t("creditsPage.supportTitle")}
+            description={t("creditsPage.supportDescription")}
+            actionLabel={t("creditsPage.supportAction")}
+            subject="Synapse credits or billing support"
+          />
+        </div>
 
         <section className="border-b border-[#232323] py-8 first:pt-0">
           <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">

@@ -53,6 +53,10 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "当前环境还没有接通 voucher 核销后端。现在先把 UI 契约和输入校验收口，后端上线后可直接接入。",
   redeemVoucherModalRedeeming: "正在兑换 Voucher...",
   redeemVoucherModalSuccess: "Voucher 核销成功，{{amount}} 已充入你的余额。",
+  supportTitle: "充值或计费遇到问题？",
+  supportDescription:
+    "如果 credits 没到账、退款卡住，或者账单结果异常，请直接联系运营，不要重复发起同一笔支付操作。",
+  supportAction: "联系支持",
 };
 
 export default creditsPage;

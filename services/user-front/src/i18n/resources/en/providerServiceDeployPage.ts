@@ -129,6 +129,10 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   deploymentLabelCreating: "CREATING SERVICE...",
   deploymentLabelFix: "FIX CONTRACT VALIDATION",
   deploymentReadyText: "Ready. Core gateway submission contract is consistent with the current backend.",
+  supportTitle: "Need help publishing this service?",
+  supportDescription:
+    "If service registration fails, runtime onboarding is unclear, or you need a manual review before going live, contact the operator with the service name and endpoint URL.",
+  supportAction: "Contact Support",
   previewEyebrow: "Preview and auditability",
   previewTitle: "Inspect the exact payload only when you need it",
   previewManifest: "Standard Service Definition JSON",
