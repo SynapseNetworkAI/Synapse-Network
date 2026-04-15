@@ -21,6 +21,77 @@ find_pid_by_port() {
   lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
+resolve_compose_cmd() {
+  if docker compose version >/dev/null 2>&1; then
+    echo "docker compose"
+    return 0
+  fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    echo "docker-compose"
+    return 0
+  fi
+  return 1
+}
+
+ensure_docker_runtime() {
+  compose_cmd="$1"
+  if ${compose_cmd} version >/dev/null 2>&1; then
+    return 0
+  fi
+  if command -v colima >/dev/null 2>&1; then
+    echo "Docker daemon is not available. Starting Colima..."
+    colima start >/dev/null
+    if ${compose_cmd} version >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+  echo "Error: Docker runtime is unavailable and local postgres cannot be started automatically."
+  return 1
+}
+
+wait_for_postgres_ready() {
+  timeout_sec="${1:-30}"
+  elapsed=0
+  while [ "$elapsed" -lt "$timeout_sec" ]; do
+    if pg_isready -h 127.0.0.1 -p 5432 -U synapse >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  return 1
+}
+
+ensure_local_postgres() {
+  existing_postgres_pid="$(find_pid_by_port 5432)"
+  if [ -n "$existing_postgres_pid" ]; then
+    echo "Port 5432 already in use by PID ${existing_postgres_pid}. Reusing existing local Postgres."
+    return 0
+  fi
+
+  if ! compose_cmd="$(resolve_compose_cmd)"; then
+    echo "Error: neither 'docker compose' nor 'docker-compose' is available; cannot bootstrap local Postgres."
+    return 1
+  fi
+  ensure_docker_runtime "$compose_cmd"
+
+  echo "Starting local Postgres via ${compose_cmd}..."
+  ${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d postgres >/dev/null
+  if ! wait_for_postgres_ready 45; then
+    echo "Error: local Postgres failed to become ready on 127.0.0.1:5432."
+    return 1
+  fi
+}
+
+bootstrap_local_postgres_schema() {
+  bootstrap_user="${LOCAL_POSTGRES_BOOTSTRAP_USER:-${USER}}"
+  bootstrap_password="${LOCAL_POSTGRES_BOOTSTRAP_PASSWORD:-}"
+  echo "Applying local gateway/admin Postgres bootstrap schema..."
+  POSTGRES_USER="${bootstrap_user}" \
+  POSTGRES_PASSWORD="${bootstrap_password}" \
+    bash "${ROOT_DIR}/infra/postgres/init/000_run_init_tree.sh"
+}
+
 stop_pid() {
   name="$1"
   pid="$2"
@@ -83,6 +154,9 @@ if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
   echo "Python dependencies missing. Installing from gateway/requirements.txt ..."
   "$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/services/gateway/requirements.txt"
 fi
+
+ensure_local_postgres
+bootstrap_local_postgres_schema
 
 PROVIDER_PID_FROM_FILE=""
 if [ -f "$PID_FILE" ]; then
