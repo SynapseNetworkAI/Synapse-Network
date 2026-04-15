@@ -7,7 +7,7 @@
     "ci:admin-front": "bash scripts/ci/admin_front_checks.sh",
     "ci:admin-gateway": "bash scripts/ci/admin_gateway_checks.sh",
     "ci:contracts": "bash scripts/ci/contracts_checks.sh",
-    "ci:docs": "bash tools/scripts/ci/docs_checks.sh",
+    "ci:docs": "bash scripts/ci/docs_checks.sh",
     "ci:frontend": "bash scripts/ci/frontend_checks.sh",
     "ci:gateway": "bash scripts/ci/gateway_checks.sh",
     "ci:pr": "bash scripts/ci/pr_checks.sh",
