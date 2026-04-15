@@ -109,7 +109,7 @@ if [[ -n "$EXISTING_ANVIL_PID" ]]; then
 	ANVIL_PID="$EXISTING_ANVIL_PID"
 	ANVIL_OWNED_BY_SCRIPT=0
 else
-	anvil > "${ROOT_DIR}/anvil_node.log" 2>&1 &
+	nohup anvil > "${ROOT_DIR}/anvil_node.log" 2>&1 < /dev/null &
 	ANVIL_PID=$!
 	ANVIL_OWNED_BY_SCRIPT=1
 	sleep 4
@@ -187,14 +187,14 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 &
+	nohup "$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 < /dev/null &
 else
 	ENVIRONMENT=local \
 	GATEWAY_RELOAD=false \
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	"$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 &
+	nohup "$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 < /dev/null &
 fi
 PROVIDER_PID=$!
 sleep 3
@@ -221,7 +221,7 @@ else
 		yarn install
 	fi
 
-	yarn dev > "${ROOT_DIR}/services/user-front/frontend_dev.log" 2>&1 &
+	nohup yarn dev > "${ROOT_DIR}/services/user-front/frontend_dev.log" 2>&1 < /dev/null &
 	FRONTEND_PID=$!
 	FRONTEND_OWNED_BY_SCRIPT=1
 	sleep 5
