@@ -35,7 +35,7 @@ function makeStore(): Storage {
     removeItem: vi.fn((key: string) => { delete store[key]; }),
     clear: vi.fn(() => { for (const k of Object.keys(store)) delete store[k]; }),
     get length() { return Object.keys(store).length; },
-    key: vi.fn((_i: number) => null),
+    key: vi.fn(() => null),
   };
 }
 
@@ -367,7 +367,7 @@ describe('Privacy: no raw wallet addresses in emitted payloads', () => {
       // Check distinct_id
       expect(evt.distinct_id).not.toMatch(RAW_WALLET_RE);
       // Check all string property values
-      for (const [key, val] of Object.entries(evt.properties)) {
+      for (const val of Object.values(evt.properties)) {
         if (typeof val === 'string') {
           expect(val).not.toMatch(RAW_WALLET_RE);
         }

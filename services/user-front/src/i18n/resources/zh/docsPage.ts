@@ -676,6 +676,12 @@ const docsPage: I18nMessages["docsPage"] = {
     "\"settled\"",
     "\"0.0010\"",
   ],
+  consumerCodeWithdraw: [
+    "将剩余的 Consumer 余额提现回钱包",
+    "幂等 key 防止重复提现",
+    "检查提现状态",
+    "查看提现历史",
+  ],
 };
 
 export default docsPage;

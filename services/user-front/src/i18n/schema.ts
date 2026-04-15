@@ -999,6 +999,7 @@ export type I18nMessages = {
     consumerCodeCredential: string[];
     consumerCodeInvoke: string[];
     consumerCodeVerify: string[];
+    consumerCodeWithdraw: string[];
   };
   auditPage: {
     title: string;
