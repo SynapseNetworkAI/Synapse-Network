@@ -54,6 +54,13 @@ PR 阻断流水线至少要检查：
 1. `npm run ci:frontend` 作为前端质量门禁入口
 2. `npm run ci:pr` 作为 PR 聚合检查入口
 
+当前本地开发默认约束建议：
+
+1. 每个 clone 执行一次 `bash scripts/dev/install_git_hooks.sh`
+2. 安装后，`git push` 自动触发 `.githooks/pre-push`
+3. `pre-push` 统一执行 `bash scripts/ci/pr_checks.sh`
+4. 仅在紧急情况下使用 `git push --no-verify`
+
 当前 `ci:pr` 已接入的仓库门禁建议包括：
 
 1. `apps/frontend`: lint / test / build
@@ -63,6 +70,8 @@ PR 阻断流水线至少要检查：
 5. `provider_service`: 创建 `provider_service/.venv`，安装目录依赖，再跑 pytest
 6. `sdk/python`: 创建 `sdk/python/.venv`，安装 editable 依赖，再跑 pytest unit tests + `python -m build`，联调 demo 保持 opt-in
 7. root contracts: hardhat compile，若存在 root `test/` 用例则继续执行 hardhat test
+
+本地 hook 与 GitHub PR CI 必须共享同一个聚合入口 `scripts/ci/pr_checks.sh`，避免“本地过了、远端挂了”或“本地没拦住、远端才发现”的漂移。
 
 当前 Python 打包校验范围只包括 `sdk/python`，因为它是仓库内唯一带 `pyproject.toml` 的 Python 分发包；`gateway`、`admin/gateway-admin`、`provider_service` 当前仍按服务进程治理。
 
