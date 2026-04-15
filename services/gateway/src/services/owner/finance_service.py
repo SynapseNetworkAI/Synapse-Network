@@ -27,9 +27,10 @@ from src.domain.finance import (
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
-from src.domain.operation_metadata import OperationContextMetadata
+from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin
 from src.services.owner.finance_constants import (
+    CONSUMER_WITHDRAW_FEE_USDC,
     DEPOSIT_ATTEMPT_STAGES,
     INVALID_TX_HASH_MESSAGE,
     REFUND_ACTIVE_STATUSES,
@@ -99,6 +100,75 @@ class OwnerFinanceService(
             owner=owner,
             amount_usdc=amount_usdc,
             updated_at=now_dt_str(),
+        )
+
+    def _reserve_consumer_balance_for_manual_review(
+        self, owner: str, amount_usdc: float
+    ) -> None:
+        self.storage.get_data_manager().finance.balance.reserve_consumer_balance_for_manual_review(
+            owner=owner,
+            amount_usdc=amount_usdc,
+            updated_at=now_dt_str(),
+        )
+
+    def _move_consumer_frozen_to_pending(self, owner: str, amount_usdc: float) -> None:
+        self.storage.get_data_manager().finance.balance.move_consumer_frozen_to_pending(
+            owner=owner,
+            amount_usdc=amount_usdc,
+            updated_at=now_dt_str(),
+        )
+
+    def _release_consumer_pending_to_available(
+        self, owner: str, amount_usdc: float
+    ) -> None:
+        self.storage.get_data_manager().finance.balance.release_consumer_pending_to_available(
+            owner=owner,
+            amount_usdc=amount_usdc,
+            updated_at=now_dt_str(),
+        )
+
+    def _release_consumer_frozen_to_available(
+        self, owner: str, amount_usdc: float
+    ) -> None:
+        self.storage.get_data_manager().finance.balance.release_consumer_frozen_to_available(
+            owner=owner,
+            amount_usdc=amount_usdc,
+            updated_at=now_dt_str(),
+        )
+
+    def _build_consumer_withdraw_ticket(
+        self, *, owner: str, gross_amount_usdc: Decimal
+    ) -> WithdrawalTicketMetadata:
+        from src.core.config import settings
+        from src.services.balance_mixins.withdraw_signing import USDC_DECIMALS
+
+        fee_usdc = Decimal(str(CONSUMER_WITHDRAW_FEE_USDC))
+        net_usdc = (gross_amount_usdc - fee_usdc).quantize(Decimal("0.000001"))
+        private_key = self._require_withdraw_signer()
+        nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)
+        deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()
+        net_wei = int(net_usdc * (10**USDC_DECIMALS))
+        fee_wei = int(fee_usdc * (10**USDC_DECIMALS))
+        typed_data = self._build_withdraw_typed_data(
+            owner_wallet=owner,
+            amount_wei=net_wei,
+            fee_wei=fee_wei,
+            nonce=nonce,
+            deadline=deadline,
+            chain_id=chain_id,
+            verifying_contract=normalize_wallet(settings.router_address),
+        )
+        signature = self._sign_withdraw_ticket(typed_data, private_key)
+        return WithdrawalTicketMetadata.model_validate(
+            {
+                "amount": str(net_wei),
+                "fee": str(fee_wei),
+                "nonce": nonce,
+                "deadline": deadline,
+                "signature": signature,
+                "chainId": chain_id,
+                "contractAddress": normalize_wallet(settings.router_address),
+            }
         )
 
     def _load_deposit_intents(self) -> List[DepositIntentRow]:

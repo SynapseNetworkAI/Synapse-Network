@@ -31,16 +31,26 @@ Consumer Withdrawal 链路定义 Owner（买家）如何把**未消费的预存 
 
 ## 4. 状态机
 
-```
-REQUESTED                    ← 小额自动通过（< threshold）
-PENDING_MANUAL_REVIEW        ← 大额或频率超限，人工审核
-REJECTED                     ← 人工拒绝，资金归还 available
-COMPLETED                    ← 出金已完成
-CANCELLED                    ← 已超时或手动取消，资金归还 available
+```text
+REQUESTED
+  -> COMPLETED
+  -> FAILED
+  -> CANCELLED
+
+PENDING_MANUAL_REVIEW
+  -> REQUESTED
+  -> REJECTED
+  -> FAILED
 ```
 
-**REQUESTED** 下资金：`available -= amount`, `pending += amount`
-**PENDING_MANUAL_REVIEW** 下资金：`available -= amount`, `frozen += amount`
+| 状态 | 语义 | 余额变化 |
+| --- | --- | --- |
+| `REQUESTED` | 小额自动通过，已签发 ticket，等待 owner 钱包执行链上 `withdraw()` | `available -= amount`, `pending += amount` |
+| `PENDING_MANUAL_REVIEW` | 大额或频率超限，等待人工审核 | `available -= amount`, `frozen += amount` |
+| `COMPLETED` | 链上交易已成功并完成收口 | `pending -= amount` |
+| `FAILED` | 钱包拒签、链上回执失败或前端显式失败回调 | `pending -> available` 或 `frozen -> available` |
+| `REJECTED` | 审核拒绝 | `frozen -> available` |
+| `CANCELLED` | ticket 过期未执行 | `pending -> available` |
 
 ## 5. 风险三段阀门
 
@@ -113,10 +123,16 @@ sequenceDiagram
     GW->>DB: Check consumer_available_balance
     GW->>DB: Check active withdrawals (idempotency)
     GW->>DB: Classify risk (auto / manual)
-    GW->>DB: ATOMIC UPDATE: available -= amount, pending += amount
-    GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED)
-    GW->>GW: Sign EIP-712 Withdraw ticket\n(amount=net, fee=fee, nonce, deadline)
-    GW-->>FE: {status, ticket: {amount, fee, nonce, deadline, signature, chainId, contractAddress}}
+    alt 自动通过
+        GW->>DB: ATOMIC UPDATE: available -= amount, pending += amount
+        GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED)
+        GW->>GW: Sign EIP-712 Withdraw ticket\n(amount=net, fee=fee, nonce, deadline)
+        GW-->>FE: {status, ticket: {amount, fee, nonce, deadline, signature, chainId, contractAddress}}
+    else 人工审核
+        GW->>DB: ATOMIC UPDATE: available -= amount, frozen += amount
+        GW->>DB: INSERT synapse_vault_withdrawals (status=PENDING_MANUAL_REVIEW)
+        GW-->>FE: {status=PENDING_MANUAL_REVIEW}
+    end
 
     FE->>SC: SynapseCore.withdraw(amount, fee, nonce, deadline, signature)\n(msg.sender = Owner, Owner pays gas)
     SC->>SC: Verify EIP-712 signature (platformSigner)
@@ -135,9 +151,16 @@ sequenceDiagram
 
     Note over GW,SC: 安全网：Background Event Watcher 扫描<br/>WithdrawInfo 事件，补全遗漏的 COMPLETED
 
+    alt 钱包拒签 / receipt failed
+        FE->>GW: POST /api/v1/refunds/{withdrawId}/fail\n{reasonCode, message?, txHash?}
+        GW->>DB: REQUESTED -> FAILED, pending -> available
+        GW-->>FE: 200 OK
+    end
+
     alt status = PENDING_MANUAL_REVIEW
         Note over GW,DB: 人工审核路径
-        GW->>DB: APPROVE → frozen -> pending → 签发 ticket
+        Admin->>GW: POST /api/v1/admin/refunds/{withdrawId}/review
+        GW->>DB: APPROVE → frozen -> pending → REQUESTED + 签发 ticket
         GW->>DB: REJECT  → frozen -> available → REJECTED
     end
 ```
@@ -159,57 +182,33 @@ sequenceDiagram
 
 `consumer_withdraw_processor.py` 不再直接执行链上交易。改为 **事件监听器**：
 
-1. 每 10 秒扫描 REQUESTED 状态的消费者提现记录
+1. 每 10 秒扫描 `REQUESTED` 状态的消费者提现记录
 2. 检查链上 `userNonces[owner]` 是否已超过 ticket nonce
 3. 扫描 `WithdrawInfo(user, amount, fee)` 事件匹配
-4. 找到匹配 → 自动标记 COMPLETED（含 txHash）
+4. 找到匹配 → 自动标记 `COMPLETED`（含 txHash）
+5. 若 ticket deadline 已过且没有链上匹配 → 自动标记 `CANCELLED` 并释放 pending
 
-这覆盖了"前端在链上交易成功后崩溃，未调用 /complete"的极端场景。
+这覆盖了两种极端场景：
 
-## 8. 为什么提现后 UI 余额没有变化
+- 前端链上成功后崩溃，没来得及调 `/complete`
+- owner 迟迟不执行，ticket 自然过期，余额需要自动回滚
 
-**根本原因（已修复，commit `a4aecc77`）：**
+## 8. 为什么提现后 UI 余额会立即变化
 
-1. `onSuccess` prop 类型是 `() => void`，但传入的是 async 函数
-2. `handleSubmit` 调用 `onSuccess()` 时**没有 `await`**
-3. 导致：modal 关闭时 `handleRefresh()` 根本没有被执行，页面余额停留在旧值
+修复后，前端不再等后台刷新才更新余额，而是创建成功后立即建立 optimistic state：
 
-**修复内容：**
+1. `POST /api/v1/balance/consumer/withdraw` 成功返回
+2. 页面立刻把活跃单写入 `pendingWithdrawal`
+3. 页面立刻把 `displayedRemainingBalance` 降到 `targetBalance`
+4. `Withdraw` 按钮马上禁用，防止重复发起
+5. 随后再异步 `handleRefresh()` / `fetchPendingWithdrawal()` 与后端状态对齐
 
-```tsx
-// 修复 1：类型改为 () => Promise<void>
-type WithdrawModalProps = {
-  onSuccess: () => Promise<void>;
-  ...
-};
+如果钱包拒签或 receipt failed：
 
-// 修复 2：加上 await
-await onSuccess();
-onClose();
-
-// 修复 3：父组件加 300ms 等待让 DB 写入沉淀
-onSuccess={async () => {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  await Promise.all([handleRefresh(), fetchSpendingLimit()]);
-}}
-```
-
-**数据流（修复后）：**
-
-```
-handleSubmit
-  → requestConsumerWithdraw() → POST /api/v1/balance/consumer/withdraw
-  → Platform: reserve_consumer_balance_for_withdrawal()
-       SQL: available_balance = 0, pending_balance = 20
-  → await onSuccess()
-       → 300ms
-       → handleRefresh()
-            → getV2Balance() → GET /api/v1/balance
-                 → read_balance_ledger() → SQL SELECT
-                 → returns ownerBalance = 0
-       → setStats({ ownerBalance: "0.00" })
-  → UI 显示 $0.00
-```
+1. 前端调用 `/api/v1/refunds/{refundId}/fail`
+2. 后端释放 `pending` 或 `frozen`
+3. 前端清掉 optimistic override
+4. Credits 页面恢复正确可提现余额
 
 ## 9. 提现记录在 Billing 页的显示
 
@@ -222,10 +221,21 @@ handleSubmit
 
 | type | 显示文字 | 颜色 |
 | --- | --- | --- |
-| `CONSUMER_BALANCE_WITHDRAW` | Withdraw | 橙色 |
+| consumer withdrawal row | Withdraw | 橙色 |
 | `SYSTEM_FAILURE` / `MANUAL_APPEAL` | Refund | 蓝色 |
 | Claim | Claim | 紫色 |
 | 其他 | Deposit | 绿色 |
+
+Payments 的状态映射固定为：
+
+| 提现状态 | Payments 状态 |
+| --- | --- |
+| `REQUESTED` | `PENDING` |
+| `PENDING_MANUAL_REVIEW` | `PENDING` |
+| `COMPLETED` | `COMPLETED` |
+| `FAILED` | `FAILED` |
+| `REJECTED` | `FAILED` |
+| `CANCELLED` | `FAILED` |
 
 ## 10. 配置参数速查
 

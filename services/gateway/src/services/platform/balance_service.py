@@ -169,6 +169,38 @@ class BalanceService(
             request_meta=request_meta,
         )
 
+    async def fail_refund_intent(
+        self,
+        *,
+        owner_wallet: str,
+        refund_id: str,
+        reason_code: str,
+        message: str = "",
+        tx_hash: str | None = None,
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        return await self.owner_finance_service.fail_refund_intent(
+            owner_wallet=owner_wallet,
+            refund_id=refund_id,
+            reason_code=reason_code,
+            message=message,
+            tx_hash=tx_hash,
+            request_meta=request_meta,
+        )
+
+    async def review_consumer_withdrawal(
+        self,
+        *,
+        owner_wallet: str,
+        refund_id: str,
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        return await self.owner_finance_service.review_consumer_withdrawal(
+            owner_wallet=owner_wallet,
+            refund_id=refund_id,
+            request_meta=request_meta,
+        )
+
     async def create_provider_withdraw_intent(
         self,
         payload: dict[str, Any],

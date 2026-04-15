@@ -278,6 +278,34 @@ class AdminRefundCompleteRequest(RefundCompleteRequest):
     ownerAddress: str = Field(..., min_length=1, max_length=64)
 
 
+class RefundFailRequest(BaseModel):
+    reasonCode: str = Field(..., min_length=3, max_length=64)
+    message: Optional[str] = Field(default=None, max_length=512)
+    txHash: Optional[str] = Field(default=None, min_length=66, max_length=66)
+
+    @field_validator("txHash")
+    @classmethod
+    def validate_optional_tx_hash(cls, value: Optional[str]) -> Optional[str]:
+        if value in {None, ""}:
+            return None
+        normalized = str(value).strip()
+        if not normalized.startswith("0x"):
+            raise ValueError(TX_HASH_PREFIX_ERROR)
+        hex_part = normalized[2:]
+        if len(hex_part) != 64 or any(
+            ch not in "0123456789abcdefABCDEF" for ch in hex_part
+        ):
+            raise ValueError(TX_HASH_FORMAT_ERROR)
+        return normalized.lower()
+
+
+class AdminRefundReviewRequest(BaseModel):
+    ownerAddress: str = Field(..., min_length=1, max_length=64)
+    reviewDecision: str = Field(..., min_length=7, max_length=16)
+    reviewerAddress: Optional[str] = Field(default=None, max_length=64)
+    reviewerNote: Optional[str] = Field(default=None, max_length=512)
+
+
 class ProviderWithdrawIntentRequest(BaseModel):
     amountUsdc: Optional[Decimal] = Field(default=None, gt=0)
 

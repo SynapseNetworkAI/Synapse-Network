@@ -178,7 +178,14 @@ export type RefundIntentRecord = {
   ownerAddress?: string;
   amountUsdc?: number;
   reason?: string;
-  status: "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
+  status:
+    | "REQUESTED"
+    | "PENDING"
+    | "PENDING_MANUAL_REVIEW"
+    | "COMPLETED"
+    | "FAILED"
+    | "REJECTED"
+    | "CANCELLED";
   riskLevel?: string;
   riskReasonCode?: string;
   message?: string;
@@ -187,6 +194,7 @@ export type RefundIntentRecord = {
   txHash?: string;
   createdAt?: string;
   updatedAt?: string;
+  ticket?: ConsumerWithdrawTicket;
 };
 
 export type IndexerStatus = {
@@ -798,7 +806,14 @@ export type ConsumerWithdrawIntent = {
   amountUsdc: number;
   feeUsdc: number;
   netUsdc: number;
-  status: "REQUESTED" | "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
+  status:
+    | "REQUESTED"
+    | "PENDING"
+    | "PENDING_MANUAL_REVIEW"
+    | "COMPLETED"
+    | "FAILED"
+    | "REJECTED"
+    | "CANCELLED";
   riskLevel?: "green" | "yellow" | "red";
   riskReasonCode?: string;
   message?: string;
@@ -865,6 +880,7 @@ export async function listConsumerWithdrawals(
   const raw = Array.isArray(payload.withdrawals) ? payload.withdrawals : [];
   return raw.map((r): RefundIntentRecord => {
     const row = r as Record<string, unknown>;
+    const rawTicket = row.ticket as Record<string, unknown> | undefined;
     return {
       id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
       amountUsdc: Number(row.amountUsdc || 0),
@@ -872,7 +888,21 @@ export async function listConsumerWithdrawals(
       riskLevel: typeof row.riskLevel === "string" ? row.riskLevel : undefined,
       riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
       message: typeof row.message === "string" ? row.message : undefined,
+      txHash: typeof row.txHash === "string" ? row.txHash : undefined,
       createdAt: typeof row.createdAt === "string" ? row.createdAt : undefined,
+      updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : undefined,
+      ticket: rawTicket
+        ? {
+            amount: typeof rawTicket.amount === "string" ? rawTicket.amount : `${Number(rawTicket.amount) || 0}`,
+            fee: typeof rawTicket.fee === "string" ? rawTicket.fee : `${Number(rawTicket.fee) || 0}`,
+            nonce: Number(rawTicket.nonce || 0),
+            deadline: Number(rawTicket.deadline || 0),
+            signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
+            chainId: Number(rawTicket.chainId || 0),
+            contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
+          }
+        : undefined,
+      ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
     };
   });
 }
@@ -894,6 +924,31 @@ export async function completeV2Refund(
   if (!response.ok) {
     throw new Error(
       await readErrorMessage(response, "Failed to complete refund")
+    );
+  }
+}
+
+export async function failV2Refund(
+  userAddress: string,
+  refundId: string,
+  params: { reasonCode: string; message?: string; txHash?: string }
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/refunds/${encodeURIComponent(refundId)}/fail`,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify({
+        reasonCode: params.reasonCode,
+        message: params.message,
+        txHash: params.txHash,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Failed to mark refund as failed")
     );
   }
 }

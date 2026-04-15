@@ -239,6 +239,43 @@ class BalanceRepository:
             if cur.rowcount != 1:
                 raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
 
+    def reserve_consumer_balance_for_manual_review(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        """Atomically move *amount_usdc* from available → frozen for manual review."""
+        account_id, _ = self._account_identity(owner, "consumer")
+        with self._db.tx_cursor() as cur:
+            self._ensure_ledger_account(cur, owner, "consumer", updated_at)
+            cur.execute(
+                """
+                INSERT INTO synapse_account_balances (
+                    account_id, available_balance, pending_balance, frozen_balance, updated_at
+                )
+                VALUES (%s, 0, 0, 0, %s)
+                ON CONFLICT (account_id) DO NOTHING
+                """,
+                (account_id, updated_at),
+            )
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET available_balance = available_balance - %s,
+                    frozen_balance    = frozen_balance    + %s,
+                    updated_at        = %s
+                WHERE account_id = %s
+                  AND available_balance >= %s
+                """,
+                (
+                    str(self._q6(amount_usdc)),
+                    str(self._q6(amount_usdc)),
+                    updated_at,
+                    account_id,
+                    str(self._q6(amount_usdc)),
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
+
     def consume_consumer_pending_for_withdrawal(
         self, owner: str, amount_usdc: float, updated_at: str
     ) -> None:
@@ -267,6 +304,84 @@ class BalanceRepository:
             )
             if cur.rowcount != 1:
                 raise RuntimeError("CONSUME_PENDING_BALANCE_INCONSISTENT")
+
+    def move_consumer_frozen_to_pending(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        """Atomically move *amount_usdc* from frozen → pending after manual approval."""
+        account_id, _ = self._account_identity(owner, "consumer")
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance  = frozen_balance  - %s,
+                    pending_balance = pending_balance + %s,
+                    updated_at      = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (
+                    str(self._q6(amount_usdc)),
+                    str(self._q6(amount_usdc)),
+                    updated_at,
+                    account_id,
+                    str(self._q6(amount_usdc)),
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("MOVE_FROZEN_TO_PENDING_INCONSISTENT")
+
+    def release_consumer_pending_to_available(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        """Atomically move *amount_usdc* from pending → available on failure/cancel."""
+        account_id, _ = self._account_identity(owner, "consumer")
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET pending_balance   = pending_balance   - %s,
+                    available_balance = available_balance + %s,
+                    updated_at        = %s
+                WHERE account_id = %s
+                  AND pending_balance >= %s
+                """,
+                (
+                    str(self._q6(amount_usdc)),
+                    str(self._q6(amount_usdc)),
+                    updated_at,
+                    account_id,
+                    str(self._q6(amount_usdc)),
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("RELEASE_PENDING_TO_AVAILABLE_INCONSISTENT")
+
+    def release_consumer_frozen_to_available(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        """Atomically move *amount_usdc* from frozen → available on reject."""
+        account_id, _ = self._account_identity(owner, "consumer")
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance    = frozen_balance    - %s,
+                    available_balance = available_balance + %s,
+                    updated_at        = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (
+                    str(self._q6(amount_usdc)),
+                    str(self._q6(amount_usdc)),
+                    updated_at,
+                    account_id,
+                    str(self._q6(amount_usdc)),
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT")
 
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
         """Persist the ledger's available balances.

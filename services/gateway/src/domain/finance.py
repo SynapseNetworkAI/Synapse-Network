@@ -17,7 +17,7 @@ from .execution import (
     WithdrawalDecision,
 )
 from .ledger import DepositIntentRow, WithdrawalIntentRow
-from .operation_metadata import OperationContextMetadata
+from .operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
 
 
 """Finance domain entities — BalanceLedger & FeePolicyEntity.
@@ -301,6 +301,7 @@ class RefundIntentRow(BaseModel):
     complete_meta: OperationContextMetadata = Field(
         default_factory=OperationContextMetadata, alias="completeMeta"
     )
+    ticket: WithdrawalTicketMetadata = Field(default_factory=WithdrawalTicketMetadata)
     created_at: str = Field(default="", alias="createdAt")
     updated_at: str = Field(default="", alias="updatedAt")
 
@@ -434,5 +435,4 @@ class ChargeConsumerUsageCommand:
     protocol_fee: Decimal = Decimal("0")
     routing_tax: Decimal = Decimal("0")
     invocation: Optional[InvocationRecord] = None
-
 

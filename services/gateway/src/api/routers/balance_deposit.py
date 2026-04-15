@@ -11,7 +11,9 @@ from src.api.routers.balance_helpers import (
     DepositConfirmRequest,
     RefundIntentRequest,
     RefundCompleteRequest,
+    RefundFailRequest,
     AdminRefundCompleteRequest,
+    AdminRefundReviewRequest,
     InternalServicePrincipal,
     normalize_wallet,
     require_internal_scope,
@@ -182,6 +184,25 @@ async def complete_refund(
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
+@router.post("/v1/refunds/{refund_id}/fail")
+async def fail_refund(
+    refund_id: str,
+    payload: RefundFailRequest,
+    request: Request,
+    owner_wallet: Annotated[str, Depends(get_owner_wallet)],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    result = await service.fail_refund_intent(
+        owner_wallet=owner_wallet,
+        refund_id=refund_id,
+        reason_code=str(payload.reasonCode or "").strip().upper(),
+        message=str(payload.message or "").strip(),
+        tx_hash=payload.txHash,
+        request_meta=_extract_request_meta(request),
+    )
+    return {"status": "success", "ownerAddress": owner_wallet, **result}
+
+
 @router.post(
     "/v1/admin/refunds/{refund_id}/complete",
     responses={403: {"description": "Forbidden or fee admin not configured"}},
@@ -228,6 +249,49 @@ async def complete_refund_as_admin(
     }
 
 
+@router.post(
+    "/v1/admin/refunds/{refund_id}/review",
+    responses={403: {"description": "Forbidden or fee admin not configured"}},
+)
+async def review_refund_as_admin(
+    refund_id: str,
+    payload: AdminRefundReviewRequest,
+    request: Request,
+    principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("refund.review"))],
+    service: Annotated[BalanceService, Depends(get_balance_service)],
+):
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
+    target_owner = normalize_wallet(payload.ownerAddress)
+    request_meta = _extract_request_meta(request)
+    request_meta["review"] = {
+        "decision": str(payload.reviewDecision or "").strip().upper(),
+        "reviewerAddress": str(payload.reviewerAddress or admin_wallet).strip().lower(),
+        "reviewerNote": str(payload.reviewerNote or "").strip(),
+        "requestedBy": admin_wallet,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+    }
+    request_meta["adminExecution"] = {
+        "requestedBy": admin_wallet,
+        "targetOwner": target_owner,
+        "resourceId": refund_id,
+        "actorAdminId": principal.actor_admin_id,
+        "actorRole": principal.actor_role,
+        "serviceSubject": principal.service_subject,
+    }
+    result = await service.review_consumer_withdrawal(
+        owner_wallet=target_owner,
+        refund_id=refund_id,
+        request_meta=request_meta,
+    )
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "ownerAddress": target_owner,
+        **result,
+    }
+
+
 # ── Consumer Balance Withdrawal ─────────────────────────────────────────────────
 
 
@@ -271,4 +335,3 @@ async def list_consumer_withdrawals(
 ):
     rows = await service.list_consumer_withdrawals(owner_wallet)
     return {"status": "success", "ownerAddress": owner_wallet, "withdrawals": rows[:limit]}
-
