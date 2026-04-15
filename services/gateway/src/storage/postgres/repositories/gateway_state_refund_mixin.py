@@ -76,6 +76,16 @@ class GatewayStateRefundMixin:
             metadata = VaultWithdrawalMetadataState.model_validate(
                 self._payload_dict(payload)
             )
+            ticket = metadata.ticket
+            if (
+                ticket.signature is None
+                and signature is not None
+            ):
+                ticket.signature = str(signature)
+            if ticket.nonce is None and nonce is not None:
+                ticket.nonce = int(nonce)
+            if ticket.deadline is None and deadline is not None:
+                ticket.deadline = int(deadline)
             projected.append(
                 RefundIntentRow(
                     id=str(row_id),
@@ -105,6 +115,7 @@ class GatewayStateRefundMixin:
                     reviewedAt=metadata.reviewed_at,
                     completedAt=metadata.completed_at,
                     completeMeta=metadata.complete_meta,
+                    ticket=ticket,
                     createdAt=to_dt_str(created_at, "") or "",
                     updatedAt=to_dt_str(updated_at, "") or "",
                 )
@@ -155,9 +166,9 @@ class GatewayStateRefundMixin:
                         str(self._q6(row.amount_usdc)),
                         row.status,
                         row.tx_hash.lower() if row.tx_hash else None,
-                        None,
-                        None,
-                        None,
+                        row.signature or row.ticket.signature or None,
+                        row.ticket.nonce,
+                        row.ticket.deadline,
                         to_dt_str(row.created_at or updated_at, now_dt_str()),
                         row_updated_at,
                     ),
@@ -188,7 +199,7 @@ class GatewayStateRefundMixin:
                         reviewedAt=row.reviewed_at,
                         completedAt=row.completed_at,
                         completeMeta=row.complete_meta,
+                        ticket=row.ticket,
                     ).model_dump(by_alias=True, mode="json"),
                     row_updated_at,
                 )
-

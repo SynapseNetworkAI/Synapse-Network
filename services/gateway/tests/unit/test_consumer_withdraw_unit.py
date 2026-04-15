@@ -24,7 +24,9 @@ import pytest
 from fastapi import HTTPException
 
 from src.domain.finance import BalanceLedger, ConsumerWalletRecord, RefundIntentRow
+from src.domain.operation_metadata import WithdrawalTicketMetadata
 from src.services.owner.finance_service import OwnerFinanceService
+from src.services.platform.tasks import consumer_withdraw_processor as withdraw_processor
 
 
 # ─── In-memory repos ──────────────────────────────────────────────────────────
@@ -53,10 +55,67 @@ class InMemoryBalanceRepo:
         wallet.available_balance = round(available - amount_usdc, 6)
         wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
 
-    def seed_balance(self, owner: str, available: float, pending: float = 0.0) -> None:
+    def reserve_consumer_balance_for_manual_review(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        _ = updated_at
+        wallet = self._ledger.ensure_consumer_wallet(owner)
+        available = float(wallet.available_balance or 0.0)
+        if available < amount_usdc - 1e-9:
+            raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
+        wallet.available_balance = round(available - amount_usdc, 6)
+        wallet.frozen_balance = round(float(wallet.frozen_balance or 0.0) + amount_usdc, 6)
+
+    def move_consumer_frozen_to_pending(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        _ = updated_at
+        wallet = self._ledger.ensure_consumer_wallet(owner)
+        frozen = float(wallet.frozen_balance or 0.0)
+        if frozen < amount_usdc - 1e-9:
+            raise RuntimeError("MOVE_FROZEN_TO_PENDING_INCONSISTENT")
+        wallet.frozen_balance = round(frozen - amount_usdc, 6)
+        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
+
+    def release_consumer_pending_to_available(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        _ = updated_at
+        wallet = self._ledger.ensure_consumer_wallet(owner)
+        pending = float(wallet.pending_balance or 0.0)
+        if pending < amount_usdc - 1e-9:
+            raise RuntimeError("RELEASE_PENDING_TO_AVAILABLE_INCONSISTENT")
+        wallet.pending_balance = round(pending - amount_usdc, 6)
+        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount_usdc, 6)
+
+    def release_consumer_frozen_to_available(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        _ = updated_at
+        wallet = self._ledger.ensure_consumer_wallet(owner)
+        frozen = float(wallet.frozen_balance or 0.0)
+        if frozen < amount_usdc - 1e-9:
+            raise RuntimeError("RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT")
+        wallet.frozen_balance = round(frozen - amount_usdc, 6)
+        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount_usdc, 6)
+
+    def consume_consumer_pending_for_withdrawal(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ) -> None:
+        _ = updated_at
+        wallet = self._ledger.ensure_consumer_wallet(owner)
+        pending = float(wallet.pending_balance or 0.0)
+        if pending < amount_usdc - 1e-9:
+            raise RuntimeError("CONSUME_PENDING_FOR_WITHDRAWAL_INCONSISTENT")
+        wallet.pending_balance = round(pending - amount_usdc, 6)
+
+    def seed_balance(
+        self, owner: str, available: float, pending: float = 0.0, frozen: float = 0.0
+    ) -> None:
         wallet = self._ledger.ensure_consumer_wallet(owner)
         wallet.available_balance = available
         wallet.pending_balance = pending
+        wallet.frozen_balance = frozen
 
 
 class InMemoryGatewayStateRepo:
@@ -137,6 +196,7 @@ def _make_service(storage: FakeStorage) -> OwnerFinanceService:
 
 
 OWNER = "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+REVIEWER = "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
 IDEM_KEY = "x" * 20
 
 
@@ -219,26 +279,16 @@ class TestConsumerWithdrawFrozenBalance(unittest.TestCase):
         self.svc = _make_service(self.storage)
 
     def test_large_withdrawal_routes_to_pending_manual_review(self):
-        with patch.object(
-            self.storage.balance_repo, "reserve_consumer_balance_for_withdrawal",
-            wraps=self._reserve_to_frozen,
-        ):
-            result = run(self.svc.create_consumer_withdraw_intent(
-                payload={"amountUsdc": 600.0, "reason": ""},
-                owner_wallet=OWNER,
-                idempotency_key=IDEM_KEY,
-            ))
+        result = run(self.svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 600.0, "reason": ""},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
         assert result["status"] == "PENDING_MANUAL_REVIEW"
         assert result["riskLevel"] == "yellow"
-
-    def _reserve_to_frozen(self, owner, amount_usdc, updated_at):
-        """Simulate frozen-path: available -= amount, frozen += amount."""
-        wallet = self.storage.balance_repo._ledger.ensure_consumer_wallet(owner)
-        available = float(wallet.available_balance or 0.0)
-        if available < amount_usdc - 1e-9:
-            raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
-        wallet.available_balance = round(available - amount_usdc, 6)
-        wallet.frozen_balance = round(float(wallet.frozen_balance or 0.0) + amount_usdc, 6)
+        ledger = self.storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == pytest.approx(400.0)
+        assert ledger.consumer_frozen_balance(OWNER) == pytest.approx(600.0)
 
 
 class TestConsumerWithdrawFrozenBlocksApiCalls(unittest.TestCase):
@@ -487,3 +537,165 @@ class TestConsumerWithdrawListings(unittest.TestCase):
         assert len(other_list) == 1
         assert pytest.approx(20.0, rel=1e-4) == float(owner_list[0].get("amountUsdc", 0))
         assert pytest.approx(10.0, rel=1e-4) == float(other_list[0].get("amountUsdc", 0))
+
+
+class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
+    def test_fail_requested_withdraw_releases_pending_back_to_available(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+
+        created = run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "wallet rejected"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+
+        result = run(svc.fail_refund_intent(
+            owner_wallet=OWNER,
+            refund_id=created["withdrawId"],
+            reason_code="USER_REJECTED",
+            message="User rejected the wallet prompt.",
+            request_meta={"requestId": "req-fail-1"},
+        ))
+
+        assert result["status"] == "FAILED"
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == pytest.approx(20.0)
+        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(0.0)
+        row = storage.gateway_state.refund_rows[0]
+        assert row.status == "FAILED"
+        meta_note = (
+            row.complete_meta.get("note")
+            if isinstance(row.complete_meta, dict)
+            else row.complete_meta.note
+        )
+        assert "USER_REJECTED" in str(meta_note or "")
+
+    def test_review_reject_releases_frozen_back_to_available(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=1000.0)
+        svc = _make_service(storage)
+
+        created = run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 600.0, "reason": "large withdraw"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        assert created["status"] == "PENDING_MANUAL_REVIEW"
+
+        result = run(svc.review_consumer_withdrawal(
+            owner_wallet=OWNER,
+            refund_id=created["withdrawId"],
+            request_meta={
+                "review": {
+                    "decision": "REJECT",
+                    "reviewerAddress": REVIEWER,
+                    "reviewerNote": "Velocity risk",
+                }
+            },
+        ))
+
+        assert result["status"] == "REJECTED"
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == pytest.approx(1000.0)
+        assert ledger.consumer_frozen_balance(OWNER) == pytest.approx(0.0)
+        row = storage.gateway_state.refund_rows[0]
+        assert row.status == "REJECTED"
+        assert row.review_decision == "REJECT"
+
+    def test_review_approve_moves_frozen_to_pending_and_attaches_ticket(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=1000.0)
+        svc = _make_service(storage)
+
+        created = run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 600.0, "reason": "needs review"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        fake_ticket = WithdrawalTicketMetadata(
+            amount="599500000000000000000",
+            fee="500000000000000000",
+            nonce=7,
+            deadline=int(time.time()) + 600,
+            signature="0xapproved",
+            chainId=31337,
+            contractAddress="0x0000000000000000000000000000000000000001",
+        )
+
+        with patch.object(svc, "_build_consumer_withdraw_ticket", return_value=fake_ticket):
+            result = run(svc.review_consumer_withdrawal(
+                owner_wallet=OWNER,
+                refund_id=created["withdrawId"],
+                request_meta={
+                    "review": {
+                        "decision": "APPROVE",
+                        "reviewerAddress": REVIEWER,
+                        "reviewerNote": "Approved after manual review",
+                    }
+                },
+            ))
+
+        assert result["status"] == "REQUESTED"
+        assert result["ticket"]["signature"] == "0xapproved"
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == pytest.approx(400.0)
+        assert ledger.consumer_frozen_balance(OWNER) == pytest.approx(0.0)
+        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(600.0)
+        row = storage.gateway_state.refund_rows[0]
+        assert row.status == "REQUESTED"
+        assert row.ticket.signature == "0xapproved"
+
+
+class TestConsumerWithdrawProcessor(unittest.TestCase):
+    def test_processor_marks_requested_withdraw_completed_from_event_match(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+        created = run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "complete later"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        row = storage.gateway_state.refund_rows[0]
+        assert created["status"] == "REQUESTED"
+
+        dummy_w3 = SimpleNamespace()
+        dummy_core = SimpleNamespace()
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(dummy_w3, dummy_core)), \
+             patch.object(withdraw_processor, "_on_chain_nonce", return_value=(row.ticket.nonce or 0) + 1), \
+             patch.object(withdraw_processor, "_find_withdraw_tx", return_value="0x" + "a" * 64):
+            processed = withdraw_processor._process_single_withdraw(storage, row)
+
+        assert processed is True
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(0.0)
+        updated = storage.gateway_state.refund_rows[0]
+        assert updated.status == "COMPLETED"
+        assert updated.tx_hash == "0x" + "a" * 64
+
+    def test_processor_cancels_expired_ticket_and_releases_pending(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+        run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "expire later"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        row = storage.gateway_state.refund_rows[0]
+        row.ticket.deadline = int(time.time()) - 10
+
+        dummy_w3 = SimpleNamespace()
+        dummy_core = SimpleNamespace()
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(dummy_w3, dummy_core)):
+            processed = withdraw_processor._process_single_withdraw(storage, row)
+
+        assert processed is True
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == pytest.approx(20.0)
+        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(0.0)
+        updated = storage.gateway_state.refund_rows[0]
+        assert updated.status == "CANCELLED"
+        assert "expired" in str(updated.message or "").lower()

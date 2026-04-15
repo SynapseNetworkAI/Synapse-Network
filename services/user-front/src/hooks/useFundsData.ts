@@ -127,13 +127,15 @@ export function useFundsData() {
           REQUESTED: "PENDING",
           PENDING_MANUAL_REVIEW: "PENDING",
           COMPLETED: "COMPLETED",
+          FAILED: "FAILED",
           REJECTED: "FAILED",
+          CANCELLED: "FAILED",
         };
         return {
           id: w.id,
           type: "Withdraw" as const,
           amount: w.amountUsdc,
-          txHash: null,
+          txHash: w.txHash ?? null,
           timestamp: tsMs,
           status: statusMap[w.status?.toUpperCase()] ?? "PENDING",
         };

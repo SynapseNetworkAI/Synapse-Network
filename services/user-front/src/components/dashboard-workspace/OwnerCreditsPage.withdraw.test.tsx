@@ -12,21 +12,25 @@ import { I18N_STORAGE_KEY } from "@/i18n/config";
 const {
   authorizeMock,
   getOwnerSpendingLimitMock,
+  listConsumerWithdrawalsMock,
   ownerBalanceState,
   requestConsumerWithdrawMock,
   handleRefreshMock,
   toastSuccessMock,
   toastErrorMock,
   completeV2RefundMock,
+  failV2RefundMock,
 } = vi.hoisted(() => ({
   authorizeMock: vi.fn(async () => true),
   getOwnerSpendingLimitMock: vi.fn(),
+  listConsumerWithdrawalsMock: vi.fn(),
   ownerBalanceState: { value: "20" },
   requestConsumerWithdrawMock: vi.fn(),
   handleRefreshMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   completeV2RefundMock: vi.fn(),
+  failV2RefundMock: vi.fn(),
 }));
 
 vi.mock("@rainbow-me/rainbowkit", () => ({
@@ -95,10 +99,22 @@ vi.mock("@/utils/balanceApi", async () => {
   return {
     ...actual,
     getOwnerSpendingLimit: getOwnerSpendingLimitMock,
+    listConsumerWithdrawals: listConsumerWithdrawalsMock,
     requestConsumerWithdraw: requestConsumerWithdrawMock,
     completeV2Refund: completeV2RefundMock,
+    failV2Refund: failV2RefundMock,
   };
 });
+
+const requestTicket = {
+  amount: "42000000000000000000",
+  fee: "500000000000000000",
+  nonce: 1,
+  deadline: 9999999999,
+  signature: "0xabc123",
+  chainId: 11155111,
+  contractAddress: "0x0000000000000000000000000000000000000001",
+};
 
 const spendingLimitDefault = {
   ownerAddress: "0xabc",
@@ -139,7 +155,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
     vi.clearAllMocks();
     ownerBalanceState.value = "20";
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
+    globalThis.sessionStorage.clear();
     getOwnerSpendingLimitMock.mockResolvedValue(spendingLimitDefault);
+    listConsumerWithdrawalsMock.mockResolvedValue([]);
   });
 
   it("shows the Withdraw button and the current balance", async () => {
@@ -178,9 +196,12 @@ describe("OwnerCreditsPage — Withdraw", () => {
   it("calls requestConsumerWithdraw with correct args on submit", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-req-1",
       status: "REQUESTED",
       amountUsdc: 20,
+      netUsdc: 19.5,
       riskReasonCode: null,
+      ticket: requestTicket,
     });
     handleRefreshMock.mockResolvedValue(undefined);
 
@@ -210,7 +231,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
       withdrawId: "wd-1",
       status: "REQUESTED",
       amountUsdc: 20,
+      netUsdc: 19.5,
       riskReasonCode: null,
+      ticket: requestTicket,
     });
     handleRefreshMock.mockResolvedValue(undefined);
 
@@ -228,13 +251,14 @@ describe("OwnerCreditsPage — Withdraw", () => {
     });
   });
 
-  it("submits a withdrawal and closes the modal on success", async () => {
+  it("submits a manual-review withdrawal and closes the modal on success", async () => {
     const user = userEvent.setup();
     requestConsumerWithdrawMock.mockResolvedValue({
       withdrawId: "wd-success",
-      status: "REQUESTED",
-      amountUsdc: 20,
-      riskReasonCode: null,
+      status: "PENDING_MANUAL_REVIEW",
+      amountUsdc: 600,
+      netUsdc: 599.5,
+      riskReasonCode: "HIGH_AMOUNT",
     });
 
     const { onClose, onSuccess } = renderWithdrawModal();
@@ -257,7 +281,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
       withdrawId: "wd-2",
       status: "REQUESTED",
       amountUsdc: 42.5,
+      netUsdc: 42,
       riskReasonCode: null,
+      ticket: requestTicket,
     });
 
     renderWithdrawModal();
@@ -267,7 +293,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     await waitFor(() => {
       expect(toastSuccessMock).toHaveBeenCalledWith(
-        expect.stringContaining("$42.50")
+        expect.stringContaining("Transaction submitted")
       );
     });
   });

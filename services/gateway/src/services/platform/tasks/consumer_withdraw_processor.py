@@ -105,8 +105,8 @@ def _find_withdraw_tx(w3, core, owner: str, amount_wei: int, fee_wei: int, lookb
         from_block = max(0, latest - lookback)
         user_checksum = Web3.to_checksum_address(owner)
         events = core.events.WithdrawInfo.get_logs(
-            fromBlock=from_block,
-            toBlock="latest",
+            from_block=from_block,
+            to_block="latest",
             argument_filters={"user": user_checksum},
         )
         for evt in reversed(events):       # most recent first
@@ -115,6 +115,35 @@ def _find_withdraw_tx(w3, core, owner: str, amount_wei: int, fee_wei: int, lookb
     except Exception as exc:
         logger.warning("consumer_withdraw_processor: event scan failed for %s: %s", owner, exc)
     return None
+
+
+def _row_request_meta_dict(row: Any) -> dict[str, Any]:
+    meta = getattr(row, "request_meta", None)
+    if isinstance(meta, dict):
+        return meta
+    if hasattr(meta, "model_dump"):
+        try:
+            return meta.model_dump(by_alias=True, mode="json")
+        except Exception:
+            return {}
+    return {}
+
+
+def _ticket_deadline(row: Any) -> int:
+    ticket = getattr(row, "ticket", None)
+    if getattr(ticket, "deadline", None):
+        return int(ticket.deadline or 0)
+    return int(_row_request_meta_dict(row).get("ticketDeadline") or 0)
+
+
+def _ticket_nonce(row: Any) -> Optional[int]:
+    ticket = getattr(row, "ticket", None)
+    if getattr(ticket, "nonce", None) is not None:
+        return int(ticket.nonce)
+    ticket_nonce_raw = _row_request_meta_dict(row).get("ticketNonce")
+    if ticket_nonce_raw is None:
+        return None
+    return int(ticket_nonce_raw)
 
 
 # ---------------------------------------------------------------------------
@@ -135,13 +164,43 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
 
     # Extract ticket nonce from the stored signature/request_meta if available
     ticket_nonce: Optional[int] = None
-    meta = getattr(row, "request_meta", None) or {}
-    if isinstance(meta, dict):
-        ticket_nonce = meta.get("ticketNonce")
+    meta = _row_request_meta_dict(row)
+    ticket_nonce = _ticket_nonce(row)
 
     w3, core = _get_w3_and_core()
     if w3 is None or core is None:
         return False
+
+    ticket_deadline = _ticket_deadline(row)
+    if ticket_deadline > 0 and ticket_deadline < int(time.time()):
+        try:
+            dm = storage.get_data_manager()
+            dm.finance.balance.release_consumer_pending_to_available(
+                owner=owner,
+                amount_usdc=amount_usdc,
+                updated_at=now_dt_str(),
+            )
+        except RuntimeError:
+            logger.warning(
+                "consumer_withdraw_processor: pending balance release failed for expired %s (amount=%.6f)",
+                owner, amount_usdc,
+            )
+        rows = dm.system.gateway_state.read_consumer_refund_rows()
+        for r in rows:
+            if str(r.id or "") != str(row.id or ""):
+                continue
+            now = int(time.time())
+            r.status = "CANCELLED"
+            r.completed_at = now
+            r.updated_at = now_dt_str()
+            r.message = "Withdrawal ticket expired before on-chain execution."
+            break
+        dm.system.gateway_state.write_consumer_refund_rows(rows, int(time.time()))
+        logger.info(
+            "consumer_withdraw_processor: CANCELLED id=%s owner=%s amount=%.6f reason=ticket_expired",
+            row.id, owner, amount_usdc,
+        )
+        return True
 
     # Strategy 1: nonce-based detection — if the user's on-chain nonce
     # advanced past the ticket nonce, the tx was executed.

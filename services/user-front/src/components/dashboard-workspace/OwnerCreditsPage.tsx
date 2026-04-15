@@ -16,6 +16,7 @@ import {
 } from "@/utils/authSession";
 import {
   completeV2Refund,
+  failV2Refund,
   getOwnerSpendingLimit,
   listConsumerWithdrawals,
   redeemCreditVoucher,
@@ -71,6 +72,41 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
     error: txReceiptError,
   } = useWaitForTransactionReceipt({ hash: txHash, chainId });
   const completingRef = useRef(false);
+  const failingRef = useRef(false);
+
+  const syncFailedWithdrawal = useCallback(
+    async (
+      reasonCode: string,
+      fallbackMessage: string,
+      maybeTxHash?: string,
+      activeResult?: ConsumerWithdrawIntent | null
+    ) => {
+      const target = activeResult ?? withdrawResult;
+      if (!target?.withdrawId || failingRef.current) {
+        return;
+      }
+      failingRef.current = true;
+      try {
+        await failV2Refund(userAddress, target.withdrawId, {
+          reasonCode,
+          message: fallbackMessage,
+          txHash: maybeTxHash,
+        });
+        toast.error(fallbackMessage);
+        await onSuccess({ ...target, status: "FAILED" });
+      } catch (error) {
+        const msg =
+          error instanceof Error
+            ? error.message
+            : "Failed to release the pending withdrawal.";
+        toast.error(msg);
+      } finally {
+        setStep("form");
+        onClose();
+      }
+    },
+    [onClose, onSuccess, userAddress, withdrawResult]
+  );
 
   // Step: tx confirmed → call backend /complete
   useEffect(() => {
@@ -82,7 +118,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
         await completeV2Refund(userAddress, withdrawResult.withdrawId, txHash);
         toast.success(`Withdrawal of $${withdrawResult.netUsdc.toFixed(2)} USDC completed!`);
         setStep("done");
-        await onSuccess(withdrawResult);
+        await onSuccess({ ...withdrawResult, status: "COMPLETED" });
         onClose();
       } catch {
         toast.error("On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.");
@@ -94,10 +130,13 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
 
   // Step: tx failed
   useEffect(() => {
-    if (!isTxFailed || !withdrawResult) return;
-    toast.error(txReceiptError?.message || "On-chain transaction failed. Your balance will be restored.");
-    setStep("form");
-  }, [isTxFailed, withdrawResult, txReceiptError]);
+    if (!isTxFailed || !withdrawResult || !txHash) return;
+    void syncFailedWithdrawal(
+      "TX_FAILED",
+      txReceiptError?.message || "On-chain transaction failed. Your balance was restored.",
+      txHash
+    );
+  }, [isTxFailed, syncFailedWithdrawal, txHash, txReceiptError, withdrawResult]);
 
   const handleSubmit = async () => {
     const num = Number.parseFloat(amount);
@@ -111,30 +150,37 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
     }
 
     setStep("signing");
+    let createdResult: ConsumerWithdrawIntent | null = null;
     try {
       const result = await requestConsumerWithdraw(userAddress, {
         amountUsdc: num,
         reason: reason.trim() || undefined,
       });
+      createdResult = result;
       setWithdrawResult(result);
+      await onSuccess(result);
 
       if (result.existingWithdrawal) {
-        toast("A pending withdrawal already exists. Balance will update once it completes.", { icon: "⏳", duration: 6000 });
-        onClose();
-        return;
-      }
-
-      if (result.status === "PENDING_MANUAL_REVIEW") {
+        if (!result.ticket || result.status === "PENDING_MANUAL_REVIEW") {
+          toast("A pending withdrawal already exists. Finish or wait for the current request.", {
+            icon: "⏳",
+            duration: 6000,
+          });
+          onClose();
+          return;
+        }
+        toast("Resuming your pending withdrawal in the wallet.", {
+          icon: "⏳",
+          duration: 6000,
+        });
+      } else if (result.status === "PENDING_MANUAL_REVIEW") {
         toast.success(`Withdrawal submitted — under review. Reason: ${result.riskReasonCode || "manual review"}`);
-        await onSuccess(result);
         onClose();
         return;
       }
 
-      // status === "REQUESTED" with ticket → execute on-chain
       if (!result.ticket) {
-        toast.success(`Withdrawal of $${result.amountUsdc.toFixed(2)} USDC reserved. On-chain signing unavailable — it will be processed automatically.`);
-        await onSuccess(result);
+        toast.error("Withdrawal ticket is unavailable. Please retry after the gateway signs a fresh ticket.");
         onClose();
         return;
       }
@@ -162,9 +208,23 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Withdrawal failed.";
       if (msg.includes("User rejected") || msg.includes("denied")) {
-        toast.error("Transaction rejected by wallet.");
+        await syncFailedWithdrawal(
+          "WALLET_REJECTED",
+          "Transaction rejected by wallet.",
+          undefined,
+          createdResult
+        );
       } else {
-        toast.error(msg);
+        if (createdResult?.withdrawId) {
+          await syncFailedWithdrawal(
+            "WITHDRAW_SUBMISSION_FAILED",
+            msg,
+            undefined,
+            createdResult
+          );
+        } else {
+          toast.error(msg);
+        }
       }
       setStep("form");
     }
@@ -806,10 +866,33 @@ export default function OwnerCreditsPage() {
           userAddress={userAddress}
           onClose={() => setIsWithdrawModalOpen(false)}
           onSuccess={async (result) => {
-            // Only apply optimistic override for newly-created withdrawals.
-            // When the server returns an existing active withdrawal (existingWithdrawal=true),
-            // the balance already reflects the reservation from the original request.
-            if (!result.existingWithdrawal) {
+            const normalizedStatus = (result.status || "").toUpperCase();
+            const isActiveWithdrawal =
+              normalizedStatus === "REQUESTED" ||
+              normalizedStatus === "PENDING_MANUAL_REVIEW";
+
+            if (!isActiveWithdrawal) {
+              setPendingWithdrawal(null);
+              clearOptimisticOverride();
+            } else {
+              setPendingWithdrawal((current) => {
+                if (result.existingWithdrawal && current) {
+                  return current;
+                }
+                return {
+                  id: result.withdrawId,
+                  amountUsdc: result.amountUsdc,
+                  status: result.status,
+                  message: result.message,
+                  riskReasonCode: result.riskReasonCode,
+                  createdAt: result.createdAt,
+                  txHash: undefined,
+                  ticket: result.ticket,
+                };
+              });
+            }
+
+            if (isActiveWithdrawal && !result.existingWithdrawal) {
               const newOverride = {
                 withdrawId: result.withdrawId,
                 amountUsdc: result.amountUsdc,
@@ -828,7 +911,6 @@ export default function OwnerCreditsPage() {
               }
             }
 
-            // Small delay to let DB write settle before re-reading balance
             await new Promise((resolve) => setTimeout(resolve, 300));
             await Promise.all([handleRefresh(), fetchSpendingLimit(), fetchPendingWithdrawal()]);
           }}

@@ -12,7 +12,7 @@ No originRequestId is required. The destination address is always the owner.
 from __future__ import annotations
 
 import time
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, List, Optional
 from uuid import uuid4
 
@@ -33,6 +33,46 @@ from src.utils.datetime_utils import now_dt_str
 
 class FinanceConsumerWithdrawMixin:
     """Consumer balance withdraw: reserve, create intent, and list."""
+
+    @staticmethod
+    def _q6d(value: Any) -> Decimal:
+        return Decimal(str(value or "0")).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        )
+
+    @classmethod
+    def _money_float(cls, value: Any) -> float:
+        return float(cls._q6d(value))
+
+    def _build_consumer_withdraw_response(
+        self,
+        row: RefundIntentRow,
+        *,
+        existing_withdrawal: bool = False,
+    ) -> dict[str, Any]:
+        amount_usdc = self._q6d(row.amount_usdc)
+        fee_usdc = self._q6d(CONSUMER_WITHDRAW_FEE_USDC)
+        payload = {
+            "withdrawId": str(row.id or ""),
+            "amountUsdc": float(amount_usdc),
+            "feeUsdc": float(fee_usdc),
+            "netUsdc": float(max(Decimal("0"), amount_usdc - fee_usdc)),
+            "status": str(row.status or "REQUESTED"),
+            "riskLevel": str(row.risk_level or "green"),
+            "riskReasonCode": str(row.risk_reason_code or ""),
+            "message": str(row.message or ""),
+            "destination": str(row.destination_address or row.owner_address or ""),
+            "createdAt": str(row.created_at or ""),
+        }
+        if existing_withdrawal:
+            payload["existingWithdrawal"] = True
+        if row.ticket.signature:
+            payload["ticket"] = row.ticket.model_dump(
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
+            )
+        return payload
 
     def _count_consumer_withdrawals_last_24h(
         self, owner: str, rows: List[RefundIntentRow], now: int
@@ -107,15 +147,16 @@ class FinanceConsumerWithdrawMixin:
             idempotency_key = self._validate_idempotency_key(idempotency_key)  # type: ignore[attr-defined]
             await self._enforce_owner_write_rate_limit(owner, "consumer_withdraw_intent")  # type: ignore[attr-defined]
 
-            # ── Parse amount ──────────────────────────────────────────────────
             try:
-                amount_usdc = round(float(payload.get("amountUsdc", 0)), 6)
+                amount_usdc = self._q6d(payload.get("amountUsdc", 0))
             except Exception:
                 raise HTTPException(
                     status_code=400,
                     detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a number."},
                 )
-            if amount_usdc < CONSUMER_WITHDRAW_MIN_USDC:
+            min_amount = self._q6d(CONSUMER_WITHDRAW_MIN_USDC)
+            fee_usdc = self._q6d(CONSUMER_WITHDRAW_FEE_USDC)
+            if amount_usdc < min_amount:
                 raise HTTPException(
                     status_code=400,
                     detail={
@@ -123,7 +164,7 @@ class FinanceConsumerWithdrawMixin:
                         "message": f"amountUsdc must be >= {CONSUMER_WITHDRAW_MIN_USDC} USDC.",
                     },
                 )
-            if amount_usdc <= CONSUMER_WITHDRAW_FEE_USDC:
+            if amount_usdc <= fee_usdc:
                 raise HTTPException(
                     status_code=400,
                     detail={
@@ -137,10 +178,16 @@ class FinanceConsumerWithdrawMixin:
 
             reason = str(payload.get("reason") or "").strip()[:256]
 
-            # ── Idempotency check (before balance validation) ─────────────────
             import hashlib, json
             request_hash = hashlib.sha256(
-                json.dumps({"owner": owner, "amountUsdc": amount_usdc, "reason": reason}, sort_keys=True).encode()
+                json.dumps(
+                    {
+                        "owner": owner,
+                        "amountUsdc": f"{amount_usdc:f}",
+                        "reason": reason,
+                    },
+                    sort_keys=True,
+                ).encode()
             ).hexdigest()
 
             redis_client = await self._get_redis_client()  # type: ignore[attr-defined]
@@ -153,17 +200,6 @@ class FinanceConsumerWithdrawMixin:
             if redis_hit is not None:
                 return redis_hit
 
-            # ── Check if a pending withdrawal already exists (before balance check) ─
-            # This must come before the balance check because a previous call may have
-            # already reserved the balance (available=0); we still want to return the
-            # existing active record rather than raising INSUFFICIENT_BALANCE.
-            #
-            # Idempotency self-healing: if the reservation was lost (e.g. a concurrent
-            # write_balance_ledger clobbered available_balance), re-apply it atomically
-            # before returning the existing record.  The atomic SQL WHERE clause
-            # (available_balance >= amount) makes this safe: if pending already holds the
-            # reservation the UPDATE will find available < amount and raise RuntimeError,
-            # which we silently ignore.
             rows = self._load_refund_rows(owner_wallet=owner)  # type: ignore[attr-defined]
             now = int(time.time())
             for row in rows:
@@ -171,139 +207,112 @@ class FinanceConsumerWithdrawMixin:
                     continue
                 if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
                     continue
-                if str(row.status or "").upper() in REFUND_ACTIVE_STATUSES:
-                    row_amount = round(float(row.amount_usdc or 0), 6)
-                    # Re-apply reservation if available_balance was not properly reduced
-                    # (race condition: deposit indexer or another write restored it).
+                row_status = str(row.status or "").upper()
+                if row_status in REFUND_ACTIVE_STATUSES:
+                    row_amount = self._q6d(row.amount_usdc)
                     ledger_check = self._load_balance_ledger()  # type: ignore[attr-defined]
-                    avail_check = ledger_check.consumer_available_balance(owner)
-                    pend_check = ledger_check.consumer_pending_balance(owner)
-                    if avail_check >= row_amount - 1e-9 and pend_check < row_amount - 1e-9:
-                        # Reservation was not persisted — re-apply atomically (idempotent).
+                    avail_check = self._q6d(ledger_check.consumer_available_balance(owner))
+                    pend_check = self._q6d(ledger_check.consumer_pending_balance(owner))
+                    frozen_check = self._q6d(ledger_check.consumer_frozen_balance(owner))
+                    changed = False
+                    if row_status == "REQUESTED" and avail_check >= row_amount and pend_check < row_amount:
                         try:
-                            self._reserve_consumer_balance(owner, row_amount)  # type: ignore[attr-defined]
+                            self._reserve_consumer_balance(owner, float(row_amount))  # type: ignore[attr-defined]
+                            changed = True
                         except RuntimeError:
-                            pass  # Already reserved concurrently — safe to ignore
-                    return {
-                        "withdrawId": str(row.id or ""),
-                        "amountUsdc": row_amount,
-                        "feeUsdc": round(CONSUMER_WITHDRAW_FEE_USDC, 6),
-                        "netUsdc": round(max(0, row_amount - CONSUMER_WITHDRAW_FEE_USDC), 6),
-                        "status": str(row.status),
-                        "riskLevel": str(row.risk_level or "green"),
-                        "riskReasonCode": str(row.risk_reason_code or ""),
-                        "message": str(row.message or ""),
-                        "createdAt": str(row.created_at or ""),
-                        "existingWithdrawal": True,
-                    }
+                            pass
+                    if (
+                        row_status == "PENDING_MANUAL_REVIEW"
+                        and avail_check >= row_amount
+                        and frozen_check < row_amount
+                    ):
+                        try:
+                            self._reserve_consumer_balance_for_manual_review(owner, float(row_amount))  # type: ignore[attr-defined]
+                            changed = True
+                        except RuntimeError:
+                            pass
+                    if row_status == "REQUESTED" and not row.ticket.signature:
+                        row.ticket = self._build_consumer_withdraw_ticket(
+                            owner=owner,
+                            gross_amount_usdc=row_amount,
+                        )  # type: ignore[attr-defined]
+                        row.signature = row.ticket.signature
+                        changed = True
+                    if changed:
+                        row.updated_at = now_dt_str()
+                        self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+                    return self._build_consumer_withdraw_response(
+                        row,
+                        existing_withdrawal=True,
+                    )
 
-            # ── Check available balance ───────────────────────────────────────
             ledger = self._load_balance_ledger()  # type: ignore[attr-defined]
-            available = ledger.consumer_available_balance(owner)
-            if amount_usdc > available + 1e-9:
+            available = self._q6d(ledger.consumer_available_balance(owner))
+            if amount_usdc > available:
                 raise HTTPException(
                     status_code=400,
                     detail={
                         "code": "INSUFFICIENT_CONSUMER_BALANCE",
                         "message": (
-                            f"Requested {amount_usdc:.6f} USDC exceeds available balance "
-                            f"of {available:.6f} USDC."
+                            f"Requested {float(amount_usdc):.6f} USDC exceeds available balance "
+                            f"of {float(available):.6f} USDC."
                         ),
                     },
                 )
 
-            # ── Frequency check (24 h daily cap) ─────────────────────────────
-            daily_count = self._count_consumer_withdrawals_last_24h(owner, rows, now)
-
-            # ── Risk classification ───────────────────────────────────────────
-            risk = self._classify_consumer_withdraw_risk(amount_usdc, daily_count)
-
-            # ── Reserve balance (atomic SQL delta) ───────────────────────────
+            daily_count = self._count_consumer_withdrawals_last_24h(
+                owner,
+                rows,
+                now,
+            )
+            risk = self._classify_consumer_withdraw_risk(float(amount_usdc), daily_count)
             try:
-                self._reserve_consumer_balance(owner, amount_usdc)  # type: ignore[attr-defined]
+                if risk["status"] == "PENDING_MANUAL_REVIEW":
+                    self._reserve_consumer_balance_for_manual_review(
+                        owner,
+                        float(amount_usdc),
+                    )  # type: ignore[attr-defined]
+                else:
+                    self._reserve_consumer_balance(owner, float(amount_usdc))  # type: ignore[attr-defined]
             except RuntimeError:
                 raise HTTPException(
                     status_code=400,
                     detail={
                         "code": "INSUFFICIENT_CONSUMER_BALANCE",
                         "message": (
-                            f"Requested {amount_usdc:.6f} USDC exceeds available balance."
+                            f"Requested {float(amount_usdc):.6f} USDC exceeds available balance."
                         ),
                     },
                 )
 
-            # ── Persist intent row (reuse RefundIntentRow storage) ───────────
             withdraw_id = str(uuid4())
-
-            # ── Sign EIP-712 withdraw ticket (reuses SynapseCore.withdraw) ───
-            # For REQUESTED (auto-approve), sign immediately so the frontend
-            # can execute on-chain.  For PENDING_MANUAL_REVIEW, ticket is empty.
-            ticket: dict = {}
-            fee_usdc = round(CONSUMER_WITHDRAW_FEE_USDC, 6)
-            net_usdc = round(amount_usdc - fee_usdc, 6)
-            ticket_signature = ""
-
+            ticket = None
             if risk["status"] == "REQUESTED":
                 try:
-                    from src.services.balance_mixins.withdraw_signing import USDC_DECIMALS
-                    from src.core.config import settings
-                    from src.core.common import normalize_wallet as _nw
-
-                    private_key = self._require_withdraw_signer()  # type: ignore[attr-defined]
-                    nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)  # type: ignore[attr-defined]
-                    deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()  # type: ignore[attr-defined]
-
-                    # SynapseCore.withdraw sends `amount` (gross) to msg.sender
-                    # and accrues `fee` to platformFeePool.
-                    # So: amount_wei = net (what user receives), fee_wei = fee.
-                    # Actually the contract does: safeTransfer(msg.sender, amount)
-                    # and platformFeePool += fee.  The vault needs (amount + fee).
-                    # So amount = net_usdc, fee = fee_usdc.
-                    # But wait, looking at the contract more carefully:
-                    # withdraw() does safeTransfer(msg.sender, amount) where amount
-                    # is the first param.  So amount IS what the user receives (net).
-                    # fee is taken from the vault separately into platformFeePool.
-                    # Total deducted from vault = amount + fee.
-                    # But the user deposited `amount_usdc` total.  We reserved
-                    # `amount_usdc` from their available balance.
-                    # So: amount_wei = net (user gets), fee_wei = fee (pool gets).
-                    # Vault deduction = net + fee = amount_usdc.  Correct!
-                    net_wei = int(round(net_usdc * (10 ** USDC_DECIMALS)))
-                    fee_wei = int(round(fee_usdc * (10 ** USDC_DECIMALS)))
-
-                    typed_data = self._build_withdraw_typed_data(  # type: ignore[attr-defined]
-                        owner_wallet=owner,
-                        amount_wei=net_wei,
-                        fee_wei=fee_wei,
-                        nonce=nonce,
-                        deadline=deadline,
-                        chain_id=chain_id,
-                        verifying_contract=_nw(settings.router_address),
-                    )
-                    ticket_signature = self._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
-                    ticket = {
-                        "amount": str(net_wei),
-                        "fee": str(fee_wei),
-                        "nonce": nonce,
-                        "deadline": deadline,
-                        "signature": ticket_signature,
-                        "chainId": chain_id,
-                        "contractAddress": _nw(settings.router_address),
-                    }
-                except Exception:
-                    import logging
-                    logging.getLogger(__name__).warning(
-                        "consumer_withdraw: ticket signing failed for %s, proceeding without ticket",
-                        owner, exc_info=True,
+                    ticket = self._build_consumer_withdraw_ticket(
+                        owner=owner,
+                        gross_amount_usdc=amount_usdc,
+                    )  # type: ignore[attr-defined]
+                except Exception as exc:
+                    self._release_consumer_pending_to_available(
+                        owner,
+                        float(amount_usdc),
+                    )  # type: ignore[attr-defined]
+                    raise HTTPException(
+                        status_code=503,
+                        detail={
+                            "code": "WITHDRAW_TICKET_SIGNING_FAILED",
+                            "message": f"Unable to prepare a withdrawal ticket right now: {exc}",
+                        },
                     )
 
             row = RefundIntentRow(
                 id=withdraw_id,
                 ownerAddress=owner,
-                amountUsdc=Decimal(str(round(amount_usdc, 6))),
+                amountUsdc=amount_usdc,
                 reason=reason,
                 status=risk["status"],
-                signature=ticket_signature or f"mock-consumer-withdraw-{withdraw_id[:12]}",
+                signature=ticket.signature if ticket else None,
                 gasPayer="OWNER",
                 gasModel="OWNER_PAYS_ONCHAIN",
                 refundType=CONSUMER_WITHDRAW_TYPE,
@@ -314,26 +323,23 @@ class FinanceConsumerWithdrawMixin:
                 idempotencyKey=idempotency_key,
                 createdAt=now_dt_str(),
                 updatedAt=now_dt_str(),
-                requestMeta={**(request_meta or {}), **({"ticketNonce": ticket.get("nonce")} if ticket else {})},
+                requestMeta={
+                    **(request_meta or {}),
+                    **(
+                        {
+                            "ticketNonce": ticket.nonce,
+                            "ticketDeadline": ticket.deadline,
+                        }
+                        if ticket and ticket.nonce is not None
+                        else {}
+                    ),
+                },
+                ticket=ticket or {},
             )
             rows.append(row)
             self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
 
-            response: dict[str, Any] = {
-                "withdrawId": withdraw_id,
-                "amountUsdc": round(amount_usdc, 6),
-                "feeUsdc": fee_usdc,
-                "netUsdc": net_usdc,
-                "status": risk["status"],
-                "riskLevel": risk["riskLevel"],
-                "riskReasonCode": risk["riskReasonCode"],
-                "message": risk["message"],
-                "destination": owner,
-            }
-            if ticket:
-                response["ticket"] = ticket
-
-            # ── Finalize idempotency ──────────────────────────────────────────
+            response = self._build_consumer_withdraw_response(row)
             await self._finalize_refund_idempotency(  # type: ignore[attr-defined]
                 owner=owner,
                 idempotency_key=idempotency_key,
@@ -343,13 +349,12 @@ class FinanceConsumerWithdrawMixin:
                 idem_rows=[],
             )
 
-            # ── Audit log ─────────────────────────────────────────────────────
             self._append_financial_audit(  # type: ignore[attr-defined]
                 "CONSUMER_WITHDRAW_INTENT_CREATED",
                 owner,
                 {
                     "withdrawId": withdraw_id,
-                    "amountUsdc": round(amount_usdc, 6),
+                    "amountUsdc": float(amount_usdc),
                     "riskLevel": risk["riskLevel"],
                     "riskReasonCode": risk["riskReasonCode"],
                     "dailyCount": daily_count,
@@ -370,6 +375,12 @@ class FinanceConsumerWithdrawMixin:
                 continue
             if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
                 continue
-            result.append(row.model_dump(by_alias=True, mode="json"))
+            result.append(
+                row.model_dump(
+                    by_alias=True,
+                    mode="json",
+                    exclude_none=True,
+                )
+            )
         result.sort(key=lambda r: str(r.get("updatedAt") or ""), reverse=True)
         return result

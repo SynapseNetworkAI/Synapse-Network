@@ -2,153 +2,146 @@
 
 ## Overview
 
-Consumer withdrawal allows an owner to reclaim unused USDC from their consumer available balance back to their wallet. This is a pure off-chain balance refund — not a dispute refund. The destination is always the owner's own wallet.
+Consumer withdrawal lets an owner reclaim unused USDC from the consumer treasury back to the same wallet that owns the balance. This is not a dispute refund and it never touches provider receivables.
 
----
+The runtime model is:
+
+- Gateway validates balance, risk, idempotency, and active-withdrawal rules.
+- Gateway reserves treasury balance immediately.
+- Gateway signs an EIP-712 withdrawal ticket for `REQUESTED` rows.
+- Frontend asks the owner wallet to execute `SynapseCore.withdraw(...)`.
+- `/api/v1/refunds/{refundId}/complete` closes the happy path.
+- `consumer_withdraw_processor` is only a safety net for missed completion callbacks.
 
 ## Endpoints
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/balance/consumer/withdraw` | Create a withdrawal intent |
-| `GET`  | `/api/v1/balance/consumer/withdrawals` | List all withdrawals for the caller |
+| --- | --- | --- |
+| `POST` | `/api/v1/balance/consumer/withdraw` | Create or resume a consumer withdrawal intent |
+| `GET` | `/api/v1/balance/consumer/withdrawals` | List consumer withdrawals for the caller |
+| `POST` | `/api/v1/refunds/{refundId}/complete` | Mark a wallet-confirmed withdrawal `COMPLETED` |
+| `POST` | `/api/v1/refunds/{refundId}/fail` | Mark a failed wallet flow `FAILED` and release reserved balance |
+| `POST` | `/api/v1/admin/refunds/{refundId}/review` | Approve or reject a `PENDING_MANUAL_REVIEW` consumer withdrawal |
 
-### POST `/api/v1/balance/consumer/withdraw`
+## Statuses
 
-**Request headers:**
-- `X-Wallet-Address: <owner_address>`
-- `Authorization: Bearer <token>`
-- `X-Idempotency-Key: <client-generated unique key>`
+```text
+REQUESTED
+  -> COMPLETED
+  -> FAILED
+  -> CANCELLED
 
-**Request body:**
-```json
-{
-  "amountUsdc": 5.0,
-  "reason": "optional free-text reason"
-}
+PENDING_MANUAL_REVIEW
+  -> REQUESTED
+  -> REJECTED
+  -> FAILED
 ```
 
-**Response:**
-```json
-{
-  "withdrawId": "uuid",
-  "amountUsdc": 5.0,
-  "status": "REQUESTED",
-  "riskLevel": "green",
-  "riskReasonCode": "",
-  "message": "",
-  "destination": "0x..."
-}
-```
+| Status | Meaning |
+| --- | --- |
+| `REQUESTED` | Auto-approved. Balance already moved from available to pending. Ticket is ready for wallet execution. |
+| `PENDING_MANUAL_REVIEW` | Balance already moved from available to frozen. No wallet ticket is exposed yet. |
+| `COMPLETED` | On-chain `withdraw()` succeeded and pending balance has been consumed. |
+| `FAILED` | Wallet rejected, receipt failed, or the client explicitly reported failure. Reserved balance is released. |
+| `REJECTED` | Admin denied a manual-review withdrawal. Frozen balance is released. |
+| `CANCELLED` | Ticket expired before on-chain execution. Pending balance is released. |
 
----
+## Balance Transitions
 
-## Withdrawal States
+All amounts below refer to the gross requested amount from the consumer treasury.
 
-```
-REQUESTED  ──(normal path)──►  COMPLETED
-     │
-     │ (large amount or daily cap exceeded)
-     ▼
-PENDING_MANUAL_REVIEW  ──(admin approves)──►  COMPLETED
-                       └──(admin rejects)──►  REJECTED
-```
+| Transition | available | pending | frozen |
+| --- | --- | --- | --- |
+| Create `REQUESTED` | `- amount` | `+ amount` | no change |
+| Create `PENDING_MANUAL_REVIEW` | `- amount` | no change | `+ amount` |
+| Review `APPROVE` | no change | `+ amount` | `- amount` |
+| Review `REJECT` | `+ amount` | no change | `- amount` |
+| `/complete` or watcher completion | no change | `- amount` | no change |
+| `/fail` from `REQUESTED` | `+ amount` | `- amount` | no change |
+| `/fail` from `PENDING_MANUAL_REVIEW` | `+ amount` | no change | `- amount` |
+| Ticket expiry -> `CANCELLED` | `+ amount` | `- amount` | no change |
 
-| State | Meaning |
-|-------|---------|
-| `REQUESTED` | Intent created; balance reserved (available → pending) |
-| `PENDING_MANUAL_REVIEW` | Requires admin review before processing |
-| `COMPLETED` | Funds sent on-chain; pending released |
-| `REJECTED` | Request denied; pending returned to available |
+### Failure Semantics
 
----
+When a withdrawal fails:
 
-## Balance Flow
+- the row status becomes `FAILED`
+- the gateway stores the failure reason code and optional `txHash`
+- reserved funds are released back to `available_balance`
+- the owner may start a new withdrawal after the failed row is no longer active
 
-### On withdrawal creation (`REQUESTED`)
+This is the fix for the earlier bug where the UI could report a failed flow while the treasury balance remained stuck.
 
-```
-available_balance  -= amount
-pending_balance    += amount
-```
+## Active-Withdrawal Rule
 
-This is performed as an **atomic SQL delta** directly on `synapse_account_balances`, safe against concurrent full-ledger writes by the deposit indexer.
+Only one active consumer withdrawal is allowed per owner at a time.
 
-### On completion (`COMPLETED`)
+Active statuses are:
 
-```
-pending_balance    -= amount
-```
+- `REQUESTED`
+- `PENDING_MANUAL_REVIEW`
 
-Funds are on-chain transferred; no available_balance change needed (it was already deducted at request time).
+If the owner sends another `POST /api/v1/balance/consumer/withdraw` while one of those rows exists:
 
-### On rejection (`REJECTED`)
+- no new row is created
+- no second balance deduction happens
+- the existing row is returned
+- if the row is `REQUESTED`, the response includes the reusable signed ticket
 
-```
-available_balance  += amount
-pending_balance    -= amount
-```
+## Ticket and Fee Model
 
-Reserved amount is returned to available; owner may retry.
+- `CONSUMER_WITHDRAW_FEE_USDC` is deducted from the requested amount.
+- The ticket signs the net transfer amount and the fee separately.
+- The wallet executes `SynapseCore.withdraw(net, fee, nonce, deadline, signature)`.
 
----
+The owner receives the net amount on-chain. The fee stays inside the vault as protocol revenue.
 
-## Risk Classification
+## Payments Page Behavior
 
-| Condition | Status | Risk Level |
-|-----------|--------|------------|
-| Amount < threshold AND daily count < limit | `REQUESTED` | `green` |
-| Amount ≥ `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | `PENDING_MANUAL_REVIEW` | `yellow` |
-| Daily withdrawal count ≥ `CONSUMER_WITHDRAW_MAX_DAILY_COUNT` | `PENDING_MANUAL_REVIEW` | `red` |
+Consumer withdrawals appear in Payments as a single `Withdraw` row. We intentionally filter the same rows out of generic refund history to avoid duplicates.
 
----
+Status mapping:
 
-## Constraints
+| Withdrawal Status | Payments Status |
+| --- | --- |
+| `REQUESTED` | `PENDING` |
+| `PENDING_MANUAL_REVIEW` | `PENDING` |
+| `COMPLETED` | `COMPLETED` |
+| `FAILED` | `FAILED` |
+| `REJECTED` | `FAILED` |
+| `CANCELLED` | `FAILED` |
 
-- Minimum withdrawal: `CONSUMER_WITHDRAW_MIN_USDC` (default: $1 USDC)
-- Daily limit before manual review: `CONSUMER_WITHDRAW_MAX_DAILY_COUNT` withdrawals
-- Large amount threshold: `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC`
-- Only one active withdrawal (`REQUESTED` or `PENDING_MANUAL_REVIEW`) may exist at a time per owner. Duplicate requests return the existing intent.
-- Idempotency: repeating the same request with the same `X-Idempotency-Key` returns the same response without side effects.
+Other display rules:
 
----
+- amount is shown as a negative outflow
+- `txHash` is shown once it exists
+- failed or cancelled withdrawals keep their failure state instead of disappearing
+
+## Watcher Role
+
+`consumer_withdraw_processor.py` is not an executor.
+
+It only does two recovery jobs:
+
+1. detect a matching on-chain `WithdrawInfo` event for a `REQUESTED` row and mark it `COMPLETED`
+2. detect an expired ticket with no on-chain execution and mark it `CANCELLED`
+
+This watcher exists to recover from frontend interruption after ticket issuance or after on-chain success. It should never be described as a platform-owned withdrawal sender.
 
 ## Storage
 
 | Table | Role |
-|-------|------|
-| `synapse_vault_withdrawals` | Persistent record with `withdrawal_kind='consumer_refund'` |
-| `synapse_runtime_state` | JSON metadata at key `vault_withdrawal_meta::{id}` — stores `flowStatus`, `riskLevel`, `reason`, etc. |
-| `synapse_account_balances` | Available/pending/frozen balances; updated atomically |
+| --- | --- |
+| `synapse_account_balances` | Source of truth for `available_balance`, `pending_balance`, and `frozen_balance` |
+| `synapse_vault_withdrawals` | Persistent withdrawal rows with `withdrawal_kind='consumer_refund'` |
+| `synapse_runtime_state` | Runtime metadata including risk and review context |
+| `vault_withdrawal_meta::{id}` | Ticket metadata mirror used to recover nonce, deadline, and signature |
+| `synapse_audit_events` | Audit trail for create, fail, approve, reject, cancel, and complete actions |
 
----
+## Core Guarantees
 
-## Architecture Notes
-
-### Why atomic SQL delta (not full-ledger write)?
-
-The deposit indexer (`process_pending_deposit_intents_once`) periodically calls `write_balance_ledger`, which was designed to be the authoritative source for available balances derived from on-chain deposit events.
-
-To prevent this from clobbering withdrawal-managed `pending_balance`:
-1. `write_balance_ledger` now uses **available-only upsert** — it only updates `available_balance` and leaves `pending_balance`/`frozen_balance` untouched.
-2. `reserve_consumer_balance_for_withdrawal` uses a direct `UPDATE ... SET available -= amount, pending += amount` with `WHERE available >= amount` for atomicity and safety.
-
-This ensures both systems are independently safe:
-- Deposit indexer can freely update available balance (representing confirmed on-chain deposits).
-- Withdrawal system atomically manages pending balance independently.
-
----
-
-## Payments Tab
-
-Consumer withdrawals appear in the **Payments** tab (`/dashboard/billing/payments`) as `Withdraw` type entries. Status mapping:
-
-| Withdrawal Status | Payments Display |
-|-------------------|-----------------|
-| `REQUESTED` | Pending (amber) |
-| `PENDING_MANUAL_REVIEW` | Pending (amber) |
-| `COMPLETED` | Succeeded (green) |
-| `REJECTED` | Failed (red) |
-
-Amount is shown as a negative value since this is an outflow from the vault.
-Date is rendered in the local wall-clock format `YYYY-MM-DD HH:mm:ss` so the Payments ledger stays stable across browser locales.
+- consumer withdrawals never spend provider funds
+- balance reservation happens before the row is exposed to the client
+- repeated requests do not double-deduct the treasury
+- terminal failures release reserved balance
+- Payments shows one stable withdrawal record instead of duplicate refund rows

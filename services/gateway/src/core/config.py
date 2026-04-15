@@ -265,8 +265,8 @@ class Settings:
         "PROVIDER_WITHDRAW_EXPIRY_REAPER_INTERVAL_SEC", 30.0
     )
 
-    # Consumer withdrawal auto-processor: executes on-chain transfers for REQUESTED
-    # consumer withdrawals via ``SynapseCore.platformWithdrawTo``.
+    # Consumer withdrawal recovery watcher: reconciles owner-executed
+    # ``SynapseCore.withdraw`` flows and cancels expired tickets.
     consumer_withdraw_processor_enabled: bool = _env_bool(
         "CONSUMER_WITHDRAW_PROCESSOR_ENABLED", True
     )

@@ -16,7 +16,7 @@ from src.core.common import normalize_wallet
 from src.domain.execution import CompleteWithdrawTxCommand
 from src.domain.finance import RefundIntentRow, RefundReviewContext
 from src.domain.operation_metadata import OperationContextMetadata
-from src.services.owner.finance_constants import REFUND_ACTIVE_STATUSES
+from src.services.owner.finance_constants import CONSUMER_WITHDRAW_TYPE, REFUND_ACTIVE_STATUSES
 from src.utils.datetime_utils import now_dt_str
 
 
@@ -57,6 +57,18 @@ class FinanceRefundExecMixin:
             reviewer_address=reviewer_address,
             reviewer_note=str(review_ctx.reviewer_note or "").strip(),
         )
+
+    @staticmethod
+    def _is_consumer_withdraw_row(target: RefundIntentRow) -> bool:
+        return str(target.refund_type or "") == CONSUMER_WITHDRAW_TYPE
+
+    @staticmethod
+    def _fail_response(target: RefundIntentRow) -> dict[str, Any]:
+        return {
+            "refundId": str(target.id or ""),
+            "status": str(target.status or ""),
+            "txHash": str(target.tx_hash or ""),
+        }
 
     def _reject_refund_manual_review(
         self,
@@ -423,6 +435,14 @@ class FinanceRefundExecMixin:
             amount_usdc = round(float(target.amount_usdc or 0.0), 6)
 
             if status == "PENDING_MANUAL_REVIEW":
+                if self._is_consumer_withdraw_row(target):
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "CONSUMER_WITHDRAW_REVIEW_PENDING",
+                            "message": "Manual-review consumer withdrawal must be approved or rejected before completion.",
+                        },
+                    )
                 reject_response = self._handle_manual_review_before_completion(
                     owner=owner,
                     rows=rows,
@@ -448,3 +468,218 @@ class FinanceRefundExecMixin:
                 reviewer_note=reviewer_note,
                 request_meta=request_meta,
             )
+
+    async def fail_refund_intent(
+        self,
+        owner_wallet: str,
+        refund_id: str,
+        *,
+        reason_code: str,
+        message: str = "",
+        tx_hash: str | None = None,
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:refund_fail"):  # type: ignore[attr-defined]
+            await self._enforce_owner_write_rate_limit(owner, "refund_fail")  # type: ignore[attr-defined]
+            rows = self._load_refund_rows()  # type: ignore[attr-defined]
+            target = self._find_refund_by_id(rows, owner, refund_id)  # type: ignore[attr-defined]
+            if target is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "code": "REFUND_NOT_FOUND",
+                        "message": "Refund intent not found.",
+                    },
+                )
+
+            status = str(target.status or "").upper()
+            normalized_tx_hash = (
+                self._normalize_tx_hash_or_raise(tx_hash)  # type: ignore[attr-defined]
+                if tx_hash
+                else ""
+            )
+            if status == "COMPLETED":
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "REFUND_ALREADY_COMPLETED",
+                        "message": "Completed refund intent cannot be failed.",
+                    },
+                )
+            if status in {"FAILED", "REJECTED", "CANCELLED"}:
+                return self._fail_response(target)
+            if status not in REFUND_ACTIVE_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "REFUND_NOT_PENDING",
+                        "message": f"Refund status={status} cannot be failed.",
+                    },
+                )
+
+            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            if status == "REQUESTED":
+                self._release_consumer_pending_to_available(owner, amount_usdc)  # type: ignore[attr-defined]
+            elif status == "PENDING_MANUAL_REVIEW":
+                self._release_consumer_frozen_to_available(owner, amount_usdc)  # type: ignore[attr-defined]
+
+            now = int(time.time())
+            target.status = "FAILED"
+            target.tx_hash = normalized_tx_hash or None
+            target.updated_at = now_dt_str()
+            target.completed_at = now
+            target.message = message or f"Withdrawal failed ({reason_code})."
+            target.complete_meta = {
+                **(request_meta or {}),
+                "note": reason_code,
+            }
+            self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+            self._append_financial_audit(  # type: ignore[attr-defined]
+                "CONSUMER_WITHDRAW_FAILED",
+                owner,
+                {
+                    "refundId": str(target.id or ""),
+                    "reasonCode": reason_code,
+                    "message": target.message,
+                    "txHash": normalized_tx_hash,
+                    "amountUsdc": amount_usdc,
+                    "requestMeta": request_meta or {},
+                },
+            )
+            return self._fail_response(target)
+
+    async def review_consumer_withdrawal(
+        self,
+        owner_wallet: str,
+        refund_id: str,
+        request_meta: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        owner = normalize_wallet(owner_wallet)
+        async with self._mutation_lock.lock(f"{owner}:consumer_withdraw_review"):  # type: ignore[attr-defined]
+            await self._enforce_owner_write_rate_limit(owner, "consumer_withdraw_review")  # type: ignore[attr-defined]
+            rows = self._load_refund_rows()  # type: ignore[attr-defined]
+            target = self._find_refund_by_id(rows, owner, refund_id)  # type: ignore[attr-defined]
+            if target is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "code": "REFUND_NOT_FOUND",
+                        "message": "Refund intent not found.",
+                    },
+                )
+            if not self._is_consumer_withdraw_row(target):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "REFUND_REVIEW_NOT_SUPPORTED",
+                        "message": "Only consumer withdrawal intents support this review endpoint.",
+                    },
+                )
+            status = str(target.status or "").upper()
+            if status == "REQUESTED" and str(target.review_decision or "").upper() == "APPROVE":
+                return {
+                    "refundId": str(target.id or ""),
+                    "status": "REQUESTED",
+                    "ticket": target.ticket.model_dump(by_alias=True, mode="json", exclude_none=True),
+                    "reviewDecision": "APPROVE",
+                }
+            if status == "REJECTED":
+                return {
+                    "refundId": str(target.id or ""),
+                    "status": "REJECTED",
+                    "reviewDecision": str(target.review_decision or "REJECT"),
+                }
+            if status != "PENDING_MANUAL_REVIEW":
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "REFUND_NOT_PENDING_REVIEW",
+                        "message": f"Refund status={status} cannot be reviewed.",
+                    },
+                )
+
+            review = self._parse_refund_review_context(request_meta)
+            if review.decision not in {"APPROVE", "REJECT"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INVALID_REVIEW_DECISION",
+                        "message": "review decision must be APPROVE or REJECT.",
+                    },
+                )
+            if not review.reviewer_address:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "code": "REFUND_REVIEW_APPROVER_REQUIRED",
+                        "message": "Manual review refunds require reviewerAddress.",
+                    },
+                )
+
+            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            now = int(time.time())
+            target.reviewer_address = review.reviewer_address
+            target.reviewer_note = review.reviewer_note
+            target.reviewed_at = now
+            target.complete_meta = request_meta or {}
+
+            if review.decision == "REJECT":
+                self._release_consumer_frozen_to_available(owner, amount_usdc)  # type: ignore[attr-defined]
+                target.status = "REJECTED"
+                target.review_decision = "REJECT"
+                target.completed_at = now
+                target.updated_at = now_dt_str()
+                target.message = "Withdrawal rejected during manual security review."
+                self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+                self._append_financial_audit(  # type: ignore[attr-defined]
+                    "CONSUMER_WITHDRAW_REVIEW_REJECTED",
+                    owner,
+                    {
+                        "refundId": str(target.id or ""),
+                        "amountUsdc": amount_usdc,
+                        "reviewerAddress": review.reviewer_address,
+                        "reviewerNote": review.reviewer_note,
+                        "requestMeta": request_meta or {},
+                    },
+                )
+                return {
+                    "refundId": str(target.id or ""),
+                    "status": "REJECTED",
+                    "reviewDecision": "REJECT",
+                }
+
+            ticket = self._build_consumer_withdraw_ticket(  # type: ignore[attr-defined]
+                owner=owner,
+                gross_amount_usdc=Decimal(str(amount_usdc)),
+            )
+            self._move_consumer_frozen_to_pending(owner, amount_usdc)  # type: ignore[attr-defined]
+            target.status = "REQUESTED"
+            target.review_decision = "APPROVE"
+            target.updated_at = now_dt_str()
+            target.message = "Withdrawal approved. Signed ticket is ready for on-chain claim."
+            target.signature = ticket.signature
+            target.ticket = ticket
+            target.request_meta = {
+                **(target.request_meta.model_dump(by_alias=True, mode="json") if hasattr(target.request_meta, "model_dump") else (target.request_meta or {})),
+                "ticketNonce": ticket.nonce,
+                "ticketDeadline": ticket.deadline,
+            }
+            self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+            self._append_financial_audit(  # type: ignore[attr-defined]
+                "CONSUMER_WITHDRAW_REVIEW_APPROVED",
+                owner,
+                {
+                    "refundId": str(target.id or ""),
+                    "amountUsdc": amount_usdc,
+                    "reviewerAddress": review.reviewer_address,
+                    "reviewerNote": review.reviewer_note,
+                    "requestMeta": request_meta or {},
+                },
+            )
+            return {
+                "refundId": str(target.id or ""),
+                "status": "REQUESTED",
+                "reviewDecision": "APPROVE",
+                "ticket": ticket.model_dump(by_alias=True, mode="json", exclude_none=True),
+            }
