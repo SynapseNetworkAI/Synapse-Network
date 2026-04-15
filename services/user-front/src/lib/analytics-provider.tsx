@@ -20,6 +20,9 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
 
   // Track page views on route change
   useEffect(() => {
+    if (!pathname) {
+      return;
+    }
     const fullPath = searchParams?.toString()
       ? `${pathname}?${searchParams.toString()}`
       : pathname;

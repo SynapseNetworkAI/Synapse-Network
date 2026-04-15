@@ -291,7 +291,6 @@ export default function AccountSettingsPage() {
     form,
     hasLiveWallet,
     isSessionAuthenticated,
-    isAuthorizing,
     signMessageAsync,
     t,
   ]);

@@ -84,8 +84,8 @@ describe("Docs On this page navigation", () => {
       createElement(
         "div",
         null,
-        createElement("section", { id: "sdk", children: "SDK" }),
-        createElement("section", { id: "guide", children: "Guide" }),
+        createElement("section", { id: "sdk" }, "SDK"),
+        createElement("section", { id: "guide" }, "Guide"),
       ),
       [
         { id: "sdk", label: "SDK" },

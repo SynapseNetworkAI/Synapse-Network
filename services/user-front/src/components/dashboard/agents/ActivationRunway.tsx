@@ -309,7 +309,7 @@ export default function ActivationRunway({
       return;
     }
     onRunExample();
-  }, [handleCopyCredential, latestIssuedToken, onAgentCreated, onRunExample, isConnected, isSessionAuthenticated, authorize, openConnectModal, openDepositModal, t]);
+  }, [handleCopyCredential, latestIssuedToken, onAgentCreated, onRunExample, isConnected, isSessionAuthenticated, authorize, openConnectModal, openDepositModal]);
 
   return (
     <section id="activation-runway" className="space-y-6" aria-label={t("agentsPage.activationRunwayAria")}>

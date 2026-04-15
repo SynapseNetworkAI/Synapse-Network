@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, configure, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement, type ReactNode } from "react";
 
 configure({ reactStrictMode: false });
 
@@ -108,8 +109,7 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...rest }: { children: React.ReactNode; href: string }) => {
-    const { createElement } = require("react");
+  default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => {
     return createElement("a", { href, ...rest }, children);
   },
 }));
