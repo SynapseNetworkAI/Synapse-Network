@@ -3,6 +3,7 @@
 - Status: canonical
 - Last updated: 2026-04-05
 - Code paths: `gateway/src/api/routers/agent_credentials.py`, `gateway/src/services/platform/credential_service.py`
+- Last verified against code: 2026-04-05
 - **Implementation status: ✅ All P0/P1 items shipped — 2026-04-05**
 
 ---
