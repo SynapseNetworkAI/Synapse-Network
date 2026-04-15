@@ -52,7 +52,8 @@ def setup_logger(
         level=resolved_level,
     )
 
-    file_path = Path(log_file_path or settings.log_file_path)
+    resolved_file_path = log_file_path or settings.log_file_path()
+    file_path = Path(resolved_file_path)
     _ensure_parent(file_path)
     logger.add(
         file_path,
