@@ -22,6 +22,13 @@ From repository root:
 
 Use these wrappers when final integration confidence is required.
 
+Local hook bootstrap:
+
+1. `bash scripts/dev/install_git_hooks.sh`
+
+After installation, `git push` automatically runs `bash scripts/ci/pr_checks.sh`.
+Emergency bypass remains `git push --no-verify`.
+
 ## 3. Project-Level Validation
 
 ### 3.1 apps/frontend

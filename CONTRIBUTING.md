@@ -61,6 +61,15 @@ Use the repository PR aggregate command before pushing cross-cutting changes:
 npm run ci:pr
 ```
 
+To enforce the same gate locally before every push, install the repository hook once per clone:
+
+```bash
+bash scripts/dev/install_git_hooks.sh
+```
+
+After installation, `git push` runs `bash scripts/ci/pr_checks.sh` automatically.
+Use `git push --no-verify` only as an emergency bypass.
+
 Current `ci:pr` coverage:
 1. `apps/frontend`: lint, test, build
 2. `admin/admin-front`: lint, build
@@ -83,7 +92,8 @@ CI Python environment rule:
 1. Keep commits focused and reviewable.
 2. Include docs and tests in the same PR if behavior changed.
 3. Avoid dead code and stale tests after refactor.
-4. Push only after passing the relevant test subset.
+4. Install the repository git hooks in each local clone so `git push` runs the PR gate automatically.
+5. Push only after passing the relevant test subset.
 
 ## Security Reminder
 
