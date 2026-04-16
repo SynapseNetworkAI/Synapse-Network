@@ -11,8 +11,8 @@ target_repo: services/gateway/src/services/analytics/
 
 # Analytics Event Design & Verification — Gateway Backend
 
-> 本文档描述 Synapse Gateway 侧买点（埋点）设计方案及完整链路验证流程。
-> 买点即"关键业务动作的可观测性锚点"，用于驱动增长 dashboard、告警与漏斗分析。
+> 本文档描述 Synapse Gateway 侧埋点（埋点）设计方案及完整链路验证流程。
+> 埋点即"关键业务动作的可观测性锚点"，用于驱动增长 dashboard、告警与漏斗分析。
 
 ---
 
@@ -37,12 +37,12 @@ synapse_analytics.events  (ClickHouse)
 
 ---
 
-## 2. 买点清单（Gateway 职责域）
+## 2. 埋点清单（Gateway 职责域）
 
-Gateway 作为收入与调用的 **source of truth**，必须覆盖以下买点。
-所有买点均通过 `gateway_events.py` 中的快捷方法发出，不得绕过。
+Gateway 作为收入与调用的 **source of truth**，必须覆盖以下埋点。
+所有埋点均通过 `gateway_events.py` 中的快捷方法发出，不得绕过。
 
-### 2.1 调用链路买点
+### 2.1 调用链路埋点
 
 | 事件名 | 触发时机 | 必须属性 |
 |--------|----------|----------|
@@ -52,7 +52,7 @@ Gateway 作为收入与调用的 **source of truth**，必须覆盖以下买点�
 | `invoke_failed` | 调用失败（任何阶段）| `service_id`, `provider_id`, `error_code`, `failure_stage` |
 | `budget_blocked` | 余额或预算不足被拦截 | `service_id`, `required_usdc`, `available_usdc`, `error_code` |
 
-### 2.2 充提款买点
+### 2.2 充提款埋点
 
 | 事件名 | 触发时机 | 必须属性 |
 |--------|----------|----------|
@@ -61,7 +61,7 @@ Gateway 作为收入与调用的 **source of truth**，必须覆盖以下买点�
 | `withdrawal_completed` | 提现到账 | `amount_usdc`, `tx_hash`, `time_to_confirm_ms`, `role` |
 | `withdrawal_failed` | 提现失败 | `amount_usdc`, `error_code`, `role` |
 
-### 2.3 Provider 收入与结算买点
+### 2.3 Provider 收入与结算埋点
 
 | 事件名 | 触发时机 | 必须属性 |
 |--------|----------|----------|
@@ -71,7 +71,7 @@ Gateway 作为收入与调用的 **source of truth**，必须覆盖以下买点�
 | `settlement_claim_completed` | 提现到链上 | `provider_id`, `claim_usdc`, `tx_hash`, `time_to_confirm_ms` |
 | `settlement_claim_failed` | 提现失败 | `provider_id`, `claim_usdc`, `error_code` |
 
-### 2.4 风控与安全买点
+### 2.4 风控与安全埋点
 
 | 事件名 | 触发时机 | 必须属性 |
 |--------|----------|----------|
@@ -85,7 +85,7 @@ Gateway 作为收入与调用的 **source of truth**，必须覆盖以下买点�
 
 ### 3.1 快捷方法入口
 
-所有 gateway 业务代码通过 `src/services/analytics/gateway_events.py` 发出买点，示例：
+所有 gateway 业务代码通过 `src/services/analytics/gateway_events.py` 发出埋点，示例：
 
 ```python
 from src.services.analytics.gateway_events import (
@@ -159,7 +159,7 @@ PYTHONPATH=. pytest tests/integration/test_analytics_http_integration.py -v
 # 设置 FileBackend 模式并启动 Gateway
 ENVIRONMENT=local uvicorn gateway_fastapi:app --port 8000
 
-# 发送测试买点事件
+# 发送测试埋点事件
 curl -X POST http://localhost:8000/api/v1/events \
   -H "Content-Type: application/json" \
   -d '{
@@ -198,7 +198,7 @@ ANALYTICS_CLICKHOUSE_URL=http://localhost:8123 \
 PYTHONPATH=. pytest tests/e2e/test_analytics_e2e_pipeline.py -v --timeout=60
 ```
 
-### 4.5 ClickHouse 买点查询验证
+### 4.5 ClickHouse 埋点查询验证
 
 ```bash
 # 激活漏斗（Consumer）
@@ -222,7 +222,7 @@ curl -s "http://localhost:8123/" \
           AND timestamp >= today()
           GROUP BY day FORMAT PrettyCompact"
 
-# 买点覆盖率检查
+# 埋点覆盖率检查
 curl -s "http://localhost:8123/" \
   --data "SELECT event_name, source, count() AS cnt
           FROM synapse_analytics.events
@@ -307,7 +307,7 @@ Results: 11 passed, 0 failed
 | 文件 | 描述 |
 |------|------|
 | `services/gateway/src/services/analytics/emitter.py` | 事件序列化与 Backend 实现 |
-| `services/gateway/src/services/analytics/gateway_events.py` | 业务快捷方法（所有 Gateway 买点入口）|
+| `services/gateway/src/services/analytics/gateway_events.py` | 业务快捷方法（所有 Gateway 埋点入口）|
 | `services/gateway/src/services/analytics/privacy.py` | 钱包地址哈希 |
 | `services/gateway/src/api/routers/events.py` | 前端事件摄入 HTTP 端点 |
 | `services/gateway/scripts/analytics_health_check.py` | ClickHouse 数据质量健康检查 |
