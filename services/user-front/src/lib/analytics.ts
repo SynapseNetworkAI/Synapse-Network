@@ -12,6 +12,8 @@
  *   analytics.capture('cta_clicked', { cta_id: 'hero_signup', cta_text: 'Get Started' });
  */
 
+import { getGatewayBaseUrl } from '@/utils/gatewayApi';
+
 export interface AnalyticsEvent {
   event_id: string;
   event_name: string;
@@ -22,7 +24,7 @@ export interface AnalyticsEvent {
 }
 
 export interface AnalyticsConfig {
-  /** Gateway events endpoint. Defaults to /api/v1/events */
+  /** Gateway events endpoint. Defaults to the configured gateway /api/v1/events */
   endpoint: string;
   /** Current environment */
   env: 'local' | 'staging' | 'prod';
@@ -34,8 +36,17 @@ export interface AnalyticsConfig {
   debug: boolean;
 }
 
+function resolveDefaultAnalyticsEndpoint(): string {
+  const configuredEndpoint = process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT?.trim();
+  if (configuredEndpoint) {
+    return configuredEndpoint;
+  }
+
+  return `${getGatewayBaseUrl()}/api/v1/events`;
+}
+
 const DEFAULT_CONFIG: AnalyticsConfig = {
-  endpoint: process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT || '/api/v1/events',
+  endpoint: resolveDefaultAnalyticsEndpoint(),
   env: (process.env.NEXT_PUBLIC_ENV as AnalyticsConfig['env']) || 'local',
   batchSize: 10,
   flushIntervalMs: 5_000,

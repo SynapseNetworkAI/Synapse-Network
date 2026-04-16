@@ -38,7 +38,11 @@ beforeEach(() => {
 
   vi.stubGlobal('window', {
     location: {
+      hostname: 'localhost',
+      origin: 'http://localhost:3000',
       pathname: '/',
+      port: '3000',
+      protocol: 'http:',
       search: '',
     },
     addEventListener: vi.fn(),
@@ -81,6 +85,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
 
@@ -113,6 +118,32 @@ describe('SynapseAnalytics', () => {
 
   afterEach(() => {
     sdk.destroy();
+  });
+
+  it('defaults analytics delivery to the gateway events endpoint', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ANALYTICS_ENDPOINT', '');
+    vi.stubEnv('NEXT_PUBLIC_GATEWAY_BASE_URL', 'http://127.0.0.1:8000');
+    vi.resetModules();
+    const { SynapseAnalytics: FreshSynapseAnalytics } = await import('../analytics');
+
+    const localSdk = new FreshSynapseAnalytics({
+      batchSize: 1,
+      flushIntervalMs: 60_000,
+      debug: false,
+    });
+    localSdk.init();
+
+    localSdk.capture('gateway_default_endpoint');
+
+    await vi.waitFor(() => {
+      expect(fetch).toHaveBeenCalled();
+    });
+
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe(
+      'http://127.0.0.1:8000/api/v1/events',
+    );
+
+    localSdk.destroy();
   });
 
   // 1. Correct event structure
@@ -172,7 +203,14 @@ describe('SynapseAnalytics', () => {
   it('should detect surface from pathname', async () => {
     // Override pathname
     vi.stubGlobal('window', {
-      location: { pathname: '/provider/services', search: '' },
+      location: {
+        hostname: 'localhost',
+        origin: 'http://localhost:3000',
+        pathname: '/provider/services',
+        port: '3000',
+        protocol: 'http:',
+        search: '',
+      },
       addEventListener: vi.fn(),
     });
 
@@ -200,7 +238,11 @@ describe('SynapseAnalytics', () => {
   it('should parse and persist UTM params', async () => {
     vi.stubGlobal('window', {
       location: {
+        hostname: 'localhost',
+        origin: 'http://localhost:3000',
         pathname: '/',
+        port: '3000',
+        protocol: 'http:',
         search: '?utm_source=twitter&utm_medium=social&utm_campaign=launch',
       },
       addEventListener: vi.fn(),
