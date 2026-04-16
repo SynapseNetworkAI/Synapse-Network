@@ -51,6 +51,17 @@ class InMemoryBalanceRepo:
         wallet.available_balance = round(available - amount_usdc, 6)
         wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
 
+    def reserve_consumer_balance_for_manual_review(
+        self, owner: str, amount_usdc: float, updated_at: str
+    ):
+        _ = updated_at
+        wallet = self.ledger.ensure_consumer_wallet(owner)
+        available = float(wallet.available_balance or 0.0)
+        if available + 1e-9 < amount_usdc:
+            raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
+        wallet.available_balance = round(available - amount_usdc, 6)
+        wallet.frozen_balance = round(float(wallet.frozen_balance or 0.0) + amount_usdc, 6)
+
     def consume_consumer_pending_for_withdrawal(self, owner: str, amount_usdc: float, updated_at: str):
         _ = updated_at
         wallet = self.ledger.ensure_consumer_wallet(owner)
@@ -1056,6 +1067,77 @@ def test_owner_balance_summary_repairs_stale_active_consumer_withdraw_gap() -> N
     repaired = storage.balance.read_balance_ledger()
     assert repaired.consumer_available_balance("0xabc") == 0.0
     assert repaired.consumer_pending_balance("0xabc") == 20.0
+
+
+def test_owner_balance_summary_repairs_manual_review_consumer_withdraw_gap_to_frozen() -> None:
+    storage = FakeStorage()
+    consumer_wallet = storage.balance.ledger.ensure_consumer_wallet("0xabc")
+    consumer_wallet.available_balance = 20.0
+    consumer_wallet.pending_balance = 0.0
+    consumer_wallet.frozen_balance = 0.0
+    storage.gateway_state.refund_rows = [
+        RefundIntentRow(
+            id="wd-manual-stale-1",
+            ownerAddress="0xabc",
+            amountUsdc=Decimal("20.0"),
+            status="PENDING_MANUAL_REVIEW",
+            refundType="CONSUMER_BALANCE_WITHDRAW",
+            createdAt="2026-04-08 10:00:00",
+            updatedAt="2026-04-08 10:00:00",
+        )
+    ]
+
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    balance = asyncio.run(service.get_balance("0xabc"))
+
+    assert balance["consumerAvailableBalance"] == 0.0
+    assert balance["consumerPendingBalance"] == 0.0
+    assert balance["consumerFrozenBalance"] == 20.0
+    repaired = storage.balance.read_balance_ledger()
+    assert repaired.consumer_available_balance("0xabc") == 0.0
+    assert repaired.consumer_pending_balance("0xabc") == 0.0
+    assert repaired.consumer_frozen_balance("0xabc") == 20.0
+
+
+def test_owner_balance_summary_does_not_re_reserve_backed_manual_review_withdrawal() -> None:
+    storage = FakeStorage()
+    consumer_wallet = storage.balance.ledger.ensure_consumer_wallet("0xabc")
+    consumer_wallet.available_balance = 1.0
+    consumer_wallet.pending_balance = 0.0
+    consumer_wallet.frozen_balance = 20.0
+    storage.gateway_state.refund_rows = [
+        RefundIntentRow(
+            id="wd-manual-backed-1",
+            ownerAddress="0xabc",
+            amountUsdc=Decimal("20.0"),
+            status="PENDING_MANUAL_REVIEW",
+            refundType="CONSUMER_BALANCE_WITHDRAW",
+            createdAt="2026-04-08 10:00:00",
+            updatedAt="2026-04-08 10:00:00",
+        ),
+        RefundIntentRow(
+            id="wd-requested-stale-1",
+            ownerAddress="0xabc",
+            amountUsdc=Decimal("1.0"),
+            status="REQUESTED",
+            refundType="CONSUMER_BALANCE_WITHDRAW",
+            createdAt="2026-04-08 10:01:00",
+            updatedAt="2026-04-08 10:01:00",
+        ),
+    ]
+
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    balance = asyncio.run(service.get_balance("0xabc"))
+
+    assert balance["consumerAvailableBalance"] == 0.0
+    assert balance["consumerPendingBalance"] == 1.0
+    assert balance["consumerFrozenBalance"] == 20.0
+    repaired = storage.balance.read_balance_ledger()
+    assert repaired.consumer_available_balance("0xabc") == 0.0
+    assert repaired.consumer_pending_balance("0xabc") == 1.0
+    assert repaired.consumer_frozen_balance("0xabc") == 20.0
 
 
 def test_platform_finance_service_persists_owner_spending_limit() -> None:

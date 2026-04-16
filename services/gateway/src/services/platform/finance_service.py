@@ -149,30 +149,51 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
         gateway_state = self.storage.get_data_manager().system.gateway_state
         refund_rows = gateway_state.read_consumer_refund_rows(owner_wallet=owner)
-        active_total = Decimal("0")
+        requested_total = Decimal("0")
+        manual_review_total = Decimal("0")
         for row in refund_rows:
             if normalize_wallet(str(row.owner_address or "")) != owner:
                 continue
             if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
                 continue
-            if str(row.status or "").upper() not in REFUND_ACTIVE_STATUSES:
+            status = str(row.status or "").upper()
+            if status not in REFUND_ACTIVE_STATUSES:
                 continue
-            active_total += self._q6(row.amount_usdc or 0)
+            amount = self._q6(row.amount_usdc or 0)
+            if status == "REQUESTED":
+                requested_total += amount
+            elif status == "PENDING_MANUAL_REVIEW":
+                manual_review_total += amount
 
-        if active_total <= Decimal("0"):
+        if requested_total <= Decimal("0") and manual_review_total <= Decimal("0"):
             return
 
         balance_repo = self.storage.get_data_manager().finance.balance
         ledger = balance_repo.read_balance_ledger()
         available_balance = self._q6(ledger.consumer_available_balance(owner))
         pending_balance = self._q6(ledger.consumer_pending_balance(owner))
-        shortfall = self._q6(active_total - pending_balance)
-        if shortfall <= Decimal("0") or available_balance <= Decimal("0"):
+        frozen_balance = self._q6(ledger.consumer_frozen_balance(owner))
+
+        pending_shortfall = self._q6(requested_total - pending_balance)
+        if pending_shortfall > Decimal("0") and available_balance > Decimal("0"):
+            reserve_amount = self._q6(min(pending_shortfall, available_balance))
+            try:
+                balance_repo.reserve_consumer_balance_for_withdrawal(
+                    owner=owner,
+                    amount_usdc=float(reserve_amount),
+                    updated_at=now_dt_str(),
+                )
+            except RuntimeError:
+                return
+            available_balance = self._q6(available_balance - reserve_amount)
+
+        frozen_shortfall = self._q6(manual_review_total - frozen_balance)
+        if frozen_shortfall <= Decimal("0") or available_balance <= Decimal("0"):
             return
 
-        reserve_amount = self._q6(min(shortfall, available_balance))
+        reserve_amount = self._q6(min(frozen_shortfall, available_balance))
         try:
-            balance_repo.reserve_consumer_balance_for_withdrawal(
+            balance_repo.reserve_consumer_balance_for_manual_review(
                 owner=owner,
                 amount_usdc=float(reserve_amount),
                 updated_at=now_dt_str(),
@@ -423,4 +444,3 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                     response=response,
                 )
             return response
-
