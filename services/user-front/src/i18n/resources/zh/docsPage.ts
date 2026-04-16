@@ -93,7 +93,7 @@ const docsPage: I18nMessages["docsPage"] = {
   ],
   overviewProductDescriptions: [
     "处理认证、路由、计费与结算的核心 REST API，额外开销低到亚毫秒级。",
-    "Provider 服务注册、定价配置、健康检查与公开发现接口。",
+    "Provider 服务注册、定价配置、健康检查，以及 /marketplace/registry.json 公开分页注册表。",
     "面向 Agent 的访问令牌，支持额度控制、撤销和生命周期管理。",
     "链下原子扣费与分账，链上执行 USDC 提现。",
     "监听链上充值事件、自动确认、并维护幂等充值意图。",
@@ -157,7 +157,7 @@ const docsPage: I18nMessages["docsPage"] = {
   consumerStepBodies: [
     "Synapse 使用 EIP-191 钱包签名完成认证，不需要单独注册账号。签名 challenge 后即可获取 24 小时有效的 JWT。",
     "先在链上授权并把 USDC 充值到 SynapseCore，再通知网关登记充值意图，这笔额度就会立刻变成可消费余额。",
-    "通过 /services/discover 按标签或关键词搜索 Provider 服务，并拿到目标 serviceId。",
+    "人类可以先打开 /marketplace 浏览，Agent 可以读取 /marketplace/registry.json 获取可调用服务分页列表，然后再通过 /services/discover 按标签或关键词拿到目标 serviceId。",
     "Credential 是带额度控制的作用域访问令牌。推荐幂等模式：先查询是否有可用的 active 凭据，有则直接复用，没有再新建。后续用 agentToken 作为 Bearer Token，网关自动完成扮费。",
     "一个 POST /api/v1/agent/invoke 调用即可完成从发现到结算的全流程。传入 serviceId、payload 和你观察到的 costUsdc （键格证明），防止价格外泄。",
     "调用结束后，重新查询余额和最近的 invocation receipt，确认扣费与结算都已经完成。",
@@ -165,7 +165,7 @@ const docsPage: I18nMessages["docsPage"] = {
   consumerStepTips: [
     "如果使用 TypeScript SDK，await client.auth.connectWallet(signer) 会自动完成 challenge、签名和 verify。",
     "登记充值意图时始终带上 X-Idempotency-Key。默认推荐使用 UUID v4。",
-    "拿到 serviceId 和 pricePerCallUsdc 后，就可以为你的 Agent 发放作用域凭证了。",
+    "Marketplace registry 是公开、可分页、面向 Agent 的可调用服务目录；/api/v1/services/discover 是正式调用前的运行时发现接口。",
     "Daily Budget（creditLimit）会按 resetInterval 重置，Max Calls 是生命周期总上限不自动重置。干等模式：先 GET list?active_only=true，没有匹配的再新建。",
     "所有调用请带上 idempotencyKey。网络重试时网关返回缓存结果而不重复扮费。如果同期间价格发生变化，网关返回 422 PRICE_MISMATCH，重新发现后重试即可。",
     "在把真实流量切到生产前，先核对最近的 chargedUsdc、最终状态以及 settledAt 字段。",
@@ -646,9 +646,13 @@ const docsPage: I18nMessages["docsPage"] = {
     "✓ 充值完成，余额已到账",
   ],
   consumerCodeDiscover: [
-    "发现可用服务（支持 tag、name 过滤）",
-    "响应示例",
-    "找到服务: ，每次调用:  USDC",
+    "人类浏览入口: /marketplace",
+    "Agent 可读的可调用服务注册表（公开、分页）",
+    "调用前的 runtime discovery 接口",
+    "Discovery 响应示例",
+    "选择 discovery/registry 中的 serviceId 和价格",
+    "找到服务:",
+    "每次调用:",
   ],
   consumerCodeCredential: [
     "幂等模式：先查有没有可用的 active 凭据，有则直接用，没有再新建",
@@ -668,6 +672,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "注意：用 agentToken，不是 JWT",
     "键入你发现的价格，防止价格外泄扣费",
     "如果服务实时价格发生变化，返回 422 PRICE_MISMATCH — 重新 discover 再重试",
+    "使用从 registry/discover 选中的 serviceId",
   ],
   consumerCodeVerify: [
     "查询当前账户余额",

@@ -2,6 +2,29 @@ import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+
+function parsePositiveInteger(value: string | null, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parsePageSize(value: string | null): number {
+  return Math.min(parsePositiveInteger(value, DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
+}
+
+function isCallableService(service: ServiceRegistryRecord): boolean {
+  return service.isActive !== false && service.runtimeAvailable !== false;
+}
+
 function matchesQuery(service: ServiceRegistryRecord, query: string): boolean {
   if (!query) {
     return true;
@@ -24,15 +47,11 @@ function matchesQuery(service: ServiceRegistryRecord, query: string): boolean {
 }
 
 function filterServices(rows: ServiceRegistryRecord[], searchParams: URLSearchParams): ServiceRegistryRecord[] {
-  const status = searchParams.get("status")?.trim().toLowerCase() || "active";
   const tag = searchParams.get("tag")?.trim();
   const query = searchParams.get("q")?.trim().toLowerCase() || "";
 
   return rows.filter((service) => {
-    if (service.runtimeAvailable === false) {
-      return false;
-    }
-    if (status !== "all" && service.isActive === false) {
+    if (!isCallableService(service)) {
       return false;
     }
     if (tag && !(service.tags || []).includes(tag)) {
@@ -47,18 +66,33 @@ export async function GET(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const rows = await discoverServices();
     const services = filterServices(rows, url.searchParams);
+    const page = parsePositiveInteger(url.searchParams.get("page"), DEFAULT_PAGE);
+    const pageSize = parsePageSize(url.searchParams.get("pageSize"));
+    const totalPages = Math.max(1, Math.ceil(services.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * pageSize;
+    const pageServices = services.slice(startIndex, startIndex + pageSize);
 
     return Response.json(
       {
         status: "success",
         exportedAt: new Date().toISOString(),
         query: {
-          status: url.searchParams.get("status") || "active",
           tag: url.searchParams.get("tag"),
           q: url.searchParams.get("q") || "",
+          page: currentPage,
+          pageSize,
+        },
+        pagination: {
+          page: currentPage,
+          pageSize,
+          total: services.length,
+          totalPages,
+          hasNextPage: currentPage < totalPages,
+          hasPreviousPage: currentPage > 1,
         },
         total: services.length,
-        services,
+        services: pageServices,
       },
       {
         headers: {

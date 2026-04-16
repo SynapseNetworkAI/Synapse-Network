@@ -584,8 +584,11 @@ export type I18nMessages = {
     registryBody: string;
     searchPlaceholder: string;
     activeOnly: string;
-    allServicesFilter: string;
     allTags: string;
+    showingRange: string;
+    previousPage: string;
+    nextPage: string;
+    pageIndicator: string;
     loading: string;
     emptyBody: string;
     pricingLabel: string;

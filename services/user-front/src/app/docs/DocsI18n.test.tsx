@@ -84,6 +84,7 @@ describe("docs multilingual surfaces", () => {
     expect(await screen.findByRole("heading", { name: "Consumer Quick Start" })).toBeTruthy();
     expect(screen.getByText("服务调用者引导")).toBeTruthy();
     expect(screen.getByText("连接钱包并获取 JWT")).toBeTruthy();
+    expect(screen.getByText(/Agent 可读的可调用服务注册表/)).toBeTruthy();
     expect(screen.getByText("Consumer 引导完成")).toBeTruthy();
   });
 
@@ -118,6 +119,7 @@ describe("docs multilingual surfaces", () => {
     expect(screen.getAllByRole("heading", { name: "TypeScript SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Python SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Smart Contracts" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Export callable marketplace services")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Discover services first" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Known serviceId? Call it directly" })).toBeTruthy();
     expect(screen.getByText(/official free starter services/i)).toBeTruthy();
