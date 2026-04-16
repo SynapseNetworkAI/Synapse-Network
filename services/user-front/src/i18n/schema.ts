@@ -1500,6 +1500,7 @@ export type I18nMessages = {
     checkPending: string;
     deploymentLabelCreate: string;
     deploymentLabelCreating: string;
+    deploymentLabelWaitingForAssets: string;
     deploymentLabelFix: string;
     deploymentReadyText: string;
     supportTitle: string;
@@ -1533,6 +1534,7 @@ export type I18nMessages = {
     parserInjectedToast: string;
     parserExpectedJsonError: string;
     submitWalletMissing: string;
+    submitGeneratedAssetsPending: string;
     submitSuccess: string;
     submitFailed: string;
     validationServiceIdRequired: string;
