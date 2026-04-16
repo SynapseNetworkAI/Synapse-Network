@@ -87,7 +87,7 @@ class DailyFileHandler(logging.Handler):
                 dir_date = datetime.strptime(child.name, "%Y-%m-%d").date()
             except ValueError:
                 continue
-            if dir_date <= cutoff:
+            if dir_date < cutoff:
                 shutil.rmtree(child, ignore_errors=True)
         self._last_prune = now
 
