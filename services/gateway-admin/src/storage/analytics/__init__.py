@@ -8,6 +8,11 @@ from src.storage.analytics.gateway_dashboard import (
     InMemoryGatewayDashboardProjectionRepository,
     PostgresGatewayDashboardProjectionRepository,
 )
+from src.storage.analytics.analytics_dashboard import (
+    AnalyticsDashboardRepository,
+    ClickHouseAnalyticsDashboardRepository,
+    InMemoryAnalyticsDashboardRepository,
+)
 from src.storage.analytics.provider_withdraw_review import (
     InMemoryProviderWithdrawReviewRepository,
     PostgresProviderWithdrawReviewRepository,
@@ -16,6 +21,8 @@ from src.storage.analytics.provider_withdraw_review import (
 )
 
 __all__ = [
+    "AnalyticsDashboardRepository",
+    "ClickHouseAnalyticsDashboardRepository",
     "GatewayActivityTrendPoint",
     "GatewayFinanceSnapshot",
     "GatewayOperationsSnapshot",
@@ -23,6 +30,7 @@ __all__ = [
     "GatewayDashboardProjectionRepository",
     "GatewayDashboardSnapshot",
     "InMemoryGatewayDashboardProjectionRepository",
+    "InMemoryAnalyticsDashboardRepository",
     "InMemoryProviderWithdrawReviewRepository",
     "PostgresGatewayDashboardProjectionRepository",
     "PostgresProviderWithdrawReviewRepository",

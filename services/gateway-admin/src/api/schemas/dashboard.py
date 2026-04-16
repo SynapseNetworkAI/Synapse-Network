@@ -158,3 +158,187 @@ class DashboardDiagnostics(BaseModel):
     summary: str
     signals: list[DiagnosticSignal]
     actions: list[DiagnosticAction]
+
+
+class AnalyticsMetricCard(BaseModel):
+    key: str
+    label: str
+    value: float | int | str
+    unit: str
+    tone: str
+    detail: str
+
+
+class AnalyticsAlert(BaseModel):
+    severity: str
+    title: str
+    detail: str
+    href: str | None = None
+
+
+class AnalyticsOverview(BaseModel):
+    window: str
+    overall_status: str = Field(alias="overallStatus", serialization_alias="overallStatus")
+    cards: list[AnalyticsMetricCard]
+    alerts: list[AnalyticsAlert]
+
+
+class AnalyticsFunnelStep(BaseModel):
+    event_name: str = Field(alias="eventName", serialization_alias="eventName")
+    label: str
+    users: int
+    events: int
+    conversion_rate: float = Field(alias="conversionRate", serialization_alias="conversionRate")
+    dropoff_rate: float = Field(alias="dropoffRate", serialization_alias="dropoffRate")
+
+
+class AnalyticsConsumerFunnelSummary(BaseModel):
+    activation_rate: float = Field(alias="activationRate", serialization_alias="activationRate")
+    first_invoke_users: int = Field(alias="firstInvokeUsers", serialization_alias="firstInvokeUsers")
+    quote_to_invoke_rate: float = Field(alias="quoteToInvokeRate", serialization_alias="quoteToInvokeRate")
+    deposit_to_first_invoke_rate: float = Field(alias="depositToFirstInvokeRate", serialization_alias="depositToFirstInvokeRate")
+
+
+class AnalyticsConsumerFunnel(BaseModel):
+    window: str
+    steps: list[AnalyticsFunnelStep]
+    summary: AnalyticsConsumerFunnelSummary
+
+
+class AnalyticsDistributionItem(BaseModel):
+    key: str
+    label: str
+    count: int
+    value: float
+    rate: float = 0
+
+
+class AnalyticsLatencyPercentiles(BaseModel):
+    p50: float
+    p95: float
+    p99: float | None = None
+
+
+class AnalyticsInvocationTrendPoint(BaseModel):
+    bucket: str
+    invoke_completed: int = Field(alias="invokeCompleted", serialization_alias="invokeCompleted")
+    invoke_failed: int = Field(alias="invokeFailed", serialization_alias="invokeFailed")
+    gmv_usdc: float = Field(alias="gmvUsdc", serialization_alias="gmvUsdc")
+    platform_fee_usdc: float = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
+    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+
+
+class AnalyticsInvocationRevenue(BaseModel):
+    window: str
+    quote_count: int = Field(alias="quoteCount", serialization_alias="quoteCount")
+    invoke_started_count: int = Field(alias="invokeStartedCount", serialization_alias="invokeStartedCount")
+    invoke_completed_count: int = Field(alias="invokeCompletedCount", serialization_alias="invokeCompletedCount")
+    invoke_failed_count: int = Field(alias="invokeFailedCount", serialization_alias="invokeFailedCount")
+    success_rate: float = Field(alias="successRate", serialization_alias="successRate")
+    gmv_usdc: float = Field(alias="gmvUsdc", serialization_alias="gmvUsdc")
+    price_avg_usdc: float = Field(alias="priceAvgUsdc", serialization_alias="priceAvgUsdc")
+    platform_fee_usdc: float = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
+    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+    latency_ms: AnalyticsLatencyPercentiles = Field(alias="latencyMs", serialization_alias="latencyMs")
+    failure_stages: list[AnalyticsDistributionItem] = Field(alias="failureStages", serialization_alias="failureStages")
+    error_codes: list[AnalyticsDistributionItem] = Field(alias="errorCodes", serialization_alias="errorCodes")
+    trend: list[AnalyticsInvocationTrendPoint]
+
+
+class AnalyticsProviderSettlementStep(BaseModel):
+    event_name: str = Field(alias="eventName", serialization_alias="eventName")
+    label: str
+    count: int
+    amount_usdc: float = Field(alias="amountUsdc", serialization_alias="amountUsdc")
+    conversion_rate: float = Field(alias="conversionRate", serialization_alias="conversionRate")
+
+
+class AnalyticsTopProvider(BaseModel):
+    provider_id: str = Field(alias="providerId", serialization_alias="providerId")
+    service_id: str = Field(alias="serviceId", serialization_alias="serviceId")
+    gross_usdc: float = Field(alias="grossUsdc", serialization_alias="grossUsdc")
+    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+    invoke_count: int = Field(alias="invokeCount", serialization_alias="invokeCount")
+
+
+class AnalyticsProviderRevenue(BaseModel):
+    window: str
+    revenue_provider_count: int = Field(alias="revenueProviderCount", serialization_alias="revenueProviderCount")
+    first_revenue_provider_count: int = Field(alias="firstRevenueProviderCount", serialization_alias="firstRevenueProviderCount")
+    avg_time_since_listing_ms: float = Field(alias="avgTimeSinceListingMs", serialization_alias="avgTimeSinceListingMs")
+    provider_gross_usdc: float = Field(alias="providerGrossUsdc", serialization_alias="providerGrossUsdc")
+    platform_fee_usdc: float = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
+    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+    pending_settlement_usdc: float = Field(alias="pendingSettlementUsdc", serialization_alias="pendingSettlementUsdc")
+    settlement_completed_usdc: float = Field(alias="settlementCompletedUsdc", serialization_alias="settlementCompletedUsdc")
+    settlement_failure_rate: float = Field(alias="settlementFailureRate", serialization_alias="settlementFailureRate")
+    settlement_p95_confirm_ms: float = Field(alias="settlementP95ConfirmMs", serialization_alias="settlementP95ConfirmMs")
+    settlement_funnel: list[AnalyticsProviderSettlementStep] = Field(alias="settlementFunnel", serialization_alias="settlementFunnel")
+    top_providers: list[AnalyticsTopProvider] = Field(alias="topProviders", serialization_alias="topProviders")
+
+
+class AnalyticsFinanceContext(BaseModel):
+    pending_deposit_count: int = Field(default=0, alias="pendingDepositCount", serialization_alias="pendingDepositCount")
+    pending_withdrawal_count: int = Field(default=0, alias="pendingWithdrawalCount", serialization_alias="pendingWithdrawalCount")
+    vault_ledger_delta_usdc: str = Field(default="0.00", alias="vaultLedgerDeltaUsdc", serialization_alias="vaultLedgerDeltaUsdc")
+    chain_confirmed_not_ledger_confirmed_count: int = Field(default=0, alias="chainConfirmedNotLedgerConfirmedCount", serialization_alias="chainConfirmedNotLedgerConfirmedCount")
+
+
+class AnalyticsMoneyFlow(BaseModel):
+    window: str
+    deposit_usdc: float = Field(alias="depositUsdc", serialization_alias="depositUsdc")
+    deposit_failed_count: int = Field(alias="depositFailedCount", serialization_alias="depositFailedCount")
+    withdrawal_usdc: float = Field(alias="withdrawalUsdc", serialization_alias="withdrawalUsdc")
+    withdrawal_failed_count: int = Field(alias="withdrawalFailedCount", serialization_alias="withdrawalFailedCount")
+    refund_usdc: float = Field(alias="refundUsdc", serialization_alias="refundUsdc")
+    confirm_latency_ms: AnalyticsLatencyPercentiles = Field(alias="confirmLatencyMs", serialization_alias="confirmLatencyMs")
+    deposit_errors: list[AnalyticsDistributionItem] = Field(alias="depositErrors", serialization_alias="depositErrors")
+    withdrawal_errors: list[AnalyticsDistributionItem] = Field(alias="withdrawalErrors", serialization_alias="withdrawalErrors")
+    finance_context: AnalyticsFinanceContext = Field(alias="financeContext", serialization_alias="financeContext")
+
+
+class AnalyticsDegradedProvider(BaseModel):
+    provider_id: str = Field(alias="providerId", serialization_alias="providerId")
+    service_id: str = Field(alias="serviceId", serialization_alias="serviceId")
+    count: int
+    reason: str
+
+
+class AnalyticsRiskHealth(BaseModel):
+    window: str
+    critical_risk_events: int = Field(alias="criticalRiskEvents", serialization_alias="criticalRiskEvents")
+    risk_rules: list[AnalyticsDistributionItem] = Field(alias="riskRules", serialization_alias="riskRules")
+    surfaces: list[AnalyticsDistributionItem]
+    provider_health_degraded_count: int = Field(alias="providerHealthDegradedCount", serialization_alias="providerHealthDegradedCount")
+    degraded_providers: list[AnalyticsDegradedProvider] = Field(alias="degradedProviders", serialization_alias="degradedProviders")
+    budget_gap_usdc: float = Field(alias="budgetGapUsdc", serialization_alias="budgetGapUsdc")
+    refund_reasons: list[AnalyticsDistributionItem] = Field(alias="refundReasons", serialization_alias="refundReasons")
+
+
+class AnalyticsCriticalEventFreshness(BaseModel):
+    event_name: str = Field(alias="eventName", serialization_alias="eventName")
+    seen: bool
+    last_seen_at: str = Field(alias="lastSeenAt", serialization_alias="lastSeenAt")
+    count: int
+
+
+class AnalyticsSchemaIssueSample(BaseModel):
+    event_name: str = Field(alias="eventName", serialization_alias="eventName")
+    issue: str
+    count: int
+
+
+class AnalyticsDataQuality(BaseModel):
+    window: str
+    overall_status: str = Field(alias="overallStatus", serialization_alias="overallStatus")
+    event_count: int = Field(alias="eventCount", serialization_alias="eventCount")
+    duplicate_rate: float = Field(alias="duplicateRate", serialization_alias="duplicateRate")
+    critical_events_freshness: list[AnalyticsCriticalEventFreshness] = Field(alias="criticalEventsFreshness", serialization_alias="criticalEventsFreshness")
+    source_coverage: dict[str, int] = Field(alias="sourceCoverage", serialization_alias="sourceCoverage")
+    privacy_violations: int = Field(alias="privacyViolations", serialization_alias="privacyViolations")
+    missing_required_properties: int = Field(alias="missingRequiredProperties", serialization_alias="missingRequiredProperties")
+    xor_violations: int = Field(alias="xorViolations", serialization_alias="xorViolations")
+    kafka_lag: int = Field(alias="kafkaLag", serialization_alias="kafkaLag")
+    clickhouse_lag: int = Field(alias="clickhouseLag", serialization_alias="clickhouseLag")
+    file_backend_fallback_events: int = Field(alias="fileBackendFallbackEvents", serialization_alias="fileBackendFallbackEvents")
+    schema_issue_samples: list[AnalyticsSchemaIssueSample] = Field(alias="schemaIssueSamples", serialization_alias="schemaIssueSamples")

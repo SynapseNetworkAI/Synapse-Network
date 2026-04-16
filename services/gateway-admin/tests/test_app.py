@@ -13,7 +13,7 @@ from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
 from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
 from src.services.dashboard.service import DashboardService
-from src.storage.analytics import InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
+from src.storage.analytics import InMemoryAnalyticsDashboardRepository, InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
 from src.storage import InMemoryAdminStore
 
 client = TestClient(app)
@@ -674,10 +674,11 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     item_ids = {item["itemId"] for item in response.json()["data"]["items"]}
     assert item_ids == {
         "control-overview",
-        "dashboard",
-        "dashboard-overview",
-        "dashboard-runtime",
-        "system",
+            "dashboard",
+            "dashboard-overview",
+            "dashboard-runtime",
+            "dashboard-analytics",
+            "system",
         "business-control",
         "approvals",
         "withdrawal-reviews",
@@ -1252,10 +1253,65 @@ def test_dashboard_diagnostics_expose_runtime_signals_and_actions() -> None:
     assert "persisted task status" in body["actions"][0]["detail"]
 
 
+def test_dashboard_analytics_overview_exposes_north_star_cards() -> None:
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/dashboard/analytics/overview")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["window"] == "24h"
+    assert body["overallStatus"] == "monitoring"
+    assert body["cards"][0]["key"] == "gmv_usdc"
+    assert any(card["key"] == "analytics_health" for card in body["cards"])
+
+
+def test_dashboard_analytics_consumer_funnel_exposes_activation_steps() -> None:
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/dashboard/analytics/consumer-funnel?window=7d")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["window"] == "7d"
+    assert [step["eventName"] for step in body["steps"]][:3] == [
+        "page_viewed",
+        "wallet_connected",
+        "consumer_signup_completed",
+    ]
+    assert body["summary"]["activationRate"] > 0
+
+
+def test_dashboard_analytics_money_flow_includes_projection_context() -> None:
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/dashboard/analytics/money-flow")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["financeContext"]["pendingDepositCount"] == 2
+    assert body["financeContext"]["pendingWithdrawalCount"] == 1
+    assert body["financeContext"]["vaultLedgerDeltaUsdc"] == "0.50"
+
+
+def test_dashboard_analytics_data_quality_flags_demo_fallback_events() -> None:
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/dashboard/analytics/data-quality?window=1h")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["window"] == "1h"
+    assert body["overallStatus"] == "monitoring"
+    assert body["privacyViolations"] == 0
+    assert body["fileBackendFallbackEvents"] == 7
+
+
 def test_dashboard_service_pending_counts_include_projected_provider_reviews() -> None:
     service = DashboardService(
         InMemoryAdminStore.seed_demo(),
         InMemoryGatewayDashboardProjectionRepository.seed_demo(),
+        InMemoryAnalyticsDashboardRepository.seed_demo(),
         InMemoryProviderWithdrawReviewRepository.seed_demo(),
     )
 

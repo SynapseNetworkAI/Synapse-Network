@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from src.core.errors import BadRequestError
 from src.domain.enums import ExecutionJobStatus
-from src.storage.analytics import GatewayDashboardProjectionRepository
+from src.storage.analytics import AnalyticsDashboardRepository, GatewayDashboardProjectionRepository
 from src.storage.analytics.provider_withdraw_review import ProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
 from src.domain import AdminApproval
 from src.storage.base import AdminStore
@@ -13,10 +13,12 @@ class DashboardService:
         self,
         store: AdminStore,
         gateway_projection: GatewayDashboardProjectionRepository,
+        analytics_dashboard: AnalyticsDashboardRepository,
         provider_withdraw_review_repository: ProviderWithdrawReviewRepository,
     ) -> None:
         self._store = store
         self._gateway_projection = gateway_projection
+        self._analytics_dashboard = analytics_dashboard
         self._provider_withdraw_review_repository = provider_withdraw_review_repository
 
     def _count_pending_approval_work_items(self) -> int:
@@ -221,6 +223,48 @@ class DashboardService:
             "depositRepairApprovals": deposit_repair_matches[:20],
             "pendingWithdrawalReviews": review_matches[:20],
         }
+
+    def get_analytics_overview(self, window: str = "24h") -> dict:
+        return self._analytics_dashboard.get_overview(self._normalize_analytics_window(window))
+
+    def get_analytics_consumer_funnel(self, window: str = "24h") -> dict:
+        return self._analytics_dashboard.get_consumer_funnel(self._normalize_analytics_window(window))
+
+    def get_analytics_invocation_revenue(self, window: str = "24h") -> dict:
+        return self._analytics_dashboard.get_invocation_revenue(self._normalize_analytics_window(window))
+
+    def get_analytics_provider_revenue(self, window: str = "24h") -> dict:
+        payload = self._analytics_dashboard.get_provider_revenue(self._normalize_analytics_window(window))
+        finance = self._gateway_projection.get_finance_snapshot()
+        payload["pendingSettlementUsdc"] = float(finance.provider_available_to_withdraw_usdc)
+        return payload
+
+    def get_analytics_money_flow(self, window: str = "24h") -> dict:
+        payload = self._analytics_dashboard.get_money_flow(self._normalize_analytics_window(window))
+        finance = self._gateway_projection.get_finance_snapshot()
+        payload["financeContext"] = {
+            "pendingDepositCount": finance.pending_deposit_count,
+            "pendingWithdrawalCount": finance.pending_provider_withdrawal_count,
+            "vaultLedgerDeltaUsdc": self._format_decimal(finance.vault_ledger_delta_usdc),
+            "chainConfirmedNotLedgerConfirmedCount": finance.chain_confirmed_not_ledger_confirmed_count,
+        }
+        return payload
+
+    def get_analytics_risk_health(self, window: str = "24h") -> dict:
+        return self._analytics_dashboard.get_risk_health(self._normalize_analytics_window(window))
+
+    def get_analytics_data_quality(self, window: str = "24h") -> dict:
+        normalized_window = window.strip().lower()
+        if normalized_window not in {"1h", "24h"}:
+            raise BadRequestError("window must be one of: 1h, 24h")
+        return self._analytics_dashboard.get_data_quality(normalized_window)
+
+    @staticmethod
+    def _normalize_analytics_window(window: str) -> str:
+        normalized_window = window.strip().lower()
+        if normalized_window not in {"24h", "7d", "30d"}:
+            raise BadRequestError("window must be one of: 24h, 7d, 30d")
+        return normalized_window
 
     def _list_active_finance_approvals(self, limit: int) -> list[AdminApproval]:
         approvals = self._store.approval.list_approvals(limit=max(limit * 3, 12))
