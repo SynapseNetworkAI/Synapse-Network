@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, List, Optional
+from typing import Any
 
 from src.storage.base import BaseStorage
 from src.domain.registry import ServiceTargetHealthHistory
@@ -41,19 +41,19 @@ class RegistryService:
             self._lock = asyncio.Lock()
         return self._lock
 
-    def _load_service_registry_rows(self) -> List[ServiceDefinitionRecord]:
+    def _load_service_registry_rows(self) -> list[ServiceDefinitionRecord]:
         raw_rows = (
             self.storage.get_data_manager().system.registry.read_service_registry_rows()
         )
         health_rows = self.storage.get_data_manager().system.registry.read_service_target_health_rows()
         return hydrate_service_runtime_health(health_rows, raw_rows)
 
-    def _save_service_registry_rows(self, rows: List[ServiceDefinitionRecord]) -> None:
+    def _save_service_registry_rows(self, rows: list[ServiceDefinitionRecord]) -> None:
         self.storage.get_data_manager().system.registry.write_service_registry_rows(rows)
 
     def _load_service_target_health_history_rows(
         self,
-    ) -> List[ServiceTargetHealthHistory]:
+    ) -> list[ServiceTargetHealthHistory]:
         return list(
             self.storage.get_data_manager().system.registry.read_service_target_health_history_rows()
         )
@@ -65,7 +65,7 @@ class RegistryService:
 
     async def update_service(
         self, service_record_id: str, req_data: dict[str, Any], owner_wallet: str
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         return await update_service_op(self, service_record_id, req_data, owner_wallet)
 
     async def delete_service(self, service_record_id: str, owner_wallet: str) -> bool:
@@ -78,11 +78,11 @@ class RegistryService:
 
     async def discover_public_services(
         self,
-        intent: Optional[str] = None,
-        public_gateway_url: Optional[str] = None,
+        intent: str | None = None,
+        public_gateway_url: str | None = None,
         sort_by: str = "best_match",
         sort_order: str = "desc",
-    ) -> List[PublicServiceDiscoveryRecord]:
+    ) -> list[PublicServiceDiscoveryRecord]:
         return await discover_public_services_op(
             self,
             intent=intent,
@@ -93,11 +93,11 @@ class RegistryService:
 
     async def discover_services(
         self,
-        intent: Optional[str] = None,
-        public_gateway_url: Optional[str] = None,
+        intent: str | None = None,
+        public_gateway_url: str | None = None,
         sort_by: str = "best_match",
         sort_order: str = "desc",
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         return await discover_services_op(
             self,
             intent=intent,
@@ -112,8 +112,8 @@ class RegistryService:
     async def search_agent_discovery(
         self,
         query: AgentDiscoveryQueryRecord,
-        public_gateway_url: Optional[str] = None,
-    ) -> List[PublicServiceDiscoveryRecord]:
+        public_gateway_url: str | None = None,
+    ) -> list[PublicServiceDiscoveryRecord]:
         return await search_agent_discovery_op(
             self,
             query,
@@ -126,12 +126,12 @@ class RegistryService:
     ) -> int:
         return await count_agent_discovery_results_op(self, query)
 
-    async def list_owner_services(self, owner_wallet: str) -> List[dict[str, Any]]:
+    async def list_owner_services(self, owner_wallet: str) -> list[dict[str, Any]]:
         return await list_owner_services_op(self, owner_wallet)
 
     async def health_status(
-        self, intent: Optional[str] = None, include_inactive: bool = False
-    ) -> List[dict[str, Any]]:
+        self, intent: str | None = None, include_inactive: bool = False
+    ) -> list[dict[str, Any]]:
         return await health_status_op(
             self,
             intent=intent,
@@ -143,8 +143,8 @@ class RegistryService:
         service_record_id: str,
         owner_wallet: str,
         limit_per_target: int,
-        hours: Optional[int] = None,
-        days: Optional[int] = None,
+        hours: int | None = None,
+        days: int | None = None,
     ) -> dict[str, Any]:
         return await service_health_history_op(
             self,

@@ -435,7 +435,9 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 1. 用途：只重启 `gateway/gateway_fastapi.py`，不重启前端和 Anvil
 2. 适合改了 Gateway 代码或 `.env.local` 之后快速重载
 3. 用法：`./scripts/local/restart_gateway.sh` 或 `bash scripts/local/restart_gateway.sh`
-4. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
+4. 该脚本只确保本地 Postgres 进程可用，不会执行 `infra/postgres/init/000_run_init_tree.sh`
+5. 如果需要初始化或升级本地数据库 schema，请使用 `scripts/local/setup_local_env.sh` 或手动执行迁移脚本
+6. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
 
 #### D. 共享测试网 / 生产 profile 脚本
 
