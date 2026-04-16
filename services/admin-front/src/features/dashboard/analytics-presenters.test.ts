@@ -3,8 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildAnalyticsNorthStarCards,
   buildConsumerFunnelSteps,
+  buildConsumerFunnelSummaryCards,
   buildDataQualitySignalCards,
+  buildDataQualityLagCards,
+  buildDataQualitySchemaIssueRows,
+  buildDistributionItems,
   buildInvocationSignalCards,
+  buildMoneyFlowContextCards,
+  buildProviderSettlementCards,
   summarizeSourceCoverage,
 } from "./analytics-presenters";
 
@@ -38,6 +44,28 @@ describe("analytics dashboard presenters", () => {
 
     expect(steps[0]).toMatchObject({ conversion: "100%", tone: "green" });
     expect(steps[1]).toMatchObject({ conversion: "40%", dropoff: "60%", tone: "red" });
+  });
+
+  it("builds consumer summary cards for the drilldown page", () => {
+    const cards = buildConsumerFunnelSummaryCards({
+      window: "24h",
+      steps: [],
+      summary: {
+        activationRate: 0.181,
+        firstInvokeUsers: 88,
+        quoteToInvokeRate: 0.64,
+        depositToFirstInvokeRate: 0.32,
+      },
+    });
+
+    expect(cards.map((card) => card.key)).toEqual([
+      "activation-rate",
+      "first-invoke-users",
+      "quote-to-invoke",
+      "deposit-to-first-invoke",
+    ]);
+    expect(cards[0]).toMatchObject({ value: "18.1%", tone: "orange" });
+    expect(cards[2]).toMatchObject({ value: "64%", tone: "green" });
   });
 
   it("marks invocation latency and low success rate as degraded", () => {
@@ -88,5 +116,67 @@ describe("analytics dashboard presenters", () => {
     expect(cards[1]).toMatchObject({ label: "Privacy Check", value: "1", tone: "red" });
     expect(cards[2]).toMatchObject({ label: "Critical Freshness", value: "1 missing", tone: "red" });
     expect(summarizeSourceCoverage(dataQuality)).toBe("frontend: 8 / gateway: 4");
+  });
+
+  it("formats provider settlement, money flow, distributions, and schema samples", () => {
+    const providerCards = buildProviderSettlementCards({
+      window: "24h",
+      revenueProviderCount: 2,
+      firstRevenueProviderCount: 1,
+      avgTimeSinceListingMs: 86400000,
+      providerGrossUsdc: 100,
+      platformFeeUsdc: 15,
+      providerNetUsdc: 85,
+      pendingSettlementUsdc: 20,
+      settlementCompletedUsdc: 40,
+      settlementFailureRate: 0,
+      settlementP95ConfirmMs: 1200,
+      settlementFunnel: [],
+      topProviders: [],
+    });
+
+    const moneyCards = buildMoneyFlowContextCards({
+      window: "24h",
+      depositUsdc: 100,
+      depositFailedCount: 0,
+      withdrawalUsdc: 10,
+      withdrawalFailedCount: 0,
+      refundUsdc: 4.5,
+      confirmLatencyMs: { p50: 42000, p95: 184000 },
+      depositErrors: [],
+      withdrawalErrors: [],
+      financeContext: {
+        pendingDepositCount: 2,
+        pendingWithdrawalCount: 1,
+        vaultLedgerDeltaUsdc: "0.50",
+        chainConfirmedNotLedgerConfirmedCount: 1,
+      },
+    });
+
+    const dataQuality = {
+      window: "24h",
+      overallStatus: "monitoring",
+      eventCount: 10,
+      duplicateRate: 0,
+      criticalEventsFreshness: [],
+      sourceCoverage: {},
+      privacyViolations: 0,
+      missingRequiredProperties: 3,
+      xorViolations: 1,
+      kafkaLag: 0,
+      clickhouseLag: 4,
+      fileBackendFallbackEvents: 0,
+      schemaIssueSamples: [{ eventName: "invoke_failed", issue: "missing failure_stage", count: 2 }],
+    };
+
+    expect(providerCards[0]).toMatchObject({ label: "Provider Gross", value: "100.00 USDC" });
+    expect(providerCards[1]).toMatchObject({ label: "Settlement Completed", tone: "orange" });
+    expect(moneyCards[0]).toMatchObject({ label: "Refund", value: "4.50 USDC", tone: "orange" });
+    expect(moneyCards[2]).toMatchObject({ label: "Pending Deposits", value: "2", tone: "orange" });
+    expect(buildDataQualityLagCards(dataQuality)[1]).toMatchObject({ key: "xor-violations", value: "1", tone: "red" });
+    expect(buildDistributionItems([{ key: "RPC_TIMEOUT", label: "RPC_TIMEOUT", count: 2, value: 2, rate: 0.5 }])[0]).toMatchObject({ count: "2", rate: "50%" });
+    expect(buildDataQualitySchemaIssueRows(dataQuality)).toEqual([
+      { key: "invoke_failed-missing failure_stage", eventName: "invoke_failed", issue: "missing failure_stage", count: "2" },
+    ]);
   });
 });

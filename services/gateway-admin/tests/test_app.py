@@ -677,7 +677,14 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
             "dashboard",
             "dashboard-overview",
             "dashboard-runtime",
+            "analytics",
             "dashboard-analytics",
+            "analytics-consumer-funnel",
+            "analytics-invocation-revenue",
+            "analytics-provider-revenue",
+            "analytics-money-flow",
+            "analytics-risk-health",
+            "analytics-data-quality",
             "system",
         "business-control",
         "approvals",
@@ -688,9 +695,19 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     }
     runtime_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard-runtime")
     dashboard_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard")
+    analytics_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "analytics")
+    analytics_overview_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard-analytics")
+    consumer_funnel_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "analytics-consumer-funnel")
     system_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "system")
     assert dashboard_item["href"] is None
     assert dashboard_item["nodeType"] == "category"
+    assert analytics_item["href"] is None
+    assert analytics_item["nodeType"] == "category"
+    assert analytics_item["parentItemId"] == "dashboard"
+    assert analytics_overview_item["href"] == "/dashboard/analytics"
+    assert analytics_overview_item["parentItemId"] == "analytics"
+    assert consumer_funnel_item["href"] == "/dashboard/analytics/consumer-funnel"
+    assert consumer_funnel_item["parentItemId"] == "analytics"
     assert runtime_item["href"] == "/dashboard/runtime"
     assert system_item["href"] == "/system"
 

@@ -799,6 +799,71 @@ X-CSRF-Token: <csrfToken>
         "href": "/dashboard/runtime",
         "iconKey": "02",
         "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "analytics",
+        "parentItemId": "dashboard",
+        "nodeType": "category",
+        "href": null,
+        "iconKey": "AN",
+        "requiredPermissions": ["dashboard:read"],
+        "keywords": ["analytics", "events", "clickhouse", "growth", "revenue", "risk", "quality"]
+      },
+      {
+        "itemId": "dashboard-analytics",
+        "parentItemId": "analytics",
+        "nodeType": "page",
+        "href": "/dashboard/analytics",
+        "iconKey": "A0",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "analytics-consumer-funnel",
+        "parentItemId": "analytics",
+        "nodeType": "page",
+        "href": "/dashboard/analytics/consumer-funnel",
+        "iconKey": "AF",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "analytics-invocation-revenue",
+        "parentItemId": "analytics",
+        "nodeType": "page",
+        "href": "/dashboard/analytics/invocation-revenue",
+        "iconKey": "AI",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "analytics-provider-revenue",
+        "parentItemId": "analytics",
+        "nodeType": "page",
+        "href": "/dashboard/analytics/provider-revenue",
+        "iconKey": "AP",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "analytics-money-flow",
+        "parentItemId": "analytics",
+        "nodeType": "page",
+        "href": "/dashboard/analytics/money-flow",
+        "iconKey": "AM",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "analytics-risk-health",
+        "parentItemId": "analytics",
+        "nodeType": "page",
+        "href": "/dashboard/analytics/risk-health",
+        "iconKey": "AR",
+        "requiredPermissions": ["dashboard:read"]
+      },
+      {
+        "itemId": "analytics-data-quality",
+        "parentItemId": "analytics",
+        "nodeType": "page",
+        "href": "/dashboard/analytics/data-quality",
+        "iconKey": "AQ",
+        "requiredPermissions": ["dashboard:read"]
       }
     ],
     "meta": {

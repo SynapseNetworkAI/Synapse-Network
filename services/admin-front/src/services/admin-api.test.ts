@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getCurrentAdmin, resolveAdminApiBaseUrl } from "./admin-api";
+import {
+  getAnalyticsConsumerFunnel,
+  getAnalyticsDataQuality,
+  getAnalyticsInvocationRevenue,
+  getAnalyticsMoneyFlow,
+  getAnalyticsOverview,
+  getAnalyticsProviderRevenue,
+  getAnalyticsRiskHealth,
+  getCurrentAdmin,
+  resolveAdminApiBaseUrl,
+} from "./admin-api";
 
 describe("admin session expiry handling", () => {
   const originalFetch = globalThis.fetch;
@@ -80,5 +90,46 @@ describe("resolveAdminApiBaseUrl", () => {
 
   it("preserves relative API prefixes when they are explicitly configured", () => {
     expect(resolveAdminApiBaseUrl("/gateway-admin/")).toBe("/gateway-admin");
+  });
+});
+
+describe("analytics API adapters", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: {},
+        requestId: "req_analytics",
+      }),
+    }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("calls each analytics drilldown endpoint with the selected window", async () => {
+    await getAnalyticsOverview("cookie-session", "7d");
+    await getAnalyticsConsumerFunnel("cookie-session", "7d");
+    await getAnalyticsInvocationRevenue("cookie-session", "7d");
+    await getAnalyticsProviderRevenue("cookie-session", "7d");
+    await getAnalyticsMoneyFlow("cookie-session", "7d");
+    await getAnalyticsRiskHealth("cookie-session", "7d");
+    await getAnalyticsDataQuality("cookie-session", "1h");
+
+    const urls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(urls).toEqual([
+      "/api/admin/v1/dashboard/analytics/overview?window=7d",
+      "/api/admin/v1/dashboard/analytics/consumer-funnel?window=7d",
+      "/api/admin/v1/dashboard/analytics/invocation-revenue?window=7d",
+      "/api/admin/v1/dashboard/analytics/provider-revenue?window=7d",
+      "/api/admin/v1/dashboard/analytics/money-flow?window=7d",
+      "/api/admin/v1/dashboard/analytics/risk-health?window=7d",
+      "/api/admin/v1/dashboard/analytics/data-quality?window=1h",
+    ]);
   });
 });
