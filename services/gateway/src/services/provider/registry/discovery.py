@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from decimal import Decimal
-from typing import Any, List, Optional
+from typing import Any
 
 from src.domain.service_contract import AgentDiscoveryQueryRecord, PublicServiceDiscoveryRecord
 from src.services.platform import service_health_service
@@ -16,7 +16,6 @@ from .interfaces import RegistryContext
 from .payload_helpers import (
     is_deleted_service,
     public_service_discovery_record,
-    service_lifecycle_status,
 )
 from .usage_helpers import (
     service_usage_metrics,
@@ -28,15 +27,18 @@ from .usage_helpers import (
 
 async def discover_public_services(
     context: RegistryContext,
-    intent: Optional[str] = None,
-    public_gateway_url: Optional[str] = None,
+    intent: str | None = None,
+    public_gateway_url: str | None = None,
     sort_by: str = "best_match",
     sort_order: str = "desc",
-) -> List[PublicServiceDiscoveryRecord]:
+) -> list[PublicServiceDiscoveryRecord]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     available_services = [
-        row for row in rows if service_health_service.is_service_discoverable(row)
+        row
+        for row in rows
+        if not is_deleted_service(row)
+        and service_health_service.is_service_discoverable(row)
     ]
 
     if intent:
@@ -63,11 +65,11 @@ async def discover_public_services(
 
 async def discover_services(
     context: RegistryContext,
-    intent: Optional[str] = None,
-    public_gateway_url: Optional[str] = None,
+    intent: str | None = None,
+    public_gateway_url: str | None = None,
     sort_by: str = "best_match",
     sort_order: str = "desc",
-) -> List[dict[str, Any]]:
+) -> list[dict[str, Any]]:
     usage_metrics = service_usage_metrics(
         context.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
     )
@@ -78,7 +80,7 @@ async def discover_services(
         sort_by=sort_by,
         sort_order=sort_order,
     )
-    result: List[dict[str, Any]] = []
+    result: list[dict[str, Any]] = []
     for row in public_services:
         payload = row.model_dump(by_alias=True, exclude_none=True)
         metrics = usage_metrics.get(str(row.service_id or ""), {})
@@ -134,8 +136,8 @@ async def public_network_stats(context: RegistryContext) -> dict[str, Any]:
 async def search_agent_discovery(
     context: RegistryContext,
     query: AgentDiscoveryQueryRecord,
-    public_gateway_url: Optional[str] = None,
-) -> List[PublicServiceDiscoveryRecord]:
+    public_gateway_url: str | None = None,
+) -> list[PublicServiceDiscoveryRecord]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     available_services = [
@@ -175,10 +177,10 @@ async def count_agent_discovery_results(
     return len(scoped_services)
 
 
-async def list_owner_services(context: RegistryContext, owner_wallet: str) -> List[dict[str, Any]]:
+async def list_owner_services(context: RegistryContext, owner_wallet: str) -> list[dict[str, Any]]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
-    owner_rows: List[dict[str, Any]] = []
+    owner_rows: list[dict[str, Any]] = []
     for svc in rows:
         if svc.owner_address != owner_wallet or is_deleted_service(svc):
             continue
@@ -196,9 +198,9 @@ async def list_owner_services(context: RegistryContext, owner_wallet: str) -> Li
 
 async def health_status(
     context: RegistryContext,
-    intent: Optional[str] = None,
+    intent: str | None = None,
     include_inactive: bool = False,
-) -> List[dict[str, Any]]:
+) -> list[dict[str, Any]]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     scoped = []

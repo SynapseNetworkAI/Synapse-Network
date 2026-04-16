@@ -83,15 +83,6 @@ ensure_local_postgres() {
   fi
 }
 
-bootstrap_local_postgres_schema() {
-  bootstrap_user="${LOCAL_POSTGRES_BOOTSTRAP_USER:-${USER}}"
-  bootstrap_password="${LOCAL_POSTGRES_BOOTSTRAP_PASSWORD:-}"
-  echo "Applying local gateway/admin Postgres bootstrap schema..."
-  POSTGRES_USER="${bootstrap_user}" \
-  POSTGRES_PASSWORD="${bootstrap_password}" \
-    bash "${ROOT_DIR}/infra/postgres/init/000_run_init_tree.sh"
-}
-
 stop_pid() {
   name="$1"
   pid="$2"
@@ -156,7 +147,6 @@ if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
 fi
 
 ensure_local_postgres
-bootstrap_local_postgres_schema
 
 PROVIDER_PID_FROM_FILE=""
 if [ -f "$PID_FILE" ]; then

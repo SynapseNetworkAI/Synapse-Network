@@ -29,6 +29,9 @@ function filterServices(rows: ServiceRegistryRecord[], searchParams: URLSearchPa
   const query = searchParams.get("q")?.trim().toLowerCase() || "";
 
   return rows.filter((service) => {
+    if (service.runtimeAvailable === false) {
+      return false;
+    }
     if (status !== "all" && service.isActive === false) {
       return false;
     }

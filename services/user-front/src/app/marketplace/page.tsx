@@ -52,6 +52,10 @@ function selectMostRecentService(rows: ServiceRegistryRecord[]): ServiceRegistry
   }, rows[0]);
 }
 
+function isCallableMarketplaceService(service: ServiceRegistryRecord): boolean {
+  return service.isActive !== false && service.runtimeAvailable !== false;
+}
+
 export default function MarketplacePage() {
   const REGISTRY_POLL_MS = 12000;
   const { t } = useLanguage();
@@ -107,7 +111,7 @@ export default function MarketplacePage() {
         if (!silent) {
           setIsLoading(true);
         }
-        const rows = await discoverServices();
+        const rows = (await discoverServices()).filter(isCallableMarketplaceService);
         if (!mounted) {
           return;
         }

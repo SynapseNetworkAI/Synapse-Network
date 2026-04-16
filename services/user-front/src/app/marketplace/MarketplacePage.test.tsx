@@ -63,7 +63,16 @@ describe("MarketplacePage", () => {
   });
 
   it("renders a user-facing product marketplace without debug feed copy", async () => {
-    discoverServicesMock.mockResolvedValue([buildService()]);
+    discoverServicesMock.mockResolvedValue([
+      buildService(),
+      buildService({
+        id: "svc-unavailable",
+        serviceId: "invoice-ocr-paused",
+        serviceName: "Paused OCR",
+        name: "Paused OCR",
+        runtimeAvailable: false,
+      }),
+    ]);
 
     render(createElement(LanguageProvider, null, createElement(MarketplacePage)));
 
@@ -72,9 +81,10 @@ describe("MarketplacePage", () => {
     expect(screen.getByText("Ready to call")).toBeTruthy();
     expect(screen.getByText("0.08 USDC")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Use this service/i }).getAttribute("href")).toBe("/dashboard/discovery");
+    expect(screen.queryByText("Paused OCR")).toBeNull();
 
     await waitFor(() => {
-      expect(discoverServicesMock).toHaveBeenCalled();
+      expect(discoverServicesMock).toHaveBeenCalledWith();
     });
 
     const visibleCopy = document.body.textContent || "";
