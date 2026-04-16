@@ -21,10 +21,12 @@ const hiddenNavigationItemIds = new Set(["dashboard-system-health"]);
 const legacyPathByItemId: Record<string, string> = {
   "dashboard-overview": "/dashboard/overview",
   "dashboard-runtime": "/dashboard/runtime",
+  "dashboard-analytics": "/dashboard/analytics",
 };
 
 const navLookupById: Record<string, NavLookupRecord> = {
   dashboard: { label: "控制台", description: "总览与业务运行态入口。" },
+  "dashboard-analytics": { label: "Analytics 看板", description: "增长、收入、风控与埋点健康。" },
   execution: { label: "执行队列", description: "审批后的任务排队、重试与执行状态。" },
   system: { label: "系统运维", description: "Gateway、Indexer 与对账运行态。" },
   users: { label: "后台用户", description: "管理员目录、状态与 MFA 要求。" },

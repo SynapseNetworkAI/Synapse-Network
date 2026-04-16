@@ -22,7 +22,10 @@ from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService, ExecutionWorker
 from src.services.finance_admin import ProviderWithdrawReviewService
 from src.storage.analytics import (
+    AnalyticsDashboardRepository,
+    ClickHouseAnalyticsDashboardRepository,
     GatewayDashboardProjectionRepository,
+    InMemoryAnalyticsDashboardRepository,
     InMemoryGatewayDashboardProjectionRepository,
     InMemoryProviderWithdrawReviewRepository,
     PostgresGatewayDashboardProjectionRepository,
@@ -78,10 +81,22 @@ def get_gateway_dashboard_projection_repository() -> GatewayDashboardProjectionR
 
 
 @lru_cache(maxsize=1)
+def get_analytics_dashboard_repository() -> AnalyticsDashboardRepository:
+    settings = get_settings()
+    if settings.use_inmemory_store:
+        return InMemoryAnalyticsDashboardRepository.seed_demo()
+    return ClickHouseAnalyticsDashboardRepository(
+        settings.analytics_clickhouse_url,
+        timeout_sec=settings.analytics_clickhouse_timeout_sec,
+    )
+
+
+@lru_cache(maxsize=1)
 def get_dashboard_service() -> DashboardService:
     return DashboardService(
         get_store(),
         get_gateway_dashboard_projection_repository(),
+        get_analytics_dashboard_repository(),
         get_provider_withdraw_review_repository(),
     )
 

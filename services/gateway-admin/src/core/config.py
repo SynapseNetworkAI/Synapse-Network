@@ -100,6 +100,14 @@ class Settings(BaseSettings):
         default="postgresql://synapse_gateway_ro:12345678@localhost:5432/synapse_gateway",
         alias="GATEWAY_READONLY_DSN",
     )
+    analytics_clickhouse_url: str = Field(
+        default="http://localhost:8123",
+        alias="ANALYTICS_CLICKHOUSE_URL",
+    )
+    analytics_clickhouse_timeout_sec: float = Field(
+        default=5.0,
+        alias="ANALYTICS_CLICKHOUSE_TIMEOUT_SEC",
+    )
     gateway_internal_base_url: str = Field(
         default="http://localhost:8000",
         alias="GATEWAY_INTERNAL_BASE_URL",

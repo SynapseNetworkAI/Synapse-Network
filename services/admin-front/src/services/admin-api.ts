@@ -169,6 +169,179 @@ export type DashboardDiagnostics = {
   actions: DashboardDiagnosticAction[];
 };
 
+export type AnalyticsWindow = "24h" | "7d" | "30d";
+export type AnalyticsDataQualityWindow = "1h" | "24h";
+
+export type AnalyticsMetricCard = {
+  key: string;
+  label: string;
+  value: string | number;
+  unit: string;
+  tone: "green" | "orange" | "red" | "gray" | string;
+  detail: string;
+};
+
+export type AnalyticsAlert = {
+  severity: string;
+  title: string;
+  detail: string;
+  href?: string | null;
+};
+
+export type AnalyticsOverview = {
+  window: string;
+  overallStatus: string;
+  cards: AnalyticsMetricCard[];
+  alerts: AnalyticsAlert[];
+};
+
+export type AnalyticsFunnelStep = {
+  eventName: string;
+  label: string;
+  users: number;
+  events: number;
+  conversionRate: number;
+  dropoffRate: number;
+};
+
+export type AnalyticsConsumerFunnel = {
+  window: string;
+  steps: AnalyticsFunnelStep[];
+  summary: {
+    activationRate: number;
+    firstInvokeUsers: number;
+    quoteToInvokeRate: number;
+    depositToFirstInvokeRate: number;
+  };
+};
+
+export type AnalyticsDistributionItem = {
+  key: string;
+  label: string;
+  count: number;
+  value: number;
+  rate?: number;
+};
+
+export type AnalyticsLatencyPercentiles = {
+  p50: number;
+  p95: number;
+  p99?: number | null;
+};
+
+export type AnalyticsInvocationTrendPoint = {
+  bucket: string;
+  invokeCompleted: number;
+  invokeFailed: number;
+  gmvUsdc: number;
+  platformFeeUsdc: number;
+  providerNetUsdc: number;
+};
+
+export type AnalyticsInvocationRevenue = {
+  window: string;
+  quoteCount: number;
+  invokeStartedCount: number;
+  invokeCompletedCount: number;
+  invokeFailedCount: number;
+  successRate: number;
+  gmvUsdc: number;
+  priceAvgUsdc: number;
+  platformFeeUsdc: number;
+  providerNetUsdc: number;
+  latencyMs: AnalyticsLatencyPercentiles;
+  failureStages: AnalyticsDistributionItem[];
+  errorCodes: AnalyticsDistributionItem[];
+  trend: AnalyticsInvocationTrendPoint[];
+};
+
+export type AnalyticsProviderRevenue = {
+  window: string;
+  revenueProviderCount: number;
+  firstRevenueProviderCount: number;
+  avgTimeSinceListingMs: number;
+  providerGrossUsdc: number;
+  platformFeeUsdc: number;
+  providerNetUsdc: number;
+  pendingSettlementUsdc: number;
+  settlementCompletedUsdc: number;
+  settlementFailureRate: number;
+  settlementP95ConfirmMs: number;
+  settlementFunnel: Array<{
+    eventName: string;
+    label: string;
+    count: number;
+    amountUsdc: number;
+    conversionRate: number;
+  }>;
+  topProviders: Array<{
+    providerId: string;
+    serviceId: string;
+    grossUsdc: number;
+    providerNetUsdc: number;
+    invokeCount: number;
+  }>;
+};
+
+export type AnalyticsMoneyFlow = {
+  window: string;
+  depositUsdc: number;
+  depositFailedCount: number;
+  withdrawalUsdc: number;
+  withdrawalFailedCount: number;
+  refundUsdc: number;
+  confirmLatencyMs: AnalyticsLatencyPercentiles;
+  depositErrors: AnalyticsDistributionItem[];
+  withdrawalErrors: AnalyticsDistributionItem[];
+  financeContext: {
+    pendingDepositCount: number;
+    pendingWithdrawalCount: number;
+    vaultLedgerDeltaUsdc: string;
+    chainConfirmedNotLedgerConfirmedCount: number;
+  };
+};
+
+export type AnalyticsRiskHealth = {
+  window: string;
+  criticalRiskEvents: number;
+  riskRules: AnalyticsDistributionItem[];
+  surfaces: AnalyticsDistributionItem[];
+  providerHealthDegradedCount: number;
+  degradedProviders: Array<{
+    providerId: string;
+    serviceId: string;
+    count: number;
+    reason: string;
+  }>;
+  budgetGapUsdc: number;
+  refundReasons: AnalyticsDistributionItem[];
+};
+
+export type AnalyticsDataQuality = {
+  window: string;
+  overallStatus: string;
+  eventCount: number;
+  duplicateRate: number;
+  criticalEventsFreshness: Array<{
+    eventName: string;
+    seen: boolean;
+    lastSeenAt: string;
+    count: number;
+  }>;
+  sourceCoverage: Record<string, number>;
+  privacyViolations: number;
+  missingRequiredProperties: number;
+  xorViolations: number;
+  kafkaLag: number;
+  clickhouseLag: number;
+  fileBackendFallbackEvents: number;
+  schemaIssueSamples: Array<{
+    eventName: string;
+    issue: string;
+    count: number;
+  }>;
+};
+
 export type FinanceOverview = {
   todayChargeUsdc: string;
   todayDepositUsdc: string;
@@ -675,6 +848,34 @@ export async function getReconciliationDrilldown(
 
 export async function getDashboardDiagnostics(token: string): Promise<DashboardDiagnostics> {
   return request<DashboardDiagnostics>("/api/admin/v1/dashboard/diagnostics");
+}
+
+export async function getAnalyticsOverview(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsOverview> {
+  return request<AnalyticsOverview>(buildPath("/api/admin/v1/dashboard/analytics/overview", { window }));
+}
+
+export async function getAnalyticsConsumerFunnel(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsConsumerFunnel> {
+  return request<AnalyticsConsumerFunnel>(buildPath("/api/admin/v1/dashboard/analytics/consumer-funnel", { window }));
+}
+
+export async function getAnalyticsInvocationRevenue(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsInvocationRevenue> {
+  return request<AnalyticsInvocationRevenue>(buildPath("/api/admin/v1/dashboard/analytics/invocation-revenue", { window }));
+}
+
+export async function getAnalyticsProviderRevenue(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsProviderRevenue> {
+  return request<AnalyticsProviderRevenue>(buildPath("/api/admin/v1/dashboard/analytics/provider-revenue", { window }));
+}
+
+export async function getAnalyticsMoneyFlow(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsMoneyFlow> {
+  return request<AnalyticsMoneyFlow>(buildPath("/api/admin/v1/dashboard/analytics/money-flow", { window }));
+}
+
+export async function getAnalyticsRiskHealth(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsRiskHealth> {
+  return request<AnalyticsRiskHealth>(buildPath("/api/admin/v1/dashboard/analytics/risk-health", { window }));
+}
+
+export async function getAnalyticsDataQuality(token: string, window: AnalyticsDataQualityWindow = "24h"): Promise<AnalyticsDataQuality> {
+  return request<AnalyticsDataQuality>(buildPath("/api/admin/v1/dashboard/analytics/data-quality", { window }));
 }
 
 export async function listApprovals(
