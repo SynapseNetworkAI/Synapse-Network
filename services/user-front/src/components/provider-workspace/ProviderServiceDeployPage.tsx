@@ -1362,6 +1362,10 @@ export default function DeployManifestPage() {
   };
 
   const submitDeploy = async () => {
+    if (isAiGenerating) {
+      toast.error(t("providerServiceDeployPage.submitGeneratedAssetsPending"));
+      return;
+    }
     if (nextBlockingIssue) {
       toast.error(nextBlockingIssue);
       return;
@@ -1388,9 +1392,15 @@ export default function DeployManifestPage() {
   let deploymentLabel = t("providerServiceDeployPage.deploymentLabelCreate");
   if (isDeploying) {
     deploymentLabel = t("providerServiceDeployPage.deploymentLabelCreating");
+  } else if (isAiGenerating) {
+    deploymentLabel = t("providerServiceDeployPage.deploymentLabelWaitingForAssets");
   } else if (nextBlockingIssue) {
     deploymentLabel = t("providerServiceDeployPage.deploymentLabelFix");
   }
+
+  const deploymentBlockingText = isAiGenerating
+    ? t("providerServiceDeployPage.submitGeneratedAssetsPending")
+    : nextBlockingIssue;
 
   return (
     <AuthMask
@@ -1773,14 +1783,14 @@ export default function DeployManifestPage() {
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.deployEyebrow")}</p>
                   <h2 className="mt-2 text-lg font-semibold text-white">{t("providerServiceDeployPage.deployTitle")}</h2>
-                  <p className={`mt-2 text-sm ${nextBlockingIssue ? "text-amber-300" : "text-zinc-500"}`}>
-                    {nextBlockingIssue || t("providerServiceDeployPage.deploymentReadyText")}
+                  <p className={`mt-2 text-sm ${deploymentBlockingText ? "text-amber-300" : "text-zinc-500"}`}>
+                    {deploymentBlockingText || t("providerServiceDeployPage.deploymentReadyText")}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={submitDeploy}
-                  disabled={isDeploying || Boolean(nextBlockingIssue)}
+                  disabled={isDeploying || isAiGenerating || Boolean(nextBlockingIssue)}
                   className="inline-flex min-w-[280px] items-center justify-center rounded-2xl bg-green-500 px-5 py-4 text-sm font-semibold text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {deploymentLabel}
