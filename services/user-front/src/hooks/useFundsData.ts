@@ -19,6 +19,13 @@ export type LedgerRecord = {
   failureReason?: string;
 };
 
+type LedgerLog = {
+  blockNumber: number;
+  transactionHash: string;
+  logIndex?: number;
+  args: [unknown, bigint];
+};
+
 export function useFundsData() {
   const { address: userAddress } = useAccount();
   const [records, setRecords] = useState<LedgerRecord[]>([]);
@@ -73,20 +80,21 @@ export function useFundsData() {
 
       // Deduplicate block fetches — fetch each unique block number only once
       const allLogs = [...depositLogs, ...withdrawLogs];
-      const uniqueBlockNumbers = [...new Set(allLogs.map((log: any) => log.blockNumber))];
-      const blockMap = new Map<number, any>();
+      const uniqueBlockNumbers = [...new Set(allLogs.map((log) => log.blockNumber))];
+      const blockMap = new Map<number, Awaited<ReturnType<typeof provider.getBlock>>>();
       await Promise.all(uniqueBlockNumbers.map(async (blockNum: number) => {
         const block = await provider.getBlock(blockNum);
         if (block) blockMap.set(blockNum, block);
       }));
 
       const onchainRecords: LedgerRecord[] = [];
+      const depositEntries = depositLogs as unknown as LedgerLog[];
+      const withdrawEntries = withdrawLogs as unknown as LedgerLog[];
 
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      for (const log of depositLogs as any[]) {
+      for (const log of depositEntries) {
         const block = blockMap.get(log.blockNumber);
         onchainRecords.push({
-          id: `${log.transactionHash}-${log.logIndex}`,
+          id: `${log.transactionHash}-${log.logIndex ?? 0}`,
           type: "Deposit",
           amount: Number.parseFloat(ethers.formatUnits(log.args[1], 18)),
           txHash: log.transactionHash,
@@ -95,10 +103,10 @@ export function useFundsData() {
         });
       }
 
-      for (const log of withdrawLogs as any[]) {
+      for (const log of withdrawEntries) {
         const block = blockMap.get(log.blockNumber);
         onchainRecords.push({
-          id: `${log.transactionHash}-${log.logIndex}`,
+          id: `${log.transactionHash}-${log.logIndex ?? 0}`,
           type: "Withdraw",
           amount: Number.parseFloat(ethers.formatUnits(log.args[1], 18)),
           txHash: log.transactionHash,
@@ -106,7 +114,6 @@ export function useFundsData() {
           status: "COMPLETED"
         });
       }
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       // fetch off-chain refunds
       const mappedRefunds: LedgerRecord[] = refunds.map((r: RefundRecord) => ({
@@ -134,7 +141,7 @@ export function useFundsData() {
         return {
           id: w.id,
           type: "Withdraw" as const,
-          amount: w.amountUsdc,
+          amount: w.amountUsdc ?? 0,
           txHash: w.txHash ?? null,
           timestamp: tsMs,
           status: statusMap[w.status?.toUpperCase()] ?? "PENDING",

@@ -612,7 +612,12 @@ export default function ProviderSettlementsPage() {
         </h1>
         <p className="mt-2 text-sm text-[#86868b]">
           {t("providerSettlements.description")}
-          <Info className="w-3.5 h-3.5 text-[#555] inline-block ml-1 align-text-bottom cursor-help" title={t("providerSettlements.descriptionTip")} />
+          <span
+            className="inline-block ml-1 align-text-bottom cursor-help"
+            title={t("providerSettlements.descriptionTip")}
+          >
+            <Info className="w-3.5 h-3.5 text-[#555]" />
+          </span>
         </p>
       </div>
 
@@ -643,7 +648,12 @@ export default function ProviderSettlementsPage() {
           )}
           <div className="mt-4 rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/[0.06] px-4 py-3 text-sm text-[#d9ffe7] flex items-center gap-1">
             <span>{walletGasGuidance}</span>
-            <Info className="w-3.5 h-3.5 text-[#22c55e]/50 shrink-0 cursor-help" title={t("providerSettlements.walletGasTip")} />
+            <span
+              className="shrink-0 cursor-help"
+              title={t("providerSettlements.walletGasTip")}
+            >
+              <Info className="w-3.5 h-3.5 text-[#22c55e]/50" />
+            </span>
           </div>
           {pendingTicketExpired && (
             <div className="mt-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10 px-4 py-3 text-sm text-[#fecaca]">
@@ -803,7 +813,12 @@ export default function ProviderSettlementsPage() {
             <div className="text-[10px] uppercase tracking-[0.2em] text-[#86868b]">{t("providerSettlements.historyTitle")}</div>
             <div className="mt-1 text-sm text-[#c5c5c7]">
               {t("providerSettlements.historyDescription")}
-              <Info className="w-3 h-3 text-[#555] inline-block ml-1 align-text-bottom cursor-help" title={t("providerSettlements.historyDescriptionTip")} />
+              <span
+                className="inline-block ml-1 align-text-bottom cursor-help"
+                title={t("providerSettlements.historyDescriptionTip")}
+              >
+                <Info className="w-3 h-3 text-[#555]" />
+              </span>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -897,7 +912,12 @@ export default function ProviderSettlementsPage() {
         <ReceiptText className="w-4 h-4 text-[#22c55e]" />
         <span>
           {t("providerSettlements.dedupeNote")}
-          <Info className="w-3 h-3 text-[#555] inline-block ml-1 align-text-bottom cursor-help" title={t("providerSettlements.dedupeNoteTip")} />
+          <span
+            className="inline-block ml-1 align-text-bottom cursor-help"
+            title={t("providerSettlements.dedupeNoteTip")}
+          >
+            <Info className="w-3 h-3 text-[#555]" />
+          </span>
         </span>
         <Activity className="w-4 h-4 text-[#86868b] ml-auto" />
       </div>

@@ -1,6 +1,6 @@
 # Voucher Campaign and Redemption Model
 
-- Status: redeem core path live; admin issuance/history still pending
+- Status: supplementary
 - Live code paths: `gateway/src/services/platform/finance_service.py`, `gateway/src/api/routers/balance.py`, `gateway/src/storage/postgres/repositories/finance_atomic_repository.py`, `docker-compose/postgres/init/gateway/001_synapse_schema.sql`
 - Verified against current SQL baseline: 2026-04-02
 

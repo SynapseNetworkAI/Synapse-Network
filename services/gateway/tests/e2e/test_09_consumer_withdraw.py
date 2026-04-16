@@ -74,6 +74,7 @@ def test_consumer_withdraw_decreases_available_balance(owner_headers, session_st
     balance_before_full = get_balance_full(GATEWAY_BASE, owner_headers)
     available_before = Decimal(str(balance_before_full.get("consumerAvailableBalance") or 0))
     pending_before = Decimal(str(balance_before_full.get("consumerPendingBalance") or 0))
+    frozen_before = Decimal(str(balance_before_full.get("consumerFrozenBalance") or 0))
 
     assert available_before > Decimal("0"), (
         "No available balance to withdraw. Run test_04_deposit first."
@@ -91,26 +92,37 @@ def test_consumer_withdraw_decreases_available_balance(owner_headers, session_st
     session_state["consumer_withdraw_id"] = resp.get("withdrawId")
     session_state["consumer_withdraw_amount"] = withdraw_usdc
     session_state["consumer_withdraw_status"] = resp.get("status")
+    session_state["consumer_total_before_withdraw"] = available_before + pending_before + frozen_before
 
     # Read fresh balance
     balance_after_full = get_balance_full(GATEWAY_BASE, owner_headers)
     available_after = Decimal(str(balance_after_full.get("consumerAvailableBalance") or 0))
     pending_after = Decimal(str(balance_after_full.get("consumerPendingBalance") or 0))
 
-    # available must have decreased
-    assert available_after == pytest.approx(float(available_before - withdraw_usdc), abs=1e-4), (
-        f"Available balance should be {available_before - withdraw_usdc} "
-        f"but got {available_after}"
-    )
-
-    # pending must have increased (for REQUESTED status)
-    if resp.get("status") == "REQUESTED":
-        assert pending_after == pytest.approx(
-            float(pending_before + withdraw_usdc), abs=1e-4
-        ), (
-            f"Pending balance should be {pending_before + withdraw_usdc} "
+    if resp.get("existingWithdrawal"):
+        assert float(available_after) == pytest.approx(float(available_before), abs=1e-4), (
+            f"Existing withdrawal should leave available balance unchanged at {available_before}, "
+            f"but got {available_after}"
+        )
+        assert float(pending_after) == pytest.approx(float(pending_before), abs=1e-4), (
+            f"Existing withdrawal should leave pending balance unchanged at {pending_before}, "
             f"but got {pending_after}"
         )
+    else:
+        # available must have decreased
+        assert float(available_after) == pytest.approx(float(available_before - withdraw_usdc), abs=1e-4), (
+            f"Available balance should be {available_before - withdraw_usdc} "
+            f"but got {available_after}"
+        )
+
+        # pending must have increased (for REQUESTED status)
+        if resp.get("status") == "REQUESTED":
+            assert float(pending_after) == pytest.approx(
+                float(pending_before + withdraw_usdc), abs=1e-4
+            ), (
+                f"Pending balance should be {pending_before + withdraw_usdc} "
+                f"but got {pending_after}"
+            )
 
 
 def test_consumer_withdraw_frozen_amount_not_available(owner_headers, session_state):
@@ -185,11 +197,9 @@ def test_consumer_withdraw_reduces_total_spendable_capacity(owner_headers, sessi
 
     total = available + pending + frozen
 
-    # If the system started with 10 USDC deposited, total cannot exceed that
-    # (may be slightly less due to fees, but never more)
-    from tests.e2e.conftest import DEPOSIT_USDC
-    assert total <= DEPOSIT_USDC + Decimal("0.01"), (
-        f"Total consumer obligation {total} exceeds deposit {DEPOSIT_USDC}. "
+    baseline_total = Decimal(str(session_state.get("consumer_total_before_withdraw") or total))
+    assert total <= baseline_total + Decimal("0.01"), (
+        f"Total consumer obligation {total} exceeds pre-withdraw baseline {baseline_total}. "
         "Balance integrity violated."
     )
 

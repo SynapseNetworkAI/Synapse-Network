@@ -40,7 +40,7 @@ run_psql_docker() {
 }
 
 run_psql() {
-    if [[ -f "${container_gateway_schema_file}" ]]; then
+    if [[ -f "${container_gateway_schema_file}" || -f "${host_gateway_schema_file}" ]]; then
         run_psql_local "$@"
         return
     fi
@@ -62,7 +62,7 @@ run_psql_file() {
     fi
 
     if [[ -f "${host_schema_file}" ]]; then
-        run_psql_docker --dbname "${db_name}" "$@" --file "${container_schema_file}"
+        run_psql_local --dbname "${db_name}" "$@" --file "${host_schema_file}"
         return
     fi
 
@@ -90,8 +90,8 @@ for schema_file in "${container_admin_schema_files[@]}"; do
     fi
 done
 
-if [[ ! -f "${container_gateway_schema_file}" ]] && ! docker ps --format '{{.Names}}' | grep -Fxq "${container_name}"; then
-    echo "postgres container is not running: ${container_name}" >&2
+if [[ ! -f "${container_gateway_schema_file}" ]] && [[ ! -f "${host_gateway_schema_file}" ]]; then
+    echo "missing postgres bootstrap sources for local or container mode" >&2
     exit 1
 fi
 
@@ -184,23 +184,21 @@ run_psql \
     --set=gateway_db="${gateway_db}" \
     --set=gateway_app_user="${gateway_app_user}" \
     --set=gateway_ro_user="${gateway_ro_user}" \
+    --set=gateway_migrator_user="${gateway_migrator_user}" \
     --set=admin_db="${admin_db}" \
     --set=admin_app_user="${admin_app_user}" \
-    --set=admin_ro_user="${admin_ro_user}" <<'SQL'
+    --set=admin_ro_user="${admin_ro_user}" \
+    --set=admin_migrator_user="${admin_migrator_user}" <<'SQL'
 REVOKE ALL ON DATABASE :"gateway_db" FROM PUBLIC;
 REVOKE ALL ON DATABASE :"admin_db" FROM PUBLIC;
 
 GRANT CONNECT, TEMPORARY ON DATABASE :"gateway_db" TO :"gateway_app_user";
 GRANT CONNECT ON DATABASE :"gateway_db" TO :"gateway_ro_user";
-SELECT
-    format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :"gateway_db", :"gateway_migrator_user")
-WHERE :'gateway_migrator_user' <> '' \gexec
+GRANT ALL PRIVILEGES ON DATABASE :"gateway_db" TO :"gateway_migrator_user";
 
 GRANT CONNECT, TEMPORARY ON DATABASE :"admin_db" TO :"admin_app_user";
 GRANT CONNECT ON DATABASE :"admin_db" TO :"admin_ro_user";
-SELECT
-    format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :"admin_db", :"admin_migrator_user")
-WHERE :'admin_migrator_user' <> '' \gexec
+GRANT ALL PRIVILEGES ON DATABASE :"admin_db" TO :"admin_migrator_user";
 SQL
 
 grant_schema_access "${gateway_db}" "${gateway_app_user}" "${gateway_ro_user}" "${gateway_migrator_user}"

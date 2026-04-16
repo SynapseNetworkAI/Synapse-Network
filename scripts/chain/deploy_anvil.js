@@ -4,7 +4,7 @@ const path = require("path");
 
 async function main() {
   console.log("🚀 Starting Anvil Deployment...");
-  const repoRoot = path.resolve(__dirname, "..", "..", "..");
+  const repoRoot = path.resolve(__dirname, "..", "..");
 
   // 获取部署账号和其他角色账号
   const signers = await hre.ethers.getSigners();

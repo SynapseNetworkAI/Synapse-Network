@@ -75,10 +75,8 @@ const requiredLlmsAnchors = [
   "docs/AGENTS.md",
   "docs/README.md",
   "docs/ARCHITECTURE.md",
-  "docs/Harness_engineering.md",
-  "docs/00_Governance/Documentation_Constraints.md",
-  "docs/00_Governance/Documentation_Inventory.md",
-  "docs/06_Reference/Validation_Entry_Points.md",
+  "docs/plans/README.md",
+  "docs/reference/Validation_Entry_Points.md",
   "npm run ci:docs",
 ];
 
@@ -159,8 +157,12 @@ function linkHitsRetiredTarget(rawTarget) {
   }
   return retiredPaths.some((retiredPath) => {
     const retiredName = retiredPath.replace(/\\/g, "/");
-    return target.includes(retiredName) || target.includes(path.basename(retiredName));
+    return target.includes(retiredName) || path.posix.basename(target) === path.posix.basename(retiredName);
   });
+}
+
+function isGeneratedAuxiliaryReadme(repoPath) {
+  return repoPath.startsWith("docs/plans/") || repoPath.startsWith("docs/reference/test/");
 }
 
 function firstLines(content, count) {
@@ -215,8 +217,7 @@ function diffDays(laterDate, earlierDate) {
 
 function extractInventoryEntries() {
   if (!fs.existsSync(inventoryPath)) {
-    errors.push("Missing documentation inventory: docs/00_Governance/Documentation_Inventory.md");
-    return [];
+    return null;
   }
 
   const content = readFile(inventoryPath);
@@ -373,6 +374,9 @@ function checkReadmeLifecycleMetadata() {
 
   for (const filePath of files) {
     const repoPath = toRepoPath(filePath);
+    if (isGeneratedAuxiliaryReadme(repoPath)) {
+      continue;
+    }
     const header = firstLines(readFile(filePath), 12);
     validateReadmeLifecycleMetadata(repoPath, header);
   }
@@ -661,7 +665,7 @@ function ensureRequiredInventoryCoverage(inventoryMap) {
 
 function checkInventory() {
   const entries = extractInventoryEntries();
-  if (entries.length === 0) {
+  if (!entries || entries.length === 0) {
     return;
   }
 

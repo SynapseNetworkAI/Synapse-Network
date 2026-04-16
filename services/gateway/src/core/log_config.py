@@ -64,7 +64,7 @@ class DailyFileHandler(logging.Handler):
 
     def _ensure_stream(self, record: logging.LogRecord) -> None:
         record_dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
-        date_slug = record_dt.strftime("%Y-%m-%d")
+        date_slug = settings._log_date_slug()
         if self._current_date != date_slug or self._stream is None:
             if self._stream is not None:
                 self._stream.close()
@@ -87,7 +87,7 @@ class DailyFileHandler(logging.Handler):
                 dir_date = datetime.strptime(child.name, "%Y-%m-%d").date()
             except ValueError:
                 continue
-            if dir_date <= cutoff:
+            if dir_date < cutoff:
                 shutil.rmtree(child, ignore_errors=True)
         self._last_prune = now
 

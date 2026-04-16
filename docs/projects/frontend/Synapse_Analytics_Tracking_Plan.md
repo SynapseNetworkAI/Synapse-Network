@@ -1,6 +1,6 @@
 # Synapse Network Analytics Tracking Plan
 
-- Status: proposed
+- Status: incubation
 - Code paths: `apps/frontend/`, `gateway/`, `provider_service/`, `sdk/python/`, `contracts/`, `admin/gateway-admin/`
 - Source inputs: `roles/cro_optimizer/outputs/tracking-plan.md`, Synapse product context, current `docs/projects/*` boundaries
 - Last updated: 2026-04-09

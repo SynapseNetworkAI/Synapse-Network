@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Key, ShieldCheck, Activity, Copy, CheckCircle2, FileCode2, Plus, Trash2, Info, X } from "lucide-react";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
@@ -144,11 +144,11 @@ export default function SecretsPage() {
     java: buildJavaSnippet(isChinese),
   }), [isChinese]);
 
-  const getErrorMessage = (error: unknown): string => {
+  const getErrorMessage = useCallback((error: unknown): string => {
     if (error instanceof Error) return error.message;
     if (typeof error === "string") return error;
     return t("providerSecretsPage.unknownError");
-  };
+  }, [t]);
 
   useEffect(() => {
     async function init() {
@@ -171,7 +171,7 @@ export default function SecretsPage() {
       }
     }
     void init();
-  }, [address, isSessionAuthenticated, t]);
+  }, [address, getErrorMessage, isSessionAuthenticated, t]);
 
   const handleCreateSecret = async () => {
     if (!address || !isSessionAuthenticated) {
