@@ -17,7 +17,17 @@ from src.storage.base import AdminStore
 
 
 MENU_CONFIG_KEY = "admin_menu_config"
-DEFAULT_MENU_MIGRATION_ITEM_IDS = {"review-history"}
+DEFAULT_MENU_MIGRATION_ITEM_IDS = {
+    "analytics",
+    "dashboard-analytics",
+    "analytics-consumer-funnel",
+    "analytics-invocation-revenue",
+    "analytics-provider-revenue",
+    "analytics-money-flow",
+    "analytics-risk-health",
+    "analytics-data-quality",
+    "review-history",
+}
 DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}
 

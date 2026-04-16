@@ -65,7 +65,7 @@ type ResolveExpandedNavigationIdsOptions = {
   query: string;
 };
 
-const defaultExpandedNavigationIds = ["control-overview"];
+const defaultExpandedNavigationIds = ["control-overview", "dashboard", "analytics"];
 
 function mergeLookup(item: NavItem): NavItem {
   return {

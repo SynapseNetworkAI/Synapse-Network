@@ -353,6 +353,8 @@ describe("navigation tree helpers", () => {
     });
 
     expect(expandedIds).toContain("control-overview");
+    expect(expandedIds).toContain("dashboard");
+    expect(expandedIds).toContain("analytics");
   });
 
   it("keeps search-driven ancestors expanded even if they were manually collapsed", () => {

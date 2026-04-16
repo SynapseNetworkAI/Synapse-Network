@@ -4,4 +4,5 @@ out
 coverage
 .DS_Store
 .env.local
+package-lock.json
 .yarn/install-state.gz

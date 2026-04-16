@@ -13,12 +13,12 @@ Local execution mirror for `services/admin-front/`.
 
 | Command | Purpose | When to Run |
 | --- | --- | --- |
-| `npm run dev` | Start Next.js dev server with HMR. | During active coding and iteration. |
-| `npm run lint` | Run lint checks. | After meaningful modifications. |
-| `npm run test` | Execute the test suite. | After meaningful modifications. |
-| `npm run build` | Production build and type check. | Only when the task explicitly needs final build validation. |
+| `yarn dev` | Start Next.js dev server with HMR on port 4000. | During active coding and iteration. |
+| `yarn lint` | Run lint checks. | After meaningful modifications. |
+| `yarn test` | Execute the test suite. | After meaningful modifications. |
+| `yarn build` | Production build and type check. | Only when the task explicitly needs final build validation. |
 
-Always use `npm run dev` while iterating. Do not keep the dev server running while executing `npm run build`.
+Always use `yarn dev` while iterating. Do not keep the dev server running while executing `yarn build`.
 
 ## Product and Docs Alignment
 

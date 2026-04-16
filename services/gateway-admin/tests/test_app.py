@@ -969,23 +969,37 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
     assert second_page["totalPages"] == 2
 
 
-def test_menu_config_snapshot_auto_adds_review_history_seed_item() -> None:
+def test_menu_config_snapshot_auto_adds_new_seed_menu_items() -> None:
     _login_as("super@synapse.network")
     store = deps.get_store()
     snapshot = store.config.get_menu_config("admin_menu_config")
     assert snapshot is not None
 
+    migrated_item_ids = {
+        "analytics",
+        "dashboard-analytics",
+        "analytics-consumer-funnel",
+        "analytics-invocation-revenue",
+        "analytics-provider-revenue",
+        "analytics-money-flow",
+        "analytics-risk-health",
+        "analytics-data-quality",
+        "review-history",
+    }
     trimmed_snapshot = replace(
         snapshot,
-        draft_items=tuple(item for item in snapshot.draft_items if item.item_id != "review-history"),
-        published_items=tuple(item for item in snapshot.published_items if item.item_id != "review-history"),
+        draft_items=tuple(item for item in snapshot.draft_items if item.item_id not in migrated_item_ids),
+        published_items=tuple(item for item in snapshot.published_items if item.item_id not in migrated_item_ids),
     )
     store.config.save_menu_config(trimmed_snapshot)
 
     visible_response = client.get("/api/admin/v1/config/menu-items/visible")
     assert visible_response.status_code == 200
     visible_ids = {item["itemId"] for item in visible_response.json()["data"]["items"]}
-    assert "review-history" in visible_ids
+    assert migrated_item_ids.issubset(visible_ids)
+    analytics_item = next(item for item in visible_response.json()["data"]["items"] if item["itemId"] == "analytics")
+    assert analytics_item["parentItemId"] == "dashboard"
+    assert analytics_item["nodeType"] == "category"
 
 
 def test_provider_withdraw_review_decision_requires_permission() -> None:

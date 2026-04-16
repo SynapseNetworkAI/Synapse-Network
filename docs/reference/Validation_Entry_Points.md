@@ -43,10 +43,10 @@ Working directory: `apps/frontend/`
 
 Working directory: `admin/admin-front/`
 
-1. `npm run dev` for active iteration
-2. `npm run lint`
-3. `npm run test`
-4. `npm run build` only when the task explicitly needs final build confirmation
+1. `yarn dev` for active iteration on `http://localhost:4000`
+2. `yarn lint`
+3. `yarn test`
+4. `yarn build` only when the task explicitly needs final build confirmation
 5. `npm run ci:admin-front` from repository root when repo-standard gating is needed
 
 ### 3.3 admin/gateway-admin
