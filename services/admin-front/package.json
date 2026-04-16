@@ -2,6 +2,7 @@
   "name": "admin-front",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "yarn@1.22.22",
   "scripts": {
     "dev": "next dev -p 4000",
     "build": "next build",

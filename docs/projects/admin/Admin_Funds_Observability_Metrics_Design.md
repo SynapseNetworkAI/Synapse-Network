@@ -830,6 +830,6 @@
 
 前端层：
 
-1. `npm run lint`
-2. `npm run test`
-3. `npm run build`
+1. `yarn lint`
+2. `yarn test`
+3. `yarn build`

@@ -30,6 +30,19 @@ Analytics 入口位于 `控制总览 > 控制台 > Analytics`，当前拆成 `/d
 
 本地开发默认通过 Next.js 同源代理访问 `/api/admin/*`，再由 `admin-front` 转发到 `http://localhost:8300`。
 
+本地启动与验证统一使用 Yarn：
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network/services/admin-front
+yarn install
+yarn dev
+yarn lint
+yarn test
+yarn build
+```
+
+`yarn dev` 默认监听 `http://localhost:4000`。不要在 `services/admin-front` 下执行 `npm install` 或重新生成 `package-lock.json`；仓库级 `npm run ci:admin-front` 仍可作为聚合门禁入口，内部会调用 Yarn。
+
 可选环境变量：
 
 1. `ADMIN_API_PROXY_TARGET`: 修改代理目标地址。

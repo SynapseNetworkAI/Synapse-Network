@@ -20,14 +20,16 @@
 2. Test behavior, not implementation details.
 3. After significant modifications, run lint and test.
 4. Avoid running production build while the dev server is active.
+5. Use Yarn for all `admin-front` local commands; do not regenerate `package-lock.json`.
 
 Useful commands:
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/admin-front
-npm run dev
-npm run lint
-npm run test
+cd /Users/cliff/workspace/agent/Synapse-Network/services/admin-front
+yarn dev
+yarn lint
+yarn test
+yarn build
 ```
 
 ## Documentation Alignment
