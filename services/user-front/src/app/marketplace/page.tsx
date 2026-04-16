@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
 import Link from "next/link";
-import { ArrowRight, ExternalLink, Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { ArrowRight, Search, ShieldCheck, WalletCards, Zap } from "lucide-react";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ServiceRegistryFeed from "@/components/ServiceRegistryFeed";
@@ -56,7 +54,6 @@ function selectMostRecentService(rows: ServiceRegistryRecord[]): ServiceRegistry
 
 export default function MarketplacePage() {
   const REGISTRY_POLL_MS = 12000;
-  const router = useRouter();
   const { t } = useLanguage();
   const [services, setServices] = useState<ServiceRegistryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -180,83 +177,120 @@ export default function MarketplacePage() {
   });
 
   const activeCount = services.filter((service) => service.isActive !== false).length;
-  const runtimeReadyCount = services.filter((service) => service.runtimeAvailable !== false).length;
+  const runtimeReadyCount = services.filter((service) => service.isActive !== false && service.runtimeAvailable !== false).length;
   const showingAllServices = activeOnly === false;
-  const commandParts = ["status=active"];
-
-  if (showingAllServices) {
-    commandParts[0] = "status=all";
-  }
-  if (selectedTag !== "all") {
-    commandParts.push(`tag=${encodeURIComponent(selectedTag)}`);
-  }
-  if (normalizedQuery) {
-    commandParts.push(`q=${encodeURIComponent(normalizedQuery)}`);
-  }
-  const registryFeedHref = `/marketplace/registry.json?${commandParts.join("&")}`;
 
   const feedLabels = {
     loading: t("marketplacePage.loading"),
     empty: t("marketplacePage.emptyBody"),
-    serviceId: t("marketplacePage.serviceIdLabel"),
-    endpoint: t("marketplacePage.endpointLabel"),
     pricing: t("marketplacePage.pricingLabel"),
-    role: t("marketplacePage.roleLabel"),
-    runtime: t("marketplacePage.runtimeLabel"),
-    auth: t("marketplacePage.authLabel"),
     updated: t("marketplacePage.updatedLabel"),
-    method: t("marketplacePage.methodLabel"),
     noSummary: t("marketplacePage.noSummary"),
-    runtimeReady: t("marketplacePage.runtimeReady"),
-    runtimePending: t("marketplacePage.runtimePending"),
-    copyServiceId: t("marketplacePage.copyServiceId"),
-    copyEndpoint: t("marketplacePage.copyEndpoint"),
+    unnamedService: t("marketplacePage.unnamedService"),
+    statusReady: t("marketplacePage.statusReady"),
+    statusUnavailable: t("marketplacePage.statusUnavailable"),
+    usagePerCall: t("marketplacePage.usagePerCall"),
+    usagePerSuccess: t("marketplacePage.usagePerSuccess"),
+    serviceAction: t("marketplacePage.serviceAction"),
+    unavailableAction: t("marketplacePage.unavailableAction"),
     updatedUnavailable: t("marketplacePage.updatedUnavailable"),
   };
 
-  const handleCopy = async (value: string, successMessage: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(successMessage);
-    } catch {
-      toast.error(t("marketplacePage.copyFailed"));
-    }
-  };
+  const valueProps = [
+    {
+      icon: Zap,
+      title: t("marketplacePage.valueOneTitle"),
+      body: t("marketplacePage.valueOneBody"),
+    },
+    {
+      icon: WalletCards,
+      title: t("marketplacePage.valueTwoTitle"),
+      body: t("marketplacePage.valueTwoBody"),
+    },
+    {
+      icon: ShieldCheck,
+      title: t("marketplacePage.valueThreeTitle"),
+      body: t("marketplacePage.valueThreeBody"),
+    },
+  ];
 
   return (
     <div className="relative overflow-hidden bg-[#050505] text-white selection:bg-white selection:text-black">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(127,247,190,0.1),transparent_20%),radial-gradient(circle_at_80%_18%,rgba(255,255,255,0.06),transparent_22%),linear-gradient(180deg,#040404_0%,#050505_56%,#090909_100%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:120px_120px] [mask-image:radial-gradient(circle_at_center,black,transparent_84%)]" />
 
-      <main className="relative mx-auto max-w-7xl px-6 pb-24 pt-16 sm:pt-20">
-        <section className="mx-auto max-w-5xl text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#7ff7be]">
-            {t("marketplacePage.eyebrow")}
-          </p>
-          <h1 className="mt-4 text-5xl font-[820] tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl">
-            {t("marketplacePage.title")}
-          </h1>
-          <p className="mx-auto mt-6 max-w-3xl text-base leading-8 text-[#9a9aa2] sm:text-lg">
-            {t("marketplacePage.description")}
-          </p>
+      <main className="relative mx-auto max-w-7xl px-6 pb-24 pt-14 sm:pt-20">
+        <section className="grid gap-10 py-8 lg:grid-cols-[minmax(0,1.02fr)_minmax(22rem,0.78fr)] lg:items-center lg:py-14">
+          <div className="max-w-3xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#7ff7be]">
+              {t("marketplacePage.eyebrow")}
+            </p>
+            <h1 className="mt-4 text-5xl font-[820] tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl">
+              {t("marketplacePage.title")}
+            </h1>
+            <p className="mt-6 max-w-2xl text-base leading-8 text-[#b6b6bd] sm:text-lg">
+              {t("marketplacePage.description")}
+            </p>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.03] px-5 py-4 text-left shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/34">{t("marketplacePage.totalServices")}</p>
-              <p className="mt-3 text-3xl font-[760] tracking-[-0.05em] text-white">{services.length}</p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="#marketplace-services"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#7ff7be] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#6ae5ac]"
+              >
+                {t("marketplacePage.primaryCta")}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/provider/console"
+                className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
+              >
+                {t("marketplacePage.providerCta")}
+              </Link>
             </div>
-            <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.03] px-5 py-4 text-left shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/34">{t("marketplacePage.activeServices")}</p>
-              <p className="mt-3 text-3xl font-[760] tracking-[-0.05em] text-white">{activeCount}</p>
+
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{t("marketplacePage.totalServices")}</p>
+                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">{services.length}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{t("marketplacePage.activeServices")}</p>
+                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">{activeCount}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{t("marketplacePage.runtimeReadyCount")}</p>
+                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">{runtimeReadyCount}</p>
+              </div>
             </div>
-            <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.03] px-5 py-4 text-left shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/34">{t("marketplacePage.runtimeReadyCount")}</p>
-              <p className="mt-3 text-3xl font-[760] tracking-[-0.05em] text-white">{runtimeReadyCount}</p>
+          </div>
+
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.035] p-6 shadow-[0_36px_120px_rgba(0,0,0,0.24)]">
+            <div className="absolute inset-x-6 top-8 h-px bg-gradient-to-r from-transparent via-[#7ff7be]/50 to-transparent" />
+            <div className="space-y-5 pt-6">
+              {valueProps.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.title} className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-4">
+                    <div className="relative">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full border border-[#7ff7be]/18 bg-[#7ff7be]/[0.08] text-[#9af4c8]">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      {index < valueProps.length - 1 ? (
+                        <span className="absolute left-5 top-12 h-12 w-px bg-white/10" />
+                      ) : null}
+                    </div>
+                    <div className="pb-3">
+                      <h2 className="text-lg font-[720] tracking-[-0.03em] text-white">{item.title}</h2>
+                      <p className="mt-2 text-sm leading-6 text-[#9f9fa7]">{item.body}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
 
-        <section className="mt-16 overflow-hidden rounded-[2.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.018))] shadow-[0_36px_120px_rgba(0,0,0,0.24)]">
+        <section id="marketplace-services" className="mt-10 overflow-hidden rounded-[2.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.018))] shadow-[0_36px_120px_rgba(0,0,0,0.24)]">
           <div className="border-b border-white/8 px-6 py-6 sm:px-8">
             <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
               <div className="max-w-3xl">
@@ -291,24 +325,6 @@ export default function MarketplacePage() {
                   ].join(" ")}
                 >
                   {t("marketplacePage.allServicesFilter")}
-                </button>
-                <Link
-                  href={registryFeedHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70 transition hover:border-white/24 hover:bg-white/[0.08] hover:text-white"
-                >
-                  {t("marketplacePage.jsonFeed")}
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleCopy(registryFeedHref, t("marketplacePage.feedUrlCopied"));
-                  }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70 transition hover:border-white/24 hover:bg-white/[0.08] hover:text-white"
-                >
-                  {t("marketplacePage.copyFeedUrl")}
                 </button>
               </div>
             </div>
@@ -363,40 +379,34 @@ export default function MarketplacePage() {
               services={filteredServices}
               isLoading={isLoading}
               labels={feedLabels}
-              variant="full"
               highlightedServiceId={highlightedServiceId}
               highlightToken={highlightToken}
               highlightLabel={t("marketplacePage.justUpdated")}
-              onCopyServiceId={(serviceId) => {
-                void handleCopy(serviceId, t("marketplacePage.copyServiceIdSuccess"));
-              }}
-              onCopyEndpoint={(endpoint) => {
-                void handleCopy(endpoint, t("marketplacePage.copyEndpointSuccess"));
-              }}
             />
           </div>
         </section>
 
-        <section className="mt-16 rounded-[2rem] border border-white/10 bg-white/[0.03] px-6 py-10 text-center shadow-[0_30px_120px_rgba(0,0,0,0.26)] sm:px-10">
-          <p className="mx-auto max-w-4xl text-xl font-medium leading-9 text-[#d2d2d7] md:text-2xl">
+        <section className="mt-16 px-2 py-10 text-center sm:px-10">
+          <p className="mx-auto max-w-3xl text-2xl font-[760] leading-tight tracking-[-0.04em] text-white md:text-4xl">
             {t("marketplacePage.closingLine")}
           </p>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-[#9f9fa7] md:text-base">
+            {t("marketplacePage.closingBody")}
+          </p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/discovery")}
+            <Link
+              href="/dashboard/discovery"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-[#7ff7be] px-6 py-3 text-sm font-semibold text-black transition hover:bg-[#6ae5ac]"
             >
               {t("marketplacePage.discoveryCta")}
               <ArrowRight className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/provider/console")}
+            </Link>
+            <Link
+              href="/provider/console"
               className="inline-flex items-center justify-center rounded-full border border-white/16 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/[0.05]"
             >
               {t("marketplacePage.providerCta")}
-            </button>
+            </Link>
           </div>
         </section>
       </main>

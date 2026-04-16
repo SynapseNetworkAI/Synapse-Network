@@ -1,0 +1,83 @@
+// @vitest-environment jsdom
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createElement, type AnchorHTMLAttributes, type ReactNode } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
+
+import MarketplacePage from "@/app/marketplace/page";
+import { LanguageProvider } from "@/components/i18n/LanguageProvider";
+import { I18N_STORAGE_KEY } from "@/i18n/config";
+import type { ServiceRegistryRecord } from "@/utils/serviceApi";
+
+const { discoverServicesMock } = vi.hoisted(() => ({
+  discoverServicesMock: vi.fn(),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { children: ReactNode; href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
+vi.mock("@/utils/serviceApi", async () => {
+  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>("@/utils/serviceApi");
+  return {
+    ...actual,
+    discoverServices: discoverServicesMock,
+  };
+});
+
+function buildService(overrides: Partial<ServiceRegistryRecord> = {}): ServiceRegistryRecord {
+  return {
+    id: "svc-ocr",
+    name: "Invoice OCR",
+    serviceName: "Invoice OCR",
+    role: "provider",
+    ownerAddress: "0xabc",
+    address: "0xabc",
+    serviceId: "invoice-ocr-v1",
+    pricing: { currency: "USDC", amount: "0.08" },
+    endpoint: "https://provider.example/invoke",
+    isActive: true,
+    status: "active",
+    runtimeAvailable: true,
+    summary: "Extract line items and totals from invoices for autonomous finance workflows.",
+    tags: ["finance", "ocr"],
+    metering: { billingUnit: "per_call", billOnError: false, billableStatusClasses: [2] },
+    createdAt: "2026-03-21T00:00:00.000Z",
+    updatedAt: "2026-03-22T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("MarketplacePage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
+  });
+
+  it("renders a user-facing product marketplace without debug feed copy", async () => {
+    discoverServicesMock.mockResolvedValue([buildService()]);
+
+    render(createElement(LanguageProvider, null, createElement(MarketplacePage)));
+
+    expect(await screen.findByText("Invoice OCR")).toBeTruthy();
+    expect(screen.getByText("Agent API Marketplace")).toBeTruthy();
+    expect(screen.getByText("Ready to call")).toBeTruthy();
+    expect(screen.getByText("0.08 USDC")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Use this service/i }).getAttribute("href")).toBe("/dashboard/discovery");
+
+    await waitFor(() => {
+      expect(discoverServicesMock).toHaveBeenCalled();
+    });
+
+    const visibleCopy = document.body.textContent || "";
+    expect(visibleCopy).not.toMatch(/machine-readable|json feed|copy feed|copy endpoint|endpoint|serviceId|auth|method/i);
+  });
+});
