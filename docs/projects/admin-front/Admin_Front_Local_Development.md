@@ -20,9 +20,11 @@ admin/admin-front/
 当前后台前端已经包含以下关键能力：
 
 1. 管理员登录与 MFA enrollment / step-up。
-2. Dashboard、审批、用户、角色权限、菜单配置、审计、执行、资金、提现审核、风控、系统页。
+2. Dashboard、Analytics 多页面观测、审批、用户、角色权限、菜单配置、审计、执行、资金、提现审核、风控、系统页。
 3. 基于 `gateway-admin` 可见菜单接口的服务端导航裁剪。
 4. 基于 `HttpOnly` session cookie + 内存态 `csrfToken` 的后台会话模型。
+
+Analytics 入口位于 `控制总览 > 控制台 > Analytics`，当前拆成 `/dashboard/analytics` 总览页和 `consumer-funnel`、`invocation-revenue`、`provider-revenue`、`money-flow`、`risk-health`、`data-quality` 六个专题页。所有页面保持只读，数据来自 `gateway-admin` 的 `/api/admin/v1/dashboard/analytics/*` 聚合接口。
 
 ## 本地联调说明
 

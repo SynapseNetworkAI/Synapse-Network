@@ -2,6 +2,7 @@ import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import type {
   AnalyticsConsumerFunnel,
   AnalyticsDataQuality,
+  AnalyticsDistributionItem,
   AnalyticsInvocationRevenue,
   AnalyticsMetricCard,
   AnalyticsMoneyFlow,
@@ -35,6 +36,23 @@ export type AnalyticsSignalCard = {
   value: string;
   detail: string;
   tone: AnalyticsTone;
+};
+
+export type AnalyticsFunnelSummaryCard = AnalyticsSignalCard;
+
+export type AnalyticsDistributionPresenterItem = {
+  key: string;
+  label: string;
+  count: string;
+  value: string;
+  rate: string;
+};
+
+export type AnalyticsSchemaIssueRow = {
+  key: string;
+  eventName: string;
+  issue: string;
+  count: string;
 };
 
 function clampTone(tone: string | null | undefined): AnalyticsTone {
@@ -101,6 +119,39 @@ export function buildConsumerFunnelSteps(funnel: AnalyticsConsumerFunnel | null)
   });
 }
 
+export function buildConsumerFunnelSummaryCards(funnel: AnalyticsConsumerFunnel | null): AnalyticsFunnelSummaryCard[] {
+  return [
+    {
+      key: "activation-rate",
+      label: "Activation Rate",
+      value: formatRate(funnel?.summary.activationRate),
+      detail: "invoke_completed users / page_viewed users.",
+      tone: (funnel?.summary.activationRate ?? 0) >= 0.25 ? "green" : (funnel?.summary.activationRate ?? 0) >= 0.1 ? "orange" : "red",
+    },
+    {
+      key: "first-invoke-users",
+      label: "First Invoke Users",
+      value: formatCount(funnel?.summary.firstInvokeUsers),
+      detail: "Users with is_first_invoke in invoke_completed.",
+      tone: (funnel?.summary.firstInvokeUsers ?? 0) > 0 ? "green" : "gray",
+    },
+    {
+      key: "quote-to-invoke",
+      label: "Quote To Invoke",
+      value: formatRate(funnel?.summary.quoteToInvokeRate),
+      detail: "invoke_completed users / quote_generated users.",
+      tone: (funnel?.summary.quoteToInvokeRate ?? 0) >= 0.6 ? "green" : (funnel?.summary.quoteToInvokeRate ?? 0) >= 0.35 ? "orange" : "red",
+    },
+    {
+      key: "deposit-to-first-invoke",
+      label: "Deposit To First Invoke",
+      value: formatRate(funnel?.summary.depositToFirstInvokeRate),
+      detail: "first invoke users / deposit_completed users.",
+      tone: (funnel?.summary.depositToFirstInvokeRate ?? 0) >= 0.5 ? "green" : (funnel?.summary.depositToFirstInvokeRate ?? 0) >= 0.25 ? "orange" : "red",
+    },
+  ];
+}
+
 export function buildInvocationSignalCards(invocation: AnalyticsInvocationRevenue | null): AnalyticsSignalCard[] {
   return [
     {
@@ -122,6 +173,39 @@ export function buildInvocationSignalCards(invocation: AnalyticsInvocationRevenu
       label: "GMV",
       value: `${formatUsdc(invocation?.gmvUsdc ?? 0)} USDC`,
       detail: `Average price ${formatUsdc(invocation?.priceAvgUsdc ?? 0)} USDC`,
+      tone: "green",
+    },
+  ];
+}
+
+export function buildInvocationVolumeCards(invocation: AnalyticsInvocationRevenue | null): AnalyticsSignalCard[] {
+  return [
+    {
+      key: "quotes",
+      label: "Quotes",
+      value: formatCount(invocation?.quoteCount),
+      detail: "quote_generated events.",
+      tone: (invocation?.quoteCount ?? 0) > 0 ? "green" : "gray",
+    },
+    {
+      key: "started",
+      label: "Started",
+      value: formatCount(invocation?.invokeStartedCount),
+      detail: "invoke_started events accepted by Gateway.",
+      tone: (invocation?.invokeStartedCount ?? 0) > 0 ? "green" : "gray",
+    },
+    {
+      key: "failed",
+      label: "Failed",
+      value: formatCount(invocation?.invokeFailedCount),
+      detail: "invoke_failed events across all stages.",
+      tone: (invocation?.invokeFailedCount ?? 0) > 0 ? "orange" : "green",
+    },
+    {
+      key: "platform-fee",
+      label: "Platform Fee",
+      value: `${formatUsdc(invocation?.platformFeeUsdc ?? 0)} USDC`,
+      detail: "platform_fee_usdc from invocation revenue.",
       tone: "green",
     },
   ];
@@ -153,6 +237,32 @@ export function buildProviderSignalCards(provider: AnalyticsProviderRevenue | nu
   ];
 }
 
+export function buildProviderSettlementCards(provider: AnalyticsProviderRevenue | null): AnalyticsSignalCard[] {
+  return [
+    {
+      key: "gross",
+      label: "Provider Gross",
+      value: `${formatUsdc(provider?.providerGrossUsdc ?? 0)} USDC`,
+      detail: "gross_usdc from provider_revenue_received.",
+      tone: "green",
+    },
+    {
+      key: "completed-settlement",
+      label: "Settlement Completed",
+      value: `${formatUsdc(provider?.settlementCompletedUsdc ?? 0)} USDC`,
+      detail: `Pending ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
+      tone: (provider?.pendingSettlementUsdc ?? 0) > 0 ? "orange" : "green",
+    },
+    {
+      key: "first-revenue",
+      label: "First Revenue",
+      value: formatCount(provider?.firstRevenueProviderCount),
+      detail: `Average time since listing ${formatDurationMs(provider?.avgTimeSinceListingMs)}`,
+      tone: (provider?.firstRevenueProviderCount ?? 0) > 0 ? "green" : "gray",
+    },
+  ];
+}
+
 export function buildMoneyFlowSignalCards(money: AnalyticsMoneyFlow | null): AnalyticsSignalCard[] {
   return [
     {
@@ -179,6 +289,32 @@ export function buildMoneyFlowSignalCards(money: AnalyticsMoneyFlow | null): Ana
   ];
 }
 
+export function buildMoneyFlowContextCards(money: AnalyticsMoneyFlow | null): AnalyticsSignalCard[] {
+  return [
+    {
+      key: "refund",
+      label: "Refund",
+      value: `${formatUsdc(money?.refundUsdc ?? 0)} USDC`,
+      detail: "refund_completed amount in the selected window.",
+      tone: (money?.refundUsdc ?? 0) > 0 ? "orange" : "green",
+    },
+    {
+      key: "confirm-p95",
+      label: "Confirm P95",
+      value: formatDurationMs(money?.confirmLatencyMs.p95),
+      detail: `P50 ${formatDurationMs(money?.confirmLatencyMs.p50)}`,
+      tone: (money?.confirmLatencyMs.p95 ?? 0) > 180000 ? "orange" : "green",
+    },
+    {
+      key: "pending-deposits",
+      label: "Pending Deposits",
+      value: formatCount(money?.financeContext.pendingDepositCount),
+      detail: `${formatCount(money?.financeContext.pendingWithdrawalCount)} pending withdrawals`,
+      tone: (money?.financeContext.pendingDepositCount ?? 0) + (money?.financeContext.pendingWithdrawalCount ?? 0) > 0 ? "orange" : "green",
+    },
+  ];
+}
+
 export function buildRiskSignalCards(risk: AnalyticsRiskHealth | null): AnalyticsSignalCard[] {
   return [
     {
@@ -201,6 +337,32 @@ export function buildRiskSignalCards(risk: AnalyticsRiskHealth | null): Analytic
       value: `${formatUsdc(risk?.budgetGapUsdc ?? 0)} USDC`,
       detail: "required_usdc - available_usdc from budget_blocked.",
       tone: (risk?.budgetGapUsdc ?? 0) > 0 ? "orange" : "green",
+    },
+  ];
+}
+
+export function buildRiskContextCards(risk: AnalyticsRiskHealth | null): AnalyticsSignalCard[] {
+  return [
+    {
+      key: "surfaces",
+      label: "Risk Surfaces",
+      value: formatCount(risk?.surfaces.length),
+      detail: "Distinct surfaces from risk_rule_triggered.",
+      tone: (risk?.surfaces.length ?? 0) > 0 ? "orange" : "green",
+    },
+    {
+      key: "refund-reasons",
+      label: "Refund Reasons",
+      value: formatCount(risk?.refundReasons.length),
+      detail: "Reason distribution from refund_completed.",
+      tone: (risk?.refundReasons.length ?? 0) > 0 ? "orange" : "green",
+    },
+    {
+      key: "degraded-providers",
+      label: "Degraded Providers",
+      value: formatCount(risk?.degradedProviders.length),
+      detail: "Providers with provider_health_degraded events.",
+      tone: (risk?.degradedProviders.length ?? 0) > 0 ? "orange" : "green",
     },
   ];
 }
@@ -238,6 +400,51 @@ export function buildDataQualitySignalCards(dataQuality: AnalyticsDataQuality | 
       tone: (dataQuality?.fileBackendFallbackEvents ?? 0) > 0 ? "orange" : "green",
     },
   ];
+}
+
+export function buildDataQualityLagCards(dataQuality: AnalyticsDataQuality | null): AnalyticsSignalCard[] {
+  return [
+    {
+      key: "missing-required",
+      label: "Missing Required",
+      value: formatCount(dataQuality?.missingRequiredProperties),
+      detail: "Events missing required properties.",
+      tone: (dataQuality?.missingRequiredProperties ?? 0) > 0 ? "orange" : "green",
+    },
+    {
+      key: "xor-violations",
+      label: "XOR Violations",
+      value: formatCount(dataQuality?.xorViolations),
+      detail: "invoke_completed XOR invoke_failed final-state violations.",
+      tone: (dataQuality?.xorViolations ?? 0) > 0 ? "red" : "green",
+    },
+    {
+      key: "stream-lag",
+      label: "Stream Lag",
+      value: `${formatCount(dataQuality?.kafkaLag)} / ${formatCount(dataQuality?.clickhouseLag)}`,
+      detail: "Kafka lag / ClickHouse lag.",
+      tone: (dataQuality?.kafkaLag ?? 0) + (dataQuality?.clickhouseLag ?? 0) > 0 ? "orange" : "green",
+    },
+  ];
+}
+
+export function buildDistributionItems(items: AnalyticsDistributionItem[] | null | undefined): AnalyticsDistributionPresenterItem[] {
+  return (items ?? []).map((item) => ({
+    key: item.key,
+    label: item.label,
+    count: formatCount(item.count),
+    value: formatUsdc(item.value),
+    rate: item.rate === undefined ? "n/a" : formatRate(item.rate),
+  }));
+}
+
+export function buildDataQualitySchemaIssueRows(dataQuality: AnalyticsDataQuality | null): AnalyticsSchemaIssueRow[] {
+  return (dataQuality?.schemaIssueSamples ?? []).map((item) => ({
+    key: `${item.eventName}-${item.issue}`,
+    eventName: item.eventName,
+    issue: item.issue,
+    count: formatCount(item.count),
+  }));
 }
 
 export function summarizeSourceCoverage(dataQuality: AnalyticsDataQuality | null): string {

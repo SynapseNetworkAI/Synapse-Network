@@ -415,7 +415,8 @@ Dashboard 数据边界要求：
 - 左侧导航实际渲染优先读取 `gateway-admin` 已发布菜单配置，静态 `navigation.ts` 只作为 fallback 和默认种子
 - 菜单可见性基于当前管理员的 `role + permissions` 动态裁剪
 - `Toolbar + Table + Drawer` 已抽成前端共享 CRUD 基础组件，后续配置型页面不需要重复手写工作台骨架
-- 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
+- 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/dashboard/analytics`、`/dashboard/analytics/consumer-funnel`、`/dashboard/analytics/invocation-revenue`、`/dashboard/analytics/provider-revenue`、`/dashboard/analytics/money-flow`、`/dashboard/analytics/risk-health`、`/dashboard/analytics/data-quality`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
+- `控制总览 > 控制台 > Analytics` 是只读观测菜单组：总览页展示 North Star 指标和关键告警，六个专题页分别承载 Consumer 激活漏斗、调用与收入、Provider 收益、资金流、风控健康和埋点质量；前端只消费 `gateway-admin` 聚合接口，不直接查询 ClickHouse
 - `业务控制` 分组现在同时提供 `提现审核` 与 `审核历史`：前者处理待审核申请，后者回看已审批、已拒绝和已释放结果，避免 reviewer 只能依赖审计页做状态回溯
 - `审核历史` 页面支持详情抽屉，下钻展示风险 evidence、reviewer 备注和状态流转，帮助业务直接完成复核与回放
 - `审核历史` 默认按服务端查询执行：支持 reviewer、处理时间范围、状态、处理结论和关键字搜索，并返回分页 cursor，避免前端一次性拉全量历史记录

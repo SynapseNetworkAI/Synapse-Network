@@ -112,6 +112,75 @@ describe("buildAdminNavigation", () => {
     expect(navigation).toHaveLength(1);
     expect(navigation[0]?.id).toBe("other-modules");
   });
+
+  it("builds the Analytics category with all drilldown pages", () => {
+    const navigation = buildAdminNavigation([
+      createMenuItem({
+        itemId: "control-overview",
+        label: "控制总览",
+        href: null,
+        nodeType: "category",
+        iconKey: "CT",
+      }),
+      createMenuItem({
+        itemId: "dashboard",
+        parentItemId: "control-overview",
+        href: null,
+        nodeType: "category",
+      }),
+      createMenuItem({
+        itemId: "analytics",
+        label: "Analytics",
+        href: null,
+        description: "增长、收入、风控与埋点质量观测。",
+        parentItemId: "dashboard",
+        nodeType: "category",
+        iconKey: "AN",
+        sortOrder: 20,
+        keywords: ["analytics", "events", "clickhouse", "growth", "revenue", "risk", "quality"],
+      }),
+      createMenuItem({
+        itemId: "dashboard-analytics",
+        label: "Analytics 总览",
+        href: "/dashboard/analytics",
+        parentItemId: "analytics",
+        nodeType: "page",
+        iconKey: "A0",
+        sortOrder: 21,
+      }),
+      createMenuItem({
+        itemId: "analytics-consumer-funnel",
+        label: "Consumer 激活漏斗",
+        href: "/dashboard/analytics/consumer-funnel",
+        parentItemId: "analytics",
+        nodeType: "page",
+        iconKey: "AF",
+        sortOrder: 22,
+        keywords: ["analytics", "funnel", "growth"],
+      }),
+      createMenuItem({
+        itemId: "analytics-invocation-revenue",
+        label: "调用与收入",
+        href: "/dashboard/analytics/invocation-revenue",
+        parentItemId: "analytics",
+        nodeType: "page",
+        iconKey: "AI",
+        sortOrder: 23,
+        keywords: ["analytics", "revenue"],
+      }),
+    ]);
+
+    const analytics = navigation[0]?.children?.[0]?.children?.[0];
+    expect(analytics?.id).toBe("analytics");
+    expect(analytics?.path).toBeUndefined();
+    expect(analytics?.children?.map((item) => item.id)).toEqual([
+      "dashboard-analytics",
+      "analytics-consumer-funnel",
+      "analytics-invocation-revenue",
+    ]);
+    expect(findNavItemByPath(navigation, "/dashboard/analytics/consumer-funnel")?.id).toBe("analytics-consumer-funnel");
+    expect(filterNavigation(navigation, "invocation").expandedIds).toContain("analytics");
+  });
 });
 
 describe("getNavVisual", () => {
