@@ -337,7 +337,7 @@ function EndpointDetail({
     setLoading(true);
     setLiveResponse(null);
     try {
-      let url = `${gatewayUrl}${route.path}`;
+      let url = `${route.base === "frontend" ? "" : gatewayUrl}${route.path}`;
       (route.params ?? []).filter((p) => p.in === "path").forEach((p) => {
         url = url.replace(`:${p.name}`, paramValues[p.name] ?? `:${p.name}`);
       });

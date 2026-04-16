@@ -39,7 +39,7 @@ function getGroupsForRole(groups: RouteGroup[], role: "consumer" | "provider"): 
           return {
             ...g,
             description: "Discover available API services for agent invocation.",
-            routes: g.routes.filter((r) => r.id === "get-discover"),
+            routes: g.routes.filter((r) => ["get-discover", "get-marketplace-registry"].includes(r.id)),
           };
         }
         return g;

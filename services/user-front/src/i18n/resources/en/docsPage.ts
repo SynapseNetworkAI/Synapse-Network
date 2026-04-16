@@ -94,7 +94,7 @@ const docsPage: I18nMessages["docsPage"] = {
   ],
   overviewProductDescriptions: [
     "Core REST APIs for auth, routing, and settlement with sub-millisecond overhead.",
-    "Provider service registration, pricing, health checks, and public discovery APIs.",
+    "Provider service registration, pricing, health checks, plus a public paginated registry at /marketplace/registry.json.",
     "Per-agent access tokens with spend controls, revocation, and lifecycle management.",
     "Atomic offchain debits and split accounting with onchain USDC withdrawals.",
     "Onchain deposit event monitoring, confirmations, and idempotent intent handling.",
@@ -160,7 +160,7 @@ const docsPage: I18nMessages["docsPage"] = {
   consumerStepBodies: [
     "Synapse authenticates wallets with an EIP-191 challenge signature. No separate account is required: sign the challenge and receive a 24-hour JWT.",
     "Approve USDC onchain, deposit into SynapseCore, then notify the gateway to register the deposit intent so the credit becomes spendable immediately.",
-    "Use /services/discover with tags or keywords to find registered provider services and capture the target serviceId.",
+    "Start with /marketplace for human browsing or /marketplace/registry.json for an agent-readable list of callable registered services, then use /services/discover with tags or keywords to capture the target serviceId.",
     "Credentials are scoped access tokens with spend limits. Use the idempotent pattern: check for an existing active credential first, then issue one only if needed. Use agentToken as the bearer token — the gateway handles charging automatically.",
     "A single POST /api/v1/agent/invoke call covers discovery-to-settlement atomically. Pass the serviceId, payload, and the price you observed (costUsdc) to prevent price-mismatch surprises.",
     "After the invocation finishes, fetch balances and recent invocation receipts to confirm that the debit and settlement completed atomically.",
@@ -169,7 +169,7 @@ const docsPage: I18nMessages["docsPage"] = {
   consumerStepTips: [
     "With the TypeScript SDK, await client.auth.connectWallet(signer) performs challenge, sign, and verify automatically.",
     "Always send X-Idempotency-Key when registering a deposit intent. UUID v4 is the recommended default.",
-    "Once you have the serviceId and pricePerCallUsdc, you are ready to issue a scoped credential for your agent.",
+    "Marketplace registry is public and paginated for agents; /api/v1/services/discover is the runtime discovery surface before invocation.",
     "Daily Budget (creditLimit) resets according to resetInterval, while Max Calls is a lifetime cap that does not reset. The idempotent pattern: GET list?active_only=true first, then issue only if no match found.",
     "Always send idempotencyKey with invoke. If the network retries, the gateway returns the cached result instead of double-charging. Gateway returns 422 PRICE_MISMATCH if the live price changed — re-discover and retry.",
     "Use recent invocation receipts to verify chargedUsdc, final status, and settledAt before moving traffic into production.",
@@ -656,9 +656,13 @@ const docsPage: I18nMessages["docsPage"] = {
     "✓ Deposit complete, balance credited",
   ],
   consumerCodeDiscover: [
-    "Discover available services (filter by tag or name)",
-    "Response example",
-    "Found service: , price per call:  USDC",
+    "Human browsing entrypoint: /marketplace",
+    "Agent-readable callable registry (public, paginated)",
+    "Runtime discovery endpoint before invoke",
+    "Discovery response example",
+    "Pick the serviceId and price observed during discovery",
+    "Found service:",
+    "Price per call:",
   ],
   consumerCodeCredential: [
     "Idempotent pattern: check for active credential first, use if found, create only if not",
@@ -678,6 +682,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Use agentToken, NOT the owner JWT",
     "Price you observed in discovery — prevents unexpected charges if price changed",
     "Gateway returns 422 PRICE_MISMATCH if live price changed — re-discover and retry",
+    "Use the serviceId selected from registry/discover",
   ],
   consumerCodeVerify: [
     "Query current account balance",

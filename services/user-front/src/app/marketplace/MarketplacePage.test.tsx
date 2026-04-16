@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, type AnchorHTMLAttributes, type ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import MarketplacePage from "@/app/marketplace/page";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
@@ -57,6 +58,10 @@ function buildService(overrides: Partial<ServiceRegistryRecord> = {}): ServiceRe
 }
 
 describe("MarketplacePage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
@@ -89,5 +94,55 @@ describe("MarketplacePage", () => {
 
     const visibleCopy = document.body.textContent || "";
     expect(visibleCopy).not.toMatch(/machine-readable|json feed|copy feed|copy endpoint|endpoint|serviceId|auth|method/i);
+  });
+
+  it("renders callable services as a paginated list and resets to page one after search", async () => {
+    const rows = Array.from({ length: 12 }, (_, index) => {
+      const itemNumber = index + 1;
+      return buildService({
+        id: `svc-${itemNumber}`,
+        serviceId: `callable-${itemNumber}`,
+        serviceName: `Callable OCR ${String(itemNumber).padStart(2, "0")}`,
+        name: `Callable OCR ${String(itemNumber).padStart(2, "0")}`,
+        summary: `Callable service ${itemNumber}`,
+        tags: itemNumber === 12 ? ["settlement"] : ["finance"],
+      });
+    });
+    discoverServicesMock.mockResolvedValue([
+      ...rows,
+      buildService({
+        id: "svc-inactive",
+        serviceId: "inactive-service",
+        serviceName: "Inactive OCR",
+        name: "Inactive OCR",
+        isActive: false,
+      }),
+      buildService({
+        id: "svc-unavailable",
+        serviceId: "unavailable-service",
+        serviceName: "Unavailable OCR",
+        name: "Unavailable OCR",
+        runtimeAvailable: false,
+      }),
+    ]);
+
+    render(createElement(LanguageProvider, null, createElement(MarketplacePage)));
+
+    expect(await screen.findByText("Callable OCR 01")).toBeTruthy();
+    expect(screen.getByText("Callable OCR 10")).toBeTruthy();
+    expect(screen.queryByText("Callable OCR 11")).toBeNull();
+    expect(screen.queryByText("Inactive OCR")).toBeNull();
+    expect(screen.queryByText("Unavailable OCR")).toBeNull();
+    expect(screen.getByText("Showing 1-10 of 12")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(await screen.findByText("Callable OCR 11")).toBeTruthy();
+    expect(screen.getByText("Callable OCR 12")).toBeTruthy();
+    expect(screen.queryByText("Callable OCR 01")).toBeNull();
+    expect(screen.getByText("Showing 11-12 of 12")).toBeTruthy();
+
+    await userEvent.type(screen.getByPlaceholderText("Search services, use cases, or tags..."), "12");
+    expect(await screen.findByText("Callable OCR 12")).toBeTruthy();
+    expect(screen.getByText("Showing 1-1 of 1")).toBeTruthy();
   });
 });

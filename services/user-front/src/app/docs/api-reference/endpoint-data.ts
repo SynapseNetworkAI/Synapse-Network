@@ -66,6 +66,7 @@ export interface RouteEndpoint {
   id: string;
   method: string;
   path: string;
+  base?: "gateway" | "frontend";
   summary: string;
   description: string;
   auth: "none" | "jwt" | "credential";
@@ -282,6 +283,53 @@ export const ROUTE_GROUPS: RouteGroup[] = [
           note: "First step for a consumer agent: scan the marketplace for available paid APIs. Filter by keyword to find relevant tools. Returns serviceId and priceUsdc needed for invoke.",
           outputs: [{ key: "serviceId", desc: "Service identifier — pass to POST /agent/invoke with costUsdc for a price-asserting single-call invoke" }],
           next: "Pick a serviceId + note priceUsdc, then call POST /agent/invoke with costUsdc",
+        },
+      },
+      {
+        id: "get-marketplace-registry",
+        method: "GET",
+        path: "/marketplace/registry.json",
+        base: "frontend",
+        summary: "Export callable marketplace services",
+        description: "Returns a paginated, machine-readable registry of services that are currently callable from the public marketplace. Use this when an agent needs to enumerate registered services before choosing a serviceId.",
+        auth: "none",
+        params: [
+          { name: "page", in: "query", required: false, type: "integer", description: "Page number, starting at 1", example: "1" },
+          { name: "pageSize", in: "query", required: false, type: "integer", description: "Results per page. Defaults to 10 and is capped at 100.", example: "10" },
+          { name: "q", in: "query", required: false, type: "string", description: "Free-text search over service names, summaries, endpoints, roles, and tags", example: "ocr" },
+          { name: "tag", in: "query", required: false, type: "string", description: "Filter by a service tag", example: "finance" },
+        ],
+        responseExample: {
+          status: "success",
+          query: { q: "ocr", tag: "finance", page: 1, pageSize: 10 },
+          pagination: {
+            page: 1,
+            pageSize: 10,
+            total: 1,
+            totalPages: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+          services: [
+            {
+              serviceId: "invoice-ocr-v1",
+              serviceName: "Invoice OCR",
+              summary: "Extract line items and totals from invoices.",
+              pricing: { currency: "USDC", amount: "0.08" },
+              runtimeAvailable: true,
+              tags: ["finance", "ocr"],
+            },
+          ],
+        },
+        agentMeta: {
+          role: "public",
+          phase: "discover",
+          note: "Public machine-readable marketplace feed. It only returns callable services, so agents can page through the registry before selecting a serviceId and invoking through the gateway.",
+          outputs: [
+            { key: "services[].serviceId", desc: "Callable service identifier to use with POST /api/v1/agent/invoke" },
+            { key: "pagination.hasNextPage", desc: "Whether the agent should request the next page" },
+          ],
+          next: "Choose a serviceId, issue or reuse an agent credential, then call POST /api/v1/agent/invoke.",
         },
       },
       {
@@ -525,7 +573,7 @@ export function buildCurl(
   paramValues: Record<string, string>,
   bodyText: string,
 ): string {
-  let url = `${gatewayUrl}${route.path}`;
+  let url = `${route.base === "frontend" ? "" : gatewayUrl}${route.path}`;
   (route.params ?? []).filter((p) => p.in === "path").forEach((p) => {
     url = url.replace(`:${p.name}`, paramValues[p.name] ?? `:${p.name}`);
   });

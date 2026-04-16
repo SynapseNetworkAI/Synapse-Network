@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Search, ShieldCheck, WalletCards, Zap } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Search, ShieldCheck, WalletCards, Zap } from "lucide-react";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ServiceRegistryFeed from "@/components/ServiceRegistryFeed";
+
+const MARKETPLACE_PAGE_SIZE = 10;
 
 function parseServiceTimestamp(value?: string | number): number {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -63,7 +65,7 @@ export default function MarketplacePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("all");
-  const [activeOnly, setActiveOnly] = useState(true);
+  const [page, setPage] = useState(1);
   const [highlightedServiceId, setHighlightedServiceId] = useState<string | null>(null);
   const [highlightToken, setHighlightToken] = useState(0);
   const previousServicesRef = useRef<Map<string, string>>(new Map());
@@ -141,6 +143,10 @@ export default function MarketplacePage() {
     };
   }, [processIncomingRows]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, selectedTag]);
+
   const availableTags = Array.from(
     new Set(
       services
@@ -152,10 +158,6 @@ export default function MarketplacePage() {
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredServices = services.filter((service) => {
-    if (activeOnly && service.isActive === false) {
-      return false;
-    }
-
     if (selectedTag !== "all" && !(service.tags || []).includes(selectedTag)) {
       return false;
     }
@@ -180,9 +182,16 @@ export default function MarketplacePage() {
     return haystack.includes(normalizedQuery);
   });
 
-  const activeCount = services.filter((service) => service.isActive !== false).length;
-  const runtimeReadyCount = services.filter((service) => service.isActive !== false && service.runtimeAvailable !== false).length;
-  const showingAllServices = activeOnly === false;
+  const activeCount = filteredServices.length;
+  const runtimeReadyCount = services.length;
+  const totalPages = Math.max(1, Math.ceil(filteredServices.length / MARKETPLACE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * MARKETPLACE_PAGE_SIZE;
+  const pageServices = filteredServices.slice(startIndex, startIndex + MARKETPLACE_PAGE_SIZE);
+  const pageStart = filteredServices.length === 0 ? 0 : startIndex + 1;
+  const pageEnd = Math.min(startIndex + pageServices.length, filteredServices.length);
+  const canGoPrevious = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
 
   const feedLabels = {
     loading: t("marketplacePage.loading"),
@@ -305,31 +314,8 @@ export default function MarketplacePage() {
                   {t("marketplacePage.registryBody")}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveOnly(true)}
-                  className={[
-                    "rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] transition",
-                    activeOnly
-                      ? "border-[#7ff7be]/20 bg-[#7ff7be]/[0.08] text-[#bdf9dc]"
-                      : "border-white/10 bg-white/[0.03] text-white/52 hover:border-white/20 hover:text-white",
-                  ].join(" ")}
-                >
-                  {t("marketplacePage.activeOnly")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveOnly(false)}
-                  className={[
-                    "rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] transition",
-                    showingAllServices
-                      ? "border-[#7ff7be]/20 bg-[#7ff7be]/[0.08] text-[#bdf9dc]"
-                      : "border-white/10 bg-white/[0.03] text-white/52 hover:border-white/20 hover:text-white",
-                  ].join(" ")}
-                >
-                  {t("marketplacePage.allServicesFilter")}
-                </button>
+              <div className="rounded-full border border-[#7ff7be]/20 bg-[#7ff7be]/[0.08] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#bdf9dc]">
+                {t("marketplacePage.activeOnly")}
               </div>
             </div>
           </div>
@@ -380,13 +366,58 @@ export default function MarketplacePage() {
 
           <div className="bg-[linear-gradient(180deg,rgba(5,5,5,0.82),rgba(10,10,10,0.9))]">
             <ServiceRegistryFeed
-              services={filteredServices}
+              services={pageServices}
               isLoading={isLoading}
               labels={feedLabels}
               highlightedServiceId={highlightedServiceId}
               highlightToken={highlightToken}
               highlightLabel={t("marketplacePage.justUpdated")}
             />
+            {!isLoading && filteredServices.length > 0 ? (
+              <div className="flex flex-col gap-4 border-t border-white/[0.08] px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <p className="text-sm text-[#8d8d95]">
+                  {t("marketplacePage.showingRange")
+                    .replace("{start}", String(pageStart))
+                    .replace("{end}", String(pageEnd))
+                    .replace("{total}", String(filteredServices.length))}
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={!canGoPrevious}
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
+                      canGoPrevious
+                        ? "border-white/14 text-white hover:border-white/28 hover:bg-white/[0.05]"
+                        : "cursor-not-allowed border-white/8 text-white/28",
+                    ].join(" ")}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    {t("marketplacePage.previousPage")}
+                  </button>
+                  <span className="hidden text-xs font-semibold uppercase tracking-[0.16em] text-white/38 sm:inline">
+                    {t("marketplacePage.pageIndicator")
+                      .replace("{page}", String(currentPage))
+                      .replace("{totalPages}", String(totalPages))}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!canGoNext}
+                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
+                      canGoNext
+                        ? "border-[#7ff7be]/22 bg-[#7ff7be]/[0.08] text-[#bdf9dc] hover:bg-[#7ff7be]/[0.13]"
+                        : "cursor-not-allowed border-white/8 text-white/28",
+                    ].join(" ")}
+                  >
+                    {t("marketplacePage.nextPage")}
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
 
