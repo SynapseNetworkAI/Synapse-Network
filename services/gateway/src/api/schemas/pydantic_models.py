@@ -250,7 +250,7 @@ class RefundIntentRequest(BaseModel):
 
 class ConsumerWithdrawRequest(BaseModel):
     """Withdraw unused consumer balance (unspent deposits) back to wallet."""
-    amountUsdc: float = Field(..., gt=0, description="Amount in USDC to withdraw, > 0")
+    amountUsdc: float = Field(..., description="Amount in USDC to withdraw, > 0")
     reason: Optional[str] = Field(default=None, max_length=256)
 
 

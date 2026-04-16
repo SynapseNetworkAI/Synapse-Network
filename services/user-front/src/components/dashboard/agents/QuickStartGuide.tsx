@@ -148,7 +148,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
       setDepositStep("input");
       toast.error(message);
     }
-  }, [userAddress, signTypedDataAsync, depositAmount, walletUsdcBalance, usdcNonce, writeContractAsync]);
+  }, [chainId, userAddress, signTypedDataAsync, depositAmount, walletUsdcBalance, usdcNonce, writeContractAsync]);
 
   React.useEffect(() => {
     if (isConfirmed && hash) {
