@@ -1,13 +1,16 @@
 # Gateway Admin Operations Runbook
 
-适用目录：`/Users/cliff/workspace/Synapse-Network/admin/gateway-admin`
+适用目录：`/Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin`
 
 目标：快速完成环境准备、启动、联调、常见故障排查与生产托管切换。
+
+`gateway-admin` 是 Python FastAPI 后端控制面 API，不是前端项目；不要用
+`yarn dev` 启动。后台 UI 位于 `services/admin-front`，才使用 `yarn dev`。
 
 ## 1. 目录规划
 
 ```text
-admin/gateway-admin/
+services/gateway-admin/
 ├── logs/
 │   └── gateway-admin.log
 ├── run/
@@ -37,7 +40,7 @@ admin/gateway-admin/
 ### 2.1 Python 环境
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -45,9 +48,9 @@ pip install -r requirements.txt
 
 ### 2.2 环境变量
 
-推荐在 `admin/gateway-admin/.env.local` 中维护本地或单机部署配置。
+推荐在 `services/gateway-admin/.env.local` 中维护本地或单机部署配置。
 
-共享测试网 / 演示环境建议使用 `admin/gateway-admin/.env.staging`。
+共享测试网 / 演示环境建议使用 `services/gateway-admin/.env.staging`。
 
 最小建议配置：
 
@@ -92,7 +95,7 @@ EXECUTION_WORKER_BATCH_SIZE=10
 
 本地提现审核、execution retry、以及其他 `gateway-admin -> gateway` 内部命令依赖一组内部 service token 配置。
 
-`admin/gateway-admin/.env.local` 必须确认：
+`services/gateway-admin/.env.local` 必须确认：
 
 ```bash
 GATEWAY_INTERNAL_BASE_URL=http://localhost:8000
@@ -115,8 +118,8 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 
 推荐对齐步骤：
 
-1. 先对齐 `admin/gateway-admin/.env.local` 的 `GATEWAY_INTERNAL_*`。
-2. 再对齐 `gateway/.env.local` 的钱包白名单和 JWT 验证配置。
+1. 先对齐 `services/gateway-admin/.env.local` 的 `GATEWAY_INTERNAL_*`。
+2. 再对齐 `services/gateway/.env.local` 的钱包白名单和 JWT 验证配置。
 3. 重启 `gateway`。
 4. 重启 `gateway-admin`。
 5. 分别检查 `http://127.0.0.1:8000/health` 和 `http://127.0.0.1:8300/health`。
@@ -132,7 +135,7 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 ### 2.5 初始化 bootstrap 管理员密码
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/set_bootstrap_password.py \
   --dsn 'postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin' \
   --email 'super@synapse.network' \
@@ -144,7 +147,7 @@ cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
 ### 2.6 重置未绑定 MFA 的联调测试管理员
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/reset_mfa_enrollment_test_admin.py \
   --dsn 'postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin'
 ```
@@ -158,7 +161,7 @@ cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
 如果只想删除测试管理员，不重新创建：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/reset_mfa_enrollment_test_admin.py \
   --dsn 'postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin' \
   --cleanup-only
@@ -168,30 +171,114 @@ cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
 
 ## 3. 运维脚本
 
-### 3.1 启动服务
+### 3.1 本地启动 local
+
+本地后端 API：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
-sh scripts/ops/start-local.sh
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+bash scripts/ops/start-local.sh
 ```
 
 脚本会自动读取 `.env.local`，后台启动 `uvicorn src.app:app`，并写入 `run/gateway-admin.pid`。
 
-### 3.2 生产启动服务
+如果需要前台启动并直接看日志：
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+
+set -a
+source .env.local
+set +a
+
+./.venv/bin/uvicorn src.app:app --host 0.0.0.0 --port 8300
+```
+
+本地后台 UI 单独启动：
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network/services/admin-front
+yarn dev
+```
+
+完整本地后台链路通常需要同时运行：
+
+```bash
+# Admin API
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+bash scripts/ops/start-local.sh
+
+# Admin UI
+cd /Users/cliff/workspace/agent/Synapse-Network/services/admin-front
+yarn dev
+```
 
 ### 3.2 Staging 启动服务
 
+第一次准备真实 staging env：
+
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 cp .env.staging.example .env.staging
-sh scripts/ops/start-staging.sh
+```
+
+确认并替换 `.env.staging` 中的真实配置：
+
+```text
+ADMIN_DATABASE_DSN
+GATEWAY_READONLY_DSN
+ANALYTICS_CLICKHOUSE_URL
+GATEWAY_INTERNAL_BASE_URL
+GATEWAY_INTERNAL_JWT_SECRET
+ADMIN_CSRF_SECRET
+```
+
+启动 staging：
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+bash scripts/ops/start-staging.sh
+```
+
+也可以显式指定 env 文件：
+
+```bash
+ADMIN_GATEWAY_ENV_FILE=/path/to/gateway-admin.staging.env \
+bash scripts/ops/start-staging.sh
+```
+
+重启 staging：
+
+```bash
+bash scripts/ops/restart.sh staging
 ```
 
 ### 3.3 生产启动服务
 
+生产环境不要直接使用 `.env.prod.example`。默认脚本会寻找：
+
+```text
+/etc/synapse/gateway-admin.env
+```
+
+启动 prod：
+
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
-ADMIN_GATEWAY_ENV_FILE=/etc/synapse/gateway-admin.env sh scripts/ops/start-prod.sh
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+bash scripts/ops/start-prod.sh
+```
+
+或显式指定生产 env：
+
+```bash
+ADMIN_GATEWAY_ENV_FILE=/etc/synapse/gateway-admin.env \
+bash scripts/ops/start-prod.sh
+```
+
+重启 prod：
+
+```bash
+bash scripts/ops/restart.sh prod
 ```
 
 模板文件见 [Gateway_Admin_Systemd_Deployment_Example.md](./Gateway_Admin_Systemd_Deployment_Example.md)。
@@ -199,32 +286,33 @@ ADMIN_GATEWAY_ENV_FILE=/etc/synapse/gateway-admin.env sh scripts/ops/start-prod.
 ### 3.4 停止与重启
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
-sh scripts/ops/stop.sh
-sh scripts/ops/restart.sh local
-sh scripts/ops/restart.sh staging
-sh scripts/ops/restart.sh prod
-sh scripts/ops/status.sh
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+bash scripts/ops/status.sh
+bash scripts/ops/stop.sh
+bash scripts/ops/restart.sh local
+bash scripts/ops/restart.sh staging
+bash scripts/ops/restart.sh prod
 ```
 
 ## 4. 日志与 PID
 
 默认路径：
 
-1. 日志文件：`admin/gateway-admin/logs/gateway-admin.log`
-2. PID 文件：`admin/gateway-admin/run/gateway-admin.pid`
+1. 日志文件：`services/gateway-admin/logs/gateway-admin.log`
+2. PID 文件：`services/gateway-admin/run/gateway-admin.pid`
 
 常用排查命令：
 
 ```bash
-tail -f /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/logs/gateway-admin.log
-cat /Users/cliff/workspace/Synapse-Network/admin/gateway-admin/run/gateway-admin.pid
+tail -f /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin/logs/gateway-admin.log
+cat /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin/run/gateway-admin.pid
 ```
 
 ## 5. 健康检查
 
 ```bash
 curl http://127.0.0.1:8300/health
+open http://localhost:4000/login
 ```
 
 ## 6. 菜单配置中心发布说明
@@ -261,32 +349,32 @@ curl http://127.0.0.1:8300/health
 ### 8.1 首次启动
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 cp .env.example .env.local
-sh scripts/ops/start-local.sh
-sh scripts/ops/status.sh
+bash scripts/ops/start-local.sh
+bash scripts/ops/status.sh
 ```
 
 如果旧的 PostgreSQL volume 缺表，尤其是 `admin_execution_jobs`、`admin_execution_attempts` 这类 execution worker 依赖表，请手动执行：
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 ADMIN_DATABASE_MIGRATION_DSN='postgresql://<schema-owner>@<host>:5432/synapse_gateway_admin' \
 ./.venv/bin/python scripts/apply_migrations.py
-sh scripts/ops/restart.sh local
+bash scripts/ops/restart.sh local
 ```
 
 ### 8.2 日常重启
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
-sh scripts/ops/restart.sh local
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+bash scripts/ops/restart.sh local
 tail -n 50 logs/gateway-admin.log
 ```
 
 ### 8.3 停服维护
 
 ```bash
-cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
-sh scripts/ops/stop.sh
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+bash scripts/ops/stop.sh
 ```
