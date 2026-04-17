@@ -18,6 +18,7 @@ from src.services.analytics.gateway_events import (
     emit_deposit_failed,
     emit_invoke_completed,
     emit_invoke_failed,
+    emit_invoke_started,
     emit_provider_revenue_received,
     emit_quote_generated,
     emit_refund_completed,
@@ -98,6 +99,26 @@ class TestEmitQuoteGenerated:
 
 
 class TestEmitInvokeCompleted:
+    async def test_emits_invoke_started(self, file_emitter, events_file):
+        set_emitter(file_emitter)
+        await emit_invoke_started(
+            "0xConsumer",
+            service_id="svc_2",
+            provider_address="0xProvider",
+            quote_id="q_2",
+            price_usdc=0.10,
+            correlation_id="corr_started",
+        )
+        events = _read_events(events_file)
+        assert len(events) == 1
+        e = events[0]
+        assert e["event_name"] == "invoke_started"
+        assert e["properties"]["service_id"] == "svc_2"
+        assert e["properties"]["provider_id"] == sha256_hash("0xProvider")
+        assert e["properties"]["quote_id"] == "q_2"
+        assert e["properties"]["price_usdc"] == 0.10
+        assert e["properties"]["correlation_id"] == "corr_started"
+
     async def test_emits_invoke_completed(self, file_emitter, events_file):
         set_emitter(file_emitter)
         await emit_invoke_completed(

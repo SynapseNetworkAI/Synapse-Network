@@ -226,10 +226,19 @@ def _raise_insufficient_vault_liquidity(_amount) -> None:
     raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
 
 
-def test_consumer_finance_deposit_flow_uses_typed_rows() -> None:
+def test_consumer_finance_deposit_flow_uses_typed_rows(monkeypatch) -> None:
     storage = FakeStorage()
     service = OwnerFinanceService(storage, DummyLockManager())
     _configure_owner_service(service)
+    emitted_deposits = []
+
+    async def fake_emit_deposit_completed(wallet_address, **kwargs):
+        emitted_deposits.append({"wallet": wallet_address, **kwargs})
+
+    monkeypatch.setattr(
+        "src.services.analytics.gateway_events.emit_deposit_completed",
+        fake_emit_deposit_completed,
+    )
 
     registered = asyncio.run(
         service.register_deposit_intent(
@@ -257,6 +266,13 @@ def test_consumer_finance_deposit_flow_uses_typed_rows() -> None:
     assert storage.audit.rows[-1].details["businessType"] == "deposit"
     assert storage.audit.rows[-1].details["resultStatus"] == "CONFIRMED"
     assert storage.audit.rows[-1].details["txHash"] == registered["txHash"]
+    assert emitted_deposits == [
+        {
+            "wallet": "0xabc",
+            "amount_usdc": 15.0,
+            "tx_hash": registered["txHash"],
+        }
+    ]
 
 
 def test_register_deposit_intent_replay_returns_existing_intent() -> None:

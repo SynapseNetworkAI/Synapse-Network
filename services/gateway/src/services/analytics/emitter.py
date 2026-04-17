@@ -141,7 +141,7 @@ class KafkaBackend(AnalyticsBackend):
                     acks="all",
                     compression_type="gzip",
                     linger_ms=50,
-                    batch_size=32768,
+                    max_batch_size=32768,
                 )
                 await self._producer.start()
                 logger.info(
