@@ -10,6 +10,7 @@ import {
   buildDistributionItems,
   buildInvocationSignalCards,
   buildMoneyFlowContextCards,
+  buildProviderSignalCards,
   buildProviderSettlementCards,
   summarizeSourceCoverage,
 } from "./analytics-presenters";
@@ -134,6 +135,21 @@ describe("analytics dashboard presenters", () => {
       settlementFunnel: [],
       topProviders: [],
     });
+    const providerSignalCards = buildProviderSignalCards({
+      window: "24h",
+      revenueProviderCount: 2,
+      firstRevenueProviderCount: 1,
+      avgTimeSinceListingMs: 86400000,
+      providerGrossUsdc: 100,
+      platformFeeUsdc: 15,
+      providerNetUsdc: 85,
+      pendingSettlementUsdc: 20,
+      settlementCompletedUsdc: 40,
+      settlementFailureRate: 0,
+      settlementP95ConfirmMs: 1200,
+      settlementFunnel: [],
+      topProviders: [],
+    });
 
     const moneyCards = buildMoneyFlowContextCards({
       window: "24h",
@@ -144,6 +160,7 @@ describe("analytics dashboard presenters", () => {
       refundUsdc: 4.5,
       confirmLatencyMs: { p50: 42000, p95: 184000 },
       depositErrors: [],
+      depositFailureSamples: [],
       withdrawalErrors: [],
       financeContext: {
         pendingDepositCount: 2,
@@ -170,7 +187,8 @@ describe("analytics dashboard presenters", () => {
     };
 
     expect(providerCards[0]).toMatchObject({ label: "Provider Gross", value: "100.00 USDC" });
-    expect(providerCards[1]).toMatchObject({ label: "Settlement Completed", tone: "orange" });
+    expect(providerCards[1]).toMatchObject({ label: "Settlement Completed", tone: "orange", detail: "Available to withdraw 20.00 USDC" });
+    expect(providerSignalCards[1]).toMatchObject({ label: "Provider Net", detail: "Available to withdraw 20.00 USDC" });
     expect(moneyCards[0]).toMatchObject({ label: "Refund", value: "4.50 USDC", tone: "orange" });
     expect(moneyCards[2]).toMatchObject({ label: "Pending Deposits", value: "2", tone: "orange" });
     expect(buildDataQualityLagCards(dataQuality)[1]).toMatchObject({ key: "xor-violations", value: "1", tone: "red" });

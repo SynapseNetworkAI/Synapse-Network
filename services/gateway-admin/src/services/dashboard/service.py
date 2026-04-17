@@ -236,6 +236,8 @@ class DashboardService:
     def get_analytics_provider_revenue(self, window: str = "24h") -> dict:
         payload = self._analytics_dashboard.get_provider_revenue(self._normalize_analytics_window(window))
         finance = self._gateway_projection.get_finance_snapshot()
+        # This field is legacy-named for the admin API contract. In the UI it is
+        # shown as provider "available to withdraw", not ClickHouse settlement pending.
         payload["pendingSettlementUsdc"] = float(finance.provider_available_to_withdraw_usdc)
         return payload
 

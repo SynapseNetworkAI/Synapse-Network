@@ -103,7 +103,7 @@ class InMemoryAnalyticsDashboardRepository:
                 {"key": "analytics_health", "label": "Analytics Health", "value": "monitoring", "unit": "status", "tone": "orange", "detail": "Budget blocks exist; data stream is otherwise fresh."},
             ],
             "alerts": [
-                {"severity": "warning", "title": "Budget pressure", "detail": "37 budget_blocked events need growth/ops review.", "href": "/dashboard/analytics"},
+                {"severity": "warning", "title": "Budget pressure", "detail": "37 budget_blocked events need growth/ops review.", "href": f"/dashboard/analytics/risk-health?window={window}&focus=budget_blocked"},
             ],
         }
 
@@ -198,6 +198,16 @@ class InMemoryAnalyticsDashboardRepository:
             "refundUsdc": 42.25,
             "confirmLatencyMs": {"p50": 42000, "p95": 184000},
             "depositErrors": [{"key": "CHAIN_REORG", "label": "CHAIN_REORG", "count": 2, "value": 2, "rate": 0.5}],
+            "depositFailureSamples": [
+                {
+                    "timestamp": _now_iso(),
+                    "errorCode": "CHAIN_REORG",
+                    "amountUsdc": 120.0,
+                    "env": "local",
+                    "correlationId": "demo-deposit-failure",
+                    "txHash": "",
+                }
+            ],
             "withdrawalErrors": [{"key": "RPC_TIMEOUT", "label": "RPC_TIMEOUT", "count": 1, "value": 1, "rate": 1.0}],
             "financeContext": {},
         }
@@ -211,6 +221,29 @@ class InMemoryAnalyticsDashboardRepository:
             "providerHealthDegradedCount": 6,
             "degradedProviders": [{"providerId": "provider_alpha", "serviceId": "svc_market_data", "count": 4, "reason": "timeout_spike"}],
             "budgetGapUsdc": 218.4,
+            "budgetBlocks": [
+                {
+                    "key": "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED-svc.echo-gateway_api",
+                    "errorCode": "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED",
+                    "serviceId": "svc.echo",
+                    "surface": "gateway_api",
+                    "count": 12,
+                    "requiredUsdc": 240.0,
+                    "availableUsdc": 21.6,
+                    "gapUsdc": 218.4,
+                }
+            ],
+            "budgetBlockSamples": [
+                {
+                    "timestamp": _now_iso(),
+                    "serviceId": "svc.echo",
+                    "errorCode": "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED",
+                    "requiredUsdc": 1.25,
+                    "availableUsdc": 0,
+                    "correlationId": "demo-budget-block",
+                    "surface": "gateway_api",
+                }
+            ],
             "refundReasons": [{"key": "provider_failure", "label": "provider_failure", "count": 3, "value": 42.25, "rate": 0.75}],
         }
 
@@ -312,7 +345,7 @@ class ClickHouseAnalyticsDashboardRepository:
         if critical_risk_events > 0:
             alerts.append({"severity": "critical", "title": "Critical risk events", "detail": f"{critical_risk_events} high/critical risk_rule_triggered events.", "href": "/risk"})
         if budget_blocked_count > 0:
-            alerts.append({"severity": "warning", "title": "Budget blocks", "detail": f"{budget_blocked_count} budget_blocked events in this window.", "href": "/dashboard/analytics"})
+            alerts.append({"severity": "warning", "title": "Budget blocks", "detail": f"{budget_blocked_count} budget_blocked events in this window.", "href": f"/dashboard/analytics/risk-health?window={window}&focus=budget_blocked"})
 
         return {"window": window, "overallStatus": overall_status, "cards": cards, "alerts": alerts}
 
@@ -599,6 +632,22 @@ class ClickHouseAnalyticsDashboardRepository:
             GROUP BY key ORDER BY count DESC LIMIT 8 FORMAT JSONEachRow
             """
         ).rows
+        deposit_failure_samples = self._safe_query_json_rows(
+            f"""
+            SELECT
+              toString(timestamp) AS eventTimestamp,
+              JSONExtractString(properties, 'error_code') AS errorCode,
+              JSONExtractFloat(properties, 'amount_usdc') AS amountUsdc,
+              JSONExtractString(properties, 'env') AS env,
+              JSONExtractString(properties, 'correlation_id') AS correlationId,
+              JSONExtractString(properties, 'tx_hash') AS txHash
+            FROM {ANALYTICS_TABLE}
+            WHERE event_name = 'deposit_failed' AND {self._event_window_where(window)}
+            ORDER BY timestamp DESC
+            LIMIT 10
+            FORMAT JSONEachRow
+            """
+        ).rows
         return {
             "window": window,
             "depositUsdc": _float(row.get("deposit_usdc")),
@@ -608,6 +657,17 @@ class ClickHouseAnalyticsDashboardRepository:
             "refundUsdc": _float(row.get("refund_usdc")),
             "confirmLatencyMs": {"p50": _float(row.get("confirm_p50_ms")), "p95": _float(row.get("confirm_p95_ms"))},
             "depositErrors": [_list_item(item) for item in deposit_errors],
+            "depositFailureSamples": [
+                {
+                    "timestamp": str(item.get("eventTimestamp") or item.get("timestamp") or ""),
+                    "errorCode": str(item.get("errorCode") or "unknown"),
+                    "amountUsdc": _float(item.get("amountUsdc")),
+                    "env": str(item.get("env") or "unknown"),
+                    "correlationId": str(item.get("correlationId") or ""),
+                    "txHash": str(item.get("txHash") or ""),
+                }
+                for item in deposit_failure_samples
+            ],
             "withdrawalErrors": [_list_item(item) for item in withdrawal_errors],
             "financeContext": {},
         }
@@ -654,6 +714,48 @@ class ClickHouseAnalyticsDashboardRepository:
             GROUP BY providerId ORDER BY count DESC LIMIT 8 FORMAT JSONEachRow
             """
         ).rows
+        budget_blocks = self._safe_query_json_rows(
+            f"""
+            SELECT
+              concat(
+                if(empty(JSONExtractString(properties, 'error_code')), 'unknown', JSONExtractString(properties, 'error_code')),
+                '-',
+                if(empty(JSONExtractString(properties, 'service_id')), 'unknown', JSONExtractString(properties, 'service_id')),
+                '-',
+                if(empty(JSONExtractString(properties, 'surface')), 'unknown', JSONExtractString(properties, 'surface'))
+              ) AS key,
+              if(empty(JSONExtractString(properties, 'error_code')), 'unknown', JSONExtractString(properties, 'error_code')) AS errorCode,
+              if(empty(JSONExtractString(properties, 'service_id')), 'unknown', JSONExtractString(properties, 'service_id')) AS serviceId,
+              if(empty(JSONExtractString(properties, 'surface')), 'unknown', JSONExtractString(properties, 'surface')) AS surface,
+              count() AS count,
+              sum(JSONExtractFloat(properties, 'required_usdc')) AS requiredUsdc,
+              sum(JSONExtractFloat(properties, 'available_usdc')) AS availableUsdc,
+              sum(greatest(JSONExtractFloat(properties, 'required_usdc') - JSONExtractFloat(properties, 'available_usdc'), 0)) AS gapUsdc
+            FROM {ANALYTICS_TABLE}
+            WHERE event_name = 'budget_blocked' AND {self._event_window_where(window)}
+            GROUP BY errorCode, serviceId, surface
+            ORDER BY count DESC
+            LIMIT 10
+            FORMAT JSONEachRow
+            """
+        ).rows
+        budget_block_samples = self._safe_query_json_rows(
+            f"""
+            SELECT
+              toString(timestamp) AS eventTimestamp,
+              if(empty(JSONExtractString(properties, 'service_id')), 'unknown', JSONExtractString(properties, 'service_id')) AS serviceId,
+              if(empty(JSONExtractString(properties, 'error_code')), 'unknown', JSONExtractString(properties, 'error_code')) AS errorCode,
+              JSONExtractFloat(properties, 'required_usdc') AS requiredUsdc,
+              JSONExtractFloat(properties, 'available_usdc') AS availableUsdc,
+              JSONExtractString(properties, 'correlation_id') AS correlationId,
+              if(empty(JSONExtractString(properties, 'surface')), 'unknown', JSONExtractString(properties, 'surface')) AS surface
+            FROM {ANALYTICS_TABLE}
+            WHERE event_name = 'budget_blocked' AND {self._event_window_where(window)}
+            ORDER BY timestamp DESC
+            LIMIT 10
+            FORMAT JSONEachRow
+            """
+        ).rows
         refund_reasons = self._safe_query_json_rows(
             f"""
             SELECT
@@ -682,6 +784,31 @@ class ClickHouseAnalyticsDashboardRepository:
                 for item in provider_rows
             ],
             "budgetGapUsdc": _float(summary.get("budget_gap_usdc")),
+            "budgetBlocks": [
+                {
+                    "key": str(item.get("key") or "unknown"),
+                    "errorCode": str(item.get("errorCode") or "unknown"),
+                    "serviceId": str(item.get("serviceId") or "unknown"),
+                    "surface": str(item.get("surface") or "unknown"),
+                    "count": _int(item.get("count")),
+                    "requiredUsdc": _float(item.get("requiredUsdc")),
+                    "availableUsdc": _float(item.get("availableUsdc")),
+                    "gapUsdc": _float(item.get("gapUsdc")),
+                }
+                for item in budget_blocks
+            ],
+            "budgetBlockSamples": [
+                {
+                    "timestamp": str(item.get("eventTimestamp") or item.get("timestamp") or ""),
+                    "serviceId": str(item.get("serviceId") or "unknown"),
+                    "errorCode": str(item.get("errorCode") or "unknown"),
+                    "requiredUsdc": _float(item.get("requiredUsdc")),
+                    "availableUsdc": _float(item.get("availableUsdc")),
+                    "correlationId": str(item.get("correlationId") or ""),
+                    "surface": str(item.get("surface") or "unknown"),
+                }
+                for item in budget_block_samples
+            ],
             "refundReasons": [_list_item(item) for item in refund_reasons],
         }
 
