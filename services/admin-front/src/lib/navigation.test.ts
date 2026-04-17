@@ -94,6 +94,27 @@ describe("buildAdminNavigation", () => {
     expect(navigation[1]?.children?.[0]?.id).toBe("finance");
   });
 
+  it("does not make category nodes navigable even when the backend sends an href", () => {
+    const navigation = buildAdminNavigation([
+      createMenuItem({
+        itemId: "dashboard",
+        href: "/dashboard/overview",
+        nodeType: "category",
+      }),
+      createMenuItem({
+        itemId: "dashboard-overview",
+        label: "概览",
+        href: "/dashboard/overview",
+        parentItemId: "dashboard",
+        nodeType: "page",
+        iconKey: "01",
+      }),
+    ]);
+
+    expect(navigation[0]?.path).toBeUndefined();
+    expect(navigation[0]?.children?.[0]?.path).toBe("/dashboard/overview");
+  });
+
   it("falls back to the other-modules bucket for orphan items", () => {
     const navigation = buildAdminNavigation([
       createMenuItem({
