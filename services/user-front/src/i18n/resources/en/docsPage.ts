@@ -82,6 +82,14 @@ const docsPage: I18nMessages["docsPage"] = {
     "The gateway atomically records consumer debits, provider receivables, and platform fees.",
     "Providers can withdraw receivables back to their wallet whenever they want.",
   ],
+  overviewArchitectureHealthTitle: "Provider runtime health",
+  overviewArchitectureHealthDescription:
+    "Service lifecycle and runtime health are separate. The gateway auto-drains unhealthy active services, but it does not rewrite them to inactive.",
+  overviewArchitectureHealthBullets: [
+    "A service is callable only when lifecycle is active, runtime health is fresh, and at least one target is healthy.",
+    "Long-running unhealthy active services enter a slow lane: lower probe frequency, never a full probe stop.",
+    "When the endpoint recovers, the next slow-lane probe or a manual Force probe can make it callable again.",
+  ],
   overviewLearnMore: "Learn more",
   overviewPlatformProductsLabel: "Platform Products",
   overviewProductTitles: [
@@ -231,7 +239,15 @@ const docsPage: I18nMessages["docsPage"] = {
   providerStatusSignals: [
     "Your new serviceId appears in listProviderServices().",
     "getProviderServiceStatus() returns lifecycleStatus such as active or draft.",
-    "health.overallStatus and runtimeAvailable tell you whether the runtime side is warming up cleanly.",
+    "health.overallStatus, runtimeAvailable, lastCheckedAt, lastHealthyAt, recent errors, and probeTier explain runtime readiness.",
+  ],
+  providerHealthRecoveryTitle: "If your endpoint goes down",
+  providerHealthRecoveryItems: [
+    "Consumers and agents will temporarily stop discovering or invoking the service once no healthy target remains.",
+    "If lifecycle is still active, the gateway keeps probing in slow lane and you do not need to re-register.",
+    "If the service was paused to inactive, Resume or publish it again from the control panel to rejoin automatic probing.",
+    "If the service was deleted, register a new service because deleted services are no longer probed.",
+    "Force probe bypasses slow lane when you want to verify a fix immediately.",
   ],
   providerSettlementModelLabel: "Settlement split model",
   providerSettlementModelRows: ["Consumer charge", "Provider earnings", "Platform fee"],

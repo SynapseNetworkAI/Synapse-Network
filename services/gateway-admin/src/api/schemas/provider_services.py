@@ -24,6 +24,7 @@ class ProviderServiceItem(BaseModel):
     is_active: bool = Field(alias="isActive")
     runtime_status: str = Field(alias="runtimeStatus")
     runtime_available: bool = Field(alias="runtimeAvailable")
+    probe_tier: str = Field(alias="probeTier")
     health: dict[str, Any]
     targets: list[dict[str, Any]] = Field(default_factory=list)
     created_at: str | None = Field(default=None, alias="createdAt")

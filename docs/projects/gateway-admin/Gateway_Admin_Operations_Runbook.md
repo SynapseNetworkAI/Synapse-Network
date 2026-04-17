@@ -149,14 +149,22 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 1. `Force probe`：立即探活一次，不改变控制面生命周期。
 2. `Pause`：切到 `inactive`，停止 discovery / invoke，并停止自动探活。
 3. `Resume`：切回 `active`，立即 probe；健康达标后自动恢复 discovery / invoke。
-4. `Suspend`：切到 `suspended`，禁止 discovery / invoke，但保留探活和审计。
+4. `Suspend`：切到 `suspended`，禁止 discovery / invoke，但保留 slow lane 探活和审计。
 5. `Delete`：只允许非 active 服务逻辑删除；删除后不再探活。
+
+`probeTier` 语义：
+
+1. `normal`：正常探活频率。
+2. `slow_lane`：长期 unhealthy 或 suspended 后降频探活，不等于停止探活。
+3. `manual_only`：`inactive` / `draft`，只允许手动 `Force probe`。
+4. `disabled`：`deleted`，不会再被探活。
 
 排查要点：
 
 1. `active + unhealthy` 是正常状态，表示 Gateway 自动摘流，但没有把 Provider 主动下线。
-2. `inactive` 服务不会被定时任务自动探活；如需验证 endpoint 是否恢复，用 `Force probe`。
-3. 如果页面能登录但 Provider 服务列表报 401/403，优先检查内部 JWT 与 admin wallet 白名单。
+2. 长期 `active + unhealthy` 会进入 slow lane，降低探活频率以节省资源；endpoint 恢复后等下一次 slow lane probe，或直接点 `Force probe`。
+3. `inactive` 服务不会被定时任务自动探活；如需恢复自动探活，先 `Resume`。
+4. 如果页面能登录但 Provider 服务列表报 401/403，优先检查内部 JWT 与 admin wallet 白名单。
 
 ### 2.6 初始化 bootstrap 管理员密码
 

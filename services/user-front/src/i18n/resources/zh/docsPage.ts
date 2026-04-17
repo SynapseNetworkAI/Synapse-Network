@@ -81,6 +81,14 @@ const docsPage: I18nMessages["docsPage"] = {
     "网关原子记录消费者扣减、Provider 收益、平台手续费三本账。",
     "Provider 可以随时把收益提回到自己的链上钱包。",
   ],
+  overviewArchitectureHealthTitle: "Provider 运行时健康",
+  overviewArchitectureHealthDescription:
+    "服务生命周期和运行时健康是两套状态。Gateway 会自动摘流不健康的 active 服务，但不会把它自动改成 inactive。",
+  overviewArchitectureHealthBullets: [
+    "只有 lifecycle 为 active、健康快照未过期、且至少一个 target healthy 时，服务才可被发现和调用。",
+    "长期 unhealthy 的 active 服务会进入 slow lane：降低探活频率，但不会完全停止探活。",
+    "Provider 修复 endpoint 后，下一次 slow-lane 探活或手动 Force probe 就可以让服务重新可调用。",
+  ],
   overviewLearnMore: "了解更多",
   overviewPlatformProductsLabel: "平台能力",
   overviewProductTitles: [
@@ -226,7 +234,15 @@ const docsPage: I18nMessages["docsPage"] = {
   providerStatusSignals: [
     "新的 serviceId 已经出现在 listProviderServices() 结果里。",
     "getProviderServiceStatus() 返回 active 或 draft 之类的 lifecycleStatus。",
-    "health.overallStatus 和 runtimeAvailable 能告诉你运行面是不是已经热起来了。",
+    "health.overallStatus、runtimeAvailable、lastCheckedAt、lastHealthyAt、最近错误和 probeTier 会解释运行面是否可用。",
+  ],
+  providerHealthRecoveryTitle: "如果你的 endpoint 挂了",
+  providerHealthRecoveryItems: [
+    "当没有 healthy target 时，Consumer 和 Agent 会暂时发现不到或调用不到这个服务。",
+    "如果 lifecycle 仍然是 active，Gateway 会继续 slow lane 降频探活，不需要重新注册。",
+    "如果服务被 Pause 成 inactive，需要在控制面板 Resume 或重新发布，才会重新加入自动探活。",
+    "如果服务被 Delete，原服务不再探活，需要重新注册一个新服务。",
+    "Force probe 会绕过 slow lane，适合修复后立即验证。",
   ],
   providerSettlementModelLabel: "结算分账模型",
   providerSettlementModelRows: ["Consumer 扣费", "Provider 收益", "Platform Fee"],

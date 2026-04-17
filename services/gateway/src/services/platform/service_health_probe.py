@@ -27,14 +27,19 @@ from src.services.platform.service_health_utils import (
     _now_ms,
     _seed_service_health_from_persisted_rows,
     _service_targets,
-    _should_prune_history,
     _target_health_map,
+    build_probe_url,
+    sync_service_target_health_table,
+)
+from src.services.platform.service_health_history import (
+    _should_prune_history,
     append_health_history_rows,
     build_probe_history_rows,
-    build_probe_url,
-    is_service_probeable,
     prune_health_history,
-    sync_service_target_health_table,
+)
+from src.services.platform.service_health_tiers import (
+    service_probe_tier,
+    should_probe_service_now,
 )
 from src.services.analytics.gateway_events import (
     emit_provider_health_degraded,
@@ -223,11 +228,15 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
     checked = 0
     updated = 0
     appended_history = 0
+    slow_lane_skipped = 0
     next_rows: List[ServiceDefinitionRecord] = []
 
     async with httpx.AsyncClient() as client:
         for row in rows:
-            if not is_service_probeable(row):
+            now_ms = _now_ms()
+            if not should_probe_service_now(row, now_ms=now_ms):
+                if service_probe_tier(row, now_ms=now_ms) == "slow_lane":
+                    slow_lane_skipped += 1
                 next_rows.append(row)
                 continue
 
@@ -320,6 +329,7 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
         "syncedRows": synced_rows,
         "historyAppended": appended_history,
         "historyPruned": int(prune_stats.get("removed") or 0),
+        "slowLaneSkipped": slow_lane_skipped,
     }
 
 
@@ -333,9 +343,10 @@ async def run_service_health_monitor(
         try:
             result = await refresh_all_service_health(storage)
             logger.debug(
-                "Service health monitor tick: checked=%s updated=%s",
+                "Service health monitor tick: checked=%s updated=%s slow_lane_skipped=%s",
                 result.get("checked"),
                 result.get("updated"),
+                result.get("slowLaneSkipped"),
             )
         except Exception as exc:
             logger.warning("Service health monitor tick failed: %s", exc)

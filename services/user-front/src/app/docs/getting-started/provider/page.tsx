@@ -187,6 +187,7 @@ export default function ProviderGuidePage() {
   const registrationInputs = tList("docsPage.providerRegistrationInputs");
   const registrationDefaults = tList("docsPage.providerRegistrationDefaults");
   const statusSignals = tList("docsPage.providerStatusSignals");
+  const healthRecoveryItems = tList("docsPage.providerHealthRecoveryItems");
   const settlementRows = tList("docsPage.providerSettlementModelRows");
   const settlementValues = tList("docsPage.providerSettlementModelValues");
 
@@ -332,6 +333,23 @@ export default function ProviderGuidePage() {
             {statusSignals.map((signal) => (
               <div key={signal} className="rounded-xl border border-white/[0.06] bg-[#0b0d10] px-3 py-3 text-[12px] leading-6 text-[#9aa4af]">
                 {signal}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="mt-3 rounded-xl p-4"
+          style={{ background: `${ACCENT}06`, border: `1px solid ${ACCENT}16` }}
+        >
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">
+            {t("docsPage.providerHealthRecoveryTitle")}
+          </div>
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+            {healthRecoveryItems.map((item) => (
+              <div key={item} className="flex gap-2 text-[13px] leading-6 text-[#9aa4af]">
+                <CheckCircle2 size={14} className="mt-[5px] shrink-0 text-[#7ff7be]" />
+                <span>{item}</span>
               </div>
             ))}
           </div>

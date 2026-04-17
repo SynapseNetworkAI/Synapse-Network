@@ -39,6 +39,7 @@ export default function DocsOverviewPage() {
   ];
   const architectureLabels = tList("docsPage.overviewArchitectureLabels");
   const architectureDescriptions = tList("docsPage.overviewArchitectureDescriptions");
+  const architectureHealthBullets = tList("docsPage.overviewArchitectureHealthBullets");
 
   return (
     <div className="space-y-20">
@@ -149,6 +150,22 @@ export default function DocsOverviewPage() {
               </div>
             </button>
           ))}
+        </div>
+        <div className="x-panel-muted mt-4 rounded-2xl p-5">
+          <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-white">
+            <Activity size={15} className="text-[#7ff7be]" />
+            {t("docsPage.overviewArchitectureHealthTitle")}
+          </div>
+          <p className="max-w-[760px] text-[13px] leading-relaxed text-[#71767b]">
+            {t("docsPage.overviewArchitectureHealthDescription")}
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {architectureHealthBullets.map((item) => (
+              <div key={item} className="rounded-xl border border-white/[0.06] bg-[#0b0d10] px-3 py-3 text-[12px] leading-6 text-[#9aa4af]">
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

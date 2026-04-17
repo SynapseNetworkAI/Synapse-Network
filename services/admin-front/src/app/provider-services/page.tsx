@@ -176,16 +176,16 @@ export default function ProviderServicesPage() {
             <Text mt="6px" color="ink.500">无 healthy target 时自动从 discovery / invoke 摘流</Text>
           </Box>
           <Box borderRadius="24px" bg="rgba(255,255,255,0.92)" border="1px solid rgba(15,17,21,0.06)" p="18px">
-            <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">Lifecycle split</Text>
-            <Heading mt="10px" size="md">control != runtime</Heading>
-            <Text mt="6px" color="ink.500">健康失败不会自动改成 inactive</Text>
+            <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">Slow lane</Text>
+            <Heading mt="10px" size="md">reduced probe, not stopped</Heading>
+            <Text mt="6px" color="ink.500">长期 unhealthy 会降频探活，但不会自动改 inactive</Text>
           </Box>
         </Grid>
 
         <ListTableSurface
           eyebrow="Gateway Provider Registry"
           title="服务注册表"
-          description="默认展示非 deleted 服务；inactive 停止自动探活，active 不健康会继续探活但自动摘流，suspended 保留探活但禁止调用。"
+          description="默认展示非 deleted 服务；inactive 停止自动探活，active 不健康会自动摘流并在长期故障后进入 slow lane 降频探活，suspended 保留降频探活但禁止调用。"
           stamp={`第 ${page} / ${totalPages} 页`}
           filter={
             <ListFilterForm
@@ -268,6 +268,7 @@ export default function ProviderServicesPage() {
                       <Td>
                         <Stack gap="4px">
                           <Text fontWeight="700">{service.health.healthyTargets ?? 0}/{service.health.totalTargets ?? 0} healthy</Text>
+                          <Text color="ink.500" fontSize="12px">probe tier: {service.probeTier || service.health.probeTier || "normal"}</Text>
                           <Text color="ink.500" fontSize="12px">last checked: {formatEpochMs(service.health.lastCheckedAt)}</Text>
                           <Text color="ink.500" fontSize="12px">stale: {service.health.isStale ? "yes" : "no"}</Text>
                         </Stack>

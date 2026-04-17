@@ -219,10 +219,17 @@ Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源�
 探活策略：
 
 1. `active`：正常频率探活。
-2. `active + unhealthy`：继续探活，但自动从 discovery / invoke 摘流。
+2. `active + unhealthy`：继续探活，但自动从 discovery / invoke 摘流；连续不健康超过 `SERVICE_HEALTH_SLOW_LANE_AFTER_SEC` 后进入 slow lane 降频探活。
 3. `inactive`：停止自动探活，只允许手动 force probe。
-4. `suspended`：允许继续探活和留存健康历史，但永不进入 discovery / invoke。
+4. `suspended`：默认按 slow lane 频率探活和留存健康历史，但永不进入 discovery / invoke。
 5. `deleted`：不探活、不发现、不调用，只保留审计与历史数据。
+
+slow lane 不是停止探活，而是资源保护策略：
+
+1. 默认连续不健康 30 分钟后，从正常 `SERVICE_HEALTH_PROBE_INTERVAL_SEC` 降到 `SERVICE_HEALTH_SLOW_LANE_INTERVAL_SEC`。
+2. 判定优先使用 target 的 `lastHealthyAt`；从未 healthy 的服务用 `consecutiveFailures * SERVICE_HEALTH_PROBE_INTERVAL_SEC` 估算。
+3. 如果 `now - lastCheckedAt` 还没到 slow lane 间隔，本轮跳过 probe，但保留当前 health snapshot 和可追踪状态。
+4. `Force probe` 和 `Resume service` 会立即探活，绕过 slow lane 等待窗口。
 
 可调用判断必须同时满足：
 
@@ -231,13 +238,13 @@ Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源�
 3. runtime health 未过期
 4. 至少一个 target 为 `healthy`
 
-健康失败不会把服务自动改成 `inactive`。如果所有 target 连续失败达到 `unhealthyThreshold`，Gateway 自动摘流并返回 `SERVICE_UNAVAILABLE`；后续探活达到 `healthyThreshold` 后自动恢复可调用状态，不需要 Provider 人工重新上线。
+健康失败不会把服务自动改成 `inactive`。如果所有 target 连续失败达到 `unhealthyThreshold`，Gateway 自动摘流并返回 `SERVICE_UNAVAILABLE`；后续正常探活或 slow lane 探活达到 `healthyThreshold` 后自动恢复可调用状态，不需要 Provider 人工重新上线。
 
 ### 9.3 Admin Provider Services 管理面
 
 后台菜单 `Provider 服务` 用于管理注册到 Gateway 的 Provider 接口：
 
-1. 列表展示服务名、Provider、控制面状态、运行时状态、healthy target 数、lastCheckedAt、最近错误和 runtimeAvailable。
+1. 列表展示服务名、Provider、控制面状态、运行时状态、healthy target 数、lastCheckedAt、最近错误、runtimeAvailable 和 `probeTier`。
 2. `Force probe` 立即探活一次，不改变控制面生命周期。
 3. `Pause service` 将服务切到 `inactive`，停止 discovery / invoke，并停止自动探活。
 4. `Resume service` 将服务切回 `active`，立即 probe；健康达标后自动进入 discovery / invoke。
