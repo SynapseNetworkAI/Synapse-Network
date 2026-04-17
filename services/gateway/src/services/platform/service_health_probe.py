@@ -10,11 +10,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any, List, Optional
 
 import httpx
 
 from src.core.config import settings
+from src.core.scheduling import BoundedTaskRunner
 from src.domain.service_contract import (
     ServiceDefinitionRecord,
     ServiceHealthTargetRecord,
@@ -48,6 +50,41 @@ from src.services.analytics.gateway_events import (
 )
 
 logger = logging.getLogger(__name__)
+_probe_limiter: asyncio.Semaphore | None = None
+_probe_limiter_size = 0
+_probe_limiter_loop_id = 0
+
+
+@dataclass(frozen=True)
+class _ProbeCandidate:
+    index: int
+    service: ServiceDefinitionRecord
+
+
+@dataclass(frozen=True)
+class _ProbeResult:
+    index: int
+    previous: ServiceDefinitionRecord
+    current: ServiceDefinitionRecord
+
+
+def _max_probe_concurrency() -> int:
+    return max(1, int(settings.service_health_max_concurrency or 1))
+
+
+def _global_probe_limiter() -> asyncio.Semaphore:
+    global _probe_limiter, _probe_limiter_size, _probe_limiter_loop_id
+    size = _max_probe_concurrency()
+    loop_id = id(asyncio.get_running_loop())
+    if (
+        _probe_limiter is None
+        or _probe_limiter_size != size
+        or _probe_limiter_loop_id != loop_id
+    ):
+        _probe_limiter = asyncio.Semaphore(size)
+        _probe_limiter_size = size
+        _probe_limiter_loop_id = loop_id
+    return _probe_limiter
 
 
 async def _probe_target(
@@ -212,6 +249,89 @@ async def probe_service_health(
             await async_client.aclose()
 
 
+async def force_probe_service_health(
+    service: ServiceDefinitionRecord,
+    client: Optional[httpx.AsyncClient] = None,
+) -> ServiceDefinitionRecord:
+    async with _global_probe_limiter():
+        return await probe_service_health(service, client=client)
+
+
+async def _probe_candidate(
+    candidate: _ProbeCandidate,
+    client: httpx.AsyncClient,
+) -> _ProbeResult:
+    next_service = await probe_service_health(candidate.service, client=client)
+    return _ProbeResult(
+        index=candidate.index,
+        previous=candidate.service,
+        current=next_service,
+    )
+
+
+async def _emit_health_transition_events(
+    previous: ServiceDefinitionRecord,
+    current: ServiceDefinitionRecord,
+) -> None:
+    prev_overall = str(
+        getattr(getattr(previous, "runtime_health", None), "overall_status", None) or ""
+    ).lower()
+    next_overall = str(
+        getattr(getattr(current, "runtime_health", None), "overall_status", None) or ""
+    ).lower()
+    if next_overall in {"degraded", "unhealthy"} and prev_overall not in {
+        "degraded",
+        "unhealthy",
+    }:
+        next_health = getattr(current, "runtime_health", None)
+        await emit_provider_health_degraded(
+            str(current.owner_address or ""),
+            service_id=str(current.service_id or ""),
+            overall_status=next_overall,
+            healthy_targets=int(getattr(next_health, "healthy_targets", 0) or 0),
+            total_targets=int(getattr(next_health, "total_targets", 0) or 0),
+        )
+    if prev_overall in {"degraded", "unhealthy"} and next_overall == "healthy":
+        next_health = getattr(current, "runtime_health", None)
+        await emit_provider_health_recovered(
+            str(current.owner_address or ""),
+            service_id=str(current.service_id or ""),
+            healthy_targets=int(getattr(next_health, "healthy_targets", 0) or 0),
+            total_targets=int(getattr(next_health, "total_targets", 0) or 0),
+        )
+    if next_overall != "unhealthy":
+        return
+
+    next_health = getattr(current, "runtime_health", None)
+    prev_health = getattr(previous, "runtime_health", None)
+    last_healthy_at = max(
+        [
+            int(getattr(target, "last_healthy_at", 0) or 0)
+            for target in getattr(next_health, "targets", []) or []
+        ]
+        or [0]
+    )
+    prev_checked_at = int(getattr(prev_health, "last_checked_at", 0) or 0)
+    now_ms = _now_ms()
+    outage_after_ms = max(1, int(settings.service_health_outage_after_sec)) * 1000
+    crossed_outage_window = (
+        last_healthy_at > 0
+        and now_ms - last_healthy_at >= outage_after_ms
+        and (
+            prev_checked_at <= 0
+            or prev_checked_at - last_healthy_at < outage_after_ms
+        )
+    )
+    if crossed_outage_window:
+        await emit_provider_health_outage(
+            str(current.owner_address or ""),
+            service_id=str(current.service_id or ""),
+            healthy_targets=0,
+            total_targets=int(getattr(next_health, "total_targets", 0) or 0),
+            outage_age_ms=now_ms - last_healthy_at,
+        )
+
+
 async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
     raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
     if isinstance(raw_rows, list):
@@ -228,93 +348,52 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
     checked = 0
     updated = 0
     appended_history = 0
+    jitter_skipped = 0
     slow_lane_skipped = 0
-    next_rows: List[ServiceDefinitionRecord] = []
+    next_rows: list[ServiceDefinitionRecord | None] = [None] * len(rows)
+    candidates: list[_ProbeCandidate] = []
+
+    for index, row in enumerate(rows):
+        now_ms = _now_ms()
+        tier = service_probe_tier(row, now_ms=now_ms)
+        if not should_probe_service_now(row, now_ms=now_ms):
+            if tier == "slow_lane":
+                slow_lane_skipped += 1
+            elif tier == "normal":
+                jitter_skipped += 1
+            next_rows[index] = row
+            continue
+        candidates.append(_ProbeCandidate(index=index, service=row))
 
     async with httpx.AsyncClient() as client:
-        for row in rows:
-            now_ms = _now_ms()
-            if not should_probe_service_now(row, now_ms=now_ms):
-                if service_probe_tier(row, now_ms=now_ms) == "slow_lane":
-                    slow_lane_skipped += 1
-                next_rows.append(row)
-                continue
+        runner = BoundedTaskRunner(
+            _max_probe_concurrency(),
+            semaphore=_global_probe_limiter(),
+        )
+        probe_results = await runner.run(
+            candidates,
+            lambda candidate: _probe_candidate(candidate, client),
+        )
 
-            checked += 1
-            next_row = await probe_service_health(row, client=client)
-            # Analytics: emit when overall health transitions to degraded or unhealthy
-            prev_overall = str(
-                getattr(getattr(row, "runtime_health", None), "overall_status", None) or ""
-            ).lower()
-            next_overall = str(
-                getattr(getattr(next_row, "runtime_health", None), "overall_status", None) or ""
-            ).lower()
-            if next_overall in {"degraded", "unhealthy"} and prev_overall not in {
-                "degraded",
-                "unhealthy",
-            }:
-                next_health = getattr(next_row, "runtime_health", None)
-                await emit_provider_health_degraded(
-                    str(next_row.owner_address or ""),
-                    service_id=str(next_row.service_id or ""),
-                    overall_status=next_overall,
-                    healthy_targets=int(getattr(next_health, "healthy_targets", 0) or 0),
-                    total_targets=int(getattr(next_health, "total_targets", 0) or 0),
-                )
-            if prev_overall in {"degraded", "unhealthy"} and next_overall == "healthy":
-                next_health = getattr(next_row, "runtime_health", None)
-                await emit_provider_health_recovered(
-                    str(next_row.owner_address or ""),
-                    service_id=str(next_row.service_id or ""),
-                    healthy_targets=int(getattr(next_health, "healthy_targets", 0) or 0),
-                    total_targets=int(getattr(next_health, "total_targets", 0) or 0),
-                )
-            if next_overall == "unhealthy":
-                next_health = getattr(next_row, "runtime_health", None)
-                prev_health = getattr(row, "runtime_health", None)
-                last_healthy_at = max(
-                    [
-                        int(getattr(target, "last_healthy_at", 0) or 0)
-                        for target in getattr(next_health, "targets", []) or []
-                    ]
-                    or [0]
-                )
-                prev_checked_at = int(getattr(prev_health, "last_checked_at", 0) or 0)
-                now_ms = _now_ms()
-                outage_after_ms = max(
-                    1,
-                    int(settings.service_health_outage_after_sec),
-                ) * 1000
-                crossed_outage_window = (
-                    last_healthy_at > 0
-                    and now_ms - last_healthy_at >= outage_after_ms
-                    and (
-                        prev_checked_at <= 0
-                        or prev_checked_at - last_healthy_at < outage_after_ms
-                    )
-                )
-                if crossed_outage_window:
-                    await emit_provider_health_outage(
-                        str(next_row.owner_address or ""),
-                        service_id=str(next_row.service_id or ""),
-                        healthy_targets=0,
-                        total_targets=int(getattr(next_health, "total_targets", 0) or 0),
-                        outage_age_ms=now_ms - last_healthy_at,
-                    )
-            if next_row != row:
-                updated += 1
-            if settings.service_health_history_enabled:
-                history_rows = build_probe_history_rows(next_row)
-                appended_history += append_health_history_rows(storage, history_rows)
-            next_rows.append(next_row)
+    for result in probe_results:
+        checked += 1
+        next_rows[result.index] = result.current
+        await _emit_health_transition_events(result.previous, result.current)
+        if result.current != result.previous:
+            updated += 1
+        if settings.service_health_history_enabled:
+            history_rows = build_probe_history_rows(result.current)
+            appended_history += append_health_history_rows(storage, history_rows)
+
+    final_rows = [row for row in next_rows if row is not None]
 
     # Discovery hydrates runtime health from the health snapshot tables, so the
     # monitor only needs to sync health rows here. Rewriting manifests on every
     # probe tick can break quote foreign keys and silently starve discovery.
-    synced_rows = sync_service_target_health_table(storage, next_rows)
+    synced_rows = sync_service_target_health_table(storage, final_rows)
     valid_service_ids = {
         str(row.service_id or "").strip()
-        for row in next_rows
+        for row in final_rows
         if str(row.service_id or "").strip()
     }
     now_ms = _now_ms()
@@ -324,12 +403,15 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
         prune_stats = {"before": 0, "after": 0, "removed": 0}
 
     return {
+        "scheduled": len(candidates),
         "checked": checked,
         "updated": updated,
         "syncedRows": synced_rows,
         "historyAppended": appended_history,
         "historyPruned": int(prune_stats.get("removed") or 0),
+        "jitterSkipped": jitter_skipped,
         "slowLaneSkipped": slow_lane_skipped,
+        "maxConcurrency": _max_probe_concurrency(),
     }
 
 
@@ -343,10 +425,13 @@ async def run_service_health_monitor(
         try:
             result = await refresh_all_service_health(storage)
             logger.debug(
-                "Service health monitor tick: checked=%s updated=%s slow_lane_skipped=%s",
+                "Service health monitor tick: scheduled=%s checked=%s updated=%s jitter_skipped=%s slow_lane_skipped=%s max_concurrency=%s",
+                result.get("scheduled"),
                 result.get("checked"),
                 result.get("updated"),
+                result.get("jitterSkipped"),
                 result.get("slowLaneSkipped"),
+                result.get("maxConcurrency"),
             )
         except Exception as exc:
             logger.warning("Service health monitor tick failed: %s", exc)

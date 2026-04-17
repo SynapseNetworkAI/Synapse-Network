@@ -152,6 +152,12 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 4. `Suspend`：切到 `suspended`，禁止 discovery / invoke，但保留 slow lane 探活和审计。
 5. `Delete`：只允许非 active 服务逻辑删除；删除后不再探活。
 
+探活调度护栏：
+
+1. `SERVICE_HEALTH_MAX_CONCURRENCY=32` 是默认全局 probe 并发上限，小规模环境不建议调高。
+2. `SERVICE_HEALTH_JITTER_ENABLED=1` 会用 stable jitter 分散周期探活，避免大量 Provider endpoint 在同一 tick 被打中。
+3. 中等规模可以评估调到 64；更大规模按服务数、probe p95 latency、timeout rate 和 Gateway CPU/FD 使用率测算。
+
 `probeTier` 语义：
 
 1. `normal`：正常探活频率。
@@ -163,8 +169,9 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 
 1. `active + unhealthy` 是正常状态，表示 Gateway 自动摘流，但没有把 Provider 主动下线。
 2. 长期 `active + unhealthy` 会进入 slow lane，降低探活频率以节省资源；endpoint 恢复后等下一次 slow lane probe，或直接点 `Force probe`。
-3. `inactive` 服务不会被定时任务自动探活；如需恢复自动探活，先 `Resume`。
-4. 如果页面能登录但 Provider 服务列表报 401/403，优先检查内部 JWT 与 admin wallet 白名单。
+3. 如果 monitor stats 里 `jitterSkipped` 高但 `checked` 持续推进，说明调度正在主动平滑负载，不是探活停止。
+4. `inactive` 服务不会被定时任务自动探活；如需恢复自动探活，先 `Resume`。
+5. 如果页面能登录但 Provider 服务列表报 401/403，优先检查内部 JWT 与 admin wallet 白名单。
 
 ### 2.6 初始化 bootstrap 管理员密码
 

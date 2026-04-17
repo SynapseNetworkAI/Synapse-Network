@@ -86,7 +86,7 @@ async def register_service(
                 "updated_at": created_at,
             }
         )
-        new_svc = await service_health_service.probe_service_health(new_svc)
+        new_svc = await service_health_service.force_probe_service_health(new_svc)
 
         rows.append(new_svc)
         context._save_service_registry_rows(rows)
@@ -149,7 +149,7 @@ async def update_service(
                 }
             )
             updated = bind_forwarding_service_id(updated)
-            updated = await service_health_service.probe_service_health(updated)
+            updated = await service_health_service.force_probe_service_health(updated)
             rows[index] = updated
             context._save_service_registry_rows(rows)
             service_health_service.sync_service_target_health_table(

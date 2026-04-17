@@ -142,7 +142,7 @@ async def force_probe_admin_provider_service(
         index = _find_service_index(rows, service_id)
         if index < 0:
             return None
-        probed = await service_health_service.probe_service_health(rows[index])
+        probed = await service_health_service.force_probe_service_health(rows[index])
         rows[index] = probed
         service_health_service.sync_service_target_health_table(context.storage, rows)
         if service_health_service.settings.service_health_history_enabled:
@@ -185,7 +185,7 @@ async def update_admin_provider_service_lifecycle(
             updated = service.model_copy(update={"status": "suspended", "is_active": False, "updated_at": now_dt_str()})
         elif normalized_action == "RESUME":
             updated = service.model_copy(update={"status": "active", "is_active": True, "updated_at": now_dt_str()})
-            updated = await service_health_service.probe_service_health(updated)
+            updated = await service_health_service.force_probe_service_health(updated)
         else:
             raise ValueError("SERVICE_LIFECYCLE_ACTION_INVALID")
 

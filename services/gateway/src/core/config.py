@@ -295,6 +295,19 @@ class Settings:
     service_health_probe_timeout_ms: int = _env_int(
         "SERVICE_HEALTH_PROBE_TIMEOUT_MS", 1500
     )
+    service_health_max_concurrency: int = _env_int(
+        "SERVICE_HEALTH_MAX_CONCURRENCY", 32
+    )
+    service_health_jitter_enabled: bool = _env_bool(
+        "SERVICE_HEALTH_JITTER_ENABLED", True
+    )
+    service_health_startup_jitter_sec: float = _env_float(
+        "SERVICE_HEALTH_STARTUP_JITTER_SEC", 10.0
+    )
+    service_health_jitter_strategy: str = (
+        os.getenv("SERVICE_HEALTH_JITTER_STRATEGY", "stable").strip().lower()
+        or "stable"
+    )
     service_health_stale_after_sec: int = _env_int(
         "SERVICE_HEALTH_STALE_AFTER_SEC", 120
     )
