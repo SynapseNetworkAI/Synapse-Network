@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLoginFeedback, buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "./login-presenters";
+import {
+  buildLoginErrorMessage,
+  buildLoginFeedback,
+  buildLoginRailDescription,
+  buildLoginRailFacts,
+  isLoginTotpEnabled,
+} from "./login-presenters";
 
 const enabledPolicy = {
   loginTotpRequired: true,
@@ -50,5 +56,17 @@ describe("login presenters", () => {
       tone: "error",
       message: "登录失败",
     });
+  });
+
+  it("maps login failures to localized operator-facing messages", () => {
+    expect(buildLoginErrorMessage(null, "Invalid admin credentials")).toBe("邮箱或密码不正确，请检查后重试。");
+    expect(buildLoginErrorMessage("INVALID_GOOGLE_AUTHENTICATOR_CODE", "Invalid Google Authenticator code")).toBe(
+      "验证码错误或已过期，请使用最新 6 位码重试。",
+    );
+    expect(buildLoginErrorMessage(null, "otpCode is required when login TOTP is enabled")).toBe(
+      "请输入 Google Authenticator 的 6 位验证码。",
+    );
+    expect(buildLoginErrorMessage(null, "Failed to fetch")).toBe("暂时无法连接管理后台，请稍后重试。");
+    expect(buildLoginErrorMessage("UNKNOWN", "backend internal detail")).toBe("登录失败，请检查登录信息后重试。");
   });
 });

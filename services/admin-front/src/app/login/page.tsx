@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
 import { AuthProtocolShell } from "@/components/auth-protocol-shell";
-import { buildLoginFeedback, buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "@/features/auth/login-presenters";
+import {
+  buildLoginErrorMessage,
+  buildLoginFeedback,
+  buildLoginRailDescription,
+  buildLoginRailFacts,
+  isLoginTotpEnabled,
+} from "@/features/auth/login-presenters";
 import { clearPendingMfaEnrollment, savePendingMfaEnrollment } from "@/lib/admin-mfa-enrollment";
 import {
   getAdminAuthPolicy,
@@ -85,7 +91,11 @@ export default function LoginPage() {
             return;
           }
         }
-        setError(submitError instanceof Error ? submitError.message : "登录失败");
+        if (isAdminApiError(submitError)) {
+          setError(buildLoginErrorMessage(submitError.code, submitError.message));
+          return;
+        }
+        setError(buildLoginErrorMessage(null, submitError instanceof Error ? submitError.message : null));
       }
     });
   }
