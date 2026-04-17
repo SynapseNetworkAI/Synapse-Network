@@ -207,6 +207,45 @@ Platform 要把它落成：
 3. Public discover 还要额外满足运行健康检查通过
 4. “review or activation” 目前仍是目标态产品语义，不是已落地工作流
 
+### 9.2 探活、摘流与恢复
+
+Provider 注册后的服务状态分成两层：
+
+1. 控制面生命周期：`draft / active / inactive / suspended / deleted`
+2. 运行时健康：`unknown / probing / healthy / degraded / unhealthy / stale`
+
+Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源。`gateway-admin` 只负责控制台管理，不另起第二套探活系统。
+
+探活策略：
+
+1. `active`：正常频率探活。
+2. `active + unhealthy`：继续探活，但自动从 discovery / invoke 摘流。
+3. `inactive`：停止自动探活，只允许手动 force probe。
+4. `suspended`：允许继续探活和留存健康历史，但永不进入 discovery / invoke。
+5. `deleted`：不探活、不发现、不调用，只保留审计与历史数据。
+
+可调用判断必须同时满足：
+
+1. `isActive=true`
+2. `status=active`
+3. runtime health 未过期
+4. 至少一个 target 为 `healthy`
+
+健康失败不会把服务自动改成 `inactive`。如果所有 target 连续失败达到 `unhealthyThreshold`，Gateway 自动摘流并返回 `SERVICE_UNAVAILABLE`；后续探活达到 `healthyThreshold` 后自动恢复可调用状态，不需要 Provider 人工重新上线。
+
+### 9.3 Admin Provider Services 管理面
+
+后台菜单 `Provider 服务` 用于管理注册到 Gateway 的 Provider 接口：
+
+1. 列表展示服务名、Provider、控制面状态、运行时状态、healthy target 数、lastCheckedAt、最近错误和 runtimeAvailable。
+2. `Force probe` 立即探活一次，不改变控制面生命周期。
+3. `Pause service` 将服务切到 `inactive`，停止 discovery / invoke，并停止自动探活。
+4. `Resume service` 将服务切回 `active`，立即 probe；健康达标后自动进入 discovery / invoke。
+5. `Suspend service` 将服务切到 `suspended`，用于平台风控或合规冻结；保留探活和审计，但不承载流量。
+6. `Delete service` 只允许非 `active` 服务逻辑删除；删除后不再探活。
+
+Gateway 在首次从 `healthy/degraded` 变成 `unhealthy` 时写入 `provider_health_degraded` 事件，恢复时写入 `provider_health_recovered`，长时间不健康时写入 `provider_health_outage`。
+
 ## 10. 风险边界
 
 Provider 链路必须守住三条红线：

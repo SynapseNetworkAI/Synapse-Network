@@ -132,7 +132,33 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 4. `Invalid internal service token`: 两侧内部 JWT 配置未对齐。
 5. `Internal admin wallet is not allow-listed`: admin wallet 不在 gateway 白名单中。
 
-### 2.5 初始化 bootstrap 管理员密码
+### 2.5 Provider 服务管理联调
+
+后台 `Provider 服务` 页面依赖 `gateway-admin -> gateway` 内部 token 调用 Gateway runtime 的 provider service management API。
+
+确认链路：
+
+1. `GATEWAY_INTERNAL_BASE_URL` 指向正在运行的 Gateway，例如 `http://localhost:8000`
+2. `GATEWAY_INTERNAL_JWT_SECRET`、issuer、audience、subject 与 Gateway `.env.local` 完全一致
+3. `GATEWAY_INTERNAL_ADMIN_WALLET` 已加入 Gateway 的 `PLATFORM_FEE_ADMIN_WALLETS`
+4. Gateway 已启动 `service_health_monitor`
+5. admin-front 打开 `/provider-services`
+
+管理语义：
+
+1. `Force probe`：立即探活一次，不改变控制面生命周期。
+2. `Pause`：切到 `inactive`，停止 discovery / invoke，并停止自动探活。
+3. `Resume`：切回 `active`，立即 probe；健康达标后自动恢复 discovery / invoke。
+4. `Suspend`：切到 `suspended`，禁止 discovery / invoke，但保留探活和审计。
+5. `Delete`：只允许非 active 服务逻辑删除；删除后不再探活。
+
+排查要点：
+
+1. `active + unhealthy` 是正常状态，表示 Gateway 自动摘流，但没有把 Provider 主动下线。
+2. `inactive` 服务不会被定时任务自动探活；如需验证 endpoint 是否恢复，用 `Force probe`。
+3. 如果页面能登录但 Provider 服务列表报 401/403，优先检查内部 JWT 与 admin wallet 白名单。
+
+### 2.6 初始化 bootstrap 管理员密码
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
@@ -144,7 +170,7 @@ cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 
 这个脚本只负责给已存在的 bootstrap 管理员写入初始密码，不会创建账号或修改角色。
 
-### 2.6 重置未绑定 MFA 的联调测试管理员
+### 2.7 重置未绑定 MFA 的联调测试管理员
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin

@@ -94,14 +94,32 @@ Discovery 只做一件事：
 
 Provider 侧注册服务必须走明确状态机，不能用物理删除破坏审计链路。
 
+服务状态分两层，不允许混用：
+
+1. 控制面生命周期：`draft / active / inactive / suspended / deleted`
+2. 运行时健康：`unknown / probing / healthy / degraded / unhealthy / stale`
+
+其中 `active` 表示 Provider 或平台允许服务承载流量；`healthy / degraded / unhealthy / stale` 是 Gateway 探活产生的运行时事实。健康失败只能自动摘流，不能自动把 `active` 改成 `inactive`。
+
 1. `draft`
    刚创建或尚未完成发布收敛，不对外承载流量。
 2. `active`
-   Provider 明确启用，且只有健康检查存在可用 target 时，才会进入 discover / invoke 候选。
+   Provider 明确启用。Gateway 会持续定时探活，即使当前已经 `unhealthy` 也继续探活；只有健康检查存在可用 target 时，才会进入 discover / invoke 候选。
 3. `inactive`
-   Provider 主动下线。Gateway 不再允许新的 discovery 命中或新的转发调用，但保留配置、历史健康数据与审计上下文。
-4. `deleted`
+   Provider 主动下线。Gateway 不再允许新的 discovery 命中或新的转发调用，并停止自动探活；只允许管理员或 Provider 手动 force probe。
+4. `suspended`
+   平台风控或合规冻结。Gateway 不允许 discovery / invoke，但仍可保留低频或正常探活，用于观察恢复条件和保留审计事实。
+5. `deleted`
    逻辑删除终态。记录保留在注册表中用于审计、归因与问题追溯；默认不再出现在 Provider 日常服务列表，也不会参与探活、发现或调用。
+
+运行时健康语义：
+
+1. `unknown`：尚无有效探活结果。
+2. `probing`：探活执行中或等待首轮结果。
+3. `healthy`：至少一个 target 在健康窗口内满足成功阈值。
+4. `degraded`：部分 target 可用，或失败尚未达到不健康阈值。
+5. `unhealthy`：连续失败达到阈值，当前没有可路由 healthy target。
+6. `stale`：最近探活结果超过有效窗口，不能作为可调用依据。
 
 V1 删除规则：
 
@@ -188,9 +206,17 @@ Gateway 必须按成本从低到高执行：
 
 1. `is_active = true`
 2. `status = active`
-3. 至少一个 target 在健康窗口内为 `healthy`
+3. 运行时健康未过期
+4. 至少一个 target 在健康窗口内为 `healthy`
 
-只要 Provider 把服务切到 `inactive`，或者平台把服务标记为 `deleted`，调用链就必须在进入上游转发前被网关硬拦截。
+只要 Provider 把服务切到 `inactive`，平台把服务切到 `suspended` / `deleted`，或者当前没有 healthy target，调用链就必须在进入上游转发前被网关硬拦截。
+
+自动摘流规则：
+
+1. `active + unhealthy` 不会被 Gateway 改写成 `inactive`。
+2. `active + unhealthy/stale` 不出现在 discovery，也不能进入 invoke 上游转发。
+3. 后续探活重新达到 healthy 阈值后，服务自动恢复 discovery / invoke。
+4. `inactive` 与 `deleted` 不参与自动探活；`suspended` 可继续探活但永不承载流量。
 
 ### 8.2 Invocation 记录
 

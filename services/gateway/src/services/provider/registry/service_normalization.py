@@ -29,6 +29,11 @@ from src.utils.datetime_utils import to_dt_str
 
 JSON_CONTENT_TYPE = "application/json"
 HttpMethod = Literal["POST", "GET", "PUT", "PATCH", "DELETE"]
+SERVICE_LIFECYCLE_STATUSES = {"draft", "active", "inactive", "suspended", "deleted"}
+LEGACY_SERVICE_LIFECYCLE_STATUS = {
+    "paused": "inactive",
+    "archived": "deleted",
+}
 
 
 def _normalized_http_method(value: Any) -> HttpMethod:
@@ -57,6 +62,20 @@ def dict_payload(value: Any) -> dict[str, Any]:
 
 def list_payload(value: Any) -> List[Any]:
     return value if isinstance(value, list) else []
+
+
+def normalized_service_lifecycle_status(raw_status: Any, is_active: bool = True) -> str:
+    status = str(raw_status or "").strip().lower()
+    status = LEGACY_SERVICE_LIFECYCLE_STATUS.get(status, status)
+    if not status:
+        status = "active" if is_active else "inactive"
+    if status not in SERVICE_LIFECYCLE_STATUSES:
+        raise ValueError(
+            "service status must be one of draft, active, inactive, suspended, deleted"
+        )
+    if status == "active" and not is_active:
+        return "inactive"
+    return status
 
 
 def validated_invoke_payload(req_data: dict[str, Any]) -> dict[str, Any]:
@@ -118,6 +137,10 @@ def normalized_health_check(req_data: dict[str, Any]) -> dict[str, Any]:
     health_path = str(health_check.get("path") or "").strip()
     if not health_path:
         raise ValueError("healthCheck.path is required")
+    is_active = bool(req_data.get("isActive", True))
+    lifecycle_status = normalized_service_lifecycle_status(
+        req_data.get("status"), is_active=is_active
+    )
     return {
         **health_check,
         "path": health_path if health_path.startswith("/") else f"/{health_path}",
@@ -345,8 +368,8 @@ def service_definition_payload(
         "pricingCurrency": pricing_currency,
         "role": str(req_data.get("role") or "Provider"),
         "address": str(req_data.get("address") or owner_wallet),
-        "status": str(req_data.get("status") or ("active" if req_data.get("isActive", True) else "inactive")),
-        "isActive": bool(req_data.get("isActive", True)),
+        "status": lifecycle_status,
+        "isActive": lifecycle_status == "active",
         "constraints": constraints,
         "auth": normalized_auth_payload(req_data, normalized_targets),
         "providerProfile": normalized_provider_profile(req_data),

@@ -104,6 +104,34 @@ class ServiceRegistryCoreMixin:
         return f"service_health_history::{service_id}"
 
     @staticmethod
+    def _public_lifecycle_status(status: object, is_active: object = True) -> str:
+        normalized = str(status or "").strip().lower()
+        if normalized == "paused":
+            normalized = "inactive"
+        elif normalized == "archived":
+            normalized = "deleted"
+        if not normalized:
+            normalized = "active" if bool(is_active) else "inactive"
+        if normalized == "active" and not bool(is_active):
+            normalized = "inactive"
+        if normalized not in {"draft", "active", "inactive", "suspended", "deleted"}:
+            return "inactive"
+        return normalized
+
+    @classmethod
+    def _manifest_db_status(cls, row: ServiceDefinitionRecord) -> str:
+        lifecycle = cls._public_lifecycle_status(row.status, row.is_active)
+        if lifecycle == "active":
+            return "active"
+        if lifecycle == "deleted":
+            return "archived"
+        return "paused"
+
+    @classmethod
+    def _endpoint_db_status(cls, row: ServiceDefinitionRecord) -> str:
+        return "active" if cls._public_lifecycle_status(row.status, row.is_active) == "active" else "paused"
+
+    @staticmethod
     def _owner_id(wallet: str) -> str:
         return f"owner:{str(wallet or '').lower()}"
 
@@ -270,6 +298,7 @@ class ServiceRegistryCoreMixin:
             if row.governance is not None
             else None,
             "healthCheck": row.health_check.model_dump(by_alias=True, mode="json", exclude_none=True),
+            "lifecycleStatus": cls._public_lifecycle_status(row.status, row.is_active),
             "forwarding": row.forwarding.model_dump(by_alias=True, mode="json", exclude_none=True),
             "metering": row.metering.model_dump(by_alias=True, mode="json", exclude_none=True),
             "invoke": cls._serialize_invoke(row.invoke),
@@ -402,7 +431,7 @@ class ServiceRegistryCoreMixin:
                 provider_id,
                 row.service_name,
                 str(row.schema_version or 1),
-                row.status or ("active" if row.is_active else "paused"),
+                self._manifest_db_status(row),
                 row.summary or row.service_name,
                 row.role,
                 json.dumps(row.tags or []),
@@ -485,9 +514,8 @@ class ServiceRegistryCoreMixin:
                     target.region,
                     int(target.weight or 100),
                     index == 0,
-                    "active" if row.is_active else "paused",
+                    self._endpoint_db_status(row),
                     created_at,
                     updated_at,
                 ),
             )
-

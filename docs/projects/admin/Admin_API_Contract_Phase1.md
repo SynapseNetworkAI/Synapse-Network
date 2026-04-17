@@ -14,11 +14,12 @@
 
 ## 1. 第一期开口范围
 
-第一期仅定义三组对外管理接口：
+第一期主要定义以下对外管理接口：
 
 - `admin_auth`
 - `dashboard`
 - `approval`
+- `provider_services`
 
 统一前缀建议：
 
@@ -42,6 +43,8 @@
 - `POST /api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`
 - `POST /api/admin/v1/execution-jobs/{jobId}/retry`
 - `POST /api/admin/v1/config/menu-items/publish`
+- `POST /api/admin/v1/provider-services/{serviceId}/lifecycle`
+- `DELETE /api/admin/v1/provider-services/{serviceId}`
 
 ### 2.4 菜单配置读取边界
 
@@ -98,6 +101,116 @@
 - `readonly_analyst`
 
 ## 3. admin-front -> gateway-admin
+
+## 3.0 provider_services
+
+用途：管理注册到 Gateway 的 Provider 服务、运行时探活状态和自动摘流状态。这里是控制台管理面，不是第二套路由或探活系统。
+
+页面入口：
+
+- `/provider-services`
+
+权限：
+
+1. `GET /api/admin/v1/provider-services`：`dashboard:read`
+2. `GET /api/admin/v1/provider-services/{serviceId}`：`dashboard:read`
+3. `POST /api/admin/v1/provider-services/{serviceId}/force-probe`：`dashboard:read`
+4. `POST /api/admin/v1/provider-services/{serviceId}/lifecycle`：`approval:submit`
+5. `DELETE /api/admin/v1/provider-services/{serviceId}`：`approval:submit`
+
+状态语义：
+
+1. 控制面生命周期：`draft / active / inactive / suspended / deleted`
+2. 运行时健康：`unknown / probing / healthy / degraded / unhealthy / stale`
+3. `active + unhealthy` 表示服务仍由控制面允许上线，但 Gateway 当前自动摘流；不允许 admin-front 把它显示成 Provider 主动下线。
+
+### `GET /api/admin/v1/provider-services`
+
+用途：分页读取非 deleted Provider 服务列表。
+
+Query:
+
+1. `query`：按 serviceId、服务名、Provider、摘要或 tag 搜索
+2. `status`：控制面状态过滤
+3. `runtimeStatus`：运行时状态过滤
+4. `page`
+5. `pageSize`
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "serviceId": "svc_quote",
+        "ownerAddress": "0xProvider",
+        "serviceName": "Quote Service",
+        "summary": "Market quote provider",
+        "tags": ["quote"],
+        "pricing": {
+          "amount": "0.01",
+          "currency": "USDC"
+        },
+        "controlStatus": "active",
+        "status": "active",
+        "isActive": true,
+        "runtimeStatus": "healthy",
+        "runtimeAvailable": true,
+        "health": {
+          "overallStatus": "healthy",
+          "probeStatus": "healthy",
+          "healthyTargets": 1,
+          "totalTargets": 1,
+          "lastCheckedAt": 1776400000000,
+          "isStale": false,
+          "runtimeAvailable": true
+        },
+        "targets": []
+      }
+    ],
+    "page": 1,
+    "pageSize": 20,
+    "totalCount": 1,
+    "totalPages": 1
+  },
+  "requestId": "req_123"
+}
+```
+
+### `POST /api/admin/v1/provider-services/{serviceId}/force-probe`
+
+用途：立即对目标 service 执行一次健康探测，不改变控制面生命周期。
+
+### `POST /api/admin/v1/provider-services/{serviceId}/lifecycle`
+
+用途：执行控制面生命周期操作。
+
+请求：
+
+```json
+{
+  "action": "PAUSE",
+  "note": "Provider requested maintenance window."
+}
+```
+
+允许动作：
+
+1. `PAUSE`：切到 `inactive`，停止 discovery / invoke，停止自动探活。
+2. `RESUME`：切回 `active`，立即 probe，健康达标后自动恢复 discovery / invoke。
+3. `SUSPEND`：切到 `suspended`，禁止 discovery / invoke，但保留探活和审计。
+
+### `DELETE /api/admin/v1/provider-services/{serviceId}`
+
+用途：逻辑删除非 active 服务。
+
+约束：
+
+1. `active` 服务不能直接删除，必须先 `PAUSE`。
+2. 删除后 Gateway 不再自动探活，也不会进入 discovery / invoke。
+3. 历史健康数据和 audit 保留，用于追溯。
 
 ## 3.1 admin_auth
 

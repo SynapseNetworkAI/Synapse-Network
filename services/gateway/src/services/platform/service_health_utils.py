@@ -79,6 +79,28 @@ def _service_targets(service: ServiceDefinitionRecord) -> List[ServiceInvokeTarg
     return [target for target in service.invoke.targets if str(target.url or "").strip()]
 
 
+def service_control_status(service: ServiceDefinitionRecord) -> str:
+    status = str(service.status or "").strip().lower()
+    if status == "paused":
+        status = "inactive"
+    elif status == "archived":
+        status = "deleted"
+    if not status:
+        status = "active" if bool(service.is_active) else "inactive"
+    if status == "active" and not bool(service.is_active):
+        return "inactive"
+    if status not in {"draft", "active", "inactive", "suspended", "deleted"}:
+        return "inactive"
+    return status
+
+
+def is_service_probeable(service: ServiceDefinitionRecord) -> bool:
+    lifecycle_status = service_control_status(service)
+    if lifecycle_status == "active":
+        return bool(service.is_active)
+    return lifecycle_status == "suspended"
+
+
 def public_health_summary(service: ServiceDefinitionRecord) -> dict[str, Any]:
     health = _runtime_health(service)
     raw_status = str(health.overall_status or "unknown")
@@ -121,9 +143,10 @@ def effective_runtime_status(
     now_ms: Optional[int] = None,
     stale_after_sec: Optional[int] = None,
 ) -> str:
+    lifecycle_status = service_control_status(service)
+    if lifecycle_status != "active":
+        return lifecycle_status
     if not bool(service.is_active):
-        return "inactive"
-    if str(service.status or "active").lower() != "active":
         return "inactive"
     if is_health_stale(service, now_ms=now_ms, stale_after_sec=stale_after_sec):
         return "stale"
@@ -162,9 +185,9 @@ def get_healthy_target_urls(
 
 
 def is_service_discoverable(service: ServiceDefinitionRecord) -> bool:
-    if not bool(service.is_active):
+    if service_control_status(service) != "active":
         return False
-    if str(service.status or "active").lower() != "active":
+    if not bool(service.is_active):
         return False
     return len(get_healthy_target_urls(service)) > 0
 
@@ -208,7 +231,7 @@ def _build_service_target_health_rows(
 ) -> List[ServiceTargetHealth]:
     rows: List[ServiceTargetHealth] = []
     for service in services:
-        if str(service.status or "").strip().lower() == "deleted":
+        if service_control_status(service) == "deleted":
             continue
         target_health = _target_health_map(service)
         for target in _service_targets(service):

@@ -24,6 +24,13 @@ from .registry import (
     service_health_history as service_health_history_op,
     update_service as update_service_op,
 )
+from .registry.admin import (
+    delete_admin_provider_service as delete_admin_provider_service_op,
+    force_probe_admin_provider_service as force_probe_admin_provider_service_op,
+    get_admin_provider_service as get_admin_provider_service_op,
+    list_admin_provider_services as list_admin_provider_services_op,
+    update_admin_provider_service_lifecycle as update_admin_provider_service_lifecycle_op,
+)
 from .registry.discovery_helpers import hydrate_service_runtime_health
 
 SERVICE_DELETE_ACTIVE_CONFLICT = "SERVICE_DELETE_ACTIVE_CONFLICT"
@@ -153,4 +160,73 @@ class RegistryService:
             limit_per_target,
             hours=hours,
             days=days,
+        )
+
+    async def list_admin_provider_services(
+        self,
+        *,
+        query: str | None,
+        status: str | None,
+        runtime_status: str | None,
+        page: int,
+        page_size: int,
+    ) -> dict[str, Any]:
+        return await list_admin_provider_services_op(
+            self,
+            query=query,
+            status=status,
+            runtime_status=runtime_status,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def get_admin_provider_service(self, service_id: str) -> dict[str, Any] | None:
+        return await get_admin_provider_service_op(self, service_id)
+
+    async def force_probe_admin_provider_service(
+        self,
+        *,
+        service_id: str,
+        actor_wallet: str,
+        actor_admin_id: str,
+    ) -> dict[str, Any] | None:
+        return await force_probe_admin_provider_service_op(
+            self,
+            service_id=service_id,
+            actor_wallet=actor_wallet,
+            actor_admin_id=actor_admin_id,
+        )
+
+    async def update_admin_provider_service_lifecycle(
+        self,
+        *,
+        service_id: str,
+        action: str,
+        actor_wallet: str,
+        actor_admin_id: str,
+        note: str | None = None,
+    ) -> dict[str, Any] | None:
+        return await update_admin_provider_service_lifecycle_op(
+            self,
+            service_id=service_id,
+            action=action,
+            actor_wallet=actor_wallet,
+            actor_admin_id=actor_admin_id,
+            note=note,
+        )
+
+    async def delete_admin_provider_service(
+        self,
+        *,
+        service_id: str,
+        actor_wallet: str,
+        actor_admin_id: str,
+        note: str | None = None,
+    ) -> bool:
+        return await delete_admin_provider_service_op(
+            self,
+            service_id=service_id,
+            actor_wallet=actor_wallet,
+            actor_admin_id=actor_admin_id,
+            note=note,
         )

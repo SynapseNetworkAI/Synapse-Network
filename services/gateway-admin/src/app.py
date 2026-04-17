@@ -15,6 +15,7 @@ from src.api.routers import (
 	audit,
 	dashboard,
 	execution,
+	provider_services,
 	provider_withdraw_review,
 )
 from src.api import deps
@@ -167,6 +168,7 @@ def create_app() -> FastAPI:
 	app.include_router(approval.router)
 	app.include_router(audit.router)
 	app.include_router(execution.router)
+	app.include_router(provider_services.router)
 	app.include_router(provider_withdraw_review.router)
 
 	_register_exception_handlers(app)

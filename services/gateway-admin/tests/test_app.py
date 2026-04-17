@@ -149,6 +149,72 @@ TEST_PROVIDER_WITHDRAW_REVIEW_ADAPTER = InMemoryProviderWithdrawReviewAdapter(TE
 TEST_ANALYTICS_REPOSITORY = FakeAnalyticsDashboardRepository()
 
 
+class FakeProviderServicesAdapter:
+    def __init__(self) -> None:
+        self.service = {
+            "serviceId": "svc_quotes",
+            "ownerAddress": "0xprovider",
+            "serviceName": "Quote Engine",
+            "summary": "Registered provider service.",
+            "tags": ["quotes"],
+            "pricing": {"amount": "0.01", "currency": "USDC"},
+            "controlStatus": "active",
+            "status": "active",
+            "isActive": True,
+            "runtimeStatus": "healthy",
+            "runtimeAvailable": True,
+            "health": {
+                "overallStatus": "healthy",
+                "probeStatus": "healthy",
+                "healthyTargets": 1,
+                "totalTargets": 1,
+                "lastCheckedAt": 1710000000000,
+                "isStale": False,
+                "runtimeAvailable": True,
+            },
+            "targets": [
+                {
+                    "targetUrl": "https://provider.test/invoke",
+                    "status": "healthy",
+                    "httpStatus": 200,
+                    "latencyMs": 32,
+                    "consecutiveSuccesses": 4,
+                    "consecutiveFailures": 0,
+                    "lastCheckedAt": 1710000000000,
+                    "lastHealthyAt": 1710000000000,
+                    "error": None,
+                }
+            ],
+            "createdAt": "2026-04-17 00:00:00",
+            "updatedAt": "2026-04-17 00:00:00",
+        }
+
+    def list_services(self, *, actor, params):
+        _ = actor, params
+        return {"items": [self.service], "page": 1, "pageSize": 20, "totalCount": 1, "totalPages": 1}
+
+    def get_service(self, *, actor, service_id):
+        _ = actor, service_id
+        return {"service": self.service}
+
+    def force_probe(self, *, actor, service_id):
+        _ = actor, service_id
+        return {"service": self.service}
+
+    def update_lifecycle(self, *, actor, service_id, action, note):
+        _ = actor, service_id, note
+        status = {"PAUSE": "inactive", "RESUME": "active", "SUSPEND": "suspended"}[action]
+        next_service = {**self.service, "controlStatus": status, "status": status}
+        return {"service": next_service}
+
+    def delete_service(self, *, actor, service_id, note):
+        _ = actor, service_id, note
+        return {"status": "success", "message": "Service deleted"}
+
+
+TEST_PROVIDER_SERVICES_ADAPTER = FakeProviderServicesAdapter()
+
+
 def _test_store() -> InMemoryAdminStore:
     return TEST_STORE
 
@@ -209,6 +275,7 @@ app.dependency_overrides[deps.get_dashboard_service] = _get_test_dashboard_servi
 app.dependency_overrides[deps.get_provider_withdraw_review_repository] = _test_provider_withdraw_review_repository
 app.dependency_overrides[deps.get_provider_withdraw_review_adapter] = lambda: TEST_PROVIDER_WITHDRAW_REVIEW_ADAPTER
 app.dependency_overrides[deps.get_provider_withdraw_review_service] = _get_test_provider_withdraw_review_service
+app.dependency_overrides[deps.get_provider_services_adapter] = lambda: TEST_PROVIDER_SERVICES_ADAPTER
 app.dependency_overrides[deps.get_audit_service] = _get_test_audit_service
 app.dependency_overrides[deps.get_gateway_execution_adapter] = lambda: TEST_GATEWAY_EXECUTION_ADAPTER
 app.dependency_overrides[deps.get_execution_service] = _get_test_execution_service
@@ -870,18 +937,19 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     item_ids = {item["itemId"] for item in response.json()["data"]["items"]}
     assert item_ids == {
         "control-overview",
-            "dashboard",
-            "dashboard-overview",
-            "dashboard-runtime",
-            "analytics",
-            "dashboard-analytics",
-            "analytics-consumer-funnel",
-            "analytics-invocation-revenue",
-            "analytics-provider-revenue",
-            "analytics-money-flow",
-            "analytics-risk-health",
-            "analytics-data-quality",
-            "system",
+        "dashboard",
+        "dashboard-overview",
+        "dashboard-runtime",
+        "analytics",
+        "dashboard-analytics",
+        "analytics-consumer-funnel",
+        "analytics-invocation-revenue",
+        "analytics-provider-revenue",
+        "analytics-money-flow",
+        "analytics-risk-health",
+        "analytics-data-quality",
+        "provider-services",
+        "system",
         "business-control",
         "approvals",
         "withdrawal-reviews",
@@ -895,6 +963,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     analytics_overview_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard-analytics")
     consumer_funnel_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "analytics-consumer-funnel")
     system_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "system")
+    provider_services_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "provider-services")
     assert dashboard_item["href"] is None
     assert dashboard_item["nodeType"] == "category"
     assert analytics_item["href"] is None
@@ -906,6 +975,33 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     assert consumer_funnel_item["parentItemId"] == "analytics"
     assert runtime_item["href"] == "/dashboard/runtime"
     assert system_item["href"] == "/system"
+    assert provider_services_item["href"] == "/provider-services"
+
+
+def test_provider_services_management_routes_proxy_gateway_state() -> None:
+    csrf_headers = _login_as("super@synapse.network")
+
+    list_response = client.get("/api/admin/v1/provider-services")
+    assert list_response.status_code == 200
+    body = list_response.json()["data"]
+    assert body["totalCount"] == 1
+    assert body["items"][0]["serviceId"] == "svc_quotes"
+    assert body["items"][0]["runtimeAvailable"] is True
+
+    probe_response = client.post(
+        "/api/admin/v1/provider-services/svc_quotes/force-probe",
+        headers=csrf_headers,
+    )
+    assert probe_response.status_code == 200
+    assert probe_response.json()["data"]["service"]["runtimeStatus"] == "healthy"
+
+    pause_response = client.post(
+        "/api/admin/v1/provider-services/svc_quotes/lifecycle",
+        headers=csrf_headers,
+        json={"action": "PAUSE", "note": "ops pause"},
+    )
+    assert pause_response.status_code == 200
+    assert pause_response.json()["data"]["service"]["controlStatus"] == "inactive"
 
 
 def test_menu_config_delete_removes_descendants() -> None:
