@@ -224,7 +224,7 @@ export function buildProviderSignalCards(provider: AnalyticsProviderRevenue | nu
       key: "provider-net",
       label: "Provider Net",
       value: `${formatUsdc(provider?.providerNetUsdc ?? 0)} USDC`,
-      detail: `Pending settlement ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
+      detail: `Available to withdraw ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
       tone: "green",
     },
     {
@@ -250,7 +250,7 @@ export function buildProviderSettlementCards(provider: AnalyticsProviderRevenue 
       key: "completed-settlement",
       label: "Settlement Completed",
       value: `${formatUsdc(provider?.settlementCompletedUsdc ?? 0)} USDC`,
-      detail: `Pending ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
+      detail: `Available to withdraw ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
       tone: (provider?.pendingSettlementUsdc ?? 0) > 0 ? "orange" : "green",
     },
     {

@@ -283,6 +283,15 @@ export type AnalyticsProviderRevenue = {
   }>;
 };
 
+export type AnalyticsDepositFailureSample = {
+  timestamp: string;
+  errorCode: string;
+  amountUsdc: number;
+  env: string;
+  correlationId: string;
+  txHash: string;
+};
+
 export type AnalyticsMoneyFlow = {
   window: string;
   depositUsdc: number;
@@ -292,6 +301,7 @@ export type AnalyticsMoneyFlow = {
   refundUsdc: number;
   confirmLatencyMs: AnalyticsLatencyPercentiles;
   depositErrors: AnalyticsDistributionItem[];
+  depositFailureSamples: AnalyticsDepositFailureSample[];
   withdrawalErrors: AnalyticsDistributionItem[];
   financeContext: {
     pendingDepositCount: number;
@@ -299,6 +309,27 @@ export type AnalyticsMoneyFlow = {
     vaultLedgerDeltaUsdc: string;
     chainConfirmedNotLedgerConfirmedCount: number;
   };
+};
+
+export type AnalyticsBudgetBlock = {
+  key: string;
+  errorCode: string;
+  serviceId: string;
+  surface: string;
+  count: number;
+  requiredUsdc: number;
+  availableUsdc: number;
+  gapUsdc: number;
+};
+
+export type AnalyticsBudgetBlockSample = {
+  timestamp: string;
+  serviceId: string;
+  errorCode: string;
+  requiredUsdc: number;
+  availableUsdc: number;
+  correlationId: string;
+  surface: string;
 };
 
 export type AnalyticsRiskHealth = {
@@ -314,6 +345,8 @@ export type AnalyticsRiskHealth = {
     reason: string;
   }>;
   budgetGapUsdc: number;
+  budgetBlocks: AnalyticsBudgetBlock[];
+  budgetBlockSamples: AnalyticsBudgetBlockSample[];
   refundReasons: AnalyticsDistributionItem[];
 };
 

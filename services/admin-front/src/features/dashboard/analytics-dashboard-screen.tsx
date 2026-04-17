@@ -2,6 +2,7 @@
 
 import { Box, Button, Grid, HStack, Heading, Stack, Text } from "@chakra-ui/react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
@@ -37,7 +38,7 @@ import {
   summarizeSourceCoverage,
   type AnalyticsSignalCard,
 } from "@/features/dashboard/analytics-presenters";
-import { formatUsdc } from "@/lib/admin-console";
+import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import type {
   AdminProfile,
   AnalyticsConsumerFunnel,
@@ -74,6 +75,34 @@ type AnalyticsResource<T> = {
 
 const ANALYTICS_WINDOWS: AnalyticsWindow[] = ["24h", "7d", "30d"];
 const DATA_QUALITY_WINDOWS: AnalyticsDataQualityWindow[] = ["1h", "24h"];
+
+function resolveWindowParam<TWindow extends string>(
+  value: string | null,
+  windows: readonly TWindow[],
+  fallback: TWindow,
+): TWindow {
+  return windows.includes(value as TWindow) ? value as TWindow : fallback;
+}
+
+function useQueryBackedWindow<TWindow extends string>(
+  windows: readonly TWindow[],
+  fallback: TWindow,
+): [TWindow, (value: TWindow) => void] {
+  const searchParams = useSearchParams();
+  const queryWindow = searchParams.get("window");
+  const [windowValue, setWindowValue] = useState<TWindow>(() => resolveWindowParam(queryWindow, windows, fallback));
+
+  useEffect(() => {
+    setWindowValue(resolveWindowParam(queryWindow, windows, fallback));
+  }, [fallback, queryWindow, windows]);
+
+  return [windowValue, setWindowValue];
+}
+
+function withWindow(href: string, windowValue: string): string {
+  const joiner = href.includes("?") ? "&" : "?";
+  return `${href}${joiner}window=${encodeURIComponent(windowValue)}`;
+}
 
 const topicCards = [
   {
@@ -316,18 +345,140 @@ function DistributionTable({ title, items }: Readonly<{ title: string; items: An
   );
 }
 
+function DepositFailureSamplesTable({ money }: Readonly<{ money: AnalyticsMoneyFlow | null }>) {
+  const samples = money?.depositFailureSamples ?? [];
+  return (
+    <SurfaceCard eyebrow="Samples" title="Recent failed deposits" description="展示 deposit_failed 的最近样本，帮助确认失败原因、环境和关联 trace。">
+      {samples.length ? (
+        <DataTable>
+          <TableHeaderRow>
+            <Th>Time</Th>
+            <Th>Error</Th>
+            <Th>Amount</Th>
+            <Th>Env</Th>
+            <Th>Correlation / Tx</Th>
+          </TableHeaderRow>
+          <TableBody>
+            {samples.map((item, index) => (
+              <tr key={`${item.timestamp}-${item.errorCode}-${index}`}>
+                <Td>{formatDateTime(item.timestamp)}</Td>
+                <Td>{item.errorCode}</Td>
+                <Td>{formatUsdc(item.amountUsdc)} USDC</Td>
+                <Td>{item.env}</Td>
+                <Td>{item.correlationId || item.txHash || "n/a"}</Td>
+              </tr>
+            ))}
+          </TableBody>
+        </DataTable>
+      ) : (
+        <AnalyticsEmptyState label="当前窗口暂无 failed deposit 样本" />
+      )}
+    </SurfaceCard>
+  );
+}
+
+function BudgetBlocksPanel({
+  risk,
+  highlighted,
+}: Readonly<{
+  risk: AnalyticsRiskHealth | null;
+  highlighted: boolean;
+}>) {
+  const blocks = risk?.budgetBlocks ?? [];
+  return (
+    <Box
+      id="budget-blocked"
+      borderRadius="32px"
+      p={highlighted ? "3px" : "0"}
+      bg={highlighted ? "linear-gradient(135deg, rgba(243,106,29,0.68), rgba(31,146,87,0.34))" : "transparent"}
+      boxShadow={highlighted ? "0 0 0 6px rgba(243,106,29,0.10)" : undefined}
+      transition="box-shadow 180ms ease, background 180ms ease"
+    >
+      <SurfaceCard
+        eyebrow="Budget Blocks"
+        title="Budget blocked breakdown"
+        description="按 error_code / service_id / surface 展示预算拦截来源，点击总览告警会聚焦到这里。"
+        stamp={highlighted ? "Focused from alert" : undefined}
+      >
+        {blocks.length ? (
+          <DataTable>
+            <TableHeaderRow>
+              <Th>Error</Th>
+              <Th>Service</Th>
+              <Th>Surface</Th>
+              <Th>Count</Th>
+              <Th>Required</Th>
+              <Th>Available</Th>
+              <Th>Gap</Th>
+            </TableHeaderRow>
+            <TableBody>
+              {blocks.map((item) => (
+                <tr key={item.key}>
+                  <Td>{item.errorCode}</Td>
+                  <Td>{item.serviceId}</Td>
+                  <Td>{item.surface}</Td>
+                  <Td>{item.count}</Td>
+                  <Td>{formatUsdc(item.requiredUsdc)} USDC</Td>
+                  <Td>{formatUsdc(item.availableUsdc)} USDC</Td>
+                  <Td>{formatUsdc(item.gapUsdc)} USDC</Td>
+                </tr>
+              ))}
+            </TableBody>
+          </DataTable>
+        ) : (
+          <AnalyticsEmptyState label="当前窗口暂无 budget_blocked 聚合" />
+        )}
+      </SurfaceCard>
+    </Box>
+  );
+}
+
+function BudgetBlockSamplesTable({ risk }: Readonly<{ risk: AnalyticsRiskHealth | null }>) {
+  const samples = risk?.budgetBlockSamples ?? [];
+  return (
+    <SurfaceCard eyebrow="Samples" title="Recent budget block samples" description="最近 budget_blocked 事件样本，保留 correlationId 用于回查链路。">
+      {samples.length ? (
+        <DataTable>
+          <TableHeaderRow>
+            <Th>Time</Th>
+            <Th>Error</Th>
+            <Th>Service</Th>
+            <Th>Required</Th>
+            <Th>Available</Th>
+            <Th>Correlation</Th>
+          </TableHeaderRow>
+          <TableBody>
+            {samples.map((item, index) => (
+              <tr key={`${item.timestamp}-${item.correlationId}-${index}`}>
+                <Td>{formatDateTime(item.timestamp)}</Td>
+                <Td>{item.errorCode}</Td>
+                <Td>{item.serviceId}</Td>
+                <Td>{formatUsdc(item.requiredUsdc)} USDC</Td>
+                <Td>{formatUsdc(item.availableUsdc)} USDC</Td>
+                <Td>{item.correlationId || "n/a"}</Td>
+              </tr>
+            ))}
+          </TableBody>
+        </DataTable>
+      ) : (
+        <AnalyticsEmptyState label="当前窗口暂无 budget_blocked 样本" />
+      )}
+    </SurfaceCard>
+  );
+}
+
 function topicMetricValue(cards: AnalyticsOverview["cards"], key: string): string | null {
   const card = buildAnalyticsNorthStarCards(cards).find((item) => item.key === key);
   return card ? `${card.label}: ${card.value}` : null;
 }
 
-function AnalyticsTopicGrid({ overview }: Readonly<{ overview: AnalyticsOverview }>) {
+function AnalyticsTopicGrid({ overview, windowValue }: Readonly<{ overview: AnalyticsOverview; windowValue: AnalyticsWindow }>) {
   return (
     <Grid templateColumns={{ base: "1fr", xl: "repeat(3, 1fr)" }} gap="14px">
       {topicCards.map((topic) => {
         const metrics = topic.metrics.map((key) => topicMetricValue(overview.cards, key)).filter((item): item is string => Boolean(item));
         return (
-          <Link key={topic.key} href={topic.href} style={{ textDecoration: "none" }}>
+          <Link key={topic.key} href={withWindow(topic.href, windowValue)} style={{ textDecoration: "none" }}>
             <Box
               minH="210px"
               borderRadius="26px"
@@ -357,7 +508,7 @@ function AnalyticsTopicGrid({ overview }: Readonly<{ overview: AnalyticsOverview
 }
 
 export function AnalyticsOverviewScreen({ admin, token }: Readonly<AnalyticsScreenProps>) {
-  const [windowValue, setWindowValue] = useState<AnalyticsWindow>("24h");
+  const [windowValue, setWindowValue] = useQueryBackedWindow(ANALYTICS_WINDOWS, "24h");
   const { data: overview, loading, error } = useAnalyticsResource(token, windowValue, getAnalyticsOverview, "Analytics overview failed to load");
   const northStarCards = useMemo(() => buildAnalyticsNorthStarCards(overview?.cards ?? []), [overview]);
 
@@ -407,7 +558,7 @@ export function AnalyticsOverviewScreen({ admin, token }: Readonly<AnalyticsScre
       ) : null}
       {overview ? (
         <SurfaceCard eyebrow="Drilldowns" title="专题页面" description="总览只给方向，专题页只加载自己的聚合接口，避免一个慢接口拖住整套 Analytics。">
-          <AnalyticsTopicGrid overview={overview} />
+          <AnalyticsTopicGrid overview={overview} windowValue={windowValue} />
         </SurfaceCard>
       ) : null}
     </AnalyticsPageShell>
@@ -415,7 +566,7 @@ export function AnalyticsOverviewScreen({ admin, token }: Readonly<AnalyticsScre
 }
 
 export function AnalyticsConsumerFunnelScreen({ admin, token }: Readonly<AnalyticsScreenProps>) {
-  const [windowValue, setWindowValue] = useState<AnalyticsWindow>("24h");
+  const [windowValue, setWindowValue] = useQueryBackedWindow(ANALYTICS_WINDOWS, "24h");
   const { data: funnel, loading, error } = useAnalyticsResource(token, windowValue, getAnalyticsConsumerFunnel, "Consumer funnel failed to load");
   const summaryCards = useMemo(() => buildConsumerFunnelSummaryCards(funnel), [funnel]);
   const steps = useMemo(() => buildConsumerFunnelSteps(funnel), [funnel]);
@@ -471,7 +622,7 @@ export function AnalyticsConsumerFunnelScreen({ admin, token }: Readonly<Analyti
 }
 
 export function AnalyticsInvocationRevenueScreen({ admin, token }: Readonly<AnalyticsScreenProps>) {
-  const [windowValue, setWindowValue] = useState<AnalyticsWindow>("24h");
+  const [windowValue, setWindowValue] = useQueryBackedWindow(ANALYTICS_WINDOWS, "24h");
   const { data: invocation, loading, error } = useAnalyticsResource(token, windowValue, getAnalyticsInvocationRevenue, "Invocation revenue failed to load");
   const primaryCards = useMemo(() => buildInvocationSignalCards(invocation), [invocation]);
   const volumeCards = useMemo(() => buildInvocationVolumeCards(invocation), [invocation]);
@@ -529,7 +680,7 @@ export function AnalyticsInvocationRevenueScreen({ admin, token }: Readonly<Anal
 }
 
 export function AnalyticsProviderRevenueScreen({ admin, token }: Readonly<AnalyticsScreenProps>) {
-  const [windowValue, setWindowValue] = useState<AnalyticsWindow>("24h");
+  const [windowValue, setWindowValue] = useQueryBackedWindow(ANALYTICS_WINDOWS, "24h");
   const { data: provider, loading, error } = useAnalyticsResource(token, windowValue, getAnalyticsProviderRevenue, "Provider revenue failed to load");
   const cards = useMemo(() => [...buildProviderSignalCards(provider), ...buildProviderSettlementCards(provider)], [provider]);
 
@@ -606,7 +757,7 @@ export function AnalyticsProviderRevenueScreen({ admin, token }: Readonly<Analyt
 }
 
 export function AnalyticsMoneyFlowScreen({ admin, token }: Readonly<AnalyticsScreenProps>) {
-  const [windowValue, setWindowValue] = useState<AnalyticsWindow>("24h");
+  const [windowValue, setWindowValue] = useQueryBackedWindow(ANALYTICS_WINDOWS, "24h");
   const { data: money, loading, error } = useAnalyticsResource(token, windowValue, getAnalyticsMoneyFlow, "Money flow failed to load");
   const cards = useMemo(() => [...buildMoneyFlowSignalCards(money), ...buildMoneyFlowContextCards(money)], [money]);
 
@@ -631,14 +782,17 @@ export function AnalyticsMoneyFlowScreen({ admin, token }: Readonly<AnalyticsScr
         <DistributionTable title="Deposit Errors" items={money?.depositErrors ?? []} />
         <DistributionTable title="Withdrawal Errors" items={money?.withdrawalErrors ?? []} />
       </Grid>
+      <DepositFailureSamplesTable money={money} />
     </AnalyticsPageShell>
   );
 }
 
 export function AnalyticsRiskHealthScreen({ admin, token }: Readonly<AnalyticsScreenProps>) {
-  const [windowValue, setWindowValue] = useState<AnalyticsWindow>("24h");
+  const [windowValue, setWindowValue] = useQueryBackedWindow(ANALYTICS_WINDOWS, "24h");
+  const searchParams = useSearchParams();
   const { data: risk, loading, error } = useAnalyticsResource(token, windowValue, getAnalyticsRiskHealth, "Risk health failed to load");
   const cards = useMemo(() => [...buildRiskSignalCards(risk), ...buildRiskContextCards(risk)], [risk]);
+  const focusBudgetBlocks = searchParams.get("focus") === "budget_blocked";
 
   if (loading && !risk) {
     return <ControlPlaneLoadingScreen title="Risk Health Sync" message="正在读取风控规则、预算拦截和 Provider 健康..." />;
@@ -660,6 +814,10 @@ export function AnalyticsRiskHealthScreen({ admin, token }: Readonly<AnalyticsSc
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
         <DistributionTable title="Risk Rules" items={risk?.riskRules ?? []} />
         <DistributionTable title="Refund Reasons" items={risk?.refundReasons ?? []} />
+      </Grid>
+      <Grid templateColumns={{ base: "1fr", xl: "1.15fr 0.85fr" }} gap="16px">
+        <BudgetBlocksPanel risk={risk} highlighted={focusBudgetBlocks} />
+        <BudgetBlockSamplesTable risk={risk} />
       </Grid>
       <SurfaceCard eyebrow="Provider Health" title="Degraded providers" description="provider_health_degraded 事件里的 provider / service / reason。">
         {risk?.degradedProviders.length ? (
@@ -690,7 +848,7 @@ export function AnalyticsRiskHealthScreen({ admin, token }: Readonly<AnalyticsSc
 }
 
 export function AnalyticsDataQualityScreen({ admin, token }: Readonly<AnalyticsScreenProps>) {
-  const [windowValue, setWindowValue] = useState<AnalyticsDataQualityWindow>("24h");
+  const [windowValue, setWindowValue] = useQueryBackedWindow(DATA_QUALITY_WINDOWS, "24h");
   const { data: dataQuality, loading, error } = useAnalyticsResource(token, windowValue, getAnalyticsDataQuality, "Data quality failed to load");
   const signalCards = useMemo(() => [...buildDataQualitySignalCards(dataQuality), ...buildDataQualityLagCards(dataQuality)], [dataQuality]);
   const schemaRows = useMemo(() => buildDataQualitySchemaIssueRows(dataQuality), [dataQuality]);

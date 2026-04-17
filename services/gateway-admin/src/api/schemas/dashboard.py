@@ -284,6 +284,15 @@ class AnalyticsFinanceContext(BaseModel):
     chain_confirmed_not_ledger_confirmed_count: int = Field(default=0, alias="chainConfirmedNotLedgerConfirmedCount", serialization_alias="chainConfirmedNotLedgerConfirmedCount")
 
 
+class AnalyticsDepositFailureSample(BaseModel):
+    timestamp: str
+    error_code: str = Field(alias="errorCode", serialization_alias="errorCode")
+    amount_usdc: float = Field(alias="amountUsdc", serialization_alias="amountUsdc")
+    env: str
+    correlation_id: str = Field(default="", alias="correlationId", serialization_alias="correlationId")
+    tx_hash: str = Field(default="", alias="txHash", serialization_alias="txHash")
+
+
 class AnalyticsMoneyFlow(BaseModel):
     window: str
     deposit_usdc: float = Field(alias="depositUsdc", serialization_alias="depositUsdc")
@@ -293,6 +302,7 @@ class AnalyticsMoneyFlow(BaseModel):
     refund_usdc: float = Field(alias="refundUsdc", serialization_alias="refundUsdc")
     confirm_latency_ms: AnalyticsLatencyPercentiles = Field(alias="confirmLatencyMs", serialization_alias="confirmLatencyMs")
     deposit_errors: list[AnalyticsDistributionItem] = Field(alias="depositErrors", serialization_alias="depositErrors")
+    deposit_failure_samples: list[AnalyticsDepositFailureSample] = Field(default_factory=list, alias="depositFailureSamples", serialization_alias="depositFailureSamples")
     withdrawal_errors: list[AnalyticsDistributionItem] = Field(alias="withdrawalErrors", serialization_alias="withdrawalErrors")
     finance_context: AnalyticsFinanceContext = Field(alias="financeContext", serialization_alias="financeContext")
 
@@ -304,6 +314,27 @@ class AnalyticsDegradedProvider(BaseModel):
     reason: str
 
 
+class AnalyticsBudgetBlock(BaseModel):
+    key: str
+    error_code: str = Field(alias="errorCode", serialization_alias="errorCode")
+    service_id: str = Field(alias="serviceId", serialization_alias="serviceId")
+    surface: str
+    count: int
+    required_usdc: float = Field(alias="requiredUsdc", serialization_alias="requiredUsdc")
+    available_usdc: float = Field(alias="availableUsdc", serialization_alias="availableUsdc")
+    gap_usdc: float = Field(alias="gapUsdc", serialization_alias="gapUsdc")
+
+
+class AnalyticsBudgetBlockSample(BaseModel):
+    timestamp: str
+    service_id: str = Field(alias="serviceId", serialization_alias="serviceId")
+    error_code: str = Field(alias="errorCode", serialization_alias="errorCode")
+    required_usdc: float = Field(alias="requiredUsdc", serialization_alias="requiredUsdc")
+    available_usdc: float = Field(alias="availableUsdc", serialization_alias="availableUsdc")
+    correlation_id: str = Field(default="", alias="correlationId", serialization_alias="correlationId")
+    surface: str
+
+
 class AnalyticsRiskHealth(BaseModel):
     window: str
     critical_risk_events: int = Field(alias="criticalRiskEvents", serialization_alias="criticalRiskEvents")
@@ -312,6 +343,8 @@ class AnalyticsRiskHealth(BaseModel):
     provider_health_degraded_count: int = Field(alias="providerHealthDegradedCount", serialization_alias="providerHealthDegradedCount")
     degraded_providers: list[AnalyticsDegradedProvider] = Field(alias="degradedProviders", serialization_alias="degradedProviders")
     budget_gap_usdc: float = Field(alias="budgetGapUsdc", serialization_alias="budgetGapUsdc")
+    budget_blocks: list[AnalyticsBudgetBlock] = Field(default_factory=list, alias="budgetBlocks", serialization_alias="budgetBlocks")
+    budget_block_samples: list[AnalyticsBudgetBlockSample] = Field(default_factory=list, alias="budgetBlockSamples", serialization_alias="budgetBlockSamples")
     refund_reasons: list[AnalyticsDistributionItem] = Field(alias="refundReasons", serialization_alias="refundReasons")
 
 
