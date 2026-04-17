@@ -94,11 +94,14 @@ function compareMenuItems(left: AdminMenuConfigItem, right: AdminMenuConfigItem)
 
 function toNavItem(item: AdminMenuConfigItem): NavItem {
   const visual = getNavVisual(item.itemId);
+  const path = item.nodeType === "page"
+    ? item.href ?? legacyPathByItemId[item.itemId]
+    : undefined;
   return mergeLookup({
     id: item.itemId,
     title: item.label,
     icon: item.iconKey || visual.icon,
-    path: item.href ?? legacyPathByItemId[item.itemId],
+    path,
     description: item.description || item.sectionDescription || visual.kicker,
     nodeType: item.nodeType,
     searchKeywords: [item.sectionLabel, item.sectionDescription, item.label, item.description, ...item.keywords].filter(Boolean),
