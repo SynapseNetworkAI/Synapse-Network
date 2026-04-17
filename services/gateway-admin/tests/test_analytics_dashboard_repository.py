@@ -1,4 +1,19 @@
+from src.api import deps
+from src.core.config import get_settings
 from src.storage.analytics.analytics_dashboard import ClickHouseAnalyticsDashboardRepository
+
+
+def test_analytics_dependency_uses_clickhouse_repository(monkeypatch) -> None:
+    monkeypatch.setenv("ANALYTICS_CLICKHOUSE_URL", "http://clickhouse.test:8123")
+    get_settings.cache_clear()
+    deps.get_analytics_dashboard_repository.cache_clear()
+
+    repository = deps.get_analytics_dashboard_repository()
+
+    assert isinstance(repository, ClickHouseAnalyticsDashboardRepository)
+
+    deps.get_analytics_dashboard_repository.cache_clear()
+    get_settings.cache_clear()
 
 
 def test_clickhouse_data_quality_marks_raw_wallet_and_missing_critical_events_as_degraded(monkeypatch) -> None:

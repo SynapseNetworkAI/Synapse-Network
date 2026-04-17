@@ -75,7 +75,6 @@ GATEWAY_INTERNAL_SERVICE_SUBJECT=service:gateway-admin
 EXECUTION_WORKER_ENABLED=true
 EXECUTION_WORKER_POLL_INTERVAL_SEC=5
 EXECUTION_WORKER_BATCH_SIZE=10
-ADMIN_GATEWAY_USE_INMEMORY_STORE=false
 ```
 
 详细变量含义见 [Gateway_Admin_Environment_Variables.md](./Gateway_Admin_Environment_Variables.md)。

@@ -6,7 +6,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-os.environ.setdefault("ADMIN_GATEWAY_USE_INMEMORY_STORE", "true")
 os.environ.setdefault("EXECUTION_WORKER_ENABLED", "false")
 
 from src.api import deps  # noqa: E402

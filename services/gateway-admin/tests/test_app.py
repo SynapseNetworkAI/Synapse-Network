@@ -12,12 +12,208 @@ from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
 from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
+from src.services.adapters import InMemoryGatewayExecutionAdapter, InMemoryProviderWithdrawReviewAdapter
+from src.services.admin_config.service import AdminConfigService
+from src.services.admin_user.service import AdminUserService
+from src.services.approval.service import ApprovalService
+from src.services.audit.service import AuditService
+from src.services.auth.service import AdminAuthService
 from src.services.dashboard.service import DashboardService
-from src.storage.analytics import InMemoryAnalyticsDashboardRepository, InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
+from src.services.execution import ExecutionService
+from src.services.finance_admin import ProviderWithdrawReviewService
+from src.storage.analytics import InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
 from src.storage import InMemoryAdminStore
 
-client = TestClient(app)
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
+
+
+class FakeAnalyticsDashboardRepository:
+    def get_overview(self, window: str) -> dict:
+        return {
+            "window": window,
+            "overallStatus": "monitoring",
+            "cards": [
+                {"key": "gmv_usdc", "label": "GMV USDC", "value": 42.0, "unit": "USDC", "tone": "green", "detail": "test analytics fixture"},
+                {"key": "analytics_health", "label": "Analytics Health", "value": "monitoring", "unit": "status", "tone": "orange", "detail": "test analytics fixture"},
+            ],
+            "alerts": [],
+        }
+
+    def get_consumer_funnel(self, window: str) -> dict:
+        return {
+            "window": window,
+            "steps": [
+                {"eventName": "page_viewed", "label": "page viewed", "users": 10, "events": 12, "conversionRate": 1.0, "dropoffRate": 0.0},
+                {"eventName": "wallet_connected", "label": "wallet connected", "users": 8, "events": 8, "conversionRate": 0.8, "dropoffRate": 0.2},
+                {"eventName": "consumer_signup_completed", "label": "consumer signup completed", "users": 6, "events": 6, "conversionRate": 0.75, "dropoffRate": 0.25},
+                {"eventName": "quote_generated", "label": "quote generated", "users": 5, "events": 5, "conversionRate": 0.8333, "dropoffRate": 0.1667},
+                {"eventName": "deposit_completed", "label": "deposit completed", "users": 4, "events": 4, "conversionRate": 0.8, "dropoffRate": 0.2},
+                {"eventName": "invoke_started", "label": "invoke started", "users": 3, "events": 3, "conversionRate": 0.75, "dropoffRate": 0.25},
+                {"eventName": "invoke_completed", "label": "invoke completed", "users": 2, "events": 2, "conversionRate": 0.6667, "dropoffRate": 0.3333},
+            ],
+            "summary": {
+                "activationRate": 0.2,
+                "firstInvokeUsers": 2,
+                "quoteToInvokeRate": 0.4,
+                "depositToFirstInvokeRate": 0.5,
+            },
+        }
+
+    def get_invocation_revenue(self, window: str) -> dict:
+        return {
+            "window": window,
+            "quoteCount": 5,
+            "invokeStartedCount": 3,
+            "invokeCompletedCount": 2,
+            "invokeFailedCount": 1,
+            "successRate": 0.6667,
+            "gmvUsdc": 42.0,
+            "priceAvgUsdc": 21.0,
+            "platformFeeUsdc": 4.2,
+            "providerNetUsdc": 37.8,
+            "latencyMs": {"p50": 100, "p95": 200, "p99": 300},
+            "failureStages": [],
+            "errorCodes": [],
+            "trend": [],
+        }
+
+    def get_provider_revenue(self, window: str) -> dict:
+        return {
+            "window": window,
+            "revenueProviderCount": 1,
+            "firstRevenueProviderCount": 1,
+            "avgTimeSinceListingMs": 1000,
+            "providerGrossUsdc": 42.0,
+            "platformFeeUsdc": 4.2,
+            "providerNetUsdc": 37.8,
+            "pendingSettlementUsdc": 0,
+            "settlementCompletedUsdc": 0,
+            "settlementFailureRate": 0,
+            "settlementP95ConfirmMs": 0,
+            "settlementFunnel": [],
+            "topProviders": [],
+        }
+
+    def get_money_flow(self, window: str) -> dict:
+        return {
+            "window": window,
+            "depositUsdc": 10,
+            "depositFailedCount": 0,
+            "withdrawalUsdc": 0,
+            "withdrawalFailedCount": 0,
+            "refundUsdc": 0,
+            "confirmLatencyMs": {"p50": 0, "p95": 0},
+            "depositErrors": [],
+            "depositFailureSamples": [],
+            "withdrawalErrors": [],
+            "financeContext": {},
+        }
+
+    def get_risk_health(self, window: str) -> dict:
+        return {
+            "window": window,
+            "criticalRiskEvents": 0,
+            "riskRules": [],
+            "surfaces": [],
+            "providerHealthDegradedCount": 0,
+            "degradedProviders": [],
+            "budgetGapUsdc": 0,
+            "budgetBlocks": [],
+            "budgetBlockSamples": [],
+            "refundReasons": [],
+        }
+
+    def get_data_quality(self, window: str) -> dict:
+        return {
+            "window": window,
+            "overallStatus": "monitoring",
+            "eventCount": 7,
+            "duplicateRate": 0,
+            "criticalEventsFreshness": [],
+            "sourceCoverage": {"test": 7},
+            "privacyViolations": 0,
+            "missingRequiredProperties": 0,
+            "xorViolations": 0,
+            "kafkaLag": 0,
+            "clickhouseLag": 0,
+            "fileBackendFallbackEvents": 7,
+            "schemaIssueSamples": [],
+        }
+
+
+TEST_STORE = InMemoryAdminStore.seed_demo()
+TEST_GATEWAY_PROJECTION_REPOSITORY = InMemoryGatewayDashboardProjectionRepository.seed_demo()
+TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY = InMemoryProviderWithdrawReviewRepository.seed_demo()
+TEST_GATEWAY_EXECUTION_ADAPTER = InMemoryGatewayExecutionAdapter()
+TEST_PROVIDER_WITHDRAW_REVIEW_ADAPTER = InMemoryProviderWithdrawReviewAdapter(TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY)
+TEST_ANALYTICS_REPOSITORY = FakeAnalyticsDashboardRepository()
+
+
+def _test_store() -> InMemoryAdminStore:
+    return TEST_STORE
+
+
+def _test_gateway_projection_repository() -> InMemoryGatewayDashboardProjectionRepository:
+    return TEST_GATEWAY_PROJECTION_REPOSITORY
+
+
+def _test_provider_withdraw_review_repository() -> InMemoryProviderWithdrawReviewRepository:
+    return TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY
+
+
+def _get_test_auth_service() -> AdminAuthService:
+    return AdminAuthService(TEST_STORE)
+
+
+def _get_test_admin_user_service() -> AdminUserService:
+    return AdminUserService(TEST_STORE)
+
+
+def _get_test_admin_config_service() -> AdminConfigService:
+    return AdminConfigService(TEST_STORE)
+
+
+def _get_test_provider_withdraw_review_service() -> ProviderWithdrawReviewService:
+    return ProviderWithdrawReviewService(TEST_STORE, TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY, TEST_PROVIDER_WITHDRAW_REVIEW_ADAPTER)
+
+
+def _get_test_approval_service() -> ApprovalService:
+    return ApprovalService(TEST_STORE, TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY, _get_test_provider_withdraw_review_service())
+
+
+def _get_test_dashboard_service() -> DashboardService:
+    return DashboardService(
+        TEST_STORE,
+        TEST_GATEWAY_PROJECTION_REPOSITORY,
+        TEST_ANALYTICS_REPOSITORY,
+        TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY,
+    )
+
+
+def _get_test_audit_service() -> AuditService:
+    return AuditService(TEST_STORE)
+
+
+def _get_test_execution_service() -> ExecutionService:
+    return ExecutionService(TEST_STORE, TEST_GATEWAY_EXECUTION_ADAPTER)
+
+
+app.dependency_overrides[deps.get_store] = _test_store
+app.dependency_overrides[deps.get_auth_service] = _get_test_auth_service
+app.dependency_overrides[deps.get_admin_user_service] = _get_test_admin_user_service
+app.dependency_overrides[deps.get_admin_config_service] = _get_test_admin_config_service
+app.dependency_overrides[deps.get_approval_service] = _get_test_approval_service
+app.dependency_overrides[deps.get_gateway_dashboard_projection_repository] = _test_gateway_projection_repository
+app.dependency_overrides[deps.get_analytics_dashboard_repository] = lambda: TEST_ANALYTICS_REPOSITORY
+app.dependency_overrides[deps.get_dashboard_service] = _get_test_dashboard_service
+app.dependency_overrides[deps.get_provider_withdraw_review_repository] = _test_provider_withdraw_review_repository
+app.dependency_overrides[deps.get_provider_withdraw_review_adapter] = lambda: TEST_PROVIDER_WITHDRAW_REVIEW_ADAPTER
+app.dependency_overrides[deps.get_provider_withdraw_review_service] = _get_test_provider_withdraw_review_service
+app.dependency_overrides[deps.get_audit_service] = _get_test_audit_service
+app.dependency_overrides[deps.get_gateway_execution_adapter] = lambda: TEST_GATEWAY_EXECUTION_ADAPTER
+app.dependency_overrides[deps.get_execution_service] = _get_test_execution_service
+
+client = TestClient(app)
 
 
 def _login_as(email: str) -> dict[str, str]:
@@ -36,7 +232,7 @@ def _login_as(email: str) -> dict[str, str]:
 
 
 def _seed_test_passwords() -> None:
-    store = deps.get_store()
+    store = _test_store()
     for email in (
         "ops@synapse.network",
         "audit@synapse.network",
@@ -53,7 +249,7 @@ def _seed_test_passwords() -> None:
 
 
 def _otp_code_for(email: str) -> str:
-    store = deps.get_store()
+    store = _test_store()
     user = store.identity.get_user_by_email(email)
     assert user is not None
     factors = store.identity.list_mfa_factors(user.admin_id)
@@ -62,7 +258,7 @@ def _otp_code_for(email: str) -> str:
 
 
 def _ensure_unenrolled_admin(email: str = "unenrolled@synapse.network") -> None:
-    store = deps.get_store()
+    store = _test_store()
     existing = store.identity.get_user_by_email(email)
     if existing is None:
         store.identity.create_user(
@@ -187,7 +383,7 @@ def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
     assert verify_body["csrfToken"]
     assert "synapse_admin_session=" in verify_response.headers["set-cookie"]
 
-    store = deps.get_store()
+    store = _test_store()
     user = store.identity.get_user_by_email("unenrolled@synapse.network")
     assert user is not None
     factors = store.identity.list_mfa_factors(user.admin_id)
@@ -197,7 +393,7 @@ def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
 
 def test_admin_auth_mfa_enrollment_begin_reuses_same_secret_for_same_token() -> None:
     email = f"repeat-begin-{uuid4().hex[:8]}@synapse.network"
-    store = deps.get_store()
+    store = _test_store()
     store.identity.create_user(
         AdminUser(
             admin_id=f"admin_{uuid4().hex[:12]}",
@@ -249,7 +445,7 @@ def test_admin_auth_mfa_enrollment_begin_reuses_same_secret_for_same_token() -> 
 
 def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity() -> None:
     email = f"broken-factor-{uuid4().hex[:8]}@synapse.network"
-    store = deps.get_store()
+    store = _test_store()
     user = store.identity.create_user(
         AdminUser(
             admin_id=f"admin_{uuid4().hex[:12]}",
@@ -303,7 +499,7 @@ def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity
 
 def test_admin_auth_mfa_enrollment_verify_revokes_other_totp_factors() -> None:
     email = f"rebind-factor-{uuid4().hex[:8]}@synapse.network"
-    store = deps.get_store()
+    store = _test_store()
     user = store.identity.create_user(
         AdminUser(
             admin_id=f"admin_{uuid4().hex[:12]}",
@@ -461,7 +657,7 @@ def test_admin_auth_login_rejects_invalid_google_authenticator_code() -> None:
 
 def test_admin_users_catalog_and_create_user() -> None:
     csrf_headers = _login_as("super@synapse.network")
-    store = deps.get_store()
+    store = _test_store()
 
     roles_response = client.get("/api/admin/v1/users/roles")
     assert roles_response.status_code == 200
@@ -849,7 +1045,7 @@ def test_provider_withdraw_review_list_and_decision() -> None:
 
 def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
     csrf_headers = _login_as("finance-review@synapse.network")
-    repository = deps.get_provider_withdraw_review_repository()
+    repository = _test_provider_withdraw_review_repository()
     review_item_id = f"wd-history-{uuid4().hex[:8]}"
     if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
         repository._items.append(
@@ -898,7 +1094,7 @@ def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
 
 def test_provider_withdraw_review_history_supports_filters_and_pagination() -> None:
     csrf_headers = _login_as("finance-review@synapse.network")
-    repository = deps.get_provider_withdraw_review_repository()
+    repository = _test_provider_withdraw_review_repository()
     review_ids = [f"wd-history-filter-{uuid4().hex[:6]}", f"wd-history-filter-{uuid4().hex[:6]}"]
     reviewed_on = datetime.now(timezone.utc).date().isoformat()
     if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
@@ -971,7 +1167,7 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
 
 def test_menu_config_snapshot_auto_adds_new_seed_menu_items() -> None:
     _login_as("super@synapse.network")
-    store = deps.get_store()
+    store = _test_store()
     snapshot = store.config.get_menu_config("admin_menu_config")
     assert snapshot is not None
 
@@ -1019,7 +1215,7 @@ def test_provider_withdraw_review_decision_requires_permission() -> None:
 
 def test_provider_withdraw_review_decision_rejects_multiple_active_google_authenticator_factors() -> None:
     csrf_headers = _login_as("finance-review@synapse.network")
-    store = deps.get_store()
+    store = _test_store()
     user = store.identity.get_user_by_email("finance-review@synapse.network")
     assert user is not None
     duplicate_factor = store.identity.upsert_mfa_factor(
@@ -1342,7 +1538,7 @@ def test_dashboard_service_pending_counts_include_projected_provider_reviews() -
     service = DashboardService(
         InMemoryAdminStore.seed_demo(),
         InMemoryGatewayDashboardProjectionRepository.seed_demo(),
-        InMemoryAnalyticsDashboardRepository.seed_demo(),
+        FakeAnalyticsDashboardRepository(),
         InMemoryProviderWithdrawReviewRepository.seed_demo(),
     )
 

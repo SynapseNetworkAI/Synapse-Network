@@ -11,9 +11,7 @@ from src.services.admin_user.service import AdminUserService
 from src.services.adapters import (
     GatewayExecutionAdapter,
     HttpGatewayExecutionAdapter,
-    InMemoryGatewayExecutionAdapter,
     HttpProviderWithdrawReviewAdapter,
-    InMemoryProviderWithdrawReviewAdapter,
     ProviderWithdrawReviewAdapter,
 )
 from src.services.audit.service import AuditService
@@ -25,14 +23,11 @@ from src.storage.analytics import (
     AnalyticsDashboardRepository,
     ClickHouseAnalyticsDashboardRepository,
     GatewayDashboardProjectionRepository,
-    InMemoryAnalyticsDashboardRepository,
-    InMemoryGatewayDashboardProjectionRepository,
-    InMemoryProviderWithdrawReviewRepository,
     PostgresGatewayDashboardProjectionRepository,
     PostgresProviderWithdrawReviewRepository,
     ProviderWithdrawReviewRepository,
 )
-from src.storage import InMemoryAdminStore, PostgresAdminStore
+from src.storage import PostgresAdminStore
 from src.storage.base import AdminStore
 
 AuthorizationHeader = Annotated[str | None, Header(alias="Authorization")]
@@ -43,8 +38,6 @@ AdminOtpHeader = Annotated[str | None, Header(alias="X-Admin-OTP-Code")]
 @lru_cache(maxsize=1)
 def get_store() -> AdminStore:
     settings = get_settings()
-    if settings.use_inmemory_store:
-        return InMemoryAdminStore.seed_demo()
     return PostgresAdminStore.from_dsn(settings.admin_database_dsn)
 
 
@@ -75,16 +68,12 @@ def get_approval_service() -> ApprovalService:
 @lru_cache(maxsize=1)
 def get_gateway_dashboard_projection_repository() -> GatewayDashboardProjectionRepository:
     settings = get_settings()
-    if settings.use_inmemory_store:
-        return InMemoryGatewayDashboardProjectionRepository.seed_demo()
     return PostgresGatewayDashboardProjectionRepository(settings.gateway_readonly_dsn)
 
 
 @lru_cache(maxsize=1)
 def get_analytics_dashboard_repository() -> AnalyticsDashboardRepository:
     settings = get_settings()
-    if settings.use_inmemory_store:
-        return InMemoryAnalyticsDashboardRepository.seed_demo()
     return ClickHouseAnalyticsDashboardRepository(
         settings.analytics_clickhouse_url,
         timeout_sec=settings.analytics_clickhouse_timeout_sec,
@@ -104,18 +93,12 @@ def get_dashboard_service() -> DashboardService:
 @lru_cache(maxsize=1)
 def get_provider_withdraw_review_repository() -> ProviderWithdrawReviewRepository:
     settings = get_settings()
-    if settings.use_inmemory_store:
-        return InMemoryProviderWithdrawReviewRepository.seed_demo()
     return PostgresProviderWithdrawReviewRepository(settings.gateway_readonly_dsn)
 
 
 @lru_cache(maxsize=1)
 def get_provider_withdraw_review_adapter() -> ProviderWithdrawReviewAdapter:
     settings = get_settings()
-    if settings.use_inmemory_store:
-        repository = get_provider_withdraw_review_repository()
-        if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
-            return InMemoryProviderWithdrawReviewAdapter(repository)
     return HttpProviderWithdrawReviewAdapter(
         base_url=settings.gateway_internal_base_url,
         admin_wallet=settings.gateway_internal_admin_wallet,
@@ -159,8 +142,6 @@ def get_execution_worker() -> ExecutionWorker:
 @lru_cache(maxsize=1)
 def get_gateway_execution_adapter() -> GatewayExecutionAdapter:
     settings = get_settings()
-    if settings.use_inmemory_store:
-        return InMemoryGatewayExecutionAdapter()
     return HttpGatewayExecutionAdapter(
         base_url=settings.gateway_internal_base_url,
         admin_wallet=settings.gateway_internal_admin_wallet,
