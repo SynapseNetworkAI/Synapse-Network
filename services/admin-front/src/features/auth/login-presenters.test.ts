@@ -67,6 +67,9 @@ describe("login presenters", () => {
       "请输入 Google Authenticator 的 6 位验证码。",
     );
     expect(buildLoginErrorMessage(null, "Failed to fetch")).toBe("暂时无法连接管理后台，请稍后重试。");
+    expect(buildLoginErrorMessage(null, 'Unexpected token "I", "Internal Server Error" is not valid JSON')).toBe(
+      "认证服务返回了非预期响应，请检查 gateway-admin 是否已启动、日志是否有 Internal Server Error，并确认 admin-front 的 API 地址或代理配置正确。",
+    );
     expect(buildLoginErrorMessage("UNKNOWN", "backend internal detail")).toBe("登录失败，请检查登录信息后重试。");
   });
 });
