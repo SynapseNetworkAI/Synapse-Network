@@ -6,6 +6,7 @@ from typing import cast
 
 import pytest
 
+from src.core.scheduling import compute_stable_offset_ms, is_due_with_stable_jitter
 from src.domain.service_contract import (
     ServiceHealthTargetRecord,
     ServiceRuntimeHealthRecord,
@@ -84,6 +85,7 @@ async def test_refresh_all_service_health_updates_snapshots_without_rewriting_ma
     monkeypatch.setattr(service_health_probe, "probe_service_health", _healthy_probe)
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
 
     result = await service_health_service.refresh_all_service_health(
         cast(BaseStorage, storage)
@@ -141,6 +143,7 @@ async def test_refresh_all_service_health_keeps_active_unhealthy_services_probea
     monkeypatch.setattr(service_health_probe, "probe_service_health", _still_unhealthy)
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
 
     result = await service_health_service.refresh_all_service_health(
         cast(BaseStorage, storage)
@@ -189,6 +192,7 @@ async def test_refresh_all_service_health_skips_inactive_but_probes_suspended(
     monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
 
     result = await service_health_service.refresh_all_service_health(
         cast(BaseStorage, storage)
@@ -250,6 +254,7 @@ async def test_refresh_all_service_health_slow_lane_skips_until_interval_is_due(
     monkeypatch.setattr(service_health_service.settings, "service_health_probe_interval_sec", 15)
     monkeypatch.setattr(service_health_service.settings, "service_health_slow_lane_after_sec", 1800)
     monkeypatch.setattr(service_health_service.settings, "service_health_slow_lane_interval_sec", 300)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
 
     result = await service_health_service.refresh_all_service_health(
         cast(BaseStorage, storage)
@@ -325,6 +330,7 @@ async def test_refresh_all_service_health_slow_lane_probes_after_interval_is_due
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_slow_lane_after_sec", 1800)
     monkeypatch.setattr(service_health_service.settings, "service_health_slow_lane_interval_sec", 300)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
 
     result = await service_health_service.refresh_all_service_health(
         cast(BaseStorage, storage)
@@ -375,6 +381,7 @@ async def test_refresh_all_service_health_suspended_uses_slow_lane_interval(
     monkeypatch.setattr(service_health_probe, "_now_ms", lambda: last_checked_at + 120_000)
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
     monkeypatch.setattr(
         service_health_service.settings,
         "service_health_slow_lane_suspended_interval_sec",
@@ -391,3 +398,194 @@ async def test_refresh_all_service_health_suspended_uses_slow_lane_interval(
     assert not service_health_service.is_service_discoverable(
         storage.registry.read_service_registry_rows()[0]
     )
+
+
+def test_stable_jitter_offset_is_deterministic_and_keyed() -> None:
+    interval_ms = 15_000
+
+    first = compute_stable_offset_ms("svc-a|normal|https://a.test", interval_ms)
+    second = compute_stable_offset_ms("svc-a|normal|https://a.test", interval_ms)
+    offsets = {
+        compute_stable_offset_ms(f"svc-{index}|normal|https://{index}.test", interval_ms)
+        for index in range(8)
+    }
+
+    assert first == second
+    assert 0 <= first < interval_ms
+    assert all(0 <= offset < interval_ms for offset in offsets)
+    assert len(offsets) > 1
+
+
+def test_stable_jitter_due_uses_bucket_offset() -> None:
+    interval_ms = 10_000
+    key = "svc-jitter|normal|https://jitter.test"
+    offset = compute_stable_offset_ms(key, interval_ms)
+    bucket_start = 1_000_000
+
+    if offset > 0:
+        assert not is_due_with_stable_jitter(
+            now_ms=bucket_start + offset - 1,
+            last_checked_at=bucket_start - 1,
+            interval_ms=interval_ms,
+            key=key,
+        )
+    assert is_due_with_stable_jitter(
+        now_ms=bucket_start + offset,
+        last_checked_at=bucket_start - 1,
+        interval_ms=interval_ms,
+        key=key,
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_all_service_health_respects_global_probe_concurrency(
+    monkeypatch,
+) -> None:
+    services = [
+        service_definition(f"due_service_{index}", status="active", is_active=True)
+        for index in range(5)
+    ]
+    storage = FakeStorage(services)
+    active = 0
+    max_active = 0
+
+    async def _slow_probe(service, client=None):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return service.model_copy(
+            update={
+                "runtime_health": ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1773982500000,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl=f"https://{service.service_id}.test/invoke",
+                            status="healthy",
+                            weight=100,
+                            lastCheckedAt=1773982500000,
+                        )
+                    ],
+                )
+            }
+        )
+
+    monkeypatch.setattr(service_health_probe, "probe_service_health", _slow_probe)
+    monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_max_concurrency", 2)
+
+    result = await service_health_service.refresh_all_service_health(
+        cast(BaseStorage, storage)
+    )
+
+    assert result["scheduled"] == 5
+    assert result["checked"] == 5
+    assert result["maxConcurrency"] == 2
+    assert max_active <= 2
+    assert len(storage.registry.persisted_health_rows) == 5
+
+
+@pytest.mark.asyncio
+async def test_refresh_all_service_health_skips_fresh_rows_before_probe_queue(
+    monkeypatch,
+) -> None:
+    now_ms = 1773982500000
+    storage = FakeStorage(
+        [
+            service_definition(
+                "fresh_service",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=now_ms - 1_000,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl="https://fresh_service.test/invoke",
+                            status="healthy",
+                            weight=100,
+                            lastCheckedAt=now_ms - 1_000,
+                            lastHealthyAt=now_ms - 1_000,
+                        )
+                    ],
+                ),
+            ),
+            service_definition("due_service"),
+        ]
+    )
+    probed: list[str] = []
+
+    async def _probe(service, client=None):
+        probed.append(service.service_id)
+        return service.model_copy(
+            update={
+                "runtime_health": ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=now_ms,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl=f"https://{service.service_id}.test/invoke",
+                            status="healthy",
+                            weight=100,
+                            lastCheckedAt=now_ms,
+                            lastHealthyAt=now_ms,
+                        )
+                    ],
+                )
+            }
+        )
+
+    monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
+    monkeypatch.setattr(service_health_probe, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_probe_interval_sec", 15)
+
+    result = await service_health_service.refresh_all_service_health(
+        cast(BaseStorage, storage)
+    )
+
+    assert result["scheduled"] == 1
+    assert result["jitterSkipped"] == 1
+    assert probed == ["due_service"]
+
+
+@pytest.mark.asyncio
+async def test_force_probe_uses_global_probe_concurrency(
+    monkeypatch,
+) -> None:
+    active = 0
+    max_active = 0
+    services = [
+        service_definition(f"force_service_{index}", status="active", is_active=True)
+        for index in range(3)
+    ]
+
+    async def _slow_probe(service, client=None):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return service
+
+    monkeypatch.setattr(service_health_probe, "probe_service_health", _slow_probe)
+    monkeypatch.setattr(service_health_service.settings, "service_health_max_concurrency", 1)
+
+    await asyncio.gather(
+        *[
+            service_health_service.force_probe_service_health(service)
+            for service in services
+        ]
+    )
+
+    assert max_active == 1

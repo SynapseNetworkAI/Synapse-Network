@@ -214,7 +214,7 @@ Provider 注册后的服务状态分成两层：
 1. 控制面生命周期：`draft / active / inactive / suspended / deleted`
 2. 运行时健康：`unknown / probing / healthy / degraded / unhealthy / stale`
 
-Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源。`gateway-admin` 只负责控制台管理，不另起第二套探活系统。
+Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源。`gateway-admin` 只负责控制台管理，不另起第二套探活系统。monitor 使用 `SERVICE_HEALTH_MAX_CONCURRENCY` 控制全局 probe 并发，默认 32，避免 Gateway 或 Provider endpoint 被健康检查打出脉冲。
 
 探活策略：
 
@@ -229,7 +229,8 @@ slow lane 不是停止探活，而是资源保护策略：
 1. 默认连续不健康 30 分钟后，从正常 `SERVICE_HEALTH_PROBE_INTERVAL_SEC` 降到 `SERVICE_HEALTH_SLOW_LANE_INTERVAL_SEC`。
 2. 判定优先使用 target 的 `lastHealthyAt`；从未 healthy 的服务用 `consecutiveFailures * SERVICE_HEALTH_PROBE_INTERVAL_SEC` 估算。
 3. 如果 `now - lastCheckedAt` 还没到 slow lane 间隔，本轮跳过 probe，但保留当前 health snapshot 和可追踪状态。
-4. `Force probe` 和 `Resume service` 会立即探活，绕过 slow lane 等待窗口。
+4. 周期探活使用 stable jitter 分散到期时间，降低同一 tick 大量 endpoint 同时被访问的概率。
+5. `Force probe` 和 `Resume service` 会立即探活，绕过 slow lane 与 jitter 等待窗口，但仍受全局并发上限保护。
 
 可调用判断必须同时满足：
 

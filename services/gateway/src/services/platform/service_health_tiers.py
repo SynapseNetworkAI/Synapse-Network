@@ -1,9 +1,11 @@
 """Service health probe tier and slow lane scheduling helpers."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from src.core.config import settings
+from src.core.scheduling import compute_stable_offset_ms, is_due_with_stable_jitter
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.platform.service_health_utils import (
     _now_ms,
@@ -21,6 +23,10 @@ def _latest_target_last_checked_at(service: ServiceDefinitionRecord) -> int:
         for target in getattr(health, "targets", []) or []
     )
     return max(values or [0])
+
+
+def latest_service_health_checked_at(service: ServiceDefinitionRecord) -> int:
+    return _latest_target_last_checked_at(service)
 
 
 def _latest_target_last_healthy_at(service: ServiceDefinitionRecord) -> int:
@@ -99,6 +105,62 @@ def _slow_lane_interval_sec(service: ServiceDefinitionRecord) -> int:
     return max(1, int(settings.service_health_slow_lane_interval_sec))
 
 
+def service_probe_interval_ms(service: ServiceDefinitionRecord, tier: str) -> int:
+    if tier == "slow_lane":
+        return _slow_lane_interval_sec(service) * 1000
+    return max(1, int(float(settings.service_health_probe_interval_sec) * 1000))
+
+
+def service_probe_jitter_key(service: ServiceDefinitionRecord, tier: str) -> str:
+    targets = sorted(
+        str(target.target_url or "").strip()
+        for target in getattr(_runtime_health(service), "targets", []) or []
+        if str(target.target_url or "").strip()
+    )
+    if not targets:
+        targets = sorted(
+            str(target.url or "").strip()
+            for target in getattr(service.invoke, "targets", []) or []
+            if str(target.url or "").strip()
+        )
+    return "|".join(
+        [
+            str(service.service_id or "").strip(),
+            str(tier or "normal"),
+            *targets,
+        ]
+    )
+
+
+def _service_created_at_ms(service: ServiceDefinitionRecord) -> int:
+    raw_value = str(getattr(service, "created_at", "") or "").strip()
+    if not raw_value:
+        return 0
+    try:
+        normalized = raw_value.replace("Z", "+00:00")
+        return int(datetime.fromisoformat(normalized).timestamp() * 1000)
+    except ValueError:
+        return 0
+
+
+def _is_startup_probe_due(
+    service: ServiceDefinitionRecord,
+    *,
+    now_ms: int,
+    jitter_key: str,
+) -> bool:
+    created_at_ms = _service_created_at_ms(service)
+    if created_at_ms <= 0:
+        return True
+    startup_window_ms = int(
+        max(0.0, float(settings.service_health_startup_jitter_sec)) * 1000
+    )
+    if startup_window_ms <= 0:
+        return True
+    offset_ms = compute_stable_offset_ms(jitter_key, startup_window_ms)
+    return now_ms - created_at_ms >= offset_ms
+
+
 def should_probe_service_now(
     service: ServiceDefinitionRecord,
     now_ms: Optional[int] = None,
@@ -115,8 +177,25 @@ def should_probe_service_now(
     if not is_service_probeable(service):
         return False
     last_checked_at = _latest_target_last_checked_at(service)
-    if last_checked_at <= 0:
-        return True
     now = int(now_ms if now_ms is not None else _now_ms())
-    interval_ms = _slow_lane_interval_sec(service) * 1000
-    return now - last_checked_at >= interval_ms
+    interval_ms = service_probe_interval_ms(service, tier)
+    jitter_key = service_probe_jitter_key(service, tier)
+
+    strategy = str(settings.service_health_jitter_strategy or "stable").strip().lower()
+    jitter_enabled = bool(settings.service_health_jitter_enabled)
+    if last_checked_at <= 0:
+        if jitter_enabled and strategy == "stable":
+            return _is_startup_probe_due(
+                service,
+                now_ms=now,
+                jitter_key=jitter_key,
+            )
+        return True
+    if not jitter_enabled or strategy != "stable":
+        return now - last_checked_at >= interval_ms
+    return is_due_with_stable_jitter(
+        now_ms=now,
+        last_checked_at=last_checked_at,
+        interval_ms=interval_ms,
+        key=jitter_key,
+    )

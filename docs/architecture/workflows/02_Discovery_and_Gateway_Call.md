@@ -216,8 +216,10 @@ Gateway 必须按成本从低到高执行：
 1. `active + unhealthy` 不会被 Gateway 改写成 `inactive`。
 2. `active + unhealthy/stale` 不出现在 discovery，也不能进入 invoke 上游转发。
 3. `active + unhealthy` 连续不健康超过 `SERVICE_HEALTH_SLOW_LANE_AFTER_SEC` 后进入 slow lane，降低探活频率但不从探活队列剔除。
-4. 后续正常探活、slow lane 探活或手动 `Force probe` 重新达到 healthy 阈值后，服务自动恢复 discovery / invoke。
-5. `inactive` 与 `deleted` 不参与自动探活；`suspended` 按 slow lane 探活但永不承载流量。
+4. 周期探活受 `SERVICE_HEALTH_MAX_CONCURRENCY` 全局并发上限保护，并通过 stable jitter 把 normal / slow lane 探活分散到不同时间片。
+5. 后续正常探活、slow lane 探活或手动 `Force probe` 重新达到 healthy 阈值后，服务自动恢复 discovery / invoke。
+6. `Force probe` 会绕过 jitter due 判断，但仍受全局并发上限保护。
+7. `inactive` 与 `deleted` 不参与自动探活；`suspended` 按 slow lane 探活但永不承载流量。
 
 ### 8.2 Invocation 记录
 

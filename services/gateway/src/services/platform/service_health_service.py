@@ -32,10 +32,14 @@ from src.services.platform.service_health_history import (  # noqa: F401
     prune_health_history,
 )
 from src.services.platform.service_health_tiers import (  # noqa: F401
+    latest_service_health_checked_at,
+    service_probe_interval_ms,
+    service_probe_jitter_key,
     service_probe_tier,
     should_probe_service_now,
 )
 from src.services.platform.service_health_probe import (  # noqa: F401
+    force_probe_service_health,
     probe_service_health,
     refresh_all_service_health,
     run_service_health_monitor,
