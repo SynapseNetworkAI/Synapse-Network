@@ -29,6 +29,16 @@ Local hook bootstrap:
 After installation, `git push` automatically runs `bash scripts/ci/pr_checks.sh`.
 Emergency bypass remains `git push --no-verify`.
 
+`ci:pr` starts with `bash scripts/ci/runtime_preflight.sh`. This probe gives
+Node and each project Python virtualenv interpreter 8 seconds to print a version
+before the expensive gates run. It fails fast on the first startup failure so
+pre-push does not hang indefinitely. If the probe times out on macOS with
+processes stuck before printing a version, treat it as a local runtime/session
+issue rather than a test failure: restart the affected terminal or Codex
+session, then rerun `bash scripts/ci/pr_checks.sh`. To collect every failing
+runtime probe in one pass, set `CI_RUNTIME_PREFLIGHT_COLLECT_ALL=true`. Do not
+make `--no-verify` the normal path; keep it for true emergency pushes only.
+
 ## 3. Project-Level Validation
 
 ### 3.1 apps/frontend
