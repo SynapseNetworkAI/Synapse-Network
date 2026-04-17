@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState, useTransition } from "react";
 
 import { AuthProtocolShell } from "@/components/auth-protocol-shell";
-import { buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "@/features/auth/login-presenters";
+import { buildLoginFeedback, buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "@/features/auth/login-presenters";
 import { clearPendingMfaEnrollment, savePendingMfaEnrollment } from "@/lib/admin-mfa-enrollment";
 import {
   getAdminAuthPolicy,
@@ -26,6 +26,18 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const showLoginTotp = isLoginTotpEnabled(security);
+  const feedback = buildLoginFeedback(error, security);
+  const feedbackStyles = feedback.tone === "error"
+    ? {
+        bg: "rgba(127, 29, 29, 0.22)",
+        border: "1px solid rgba(248, 113, 113, 0.24)",
+        color: "#fecaca",
+      }
+    : {
+        bg: "rgba(15, 23, 42, 0.42)",
+        border: "1px solid rgba(34, 211, 238, 0.18)",
+        color: "rgba(226, 232, 240, 0.86)",
+      };
 
   useEffect(() => {
     let cancelled = false;
@@ -129,7 +141,9 @@ export default function LoginPage() {
             {isPending ? "Executing..." : "Execute Initialization"}
           </Button>
 
-          {error ? <Box borderRadius="14px" p="4" bg="rgba(127, 29, 29, 0.22)" border="1px solid rgba(248, 113, 113, 0.24)" color="#fecaca">{error}</Box> : null}
+          <Box borderRadius="6px" p="4" bg={feedbackStyles.bg} border={feedbackStyles.border} color={feedbackStyles.color}>
+            <Text fontSize="sm">{feedback.message}</Text>
+          </Box>
         </Stack>
       </form>
     </AuthProtocolShell>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "./login-presenters";
+import { buildLoginFeedback, buildLoginRailDescription, buildLoginRailFacts, isLoginTotpEnabled } from "./login-presenters";
 
 const enabledPolicy = {
   loginTotpRequired: true,
@@ -35,5 +35,20 @@ describe("login presenters", () => {
       { label: "Primary Session", value: "cookie-session" },
       { label: "Login TOTP", value: "disabled" },
     ]);
+  });
+
+  it("shows an informational login prompt until a real login error exists", () => {
+    expect(buildLoginFeedback(null, disabledPolicy)).toEqual({
+      tone: "info",
+      message: "请输入管理员邮箱和密码后进入控制台。",
+    });
+    expect(buildLoginFeedback(null, enabledPolicy)).toEqual({
+      tone: "info",
+      message: "请输入管理员邮箱、密码和 Google Authenticator 验证码后进入控制台。",
+    });
+    expect(buildLoginFeedback("登录失败", disabledPolicy)).toEqual({
+      tone: "error",
+      message: "登录失败",
+    });
   });
 });
