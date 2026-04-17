@@ -163,6 +163,7 @@ class FakeProviderServicesAdapter:
             "isActive": True,
             "runtimeStatus": "healthy",
             "runtimeAvailable": True,
+            "probeTier": "normal",
             "health": {
                 "overallStatus": "healthy",
                 "probeStatus": "healthy",
@@ -171,6 +172,7 @@ class FakeProviderServicesAdapter:
                 "lastCheckedAt": 1710000000000,
                 "isStale": False,
                 "runtimeAvailable": True,
+                "probeTier": "normal",
             },
             "targets": [
                 {
@@ -204,7 +206,14 @@ class FakeProviderServicesAdapter:
     def update_lifecycle(self, *, actor, service_id, action, note):
         _ = actor, service_id, note
         status = {"PAUSE": "inactive", "RESUME": "active", "SUSPEND": "suspended"}[action]
-        next_service = {**self.service, "controlStatus": status, "status": status}
+        probe_tier = {"PAUSE": "manual_only", "RESUME": "normal", "SUSPEND": "slow_lane"}[action]
+        next_service = {
+            **self.service,
+            "controlStatus": status,
+            "status": status,
+            "probeTier": probe_tier,
+            "health": {**self.service["health"], "probeTier": probe_tier},
+        }
         return {"service": next_service}
 
     def delete_service(self, *, actor, service_id, note):
@@ -987,6 +996,7 @@ def test_provider_services_management_routes_proxy_gateway_state() -> None:
     assert body["totalCount"] == 1
     assert body["items"][0]["serviceId"] == "svc_quotes"
     assert body["items"][0]["runtimeAvailable"] is True
+    assert body["items"][0]["probeTier"] == "normal"
 
     probe_response = client.post(
         "/api/admin/v1/provider-services/svc_quotes/force-probe",
@@ -994,6 +1004,7 @@ def test_provider_services_management_routes_proxy_gateway_state() -> None:
     )
     assert probe_response.status_code == 200
     assert probe_response.json()["data"]["service"]["runtimeStatus"] == "healthy"
+    assert probe_response.json()["data"]["service"]["probeTier"] == "normal"
 
     pause_response = client.post(
         "/api/admin/v1/provider-services/svc_quotes/lifecycle",
@@ -1002,6 +1013,7 @@ def test_provider_services_management_routes_proxy_gateway_state() -> None:
     )
     assert pause_response.status_code == 200
     assert pause_response.json()["data"]["service"]["controlStatus"] == "inactive"
+    assert pause_response.json()["data"]["service"]["probeTier"] == "manual_only"
 
 
 def test_menu_config_delete_removes_descendants() -> None:

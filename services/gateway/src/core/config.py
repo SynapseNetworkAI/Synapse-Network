@@ -301,6 +301,15 @@ class Settings:
     service_health_outage_after_sec: int = _env_int(
         "SERVICE_HEALTH_OUTAGE_AFTER_SEC", 1800
     )
+    service_health_slow_lane_after_sec: int = _env_int(
+        "SERVICE_HEALTH_SLOW_LANE_AFTER_SEC", 1800
+    )
+    service_health_slow_lane_interval_sec: int = _env_int(
+        "SERVICE_HEALTH_SLOW_LANE_INTERVAL_SEC", 300
+    )
+    service_health_slow_lane_suspended_interval_sec: int = _env_int(
+        "SERVICE_HEALTH_SLOW_LANE_SUSPENDED_INTERVAL_SEC", 300
+    )
     forwarding_require_healthy_targets: bool = _env_bool(
         "FORWARDING_REQUIRE_HEALTHY_TARGETS", True
     )

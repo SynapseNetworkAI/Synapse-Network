@@ -46,6 +46,7 @@ def _admin_service_payload(service: ServiceDefinitionRecord) -> dict[str, Any]:
         "isActive": bool(service.is_active),
         "runtimeStatus": _runtime_status(service),
         "runtimeAvailable": service_health_service.is_service_discoverable(service),
+        "probeTier": service_health_service.service_probe_tier(service),
         "health": service_health_service.public_health_summary(service),
         "targets": _target_payloads(service),
         "createdAt": service.created_at,

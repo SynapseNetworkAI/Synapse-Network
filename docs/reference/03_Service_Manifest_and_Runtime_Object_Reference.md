@@ -109,6 +109,15 @@ Agent-facing discovery / invoke 的可调用条件必须同时满足：
 
 因此 `active + unhealthy` 是合法状态：它表示控制面仍允许上线，但 Gateway 当前自动摘流。后续健康恢复后可自动重新进入 discovery / invoke。
 
+探活调度会额外暴露 `probeTier` 供控制台和运维判断：
+
+1. `normal`：按 `SERVICE_HEALTH_PROBE_INTERVAL_SEC` 正常探活。
+2. `slow_lane`：长期不健康或 suspended，按 slow lane 间隔降频探活。
+3. `manual_only`：`draft` / `inactive`，不进入自动探活，只能手动 force probe。
+4. `disabled`：`deleted`，不再探活。
+
+slow lane 只节省探活资源，不改变生命周期。Provider 修复 endpoint 后，如果服务仍为 `active`，等待下一次 slow lane probe 或点击 `Force probe` 即可恢复；如果服务被 Pause 成 `inactive`，需要 Resume / 重新发布后才会重新进入自动探活。
+
 ## 4. 不应暴露给 Agent 的字段
 
 默认不应通过 Runtime 协议暴露：

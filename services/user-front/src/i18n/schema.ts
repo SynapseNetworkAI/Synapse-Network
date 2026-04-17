@@ -783,6 +783,9 @@ export type I18nMessages = {
     overviewArchitectureDescription: string;
     overviewArchitectureLabels: string[];
     overviewArchitectureDescriptions: string[];
+    overviewArchitectureHealthTitle: string;
+    overviewArchitectureHealthDescription: string;
+    overviewArchitectureHealthBullets: string[];
     overviewLearnMore: string;
     overviewPlatformProductsLabel: string;
     overviewProductTitles: string[];
@@ -832,6 +835,8 @@ export type I18nMessages = {
     providerRegistrationDefaults: string[];
     providerStatusSignalsTitle: string;
     providerStatusSignals: string[];
+    providerHealthRecoveryTitle: string;
+    providerHealthRecoveryItems: string[];
     providerSettlementModelLabel: string;
     providerSettlementModelRows: string[];
     providerSettlementModelValues: string[];

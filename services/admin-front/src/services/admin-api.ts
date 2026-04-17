@@ -576,6 +576,7 @@ export type ProviderServiceItem = {
   isActive: boolean;
   runtimeStatus: string;
   runtimeAvailable: boolean;
+  probeTier: string;
   health: {
     overallStatus?: string;
     probeStatus?: string;
@@ -584,6 +585,7 @@ export type ProviderServiceItem = {
     lastCheckedAt?: number | null;
     isStale?: boolean;
     runtimeAvailable?: boolean;
+    probeTier?: string;
   };
   targets: Array<{
     targetUrl: string;
