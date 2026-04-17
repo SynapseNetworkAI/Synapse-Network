@@ -208,13 +208,13 @@ class TestEmitDepositCompleted:
         assert e["properties"]["tx_hash"] == "0xabc123"
         assert e["properties"]["time_to_confirm_ms"] == 5000
 
-    async def test_omits_confirm_time_when_none(self, file_emitter, events_file):
+    async def test_defaults_confirm_time_when_none(self, file_emitter, events_file):
         set_emitter(file_emitter)
         await emit_deposit_completed(
             "0xOwner", amount_usdc=10.0, tx_hash="0x123",
         )
         events = _read_events(events_file)
-        assert "time_to_confirm_ms" not in events[0]["properties"]
+        assert events[0]["properties"]["time_to_confirm_ms"] == 0
 
 
 class TestEmitDepositFailed:

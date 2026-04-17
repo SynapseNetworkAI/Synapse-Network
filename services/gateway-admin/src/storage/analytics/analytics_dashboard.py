@@ -626,7 +626,16 @@ class ClickHouseAnalyticsDashboardRepository:
               count() AS event_count,
               uniqExact(event_id) AS unique_event_ids,
               count() - uniqExact(event_id) AS duplicate_count,
-              countIf(startsWith(distinct_id, '0x') OR length(distinct_id) = 42 OR position(properties, '0x') > 0) AS privacy_violations,
+              countIf(
+                startsWith(distinct_id, '0x')
+                OR length(distinct_id) = 42
+                OR startsWith(JSONExtractString(properties, 'wallet_address'), '0x')
+                OR startsWith(JSONExtractString(properties, 'owner_address'), '0x')
+                OR startsWith(JSONExtractString(properties, 'consumer_wallet'), '0x')
+                OR startsWith(JSONExtractString(properties, 'provider_wallet'), '0x')
+                OR startsWith(JSONExtractString(properties, 'from_address'), '0x')
+                OR startsWith(JSONExtractString(properties, 'to_address'), '0x')
+              ) AS privacy_violations,
               countIf(event_name = 'invoke_completed' AND (NOT JSONHas(properties, 'service_id') OR NOT JSONHas(properties, 'provider_id') OR NOT JSONHas(properties, 'price_usdc'))) AS invoke_completed_missing,
               countIf(event_name = 'invoke_failed' AND (NOT JSONHas(properties, 'error_code') OR NOT JSONHas(properties, 'failure_stage'))) AS invoke_failed_missing,
               countIf(event_name = 'deposit_completed' AND (NOT JSONHas(properties, 'amount_usdc') OR NOT JSONHas(properties, 'time_to_confirm_ms'))) AS deposit_completed_missing,

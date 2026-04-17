@@ -67,6 +67,62 @@ def test_clickhouse_data_quality_marks_raw_wallet_and_missing_critical_events_as
     assert any(item["eventName"] == "invoke_completed" and item["seen"] is False for item in payload["criticalEventsFreshness"])
 
 
+def test_clickhouse_data_quality_does_not_treat_tx_hash_as_privacy_violation(monkeypatch) -> None:
+    repository = ClickHouseAnalyticsDashboardRepository("http://clickhouse.invalid")
+    captured_sql: list[str] = []
+
+    def fake_query(sql: str):
+        captured_sql.append(sql)
+        if "uniqExact(event_id)" in sql:
+            return type(
+                "Result",
+                (),
+                {
+                    "rows": [
+                        {
+                            "event_count": 1,
+                            "unique_event_ids": 1,
+                            "duplicate_count": 0,
+                            "privacy_violations": 0,
+                            "invoke_completed_missing": 0,
+                            "invoke_failed_missing": 0,
+                            "deposit_completed_missing": 0,
+                            "file_backend_fallback_events": 0,
+                        }
+                    ],
+                    "source_status": "healthy",
+                    "error": None,
+                },
+            )()
+        if "SELECT source" in sql:
+            return type("Result", (), {"rows": [{"source": "gateway", "count": 1}], "source_status": "healthy", "error": None})()
+        if "max(timestamp)" in sql:
+            return type(
+                "Result",
+                (),
+                {
+                    "rows": [
+                        {"eventName": "page_viewed", "lastSeenAt": "2026-04-16 00:00:00", "count": 1},
+                        {"eventName": "wallet_connected", "lastSeenAt": "2026-04-16 00:00:00", "count": 1},
+                        {"eventName": "invoke_completed", "lastSeenAt": "2026-04-16 00:00:00", "count": 1},
+                        {"eventName": "deposit_completed", "lastSeenAt": "2026-04-16 00:00:00", "count": 1},
+                    ],
+                    "source_status": "healthy",
+                    "error": None,
+                },
+            )()
+        return type("Result", (), {"rows": [{"xor_violations": 0}], "source_status": "healthy", "error": None})()
+
+    monkeypatch.setattr(repository, "_safe_query_json_rows", fake_query)
+
+    payload = repository.get_data_quality("24h")
+
+    quality_sql = next(sql for sql in captured_sql if "uniqExact(event_id)" in sql)
+    assert "position(properties, '0x')" not in quality_sql
+    assert "JSONExtractString(properties, 'tx_hash')" not in quality_sql
+    assert payload["privacyViolations"] == 0
+
+
 def test_clickhouse_consumer_funnel_preserves_zero_rows_defaults(monkeypatch) -> None:
     repository = ClickHouseAnalyticsDashboardRepository("http://clickhouse.invalid")
 

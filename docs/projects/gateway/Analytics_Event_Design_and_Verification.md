@@ -208,6 +208,7 @@ PYTHONPATH=. pytest tests/e2e/test_analytics_e2e_pipeline.py -v --timeout=60
 4. 测试写入前端漏斗事件 `page_viewed`、`wallet_connected`、`consumer_signup_completed`、`provider_signup_completed`。
 5. ClickHouse 查询校验必需事件齐全，并输出 `output/analytics-fullchain/report.json`。
 6. Admin 页面脚本读取同一份报告，调用 `gateway-admin` Analytics API，与 ClickHouse 原始窗口汇总比对，然后截图 7 个 Analytics 页面。
+7. 标准回归脚本独立调用 7 个 Admin Analytics API，并和 ClickHouse 原始聚合逐项比对，输出可归档报告。
 
 Admin Analytics API 是 ClickHouse-backed 只读聚合入口，必须读取 `ANALYTICS_CLICKHOUSE_URL` 的真实事件；ClickHouse 不可用时显示 degraded/空数据，不允许用 demo/mock 指标兜底。
 
@@ -229,6 +230,12 @@ ADMIN_FRONT_URL=http://127.0.0.1:4000 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN='<synapse_admin_session cookie value>' \
 node scripts/admin_analytics_fullchain_e2e.js
+
+# 无 Node/Playwright 依赖的 API + ClickHouse 回归。
+# 本地可自动写入一个短期 Super Admin session；非本地环境请传 ADMIN_SESSION_TOKEN。
+ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
+ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
+/usr/bin/python3 scripts/admin_analytics_clickhouse_regression.py
 ```
 
 截图输出：
@@ -242,6 +249,18 @@ output/analytics-fullchain/screens/
 ├── 05-money-flow.png
 ├── 06-risk-health.png
 └── 07-data-quality.png
+```
+
+API/ClickHouse 回归报告输出：
+
+```text
+output/analytics-fullchain/admin-clickhouse-regression.json
+```
+
+完整回归 runbook：
+
+```text
+docs/reference/test/admin_analytics_clickhouse_fullchain_regression.md
 ```
 
 ### 4.6 Admin 告警可追溯验证
