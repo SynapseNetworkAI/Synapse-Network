@@ -66,3 +66,43 @@ def test_clickhouse_consumer_funnel_preserves_zero_rows_defaults(monkeypatch) ->
     assert payload["steps"][0]["eventName"] == "page_viewed"
     assert payload["steps"][0]["users"] == 0
     assert payload["summary"]["activationRate"] == 0
+
+
+def test_clickhouse_invocation_revenue_counts_started_events(monkeypatch) -> None:
+    repository = ClickHouseAnalyticsDashboardRepository("http://clickhouse.invalid")
+
+    def fake_query(sql: str):
+        if "countIf(event_name = 'quote_generated')" in sql:
+            return type(
+                "Result",
+                (),
+                {
+                    "rows": [
+                        {
+                            "quote_count": 3,
+                            "invoke_started_count": 2,
+                            "invoke_completed_count": 1,
+                            "invoke_failed_count": 1,
+                            "gmv_usdc": 0.02,
+                            "price_avg_usdc": 0.02,
+                            "platform_fee_usdc": 0.003,
+                            "provider_net_usdc": 0.017,
+                            "latency_p50_ms": 120,
+                            "latency_p95_ms": 180,
+                            "latency_p99_ms": 220,
+                        }
+                    ],
+                    "source_status": "healthy",
+                    "error": None,
+                },
+            )()
+        return type("Result", (), {"rows": [], "source_status": "healthy", "error": None})()
+
+    monkeypatch.setattr(repository, "_safe_query_json_rows", fake_query)
+
+    payload = repository.get_invocation_revenue("24h")
+
+    assert payload["quoteCount"] == 3
+    assert payload["invokeStartedCount"] == 2
+    assert payload["invokeCompletedCount"] == 1
+    assert payload["successRate"] == 0.5

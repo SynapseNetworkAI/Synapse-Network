@@ -138,6 +138,20 @@ class FinanceDepositExecMixin:
             details["pendingAfter"] = moved.pending_after
         self._append_financial_audit("DEPOSIT_INTENT_CONFIRMED", owner, details)  # type: ignore[attr-defined]
 
+    async def _emit_deposit_completed_for_confirmed_intent(
+        self,
+        *,
+        owner: str,
+        confirmed_row: DepositIntentRow,
+    ) -> None:
+        from src.services.analytics.gateway_events import emit_deposit_completed
+
+        await emit_deposit_completed(
+            owner,
+            amount_usdc=float(confirmed_row.amount_usdc or 0),
+            tx_hash=str(confirmed_row.tx_hash or ""),
+        )
+
     def _confirm_deposit_intent_atomic_or_raise(
         self,
         *,
@@ -283,6 +297,10 @@ class FinanceDepositExecMixin:
                     request_meta=request_meta,
                     confirmed_row=result,
                 )
+                await self._emit_deposit_completed_for_confirmed_intent(
+                    owner=owner,
+                    confirmed_row=result,
+                )
                 return result.model_dump(by_alias=True, mode="json")
 
             intents = self._load_deposit_intents()  # type: ignore[attr-defined]
@@ -316,6 +334,10 @@ class FinanceDepositExecMixin:
                 request_meta=request_meta,
                 confirmed_row=target,
                 moved=moved,
+            )
+            await self._emit_deposit_completed_for_confirmed_intent(
+                owner=owner,
+                confirmed_row=target,
             )
             return target.model_dump(by_alias=True, mode="json")
 

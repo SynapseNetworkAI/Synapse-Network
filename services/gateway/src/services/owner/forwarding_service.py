@@ -17,6 +17,7 @@ from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.analytics.gateway_events import (
     emit_invoke_completed,
     emit_invoke_failed,
+    emit_invoke_started,
     emit_provider_first_revenue_received,
     emit_provider_revenue_received,
     emit_quote_generated,
@@ -208,6 +209,14 @@ async def _execute_invocation_pipeline(
     running = invocation.model_copy(update={"status": "RUNNING", "started_at": now_dt_str(), "updated_at": now_dt_str()})
     persist_invocation(storage, running)
     _t0 = time.monotonic()
+    await emit_invoke_started(
+        owner_wallet,
+        service_id=service.service_id,
+        provider_address=provider_wallet,
+        quote_id=quote.quote_id,
+        price_usdc=float(total_charge),
+        correlation_id=trace_request_id,
+    )
 
     try:
         invocation_result = await forwarding_upstream.call_upstream(service, running, request_payload)

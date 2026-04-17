@@ -143,7 +143,7 @@ PYTHONPATH=. pytest tests/unit/test_analytics_emitter_unit.py \
            tests/unit/test_analytics_fullstack_unit.py \
            tests/unit/test_gateway_events_unit.py \
            -v
-# 期望：48 passed
+# 期望：全部通过
 ```
 
 ### 4.2 HTTP 集成测试验证（无基础设施依赖）
@@ -198,7 +198,51 @@ ANALYTICS_CLICKHOUSE_URL=http://localhost:8123 \
 PYTHONPATH=. pytest tests/e2e/test_analytics_e2e_pipeline.py -v --timeout=60
 ```
 
-### 4.5 ClickHouse 埋点查询验证
+### 4.5 业务全链路 → Admin Analytics 页面验证
+
+该检查验证真实业务动作和 Admin Analytics 页面读数连续一致：
+
+1. Provider 注册可调用服务，产生 `service_registered`。
+2. Consumer 链上充值并由 Gateway 确认，产生 `deposit_completed`。
+3. Agent 调用 Provider 服务，产生 `quote_generated`、`invoke_started`、`invoke_completed` 和 `provider_revenue_received`。
+4. 测试写入前端漏斗事件 `page_viewed`、`wallet_connected`、`consumer_signup_completed`、`provider_signup_completed`。
+5. ClickHouse 查询校验必需事件齐全，并输出 `output/analytics-fullchain/report.json`。
+6. Admin 页面脚本读取同一份报告，调用 `gateway-admin` Analytics API，与 ClickHouse 原始窗口汇总比对，然后截图 7 个 Analytics 页面。
+
+```bash
+cd services/gateway
+ANALYTICS_FULLCHAIN_E2E=true \
+ANALYTICS_CLICKHOUSE_URL=http://localhost:8123 \
+PYTHONPATH=. pytest tests/e2e/test_01_infrastructure.py \
+  tests/e2e/test_02_wallet_auth.py \
+  tests/e2e/test_03_fund_wallet.py \
+  tests/e2e/test_04_deposit.py \
+  tests/e2e/test_05_provider_register.py \
+  tests/e2e/test_06_agent_credential.py \
+  tests/e2e/test_07_invoke.py \
+  tests/e2e/test_08_analytics_fullchain.py -q
+
+cd ../..
+ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
+ADMIN_SESSION_TOKEN='<synapse_admin_session cookie value>' \
+node scripts/admin_analytics_fullchain_e2e.js
+```
+
+截图输出：
+
+```text
+output/analytics-fullchain/screens/
+├── 01-analytics-overview.png
+├── 02-consumer-funnel.png
+├── 03-invocation-revenue.png
+├── 04-provider-revenue.png
+├── 05-money-flow.png
+├── 06-risk-health.png
+└── 07-data-quality.png
+```
+
+### 4.6 ClickHouse 埋点查询验证
 
 ```bash
 # 激活漏斗（Consumer）
@@ -207,7 +251,7 @@ curl -s "http://localhost:8123/" \
           FROM synapse_analytics.events
           WHERE event_name IN (
             'page_viewed','wallet_connected','consumer_signup_completed',
-            'deposit_completed','invoke_completed'
+            'quote_generated','deposit_completed','invoke_started','invoke_completed'
           )
           AND timestamp >= now() - INTERVAL 1 DAY
           GROUP BY event_name ORDER BY users DESC FORMAT PrettyCompact"
@@ -292,9 +336,11 @@ Results: 11 passed, 0 failed
 
 上线前必须通过所有检查项：
 
-- [ ] 48 个单元测试全部通过 (`pytest tests/unit/`)
-- [ ] 17 个集成测试全部通过 (`pytest tests/integration/test_analytics_http_integration.py`)
+- [ ] Analytics 单元测试全部通过 (`pytest tests/unit/test_gateway_events_unit.py tests/unit/test_analytics_fullstack_unit.py`)
+- [ ] Analytics 集成测试全部通过 (`pytest tests/integration/test_analytics_http_integration.py`)
 - [ ] E2E 管道测试通过 (`ANALYTICS_TEST_E2E=true pytest tests/e2e/`)
+- [ ] 业务全链路 Analytics 验证通过 (`ANALYTICS_FULLCHAIN_E2E=true pytest tests/e2e/test_08_analytics_fullchain.py`)
+- [ ] Admin Analytics 7 个页面截图验证通过 (`node scripts/admin_analytics_fullchain_e2e.js`)
 - [ ] 数据质量健康检查 0 失败 (`analytics_health_check.py`)
 - [ ] ClickHouse Consumer 激活漏斗可查询
 - [ ] 无原始钱包地址泄漏（隐私检查通过）
@@ -311,9 +357,11 @@ Results: 11 passed, 0 failed
 | `services/gateway/src/services/analytics/privacy.py` | 钱包地址哈希 |
 | `services/gateway/src/api/routers/events.py` | 前端事件摄入 HTTP 端点 |
 | `services/gateway/scripts/analytics_health_check.py` | ClickHouse 数据质量健康检查 |
-| `services/gateway/tests/unit/` | 48 个单元测试 |
-| `services/gateway/tests/integration/` | 17 个 HTTP 集成测试 |
+| `services/gateway/tests/unit/` | Analytics 和 Gateway 业务埋点单元测试 |
+| `services/gateway/tests/integration/` | Analytics HTTP 和跨服务集成测试 |
 | `services/gateway/tests/e2e/test_analytics_e2e_pipeline.py` | Kafka→ClickHouse E2E 测试 |
+| `services/gateway/tests/e2e/test_08_analytics_fullchain.py` | 服务注册、充值、调用到 ClickHouse 事件连续性测试 |
+| `scripts/admin_analytics_fullchain_e2e.js` | Admin Analytics API 一致性和 7 页面截图验证 |
 | `docs/projects/frontend/Synapse_Analytics_Tracking_Plan.md` | 全栈埋点规划（含前端/SDK/链上）|
 | `docs/ops/08_Analytics_Pipeline_Operations.md` | 运维操作手册 |
 | `infra/docker/local/docker-compose.yml` | Kafka + ClickHouse 本地基础设施 |

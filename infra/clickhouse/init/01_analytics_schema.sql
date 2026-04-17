@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS synapse_analytics.events_kafka
 )
 ENGINE = Kafka
 SETTINGS
-    kafka_broker_list = 'kafka:9092',
+    kafka_broker_list = 'kafka:29092',
     kafka_topic_list = 'synapse.analytics.events',
     kafka_group_name = 'clickhouse_analytics_consumer',
     kafka_format = 'JSONAsString',

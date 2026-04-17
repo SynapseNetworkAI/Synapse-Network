@@ -111,6 +111,27 @@ async def emit_invoke_completed(
     )
 
 
+async def emit_invoke_started(
+    wallet_address: str,
+    *,
+    service_id: str,
+    provider_address: str,
+    quote_id: str,
+    price_usdc: float,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "invoke_started", wallet_address,
+        correlation_id=correlation_id,
+        extra={
+            "service_id": service_id,
+            "provider_id": sha256_hash(provider_address),
+            "quote_id": quote_id,
+            "price_usdc": price_usdc,
+        },
+    )
+
+
 async def emit_invoke_failed(
     wallet_address: str,
     *,

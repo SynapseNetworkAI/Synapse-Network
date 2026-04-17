@@ -1,5 +1,7 @@
 """Unit tests for analytics emitter and backends."""
 import json
+import sys
+import types
 import uuid
 from pathlib import Path
 
@@ -9,6 +11,7 @@ from src.services.analytics.emitter import (
     AnalyticsEvent,
     AnalyticsEmitter,
     FileBackend,
+    KafkaBackend,
     create_analytics_emitter,
 )
 from src.services.analytics.privacy import sha256_hash
@@ -118,6 +121,39 @@ class TestAnalyticsEmitter:
         await file_emitter.emit_batch(events)
         lines = (tmp_path / "events.jsonl").read_text().strip().split("\n")
         assert len(lines) == 10
+
+
+class TestKafkaBackend:
+    async def test_uses_aiokafka_supported_batch_argument(self, monkeypatch):
+        created_kwargs = {}
+        sent = {}
+
+        class FakeProducer:
+            def __init__(self, **kwargs):
+                created_kwargs.update(kwargs)
+
+            async def start(self):
+                return None
+
+            async def send_and_wait(self, *, topic, value, key):
+                sent.update({"topic": topic, "value": value, "key": key})
+
+            async def stop(self):
+                return None
+
+        monkeypatch.setitem(
+            sys.modules,
+            "aiokafka",
+            types.SimpleNamespace(AIOKafkaProducer=FakeProducer),
+        )
+        backend = KafkaBackend(bootstrap_servers="localhost:9092", topic="events")
+
+        await backend.send(AnalyticsEvent(event_name="invoke_started", distinct_id="hash"))
+
+        assert created_kwargs["max_batch_size"] == 32768
+        assert "batch_size" not in created_kwargs
+        assert sent["topic"] == "events"
+        assert sent["key"] == "hash"
 
 
 class TestPrivacy:

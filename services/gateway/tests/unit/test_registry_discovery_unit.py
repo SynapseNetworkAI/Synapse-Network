@@ -15,6 +15,7 @@ from src.services.provider.registry.discovery import (
     discover_public_services,
     discover_services,
     health_status,
+    list_owner_services,
     search_agent_discovery,
 )
 from tests.unit.registry_test_helper import FakeRegistryContext, service_definition
@@ -128,6 +129,46 @@ async def test_discover_services_appends_invocation_count_and_revenue(monkeypatc
     assert rows[0]["serviceId"] == "svc.alpha"
     assert rows[0]["invocationCount"] == 2
     assert rows[0]["totalRevenueUsdc"] == "0.090"
+
+
+@pytest.mark.asyncio
+async def test_list_owner_services_enriches_lifecycle_status_and_health(monkeypatch) -> None:
+    context = FakeRegistryContext(
+        [
+            service_definition(
+                "svc.owner-active",
+                owner_address="0xprovider",
+                service_name="Owner Active",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1710000000000,
+                ),
+            ),
+            service_definition(
+                "svc.other-owner",
+                owner_address="0xother",
+                service_name="Other Owner",
+            ),
+        ],
+        [],
+    )
+
+    monkeypatch.setattr(
+        "src.services.provider.registry.discovery.service_health_service.is_service_discoverable",
+        lambda service: service.service_id == "svc.owner-active",
+    )
+
+    rows = await list_owner_services(context, "0xprovider")
+
+    assert len(rows) == 1
+    assert rows[0]["serviceId"] == "svc.owner-active"
+    assert rows[0]["pricing"] == {"amount": "0.01", "currency": "USDC"}
+    assert rows[0]["status"] == "active"
+    assert rows[0]["health"]["probeStatus"] == "healthy"
+    assert "overallStatus" in rows[0]["health"]
+    assert rows[0]["runtimeAvailable"] is True
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ from .interfaces import RegistryContext
 from .payload_helpers import (
     is_deleted_service,
     public_service_discovery_record,
+    service_lifecycle_status,
 )
 from .usage_helpers import (
     service_usage_metrics,
