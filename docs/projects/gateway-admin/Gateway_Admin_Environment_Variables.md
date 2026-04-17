@@ -44,7 +44,6 @@ sh scripts/ops/start-staging.sh
 3. `ADMIN_GATEWAY_ALLOWED_ORIGINS` 只保留真实 staging 后台域名
 4. `ADMIN_DATABASE_DSN` 使用 staging 控制面数据库
 5. `GATEWAY_READONLY_DSN` 指向 staging 只读账号
-6. `ADMIN_GATEWAY_USE_INMEMORY_STORE=false`
 
 ## 4. Prod 启动方式
 
@@ -61,7 +60,6 @@ sh scripts/ops/start-prod.sh
 3. `ADMIN_GATEWAY_ALLOWED_ORIGINS` 只保留真实后台域名
 4. `ADMIN_DATABASE_DSN` 使用后台控制面专用账号
 5. `GATEWAY_READONLY_DSN` 只能使用 gateway 只读账号
-6. `ADMIN_GATEWAY_USE_INMEMORY_STORE=false`
 
 ## 5. 变量说明
 
@@ -96,9 +94,9 @@ sh scripts/ops/start-prod.sh
 2. `EXECUTION_WORKER_POLL_INTERVAL_SEC`: worker 轮询间隔。
 3. `EXECUTION_WORKER_BATCH_SIZE`: 每轮最多拉取多少 execution jobs。
 
-### 4.5 存储模式配置
+### 4.5 数据源约束
 
-1. `ADMIN_GATEWAY_USE_INMEMORY_STORE`: 是否启用内存存储模式，生产必须为 `false`。
+`gateway-admin` 运行时只连接真实数据源：控制面数据来自 `ADMIN_DATABASE_DSN`，gateway 投影和审核数据来自 `GATEWAY_READONLY_DSN`，Analytics 看板来自 `ANALYTICS_CLICKHOUSE_URL` 指向的 ClickHouse `synapse_analytics.events`。ClickHouse 不可用时应显示 degraded/空数据，不能回退到 demo/mock 指标。
 
 ## 6. 推荐配置基线
 
@@ -108,7 +106,6 @@ sh scripts/ops/start-prod.sh
 environment=local
 ADMIN_GATEWAY_DEBUG=true
 EXECUTION_WORKER_ENABLED=true
-ADMIN_GATEWAY_USE_INMEMORY_STORE=false
 ```
 
 ### 5.2 Staging
@@ -117,7 +114,6 @@ ADMIN_GATEWAY_USE_INMEMORY_STORE=false
 environment=staging
 ADMIN_GATEWAY_DEBUG=false
 EXECUTION_WORKER_ENABLED=true
-ADMIN_GATEWAY_USE_INMEMORY_STORE=false
 ```
 
 ### 5.3 Prod
@@ -126,7 +122,6 @@ ADMIN_GATEWAY_USE_INMEMORY_STORE=false
 environment=prod
 ADMIN_GATEWAY_DEBUG=false
 EXECUTION_WORKER_ENABLED=true
-ADMIN_GATEWAY_USE_INMEMORY_STORE=false
 ```
 
 ## 7. 安全注意事项
@@ -136,7 +131,6 @@ ADMIN_GATEWAY_USE_INMEMORY_STORE=false
 3. 生产环境不要直接使用 `.env.example` 里的示例密码和示例密钥。
 4. `GATEWAY_READONLY_DSN` 必须是只读账号。
 5. `GATEWAY_INTERNAL_JWT_SECRET` 必须单独保管，禁止写入日志或聊天记录。
-6. `ADMIN_GATEWAY_USE_INMEMORY_STORE` 在 staging/prod 必须保持 `false`。
 
 ## 8. 推荐操作流程
 

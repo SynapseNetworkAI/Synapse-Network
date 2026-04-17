@@ -148,8 +148,6 @@ class Settings(BaseSettings):
         default=10,
         alias="EXECUTION_WORKER_BATCH_SIZE",
     )
-    use_inmemory_store: bool = Field(default=False, alias="ADMIN_GATEWAY_USE_INMEMORY_STORE")
-
     @field_validator("environment", mode="before")
     @classmethod
     def normalize_environment(cls, value: object) -> str:

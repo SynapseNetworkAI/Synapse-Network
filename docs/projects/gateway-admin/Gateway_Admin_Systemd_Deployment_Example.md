@@ -37,7 +37,6 @@ sudo chmod 600 /etc/synapse/gateway-admin.env
 
 1. `environment=prod`
 2. `ADMIN_GATEWAY_DEBUG=false`
-3. `ADMIN_GATEWAY_USE_INMEMORY_STORE=false`
 
 ## 3. systemd unit 示例
 

@@ -209,6 +209,8 @@ PYTHONPATH=. pytest tests/e2e/test_analytics_e2e_pipeline.py -v --timeout=60
 5. ClickHouse 查询校验必需事件齐全，并输出 `output/analytics-fullchain/report.json`。
 6. Admin 页面脚本读取同一份报告，调用 `gateway-admin` Analytics API，与 ClickHouse 原始窗口汇总比对，然后截图 7 个 Analytics 页面。
 
+Admin Analytics API 是 ClickHouse-backed 只读聚合入口，必须读取 `ANALYTICS_CLICKHOUSE_URL` 的真实事件；ClickHouse 不可用时显示 degraded/空数据，不允许用 demo/mock 指标兜底。
+
 ```bash
 cd services/gateway
 ANALYTICS_FULLCHAIN_E2E=true \
