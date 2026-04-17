@@ -83,6 +83,8 @@ class DailyFileHandler(logging.Handler):
         for child in self._base_dir.iterdir():
             if not child.is_dir():
                 continue
+            if child.name == self._current_date:
+                continue
             try:
                 dir_date = datetime.strptime(child.name, "%Y-%m-%d").date()
             except ValueError:
