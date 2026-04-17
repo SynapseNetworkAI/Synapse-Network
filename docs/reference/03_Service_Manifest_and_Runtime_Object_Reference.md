@@ -34,6 +34,16 @@ Manifest 不是广告页，而是：
 5. `manifest_version`
 6. `status`
 
+`status` 是控制面生命周期，不是健康状态。当前公开语义为：
+
+1. `draft`：尚未发布，不承载流量。
+2. `active`：允许承载流量，但仍必须通过运行时健康判断。
+3. `inactive`：Provider 主动暂停，不 discover、不 invoke、不自动探活。
+4. `suspended`：平台冻结，不 discover、不 invoke，但可继续探活和保留健康历史。
+5. `deleted`：逻辑删除终态，不探活、不发现、不调用。
+
+为了兼容现有 PostgreSQL schema，底层 manifest row 可能仍以 `paused / archived` 保存非 active 终态；运行时 API 会统一投影成 `inactive / deleted`。业务判断必须使用公开 lifecycle 语义，而不是直接把数据库兼容值暴露给 Agent。
+
 ### 3.2 Agent 理解字段
 
 至少包括：
@@ -80,6 +90,24 @@ Manifest 不是广告页，而是：
 5. `rate_limit_policy`
 
 这些字段主要服务 Gateway 控制面，不是 Agent 选择服务所需的最小公开契约。
+
+运行时健康由 Gateway 探活生成，典型状态为：
+
+1. `unknown`
+2. `probing`
+3. `healthy`
+4. `degraded`
+5. `unhealthy`
+6. `stale`
+
+Agent-facing discovery / invoke 的可调用条件必须同时满足：
+
+1. `isActive=true`
+2. `status=active`
+3. 健康快照未过期
+4. 至少一个 target 为 `healthy`
+
+因此 `active + unhealthy` 是合法状态：它表示控制面仍允许上线，但 Gateway 当前自动摘流。后续健康恢复后可自动重新进入 discovery / invoke。
 
 ## 4. 不应暴露给 Agent 的字段
 
@@ -144,7 +172,7 @@ Provider Console 当前默认首屏只要求 Provider 明确以下最小接入�
 
 1. 新建 service 默认进入 `draft`。
 2. `price_model` 在 V1 固定为 `fixed`。
-3. 服务是否进入 discover / invoke 候选，取决于 `status=active` 且运行健康。
+3. 服务是否进入 discover / invoke 候选，取决于 `status=active`、`isActive=true`、健康快照未过期且至少一个 target 为 `healthy`。
 4. `quality` 由平台健康检查与运行观测生成，而不是由 Provider 手填。
 
 ## 7. AI API Parser 输入约定

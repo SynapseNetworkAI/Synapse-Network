@@ -9,6 +9,8 @@ import {
   getAnalyticsProviderRevenue,
   getAnalyticsRiskHealth,
   getCurrentAdmin,
+  listProviderServices,
+  updateProviderServiceLifecycle,
   resolveAdminApiBaseUrl,
 } from "./admin-api";
 
@@ -131,5 +133,79 @@ describe("analytics API adapters", () => {
       "/api/admin/v1/dashboard/analytics/risk-health?window=7d",
       "/api/admin/v1/dashboard/analytics/data-quality?window=1h",
     ]);
+  });
+});
+
+describe("provider services API adapters", () => {
+  const originalFetch = globalThis.fetch;
+  const originalWindow = globalThis.window;
+  const storage = new Map<string, string>();
+
+  beforeEach(() => {
+    storage.clear();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: { pathname: "/provider-services", replace: vi.fn() },
+        sessionStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => {
+            storage.set(key, value);
+          },
+          removeItem: (key: string) => {
+            storage.delete(key);
+          },
+          clear: () => {
+            storage.clear();
+          },
+        },
+      },
+    });
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: globalThis.window.sessionStorage,
+    });
+    globalThis.sessionStorage.setItem("synapse.admin.csrfToken", "csrf-provider-services");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: { items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 1 },
+        requestId: "req_provider_services",
+      }),
+    }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: originalWindow,
+    });
+  });
+
+  it("passes canonical provider service filters to gateway-admin", async () => {
+    await listProviderServices("cookie-session", {
+      query: "quote",
+      status: "active",
+      runtimeStatus: "healthy",
+      page: 2,
+      pageSize: 10,
+    });
+
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(url).toBe("/api/admin/v1/provider-services?query=quote&status=active&runtimeStatus=healthy&page=2&pageSize=10");
+  });
+
+  it("posts lifecycle actions through the provider services endpoint", async () => {
+    await updateProviderServiceLifecycle("cookie-session", "svc_quotes", {
+      action: "PAUSE",
+      note: "ops pause",
+    });
+
+    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ action: "PAUSE", note: "ops pause" }));
   });
 });

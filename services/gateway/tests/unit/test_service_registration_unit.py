@@ -233,7 +233,7 @@ def test_delete_service_marks_deleted_and_hides_from_owner_list(monkeypatch) -> 
     assert deleted is True
     assert owner_rows == []
     assert len(persisted_rows) == 1
-    assert persisted_rows[0].status == "archived"
+    assert persisted_rows[0].status == "deleted"
     assert persisted_rows[0].is_active is False
     assert storage.get_data_manager().audit.logs.rows[-1].action == "provider.service.deleted"
 

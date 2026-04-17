@@ -152,6 +152,10 @@ class ServiceRegistryQueryMixin:
         ) = row
 
         metadata = self._payload_dict(metadata_payload)
+        lifecycle_status = self._public_lifecycle_status(
+            metadata.get("lifecycleStatus") or metadata.get("status") or status,
+            bool(is_active and str(endpoint_status or "active") == "active"),
+        )
         auth_payload = self._normalize_json_object(metadata.get("auth"))
         if not auth_payload and str(endpoint_auth_mode or "").strip():
             auth_payload = {"type": str(endpoint_auth_mode).strip()}
@@ -179,8 +183,12 @@ class ServiceRegistryQueryMixin:
             ownerAddress=str(owner_address).lower(),
             serviceName=str(service_name or ""),
             summary=str(summary or ""),
-            status=str(status or "active"),
-            isActive=bool(is_active and str(endpoint_status or "active") == "active"),
+            status=lifecycle_status,
+            isActive=bool(
+                lifecycle_status == "active"
+                and is_active
+                and str(endpoint_status or "active") == "active"
+            ),
             pricingAmount=pricing_amount,
             pricingCurrency=str(pricing_currency or "USDC"),
             constraints=constraints,

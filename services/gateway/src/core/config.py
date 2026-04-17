@@ -298,6 +298,9 @@ class Settings:
     service_health_stale_after_sec: int = _env_int(
         "SERVICE_HEALTH_STALE_AFTER_SEC", 120
     )
+    service_health_outage_after_sec: int = _env_int(
+        "SERVICE_HEALTH_OUTAGE_AFTER_SEC", 1800
+    )
     forwarding_require_healthy_targets: bool = _env_bool(
         "FORWARDING_REQUIRE_HEALTHY_TARGETS", True
     )

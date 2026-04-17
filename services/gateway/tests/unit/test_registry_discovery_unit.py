@@ -358,6 +358,43 @@ async def test_health_status_excludes_inactive_until_requested() -> None:
 
 
 @pytest.mark.asyncio
+async def test_suspended_service_keeps_control_status_but_is_not_discoverable() -> None:
+    context = FakeRegistryContext(
+        [
+            service_definition(
+                "svc.suspended",
+                service_name="Suspended Translate",
+                status="suspended",
+                is_active=False,
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=1710000000000,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl="https://svc.suspended.test/invoke",
+                            status="healthy",
+                            weight=100,
+                            lastCheckedAt=1710000000000,
+                        )
+                    ],
+                ),
+            )
+        ],
+        [],
+    )
+
+    discoverable = await discover_services(context)
+    health_rows = await health_status(context, include_inactive=True)
+
+    assert discoverable == []
+    assert health_rows[0]["status"] == "suspended"
+    assert health_rows[0]["health"]["overallStatus"] == "suspended"
+    assert health_rows[0]["runtimeAvailable"] is False
+
+
+@pytest.mark.asyncio
 async def test_health_status_uses_discovery_effective_runtime_state(monkeypatch) -> None:
     context = FakeRegistryContext(
         [

@@ -42,6 +42,7 @@ from src.services.provider.registry.service_normalization import (  # re-exporte
     normalized_invoke_targets,
     normalized_payout_account,
     normalized_provider_profile,
+    normalized_service_lifecycle_status,
     resolved_auth_type,
     resolved_pricing,
     resolved_service_name,
@@ -135,11 +136,14 @@ def find_owned_service(
 
 
 def service_lifecycle_status(service: ServiceDefinitionRecord) -> str:
-    return str(service.status or ("active" if service.is_active else "inactive")).strip().lower()
+    return normalized_service_lifecycle_status(
+        service.status,
+        is_active=bool(service.is_active),
+    )
 
 
 def is_deleted_service(service: ServiceDefinitionRecord) -> bool:
-    return service_lifecycle_status(service) in {"deleted", "archived"}
+    return service_lifecycle_status(service) == "deleted"
 
 
 def history_window_hours(hours: Optional[int], days: Optional[int]) -> tuple[int, int]:

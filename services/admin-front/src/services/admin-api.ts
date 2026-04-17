@@ -561,6 +561,62 @@ export type ProviderWithdrawReviewHistoryListResponse = {
   totalPages: number;
 };
 
+export type ProviderServiceItem = {
+  serviceId: string;
+  ownerAddress: string;
+  serviceName: string;
+  summary: string;
+  tags: string[];
+  pricing: {
+    amount: string;
+    currency: string;
+  };
+  controlStatus: string;
+  status: string;
+  isActive: boolean;
+  runtimeStatus: string;
+  runtimeAvailable: boolean;
+  health: {
+    overallStatus?: string;
+    probeStatus?: string;
+    healthyTargets?: number;
+    totalTargets?: number;
+    lastCheckedAt?: number | null;
+    isStale?: boolean;
+    runtimeAvailable?: boolean;
+  };
+  targets: Array<{
+    targetUrl: string;
+    status: string;
+    httpStatus?: number | null;
+    latencyMs?: number | null;
+    consecutiveSuccesses?: number;
+    consecutiveFailures?: number;
+    lastCheckedAt?: number | null;
+    lastHealthyAt?: number | null;
+    error?: string | null;
+  }>;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type ProviderServiceListResponse = {
+  items: ProviderServiceItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+export type ProviderServiceActionResponse = {
+  service: ProviderServiceItem;
+};
+
+export type ProviderServiceDeleteResponse = {
+  serviceId: string;
+  status: string;
+};
+
 export type AuditActionItem = {
   auditId: number | null;
   actionType: string;
@@ -958,6 +1014,50 @@ export async function decideProviderWithdrawReview(
       body: JSON.stringify({ decision: input.decision, note: input.note }),
     },
   );
+}
+
+export async function listProviderServices(
+  token: string,
+  params?: {
+    query?: string;
+    status?: string;
+    runtimeStatus?: string;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<ProviderServiceListResponse> {
+  return request<ProviderServiceListResponse>(buildPath("/api/admin/v1/provider-services", params));
+}
+
+export async function forceProbeProviderService(
+  token: string,
+  serviceId: string,
+): Promise<ProviderServiceActionResponse> {
+  return request<ProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/force-probe`, {
+    method: "POST",
+  });
+}
+
+export async function updateProviderServiceLifecycle(
+  token: string,
+  serviceId: string,
+  input: { action: "PAUSE" | "RESUME" | "SUSPEND"; note?: string },
+): Promise<ProviderServiceActionResponse> {
+  return request<ProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/lifecycle`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteProviderService(
+  token: string,
+  serviceId: string,
+  note?: string,
+): Promise<ProviderServiceDeleteResponse> {
+  return request<ProviderServiceDeleteResponse>(`/api/admin/v1/provider-services/${serviceId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ note }),
+  });
 }
 
 export async function listAuditActions(

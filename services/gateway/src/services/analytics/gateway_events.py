@@ -409,6 +409,54 @@ async def emit_provider_health_degraded(
     )
 
 
+async def emit_provider_health_recovered(
+    provider_address: str,
+    *,
+    service_id: str,
+    healthy_targets: int,
+    total_targets: int,
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit when a provider service returns to a healthy runtime state."""
+    await _emit(
+        "provider_health_recovered", provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "healthy_targets": healthy_targets,
+            "total_targets": total_targets,
+            "overall_status": "healthy",
+        },
+    )
+
+
+async def emit_provider_health_outage(
+    provider_address: str,
+    *,
+    service_id: str,
+    healthy_targets: int,
+    total_targets: int,
+    outage_age_ms: int,
+    correlation_id: Optional[str] = None,
+) -> None:
+    """Emit when a provider service stays unhealthy past the outage window."""
+    await _emit(
+        "provider_health_outage", provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "healthy_targets": healthy_targets,
+            "total_targets": total_targets,
+            "overall_status": "unhealthy",
+            "outage_age_ms": outage_age_ms,
+        },
+    )
+
+
 # ── Risk ────────────────────────────────────────────────────────
 
 async def emit_risk_rule_triggered(

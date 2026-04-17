@@ -32,10 +32,15 @@ from src.services.platform.service_health_utils import (
     append_health_history_rows,
     build_probe_history_rows,
     build_probe_url,
+    is_service_probeable,
     prune_health_history,
     sync_service_target_health_table,
 )
-from src.services.analytics.gateway_events import emit_provider_health_degraded
+from src.services.analytics.gateway_events import (
+    emit_provider_health_degraded,
+    emit_provider_health_outage,
+    emit_provider_health_recovered,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,14 +170,14 @@ async def probe_service_health(
 
             next_target_health.append(
                 _merge_target_health(
-                previous,
-                target,
-                probe,
-                checked_at_ms,
-                int(health_spec["healthyThreshold"]),
-                int(health_spec["unhealthyThreshold"]),
-                probe_url,
-            )
+                    previous,
+                    target,
+                    probe,
+                    checked_at_ms,
+                    int(health_spec["healthyThreshold"]),
+                    int(health_spec["unhealthyThreshold"]),
+                    probe_url,
+                )
             )
 
         healthy_targets = len(
@@ -222,7 +227,7 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
 
     async with httpx.AsyncClient() as client:
         for row in rows:
-            if not bool(row.is_active):
+            if not is_service_probeable(row):
                 next_rows.append(row)
                 continue
 
@@ -230,10 +235,10 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
             next_row = await probe_service_health(row, client=client)
             # Analytics: emit when overall health transitions to degraded or unhealthy
             prev_overall = str(
-                getattr(getattr(row, "runtime_health", None), "overallStatus", None) or ""
+                getattr(getattr(row, "runtime_health", None), "overall_status", None) or ""
             ).lower()
             next_overall = str(
-                getattr(getattr(next_row, "runtime_health", None), "overallStatus", None) or ""
+                getattr(getattr(next_row, "runtime_health", None), "overall_status", None) or ""
             ).lower()
             if next_overall in {"degraded", "unhealthy"} and prev_overall not in {
                 "degraded",
@@ -244,9 +249,49 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
                     str(next_row.owner_address or ""),
                     service_id=str(next_row.service_id or ""),
                     overall_status=next_overall,
-                    healthy_targets=int(getattr(next_health, "healthyTargets", 0) or 0),
-                    total_targets=int(getattr(next_health, "totalTargets", 0) or 0),
+                    healthy_targets=int(getattr(next_health, "healthy_targets", 0) or 0),
+                    total_targets=int(getattr(next_health, "total_targets", 0) or 0),
                 )
+            if prev_overall in {"degraded", "unhealthy"} and next_overall == "healthy":
+                next_health = getattr(next_row, "runtime_health", None)
+                await emit_provider_health_recovered(
+                    str(next_row.owner_address or ""),
+                    service_id=str(next_row.service_id or ""),
+                    healthy_targets=int(getattr(next_health, "healthy_targets", 0) or 0),
+                    total_targets=int(getattr(next_health, "total_targets", 0) or 0),
+                )
+            if next_overall == "unhealthy":
+                next_health = getattr(next_row, "runtime_health", None)
+                prev_health = getattr(row, "runtime_health", None)
+                last_healthy_at = max(
+                    [
+                        int(getattr(target, "last_healthy_at", 0) or 0)
+                        for target in getattr(next_health, "targets", []) or []
+                    ]
+                    or [0]
+                )
+                prev_checked_at = int(getattr(prev_health, "last_checked_at", 0) or 0)
+                now_ms = _now_ms()
+                outage_after_ms = max(
+                    1,
+                    int(settings.service_health_outage_after_sec),
+                ) * 1000
+                crossed_outage_window = (
+                    last_healthy_at > 0
+                    and now_ms - last_healthy_at >= outage_after_ms
+                    and (
+                        prev_checked_at <= 0
+                        or prev_checked_at - last_healthy_at < outage_after_ms
+                    )
+                )
+                if crossed_outage_window:
+                    await emit_provider_health_outage(
+                        str(next_row.owner_address or ""),
+                        service_id=str(next_row.service_id or ""),
+                        healthy_targets=0,
+                        total_targets=int(getattr(next_health, "total_targets", 0) or 0),
+                        outage_age_ms=now_ms - last_healthy_at,
+                    )
             if next_row != row:
                 updated += 1
             if settings.service_health_history_enabled:

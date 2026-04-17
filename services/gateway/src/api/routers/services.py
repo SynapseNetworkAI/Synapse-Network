@@ -12,6 +12,10 @@ from src.services.provider.registry_service import (
 from src.services.platform import credential_service
 from src.services.provider.manifest_parser_service import parse_manifest_from_curl
 from src.core.config import settings
+from src.services.platform.internal_auth import (
+    InternalServicePrincipal,
+    require_internal_scope,
+)
 from src.domain.service_contract import AgentDiscoveryQueryRecord
 from pydantic import BaseModel, Field, model_validator
 from src.utils.logging_utils import workflow_logger, resolve_request_id
@@ -201,6 +205,15 @@ class ParseCurlRequest(BaseModel):
     curlCommand: str
     model: Optional[str] = None
     currentManifest: Optional[dict[str, Any]] = None
+
+
+class AdminProviderServiceLifecycleRequest(BaseModel):
+    action: str = Field(..., min_length=1, max_length=32)
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class AdminProviderServiceDeleteRequest(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=500)
 
 
 @router.get("/v1/services/discover")
@@ -466,6 +479,137 @@ async def delete_service(
         raise
     if not success:
         raise HTTPException(status_code=404, detail="Service not found")
+    return {"status": "success", "message": "Service deleted"}
+
+
+@router.get("/v1/admin/provider-services")
+async def admin_list_provider_services(
+    principal: Annotated[
+        InternalServicePrincipal,
+        Depends(require_internal_scope("provider_services.read")),
+    ],
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+    query: Optional[str] = Query(None, min_length=1, max_length=128),
+    status: Optional[str] = Query(None, max_length=32),
+    runtime_status: Optional[str] = Query(None, alias="runtimeStatus", max_length=32),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, alias="pageSize", ge=1, le=100),
+):
+    _ = principal
+    payload = await service.list_admin_provider_services(
+        query=query,
+        status=status,
+        runtime_status=runtime_status,
+        page=page,
+        page_size=page_size,
+    )
+    return {"status": "success", **payload}
+
+
+@router.get("/v1/admin/provider-services/{service_record_id}")
+async def admin_get_provider_service(
+    service_record_id: str,
+    principal: Annotated[
+        InternalServicePrincipal,
+        Depends(require_internal_scope("provider_services.read")),
+    ],
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+):
+    _ = principal
+    payload = await service.get_admin_provider_service(service_record_id)
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"},
+        )
+    return {"status": "success", "service": payload}
+
+
+@router.post("/v1/admin/provider-services/{service_record_id}/force-probe")
+async def admin_force_probe_provider_service(
+    service_record_id: str,
+    principal: Annotated[
+        InternalServicePrincipal,
+        Depends(require_internal_scope("provider_services.write")),
+    ],
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+):
+    payload = await service.force_probe_admin_provider_service(
+        service_id=service_record_id,
+        actor_wallet=principal.admin_wallet,
+        actor_admin_id=principal.actor_admin_id,
+    )
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"},
+        )
+    return {"status": "success", "service": payload}
+
+
+@router.post("/v1/admin/provider-services/{service_record_id}/lifecycle")
+async def admin_update_provider_service_lifecycle(
+    service_record_id: str,
+    payload: AdminProviderServiceLifecycleRequest,
+    principal: Annotated[
+        InternalServicePrincipal,
+        Depends(require_internal_scope("provider_services.write")),
+    ],
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+):
+    try:
+        updated = await service.update_admin_provider_service_lifecycle(
+            service_id=service_record_id,
+            action=payload.action,
+            actor_wallet=principal.admin_wallet,
+            actor_admin_id=principal.actor_admin_id,
+            note=payload.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": str(exc), "message": "Invalid provider service lifecycle action"},
+        )
+    if updated is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"},
+        )
+    return {"status": "success", "service": updated}
+
+
+@router.delete("/v1/admin/provider-services/{service_record_id}")
+async def admin_delete_provider_service(
+    service_record_id: str,
+    payload: AdminProviderServiceDeleteRequest,
+    principal: Annotated[
+        InternalServicePrincipal,
+        Depends(require_internal_scope("provider_services.write")),
+    ],
+    service: Annotated[RegistryService, Depends(get_registry_service)],
+):
+    try:
+        success = await service.delete_admin_provider_service(
+            service_id=service_record_id,
+            actor_wallet=principal.admin_wallet,
+            actor_admin_id=principal.actor_admin_id,
+            note=payload.note,
+        )
+    except ValueError as exc:
+        if str(exc) == SERVICE_DELETE_ACTIVE_CONFLICT:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": SERVICE_DELETE_ACTIVE_CONFLICT,
+                    "message": "Active services must be paused before deletion.",
+                },
+            )
+        raise
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"},
+        )
     return {"status": "success", "message": "Service deleted"}
 
 

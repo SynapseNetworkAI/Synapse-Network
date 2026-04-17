@@ -23,6 +23,8 @@ from src.services.platform.service_health_utils import (  # noqa: F401
     public_discover_status,
     public_health_summary,
     seed_service_health_from_persisted_rows,
+    service_control_status,
+    is_service_probeable,
     sync_service_target_health_table,
 )
 from src.services.platform.service_health_probe import (  # noqa: F401
