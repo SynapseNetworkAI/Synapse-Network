@@ -242,7 +242,26 @@ output/analytics-fullchain/screens/
 └── 07-data-quality.png
 ```
 
-### 4.6 ClickHouse 埋点查询验证
+### 4.6 Admin 告警可追溯验证
+
+Admin Analytics 告警必须能从总览页追到异常证据：
+
+- `budget_blocked` overview alert 链接到 `/dashboard/analytics/risk-health?window=<window>&focus=budget_blocked`。
+- Risk Health 返回并展示 `budgetBlocks` 聚合与 `budgetBlockSamples` 样本，便于查看 `errorCode`、`serviceId`、`requiredUsdc`、`availableUsdc` 与 `correlationId`。
+- Money Flow 返回并展示 `depositFailureSamples`，便于解释 `deposit_failed` 计数来自哪些 `errorCode` / `env`。
+- Provider Revenue 中 legacy `pendingSettlementUsdc` 字段由 finance projection 覆盖，UI 文案必须展示为 `Available to withdraw`，不能误写成 settlement pending。
+
+本地截图验证输出：
+
+```text
+output/analytics-drilldown/
+├── 01-overview-budget-alert.png
+├── 02-risk-budget-blocks.png
+├── 03-provider-available-to-withdraw.png
+└── 04-money-flow-failed-deposits.png
+```
+
+### 4.7 ClickHouse 埋点查询验证
 
 ```bash
 # 激活漏斗（Consumer）
