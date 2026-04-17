@@ -36,20 +36,30 @@ export function buildLoginFeedback(error: string | null, security: AdminAuthSecu
 }
 
 export function buildLoginErrorMessage(code: string | null, message: string | null): string {
-  if (code === "INVALID_GOOGLE_AUTHENTICATOR_CODE" || message === "Invalid Google Authenticator code") {
+  const normalizedMessage = (message ?? "").trim().toLowerCase();
+
+  if (code === "INVALID_GOOGLE_AUTHENTICATOR_CODE" || normalizedMessage === "invalid google authenticator code") {
     return "验证码错误或已过期，请使用最新 6 位码重试。";
   }
 
-  if (message === "otpCode is required when login TOTP is enabled") {
+  if (normalizedMessage === "otpcode is required when login totp is enabled") {
     return "请输入 Google Authenticator 的 6 位验证码。";
   }
 
-  if (message === "Invalid admin credentials") {
+  if (normalizedMessage === "invalid admin credentials") {
     return "邮箱或密码不正确，请检查后重试。";
   }
 
-  if (message === "Failed to fetch") {
+  if (normalizedMessage === "failed to fetch" || normalizedMessage.includes("networkerror")) {
     return "暂时无法连接管理后台，请稍后重试。";
+  }
+
+  if (
+    normalizedMessage.includes("unexpected token") ||
+    normalizedMessage.includes("not valid json") ||
+    normalizedMessage.includes("internal server error")
+  ) {
+    return "认证服务返回了非预期响应，请检查 gateway-admin 是否已启动、日志是否有 Internal Server Error，并确认 admin-front 的 API 地址或代理配置正确。";
   }
 
   return "登录失败，请检查登录信息后重试。";
