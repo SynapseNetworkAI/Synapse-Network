@@ -192,9 +192,8 @@ async def emit_deposit_completed(
         "amount_usdc": amount_usdc,
         "token_symbol": token_symbol,
         "tx_hash": tx_hash,
+        "time_to_confirm_ms": int(time_to_confirm_ms or 0),
     }
-    if time_to_confirm_ms is not None:
-        extra["time_to_confirm_ms"] = time_to_confirm_ms
     await _emit("deposit_completed", wallet_address, extra=extra)
 
 
