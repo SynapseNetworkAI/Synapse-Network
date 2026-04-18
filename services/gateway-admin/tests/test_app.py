@@ -1624,6 +1624,9 @@ def test_dashboard_analytics_money_flow_includes_projection_context() -> None:
 
     assert response.status_code == 200
     body = response.json()["data"]
+    assert body["depositUsdc"] == "10.00"
+    assert body["withdrawalUsdc"] == "0.00"
+    assert body["refundUsdc"] == "0.00"
     assert body["financeContext"]["pendingDepositCount"] == 2
     assert body["financeContext"]["pendingWithdrawalCount"] == 1
     assert body["financeContext"]["vaultLedgerDeltaUsdc"] == "0.50"

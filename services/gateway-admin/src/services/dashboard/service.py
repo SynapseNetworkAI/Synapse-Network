@@ -243,6 +243,7 @@ class DashboardService:
 
     def get_analytics_money_flow(self, window: str = "24h") -> dict:
         payload = self._analytics_dashboard.get_money_flow(self._normalize_analytics_window(window))
+        payload = self._normalize_money_flow_payload(payload)
         finance = self._gateway_projection.get_finance_snapshot()
         payload["financeContext"] = {
             "pendingDepositCount": finance.pending_deposit_count,
@@ -575,6 +576,21 @@ class DashboardService:
     @staticmethod
     def _format_decimal(value) -> str:
         return f"{value:.2f}"
+
+    @classmethod
+    def _normalize_money_flow_payload(cls, payload: dict) -> dict:
+        normalized_payload = dict(payload)
+        for key in ("depositUsdc", "withdrawalUsdc", "refundUsdc"):
+            normalized_payload[key] = cls._format_decimal(normalized_payload.get(key, 0))
+
+        normalized_payload["depositFailureSamples"] = [
+            {
+                **sample,
+                "amountUsdc": cls._format_decimal(sample.get("amountUsdc", 0)),
+            }
+            for sample in normalized_payload.get("depositFailureSamples", [])
+        ]
+        return normalized_payload
 
     @staticmethod
     def _resolve_indexer_runtime_status(snapshot) -> str:
