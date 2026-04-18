@@ -29,7 +29,7 @@ from src.domain.service_contract import (
     ServiceDefinitionRecord,
 )
 from src import app as gateway_app
-from src.services.owner import forwarding_billing, forwarding_budget, forwarding_service, forwarding_upstream, forwarding_validation
+from src.services.owner import downstream_concurrency, forwarding_billing, forwarding_budget, forwarding_service, forwarding_upstream, forwarding_validation
 from src.services.platform import credential_service
 from src.services.provider.registry_service import RegistryService
 
@@ -176,6 +176,7 @@ class FakeResponse:
     def __init__(self, payload):
         self._payload = payload
         self.content = json.dumps(payload).encode("utf-8")
+        self.status_code = 200
 
     def json(self):
         return self._payload
@@ -257,9 +258,62 @@ class FakeStructuredAsyncClient:
         )
 
 
+class FakeSlowAsyncClient:
+    def __init__(self, timeout: float):
+        self.timeout = timeout
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        _ = (exc_type, exc, tb)
+        return False
+
+    async def post(self, url: str, json: dict, headers: dict):
+        _ = (url, json, headers)
+        await asyncio.sleep(0.05)
+        return FakeResponse({"quote": {"answer": "slow-ok"}})
+
+
+class FakeRedisCounter:
+    def __init__(self, initial: int = 0):
+        self.value = initial
+
+    async def incr(self, key: str) -> int:
+        _ = key
+        self.value += 1
+        return self.value
+
+    async def decr(self, key: str) -> int:
+        _ = key
+        self.value -= 1
+        return self.value
+
+    async def expire(self, key: str, ttl: int) -> None:
+        _ = (key, ttl)
+
+    async def delete(self, key: str) -> None:
+        _ = key
+        self.value = 0
+
+
 async def _async_none():
     await asyncio.sleep(0)
     return None
+
+
+def _async_value(value):
+    async def _return_value():
+        return value
+
+    return _return_value
+
+
+@pytest.fixture(autouse=True)
+def _reset_downstream_concurrency_state():
+    downstream_concurrency.reset_downstream_concurrency_state()
+    yield
+    downstream_concurrency.reset_downstream_concurrency_state()
 
 
 async def _background_loop_until_stopped(stop_event, storage) -> None:
@@ -533,6 +587,155 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.audit.rows[0].details["resultStatus"] == "success"
     assert storage.execution.read_quote(receipt.quoteId).status == "CONSUMED"
     assert storage.execution.read_invocation(receipt.invocationId).status == "SUCCEEDED"
+
+
+@pytest.mark.asyncio
+async def test_downstream_adaptive_concurrency_reduces_and_recovers(monkeypatch) -> None:
+    service = _service_definition()
+    target_url = service.invoke.targets[0].url
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_concurrency_enabled", True)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_redis_enabled", False)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_default_concurrency", 4)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_min_concurrency", 1)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_max_concurrency", 8)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_window_sec", 0)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_latency_target_ms", 100)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_decrease_factor", 0.5)
+
+    permit = await downstream_concurrency.acquire_downstream_permit(service, target_url)
+    await permit.release(latency_ms=25, status_code=200, error_code=None, success=True)
+    recovered = downstream_concurrency.downstream_snapshot_for_service(service)
+    assert recovered["adaptiveConcurrencyLimit"] == 5
+
+    permit = await downstream_concurrency.acquire_downstream_permit(service, target_url)
+    await permit.release(latency_ms=500, status_code=200, error_code=None, success=True)
+    reduced = downstream_concurrency.downstream_snapshot_for_service(service)
+    assert reduced["adaptiveConcurrencyLimit"] == 2
+
+
+@pytest.mark.asyncio
+async def test_downstream_adaptive_concurrency_opens_half_open_circuit(monkeypatch) -> None:
+    service = _service_definition()
+    target_url = service.invoke.targets[0].url
+    now_ms = [1_000_000]
+    monkeypatch.setattr(downstream_concurrency, "_now_ms", lambda: now_ms[0])
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_concurrency_enabled", True)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_redis_enabled", False)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_default_concurrency", 4)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_circuit_failure_threshold", 2)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_circuit_open_sec", 1)
+
+    for _ in range(2):
+        permit = await downstream_concurrency.acquire_downstream_permit(service, target_url)
+        await permit.release(
+            latency_ms=1500,
+            status_code=None,
+            error_code="SERVICE_TIMEOUT",
+            success=False,
+        )
+
+    snapshot = downstream_concurrency.downstream_snapshot_for_service(service)
+    assert snapshot["circuitState"] == "open"
+
+    with pytest.raises(HTTPException) as exc_info:
+        await downstream_concurrency.acquire_downstream_permit(service, target_url)
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["code"] == "SERVICE_CIRCUIT_OPEN"
+
+    now_ms[0] += 1_500
+    half_open_probe = await downstream_concurrency.acquire_downstream_permit(service, target_url)
+    with pytest.raises(HTTPException) as half_open_exc:
+        await downstream_concurrency.acquire_downstream_permit(service, target_url)
+    assert half_open_exc.value.detail["code"] == "SERVICE_CIRCUIT_OPEN"
+
+    await half_open_probe.release(latency_ms=50, status_code=200, error_code=None, success=True)
+    recovered = downstream_concurrency.downstream_snapshot_for_service(service)
+    assert recovered["circuitState"] == "closed"
+
+
+@pytest.mark.asyncio
+async def test_downstream_redis_global_counter_rejects_over_limit(monkeypatch) -> None:
+    service = _service_definition()
+    target_url = service.invoke.targets[0].url
+    redis = FakeRedisCounter(initial=1)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_concurrency_enabled", True)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_redis_enabled", True)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_default_concurrency", 1)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_max_concurrency", 1)
+    monkeypatch.setattr(downstream_concurrency, "get_redis_client", _async_value(redis))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await downstream_concurrency.acquire_downstream_permit(service, target_url)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["code"] == "SERVICE_BUSY"
+    snapshot = downstream_concurrency.downstream_snapshot_for_service(service)
+    assert snapshot["inFlight"] == 0
+    assert redis.value == 1
+
+
+@pytest.mark.asyncio
+async def test_downstream_redis_degraded_falls_back_to_conservative_local_limit(monkeypatch) -> None:
+    service = _service_definition()
+    target_url = service.invoke.targets[0].url
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_concurrency_enabled", True)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_redis_enabled", True)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_default_concurrency", 8)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_max_concurrency", 8)
+    monkeypatch.setattr(downstream_concurrency, "get_redis_client", _async_none)
+
+    permit = await downstream_concurrency.acquire_downstream_permit(service, target_url)
+    snapshot = downstream_concurrency.downstream_snapshot_for_service(service)
+
+    assert snapshot["adaptiveConcurrencyLimit"] == 4
+    assert snapshot["inFlight"] == 1
+    await permit.release_without_outcome()
+
+
+@pytest.mark.asyncio
+async def test_invoke_busy_rejects_before_charge_or_success_billing(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeSlowAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_concurrency_enabled", True)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_redis_enabled", False)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_default_concurrency", 1)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_max_concurrency", 1)
+    monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_window_sec", 60)
+
+    async def _invoke(request_id: str):
+        return await forwarding_service.generate_response_v2(
+            storage,
+            InferenceRequest(prompt=f"hello {request_id}", serviceId="svc.echo"),
+            "svc.echo",
+            raw_token,
+            request_id,
+        )
+
+    first = asyncio.create_task(_invoke("req-busy-001"))
+    await asyncio.sleep(0)
+    second_result = await asyncio.gather(
+        first,
+        _invoke("req-busy-002"),
+        return_exceptions=True,
+    )
+
+    failures = [item for item in second_result if isinstance(item, HTTPException)]
+    assert len(failures) == 1
+    assert failures[0].detail["code"] == "SERVICE_BUSY"
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("8.750000")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("1.080000")
+    assert len(storage.audit.rows) == 1
+    assert all(row.status != "succeeded" for row in storage.gateway_state.usage_rows)
 
 
 def test_find_active_service_hydrates_persisted_health_snapshot() -> None:

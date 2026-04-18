@@ -211,6 +211,16 @@ Gateway 必须按成本从低到高执行：
 
 只要 Provider 把服务切到 `inactive`，平台把服务切到 `suspended` / `deleted`，或者当前没有 healthy target，调用链就必须在进入上游转发前被网关硬拦截。
 
+在进入上游转发和扣费前，Gateway 还会对选中的 `serviceId + targetUrl` 执行动态并发准入：
+
+1. `DOWNSTREAM_ADAPTIVE_CONCURRENCY_ENABLED=1` 时，每个 target 都有独立的 adaptive concurrency window。
+2. Provider 可在 `constraints.maxConcurrency` 声明更低的目标并发；平台仍会用 `DOWNSTREAM_ADAPTIVE_MAX_CONCURRENCY` 和 `maxQps * timeoutMs` 推导值做硬上限。
+3. 下游 p95 延迟高于 `DOWNSTREAM_ADAPTIVE_LATENCY_TARGET_MS`，或出现 timeout / 429 / 5xx / 连接错误时，Gateway 使用 AIMD 快速降并发。
+4. 下游恢复健康后，Gateway 每个窗口只 `+1` 慢升，避免刚恢复就被流量再次打垮。
+5. 达到并发上限时返回 `SERVICE_BUSY`；连续严重失败打开熔断时返回 `SERVICE_CIRCUIT_OPEN`。这两类拒绝都发生在扣费前。
+6. 已转发但超时的调用返回 `SERVICE_TIMEOUT`，继续走现有失败回滚和审计链路。
+7. 多 Gateway 实例下，Redis 可用时用全局 in-flight counter 兜底；Redis 不可用时退回本地保守并发并写入 degraded analytics 事件。
+
 自动摘流规则：
 
 1. `active + unhealthy` 不会被 Gateway 改写成 `inactive`。
@@ -251,6 +261,7 @@ Gateway 不是透明代理，而是 **带风控和结算语义的平台代理层
 2. 附加内部 trace / request id
 3. 执行 timeout、payload 限制和 response mode 约束
 4. 把上游原始 HTTP 成败映射成平台的执行结果
+5. 根据下游实时延迟和失败率动态调整并发，保护 Provider endpoint 不被慢响应和重试流量打垮
 
 ### 8.4 单次调用路径：POST /v1/agent/invoke（cost_usdc 价格断言）
 

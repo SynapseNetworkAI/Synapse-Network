@@ -326,6 +326,41 @@ class Settings:
     forwarding_require_healthy_targets: bool = _env_bool(
         "FORWARDING_REQUIRE_HEALTHY_TARGETS", True
     )
+    # Adaptive downstream invoke protection. Health probes use the separate
+    # SERVICE_HEALTH_* scheduler; these limits protect provider invoke targets.
+    downstream_adaptive_concurrency_enabled: bool = _env_bool(
+        "DOWNSTREAM_ADAPTIVE_CONCURRENCY_ENABLED", True
+    )
+    downstream_adaptive_default_concurrency: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_DEFAULT_CONCURRENCY", 8
+    )
+    downstream_adaptive_min_concurrency: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_MIN_CONCURRENCY", 1
+    )
+    downstream_adaptive_max_concurrency: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_MAX_CONCURRENCY", 64
+    )
+    downstream_adaptive_queue_limit: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_QUEUE_LIMIT", 32
+    )
+    downstream_adaptive_latency_target_ms: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_LATENCY_TARGET_MS", 1500
+    )
+    downstream_adaptive_window_sec: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_WINDOW_SEC", 10
+    )
+    downstream_adaptive_decrease_factor: float = _env_float(
+        "DOWNSTREAM_ADAPTIVE_DECREASE_FACTOR", 0.5
+    )
+    downstream_adaptive_circuit_open_sec: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_CIRCUIT_OPEN_SEC", 30
+    )
+    downstream_adaptive_redis_enabled: bool = _env_bool(
+        "DOWNSTREAM_ADAPTIVE_REDIS_ENABLED", True
+    )
+    downstream_adaptive_circuit_failure_threshold: int = _env_int(
+        "DOWNSTREAM_ADAPTIVE_CIRCUIT_FAILURE_THRESHOLD", 5
+    )
     service_health_history_enabled: bool = _env_bool(
         "SERVICE_HEALTH_HISTORY_ENABLED", True
     )

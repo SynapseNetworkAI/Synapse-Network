@@ -5,6 +5,7 @@ import math
 from typing import Any
 
 from src.domain.service_contract import ServiceDefinitionRecord
+from src.services.owner.downstream_concurrency import downstream_snapshot_for_service
 from src.services.platform import credential_service, service_health_service
 from src.services.provider.registry.payload_helpers import (
     is_deleted_service,
@@ -31,6 +32,7 @@ def _target_payloads(service: ServiceDefinitionRecord) -> list[dict[str, Any]]:
 
 def _admin_service_payload(service: ServiceDefinitionRecord) -> dict[str, Any]:
     control_status = service_lifecycle_status(service)
+    downstream = downstream_snapshot_for_service(service)
     return {
         "serviceId": service.service_id,
         "ownerAddress": service.owner_address,
@@ -49,6 +51,14 @@ def _admin_service_payload(service: ServiceDefinitionRecord) -> dict[str, Any]:
         "probeTier": service_health_service.service_probe_tier(service),
         "health": service_health_service.public_health_summary(service),
         "targets": _target_payloads(service),
+        "adaptiveConcurrencyLimit": downstream["adaptiveConcurrencyLimit"],
+        "inFlight": downstream["inFlight"],
+        "queueDepth": downstream["queueDepth"],
+        "latencyP95Ms": downstream["latencyP95Ms"],
+        "errorRate": downstream["errorRate"],
+        "circuitState": downstream["circuitState"],
+        "lastConcurrencyAdjustmentAt": downstream["lastConcurrencyAdjustmentAt"],
+        "downstreamTargets": downstream["targets"],
         "createdAt": service.created_at,
         "updatedAt": service.updated_at,
     }

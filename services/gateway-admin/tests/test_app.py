@@ -164,6 +164,13 @@ class FakeProviderServicesAdapter:
             "runtimeStatus": "healthy",
             "runtimeAvailable": True,
             "probeTier": "normal",
+            "adaptiveConcurrencyLimit": 8,
+            "inFlight": 1,
+            "queueDepth": 0,
+            "latencyP95Ms": 42,
+            "errorRate": 0.0,
+            "circuitState": "closed",
+            "lastConcurrencyAdjustmentAt": 1710000000000,
             "health": {
                 "overallStatus": "healthy",
                 "probeStatus": "healthy",
@@ -185,6 +192,18 @@ class FakeProviderServicesAdapter:
                     "lastCheckedAt": 1710000000000,
                     "lastHealthyAt": 1710000000000,
                     "error": None,
+                }
+            ],
+            "downstreamTargets": [
+                {
+                    "targetUrl": "https://provider.test/invoke",
+                    "adaptiveConcurrencyLimit": 8,
+                    "inFlight": 1,
+                    "queueDepth": 0,
+                    "latencyP95Ms": 42,
+                    "errorRate": 0.0,
+                    "circuitState": "closed",
+                    "lastConcurrencyAdjustmentAt": 1710000000000,
                 }
             ],
             "createdAt": "2026-04-17 00:00:00",
@@ -997,6 +1016,10 @@ def test_provider_services_management_routes_proxy_gateway_state() -> None:
     assert body["items"][0]["serviceId"] == "svc_quotes"
     assert body["items"][0]["runtimeAvailable"] is True
     assert body["items"][0]["probeTier"] == "normal"
+    assert body["items"][0]["adaptiveConcurrencyLimit"] == 8
+    assert body["items"][0]["inFlight"] == 1
+    assert body["items"][0]["latencyP95Ms"] == 42
+    assert body["items"][0]["circuitState"] == "closed"
 
     probe_response = client.post(
         "/api/admin/v1/provider-services/svc_quotes/force-probe",

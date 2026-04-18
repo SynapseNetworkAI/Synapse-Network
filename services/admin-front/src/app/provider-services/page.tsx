@@ -244,6 +244,7 @@ export default function ProviderServicesPage() {
                   <Th>服务</Th>
                   <Th>状态</Th>
                   <Th>健康</Th>
+                  <Th>并发保护</Th>
                   <Th>Provider</Th>
                   <Th>最近错误</Th>
                   <Th>操作</Th>
@@ -272,6 +273,15 @@ export default function ProviderServicesPage() {
                           <Text color="ink.500" fontSize="12px">probe tier: {service.probeTier || service.health.probeTier || "normal"}</Text>
                           <Text color="ink.500" fontSize="12px">last checked: {formatEpochMs(service.health.lastCheckedAt)}</Text>
                           <Text color="ink.500" fontSize="12px">stale: {service.health.isStale ? "yes" : "no"}</Text>
+                        </Stack>
+                      </Td>
+                      <Td>
+                        <Stack gap="4px">
+                          <StatusChip value={service.circuitState} />
+                          <Text fontWeight="700">{service.inFlight}/{service.adaptiveConcurrencyLimit} in flight</Text>
+                          <Text color="ink.500" fontSize="12px">queue depth: {service.queueDepth}</Text>
+                          <Text color="ink.500" fontSize="12px">p95: {service.latencyP95Ms}ms · error: {(service.errorRate * 100).toFixed(1)}%</Text>
+                          <Text color="ink.500" fontSize="12px">adjusted: {formatEpochMs(service.lastConcurrencyAdjustmentAt)}</Text>
                         </Stack>
                       </Td>
                       <Td>

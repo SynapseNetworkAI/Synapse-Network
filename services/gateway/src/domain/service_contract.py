@@ -102,6 +102,7 @@ class ServiceConstraintRecord(BaseModel):
 
     timeout_ms: int = Field(default=15000, alias="timeoutMs")
     max_qps: int = Field(default=100, alias="maxQps")
+    max_concurrency: Optional[int] = Field(default=None, alias="maxConcurrency")
     max_request_bytes: int = Field(default=4194304, alias="maxRequestBytes")
     max_response_bytes: int = Field(default=4194304, alias="maxResponseBytes")
 

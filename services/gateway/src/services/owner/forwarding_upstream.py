@@ -14,6 +14,10 @@ from src.core.config import settings
 from src.domain.execution import InvocationRecord, InvocationResultRecord
 from src.domain.service_contract import ServiceDefinitionRecord, ServiceInvokeConfigRecord
 from src.services.platform import service_health_service
+from src.services.owner.downstream_concurrency import (
+    DownstreamPermit,
+    acquire_downstream_permit,
+)
 from src.services.owner.forwarding_validation import (
     effective_service_constraints,
     validate_invoke_request_contract,
@@ -116,12 +120,17 @@ def _gateway_signature(payload: dict[str, Any], service_id: str, timestamp: int)
     return hmac.new(secret, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-async def call_upstream(
+class UpstreamCallPlan:
+    def __init__(self, target_url: str, permit: DownstreamPermit) -> None:
+        self.target_url = target_url
+        self.permit = permit
+
+
+async def prepare_upstream_call(
     service: ServiceDefinitionRecord,
-    invocation: InvocationRecord,
     request_payload: dict[str, Any],
-) -> InvocationResultRecord:
-    """Forward validated payload to provider upstream and enforce request/response size guards."""
+) -> UpstreamCallPlan:
+    """Validate routing and acquire downstream capacity before billing."""
     constraints = effective_service_constraints(service)
     validate_invoke_request_contract(service, request_payload)
     request_bytes = len(json.dumps(request_payload, ensure_ascii=False).encode("utf-8"))
@@ -141,44 +150,105 @@ async def call_upstream(
     if settings.forwarding_require_healthy_targets or healthy_target_urls:
         allowed_urls = set(healthy_target_urls)
     upstream_url = select_weighted_target_url(service.invoke, allowed_target_urls=allowed_urls)
+    permit = await acquire_downstream_permit(service, upstream_url)
+    return UpstreamCallPlan(upstream_url, permit)
+
+
+async def call_upstream(
+    service: ServiceDefinitionRecord,
+    invocation: InvocationRecord,
+    request_payload: dict[str, Any],
+    call_plan: UpstreamCallPlan | None = None,
+) -> InvocationResultRecord:
+    """Forward validated payload to provider upstream and enforce request/response size guards."""
+    constraints = effective_service_constraints(service)
+    validate_invoke_request_contract(service, request_payload)
+    if call_plan is None:
+        call_plan = await prepare_upstream_call(service, request_payload)
 
     timeout_sec = float(constraints.timeout_ms) / 1000.0
-    async with httpx.AsyncClient(timeout=timeout_sec) as client:
-        request_id_header = str(service.forwarding.request_id_header or "X-Request-Id").strip() or "X-Request-Id"
-        headers = {request_id_header: invocation.idempotency_key}
-        if _resolved_auth_mode(service) == "gateway_signed":
-            signed_at = int(time.time())
-            headers.update(
-                {
-                    "X-Synapse-Service-Id": str(service.service_id or "").strip(),
-                    "X-Synapse-Signed-At": str(signed_at),
-                    "X-Synapse-Signature": _gateway_signature(
-                        request_payload,
-                        str(service.service_id or "").strip(),
-                        signed_at,
-                    ),
-                }
+    started = time.perf_counter()
+    status_code: int | None = None
+    error_code: str | None = None
+    success = False
+    try:
+        async with httpx.AsyncClient(timeout=timeout_sec) as client:
+            request_id_header = str(service.forwarding.request_id_header or "X-Request-Id").strip() or "X-Request-Id"
+            headers = {request_id_header: invocation.idempotency_key}
+            if _resolved_auth_mode(service) == "gateway_signed":
+                signed_at = int(time.time())
+                headers.update(
+                    {
+                        "X-Synapse-Service-Id": str(service.service_id or "").strip(),
+                        "X-Synapse-Signed-At": str(signed_at),
+                        "X-Synapse-Signature": _gateway_signature(
+                            request_payload,
+                            str(service.service_id or "").strip(),
+                            signed_at,
+                        ),
+                    }
+                )
+            for key, value in service.invoke.headers_template.items():
+                if isinstance(key, str) and key.strip() and isinstance(value, str):
+                    headers[key] = value
+            response = await client.post(
+                call_plan.target_url, json=request_payload, headers=headers
             )
-        for key, value in service.invoke.headers_template.items():
-            if isinstance(key, str) and key.strip() and isinstance(value, str):
-                headers[key] = value
-        response = await client.post(
-            upstream_url, json=request_payload, headers=headers
+
+            status_code = int(getattr(response, "status_code", 200) or 200)
+            response_size = len(response.content or b"")
+            if response_size > constraints.max_response_bytes:
+                error_code = "RESPONSE_PAYLOAD_TOO_LARGE"
+                raise HTTPException(
+                    status_code=413,
+                    detail={
+                        "code": error_code,
+                        "message": "Response payload exceeds service maxResponseBytes",
+                        "maxResponseBytes": constraints.max_response_bytes,
+                        "actualResponseBytes": response_size,
+                    },
+                )
+
+            if status_code >= 400:
+                error_code = "UPSTREAM_RATE_LIMITED" if status_code == 429 else "UPSTREAM_ERROR"
+                raise HTTPException(
+                    status_code=502 if status_code != 429 else 503,
+                    detail={
+                        "code": error_code,
+                        "message": f"Upstream provider returned HTTP {status_code}",
+                        "upstreamStatus": status_code,
+                    },
+                )
+
+            data = response.json()
+            payload = _response_payload(data)
+            success = True
+            return InvocationResultRecord(digest=_payload_digest(payload), payload=payload)
+    except httpx.TimeoutException:
+        error_code = "SERVICE_TIMEOUT"
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "code": error_code,
+                "message": "Upstream provider timed out",
+            },
         )
-
-        response_size = len(response.content or b"")
-        if response_size > constraints.max_response_bytes:
-            raise HTTPException(
-                status_code=413,
-                detail={
-                    "code": "RESPONSE_PAYLOAD_TOO_LARGE",
-                    "message": "Response payload exceeds service maxResponseBytes",
-                    "maxResponseBytes": constraints.max_response_bytes,
-                    "actualResponseBytes": response_size,
-                },
+    except HTTPException as exc:
+        if isinstance(exc.detail, dict):
+            error_code = str(exc.detail.get("code") or error_code or "UPSTREAM_ERROR")
+        raise
+    except Exception as exc:
+        error_code = "UPSTREAM_ERROR"
+        raise HTTPException(
+            status_code=502,
+            detail={"code": error_code, "message": f"Upstream provider failed: {exc}"},
+        )
+    finally:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        if call_plan is not None:
+            await call_plan.permit.release(
+                latency_ms=latency_ms,
+                status_code=status_code,
+                error_code=error_code,
+                success=success,
             )
-
-        response.raise_for_status()
-        data = response.json()
-        payload = _response_payload(data)
-        return InvocationResultRecord(digest=_payload_digest(payload), payload=payload)

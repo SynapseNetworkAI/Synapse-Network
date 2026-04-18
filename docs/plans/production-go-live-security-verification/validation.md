@@ -103,7 +103,7 @@ npm run ci:release-go-no-go
 
 ## Performance and Reliability Evidence
 
-- [x] Local performance/reliability smoke evidence: PASS, `npm run ci:performance-reliability` verifies provider health probe concurrency and slow-lane scheduling; this does not replace production-like load, chaos, rollback, or restore reports.
+- [x] Local performance/reliability smoke evidence: PASS, `npm run ci:performance-reliability` verifies provider health probe concurrency and slow-lane scheduling; `npm run perf:local-reliability-suite` passed automation, scenario, docs, release-gate, staging-safety-guard, gateway health, and admin-front login checks with evidence at `docs/evidence/performance/20260418T130340Z-local-reliability-suite/report.md`. This does not replace production-like load, chaos, rollback, or restore reports.
 - [ ] Discovery/quote/invoke load test: NO-GO blocker, load report not attached.
 - [ ] Balance/deposit/withdrawal load test: NO-GO blocker, load report not attached.
 - [ ] Provider health probe load test: NO-GO blocker, load report not attached.

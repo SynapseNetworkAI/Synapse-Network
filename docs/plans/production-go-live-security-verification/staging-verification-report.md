@@ -36,11 +36,12 @@ The repository-local and staging-preflight gates that can be executed from this 
 | Provider service | PASS | `pytest` -> 167 passed |
 | Contracts gate | PASS | `npm run ci:contracts` -> 7 Hardhat security invariant tests passed |
 | Performance/reliability smoke | PASS | `npm run ci:performance-reliability` -> provider health concurrency and slow-lane smoke passed |
+| Local reliability suite | PASS | `npm run perf:local-reliability-suite` -> automation, scenario JSON, shell syntax, docs/release gates, staging confirmation guards, gateway health, and admin-front login checks passed; report at `docs/evidence/performance/20260418T130340Z-local-reliability-suite/report.md` |
 | SDK Python | SKIPPED | `ci:pr` skipped because `sdk/python` manifest is not present |
 
 ## Bugfix Findings
 
-Four fixable release-gate automation gaps were found and fixed during staging verification.
+Six fixable release-gate automation gaps were found and fixed during staging verification.
 
 | Bug | Status | Verification |
 | --- | --- | --- |
@@ -48,6 +49,8 @@ Four fixable release-gate automation gaps were found and fixed during staging ve
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-02-contracts-gate-compile-only.md` | FIXED | `npm run ci:contracts` passes with 7 Hardhat tests |
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-03-performance-reliability-smoke-missing.md` | FIXED | `npm run ci:performance-reliability` passes |
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-04-performance-evidence-readme-metadata.md` | FIXED | `npm run ci:docs` passes |
+| `docs/reference/bugfix/scripts/BUG-GOLIVE-05-local-perf-runner-unpaced-false-pass.md` | FIXED | `npm run perf:local-reliability-suite` includes `perf:local-smoke`; latest local smoke passed with pacing and failure thresholds |
+| `docs/reference/bugfix/scripts/BUG-GOLIVE-06-reliability-suite-orchestration-missing.md` | FIXED | `npm run perf:local-reliability-suite` passes local automation and staging guard checks |
 
 All other remaining gaps are release-evidence blockers, not implementation defects observed by the executed gates.
 

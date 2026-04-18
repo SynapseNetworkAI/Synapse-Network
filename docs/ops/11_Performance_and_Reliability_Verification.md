@@ -72,11 +72,69 @@ SYNAPSE_PERF_CONCURRENCY=16 \
 npm run perf:local-smoke
 ```
 
+## Local Reliability Suite
+
+Use this command before staging to verify the automation bundle itself:
+
+```bash
+npm run perf:local-reliability-suite
+```
+
+The local suite is safe for developer laptops. It verifies:
+
+1. `ci:performance-reliability` provider health concurrency, slow lane, jitter, and recovery smoke.
+2. release Go/No-Go and docs gates.
+3. shell syntax for performance, chaos, and recovery scripts.
+4. JSON validity for all performance scenarios.
+5. staging confirmation guards for load, chaos, and recovery scripts.
+6. local HTTP smoke when `127.0.0.1:8000` and `127.0.0.1:4000` are available.
+
+The local HTTP smoke is optional by default because it depends on already-running local services. To make unavailable local services a hard failure:
+
+```bash
+SYNAPSE_LOCAL_SUITE_REQUIRE_HTTP=1 npm run perf:local-reliability-suite
+```
+
+To validate only automation and safety guards without HTTP probing:
+
+```bash
+SYNAPSE_LOCAL_SUITE_SKIP_HTTP_SMOKE=1 npm run perf:local-reliability-suite
+```
+
+Evidence is written under:
+
+```bash
+docs/evidence/performance/<timestamp>-local-reliability-suite/report.md
+```
+
+This report can mark only local automation as `PASS`. It must not mark staging load, chaos, rollback, restore, or signer blockers as passed.
+
 ## Staging Load Plan
 
 Run staging load only against a disposable staging environment with production-like configuration and isolated test wallets/providers.
 
 These commands are manual staging commands and must not be added to `ci:pr`:
+
+Run all load scenarios as one staging suite:
+
+```bash
+SYNAPSE_PERF_ENV=staging \
+SYNAPSE_PERF_CONFIRM=I_UNDERSTAND_THIS_HITS_STAGING \
+npm run perf:staging-load-suite
+```
+
+The staging load suite requires these environment variables:
+
+1. `SYNAPSE_GATEWAY_BASE_URL`
+2. `SYNAPSE_ADMIN_GATEWAY_BASE_URL`
+3. `SYNAPSE_AGENT_TOKEN`
+4. `SYNAPSE_OWNER_TOKEN`
+5. `SYNAPSE_ADMIN_TOKEN`
+6. `SYNAPSE_OWNER_WALLET`
+7. `SYNAPSE_PERF_SERVICE_ID`
+8. `SYNAPSE_MONEY_CONCURRENCY_COMMAND`
+
+Or run individual scenarios:
 
 ```bash
 SYNAPSE_PERF_ENV=staging \
@@ -136,6 +194,31 @@ Chaos drills must prove that failures are detected, contained, audited, and reco
 
 Chaos commands are manual staging commands and require operator-provided fault and verification commands:
 
+Run the full staging chaos suite:
+
+```bash
+SYNAPSE_CHAOS_ENV=staging \
+SYNAPSE_CHAOS_CONFIRM=I_UNDERSTAND_THIS_BREAKS_STAGING \
+npm run chaos:staging-suite
+```
+
+The staging chaos suite requires operator-provided fault and verification commands:
+
+1. `SYNAPSE_CHAOS_PROVIDER_STOP_CMD`
+2. `SYNAPSE_CHAOS_PROVIDER_START_CMD`
+3. `SYNAPSE_CHAOS_GATEWAY_RESTART_CMD`
+4. `SYNAPSE_CHAOS_GATEWAY_ADMIN_RESTART_CMD`
+5. `SYNAPSE_CHAOS_ANALYTICS_STOP_CMD`
+6. `SYNAPSE_CHAOS_ANALYTICS_START_CMD`
+7. `SYNAPSE_CHAOS_RPC_OUTAGE_CMD`
+8. `SYNAPSE_CHAOS_RPC_RECOVER_CMD`
+9. `SYNAPSE_CHAOS_POSTGRES_FAILOVER_CMD`
+10. `SYNAPSE_CHAOS_REDIS_STOP_CMD`
+11. `SYNAPSE_CHAOS_REDIS_START_CMD`
+12. `SYNAPSE_CHAOS_VERIFY_CMD`
+
+Or run individual drills:
+
 ```bash
 SYNAPSE_CHAOS_ENV=staging \
 SYNAPSE_CHAOS_CONFIRM=I_UNDERSTAND_THIS_BREAKS_STAGING \
@@ -194,6 +277,23 @@ Required rollback and recovery evidence:
 Rollback is not considered proven until the system has passed post-rollback smoke and ledger/vault reconciliation.
 
 Rollback commands are manual staging commands and require operator-provided rollback and verification commands:
+
+Run the full staging recovery suite:
+
+```bash
+SYNAPSE_DRILL_ENV=staging \
+SYNAPSE_DRILL_CONFIRM=I_UNDERSTAND_THIS_CHANGES_STAGING \
+npm run drill:staging-recovery-suite
+```
+
+The staging recovery suite requires:
+
+1. `SYNAPSE_DRILL_APP_ROLLBACK_CMD`
+2. `SYNAPSE_DRILL_CONFIG_ROLLBACK_CMD`
+3. `SYNAPSE_DRILL_SIGNER_ROLLBACK_CMD`
+4. `SYNAPSE_DRILL_VERIFY_CMD`
+
+Or run individual recovery drills:
 
 ```bash
 SYNAPSE_DRILL_ENV=staging \

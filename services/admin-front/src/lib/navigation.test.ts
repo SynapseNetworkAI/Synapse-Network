@@ -273,6 +273,7 @@ describe("navigation tree helpers", () => {
       href: "/role-permissions",
       description: "matrix",
       parentItemId: "identity-access",
+      nodeType: "page",
       iconKey: "RB",
       sortOrder: 20,
     }),

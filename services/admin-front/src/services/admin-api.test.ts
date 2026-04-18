@@ -169,38 +169,58 @@ describe("provider services API adapters", () => {
       value: globalThis.window.sessionStorage,
     });
     globalThis.sessionStorage.setItem("synapse.admin.csrfToken", "csrf-provider-services");
+    const providerServicePayload = {
+      serviceId: "svc_quotes",
+      ownerAddress: "0xabc",
+      serviceName: "Quotes",
+      summary: "Quote endpoint",
+      tags: ["quote"],
+      pricing: {
+        amount: "1.00",
+        currency: "USDC",
+      },
+      controlStatus: "active",
+      status: "active",
+      isActive: true,
+      runtimeStatus: "healthy",
+      runtimeAvailable: true,
+      probeTier: "standard",
+      health: {},
+      targets: [],
+      adaptiveConcurrencyLimit: 8,
+      inFlight: 1,
+      queueDepth: 0,
+      latencyP95Ms: 42,
+      errorRate: 0.125,
+      circuitState: "closed",
+      lastConcurrencyAdjustmentAt: 1710000000000,
+      downstreamTargets: [
+        {
+          targetUrl: "https://provider.test/invoke",
+          adaptiveConcurrencyLimit: 8,
+          inFlight: 1,
+          queueDepth: 0,
+          latencyP95Ms: 42,
+          errorRate: 0.125,
+          circuitState: "closed",
+          lastConcurrencyAdjustmentAt: 1710000000000,
+        },
+      ],
+      createdAt: "2026-03-21T10:00:00Z",
+      updatedAt: "2026-03-21T10:00:00Z",
+    };
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({
         success: true,
         data: {
-          items: [],
+          items: [providerServicePayload],
           page: 1,
           pageSize: 20,
-          totalCount: 0,
+          totalCount: 1,
           totalPages: 1,
-          service: {
-            serviceId: "svc_quotes",
-            ownerAddress: "0xabc",
-            serviceName: "Quotes",
-            summary: "Quote endpoint",
-            tags: ["quote"],
-            pricing: {
-              amount: "1.00",
-              currency: "USDC",
-            },
-            controlStatus: "active",
-            status: "active",
-            isActive: true,
-            runtimeStatus: "healthy",
-            runtimeAvailable: true,
-            probeTier: "standard",
-            health: {},
-            targets: [],
-            createdAt: "2026-03-21T10:00:00Z",
-            updatedAt: "2026-03-21T10:00:00Z",
-          },
+          service: providerServicePayload,
         },
         requestId: "req_provider_services",
       }),
@@ -216,7 +236,7 @@ describe("provider services API adapters", () => {
   });
 
   it("passes canonical provider service filters to gateway-admin", async () => {
-    await listProviderServices("cookie-session", {
+    const response = await listProviderServices("cookie-session", {
       query: "quote",
       status: "active",
       runtimeStatus: "healthy",
@@ -226,6 +246,11 @@ describe("provider services API adapters", () => {
 
     const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(url).toBe("/api/admin/v1/provider-services?query=quote&status=active&runtimeStatus=healthy&page=2&pageSize=10");
+    expect(response.items[0]?.adaptiveConcurrencyLimit).toBe(8);
+    expect(response.items[0]?.inFlight).toBe(1);
+    expect(response.items[0]?.latencyP95Ms).toBe(42);
+    expect(response.items[0]?.errorRate).toBe(0.125);
+    expect(response.items[0]?.circuitState).toBe("closed");
   });
 
   it("posts lifecycle actions through the provider services endpoint", async () => {
