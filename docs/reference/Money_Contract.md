@@ -2,6 +2,7 @@
 
 - Status: canonical
 - Owners: gateway, gateway-admin, admin-front, user-front
+- Code paths: `services/gateway/src/`, `services/gateway-admin/src/`, `services/admin-front/src/`, `services/user-front/src/`, `scripts/ci/`
 - Last verified against code: 2026-04-18
 
 ## Purpose
