@@ -12,8 +12,8 @@ This file is the evidence checklist for production launch. A checkbox without an
 
 - Environment: `Staging preflight from local workspace`
 - Source branch: `main`
-- Source commit: `a33b4468`
-- Run time: `2026-04-18 19:53:30 +08`
+- Source commit: `58dd322e`
+- Run time: `2026-04-18 20:07:10 +08`
 - Report: `docs/plans/production-go-live-security-verification/staging-verification-report.md`
 - Plan status: `BLOCKED_NO_GO`
 - Staging automation result: `PASS`
@@ -103,6 +103,7 @@ npm run ci:release-go-no-go
 
 ## Performance and Reliability Evidence
 
+- [x] Local performance/reliability smoke evidence: PASS, `npm run ci:performance-reliability` verifies provider health probe concurrency and slow-lane scheduling; this does not replace production-like load, chaos, rollback, or restore reports.
 - [ ] Discovery/quote/invoke load test: NO-GO blocker, load report not attached.
 - [ ] Balance/deposit/withdrawal load test: NO-GO blocker, load report not attached.
 - [ ] Provider health probe load test: NO-GO blocker, load report not attached.
@@ -159,6 +160,6 @@ npm run ci:release-go-no-go
 ## Final Decision
 
 - Decision: `NO-GO for production`
-- Decision time: `2026-04-18 19:53:30 +08`
+- Decision time: `2026-04-18 20:07:10 +08`
 - Release owner: `TBD`
 - Notes: Staging automation passed. Production launch remains blocked by 60 explicit external P0 evidence gaps listed above.

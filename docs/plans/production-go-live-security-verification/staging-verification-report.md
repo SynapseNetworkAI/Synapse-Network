@@ -10,8 +10,8 @@ doc_status: active
 
 - Environment: Staging preflight from local workspace
 - Source branch: `main`
-- Source commit: `a33b4468`
-- Run time: `2026-04-18 19:53:30 +08`
+- Source commit: `58dd322e`
+- Run time: `2026-04-18 20:07:10 +08`
 - Release decision: `NO-GO for production`
 - Staging automation result: `PASS`
 - Plan status: `BLOCKED_NO_GO`
@@ -35,16 +35,18 @@ The repository-local and staging-preflight gates that can be executed from this 
 | Gateway-admin | PASS | `pytest` -> 94 passed |
 | Provider service | PASS | `pytest` -> 167 passed |
 | Contracts gate | PASS | `npm run ci:contracts` -> 7 Hardhat security invariant tests passed |
+| Performance/reliability smoke | PASS | `npm run ci:performance-reliability` -> provider health concurrency and slow-lane smoke passed |
 | SDK Python | SKIPPED | `ci:pr` skipped because `sdk/python` manifest is not present |
 
 ## Bugfix Findings
 
-Two fixable release-gate automation gaps were found and fixed during staging verification.
+Three fixable release-gate automation gaps were found and fixed during staging verification.
 
 | Bug | Status | Verification |
 | --- | --- | --- |
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-01-release-go-no-go-backtick-pattern.md` | FIXED | `npm run ci:release-go-no-go` passes |
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-02-contracts-gate-compile-only.md` | FIXED | `npm run ci:contracts` passes with 7 Hardhat tests |
+| `docs/reference/bugfix/scripts/BUG-GOLIVE-03-performance-reliability-smoke-missing.md` | FIXED | `npm run ci:performance-reliability` passes |
 
 All other remaining gaps are release-evidence blockers, not implementation defects observed by the executed gates.
 

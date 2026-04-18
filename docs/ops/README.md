@@ -39,6 +39,7 @@
 6. `06_Python_Environment_and_Venv_Strategy.md`
 7. `09_Staging_First_GCE_Rollout.md`
 8. `10_Production_Go_No_Go_Security_Verification.md`
+9. `11_Performance_and_Reliability_Verification.md`
 
 ## 模块边界
 
