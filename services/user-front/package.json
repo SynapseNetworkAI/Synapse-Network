@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:docs-pages": "vitest run src/app/docs"
+    "test:docs-pages": "vitest run src/app/docs",
+    "test:user-front-pages": "vitest run src/app/UserFrontPageRegistry.test.ts"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.10",

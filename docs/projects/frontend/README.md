@@ -68,6 +68,9 @@
 3. [Synapse_Analytics_Tracking_Plan.md](./Synapse_Analytics_Tracking_Plan.md)
 4. [Docs_Page_Function_and_Verification.md](./Docs_Page_Function_and_Verification.md)
 5. [Docs_Page_Verification_Runbook.md](./Docs_Page_Verification_Runbook.md)
+6. [User_Front_Page_Function_and_Verification.md](./User_Front_Page_Function_and_Verification.md)
+7. [User_Front_Page_Verification_Runbook.md](./User_Front_Page_Verification_Runbook.md)
+8. [User_Front_Page_Verification_Result_2026-04-18.md](./User_Front_Page_Verification_Result_2026-04-18.md)
 
 项目目录内只保留：
 
