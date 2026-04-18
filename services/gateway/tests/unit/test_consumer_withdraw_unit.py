@@ -28,6 +28,8 @@ from src.domain.operation_metadata import WithdrawalTicketMetadata
 from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.tasks import consumer_withdraw_processor as withdraw_processor
 
+MoneyInput = Decimal | str | int
+
 
 # ─── In-memory repos ──────────────────────────────────────────────────────────
 
@@ -43,85 +45,89 @@ class InMemoryBalanceRepo:
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
         self._ledger = ledger.model_copy(deep=True)
 
+    @staticmethod
+    def _q6(value: MoneyInput) -> Decimal:
+        return Decimal(str(value)).quantize(Decimal("0.000001"))
+
     def reserve_consumer_balance_for_withdrawal(
-        self, owner: str, amount_usdc: float | Decimal, updated_at: str
+        self, owner: str, amount_usdc: MoneyInput, updated_at: str
     ) -> None:
         """Simulate the atomic SQL delta: available -= amount, pending += amount."""
         _ = updated_at
-        amount = float(amount_usdc)
+        amount = self._q6(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
-        available = float(wallet.available_balance or 0.0)
-        if available < amount - 1e-9:
+        available = self._q6(wallet.available_balance or 0)
+        if available < amount:
             raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
-        wallet.available_balance = round(available - amount, 6)
-        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount, 6)
+        wallet.available_balance = self._q6(available - amount)
+        wallet.pending_balance = self._q6(self._q6(wallet.pending_balance or 0) + amount)
 
     def reserve_consumer_balance_for_manual_review(
-        self, owner: str, amount_usdc: float | Decimal, updated_at: str
+        self, owner: str, amount_usdc: MoneyInput, updated_at: str
     ) -> None:
         _ = updated_at
-        amount = float(amount_usdc)
+        amount = self._q6(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
-        available = float(wallet.available_balance or 0.0)
-        if available < amount - 1e-9:
+        available = self._q6(wallet.available_balance or 0)
+        if available < amount:
             raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
-        wallet.available_balance = round(available - amount, 6)
-        wallet.frozen_balance = round(float(wallet.frozen_balance or 0.0) + amount, 6)
+        wallet.available_balance = self._q6(available - amount)
+        wallet.frozen_balance = self._q6(self._q6(wallet.frozen_balance or 0) + amount)
 
     def move_consumer_frozen_to_pending(
-        self, owner: str, amount_usdc: float | Decimal, updated_at: str
+        self, owner: str, amount_usdc: MoneyInput, updated_at: str
     ) -> None:
         _ = updated_at
-        amount = float(amount_usdc)
+        amount = self._q6(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
-        frozen = float(wallet.frozen_balance or 0.0)
-        if frozen < amount - 1e-9:
+        frozen = self._q6(wallet.frozen_balance or 0)
+        if frozen < amount:
             raise RuntimeError("MOVE_FROZEN_TO_PENDING_INCONSISTENT")
-        wallet.frozen_balance = round(frozen - amount, 6)
-        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount, 6)
+        wallet.frozen_balance = self._q6(frozen - amount)
+        wallet.pending_balance = self._q6(self._q6(wallet.pending_balance or 0) + amount)
 
     def release_consumer_pending_to_available(
-        self, owner: str, amount_usdc: float | Decimal, updated_at: str
+        self, owner: str, amount_usdc: MoneyInput, updated_at: str
     ) -> None:
         _ = updated_at
-        amount = float(amount_usdc)
+        amount = self._q6(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
-        pending = float(wallet.pending_balance or 0.0)
-        if pending < amount - 1e-9:
+        pending = self._q6(wallet.pending_balance or 0)
+        if pending < amount:
             raise RuntimeError("RELEASE_PENDING_TO_AVAILABLE_INCONSISTENT")
-        wallet.pending_balance = round(pending - amount, 6)
-        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount, 6)
+        wallet.pending_balance = self._q6(pending - amount)
+        wallet.available_balance = self._q6(self._q6(wallet.available_balance or 0) + amount)
 
     def release_consumer_frozen_to_available(
-        self, owner: str, amount_usdc: float | Decimal, updated_at: str
+        self, owner: str, amount_usdc: MoneyInput, updated_at: str
     ) -> None:
         _ = updated_at
-        amount = float(amount_usdc)
+        amount = self._q6(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
-        frozen = float(wallet.frozen_balance or 0.0)
-        if frozen < amount - 1e-9:
+        frozen = self._q6(wallet.frozen_balance or 0)
+        if frozen < amount:
             raise RuntimeError("RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT")
-        wallet.frozen_balance = round(frozen - amount, 6)
-        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount, 6)
+        wallet.frozen_balance = self._q6(frozen - amount)
+        wallet.available_balance = self._q6(self._q6(wallet.available_balance or 0) + amount)
 
     def consume_consumer_pending_for_withdrawal(
-        self, owner: str, amount_usdc: float | Decimal, updated_at: str
+        self, owner: str, amount_usdc: MoneyInput, updated_at: str
     ) -> None:
         _ = updated_at
-        amount = float(amount_usdc)
+        amount = self._q6(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
-        pending = float(wallet.pending_balance or 0.0)
-        if pending < amount - 1e-9:
+        pending = self._q6(wallet.pending_balance or 0)
+        if pending < amount:
             raise RuntimeError("CONSUME_PENDING_FOR_WITHDRAWAL_INCONSISTENT")
-        wallet.pending_balance = round(pending - amount, 6)
+        wallet.pending_balance = self._q6(pending - amount)
 
     def seed_balance(
-        self, owner: str, available: float, pending: float = 0.0, frozen: float = 0.0
+        self, owner: str, available: MoneyInput, pending: MoneyInput = "0", frozen: MoneyInput = "0"
     ) -> None:
         wallet = self._ledger.ensure_consumer_wallet(owner)
-        wallet.available_balance = available
-        wallet.pending_balance = pending
-        wallet.frozen_balance = frozen
+        wallet.available_balance = self._q6(available)
+        wallet.pending_balance = self._q6(pending)
+        wallet.frozen_balance = self._q6(frozen)
 
 
 class InMemoryGatewayStateRepo:
@@ -210,6 +216,10 @@ def run(coro):
     return asyncio.run(coro)
 
 
+def money(value: object) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal("0.000001"))
+
+
 # ─── Tests ─────────────────────────────────────────────────────────────────────
 
 
@@ -228,9 +238,9 @@ class TestConsumerWithdrawBalanceDecrease(unittest.TestCase):
             idempotency_key=IDEM_KEY,
         ))
         assert result["status"] == "REQUESTED"
-        assert result["amountUsdc"] == 20.0
+        assert money(result["amountUsdc"]) == Decimal("20.000000")
         ledger = self.storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == 0.0
+        assert ledger.consumer_available_balance(OWNER) == Decimal("0.000000")
 
     def test_pending_increases_after_requested_withdrawal(self):
         run(self.svc.create_consumer_withdraw_intent(
@@ -249,8 +259,8 @@ class TestConsumerWithdrawBalanceDecrease(unittest.TestCase):
             idempotency_key=IDEM_KEY,
         ))
         ledger = self.storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(20.0)
-        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(30.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("30.000000")
 
     def test_withdrawal_record_created_in_storage(self):
         run(self.svc.create_consumer_withdraw_intent(
@@ -261,7 +271,7 @@ class TestConsumerWithdrawBalanceDecrease(unittest.TestCase):
         rows = self.storage.gateway_state.refund_rows
         assert len(rows) == 1
         row = rows[0]
-        assert float(row.amount_usdc) == pytest.approx(20.0)
+        assert money(row.amount_usdc) == Decimal("20.000000")
         assert row.status == "REQUESTED"
         assert row.refund_type == "CONSUMER_BALANCE_WITHDRAW"
 
@@ -293,8 +303,8 @@ class TestConsumerWithdrawFrozenBalance(unittest.TestCase):
         assert result["status"] == "PENDING_MANUAL_REVIEW"
         assert result["riskLevel"] == "yellow"
         ledger = self.storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(400.0)
-        assert ledger.consumer_frozen_balance(OWNER) == pytest.approx(600.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("400.000000")
+        assert ledger.consumer_frozen_balance(OWNER) == Decimal("600.000000")
 
 
 class TestConsumerWithdrawFrozenBlocksApiCalls(unittest.TestCase):
@@ -345,9 +355,9 @@ class TestConsumerWithdrawFrozenBlocksApiCalls(unittest.TestCase):
         assert result2["status"] in {"REQUESTED", "PENDING_MANUAL_REVIEW"}
         ledger = storage.balance_repo.read_balance_ledger()
         # available stays 0 — was reserved in first call
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(0.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("0.000000")
         # pending is exactly 20, not 40
-        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(20.0)
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("20.000000")
 
 
 class TestConsumerWithdrawInsufficientBalance(unittest.TestCase):
@@ -394,13 +404,13 @@ class TestConsumerWithdrawInsufficientBalance(unittest.TestCase):
             pass
 
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(5.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("5.000000")
 
 
 class TestConsumerWithdrawRiskClassification(unittest.TestCase):
     """Risk thresholds: small → REQUESTED, large → PENDING_MANUAL_REVIEW."""
 
-    def _run_withdraw(self, amount: float, daily_count: int = 0) -> dict:
+    def _run_withdraw(self, amount: MoneyInput, daily_count: int = 0) -> dict:
         from src.services.owner.finance_consumer_withdraw_mixin import FinanceConsumerWithdrawMixin
         mixin = FinanceConsumerWithdrawMixin()
         return mixin._classify_consumer_withdraw_risk(amount, daily_count)
@@ -495,8 +505,8 @@ class TestConsumerWithdrawIdempotency(unittest.TestCase):
 
         ledger = storage.balance_repo.read_balance_ledger()
         # Total deducted must be exactly 20, not 60
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(0.0)
-        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(20.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("0.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("20.000000")
 
 
 class TestConsumerWithdrawListings(unittest.TestCase):
@@ -515,7 +525,7 @@ class TestConsumerWithdrawListings(unittest.TestCase):
 
         listings = run(svc.list_consumer_withdrawals(OWNER))
         assert len(listings) == 1
-        assert float(listings[0]["amountUsdc"]) == pytest.approx(20.0)
+        assert money(listings[0]["amountUsdc"]) == Decimal("20.000000")
         assert listings[0]["status"] == "REQUESTED"
 
     def test_list_excludes_other_owners(self):
@@ -541,8 +551,8 @@ class TestConsumerWithdrawListings(unittest.TestCase):
 
         assert len(owner_list) == 1
         assert len(other_list) == 1
-        assert pytest.approx(20.0, rel=1e-4) == float(owner_list[0].get("amountUsdc", 0))
-        assert pytest.approx(10.0, rel=1e-4) == float(other_list[0].get("amountUsdc", 0))
+        assert money(owner_list[0].get("amountUsdc", 0)) == Decimal("20.000000")
+        assert money(other_list[0].get("amountUsdc", 0)) == Decimal("10.000000")
 
 
 class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
@@ -567,8 +577,8 @@ class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
 
         assert result["status"] == "FAILED"
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(20.0)
-        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(0.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
         row = storage.gateway_state.refund_rows[0]
         assert row.status == "FAILED"
         meta_note = (
@@ -604,8 +614,8 @@ class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
 
         assert result["status"] == "REJECTED"
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(1000.0)
-        assert ledger.consumer_frozen_balance(OWNER) == pytest.approx(0.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("1000.000000")
+        assert ledger.consumer_frozen_balance(OWNER) == Decimal("0.000000")
         row = storage.gateway_state.refund_rows[0]
         assert row.status == "REJECTED"
         assert row.review_decision == "REJECT"
@@ -646,9 +656,9 @@ class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
         assert result["status"] == "REQUESTED"
         assert result["ticket"]["signature"] == "0xapproved"
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(400.0)
-        assert ledger.consumer_frozen_balance(OWNER) == pytest.approx(0.0)
-        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(600.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("400.000000")
+        assert ledger.consumer_frozen_balance(OWNER) == Decimal("0.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("600.000000")
         row = storage.gateway_state.refund_rows[0]
         assert row.status == "REQUESTED"
         assert row.ticket.signature == "0xapproved"
@@ -676,7 +686,7 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
 
         assert processed is True
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(0.0)
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
         updated = storage.gateway_state.refund_rows[0]
         assert updated.status == "COMPLETED"
         assert updated.tx_hash == "0x" + "a" * 64
@@ -700,8 +710,8 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
 
         assert processed is True
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == pytest.approx(20.0)
-        assert ledger.consumer_pending_balance(OWNER) == pytest.approx(0.0)
+        assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
         updated = storage.gateway_state.refund_rows[0]
         assert updated.status == "CANCELLED"
         assert "expired" in str(updated.message or "").lower()

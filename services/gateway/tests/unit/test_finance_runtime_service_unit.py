@@ -17,6 +17,8 @@ from src.services.platform.finance_service import PlatformFinanceService
 from src.services.platform import credential_service
 from src.services.provider.withdraw_service import ProviderWithdrawService
 
+MoneyInput = Decimal | str | int
+
 
 class DummyLock:
     async def __aenter__(self):
@@ -42,7 +44,7 @@ class InMemoryBalanceRepo:
     def write_balance_ledger(self, ledger):
         self.ledger = ledger.model_copy(deep=True)
 
-    def reserve_consumer_balance_for_withdrawal(self, owner: str, amount_usdc: float, updated_at: str):
+    def reserve_consumer_balance_for_withdrawal(self, owner: str, amount_usdc: MoneyInput, updated_at: str):
         _ = updated_at
         wallet = self.ledger.ensure_consumer_wallet(owner)
         amount = Decimal(str(amount_usdc)).quantize(Decimal("0.000001"))
@@ -55,7 +57,7 @@ class InMemoryBalanceRepo:
         ).quantize(Decimal("0.000001"))
 
     def reserve_consumer_balance_for_manual_review(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: MoneyInput, updated_at: str
     ):
         _ = updated_at
         wallet = self.ledger.ensure_consumer_wallet(owner)
@@ -68,7 +70,7 @@ class InMemoryBalanceRepo:
             Decimal(str(wallet.frozen_balance or 0)) + amount
         ).quantize(Decimal("0.000001"))
 
-    def consume_consumer_pending_for_withdrawal(self, owner: str, amount_usdc: float, updated_at: str):
+    def consume_consumer_pending_for_withdrawal(self, owner: str, amount_usdc: MoneyInput, updated_at: str):
         _ = updated_at
         wallet = self.ledger.ensure_consumer_wallet(owner)
         amount = Decimal(str(amount_usdc)).quantize(Decimal("0.000001"))
@@ -191,8 +193,8 @@ def _noop_assert_withdraw_vault_liquidity(amount_usdc) -> None:
     _ = amount_usdc
 
 
-def _money_float(value) -> float:
-    return float(value)
+def _money_decimal(value) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal("0.000001"))
 
 
 def _configure_owner_service(service: OwnerFinanceService) -> None:
@@ -498,9 +500,9 @@ def test_provider_withdraw_blocks_when_vault_liquidity_is_insufficient_before_lo
     assert exc_info.value.detail["code"] == "INSUFFICIENT_VAULT_LIQUIDITY"
     assert len(storage.gateway_state.withdraw_rows) == 0
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(_money_float(wallet_after.available_balance) - 50.0) < 1e-9
-    assert abs(_money_float(wallet_after.pending_balance) - 0.0) < 1e-9
-    assert abs(_money_float(wallet_after.frozen_balance) - 0.0) < 1e-9
+    assert _money_decimal(wallet_after.available_balance) == Decimal("50.000000")
+    assert _money_decimal(wallet_after.pending_balance) == Decimal("0.000000")
+    assert _money_decimal(wallet_after.frozen_balance) == Decimal("0.000000")
 
 
 def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple() -> None:
@@ -645,9 +647,9 @@ def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_
 
     assert created["status"] == "PENDING_MANUAL_REVIEW"
     wallet_after_create = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(_money_float(wallet_after_create.available_balance) - 80.0) < 1e-9
-    assert abs(_money_float(wallet_after_create.pending_balance) - 0.0) < 1e-9
-    assert abs(_money_float(wallet_after_create.frozen_balance) - 120.0) < 1e-9
+    assert _money_decimal(wallet_after_create.available_balance) == Decimal("80.000000")
+    assert _money_decimal(wallet_after_create.pending_balance) == Decimal("0.000000")
+    assert _money_decimal(wallet_after_create.frozen_balance) == Decimal("120.000000")
 
     approved = asyncio.run(
         service.review_provider_withdrawal(
@@ -670,9 +672,9 @@ def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_
     assert row.reviewer_address == "0xreviewer"
     assert row.signature == "sig-approved"
     wallet_after_approve = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(_money_float(wallet_after_approve.available_balance) - 80.0) < 1e-9
-    assert abs(_money_float(wallet_after_approve.pending_balance) - 120.0) < 1e-9
-    assert abs(_money_float(wallet_after_approve.frozen_balance) - 0.0) < 1e-9
+    assert _money_decimal(wallet_after_approve.available_balance) == Decimal("80.000000")
+    assert _money_decimal(wallet_after_approve.pending_balance) == Decimal("120.000000")
+    assert _money_decimal(wallet_after_approve.frozen_balance) == Decimal("0.000000")
 
     completed = asyncio.run(
         service.complete_provider_withdrawal(
@@ -683,7 +685,7 @@ def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_
     )
     assert completed["status"] == "COMPLETED"
     wallet_after_complete = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(_money_float(wallet_after_complete.pending_balance) - 0.0) < 1e-9
+    assert _money_decimal(wallet_after_complete.pending_balance) == Decimal("0.000000")
 
 
 def test_provider_withdraw_manual_review_rejection_releases_frozen_balance() -> None:
@@ -818,12 +820,12 @@ def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> N
     assert rows[0]["status"] == "CANCELLED"
     assert "expired" in rows[0]["message"].lower()
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(_money_float(wallet_after.available_balance) - 22.0) < 1e-9
-    assert abs(_money_float(wallet_after.pending_balance) - 0.0) < 1e-9
+    assert _money_decimal(wallet_after.available_balance) == Decimal("22.000000")
+    assert _money_decimal(wallet_after.pending_balance) == Decimal("0.000000")
     assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
     assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
-    assert abs(_money_float(storage.audit.rows[-1].details["releasedAmountUsdc"]) - 12.0) < 1e-9
-    assert abs(_money_float(storage.audit.rows[-1].details["releaseShortfallUsdc"]) - 0.0) < 1e-9
+    assert _money_decimal(storage.audit.rows[-1].details["releasedAmountUsdc"]) == Decimal("12.000000")
+    assert _money_decimal(storage.audit.rows[-1].details["releaseShortfallUsdc"]) == Decimal("0.000000")
 
 
 def test_provider_withdraw_expired_ticket_cancels_even_if_locked_balance_was_already_reconciled() -> None:
@@ -872,12 +874,12 @@ def test_provider_withdraw_expired_ticket_cancels_even_if_locked_balance_was_alr
     assert rows[0]["status"] == "CANCELLED"
     assert "reconciled" in rows[0]["message"].lower()
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(_money_float(wallet_after.available_balance) - 10.0) < 1e-9
-    assert abs(_money_float(wallet_after.pending_balance) - 0.0) < 1e-9
+    assert _money_decimal(wallet_after.available_balance) == Decimal("10.000000")
+    assert _money_decimal(wallet_after.pending_balance) == Decimal("0.000000")
     assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
     assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
-    assert abs(_money_float(storage.audit.rows[-1].details["releasedAmountUsdc"]) - 0.0) < 1e-9
-    assert abs(_money_float(storage.audit.rows[-1].details["releaseShortfallUsdc"]) - 12.0) < 1e-9
+    assert _money_decimal(storage.audit.rows[-1].details["releasedAmountUsdc"]) == Decimal("0.000000")
+    assert _money_decimal(storage.audit.rows[-1].details["releaseShortfallUsdc"]) == Decimal("12.000000")
 
 
 def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
@@ -934,8 +936,8 @@ def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
     assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
     assert storage.gateway_state.withdraw_rows[1].status == "APPROVED_AUTO"
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(_money_float(wallet_after.available_balance) - 2.0) < 1e-9
-    assert abs(_money_float(wallet_after.pending_balance) - 20.0) < 1e-9
+    assert _money_decimal(wallet_after.available_balance) == Decimal("2.000000")
+    assert _money_decimal(wallet_after.pending_balance) == Decimal("20.000000")
 
 
 def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
@@ -1018,10 +1020,10 @@ def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
     assert expired_count == 2
     assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
     assert storage.gateway_state.withdraw_rows[1].status == "CANCELLED"
-    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance) - 17.0) < 1e-9
-    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xdef").pending_balance) - 0.0) < 1e-9
-    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xaaa").available_balance) - 11.0) < 1e-9
-    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xaaa").pending_balance) - 0.0) < 1e-9
+    assert _money_decimal(storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance) == Decimal("17.000000")
+    assert _money_decimal(storage.balance.ledger.ensure_provider_wallet("0xdef").pending_balance) == Decimal("0.000000")
+    assert _money_decimal(storage.balance.ledger.ensure_provider_wallet("0xaaa").available_balance) == Decimal("11.000000")
+    assert _money_decimal(storage.balance.ledger.ensure_provider_wallet("0xaaa").pending_balance) == Decimal("0.000000")
 
 
 def test_balance_service_reports_withdraw_signer_capability(monkeypatch) -> None:

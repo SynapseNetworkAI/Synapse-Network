@@ -279,9 +279,9 @@ class AgentDiscoverySearchResponse(BaseModel):
 
 class BudgetCheckResponse(BaseModel):
     allowed: bool
-    remainingBudgetUsdc: Optional[float] = None
-    remainingDailyLimitUsdc: Optional[float] = None
-    remainingBillingCycleLimitUsdc: Optional[float] = None
+    remainingBudgetUsdc: Optional[Decimal] = None
+    remainingDailyLimitUsdc: Optional[Decimal] = None
+    remainingBillingCycleLimitUsdc: Optional[Decimal] = None
 
 
 class InvokeConstraintsResponse(BaseModel):
@@ -294,7 +294,7 @@ class AgentQuoteResponse(BaseModel):
     requestId: str
     quoteId: str
     serviceId: str
-    priceUsdc: float
+    priceUsdc: Decimal
     priceModel: str
     budgetCheck: BudgetCheckResponse
     expiresAt: str
@@ -504,9 +504,9 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert receipt.quoteId.startswith("quote-")
     assert receipt.invocationId.startswith("inv-")
     assert receipt.serviceId == "svc.echo"
-    assert float(receipt.serviceUnitPrice) == pytest.approx(1.2)
-    assert float(receipt.totalCharge) == pytest.approx(1.25)
-    assert float(receipt.consumerAvailableBalanceAfter) == pytest.approx(8.75)
+    assert Decimal(str(receipt.serviceUnitPrice)) == Decimal("1.2")
+    assert Decimal(str(receipt.totalCharge)) == Decimal("1.25")
+    assert Decimal(str(receipt.consumerAvailableBalanceAfter)) == Decimal("8.75")
 
     assert response.payload.data.result == {
         "answer": "pong",
@@ -522,9 +522,9 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
 
     assert storage.gateway_state.usage_rows == []
 
-    assert float(storage.balance.ledger.consumer_available_balance("0xabc")) == pytest.approx(8.75)
-    assert float(storage.balance.ledger.provider_receivable_balance("0xdef")) == pytest.approx(1.08)
-    assert float(storage.balance.ledger.platform.fee_accrued) == pytest.approx(0.17)
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("8.750000")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("1.080000")
+    assert storage.balance.ledger.platform.fee_accrued == Decimal("0.170000")
 
     assert len(storage.audit.rows) == 1
     assert storage.audit.rows[0].action == "V2_USAGE_CHARGED"
@@ -597,7 +597,7 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
     )
     invocation_id = invocation_response["invocationId"]
     assert invocation_response["status"] == "SUCCEEDED"
-    assert invocation_response["chargedUsdc"] == pytest.approx(1.25)
+    assert Decimal(str(invocation_response["chargedUsdc"])) == Decimal("1.25")
 
     receipt_response = forwarding_service.get_invocation_receipt_v1(
         storage, invocation_id, raw_token
