@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createElement, type ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,10 +58,29 @@ describe("docs API reference", () => {
     }
   });
 
+  it("separates consumer and provider API references by role", async () => {
+    const user = userEvent.setup();
+    renderDocs(createElement(ApiReferencePage));
+
+    expect(await screen.findByRole("heading", { name: "REST API" })).toBeTruthy();
+    expect(screen.getByText("Expose narrow agent credentials, not owner wallets")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Discover available services/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Issue provider secret/i })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Provider" }));
+
+    expect(screen.getByRole("heading", { name: "Provider Operations" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Issue provider secret/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Create provider withdrawal intent/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Get service health history/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Export callable marketplace services/i })).toBeNull();
+  });
+
   it("renders representative endpoint detail pages with method, path, auth, examples, and errors", () => {
     const representativeRoutes = [
       ALL_ROUTES.find((route) => route.id === "get-challenge"),
       ALL_ROUTES.find((route) => route.id === "post-agent-invoke"),
+      ALL_ROUTES.find((route) => route.id === "post-provider-withdrawal-intent"),
       ALL_ROUTES.find((route) => route.id === "delete-credential"),
     ].filter((route): route is (typeof ALL_ROUTES)[number] => Boolean(route));
 

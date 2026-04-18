@@ -229,6 +229,35 @@ try {
     await page.waitForURL("**/docs/getting-started/provider#step-status", { timeout: 10000 });
   });
 
+  await step("click:concepts-idempotency-to-settlement", async () => {
+    await goto(page, "/docs/concepts#idempotency");
+    const sidebar = page.getByTestId("docs-sidebar");
+    await sidebar.getByRole("button", { name: /How Settlement Works/i }).click();
+    await page.waitForURL("**/docs/concepts#settlement", { timeout: 10000 });
+    if (await page.locator("#settlement").count() === 0) {
+      throw new Error("missing #settlement after clicking How Settlement Works");
+    }
+  });
+
+  await step("click:api-provider-role-filter", async () => {
+    await goto(page, "/docs/api-reference");
+    await page.getByRole("button", { name: /^Provider$/i }).click();
+    await page.locator("#api-provider").waitFor({ state: "visible", timeout: 10000 });
+    await page.getByRole("link", { name: /Issue provider secret/i }).waitFor({ state: "visible", timeout: 10000 });
+    await page.getByRole("link", { name: /Create provider withdrawal intent/i }).waitFor({ state: "visible", timeout: 10000 });
+
+    await goto(page, "/docs/api-reference#api-provider");
+    await page.locator("#api-provider").waitFor({ state: "visible", timeout: 10000 });
+    await page.getByRole("link", { name: /Get provider earnings summary/i }).waitFor({ state: "visible", timeout: 10000 });
+
+    await page.getByRole("button", { name: /^Consumer$/i }).click();
+    await page.waitForTimeout(100);
+    const providerLinks = await page.getByRole("link", { name: /Issue provider secret/i }).count();
+    if (providerLinks !== 0) {
+      throw new Error("consumer role should not show provider-only endpoint links");
+    }
+  });
+
   await step("click:soon-status-page", async () => {
     await goto(page, "/docs#introduction");
     const before = page.url();

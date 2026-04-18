@@ -121,6 +121,7 @@ describe("docs multilingual surfaces", () => {
     expect(screen.getAllByRole("heading", { name: "TypeScript SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Python SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Smart Contracts" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Expose narrow agent credentials, not owner wallets")).toBeTruthy();
     expect(screen.getByText("Export callable marketplace services")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Discover services first" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Known serviceId? Call it directly" })).toBeTruthy();

@@ -22,8 +22,8 @@ This document is the functional contract for every implemented docs page. Dashbo
 | `/docs/getting-started` | Role chooser for service consumers and providers. | Consumer card, Provider card, role comparison. | Consumer CTA opens `/docs/getting-started/consumer`; Provider CTA opens `/docs/getting-started/provider`. |
 | `/docs/getting-started/consumer` | Consumer quick start from auth to paid invocation and withdrawal. | `step-auth`, `step-deposit`, `step-discover`, `step-credential`, `step-invoke`, `step-verify`, `step-withdraw`. | Each sidebar anchor exists; service discovery mentions `/marketplace`, `/marketplace/registry.json`, and `/api/v1/services/discover`; CTAs link to Concepts and TypeScript SDK. |
 | `/docs/getting-started/provider` | Provider quick start from auth to registration, runtime status, earnings, and withdrawal. | `step-auth`, `step-secret`, `step-register`, `step-status`, `step-earnings`, `step-withdraw`. | Each sidebar anchor exists; runtime health explains slow lane and Force probe recovery; CTAs link to Services API and Python SDK. |
-| `/docs/concepts` | Conceptual model for settlement and agent-safe invocation. | `settlement`, `service-registry`, `credentials`, `idempotency`. | Each section anchor exists; page renders `How Synapse Works`; Service Registry section links the registry concept to discovery/invoke. |
-| `/docs/api-reference` | Machine-readable and human-readable API index. | `api-auth`, `api-balance`, `api-services`, `api-invocations`, `api-credentials`. | All visible endpoint rows link to `/docs/api-reference/{id}`; role filter does not produce links outside `ROUTE_GROUPS`. |
+| `/docs/concepts` | Conceptual model for settlement and agent-safe invocation. | `settlement`, `service-registry`, `credentials`, `idempotency`. | Each section anchor exists; page renders `How Synapse Works`; Service Registry section links the registry concept to discovery/invoke; from `/docs/concepts#idempotency`, clicking `How Settlement Works` must navigate back to `/docs/concepts#settlement`. |
+| `/docs/api-reference` | Machine-readable and human-readable API index. | Default Consumer view: `api-auth`, `api-balance`, `api-services`, `api-invocations`, `api-credentials`; Provider role-gated view: `api-provider` plus provider service management. | All visible endpoint rows link to `/docs/api-reference/{id}`; Consumer role shows discovery/invoke/credential paths; Provider role shows provider service, secret, earnings, withdrawal, and health-history paths; direct `/docs/api-reference#api-provider` opens the Provider view; role filter does not produce links outside `ROUTE_GROUPS`. |
 | `/docs/api-reference/[id]` | Endpoint detail page for every route in `ROUTE_GROUPS`. | Method/path header, auth, params, request body when present, response example, error codes, agent context. | Every `ALL_ROUTES` id renders a detail page; unknown ids render the docs not-found detail state instead of crashing. |
 | `/docs/sdk` | SDK overview and language selection. | `sdk-overview`, `sdk-compare`. | Page renders `SDKs`; TypeScript and Python links point to language pages. |
 | `/docs/sdk/typescript` | TypeScript SDK usage guide. | Install, auth, deposit, discovery, invoke, direct call, starter services, verify, cheatsheet. | All expected anchors exist; service discovery and invoke examples render. |
@@ -41,6 +41,18 @@ The sidebar also contains resource entries:
 ## Known Drift Fixed by This Contract
 
 The Provider Guide sidebar previously pointed to non-existent anchors `#step-endpoint` and `#step-health`. The implemented provider page uses `#step-secret` and `#step-status`, so the docs navigation now follows the implemented page and the registry test guards this alignment.
+
+The Concepts sidebar must also support reverse anchor navigation. A user landing on `/docs/concepts#idempotency` must be able to click `How Settlement Works` and land on `/docs/concepts#settlement`; screenshots are not sufficient for this requirement because the URL/hash transition is the actual functional contract.
+
+## Agent-Facing API Boundary
+
+The API reference separates three identities:
+
+1. `Consumer Agent` uses a limited credential for service discovery, paid invocation, and receipt lookup.
+2. `Owner` uses wallet-authenticated JWT for deposits, credential issuance/revocation, and spending-limit control.
+3. `Provider` uses wallet-authenticated JWT for service registration, provider secrets, earnings, health evidence, and withdrawal intents.
+
+Do not expose owner wallet signing, direct transfers, provider management, or spend-limit mutation as autonomous agent runtime privileges. An agent can request those flows through an owner-controlled policy layer, but the public agent runtime contract remains narrow: discover, invoke with price assertion, and verify receipts.
 
 ## Pass Criteria
 

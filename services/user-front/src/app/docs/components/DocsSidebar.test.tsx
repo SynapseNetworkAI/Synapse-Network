@@ -68,6 +68,7 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
           "Auth",
           "Balance",
           "Services",
+          "Provider Operations",
           "Agent Invocations",
           "Credentials",
           "SDK Overview",
@@ -175,6 +176,23 @@ describe("DocsSidebar", () => {
 
     await user.click(screen.getByRole("button", { name: /Runtime Status/i }));
     expect(pushMock).toHaveBeenCalledWith("/docs/getting-started/provider#step-status");
+  });
+
+  it("routes concepts idempotency back to the settlement anchor", async () => {
+    const user = userEvent.setup();
+    pathnameMock.mockReturnValue("/docs/concepts");
+    const settlement = document.createElement("section");
+    settlement.id = "settlement";
+    settlement.scrollIntoView = vi.fn();
+    document.body.appendChild(settlement);
+
+    render(<DocsSidebar />);
+
+    await user.click(screen.getByRole("button", { name: /How Settlement Works/i }));
+
+    expect(settlement.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+    expect(pushMock).toHaveBeenCalledWith("/docs/concepts#settlement");
+    settlement.remove();
   });
 
   it("does not navigate for soon resources", async () => {

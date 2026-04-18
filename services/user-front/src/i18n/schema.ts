@@ -879,6 +879,13 @@ export type I18nMessages = {
     apiGroupDescriptions: string[];
     apiAuthNoteTitle: string;
     apiAuthNoteDescription: string;
+    apiRoleFilterLabel: string;
+    apiConsumerTab: string;
+    apiProviderTab: string;
+    apiAgentBoundaryEyebrow: string;
+    apiAgentBoundaryTitle: string;
+    apiAgentBoundaryDescription: string;
+    apiAgentBoundaryItems: string[];
     sdkEyebrow: string;
     sdkTitle: string;
     sdkDescription: string;
