@@ -72,6 +72,11 @@ AI 协作优先入口新增如下：
 8. [03_Projects/sdk-python/README.md](./03_Projects/sdk-python/README.md)
 9. [03_Projects/infra/README.md](./03_Projects/infra/README.md)
 
+### Production release gates
+
+1. [ops/10_Production_Go_No_Go_Security_Verification.md](./ops/10_Production_Go_No_Go_Security_Verification.md)
+2. [plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md)
+
 ### Supplement layers
 
 1. [01_Product_Vision/README.md](./01_Product_Vision/README.md)
@@ -141,6 +146,8 @@ AI 协作优先入口新增如下：
 6. [06_Reference/README.md](./06_Reference/README.md)
 7. [reference/Money_Contract.md](./reference/Money_Contract.md)
    API 索引、错误码契约、Manifest 与 Runtime 对象、开发测试参考。
+
+生产上线前必须同时阅读 [ops/10_Production_Go_No_Go_Security_Verification.md](./ops/10_Production_Go_No_Go_Security_Verification.md) 与 [plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md)。所有 P0 门禁和证据包通过前，禁止上线。
 
 ## 3.1 项目文档集中维护层
 
