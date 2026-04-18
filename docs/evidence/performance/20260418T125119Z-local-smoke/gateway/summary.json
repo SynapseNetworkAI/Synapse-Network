@@ -1,0 +1,24 @@
+{
+  "concurrency": 2,
+  "durationSec": 10,
+  "endpoints": {
+    "gateway-health": {
+      "avgMs": 1.425,
+      "failures": 0,
+      "p50Ms": 1.128,
+      "p95Ms": 1.631,
+      "p99Ms": 14.818,
+      "requests": 98,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 98
+      },
+      "successRate": 1.0,
+      "successes": 98
+    }
+  },
+  "overallSuccessRate": 1.0,
+  "scenario": "local-gateway-health",
+  "totalFailures": 0,
+  "totalRequests": 98
+}

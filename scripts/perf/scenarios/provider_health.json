@@ -1,0 +1,23 @@
+{
+  "name": "provider-health-load",
+  "baseUrlEnv": "SYNAPSE_ADMIN_GATEWAY_BASE_URL",
+  "headers": {
+    "Authorization": "Bearer ${SYNAPSE_ADMIN_TOKEN}"
+  },
+  "requests": [
+    {
+      "name": "provider-services-list",
+      "method": "GET",
+      "path": "/api/admin/v1/provider-services?page=1&pageSize=50",
+      "expectedStatuses": [200],
+      "weight": 4
+    },
+    {
+      "name": "provider-services-unhealthy-filter",
+      "method": "GET",
+      "path": "/api/admin/v1/provider-services?page=1&pageSize=50&runtimeStatus=unhealthy",
+      "expectedStatuses": [200],
+      "weight": 1
+    }
+  ]
+}

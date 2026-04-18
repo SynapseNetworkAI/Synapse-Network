@@ -1,0 +1,28 @@
+{
+  "name": "finance-balance-withdrawal",
+  "baseUrlEnv": "SYNAPSE_GATEWAY_BASE_URL",
+  "headers": {
+    "Authorization": "Bearer ${SYNAPSE_OWNER_TOKEN}",
+    "X-Owner-Address": "${SYNAPSE_OWNER_WALLET}"
+  },
+  "requests": [
+    {
+      "name": "owner-balance",
+      "method": "GET",
+      "path": "/api/v1/balance",
+      "expectedStatuses": [200],
+      "weight": 8
+    },
+    {
+      "name": "consumer-withdraw-dry-boundary",
+      "method": "POST",
+      "path": "/api/v1/balance/consumer/withdraw",
+      "expectedStatuses": [200, 400, 409],
+      "weight": 1,
+      "body": {
+        "amountUsdc": "${SYNAPSE_PERF_WITHDRAW_AMOUNT_USDC}"
+      }
+    }
+  ]
+}
+

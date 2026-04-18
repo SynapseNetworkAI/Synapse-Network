@@ -14,7 +14,23 @@
     "ci:pr": "bash scripts/ci/pr_checks.sh",
     "ci:provider-service": "bash scripts/ci/provider_service_checks.sh",
     "ci:release-go-no-go": "bash scripts/ci/release_go_no_go_checks.sh",
-    "ci:sdk-python": "bash scripts/ci/sdk_python_checks.sh"
+    "ci:sdk-python": "bash scripts/ci/sdk_python_checks.sh",
+    "perf:gateway-load": "bash scripts/perf/gateway_load.sh",
+    "perf:local-smoke": "bash scripts/perf/local_smoke.sh",
+    "perf:finance-load": "bash scripts/perf/finance_load.sh",
+    "perf:provider-health-load": "bash scripts/perf/provider_health_load.sh",
+    "perf:admin-load": "bash scripts/perf/admin_load.sh",
+    "perf:money-concurrency": "bash scripts/perf/money_concurrency.sh",
+    "chaos:provider-outage": "bash scripts/chaos/provider_outage.sh",
+    "chaos:gateway-restart": "bash scripts/chaos/gateway_restart.sh",
+    "chaos:gateway-admin-restart": "bash scripts/chaos/gateway_admin_restart.sh",
+    "chaos:analytics-outage": "bash scripts/chaos/analytics_outage.sh",
+    "chaos:rpc-outage": "bash scripts/chaos/rpc_outage.sh",
+    "chaos:postgres-failover": "bash scripts/chaos/postgres_failover.sh",
+    "chaos:redis-unavailable": "bash scripts/chaos/redis_unavailable.sh",
+    "drill:application-rollback": "bash scripts/drills/application_rollback.sh",
+    "drill:config-rollback": "bash scripts/drills/config_rollback.sh",
+    "drill:signer-rollback": "bash scripts/drills/signer_rollback.sh"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.2"

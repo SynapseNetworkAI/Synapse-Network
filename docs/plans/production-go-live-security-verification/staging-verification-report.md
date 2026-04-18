@@ -40,13 +40,14 @@ The repository-local and staging-preflight gates that can be executed from this 
 
 ## Bugfix Findings
 
-Three fixable release-gate automation gaps were found and fixed during staging verification.
+Four fixable release-gate automation gaps were found and fixed during staging verification.
 
 | Bug | Status | Verification |
 | --- | --- | --- |
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-01-release-go-no-go-backtick-pattern.md` | FIXED | `npm run ci:release-go-no-go` passes |
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-02-contracts-gate-compile-only.md` | FIXED | `npm run ci:contracts` passes with 7 Hardhat tests |
 | `docs/reference/bugfix/scripts/BUG-GOLIVE-03-performance-reliability-smoke-missing.md` | FIXED | `npm run ci:performance-reliability` passes |
+| `docs/reference/bugfix/scripts/BUG-GOLIVE-04-performance-evidence-readme-metadata.md` | FIXED | `npm run ci:docs` passes |
 
 All other remaining gaps are release-evidence blockers, not implementation defects observed by the executed gates.
 

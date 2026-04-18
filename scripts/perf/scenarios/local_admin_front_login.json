@@ -1,0 +1,14 @@
+{
+  "name": "local-admin-front-login",
+  "baseUrlEnv": "SYNAPSE_LOCAL_ADMIN_FRONT_BASE_URL",
+  "requests": [
+    {
+      "name": "admin-front-login",
+      "method": "GET",
+      "path": "/login",
+      "expectedStatuses": [200],
+      "weight": 1
+    }
+  ]
+}
+
