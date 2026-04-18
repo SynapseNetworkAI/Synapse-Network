@@ -149,7 +149,7 @@ class TestEmitProviderFirstRevenueReceived:
         e = events[0]
         assert e["event_name"] == "provider_first_revenue_received"
         assert e["properties"]["service_id"] == "svc_xyz"
-        assert e["properties"]["gross_usdc"] == 0.05
+        assert e["properties"]["gross_usdc"] == "0.050000"
         assert e["properties"]["is_first_revenue"] is True
         assert e["properties"]["time_since_listing_ms"] == 3600_000
         assert e["properties"]["role"] == "provider"

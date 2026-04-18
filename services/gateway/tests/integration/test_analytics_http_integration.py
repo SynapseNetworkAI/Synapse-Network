@@ -392,13 +392,13 @@ class TestFrontendGatewayCowrite:
 
         # Verify deposit amount
         deposit_evt = next(e for e in stored if e["event_name"] == "deposit_completed")
-        assert deposit_evt["properties"]["amount_usdc"] == 50.0
+        assert deposit_evt["properties"]["amount_usdc"] == "50.000000"
         assert deposit_evt["properties"]["time_to_confirm_ms"] == 8500
 
         # Verify provider revenue breakdown
         rev_evt = next(e for e in stored if e["event_name"] == "provider_revenue_received")
-        assert rev_evt["properties"]["gross_usdc"] == 0.01
-        assert rev_evt["properties"]["platform_fee_usdc"] == 0.0005
+        assert rev_evt["properties"]["gross_usdc"] == "0.010000"
+        assert rev_evt["properties"]["platform_fee_usdc"] == "0.000500"
 
         # Privacy: no raw 0x addresses in any event
         all_json = events_file.read_text()

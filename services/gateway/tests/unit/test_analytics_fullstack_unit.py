@@ -514,7 +514,7 @@ class TestProviderFirstRevenueReceived:
         assert props["role"] == "provider"
         assert props["is_first_revenue"] is True
         assert props["service_id"] == "svc_first_rev"
-        assert props["gross_usdc"] == 1.00
+        assert props["gross_usdc"] == "1.000000"
         assert props["time_since_listing_ms"] == 120_000
 
     async def test_provider_address_is_hashed(self, emitter, events_file):
