@@ -1,23 +1,25 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import DocsSidebar from "@/app/docs/components/DocsSidebar";
 
 const {
   beginNavigationMock,
+  pathnameMock,
   prefetchMock,
   pushMock,
 } = vi.hoisted(() => ({
   beginNavigationMock: vi.fn(),
+  pathnameMock: vi.fn(() => "/docs"),
   prefetchMock: vi.fn(),
   pushMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/docs",
+  usePathname: () => pathnameMock(),
   useRouter: () => ({
     push: pushMock,
     prefetch: prefetchMock,
@@ -55,8 +57,8 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
           "Invoke & Settle",
           "Provider Guide",
           "Register Service",
-          "Endpoint Spec",
-          "Health Check",
+          "Provider Secret",
+          "Runtime Status",
           "View Earnings",
           "Withdraw USDC",
           "How Settlement Works",
@@ -97,7 +99,9 @@ vi.mock("@/app/docs/DocsNavigationFeedback", () => ({
 
 describe("DocsSidebar", () => {
   beforeEach(() => {
+    cleanup();
     vi.clearAllMocks();
+    pathnameMock.mockReturnValue("/docs");
 
     vi.stubGlobal(
       "requestAnimationFrame",
@@ -150,5 +154,37 @@ describe("DocsSidebar", () => {
 
     expect(beginNavigationMock).toHaveBeenCalledWith("/docs/sdk/python");
     expect(pushMock).toHaveBeenCalledWith("/docs/sdk/python");
+  });
+
+  it("routes provider child anchors to implemented provider sections", async () => {
+    const user = userEvent.setup();
+    pathnameMock.mockReturnValue("/docs/getting-started");
+
+    render(<DocsSidebar />);
+
+    await user.click(screen.getByRole("button", { name: /^Provider Guide$/i }));
+    expect(pushMock).toHaveBeenLastCalledWith("/docs/getting-started/provider");
+
+    cleanup();
+    pathnameMock.mockReturnValue("/docs/getting-started/provider");
+    pushMock.mockClear();
+    render(<DocsSidebar />);
+
+    await user.click(screen.getByRole("button", { name: /Provider Secret/i }));
+    expect(pushMock).toHaveBeenCalledWith("/docs/getting-started/provider#step-secret");
+
+    await user.click(screen.getByRole("button", { name: /Runtime Status/i }));
+    expect(pushMock).toHaveBeenCalledWith("/docs/getting-started/provider#step-status");
+  });
+
+  it("does not navigate for soon resources", async () => {
+    const user = userEvent.setup();
+
+    render(<DocsSidebar />);
+
+    await user.click(screen.getByRole("button", { name: /Status Page/i }));
+
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(beginNavigationMock).not.toHaveBeenCalled();
   });
 });

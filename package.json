@@ -8,6 +8,7 @@
     "ci:admin-gateway": "bash scripts/ci/admin_gateway_checks.sh",
     "ci:contracts": "bash scripts/ci/contracts_checks.sh",
     "ci:docs": "bash scripts/ci/docs_checks.sh",
+    "ci:docs-pages": "cd services/user-front && yarn test:docs-pages",
     "ci:frontend": "bash scripts/ci/frontend_checks.sh",
     "ci:gateway": "bash scripts/ci/gateway_checks.sh",
     "ci:performance-reliability": "bash scripts/ci/performance_reliability_checks.sh",

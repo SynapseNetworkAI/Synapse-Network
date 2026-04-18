@@ -97,6 +97,8 @@ describe("docs multilingual surfaces", () => {
     expect(screen.getByRole("tab", { name: "Python SDK" })).toBeTruthy();
     expect(screen.getAllByText("Issue a provider secret").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Register your service").length).toBeGreaterThan(0);
+    expect(screen.getByText(/keeps probing in slow lane/i)).toBeTruthy();
+    expect(screen.getByText(/Force probe bypasses slow lane/i)).toBeTruthy();
     expect(screen.getByText("Provider guide complete")).toBeTruthy();
   });
 
