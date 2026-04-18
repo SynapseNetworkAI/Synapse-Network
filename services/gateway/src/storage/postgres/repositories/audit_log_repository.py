@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from typing import Any, List, Optional
 from uuid import uuid4
 
@@ -38,6 +39,12 @@ class AuditLogRepository:
                 return {}
             return parsed if isinstance(parsed, dict) else {}
         return {}
+
+    @staticmethod
+    def _json_default(value: Any) -> str:
+        if isinstance(value, Decimal):
+            return format(value, "f")
+        return str(value)
 
     @staticmethod
     def _event_id(prefix: str) -> str:
@@ -273,7 +280,7 @@ class AuditLogRepository:
                     str(row.amount_delta) if row.amount_delta is not None else None,
                     row.result_status,
                     row.error_code,
-                    json.dumps(detail_json),
+                    json.dumps(detail_json, default=self._json_default),
                 ),
             )
 
@@ -316,7 +323,7 @@ class AuditLogRepository:
                     row.invocation_id,
                     row.result_status,
                     row.error_code,
-                    json.dumps(detail_json),
+                    json.dumps(detail_json, default=self._json_default),
                 ),
             )
 

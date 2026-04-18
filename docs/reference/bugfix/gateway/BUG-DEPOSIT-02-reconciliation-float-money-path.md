@@ -21,6 +21,20 @@ TypeError: float is forbidden for money values
 The runtime task was healthy enough to keep looping, but every reconciliation pass failed before
 persisting an accurate vault-vs-ledger snapshot.
 
+During pre-push verification, the same money guard also exposed a second leak on:
+
+```text
+GET /api/v1/balance
+Database IO blocked: float is forbidden for money values
+```
+
+After that fix, the invoke e2e exposed a related audit serialization issue:
+
+```text
+POST /api/v1/agent/invoke
+TypeError: Object of type Decimal is not JSON serializable
+```
+
 ## Root Cause
 
 `_amount_usdc_from_raw()` converted chain atomic units with Python `float`:
@@ -33,12 +47,21 @@ After the Money Contract hardening, `MoneyCodec.coerce_decimal()` correctly reje
 The reconciliation task still called the legacy float conversion, so the stricter guard turned an
 old precision bug into a visible runtime error.
 
+The balance read path also converted Postgres `NUMERIC` balances back to `float` inside
+`BalanceRepository.read_balance_ledger()`. The platform fee assignment happened after model
+initialization, so it bypassed Pydantic conversion and reached `money_str()` as a raw float.
+
+The invocation path correctly carried `Decimal` amounts into the system audit payload, but the
+audit repository used plain `json.dumps(...)` without a Decimal serializer.
+
 ## Fix
 
 - Changed chain atomic-unit conversion to return `Decimal` through `MoneyCodec.from_atomic()`.
 - Updated deposit event matching to compare `Decimal` amounts instead of float epsilon math.
 - Serialized reconciliation runtime state, audit details, and log fields as canonical money strings.
 - Kept analytics emission on the Decimal-safe path.
+- Changed Postgres balance ledger hydration to keep `Decimal` values instead of converting to float.
+- Serialized Decimal audit details as canonical strings before writing `detail_json`.
 
 ## Verification
 
@@ -63,3 +86,5 @@ Result:
 - Targeted deposit indexer tests: 5 passed.
 - Gateway tests: 322 passed, 86 skipped.
 - Full PR gate: passed after the follow-up gateway-admin analytics fix.
+- Pre-push caught the balance read leak; `services/gateway/tests/unit/storage/test_postgres_repositories_unit.py` now asserts hydrated balances remain `Decimal`.
+- Invoke e2e caught the audit serialization leak; repository tests now assert Decimal audit details serialize as strings.

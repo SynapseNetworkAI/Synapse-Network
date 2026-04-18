@@ -342,17 +342,35 @@ def test_audit_log_repository_append_replace_and_read() -> None:
             details={"requestId": "req-2", "resourceType": "credential", "resourceId": "cred-1"},
         )
     )
+    repo.append_audit_row(
+        AuditLogEntry(
+            action="V2_USAGE_CHARGED",
+            domain="system",
+            ownerAddress="0xabc",
+            details={
+                "requestId": "req-3",
+                "resourceType": "invocation",
+                "resourceId": "inv-1",
+                "totalCharge": Decimal("0.123456"),
+                "providerNetAmount": Decimal("0.100000"),
+            },
+        )
+    )
 
     combined_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert combined_sql.count("INSERT INTO synapse_audit_events") == 2
+    assert combined_sql.count("INSERT INTO synapse_audit_events") == 3
     first_params = db.tx_cursors[0].executed[0][1]
     second_params = db.tx_cursors[1].executed[0][1]
+    third_params = db.tx_cursors[2].executed[0][1]
     assert first_params[3] == "owner:0xabc"
     assert first_params[2] == "anomaly"
     assert second_params[3] == "owner:0xabc"
+    assert third_params[3] == "owner:0xabc"
     assert '"action": "deposit_intent"' in first_params[12]
     assert '"backend": "redis"' in first_params[12]
     assert '"rateLimitBucket": "28500005"' in first_params[12]
+    assert '"totalCharge": "0.123456"' in third_params[11]
+    assert '"providerNetAmount": "0.100000"' in third_params[11]
 
     rows = repo.read_audit_rows(owner_wallet="0xabc", limit=10)
     assert len(rows) == 1
@@ -437,6 +455,9 @@ def test_balance_repository_read_and_write() -> None:
     repo = BalanceRepository(db, _q6, "UPSERT")
 
     ledger = repo.read_balance_ledger()
+    assert isinstance(ledger.consumer_wallets[0].available_balance, Decimal)
+    assert isinstance(ledger.provider_wallets[0].available_balance, Decimal)
+    assert isinstance(ledger.platform.fee_accrued, Decimal)
     assert ledger.consumer_available_balance("0xowner") == Decimal("10.000000")
     assert ledger.provider_receivable_balance("0xprovider") == Decimal("20.000000")
     assert ledger.platform.fee_accrued == Decimal("0.500000")
