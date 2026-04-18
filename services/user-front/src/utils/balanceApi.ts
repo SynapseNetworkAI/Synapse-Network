@@ -808,15 +808,8 @@ export type ConsumerWithdrawIntent = {
   amountUsdc: MoneyString;
   feeUsdc: MoneyString;
   netUsdc: MoneyString;
-  status:
-    | "REQUESTED"
-    | "PENDING"
-    | "PENDING_MANUAL_REVIEW"
-    | "COMPLETED"
-    | "FAILED"
-    | "REJECTED"
-    | "CANCELLED";
-  riskLevel?: "green" | "yellow" | "red";
+  status: WithdrawalStatus;
+  riskLevel?: RiskLevel;
   riskReasonCode?: string;
   message?: string;
   destination?: string;
@@ -862,8 +855,8 @@ export async function requestConsumerWithdraw(
     amountUsdc: normalizeMoneyString(payload.amountUsdc),
     feeUsdc: normalizeMoneyString(payload.feeUsdc),
     netUsdc: normalizeMoneyString(payload.netUsdc),
-    status: (payload.status as ConsumerWithdrawIntent["status"]) ?? "PENDING",
-    riskLevel: payload.riskLevel as ConsumerWithdrawIntent["riskLevel"],
+    status: typeof payload.status === "string" ? parseWithdrawalStatus(payload.status) ?? "PENDING" : "PENDING",
+    riskLevel: typeof payload.riskLevel === "string" ? parseRiskLevel(payload.riskLevel) ?? undefined : undefined,
     riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
     message: typeof payload.message === "string" ? payload.message : undefined,
     destination: typeof payload.destination === "string" ? payload.destination : undefined,
@@ -889,8 +882,8 @@ export async function listConsumerWithdrawals(
     return {
       id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
       amountUsdc: normalizeMoneyString(row.amountUsdc),
-      status: (row.status as RefundIntentRecord["status"]) ?? "PENDING",
-      riskLevel: typeof row.riskLevel === "string" ? row.riskLevel : undefined,
+      status: typeof row.status === "string" ? parseWithdrawalStatus(row.status) ?? "PENDING" : "PENDING",
+      riskLevel: typeof row.riskLevel === "string" ? parseRiskLevel(row.riskLevel) ?? undefined : undefined,
       riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
       message: typeof row.message === "string" ? row.message : undefined,
       txHash: typeof row.txHash === "string" ? row.txHash : undefined,
