@@ -93,7 +93,7 @@ export const DOCS_PAGE_REGISTRY: DocsPageRegistryItem[] = [
     href: "/docs/api-reference",
     kind: "page",
     expectedHeading: "REST API",
-    expectedAnchors: ["api-auth", "api-balance", "api-services", "api-invocations", "api-credentials"],
+    expectedAnchors: ["api-auth", "api-balance", "api-services", "api-provider", "api-invocations", "api-credentials"],
     implemented: true,
     verificationMode: "render",
   },

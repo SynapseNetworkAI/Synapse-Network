@@ -66,7 +66,9 @@ Required result:
 
 - Page-root links must update the browser URL to the expected route.
 - Hash links must either scroll to an existing DOM id or update URL to the hash route.
+- Concepts reverse navigation must be checked explicitly: start at `/docs/concepts#idempotency`, click `How Settlement Works`, and assert the browser reaches `/docs/concepts#settlement`.
 - API endpoint links must open `/docs/api-reference/{id}` for every `ROUTE_GROUPS` route id.
+- API Reference role filters must be checked for both `Consumer` and `Provider`. Provider must expose provider service management, provider secrets, earnings, withdrawal, and health-history endpoints; Consumer must not show provider-only control-plane endpoints. Direct `/docs/api-reference#api-provider` must switch to the Provider view and render the provider-only anchor.
 - `Status Page` must remain non-navigating and show a `soon` marker.
 - External resource links must be recorded as out-of-docs resources; the script must not require third-party availability.
 
@@ -77,6 +79,7 @@ Required result:
 - An API endpoint id exists in `ROUTE_GROUPS` but cannot render a detail page.
 - A click leaves the browser on the wrong URL.
 - A page renders without its expected heading.
+- Provider role filtering hides provider-only API docs or leaks them into the Consumer-only view.
 - Any uncaught browser exception appears during the Playwright run.
 
 ## Updating the Docs Surface

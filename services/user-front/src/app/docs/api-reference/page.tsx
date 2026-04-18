@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useActiveSection } from "../use-active-section";
@@ -19,6 +19,7 @@ const PAGE_SECTIONS = [
   "api-auth",
   "api-balance",
   "api-services",
+  "api-provider",
   "api-invocations",
   "api-credentials",
 ];
@@ -34,6 +35,7 @@ function roleBtnCls(active: boolean, role: "consumer" | "provider"): string {
 function getGroupsForRole(groups: RouteGroup[], role: "consumer" | "provider"): RouteGroup[] {
   if (role === "consumer") {
     return groups
+      .filter((g) => g.id !== "api-provider")
       .map((g) => {
         if (g.id === "api-services") {
           return {
@@ -47,10 +49,19 @@ function getGroupsForRole(groups: RouteGroup[], role: "consumer" | "provider"): 
       .filter((g) => g.routes.length > 0);
   }
   return groups
-    .filter((g) => ["api-auth", "api-balance", "api-services"].includes(g.id))
+    .filter((g) => ["api-auth", "api-balance", "api-services", "api-provider"].includes(g.id))
     .map((g) => {
       if (g.id === "api-services") {
-        return { ...g, routes: g.routes.filter((r) => r.id !== "get-discover") };
+        return {
+          ...g,
+          routes: g.routes.filter((r) => [
+            "post-service",
+            "get-services",
+            "put-service",
+            "delete-service",
+            "get-service-health-history",
+          ].includes(r.id)),
+        };
       }
       return g;
     });
@@ -114,6 +125,15 @@ const FLOW_CLR: Record<string, string> = {
   discover: "border-[#6eb6f6]/30 text-[#6eb6f6] bg-[#6eb6f6]/6",
   invoke: "border-green-400/30 text-green-400 bg-green-400/6",
 };
+
+const PROVIDER_HASHES = new Set(["api-provider"]);
+const CONSUMER_HASHES = new Set(["api-invocations", "api-credentials"]);
+
+function roleForApiHash(hash: string): "consumer" | "provider" | null {
+  if (PROVIDER_HASHES.has(hash)) return "provider";
+  if (CONSUMER_HASHES.has(hash)) return "consumer";
+  return null;
+}
 
 function AgentQuickstart() {
   const [open, setOpen] = useState(false);
@@ -199,6 +219,36 @@ export default function ApiReferencePage() {
   useDocsPageNav(groups.map((g) => ({ id: g.id, label: g.title })));
 
   const [viewRole, setViewRole] = useState<"consumer" | "provider">("consumer");
+  const boundaryItems = tList("docsPage.apiAgentBoundaryItems");
+
+  useEffect(() => {
+    const syncRoleFromHash = () => {
+      const hash = globalThis.location.hash.replace(/^#/, "");
+      const hashRole = roleForApiHash(hash);
+      if (hashRole) {
+        setViewRole(hashRole);
+      }
+    };
+
+    syncRoleFromHash();
+    globalThis.addEventListener("hashchange", syncRoleFromHash);
+    return () => {
+      globalThis.removeEventListener("hashchange", syncRoleFromHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    const hash = globalThis.location.hash.replace(/^#/, "");
+    if (!hash) return;
+    const scrollToHash = () => {
+      document.getElementById(hash)?.scrollIntoView({ block: "start" });
+    };
+    if (typeof globalThis.requestAnimationFrame === "function") {
+      globalThis.requestAnimationFrame(scrollToHash);
+      return;
+    }
+    globalThis.setTimeout(scrollToHash, 0);
+  }, [viewRole]);
 
   return (
     <div className="space-y-14">
@@ -261,9 +311,26 @@ export default function ApiReferencePage() {
       {/* Agent Quickstart */}
       <AgentQuickstart />
 
+      <section className="rounded-2xl border border-[#6eb6f6]/15 bg-[#6eb6f6]/[0.04] p-5">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6eb6f6]">
+          {t("docsPage.apiAgentBoundaryEyebrow")}
+        </div>
+        <h2 className="x-card-title mb-2 text-white">{t("docsPage.apiAgentBoundaryTitle")}</h2>
+        <p className="max-w-[820px] text-[13px] leading-6 text-[#8b98a5]">
+          {t("docsPage.apiAgentBoundaryDescription")}
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {boundaryItems.map((item) => (
+            <div key={item} className="rounded-xl border border-white/[0.06] bg-[#08090b] px-3 py-3 text-[12px] leading-6 text-[#9aa4af]">
+              {item}
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Role Tabs */}
       <div className="space-y-2">
-        <p className="text-[11px] text-[#4e535a]">按角色查看相关端点：</p>
+        <p className="text-[11px] text-[#4e535a]">{t("docsPage.apiRoleFilterLabel")}</p>
         <div className="flex gap-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-1 w-fit">
           {(["consumer", "provider"] as const).map((role) => (
             <button
@@ -274,7 +341,7 @@ export default function ApiReferencePage() {
                 role,
               )}`}
             >
-              {role === "consumer" ? "Consumer 买家" : "Provider 卖家"}
+              {role === "consumer" ? t("docsPage.apiConsumerTab") : t("docsPage.apiProviderTab")}
             </button>
           ))}
         </div>
