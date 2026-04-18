@@ -14,6 +14,7 @@
     "ci:performance-reliability": "bash scripts/ci/performance_reliability_checks.sh",
     "ci:pr": "bash scripts/ci/pr_checks.sh",
     "ci:provider-service": "bash scripts/ci/provider_service_checks.sh",
+    "ci:user-front-pages": "cd services/user-front && yarn test:user-front-pages",
     "ci:release-go-no-go": "bash scripts/ci/release_go_no_go_checks.sh",
     "ci:sdk-python": "bash scripts/ci/sdk_python_checks.sh",
     "perf:local-reliability-suite": "bash scripts/perf/local_reliability_suite.sh",
