@@ -12,8 +12,8 @@ This file is the evidence checklist for production launch. A checkbox without an
 
 - Environment: `Staging preflight from local workspace`
 - Source branch: `main`
-- Source commit: `51cb05d0`
-- Run time: `2026-04-18 19:00:00 +08`
+- Source commit: `a33b4468`
+- Run time: `2026-04-18 19:53:30 +08`
 - Report: `docs/plans/production-go-live-security-verification/staging-verification-report.md`
 - Plan status: `BLOCKED_NO_GO`
 - Staging automation result: `PASS`
@@ -40,19 +40,19 @@ npm run ci:release-go-no-go
 
 - [x] `npm run ci:docs` evidence: PASS, documentation validation passed.
 - [x] `npm run ci:pr` evidence: PASS, full PR gate completed successfully.
-- [x] Contract gate evidence: PASS with limited coverage, `npm run ci:contracts` compiled successfully but found no root Hardhat tests.
-- [x] Gateway gate evidence: PASS via `ci:pr`, `pytest` -> 390 passed, 18 skipped, 1 warning.
+- [x] Contract gate evidence: PASS, `npm run ci:contracts` ran 7 Hardhat security invariant tests.
+- [x] Gateway gate evidence: PASS via `ci:pr`, `pytest` -> 322 passed, 86 skipped, 1 warning.
 - [x] Gateway-admin gate evidence: PASS via `ci:pr`, `pytest` -> 94 passed.
 - [x] Frontend/admin-front gate evidence: PASS via `ci:pr`; user-front lint/test/build passed, admin-front lint/build passed.
 - [x] Money scan evidence: PASS, Python money scan and TypeScript money scan passed.
 - [x] Secret scan evidence: PASS, secret scan passed.
-- [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and production blockers remain explicit.
+- [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and 60 production blockers remain explicit.
 
 ## Contract and Chain Evidence
 
 - [ ] Third-party audit report: NO-GO blocker, external audit report not attached.
 - [ ] Audit finding closure log: NO-GO blocker, closure evidence not attached.
-- [ ] Hardhat test output: NO-GO blocker, current `ci:contracts` reports no root Hardhat tests found.
+- [x] Hardhat test output: PASS, `npm run ci:contracts` -> 7 passing.
 - [ ] Fork test output: NO-GO blocker, fork test evidence not attached.
 - [ ] Deployment dry-run output: NO-GO blocker, production/staging dry-run evidence not attached.
 - [ ] ABI hash: NO-GO blocker, release ABI hash not attached.
@@ -159,6 +159,6 @@ npm run ci:release-go-no-go
 ## Final Decision
 
 - Decision: `NO-GO for production`
-- Decision time: `2026-04-18 19:00:00 +08`
+- Decision time: `2026-04-18 19:53:30 +08`
 - Release owner: `TBD`
-- Notes: Staging automation passed. Production launch remains blocked by missing external P0 evidence listed above.
+- Notes: Staging automation passed. Production launch remains blocked by 60 explicit external P0 evidence gaps listed above.
