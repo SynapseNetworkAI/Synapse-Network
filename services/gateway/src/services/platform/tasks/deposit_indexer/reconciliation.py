@@ -6,7 +6,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.finance import BalanceLedger
 from src.storage import BaseStorage
-from src.utils.money import MoneyCodec
+from src.utils.money import MoneyCodec, money_str
 
 from .chain import _amount_usdc_from_raw, _resolve_token_decimals
 from .persistence import (
@@ -78,19 +78,19 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
             {
                 "businessType": "deposit",
                 "status": "ALERT",
-                "chainVaultUsdc": float(chain_vault),
-                "ledgerObligationUsdc": float(ledger_obligation),
-                "deltaUsdc": float(delta),
-                "thresholdUsdc": float(threshold),
+                "chainVaultUsdc": money_str(chain_vault),
+                "ledgerObligationUsdc": money_str(ledger_obligation),
+                "deltaUsdc": money_str(delta),
+                "thresholdUsdc": money_str(threshold),
             },
         )
 
     summary = {
         "enabled": True,
         "lastCheckAt": now,
-        "chainVaultUsdc": float(chain_vault),
-        "ledgerObligationUsdc": float(ledger_obligation),
-        "deltaUsdc": float(delta),
+        "chainVaultUsdc": money_str(chain_vault),
+        "ledgerObligationUsdc": money_str(ledger_obligation),
+        "deltaUsdc": money_str(delta),
         "alert": alert,
         "lastError": None,
     }
@@ -100,19 +100,19 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
         {
             **state,
             "lastCheckAt": now,
-            "chainVaultUsdc": float(chain_vault),
-            "ledgerObligationUsdc": float(ledger_obligation),
-            "deltaUsdc": float(delta),
+            "chainVaultUsdc": money_str(chain_vault),
+            "ledgerObligationUsdc": money_str(ledger_obligation),
+            "deltaUsdc": money_str(delta),
             "alert": alert,
         },
     )
     _set_status(reconciliation=summary)
     _persist_indexer_runtime_state(storage)
     logger.info(
-        "deposit reconciliation checked chain_vault=%.6f ledger_obligation=%.6f delta=%.6f alert=%s",
-        float(chain_vault),
-        float(ledger_obligation),
-        float(delta),
+        "deposit reconciliation checked chain_vault=%s ledger_obligation=%s delta=%s alert=%s",
+        money_str(chain_vault),
+        money_str(ledger_obligation),
+        money_str(delta),
         alert,
     )
     return summary

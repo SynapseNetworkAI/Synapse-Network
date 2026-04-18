@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 
 import httpx
@@ -29,6 +30,14 @@ def _float(value: Any) -> float:
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _money(value: Any) -> str:
+    try:
+        amount = Decimal(str(value or "0")).quantize(Decimal("0.000001"))
+    except (InvalidOperation, ValueError):
+        amount = Decimal("0.000000")
+    return format(amount, "f")
 
 
 def _int(value: Any) -> int:
@@ -139,11 +148,11 @@ class ClickHouseAnalyticsDashboardRepository:
             overall_status = "monitoring"
 
         cards = [
-            {"key": "gmv_usdc", "label": "GMV USDC", "value": _float(row.get("gmv_usdc")), "unit": "USDC", "tone": "green", "detail": "sum(price_usdc) from invoke_completed."},
+            {"key": "gmv_usdc", "label": "GMV USDC", "value": _money(row.get("gmv_usdc")), "unit": "USDC", "tone": "green", "detail": "sum(price_usdc) from invoke_completed."},
             {"key": "invoke_completed", "label": "Paid Invokes", "value": completed, "unit": "count", "tone": "green" if completed else "gray", "detail": "count(invoke_completed)."},
             {"key": "invoke_success_rate", "label": "Success Rate", "value": success_rate, "unit": "rate", "tone": "green" if success_rate >= 0.97 else "orange", "detail": "completed / completed+failed."},
-            {"key": "platform_fee_usdc", "label": "Platform Fee", "value": _float(row.get("platform_fee_usdc")), "unit": "USDC", "tone": "green", "detail": "sum(platform_fee_usdc) from provider_revenue_received."},
-            {"key": "provider_net_usdc", "label": "Provider Net", "value": _float(row.get("provider_net_usdc")), "unit": "USDC", "tone": "green", "detail": "sum(provider_net_usdc) credited to providers."},
+            {"key": "platform_fee_usdc", "label": "Platform Fee", "value": _money(row.get("platform_fee_usdc")), "unit": "USDC", "tone": "green", "detail": "sum(platform_fee_usdc) from provider_revenue_received."},
+            {"key": "provider_net_usdc", "label": "Provider Net", "value": _money(row.get("provider_net_usdc")), "unit": "USDC", "tone": "green", "detail": "sum(provider_net_usdc) credited to providers."},
             {"key": "analytics_health", "label": "Analytics Health", "value": overall_status, "unit": "status", "tone": "red" if overall_status == "degraded" else "orange" if overall_status == "monitoring" else "green", "detail": result.error or "ClickHouse analytics stream is queryable."},
         ]
         alerts = []
@@ -294,10 +303,10 @@ class ClickHouseAnalyticsDashboardRepository:
             "invokeCompletedCount": completed,
             "invokeFailedCount": failed,
             "successRate": _rate(completed, completed + failed),
-            "gmvUsdc": _float(row.get("gmv_usdc")),
-            "priceAvgUsdc": _float(row.get("price_avg_usdc")),
-            "platformFeeUsdc": _float(row.get("platform_fee_usdc")),
-            "providerNetUsdc": _float(row.get("provider_net_usdc")),
+            "gmvUsdc": _money(row.get("gmv_usdc")),
+            "priceAvgUsdc": _money(row.get("price_avg_usdc")),
+            "platformFeeUsdc": _money(row.get("platform_fee_usdc")),
+            "providerNetUsdc": _money(row.get("provider_net_usdc")),
             "latencyMs": {"p50": _float(row.get("latency_p50_ms")), "p95": _float(row.get("latency_p95_ms")), "p99": _float(row.get("latency_p99_ms"))},
             "failureStages": [_list_item(item) for item in stage_rows],
             "errorCodes": [_list_item(item) for item in error_rows],
@@ -306,9 +315,9 @@ class ClickHouseAnalyticsDashboardRepository:
                     "bucket": str(item.get("bucket") or ""),
                     "invokeCompleted": _int(item.get("invokeCompleted")),
                     "invokeFailed": _int(item.get("invokeFailed")),
-                    "gmvUsdc": _float(item.get("gmvUsdc")),
-                    "platformFeeUsdc": _float(item.get("platformFeeUsdc")),
-                    "providerNetUsdc": _float(item.get("providerNetUsdc")),
+                    "gmvUsdc": _money(item.get("gmvUsdc")),
+                    "platformFeeUsdc": _money(item.get("platformFeeUsdc")),
+                    "providerNetUsdc": _money(item.get("providerNetUsdc")),
                 }
                 for item in trend_rows
             ],
@@ -376,11 +385,11 @@ class ClickHouseAnalyticsDashboardRepository:
             "revenueProviderCount": _int(row.get("revenue_provider_count")),
             "firstRevenueProviderCount": _int(row.get("first_revenue_provider_count")),
             "avgTimeSinceListingMs": _float(row.get("avg_time_since_listing_ms")),
-            "providerGrossUsdc": _float(row.get("provider_gross_usdc")),
-            "platformFeeUsdc": _float(row.get("platform_fee_usdc")),
-            "providerNetUsdc": _float(row.get("provider_net_usdc")),
-            "pendingSettlementUsdc": 0,
-            "settlementCompletedUsdc": _float(row.get("settlement_completed_usdc")),
+            "providerGrossUsdc": _money(row.get("provider_gross_usdc")),
+            "platformFeeUsdc": _money(row.get("platform_fee_usdc")),
+            "providerNetUsdc": _money(row.get("provider_net_usdc")),
+            "pendingSettlementUsdc": "0.000000",
+            "settlementCompletedUsdc": _money(row.get("settlement_completed_usdc")),
             "settlementFailureRate": _rate(failed, requested),
             "settlementP95ConfirmMs": _float(row.get("settlement_p95_confirm_ms")),
             "settlementFunnel": [
@@ -388,7 +397,7 @@ class ClickHouseAnalyticsDashboardRepository:
                     "eventName": str(item.get("eventName") or ""),
                     "label": str(item.get("label") or ""),
                     "count": _int(item.get("count")),
-                    "amountUsdc": _float(item.get("amountUsdc")),
+                    "amountUsdc": _money(item.get("amountUsdc")),
                     "conversionRate": 1.0 if str(item.get("eventName")) == "provider_revenue_received" else _rate(_int(item.get("count")), max(requested, 1)),
                 }
                 for item in funnel_rows
@@ -397,8 +406,8 @@ class ClickHouseAnalyticsDashboardRepository:
                 {
                     "providerId": str(item.get("providerId") or "unknown"),
                     "serviceId": str(item.get("serviceId") or "unknown"),
-                    "grossUsdc": _float(item.get("grossUsdc")),
-                    "providerNetUsdc": _float(item.get("providerNetUsdc")),
+                    "grossUsdc": _money(item.get("grossUsdc")),
+                    "providerNetUsdc": _money(item.get("providerNetUsdc")),
                     "invokeCount": _int(item.get("invokeCount")),
                 }
                 for item in top_rows
@@ -457,18 +466,18 @@ class ClickHouseAnalyticsDashboardRepository:
         ).rows
         return {
             "window": window,
-            "depositUsdc": _float(row.get("deposit_usdc")),
+            "depositUsdc": _money(row.get("deposit_usdc")),
             "depositFailedCount": _int(row.get("deposit_failed_count")),
-            "withdrawalUsdc": _float(row.get("withdrawal_usdc")),
+            "withdrawalUsdc": _money(row.get("withdrawal_usdc")),
             "withdrawalFailedCount": _int(row.get("withdrawal_failed_count")),
-            "refundUsdc": _float(row.get("refund_usdc")),
+            "refundUsdc": _money(row.get("refund_usdc")),
             "confirmLatencyMs": {"p50": _float(row.get("confirm_p50_ms")), "p95": _float(row.get("confirm_p95_ms"))},
             "depositErrors": [_list_item(item) for item in deposit_errors],
             "depositFailureSamples": [
                 {
                     "timestamp": str(item.get("eventTimestamp") or item.get("timestamp") or ""),
                     "errorCode": str(item.get("errorCode") or "unknown"),
-                    "amountUsdc": _float(item.get("amountUsdc")),
+                    "amountUsdc": _money(item.get("amountUsdc")),
                     "env": str(item.get("env") or "unknown"),
                     "correlationId": str(item.get("correlationId") or ""),
                     "txHash": str(item.get("txHash") or ""),
@@ -590,7 +599,7 @@ class ClickHouseAnalyticsDashboardRepository:
                 }
                 for item in provider_rows
             ],
-            "budgetGapUsdc": _float(summary.get("budget_gap_usdc")),
+            "budgetGapUsdc": _money(summary.get("budget_gap_usdc")),
             "budgetBlocks": [
                 {
                     "key": str(item.get("key") or "unknown"),
@@ -598,9 +607,9 @@ class ClickHouseAnalyticsDashboardRepository:
                     "serviceId": str(item.get("serviceId") or "unknown"),
                     "surface": str(item.get("surface") or "unknown"),
                     "count": _int(item.get("count")),
-                    "requiredUsdc": _float(item.get("requiredUsdc")),
-                    "availableUsdc": _float(item.get("availableUsdc")),
-                    "gapUsdc": _float(item.get("gapUsdc")),
+                    "requiredUsdc": _money(item.get("requiredUsdc")),
+                    "availableUsdc": _money(item.get("availableUsdc")),
+                    "gapUsdc": _money(item.get("gapUsdc")),
                 }
                 for item in budget_blocks
             ],
@@ -609,8 +618,8 @@ class ClickHouseAnalyticsDashboardRepository:
                     "timestamp": str(item.get("eventTimestamp") or item.get("timestamp") or ""),
                     "serviceId": str(item.get("serviceId") or "unknown"),
                     "errorCode": str(item.get("errorCode") or "unknown"),
-                    "requiredUsdc": _float(item.get("requiredUsdc")),
-                    "availableUsdc": _float(item.get("availableUsdc")),
+                    "requiredUsdc": _money(item.get("requiredUsdc")),
+                    "availableUsdc": _money(item.get("availableUsdc")),
                     "correlationId": str(item.get("correlationId") or ""),
                     "surface": str(item.get("surface") or "unknown"),
                 }
